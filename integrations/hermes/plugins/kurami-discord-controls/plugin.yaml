@@ -1,0 +1,16 @@
+name: kurami-discord-controls
+label: Discord with Kurami controls
+kind: platform
+version: 1.0.0
+description: >
+  Extends the bundled Hermes Discord adapter with a narrow listener for
+  Kurami Dev Orchestrator native control components.
+author: Alex / Kurami
+requires_env:
+  - name: DISCORD_BOT_TOKEN
+    description: Discord bot token
+    password: true
+optional_env:
+  - name: DISCORD_ALLOWED_USERS
+    description: Comma-separated Discord user IDs allowed to use the bot
+    password: false

@@ -1,0 +1,58 @@
+version: 1
+
+projects:
+  tailortales:
+    owner: Shagon1k
+    project_number: 2
+    repository: Shagon1k/TailorTales
+    status_field: Status
+    human_control_label: human-control
+    telegram:
+      chat_id: "234109954"
+      topic_id: "509551"
+    discord:
+      guild_id: "1538486166330933358"
+      channel_id: "1538490534820061286"
+    statuses:
+      backlog: Backlog
+      active: In progress
+      review: Human Review
+      done: Done
+      deferred: Deferred
+    workspace:
+      canonical_repository: /home/shagon1k/_projects/TailorTales
+      worktree_root: /home/shagon1k/_projects/.worktrees/tailortales
+      base_branch: main
+      branch_prefix: TT
+    preview:
+      adapter: compose
+      compose_file: docker-compose.yml
+      secrets_file: /home/shagon1k/_hermes/_orchestrator/secrets/tailortales-preview.env
+      allowed_email: shagon1k@gmail.com
+      frontend_health_path: /en
+      backend_health_path: /health
+      minio_health_path: /minio/health/live
+
+  pickflick:
+    owner: Shagon1k
+    project_number: 3
+    repository: Shagon1k/PickFlick
+    status_field: Status
+    human_control_label: human-control
+    telegram:
+      chat_id: "234109954"
+      topic_id: "509547"
+    discord:
+      guild_id: "1538486166330933358"
+      channel_id: "1538490579699245119"
+    statuses:
+      backlog: Backlog
+      active: In progress
+      review: Human Review
+      done: Done
+      deferred: Deferred
+    workspace:
+      canonical_repository: /home/shagon1k/_projects/PickFlick
+      worktree_root: /home/shagon1k/_projects/.worktrees/pickflick
+      base_branch: main
+      branch_prefix: PF

@@ -1,0 +1,13 @@
+version: 1
+mode: live
+
+limits:
+  max_active_global: 2
+  max_active_per_project: 2
+  max_llm_running_global: 1
+  max_parked_review_global: 4
+  max_tmux_sessions_global: 2
+  max_previews_global: 6
+  max_preview_builds_global: 2
+  min_preview_available_memory_mib: 4096
+  min_preview_available_disk_gib: 20

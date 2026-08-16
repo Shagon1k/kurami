@@ -1,0 +1,6 @@
+{
+	admin 127.0.0.1:2019
+	auto_https off
+}
+
+import /home/shagon1k/_hermes/_orchestrator/state/caddy/routes.caddy

@@ -1,0 +1,4 @@
+interface:
+  display_name: "Kurami Run Control"
+  short_description: "Operate an allowlisted Kurami engineering run safely"
+  default_prompt: "Inspect, redisplay, or request one safe control action for a Kurami engineering run."
