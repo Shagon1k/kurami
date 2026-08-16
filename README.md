@@ -67,15 +67,8 @@ app/
     verify-runtime-health.ts  Proves forgotten-preview detection without deletion
     verify-monthly-maintenance.ts
                               Proves exact log cleanup selection and exclusions
-  bin/
-    run-state-backup.sh       Three-day no-agent backup entry point
-    run-runtime-health.sh     Quiet-on-success health alert entry point
-    run-runtime-health-heartbeat.sh
-                              Three-hour friendly healthy snapshot entry point
-    run-monthly-maintenance.sh
-                              Monthly bounded cleanup entry point
   run-project-poller.sh       Production poll -> consume wrapper
-  launch-codex-session.sh     Secret-aware child launcher used only inside managed tmux
+  bin/launch-codex-session.sh Secret-aware child launcher used only inside managed tmux
   package.json
   tsconfig.json
 
@@ -682,3 +675,13 @@ When something fails, inspect layers separately:
 Do not repair SQLite and external resources independently. Reconcile the recorded
 mapping against reality, preserve evidence, then perform the smallest reversible
 repair.
+
+## Recovery and tracked deployment assets
+
+Tracked deployment and recovery assets live under `deploy/` and
+`integrations/hermes/`. See [docs/recovery.md](docs/recovery.md) for the
+restore order, required secrets, external infrastructure, cron jobs, and
+post-restore verification.
+
+The deployed `kurami-run-control` skill must remain byte-for-byte aligned
+with `integrations/hermes/skills/kurami-run-control/`.

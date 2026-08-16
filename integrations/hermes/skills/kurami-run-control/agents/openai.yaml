@@ -1,4 +1,7 @@
 interface:
   display_name: "Kurami Run Control"
-  short_description: "Operate an allowlisted Kurami engineering run safely"
-  default_prompt: "Inspect, redisplay, or request one safe control action for a Kurami engineering run."
+  short_description: "Safely inspect and control a Kurami engineering run"
+  default_prompt: "Use $kurami-run-control to inspect a Kurami run or request one allowlisted control action."
+
+policy:
+  allow_implicit_invocation: true
