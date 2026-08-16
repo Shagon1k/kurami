@@ -1,0 +1,417 @@
+import { randomUUID } from "node:crypto";
+import { readFile } from "node:fs/promises";
+import { resolve } from "node:path";
+import { DatabaseSync } from "node:sqlite";
+import { parse } from "yaml";
+
+process.umask(0o077);
+
+type Command = "allocate" | "inspect" | "release";
+
+type Arguments = {
+  command: Command;
+  runId?: string;
+  apply: boolean;
+  runtimeAbsent: boolean;
+};
+
+type OrchestratorConfig = {
+  version: number;
+  mode: "dry_run" | "live";
+  limits: {
+    max_previews_global: number;
+    max_preview_builds_global: number;
+  };
+};
+
+type RunRecord = {
+  run_id: string;
+  project: string;
+  issue_number: number;
+  state: string;
+  execution_mode: string;
+  preview_id: string | null;
+};
+
+type SlotRecord = {
+  slot_number: number;
+  hostname: string;
+  assets_hostname: string;
+  frontend_port: number;
+  backend_port: number;
+  postgres_port: number;
+  redis_port: number;
+  minio_api_port: number;
+  minio_console_port: number;
+};
+
+type LeaseRecord = SlotRecord & {
+  lease_id: string;
+  run_id: string;
+  state: string;
+  compose_project_name: string;
+  leased_at: string;
+  updated_at: string;
+  released_at: string | null;
+  release_reason: string | null;
+};
+
+const orchestratorHome = resolve(
+  process.env.ORCHESTRATOR_HOME ?? resolve(import.meta.dirname, "../.."),
+);
+const databasePath = resolve(orchestratorHome, "state/orchestrator.db");
+const configPath = resolve(orchestratorHome, "config/orchestrator.yaml");
+
+function fail(message: string): never {
+  throw new Error(message);
+}
+
+function parseArguments(): Arguments {
+  const args = process.argv.slice(2);
+  const command = args.shift() as Command | undefined;
+  if (!command || !["allocate", "inspect", "release"].includes(command)) {
+    fail(
+      "Usage: preview-manager.ts <allocate|inspect|release> [--run-id <id>] [--apply] [--runtime-absent]",
+    );
+  }
+
+  let runId: string | undefined;
+  let apply = false;
+  let runtimeAbsent = false;
+  for (let index = 0; index < args.length; index += 1) {
+    const arg = args[index];
+    if (arg === "--run-id") {
+      runId = args[index + 1];
+      if (!runId) fail("--run-id requires a value");
+      index += 1;
+    } else if (arg === "--apply") {
+      apply = true;
+    } else if (arg === "--runtime-absent") {
+      runtimeAbsent = true;
+    } else {
+      fail(`Unknown argument: ${arg}`);
+    }
+  }
+
+  if ((command === "allocate" || command === "release") && !runId) {
+    fail(`${command} requires --run-id`);
+  }
+  if (command === "inspect" && (apply || runtimeAbsent)) {
+    fail("inspect does not accept mutation flags");
+  }
+  if (command !== "release" && runtimeAbsent) {
+    fail("--runtime-absent is valid only for release");
+  }
+  return { command, runId, apply, runtimeAbsent };
+}
+
+function activeLeaseForRun(
+  database: DatabaseSync,
+  runId: string,
+): LeaseRecord | undefined {
+  return database
+    .prepare(`
+      SELECT pl.*, ps.hostname, ps.assets_hostname,
+             ps.frontend_port, ps.backend_port, ps.postgres_port, ps.redis_port,
+             ps.minio_api_port, ps.minio_console_port
+      FROM preview_leases pl
+      JOIN preview_slots ps USING (slot_number)
+      WHERE pl.run_id = ? AND pl.state <> 'released'
+      ORDER BY pl.leased_at DESC
+      LIMIT 1
+    `)
+    .get(runId) as LeaseRecord | undefined;
+}
+
+function runRecord(database: DatabaseSync, runId: string): RunRecord {
+  const run = database
+    .prepare(`
+      SELECT r.run_id, r.project, r.issue_number, r.state, r.execution_mode,
+             rr.preview_id
+      FROM runs r
+      JOIN run_resources rr USING (run_id)
+      WHERE r.run_id = ?
+    `)
+    .get(runId) as RunRecord | undefined;
+  if (!run) fail(`Run not found: ${runId}`);
+  return run;
+}
+
+function firstFreeSlot(database: DatabaseSync): SlotRecord | undefined {
+  return database
+    .prepare(`
+      SELECT ps.slot_number, ps.hostname, ps.assets_hostname,
+             ps.frontend_port, ps.backend_port, ps.postgres_port, ps.redis_port,
+             ps.minio_api_port, ps.minio_console_port
+      FROM preview_slots ps
+      WHERE ps.enabled = 1
+        AND NOT EXISTS (
+          SELECT 1 FROM preview_leases pl
+          WHERE pl.slot_number = ps.slot_number AND pl.state <> 'released'
+        )
+      ORDER BY ps.slot_number
+      LIMIT 1
+    `)
+    .get() as SlotRecord | undefined;
+}
+
+function activeLeaseCount(database: DatabaseSync): number {
+  return Number(
+    (
+      database
+        .prepare("SELECT COUNT(*) AS count FROM preview_leases WHERE state <> 'released'")
+        .get() as { count: number }
+    ).count,
+  );
+}
+
+function composeProjectName(slotNumber: number, runId: string): string {
+  const suffix = runId.toLowerCase().replace(/[^a-z0-9]/g, "").slice(-10);
+  if (!suffix) fail(`Run ID cannot produce a Compose project name: ${runId}`);
+  return `kurami-pv${slotNumber}-${suffix}`;
+}
+
+function leaseView(lease: LeaseRecord): Record<string, unknown> {
+  return {
+    leaseId: lease.lease_id,
+    runId: lease.run_id,
+    state: lease.state,
+    slotNumber: lease.slot_number,
+    hostname: lease.hostname,
+    assetsHostname: lease.assets_hostname,
+    composeProjectName: lease.compose_project_name,
+    ports: {
+      frontend: lease.frontend_port,
+      backend: lease.backend_port,
+      postgres: lease.postgres_port,
+      redis: lease.redis_port,
+      minioApi: lease.minio_api_port,
+      minioConsole: lease.minio_console_port,
+    },
+  };
+}
+
+function inspect(database: DatabaseSync): void {
+  const leases = database
+    .prepare(`
+      SELECT pl.*, ps.hostname, ps.assets_hostname,
+             ps.frontend_port, ps.backend_port, ps.postgres_port, ps.redis_port,
+             ps.minio_api_port, ps.minio_console_port
+      FROM preview_leases pl
+      JOIN preview_slots ps USING (slot_number)
+      WHERE pl.state <> 'released'
+      ORDER BY ps.slot_number
+    `)
+    .all() as LeaseRecord[];
+  const slots = database
+    .prepare(`
+      SELECT ps.slot_number, ps.hostname, ps.assets_hostname, ps.enabled,
+             CASE WHEN pl.lease_id IS NULL THEN 'free' ELSE pl.state END AS state,
+             pl.run_id
+      FROM preview_slots ps
+      LEFT JOIN preview_leases pl
+        ON pl.slot_number = ps.slot_number AND pl.state <> 'released'
+      ORDER BY ps.slot_number
+    `)
+    .all();
+  process.stdout.write(
+    `${JSON.stringify({ ok: true, active: leases.length, slots, leases: leases.map(leaseView) })}\n`,
+  );
+}
+
+function allocate(
+  database: DatabaseSync,
+  config: OrchestratorConfig,
+  runId: string,
+  apply: boolean,
+): void {
+  database.exec("BEGIN IMMEDIATE");
+  try {
+    const run = runRecord(database, runId);
+    if (run.execution_mode !== "live") fail(`Run is not live: ${runId}`);
+    if (!["running", "remote_owned", "parked_review"].includes(run.state)) {
+      fail(`Run state is not preview-eligible: ${run.state}`);
+    }
+
+    const existing = activeLeaseForRun(database, runId);
+    if (existing) {
+      database.exec("COMMIT");
+      process.stdout.write(
+        `${JSON.stringify({ ok: true, apply, action: "existing", ...leaseView(existing) })}\n`,
+      );
+      return;
+    }
+    if (run.preview_id !== null) {
+      fail(`Run has preview_id without an active lease: ${run.preview_id}`);
+    }
+
+    const active = activeLeaseCount(database);
+    if (active >= config.limits.max_previews_global) {
+      fail(`Preview cap reached: ${active}/${config.limits.max_previews_global}`);
+    }
+    const slot = firstFreeSlot(database);
+    if (!slot) fail("No enabled preview slot is free");
+
+    const planned = {
+      runId,
+      slotNumber: slot.slot_number,
+      hostname: slot.hostname,
+      assetsHostname: slot.assets_hostname,
+      composeProjectName: composeProjectName(slot.slot_number, runId),
+      ports: {
+        frontend: slot.frontend_port,
+        backend: slot.backend_port,
+        postgres: slot.postgres_port,
+        redis: slot.redis_port,
+        minioApi: slot.minio_api_port,
+        minioConsole: slot.minio_console_port,
+      },
+    };
+    if (!apply) {
+      database.exec("ROLLBACK");
+      process.stdout.write(
+        `${JSON.stringify({ ok: true, apply: false, action: "allocate", plan: planned })}\n`,
+      );
+      return;
+    }
+
+    const leaseId = `pv_${randomUUID().replaceAll("-", "")}`;
+    database
+      .prepare(`
+        INSERT INTO preview_leases (
+          lease_id, run_id, slot_number, state, compose_project_name
+        ) VALUES (?, ?, ?, 'leased', ?)
+      `)
+      .run(leaseId, runId, slot.slot_number, planned.composeProjectName);
+    database
+      .prepare(`
+        UPDATE run_resources
+        SET preview_id = ?, updated_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
+        WHERE run_id = ?
+      `)
+      .run(`preview-${slot.slot_number}`, runId);
+    database
+      .prepare(`
+        INSERT INTO run_state_history (
+          run_id, from_state, to_state, reason, details_json
+        ) VALUES (?, ?, ?, 'preview_slot_leased', ?)
+      `)
+      .run(runId, run.state, run.state, JSON.stringify(planned));
+    database.exec("COMMIT");
+    process.stdout.write(
+      `${JSON.stringify({ ok: true, apply: true, action: "allocated", leaseId, ...planned })}\n`,
+    );
+  } catch (error) {
+    database.exec("ROLLBACK");
+    throw error;
+  }
+}
+
+function release(
+  database: DatabaseSync,
+  runId: string,
+  apply: boolean,
+  runtimeAbsent: boolean,
+): void {
+  database.exec("BEGIN IMMEDIATE");
+  try {
+    const run = runRecord(database, runId);
+    const lease = activeLeaseForRun(database, runId);
+    if (!lease) {
+      if (run.preview_id !== null) {
+        fail(`Run has preview_id without an active lease: ${run.preview_id}`);
+      }
+      database.exec("COMMIT");
+      process.stdout.write(
+        `${JSON.stringify({ ok: true, apply, action: "not_leased", runId })}\n`,
+      );
+      return;
+    }
+
+    const plan = { ...leaseView(lease), requiresRuntimeAbsent: true };
+    if (!apply) {
+      database.exec("ROLLBACK");
+      process.stdout.write(
+        `${JSON.stringify({ ok: true, apply: false, action: "release", plan })}\n`,
+      );
+      return;
+    }
+    if (!runtimeAbsent) {
+      fail("Refusing lease release without --runtime-absent");
+    }
+
+    database
+      .prepare(`
+        UPDATE preview_leases
+        SET state = 'released',
+            released_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now'),
+            updated_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now'),
+            release_reason = 'runtime_absence_confirmed'
+        WHERE lease_id = ? AND state <> 'released'
+      `)
+      .run(lease.lease_id);
+    database
+      .prepare(`
+        UPDATE run_resources
+        SET preview_id = NULL, updated_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
+        WHERE run_id = ? AND preview_id = ?
+      `)
+      .run(runId, `preview-${lease.slot_number}`);
+    database
+      .prepare(`
+        INSERT INTO run_state_history (
+          run_id, from_state, to_state, reason, details_json
+        ) VALUES (?, ?, ?, 'preview_slot_released', ?)
+      `)
+      .run(runId, run.state, run.state, JSON.stringify(leaseView(lease)));
+    database.exec("COMMIT");
+    process.stdout.write(
+      `${JSON.stringify({ ok: true, apply: true, action: "released", ...leaseView(lease) })}\n`,
+    );
+  } catch (error) {
+    database.exec("ROLLBACK");
+    throw error;
+  }
+}
+
+async function main(): Promise<void> {
+  const args = parseArguments();
+  const config = parse(await readFile(configPath, "utf8")) as OrchestratorConfig;
+  if (config.version !== 1) fail("Unsupported orchestrator config version");
+  if (
+    !Number.isInteger(config.limits.max_previews_global) ||
+    config.limits.max_previews_global < 1 ||
+    config.limits.max_previews_global > 6
+  ) {
+    fail("Invalid max_previews_global");
+  }
+  if (
+    !Number.isInteger(config.limits.max_preview_builds_global) ||
+    config.limits.max_preview_builds_global < 1 ||
+    config.limits.max_preview_builds_global > config.limits.max_previews_global
+  ) {
+    fail("Invalid max_preview_builds_global");
+  }
+  if (args.apply && config.mode !== "live") {
+    fail(`Refusing preview mutation in mode=${config.mode}`);
+  }
+
+  const database = new DatabaseSync(databasePath, { timeout: 5_000 });
+  try {
+    database.exec("PRAGMA foreign_keys = ON; PRAGMA busy_timeout = 5000;");
+    if (args.command === "inspect") inspect(database);
+    else if (args.command === "allocate") {
+      allocate(database, config, args.runId!, args.apply);
+    } else {
+      release(database, args.runId!, args.apply, args.runtimeAbsent);
+    }
+  } finally {
+    database.close();
+  }
+}
+
+main().catch((error: unknown) => {
+  const message = error instanceof Error ? error.message : String(error);
+  process.stderr.write(`${JSON.stringify({ ok: false, error: message })}\n`);
+  process.exitCode = 1;
+});

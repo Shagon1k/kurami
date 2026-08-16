@@ -1,0 +1,35 @@
+{
+  "name": "kurami-orchestrator",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "poll": "node src/poll-projects.ts",
+    "check": "tsc --noEmit",
+    "db:init": "node src/init-run-store.ts",
+    "test:admission": "node tests/verify-dry-run-admission.ts",
+    "test:release": "node tests/verify-completed-release.ts",
+    "test:preview-slots": "node tests/verify-preview-slots.ts",
+    "test:preview-ingress": "node tests/verify-preview-ingress.ts",
+    "test:controls": "node tests/verify-run-controls.ts",
+    "test:observer": "node tests/verify-session-observer.ts",
+    "test:discord": "node tests/verify-discord-controls.ts",
+    "test:discord-plugin": "KURAMI_DISCORD_PLUGIN_DIR=/home/shagon1k/_hermes/_core/plugins/kurami-discord-controls python3 tests/verify-discord-plugin.py",
+    "test:backup": "node tests/verify-state-backup.ts",
+    "test:runtime-health": "node tests/verify-runtime-health.ts",
+    "test:maintenance": "node tests/verify-monthly-maintenance.ts"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "module",
+  "private": true,
+  "dependencies": {
+    "yaml": "^2.9.0"
+  },
+  "devDependencies": {
+    "@types/node": "^26.2.0",
+    "typescript": "^7.0.2"
+  }
+}

@@ -1,0 +1,45 @@
+# Dependencies and build output
+node_modules/
+dist/
+coverage/
+*.tsbuildinfo
+
+# Environment and credentials
+.env
+.env.*
+!.env.example
+!*.env.example
+.envrc
+.npmrc
+*.pem
+*.key
+*.p12
+
+# Runtime state
+state/
+logs/
+backups/
+runtime/
+tmp/
+secrets/
+*.db
+*.db-*
+*.sqlite
+*.sqlite3
+
+# Archives and logs
+*.log
+npm-debug.log*
+*.tgz
+*.tar.gz
+
+# Test/runtime artifacts
+.pytest_cache/
+__pycache__/
+*.py[cod]
+
+# Editors and OS
+.DS_Store
+.idea/
+.vscode/
+*.swp

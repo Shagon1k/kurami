@@ -1,0 +1,1279 @@
+import { createHash } from "node:crypto";
+import { execFileSync } from "node:child_process";
+import { readFile } from "node:fs/promises";
+import { resolve } from "node:path";
+import { DatabaseSync } from "node:sqlite";
+import { parse } from "yaml";
+import { codexLaunchUrl } from "./codex-deeplink.ts";
+
+process.umask(0o077);
+
+type DiscordConfig = { guild_id: string; channel_id: string };
+type ProjectConfig = {
+  discord?: DiscordConfig;
+  preview?: Record<string, unknown>;
+  workspace: { branch_prefix: string };
+};
+type ProjectsRegistry = {
+  version: number;
+  projects: Record<string, ProjectConfig>;
+};
+type EventKind =
+  | "review_ready"
+  | "human_control_ready"
+  | "preview_ready"
+  | "preview_failed"
+  | "attention_required";
+type CardRow = {
+  run_id: string;
+  stage: string;
+  detail: string;
+  content_digest: string;
+  desired_surface_digest: string;
+  updated_at: string;
+  project: string;
+  repository: string;
+  issue_number: number;
+  interaction_policy: string;
+  run_state: string;
+  owner_state: string;
+  title: string | null;
+  issue_url: string | null;
+  branch_name: string | null;
+  codex_thread_id: string | null;
+  preview_hostname: string | null;
+  preview_state: string | null;
+  surface_state: string | null;
+  surface_guild_id: string | null;
+  surface_parent_channel_id: string | null;
+  live_card_message_id: string | null;
+  discord_thread_id: string | null;
+  control_message_id: string | null;
+  discord_owner_user_id: string | null;
+  surface_content_digest: string | null;
+  pull_request_url: string | null;
+  pull_request_title: string | null;
+  surface_attempt_count: number | null;
+};
+type EventRow = {
+  event_id: string;
+  run_id: string;
+  event_kind: EventKind;
+  project: string;
+  repository: string;
+  issue_number: number;
+  run_state: string;
+  owner_state: string;
+  title: string | null;
+  issue_url: string | null;
+  branch_name: string | null;
+  codex_thread_id: string | null;
+  preview_hostname: string | null;
+  guild_id: string;
+  thread_id: string;
+  control_message_id: string | null;
+  delivery_state: string;
+};
+type PullRequest = { url: string; title: string };
+type DiscordObject = Record<string, unknown>;
+
+const orchestratorHome = resolve(
+  process.env.ORCHESTRATOR_HOME ?? resolve(import.meta.dirname, "../.."),
+);
+const hermesHome = resolve(
+  process.env.HERMES_HOME ?? "/home/shagon1k/_hermes/_core",
+);
+const databasePath = resolve(orchestratorHome, "state/orchestrator.db");
+const projectsPath = resolve(orchestratorHome, "config/projects.yaml");
+const apiBase = (
+  process.env.DISCORD_API_BASE ?? "https://discord.com/api/v10"
+).replace(/\/$/u, "");
+const terminalStages = new Set(["completed", "cancelled"]);
+const ownerTimestampFormatter = new Intl.DateTimeFormat("en-GB", {
+  timeZone: "Europe/Vilnius",
+  day: "2-digit",
+  month: "2-digit",
+  year: "2-digit",
+  hour: "2-digit",
+  minute: "2-digit",
+  hourCycle: "h23",
+});
+const desiredSurfaceDigestSql = `
+  pc.content_digest || ':' || r.state || ':' || r.owner_state || ':' ||
+  COALESCE(rr.codex_thread_id, 'thread:none') || ':' ||
+  COALESCE(pl.state, 'preview:none') || ':' ||
+  COALESCE(ps.hostname, 'host:none') || ':discord-ux-v2'
+`;
+
+function fail(message: string): never {
+  throw new Error(message);
+}
+
+function parseArguments(): {
+  command: "sync" | "show";
+  runId?: string;
+  apply: boolean;
+} {
+  const args = process.argv.slice(2);
+  const command = args[0] === "show" ? "show" : "sync";
+  const runIndex = args.indexOf("--run-id");
+  const runId = runIndex >= 0 ? args[runIndex + 1]?.trim() : undefined;
+  const known = new Set(["show", "--run-id", runId, "--apply"]);
+  if (args.some((arg) => !known.has(arg)))
+    fail(
+      "Usage: notify-discord-controls.ts [--apply] | show --run-id <run_id> [--apply]",
+    );
+  if (command === "show" && (!runId || !/^r_[A-Za-z0-9_]+$/u.test(runId)))
+    fail("show requires a valid --run-id");
+  if (command === "sync" && runId) fail("--run-id is only supported by show");
+  return { command, runId, apply: args.includes("--apply") };
+}
+
+function parseEnvValue(content: string, key: string): string | undefined {
+  for (const rawLine of content.split(/\r?\n/u)) {
+    const line = rawLine.trim();
+    if (!line || line.startsWith("#")) continue;
+    const match = /^([A-Z][A-Z0-9_]*)=(.*)$/u.exec(line);
+    if (!match || match[1] !== key) continue;
+    let value = match[2].trim();
+    if (
+      (value.startsWith('"') && value.endsWith('"')) ||
+      (value.startsWith("'") && value.endsWith("'"))
+    )
+      value = value.slice(1, -1);
+    return value || undefined;
+  }
+  return undefined;
+}
+
+async function loadDiscordToken(): Promise<string> {
+  const scoped = process.env.DISCORD_BOT_TOKEN?.trim();
+  if (scoped) return scoped;
+  const env = await readFile(resolve(hermesHome, ".env"), "utf8");
+  const token = parseEnvValue(env, "DISCORD_BOT_TOKEN");
+  if (!token) fail("DISCORD_BOT_TOKEN is unavailable");
+  return token;
+}
+
+async function loadDiscordOwnerId(): Promise<string> {
+  let raw = process.env.DISCORD_ALLOWED_USERS?.trim();
+  if (!raw) {
+    const env = await readFile(resolve(hermesHome, ".env"), "utf8");
+    raw = parseEnvValue(env, "DISCORD_ALLOWED_USERS");
+  }
+  const owners = (raw ?? "").split(/[\s,]+/u).filter(Boolean);
+  if (owners.length !== 1 || !/^\d+$/u.test(owners[0]!))
+    fail("Discord control plane requires exactly one numeric allowed owner ID");
+  return owners[0]!;
+}
+
+function ownerTimestamp(value: string): string {
+  const date = new Date(value);
+  if (Number.isNaN(date.valueOf())) return value;
+  const parts = Object.fromEntries(
+    ownerTimestampFormatter
+      .formatToParts(date)
+      .filter((part) => part.type !== "literal")
+      .map((part) => [part.type, part.value]),
+  );
+  return `${parts.day}.${parts.month}.${parts.year} ${parts.hour}:${parts.minute}`;
+}
+
+function stageTimestamp(value: string): string {
+  const date = new Date(value);
+  if (Number.isNaN(date.valueOf())) return ownerTimestamp(value);
+  return `${ownerTimestamp(value)} · <t:${Math.floor(date.valueOf() / 1_000)}:R>`;
+}
+
+function cleanTitle(value: string | null): string {
+  const title = (value ?? "Untitled issue").replace(
+    /^\s*\[[^\]]+\]\s*:\s*/u,
+    "",
+  );
+  return title.trim() || "Untitled issue";
+}
+
+function truncate(value: string, maximum: number): string {
+  if (value.length <= maximum) return value;
+  return `${value.slice(0, Math.max(0, maximum - 1)).trimEnd()}…`;
+}
+
+function threadName(card: CardRow, config: ProjectConfig): string {
+  return truncate(
+    `[${config.workspace.branch_prefix}-${card.issue_number}] ${cleanTitle(card.title)}`,
+    100,
+  );
+}
+
+function codexTaskName(
+  card: Pick<CardRow, "issue_number" | "title">,
+  config: ProjectConfig,
+): string {
+  return `[${config.workspace.branch_prefix}-${card.issue_number}]: ${cleanTitle(card.title)}`;
+}
+
+function repositoryName(repository: string): string {
+  return repository.split("/").at(-1) || repository;
+}
+
+function remoteCodexContext(
+  card: Pick<
+    CardRow,
+    | "codex_thread_id"
+    | "issue_number"
+    | "owner_state"
+    | "repository"
+    | "run_state"
+    | "title"
+  >,
+  project: ProjectConfig,
+): { launchUrl: string; summary: string } | null {
+  if (card.run_state !== "remote_owned" || card.owner_state !== "remote")
+    return null;
+  const launchUrl = codexLaunchUrl(card.codex_thread_id);
+  if (!launchUrl || !card.codex_thread_id) return null;
+  return {
+    launchUrl,
+    summary: [
+      `[Open in Codex](${launchUrl})`,
+      `**Task:** ${truncate(codexTaskName(card, project), 300)}`,
+      `**Connection/project:** \`shagserv / ${repositoryName(card.repository)}\``,
+      `**Thread ID:** \`${card.codex_thread_id}\``,
+      "Automation released: managed CLI/tmux no longer owns this task.",
+    ].join("\n"),
+  };
+}
+
+function deterministicNonce(kind: "card" | "event", id: string): string {
+  return `${kind[0]}-${createHash("sha256").update(id).digest("hex").slice(0, 20)}`;
+}
+
+function loadDesiredCards(database: DatabaseSync): CardRow[] {
+  return database
+    .prepare(
+      `
+      SELECT pc.run_id, pc.stage, pc.detail, pc.content_digest,
+             ${desiredSurfaceDigestSql} AS desired_surface_digest,
+             pc.updated_at,
+             r.project, r.repository, r.issue_number, r.interaction_policy,
+             r.state AS run_state, r.owner_state,
+             pe.title, pe.url AS issue_url,
+             rr.branch_name, rr.codex_thread_id,
+             ps.hostname AS preview_hostname,
+             pl.state AS preview_state,
+             ds.state AS surface_state,
+             ds.guild_id AS surface_guild_id,
+             ds.parent_channel_id AS surface_parent_channel_id,
+             ds.live_card_message_id,
+             ds.thread_id AS discord_thread_id,
+             ds.control_message_id,
+             ds.owner_user_id AS discord_owner_user_id,
+             ds.content_digest AS surface_content_digest,
+             ds.pull_request_url,
+             ds.pull_request_title,
+             ds.attempt_count AS surface_attempt_count
+      FROM run_progress_cards pc
+      JOIN runs r USING (run_id)
+      JOIN project_events pe ON pe.event_id = r.trigger_event_id
+      JOIN run_resources rr USING (run_id)
+      JOIN discord_transport_settings settings ON settings.singleton = 1
+      LEFT JOIN preview_leases pl
+        ON pl.run_id = r.run_id AND pl.state <> 'released'
+      LEFT JOIN preview_slots ps USING (slot_number)
+      LEFT JOIN run_discord_surfaces ds USING (run_id)
+      WHERE r.created_at >= settings.activated_at
+        AND (
+          ds.run_id IS NULL
+          OR ds.state IN ('pending', 'provisioning', 'failed')
+          OR (
+            pc.stage NOT IN ('completed', 'cancelled')
+            AND (
+              ds.content_digest IS NULL
+              OR ds.content_digest <> (${desiredSurfaceDigestSql})
+              OR ds.control_message_id IS NULL
+              OR ds.owner_user_id IS NULL
+            )
+          )
+          OR (
+            pc.stage IN ('completed', 'cancelled')
+            AND ds.state <> 'archived'
+          )
+          OR (
+            (
+              pc.stage = 'review_ready'
+              OR (pc.stage = 'completed' AND ds.state <> 'archived')
+            )
+            AND ds.pull_request_url IS NULL
+          )
+        )
+        AND COALESCE(ds.attempt_count, 0) < 5
+      ORDER BY r.created_at, r.run_id
+    `,
+    )
+    .all() as CardRow[];
+}
+
+function loadCard(database: DatabaseSync, runId: string): CardRow {
+  const card = database
+    .prepare(
+      `
+      SELECT pc.run_id, pc.stage, pc.detail, pc.content_digest,
+             ${desiredSurfaceDigestSql} AS desired_surface_digest,
+             pc.updated_at,
+             r.project, r.repository, r.issue_number, r.interaction_policy,
+             r.state AS run_state, r.owner_state,
+             pe.title, pe.url AS issue_url,
+             rr.branch_name, rr.codex_thread_id,
+             ps.hostname AS preview_hostname,
+             pl.state AS preview_state,
+             ds.state AS surface_state,
+             ds.guild_id AS surface_guild_id,
+             ds.parent_channel_id AS surface_parent_channel_id,
+             ds.live_card_message_id,
+             ds.thread_id AS discord_thread_id,
+             ds.control_message_id,
+             ds.owner_user_id AS discord_owner_user_id,
+             ds.content_digest AS surface_content_digest,
+             ds.pull_request_url,
+             ds.pull_request_title,
+             ds.attempt_count AS surface_attempt_count
+      FROM run_progress_cards pc
+      JOIN runs r USING (run_id)
+      JOIN project_events pe ON pe.event_id = r.trigger_event_id
+      JOIN run_resources rr USING (run_id)
+      JOIN discord_transport_settings settings ON settings.singleton = 1
+      LEFT JOIN preview_leases pl
+        ON pl.run_id = r.run_id AND pl.state <> 'released'
+      LEFT JOIN preview_slots ps USING (slot_number)
+      LEFT JOIN run_discord_surfaces ds USING (run_id)
+      WHERE pc.run_id = ? AND r.created_at >= settings.activated_at
+    `,
+    )
+    .get(runId) as CardRow | undefined;
+  if (!card) fail(`No Discord-eligible run card found: ${runId}`);
+  if (terminalStages.has(card.stage))
+    fail(`Run controls are closed: ${card.stage}`);
+  return card;
+}
+
+function seedEventDeliveries(database: DatabaseSync): void {
+  database
+    .prepare(
+      `
+      INSERT OR IGNORE INTO run_discord_event_deliveries (event_id)
+      SELECT ce.event_id
+      FROM run_control_events ce
+      JOIN runs r USING (run_id)
+      JOIN discord_transport_settings settings ON settings.singleton = 1
+      WHERE r.created_at >= settings.activated_at
+    `,
+    )
+    .run();
+}
+
+function loadPendingEvents(database: DatabaseSync): EventRow[] {
+  return database
+    .prepare(
+      `
+      SELECT ce.event_id, ce.run_id, ce.event_kind,
+             r.project, r.repository, r.issue_number,
+             r.state AS run_state, r.owner_state,
+             pe.title, pe.url AS issue_url,
+             rr.branch_name, rr.codex_thread_id,
+             ps.hostname AS preview_hostname,
+             ds.guild_id, ds.thread_id, ds.control_message_id,
+             dd.delivery_state
+      FROM run_control_events ce
+      JOIN run_discord_event_deliveries dd USING (event_id)
+      JOIN runs r USING (run_id)
+      JOIN project_events pe ON pe.event_id = r.trigger_event_id
+      JOIN run_resources rr USING (run_id)
+      JOIN run_discord_surfaces ds USING (run_id)
+      LEFT JOIN preview_leases pl
+        ON pl.run_id = r.run_id AND pl.state = 'running'
+      LEFT JOIN preview_slots ps USING (slot_number)
+      WHERE dd.delivery_state IN ('pending', 'failed')
+        AND dd.attempt_count < 5
+        AND ds.thread_id IS NOT NULL
+      ORDER BY ce.created_at, ce.event_id
+    `,
+    )
+    .all() as EventRow[];
+}
+
+function eventStillValid(event: EventRow): boolean {
+  if (event.event_kind === "review_ready")
+    return event.run_state === "parked_review" && event.owner_state === "none";
+  if (event.event_kind === "human_control_ready")
+    return event.run_state === "remote_owned" && event.owner_state === "remote";
+  if (event.event_kind === "preview_ready")
+    return Boolean(event.preview_hostname);
+  if (event.event_kind === "preview_failed")
+    return !["cancelled", "archived"].includes(event.run_state);
+  return !["rejected", "cancelled", "archived"].includes(event.run_state);
+}
+
+function findPullRequest(
+  repository: string,
+  branchName: string | null,
+): PullRequest | null {
+  if (!branchName) return null;
+  try {
+    const stdout = execFileSync(
+      "gh",
+      [
+        "pr",
+        "list",
+        "--repo",
+        repository,
+        "--head",
+        branchName,
+        "--state",
+        "all",
+        "--limit",
+        "1",
+        "--json",
+        "url,title",
+      ],
+      {
+        encoding: "utf8",
+        env: process.env,
+        stdio: ["ignore", "pipe", "pipe"],
+      },
+    );
+    return (JSON.parse(stdout) as PullRequest[])[0] ?? null;
+  } catch {
+    return null;
+  }
+}
+
+function stageLabel(stage: string): string {
+  const labels: Record<string, string> = {
+    preparing: "Preparing worktree",
+    starting: "Starting Codex",
+    working: "Codex working",
+    finalizing_review: "Finalizing for review",
+    human_control: "Human control",
+    review_ready: "Ready for review",
+    waiting_human: "Waiting for decision",
+    preview_queued: "Preview queued",
+    preview_building: "Preview building",
+    preview_ready: "Preview ready",
+    stopping: "Stopping",
+    completed: "Completed",
+    cancelled: "Cancelled",
+    needs_attention: "Needs attention",
+  };
+  return labels[stage] ?? stage;
+}
+
+function stageColor(stage: string): number {
+  if (stage === "completed") return 0x57f287;
+  if (stage === "cancelled" || stage === "needs_attention") return 0xed4245;
+  if (stage === "review_ready" || stage === "waiting_human") return 0xfee75c;
+  if (stage === "finalizing_review") return 0xfee75c;
+  if (stage === "preview_ready") return 0x57f287;
+  return 0x5865f2;
+}
+
+function button(
+  label: string,
+  style: number,
+  customId?: string,
+  url?: string,
+): DiscordObject {
+  return {
+    type: 2,
+    style,
+    label,
+    ...(customId ? { custom_id: customId } : {}),
+    ...(url ? { url } : {}),
+  };
+}
+
+export function controlComponents(
+  card: CardRow,
+  project: ProjectConfig,
+  pullRequest: PullRequest | null,
+): DiscordObject[] {
+  const rows: DiscordObject[][] = [];
+  const links: DiscordObject[] = [];
+  const remote = remoteCodexContext(card, project);
+  if (remote)
+    links.push(button("Open in Codex", 5, undefined, remote.launchUrl));
+  if (pullRequest?.url)
+    links.push(button("Open PR", 5, undefined, pullRequest.url));
+  if (card.preview_hostname)
+    links.push(
+      button("Open preview", 5, undefined, `https://${card.preview_hostname}`),
+    );
+  if (card.issue_url)
+    links.push(button("Open issue", 5, undefined, card.issue_url));
+  if (links.length > 0) rows.push(links);
+
+  if (!terminalStages.has(card.stage)) {
+    const controls: DiscordObject[] = [
+      button("Status", 2, `kurami:status:${card.run_id}`),
+    ];
+    const takeoverEligible =
+      Boolean(card.codex_thread_id) &&
+      (card.owner_state === "cli" ||
+        (card.owner_state === "none" &&
+          ["parked_review", "waiting_human"].includes(card.run_state)));
+    if (takeoverEligible) {
+      const takeoverLabel =
+        card.owner_state === "cli" ? "Take control" : "Continue in Codex";
+      controls.push(
+        button(takeoverLabel, 1, `kurami:take_control:${card.run_id}`),
+      );
+    }
+    const previewStartEligible =
+      card.owner_state === "none" &&
+      ["parked_review", "waiting_human"].includes(card.run_state);
+    if (project.preview && (card.preview_state || previewStartEligible)) {
+      controls.push(
+        card.preview_state
+          ? button("Stop preview", 2, `kurami:preview_stop:${card.run_id}`)
+          : button("Start preview", 3, `kurami:preview_start:${card.run_id}`),
+      );
+    }
+    controls.push(button("Cancel run", 4, `kurami:stop:${card.run_id}`));
+    rows.push(controls);
+  }
+  return rows.map((components) => ({ type: 1, components }));
+}
+
+function linkComponents(
+  card: CardRow,
+  project: ProjectConfig,
+  pullRequest: PullRequest | null,
+): DiscordObject[] {
+  const links: DiscordObject[] = [];
+  const remote = remoteCodexContext(card, project);
+  if (remote)
+    links.push(button("Open in Codex", 5, undefined, remote.launchUrl));
+  if (pullRequest?.url)
+    links.push(button("Open PR", 5, undefined, pullRequest.url));
+  if (card.preview_hostname)
+    links.push(
+      button("Open preview", 5, undefined, `https://${card.preview_hostname}`),
+    );
+  if (card.issue_url)
+    links.push(button("Open issue", 5, undefined, card.issue_url));
+  return links.length > 0 ? [{ type: 1, components: links }] : [];
+}
+
+function threadControlPayload(
+  card: CardRow,
+  project: ProjectConfig,
+  pullRequest: PullRequest | null,
+  create: boolean,
+): DiscordObject {
+  return {
+    content: `**Run controls · ${project.workspace.branch_prefix}-${card.issue_number}**\n${stageLabel(card.stage)}`,
+    components: controlComponents(card, project, pullRequest),
+    allowed_mentions: { parse: [] },
+    ...(create
+      ? {
+          nonce: deterministicNonce("card", `${card.run_id}:controls`),
+          enforce_nonce: true,
+        }
+      : {}),
+  };
+}
+
+function cardPayload(
+  card: CardRow,
+  project: ProjectConfig,
+  pullRequest: PullRequest | null,
+  create: boolean,
+): DiscordObject {
+  const fields: DiscordObject[] = [];
+  if (pullRequest?.url)
+    fields.push({
+      name: "Pull request",
+      value: `[Open PR](${pullRequest.url})`,
+    });
+  if (card.preview_hostname)
+    fields.push({
+      name: "Preview",
+      value: `[Open preview](https://${card.preview_hostname})`,
+    });
+  const remote = remoteCodexContext(card, project);
+  if (remote)
+    fields.push({
+      name: "Codex handoff",
+      value: truncate(remote.summary, 1_024),
+    });
+  fields.push({
+    name: "Stage since",
+    value: stageTimestamp(card.updated_at),
+    inline: true,
+  });
+  return {
+    content: `**${project.workspace.branch_prefix}-${card.issue_number} · ${stageLabel(card.stage)}**`,
+    embeds: [
+      {
+        title: truncate(cleanTitle(card.title), 256),
+        description: truncate(card.detail, 4_000),
+        color: stageColor(card.stage),
+        fields,
+        footer: { text: `Run ${card.run_id}` },
+        timestamp: card.updated_at,
+      },
+    ],
+    // The starter card is mirrored by Discord inside its message-started
+    // thread. Keep it link-only and maintain actionable controls in one real
+    // thread-local message instead.
+    components: linkComponents(card, project, pullRequest),
+    allowed_mentions: { parse: [] },
+    ...(create
+      ? {
+          nonce: deterministicNonce("card", card.run_id),
+          enforce_nonce: true,
+        }
+      : {}),
+  };
+}
+
+async function delay(milliseconds: number): Promise<void> {
+  await new Promise((resolveDelay) => setTimeout(resolveDelay, milliseconds));
+}
+
+async function discordRequest(
+  token: string,
+  method: string,
+  path: string,
+  payload?: DiscordObject,
+  allowNotFound = false,
+): Promise<DiscordObject | null> {
+  for (let attempt = 0; attempt < 3; attempt += 1) {
+    const response = await fetch(`${apiBase}${path}`, {
+      method,
+      headers: {
+        authorization: `Bot ${token}`,
+        ...(payload ? { "content-type": "application/json" } : {}),
+      },
+      body: payload ? JSON.stringify(payload) : undefined,
+    });
+    if (allowNotFound && response.status === 404) return null;
+    if (response.status === 429) {
+      const body = (await response.json()) as { retry_after?: number };
+      const wait = Math.min(Math.max(Number(body.retry_after ?? 1), 0.1), 5);
+      await delay(wait * 1_000);
+      continue;
+    }
+    if (response.status >= 500 && attempt < 2) {
+      await delay(250 * (attempt + 1));
+      continue;
+    }
+    if (!response.ok) {
+      const text = await response.text();
+      fail(
+        `Discord ${method} ${path} failed: HTTP ${response.status} ${text.slice(0, 300)}`,
+      );
+    }
+    if (response.status === 204) return {};
+    return (await response.json()) as DiscordObject;
+  }
+  fail(`Discord ${method} ${path} exhausted bounded retries`);
+}
+
+function updateSurfaceFailure(
+  database: DatabaseSync,
+  runId: string,
+  error: unknown,
+): void {
+  const message = error instanceof Error ? error.message : String(error);
+  database
+    .prepare(
+      `
+      UPDATE run_discord_surfaces
+      SET state = 'failed', last_error = ?,
+          updated_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
+      WHERE run_id = ?
+    `,
+    )
+    .run(message.slice(0, 500), runId);
+}
+
+async function ensureSurface(
+  database: DatabaseSync,
+  token: string,
+  ownerUserId: string,
+  card: CardRow,
+  project: ProjectConfig,
+): Promise<{
+  messageId: string;
+  threadId: string;
+  controlMessageId: string | null;
+  pullRequest: PullRequest | null;
+}> {
+  const target = project.discord;
+  if (!target) fail(`Missing Discord target for project ${card.project}`);
+  database
+    .prepare(
+      `
+      INSERT OR IGNORE INTO run_discord_surfaces (
+        run_id, guild_id, parent_channel_id
+      ) VALUES (?, ?, ?)
+    `,
+    )
+    .run(card.run_id, target.guild_id, target.channel_id);
+  const surface = database
+    .prepare(`SELECT * FROM run_discord_surfaces WHERE run_id = ?`)
+    .get(card.run_id) as {
+    guild_id: string;
+    parent_channel_id: string;
+    live_card_message_id: string | null;
+    thread_id: string | null;
+    control_message_id: string | null;
+    owner_user_id: string | null;
+    pull_request_url: string | null;
+    pull_request_title: string | null;
+  };
+  if (
+    surface.guild_id !== target.guild_id ||
+    surface.parent_channel_id !== target.channel_id
+  )
+    fail(`Discord target changed for existing run ${card.run_id}`);
+  database
+    .prepare(
+      `
+      UPDATE run_discord_surfaces
+      SET state = CASE
+            WHEN state IN ('pending', 'provisioning', 'failed') THEN 'provisioning'
+            ELSE state
+          END,
+          attempt_count = CASE
+            WHEN state IN ('pending', 'provisioning', 'failed') THEN attempt_count + 1
+            ELSE attempt_count
+          END,
+          last_error = NULL,
+          updated_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
+      WHERE run_id = ?
+    `,
+    )
+    .run(card.run_id);
+
+  let pullRequest = surface.pull_request_url
+    ? {
+        url: surface.pull_request_url,
+        title: surface.pull_request_title ?? "Pull request",
+      }
+    : null;
+  if (!pullRequest && ["review_ready", "completed"].includes(card.stage))
+    pullRequest = findPullRequest(card.repository, card.branch_name);
+
+  let messageId = surface.live_card_message_id;
+  if (!messageId) {
+    const message = await discordRequest(
+      token,
+      "POST",
+      `/channels/${target.channel_id}/messages`,
+      cardPayload(card, project, pullRequest, true),
+    );
+    messageId = String(message?.id ?? "");
+    if (!/^\d+$/u.test(messageId)) fail("Discord returned no card message ID");
+    database
+      .prepare(
+        `
+        UPDATE run_discord_surfaces
+        SET live_card_message_id = ?,
+            updated_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
+        WHERE run_id = ?
+      `,
+      )
+      .run(messageId, card.run_id);
+  }
+
+  let threadId = surface.thread_id;
+  if (!threadId) {
+    const existing = await discordRequest(
+      token,
+      "GET",
+      `/channels/${messageId}`,
+      undefined,
+      true,
+    );
+    if (
+      existing &&
+      [10, 11, 12].includes(Number(existing.type)) &&
+      String(existing.parent_id ?? "") === target.channel_id
+    ) {
+      threadId = String(existing.id);
+    } else {
+      const thread = await discordRequest(
+        token,
+        "POST",
+        `/channels/${target.channel_id}/messages/${messageId}/threads`,
+        {
+          name: threadName(card, project),
+          auto_archive_duration: 1440,
+          rate_limit_per_user: 0,
+        },
+      );
+      threadId = String(thread?.id ?? "");
+    }
+    if (!/^\d+$/u.test(threadId)) fail("Discord returned no thread ID");
+    database
+      .prepare(
+        `
+        UPDATE run_discord_surfaces
+        SET thread_id = ?,
+            updated_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
+        WHERE run_id = ?
+      `,
+      )
+      .run(threadId, card.run_id);
+  }
+
+  if (!terminalStages.has(card.stage)) {
+    await discordRequest(token, "PATCH", `/channels/${threadId}`, {
+      archived: false,
+      locked: false,
+    });
+    if (surface.owner_user_id !== ownerUserId) {
+      await discordRequest(
+        token,
+        "PUT",
+        `/channels/${threadId}/thread-members/${ownerUserId}`,
+      );
+      database
+        .prepare(
+          `
+          UPDATE run_discord_surfaces
+          SET owner_user_id = ?,
+              owner_joined_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now'),
+              updated_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
+          WHERE run_id = ?
+        `,
+        )
+        .run(ownerUserId, card.run_id);
+    }
+  }
+
+  return {
+    messageId,
+    threadId,
+    controlMessageId: surface.control_message_id,
+    pullRequest,
+  };
+}
+
+async function reconcileThreadControls(
+  database: DatabaseSync,
+  token: string,
+  card: CardRow,
+  project: ProjectConfig,
+  threadId: string,
+  storedMessageId: string | null,
+  pullRequest: PullRequest | null,
+): Promise<string> {
+  let messageId = storedMessageId;
+  if (messageId) {
+    const edited = await discordRequest(
+      token,
+      "PATCH",
+      `/channels/${threadId}/messages/${messageId}`,
+      threadControlPayload(card, project, pullRequest, false),
+      true,
+    );
+    if (!edited) messageId = null;
+  }
+  if (!messageId) {
+    const message = await discordRequest(
+      token,
+      "POST",
+      `/channels/${threadId}/messages`,
+      threadControlPayload(card, project, pullRequest, true),
+    );
+    messageId = String(message?.id ?? "");
+    if (!/^\d+$/u.test(messageId))
+      fail("Discord returned no thread control message ID");
+    database
+      .prepare(
+        `
+        UPDATE run_discord_surfaces
+        SET control_message_id = ?,
+            updated_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
+        WHERE run_id = ?
+      `,
+      )
+      .run(messageId, card.run_id);
+  }
+  await ensureThreadControlPinned(token, threadId, messageId);
+  return messageId;
+}
+
+async function ensureThreadControlPinned(
+  token: string,
+  threadId: string,
+  messageId: string,
+): Promise<void> {
+  const pins = await discordRequest(
+    token,
+    "GET",
+    `/channels/${threadId}/messages/pins?limit=50`,
+  );
+  const items = Array.isArray(pins?.items) ? pins.items : [];
+  const alreadyPinned = items.some((item) => {
+    if (!item || typeof item !== "object") return false;
+    const message = (item as DiscordObject).message;
+    return (
+      message !== null &&
+      typeof message === "object" &&
+      String((message as DiscordObject).id ?? "") === messageId
+    );
+  });
+  if (!alreadyPinned)
+    await discordRequest(
+      token,
+      "PUT",
+      `/channels/${threadId}/messages/pins/${messageId}`,
+    );
+}
+
+async function reconcileCard(
+  database: DatabaseSync,
+  token: string,
+  ownerUserId: string,
+  card: CardRow,
+  project: ProjectConfig,
+): Promise<Record<string, unknown>> {
+  try {
+    const { messageId, threadId, controlMessageId, pullRequest } =
+      await ensureSurface(database, token, ownerUserId, card, project);
+    if (terminalStages.has(card.stage))
+      await discordRequest(token, "PATCH", `/channels/${threadId}`, {
+        archived: false,
+        locked: false,
+      });
+    await discordRequest(
+      token,
+      "PATCH",
+      `/channels/${project.discord!.channel_id}/messages/${messageId}`,
+      cardPayload(card, project, pullRequest, false),
+    );
+    const reconciledControlMessageId = await reconcileThreadControls(
+      database,
+      token,
+      card,
+      project,
+      threadId,
+      controlMessageId,
+      pullRequest,
+    );
+    if (terminalStages.has(card.stage))
+      await discordRequest(token, "PATCH", `/channels/${threadId}`, {
+        archived: true,
+        locked: false,
+      });
+    database
+      .prepare(
+        `
+        UPDATE run_discord_surfaces
+        SET state = ?, content_digest = ?, pull_request_url = ?,
+            pull_request_title = ?, attempt_count = 0, last_error = NULL,
+            archived_at = CASE WHEN ? THEN strftime('%Y-%m-%dT%H:%M:%fZ', 'now') ELSE NULL END,
+            updated_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
+        WHERE run_id = ?
+      `,
+      )
+      .run(
+        terminalStages.has(card.stage) ? "archived" : "active",
+        card.desired_surface_digest,
+        pullRequest?.url ?? null,
+        pullRequest?.title ?? null,
+        terminalStages.has(card.stage) ? 1 : 0,
+        card.run_id,
+      );
+    return {
+      runId: card.run_id,
+      action: card.live_card_message_id ? "card_edited" : "surface_created",
+      threadId,
+      messageId,
+      controlMessageId: reconciledControlMessageId,
+    };
+  } catch (error) {
+    updateSurfaceFailure(database, card.run_id, error);
+    return {
+      runId: card.run_id,
+      action: "failed",
+      error: error instanceof Error ? error.message : String(error),
+    };
+  }
+}
+
+async function showControls(
+  database: DatabaseSync,
+  token: string,
+  ownerUserId: string,
+  card: CardRow,
+  project: ProjectConfig,
+): Promise<Record<string, unknown>> {
+  const surface = await ensureSurface(
+    database,
+    token,
+    ownerUserId,
+    card,
+    project,
+  );
+  await discordRequest(
+    token,
+    "PATCH",
+    `/channels/${project.discord!.channel_id}/messages/${surface.messageId}`,
+    cardPayload(card, project, surface.pullRequest, false),
+  );
+  const messageId = await reconcileThreadControls(
+    database,
+    token,
+    card,
+    project,
+    surface.threadId,
+    surface.controlMessageId,
+    surface.pullRequest,
+  );
+  database
+    .prepare(
+      `
+      UPDATE run_discord_surfaces
+      SET state = 'active', content_digest = ?, pull_request_url = ?,
+          pull_request_title = ?, attempt_count = 0, last_error = NULL,
+          updated_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
+      WHERE run_id = ?
+    `,
+    )
+    .run(
+      card.desired_surface_digest,
+      surface.pullRequest?.url ?? null,
+      surface.pullRequest?.title ?? null,
+      card.run_id,
+    );
+  return {
+    runId: card.run_id,
+    action: "controls_shown",
+    threadId: surface.threadId,
+    messageId,
+  };
+}
+
+function eventMessage(
+  event: EventRow,
+  project: ProjectConfig,
+  pullRequest: PullRequest | null,
+): string {
+  const header =
+    event.event_kind === "human_control_ready"
+      ? "Preparation is ready for you"
+      : event.event_kind === "preview_ready"
+        ? "Preview is ready"
+        : event.event_kind === "preview_failed"
+          ? "Preview failed"
+          : event.event_kind === "attention_required"
+            ? "Attention required"
+            : "Ready for review";
+  const remote = remoteCodexContext(event, project);
+  return [
+    `**${header}**`,
+    remote?.summary ?? "",
+    pullRequest ? `[Open PR](${pullRequest.url})` : "",
+    event.preview_hostname
+      ? `[Open preview](https://${event.preview_hostname})`
+      : "",
+    event.issue_url ? `[Open issue](${event.issue_url})` : "",
+  ]
+    .filter(Boolean)
+    .join("\n");
+}
+
+function eventComponents(
+  event: EventRow,
+  project: ProjectConfig,
+): DiscordObject[] {
+  const components: DiscordObject[] = [];
+  const remote = remoteCodexContext(event, project);
+  if (remote)
+    components.push(button("Open in Codex", 5, undefined, remote.launchUrl));
+  if (!event.control_message_id)
+    return components.length > 0 ? [{ type: 1, components }] : [];
+  const controlUrl = `https://discord.com/channels/${event.guild_id}/${event.thread_id}/${event.control_message_id}`;
+  components.push(button("Open controls", 5, undefined, controlUrl));
+  return [{ type: 1, components }];
+}
+
+async function deliverEvent(
+  database: DatabaseSync,
+  token: string,
+  event: EventRow,
+  project: ProjectConfig,
+): Promise<Record<string, unknown>> {
+  if (!eventStillValid(event)) {
+    database
+      .prepare(
+        `
+        UPDATE run_discord_event_deliveries
+        SET delivery_state = 'cancelled',
+            updated_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
+        WHERE event_id = ?
+      `,
+      )
+      .run(event.event_id);
+    return { eventId: event.event_id, action: "cancelled_stale" };
+  }
+  database
+    .prepare(
+      `
+      UPDATE run_discord_event_deliveries
+      SET delivery_state = 'sending', attempt_count = attempt_count + 1,
+          last_error = NULL,
+          updated_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
+      WHERE event_id = ? AND delivery_state IN ('pending', 'failed')
+    `,
+    )
+    .run(event.event_id);
+  try {
+    await discordRequest(token, "PATCH", `/channels/${event.thread_id}`, {
+      archived: false,
+      locked: false,
+    });
+    const pullRequest =
+      event.event_kind === "review_ready"
+        ? findPullRequest(event.repository, event.branch_name)
+        : null;
+    const message = await discordRequest(
+      token,
+      "POST",
+      `/channels/${event.thread_id}/messages`,
+      {
+        content: eventMessage(event, project, pullRequest),
+        components: eventComponents(event, project),
+        allowed_mentions: { parse: [] },
+        nonce: deterministicNonce("event", event.event_id),
+        enforce_nonce: true,
+      },
+    );
+    const messageId = String(message?.id ?? "");
+    if (!/^\d+$/u.test(messageId)) fail("Discord returned no event message ID");
+    database
+      .prepare(
+        `
+        UPDATE run_discord_event_deliveries
+        SET delivery_state = 'delivered', message_id = ?,
+            delivered_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now'),
+            updated_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
+        WHERE event_id = ? AND delivery_state = 'sending'
+      `,
+      )
+      .run(messageId, event.event_id);
+    return { eventId: event.event_id, action: "delivered", messageId };
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    database
+      .prepare(
+        `
+        UPDATE run_discord_event_deliveries
+        SET delivery_state = 'failed', last_error = ?,
+            updated_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
+        WHERE event_id = ? AND delivery_state = 'sending'
+      `,
+      )
+      .run(message.slice(0, 500), event.event_id);
+    return { eventId: event.event_id, action: "failed", error: message };
+  }
+}
+
+async function main(): Promise<void> {
+  const { command, runId, apply } = parseArguments();
+  const registry = parse(
+    await readFile(projectsPath, "utf8"),
+  ) as ProjectsRegistry;
+  if (registry.version !== 1) fail("Unsupported projects config version");
+  const database = new DatabaseSync(databasePath, { timeout: 5_000 });
+  database.exec("PRAGMA foreign_keys = ON; PRAGMA busy_timeout = 5000;");
+  if (command === "show") {
+    const card = loadCard(database, runId!);
+    const project = registry.projects[card.project];
+    if (!project?.discord)
+      fail(`Missing Discord target for project ${card.project}`);
+    if (!apply) {
+      database.close();
+      process.stdout.write(
+        `${JSON.stringify({ ok: true, apply: false, action: "show_controls", runId })}\n`,
+      );
+      return;
+    }
+    const token = await loadDiscordToken();
+    const ownerUserId = await loadDiscordOwnerId();
+    const result = await showControls(
+      database,
+      token,
+      ownerUserId,
+      card,
+      project,
+    );
+    database.close();
+    process.stdout.write(
+      `${JSON.stringify({ ok: true, apply: true, ...result })}\n`,
+    );
+    return;
+  }
+  if (apply) seedEventDeliveries(database);
+  const cards = loadDesiredCards(database).filter((card) =>
+    Boolean(registry.projects[card.project]?.discord),
+  );
+  const events = apply ? loadPendingEvents(database) : [];
+  if (!apply) {
+    database.close();
+    process.stdout.write(
+      `${JSON.stringify({
+        ok: true,
+        apply: false,
+        pendingCards: cards.map((card) => ({
+          runId: card.run_id,
+          stage: card.stage,
+          action: card.discord_thread_id ? "edit" : "create",
+        })),
+      })}\n`,
+    );
+    return;
+  }
+  if (cards.length === 0 && events.length === 0) {
+    database.close();
+    if (process.env.DISCORD_NOTIFIER_QUIET !== "1")
+      process.stdout.write(
+        `${JSON.stringify({ ok: true, apply: true, cards: 0, events: 0 })}\n`,
+      );
+    return;
+  }
+  const token = await loadDiscordToken();
+  const ownerUserId = cards.length > 0 ? await loadDiscordOwnerId() : "";
+  const results: Array<Record<string, unknown>> = [];
+  for (const card of cards) {
+    const project = registry.projects[card.project];
+    if (!project?.discord) continue;
+    results.push(
+      await reconcileCard(database, token, ownerUserId, card, project),
+    );
+  }
+  for (const event of loadPendingEvents(database)) {
+    const project = registry.projects[event.project];
+    if (!project?.discord) continue;
+    results.push(await deliverEvent(database, token, event, project));
+  }
+  database.close();
+  const failures = results.filter((result) => result.action === "failed");
+  if (process.env.DISCORD_NOTIFIER_QUIET !== "1")
+    process.stdout.write(
+      `${JSON.stringify({ ok: failures.length === 0, apply: true, results })}\n`,
+    );
+  if (failures.length > 0) process.exitCode = 1;
+}
+
+if (process.argv[1] && import.meta.filename === resolve(process.argv[1])) {
+  main().catch((error: unknown) => {
+    const message = error instanceof Error ? error.message : String(error);
+    process.stderr.write(`${JSON.stringify({ ok: false, error: message })}\n`);
+    process.exitCode = 1;
+  });
+}
