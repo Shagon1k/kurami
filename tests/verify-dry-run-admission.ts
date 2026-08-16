@@ -188,6 +188,90 @@ async function main(): Promise<void> {
       "WIP-rejected run unexpectedly received resources",
     );
 
+    const cancellationRace = new DatabaseSync(databasePath);
+    cancellationRace
+      .prepare(
+        `
+        INSERT INTO project_events (
+          event_id, observed_at, project, item_id, content_id, content_type,
+          repository, issue_number, title, url, from_status, to_status,
+          payload_json, processing_state
+        ) VALUES (
+          'cancel-race-trigger', '2026-08-13T21:00:00.000Z',
+          'tailortales', 'cancel-race-item', 'cancel-race-content', 'Issue',
+          'Shagon1k/TailorTales', 9010, '[Test]: Cancellation race',
+          'https://example.invalid/issues/9010', 'Backlog', 'In progress',
+          '{}', 'processed'
+        )
+      `,
+      )
+      .run();
+    cancellationRace
+      .prepare(
+        `
+        INSERT INTO runs (
+          run_id, trigger_event_id, project, item_id, content_id, repository,
+          issue_number, interaction_policy, state, owner_state, execution_mode,
+          stop_reason
+        ) VALUES (
+          'r_cancel_race', 'cancel-race-trigger', 'tailortales',
+          'cancel-race-item', 'cancel-race-content', 'Shagon1k/TailorTales',
+          9010, 'autonomous', 'stopping', 'cli', 'live', 'cancelled'
+        )
+      `,
+      )
+      .run();
+    cancellationRace
+      .prepare(
+        `
+        INSERT INTO run_resources (
+          run_id, resource_state, worktree_path, branch_name,
+          tmux_session_name
+        ) VALUES (
+          'r_cancel_race', 'provisioned',
+          '/tmp/worktrees/TT-9010_cancel-race/TailorTales',
+          'TT-9010_cancel-race', 'cx-tt-9010-race'
+        )
+      `,
+      )
+      .run();
+    cancellationRace
+      .prepare(
+        `
+        INSERT INTO project_events (
+          event_id, observed_at, project, item_id, content_id, content_type,
+          repository, issue_number, title, url, from_status, to_status,
+          payload_json
+        ) VALUES (
+          'cancel-race-review', '2026-08-13T21:01:00.000Z',
+          'tailortales', 'cancel-race-item', 'cancel-race-content', 'Issue',
+          'Shagon1k/TailorTales', 9010, '[Test]: Cancellation race',
+          'https://example.invalid/issues/9010', 'In progress', 'Human Review',
+          '{}'
+        )
+      `,
+      )
+      .run();
+    cancellationRace.close();
+
+    const raceResult = runConsumer(appDirectory, testHome);
+    assert(
+      raceResult.processed === 1 && raceResult.results[0]?.action === "ignored",
+      "Human Review cancellation race was not ignored",
+    );
+    const raceCheck = new DatabaseSync(databasePath, { readOnly: true });
+    const preservedCancellation = raceCheck
+      .prepare(
+        `SELECT state, stop_reason FROM runs WHERE run_id = 'r_cancel_race'`,
+      )
+      .get() as { state: string; stop_reason: string };
+    raceCheck.close();
+    assert(
+      preservedCancellation.state === "stopping" &&
+        preservedCancellation.stop_reason === "cancelled",
+      "Human Review revived a run after cancellation intent was recorded",
+    );
+
     process.stdout.write(
       `${JSON.stringify({
         ok: true,
@@ -195,6 +279,7 @@ async function main(): Promise<void> {
         actions: first.results.map(({ action }) => action),
         activeGlobal: first.activeGlobal,
         repeatProcessed: second.processed,
+        cancellationRacePreserved: true,
         runs,
       })}\n`,
     );

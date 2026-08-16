@@ -278,6 +278,37 @@ async function main(): Promise<void> {
     addDirect("r_preview", 9305, "autonomous", "parked_review", "none", null);
     addDirect("r_stop", 9306, "autonomous", "parked_review", "none", null);
     addDirect(
+      "r_early_cancel",
+      9309,
+      "autonomous",
+      "stopping",
+      "cli",
+      "cx-tt-9309-early",
+    );
+    verify
+      .prepare(
+        `UPDATE run_resources SET codex_thread_id = NULL WHERE run_id = 'r_early_cancel'`,
+      )
+      .run();
+    verify
+      .prepare(
+        `UPDATE runs SET stop_reason = 'cancelled' WHERE run_id = 'r_early_cancel'`,
+      )
+      .run();
+    addDirect(
+      "r_cancel_race",
+      9310,
+      "autonomous",
+      "parked_review",
+      "cli",
+      "cx-tt-9310-race",
+    );
+    verify
+      .prepare(
+        `UPDATE runs SET stop_reason = 'cancelled' WHERE run_id = 'r_cancel_race'`,
+      )
+      .run();
+    addDirect(
       "r_preview_ready",
       9307,
       "autonomous",
@@ -339,6 +370,14 @@ async function main(): Promise<void> {
     assert(
       actions.r_stop === "request_stop",
       "Stop request should be explicit",
+    );
+    assert(
+      actions.r_early_cancel === "cancel_cli",
+      "Early cancellation must not depend on a synchronized Codex thread",
+    );
+    assert(
+      actions.r_cancel_race === "cancel_cli",
+      "A later Human Review event must not override cancellation intent",
     );
     assert(
       actions.r_review_ready === undefined,

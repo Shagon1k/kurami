@@ -55,6 +55,7 @@ type EventRow = {
 type LiveRun = {
   run_id: string;
   state: string;
+  stop_reason: "cancelled" | "completed" | null;
   execution_mode: "dry_run" | "live";
   resource_state: string | null;
 };
@@ -234,7 +235,7 @@ function latestRun(
 ): LiveRun | undefined {
   return database
     .prepare(`
-      SELECT r.run_id, r.state, r.execution_mode, rr.resource_state
+      SELECT r.run_id, r.state, r.stop_reason, r.execution_mode, rr.resource_state
       FROM runs r
       LEFT JOIN run_resources rr USING (run_id)
       WHERE r.project = ? AND r.item_id = ?
@@ -251,7 +252,7 @@ function liveRun(
 ): LiveRun | undefined {
   return database
     .prepare(`
-      SELECT r.run_id, r.state, r.execution_mode, rr.resource_state
+      SELECT r.run_id, r.state, r.stop_reason, r.execution_mode, rr.resource_state
       FROM runs r
       LEFT JOIN run_resources rr USING (run_id)
       WHERE r.project = ?
@@ -444,6 +445,11 @@ function parkForReview(database: DatabaseSync, event: EventRow): EventResult {
     markEvent(database, event.event_id, "ignored", reason);
     return { eventId: event.event_id, action: "ignored", reason };
   }
+  if (current.stop_reason === "cancelled") {
+    const reason = "Cancellation already requested; Human Review cannot revive the run";
+    markEvent(database, event.event_id, "ignored", reason);
+    return { eventId: event.event_id, action: "ignored", runId: current.run_id, reason };
+  }
   if (current.state === "parked_review") {
     const reason = "Run is already parked for Human Review";
     markEvent(database, event.event_id, "ignored", reason);
@@ -476,6 +482,11 @@ function completeRun(database: DatabaseSync, event: EventRow): EventResult {
     const reason = "No live run exists for completion";
     markEvent(database, event.event_id, "ignored", reason);
     return { eventId: event.event_id, action: "ignored", reason };
+  }
+  if (current.stop_reason === "cancelled") {
+    const reason = "Cancellation already requested; Done cannot replace cancellation intent";
+    markEvent(database, event.event_id, "ignored", reason);
+    return { eventId: event.event_id, action: "ignored", runId: current.run_id, reason };
   }
   const nextState =
     current.execution_mode === "dry_run" || current.resource_state === "planned"

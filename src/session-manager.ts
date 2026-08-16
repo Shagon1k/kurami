@@ -11,6 +11,7 @@ type Action =
   | "start"
   | "sync"
   | "inspect"
+  | "cancel"
   | "park"
   | "handoff"
   | "finalize-stop";
@@ -52,6 +53,7 @@ type SessionRun = {
   issue_url: string | null;
   interaction_policy: "autonomous" | "human_control";
   run_state: string;
+  stop_reason: "cancelled" | "completed" | null;
   owner_state: string;
   execution_mode: "dry_run" | "live";
   resource_state: string;
@@ -103,6 +105,7 @@ function parseArguments(): Arguments {
     (action !== "start" &&
       action !== "sync" &&
       action !== "inspect" &&
+      action !== "cancel" &&
       action !== "park" &&
       action !== "handoff" &&
       action !== "finalize-stop") ||
@@ -111,7 +114,7 @@ function parseArguments(): Arguments {
     (action === "inspect" && args.includes("--apply"))
   ) {
     fail(
-      "Usage: session-manager.ts <start|sync|inspect|park|handoff|finalize-stop> --run-id <run_id> [--apply]",
+      "Usage: session-manager.ts <start|sync|inspect|cancel|park|handoff|finalize-stop> --run-id <run_id> [--apply]",
     );
   }
   return { action, runId, apply: args.includes("--apply") };
@@ -123,7 +126,7 @@ function loadRun(database: DatabaseSync, runId: string): SessionRun {
       `
       SELECT r.run_id, r.project, r.repository, r.issue_number,
              pe.title AS issue_title, pe.url AS issue_url,
-             r.interaction_policy, r.state AS run_state,
+             r.interaction_policy, r.state AS run_state, r.stop_reason,
              r.owner_state, r.execution_mode,
              rr.resource_state, rr.worktree_path, rr.branch_name, rr.base_sha,
              rr.tmux_session_name, rr.codex_thread_id
@@ -570,6 +573,35 @@ function sendTmuxKeys(sessionNameValue: string, keys: string[]): void {
   runFile("tmux", ["send-keys", "-t", `${sessionNameValue}:0.0`, ...keys]);
 }
 
+function sendTmuxLiteral(sessionNameValue: string, value: string): void {
+  runFile("tmux", [
+    "send-keys",
+    "-t",
+    `${sessionNameValue}:0.0`,
+    "-l",
+    "--",
+    value,
+  ]);
+}
+
+function killTmuxSession(sessionNameValue: string): void {
+  if (!/^cx-[a-z0-9-]+$/u.test(sessionNameValue)) {
+    fail(`Refusing to kill an unsafe tmux session name: ${sessionNameValue}`);
+  }
+  const result = spawnSync(
+    "tmux",
+    ["kill-session", "-t", `=${sessionNameValue}`],
+    {
+      encoding: "utf8",
+      env: process.env,
+      stdio: ["ignore", "pipe", "pipe"],
+    },
+  );
+  if (result.status !== 0 && tmuxSessionExists(sessionNameValue)) {
+    fail(result.stderr.trim() || `Failed to stop tmux session: ${sessionNameValue}`);
+  }
+}
+
 async function syncSession(
   database: DatabaseSync,
   run: SessionRun,
@@ -815,6 +847,141 @@ async function leaveCliSession(
   );
 }
 
+async function cancelCliSession(
+  database: DatabaseSync,
+  run: SessionRun,
+  apply: boolean,
+): Promise<void> {
+  if (run.stop_reason !== "cancelled" || run.owner_state !== "cli") {
+    fail(
+      `Run is not CLI-owned with cancellation intent: state=${run.run_state}, owner=${run.owner_state}, stopReason=${run.stop_reason ?? "none"}`,
+    );
+  }
+  if (
+    run.tmux_session_name &&
+    !/^cx-[a-z0-9-]+$/u.test(run.tmux_session_name)
+  ) {
+    fail(`Run has an unsafe tmux session mapping: ${run.tmux_session_name}`);
+  }
+
+  const tmuxAlive = run.tmux_session_name
+    ? tmuxSessionExists(run.tmux_session_name)
+    : false;
+  let transcript = "";
+  if (tmuxAlive && run.tmux_session_name) {
+    try {
+      transcript = capturePane(run.tmux_session_name);
+    } catch {
+      if (tmuxSessionExists(run.tmux_session_name)) throw new Error("Failed to capture active Codex session");
+    }
+  }
+  const tailDirectory = resolve(orchestratorHome, "logs/session-cancellations");
+  const tailPath = resolve(tailDirectory, `${run.run_id}.txt`);
+  const plan = {
+    runId: run.run_id,
+    runState: run.run_state,
+    fromOwner: run.owner_state,
+    toOwner: "none",
+    tmuxSessionName: run.tmux_session_name,
+    tmuxAlive,
+    codexThreadId: run.codex_thread_id,
+    tailPath,
+  };
+  if (!apply) {
+    process.stdout.write(
+      `${JSON.stringify({ ok: true, apply: false, plan })}\n`,
+    );
+    return;
+  }
+  if (run.execution_mode !== "live") {
+    fail(`Refusing cancellation for execution_mode=${run.execution_mode}`);
+  }
+
+  await mkdir(tailDirectory, { recursive: true, mode: 0o700 });
+  await writeFile(tailPath, `${transcript}\n`, {
+    encoding: "utf8",
+    mode: 0o600,
+  });
+
+  let forced = false;
+  if (run.tmux_session_name && tmuxSessionExists(run.tmux_session_name)) {
+    sendTmuxKeys(run.tmux_session_name, ["Escape"]);
+    await new Promise((resolveDelay) => setTimeout(resolveDelay, 500));
+  }
+  if (run.tmux_session_name && tmuxSessionExists(run.tmux_session_name)) {
+    sendTmuxKeys(run.tmux_session_name, ["C-u"]);
+    sendTmuxLiteral(run.tmux_session_name, "/exit");
+    sendTmuxKeys(run.tmux_session_name, ["Enter"]);
+    for (let attempt = 0; attempt < 20; attempt += 1) {
+      await new Promise((resolveDelay) => setTimeout(resolveDelay, 250));
+      if (!tmuxSessionExists(run.tmux_session_name)) break;
+    }
+  }
+  if (run.tmux_session_name && tmuxSessionExists(run.tmux_session_name)) {
+    forced = true;
+    killTmuxSession(run.tmux_session_name);
+  }
+  if (run.tmux_session_name && tmuxSessionExists(run.tmux_session_name)) {
+    fail(`Managed tmux session is still alive after bounded cancellation`);
+  }
+
+  database.exec("BEGIN IMMEDIATE");
+  try {
+    const current = loadRun(database, run.run_id);
+    if (
+      current.stop_reason !== "cancelled" ||
+      current.owner_state !== "cli" ||
+      current.tmux_session_name !== run.tmux_session_name
+    ) {
+      fail(
+        `Run changed during cancellation: state=${current.run_state}, owner=${current.owner_state}, tmux=${current.tmux_session_name ?? "none"}`,
+      );
+    }
+    database
+      .prepare(
+        `
+        UPDATE runs
+        SET state = 'stopping', owner_state = 'none',
+            updated_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
+        WHERE run_id = ?
+      `,
+      )
+      .run(run.run_id);
+    database
+      .prepare(
+        `
+        UPDATE run_resources
+        SET tmux_session_name = NULL,
+            updated_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
+        WHERE run_id = ?
+      `,
+      )
+      .run(run.run_id);
+    appendHistory(
+      database,
+      run.run_id,
+      run.run_state,
+      "stopping",
+      "codex_cli_cancel_completed",
+      {
+        codexThreadId: run.codex_thread_id,
+        previousTmuxSessionName: run.tmux_session_name,
+        terminalTailPath: tailPath,
+        recoveredAfterTmuxExit: !tmuxAlive,
+        forced,
+      },
+    );
+    database.exec("COMMIT");
+  } catch (error) {
+    database.exec("ROLLBACK");
+    throw error;
+  }
+
+  process.stdout.write(
+    `${JSON.stringify({ ok: true, apply: true, action: "cancelled_cli", ...plan, forced })}\n`,
+  );
+}
+
 function inspectSession(database: DatabaseSync, runId: string): void {
   const run = loadRun(database, runId);
   const tmuxAlive = run.tmux_session_name
@@ -978,6 +1145,10 @@ async function main(): Promise<void> {
     const run = loadRun(database, args.runId);
     if (args.action === "sync") {
       await syncSession(database, run, registry, args.apply);
+      return;
+    }
+    if (args.action === "cancel") {
+      await cancelCliSession(database, run, args.apply);
       return;
     }
     if (args.action === "park") {

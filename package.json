@@ -18,7 +18,8 @@
     "test:discord-plugin": "KURAMI_DISCORD_PLUGIN_DIR=/home/shagon1k/_hermes/_core/plugins/kurami-discord-controls python3 tests/verify-discord-plugin.py",
     "test:backup": "node tests/verify-state-backup.ts",
     "test:runtime-health": "node tests/verify-runtime-health.ts",
-    "test:maintenance": "node tests/verify-monthly-maintenance.ts"
+    "test:maintenance": "node tests/verify-monthly-maintenance.ts",
+    "test:session-cancel": "node tests/verify-session-cancel.ts"
   },
   "keywords": [],
   "author": "",

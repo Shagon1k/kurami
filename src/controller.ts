@@ -19,6 +19,7 @@ type RunRow = {
   issue_number: number;
   interaction_policy: "autonomous" | "human_control";
   run_state: string;
+  stop_reason: "cancelled" | "completed" | null;
   owner_state: string;
   resource_state: string;
   tmux_session_name: string | null;
@@ -37,6 +38,7 @@ type ControllerAction =
   | "provision"
   | "start"
   | "sync"
+  | "cancel_cli"
   | "park"
   | "handoff"
   | "claim_remote"
@@ -44,6 +46,7 @@ type ControllerAction =
   | "preview_up"
   | "preview_down"
   | "request_stop"
+  | "resume_stop"
   | "request_complete"
   | "request_reject"
   | "release";
@@ -88,7 +91,7 @@ function parseArguments(): { apply: boolean } {
 function baseRunSelect(): string {
   return `
     SELECT r.run_id, r.project, r.issue_number, r.interaction_policy,
-           r.state AS run_state, r.owner_state,
+           r.state AS run_state, r.stop_reason, r.owner_state,
            rr.resource_state, rr.tmux_session_name, rr.codex_thread_id,
            rr.preview_id, pl.lease_id AS preview_lease_id,
            pl.state AS preview_lease_state
@@ -126,6 +129,8 @@ function externalCommand(
       return [sessionManagerPath, "start", "--run-id", runId, "--apply"];
     case "sync":
       return [sessionManagerPath, "sync", "--run-id", runId, "--apply"];
+    case "cancel_cli":
+      return [sessionManagerPath, "cancel", "--run-id", runId, "--apply"];
     case "park":
       return [sessionManagerPath, "park", "--run-id", runId, "--apply"];
     case "handoff":
@@ -234,6 +239,15 @@ function planAutomatic(run: RunRow): PlannedAction | null {
     project: run.project,
     issueNumber: run.issue_number,
   };
+  if (run.stop_reason === "cancelled" && run.owner_state === "cli") {
+    return { ...base, action: "cancel_cli" };
+  }
+  if (
+    run.stop_reason === "cancelled" &&
+    run.run_state !== "stopping"
+  ) {
+    return { ...base, action: "resume_stop" };
+  }
   if (
     run.run_state === "admission_pending" &&
     run.resource_state === "planned"
@@ -276,10 +290,9 @@ function planAutomatic(run: RunRow): PlannedAction | null {
   if (
     run.run_state === "stopping" &&
     run.owner_state === "cli" &&
-    run.tmux_session_name &&
-    run.codex_thread_id
+    run.tmux_session_name
   ) {
-    return { ...base, action: "park" };
+    return { ...base, action: "cancel_cli" };
   }
   if (
     run.run_state === "stopping" &&
@@ -590,7 +603,9 @@ function completeRequest(
 }
 
 function applyInternal(database: DatabaseSync, plan: PlannedAction): unknown {
-  if (!plan.requestId) fail(`Internal action requires a request ID`);
+  if (plan.action !== "resume_stop" && !plan.requestId) {
+    fail(`Internal action requires a request ID`);
+  }
   database.exec("BEGIN IMMEDIATE");
   try {
     let result: Record<string, unknown>;
@@ -607,7 +622,7 @@ function applyInternal(database: DatabaseSync, plan: PlannedAction): unknown {
         .run(plan.runId);
       if (changed.changes !== 1) fail("Run changed before Remote claim");
       result = { action: "remote_claimed" };
-      completeRequest(database, plan.requestId, "applied", result);
+      completeRequest(database, plan.requestId!, "applied", result);
     } else if (plan.action === "request_stop") {
       const current = database
         .prepare(`SELECT state FROM runs WHERE run_id = ?`)
@@ -624,12 +639,25 @@ function applyInternal(database: DatabaseSync, plan: PlannedAction): unknown {
       if (changed.changes !== 1 && current.state !== "stopping")
         fail("Run changed before stop request");
       result = { action: "stopping", previousState: current.state };
-      completeRequest(database, plan.requestId, "applied", result);
+      completeRequest(database, plan.requestId!, "applied", result);
+    } else if (plan.action === "resume_stop") {
+      const changed = database
+        .prepare(
+          `
+        UPDATE runs SET state = 'stopping',
+          updated_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
+        WHERE run_id = ? AND stop_reason = 'cancelled'
+          AND state NOT IN ('cancelled', 'archived', 'needs_attention')
+      `,
+        )
+        .run(plan.runId);
+      if (changed.changes !== 1) fail("Cancellation intent changed before recovery");
+      result = { action: "stopping_restored" };
     } else {
       result = { action: plan.reason ?? plan.action };
       completeRequest(
         database,
-        plan.requestId,
+        plan.requestId!,
         plan.action === "request_reject" ? "rejected" : "applied",
         result,
       );
@@ -699,6 +727,7 @@ async function main(): Promise<void> {
       const internal = [
         "claim_remote",
         "request_stop",
+        "resume_stop",
         "request_complete",
         "request_reject",
       ].includes(plan.action);
