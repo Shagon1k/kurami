@@ -161,11 +161,15 @@ as preview-ready are posted once inside the ticket thread from a separate
 durable delivery outbox. Each short lifecycle event includes one `Open controls`
 link back to the pinned control message instead of duplicating action buttons.
 
-An active `Take control` request is shown as `Preparing human control` while
-the current Codex turn reaches a safe boundary. The takeover button is hidden
-during that wait so repeated clicks cannot create misleading duplicate intent.
-Regardless of whether GitHub reaches Human Review during the wait, a successful
-handoff normalizes the durable state to `remote_owned` with owner `remote`.
+An active `Take control` request is shown immediately as `Preparing human
+control`. The controller sends the Codex TUI its normal `Escape` interrupt,
+requires two stable idle observations within a bounded window, and only then
+closes managed CLI/tmux and transfers the same thread. It never force-kills a
+turn that does not become idle, and it refuses takeover at an approval prompt.
+The takeover button is hidden during this work so repeated clicks cannot create
+misleading duplicate intent. Regardless of whether GitHub reaches Human Review
+during the wait, a successful handoff normalizes the durable state to
+`remote_owned` with owner `remote`.
 
 After a successful handoff, ownership becomes `remote` and the interaction is
 replaced by an `Open in Codex` link. The live card and handoff event include the
@@ -271,10 +275,12 @@ TUI startup. `sync` uses the official Codex App Server stdio protocol to find
 the CLI thread by its exact worktree, apply the stable `[PROJECT-ISSUE]: title`
 name directly to persisted metadata, and record its UUID without typing into a
 live TUI. `inspect` compares the durable mapping with the actual tmux session.
-`handoff` refuses an active or approval-blocked turn, saves a mode-600 terminal
-tail, performs bounded graceful EOF, verifies that tmux disappeared, and
-transfers durable ownership from `cli` to `remote`. The database transition is
-recoverable when tmux already exited after an interrupted handoff.
+`handoff` refuses an approval-blocked turn. For an active remote takeover it
+requests the TUI's normal interrupt and requires a stable idle prompt within a
+bounded window; failure remains non-destructive and retryable. It then saves a
+mode-600 terminal tail, performs bounded graceful EOF, verifies that tmux
+disappeared, and transfers durable ownership from `cli` to `remote`. The
+database transition is recoverable when tmux already exited during handoff.
 `finalize-stop` is plan-only by default. It permits the durable transition from
 `stopping` to `cancelled` only after verifying that the tmux session, worktree,
 and local branch are all absent; `--apply` records the verified cleanup.

@@ -575,7 +575,7 @@ function progressFor(run: ProgressRow): { stage: string; detail: string } {
     return {
       stage: "handoff_pending",
       detail:
-        "Take control requested; waiting for the active Codex turn to reach a safe handoff boundary.",
+        "Take control requested; safely interrupting the active Codex turn and preparing handoff.",
     };
   }
   if (run.run_state === "running" && run.owner_state === "cli") {

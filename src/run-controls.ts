@@ -22,7 +22,7 @@ const pendingPresentations: Partial<
   take_control: {
     stage: "handoff_pending",
     detail:
-      "Take control requested; waiting for the active Codex turn to reach a safe handoff boundary.",
+      "Take control requested; safely interrupting the active Codex turn and preparing handoff.",
   },
   preview_start: {
     stage: "preview_queued",

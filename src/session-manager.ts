@@ -573,6 +573,22 @@ function sendTmuxKeys(sessionNameValue: string, keys: string[]): void {
   runFile("tmux", ["send-keys", "-t", `${sessionNameValue}:0.0`, ...keys]);
 }
 
+function transcriptWaitingOnApproval(transcript: string): boolean {
+  return /Would you like to run|Requested permission|Press enter to confirm|Allow .+\?/iu.test(
+    transcript.slice(-1_500),
+  );
+}
+
+function transcriptBusy(transcript: string): boolean {
+  return /Working \(|esc to interrupt|Booting MCP server/iu.test(
+    transcript.slice(-700),
+  );
+}
+
+function transcriptHasIdlePrompt(transcript: string): boolean {
+  return /(?:^|\n)›[^\n]*(?:\n|$)/u.test(transcript.slice(-1_500));
+}
+
 function sendTmuxLiteral(sessionNameValue: string, value: string): void {
   runFile("tmux", [
     "send-keys",
@@ -725,26 +741,23 @@ async function leaveCliSession(
     );
   }
   if (!run.codex_thread_id) fail(`Run has no synchronized Codex thread ID`);
-  const tmuxAlive = run.tmux_session_name
+  let tmuxAlive = run.tmux_session_name
     ? tmuxSessionExists(run.tmux_session_name)
     : false;
-  const transcript =
+  const tmuxAliveAtStart = tmuxAlive;
+  let transcript =
     tmuxAlive && run.tmux_session_name
       ? capturePane(run.tmux_session_name)
       : "";
-  const tail = transcript.slice(-1_500);
-  const waitingOnApproval =
-    /Would you like to run|Requested permission|Press enter to confirm|Allow .+\?/iu.test(
-      tail,
-    );
-  const busy = /Working \(|esc to interrupt|Booting MCP server/iu.test(
-    transcript.slice(-700),
-  );
+  let waitingOnApproval = transcriptWaitingOnApproval(transcript);
+  let busy = transcriptBusy(transcript);
+  const initialBusy = busy;
+  const interruptRequired = targetOwner === "remote" && busy;
   const tailDirectory = resolve(orchestratorHome, "logs/session-handoffs");
   const tailPath = resolve(tailDirectory, `${run.run_id}.txt`);
   const targetState =
     targetOwner === "remote" ? "remote_owned" : run.run_state;
-  const plan = {
+  const initialPlan = {
     runId: run.run_id,
     fromState: run.run_state,
     toState: targetState,
@@ -753,22 +766,67 @@ async function leaveCliSession(
     tmuxSessionName: run.tmux_session_name,
     tmuxAlive,
     codexThreadId: run.codex_thread_id,
+    initialBusy,
     busy,
     waitingOnApproval,
+    interruptRequired,
+    interruptedTurn: false,
     tailPath,
   };
   if (waitingOnApproval)
     fail(`Codex is waiting for approval; resolve it before handoff`);
-  if (busy) fail(`Codex turn is still active; handoff is not safe yet`);
+  if (busy && targetOwner !== "remote")
+    fail(`Codex turn is still active; handoff is not safe yet`);
   if (!apply) {
     process.stdout.write(
-      `${JSON.stringify({ ok: true, apply: false, plan })}\n`,
+      `${JSON.stringify({ ok: true, apply: false, plan: initialPlan })}\n`,
     );
     return;
   }
   if (run.execution_mode !== "live") {
     fail(`Refusing handoff for execution_mode=${run.execution_mode}`);
   }
+
+  let interruptedTurn = false;
+  if (interruptRequired && tmuxAlive && run.tmux_session_name) {
+    sendTmuxKeys(run.tmux_session_name, ["Escape"]);
+    let stableIdleSamples = 0;
+    for (let attempt = 0; attempt < 40; attempt += 1) {
+      await new Promise((resolveDelay) => setTimeout(resolveDelay, 250));
+      if (!tmuxSessionExists(run.tmux_session_name)) {
+        tmuxAlive = false;
+        busy = false;
+        interruptedTurn = true;
+        break;
+      }
+      transcript = capturePane(run.tmux_session_name);
+      waitingOnApproval = transcriptWaitingOnApproval(transcript);
+      if (waitingOnApproval) {
+        fail(`Codex reached an approval prompt during handoff; resolve it before retrying`);
+      }
+      busy = transcriptBusy(transcript);
+      const idlePrompt = transcriptHasIdlePrompt(transcript);
+      stableIdleSamples = !busy && idlePrompt ? stableIdleSamples + 1 : 0;
+      if (stableIdleSamples >= 2) {
+        interruptedTurn = true;
+        break;
+      }
+      if (attempt === 11 || attempt === 23) {
+        sendTmuxKeys(run.tmux_session_name, ["Escape"]);
+      }
+    }
+    if (busy) {
+      fail(`Codex did not reach an idle prompt within the bounded interrupt window`);
+    }
+  }
+
+  const plan = {
+    ...initialPlan,
+    tmuxAlive: tmuxAliveAtStart,
+    busy,
+    waitingOnApproval,
+    interruptedTurn,
+  };
 
   await mkdir(tailDirectory, { recursive: true, mode: 0o700 });
   await writeFile(tailPath, `${transcript}\n`, {

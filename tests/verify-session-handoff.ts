@@ -34,6 +34,7 @@ async function main(): Promise<void> {
   const testHome = await mkdtemp(resolve(tmpdir(), "kurami-handoff-test-"));
   const fakeBin = resolve(testHome, "fake-bin");
   const fakeTmuxState = resolve(testHome, "tmux-alive");
+  const fakeTmuxBusyState = resolve(testHome, "tmux-busy");
   const fakeTmuxLog = resolve(testHome, "tmux-calls.log");
   const runId = "r_review_handoff_race";
   const tmuxSession = "cx-tt-9501-handoff";
@@ -65,10 +66,15 @@ case "$1" in
     test -f "$FAKE_TMUX_STATE"
     ;;
   capture-pane)
-    printf '%s\\n' 'Codex task completed. Type a new instruction.'
+    if test -f "$FAKE_TMUX_BUSY_STATE"; then
+      printf '%s\\n' 'Working (4m 00s - esc to interrupt)'
+    else
+      printf '%s\\n' 'Conversation interrupted. Type a new instruction.' '› Implement {feature}'
+    fi
     ;;
   send-keys)
     case "$*" in
+      *Escape*) /bin/rm -f "$FAKE_TMUX_BUSY_STATE" ;;
       *C-d*) /bin/rm -f "$FAKE_TMUX_STATE" ;;
     esac
     ;;
@@ -84,6 +90,10 @@ esac
       encoding: "utf8",
       mode: 0o600,
     });
+    await writeFile(fakeTmuxBusyState, `${tmuxSession}\n`, {
+      encoding: "utf8",
+      mode: 0o600,
+    });
 
     const env = {
       ...process.env,
@@ -91,6 +101,7 @@ esac
       ORCHESTRATOR_MIGRATIONS_DIR: resolve(appDirectory, "migrations"),
       PATH: `${fakeBin}${delimiter}${process.env.PATH ?? ""}`,
       FAKE_TMUX_STATE: fakeTmuxState,
+      FAKE_TMUX_BUSY_STATE: fakeTmuxBusyState,
       FAKE_TMUX_LOG: fakeTmuxLog,
     };
     execFileSync(
@@ -162,11 +173,15 @@ esac
       toState: string;
       toOwner: string;
       busy: boolean;
+      initialBusy: boolean;
+      interruptedTurn: boolean;
     };
     assert(result.ok, "Handoff did not succeed");
     assert(result.toState === "remote_owned", "Handoff preserved parked_review");
     assert(result.toOwner === "remote", "Handoff did not assign remote owner");
-    assert(!result.busy, "Idle fake session was classified as busy");
+    assert(result.initialBusy, "Busy fake session was not detected");
+    assert(!result.busy, "Interrupted fake session remained busy");
+    assert(result.interruptedTurn, "Active turn was not interrupted for takeover");
     assert(!(await exists(fakeTmuxState)), "Managed tmux session is still alive");
 
     const verify = new DatabaseSync(databasePath, { readOnly: true });
@@ -211,12 +226,16 @@ esac
       "Handoff history did not record the normalized state",
     );
     assert(
-      (await readFile(fakeTmuxLog, "utf8")).includes("send-keys"),
-      "Handoff did not close the managed CLI session",
+      (await readFile(fakeTmuxLog, "utf8")).includes("Escape"),
+      "Handoff did not request the normal Codex interrupt",
+    );
+    assert(
+      (await readFile(fakeTmuxLog, "utf8")).includes("C-d"),
+      "Handoff did not close the managed CLI session after interruption",
     );
 
     process.stdout.write(
-      `${JSON.stringify({ ok: true, isolated: true, reviewRaceNormalized: true, remoteOwned: true, tmuxReleased: true })}\n`,
+      `${JSON.stringify({ ok: true, isolated: true, reviewRaceNormalized: true, boundedInterrupt: true, remoteOwned: true, tmuxReleased: true })}\n`,
     );
   } finally {
     await rm(testHome, { recursive: true, force: true });

@@ -100,10 +100,13 @@ pending. Include `requestId` and `requestState` when returned. Do not claim that
 handoff, preview startup, preview shutdown, or cancellation completed until a
 later durable status proves it.
 
-A Take control request may remain pending while the active Codex turn reaches a
-safe handoff boundary. Report this as expected waiting, not failure. Completion
-requires `state=remote_owned`, `owner_state=remote`, and a valid
-`codex_thread_id`; only then provide the Codex launcher URL.
+A Take control request immediately enters bounded handoff preparation. The
+deterministic controller requests the Codex TUI's normal interrupt, waits for a
+stable idle prompt, and then releases managed CLI/tmux without changing the
+thread ID. It refuses approval-blocked turns and remains fail-closed when the
+turn does not become idle in time. Completion requires `state=remote_owned`,
+`owner_state=remote`, and a valid `codex_thread_id`; only then provide the Codex
+launcher URL.
 
 Cancellation is complete only when status reports `state=cancelled` and
 `resource_state=released`. The controller then returns the GitHub Project item

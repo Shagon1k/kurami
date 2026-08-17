@@ -529,7 +529,7 @@ async function main(): Promise<void> {
       .prepare(
         `UPDATE run_progress_cards
          SET stage='handoff_pending',
-             detail='Take control requested; waiting for the active Codex turn to reach a safe handoff boundary.',
+             detail='Take control requested; safely interrupting the active Codex turn and preparing handoff.',
              content_digest='digest-handoff-pending',
              updated_at='2026-08-16T09:13:00.000Z'
          WHERE run_id='r_discord_smoke'`,

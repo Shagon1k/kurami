@@ -541,7 +541,7 @@ async function main(): Promise<void> {
     immediateState.close();
     assert(
       immediateCard.stage === "handoff_pending" &&
-        immediateCard.detail.includes("safe handoff boundary"),
+        immediateCard.detail.includes("safely interrupting"),
       "Accepted takeover request did not update the durable card immediately",
     );
     const repeatedCancelError = runNodeFails(
@@ -694,7 +694,7 @@ async function main(): Promise<void> {
       .get() as { stage: string; detail: string };
     assert(
       takeoverPendingCard.stage === "handoff_pending" &&
-        takeoverPendingCard.detail.includes("safe handoff boundary"),
+        takeoverPendingCard.detail.includes("safely interrupting"),
       "Pending Take control request was not visible in the progress card",
     );
     const prematureReviewEventCount = Number(
