@@ -1,6 +1,6 @@
 ---
 name: kurami-run-control
-description: Inspect, redisplay, or request an allowlisted Kurami Dev Orchestrator action. Use when Alex sends a textual Discord or Telegram fallback command for a Kurami engineering run, including Status, Take control, Continue in Codex, Start preview, Stop preview, Cancel run, Open in Codex, or Show controls/actions again.
+description: Inspect, redisplay, or request an allowlisted Kurami Dev Orchestrator action. Use when Alex sends a textual Discord or Telegram fallback command for a Kurami engineering run, including Status, Take control, Continue in Codex, Start preview, Stop preview, Cancel run, Discard local work, Close draft PR and discard, Open in Codex, or Show controls/actions again.
 ---
 
 # Kurami Run Control
@@ -52,6 +52,24 @@ Map exact actions and aliases as follows:
 - `Start preview`: run `$NODE $CONTROL request --run-id <run_id> --action preview_start --via <transport> --apply`.
 - `Stop preview`: run `$NODE $CONTROL request --run-id <run_id> --action preview_stop --via <transport> --apply`.
 - `Cancel run`, or legacy `Stop`: run `$NODE $CONTROL request --run-id <run_id> --action stop --via <transport> --apply`.
+- `Discard local work`: only after status reports `needs_attention`,
+  `stop_reason=cancelled`, and `owner_state=none`, explain that this permanently
+  deletes the unpublished managed worktree and local branch. Require an
+  explicit second confirmation, then run `$NODE $CONTROL request --run-id
+  <run_id> --action discard_local --via <transport> --apply`. Never treat the
+  first textual request as confirmation. Do not offer discard when status or
+  the control surface reports a published branch or pull request; published
+  work requires the separate published-result action below.
+- `Close draft PR and discard` or `Close draft PR & discard`: only after status
+  reports `needs_attention`, `stop_reason=cancelled`, and `owner_state=none`, and
+  the control surface reports the preserved Draft PR. Explain that this closes
+  the exact matching Draft PR and deletes its matching remote branch, clean
+  managed worktree, and local branch. Require an explicit second confirmation,
+  then run `$NODE $CONTROL request --run-id <run_id> --action
+  discard_published --via <transport> --apply`. Never treat the first textual
+  request as confirmation. The deterministic resolver refuses merged or
+  non-draft PRs, ambiguous PRs, mismatched local/remote heads, dirty worktrees,
+  and missing managed resources; do not bypass those refusals.
 
 Set `<transport>` to `discord` for Discord and `telegram` for Telegram.
 
@@ -81,6 +99,21 @@ For a mutation, report only that the durable request was accepted or already
 pending. Include `requestId` and `requestState` when returned. Do not claim that
 handoff, preview startup, preview shutdown, or cancellation completed until a
 later durable status proves it.
+
+A Take control request may remain pending while the active Codex turn reaches a
+safe handoff boundary. Report this as expected waiting, not failure. Completion
+requires `state=remote_owned`, `owner_state=remote`, and a valid
+`codex_thread_id`; only then provide the Codex launcher URL.
+
+Cancellation is complete only when status reports `state=cancelled` and
+`resource_state=released`. The controller then returns the GitHub Project item
+to its configured Backlog status. When status is `needs_attention` after a
+cancellation, report that automation is stopped and unpublished local work is
+preserved; do not describe the run as fully cancelled. If a pull request or
+remote branch already exists, report that published work was preserved. Offer
+the guarded published-result action only when the returned controls expose it;
+otherwise instruct the user to resolve the PR manually in GitHub. Never suggest
+discarding published work through the local-only action.
 
 If validation rejects an action because the run is terminal, preview is not
 configured, the run is not in a stable review state, or handoff is unsafe,

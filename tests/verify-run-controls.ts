@@ -275,8 +275,154 @@ async function main(): Promise<void> {
       "none",
       null,
     );
+    addDirect(
+      "r_takeover_pending",
+      9315,
+      "autonomous",
+      "running",
+      "cli",
+      "cx-9315",
+    );
+    verify
+      .prepare(
+        `UPDATE runs SET execution_mode = 'dry_run'
+         WHERE run_id = 'r_takeover_pending'`,
+      )
+      .run();
     addDirect("r_preview", 9305, "autonomous", "parked_review", "none", null);
     addDirect("r_stop", 9306, "autonomous", "parked_review", "none", null);
+    addDirect(
+      "r_preserved_cancel",
+      9311,
+      "autonomous",
+      "needs_attention",
+      "none",
+      null,
+    );
+    verify
+      .prepare(
+        `UPDATE runs
+         SET stop_reason = 'cancelled'
+         WHERE run_id = 'r_preserved_cancel'`,
+      )
+      .run();
+    addDirect(
+      "r_published_cancel",
+      9316,
+      "autonomous",
+      "needs_attention",
+      "none",
+      null,
+    );
+    verify
+      .prepare(
+        `UPDATE runs
+         SET stop_reason = 'cancelled'
+         WHERE run_id = 'r_published_cancel'`,
+      )
+      .run();
+    addDirect(
+      "r_cancelled_backlog",
+      9312,
+      "autonomous",
+      "cancelled",
+      "none",
+      null,
+    );
+    verify
+      .prepare(
+        `UPDATE runs
+         SET stop_reason = 'cancelled'
+         WHERE run_id = 'r_cancelled_backlog'`,
+      )
+      .run();
+    verify
+      .prepare(
+        `UPDATE run_resources
+         SET resource_state = 'released'
+         WHERE run_id = 'r_cancelled_backlog'`,
+      )
+      .run();
+    verify
+      .prepare(
+        `INSERT INTO project_items (
+           project, item_id, content_id, content_type, repository,
+           issue_number, title, url, status, first_seen_at, last_seen_at
+         ) VALUES (
+           'tailortales', 'item-9312', 'content-9312', 'Issue',
+           'Shagon1k/TailorTales', 9312, '[Test]: Control 9312',
+           'https://example.invalid/issues/9312', 'Backlog',
+           '2026-08-15T12:00:00.000Z', '2026-08-15T12:00:00.000Z'
+         )`,
+      )
+      .run();
+    addDirect(
+      "r_cancelled_retry_old",
+      9313,
+      "autonomous",
+      "cancelled",
+      "none",
+      null,
+    );
+    verify.exec(`
+      UPDATE runs
+      SET stop_reason = 'cancelled'
+      WHERE run_id = 'r_cancelled_retry_old';
+      UPDATE run_resources
+      SET resource_state = 'released'
+      WHERE run_id = 'r_cancelled_retry_old';
+      INSERT INTO project_items (
+        project, item_id, content_id, content_type, repository,
+        issue_number, title, url, status, first_seen_at, last_seen_at
+      ) VALUES (
+        'tailortales', 'item-9313', 'content-9313', 'Issue',
+        'Shagon1k/TailorTales', 9313, '[Test]: Control 9313',
+        'https://example.invalid/issues/9313', 'In progress',
+        '2026-08-15T12:00:00.000Z', '2026-08-15T12:01:00.000Z'
+      );
+      INSERT INTO project_events (
+        event_id, observed_at, project, item_id, content_id, content_type,
+        repository, issue_number, title, url, from_status, to_status,
+        payload_json, processing_state
+      ) VALUES (
+        'event-9313-retry', '2026-08-15T12:01:00.000Z', 'tailortales',
+        'item-9313', 'content-9313', 'Issue', 'Shagon1k/TailorTales',
+        9313, '[Test]: Control 9313',
+        'https://example.invalid/issues/9313', 'Backlog', 'In progress',
+        '{"issueState":"OPEN","labels":[],"hasDescription":true}',
+        'processed'
+      );
+      INSERT INTO runs (
+        run_id, trigger_event_id, project, item_id, content_id, repository,
+        issue_number, interaction_policy, state, owner_state, execution_mode
+      ) VALUES (
+        'r_retry_new', 'event-9313-retry', 'tailortales', 'item-9313',
+        'content-9313', 'Shagon1k/TailorTales', 9313, 'autonomous',
+        'running', 'none', 'live'
+      );
+      INSERT INTO run_resources (
+        run_id, resource_state, worktree_path, branch_name
+      ) VALUES (
+        'r_retry_new', 'provisioned',
+        '/tmp/worktrees/9313-retry/TailorTales',
+        'TT-9313_control-test_retry'
+      );
+    `);
+    addDirect(
+      "r_legacy_cancelled_without_reason",
+      9314,
+      "autonomous",
+      "cancelled",
+      "none",
+      null,
+    );
+    verify
+      .prepare(
+        `UPDATE run_resources
+         SET resource_state = 'released'
+         WHERE run_id = 'r_legacy_cancelled_without_reason'`,
+      )
+      .run();
     addDirect(
       "r_early_cancel",
       9309,
@@ -340,13 +486,82 @@ async function main(): Promise<void> {
     `);
     insertRequest.run("rq_take", "r_take_control", "take_control", "test:take");
     insertRequest.run(
+      "rq_take_pending",
+      "r_takeover_pending",
+      "take_control",
+      "test:take-pending",
+    );
+    insertRequest.run(
       "rq_preview",
       "r_preview",
       "preview_start",
       "test:preview",
     );
     insertRequest.run("rq_stop", "r_stop", "stop", "test:stop");
+    insertRequest.run(
+      "rq_discard",
+      "r_preserved_cancel",
+      "discard_local",
+      "test:discard",
+    );
+    insertRequest.run(
+      "rq_discard_published",
+      "r_published_cancel",
+      "discard_published",
+      "test:discard-published",
+    );
     verify.close();
+
+    const controlPath = resolve(appDirectory, "src/run-controls.ts");
+    const immediateTakeover = runNode(
+      controlPath,
+      [
+        "request",
+        "--run-id",
+        "r_takeover_pending",
+        "--action",
+        "take_control",
+        "--via",
+        "discord",
+        "--apply",
+      ],
+      testHome,
+    );
+    assert(
+      immediateTakeover.action === "existing",
+      "Repeated pending takeover did not remain idempotent",
+    );
+    const immediateState = new DatabaseSync(databasePath);
+    const immediateCard = immediateState
+      .prepare(
+        `SELECT stage, detail FROM run_progress_cards
+         WHERE run_id = 'r_takeover_pending'`,
+      )
+      .get() as { stage: string; detail: string };
+    immediateState.close();
+    assert(
+      immediateCard.stage === "handoff_pending" &&
+        immediateCard.detail.includes("safe handoff boundary"),
+      "Accepted takeover request did not update the durable card immediately",
+    );
+    const repeatedCancelError = runNodeFails(
+      controlPath,
+      [
+        "request",
+        "--run-id",
+        "r_preserved_cancel",
+        "--action",
+        "stop",
+        "--via",
+        "discord",
+        "--apply",
+      ],
+      testHome,
+    );
+    assert(
+      repeatedCancelError.includes("already in progress or awaiting resolution"),
+      "A cancelled run accepted a second cancellation request",
+    );
 
     const planned = runNode(controller, [], testHome) as unknown as {
       plans: Plan[];
@@ -364,12 +579,36 @@ async function main(): Promise<void> {
       "Take control should claim the same parked thread",
     );
     assert(
+      actions.r_takeover_pending === "handoff",
+      "Active Take control request should plan a safe handoff",
+    );
+    assert(
       actions.r_preview === "preview_allocate",
       "Preview should allocate only on request",
     );
     assert(
       actions.r_stop === "request_stop",
       "Stop request should be explicit",
+    );
+    assert(
+      actions.r_preserved_cancel === "discard_cancelled",
+      "Confirmed unpublished cancellation should plan guarded discard",
+    );
+    assert(
+      actions.r_published_cancel === "discard_published_cancelled",
+      "Confirmed published cancellation should plan exact Draft PR cleanup",
+    );
+    assert(
+      actions.r_cancelled_backlog === "project_backlog",
+      "An unrecorded Backlog state must be acknowledged exactly once",
+    );
+    assert(
+      actions.r_cancelled_retry_old === undefined,
+      "A historical cancellation must not move an item owned by a newer run",
+    );
+    assert(
+      actions.r_legacy_cancelled_without_reason === undefined,
+      "A legacy terminal run without explicit cancellation intent must not move the Project item",
     );
     assert(
       actions.r_early_cancel === "cancel_cli",
@@ -384,8 +623,34 @@ async function main(): Promise<void> {
       "Review-ready must not auto-start preview",
     );
 
+    const discardPlanCleanup = new DatabaseSync(databasePath);
+    discardPlanCleanup
+      .prepare(
+        `DELETE FROM run_control_requests
+         WHERE request_id IN ('rq_discard', 'rq_discard_published')`,
+      )
+      .run();
+    discardPlanCleanup.close();
+
     runNode(controller, ["--apply"], testHome);
     const notificationState = new DatabaseSync(databasePath);
+    const backlogAcknowledged = Number(
+      (
+        notificationState
+          .prepare(
+            `
+              SELECT COUNT(*) AS count FROM run_state_history
+              WHERE run_id = 'r_cancelled_backlog'
+                AND reason = 'cancelled_item_already_backlog'
+            `,
+          )
+          .get() as { count: number }
+      ).count,
+    );
+    assert(
+      backlogAcknowledged === 1,
+      "Backlog satisfaction was not recorded exactly once",
+    );
     const previewEventCount = Number(
       (
         notificationState
@@ -420,6 +685,17 @@ async function main(): Promise<void> {
       finalizingCard.stage === "finalizing_review" &&
         finalizingCard.detail.includes("waiting for the active Codex turn"),
       "CLI-owned Human Review was falsely reported as ready",
+    );
+    const takeoverPendingCard = notificationState
+      .prepare(
+        `SELECT stage, detail FROM run_progress_cards
+         WHERE run_id = 'r_takeover_pending'`,
+      )
+      .get() as { stage: string; detail: string };
+    assert(
+      takeoverPendingCard.stage === "handoff_pending" &&
+        takeoverPendingCard.detail.includes("safe handoff boundary"),
+      "Pending Take control request was not visible in the progress card",
     );
     const prematureReviewEventCount = Number(
       (
@@ -519,10 +795,14 @@ async function main(): Promise<void> {
         notificationPending: notificationPlan.pending.length,
         progressCard: previewCard.stage,
         finalizingReviewCard: finalizingCard.stage,
+        takeoverPendingCard: takeoverPendingCard.stage,
+        immediateTakeoverCard: immediateCard.stage,
+        repeatedCancellationRejected: true,
         prematureReviewEventCount,
         ambiguousSendingRetried: false,
         historicalTerminalBackfilled: false,
         previewHistoryDoesNotRepeatReview: true,
+        legacyTerminalWithoutReasonIgnored: true,
         telegramProactiveDisabled: true,
         noAutomaticPreview: true,
         activePreviewRejected: true,

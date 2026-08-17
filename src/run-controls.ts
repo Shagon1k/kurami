@@ -1,4 +1,4 @@
-import { randomUUID } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { DatabaseSync } from "node:sqlite";
@@ -6,9 +6,46 @@ import { parse } from "yaml";
 
 process.umask(0o077);
 
-type Action = "take_control" | "preview_start" | "preview_stop" | "stop";
+type Action =
+  | "take_control"
+  | "preview_start"
+  | "preview_stop"
+  | "stop"
+  | "discard_local"
+  | "discard_published";
 type Command = "status" | "request" | "controls";
 type RequestSource = "telegram" | "discord" | "cli";
+
+const pendingPresentations: Partial<
+  Record<Action, { stage: string; detail: string }>
+> = {
+  take_control: {
+    stage: "handoff_pending",
+    detail:
+      "Take control requested; waiting for the active Codex turn to reach a safe handoff boundary.",
+  },
+  preview_start: {
+    stage: "preview_queued",
+    detail: "Preview start requested; waiting for runtime reconciliation.",
+  },
+  preview_stop: {
+    stage: "preview_stopping",
+    detail: "Preview stop requested; waiting for safe runtime cleanup.",
+  },
+  stop: {
+    stage: "stopping",
+    detail: "Stopping active resources and checking cleanup safety.",
+  },
+  discard_local: {
+    stage: "discarding_cancelled",
+    detail: "Discard confirmed; checking the preserved local result before cleanup.",
+  },
+  discard_published: {
+    stage: "discarding_cancelled",
+    detail:
+      "Published discard confirmed; verifying the exact draft pull request and managed branch.",
+  },
+};
 
 const orchestratorHome = resolve(
   process.env.ORCHESTRATOR_HOME ?? resolve(import.meta.dirname, "../.."),
@@ -58,7 +95,7 @@ function parseArguments(): {
   const apply = args.includes("--apply");
   if (!command || !["status", "request", "controls"].includes(command)) {
     fail(
-      "Usage: run-controls.ts <status|request|controls> [--run-id <run_id>] [--action <take_control|preview_start|preview_stop|stop>] [--via <telegram|discord|cli>] [--project <project>] [--issue <number>] [--discord-thread-id <id>] [--apply]",
+      "Usage: run-controls.ts <status|request|controls> [--run-id <run_id>] [--action <take_control|preview_start|preview_stop|stop|discard_local|discard_published>] [--via <telegram|discord|cli>] [--project <project>] [--issue <number>] [--discord-thread-id <id>] [--apply]",
     );
   }
   if (command !== "controls" && !runId) fail(`${command} requires --run-id`);
@@ -69,9 +106,14 @@ function parseArguments(): {
   if (
     command === "request" &&
     (!action ||
-      !["take_control", "preview_start", "preview_stop", "stop"].includes(
-        action,
-      ))
+      ![
+        "take_control",
+        "preview_start",
+        "preview_stop",
+        "stop",
+        "discard_local",
+        "discard_published",
+      ].includes(action))
   ) {
     fail("request requires a supported --action");
   }
@@ -146,6 +188,41 @@ function status(
   };
 }
 
+function presentPendingRequest(
+  database: DatabaseSync,
+  runId: string,
+  action: Action,
+): void {
+  const presentation = pendingPresentations[action];
+  if (!presentation) return;
+  const digest = createHash("sha256")
+    .update(
+      JSON.stringify({
+        runId,
+        action,
+        stage: presentation.stage,
+        detail: presentation.detail,
+      }),
+    )
+    .digest("hex");
+  database
+    .prepare(
+      `
+      INSERT INTO run_progress_cards (
+        run_id, stage, detail, content_digest, delivery_state
+      ) VALUES (?, ?, ?, ?, 'pending')
+      ON CONFLICT(run_id) DO UPDATE SET
+        stage = excluded.stage,
+        detail = excluded.detail,
+        content_digest = excluded.content_digest,
+        delivery_state = 'pending',
+        last_error = NULL,
+        updated_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
+    `,
+    )
+    .run(runId, presentation.stage, presentation.detail, digest);
+}
+
 function request(
   database: DatabaseSync,
   runId: string,
@@ -158,15 +235,35 @@ function request(
     const run = database
       .prepare(
         `
-      SELECT project, state, owner_state FROM runs WHERE run_id = ?
+      SELECT project, state, owner_state, stop_reason FROM runs WHERE run_id = ?
     `,
       )
       .get(runId) as
-      | { project: string; state: string; owner_state: string }
+      | {
+          project: string;
+          state: string;
+          owner_state: string;
+          stop_reason: string | null;
+        }
       | undefined;
     if (!run) fail(`Run not found: ${runId}`);
     if (["rejected", "cancelled", "archived"].includes(run.state)) {
       fail(`Run is terminal: ${run.state}`);
+    }
+    if (action === "stop" && run.stop_reason === "cancelled") {
+      fail("Run cancellation is already in progress or awaiting resolution");
+    }
+    if (
+      ["discard_local", "discard_published"].includes(action) &&
+      !(
+        run.state === "needs_attention" &&
+        run.owner_state === "none" &&
+        run.stop_reason === "cancelled"
+      )
+    ) {
+      fail(
+        "Preserved work can be resolved only after a cancelled run is safely stopped for attention",
+      );
     }
     if (
       ["preview_start", "preview_stop"].includes(action) &&
@@ -199,6 +296,7 @@ function request(
       | { request_id: string; request_state: string }
       | undefined;
     if (existing) {
+      if (apply) presentPendingRequest(database, runId, action);
       database.exec("COMMIT");
       return {
         action: "existing",
@@ -238,6 +336,7 @@ function request(
     `,
       )
       .get(idempotencyKey) as { request_id: string; request_state: string };
+    presentPendingRequest(database, runId, action);
     database.exec("COMMIT");
     return {
       action: stored.request_id === plan.requestId ? "created" : "existing",
@@ -301,6 +400,16 @@ function controls(
   const previewState = selected.preview_state
     ? String(selected.preview_state)
     : null;
+  const pendingActions = new Set(
+    (
+      selected.requests as Array<{ action?: unknown; request_state?: unknown }>
+    )
+      .filter((request) =>
+        ["pending", "processing"].includes(String(request.request_state)),
+      )
+      .map((request) => String(request.action)),
+  );
+  const cancellationStarted = selected.stop_reason === "cancelled";
   const availableActions = ["status"];
   if (
     threadReady &&
@@ -308,16 +417,20 @@ function controls(
       (ownerState === "none" &&
         ["parked_review", "waiting_human"].includes(runState)))
   )
-    availableActions.push("take_control");
+    if (!pendingActions.has("take_control"))
+      availableActions.push("take_control");
   if (projectSupportsPreview(String(selected.project))) {
-    if (previewState) availableActions.push("preview_stop");
+    if (previewState && !pendingActions.has("preview_stop"))
+      availableActions.push("preview_stop");
     else if (
+      !pendingActions.has("preview_start") &&
       ownerState === "none" &&
       ["parked_review", "waiting_human"].includes(runState)
     )
       availableActions.push("preview_start");
   }
-  availableActions.push("stop");
+  if (!cancellationStarted && !pendingActions.has("stop"))
+    availableActions.push("stop");
   return { ...selected, available_actions: availableActions };
 }
 

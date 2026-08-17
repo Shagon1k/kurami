@@ -1,6 +1,6 @@
 interface:
   display_name: "Kurami Run Control"
-  short_description: "Safely inspect and control a Kurami engineering run"
+  short_description: "Safely inspect, control, cancel, or resolve a Kurami run"
   default_prompt: "Use $kurami-run-control to inspect a Kurami run or request one allowlisted control action."
 
 policy:

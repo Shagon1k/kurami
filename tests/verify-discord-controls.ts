@@ -517,12 +517,48 @@ async function main(): Promise<void> {
         !readyControls.includes("kurami:preview_start:r_discord_smoke"),
       "Thread readiness did not reconcile controls without a card-stage change",
     );
-    const readinessEditCount = threadControlEdits.length;
+    const stableReadinessEditCount = threadControlEdits.length;
     await runNode(notifier, ["--apply"], testHome, discordEnv);
     assert(
-      threadControlEdits.length === readinessEditCount,
+      threadControlEdits.length === stableReadinessEditCount,
       "Stable thread readiness caused repeated card edits",
     );
+
+    const handoffPending = new DatabaseSync(databasePath);
+    handoffPending
+      .prepare(
+        `UPDATE run_progress_cards
+         SET stage='handoff_pending',
+             detail='Take control requested; waiting for the active Codex turn to reach a safe handoff boundary.',
+             content_digest='digest-handoff-pending',
+             updated_at='2026-08-16T09:13:00.000Z'
+         WHERE run_id='r_discord_smoke'`,
+      )
+      .run();
+    handoffPending.close();
+    await runNode(notifier, ["--apply"], testHome, discordEnv);
+    const pendingControls = threadControlEdits.at(-1)!;
+    assert(
+      String(pendingControls.content).includes("Preparing human control") &&
+        !componentLabels(pendingControls).includes("Take control") &&
+        componentLabels(pendingControls).includes("Cancel run"),
+      "Pending takeover did not replace the active Take control button",
+    );
+
+    const workingAgain = new DatabaseSync(databasePath);
+    workingAgain
+      .prepare(
+        `UPDATE run_progress_cards
+         SET stage='working',
+             detail='Codex is working autonomously in the isolated worktree.',
+             content_digest='digest-working-restored',
+             updated_at='2026-08-16T09:14:00.000Z'
+         WHERE run_id='r_discord_smoke'`,
+      )
+      .run();
+    workingAgain.close();
+    await runNode(notifier, ["--apply"], testHome, discordEnv);
+    const readinessEditCount = threadControlEdits.length;
 
     await runNode(
       notifier,
@@ -745,8 +781,116 @@ async function main(): Promise<void> {
       "Discord request source was lost",
     );
 
-    const secondEvent = `event-9402`;
     requestCheck
+      .prepare(
+        `UPDATE preview_leases
+         SET state='released', released_at='2026-08-16T09:25:00.000Z'
+         WHERE run_id='r_discord_smoke' AND state='running'`,
+      )
+      .run();
+    requestCheck
+      .prepare(
+        `UPDATE runs
+         SET state='needs_attention', owner_state='none', stop_reason='cancelled',
+             updated_at='2026-08-16T09:25:00.000Z'
+         WHERE run_id='r_discord_smoke'`,
+      )
+      .run();
+    requestCheck
+      .prepare(
+        `UPDATE run_progress_cards
+         SET stage='cancelled_work_preserved',
+             detail='Cancellation stopped automation; unpublished local work is preserved.',
+             content_digest='digest-cancelled-work-preserved',
+             updated_at='2026-08-16T09:25:00.000Z'
+         WHERE run_id='r_discord_smoke'`,
+      )
+      .run();
+    requestCheck.close();
+
+    await runNode(notifier, ["--apply"], testHome, discordEnv);
+    const preservedControls = customIds(threadControlEdits.at(-1)!);
+    const preservedLabels = componentLabels(threadControlEdits.at(-1)!);
+    assert(
+      preservedControls.includes("kurami:discard_prompt:r_discord_smoke") &&
+        preservedLabels.includes("Discard local work") &&
+        !preservedControls.includes("kurami:stop:r_discord_smoke") &&
+        !preservedControls.includes("kurami:preview_start:r_discord_smoke") &&
+        !preservedControls.includes("kurami:take_control:r_discord_smoke"),
+      "Preserved cancellation did not expose only the guarded discard action",
+    );
+
+    const publishedCancellation = new DatabaseSync(databasePath);
+    publishedCancellation
+      .prepare(
+        `UPDATE run_discord_surfaces
+         SET pull_request_url='https://example.invalid/pulls/9401',
+             pull_request_title='Published cancellation'
+         WHERE run_id='r_discord_smoke'`,
+      )
+      .run();
+    publishedCancellation
+      .prepare(
+        `UPDATE run_progress_cards
+         SET content_digest='digest-cancelled-published',
+             updated_at='2026-08-16T09:25:30.000Z'
+         WHERE run_id='r_discord_smoke'`,
+      )
+      .run();
+    publishedCancellation.close();
+    await runNode(notifier, ["--apply"], testHome, discordEnv);
+    const publishedControls = threadControlEdits.at(-1)!;
+    const publishedCard = cardEdits.at(-1)!;
+    const publishedEmbed = (publishedCard.embeds as JsonObject[])[0]!;
+    assert(
+      String(publishedControls.content).includes(
+        "Cancelled — published work preserved",
+      ) &&
+        componentLabels(publishedControls).includes("Open PR") &&
+        componentLabels(publishedControls).includes(
+          "Close draft PR & discard",
+        ) &&
+        !componentLabels(publishedControls).includes("Discard local work") &&
+        !componentLabels(publishedControls).includes("Cancel run") &&
+        customIds(publishedControls).includes(
+          "kurami:discard_published_prompt:r_discord_smoke",
+        ) &&
+        !customIds(publishedControls).includes(
+          "kurami:discard_prompt:r_discord_smoke",
+        ) &&
+        !customIds(publishedControls).includes(
+          "kurami:stop:r_discord_smoke",
+        ) &&
+        String(publishedEmbed.description).includes(
+          "published branch and pull request were preserved",
+        ),
+      "Published cancellation still offered an impossible local discard",
+    );
+
+    const requestRestore = new DatabaseSync(databasePath);
+    requestRestore
+      .prepare(
+        `UPDATE runs
+         SET state='parked_review', owner_state='none', stop_reason=NULL,
+             updated_at='2026-08-16T09:26:00.000Z'
+         WHERE run_id='r_discord_smoke'`,
+      )
+      .run();
+    requestRestore
+      .prepare(
+        `UPDATE run_progress_cards
+         SET stage='review_ready',
+             detail='Autonomous work is parked and ready for review.',
+             content_digest='digest-review-after-preserved',
+             updated_at='2026-08-16T09:26:00.000Z'
+         WHERE run_id='r_discord_smoke'`,
+      )
+      .run();
+    requestRestore.close();
+
+    const secondEvent = `event-9402`;
+    const ambiguityState = new DatabaseSync(databasePath);
+    ambiguityState
       .prepare(
         `INSERT INTO project_events (
            event_id, observed_at, project, item_id, content_id, content_type,
@@ -759,7 +903,7 @@ async function main(): Promise<void> {
                    '{"issueState":"OPEN","labels":[],"hasDescription":true}', 'processed')`,
       )
       .run(secondEvent);
-    requestCheck
+    ambiguityState
       .prepare(
         `INSERT INTO runs (
            run_id, trigger_event_id, project, item_id, content_id, repository,
@@ -770,7 +914,7 @@ async function main(): Promise<void> {
                    'live', '2026-08-16T09:30:00.000Z', '2026-08-16T09:30:00.000Z')`,
       )
       .run(secondEvent);
-    requestCheck
+    ambiguityState
       .prepare(
         `INSERT INTO run_resources (
            run_id, resource_state, worktree_path, branch_name, codex_thread_id
@@ -778,7 +922,7 @@ async function main(): Promise<void> {
                    'TT-9402_ambiguous-run', 'thread-9402')`,
       )
       .run();
-    requestCheck.close();
+    ambiguityState.close();
     const ambiguity = await runNodeFails(control, ["controls"], testHome);
     assert(
       ambiguity.includes("Multiple eligible runs match"),
@@ -846,14 +990,18 @@ async function main(): Promise<void> {
         persistentControlMessages: threadControlCreates.length,
         controlMessagePinned: pinWrites.length === 1,
         contextualTakeoverLabel: true,
+        pendingTakeoverVisible: true,
         remoteCodexLauncher: true,
         remoteHandoffContext: true,
         delayedThreadReadinessReconciled: true,
         activePreviewHidden: true,
         parkedPreviewEnabled: true,
+        cancelledWorkConfirmation: true,
         stageTimestampSemantic: true,
         eventControlLinks: true,
         previewReadyDelivered: true,
+        publishedCancellationPreserved: true,
+        publishedCancellationTerminalControls: true,
         showControlsEdited: true,
         idempotent: true,
         deterministicLookup: true,

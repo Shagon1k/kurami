@@ -28,6 +28,13 @@ def main() -> None:
         "kurami:preview_start:r_9": ("preview_start", "r_9"),
         "kurami:preview_stop:r_9": ("preview_stop", "r_9"),
         "kurami:stop:r_9": ("stop", "r_9"),
+        "kurami:discard_prompt:r_9": ("discard_prompt", "r_9"),
+        "kurami:discard_local:r_9": ("discard_local", "r_9"),
+        "kurami:discard_published_prompt:r_9": (
+            "discard_published_prompt",
+            "r_9",
+        ),
+        "kurami:discard_published:r_9": ("discard_published", "r_9"),
     }
     for custom_id, expected in accepted.items():
         require(module.parse_control_id(custom_id) == expected, f"Rejected {custom_id}")
@@ -62,6 +69,15 @@ def main() -> None:
         "stop", {"action": "created", "requestState": "pending"}
     )
     require("Cancel run" in cancel, "Cancellation response uses an ambiguous label")
+    require(
+        module.discard_confirmation_id("r_9") == "kurami:discard_local:r_9",
+        "Discard confirmation ID is not deterministic",
+    )
+    require(
+        module.published_discard_confirmation_id("r_9")
+        == "kurami:discard_published:r_9",
+        "Published discard confirmation ID is not deterministic",
+    )
 
     print(
         json.dumps(

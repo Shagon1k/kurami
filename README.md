@@ -38,6 +38,8 @@ app/
     observe-sessions.ts       Deduplicates persistent CLI attention conditions
     provision-worktree.ts     Plans or explicitly provisions Git worktrees
     release-worktree.ts       Safely releases cancelled or verified-merged Git resources
+    cancel-resolution.ts      Guardedly resolves confirmed unpublished or Draft PR results
+    project-status.ts         Returns fully cancelled released items to Backlog
     preview-manager.ts        Atomically leases and releases fixed preview slots
     preview-runtime.ts        Builds, verifies, and removes rootless Compose previews
     preview-ingress.ts        Atomically reconciles running previews into Caddy routes
@@ -55,6 +57,9 @@ app/
                               Isolated WIP/idempotency/policy regression test
     verify-completed-release.ts
                               Proves unmerged work is retained and merged work is released
+    verify-cancel-resolution.ts
+                              Proves local discard, preservation, and exact Draft PR cleanup
+    verify-project-status.ts  Proves guarded idempotent Backlog synchronization
     verify-preview-slots.ts   Proves six-slot capacity, idempotency, and safe reuse
     verify-preview-ingress.ts Proves deterministic, loopback-only, fail-closed routing
     verify-run-controls.ts    Proves event idempotency and explicit control dispatch
@@ -156,6 +161,12 @@ as preview-ready are posted once inside the ticket thread from a separate
 durable delivery outbox. Each short lifecycle event includes one `Open controls`
 link back to the pinned control message instead of duplicating action buttons.
 
+An active `Take control` request is shown as `Preparing human control` while
+the current Codex turn reaches a safe boundary. The takeover button is hidden
+during that wait so repeated clicks cannot create misleading duplicate intent.
+Regardless of whether GitHub reaches Human Review during the wait, a successful
+handoff normalizes the durable state to `remote_owned` with owner `remote`.
+
 After a successful handoff, ownership becomes `remote` and the interaction is
 replaced by an `Open in Codex` link. The live card and handoff event include the
 exact Codex task title, `shagserv / <project>` connection context, the durable
@@ -179,6 +190,15 @@ labelled `Stage since` and contain both `DD.MM.YY HH:mm` in Europe/Vilnius and a
 Discord relative timestamp. Ephemeral status replies are explicitly labelled
 `Status snapshot` and include their capture time so they cannot be mistaken for
 a live card.
+
+Cancellation never destroys published work automatically. If a pull request or
+remote branch already exists, Discord reports `Cancelled — published work
+preserved` and keeps the GitHub links without offering the local-discard action.
+Guarded `Discard local work` remains available only for unpublished preserved
+work. A separate two-confirmation `Close draft PR & discard` action can resolve
+one exact managed Draft PR only when the worktree is clean, local and remote
+heads match, and no merged/non-draft/ambiguous PR is present. Every mismatch is
+refused without deletion.
 
 Telegram remains a reversible inbound fallback. Its text buttons arrive
 through the normal Hermes Gateway and the `kurami-run-control` skill queues only
@@ -258,6 +278,14 @@ recoverable when tmux already exited after an interrupted handoff.
 `finalize-stop` is plan-only by default. It permits the durable transition from
 `stopping` to `cancelled` only after verifying that the tmux session, worktree,
 and local branch are all absent; `--apply` records the verified cleanup.
+If cancellation finds unpublished local changes, automation still stops but the
+run becomes `needs_attention` and preserves the exact worktree. Discord then
+offers `Discard local work`; that action requires a second confirmation and
+calls `src/cancel-resolution.ts`, which refuses deletion when the branch has
+commits beyond its recorded base or exists on the remote. Published Draft PR
+results use the separate exact-match resolver described above. A successful
+guarded resolution changes the run to `cancelled`, marks resources `released`,
+and records the deleted resources in lifecycle history.
 
 `bin/launch-codex-session.sh` loads `GH_TOKEN` from the orchestrator-owned
 credential file inside the child launcher. The value is never passed in command
@@ -287,6 +315,11 @@ In progress -> Human Review   run -> parked_review, owner cli while finalizing
 CLI safely released           run -> parked_review, owner none; review-ready
 Human Review -> Done          run -> stopping(completed)
 Backlog/Deferred cancellation run -> stopping(cancelled)
+Discord Cancel run               -> stopping(cancelled)
+dirty unpublished work           -> needs_attention; local work preserved
+published Draft PR               -> needs_attention; published work preserved
+confirmed exact safe resolution  -> cancelled + released
+cancelled + released              -> GitHub Project item -> Backlog
 ```
 
 Completed cleanup fetches the configured remote base and accepts either direct
@@ -296,7 +329,12 @@ rebase merges without weakening deletion safety. Until one proof passes, the
 run remains `stopping` and the worktree is retained. After verification, the
 worktree and local branch are released and the run becomes `archived`.
 Cancellation cleanup remains stricter: dirty files or any commit beyond the
-recorded base block deletion and require attention.
+recorded base block automatic deletion and require attention. Only a deliberate
+two-step action can remove dirty unpublished files or one exact clean managed
+Draft PR result; merged/non-draft/ambiguous/mismatched published work remains
+preserved. Once cleanup is complete,
+`src/project-status.ts` returns the item to the project's configured Backlog
+option and updates the local Project snapshot idempotently.
 
 `Human Review` is intentionally not synonymous with immediate readiness. If the
 GitHub transition arrives while the current Codex turn still owns the managed
@@ -642,7 +680,10 @@ deliberately changed.
 - Never bypass WIP limits by creating worktrees or sessions manually.
 - Never merge a pull request or deploy production autonomously.
 - A return from `In progress` to `Backlog` or `Deferred` is a cancellation signal.
-- A cancelled run keeps historical mapping until guarded cleanup.
+- A cancelled run keeps historical mapping until guarded cleanup and is moved
+  back to the configured Backlog status only after resources are released.
+- Never discard preserved cancellation work without an explicit second
+  confirmation; never discard a remote branch or commits beyond recorded base.
 - After Remote handoff, never seize the same Codex thread from standalone CLI;
   create a successor thread in the same run/worktree when automation must resume.
 

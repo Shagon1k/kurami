@@ -13,6 +13,15 @@ type OrchestratorConfig = {
   limits: { max_llm_running_global: number };
 };
 
+type ProjectConfig = {
+  statuses: { backlog: string };
+};
+
+type ProjectsRegistry = {
+  version: number;
+  projects: Record<string, ProjectConfig>;
+};
+
 type RunRow = {
   run_id: string;
   project: string;
@@ -27,11 +36,21 @@ type RunRow = {
   preview_id: string | null;
   preview_lease_id: string | null;
   preview_lease_state: string | null;
+  project_item_status: string | null;
+  has_newer_run: number;
+  backlog_satisfied: number;
+  takeover_pending: number;
 };
 
 type RequestRow = RunRow & {
   request_id: string;
-  requested_action: "take_control" | "preview_start" | "preview_stop" | "stop";
+  requested_action:
+    | "take_control"
+    | "preview_start"
+    | "preview_stop"
+    | "stop"
+    | "discard_local"
+    | "discard_published";
 };
 
 type ControllerAction =
@@ -49,7 +68,10 @@ type ControllerAction =
   | "resume_stop"
   | "request_complete"
   | "request_reject"
-  | "release";
+  | "release"
+  | "discard_cancelled"
+  | "discard_published_cancelled"
+  | "project_backlog";
 
 type PlannedAction = {
   action: ControllerAction;
@@ -70,11 +92,14 @@ const orchestratorHome = resolve(
 );
 const databasePath = resolve(orchestratorHome, "state/orchestrator.db");
 const configPath = resolve(orchestratorHome, "config/orchestrator.yaml");
+const projectsPath = resolve(orchestratorHome, "config/projects.yaml");
 const provisionerPath = resolve(import.meta.dirname, "provision-worktree.ts");
 const sessionManagerPath = resolve(import.meta.dirname, "session-manager.ts");
 const releaserPath = resolve(import.meta.dirname, "release-worktree.ts");
 const previewManagerPath = resolve(import.meta.dirname, "preview-manager.ts");
 const previewRuntimePath = resolve(import.meta.dirname, "preview-runtime.ts");
+const cancelResolutionPath = resolve(import.meta.dirname, "cancel-resolution.ts");
+const projectStatusPath = resolve(import.meta.dirname, "project-status.ts");
 
 function fail(message: string): never {
   throw new Error(message);
@@ -94,11 +119,34 @@ function baseRunSelect(): string {
            r.state AS run_state, r.stop_reason, r.owner_state,
            rr.resource_state, rr.tmux_session_name, rr.codex_thread_id,
            rr.preview_id, pl.lease_id AS preview_lease_id,
-           pl.state AS preview_lease_state
+           pl.state AS preview_lease_state,
+           pi.status AS project_item_status,
+           EXISTS (
+             SELECT 1 FROM runs newer
+             WHERE newer.project = r.project
+               AND newer.item_id = r.item_id
+               AND newer.rowid > r.rowid
+           ) AS has_newer_run,
+           EXISTS (
+             SELECT 1 FROM run_state_history backlog_history
+             WHERE backlog_history.run_id = r.run_id
+               AND backlog_history.reason IN (
+                 'cancelled_item_returned_to_backlog',
+                 'cancelled_item_already_backlog'
+               )
+           ) AS backlog_satisfied,
+           EXISTS (
+             SELECT 1 FROM run_control_requests takeover_request
+             WHERE takeover_request.run_id = r.run_id
+               AND takeover_request.action = 'take_control'
+               AND takeover_request.request_state IN ('pending', 'processing')
+           ) AS takeover_pending
     FROM runs r
     JOIN run_resources rr USING (run_id)
     LEFT JOIN preview_leases pl
       ON pl.run_id = r.run_id AND pl.state <> 'released'
+    LEFT JOIN project_items pi
+      ON pi.project = r.project AND pi.item_id = r.item_id
   `;
 }
 
@@ -143,6 +191,18 @@ function externalCommand(
       return [previewRuntimePath, "down", "--run-id", runId, "--apply"];
     case "release":
       return [releaserPath, "--run-id", runId, "--apply"];
+    case "discard_cancelled":
+      return [cancelResolutionPath, "discard", "--run-id", runId, "--apply"];
+    case "discard_published_cancelled":
+      return [
+        cancelResolutionPath,
+        "discard-published",
+        "--run-id",
+        runId,
+        "--apply",
+      ];
+    case "project_backlog":
+      return [projectStatusPath, "backlog", "--run-id", runId, "--apply"];
     default:
       return null;
   }
@@ -230,21 +290,65 @@ function planForRequest(request: RequestRow): PlannedAction {
 
     case "stop":
       return { ...base, action: "request_stop" };
+
+    case "discard_local":
+      if (
+        request.run_state === "needs_attention" &&
+        request.stop_reason === "cancelled" &&
+        request.owner_state === "none"
+      ) {
+        return { ...base, action: "discard_cancelled" };
+      }
+      return {
+        ...base,
+        action: "request_reject",
+        reason: "cancelled_local_work_not_discardable",
+      };
+
+    case "discard_published":
+      if (
+        request.run_state === "needs_attention" &&
+        request.stop_reason === "cancelled" &&
+        request.owner_state === "none"
+      ) {
+        return { ...base, action: "discard_published_cancelled" };
+      }
+      return {
+        ...base,
+        action: "request_reject",
+        reason: "cancelled_published_work_not_discardable",
+      };
   }
 }
 
-function planAutomatic(run: RunRow): PlannedAction | null {
+function planAutomatic(
+  run: RunRow,
+  registry: ProjectsRegistry,
+): PlannedAction | null {
   const base = {
     runId: run.run_id,
     project: run.project,
     issueNumber: run.issue_number,
   };
+  const backlog = registry.projects[run.project]?.statuses.backlog;
+  if (
+    backlog &&
+    run.run_state === "cancelled" &&
+    run.stop_reason === "cancelled" &&
+    run.owner_state === "none" &&
+    run.resource_state === "released" &&
+    run.has_newer_run === 0 &&
+    run.backlog_satisfied === 0
+  ) {
+    return { ...base, action: "project_backlog" };
+  }
   if (run.stop_reason === "cancelled" && run.owner_state === "cli") {
     return { ...base, action: "cancel_cli" };
   }
   if (
     run.stop_reason === "cancelled" &&
-    run.run_state !== "stopping"
+    run.run_state !== "stopping" &&
+    run.run_state !== "cancelled"
   ) {
     return { ...base, action: "resume_stop" };
   }
@@ -312,7 +416,10 @@ function planAutomatic(run: RunRow): PlannedAction | null {
   return null;
 }
 
-function buildPlans(database: DatabaseSync): PlannedAction[] {
+function buildPlans(
+  database: DatabaseSync,
+  registry: ProjectsRegistry,
+): PlannedAction[] {
   const requests = database
     .prepare(
       `
@@ -329,7 +436,7 @@ function buildPlans(database: DatabaseSync): PlannedAction[] {
     .prepare(
       `
     ${baseRunSelect()}
-    WHERE r.state NOT IN ('rejected', 'cancelled', 'archived', 'failed', 'needs_attention')
+    WHERE r.state NOT IN ('rejected', 'archived', 'failed', 'needs_attention')
     ORDER BY r.created_at, r.run_id
   `,
     )
@@ -337,7 +444,7 @@ function buildPlans(database: DatabaseSync): PlannedAction[] {
   const plans = requests.map(planForRequest);
   for (const run of automatic) {
     if (requestedRuns.has(run.run_id)) continue;
-    const plan = planAutomatic(run);
+    const plan = planAutomatic(run, registry);
     if (plan) plans.push(plan);
   }
   return plans.map((plan) => {
@@ -460,6 +567,17 @@ function progressFor(run: ProgressRow): { stage: string; detail: string } {
       detail: "Worktree is ready; starting the managed Codex task.",
     };
   }
+  if (
+    run.takeover_pending !== 0 &&
+    run.owner_state === "cli" &&
+    run.stop_reason !== "cancelled"
+  ) {
+    return {
+      stage: "handoff_pending",
+      detail:
+        "Take control requested; waiting for the active Codex turn to reach a safe handoff boundary.",
+    };
+  }
   if (run.run_state === "running" && run.owner_state === "cli") {
     return {
       stage: "working",
@@ -507,6 +625,13 @@ function progressFor(run: ProgressRow): { stage: string; detail: string } {
     return {
       stage: "cancelled",
       detail: "Run was cancelled and is no longer active.",
+    };
+  }
+  if (run.run_state === "needs_attention" && run.stop_reason === "cancelled") {
+    return {
+      stage: "cancelled_work_preserved",
+      detail:
+        "Automation stopped, but unpublished local work was preserved. Discard it explicitly to finish cancellation.",
     };
   }
   if (["failed", "needs_attention"].includes(run.run_state)) {
@@ -560,6 +685,7 @@ function reconcileProgressCards(database: DatabaseSync): void {
     "preparing",
     "starting",
     "working",
+    "handoff_pending",
     "finalizing_review",
     "preview_queued",
     "preview_building",
@@ -687,7 +813,11 @@ async function main(): Promise<void> {
   const config = parse(
     await readFile(configPath, "utf8"),
   ) as OrchestratorConfig;
+  const registry = parse(
+    await readFile(projectsPath, "utf8"),
+  ) as ProjectsRegistry;
   if (config.version !== 1) fail("Unsupported orchestrator config version");
+  if (registry.version !== 1) fail("Unsupported projects registry version");
   if (config.mode !== "live" && apply)
     fail(`Refusing mutation in mode=${config.mode}`);
 
@@ -698,7 +828,7 @@ async function main(): Promise<void> {
     ensureControlEvents(database);
     reconcileProgressCards(database);
   }
-  const plans = buildPlans(database);
+  const plans = buildPlans(database, registry);
 
   if (!apply) {
     database.close();
@@ -739,6 +869,24 @@ async function main(): Promise<void> {
         ["handoff", "preview_up", "preview_down"].includes(plan.action)
       ) {
         completeRequest(database, plan.requestId, "applied", result);
+      }
+      if (
+        plan.requestId &&
+        ["discard_cancelled", "discard_published_cancelled"].includes(
+          plan.action,
+        )
+      ) {
+        const action = (result as { action?: string } | null)?.action;
+        completeRequest(
+          database,
+          plan.requestId,
+          ["discarded_local_work", "discarded_published_work"].includes(
+            action ?? "",
+          )
+            ? "applied"
+            : "rejected",
+          result,
+        );
       }
       results.push({ ...plan, status: "applied", result });
       if (plan.action === "start") llmCount += 1;

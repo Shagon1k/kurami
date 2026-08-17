@@ -37,6 +37,7 @@ type CardRow = {
   interaction_policy: string;
   run_state: string;
   owner_state: string;
+  stop_reason: string | null;
   title: string | null;
   issue_url: string | null;
   branch_name: string | null;
@@ -102,7 +103,8 @@ const desiredSurfaceDigestSql = `
   pc.content_digest || ':' || r.state || ':' || r.owner_state || ':' ||
   COALESCE(rr.codex_thread_id, 'thread:none') || ':' ||
   COALESCE(pl.state, 'preview:none') || ':' ||
-  COALESCE(ps.hostname, 'host:none') || ':discord-ux-v2'
+  COALESCE(ps.hostname, 'host:none') || ':' ||
+  COALESCE(r.stop_reason, 'stop:none') || ':discord-ux-v5'
 `;
 
 function fail(message: string): never {
@@ -256,7 +258,7 @@ function loadDesiredCards(database: DatabaseSync): CardRow[] {
              ${desiredSurfaceDigestSql} AS desired_surface_digest,
              pc.updated_at,
              r.project, r.repository, r.issue_number, r.interaction_policy,
-             r.state AS run_state, r.owner_state,
+             r.state AS run_state, r.owner_state, r.stop_reason,
              pe.title, pe.url AS issue_url,
              rr.branch_name, rr.codex_thread_id,
              ps.hostname AS preview_hostname,
@@ -321,7 +323,7 @@ function loadCard(database: DatabaseSync, runId: string): CardRow {
              ${desiredSurfaceDigestSql} AS desired_surface_digest,
              pc.updated_at,
              r.project, r.repository, r.issue_number, r.interaction_policy,
-             r.state AS run_state, r.owner_state,
+             r.state AS run_state, r.owner_state, r.stop_reason,
              pe.title, pe.url AS issue_url,
              rr.branch_name, rr.codex_thread_id,
              ps.hostname AS preview_hostname,
@@ -452,24 +454,43 @@ function stageLabel(stage: string): string {
     preparing: "Preparing worktree",
     starting: "Starting Codex",
     working: "Codex working",
+    handoff_pending: "Preparing human control",
     finalizing_review: "Finalizing for review",
     human_control: "Human control",
     review_ready: "Ready for review",
     waiting_human: "Waiting for decision",
     preview_queued: "Preview queued",
+    preview_stopping: "Stopping preview",
     preview_building: "Preview building",
     preview_ready: "Preview ready",
     stopping: "Stopping",
+    discarding_cancelled: "Discarding local result",
     completed: "Completed",
     cancelled: "Cancelled",
+    cancelled_work_preserved: "Cancelled — local work preserved",
     needs_attention: "Needs attention",
   };
   return labels[stage] ?? stage;
 }
 
+function presentedStage(
+  card: CardRow,
+  pullRequest: PullRequest | null,
+): { label: string; detail: string } {
+  if (card.stage === "cancelled_work_preserved" && pullRequest?.url) {
+    return {
+      label: "Cancelled — published work preserved",
+      detail:
+        "Automation stopped. The published branch and pull request were preserved for manual merge or closure.",
+    };
+  }
+  return { label: stageLabel(card.stage), detail: card.detail };
+}
+
 function stageColor(stage: string): number {
   if (stage === "completed") return 0x57f287;
   if (stage === "cancelled" || stage === "needs_attention") return 0xed4245;
+  if (stage === "cancelled_work_preserved") return 0xfee75c;
   if (stage === "review_ready" || stage === "waiting_human") return 0xfee75c;
   if (stage === "finalizing_review") return 0xfee75c;
   if (stage === "preview_ready") return 0x57f287;
@@ -515,7 +536,12 @@ export function controlComponents(
     const controls: DiscordObject[] = [
       button("Status", 2, `kurami:status:${card.run_id}`),
     ];
+    const preservedCancellation = card.stage === "cancelled_work_preserved";
+    const publishedCancellation =
+      preservedCancellation && Boolean(pullRequest?.url);
     const takeoverEligible =
+      !preservedCancellation &&
+      card.stage !== "handoff_pending" &&
       Boolean(card.codex_thread_id) &&
       (card.owner_state === "cli" ||
         (card.owner_state === "none" &&
@@ -528,16 +554,46 @@ export function controlComponents(
       );
     }
     const previewStartEligible =
+      !preservedCancellation &&
       card.owner_state === "none" &&
       ["parked_review", "waiting_human"].includes(card.run_state);
-    if (project.preview && (card.preview_state || previewStartEligible)) {
+    const previewRequestPending = [
+      "preview_queued",
+      "preview_stopping",
+    ].includes(card.stage);
+    if (
+      project.preview &&
+      !previewRequestPending &&
+      (card.preview_state || previewStartEligible)
+    ) {
       controls.push(
         card.preview_state
           ? button("Stop preview", 2, `kurami:preview_stop:${card.run_id}`)
           : button("Start preview", 3, `kurami:preview_start:${card.run_id}`),
       );
     }
-    controls.push(button("Cancel run", 4, `kurami:stop:${card.run_id}`));
+    const cancellationStarted =
+      card.stop_reason === "cancelled" ||
+      ["stopping", "discarding_cancelled"].includes(card.stage);
+    if (preservedCancellation && !publishedCancellation) {
+      controls.push(
+        button(
+          "Discard local work",
+          4,
+          `kurami:discard_prompt:${card.run_id}`,
+        ),
+      );
+    } else if (publishedCancellation) {
+      controls.push(
+        button(
+          "Close draft PR & discard",
+          4,
+          `kurami:discard_published_prompt:${card.run_id}`,
+        ),
+      );
+    } else if (!publishedCancellation && !cancellationStarted) {
+      controls.push(button("Cancel run", 4, `kurami:stop:${card.run_id}`));
+    }
     rows.push(controls);
   }
   return rows.map((components) => ({ type: 1, components }));
@@ -569,8 +625,9 @@ function threadControlPayload(
   pullRequest: PullRequest | null,
   create: boolean,
 ): DiscordObject {
+  const presented = presentedStage(card, pullRequest);
   return {
-    content: `**Run controls · ${project.workspace.branch_prefix}-${card.issue_number}**\n${stageLabel(card.stage)}`,
+    content: `**Run controls · ${project.workspace.branch_prefix}-${card.issue_number}**\n${presented.label}`,
     components: controlComponents(card, project, pullRequest),
     allowed_mentions: { parse: [] },
     ...(create
@@ -588,6 +645,7 @@ function cardPayload(
   pullRequest: PullRequest | null,
   create: boolean,
 ): DiscordObject {
+  const presented = presentedStage(card, pullRequest);
   const fields: DiscordObject[] = [];
   if (pullRequest?.url)
     fields.push({
@@ -611,11 +669,11 @@ function cardPayload(
     inline: true,
   });
   return {
-    content: `**${project.workspace.branch_prefix}-${card.issue_number} · ${stageLabel(card.stage)}**`,
+    content: `**${project.workspace.branch_prefix}-${card.issue_number} · ${presented.label}**`,
     embeds: [
       {
         title: truncate(cleanTitle(card.title), 256),
-        description: truncate(card.detail, 4_000),
+        description: truncate(presented.detail, 4_000),
         color: stageColor(card.stage),
         fields,
         footer: { text: `Run ${card.run_id}` },
@@ -762,7 +820,12 @@ async function ensureSurface(
         title: surface.pull_request_title ?? "Pull request",
       }
     : null;
-  if (!pullRequest && ["review_ready", "completed"].includes(card.stage))
+  if (
+    !pullRequest &&
+    ["review_ready", "completed", "cancelled_work_preserved"].includes(
+      card.stage,
+    )
+  )
     pullRequest = findPullRequest(card.repository, card.branch_name);
 
   let messageId = surface.live_card_message_id;

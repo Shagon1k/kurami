@@ -712,8 +712,12 @@ async function leaveCliSession(
     );
     return;
   }
+  const handoffReadyStates =
+    targetOwner === "remote"
+      ? ["running", "parked_review"]
+      : ["running", "parked_review", "stopping"];
   if (
-    !["running", "parked_review", "stopping"].includes(run.run_state) ||
+    !handoffReadyStates.includes(run.run_state) ||
     run.owner_state !== "cli"
   ) {
     fail(
@@ -739,9 +743,7 @@ async function leaveCliSession(
   const tailDirectory = resolve(orchestratorHome, "logs/session-handoffs");
   const tailPath = resolve(tailDirectory, `${run.run_id}.txt`);
   const targetState =
-    targetOwner === "remote" && run.run_state === "running"
-      ? "remote_owned"
-      : run.run_state;
+    targetOwner === "remote" ? "remote_owned" : run.run_state;
   const plan = {
     runId: run.run_id,
     fromState: run.run_state,
