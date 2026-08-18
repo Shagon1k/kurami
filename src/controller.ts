@@ -33,6 +33,7 @@ type RunRow = {
   resource_state: string;
   tmux_session_name: string | null;
   codex_thread_id: string | null;
+  previous_codex_thread_id: string | null;
   preview_id: string | null;
   preview_lease_id: string | null;
   preview_lease_state: string | null;
@@ -40,6 +41,12 @@ type RunRow = {
   has_newer_run: number;
   backlog_satisfied: number;
   takeover_pending: number;
+  ci_head_sha: string | null;
+  ci_aggregate_state: string | null;
+  repair_attempt_count: number;
+  repair_active_count: number;
+  latest_repair_state: string | null;
+  latest_repair_number: number | null;
 };
 
 type RequestRow = RunRow & {
@@ -50,12 +57,15 @@ type RequestRow = RunRow & {
     | "preview_stop"
     | "stop"
     | "discard_local"
-    | "discard_published";
+    | "discard_published"
+    | "ci_repair";
 };
 
 type ControllerAction =
   | "provision"
   | "start"
+  | "repair_start"
+  | "repair_cleanup"
   | "sync"
   | "cancel_cli"
   | "park"
@@ -118,6 +128,7 @@ function baseRunSelect(): string {
     SELECT r.run_id, r.project, r.issue_number, r.interaction_policy,
            r.state AS run_state, r.stop_reason, r.owner_state,
            rr.resource_state, rr.tmux_session_name, rr.codex_thread_id,
+           rr.previous_codex_thread_id,
            rr.preview_id, pl.lease_id AS preview_lease_id,
            pl.state AS preview_lease_state,
            pi.status AS project_item_status,
@@ -140,9 +151,26 @@ function baseRunSelect(): string {
              WHERE takeover_request.run_id = r.run_id
                AND takeover_request.action = 'take_control'
                AND takeover_request.request_state IN ('pending', 'processing')
-           ) AS takeover_pending
+           ) AS takeover_pending,
+           ci.head_sha AS ci_head_sha,
+           ci.aggregate_state AS ci_aggregate_state,
+           (SELECT COUNT(*) FROM run_ci_repair_attempts repair_count
+            WHERE repair_count.run_id = r.run_id) AS repair_attempt_count,
+           (SELECT COUNT(*) FROM run_ci_repair_attempts repair_active
+            WHERE repair_active.run_id = r.run_id
+              AND repair_active.attempt_state IN ('running', 'waiting_ci'))
+             AS repair_active_count,
+           (SELECT attempt_state FROM run_ci_repair_attempts repair_latest
+            WHERE repair_latest.run_id = r.run_id
+            ORDER BY repair_latest.attempt_number DESC LIMIT 1)
+             AS latest_repair_state,
+           (SELECT attempt_number FROM run_ci_repair_attempts repair_latest
+            WHERE repair_latest.run_id = r.run_id
+            ORDER BY repair_latest.attempt_number DESC LIMIT 1)
+             AS latest_repair_number
     FROM runs r
     JOIN run_resources rr USING (run_id)
+    LEFT JOIN run_ci_snapshots ci USING (run_id)
     LEFT JOIN preview_leases pl
       ON pl.run_id = r.run_id AND pl.state <> 'released'
     LEFT JOIN project_items pi
@@ -169,12 +197,32 @@ function runningLlmCount(database: DatabaseSync): number {
 function externalCommand(
   action: ControllerAction,
   runId: string,
+  requestId?: string,
 ): string[] | null {
   switch (action) {
     case "provision":
       return [provisionerPath, "--run-id", runId, "--apply"];
     case "start":
       return [sessionManagerPath, "start", "--run-id", runId, "--apply"];
+    case "repair_start":
+      if (!requestId) fail("CI repair start requires a request ID");
+      return [
+        sessionManagerPath,
+        "repair",
+        "--run-id",
+        runId,
+        "--request-id",
+        requestId,
+        "--apply",
+      ];
+    case "repair_cleanup":
+      return [
+        sessionManagerPath,
+        "cleanup-repair",
+        "--run-id",
+        runId,
+        "--apply",
+      ];
     case "sync":
       return [sessionManagerPath, "sync", "--run-id", runId, "--apply"];
     case "cancel_cli":
@@ -229,6 +277,13 @@ function planForRequest(request: RequestRow): PlannedAction {
           ...base,
           action: "request_reject",
           reason: "codex_thread_not_ready",
+        };
+      }
+      if (request.previous_codex_thread_id !== null) {
+        return {
+          ...base,
+          action: "request_reject",
+          reason: "ci_repair_cleanup_pending",
         };
       }
       if (request.owner_state === "cli" && request.tmux_session_name) {
@@ -318,6 +373,27 @@ function planForRequest(request: RequestRow): PlannedAction {
         action: "request_reject",
         reason: "cancelled_published_work_not_discardable",
       };
+
+    case "ci_repair":
+      if (
+        request.run_state === "parked_review" &&
+        request.owner_state === "none" &&
+        request.tmux_session_name === null &&
+        request.resource_state === "provisioned" &&
+        Boolean(request.codex_thread_id) &&
+        request.previous_codex_thread_id === null &&
+        Boolean(request.ci_head_sha) &&
+        ["failed", "missing"].includes(request.ci_aggregate_state ?? "") &&
+        request.repair_attempt_count < 2 &&
+        request.repair_active_count === 0
+      ) {
+        return { ...base, action: "repair_start" };
+      }
+      return {
+        ...base,
+        action: "request_reject",
+        reason: "run_not_ci_repair_eligible",
+      };
   }
 }
 
@@ -331,6 +407,22 @@ function planAutomatic(
     issueNumber: run.issue_number,
   };
   const backlog = registry.projects[run.project]?.statuses.backlog;
+  if (
+    [
+      "parked_review",
+      "needs_attention",
+      "stopping",
+      "archived",
+      "cancelled",
+    ].includes(run.run_state) &&
+    run.owner_state === "none" &&
+    run.tmux_session_name === null &&
+    Boolean(run.codex_thread_id) &&
+    Boolean(run.previous_codex_thread_id) &&
+    run.latest_repair_state !== "running"
+  ) {
+    return { ...base, action: "repair_cleanup" };
+  }
   if (
     backlog &&
     run.run_state === "cancelled" &&
@@ -367,7 +459,7 @@ function planAutomatic(
     return { ...base, action: "start" };
   }
   if (
-    run.run_state === "running" &&
+    ["running", "parked_review"].includes(run.run_state) &&
     run.owner_state === "cli" &&
     run.tmux_session_name &&
     !run.codex_thread_id
@@ -436,7 +528,11 @@ function buildPlans(
     .prepare(
       `
     ${baseRunSelect()}
-    WHERE r.state NOT IN ('rejected', 'archived', 'failed', 'needs_attention')
+    WHERE r.state NOT IN ('rejected', 'failed')
+      AND (r.state <> 'needs_attention'
+           OR rr.previous_codex_thread_id IS NOT NULL)
+      AND (r.state <> 'archived'
+           OR rr.previous_codex_thread_id IS NOT NULL)
     ORDER BY r.created_at, r.run_id
   `,
     )
@@ -448,9 +544,167 @@ function buildPlans(
     if (plan) plans.push(plan);
   }
   return plans.map((plan) => {
-    const command = externalCommand(plan.action, plan.runId);
+    const command = externalCommand(plan.action, plan.runId, plan.requestId);
     return command ? { ...plan, command: command.join(" ") } : plan;
   });
+}
+
+function reconcileCiRepairAttempts(database: DatabaseSync): void {
+  const attempts = database
+    .prepare(
+      `SELECT a.attempt_id, a.run_id, a.attempt_number, a.source_head_sha,
+              a.attempt_state, a.updated_at, r.state AS run_state,
+              r.owner_state, rr.tmux_session_name,
+              ci.head_sha, ci.aggregate_state
+       FROM run_ci_repair_attempts a
+       JOIN runs r USING (run_id)
+       JOIN run_resources rr USING (run_id)
+       LEFT JOIN run_ci_snapshots ci USING (run_id)
+       WHERE a.attempt_state IN ('running', 'waiting_ci')
+       ORDER BY a.created_at, a.attempt_id`,
+    )
+    .all() as Array<{
+    attempt_id: string;
+    run_id: string;
+    attempt_number: number;
+    source_head_sha: string;
+    attempt_state: "running" | "waiting_ci";
+    updated_at: string;
+    run_state: string;
+    owner_state: string;
+    tmux_session_name: string | null;
+    head_sha: string | null;
+    aggregate_state: string | null;
+  }>;
+  for (const attempt of attempts) {
+    if (
+      attempt.attempt_state === "running" &&
+      attempt.run_state === "parked_review" &&
+      attempt.owner_state === "none" &&
+      attempt.tmux_session_name === null
+    ) {
+      database
+        .prepare(
+          `UPDATE run_ci_repair_attempts
+           SET attempt_state = 'waiting_ci',
+               updated_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
+           WHERE attempt_id = ? AND attempt_state = 'running'`,
+        )
+        .run(attempt.attempt_id);
+      continue;
+    }
+    if (attempt.attempt_state !== "waiting_ci") continue;
+    const newHead =
+      Boolean(attempt.head_sha) && attempt.head_sha !== attempt.source_head_sha;
+    if (newHead && attempt.aggregate_state === "passed") {
+      database
+        .prepare(
+          `UPDATE run_ci_repair_attempts
+           SET attempt_state = 'succeeded', result_head_sha = ?,
+               updated_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now'),
+               completed_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
+           WHERE attempt_id = ? AND attempt_state = 'waiting_ci'`,
+        )
+        .run(attempt.head_sha, attempt.attempt_id);
+      continue;
+    }
+    if (
+      newHead &&
+      ["failed", "missing"].includes(attempt.aggregate_state ?? "")
+    ) {
+      const terminal = attempt.attempt_number >= 2;
+      database
+        .prepare(
+          `UPDATE run_ci_repair_attempts
+           SET attempt_state = ?, result_head_sha = ?, failure_reason = ?,
+               updated_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now'),
+               completed_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
+           WHERE attempt_id = ? AND attempt_state = 'waiting_ci'`,
+        )
+        .run(
+          terminal ? "needs_attention" : "failed",
+          attempt.head_sha,
+          `CI ${attempt.aggregate_state} on repaired SHA`,
+          attempt.attempt_id,
+        );
+      if (terminal) markRepairNeedsAttention(database, attempt.run_id, "ci_repair_attempt_budget_exhausted", attempt);
+      continue;
+    }
+    const ageMinutes =
+      (Date.now() - Date.parse(attempt.updated_at)) / (60 * 1_000);
+    if (!newHead && ageMinutes >= 10) {
+      database
+        .prepare(
+          `UPDATE run_ci_repair_attempts
+           SET attempt_state = 'needs_attention',
+               failure_reason = 'No new PR head appeared after the fixer task',
+               updated_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now'),
+               completed_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
+           WHERE attempt_id = ? AND attempt_state = 'waiting_ci'`,
+        )
+        .run(attempt.attempt_id);
+      markRepairNeedsAttention(database, attempt.run_id, "ci_repair_no_new_head", attempt);
+      continue;
+    }
+    if (
+      newHead &&
+      ["pending", "unknown"].includes(attempt.aggregate_state ?? "") &&
+      ageMinutes >= 30
+    ) {
+      database
+        .prepare(
+          `UPDATE run_ci_repair_attempts
+           SET attempt_state = 'needs_attention', result_head_sha = ?,
+               failure_reason = 'CI did not settle within the bounded wait',
+               updated_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now'),
+               completed_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
+           WHERE attempt_id = ? AND attempt_state = 'waiting_ci'`,
+        )
+        .run(attempt.head_sha, attempt.attempt_id);
+      markRepairNeedsAttention(
+        database,
+        attempt.run_id,
+        "ci_repair_ci_timeout",
+        attempt,
+      );
+    }
+  }
+}
+
+function markRepairNeedsAttention(
+  database: DatabaseSync,
+  runId: string,
+  reason: string,
+  attempt: { attempt_id: string; attempt_number: number; source_head_sha: string },
+): void {
+  const current = database
+    .prepare(`SELECT state FROM runs WHERE run_id = ?`)
+    .get(runId) as { state: string };
+  const changed = database
+    .prepare(
+      `UPDATE runs SET state = 'needs_attention', owner_state = 'none',
+         updated_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
+       WHERE run_id = ? AND state = 'parked_review' AND owner_state = 'none'`,
+    )
+    .run(runId);
+  if (changed.changes === 1) {
+    database
+      .prepare(
+        `INSERT INTO run_state_history (
+           run_id, from_state, to_state, reason, details_json
+         ) VALUES (?, ?, 'needs_attention', ?, ?)`,
+      )
+      .run(
+        runId,
+        current.state,
+        reason,
+        JSON.stringify({
+          attemptId: attempt.attempt_id,
+          attemptNumber: attempt.attempt_number,
+          sourceHeadSha: attempt.source_head_sha,
+        }),
+      );
+  }
 }
 
 function ensureControlEvents(database: DatabaseSync): void {
@@ -592,6 +846,24 @@ function progressFor(run: ProgressRow): { stage: string; detail: string } {
     };
   }
   if (
+    run.latest_repair_state === "running" &&
+    run.run_state === "parked_review"
+  ) {
+    return {
+      stage: "ci_repair_working",
+      detail: `Fresh Codex task is fixing the exact failed CI evidence (attempt ${run.latest_repair_number}/2).`,
+    };
+  }
+  if (
+    run.latest_repair_state === "waiting_ci" &&
+    run.run_state === "parked_review"
+  ) {
+    return {
+      stage: "ci_repair_waiting",
+      detail: `Fix attempt ${run.latest_repair_number}/2 was pushed. Waiting for checks to start.`,
+    };
+  }
+  if (
     run.takeover_pending !== 0 &&
     run.owner_state === "cli" &&
     run.stop_reason !== "cancelled"
@@ -709,6 +981,8 @@ function reconcileProgressCards(database: DatabaseSync): void {
     "preparing",
     "starting",
     "working",
+    "ci_repair_working",
+    "ci_repair_waiting",
     "handoff_pending",
     "finalizing_review",
     "preview_queued",
@@ -821,7 +1095,7 @@ function applyInternal(database: DatabaseSync, plan: PlannedAction): unknown {
 }
 
 function runExternal(plan: PlannedAction): unknown {
-  const args = externalCommand(plan.action, plan.runId);
+  const args = externalCommand(plan.action, plan.runId, plan.requestId);
   if (!args) fail(`No external command for ${plan.action}`);
   const stdout = execFileSync(process.execPath, args, {
     encoding: "utf8",
@@ -849,6 +1123,7 @@ async function main(): Promise<void> {
   database.exec("PRAGMA foreign_keys = ON; PRAGMA busy_timeout = 5000;");
   let llmCount = runningLlmCount(database);
   if (apply) {
+    reconcileCiRepairAttempts(database);
     ensureControlEvents(database);
     reconcileProgressCards(database);
   }
@@ -871,7 +1146,7 @@ async function main(): Promise<void> {
   > = [];
   for (const plan of plans) {
     if (
-      plan.action === "start" &&
+      ["start", "repair_start"].includes(plan.action) &&
       llmCount >= config.limits.max_llm_running_global
     ) {
       results.push({ ...plan, status: "deferred", reason: "LLM cap reached" });
@@ -890,7 +1165,9 @@ async function main(): Promise<void> {
         : runExternal(plan);
       if (
         plan.requestId &&
-        ["handoff", "preview_up", "preview_down"].includes(plan.action)
+        ["handoff", "preview_up", "preview_down", "repair_start"].includes(
+          plan.action,
+        )
       ) {
         completeRequest(database, plan.requestId, "applied", result);
       }
@@ -913,7 +1190,8 @@ async function main(): Promise<void> {
         );
       }
       results.push({ ...plan, status: "applied", result });
-      if (plan.action === "start") llmCount += 1;
+      if (["start", "repair_start"].includes(plan.action)) llmCount += 1;
+      reconcileCiRepairAttempts(database);
       reconcileProgressCards(database);
       ensureControlEvents(database);
     } catch (error) {

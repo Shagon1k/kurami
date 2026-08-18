@@ -554,6 +554,87 @@ async function main(): Promise<void> {
       "Stable thread readiness caused repeated card edits",
     );
 
+    const repairReady = new DatabaseSync(databasePath);
+    repairReady.exec(`
+      UPDATE runs SET state='parked_review', owner_state='none'
+      WHERE run_id='r_discord_smoke';
+      UPDATE run_progress_cards
+      SET stage='review_ready', detail='Ready for review.',
+          content_digest='digest-repair-ready',
+          updated_at='2026-08-16T09:12:30.000Z'
+      WHERE run_id='r_discord_smoke';
+    `);
+    repairReady.close();
+    await runNode(notifier, ["--apply"], testHome, discordEnv);
+    const repairControls = customIds(threadControlEdits.at(-1)!);
+    assert(
+      repairControls.includes("kurami:ci_repair:r_discord_smoke") &&
+        componentLabels(threadControlEdits.at(-1)!).includes("Attempt CI fix"),
+      "Failed CI in stable review did not expose the bounded repair action",
+    );
+    const repairWaiting = new DatabaseSync(databasePath);
+    repairWaiting.exec(`
+      INSERT INTO run_control_requests (
+        request_id, run_id, action, request_state, requested_via,
+        idempotency_key, completed_at
+      ) VALUES (
+        'rq_discord_waiting', 'r_discord_smoke', 'ci_repair', 'applied',
+        'discord', 'test:discord-waiting',
+        strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
+      );
+      INSERT INTO run_ci_repair_attempts (
+        attempt_id, run_id, request_id, attempt_number, source_head_sha,
+        source_ci_state, source_checks_json, attempt_state
+      ) VALUES (
+        'cra_discord_waiting', 'r_discord_smoke', 'rq_discord_waiting', 1,
+        'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa', 'failed',
+        '[{"name":"Secret scan","state":"failed","source":"check_run","detailsUrl":"https://example.invalid/checks/9401"}]',
+        'waiting_ci'
+      );
+      UPDATE run_progress_cards
+      SET stage='ci_repair_waiting',
+          detail='Fix attempt 1/2 was pushed. Waiting for checks to start.',
+          content_digest='digest-repair-waiting',
+          updated_at='2026-08-16T09:12:45.000Z'
+      WHERE run_id='r_discord_smoke';
+    `);
+    repairWaiting.close();
+    await runNode(notifier, ["--apply"], testHome, discordEnv);
+    const waitingControls = threadControlEdits.at(-1)!;
+    const waitingCard = cardEdits.at(-1)!;
+    const waitingEmbed = (waitingCard.embeds as JsonObject[])[0]!;
+    const waitingCi = (waitingEmbed.fields as JsonObject[]).find(
+      (field) => field.name === "CI",
+    );
+    assert(
+      String(waitingControls.content).includes("Waiting for CI") &&
+        !componentLabels(waitingControls).includes("Take control") &&
+        !componentLabels(waitingControls).includes("Continue in Codex") &&
+        !componentLabels(waitingControls).includes("Attempt CI fix") &&
+        String(waitingCi?.value ?? "").includes("Waiting for checks") &&
+        String(waitingCi?.value ?? "").includes("Previous failure") &&
+        !String(waitingCi?.value ?? "").includes("❌ Failed"),
+      "CI repair waiting state mixed old failure data with new-check status",
+    );
+    const clearRepairWaiting = new DatabaseSync(databasePath);
+    clearRepairWaiting.exec(`
+      DELETE FROM run_ci_repair_attempts
+      WHERE attempt_id='cra_discord_waiting';
+      DELETE FROM run_control_requests
+      WHERE request_id='rq_discord_waiting';
+    `);
+    clearRepairWaiting.close();
+    const repairBusy = new DatabaseSync(databasePath);
+    repairBusy.exec(`
+      UPDATE runs SET state='running', owner_state='cli'
+      WHERE run_id='r_discord_smoke';
+      UPDATE run_progress_cards
+      SET stage='working', detail='Codex is implementing the issue.',
+          content_digest='digest-working-restored'
+      WHERE run_id='r_discord_smoke';
+    `);
+    repairBusy.close();
+
     const handoffPending = new DatabaseSync(databasePath);
     handoffPending
       .prepare(
@@ -1034,6 +1115,7 @@ async function main(): Promise<void> {
         persistentControlMessages: threadControlCreates.length,
         controlMessagePinned: pinWrites.length === 1,
         contextualTakeoverLabel: true,
+        boundedCiRepairControl: true,
         pendingTakeoverVisible: true,
         remoteCodexLauncher: true,
         remoteHandoffContext: true,

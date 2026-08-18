@@ -35,6 +35,7 @@ def main() -> None:
             "r_9",
         ),
         "kurami:discard_published:r_9": ("discard_published", "r_9"),
+        "kurami:ci_repair:r_9": ("ci_repair", "r_9"),
     }
     for custom_id, expected in accepted.items():
         require(module.parse_control_id(custom_id) == expected, f"Rejected {custom_id}")
@@ -69,6 +70,10 @@ def main() -> None:
         "stop", {"action": "created", "requestState": "pending"}
     )
     require("Cancel run" in cancel, "Cancellation response uses an ambiguous label")
+    repair = module._request_message(
+        "ci_repair", {"action": "created", "requestState": "pending"}
+    )
+    require("Attempt CI fix" in repair, "CI repair response uses an ambiguous label")
     require(
         module.discard_confirmation_id("r_9") == "kurami:discard_local:r_9",
         "Discard confirmation ID is not deterministic",

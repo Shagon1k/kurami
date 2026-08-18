@@ -35,6 +35,11 @@ export type ThreadSyncResult = {
   renamed: boolean;
 };
 
+export type ThreadArchiveResult = {
+  threadId: string;
+  archived: true;
+};
+
 class AppServerClient {
   readonly #child;
   readonly #pending = new Map<number, PendingRequest>();
@@ -171,6 +176,20 @@ export async function findAndNameThread(
       currentName: desiredName,
       renamed: previousName !== desiredName,
     };
+  } finally {
+    client.close();
+  }
+}
+
+export async function archiveThread(
+  codexBin: string,
+  threadId: string,
+): Promise<ThreadArchiveResult> {
+  const client = new AppServerClient(codexBin);
+  try {
+    await client.initialize();
+    await client.request("thread/archive", { threadId });
+    return { threadId, archived: true };
   } finally {
     client.close();
   }

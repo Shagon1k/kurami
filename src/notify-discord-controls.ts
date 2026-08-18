@@ -57,6 +57,7 @@ type CardRow = {
   issue_url: string | null;
   branch_name: string | null;
   codex_thread_id: string | null;
+  previous_codex_thread_id: string | null;
   preview_hostname: string | null;
   preview_state: string | null;
   surface_state: string | null;
@@ -76,6 +77,8 @@ type CardRow = {
   ci_aggregate_state: CiState | null;
   ci_checks_json: string | null;
   ci_last_error: string | null;
+  ci_repair_attempt_count: number;
+  ci_repair_state: string | null;
 };
 type EventRow = {
   event_id: string;
@@ -128,10 +131,16 @@ const ownerTimestampFormatter = new Intl.DateTimeFormat("en-GB", {
 const desiredSurfaceDigestSql = `
   pc.content_digest || ':' || r.state || ':' || r.owner_state || ':' ||
   COALESCE(rr.codex_thread_id, 'thread:none') || ':' ||
+  COALESCE(rr.previous_codex_thread_id, 'previous-thread:none') || ':' ||
   COALESCE(pl.state, 'preview:none') || ':' ||
   COALESCE(ps.hostname, 'host:none') || ':' ||
   COALESCE(r.stop_reason, 'stop:none') || ':discord-ux-v5'
-  || ':' || COALESCE(ci.content_digest, 'ci:none')
+  || ':' || COALESCE(ci.content_digest, 'ci:none') || ':' ||
+  (SELECT COUNT(*) FROM run_ci_repair_attempts repair_count
+   WHERE repair_count.run_id = r.run_id) || ':' ||
+  COALESCE((SELECT attempt_state FROM run_ci_repair_attempts repair_latest
+            WHERE repair_latest.run_id = r.run_id
+            ORDER BY repair_latest.attempt_number DESC LIMIT 1), 'repair:none')
 `;
 
 function fail(message: string): never {
@@ -288,6 +297,7 @@ function loadDesiredCards(database: DatabaseSync): CardRow[] {
              r.state AS run_state, r.owner_state, r.stop_reason,
              pe.title, pe.url AS issue_url,
              rr.branch_name, rr.codex_thread_id,
+             rr.previous_codex_thread_id,
              ps.hostname AS preview_hostname,
              pl.state AS preview_state,
              ds.state AS surface_state,
@@ -306,7 +316,12 @@ function loadDesiredCards(database: DatabaseSync): CardRow[] {
              ci.head_sha AS ci_head_sha,
              ci.aggregate_state AS ci_aggregate_state,
              ci.checks_json AS ci_checks_json,
-             ci.last_error AS ci_last_error
+             ci.last_error AS ci_last_error,
+             (SELECT COUNT(*) FROM run_ci_repair_attempts a
+              WHERE a.run_id = r.run_id) AS ci_repair_attempt_count,
+             (SELECT attempt_state FROM run_ci_repair_attempts a
+              WHERE a.run_id = r.run_id
+              ORDER BY a.attempt_number DESC LIMIT 1) AS ci_repair_state
       FROM run_progress_cards pc
       JOIN runs r USING (run_id)
       JOIN project_events pe ON pe.event_id = r.trigger_event_id
@@ -360,6 +375,7 @@ function loadCard(database: DatabaseSync, runId: string): CardRow {
              r.state AS run_state, r.owner_state, r.stop_reason,
              pe.title, pe.url AS issue_url,
              rr.branch_name, rr.codex_thread_id,
+             rr.previous_codex_thread_id,
              ps.hostname AS preview_hostname,
              pl.state AS preview_state,
              ds.state AS surface_state,
@@ -378,7 +394,12 @@ function loadCard(database: DatabaseSync, runId: string): CardRow {
              ci.head_sha AS ci_head_sha,
              ci.aggregate_state AS ci_aggregate_state,
              ci.checks_json AS ci_checks_json,
-             ci.last_error AS ci_last_error
+             ci.last_error AS ci_last_error,
+             (SELECT COUNT(*) FROM run_ci_repair_attempts a
+              WHERE a.run_id = r.run_id) AS ci_repair_attempt_count,
+             (SELECT attempt_state FROM run_ci_repair_attempts a
+              WHERE a.run_id = r.run_id
+              ORDER BY a.attempt_number DESC LIMIT 1) AS ci_repair_state
       FROM run_progress_cards pc
       JOIN runs r USING (run_id)
       JOIN project_events pe ON pe.event_id = r.trigger_event_id
@@ -523,6 +544,9 @@ function stageLabel(stage: string): string {
     preparing: "Preparing worktree",
     starting: "Starting Codex",
     working: "Codex working",
+    ci_repair_queued: "CI fix queued",
+    ci_repair_working: "Fixing CI",
+    ci_repair_waiting: "Waiting for CI",
     handoff_pending: "Preparing human control",
     finalizing_review: "Finalizing for review",
     human_control: "Human control",
@@ -584,6 +608,31 @@ function ciCheckLine(check: CiCheck): string {
 
 function ciField(card: CardRow): DiscordObject | null {
   if (!card.ci_aggregate_state) return null;
+  if (card.stage === "ci_repair_waiting") {
+    const failedChecks = parseCiChecks(card.ci_checks_json).filter((check) =>
+      ["failed", "missing", "unknown"].includes(check.state),
+    );
+    const previousFailure = failedChecks.length
+      ? failedChecks
+          .map((check) => {
+            const name = truncate(check.name, 100);
+            return check.detailsUrl?.startsWith("https://") === true
+              ? `[${name}](${check.detailsUrl})`
+              : name;
+          })
+          .join(", ")
+      : "CI failure";
+    const sha = card.ci_head_sha
+      ? ` · \`${card.ci_head_sha.slice(0, 7)}\``
+      : "";
+    return {
+      name: "CI",
+      value: truncate(
+        `**⏳ Waiting for checks**\nPrevious failure: ${previousFailure}${sha}`,
+        1_024,
+      ),
+    };
+  }
   const labels: Record<CiState, string> = {
     passed: "✅ Passed",
     pending: "⏳ Pending",
@@ -670,7 +719,13 @@ export function controlComponents(
     const takeoverEligible =
       !preservedCancellation &&
       card.stage !== "handoff_pending" &&
+      ![
+        "ci_repair_queued",
+        "ci_repair_working",
+        "ci_repair_waiting",
+      ].includes(card.stage) &&
       Boolean(card.codex_thread_id) &&
+      card.previous_codex_thread_id === null &&
       (card.owner_state === "cli" ||
         (card.owner_state === "none" &&
           ["parked_review", "waiting_human"].includes(card.run_state)));
@@ -700,6 +755,21 @@ export function controlComponents(
           : button("Start preview", 3, `kurami:preview_start:${card.run_id}`),
       );
     }
+    const ciRepairEligible =
+      !preservedCancellation &&
+      card.stage !== "ci_repair_queued" &&
+      card.run_state === "parked_review" &&
+      card.owner_state === "none" &&
+      Boolean(card.codex_thread_id) &&
+      card.previous_codex_thread_id === null &&
+      Boolean(card.ci_head_sha) &&
+      ["failed", "missing"].includes(card.ci_aggregate_state ?? "") &&
+      card.ci_repair_attempt_count < 2 &&
+      !["running", "waiting_ci"].includes(card.ci_repair_state ?? "");
+    if (ciRepairEligible)
+      controls.push(
+        button("Attempt CI fix", 1, `kurami:ci_repair:${card.run_id}`),
+      );
     const cancellationStarted =
       card.stop_reason === "cancelled" ||
       ["stopping", "discarding_cancelled"].includes(card.stage);

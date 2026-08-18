@@ -136,6 +136,31 @@ check names and `missing_grace_minutes` controls only the initial missing-check
 grace period. The future project-readiness checker should compare this policy
 with the repository's actual workflows and checks.
 
+### Bounded CI repair
+
+Failed or missing required CI in a stable owner-free review state exposes an
+owner-only `Attempt CI fix` control. Each click creates a fresh Codex task in
+the existing managed worktree, pins it to the observed PR head SHA, and requires
+the task to read failing logs before making the smallest safe same-branch fix.
+The task may commit and push normally, but may not force-push, rebase, merge,
+create another PR, or retry itself.
+
+Attempts are durable in `run_ci_repair_attempts`. The controller waits for the
+observer to report a new exact head SHA: passed CI completes the repair; the
+first failed result permits one more explicit owner attempt; the second failure
+ends at `needs_attention`. No new head within ten minutes, CI that remains
+pending or unknown for thirty minutes, and dependency, schema, security,
+permission, ownership, or infrastructure ambiguity also fail closed at
+`needs_attention`. There is no automatic retry loop. When the fresh repair task
+finishes, the controller archives that technical Codex task through the
+official App Server protocol, restores the original primary task as the run's
+Codex context, and retains the repair thread ID only in attempt history.
+Terminal `stopping`, `archived`, and `cancelled` runs remain cleanup-eligible,
+so a fast merge cannot strand the technical task as the run's primary context.
+During the gap between push and the first observed new-SHA check, Discord reports
+`Waiting for checks` and labels the old failed snapshot as the previous failure.
+Takeover controls stay unavailable throughout the active repair lifecycle.
+
 ### Controller / Reconciler
 
 `src/controller.ts` reads actionable Run Store states after event consumption
@@ -147,6 +172,8 @@ starting + provisioned            -> start Codex, subject to the LLM cap
 running + missing thread ID       -> synchronize title/thread mapping
 review-ready + CLI                -> park the persistent task, owner none
 explicit take-control request     -> transfer the same thread to Remote
+explicit failed-CI repair request -> fresh bounded task in the same worktree
+finished repair task              -> archive repair task + restore primary task
 explicit preview-up request       -> lease, build, health-check, and publish
 stopping + active preview         -> revoke ingress and remove the exact runtime
 stopping + releasable resources   -> safe worktree release
@@ -245,6 +272,7 @@ already have accepted them. Ordinary polling remains `no_agent`.
 - `run_attention`: persistent two-observation notification deduplication;
 - `run_control_events`: durable, one-time notification outbox;
 - `run_control_requests`: idempotent owner-action queue and result;
+- `run_ci_repair_attempts`: exact-SHA repair budget, task identity, and result;
 - `run_progress_cards`: transport-independent desired lifecycle card per run;
 - `run_discord_surfaces`: Discord starter card, ticket thread, owner membership,
   and persistent thread-control-message identity;
@@ -522,6 +550,14 @@ automatic preview, explicit takeover, and human-control preparation handoff:
 
 ```bash
 npm run test:controls
+```
+
+Verify owner-triggered exact-SHA CI repair, fresh-task planning, passed repair,
+repair-task archival, primary-task restoration, and the durable two-attempt
+`needs_attention` boundary:
+
+```bash
+npm run test:ci-repair
 ```
 
 Inspect the preview pool without mutation:

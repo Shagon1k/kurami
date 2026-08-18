@@ -13,7 +13,7 @@ from zoneinfo import ZoneInfo
 
 
 CONTROL_ID = re.compile(
-    r"^kurami:(status|take_control|preview_start|preview_stop|stop|discard_prompt|discard_local|discard_published_prompt|discard_published):(r_[A-Za-z0-9_]+)$"
+    r"^kurami:(status|take_control|preview_start|preview_stop|stop|discard_prompt|discard_local|discard_published_prompt|discard_published|ci_repair):(r_[A-Za-z0-9_]+)$"
 )
 
 _ACTION_LABELS = {
@@ -23,6 +23,7 @@ _ACTION_LABELS = {
     "stop": "Cancel run",
     "discard_local": "Discard local work",
     "discard_published": "Close draft PR and discard published work",
+    "ci_repair": "Attempt CI fix",
 }
 
 

@@ -12,7 +12,8 @@ type Action =
   | "preview_stop"
   | "stop"
   | "discard_local"
-  | "discard_published";
+  | "discard_published"
+  | "ci_repair";
 type Command = "status" | "request" | "controls";
 type RequestSource = "telegram" | "discord" | "cli";
 
@@ -44,6 +45,11 @@ const pendingPresentations: Partial<
     stage: "discarding_cancelled",
     detail:
       "Published discard confirmed; verifying the exact draft pull request and managed branch.",
+  },
+  ci_repair: {
+    stage: "ci_repair_queued",
+    detail:
+      "CI fix requested; waiting to start a fresh bounded Codex task on the exact failed SHA.",
   },
 };
 
@@ -95,7 +101,7 @@ function parseArguments(): {
   const apply = args.includes("--apply");
   if (!command || !["status", "request", "controls"].includes(command)) {
     fail(
-      "Usage: run-controls.ts <status|request|controls> [--run-id <run_id>] [--action <take_control|preview_start|preview_stop|stop|discard_local|discard_published>] [--via <telegram|discord|cli>] [--project <project>] [--issue <number>] [--discord-thread-id <id>] [--apply]",
+      "Usage: run-controls.ts <status|request|controls> [--run-id <run_id>] [--action <take_control|preview_start|preview_stop|stop|discard_local|discard_published|ci_repair>] [--via <telegram|discord|cli>] [--project <project>] [--issue <number>] [--discord-thread-id <id>] [--apply]",
     );
   }
   if (command !== "controls" && !runId) fail(`${command} requires --run-id`);
@@ -113,6 +119,7 @@ function parseArguments(): {
         "stop",
         "discard_local",
         "discard_published",
+        "ci_repair",
       ].includes(action))
   ) {
     fail("request requires a supported --action");
@@ -153,15 +160,27 @@ function status(
            pe.title, pe.url AS issue_url, r.interaction_policy,
            r.state, r.owner_state, r.stop_reason,
            rr.resource_state, rr.branch_name, rr.worktree_path,
-           rr.codex_thread_id, rr.tmux_session_name, rr.preview_id,
+           rr.codex_thread_id, rr.previous_codex_thread_id,
+           rr.tmux_session_name, rr.preview_id,
            ps.hostname AS preview_hostname,
-           pl.state AS preview_state
+           pl.state AS preview_state,
+           ci.pull_request_number AS ci_pull_request_number,
+           ci.pull_request_url AS ci_pull_request_url,
+           ci.head_sha AS ci_head_sha,
+           ci.aggregate_state AS ci_aggregate_state,
+           ci.checks_json AS ci_checks_json,
+           (SELECT COUNT(*) FROM run_ci_repair_attempts a
+            WHERE a.run_id = r.run_id) AS ci_repair_attempt_count,
+           (SELECT attempt_state FROM run_ci_repair_attempts a
+            WHERE a.run_id = r.run_id
+            ORDER BY a.attempt_number DESC LIMIT 1) AS ci_repair_state
     FROM runs r
     JOIN run_resources rr USING (run_id)
     JOIN project_events pe ON pe.event_id = r.trigger_event_id
     LEFT JOIN preview_leases pl
       ON pl.run_id = r.run_id AND pl.state <> 'released'
     LEFT JOIN preview_slots ps USING (slot_number)
+    LEFT JOIN run_ci_snapshots ci USING (run_id)
     WHERE r.run_id = ?
   `,
     )
@@ -235,7 +254,10 @@ function request(
     const run = database
       .prepare(
         `
-      SELECT project, state, owner_state, stop_reason FROM runs WHERE run_id = ?
+      SELECT r.project, r.state, r.owner_state, r.stop_reason,
+             rr.previous_codex_thread_id
+      FROM runs r JOIN run_resources rr USING (run_id)
+      WHERE r.run_id = ?
     `,
       )
       .get(runId) as
@@ -244,6 +266,7 @@ function request(
           state: string;
           owner_state: string;
           stop_reason: string | null;
+          previous_codex_thread_id: string | null;
         }
       | undefined;
     if (!run) fail(`Run not found: ${runId}`);
@@ -252,6 +275,9 @@ function request(
     }
     if (action === "stop" && run.stop_reason === "cancelled") {
       fail("Run cancellation is already in progress or awaiting resolution");
+    }
+    if (action === "take_control" && run.previous_codex_thread_id !== null) {
+      fail("Takeover is unavailable while CI repair task cleanup is pending");
     }
     if (
       ["discard_local", "discard_published"].includes(action) &&
@@ -270,6 +296,47 @@ function request(
       !projectSupportsPreview(run.project)
     ) {
       fail(`Preview is not configured for project: ${run.project}`);
+    }
+    if (action === "ci_repair") {
+      const eligibility = database
+        .prepare(
+          `SELECT rr.resource_state, rr.tmux_session_name,
+                  rr.codex_thread_id, rr.previous_codex_thread_id,
+                  ci.head_sha, ci.aggregate_state,
+                  (SELECT COUNT(*) FROM run_ci_repair_attempts a
+                   WHERE a.run_id = r.run_id) AS attempt_count,
+                  (SELECT COUNT(*) FROM run_ci_repair_attempts a
+                   WHERE a.run_id = r.run_id
+                     AND a.attempt_state IN ('running', 'waiting_ci'))
+                    AS active_count
+           FROM runs r JOIN run_resources rr USING (run_id)
+           LEFT JOIN run_ci_snapshots ci USING (run_id)
+           WHERE r.run_id = ?`,
+        )
+        .get(runId) as {
+        resource_state: string;
+        tmux_session_name: string | null;
+        codex_thread_id: string | null;
+        previous_codex_thread_id: string | null;
+        head_sha: string | null;
+        aggregate_state: string | null;
+        attempt_count: number;
+        active_count: number;
+      };
+      if (
+        run.state !== "parked_review" ||
+        run.owner_state !== "none" ||
+        eligibility.resource_state !== "provisioned" ||
+        eligibility.tmux_session_name !== null ||
+        !eligibility.codex_thread_id ||
+        eligibility.previous_codex_thread_id !== null ||
+        !eligibility.head_sha ||
+        !["failed", "missing"].includes(eligibility.aggregate_state ?? "") ||
+        eligibility.attempt_count >= 2 ||
+        eligibility.active_count !== 0
+      ) {
+        fail("Run is not eligible for a bounded CI repair attempt");
+      }
     }
     if (
       action === "preview_start" &&
@@ -397,6 +464,7 @@ function controls(
   const runState = String(selected.state);
   const ownerState = String(selected.owner_state);
   const threadReady = Boolean(selected.codex_thread_id);
+  const repairCleanupPending = Boolean(selected.previous_codex_thread_id);
   const previewState = selected.preview_state
     ? String(selected.preview_state)
     : null;
@@ -413,6 +481,7 @@ function controls(
   const availableActions = ["status"];
   if (
     threadReady &&
+    !repairCleanupPending &&
     (ownerState === "cli" ||
       (ownerState === "none" &&
         ["parked_review", "waiting_human"].includes(runState)))
@@ -429,6 +498,18 @@ function controls(
     )
       availableActions.push("preview_start");
   }
+  if (
+    runState === "parked_review" &&
+    ownerState === "none" &&
+    Boolean(selected.codex_thread_id) &&
+    !repairCleanupPending &&
+    Boolean(selected.ci_head_sha) &&
+    ["failed", "missing"].includes(String(selected.ci_aggregate_state)) &&
+    Number(selected.ci_repair_attempt_count) < 2 &&
+    !["running", "waiting_ci"].includes(String(selected.ci_repair_state)) &&
+    !pendingActions.has("ci_repair")
+  )
+    availableActions.push("ci_repair");
   if (!cancellationStarted && !pendingActions.has("stop"))
     availableActions.push("stop");
   return { ...selected, available_actions: availableActions };

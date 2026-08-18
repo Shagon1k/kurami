@@ -3,12 +3,14 @@ import { mkdir, readFile, realpath, stat, writeFile } from "node:fs/promises";
 import { relative, resolve } from "node:path";
 import { DatabaseSync } from "node:sqlite";
 import { parse } from "yaml";
-import { findAndNameThread } from "./codex-app-server.ts";
+import { archiveThread, findAndNameThread } from "./codex-app-server.ts";
 
 process.umask(0o077);
 
 type Action =
   | "start"
+  | "repair"
+  | "cleanup-repair"
   | "sync"
   | "inspect"
   | "cancel"
@@ -19,6 +21,7 @@ type Action =
 type Arguments = {
   action: Action;
   runId: string;
+  requestId?: string;
   apply: boolean;
 };
 
@@ -62,6 +65,7 @@ type SessionRun = {
   base_sha: string | null;
   tmux_session_name: string | null;
   codex_thread_id: string | null;
+  previous_codex_thread_id: string | null;
 };
 
 type StartPlan = {
@@ -76,6 +80,24 @@ type StartPlan = {
   codexBin: string;
   codexTitle: string;
   initialPrompt: string;
+  repair: RepairContext | null;
+};
+
+type CiCheck = {
+  name: string;
+  state: "pending" | "passed" | "failed" | "missing" | "unknown";
+  detailsUrl: string | null;
+};
+
+type RepairContext = {
+  requestId: string;
+  attemptId: string;
+  attemptNumber: number;
+  sourceHeadSha: string;
+  sourceCiState: "failed" | "missing";
+  sourceChecks: CiCheck[];
+  pullRequestNumber: number;
+  pullRequestUrl: string;
 };
 
 const orchestratorHome = resolve(
@@ -98,11 +120,23 @@ function parseArguments(): Arguments {
   const action = args[0] as Action | undefined;
   const runIndex = args.indexOf("--run-id");
   const runId = runIndex >= 0 ? args[runIndex + 1]?.trim() : undefined;
-  const known = new Set([action, "--run-id", runId, "--apply"]);
+  const requestIndex = args.indexOf("--request-id");
+  const requestId =
+    requestIndex >= 0 ? args[requestIndex + 1]?.trim() : undefined;
+  const known = new Set([
+    action,
+    "--run-id",
+    runId,
+    "--request-id",
+    requestId,
+    "--apply",
+  ]);
   const unknown = args.filter((arg) => !known.has(arg));
 
   if (
     (action !== "start" &&
+      action !== "repair" &&
+      action !== "cleanup-repair" &&
       action !== "sync" &&
       action !== "inspect" &&
       action !== "cancel" &&
@@ -110,14 +144,15 @@ function parseArguments(): Arguments {
       action !== "handoff" &&
       action !== "finalize-stop") ||
     !runId ||
+    (action === "repair" ? !requestId : Boolean(requestId)) ||
     unknown.length > 0 ||
     (action === "inspect" && args.includes("--apply"))
   ) {
     fail(
-      "Usage: session-manager.ts <start|sync|inspect|cancel|park|handoff|finalize-stop> --run-id <run_id> [--apply]",
+      "Usage: session-manager.ts <start|repair|cleanup-repair|sync|inspect|cancel|park|handoff|finalize-stop> --run-id <run_id> [--request-id <request_id>] [--apply]",
     );
   }
-  return { action, runId, apply: args.includes("--apply") };
+  return { action, runId, requestId, apply: args.includes("--apply") };
 }
 
 function loadRun(database: DatabaseSync, runId: string): SessionRun {
@@ -129,7 +164,8 @@ function loadRun(database: DatabaseSync, runId: string): SessionRun {
              r.interaction_policy, r.state AS run_state, r.stop_reason,
              r.owner_state, r.execution_mode,
              rr.resource_state, rr.worktree_path, rr.branch_name, rr.base_sha,
-             rr.tmux_session_name, rr.codex_thread_id
+             rr.tmux_session_name, rr.codex_thread_id,
+             rr.previous_codex_thread_id
       FROM runs r
       JOIN run_resources rr USING (run_id)
       JOIN project_events pe ON pe.event_id = r.trigger_event_id
@@ -273,9 +309,101 @@ function initialPrompt(run: SessionRun): string {
     .join("\n\n");
 }
 
+function repairPrompt(run: SessionRun, repair: RepairContext): string {
+  const relevant = repair.sourceChecks.filter((check) =>
+    ["failed", "missing", "unknown"].includes(check.state),
+  );
+  return [
+    `Start fresh CI repair attempt ${repair.attemptNumber}/2 for ${run.repository} issue #${run.issue_number}.`,
+    run.issue_url ? `Issue: ${run.issue_url}` : "",
+    `Run ID: ${run.run_id}. Draft PR: ${repair.pullRequestUrl}.`,
+    `The authorized source is exact PR head SHA ${repair.sourceHeadSha}. Refuse to edit or push if the PR, branch, worktree HEAD, or remote head no longer matches it.`,
+    `Required CI state: ${repair.sourceCiState}. Relevant checks:\n${relevant
+      .map(
+        (check) =>
+          `- ${check.name}: ${check.state}${check.detailsUrl ? ` (${check.detailsUrl})` : ""}`,
+      )
+      .join("\n")}`,
+    "Read the failing check logs using GitHub CLI before changing files. Diagnose only the exact failing evidence and applicable repository instructions.",
+    "Make the smallest safe fix in the existing managed worktree and branch. Run only relevant local checks first, then any repository-required verification. Commit and push normally to the same branch; never force-push, rebase, merge, or create another PR.",
+    "Stop without speculative changes if the evidence points to dependency upgrades, schema/data migration, security or permissions, ownership ambiguity, unrelated flaky infrastructure, or a changed PR head. Explain the blocker clearly. Do not retry CI repair yourself and do not loop waiting for CI; Kurami will observe the new exact SHA.",
+    "GH_TOKEN is already injected by the managed launcher. Treat sandbox network failures as inconclusive and use only narrowly scoped approval for necessary GitHub reads or the authorized same-branch push.",
+  ]
+    .filter(Boolean)
+    .join("\n\n");
+}
+
+function loadRepairContext(
+  database: DatabaseSync,
+  run: SessionRun,
+  requestId: string,
+): RepairContext {
+  const request = database
+    .prepare(
+      `SELECT request_id FROM run_control_requests
+       WHERE request_id = ? AND run_id = ? AND action = 'ci_repair'
+         AND request_state = 'pending'`,
+    )
+    .get(requestId, run.run_id) as { request_id: string } | undefined;
+  if (!request) fail("CI repair request is no longer pending");
+  const snapshot = database
+    .prepare(
+      `SELECT pull_request_number, pull_request_url, head_sha,
+              aggregate_state, checks_json
+       FROM run_ci_snapshots WHERE run_id = ?`,
+    )
+    .get(run.run_id) as
+    | {
+        pull_request_number: number | null;
+        pull_request_url: string | null;
+        head_sha: string | null;
+        aggregate_state: string;
+        checks_json: string;
+      }
+    | undefined;
+  if (
+    !snapshot ||
+    !["failed", "missing"].includes(snapshot.aggregate_state) ||
+    !snapshot.head_sha ||
+    !snapshot.pull_request_number ||
+    !snapshot.pull_request_url
+  )
+    fail("Run has no exact failed CI snapshot eligible for repair");
+  const active = database
+    .prepare(
+      `SELECT 1 FROM run_ci_repair_attempts
+       WHERE run_id = ? AND attempt_state IN ('running', 'waiting_ci')`,
+    )
+    .get(run.run_id);
+  if (active) fail("A CI repair attempt is already active");
+  const count = Number(
+    (
+      database
+        .prepare(
+          `SELECT COUNT(*) AS count FROM run_ci_repair_attempts WHERE run_id = ?`,
+        )
+        .get(run.run_id) as { count: number }
+    ).count,
+  );
+  if (count >= 2) fail("CI repair attempt budget is exhausted");
+  const checks = JSON.parse(snapshot.checks_json) as CiCheck[];
+  if (!Array.isArray(checks)) fail("CI repair snapshot checks are invalid");
+  return {
+    requestId,
+    attemptId: `cra_${requestId.replace(/^rq_/u, "")}`,
+    attemptNumber: count + 1,
+    sourceHeadSha: snapshot.head_sha,
+    sourceCiState: snapshot.aggregate_state as "failed" | "missing",
+    sourceChecks: checks,
+    pullRequestNumber: snapshot.pull_request_number,
+    pullRequestUrl: snapshot.pull_request_url,
+  };
+}
+
 async function validateAndPlan(
   run: SessionRun,
   registry: ProjectsRegistry,
+  repair: RepairContext | null = null,
 ): Promise<StartPlan> {
   const project = registry.projects[run.project];
   if (!project) fail(`Unknown project in run: ${run.project}`);
@@ -312,6 +440,15 @@ async function validateAndPlan(
   if (run.base_sha && !gitIsAncestor(worktreePath, run.base_sha)) {
     fail(`Recorded base SHA is not an ancestor of worktree HEAD`);
   }
+  if (repair) {
+    if (git(worktreePath, ["status", "--porcelain"]))
+      fail("CI repair requires a clean managed worktree");
+    const head = git(worktreePath, ["rev-parse", "HEAD"]);
+    if (head !== repair.sourceHeadSha)
+      fail(
+        `CI repair exact SHA mismatch: worktree=${head}, snapshot=${repair.sourceHeadSha}`,
+      );
+  }
 
   const requestedCodex = process.env.CODEX_BIN?.trim() || "codex";
   const codexBin = requestedCodex.includes("/")
@@ -336,8 +473,11 @@ async function validateAndPlan(
     tmuxSessionName: run.tmux_session_name ?? sessionName(run, project),
     launcherPath,
     codexBin,
-    codexTitle: codexTitle(run, project),
-    initialPrompt: initialPrompt(run),
+    codexTitle: repair
+      ? `${codexTitle(run, project)} · CI fix ${repair.attemptNumber}/2`
+      : codexTitle(run, project),
+    initialPrompt: repair ? repairPrompt(run, repair) : initialPrompt(run),
+    repair,
   };
 }
 
@@ -354,7 +494,9 @@ function claimSession(
       current.run_state !== "starting" ||
       current.owner_state !== "none" ||
       current.resource_state !== "provisioned" ||
-      current.tmux_session_name !== null
+      current.tmux_session_name !== null ||
+      current.previous_codex_thread_id !== null ||
+      !current.codex_thread_id
     ) {
       fail(
         `Run is not session-startable: state=${current.run_state}, owner=${current.owner_state}, resource=${current.resource_state}, tmux=${current.tmux_session_name ?? "none"}`,
@@ -378,7 +520,7 @@ function claimSession(
     if (mappedCount >= maxTmuxSessions) {
       fail(`tmux mapping limit reached: ${mappedCount}/${maxTmuxSessions}`);
     }
-    database
+    const resourceChanged = database
       .prepare(
         `
         UPDATE run_resources
@@ -388,6 +530,94 @@ function claimSession(
       `,
       )
       .run(plan.tmuxSessionName, run.run_id);
+    if (resourceChanged.changes !== 1)
+      fail("Run tmux mapping changed before session claim");
+    database.exec("COMMIT");
+  } catch (error) {
+    database.exec("ROLLBACK");
+    throw error;
+  }
+}
+
+function claimRepairSession(
+  database: DatabaseSync,
+  run: SessionRun,
+  plan: StartPlan,
+  maxTmuxSessions: number,
+): void {
+  const repair = plan.repair;
+  if (!repair) fail("Missing CI repair context");
+  database.exec("BEGIN IMMEDIATE");
+  try {
+    const current = loadRun(database, run.run_id);
+    if (
+      current.run_state !== "parked_review" ||
+      current.owner_state !== "none" ||
+      current.resource_state !== "provisioned" ||
+      current.tmux_session_name !== null
+    ) {
+      fail(
+        `Run is not CI-repairable: state=${current.run_state}, owner=${current.owner_state}, resource=${current.resource_state}, tmux=${current.tmux_session_name ?? "none"}`,
+      );
+    }
+    const mappedCount = Number(
+      (
+        database
+          .prepare(
+            `SELECT COUNT(*) AS count FROM run_resources rr
+             JOIN runs r USING (run_id)
+             WHERE rr.tmux_session_name IS NOT NULL
+               AND r.state IN ('starting', 'running', 'handoff_pending', 'parked_review', 'stopping', 'needs_attention')`,
+          )
+          .get() as { count: number }
+      ).count,
+    );
+    if (mappedCount >= maxTmuxSessions)
+      fail(`tmux mapping limit reached: ${mappedCount}/${maxTmuxSessions}`);
+    const request = database
+      .prepare(
+        `SELECT 1 FROM run_control_requests
+         WHERE request_id = ? AND run_id = ? AND action = 'ci_repair'
+           AND request_state = 'pending'`,
+      )
+      .get(repair.requestId, run.run_id);
+    if (!request) fail("CI repair request changed before claim");
+    const snapshot = database
+      .prepare(
+        `SELECT head_sha, aggregate_state FROM run_ci_snapshots WHERE run_id = ?`,
+      )
+      .get(run.run_id) as
+      | { head_sha: string | null; aggregate_state: string }
+      | undefined;
+    if (
+      snapshot?.head_sha !== repair.sourceHeadSha ||
+      snapshot.aggregate_state !== repair.sourceCiState
+    )
+      fail("CI snapshot changed before repair claim");
+    const mapped = database
+      .prepare(
+        `UPDATE run_resources SET tmux_session_name = ?,
+           updated_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
+         WHERE run_id = ? AND tmux_session_name IS NULL`,
+      )
+      .run(plan.tmuxSessionName, run.run_id);
+    if (mapped.changes !== 1) fail("Run tmux mapping changed before repair claim");
+    database
+      .prepare(
+        `INSERT INTO run_ci_repair_attempts (
+           attempt_id, run_id, request_id, attempt_number, source_head_sha,
+           source_ci_state, source_checks_json, attempt_state
+         ) VALUES (?, ?, ?, ?, ?, ?, ?, 'running')`,
+      )
+      .run(
+        repair.attemptId,
+        run.run_id,
+        repair.requestId,
+        repair.attemptNumber,
+        repair.sourceHeadSha,
+        repair.sourceCiState,
+        JSON.stringify(repair.sourceChecks),
+      );
     database.exec("COMMIT");
   } catch (error) {
     database.exec("ROLLBACK");
@@ -432,6 +662,57 @@ function recordStarted(
   }
 }
 
+function recordRepairStarted(
+  database: DatabaseSync,
+  run: SessionRun,
+  plan: StartPlan,
+): void {
+  const repair = plan.repair;
+  if (!repair) fail("Missing CI repair context");
+  database.exec("BEGIN IMMEDIATE");
+  try {
+    const changed = database
+      .prepare(
+        `UPDATE runs SET owner_state = 'cli',
+           updated_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
+         WHERE run_id = ? AND state = 'parked_review' AND owner_state = 'none'`,
+      )
+      .run(run.run_id);
+    if (changed.changes !== 1) fail("Run ownership changed during CI repair start");
+    const resourceChanged = database
+      .prepare(
+        `UPDATE run_resources
+         SET previous_codex_thread_id = codex_thread_id,
+             codex_thread_id = NULL,
+             updated_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
+         WHERE run_id = ? AND tmux_session_name = ?
+           AND previous_codex_thread_id IS NULL
+           AND codex_thread_id IS NOT NULL`,
+      )
+      .run(run.run_id, plan.tmuxSessionName);
+    if (resourceChanged.changes !== 1)
+      fail("Run resource mapping changed during CI repair start");
+    appendHistory(
+      database,
+      run.run_id,
+      "parked_review",
+      "parked_review",
+      "ci_repair_started",
+      {
+        requestId: repair.requestId,
+        attemptId: repair.attemptId,
+        attemptNumber: repair.attemptNumber,
+        sourceHeadSha: repair.sourceHeadSha,
+        tmuxSessionName: plan.tmuxSessionName,
+      },
+    );
+    database.exec("COMMIT");
+  } catch (error) {
+    database.exec("ROLLBACK");
+    throw error;
+  }
+}
+
 function recordStartFailure(
   database: DatabaseSync,
   run: SessionRun,
@@ -462,12 +743,23 @@ function recordStartFailure(
       `,
       )
       .run(run.run_id, plan.tmuxSessionName);
+    if (plan.repair) {
+      database
+        .prepare(
+          `UPDATE run_ci_repair_attempts
+           SET attempt_state = 'needs_attention', failure_reason = ?,
+               updated_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now'),
+               completed_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
+           WHERE attempt_id = ? AND attempt_state = 'running'`,
+        )
+        .run(message, plan.repair.attemptId);
+    }
     appendHistory(
       database,
       run.run_id,
       current.run_state,
       "needs_attention",
-      "codex_tmux_start_failed",
+      plan.repair ? "ci_repair_tmux_start_failed" : "codex_tmux_start_failed",
       { tmuxSessionName: plan.tmuxSessionName, error: message },
     );
     database.exec("COMMIT");
@@ -497,7 +789,10 @@ async function startSession(
   if (config.mode !== "live" || run.execution_mode !== "live") {
     fail(`Refusing session mutation outside live mode`);
   }
-  if (run.run_state !== "starting" || run.resource_state !== "provisioned") {
+  const stateReady = plan.repair
+    ? run.run_state === "parked_review" && run.owner_state === "none"
+    : run.run_state === "starting" && run.owner_state === "none";
+  if (!stateReady || run.resource_state !== "provisioned") {
     fail(
       `Run is not ready for session start: state=${run.run_state}, resource=${run.resource_state}`,
     );
@@ -517,7 +812,14 @@ async function startSession(
     );
   }
 
-  claimSession(database, run, plan, config.limits.max_tmux_sessions_global);
+  if (plan.repair)
+    claimRepairSession(
+      database,
+      run,
+      plan,
+      config.limits.max_tmux_sessions_global,
+    );
+  else claimSession(database, run, plan, config.limits.max_tmux_sessions_global);
   try {
     runFile("tmux", [
       "new-session",
@@ -546,14 +848,17 @@ async function startSession(
     if (!tmuxSessionExists(plan.tmuxSessionName)) {
       fail(`tmux session exited during startup: ${plan.tmuxSessionName}`);
     }
+    if (plan.repair) recordRepairStarted(database, run, plan);
+    else recordStarted(database, run, plan);
   } catch (error) {
+    if (tmuxSessionExists(plan.tmuxSessionName))
+      killTmuxSession(plan.tmuxSessionName);
     recordStartFailure(database, run, plan, error);
     throw error;
   }
 
-  recordStarted(database, run, plan);
   process.stdout.write(
-    `${JSON.stringify({ ok: true, apply: true, action: "started", ...plan, ownerState: "cli", runState: "running" })}\n`,
+    `${JSON.stringify({ ok: true, apply: true, action: plan.repair ? "repair_started" : "started", ...plan, ownerState: "cli", runState: plan.repair ? "parked_review" : "running" })}\n`,
   );
 }
 
@@ -629,7 +934,18 @@ async function syncSession(
   if (!run.tmux_session_name || !tmuxSessionExists(run.tmux_session_name)) {
     fail(`Managed tmux session is not alive for run: ${run.run_id}`);
   }
-  const title = codexTitle(run, project);
+  const activeRepair = database
+    .prepare(
+      `SELECT attempt_id, attempt_number FROM run_ci_repair_attempts
+       WHERE run_id = ? AND attempt_state = 'running'
+       ORDER BY attempt_number DESC LIMIT 1`,
+    )
+    .get(run.run_id) as
+    | { attempt_id: string; attempt_number: number }
+    | undefined;
+  const title = activeRepair
+    ? `${codexTitle(run, project)} · CI fix ${activeRepair.attempt_number}/2`
+    : codexTitle(run, project);
   const result = apply
     ? await findAndNameThread(
         planCodexBin(run.worktree_path),
@@ -663,7 +979,7 @@ async function syncSession(
   try {
     const current = loadRun(database, run.run_id);
     if (
-      !["starting", "running"].includes(current.run_state) ||
+      !["starting", "running", "parked_review"].includes(current.run_state) ||
       current.owner_state !== "cli"
     ) {
       fail(
@@ -674,11 +990,11 @@ async function syncSession(
       .prepare(
         `
         UPDATE runs
-        SET state = 'running', updated_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
+        SET state = ?, updated_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
         WHERE run_id = ?
       `,
       )
-      .run(run.run_id);
+      .run(current.run_state === "starting" ? "running" : current.run_state, run.run_id);
     database
       .prepare(
         `
@@ -688,12 +1004,25 @@ async function syncSession(
       `,
       )
       .run(threadId, run.run_id);
+    if (activeRepair) {
+      database
+        .prepare(
+          `UPDATE run_ci_repair_attempts SET codex_thread_id = ?,
+             updated_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
+           WHERE attempt_id = ? AND attempt_state = 'running'`,
+        )
+        .run(threadId, activeRepair.attempt_id);
+    }
+    const synchronizedState =
+      current.run_state === "starting" ? "running" : current.run_state;
     appendHistory(
       database,
       run.run_id,
       current.run_state,
-      "running",
-      "codex_thread_synchronized",
+      synchronizedState,
+      activeRepair
+        ? "ci_repair_thread_synchronized"
+        : "codex_thread_synchronized",
       { codexThreadId: threadId, codexTitle: title },
     );
     database.exec("COMMIT");
@@ -710,6 +1039,119 @@ function planCodexBin(worktreePath: string | null): string {
   const requestedCodex = process.env.CODEX_BIN?.trim() || "codex";
   if (requestedCodex.includes("/")) return resolve(requestedCodex);
   return runFile("which", [requestedCodex]);
+}
+
+async function cleanupRepairSession(
+  database: DatabaseSync,
+  run: SessionRun,
+  apply: boolean,
+): Promise<void> {
+  if (
+    ![
+      "parked_review",
+      "needs_attention",
+      "stopping",
+      "archived",
+      "cancelled",
+    ].includes(run.run_state) ||
+    run.owner_state !== "none" ||
+    run.tmux_session_name !== null ||
+    !run.codex_thread_id ||
+    !run.previous_codex_thread_id
+  ) {
+    fail(
+      `Run is not ready for CI repair cleanup: state=${run.run_state}, owner=${run.owner_state}, tmux=${run.tmux_session_name ?? "none"}, currentThread=${run.codex_thread_id ?? "none"}, previousThread=${run.previous_codex_thread_id ?? "none"}`,
+    );
+  }
+  const attempt = database
+    .prepare(
+      `SELECT attempt_id, attempt_number, attempt_state, codex_thread_id
+       FROM run_ci_repair_attempts
+       WHERE run_id = ? AND codex_thread_id = ?
+       ORDER BY attempt_number DESC LIMIT 1`,
+    )
+    .get(run.run_id, run.codex_thread_id) as
+    | {
+        attempt_id: string;
+        attempt_number: number;
+        attempt_state: string;
+        codex_thread_id: string;
+      }
+    | undefined;
+  if (!attempt || attempt.attempt_state === "running") {
+    fail("Run has no completed CI repair task ready for cleanup");
+  }
+  const plan = {
+    runId: run.run_id,
+    attemptId: attempt.attempt_id,
+    attemptNumber: attempt.attempt_number,
+    attemptState: attempt.attempt_state,
+    repairCodexThreadId: run.codex_thread_id,
+    restoredCodexThreadId: run.previous_codex_thread_id,
+    action: "archive_repair_and_restore_main",
+  };
+  if (!apply) {
+    process.stdout.write(
+      `${JSON.stringify({ ok: true, apply: false, plan })}\n`,
+    );
+    return;
+  }
+  if (run.execution_mode !== "live") {
+    fail(`Refusing CI repair cleanup for execution_mode=${run.execution_mode}`);
+  }
+
+  await archiveThread(planCodexBin(run.worktree_path), run.codex_thread_id);
+
+  database.exec("BEGIN IMMEDIATE");
+  try {
+    const current = loadRun(database, run.run_id);
+    if (
+      current.owner_state !== "none" ||
+      current.tmux_session_name !== null ||
+      current.codex_thread_id !== run.codex_thread_id ||
+      current.previous_codex_thread_id !== run.previous_codex_thread_id
+    ) {
+      fail("Run changed during CI repair task cleanup");
+    }
+    const changed = database
+      .prepare(
+        `UPDATE run_resources
+         SET codex_thread_id = previous_codex_thread_id,
+             previous_codex_thread_id = NULL,
+             updated_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
+         WHERE run_id = ? AND codex_thread_id = ?
+           AND previous_codex_thread_id = ?`,
+      )
+      .run(
+        run.run_id,
+        run.codex_thread_id,
+        run.previous_codex_thread_id,
+      );
+    if (changed.changes !== 1) {
+      fail("Run resource mapping changed during CI repair task cleanup");
+    }
+    appendHistory(
+      database,
+      run.run_id,
+      current.run_state,
+      current.run_state,
+      "ci_repair_task_archived",
+      {
+        attemptId: attempt.attempt_id,
+        attemptNumber: attempt.attempt_number,
+        repairCodexThreadId: run.codex_thread_id,
+        restoredCodexThreadId: run.previous_codex_thread_id,
+      },
+    );
+    database.exec("COMMIT");
+  } catch (error) {
+    database.exec("ROLLBACK");
+    throw error;
+  }
+
+  process.stdout.write(
+    `${JSON.stringify({ ok: true, apply: true, ...plan, archived: true })}\n`,
+  );
 }
 
 async function leaveCliSession(
@@ -1207,6 +1649,10 @@ async function main(): Promise<void> {
       await syncSession(database, run, registry, args.apply);
       return;
     }
+    if (args.action === "cleanup-repair") {
+      await cleanupRepairSession(database, run, args.apply);
+      return;
+    }
     if (args.action === "cancel") {
       await cancelCliSession(database, run, args.apply);
       return;
@@ -1223,7 +1669,11 @@ async function main(): Promise<void> {
       await finalizeStop(database, run, registry, args.apply);
       return;
     }
-    const plan = await validateAndPlan(run, registry);
+    const repair =
+      args.action === "repair"
+        ? loadRepairContext(database, run, args.requestId!)
+        : null;
+    const plan = await validateAndPlan(run, registry, repair);
     await startSession(database, run, plan, config, args.apply);
   } finally {
     database.close();

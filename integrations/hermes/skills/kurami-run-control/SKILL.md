@@ -1,6 +1,6 @@
 ---
 name: kurami-run-control
-description: Inspect, redisplay, or request an allowlisted Kurami Dev Orchestrator action. Use when Alex sends a textual Discord or Telegram fallback command for a Kurami engineering run, including Status, Take control, Continue in Codex, Start preview, Stop preview, Cancel run, Discard local work, Close draft PR and discard, Open in Codex, or Show controls/actions again.
+description: Inspect, redisplay, or request an allowlisted Kurami Dev Orchestrator action. Use when Alex sends a textual Discord or Telegram fallback command for a Kurami engineering run, including Status, Take control, Continue in Codex, Attempt CI fix, Start preview, Stop preview, Cancel run, Discard local work, Close draft PR and discard, Open in Codex, or Show controls/actions again.
 ---
 
 # Kurami Run Control
@@ -49,6 +49,7 @@ Map exact actions and aliases as follows:
 
 - `Status`: run `$NODE $CONTROL status --run-id <run_id>`.
 - `Take control` or `Continue in Codex`: run `$NODE $CONTROL request --run-id <run_id> --action take_control --via <transport> --apply`.
+- `Attempt CI fix`: run `$NODE $CONTROL request --run-id <run_id> --action ci_repair --via <transport> --apply`. Offer it only when the returned controls include `ci_repair`. This starts one fresh bounded Codex task on the exact failed or missing-check PR SHA; it never reuses the parked task and never starts an automatic retry.
 - `Start preview`: run `$NODE $CONTROL request --run-id <run_id> --action preview_start --via <transport> --apply`.
 - `Stop preview`: run `$NODE $CONTROL request --run-id <run_id> --action preview_stop --via <transport> --apply`.
 - `Cancel run`, or legacy `Stop`: run `$NODE $CONTROL request --run-id <run_id> --action stop --via <transport> --apply`.
@@ -97,8 +98,17 @@ task.
 
 For a mutation, report only that the durable request was accepted or already
 pending. Include `requestId` and `requestState` when returned. Do not claim that
-handoff, preview startup, preview shutdown, or cancellation completed until a
-later durable status proves it.
+handoff, CI repair, preview startup, preview shutdown, or cancellation completed
+until a later durable status proves it.
+
+CI repair succeeds only after the observer reports `passed` on a new exact PR
+head SHA. A failed first result may expose one more explicit `Attempt CI fix`;
+the second failure, no new head, an unsettled CI timeout, or an unsafe ambiguity
+ends at `needs_attention`. Never queue a second attempt unless Alex asks again.
+The fresh repair Codex task is technical and temporary: after its turn finishes,
+the controller archives it and restores the run's original primary Codex task.
+Do not offer Take control or Continue in Codex while a repair is queued,
+working, or waiting for checks.
 
 A Take control request immediately enters bounded handoff preparation. The
 deterministic controller requests the Codex TUI's normal interrupt, waits for a
