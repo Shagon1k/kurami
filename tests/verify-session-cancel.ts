@@ -45,11 +45,11 @@ async function main(): Promise<void> {
     });
     await mkdir(fakeBin, { recursive: true, mode: 0o700 });
     await copyFile(
-      resolve(appDirectory, "../config/orchestrator.yaml"),
+      resolve(appDirectory, "deploy/config/orchestrator.yaml"),
       resolve(testHome, "config/orchestrator.yaml"),
     );
     await copyFile(
-      resolve(appDirectory, "../config/projects.yaml"),
+      resolve(appDirectory, "deploy/config/projects.yaml"),
       resolve(testHome, "config/projects.yaml"),
     );
 

@@ -22,7 +22,8 @@
     "test:session-cancel": "node tests/verify-session-cancel.ts",
     "test:session-handoff": "node tests/verify-session-handoff.ts",
     "test:cancel-resolution": "node tests/verify-cancel-resolution.ts",
-    "test:project-status": "node tests/verify-project-status.ts"
+    "test:project-status": "node tests/verify-project-status.ts",
+    "test:ci": "node tests/verify-ci-observer.ts"
   },
   "keywords": [],
   "author": "",

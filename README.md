@@ -32,6 +32,7 @@ app/
   src/
     init-run-store.ts         Applies migrations and checks DB integrity
     poll-projects.ts          Reads one or both GitHub Projects
+    observe-ci.ts             Reads exact-PR CI state without GitHub mutations
     process-project-events.ts Runs admission and cancellation state transitions
     controller.ts             Dispatches only handlers eligible for current states
     codex-app-server.ts       Minimal stdio client for durable Codex thread metadata
@@ -60,6 +61,7 @@ app/
     verify-cancel-resolution.ts
                               Proves local discard, preservation, and exact Draft PR cleanup
     verify-project-status.ts  Proves guarded idempotent Backlog synchronization
+    verify-ci-observer.ts     Proves exact-SHA CI normalization and bounded notifications
     verify-preview-slots.ts   Proves six-slot capacity, idempotency, and safe reuse
     verify-preview-ingress.ts Proves deterministic, loopback-only, fail-closed routing
     verify-run-controls.ts    Proves event idempotency and explicit control dispatch
@@ -117,6 +119,22 @@ inside a SQLite write transaction. It owns:
 - cancellation when an active item returns to `Backlog` or `Deferred`.
 
 It does not invoke Git, tmux, Codex, or GitHub mutations.
+
+### CI observer
+
+`src/observe-ci.ts` maps each active managed branch to exactly one pull request,
+reads check-runs and legacy commit statuses for that PR's exact head SHA, and
+stores a normalized snapshot. GitHub API errors become `unknown`; missing
+required checks become `missing` only after the configured grace period. The
+observer never changes a pull request, branch, check, lifecycle state, or code.
+
+Per-project CI policy is versioned in `deploy/config/projects.yaml`. The deployed
+copy is `${ORCHESTRATOR_HOME}/config/projects.yaml`; both copies must be kept in
+sync by the normal deployment/reconciliation flow. `ci.enabled: false` disables
+observation for a project. When enabled, `required_checks` contains exact GitHub
+check names and `missing_grace_minutes` controls only the initial missing-check
+grace period. The future project-readiness checker should compare this policy
+with the repository's actual workflows and checks.
 
 ### Controller / Reconciler
 

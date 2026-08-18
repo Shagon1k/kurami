@@ -6,6 +6,7 @@ readonly ORCHESTRATOR_HOME="/home/shagon1k/_hermes/_orchestrator"
 readonly NODE_BIN="${ORCHESTRATOR_HOME}/runtime/node/bin/node"
 readonly POLLER="${ORCHESTRATOR_HOME}/app/src/poll-projects.ts"
 readonly CONSUMER="${ORCHESTRATOR_HOME}/app/src/process-project-events.ts"
+readonly CI_OBSERVER="${ORCHESTRATOR_HOME}/app/src/observe-ci.ts"
 readonly CONTROLLER="${ORCHESTRATOR_HOME}/app/src/controller.ts"
 readonly DISCORD_NOTIFIER="${ORCHESTRATOR_HOME}/app/src/notify-discord-controls.ts"
 readonly OBSERVER="${ORCHESTRATOR_HOME}/app/src/observe-sessions.ts"
@@ -24,6 +25,7 @@ readonly LOCK_FILE="${ORCHESTRATOR_HOME}/state/project-poller-${PROJECT}.lock"
 readonly CONSUMER_LOCK_FILE="${ORCHESTRATOR_HOME}/state/project-event-consumer.lock"
 readonly ERROR_LOG="${ORCHESTRATOR_HOME}/logs/project-poller-${PROJECT}-errors.log"
 readonly CONSUMER_ERROR_LOG="${ORCHESTRATOR_HOME}/logs/project-event-consumer-errors.log"
+readonly CI_OBSERVER_ERROR_LOG="${ORCHESTRATOR_HOME}/logs/ci-observer-errors.log"
 readonly CONTROLLER_ERROR_LOG="${ORCHESTRATOR_HOME}/logs/controller-errors.log"
 readonly DISCORD_NOTIFIER_ERROR_LOG="${ORCHESTRATOR_HOME}/logs/discord-control-notifier-errors.log"
 readonly OBSERVER_ERROR_LOG="${ORCHESTRATOR_HOME}/logs/session-observer-errors.log"
@@ -53,6 +55,12 @@ fi
 if ! "${NODE_BIN}" "${POLLER}" 2>>"${ERROR_LOG}"; then
   printf 'Project poller failed for %s. Log: %s\n' "${PROJECT}" "${ERROR_LOG}"
   exit 1
+fi
+
+if ! CI_OBSERVER_QUIET=1 "${NODE_BIN}" "${CI_OBSERVER}" --project "${PROJECT}" --apply \
+  2>>"${CI_OBSERVER_ERROR_LOG}"; then
+  printf 'CI observer failed for %s; continuing core reconciliation.\n' "${PROJECT}" \
+    >>"${CI_OBSERVER_ERROR_LOG}"
 fi
 
 exec 8>"${CONSUMER_LOCK_FILE}"

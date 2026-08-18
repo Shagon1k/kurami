@@ -24,6 +24,21 @@ type EventKind =
   | "preview_ready"
   | "preview_failed"
   | "attention_required";
+type CiState = "pending" | "passed" | "failed" | "missing" | "unknown";
+type CiCheck = {
+  name: string;
+  state: CiState;
+  source: "check_run" | "commit_status" | "missing";
+  detailsUrl: string | null;
+};
+type CiEventPayload = {
+  source: "ci";
+  state: "failed" | "missing";
+  headSha: string;
+  pullRequestUrl?: string | null;
+  pullRequestTitle?: string | null;
+  checks: CiCheck[];
+};
 type CardRow = {
   run_id: string;
   stage: string;
@@ -55,6 +70,12 @@ type CardRow = {
   pull_request_url: string | null;
   pull_request_title: string | null;
   surface_attempt_count: number | null;
+  ci_pull_request_url: string | null;
+  ci_pull_request_title: string | null;
+  ci_head_sha: string | null;
+  ci_aggregate_state: CiState | null;
+  ci_checks_json: string | null;
+  ci_last_error: string | null;
 };
 type EventRow = {
   event_id: string;
@@ -74,6 +95,11 @@ type EventRow = {
   thread_id: string;
   control_message_id: string | null;
   delivery_state: string;
+  payload_json: string;
+  current_ci_head_sha: string | null;
+  current_ci_aggregate_state: CiState | null;
+  current_ci_checks_json: string | null;
+  current_ci_pull_request_url: string | null;
 };
 type PullRequest = { url: string; title: string };
 type DiscordObject = Record<string, unknown>;
@@ -105,6 +131,7 @@ const desiredSurfaceDigestSql = `
   COALESCE(pl.state, 'preview:none') || ':' ||
   COALESCE(ps.hostname, 'host:none') || ':' ||
   COALESCE(r.stop_reason, 'stop:none') || ':discord-ux-v5'
+  || ':' || COALESCE(ci.content_digest, 'ci:none')
 `;
 
 function fail(message: string): never {
@@ -273,7 +300,13 @@ function loadDesiredCards(database: DatabaseSync): CardRow[] {
              ds.content_digest AS surface_content_digest,
              ds.pull_request_url,
              ds.pull_request_title,
-             ds.attempt_count AS surface_attempt_count
+             ds.attempt_count AS surface_attempt_count,
+             ci.pull_request_url AS ci_pull_request_url,
+             ci.pull_request_title AS ci_pull_request_title,
+             ci.head_sha AS ci_head_sha,
+             ci.aggregate_state AS ci_aggregate_state,
+             ci.checks_json AS ci_checks_json,
+             ci.last_error AS ci_last_error
       FROM run_progress_cards pc
       JOIN runs r USING (run_id)
       JOIN project_events pe ON pe.event_id = r.trigger_event_id
@@ -282,6 +315,7 @@ function loadDesiredCards(database: DatabaseSync): CardRow[] {
       LEFT JOIN preview_leases pl
         ON pl.run_id = r.run_id AND pl.state <> 'released'
       LEFT JOIN preview_slots ps USING (slot_number)
+      LEFT JOIN run_ci_snapshots ci USING (run_id)
       LEFT JOIN run_discord_surfaces ds USING (run_id)
       WHERE r.created_at >= settings.activated_at
         AND (
@@ -338,7 +372,13 @@ function loadCard(database: DatabaseSync, runId: string): CardRow {
              ds.content_digest AS surface_content_digest,
              ds.pull_request_url,
              ds.pull_request_title,
-             ds.attempt_count AS surface_attempt_count
+             ds.attempt_count AS surface_attempt_count,
+             ci.pull_request_url AS ci_pull_request_url,
+             ci.pull_request_title AS ci_pull_request_title,
+             ci.head_sha AS ci_head_sha,
+             ci.aggregate_state AS ci_aggregate_state,
+             ci.checks_json AS ci_checks_json,
+             ci.last_error AS ci_last_error
       FROM run_progress_cards pc
       JOIN runs r USING (run_id)
       JOIN project_events pe ON pe.event_id = r.trigger_event_id
@@ -347,6 +387,7 @@ function loadCard(database: DatabaseSync, runId: string): CardRow {
       LEFT JOIN preview_leases pl
         ON pl.run_id = r.run_id AND pl.state <> 'released'
       LEFT JOIN preview_slots ps USING (slot_number)
+      LEFT JOIN run_ci_snapshots ci USING (run_id)
       LEFT JOIN run_discord_surfaces ds USING (run_id)
       WHERE pc.run_id = ? AND r.created_at >= settings.activated_at
     `,
@@ -377,14 +418,18 @@ function loadPendingEvents(database: DatabaseSync): EventRow[] {
   return database
     .prepare(
       `
-      SELECT ce.event_id, ce.run_id, ce.event_kind,
+      SELECT ce.event_id, ce.run_id, ce.event_kind, ce.payload_json,
              r.project, r.repository, r.issue_number,
              r.state AS run_state, r.owner_state,
              pe.title, pe.url AS issue_url,
              rr.branch_name, rr.codex_thread_id,
              ps.hostname AS preview_hostname,
              ds.guild_id, ds.thread_id, ds.control_message_id,
-             dd.delivery_state
+             dd.delivery_state,
+             ci.head_sha AS current_ci_head_sha,
+             ci.aggregate_state AS current_ci_aggregate_state,
+             ci.checks_json AS current_ci_checks_json,
+             ci.pull_request_url AS current_ci_pull_request_url
       FROM run_control_events ce
       JOIN run_discord_event_deliveries dd USING (event_id)
       JOIN runs r USING (run_id)
@@ -394,6 +439,7 @@ function loadPendingEvents(database: DatabaseSync): EventRow[] {
       LEFT JOIN preview_leases pl
         ON pl.run_id = r.run_id AND pl.state = 'running'
       LEFT JOIN preview_slots ps USING (slot_number)
+      LEFT JOIN run_ci_snapshots ci USING (run_id)
       WHERE dd.delivery_state IN ('pending', 'failed')
         AND dd.attempt_count < 5
         AND ds.thread_id IS NOT NULL
@@ -403,7 +449,30 @@ function loadPendingEvents(database: DatabaseSync): EventRow[] {
     .all() as EventRow[];
 }
 
+function ciEventPayload(value: string): CiEventPayload | null {
+  try {
+    const payload = JSON.parse(value) as Partial<CiEventPayload>;
+    if (
+      payload.source !== "ci" ||
+      !["failed", "missing"].includes(payload.state ?? "") ||
+      typeof payload.headSha !== "string" ||
+      !Array.isArray(payload.checks)
+    )
+      return null;
+    return payload as CiEventPayload;
+  } catch {
+    return null;
+  }
+}
+
 function eventStillValid(event: EventRow): boolean {
+  const ci = ciEventPayload(event.payload_json);
+  if (event.event_kind === "attention_required" && ci)
+    return (
+      !["rejected", "cancelled", "archived"].includes(event.run_state) &&
+      event.current_ci_head_sha === ci.headSha &&
+      ["failed", "missing"].includes(event.current_ci_aggregate_state ?? "")
+    );
   if (event.event_kind === "review_ready")
     return event.run_state === "parked_review" && event.owner_state === "none";
   if (event.event_kind === "human_control_ready")
@@ -485,6 +554,65 @@ function presentedStage(
     };
   }
   return { label: stageLabel(card.stage), detail: card.detail };
+}
+
+function parseCiChecks(value: string | null): CiCheck[] {
+  if (!value) return [];
+  try {
+    const checks = JSON.parse(value) as CiCheck[];
+    return Array.isArray(checks) ? checks : [];
+  } catch {
+    return [];
+  }
+}
+
+function ciCheckLine(check: CiCheck): string {
+  const mark: Record<CiState, string> = {
+    passed: "✓",
+    pending: "…",
+    failed: "✕",
+    missing: "?",
+    unknown: "?",
+  };
+  const name = truncate(check.name, 120);
+  const label =
+    check.detailsUrl?.startsWith("https://") === true
+      ? `[${name}](${check.detailsUrl})`
+      : name;
+  return `${mark[check.state]} ${label}`;
+}
+
+function ciField(card: CardRow): DiscordObject | null {
+  if (!card.ci_aggregate_state) return null;
+  const labels: Record<CiState, string> = {
+    passed: "✅ Passed",
+    pending: "⏳ Pending",
+    failed: "❌ Failed",
+    missing: "⚠️ Required check missing",
+    unknown: "❔ Unknown",
+  };
+  const lines = [`**${labels[card.ci_aggregate_state]}**`];
+  if (
+    card.ci_aggregate_state === "pending" &&
+    !card.ci_pull_request_url
+  )
+    lines.push("Waiting for the managed pull request.");
+  else {
+    const checks = parseCiChecks(card.ci_checks_json);
+    lines.push(...checks.map(ciCheckLine));
+  }
+  if (card.ci_aggregate_state === "unknown")
+    lines.push("Status could not be determined.");
+  if (card.ci_head_sha) lines.push(`\`${card.ci_head_sha.slice(0, 7)}\``);
+  return { name: "CI", value: truncate(lines.join("\n"), 1_024) };
+}
+
+function ciPullRequest(card: CardRow): PullRequest | null {
+  if (!card.ci_pull_request_url) return null;
+  return {
+    url: card.ci_pull_request_url,
+    title: card.ci_pull_request_title ?? "Pull request",
+  };
 }
 
 function stageColor(stage: string): number {
@@ -652,6 +780,8 @@ function cardPayload(
       name: "Pull request",
       value: `[Open PR](${pullRequest.url})`,
     });
+  const ci = ciField(card);
+  if (ci) fields.push(ci);
   if (card.preview_hostname)
     fields.push({
       name: "Preview",
@@ -814,12 +944,14 @@ async function ensureSurface(
     )
     .run(card.run_id);
 
-  let pullRequest = surface.pull_request_url
-    ? {
-        url: surface.pull_request_url,
-        title: surface.pull_request_title ?? "Pull request",
-      }
-    : null;
+  let pullRequest =
+    ciPullRequest(card) ??
+    (surface.pull_request_url
+      ? {
+          url: surface.pull_request_url,
+          title: surface.pull_request_title ?? "Pull request",
+        }
+      : null);
   if (
     !pullRequest &&
     ["review_ready", "completed", "cancelled_work_preserved"].includes(
@@ -1126,6 +1258,24 @@ function eventMessage(
   project: ProjectConfig,
   pullRequest: PullRequest | null,
 ): string {
+  const ci = ciEventPayload(event.payload_json);
+  if (event.event_kind === "attention_required" && ci) {
+    const currentState = event.current_ci_aggregate_state;
+    const currentChecks = parseCiChecks(event.current_ci_checks_json);
+    const relevant = currentChecks.filter((check) =>
+      ["failed", "missing", "unknown"].includes(check.state),
+    );
+    return [
+      `**${currentState === "failed" ? "CI failed" : "Required CI check is missing"}**`,
+      ...relevant.map(ciCheckLine),
+      event.current_ci_pull_request_url?.startsWith("https://")
+        ? `[Open PR](${event.current_ci_pull_request_url})`
+        : "",
+      event.issue_url ? `[Open issue](${event.issue_url})` : "",
+    ]
+      .filter(Boolean)
+      .join("\n");
+  }
   const header =
     event.event_kind === "human_control_ready"
       ? "Preparation is ready for you"

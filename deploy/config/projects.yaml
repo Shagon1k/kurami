@@ -24,6 +24,12 @@ projects:
       worktree_root: /home/shagon1k/_projects/.worktrees/tailortales
       base_branch: main
       branch_prefix: TT
+    ci:
+      enabled: true
+      required_checks:
+        - Secret scan
+        - Lint, type-check, test
+      missing_grace_minutes: 10
     preview:
       adapter: compose
       compose_file: docker-compose.yml
@@ -56,3 +62,5 @@ projects:
       worktree_root: /home/shagon1k/_projects/.worktrees/pickflick
       base_branch: main
       branch_prefix: PF
+    ci:
+      enabled: false

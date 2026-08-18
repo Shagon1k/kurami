@@ -263,11 +263,11 @@ async function main(): Promise<void> {
   try {
     await mkdir(resolve(testHome, "config"), { recursive: true, mode: 0o700 });
     await copyFile(
-      resolve(appDirectory, "../config/orchestrator.yaml"),
+      resolve(appDirectory, "deploy/config/orchestrator.yaml"),
       resolve(testHome, "config/orchestrator.yaml"),
     );
     await copyFile(
-      resolve(appDirectory, "../config/projects.yaml"),
+      resolve(appDirectory, "deploy/config/projects.yaml"),
       resolve(testHome, "config/projects.yaml"),
     );
     const databasePath = resolve(testHome, "state/orchestrator.db");
@@ -386,9 +386,28 @@ async function main(): Promise<void> {
       .run("r_discord_smoke", "2026-08-16T09:10:00.000Z");
     database
       .prepare(
+        `INSERT INTO run_ci_snapshots (
+           run_id, repository, pull_request_number, pull_request_url,
+           pull_request_title, head_sha, aggregate_state, checks_json,
+           content_digest, first_observed_at, last_observed_at, completed_at
+         ) VALUES (
+           ?, 'Shagon1k/TailorTales', 9401,
+           'https://example.invalid/pulls/9401', 'CI pull 9401',
+           'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa', 'failed',
+           '[{"name":"Secret scan","state":"failed","source":"check_run","detailsUrl":"https://example.invalid/checks/9401"}]',
+           'digest-ci-failed', '2026-08-16T09:10:00.000Z',
+           '2026-08-16T09:11:00.000Z', '2026-08-16T09:11:00.000Z'
+         )`,
+      )
+      .run("r_discord_smoke");
+    database
+      .prepare(
         `INSERT INTO run_control_events (
            event_id, run_id, event_kind, payload_json
-         ) VALUES ('event-attention', ?, 'attention_required', '{}')`,
+         ) VALUES (
+           'event-attention', ?, 'attention_required',
+           '{"source":"ci","state":"failed","headSha":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","pullRequestUrl":"https://example.invalid/pulls/9401","checks":[{"name":"Secret scan","state":"failed","source":"check_run","detailsUrl":"https://example.invalid/checks/9401"}]}'
+         )`,
       )
       .run("r_discord_smoke");
     database.close();
@@ -441,6 +460,11 @@ async function main(): Promise<void> {
         ),
       "Durable event did not link back to the canonical controls",
     );
+    assert(
+      String(threadEvents[0]!.content).includes("CI failed") &&
+        String(threadEvents[0]!.content).includes("Secret scan"),
+      "CI attention event did not explain the failing check",
+    );
     const embeds = cardEdits[0]!.embeds as JsonObject[];
     const fields = embeds[0]!.fields as JsonObject[];
     assert(
@@ -451,6 +475,12 @@ async function main(): Promise<void> {
           String(field.value).endsWith(":R>"),
       ),
       "Stage timestamp is not owner-local and self-updating",
+    );
+    const ci = fields.find((field) => field.name === "CI");
+    assert(
+      String(ci?.value ?? "").includes("Failed") &&
+        String(ci?.value ?? "").includes("Secret scan"),
+      "Live card omitted the normalized CI snapshot",
     );
 
     const state = new DatabaseSync(databasePath);
@@ -780,6 +810,20 @@ async function main(): Promise<void> {
       requestSource.requested_via === "discord",
       "Discord request source was lost",
     );
+
+    // The remainder of this regression exercises unpublished cancellation.
+    // Remove the earlier synthetic CI/PR fixture so it does not turn that
+    // separate scenario into published-work cancellation.
+    requestCheck
+      .prepare(`DELETE FROM run_ci_snapshots WHERE run_id='r_discord_smoke'`)
+      .run();
+    requestCheck
+      .prepare(
+        `UPDATE run_discord_surfaces
+         SET pull_request_url=NULL, pull_request_title=NULL, content_digest=NULL
+         WHERE run_id='r_discord_smoke'`,
+      )
+      .run();
 
     requestCheck
       .prepare(

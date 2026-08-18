@@ -40,7 +40,7 @@ async function main(): Promise<void> {
   try {
     await mkdir(resolve(testHome, "config"), { recursive: true, mode: 0o700 });
     await copyFile(
-      resolve(appDirectory, "../config/orchestrator.yaml"),
+      resolve(appDirectory, "deploy/config/orchestrator.yaml"),
       resolve(testHome, "config/orchestrator.yaml"),
     );
     execFileSync(process.execPath, [resolve(appDirectory, "src/init-run-store.ts")], {

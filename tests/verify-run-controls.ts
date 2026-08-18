@@ -41,11 +41,11 @@ async function main(): Promise<void> {
   try {
     await mkdir(resolve(testHome, "config"), { recursive: true, mode: 0o700 });
     await copyFile(
-      resolve(appDirectory, "../config/orchestrator.yaml"),
+      resolve(appDirectory, "deploy/config/orchestrator.yaml"),
       resolve(testHome, "config/orchestrator.yaml"),
     );
     await copyFile(
-      resolve(appDirectory, "../config/projects.yaml"),
+      resolve(appDirectory, "deploy/config/projects.yaml"),
       resolve(testHome, "config/projects.yaml"),
     );
     runNode(resolve(appDirectory, "src/init-run-store.ts"), [], testHome);

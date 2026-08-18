@@ -528,6 +528,30 @@ function ensureControlEvents(database: DatabaseSync): void {
   `,
     )
     .run();
+  database
+    .prepare(
+      `
+    INSERT OR IGNORE INTO run_control_events (
+      event_id, run_id, event_kind, payload_json
+    )
+    SELECT 'ce_' || r.run_id || '_ci_' || ci.head_sha,
+           r.run_id, 'attention_required',
+           json_object(
+             'source', 'ci',
+             'state', ci.aggregate_state,
+             'headSha', ci.head_sha,
+             'pullRequestUrl', ci.pull_request_url,
+             'pullRequestTitle', ci.pull_request_title,
+             'checks', json(ci.checks_json)
+           )
+    FROM runs r
+    JOIN run_ci_snapshots ci USING (run_id)
+    WHERE ci.aggregate_state IN ('failed', 'missing')
+      AND ci.head_sha IS NOT NULL
+      AND r.state NOT IN ('rejected', 'cancelled', 'archived')
+  `,
+    )
+    .run();
 }
 
 function progressFor(run: ProgressRow): { stage: string; detail: string } {
