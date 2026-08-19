@@ -16,6 +16,8 @@ export type GitHubAppCredentials = {
   privateKey: string;
 };
 
+const ownerTokenEnvironmentKeys = ["GH_TOKEN", "GITHUB_TOKEN"] as const;
+
 type FetchImplementation = (
   input: string | URL | Request,
   init?: RequestInit,
@@ -96,6 +98,79 @@ export async function loadGitHubAppCredentials(
   )
     fail("GitHub App private key is not a PEM private key");
   return { appId, installationId, privateKey };
+}
+
+export async function loadGitHubAppCredentialsFromFile(
+  orchestratorHome: string,
+): Promise<GitHubAppCredentials> {
+  const environmentFile = resolve(
+    orchestratorHome,
+    "secrets/github-reviewer-app.env",
+  );
+  const environmentStat = await stat(environmentFile);
+  if (!environmentStat.isFile()) fail("GitHub App environment is not a file");
+  if ((environmentStat.mode & 0o077) !== 0)
+    fail("GitHub App environment permissions are too broad");
+  const content = await readFile(environmentFile, "utf8");
+  const environment: NodeJS.ProcessEnv = {};
+  for (const rawLine of content.split(/\r?\n/u)) {
+    const line = rawLine.trim();
+    if (!line || line.startsWith("#")) continue;
+    const match = /^(?:export\s+)?([A-Z][A-Z0-9_]*)=(.*)$/u.exec(line);
+    if (!match || !reviewerAppEnvironmentKeys.includes(match[1] as never))
+      fail("GitHub App environment contains an unsupported entry");
+    if (environment[match[1]]) fail("GitHub App environment contains a duplicate entry");
+    let value = match[2]!.trim();
+    if (
+      (value.startsWith('"') && value.endsWith('"')) ||
+      (value.startsWith("'") && value.endsWith("'"))
+    )
+      value = value.slice(1, -1);
+    environment[match[1]!] = value;
+  }
+  return loadGitHubAppCredentials(orchestratorHome, environment);
+}
+
+export async function loadOwnerGitHubTokenFromFile(
+  orchestratorHome: string,
+): Promise<string> {
+  const secretsDirectory = await realpath(resolve(orchestratorHome, "secrets"));
+  const environmentFile = await realpath(
+    resolve(secretsDirectory, "github.env"),
+  );
+  const environmentRelative = relative(secretsDirectory, environmentFile);
+  if (
+    !environmentRelative ||
+    environmentRelative.startsWith("..") ||
+    resolve(secretsDirectory, environmentRelative) !== environmentFile
+  )
+    fail("GitHub owner environment must be inside the orchestrator secrets directory");
+  const environmentStat = await stat(environmentFile);
+  if (!environmentStat.isFile()) fail("GitHub owner environment is not a file");
+  if ((environmentStat.mode & 0o077) !== 0)
+    fail("GitHub owner environment permissions are too broad");
+  const content = await readFile(environmentFile, "utf8");
+  const tokens = new Map<string, string>();
+  for (const rawLine of content.split(/\r?\n/u)) {
+    const line = rawLine.trim();
+    if (!line || line.startsWith("#")) continue;
+    const match = /^(?:export\s+)?([A-Z][A-Z0-9_]*)=(.*)$/u.exec(line);
+    if (!match) fail("GitHub owner environment contains an invalid entry");
+    if (!ownerTokenEnvironmentKeys.includes(match[1] as never)) continue;
+    if (tokens.has(match[1]!))
+      fail("GitHub owner environment contains a duplicate token entry");
+    let value = match[2]!.trim();
+    if (
+      (value.startsWith('"') && value.endsWith('"')) ||
+      (value.startsWith("'") && value.endsWith("'"))
+    )
+      value = value.slice(1, -1);
+    tokens.set(match[1]!, value);
+  }
+  const token = tokens.get("GH_TOKEN") ?? tokens.get("GITHUB_TOKEN") ?? "";
+  if (!/^[A-Za-z0-9_]{20,255}$/u.test(token))
+    fail("GitHub owner environment contains no valid token");
+  return token;
 }
 
 export async function createGitHubAppInstallationToken(

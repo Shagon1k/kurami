@@ -27,7 +27,8 @@
     "test:ci": "node tests/verify-ci-observer.ts",
     "test:ci-repair": "node tests/verify-ci-repair.ts",
     "test:ai-review": "node tests/verify-ai-review.ts",
-    "test:project-resilience": "node tests/verify-project-resilience.ts"
+    "test:project-resilience": "node tests/verify-project-resilience.ts",
+    "test:review-fix": "node tests/verify-review-fix.ts"
   },
   "keywords": [],
   "author": "",

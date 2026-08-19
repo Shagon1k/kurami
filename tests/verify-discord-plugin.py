@@ -37,6 +37,7 @@ def main() -> None:
         "kurami:discard_published:r_9": ("discard_published", "r_9"),
         "kurami:ci_repair:r_9": ("ci_repair", "r_9"),
         "kurami:ai_review:r_9": ("ai_review", "r_9"),
+        "kurami:review_fix:r_9": ("review_fix", "r_9"),
     }
     for custom_id, expected in accepted.items():
         require(module.parse_control_id(custom_id) == expected, f"Rejected {custom_id}")
@@ -79,6 +80,10 @@ def main() -> None:
         "ai_review", {"action": "created", "requestState": "pending"}
     )
     require("AI Code Review" in review, "AI review response uses an ambiguous label")
+    fix_review = module._request_message(
+        "review_fix", {"action": "created", "requestState": "pending"}
+    )
+    require("Fix Review" in fix_review, "Review fix response uses an ambiguous label")
     require(
         module.discard_confirmation_id("r_9") == "kurami:discard_local:r_9",
         "Discard confirmation ID is not deterministic",

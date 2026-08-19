@@ -698,6 +698,9 @@ async function main(): Promise<void> {
     const reviewedFields = ((reviewedCard.embeds as JsonObject[])[0]!.fields ?? []) as JsonObject[];
     assert(
       String(threadControlEdits.at(-1)!.content).includes("AI Review Ready") &&
+        customIds(threadControlEdits.at(-1)!).includes(
+          "kurami:review_fix:r_discord_smoke",
+        ) &&
         reviewedFields.some(
           (field) =>
             field.name === "AI review" &&
@@ -705,6 +708,45 @@ async function main(): Promise<void> {
         ),
       "Ready AI review did not expose aggregate findings without Discord chatter",
     );
+    const fixQueued = new DatabaseSync(databasePath);
+    fixQueued.exec(`
+      INSERT INTO run_control_requests (
+        request_id, run_id, action, request_state, requested_via,
+        idempotency_key
+      ) VALUES (
+        'rq_discord_review_fix', 'r_discord_smoke', 'review_fix', 'pending',
+        'discord', 'test:discord-review-fix'
+      );
+    `);
+    fixQueued.close();
+    await runNode(notifier, ["show", "--run-id", "r_discord_smoke", "--apply"], testHome, discordEnv);
+    assert(
+      String(threadControlEdits.at(-1)!.content).includes("Review fix queued") &&
+        !customIds(threadControlEdits.at(-1)!).includes(
+          "kurami:review_fix:r_discord_smoke",
+        ) &&
+        !componentLabels(threadControlEdits.at(-1)!).includes("Start preview"),
+      "Queued review fix did not hide conflicting controls",
+    );
+    const activeFix = new DatabaseSync(databasePath);
+    activeFix.exec(`
+      UPDATE run_control_requests
+      SET request_state='applied',
+          completed_at=strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
+      WHERE request_id='rq_discord_review_fix';
+      INSERT INTO run_review_fix_rounds (
+        round_id, run_id, request_id, round_number, round_state,
+        repository, pull_request_number, pull_request_url,
+        source_head_sha, snapshot_json, result_head_sha
+      ) VALUES (
+        'rfr_discord123', 'r_discord_smoke', 'rq_discord_review_fix', 1,
+        'waiting_ci', 'Shagon1k/TailorTales', 9401,
+        'https://example.invalid/pulls/9401',
+        'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa', '[]',
+        'cccccccccccccccccccccccccccccccccccccccc'
+      );
+    `);
+    activeFix.close();
     const newerHead = new DatabaseSync(databasePath);
     newerHead.exec(`
       UPDATE run_ci_snapshots
@@ -715,6 +757,27 @@ async function main(): Promise<void> {
       WHERE run_id='r_discord_smoke';
     `);
     newerHead.close();
+    await runNode(notifier, ["--apply"], testHome, discordEnv);
+    const validatingCard = cardEdits.at(-1)!;
+    const validatingFields = ((validatingCard.embeds as JsonObject[])[0]!.fields ?? []) as JsonObject[];
+    assert(
+      validatingFields.some(
+        (field) =>
+          field.name === "AI review" &&
+          String(field.value).includes("Review fixes are still being validated"),
+      ) &&
+        !componentLabels(threadControlEdits.at(-1)!).includes("Start preview") &&
+        !customIds(threadControlEdits.at(-1)!).includes(
+          "kurami:ai_review:r_discord_smoke",
+        ),
+      "Active review fix exposed conflicting controls or misleading outdated text",
+    );
+    const clearFix = new DatabaseSync(databasePath);
+    clearFix.exec(`
+      DELETE FROM run_review_fix_rounds WHERE round_id='rfr_discord123';
+      DELETE FROM run_control_requests WHERE request_id='rq_discord_review_fix';
+    `);
+    clearFix.close();
     await runNode(notifier, ["--apply"], testHome, discordEnv);
     const outdatedCard = cardEdits.at(-1)!;
     const outdatedFields = ((outdatedCard.embeds as JsonObject[])[0]!.fields ?? []) as JsonObject[];
@@ -1309,6 +1372,7 @@ async function main(): Promise<void> {
         controlMessagePinned: pinWrites.length === 1,
         contextualTakeoverLabel: true,
         boundedCiRepairControl: true,
+        ownerControlledReviewFix: true,
         pendingTakeoverVisible: true,
         remoteCodexLauncher: true,
         remoteHandoffContext: true,

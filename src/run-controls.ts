@@ -14,7 +14,8 @@ type Action =
   | "discard_local"
   | "discard_published"
   | "ci_repair"
-  | "ai_review";
+  | "ai_review"
+  | "review_fix";
 type Command = "status" | "request" | "controls";
 type RequestSource = "telegram" | "discord" | "cli";
 
@@ -51,6 +52,11 @@ const pendingPresentations: Partial<
     stage: "ci_repair_queued",
     detail:
       "CI fix requested; waiting to start a fresh bounded Codex task on the exact failed SHA.",
+  },
+  review_fix: {
+    stage: "review_fix_queued",
+    detail:
+      "Review fix requested; capturing the current unresolved GitHub review threads before starting a fresh Codex task.",
   },
 };
 
@@ -102,7 +108,7 @@ function parseArguments(): {
   const apply = args.includes("--apply");
   if (!command || !["status", "request", "controls"].includes(command)) {
     fail(
-      "Usage: run-controls.ts <status|request|controls> [--run-id <run_id>] [--action <take_control|preview_start|preview_stop|stop|discard_local|discard_published|ci_repair|ai_review>] [--via <telegram|discord|cli>] [--project <project>] [--issue <number>] [--discord-thread-id <id>] [--apply]",
+      "Usage: run-controls.ts <status|request|controls> [--run-id <run_id>] [--action <take_control|preview_start|preview_stop|stop|discard_local|discard_published|ci_repair|ai_review|review_fix>] [--via <telegram|discord|cli>] [--project <project>] [--issue <number>] [--discord-thread-id <id>] [--apply]",
     );
   }
   if (command !== "controls" && !runId) fail(`${command} requires --run-id`);
@@ -122,6 +128,7 @@ function parseArguments(): {
         "discard_published",
         "ci_repair",
         "ai_review",
+        "review_fix",
       ].includes(action))
   ) {
     fail("request requires a supported --action");
@@ -191,6 +198,12 @@ function status(
            (SELECT suggestion_count FROM run_ai_reviews ar
             WHERE ar.run_id = r.run_id
             ORDER BY ar.review_number DESC LIMIT 1) AS ai_review_suggestion_count
+           ,(SELECT round_state FROM run_review_fix_rounds rf
+             WHERE rf.run_id = r.run_id
+             ORDER BY rf.round_number DESC LIMIT 1) AS review_fix_state
+           ,(SELECT round_number FROM run_review_fix_rounds rf
+             WHERE rf.run_id = r.run_id
+             ORDER BY rf.round_number DESC LIMIT 1) AS review_fix_round_number
     FROM runs r
     JOIN run_resources rr USING (run_id)
     JOIN project_events pe ON pe.event_id = r.trigger_event_id
@@ -290,11 +303,24 @@ function request(
     if (["rejected", "cancelled", "archived"].includes(run.state)) {
       fail(`Run is terminal: ${run.state}`);
     }
+    const conflictingRequest = database
+      .prepare(
+        `SELECT action FROM run_control_requests
+         WHERE run_id = ? AND request_state IN ('pending','processing')
+           AND (
+             action = 'review_fix' OR
+             (? = 'review_fix' AND action IN ('take_control','ci_repair','ai_review'))
+           )
+         LIMIT 1`,
+      )
+      .get(runId, action) as { action: string } | undefined;
+    if (conflictingRequest && action !== "stop" && conflictingRequest.action !== action)
+      fail(`Action conflicts with queued ${conflictingRequest.action}`);
     if (action === "stop" && run.stop_reason === "cancelled") {
       fail("Run cancellation is already in progress or awaiting resolution");
     }
     if (action === "take_control" && run.previous_codex_thread_id !== null) {
-      fail("Takeover is unavailable while CI repair task cleanup is pending");
+      fail("Takeover is unavailable while a technical fix task cleanup is pending");
     }
     if (
       ["discard_local", "discard_published"].includes(action) &&
@@ -313,6 +339,16 @@ function request(
       !projectSupportsPreview(run.project)
     ) {
       fail(`Preview is not configured for project: ${run.project}`);
+    }
+    if (action === "preview_start") {
+      const activeReviewFix = database
+        .prepare(
+          `SELECT COUNT(*) AS count FROM run_review_fix_rounds
+           WHERE run_id=? AND round_state IN ('running','waiting_ci','resolving')`,
+        )
+        .get(runId) as { count: number };
+      if (activeReviewFix.count > 0)
+        fail("Preview cannot start while review fixes are being applied or validated");
     }
     if (action === "ci_repair") {
       const eligibility = database
@@ -389,6 +425,49 @@ function request(
         eligibility.active_review_count !== 0
       )
         fail("Run is not eligible for AI Code Review");
+    }
+    if (action === "review_fix") {
+      const eligibility = database
+        .prepare(
+          `SELECT rr.resource_state, rr.tmux_session_name, rr.worktree_path,
+                  rr.branch_name, ci.head_sha,
+                  (SELECT COUNT(*) FROM run_ci_repair_attempts repair
+                   WHERE repair.run_id = r.run_id
+                     AND repair.attempt_state IN ('running','waiting_ci')) AS active_repair_count,
+                  (SELECT COUNT(*) FROM run_ai_reviews review
+                   WHERE review.run_id = r.run_id
+                     AND review.review_state = 'running') AS active_review_count,
+                  (SELECT COUNT(*) FROM run_review_fix_rounds fix
+                   WHERE fix.run_id = r.run_id
+                     AND fix.round_state IN ('running','waiting_ci','resolving')) AS active_fix_count
+           FROM runs r JOIN run_resources rr USING (run_id)
+           LEFT JOIN run_ci_snapshots ci USING (run_id)
+           WHERE r.run_id = ?`,
+        )
+        .get(runId) as {
+        resource_state: string;
+        tmux_session_name: string | null;
+        worktree_path: string | null;
+        branch_name: string | null;
+        head_sha: string | null;
+        active_repair_count: number;
+        active_review_count: number;
+        active_fix_count: number;
+      };
+      if (
+        run.state !== "parked_review" ||
+        run.owner_state !== "none" ||
+        eligibility.resource_state !== "provisioned" ||
+        eligibility.tmux_session_name !== null ||
+        !eligibility.worktree_path ||
+        !eligibility.branch_name ||
+        !eligibility.head_sha ||
+        eligibility.active_repair_count !== 0 ||
+        eligibility.active_review_count !== 0 ||
+        eligibility.active_fix_count !== 0 ||
+        run.previous_codex_thread_id !== null
+      )
+        fail("Run is not eligible for Fix Review");
     }
     if (
       action === "preview_start" &&
@@ -530,8 +609,14 @@ function controls(
       .map((request) => String(request.action)),
   );
   const cancellationStarted = selected.stop_reason === "cancelled";
+  const reviewFixBusy =
+    pendingActions.has("review_fix") ||
+    ["running", "waiting_ci", "resolving"].includes(
+      String(selected.review_fix_state),
+    );
   const availableActions = ["status"];
   if (
+    !reviewFixBusy &&
     threadReady &&
     !repairCleanupPending &&
     (ownerState === "cli" ||
@@ -541,9 +626,10 @@ function controls(
     if (!pendingActions.has("take_control"))
       availableActions.push("take_control");
   if (projectSupportsPreview(String(selected.project))) {
-    if (previewState && !pendingActions.has("preview_stop"))
+    if (!reviewFixBusy && previewState && !pendingActions.has("preview_stop"))
       availableActions.push("preview_stop");
     else if (
+      !reviewFixBusy &&
       !pendingActions.has("preview_start") &&
       ownerState === "none" &&
       ["parked_review", "waiting_human"].includes(runState)
@@ -552,6 +638,7 @@ function controls(
   }
   if (
     runState === "parked_review" &&
+    !reviewFixBusy &&
     ownerState === "none" &&
     Boolean(selected.codex_thread_id) &&
     !repairCleanupPending &&
@@ -564,6 +651,7 @@ function controls(
     availableActions.push("ci_repair");
   if (
     runState === "parked_review" &&
+    !reviewFixBusy &&
     ownerState === "none" &&
     Boolean(selected.worktree_path) &&
     Boolean(selected.branch_name) &&
@@ -577,6 +665,26 @@ function controls(
     !pendingActions.has("ai_review")
   )
     availableActions.push("ai_review");
+  const currentAiReviewHasFindings =
+    String(selected.ai_review_state) === "ready" &&
+    Boolean(selected.ci_head_sha) &&
+    selected.ai_review_head_sha === selected.ci_head_sha &&
+    Number(selected.ai_review_critical_count) +
+      Number(selected.ai_review_important_count) +
+      Number(selected.ai_review_suggestion_count) >
+      0;
+  if (
+    runState === "parked_review" &&
+    ownerState === "none" &&
+    Boolean(selected.codex_thread_id) &&
+    !repairCleanupPending &&
+    currentAiReviewHasFindings &&
+    !["running", "waiting_ci", "resolving"].includes(
+      String(selected.review_fix_state),
+    ) &&
+    !pendingActions.has("review_fix")
+  )
+    availableActions.push("review_fix");
   if (!cancellationStarted && !pendingActions.has("stop"))
     availableActions.push("stop");
   return { ...selected, available_actions: availableActions };

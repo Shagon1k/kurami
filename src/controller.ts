@@ -50,6 +50,11 @@ type RunRow = {
   review_active_count: number;
   latest_review_state: string | null;
   latest_review_head_sha: string | null;
+  review_fix_active_count: number;
+  latest_review_fix_state: string | null;
+  latest_review_fix_number: number | null;
+  latest_review_fix_round_id: string | null;
+  latest_review_fix_codex_thread_id: string | null;
   project_poll_last_captured_at: string | null;
   project_poll_last_attempt_state: string | null;
 };
@@ -64,7 +69,8 @@ type RequestRow = RunRow & {
     | "discard_local"
     | "discard_published"
     | "ci_repair"
-    | "ai_review";
+    | "ai_review"
+    | "review_fix";
 };
 
 type ControllerAction =
@@ -73,6 +79,9 @@ type ControllerAction =
   | "repair_start"
   | "repair_cleanup"
   | "review_start"
+  | "review_fix_start"
+  | "review_fix_resolve"
+  | "review_fix_cleanup"
   | "sync"
   | "cancel_cli"
   | "park"
@@ -96,6 +105,7 @@ type PlannedAction = {
   project: string;
   issueNumber: number;
   requestId?: string;
+  roundId?: string;
   command?: string;
   reason?: string;
 };
@@ -118,6 +128,7 @@ const previewRuntimePath = resolve(import.meta.dirname, "preview-runtime.ts");
 const cancelResolutionPath = resolve(import.meta.dirname, "cancel-resolution.ts");
 const projectStatusPath = resolve(import.meta.dirname, "project-status.ts");
 const reviewManagerPath = resolve(import.meta.dirname, "review-manager.ts");
+const reviewFixManagerPath = resolve(import.meta.dirname, "review-fix-manager.ts");
 const projectDiscoveryMaxAgeMs = 2 * 60 * 1_000;
 
 function fail(message: string): never {
@@ -188,6 +199,26 @@ function baseRunSelect(): string {
              WHERE review_latest.run_id = r.run_id
              ORDER BY review_latest.review_number DESC LIMIT 1)
               AS latest_review_head_sha
+           ,(SELECT COUNT(*) FROM run_review_fix_rounds fix_active
+             WHERE fix_active.run_id = r.run_id
+               AND fix_active.round_state IN ('running','waiting_ci','resolving'))
+              AS review_fix_active_count
+           ,(SELECT round_state FROM run_review_fix_rounds fix_latest
+             WHERE fix_latest.run_id = r.run_id
+             ORDER BY fix_latest.round_number DESC LIMIT 1)
+              AS latest_review_fix_state
+           ,(SELECT round_number FROM run_review_fix_rounds fix_latest
+             WHERE fix_latest.run_id = r.run_id
+             ORDER BY fix_latest.round_number DESC LIMIT 1)
+              AS latest_review_fix_number
+           ,(SELECT round_id FROM run_review_fix_rounds fix_latest
+             WHERE fix_latest.run_id = r.run_id
+             ORDER BY fix_latest.round_number DESC LIMIT 1)
+              AS latest_review_fix_round_id
+           ,(SELECT codex_thread_id FROM run_review_fix_rounds fix_latest
+             WHERE fix_latest.run_id = r.run_id
+             ORDER BY fix_latest.round_number DESC LIMIT 1)
+              AS latest_review_fix_codex_thread_id
            ,pps.last_captured_at AS project_poll_last_captured_at
            ,pps.last_attempt_state AS project_poll_last_attempt_state
     FROM runs r
@@ -243,6 +274,7 @@ function externalCommand(
   action: ControllerAction,
   runId: string,
   requestId?: string,
+  roundId?: string,
 ): string[] | null {
   switch (action) {
     case "provision":
@@ -279,6 +311,22 @@ function externalCommand(
         requestId,
         "--apply",
       ];
+    case "review_fix_start":
+      if (!requestId) fail("Review fix start requires a request ID");
+      return [
+        sessionManagerPath,
+        "review-fix",
+        "--run-id",
+        runId,
+        "--request-id",
+        requestId,
+        "--apply",
+      ];
+    case "review_fix_resolve":
+      if (!roundId) fail("Review fix resolution requires a round ID");
+      return [reviewFixManagerPath, "resolve", "--round-id", roundId, "--apply"];
+    case "review_fix_cleanup":
+      return [sessionManagerPath, "cleanup-review-fix", "--run-id", runId, "--apply"];
     case "sync":
       return [sessionManagerPath, "sync", "--run-id", runId, "--apply"];
     case "cancel_cli":
@@ -441,7 +489,8 @@ function planForRequest(request: RequestRow): PlannedAction {
         Boolean(request.ci_head_sha) &&
         ["failed", "missing"].includes(request.ci_aggregate_state ?? "") &&
         request.repair_attempt_count < 2 &&
-        request.repair_active_count === 0
+        request.repair_active_count === 0 &&
+        request.review_fix_active_count === 0
       ) {
         return { ...base, action: "repair_start" };
       }
@@ -459,13 +508,33 @@ function planForRequest(request: RequestRow): PlannedAction {
         request.resource_state === "provisioned" &&
         request.previous_codex_thread_id === null &&
         request.repair_active_count === 0 &&
-        request.review_active_count === 0
+        request.review_active_count === 0 &&
+        request.review_fix_active_count === 0
       )
         return { ...base, action: "review_start" };
       return {
         ...base,
         action: "request_reject",
         reason: "run_not_ai_review_eligible",
+      };
+    case "review_fix":
+      if (
+        request.run_state === "parked_review" &&
+        request.owner_state === "none" &&
+        request.tmux_session_name === null &&
+        request.resource_state === "provisioned" &&
+        Boolean(request.codex_thread_id) &&
+        request.previous_codex_thread_id === null &&
+        request.repair_active_count === 0 &&
+        request.review_active_count === 0 &&
+        request.review_fix_active_count === 0 &&
+        Boolean(request.ci_head_sha)
+      )
+        return { ...base, action: "review_fix_start" };
+      return {
+        ...base,
+        action: "request_reject",
+        reason: "run_not_review_fix_eligible",
       };
   }
 }
@@ -481,6 +550,19 @@ function planAutomatic(
   };
   const backlog = registry.projects[run.project]?.statuses.backlog;
   if (
+    run.latest_review_fix_state === "resolving" &&
+    run.latest_review_fix_round_id &&
+    run.run_state === "parked_review" &&
+    run.owner_state === "none" &&
+    run.stop_reason !== "cancelled"
+  ) {
+    return {
+      ...base,
+      action: "review_fix_resolve",
+      roundId: run.latest_review_fix_round_id,
+    };
+  }
+  if (
     [
       "parked_review",
       "needs_attention",
@@ -492,9 +574,14 @@ function planAutomatic(
     run.tmux_session_name === null &&
     Boolean(run.codex_thread_id) &&
     Boolean(run.previous_codex_thread_id) &&
-    run.latest_repair_state !== "running"
+    run.latest_repair_state !== "running" &&
+    run.latest_review_fix_state !== "running" &&
+    run.latest_review_fix_state !== "waiting_ci" &&
+    run.latest_review_fix_state !== "resolving"
   ) {
-    return { ...base, action: "repair_cleanup" };
+    return run.latest_review_fix_codex_thread_id === run.codex_thread_id
+      ? { ...base, action: "review_fix_cleanup" }
+      : { ...base, action: "repair_cleanup" };
   }
   if (
     backlog &&
@@ -619,7 +706,7 @@ function buildPlans(
     if (plan) plans.push(plan);
   }
   return plans.map((plan) => {
-    const command = externalCommand(plan.action, plan.runId, plan.requestId);
+    const command = externalCommand(plan.action, plan.runId, plan.requestId, plan.roundId);
     return command ? { ...plan, command: command.join(" ") } : plan;
   });
 }
@@ -743,6 +830,166 @@ function reconcileCiRepairAttempts(database: DatabaseSync): void {
         attempt,
       );
     }
+  }
+}
+
+function markReviewFixNeedsAttention(
+  database: DatabaseSync,
+  round: { round_id: string; run_id: string; round_number: number; source_head_sha: string },
+  reason: string,
+  failure: string,
+  resultHeadSha: string | null,
+): void {
+  database
+    .prepare(
+      `UPDATE run_review_fix_rounds
+       SET round_state='needs_attention', result_head_sha=?, failure_reason=?,
+           updated_at=strftime('%Y-%m-%dT%H:%M:%fZ', 'now'),
+           completed_at=strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
+       WHERE round_id=? AND round_state IN ('running','waiting_ci','resolving')`,
+    )
+    .run(resultHeadSha, failure, round.round_id);
+  const current = database
+    .prepare(`SELECT state FROM runs WHERE run_id=?`)
+    .get(round.run_id) as { state: string };
+  const changed = database
+    .prepare(
+      `UPDATE runs SET state='needs_attention', owner_state='none',
+         updated_at=strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
+       WHERE run_id=? AND state='parked_review' AND owner_state='none'`,
+    )
+    .run(round.run_id);
+  if (changed.changes === 1)
+    database
+      .prepare(
+        `INSERT INTO run_state_history (
+           run_id, from_state, to_state, reason, details_json
+         ) VALUES (?, ?, 'needs_attention', ?, ?)`,
+      )
+      .run(
+        round.run_id,
+        current.state,
+        reason,
+        JSON.stringify({
+          roundId: round.round_id,
+          roundNumber: round.round_number,
+          sourceHeadSha: round.source_head_sha,
+          resultHeadSha,
+          failure,
+        }),
+      );
+}
+
+function reconcileReviewFixRounds(database: DatabaseSync): void {
+  const exhaustedResolution = database
+    .prepare(
+      `SELECT round_id, run_id, round_number, source_head_sha, result_head_sha
+       FROM run_review_fix_rounds
+       WHERE round_state='resolving' AND resolution_attempt_count >= 3`,
+    )
+    .all() as Array<{
+    round_id: string;
+    run_id: string;
+    round_number: number;
+    source_head_sha: string;
+    result_head_sha: string | null;
+  }>;
+  for (const round of exhaustedResolution)
+    markReviewFixNeedsAttention(
+      database,
+      round,
+      "review_fix_resolution_exhausted",
+      "GitHub thread reconciliation failed after 3 attempts",
+      round.result_head_sha,
+    );
+  const rounds = database
+    .prepare(
+      `SELECT f.round_id, f.run_id, f.round_number, f.source_head_sha,
+              f.round_state, f.updated_at, r.state AS run_state,
+              r.owner_state, rr.tmux_session_name,
+              ci.head_sha, ci.aggregate_state
+       FROM run_review_fix_rounds f
+       JOIN runs r USING (run_id)
+       JOIN run_resources rr USING (run_id)
+       LEFT JOIN run_ci_snapshots ci USING (run_id)
+       WHERE f.round_state IN ('running','waiting_ci')
+       ORDER BY f.created_at, f.round_id`,
+    )
+    .all() as Array<{
+    round_id: string;
+    run_id: string;
+    round_number: number;
+    source_head_sha: string;
+    round_state: "running" | "waiting_ci";
+    updated_at: string;
+    run_state: string;
+    owner_state: string;
+    tmux_session_name: string | null;
+    head_sha: string | null;
+    aggregate_state: string | null;
+  }>;
+  for (const round of rounds) {
+    if (
+      round.round_state === "running" &&
+      round.run_state === "parked_review" &&
+      round.owner_state === "none" &&
+      round.tmux_session_name === null
+    ) {
+      database
+        .prepare(
+          `UPDATE run_review_fix_rounds SET round_state='waiting_ci',
+             updated_at=strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
+           WHERE round_id=? AND round_state='running'`,
+        )
+        .run(round.round_id);
+      continue;
+    }
+    if (round.round_state !== "waiting_ci") continue;
+    const newHead = Boolean(round.head_sha) && round.head_sha !== round.source_head_sha;
+    if (newHead && round.aggregate_state === "passed") {
+      database
+        .prepare(
+          `UPDATE run_review_fix_rounds
+           SET round_state='resolving', result_head_sha=?,
+               updated_at=strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
+           WHERE round_id=? AND round_state='waiting_ci'`,
+        )
+        .run(round.head_sha, round.round_id);
+      continue;
+    }
+    if (newHead && ["failed", "missing"].includes(round.aggregate_state ?? "")) {
+      markReviewFixNeedsAttention(
+        database,
+        round,
+        "review_fix_ci_failed",
+        `CI ${round.aggregate_state} on review-fix SHA`,
+        round.head_sha,
+      );
+      continue;
+    }
+    const ageMinutes = (Date.now() - Date.parse(round.updated_at)) / 60_000;
+    if (!newHead && ageMinutes >= 10) {
+      markReviewFixNeedsAttention(
+        database,
+        round,
+        "review_fix_no_new_head",
+        "No new PR head appeared after the review fixer task",
+        null,
+      );
+      continue;
+    }
+    if (
+      newHead &&
+      ["pending", "unknown"].includes(round.aggregate_state ?? "") &&
+      ageMinutes >= 30
+    )
+      markReviewFixNeedsAttention(
+        database,
+        round,
+        "review_fix_ci_timeout",
+        "CI did not settle within the bounded wait",
+        round.head_sha,
+      );
   }
 }
 
@@ -967,6 +1214,33 @@ function progressFor(run: ProgressRow): { stage: string; detail: string } {
     };
   }
   if (
+    run.latest_review_fix_state === "running" &&
+    run.run_state === "parked_review"
+  ) {
+    return {
+      stage: "review_fix_working",
+      detail: `Fresh Codex task is fixing the owner-approved review snapshot (round ${run.latest_review_fix_number}).`,
+    };
+  }
+  if (
+    run.latest_review_fix_state === "waiting_ci" &&
+    run.run_state === "parked_review"
+  ) {
+    return {
+      stage: "review_fix_waiting",
+      detail: `Review fixes from round ${run.latest_review_fix_number} were pushed. Waiting for CI on the new exact SHA.`,
+    };
+  }
+  if (
+    run.latest_review_fix_state === "resolving" &&
+    run.run_state === "parked_review"
+  ) {
+    return {
+      stage: "review_fix_resolving",
+      detail: "CI passed; replying to and resolving the snapshotted GitHub review threads.",
+    };
+  }
+  if (
     run.latest_repair_state === "running" &&
     run.run_state === "parked_review"
   ) {
@@ -1105,6 +1379,9 @@ function reconcileProgressCards(database: DatabaseSync): void {
     "working",
     "ci_repair_working",
     "ci_repair_waiting",
+    "review_fix_working",
+    "review_fix_waiting",
+    "review_fix_resolving",
     "handoff_pending",
     "finalizing_review",
     "preview_queued",
@@ -1217,7 +1494,7 @@ function applyInternal(database: DatabaseSync, plan: PlannedAction): unknown {
 }
 
 function runExternal(plan: PlannedAction): unknown {
-  const args = externalCommand(plan.action, plan.runId, plan.requestId);
+  const args = externalCommand(plan.action, plan.runId, plan.requestId, plan.roundId);
   if (!args) fail(`No external command for ${plan.action}`);
   const stdout = execFileSync(process.execPath, args, {
     encoding: "utf8",
@@ -1245,6 +1522,7 @@ async function main(): Promise<void> {
   database.exec("PRAGMA foreign_keys = ON; PRAGMA busy_timeout = 5000;");
   if (apply) {
     reconcileCiRepairAttempts(database);
+    reconcileReviewFixRounds(database);
     reconcileAiReviews(database);
     ensureControlEvents(database);
     reconcileProgressCards(database);
@@ -1269,7 +1547,7 @@ async function main(): Promise<void> {
   > = [];
   for (const plan of plans) {
     if (
-      ["start", "repair_start", "review_start"].includes(plan.action) &&
+      ["start", "repair_start", "review_start", "review_fix_start"].includes(plan.action) &&
       llmCount >= config.limits.max_llm_running_global
     ) {
       results.push({ ...plan, status: "deferred", reason: "LLM cap reached" });
@@ -1288,7 +1566,7 @@ async function main(): Promise<void> {
         : runExternal(plan);
       if (
         plan.requestId &&
-        ["handoff", "preview_up", "preview_down", "repair_start", "review_start"].includes(
+        ["handoff", "preview_up", "preview_down", "repair_start", "review_start", "review_fix_start"].includes(
           plan.action,
         )
       ) {
@@ -1313,9 +1591,10 @@ async function main(): Promise<void> {
         );
       }
       results.push({ ...plan, status: "applied", result });
-      if (["start", "repair_start", "review_start"].includes(plan.action))
+      if (["start", "repair_start", "review_start", "review_fix_start"].includes(plan.action))
         llmCount += 1;
       reconcileCiRepairAttempts(database);
+      reconcileReviewFixRounds(database);
       reconcileProgressCards(database);
       ensureControlEvents(database);
     } catch (error) {
@@ -1332,9 +1611,12 @@ async function main(): Promise<void> {
           })}\n`,
         );
       }
-      if (plan.action === "review_start" && plan.requestId) {
+      if (["review_start", "review_fix_start"].includes(plan.action) && plan.requestId) {
         completeRequest(database, plan.requestId, "failed", {
-          action: "ai_review_start_failed",
+          action:
+            plan.action === "review_start"
+              ? "ai_review_start_failed"
+              : "review_fix_start_failed",
           reason,
         });
       }

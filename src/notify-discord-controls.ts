@@ -88,6 +88,10 @@ type CardRow = {
   ai_review_url: string | null;
   ai_review_failure_reason: string | null;
   ai_review_request_active_count: number;
+  review_fix_state: string | null;
+  review_fix_round_number: number | null;
+  review_fix_thread_count: number;
+  review_fix_request_active_count: number;
 };
 type EventRow = {
   event_id: string;
@@ -165,7 +169,15 @@ const desiredSurfaceDigestSql = `
   (SELECT COUNT(*) FROM run_control_requests review_request
    WHERE review_request.run_id = r.run_id
      AND review_request.action = 'ai_review'
-     AND review_request.request_state IN ('pending', 'processing'))
+     AND review_request.request_state IN ('pending', 'processing')) || ':' ||
+  COALESCE((SELECT round_state || ':' || round_number
+            FROM run_review_fix_rounds fix_latest
+            WHERE fix_latest.run_id = r.run_id
+            ORDER BY fix_latest.round_number DESC LIMIT 1), 'review-fix:none') || ':' ||
+  (SELECT COUNT(*) FROM run_control_requests fix_request
+   WHERE fix_request.run_id = r.run_id
+     AND fix_request.action = 'review_fix'
+     AND fix_request.request_state IN ('pending', 'processing'))
 `;
 
 function fail(message: string): never {
@@ -372,7 +384,20 @@ function loadDesiredCards(database: DatabaseSync): CardRow[] {
              (SELECT COUNT(*) FROM run_control_requests q
               WHERE q.run_id = r.run_id AND q.action = 'ai_review'
                 AND q.request_state IN ('pending', 'processing'))
-               AS ai_review_request_active_count
+               AS ai_review_request_active_count,
+             (SELECT round_state FROM run_review_fix_rounds rf
+              WHERE rf.run_id = r.run_id
+              ORDER BY rf.round_number DESC LIMIT 1) AS review_fix_state,
+             (SELECT round_number FROM run_review_fix_rounds rf
+              WHERE rf.run_id = r.run_id
+              ORDER BY rf.round_number DESC LIMIT 1) AS review_fix_round_number,
+             COALESCE((SELECT json_array_length(snapshot_json)
+              FROM run_review_fix_rounds rf WHERE rf.run_id = r.run_id
+              ORDER BY rf.round_number DESC LIMIT 1), 0) AS review_fix_thread_count,
+             (SELECT COUNT(*) FROM run_control_requests q
+              WHERE q.run_id = r.run_id AND q.action = 'review_fix'
+                AND q.request_state IN ('pending', 'processing'))
+               AS review_fix_request_active_count
       FROM run_progress_cards pc
       JOIN runs r USING (run_id)
       JOIN project_events pe ON pe.event_id = r.trigger_event_id
@@ -476,7 +501,20 @@ function loadCard(database: DatabaseSync, runId: string): CardRow {
              (SELECT COUNT(*) FROM run_control_requests q
               WHERE q.run_id = r.run_id AND q.action = 'ai_review'
                 AND q.request_state IN ('pending', 'processing'))
-               AS ai_review_request_active_count
+               AS ai_review_request_active_count,
+             (SELECT round_state FROM run_review_fix_rounds rf
+              WHERE rf.run_id = r.run_id
+              ORDER BY rf.round_number DESC LIMIT 1) AS review_fix_state,
+             (SELECT round_number FROM run_review_fix_rounds rf
+              WHERE rf.run_id = r.run_id
+              ORDER BY rf.round_number DESC LIMIT 1) AS review_fix_round_number,
+             COALESCE((SELECT json_array_length(snapshot_json)
+              FROM run_review_fix_rounds rf WHERE rf.run_id = r.run_id
+              ORDER BY rf.round_number DESC LIMIT 1), 0) AS review_fix_thread_count,
+             (SELECT COUNT(*) FROM run_control_requests q
+              WHERE q.run_id = r.run_id AND q.action = 'review_fix'
+                AND q.request_state IN ('pending', 'processing'))
+               AS review_fix_request_active_count
       FROM run_progress_cards pc
       JOIN runs r USING (run_id)
       JOIN project_events pe ON pe.event_id = r.trigger_event_id
@@ -642,6 +680,10 @@ function stageLabel(stage: string): string {
     ci_repair_queued: "CI fix queued",
     ci_repair_working: "Fixing CI",
     ci_repair_waiting: "Waiting for CI",
+    review_fix_queued: "Review fix queued",
+    review_fix_working: "Fixing review",
+    review_fix_waiting: "Waiting for CI",
+    review_fix_resolving: "Resolving review threads",
     handoff_pending: "Preparing human control",
     finalizing_review: "Finalizing for review",
     human_control: "Human control",
@@ -675,6 +717,17 @@ function presentedStage(
       label: "Cancelled — published work preserved",
       detail:
         "Automation stopped. The published branch and pull request were preserved for manual merge or closure.",
+    };
+  }
+  if (
+    card.stage === "review_ready" &&
+    card.review_fix_request_active_count > 0 &&
+    !["running", "waiting_ci", "resolving"].includes(card.review_fix_state ?? "")
+  ) {
+    return {
+      label: "Review fix queued",
+      detail:
+        "Fix Review was requested; capturing the current unresolved GitHub review threads.",
     };
   }
   if (
@@ -828,11 +881,22 @@ function aiReviewField(
       currentHead &&
       card.ai_review_head_sha &&
       currentHead !== card.ai_review_head_sha
-    )
+    ) {
+      const reviewFixBusy =
+        card.review_fix_request_active_count > 0 ||
+        ["running", "waiting_ci", "resolving"].includes(
+          card.review_fix_state ?? "",
+        );
+      const detail = reviewFixBusy
+        ? "PR changed after this review. Review fixes are still being validated."
+        : card.review_fix_state === "needs_attention"
+          ? "PR changed after this review. The review fix needs attention before another AI review."
+          : "PR changed after this review. Run AI Code Review again.";
       return {
         name: "AI review",
-        value: `**↪️ Outdated**\nPR changed after this review. Run AI Code Review again.${sha}`,
+        value: `**↪️ Outdated**\n${detail}${sha}`,
       };
+    }
     return {
       name: "AI review",
       value: `**${status}**\n${counts}${sha}`,
@@ -905,6 +969,11 @@ export function controlComponents(
     const preservedCancellation = card.stage === "cancelled_work_preserved";
     const publishedCancellation =
       preservedCancellation && Boolean(pullRequest?.url);
+    const reviewFixBusy =
+      card.review_fix_request_active_count > 0 ||
+      ["running", "waiting_ci", "resolving"].includes(
+        card.review_fix_state ?? "",
+      );
     const takeoverEligible =
       !preservedCancellation &&
       card.stage !== "handoff_pending" &&
@@ -912,6 +981,10 @@ export function controlComponents(
         "ci_repair_queued",
         "ci_repair_working",
         "ci_repair_waiting",
+        "review_fix_queued",
+        "review_fix_working",
+        "review_fix_waiting",
+        "review_fix_resolving",
       ].includes(card.stage) &&
       Boolean(card.codex_thread_id) &&
       card.previous_codex_thread_id === null &&
@@ -927,6 +1000,7 @@ export function controlComponents(
     }
     const previewStartEligible =
       !preservedCancellation &&
+      !reviewFixBusy &&
       card.owner_state === "none" &&
       ["parked_review", "waiting_human"].includes(card.run_state);
     const previewRequestPending = [
@@ -966,6 +1040,7 @@ export function controlComponents(
       ["running", "ready"].includes(card.ai_review_state ?? "");
     const aiReviewEligible =
       !preservedCancellation &&
+      !reviewFixBusy &&
       card.run_state === "parked_review" &&
       card.owner_state === "none" &&
       Boolean(pullRequest?.url) &&
@@ -978,6 +1053,37 @@ export function controlComponents(
     if (aiReviewEligible)
       controls.push(
         button("AI Code Review", 1, `kurami:ai_review:${card.run_id}`),
+      );
+    const currentReviewHasFindings =
+      card.ai_review_state === "ready" &&
+      Boolean(reviewHead) &&
+      card.ai_review_head_sha === reviewHead &&
+      card.ai_review_critical_count +
+        card.ai_review_important_count +
+        card.ai_review_suggestion_count >
+        0;
+    const reviewFixEligible =
+      !preservedCancellation &&
+      card.run_state === "parked_review" &&
+      card.owner_state === "none" &&
+      Boolean(card.codex_thread_id) &&
+      card.previous_codex_thread_id === null &&
+      currentReviewHasFindings &&
+      card.review_fix_request_active_count === 0 &&
+      !["running", "waiting_ci", "resolving"].includes(
+        card.review_fix_state ?? "",
+      ) &&
+      ![
+        "ci_repair_queued",
+        "ci_repair_working",
+        "review_fix_queued",
+        "review_fix_working",
+        "review_fix_waiting",
+        "review_fix_resolving",
+      ].includes(card.stage);
+    if (reviewFixEligible)
+      controls.push(
+        button("Fix Review", 1, `kurami:review_fix:${card.run_id}`),
       );
     const cancellationStarted =
       card.stop_reason === "cancelled" ||
@@ -1001,7 +1107,8 @@ export function controlComponents(
     } else if (!publishedCancellation && !cancellationStarted) {
       controls.push(button("Cancel run", 4, `kurami:stop:${card.run_id}`));
     }
-    rows.push(controls);
+    for (let index = 0; index < controls.length; index += 5)
+      rows.push(controls.slice(index, index + 5));
   }
   return rows.map((components) => ({ type: 1, components }));
 }

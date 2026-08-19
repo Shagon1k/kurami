@@ -207,8 +207,39 @@ shows that result as `Outdated` and makes a new explicit review available. The
 technical reviewer and its parent review task are archived after completion;
 the primary development task remains unchanged. GitHub credentials remain in
 the deterministic publisher process and are removed from the Codex reviewer
-environment. P3b will separately consume
-only unresolved GitHub review threads when the owner requests fixes.
+environment.
+
+### Owner-controlled review fixes
+
+`Fix Review` captures one immutable snapshot of current unresolved,
+non-outdated GitHub review threads. A Kurami finding must be authored by
+the `kurami-ai` GitHub App (both GraphQL login shapes are normalized), contain
+the exact-SHA machine marker, and belong to a recorded ready review. An
+owner-authored inline review comment is also actionable.
+Resolved threads are skipped; owner replies inside a selected thread become
+explicit refinement instructions. Comments added after the click belong to a
+later round.
+
+Each request starts a fresh writer task in the existing managed worktree while
+preserving the primary Codex task. The writer is pinned to the snapshotted PR
+head, may change only the selected feedback, and may commit/push normally to the
+same branch. It may not force-push, merge, create another PR, reply to GitHub
+threads, or start another review/fix round. Kurami waits for a new exact SHA and
+CI. Failed or missing CI, no new head within ten minutes, or unsettled CI after
+thirty minutes ends at `needs_attention`; there is no automatic writer retry.
+
+After CI passes, the GitHub App posts an idempotently marked reply. A separate
+deterministic resolver uses the protected owner credential only for GitHub's
+conversation-resolution mutation, because GitHub permits resolution only to the
+PR author or an actor with repository write access; that credential is never
+passed to the reviewer or writer task. Only the snapshotted threads are touched.
+Reconciliation is bounded to three attempts and then fails closed at
+`needs_attention`. After a permission or implementation correction, an operator
+may explicitly run `review-fix-manager.ts recover --round-id ... --apply` to
+retry GitHub resolution only when the exact result SHA already passed CI; it
+never reruns the writer or expands the immutable snapshot. The technical writer
+task is archived and the original primary Codex task is restored. Another AI
+review or fix round starts only through an explicit owner action.
 
 ### Controller / Reconciler
 
@@ -224,6 +255,8 @@ explicit take-control request     -> transfer the same thread to Remote
 explicit failed-CI repair request -> fresh bounded task in the same worktree
 finished repair task              -> archive repair task + restore primary task
 explicit AI-review request        -> detached read-only review on the exact PR SHA
+explicit Fix Review request       -> snapshot threads + fresh exact-SHA writer
+passed review-fix SHA             -> bot reply/resolve snapshot + restore primary task
 explicit preview-up request       -> lease, build, health-check, and publish
 stopping + active preview         -> revoke ingress and remove the exact runtime
 stopping + releasable resources   -> safe worktree release
@@ -328,6 +361,8 @@ already have accepted them. Ordinary polling remains `no_agent`.
 - `run_control_requests`: idempotent owner-action queue and result;
 - `run_ci_repair_attempts`: exact-SHA repair budget, task identity, and result;
 - `run_ai_reviews`: exact-SHA reviewer identity, GitHub Review, counts, and result;
+- `run_review_fix_rounds`: immutable owner-approved snapshot and exact-SHA result;
+- `run_review_fix_threads`: per-thread reply/resolve reconciliation state;
 - `run_progress_cards`: transport-independent desired lifecycle card per run;
 - `run_discord_surfaces`: Discord starter card, ticket thread, owner membership,
   and persistent thread-control-message identity;
