@@ -518,6 +518,62 @@ async function main(): Promise<void> {
     );
     state.close();
 
+    const prePull = new DatabaseSync(databasePath);
+    prePull.exec(`
+      UPDATE run_progress_cards
+      SET stage='starting', detail='Starting Codex.',
+          content_digest='digest-starting-without-pr'
+      WHERE run_id='r_discord_smoke';
+      UPDATE run_ci_snapshots
+      SET pull_request_number=NULL, pull_request_url=NULL,
+          pull_request_title=NULL, head_sha=NULL,
+          aggregate_state='pending', checks_json='[]',
+          content_digest='digest-ci-before-pr', completed_at=NULL
+      WHERE run_id='r_discord_smoke';
+    `);
+    prePull.close();
+    await runNode(notifier, ["--apply"], testHome, discordEnv);
+    const prePullFields = ((cardEdits.at(-1)!.embeds as JsonObject[])[0]!.fields ?? []) as JsonObject[];
+    assert(
+      !prePullFields.some((field) => field.name === "CI"),
+      "CI noise was shown before the managed pull request existed",
+    );
+    const waitingGithub = new DatabaseSync(databasePath);
+    waitingGithub
+      .prepare(
+        `UPDATE run_progress_cards
+         SET stage='waiting_github',
+             detail='GitHub Project is temporarily unavailable; waiting for a fresh status snapshot before starting Codex.',
+             content_digest='digest-waiting-github'
+         WHERE run_id='r_discord_smoke'`,
+      )
+      .run();
+    waitingGithub.close();
+    await runNode(notifier, ["--apply"], testHome, discordEnv);
+    assert(
+      String(cardEdits.at(-1)?.content ?? "").includes("Waiting for GitHub"),
+      "The GitHub discovery wait was not presented clearly on the live card",
+    );
+    const restorePull = new DatabaseSync(databasePath);
+    restorePull.exec(`
+      UPDATE run_progress_cards
+      SET stage='working', detail='Codex is implementing the issue.',
+          content_digest='digest-working-restored'
+      WHERE run_id='r_discord_smoke';
+      UPDATE run_ci_snapshots
+      SET pull_request_number=9401,
+          pull_request_url='https://example.invalid/pulls/9401',
+          pull_request_title='CI pull 9401',
+          head_sha='aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',
+          aggregate_state='failed',
+          checks_json='[{"name":"Secret scan","state":"failed","source":"check_run","detailsUrl":"https://example.invalid/checks/9401"}]',
+          content_digest='digest-ci-failed-restored',
+          completed_at='2026-08-16T09:11:00.000Z'
+      WHERE run_id='r_discord_smoke';
+    `);
+    restorePull.close();
+    await runNode(notifier, ["--apply"], testHome, discordEnv);
+
     await runNode(notifier, ["--apply"], testHome, discordEnv);
     trace("idempotent-sync-complete");
     assert(
@@ -569,9 +625,146 @@ async function main(): Promise<void> {
     const repairControls = customIds(threadControlEdits.at(-1)!);
     assert(
       repairControls.includes("kurami:ci_repair:r_discord_smoke") &&
+        repairControls.includes("kurami:ai_review:r_discord_smoke") &&
         componentLabels(threadControlEdits.at(-1)!).includes("Attempt CI fix"),
-      "Failed CI in stable review did not expose the bounded repair action",
+      "Stable PR did not expose independent CI repair and AI review actions",
     );
+    const reviewQueued = new DatabaseSync(databasePath);
+    reviewQueued.exec(`
+      INSERT INTO run_control_requests (
+        request_id, run_id, action, request_state, requested_via,
+        idempotency_key
+      ) VALUES (
+        'rq_discord_review', 'r_discord_smoke', 'ai_review', 'pending',
+        'discord', 'test:discord-review'
+      );
+    `);
+    reviewQueued.close();
+    await runNode(notifier, ["show", "--run-id", "r_discord_smoke", "--apply"], testHome, discordEnv);
+    assert(
+      String(threadControlEdits.at(-1)!.content).includes("AI Review queued") &&
+        !customIds(threadControlEdits.at(-1)!).includes(
+          "kurami:ai_review:r_discord_smoke",
+        ),
+      "Queued AI review did not immediately hide its duplicate action",
+    );
+    const reviewRunning = new DatabaseSync(databasePath);
+    reviewRunning.exec(`
+      UPDATE run_control_requests
+      SET request_state='applied',
+          completed_at=strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
+      WHERE request_id='rq_discord_review';
+      INSERT INTO run_ai_reviews (
+        review_id, run_id, request_id, review_number, review_state,
+        repository, pull_request_number, pull_request_url, base_ref,
+        base_sha, head_sha, tmux_session_name
+      ) VALUES (
+        'air_discord_review', 'r_discord_smoke', 'rq_discord_review', 1,
+        'running', 'Shagon1k/TailorTales', 9401,
+        'https://example.invalid/pulls/9401', 'main',
+        'bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb',
+        'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',
+        'rv-tt-9401-test-1'
+      );
+    `);
+    reviewRunning.close();
+    await runNode(notifier, ["--apply"], testHome, discordEnv);
+    const reviewingCard = cardEdits.at(-1)!;
+    const reviewingFields = ((reviewingCard.embeds as JsonObject[])[0]!.fields ?? []) as JsonObject[];
+    assert(
+      reviewingFields.some(
+        (field) =>
+          field.name === "AI review" &&
+          String(field.value).includes("Reviewing PR"),
+      ) &&
+        !customIds(threadControlEdits.at(-1)!).includes(
+          "kurami:ai_review:r_discord_smoke",
+        ),
+      "Running AI review was not composed independently into the live card",
+    );
+    const reviewReady = new DatabaseSync(databasePath);
+    reviewReady.exec(`
+      UPDATE run_ai_reviews
+      SET review_state='ready', critical_count=1, important_count=2,
+          suggestion_count=3,
+          github_review_url='https://example.invalid/pulls/9401#pullrequestreview-1',
+          completed_at=strftime('%Y-%m-%dT%H:%M:%fZ', 'now'),
+          updated_at=strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
+      WHERE review_id='air_discord_review';
+    `);
+    reviewReady.close();
+    await runNode(notifier, ["--apply"], testHome, discordEnv);
+    const reviewedCard = cardEdits.at(-1)!;
+    const reviewedFields = ((reviewedCard.embeds as JsonObject[])[0]!.fields ?? []) as JsonObject[];
+    assert(
+      String(threadControlEdits.at(-1)!.content).includes("AI Review Ready") &&
+        reviewedFields.some(
+          (field) =>
+            field.name === "AI review" &&
+            String(field.value).includes("1 Critical · 2 Important · 3 Suggestions"),
+        ),
+      "Ready AI review did not expose aggregate findings without Discord chatter",
+    );
+    const newerHead = new DatabaseSync(databasePath);
+    newerHead.exec(`
+      UPDATE run_ci_snapshots
+      SET head_sha='cccccccccccccccccccccccccccccccccccccccc',
+          aggregate_state='pending', completed_at=NULL,
+          content_digest='digest-new-head',
+          last_observed_at=strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
+      WHERE run_id='r_discord_smoke';
+    `);
+    newerHead.close();
+    await runNode(notifier, ["--apply"], testHome, discordEnv);
+    const outdatedCard = cardEdits.at(-1)!;
+    const outdatedFields = ((outdatedCard.embeds as JsonObject[])[0]!.fields ?? []) as JsonObject[];
+    assert(
+      !String(threadControlEdits.at(-1)!.content).includes("AI Review Ready") &&
+        outdatedFields.some(
+          (field) =>
+            field.name === "AI review" &&
+            String(field.value).includes("Outdated"),
+        ) &&
+        customIds(threadControlEdits.at(-1)!).includes(
+          "kurami:ai_review:r_discord_smoke",
+        ),
+      "A review for an older SHA was not marked outdated and made repeatable",
+    );
+    const retryAfterFailure = new DatabaseSync(databasePath);
+    retryAfterFailure.exec(`
+      UPDATE run_ai_reviews
+      SET review_state='failed', failure_reason='Previous review timed out'
+      WHERE review_id='air_discord_review';
+      INSERT INTO run_control_requests (
+        request_id, run_id, action, request_state, requested_via,
+        idempotency_key
+      ) VALUES (
+        'rq_discord_review_retry', 'r_discord_smoke', 'ai_review', 'pending',
+        'discord', 'test:discord-review-retry'
+      );
+    `);
+    retryAfterFailure.close();
+    await runNode(notifier, ["show", "--run-id", "r_discord_smoke", "--apply"], testHome, discordEnv);
+    const queuedRetryCard = cardEdits.at(-1)!;
+    const queuedRetryFields = ((queuedRetryCard.embeds as JsonObject[])[0]!.fields ?? []) as JsonObject[];
+    assert(
+      String(threadControlEdits.at(-1)!.content).includes("AI Review queued") &&
+        !queuedRetryFields.some((field) => field.name === "AI review"),
+      "Queued retry kept the previous failed AI review in the live card",
+    );
+    const clearReview = new DatabaseSync(databasePath);
+    clearReview.exec(`
+      DELETE FROM run_ai_reviews WHERE review_id='air_discord_review';
+      DELETE FROM run_control_requests
+      WHERE request_id IN ('rq_discord_review', 'rq_discord_review_retry');
+      UPDATE run_ci_snapshots
+      SET head_sha='aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',
+          aggregate_state='failed',
+          content_digest='digest-ci-failed-restored',
+          completed_at=strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
+      WHERE run_id='r_discord_smoke';
+    `);
+    clearReview.close();
     const repairWaiting = new DatabaseSync(databasePath);
     repairWaiting.exec(`
       INSERT INTO run_control_requests (

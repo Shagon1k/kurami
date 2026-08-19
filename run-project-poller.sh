@@ -53,8 +53,8 @@ if ! "${NODE_BIN}" "${OBSERVER}" --project "${PROJECT}" 2>>"${OBSERVER_ERROR_LOG
 fi
 
 if ! "${NODE_BIN}" "${POLLER}" 2>>"${ERROR_LOG}"; then
-  printf 'Project poller failed for %s. Log: %s\n' "${PROJECT}" "${ERROR_LOG}"
-  exit 1
+  printf 'Project poller failed for %s; continuing safe reconciliation. Log: %s\n' \
+    "${PROJECT}" "${ERROR_LOG}"
 fi
 
 if ! CI_OBSERVER_QUIET=1 "${NODE_BIN}" "${CI_OBSERVER}" --project "${PROJECT}" --apply \

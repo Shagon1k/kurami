@@ -73,12 +73,21 @@ type CardRow = {
   surface_attempt_count: number | null;
   ci_pull_request_url: string | null;
   ci_pull_request_title: string | null;
+  ci_pull_request_number: number | null;
   ci_head_sha: string | null;
   ci_aggregate_state: CiState | null;
   ci_checks_json: string | null;
   ci_last_error: string | null;
   ci_repair_attempt_count: number;
   ci_repair_state: string | null;
+  ai_review_state: string | null;
+  ai_review_head_sha: string | null;
+  ai_review_critical_count: number;
+  ai_review_important_count: number;
+  ai_review_suggestion_count: number;
+  ai_review_url: string | null;
+  ai_review_failure_reason: string | null;
+  ai_review_request_active_count: number;
 };
 type EventRow = {
   event_id: string;
@@ -104,7 +113,13 @@ type EventRow = {
   current_ci_checks_json: string | null;
   current_ci_pull_request_url: string | null;
 };
-type PullRequest = { url: string; title: string };
+type PullRequest = {
+  url: string;
+  title: string;
+  number?: number;
+  headSha?: string;
+  baseRefName?: string;
+};
 type DiscordObject = Record<string, unknown>;
 
 const orchestratorHome = resolve(
@@ -140,7 +155,17 @@ const desiredSurfaceDigestSql = `
    WHERE repair_count.run_id = r.run_id) || ':' ||
   COALESCE((SELECT attempt_state FROM run_ci_repair_attempts repair_latest
             WHERE repair_latest.run_id = r.run_id
-            ORDER BY repair_latest.attempt_number DESC LIMIT 1), 'repair:none')
+            ORDER BY repair_latest.attempt_number DESC LIMIT 1), 'repair:none') || ':' ||
+  COALESCE((SELECT review_state || ':' || head_sha || ':' ||
+                   critical_count || ':' || important_count || ':' ||
+                   suggestion_count
+            FROM run_ai_reviews review_latest
+            WHERE review_latest.run_id = r.run_id
+            ORDER BY review_latest.review_number DESC LIMIT 1), 'review:none') || ':' ||
+  (SELECT COUNT(*) FROM run_control_requests review_request
+   WHERE review_request.run_id = r.run_id
+     AND review_request.action = 'ai_review'
+     AND review_request.request_state IN ('pending', 'processing'))
 `;
 
 function fail(message: string): never {
@@ -313,6 +338,7 @@ function loadDesiredCards(database: DatabaseSync): CardRow[] {
              ds.attempt_count AS surface_attempt_count,
              ci.pull_request_url AS ci_pull_request_url,
              ci.pull_request_title AS ci_pull_request_title,
+             ci.pull_request_number AS ci_pull_request_number,
              ci.head_sha AS ci_head_sha,
              ci.aggregate_state AS ci_aggregate_state,
              ci.checks_json AS ci_checks_json,
@@ -321,7 +347,32 @@ function loadDesiredCards(database: DatabaseSync): CardRow[] {
               WHERE a.run_id = r.run_id) AS ci_repair_attempt_count,
              (SELECT attempt_state FROM run_ci_repair_attempts a
               WHERE a.run_id = r.run_id
-              ORDER BY a.attempt_number DESC LIMIT 1) AS ci_repair_state
+              ORDER BY a.attempt_number DESC LIMIT 1) AS ci_repair_state,
+             (SELECT review_state FROM run_ai_reviews ar
+              WHERE ar.run_id = r.run_id
+              ORDER BY ar.review_number DESC LIMIT 1) AS ai_review_state,
+             (SELECT head_sha FROM run_ai_reviews ar
+              WHERE ar.run_id = r.run_id
+              ORDER BY ar.review_number DESC LIMIT 1) AS ai_review_head_sha,
+             COALESCE((SELECT critical_count FROM run_ai_reviews ar
+              WHERE ar.run_id = r.run_id
+              ORDER BY ar.review_number DESC LIMIT 1), 0) AS ai_review_critical_count,
+             COALESCE((SELECT important_count FROM run_ai_reviews ar
+              WHERE ar.run_id = r.run_id
+              ORDER BY ar.review_number DESC LIMIT 1), 0) AS ai_review_important_count,
+             COALESCE((SELECT suggestion_count FROM run_ai_reviews ar
+              WHERE ar.run_id = r.run_id
+              ORDER BY ar.review_number DESC LIMIT 1), 0) AS ai_review_suggestion_count,
+             (SELECT COALESCE(github_review_url, pull_request_url)
+              FROM run_ai_reviews ar WHERE ar.run_id = r.run_id
+              ORDER BY ar.review_number DESC LIMIT 1) AS ai_review_url,
+             (SELECT failure_reason FROM run_ai_reviews ar
+              WHERE ar.run_id = r.run_id
+              ORDER BY ar.review_number DESC LIMIT 1) AS ai_review_failure_reason,
+             (SELECT COUNT(*) FROM run_control_requests q
+              WHERE q.run_id = r.run_id AND q.action = 'ai_review'
+                AND q.request_state IN ('pending', 'processing'))
+               AS ai_review_request_active_count
       FROM run_progress_cards pc
       JOIN runs r USING (run_id)
       JOIN project_events pe ON pe.event_id = r.trigger_event_id
@@ -391,6 +442,7 @@ function loadCard(database: DatabaseSync, runId: string): CardRow {
              ds.attempt_count AS surface_attempt_count,
              ci.pull_request_url AS ci_pull_request_url,
              ci.pull_request_title AS ci_pull_request_title,
+             ci.pull_request_number AS ci_pull_request_number,
              ci.head_sha AS ci_head_sha,
              ci.aggregate_state AS ci_aggregate_state,
              ci.checks_json AS ci_checks_json,
@@ -399,7 +451,32 @@ function loadCard(database: DatabaseSync, runId: string): CardRow {
               WHERE a.run_id = r.run_id) AS ci_repair_attempt_count,
              (SELECT attempt_state FROM run_ci_repair_attempts a
               WHERE a.run_id = r.run_id
-              ORDER BY a.attempt_number DESC LIMIT 1) AS ci_repair_state
+              ORDER BY a.attempt_number DESC LIMIT 1) AS ci_repair_state,
+             (SELECT review_state FROM run_ai_reviews ar
+              WHERE ar.run_id = r.run_id
+              ORDER BY ar.review_number DESC LIMIT 1) AS ai_review_state,
+             (SELECT head_sha FROM run_ai_reviews ar
+              WHERE ar.run_id = r.run_id
+              ORDER BY ar.review_number DESC LIMIT 1) AS ai_review_head_sha,
+             COALESCE((SELECT critical_count FROM run_ai_reviews ar
+              WHERE ar.run_id = r.run_id
+              ORDER BY ar.review_number DESC LIMIT 1), 0) AS ai_review_critical_count,
+             COALESCE((SELECT important_count FROM run_ai_reviews ar
+              WHERE ar.run_id = r.run_id
+              ORDER BY ar.review_number DESC LIMIT 1), 0) AS ai_review_important_count,
+             COALESCE((SELECT suggestion_count FROM run_ai_reviews ar
+              WHERE ar.run_id = r.run_id
+              ORDER BY ar.review_number DESC LIMIT 1), 0) AS ai_review_suggestion_count,
+             (SELECT COALESCE(github_review_url, pull_request_url)
+              FROM run_ai_reviews ar WHERE ar.run_id = r.run_id
+              ORDER BY ar.review_number DESC LIMIT 1) AS ai_review_url,
+             (SELECT failure_reason FROM run_ai_reviews ar
+              WHERE ar.run_id = r.run_id
+              ORDER BY ar.review_number DESC LIMIT 1) AS ai_review_failure_reason,
+             (SELECT COUNT(*) FROM run_control_requests q
+              WHERE q.run_id = r.run_id AND q.action = 'ai_review'
+                AND q.request_state IN ('pending', 'processing'))
+               AS ai_review_request_active_count
       FROM run_progress_cards pc
       JOIN runs r USING (run_id)
       JOIN project_events pe ON pe.event_id = r.trigger_event_id
@@ -525,7 +602,7 @@ function findPullRequest(
         "--limit",
         "1",
         "--json",
-        "url,title",
+        "number,url,title,headRefOid,baseRefName",
       ],
       {
         encoding: "utf8",
@@ -533,7 +610,24 @@ function findPullRequest(
         stdio: ["ignore", "pipe", "pipe"],
       },
     );
-    return (JSON.parse(stdout) as PullRequest[])[0] ?? null;
+    const found = (
+      JSON.parse(stdout) as Array<{
+        number: number;
+        url: string;
+        title: string;
+        headRefOid: string;
+        baseRefName: string;
+      }>
+    )[0];
+    return found
+      ? {
+          number: found.number,
+          url: found.url,
+          title: found.title,
+          headSha: found.headRefOid,
+          baseRefName: found.baseRefName,
+        }
+      : null;
   } catch {
     return null;
   }
@@ -543,6 +637,7 @@ function stageLabel(stage: string): string {
   const labels: Record<string, string> = {
     preparing: "Preparing worktree",
     starting: "Starting Codex",
+    waiting_github: "Waiting for GitHub",
     working: "Codex working",
     ci_repair_queued: "CI fix queued",
     ci_repair_working: "Fixing CI",
@@ -570,12 +665,49 @@ function presentedStage(
   card: CardRow,
   pullRequest: PullRequest | null,
 ): { label: string; detail: string } {
+  const currentHead = pullRequest?.headSha ?? card.ci_head_sha;
+  const reviewIsCurrent =
+    !currentHead ||
+    !card.ai_review_head_sha ||
+    currentHead === card.ai_review_head_sha;
   if (card.stage === "cancelled_work_preserved" && pullRequest?.url) {
     return {
       label: "Cancelled — published work preserved",
       detail:
         "Automation stopped. The published branch and pull request were preserved for manual merge or closure.",
     };
+  }
+  if (
+    card.stage === "review_ready" &&
+    card.ai_review_request_active_count > 0 &&
+    card.ai_review_state !== "running"
+  ) {
+    return {
+      label: "AI Review queued",
+      detail:
+        "AI review was requested and is waiting for the independent read-only reviewer to start.",
+    };
+  }
+  if (card.stage === "review_ready" && card.ai_review_state === "running") {
+    return {
+      label: card.ci_aggregate_state === "pending" ? "Validating changes" : "Reviewing PR",
+      detail: "CI and the independent read-only AI review are tracked in parallel on the exact pull request SHA.",
+    };
+  }
+  if (
+    card.stage === "review_ready" &&
+    card.ai_review_state === "ready" &&
+    reviewIsCurrent
+  ) {
+    return card.ci_aggregate_state === "pending"
+      ? {
+          label: "Waiting for CI",
+          detail: "AI review is ready in the pull request; CI is still running independently.",
+        }
+      : {
+          label: "AI Review Ready",
+          detail: "The native GitHub review is ready for owner triage in the pull request.",
+        };
   }
   return { label: stageLabel(card.stage), detail: card.detail };
 }
@@ -606,8 +738,14 @@ function ciCheckLine(check: CiCheck): string {
   return `${mark[check.state]} ${label}`;
 }
 
-function ciField(card: CardRow): DiscordObject | null {
-  if (!card.ci_aggregate_state) return null;
+function ciField(
+  card: CardRow,
+  pullRequest: PullRequest | null,
+): DiscordObject | null {
+  const managedPullObserved = Boolean(
+    card.ci_pull_request_url || pullRequest?.headSha,
+  );
+  if (!managedPullObserved || !card.ci_aggregate_state) return null;
   if (card.stage === "ci_repair_waiting") {
     const failedChecks = parseCiChecks(card.ci_checks_json).filter((check) =>
       ["failed", "missing", "unknown"].includes(check.state),
@@ -641,15 +779,8 @@ function ciField(card: CardRow): DiscordObject | null {
     unknown: "❔ Unknown",
   };
   const lines = [`**${labels[card.ci_aggregate_state]}**`];
-  if (
-    card.ci_aggregate_state === "pending" &&
-    !card.ci_pull_request_url
-  )
-    lines.push("Waiting for the managed pull request.");
-  else {
-    const checks = parseCiChecks(card.ci_checks_json);
-    lines.push(...checks.map(ciCheckLine));
-  }
+  const checks = parseCiChecks(card.ci_checks_json);
+  lines.push(...checks.map(ciCheckLine));
   if (card.ci_aggregate_state === "unknown")
     lines.push("Status could not be determined.");
   if (card.ci_head_sha) lines.push(`\`${card.ci_head_sha.slice(0, 7)}\``);
@@ -661,6 +792,63 @@ function ciPullRequest(card: CardRow): PullRequest | null {
   return {
     url: card.ci_pull_request_url,
     title: card.ci_pull_request_title ?? "Pull request",
+    ...(card.ci_pull_request_number
+      ? { number: card.ci_pull_request_number }
+      : {}),
+    ...(card.ci_head_sha ? { headSha: card.ci_head_sha } : {}),
+  };
+}
+
+function aiReviewField(
+  card: CardRow,
+  pullRequest: PullRequest | null,
+): DiscordObject | null {
+  if (!card.ai_review_state) return null;
+  if (
+    card.ai_review_request_active_count > 0 &&
+    card.ai_review_state !== "running"
+  )
+    return null;
+  const sha = card.ai_review_head_sha
+    ? `\n\`${card.ai_review_head_sha.slice(0, 7)}\``
+    : "";
+  if (card.ai_review_state === "running")
+    return { name: "AI review", value: `**🔍 Reviewing PR**${sha}` };
+  if (card.ai_review_state === "ready") {
+    const counts = [
+      `${card.ai_review_critical_count} Critical`,
+      `${card.ai_review_important_count} Important`,
+      `${card.ai_review_suggestion_count} Suggestions`,
+    ].join(" · ");
+    const status = card.ai_review_url
+      ? `[✅ Ready](${card.ai_review_url})`
+      : "✅ Ready";
+    const currentHead = pullRequest?.headSha ?? card.ci_head_sha;
+    if (
+      currentHead &&
+      card.ai_review_head_sha &&
+      currentHead !== card.ai_review_head_sha
+    )
+      return {
+        name: "AI review",
+        value: `**↪️ Outdated**\nPR changed after this review. Run AI Code Review again.${sha}`,
+      };
+    return {
+      name: "AI review",
+      value: `**${status}**\n${counts}${sha}`,
+    };
+  }
+  if (card.ai_review_state === "superseded")
+    return {
+      name: "AI review",
+      value: `**↪️ Superseded**\nThe pull request head changed before publication.${sha}`,
+    };
+  return {
+    name: "AI review",
+    value: truncate(
+      `**⚠️ Failed**${card.ai_review_failure_reason ? `\n${card.ai_review_failure_reason}` : ""}${sha}`,
+      1_024,
+    ),
   };
 }
 
@@ -668,6 +856,7 @@ function stageColor(stage: string): number {
   if (stage === "completed") return 0x57f287;
   if (stage === "cancelled" || stage === "needs_attention") return 0xed4245;
   if (stage === "cancelled_work_preserved") return 0xfee75c;
+  if (stage === "waiting_github") return 0xfee75c;
   if (stage === "review_ready" || stage === "waiting_human") return 0xfee75c;
   if (stage === "finalizing_review") return 0xfee75c;
   if (stage === "preview_ready") return 0x57f287;
@@ -770,6 +959,26 @@ export function controlComponents(
       controls.push(
         button("Attempt CI fix", 1, `kurami:ci_repair:${card.run_id}`),
       );
+    const reviewHead = pullRequest?.headSha ?? card.ci_head_sha;
+    const sameHeadAlreadyReviewed =
+      Boolean(reviewHead) &&
+      card.ai_review_head_sha === reviewHead &&
+      ["running", "ready"].includes(card.ai_review_state ?? "");
+    const aiReviewEligible =
+      !preservedCancellation &&
+      card.run_state === "parked_review" &&
+      card.owner_state === "none" &&
+      Boolean(pullRequest?.url) &&
+      Boolean(reviewHead) &&
+      card.previous_codex_thread_id === null &&
+      !["ci_repair_queued", "ci_repair_working"].includes(card.stage) &&
+      card.ai_review_request_active_count === 0 &&
+      !sameHeadAlreadyReviewed &&
+      card.ai_review_state !== "running";
+    if (aiReviewEligible)
+      controls.push(
+        button("AI Code Review", 1, `kurami:ai_review:${card.run_id}`),
+      );
     const cancellationStarted =
       card.stop_reason === "cancelled" ||
       ["stopping", "discarding_cancelled"].includes(card.stage);
@@ -850,8 +1059,10 @@ function cardPayload(
       name: "Pull request",
       value: `[Open PR](${pullRequest.url})`,
     });
-  const ci = ciField(card);
+  const ci = ciField(card, pullRequest);
   if (ci) fields.push(ci);
+  const review = aiReviewField(card, pullRequest);
+  if (review) fields.push(review);
   if (card.preview_hostname)
     fields.push({
       name: "Preview",
@@ -1014,7 +1225,15 @@ async function ensureSurface(
     )
     .run(card.run_id);
 
+  const discoverLivePull = [
+    "review_ready",
+    "completed",
+    "cancelled_work_preserved",
+  ].includes(card.stage);
   let pullRequest =
+    (discoverLivePull
+      ? findPullRequest(card.repository, card.branch_name)
+      : null) ??
     ciPullRequest(card) ??
     (surface.pull_request_url
       ? {
@@ -1022,13 +1241,6 @@ async function ensureSurface(
           title: surface.pull_request_title ?? "Pull request",
         }
       : null);
-  if (
-    !pullRequest &&
-    ["review_ready", "completed", "cancelled_work_preserved"].includes(
-      card.stage,
-    )
-  )
-    pullRequest = findPullRequest(card.repository, card.branch_name);
 
   let messageId = surface.live_card_message_id;
   if (!messageId) {

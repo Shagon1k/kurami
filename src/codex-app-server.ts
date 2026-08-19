@@ -1,10 +1,22 @@
 import { spawn } from "node:child_process";
 import { createInterface } from "node:readline";
+import { reviewerAppEnvironmentKeys } from "./github-app-auth.ts";
 
 type RpcResponse = {
   id?: number;
   result?: unknown;
   error?: { code?: number; message?: string };
+};
+
+type RpcNotification = {
+  method?: string;
+  params?: unknown;
+};
+
+type RpcServerRequest = {
+  id?: number | string;
+  method?: string;
+  params?: unknown;
 };
 
 type ThreadSummary = {
@@ -40,15 +52,33 @@ export type ThreadArchiveResult = {
   archived: true;
 };
 
+export function detachedCodexEnvironment(
+  environment: NodeJS.ProcessEnv = process.env,
+): NodeJS.ProcessEnv {
+  const result = { ...environment };
+  delete result.GH_TOKEN;
+  delete result.GITHUB_TOKEN;
+  for (const name of reviewerAppEnvironmentKeys) delete result[name];
+  return result;
+}
+
 class AppServerClient {
   readonly #child;
   readonly #pending = new Map<number, PendingRequest>();
   readonly #stderr: string[] = [];
+  readonly #notifications: RpcNotification[] = [];
+  readonly #notificationListeners = new Set<(message: RpcNotification) => void>();
+  readonly #fatalListeners = new Set<(error: Error) => void>();
+  readonly #rejectServerRequests: boolean;
+  #fatalError: Error | null = null;
   #nextId = 1;
 
-  constructor(codexBin: string) {
+  constructor(codexBin: string, options: { rejectServerRequests?: boolean } = {}) {
+    this.#rejectServerRequests = options.rejectServerRequests ?? false;
+    // The worker owns GitHub App authentication around the detached review.
+    // Do not expose tokens, app identity, or the private-key path to Codex.
     this.#child = spawn(codexBin, ["app-server", "--listen", "stdio://"], {
-      env: process.env,
+      env: detachedCodexEnvironment(),
       stdio: ["pipe", "pipe", "pipe"],
     });
     const lines = createInterface({ input: this.#child.stdout });
@@ -72,13 +102,52 @@ class AppServerClient {
   }
 
   #handleLine(line: string): void {
-    let message: RpcResponse;
+    let message: RpcResponse & RpcNotification & RpcServerRequest;
     try {
       message = JSON.parse(line) as RpcResponse;
     } catch {
       return;
     }
-    if (typeof message.id !== "number") return;
+    if (message.id !== undefined && message.method) {
+      if (!this.#rejectServerRequests) return;
+      const approvalMethods = new Set([
+        "item/commandExecution/requestApproval",
+        "item/fileChange/requestApproval",
+        "execCommandApproval",
+        "applyPatchApproval",
+      ]);
+      if (approvalMethods.has(message.method)) {
+        this.#send({ id: message.id, result: { decision: "decline" } });
+      } else if (message.method === "mcpServer/elicitation/request") {
+        this.#send({
+          id: message.id,
+          result: { action: "decline", content: null },
+        });
+      } else if (message.method === "item/tool/requestUserInput") {
+        this.#send({ id: message.id, result: { answers: {} } });
+      } else {
+        this.#send({
+          id: message.id,
+          error: {
+            code: -32601,
+            message: "Detached reviews do not accept interactive requests",
+          },
+        });
+      }
+      this.#recordFatal(
+        new Error(
+          `Detached Codex review requested forbidden interaction: ${message.method}`,
+        ),
+      );
+      return;
+    }
+    if (typeof message.id !== "number") {
+      if (!message.method) return;
+      this.#notifications.push(message);
+      if (this.#notifications.length > 200) this.#notifications.shift();
+      for (const listener of this.#notificationListeners) listener(message);
+      return;
+    }
     const pending = this.#pending.get(message.id);
     if (!pending) return;
     this.#pending.delete(message.id);
@@ -92,6 +161,12 @@ class AppServerClient {
       return;
     }
     pending.resolve(message.result);
+  }
+
+  #recordFatal(error: Error): void {
+    if (this.#fatalError) return;
+    this.#fatalError = error;
+    for (const listener of this.#fatalListeners) listener(error);
   }
 
   #send(message: unknown): void {
@@ -130,9 +205,151 @@ class AppServerClient {
     this.notify("initialized", {});
   }
 
+  async waitForNotification(
+    predicate: (message: RpcNotification) => boolean,
+    timeoutMs: number,
+  ): Promise<RpcNotification> {
+    if (this.#fatalError) throw this.#fatalError;
+    const existing = this.#notifications.find(predicate);
+    if (existing) return existing;
+    return await new Promise<RpcNotification>((resolveWait, rejectWait) => {
+      const cleanup = (): void => {
+        clearTimeout(timer);
+        this.#notificationListeners.delete(listener);
+        this.#fatalListeners.delete(fatalListener);
+      };
+      const listener = (message: RpcNotification): void => {
+        if (!predicate(message)) return;
+        cleanup();
+        resolveWait(message);
+      };
+      const fatalListener = (error: Error): void => {
+        cleanup();
+        rejectWait(error);
+      };
+      const timer = setTimeout(() => {
+        cleanup();
+        rejectWait(new Error("Codex review turn timed out"));
+      }, timeoutMs);
+      this.#notificationListeners.add(listener);
+      this.#fatalListeners.add(fatalListener);
+    });
+  }
+
   close(): void {
     this.#child.stdin.end();
     this.#child.kill("SIGTERM");
+  }
+}
+
+type ReviewTurn = {
+  id: string;
+  status: "completed" | "interrupted" | "failed" | "inProgress";
+  error?: { message?: string } | null;
+  items?: Array<
+    | { type: "exitedReviewMode"; review: string }
+    | { type: "agentMessage"; text: string }
+    | { type: string }
+  >;
+};
+
+type ThreadStartResponse = { thread?: { id?: string } };
+type ReviewStartResponse = {
+  turn?: ReviewTurn;
+  reviewThreadId?: string;
+};
+
+export type DetachedReviewResult = {
+  parentThreadId: string;
+  reviewThreadId: string;
+  turnId: string;
+  review: string;
+};
+
+export async function runDetachedReview(
+  codexBin: string,
+  options: {
+    cwd: string;
+    title: string;
+    instructions: string;
+    timeoutMs?: number;
+    onStarted?: (reviewThreadId: string, turnId: string) => void;
+  },
+): Promise<DetachedReviewResult> {
+  const client = new AppServerClient(codexBin, { rejectServerRequests: true });
+  let parentThreadId: string | null = null;
+  let reviewThreadId: string | null = null;
+  try {
+    await client.initialize();
+    const started = (await client.request("thread/start", {
+      cwd: options.cwd,
+      approvalPolicy: "never",
+      sandbox: "read-only",
+      approvalsReviewer: "auto_review",
+      threadSource: "kurami_ai_review",
+    })) as ThreadStartResponse;
+    parentThreadId = started.thread?.id ?? null;
+    if (!parentThreadId) throw new Error("Codex returned no review parent thread ID");
+    await client.request("thread/name/set", {
+      threadId: parentThreadId,
+      name: `${options.title} · review bootstrap`,
+    });
+    const reviewStarted = (await client.request("review/start", {
+      threadId: parentThreadId,
+      target: { type: "custom", instructions: options.instructions },
+      delivery: "detached",
+    })) as ReviewStartResponse;
+    reviewThreadId = reviewStarted.reviewThreadId ?? null;
+    const turnId = reviewStarted.turn?.id;
+    if (!reviewThreadId || !turnId)
+      throw new Error("Codex returned no detached review task identity");
+    await client.request("thread/name/set", {
+      threadId: reviewThreadId,
+      name: options.title,
+    });
+    options.onStarted?.(reviewThreadId, turnId);
+    const notification = await client.waitForNotification((message) => {
+      if (message.method !== "turn/completed") return false;
+      const params = message.params as
+        | { threadId?: string; turn?: { id?: string } }
+        | undefined;
+      return params?.threadId === reviewThreadId && params.turn?.id === turnId;
+    }, options.timeoutMs ?? 30 * 60 * 1_000);
+    const turn = (notification.params as { turn: ReviewTurn }).turn;
+    if (turn.status !== "completed")
+      throw new Error(
+        `Codex review did not complete: ${turn.status}${turn.error?.message ? ` (${turn.error.message})` : ""}`,
+      );
+    const review =
+      turn.items
+        ?.filter(
+          (item): item is { type: "exitedReviewMode"; review: string } =>
+            item.type === "exitedReviewMode" && "review" in item,
+        )
+        .at(-1)?.review ??
+      turn.items
+        ?.filter(
+          (item): item is { type: "agentMessage"; text: string } =>
+            item.type === "agentMessage" && "text" in item,
+        )
+        .at(-1)?.text;
+    if (!review?.trim()) throw new Error("Codex review returned no result");
+    return {
+      parentThreadId,
+      reviewThreadId,
+      turnId,
+      review: review.trim(),
+    };
+  } finally {
+    for (const threadId of [reviewThreadId, parentThreadId]) {
+      if (!threadId) continue;
+      try {
+        await client.request("thread/archive", { threadId });
+      } catch {
+        // Review state remains authoritative; a later retention sweep can retry.
+      }
+    }
+    client.close();
   }
 }
 

@@ -13,7 +13,8 @@ type Action =
   | "stop"
   | "discard_local"
   | "discard_published"
-  | "ci_repair";
+  | "ci_repair"
+  | "ai_review";
 type Command = "status" | "request" | "controls";
 type RequestSource = "telegram" | "discord" | "cli";
 
@@ -101,7 +102,7 @@ function parseArguments(): {
   const apply = args.includes("--apply");
   if (!command || !["status", "request", "controls"].includes(command)) {
     fail(
-      "Usage: run-controls.ts <status|request|controls> [--run-id <run_id>] [--action <take_control|preview_start|preview_stop|stop|discard_local|discard_published|ci_repair>] [--via <telegram|discord|cli>] [--project <project>] [--issue <number>] [--discord-thread-id <id>] [--apply]",
+      "Usage: run-controls.ts <status|request|controls> [--run-id <run_id>] [--action <take_control|preview_start|preview_stop|stop|discard_local|discard_published|ci_repair|ai_review>] [--via <telegram|discord|cli>] [--project <project>] [--issue <number>] [--discord-thread-id <id>] [--apply]",
     );
   }
   if (command !== "controls" && !runId) fail(`${command} requires --run-id`);
@@ -120,6 +121,7 @@ function parseArguments(): {
         "discard_local",
         "discard_published",
         "ci_repair",
+        "ai_review",
       ].includes(action))
   ) {
     fail("request requires a supported --action");
@@ -173,7 +175,22 @@ function status(
             WHERE a.run_id = r.run_id) AS ci_repair_attempt_count,
            (SELECT attempt_state FROM run_ci_repair_attempts a
             WHERE a.run_id = r.run_id
-            ORDER BY a.attempt_number DESC LIMIT 1) AS ci_repair_state
+            ORDER BY a.attempt_number DESC LIMIT 1) AS ci_repair_state,
+           (SELECT review_state FROM run_ai_reviews ar
+            WHERE ar.run_id = r.run_id
+            ORDER BY ar.review_number DESC LIMIT 1) AS ai_review_state,
+           (SELECT head_sha FROM run_ai_reviews ar
+            WHERE ar.run_id = r.run_id
+            ORDER BY ar.review_number DESC LIMIT 1) AS ai_review_head_sha,
+           (SELECT critical_count FROM run_ai_reviews ar
+            WHERE ar.run_id = r.run_id
+            ORDER BY ar.review_number DESC LIMIT 1) AS ai_review_critical_count,
+           (SELECT important_count FROM run_ai_reviews ar
+            WHERE ar.run_id = r.run_id
+            ORDER BY ar.review_number DESC LIMIT 1) AS ai_review_important_count,
+           (SELECT suggestion_count FROM run_ai_reviews ar
+            WHERE ar.run_id = r.run_id
+            ORDER BY ar.review_number DESC LIMIT 1) AS ai_review_suggestion_count
     FROM runs r
     JOIN run_resources rr USING (run_id)
     JOIN project_events pe ON pe.event_id = r.trigger_event_id
@@ -337,6 +354,41 @@ function request(
       ) {
         fail("Run is not eligible for a bounded CI repair attempt");
       }
+    }
+    if (action === "ai_review") {
+      const eligibility = database
+        .prepare(
+          `SELECT rr.resource_state, rr.tmux_session_name, rr.worktree_path,
+                  rr.branch_name,
+                  (SELECT COUNT(*) FROM run_ci_repair_attempts repair
+                   WHERE repair.run_id = r.run_id
+                     AND repair.attempt_state IN ('running', 'waiting_ci'))
+                    AS active_repair_count,
+                  (SELECT COUNT(*) FROM run_ai_reviews review
+                   WHERE review.run_id = r.run_id
+                     AND review.review_state = 'running') AS active_review_count
+           FROM runs r JOIN run_resources rr USING (run_id)
+           WHERE r.run_id = ?`,
+        )
+        .get(runId) as {
+        resource_state: string;
+        tmux_session_name: string | null;
+        worktree_path: string | null;
+        branch_name: string | null;
+        active_repair_count: number;
+        active_review_count: number;
+      };
+      if (
+        run.state !== "parked_review" ||
+        run.owner_state !== "none" ||
+        eligibility.resource_state !== "provisioned" ||
+        eligibility.tmux_session_name !== null ||
+        !eligibility.worktree_path ||
+        !eligibility.branch_name ||
+        eligibility.active_repair_count !== 0 ||
+        eligibility.active_review_count !== 0
+      )
+        fail("Run is not eligible for AI Code Review");
     }
     if (
       action === "preview_start" &&
@@ -510,6 +562,21 @@ function controls(
     !pendingActions.has("ci_repair")
   )
     availableActions.push("ci_repair");
+  if (
+    runState === "parked_review" &&
+    ownerState === "none" &&
+    Boolean(selected.worktree_path) &&
+    Boolean(selected.branch_name) &&
+    !repairCleanupPending &&
+    String(selected.ai_review_state) !== "running" &&
+    !(
+      String(selected.ai_review_state) === "ready" &&
+      (!selected.ci_head_sha ||
+        selected.ai_review_head_sha === selected.ci_head_sha)
+    ) &&
+    !pendingActions.has("ai_review")
+  )
+    availableActions.push("ai_review");
   if (!cancellationStarted && !pendingActions.has("stop"))
     availableActions.push("stop");
   return { ...selected, available_actions: availableActions };

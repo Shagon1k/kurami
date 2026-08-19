@@ -319,14 +319,18 @@ function persistProjectSnapshot(
   const upsertPollState = database.prepare(`
     INSERT INTO project_poll_state (
       project, initialized_at, last_captured_at, item_count,
-      last_duration_ms, rate_limit_remaining, rate_limit_reset_at
-    ) VALUES (?, ?, ?, ?, ?, ?, ?)
+      last_duration_ms, rate_limit_remaining, rate_limit_reset_at,
+      last_attempt_at, last_attempt_state, last_error
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'succeeded', NULL)
     ON CONFLICT(project) DO UPDATE SET
       last_captured_at = excluded.last_captured_at,
       item_count = excluded.item_count,
       last_duration_ms = excluded.last_duration_ms,
       rate_limit_remaining = excluded.rate_limit_remaining,
-      rate_limit_reset_at = excluded.rate_limit_reset_at
+      rate_limit_reset_at = excluded.rate_limit_reset_at,
+      last_attempt_at = excluded.last_attempt_at,
+      last_attempt_state = 'succeeded',
+      last_error = NULL
   `);
 
   database.exec("BEGIN IMMEDIATE");
@@ -412,6 +416,7 @@ function persistProjectSnapshot(
       durationMs,
       rateLimit?.remaining ?? null,
       rateLimit?.resetAt ?? null,
+      new Date().toISOString(),
     );
     database.exec("COMMIT");
   } catch (error) {
@@ -420,6 +425,22 @@ function persistProjectSnapshot(
   }
 
   return { mode, transitions };
+}
+
+function recordPollFailure(
+  database: DatabaseSync,
+  project: string,
+  attemptedAt: string,
+  error: unknown,
+): void {
+  const message = error instanceof Error ? error.message : String(error);
+  database
+    .prepare(
+      `UPDATE project_poll_state
+       SET last_attempt_at = ?, last_attempt_state = 'failed', last_error = ?
+       WHERE project = ?`,
+    )
+    .run(attemptedAt, message.slice(0, 1_000), project);
 }
 
 function formatTransitions(transitions: Transition[]): string {
@@ -455,7 +476,14 @@ async function main(): Promise<void> {
     database.exec("PRAGMA foreign_keys = ON; PRAGMA busy_timeout = 5000;");
 
     for (const [project, config] of projects) {
-      const result = await fetchProject(project, config);
+      const attemptedAt = new Date().toISOString();
+      let result: Awaited<ReturnType<typeof fetchProject>>;
+      try {
+        result = await fetchProject(project, config);
+      } catch (error) {
+        recordPollFailure(database, project, attemptedAt, error);
+        throw error;
+      }
       const durationMs = Date.now() - startedAt;
       const persisted = persistProjectSnapshot(
         database,

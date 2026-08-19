@@ -33,6 +33,8 @@ app/
     init-run-store.ts         Applies migrations and checks DB integrity
     poll-projects.ts          Reads one or both GitHub Projects
     observe-ci.ts             Reads exact-PR CI state without GitHub mutations
+    review-manager.ts         Validates and starts explicit exact-SHA AI reviews
+    ai-review-worker.ts       Publishes one bounded native GitHub PR review
     process-project-events.ts Runs admission and cancellation state transitions
     controller.ts             Dispatches only handlers eligible for current states
     codex-app-server.ts       Minimal stdio client for durable Codex thread metadata
@@ -76,6 +78,7 @@ app/
                               Proves exact log cleanup selection and exclusions
   run-project-poller.sh       Production poll -> consume wrapper
   bin/launch-codex-session.sh Secret-aware child launcher used only inside managed tmux
+  bin/launch-ai-review.sh     Secret-aware launcher for detached read-only reviewers
   package.json
   tsconfig.json
 
@@ -86,6 +89,10 @@ app/
 ../state/orchestrator.db      SQLite Run Store (WAL mode)
 ../logs/                      Poller/consumer audit and error logs
 ../secrets/github.env         Runtime GitHub credential; never print or commit it
+../secrets/github-reviewer-app.env
+                              Reviewer GitHub App IDs and private-key path
+../secrets/kurami-ai.private-key.pem
+                              Mode-600 GitHub App private key; never back up
 
 $HERMES_HOME/plugins/kurami-discord-controls/
   plugin.yaml                 Uniquely keyed extension of the bundled Discord platform
@@ -100,6 +107,12 @@ $HERMES_HOME/plugins/kurami-discord-controls/
 `src/poll-projects.ts` reads GitHub Projects through `gh api graphql`. It stores
 the latest item snapshot and creates an event only for a real status transition.
 The initial observation is a baseline and never starts existing active items.
+
+Each poll also records its latest success or failure in SQLite. A failed or
+older-than-two-minutes Project snapshot blocks only new primary worktree/Codex
+writers. Existing run reconciliation, CI observation, cleanup, and Discord card
+updates continue; an affected pre-start card shows `Waiting for GitHub` until a
+fresh successful snapshot restores the normal flow.
 
 Events include only admission metadata: issue identity, status, title, URL,
 open/closed state, labels, and whether a non-empty description exists. The full
@@ -161,6 +174,42 @@ During the gap between push and the first observed new-SHA check, Discord report
 `Waiting for checks` and labels the old failed snapshot as the previous failure.
 Takeover controls stay unavailable throughout the active repair lifecycle.
 
+### PR-native AI code review
+
+In a stable owner-free review state, `AI Code Review` explicitly starts one
+fresh read-only Codex reviewer for the pull request's exact base and head SHAs.
+It may run while GitHub CI is pending because neither process writes code. The
+global LLM limit still applies, and a review cannot start while a CI repair or
+another code writer owns the worktree.
+
+The reviewer checks correctness, regressions, security and privacy boundaries,
+concurrency and durability, failure handling, tests, and material
+maintainability issues. Its response is a strict bounded JSON contract with at
+most ten actionable findings classified as `Critical`, `Important`, or
+`Suggestion`. The worker validates every finding before publishing one native
+GitHub Review with batched inline comments and an aggregate summary. GitHub PR
+review threads are the source of truth; Discord contains only status, counts,
+and links.
+
+The credential-owning worker fetches the private pull request and project issue
+metadata before starting Codex and embeds their bounded title/body context as
+source data in the review prompt. The detached reviewer receives no GitHub
+credentials and has a zero-approval contract: it must use only read-only local
+repository evidence and must not call GitHub, the network, connected tools, or
+request escalation. App Server approval requests are explicitly declined and
+fail the attempt immediately instead of waiting for the general review timeout.
+
+Before publication, the worker proves that the managed worktree is still clean,
+the local and remote heads still match the requested SHA, and the pull request
+is still open at that SHA. A mismatch publishes nothing and marks the attempt
+superseded. If a later commit changes the PR after a completed review, Discord
+shows that result as `Outdated` and makes a new explicit review available. The
+technical reviewer and its parent review task are archived after completion;
+the primary development task remains unchanged. GitHub credentials remain in
+the deterministic publisher process and are removed from the Codex reviewer
+environment. P3b will separately consume
+only unresolved GitHub review threads when the owner requests fixes.
+
 ### Controller / Reconciler
 
 `src/controller.ts` reads actionable Run Store states after event consumption
@@ -174,6 +223,7 @@ review-ready + CLI                -> park the persistent task, owner none
 explicit take-control request     -> transfer the same thread to Remote
 explicit failed-CI repair request -> fresh bounded task in the same worktree
 finished repair task              -> archive repair task + restore primary task
+explicit AI-review request        -> detached read-only review on the exact PR SHA
 explicit preview-up request       -> lease, build, health-check, and publish
 stopping + active preview         -> revoke ingress and remove the exact runtime
 stopping + releasable resources   -> safe worktree release
@@ -205,6 +255,10 @@ of the existing Hermes Discord adapter; they do not invoke an LLM. Events such
 as preview-ready are posted once inside the ticket thread from a separate
 durable delivery outbox. Each short lifecycle event includes one `Open controls`
 link back to the pinned control message instead of duplicating action buttons.
+CI and AI review are independent dimensions on the same live card: while both
+are active it reports `Validating changes`; after review completes it keeps
+waiting for CI when necessary. The card never creates a second Discord
+conversation for findings.
 
 An active `Take control` request is shown immediately as `Preparing human
 control`. The controller sends the Codex TUI its normal `Escape` interrupt,
@@ -273,6 +327,7 @@ already have accepted them. Ordinary polling remains `no_agent`.
 - `run_control_events`: durable, one-time notification outbox;
 - `run_control_requests`: idempotent owner-action queue and result;
 - `run_ci_repair_attempts`: exact-SHA repair budget, task identity, and result;
+- `run_ai_reviews`: exact-SHA reviewer identity, GitHub Review, counts, and result;
 - `run_progress_cards`: transport-independent desired lifecycle card per run;
 - `run_discord_surfaces`: Discord starter card, ticket thread, owner membership,
   and persistent thread-control-message identity;
@@ -350,6 +405,18 @@ Automated turns run in `workspace-write` with interactive `on-request` approval
 and `auto_review`; this is intentionally not full access or `--yolo`. Routine
 boundary requests can continue through the reviewer, while denied or dramatic
 actions still require a safer path or Alex's decision.
+AI reviewers are a separate path: they use the official Codex App Server review
+turn with `read-only`, `never` approval, detached delivery, prefetched private
+PR context, and an explicit decline handler for unexpected server-initiated
+approval requests. They never take ownership of the persistent primary task or
+inherit permission to mutate code. The worker authenticates only as the private
+`kurami-ai[bot]` GitHub App: it exchanges the mode-600 private key for a
+short-lived installation token, uses that token to read the exact PR/issue and
+publish one native review, and has no fallback to the user's `GH_TOKEN`. The
+token, App identifiers, and private-key path are removed from the Codex child
+environment. Review summaries and inline findings carry visible AI attribution
+plus hidden `review_id`/exact-SHA provenance markers for deterministic P3b
+triage.
 
 `src/observe-sessions.ts` checks only CLI-owned runs. A waiting approval,
 interrupted turn, missing managed tmux, or idle textual blocker such as a stopped
@@ -560,6 +627,15 @@ repair-task archival, primary-task restoration, and the durable two-attempt
 npm run test:ci-repair
 ```
 
+Verify the owner-triggered detached read-only reviewer, exact-SHA contract,
+private context prefetch contract, zero-approval fail-fast behavior, native
+GitHub Review payload, no-findings case, CI parallelism, and automatic
+technical-task archival:
+
+```bash
+npm run test:ai-review
+```
+
 Inspect the preview pool without mutation:
 
 ```bash
@@ -694,7 +770,10 @@ cron `* * * * *`, not completion-anchored `every 1m`, and both call the same
 `run-project-poller.sh` wrapper. Per-project locks prevent overlapping polls; a
 global consumer lock prevents both jobs from processing the event queue at once.
 The same lock also owns the subsequent controller pass, so poll, consume, and
-reconciliation cannot overlap between the two project jobs.
+reconciliation cannot overlap between the two project jobs. A transient GitHub
+Project query failure is logged but no longer aborts that reconciliation pass;
+the durable per-project poll health guard prevents the other project job from
+starting work against the failed project's stale status.
 After reconciliation, `notify-discord-controls.ts` maintains Discord ticket
 cards, threads, native controls, and one-time lifecycle events through Discord
 REST. It reads the existing platform token from `HERMES_HOME/.env`, never stores

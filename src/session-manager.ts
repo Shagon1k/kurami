@@ -253,7 +253,7 @@ function managedTmuxSessionCount(): number {
   return result.stdout
     .split("\n")
     .map((value) => value.trim())
-    .filter((value) => value.startsWith("cx-")).length;
+    .filter((value) => /^(?:cx|rv)-[a-z0-9-]+$/u.test(value)).length;
 }
 
 function git(worktreePath: string, args: string[]): string {
@@ -496,7 +496,7 @@ function claimSession(
       current.resource_state !== "provisioned" ||
       current.tmux_session_name !== null ||
       current.previous_codex_thread_id !== null ||
-      !current.codex_thread_id
+      current.codex_thread_id !== null
     ) {
       fail(
         `Run is not session-startable: state=${current.run_state}, owner=${current.owner_state}, resource=${current.resource_state}, tmux=${current.tmux_session_name ?? "none"}`,

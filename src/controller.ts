@@ -1,4 +1,4 @@
-import { execFileSync } from "node:child_process";
+import { execFileSync, spawnSync } from "node:child_process";
 import { createHash } from "node:crypto";
 import { readFile } from "node:fs/promises";
 import { resolve } from "node:path";
@@ -47,6 +47,11 @@ type RunRow = {
   repair_active_count: number;
   latest_repair_state: string | null;
   latest_repair_number: number | null;
+  review_active_count: number;
+  latest_review_state: string | null;
+  latest_review_head_sha: string | null;
+  project_poll_last_captured_at: string | null;
+  project_poll_last_attempt_state: string | null;
 };
 
 type RequestRow = RunRow & {
@@ -58,7 +63,8 @@ type RequestRow = RunRow & {
     | "stop"
     | "discard_local"
     | "discard_published"
-    | "ci_repair";
+    | "ci_repair"
+    | "ai_review";
 };
 
 type ControllerAction =
@@ -66,6 +72,7 @@ type ControllerAction =
   | "start"
   | "repair_start"
   | "repair_cleanup"
+  | "review_start"
   | "sync"
   | "cancel_cli"
   | "park"
@@ -110,6 +117,8 @@ const previewManagerPath = resolve(import.meta.dirname, "preview-manager.ts");
 const previewRuntimePath = resolve(import.meta.dirname, "preview-runtime.ts");
 const cancelResolutionPath = resolve(import.meta.dirname, "cancel-resolution.ts");
 const projectStatusPath = resolve(import.meta.dirname, "project-status.ts");
+const reviewManagerPath = resolve(import.meta.dirname, "review-manager.ts");
+const projectDiscoveryMaxAgeMs = 2 * 60 * 1_000;
 
 function fail(message: string): never {
   throw new Error(message);
@@ -168,6 +177,19 @@ function baseRunSelect(): string {
             WHERE repair_latest.run_id = r.run_id
             ORDER BY repair_latest.attempt_number DESC LIMIT 1)
              AS latest_repair_number
+           ,(SELECT COUNT(*) FROM run_ai_reviews review_active
+             WHERE review_active.run_id = r.run_id
+               AND review_active.review_state = 'running') AS review_active_count
+           ,(SELECT review_state FROM run_ai_reviews review_latest
+             WHERE review_latest.run_id = r.run_id
+             ORDER BY review_latest.review_number DESC LIMIT 1)
+              AS latest_review_state
+           ,(SELECT head_sha FROM run_ai_reviews review_latest
+             WHERE review_latest.run_id = r.run_id
+             ORDER BY review_latest.review_number DESC LIMIT 1)
+              AS latest_review_head_sha
+           ,pps.last_captured_at AS project_poll_last_captured_at
+           ,pps.last_attempt_state AS project_poll_last_attempt_state
     FROM runs r
     JOIN run_resources rr USING (run_id)
     LEFT JOIN run_ci_snapshots ci USING (run_id)
@@ -175,11 +197,23 @@ function baseRunSelect(): string {
       ON pl.run_id = r.run_id AND pl.state <> 'released'
     LEFT JOIN project_items pi
       ON pi.project = r.project AND pi.item_id = r.item_id
+    LEFT JOIN project_poll_state pps ON pps.project = r.project
   `;
 }
 
+function projectDiscoveryFresh(run: RunRow, now = Date.now()): boolean {
+  if (run.project_poll_last_attempt_state !== "succeeded") return false;
+  if (!run.project_poll_last_captured_at) return false;
+  const capturedAt = Date.parse(run.project_poll_last_captured_at);
+  return (
+    Number.isFinite(capturedAt) &&
+    capturedAt <= now &&
+    now - capturedAt <= projectDiscoveryMaxAgeMs
+  );
+}
+
 function runningLlmCount(database: DatabaseSync): number {
-  return Number(
+  const owned = Number(
     (
       database
         .prepare(
@@ -192,6 +226,17 @@ function runningLlmCount(database: DatabaseSync): number {
         .get() as { count: number }
     ).count,
   );
+  const reviews = Number(
+    (
+      database
+        .prepare(
+          `SELECT COUNT(*) AS count FROM run_ai_reviews
+           WHERE review_state = 'running'`,
+        )
+        .get() as { count: number }
+    ).count,
+  );
+  return owned + reviews;
 }
 
 function externalCommand(
@@ -221,6 +266,17 @@ function externalCommand(
         "cleanup-repair",
         "--run-id",
         runId,
+        "--apply",
+      ];
+    case "review_start":
+      if (!requestId) fail("AI review start requires a request ID");
+      return [
+        reviewManagerPath,
+        "start",
+        "--run-id",
+        runId,
+        "--request-id",
+        requestId,
         "--apply",
       ];
     case "sync":
@@ -394,6 +450,23 @@ function planForRequest(request: RequestRow): PlannedAction {
         action: "request_reject",
         reason: "run_not_ci_repair_eligible",
       };
+
+    case "ai_review":
+      if (
+        request.run_state === "parked_review" &&
+        request.owner_state === "none" &&
+        request.tmux_session_name === null &&
+        request.resource_state === "provisioned" &&
+        request.previous_codex_thread_id === null &&
+        request.repair_active_count === 0 &&
+        request.review_active_count === 0
+      )
+        return { ...base, action: "review_start" };
+      return {
+        ...base,
+        action: "request_reject",
+        reason: "run_not_ai_review_eligible",
+      };
   }
 }
 
@@ -446,7 +519,8 @@ function planAutomatic(
   }
   if (
     run.run_state === "admission_pending" &&
-    run.resource_state === "planned"
+    run.resource_state === "planned" &&
+    projectDiscoveryFresh(run)
   ) {
     return { ...base, action: "provision" };
   }
@@ -454,7 +528,8 @@ function planAutomatic(
     run.run_state === "starting" &&
     run.owner_state === "none" &&
     run.resource_state === "provisioned" &&
-    !run.tmux_session_name
+    !run.tmux_session_name &&
+    projectDiscoveryFresh(run)
   ) {
     return { ...base, action: "start" };
   }
@@ -671,6 +746,42 @@ function reconcileCiRepairAttempts(database: DatabaseSync): void {
   }
 }
 
+function tmuxSessionAlive(name: string): boolean {
+  if (!/^rv-[a-z0-9-]+$/u.test(name)) return false;
+  const result = spawnSync("tmux", ["has-session", "-t", `=${name}`], {
+    env: process.env,
+    stdio: ["ignore", "ignore", "ignore"],
+  });
+  return result.status === 0;
+}
+
+function reconcileAiReviews(database: DatabaseSync): void {
+  const running = database
+    .prepare(
+      `SELECT review_id, tmux_session_name, created_at
+       FROM run_ai_reviews WHERE review_state='running'`,
+    )
+    .all() as Array<{
+    review_id: string;
+    tmux_session_name: string;
+    created_at: string;
+  }>;
+  for (const review of running) {
+    const ageSeconds = (Date.now() - Date.parse(review.created_at)) / 1_000;
+    if (ageSeconds < 15 || tmuxSessionAlive(review.tmux_session_name)) continue;
+    database
+      .prepare(
+        `UPDATE run_ai_reviews
+         SET review_state='failed',
+             failure_reason='AI review worker exited before recording a result',
+             updated_at=strftime('%Y-%m-%dT%H:%M:%fZ', 'now'),
+             completed_at=strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
+         WHERE review_id=? AND review_state='running'`,
+      )
+      .run(review.review_id);
+  }
+}
+
 function markRepairNeedsAttention(
   database: DatabaseSync,
   runId: string,
@@ -833,6 +944,16 @@ function progressFor(run: ProgressRow): { stage: string; detail: string } {
       detail: "Preview slot allocated; build is queued.",
     };
   }
+  if (
+    ["admission_pending", "starting"].includes(run.run_state) &&
+    !projectDiscoveryFresh(run)
+  ) {
+    return {
+      stage: "waiting_github",
+      detail:
+        "GitHub Project is temporarily unavailable; waiting for a fresh status snapshot before starting Codex.",
+    };
+  }
   if (run.run_state === "admission_pending") {
     return {
       stage: "preparing",
@@ -980,6 +1101,7 @@ function reconcileProgressCards(database: DatabaseSync): void {
   const heartbeatStages = new Set([
     "preparing",
     "starting",
+    "waiting_github",
     "working",
     "ci_repair_working",
     "ci_repair_waiting",
@@ -1121,12 +1243,13 @@ async function main(): Promise<void> {
 
   const database = new DatabaseSync(databasePath, { timeout: 5_000 });
   database.exec("PRAGMA foreign_keys = ON; PRAGMA busy_timeout = 5000;");
-  let llmCount = runningLlmCount(database);
   if (apply) {
     reconcileCiRepairAttempts(database);
+    reconcileAiReviews(database);
     ensureControlEvents(database);
     reconcileProgressCards(database);
   }
+  let llmCount = runningLlmCount(database);
   const plans = buildPlans(database, registry);
 
   if (!apply) {
@@ -1146,7 +1269,7 @@ async function main(): Promise<void> {
   > = [];
   for (const plan of plans) {
     if (
-      ["start", "repair_start"].includes(plan.action) &&
+      ["start", "repair_start", "review_start"].includes(plan.action) &&
       llmCount >= config.limits.max_llm_running_global
     ) {
       results.push({ ...plan, status: "deferred", reason: "LLM cap reached" });
@@ -1165,7 +1288,7 @@ async function main(): Promise<void> {
         : runExternal(plan);
       if (
         plan.requestId &&
-        ["handoff", "preview_up", "preview_down", "repair_start"].includes(
+        ["handoff", "preview_up", "preview_down", "repair_start", "review_start"].includes(
           plan.action,
         )
       ) {
@@ -1190,12 +1313,31 @@ async function main(): Promise<void> {
         );
       }
       results.push({ ...plan, status: "applied", result });
-      if (["start", "repair_start"].includes(plan.action)) llmCount += 1;
+      if (["start", "repair_start", "review_start"].includes(plan.action))
+        llmCount += 1;
       reconcileCiRepairAttempts(database);
       reconcileProgressCards(database);
       ensureControlEvents(database);
     } catch (error) {
       const reason = error instanceof Error ? error.message : String(error);
+      if (process.env.CONTROLLER_QUIET === "1") {
+        process.stderr.write(
+          `${JSON.stringify({
+            ok: false,
+            runId: plan.runId,
+            project: plan.project,
+            issueNumber: plan.issueNumber,
+            action: plan.action,
+            reason,
+          })}\n`,
+        );
+      }
+      if (plan.action === "review_start" && plan.requestId) {
+        completeRequest(database, plan.requestId, "failed", {
+          action: "ai_review_start_failed",
+          reason,
+        });
+      }
       results.push({ ...plan, status: "deferred", reason });
     }
   }
