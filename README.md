@@ -33,6 +33,8 @@ app/
     init-run-store.ts         Applies migrations and checks DB integrity
     poll-projects.ts          Reads one or both GitHub Projects
     triage-snapshot.ts        Persists changed-only Backlog fact snapshots
+    triage-rank.ts            Ranks every eligible issue with explainable policy
+    notify-discord-digest.ts  Reconciles persistent per-project digest cards
     observe-ci.ts             Reads exact-PR CI state without GitHub mutations
     review-manager.ts         Validates and starts explicit exact-SHA AI reviews
     ai-review-worker.ts       Publishes one bounded native GitHub PR review
@@ -78,7 +80,7 @@ app/
     verify-monthly-maintenance.ts
                               Proves exact log cleanup selection and exclusions
   run-project-poller.sh       Production poll -> consume wrapper
-  run-triage-snapshot.sh      One bounded all-project P4a snapshot wrapper
+  run-projects-digest.sh      Collect -> rank -> publish Projects Digest pipeline
   bin/launch-codex-session.sh Secret-aware child launcher used only inside managed tmux
   bin/launch-ai-review.sh     Secret-aware launcher for detached read-only reviewers
   package.json
@@ -86,7 +88,7 @@ app/
 
 ../config/
   projects.yaml               Project, repository, status, and workspace registry
-  orchestrator.yaml           Execution mode and hard resource limits
+  orchestrator.yaml           Execution mode, digest channel, and hard limits
 
 ../state/orchestrator.db      SQLite Run Store (WAL mode)
 ../logs/                      Poller/consumer audit and error logs
@@ -367,6 +369,8 @@ already have accepted them. Ordinary polling remains `no_agent`.
 - `run_review_fix_threads`: per-thread reply/resolve reconciliation state;
 - `project_triage_state`: latest factual Backlog hash and last checked/changed time;
 - `project_triage_snapshots`: changed-only factual history for ranking and audit;
+- `project_triage_rankings`: current full eligible ranking and Suggested-next identity;
+- `project_discord_digest_surfaces`: stable direct-message identity per project;
 - `run_progress_cards`: transport-independent desired lifecycle card per run;
 - `run_discord_surfaces`: Discord starter card, ticket thread, owner membership,
   and persistent thread-control-message identity;
@@ -378,20 +382,39 @@ already have accepted them. Ordinary polling remains `no_agent`.
 GitHub Project remains the source of user intent and delivery status. SQLite
 owns runtime state and resource identity.
 
-### Project triage facts
+### Projects Digest
+
+Projects Digest is the user-facing feature name. The `triage-*` source and table
+names below are internal implementation details retained for schema compatibility.
 
 `src/triage-snapshot.ts` is the read-only P4a boundary. It collects all configured
 Project issues, native `blockedBy` / `blocking` relationships, optional Priority
 and Effort fields, readiness facts, active runs, WIP, and stable backlog totals.
-It deliberately has no Due date policy and does not rank, notify Discord, mutate
-Project fields, or start work.
+It deliberately has no Due date policy and does not mutate Project fields or start
+work.
 
 Each project gets a canonical factual hash that excludes observation timestamps.
 An identical rerun updates only `last_checked_at`; it does not append history or
-schedule later ranking/LLM work. A meaningful issue, field, dependency, status, or
-run change appends exactly one new snapshot. The future P4b digest will render one
-English card in a manually created permanent `📋-digest` channel per project; the
-orchestrator must never create, move, or delete that channel.
+recompute ranking. A meaningful issue, field, dependency, status, or run change
+appends exactly one new snapshot.
+
+`src/triage-rank.ts` ranks every eligible Backlog issue with versioned,
+deterministic policy. Explicit owner Priority is the dominant tier. Lower Effort,
+age, and issue number provide stable within-tier ordering. Existing explicit
+blocked state is only an eligibility safety guard; dependency relationships do
+not add score and Kurami does not infer or mutate them. The stored explanation is
+derived from those same facts, so a model
+cannot silently reorder work or invent urgency. P4b remains advisory: it never
+assigns P0/P1, edits Project fields, moves cards, or starts a run.
+
+`src/notify-discord-digest.ts` writes directly into one manually created permanent
+text channel configured as `discord.digest_channel_id` in `orchestrator.yaml`.
+It creates exactly one English bot-owned card per configured project and then
+edits that message in place; no Discord thread, pin, or daily message stream is
+created. Identical same-day state is a no-op. A daily check may refresh only the
+displayed Last checked date. Status transitions trigger the same locked pipeline
+from the project poller, while the daily Hermes job remains the recovery baseline.
+The orchestrator must never create, move, or delete the `📋-digest` channel.
 
 ### Worktree Provisioner
 

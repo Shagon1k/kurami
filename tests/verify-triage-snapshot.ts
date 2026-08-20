@@ -91,12 +91,12 @@ async function main(): Promise<void> {
       },
       stdio: ["ignore", "ignore", "pipe"],
     });
-    execFileSync("bash", ["-n", resolve(app, "run-triage-snapshot.sh")]);
+    execFileSync("bash", ["-n", resolve(app, "run-projects-digest.sh")]);
     execFileSync("bash", [
       "-n",
       resolve(
         app,
-        "integrations/hermes/scripts/kurami-project-triage-snapshot.sh",
+        "integrations/hermes/scripts/kurami-projects-digest.sh",
       ),
     ]);
     const database = new DatabaseSync(resolve(home, "state/orchestrator.db"));

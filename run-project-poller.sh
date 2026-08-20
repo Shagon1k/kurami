@@ -9,6 +9,7 @@ readonly CONSUMER="${ORCHESTRATOR_HOME}/app/src/process-project-events.ts"
 readonly CI_OBSERVER="${ORCHESTRATOR_HOME}/app/src/observe-ci.ts"
 readonly CONTROLLER="${ORCHESTRATOR_HOME}/app/src/controller.ts"
 readonly DISCORD_NOTIFIER="${ORCHESTRATOR_HOME}/app/src/notify-discord-controls.ts"
+readonly PROJECTS_DIGEST="${ORCHESTRATOR_HOME}/app/run-projects-digest.sh"
 readonly OBSERVER="${ORCHESTRATOR_HOME}/app/src/observe-sessions.ts"
 readonly ENV_FILE="${ORCHESTRATOR_HOME}/secrets/github.env"
 readonly PROJECT="${1:-}"
@@ -28,6 +29,7 @@ readonly CONSUMER_ERROR_LOG="${ORCHESTRATOR_HOME}/logs/project-event-consumer-er
 readonly CI_OBSERVER_ERROR_LOG="${ORCHESTRATOR_HOME}/logs/ci-observer-errors.log"
 readonly CONTROLLER_ERROR_LOG="${ORCHESTRATOR_HOME}/logs/controller-errors.log"
 readonly DISCORD_NOTIFIER_ERROR_LOG="${ORCHESTRATOR_HOME}/logs/discord-control-notifier-errors.log"
+readonly PROJECTS_DIGEST_EVENT_LOG="${ORCHESTRATOR_HOME}/logs/projects-digest-event-refresh.log"
 readonly OBSERVER_ERROR_LOG="${ORCHESTRATOR_HOME}/logs/session-observer-errors.log"
 
 export ORCHESTRATOR_HOME
@@ -52,7 +54,14 @@ if ! "${NODE_BIN}" "${OBSERVER}" --project "${PROJECT}" 2>>"${OBSERVER_ERROR_LOG
   exit 1
 fi
 
-if ! "${NODE_BIN}" "${POLLER}" 2>>"${ERROR_LOG}"; then
+poll_output=""
+poll_changed=0
+if poll_output="$("${NODE_BIN}" "${POLLER}" 2>>"${ERROR_LOG}")"; then
+  if [[ -n "${poll_output}" ]]; then
+    poll_changed=1
+    printf '%s\n' "${poll_output}"
+  fi
+else
   printf 'Project poller failed for %s; continuing safe reconciliation. Log: %s\n' \
     "${PROJECT}" "${ERROR_LOG}"
 fi
@@ -77,5 +86,12 @@ if flock --nonblock 8; then
     "${NODE_BIN}" "${DISCORD_NOTIFIER}" --apply 2>>"${DISCORD_NOTIFIER_ERROR_LOG}"; then
     printf 'Discord control notification failed. Log: %s\n' "${DISCORD_NOTIFIER_ERROR_LOG}"
     exit 1
+  fi
+fi
+
+if (( poll_changed == 1 )); then
+  if ! "${PROJECTS_DIGEST}" --project "${PROJECT}" >>"${PROJECTS_DIGEST_EVENT_LOG}" 2>&1; then
+    printf 'Projects Digest refresh failed for %s; daily baseline remains active.\n' \
+      "${PROJECT}" >>"${PROJECTS_DIGEST_EVENT_LOG}"
   fi
 fi

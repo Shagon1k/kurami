@@ -29,7 +29,8 @@
     "test:ai-review": "node tests/verify-ai-review.ts",
     "test:project-resilience": "node tests/verify-project-resilience.ts",
     "test:review-fix": "node tests/verify-review-fix.ts",
-    "test:triage-snapshot": "node tests/verify-triage-snapshot.ts"
+    "test:triage-snapshot": "node tests/verify-triage-snapshot.ts",
+    "test:projects-digest": "node tests/verify-triage-digest.ts"
   },
   "keywords": [],
   "author": "",
