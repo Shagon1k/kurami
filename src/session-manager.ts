@@ -86,6 +86,7 @@ type StartPlan = {
   repository: string;
   issueNumber: number;
   worktreePath: string;
+  canonicalRepository: string;
   branchName: string;
   tmuxSessionName: string;
   launcherPath: string;
@@ -608,6 +609,7 @@ async function validateAndPlan(
     repository: run.repository,
     issueNumber: run.issue_number,
     worktreePath,
+    canonicalRepository: resolve(project.workspace.canonical_repository),
     branchName: run.branch_name,
     tmuxSessionName: run.tmux_session_name ?? sessionName(run, project),
     launcherPath,
@@ -1138,6 +1140,8 @@ async function startSession(
       `HERMES_ISSUE_NUMBER=${run.issue_number}`,
       "-e",
       `HERMES_WORKTREE_PATH=${plan.worktreePath}`,
+      "-e",
+      `HERMES_CANONICAL_REPOSITORY=${plan.canonicalRepository}`,
       "-e",
       `HERMES_INITIAL_PROMPT_B64=${Buffer.from(plan.initialPrompt, "utf8").toString("base64")}`,
       "-e",

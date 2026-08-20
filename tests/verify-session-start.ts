@@ -204,6 +204,11 @@ esac
       history.reason === "codex_initial_turn_started",
       "Initial session start history was not recorded",
     );
+    const tmuxCalls = await readFile(fakeTmuxLog, "utf8");
+    assert(
+      tmuxCalls.includes(`HERMES_CANONICAL_REPOSITORY=${canonical}`),
+      "Managed launcher did not receive the allowlisted canonical repository",
+    );
 
     await rm(fakeTmuxState, { force: true });
     const existing = new DatabaseSync(databasePath);
@@ -245,6 +250,7 @@ esac
         initialNullThreadAccepted: true,
         existingThreadRejectedByContract: existingThreadRejected,
         tmuxClaimed: true,
+        canonicalTrustContext: true,
         state: row.state,
         owner: row.owner_state,
       })}\n`,

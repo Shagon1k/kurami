@@ -425,6 +425,16 @@ function previewRequirementSatisfied(run: RunRow): boolean {
   );
 }
 
+function previewCompletionOwnershipStable(
+  state: string,
+  ownerState: string,
+): boolean {
+  return (
+    (state === "parked_review" && ownerState === "none") ||
+    (state === "remote_owned" && ownerState === "remote")
+  );
+}
+
 function planForRequest(
   request: RequestRow,
   config: OrchestratorConfig,
@@ -624,8 +634,7 @@ function planAutomatic(
     return { ...base, action: "preview_expire", reason: "preview_ttl_expired" };
   }
   if (
-    run.run_state === "parked_review" &&
-    run.owner_state === "none" &&
+    previewCompletionOwnershipStable(run.run_state, run.owner_state) &&
     run.stop_reason === null &&
     run.preview_requirement_satisfied_at === null &&
     previewRequirementSatisfied(run)
@@ -1349,14 +1358,12 @@ function progressFor(
     if (previewNeedsExtension(run, config.limits.preview_expiry_warning_hours)) {
       return {
         stage: "preview_ready",
-        detail: `Preview expires at ${run.preview_expires_at}. Extend it or it will be removed automatically.`,
+        detail: "Preview expires soon. Extend it or it will be removed automatically.",
       };
     }
     return {
       stage: "preview_ready",
-      detail: run.preview_expires_at
-        ? `Preview is running and ready to open. It expires at ${run.preview_expires_at}.`
-        : "Preview is running and ready to open.",
+      detail: "Preview is running and ready to open.",
     };
   }
   if (run.preview_lease_state === "provisioning") {
@@ -1368,7 +1375,7 @@ function progressFor(
   if (run.preview_lease_state === "leased") {
     return {
       stage: "preview_queued",
-      detail: "Preview slot allocated; build is queued.",
+      detail: "Preview slot allocated; publication is queued.",
     };
   }
   if (
@@ -1620,10 +1627,13 @@ function applyInternal(database: DatabaseSync, plan: PlannedAction): unknown {
   try {
     let result: Record<string, unknown>;
     if (plan.action === "claim_remote") {
+      const current = database
+        .prepare(`SELECT state FROM runs WHERE run_id = ?`)
+        .get(plan.runId) as { state: string };
       const changed = database
         .prepare(
           `
-        UPDATE runs SET owner_state = 'remote',
+        UPDATE runs SET state = 'remote_owned', owner_state = 'remote',
           updated_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
         WHERE run_id = ? AND owner_state = 'none'
           AND state IN ('parked_review', 'waiting_human')
@@ -1631,6 +1641,17 @@ function applyInternal(database: DatabaseSync, plan: PlannedAction): unknown {
         )
         .run(plan.runId);
       if (changed.changes !== 1) fail("Run changed before Remote claim");
+      database
+        .prepare(
+          `INSERT INTO run_state_history (
+             run_id, from_state, to_state, reason, details_json
+           ) VALUES (?, ?, 'remote_owned', 'remote_claim_completed', ?)`,
+        )
+        .run(
+          plan.runId,
+          current.state,
+          JSON.stringify({ requestId: plan.requestId }),
+        );
       result = { action: "remote_claimed" };
       completeRequest(database, plan.requestId!, "applied", result);
     } else if (plan.action === "request_stop") {
@@ -1691,8 +1712,7 @@ function applyInternal(database: DatabaseSync, plan: PlannedAction): unknown {
         | undefined;
       if (
         !evidence ||
-        evidence.state !== "parked_review" ||
-        evidence.owner_state !== "none" ||
+        !previewCompletionOwnershipStable(evidence.state, evidence.owner_state) ||
         evidence.lease_state !== "running" ||
         !evidence.lease_id ||
         !evidence.reviewed_at ||
@@ -1703,11 +1723,13 @@ function applyInternal(database: DatabaseSync, plan: PlannedAction): unknown {
       const changed = database
         .prepare(`
           UPDATE runs
-          SET state = 'stopping', stop_reason = 'completed',
+          SET state = 'stopping', owner_state = 'none', stop_reason = 'completed',
               preview_requirement_satisfied_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now'),
               preview_requirement_lease_id = ?,
               updated_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
-          WHERE run_id = ? AND state = 'parked_review' AND owner_state = 'none'
+          WHERE run_id = ?
+            AND ((state = 'parked_review' AND owner_state = 'none')
+              OR (state = 'remote_owned' AND owner_state = 'remote'))
             AND stop_reason IS NULL AND preview_requirement_satisfied_at IS NULL
         `)
         .run(evidence.lease_id, plan.runId);
@@ -1717,11 +1739,12 @@ function applyInternal(database: DatabaseSync, plan: PlannedAction): unknown {
         .prepare(`
           INSERT INTO run_state_history (
             run_id, from_state, to_state, reason, source_event_id, details_json
-          ) VALUES (?, 'parked_review', 'stopping',
+          ) VALUES (?, ?, 'stopping',
                     'preview_requirement_satisfied', ?, ?)
         `)
         .run(
           plan.runId,
+          evidence.state,
           evidence.completion_source_event_id,
           JSON.stringify({
             leaseId: evidence.lease_id,

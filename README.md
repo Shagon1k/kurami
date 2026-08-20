@@ -618,6 +618,11 @@ and records the deleted resources in lifecycle history.
 `bin/launch-codex-session.sh` loads `GH_TOKEN` from the orchestrator-owned
 credential file inside the child launcher. The value is never passed in command
 arguments, stored in tmux session environment, or written to SQLite.
+The launcher also verifies that the managed worktree belongs to the exact
+allowlisted canonical repository from `projects.yaml`, then applies an
+invocation-scoped Codex trust override for that repository. It never edits the
+user's Codex configuration, and a new configured repository cannot stall an
+unattended run on an interactive trust prompt.
 The initial prompt tells Codex that sandboxed GitHub CLI authentication failures
 are inconclusive when network access is restricted, forbids credential mutation,
 and requires a narrowly scoped network retry before declaring a real auth
@@ -736,6 +741,9 @@ copies and re-verifies an immutable snapshot below
 root become durable lease provenance. The same slot, TTL, extension, review
 acknowledgement, exact-SHA policy, Discord controls, and fail-closed cleanup
 apply to both adapters. Existing Compose projects are unchanged.
+Owner-facing controls use the same `Start preview`, `Open preview`, and
+`Remove preview` language for both adapters; the runtime type and immutable
+artifact provenance remain visible only in the preview details.
 
 Successful health checks also start a bounded 24-hour TTL; build time does not
 consume the owner-visible preview window. During the final two hours, the live

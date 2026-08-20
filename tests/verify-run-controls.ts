@@ -30,7 +30,7 @@ function runNodeFails(path: string, args: string[], home: string): string {
     const stderr = (error as { stderr?: string }).stderr;
     return typeof stderr === "string" ? stderr : String(error);
   }
-  throw new Error("Expected command to fail");
+  throw new Error(`Expected command to fail: ${args.join(" ")}`);
 }
 
 async function main(): Promise<void> {
@@ -562,6 +562,24 @@ async function main(): Promise<void> {
       repeatedCancelError.includes("already in progress or awaiting resolution"),
       "A cancelled run accepted a second cancellation request",
     );
+    const activePreviewError = runNodeFails(
+      controlPath,
+      [
+        "request",
+        "--run-id",
+        "r_human_handoff",
+        "--action",
+        "preview_start",
+        "--via",
+        "discord",
+        "--apply",
+      ],
+      testHome,
+    );
+    assert(
+      activePreviewError.includes("stable review state"),
+      "Active CLI run accepted a premature preview request",
+    );
 
     const planned = runNode(controller, [], testHome) as unknown as {
       plans: Plan[];
@@ -634,6 +652,32 @@ async function main(): Promise<void> {
 
     runNode(controller, ["--apply"], testHome);
     const notificationState = new DatabaseSync(databasePath);
+    const remoteClaim = notificationState
+      .prepare(
+        `SELECT state, owner_state FROM runs WHERE run_id = 'r_take_control'`,
+      )
+      .get() as { state: string; owner_state: string };
+    assert(
+      remoteClaim.state === "remote_owned" &&
+        remoteClaim.owner_state === "remote",
+      "Parked takeover did not enter the durable remote-owned state",
+    );
+    const remoteClaimHistory = Number(
+      (
+        notificationState
+          .prepare(
+            `SELECT COUNT(*) AS count FROM run_state_history
+             WHERE run_id = 'r_take_control'
+               AND reason = 'remote_claim_completed'
+               AND to_state = 'remote_owned'`,
+          )
+          .get() as { count: number }
+      ).count,
+    );
+    assert(
+      remoteClaimHistory === 1,
+      "Remote claim transition was not recorded exactly once",
+    );
     const backlogAcknowledged = Number(
       (
         notificationState
@@ -733,12 +777,12 @@ async function main(): Promise<void> {
       "Ambiguous sending event would be retried and duplicated",
     );
     const control = resolve(appDirectory, "src/run-controls.ts");
-    const activePreviewError = runNodeFails(
+    const remotePreview = runNode(
       control,
       [
         "request",
         "--run-id",
-        "r_human_handoff",
+        "r_take_control",
         "--action",
         "preview_start",
         "--via",
@@ -748,9 +792,18 @@ async function main(): Promise<void> {
       testHome,
     );
     assert(
-      activePreviewError.includes("stable review state"),
-      "Active CLI run accepted a premature preview request",
+      remotePreview.action === "created" &&
+        remotePreview.requestedAction === "preview_start",
+      "Remote-owned run rejected an owner-requested preview refresh",
     );
+    const remotePreviewCleanup = new DatabaseSync(databasePath);
+    remotePreviewCleanup
+      .prepare(
+        `DELETE FROM run_control_requests
+         WHERE run_id='r_take_control' AND action='preview_start'`,
+      )
+      .run();
+    remotePreviewCleanup.close();
     const status = runNode(
       control,
       ["status", "--run-id", "r_review_ready"],
@@ -806,6 +859,7 @@ async function main(): Promise<void> {
         telegramProactiveDisabled: true,
         noAutomaticPreview: true,
         activePreviewRejected: true,
+        remoteClaimed: true,
         actions,
       })}\n`,
     );

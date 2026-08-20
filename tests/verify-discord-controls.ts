@@ -1008,11 +1008,12 @@ async function main(): Promise<void> {
     const remoteControls = threadControlEdits.at(-1)!;
     assert(
       componentLabels(remoteControls).includes("Open in Codex") &&
+        componentLabels(remoteControls).includes("Start preview") &&
         componentUrls(remoteControls).includes(codexLaunchUrl) &&
         !customIds(remoteControls).includes(
           "kurami:take_control:r_discord_smoke",
         ),
-      "Remote ownership did not expose the HTTPS Codex launcher",
+      "Remote ownership did not expose the HTTPS Codex launcher and preview refresh control",
     );
     const remoteCard = cardEdits.at(-1)!;
     const remoteEmbed = (remoteCard.embeds as JsonObject[])[0]!;
@@ -1062,10 +1063,15 @@ async function main(): Promise<void> {
     preview
       .prepare(
         `INSERT INTO preview_leases (
-           lease_id, run_id, slot_number, state, compose_project_name, expires_at
+           lease_id, run_id, slot_number, state, compose_project_name, expires_at,
+           runtime_adapter, artifact_root, artifact_digest,
+           artifact_file_count, artifact_total_bytes
          ) VALUES (
            'lease-discord', 'r_discord_smoke', 1, 'running', 'discord-smoke',
-           strftime('%Y-%m-%dT%H:%M:%fZ', 'now', '+1 hour')
+           strftime('%Y-%m-%dT%H:%M:%fZ', 'now', '+1 hour'),
+           'static', '/tmp/discord-static-artifact',
+           'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',
+           1, 866
          )`,
       )
       .run();
@@ -1103,6 +1109,14 @@ async function main(): Promise<void> {
       ),
       "Live card did not switch to Stop preview",
     );
+    const previewLabels = componentLabels(threadControlEdits.at(-1)!);
+    assert(
+      previewLabels.includes("Open preview") &&
+        previewLabels.includes("Remove preview") &&
+        !previewLabels.includes("Open artifact") &&
+        !previewLabels.includes("Remove artifact"),
+      "Static preview exposed adapter-specific owner-facing controls",
+    );
     assert(
       customIds(threadControlEdits.at(-1)!).includes(
         "kurami:preview_extend:r_discord_smoke",
@@ -1123,6 +1137,12 @@ async function main(): Promise<void> {
         unreviewedFields.find((field) => field.name === "Preview")?.value ?? "",
       ).includes("Not reviewed"),
       "Live card did not identify the unreviewed preview",
+    );
+    assert(
+      String(
+        unreviewedFields.find((field) => field.name === "Preview")?.value ?? "",
+      ).includes("Runtime: Static artifact"),
+      "Live card did not keep the static runtime type in preview details",
     );
     const acknowledged = new DatabaseSync(databasePath);
     acknowledged
@@ -1147,7 +1167,7 @@ async function main(): Promise<void> {
     assert(
       String(
         reviewedPreviewFields.find((field) => field.name === "Preview")?.value ?? "",
-      ).includes("Reviewed"),
+      ).includes("Reviewed artifact `aaaaaaaaaaaa`"),
       "Live card did not show the preview acknowledgement",
     );
     const previewPolicy = new DatabaseSync(databasePath);
@@ -1187,6 +1207,31 @@ async function main(): Promise<void> {
             String(field.value).includes("SHA `aaaaaaa`"),
         ),
       "Preview-required policy was not explained on the live card",
+    );
+    const stalePreview = new DatabaseSync(databasePath);
+    stalePreview
+      .prepare(`
+        UPDATE run_ci_snapshots
+        SET head_sha='bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb',
+            content_digest='digest-preview-new-head',
+            last_observed_at='2026-08-16T09:23:00.000Z'
+        WHERE run_id='r_discord_smoke'
+      `)
+      .run();
+    stalePreview.close();
+    await runNode(notifier, ["--apply"], testHome, discordEnv);
+    const stalePreviewFields = (
+      (cardEdits.at(-1)!.embeds as JsonObject[])[0]!.fields ?? []
+    ) as JsonObject[];
+    const stalePreviewValue = String(
+      stalePreviewFields.find((field) => field.name === "Preview")?.value ?? "",
+    );
+    assert(
+      stalePreviewValue.includes("Outdated") &&
+        stalePreviewValue.includes("reviewed for SHA `aaaaaaa`") &&
+        stalePreviewValue.includes("Current PR SHA `bbbbbbb`") &&
+        !stalePreviewValue.includes("✅ Reviewed for SHA `aaaaaaa`"),
+      "Stale preview acknowledgement was still presented as current",
     );
     const stableParentCount = parentMessages.length;
     const stableControlCount = threadControlCreates.length;

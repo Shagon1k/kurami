@@ -1008,8 +1008,15 @@ export function controlComponents(
   if (remote)
     links.push(button("Open in Codex", 5, undefined, remote.launchUrl));
   if (pullRequest?.url)
-    links.push(button("Open PR", 5, undefined, pullRequest.url));
-  if (card.preview_hostname)
+    links.push(
+      button(
+        card.stage === "completed" ? "View PR" : "Open PR",
+        5,
+        undefined,
+        pullRequest.url,
+      ),
+    );
+  if (card.preview_state === "running" && card.preview_hostname)
     links.push(
       button("Open preview", 5, undefined, `https://${card.preview_hostname}`),
     );
@@ -1056,8 +1063,10 @@ export function controlComponents(
     const previewStartEligible =
       !preservedCancellation &&
       !reviewFixBusy &&
-      card.owner_state === "none" &&
-      ["parked_review", "waiting_human"].includes(card.run_state);
+      ((card.owner_state === "none" &&
+        ["parked_review", "waiting_human"].includes(card.run_state)) ||
+        (card.owner_state === "remote" &&
+          card.run_state === "remote_owned"));
     const previewRequestPending = [
       "preview_queued",
       "preview_extending",
@@ -1071,12 +1080,12 @@ export function controlComponents(
       controls.push(
         card.preview_state
           ? button(
-              card.preview_runtime_adapter === "static" ? "Remove artifact" : "Stop preview",
+              "Remove preview",
               2,
               `kurami:preview_stop:${card.run_id}`,
             )
           : button(
-              project.preview?.adapter === "static" ? "Publish artifact" : "Start preview",
+              "Start preview",
               3,
               `kurami:preview_start:${card.run_id}`,
             ),
@@ -1205,14 +1214,18 @@ function linkComponents(
   if (remote)
     links.push(button("Open in Codex", 5, undefined, remote.launchUrl));
   if (pullRequest?.url)
-    links.push(button("Open PR", 5, undefined, pullRequest.url));
-  if (card.preview_hostname)
-    links.push(button(
-      card.preview_runtime_adapter === "static" ? "Open artifact" : "Open preview",
-      5,
-      undefined,
-      `https://${card.preview_hostname}`,
-    ));
+    links.push(
+      button(
+        card.stage === "completed" ? "View PR" : "Open PR",
+        5,
+        undefined,
+        pullRequest.url,
+      ),
+    );
+  if (card.preview_state === "running" && card.preview_hostname)
+    links.push(
+      button("Open preview", 5, undefined, `https://${card.preview_hostname}`),
+    );
   if (card.issue_url)
     links.push(button("Open issue", 5, undefined, card.issue_url));
   return links.length > 0 ? [{ type: 1, components: links }] : [];
@@ -1255,19 +1268,40 @@ function cardPayload(
   if (ci) fields.push(ci);
   const review = aiReviewField(card, pullRequest);
   if (review) fields.push(review);
-  if (card.preview_hostname)
+  const currentPullRequestHeadSha = pullRequest?.headSha ?? card.ci_head_sha;
+  const previewReviewOutdated = Boolean(
+    card.preview_reviewed_at &&
+      card.preview_verified_head_sha &&
+      currentPullRequestHeadSha &&
+      card.preview_verified_head_sha !== currentPullRequestHeadSha,
+  );
+  if (card.preview_hostname && card.preview_state)
     fields.push({
-      name: card.preview_runtime_adapter === "static" ? "Static artifact" : "Preview",
+      name: "Preview",
       value: [
-        `[${card.preview_runtime_adapter === "static" ? "Open artifact" : "Open preview"}](https://${card.preview_hostname})`,
+        card.preview_state === "running"
+          ? `[Open preview](https://${card.preview_hostname})`
+          : null,
+        card.preview_runtime_adapter === "static"
+          ? "Runtime: Static artifact"
+          : "Runtime: Compose application",
         card.preview_runtime_adapter === "static" && card.preview_artifact_digest
           ? `${card.preview_artifact_file_count ?? 0} files · ${card.preview_artifact_total_bytes ?? 0} bytes · \`${card.preview_artifact_digest.slice(0, 12)}\``
           : null,
         card.preview_verified_head_sha
           ? `SHA \`${card.preview_verified_head_sha.slice(0, 7)}\``
           : null,
-        card.preview_reviewed_at
-          ? `✅ Reviewed ${stageTimestamp(card.preview_reviewed_at)}`
+        previewReviewOutdated
+          ? `↪️ Outdated · reviewed for SHA \`${card.preview_verified_head_sha!.slice(0, 7)}\`\nCurrent PR SHA \`${currentPullRequestHeadSha!.slice(0, 7)}\` requires a fresh preview review.`
+          : card.preview_reviewed_at
+          ? `✅ Reviewed ${
+              card.preview_verified_head_sha
+                ? `for SHA \`${card.preview_verified_head_sha.slice(0, 7)}\``
+                : card.preview_runtime_adapter === "static" &&
+                    card.preview_artifact_digest
+                  ? `artifact \`${card.preview_artifact_digest.slice(0, 12)}\``
+                  : "preview"
+            }\n${stageTimestamp(card.preview_reviewed_at)}`
           : "👁️ Not reviewed",
         card.preview_expires_at
           ? `Expires ${stageTimestamp(card.preview_expires_at)}`

@@ -325,6 +325,12 @@ async function main(): Promise<void> {
         WHERE lease_id='pv_preview_policy'
       `)
       .run();
+    exact
+      .prepare(`
+        UPDATE runs SET state='remote_owned', owner_state='remote'
+        WHERE run_id=?
+      `)
+      .run(requiredRun.run_id);
     exact.close();
     const exactPlan = runNode(appDirectory, home, "src/controller.ts") as {
       plans: Array<{ action: string }>;
@@ -340,7 +346,7 @@ async function main(): Promise<void> {
     const final = new DatabaseSync(databasePath, { readOnly: true });
     const completed = final
       .prepare(`
-        SELECT state, stop_reason, preview_requirement_satisfied_at,
+        SELECT state, owner_state, stop_reason, preview_requirement_satisfied_at,
                preview_requirement_lease_id
         FROM runs WHERE run_id=?
       `)
@@ -354,8 +360,10 @@ async function main(): Promise<void> {
     const foreignKeys = final.prepare("PRAGMA foreign_key_check").all();
     final.close();
     assert(
-      completed.state === "stopping" && completed.stop_reason === "completed",
-      "Guarded completion did not resume",
+      completed.state === "stopping" &&
+        completed.owner_state === "none" &&
+        completed.stop_reason === "completed",
+      "Remote-owned guarded completion did not resume and release ownership",
     );
     assert(
       completed.preview_requirement_satisfied_at !== null &&
@@ -375,6 +383,7 @@ async function main(): Promise<void> {
         ownerVisibleStage: true,
         stalePreviewRejected: true,
         exactShaReviewed: true,
+        remoteOwnedCompletionResumed: true,
         guardedCompletionResumed: true,
         appendOnlyAudit: true,
       })}\n`,

@@ -520,8 +520,9 @@ function request(
     if (
       action === "preview_start" &&
       !(
-        run.owner_state === "none" &&
-        ["parked_review", "waiting_human"].includes(run.state)
+        (run.owner_state === "none" &&
+          ["parked_review", "waiting_human"].includes(run.state)) ||
+        (run.owner_state === "remote" && run.state === "remote_owned")
       )
     ) {
       fail(
