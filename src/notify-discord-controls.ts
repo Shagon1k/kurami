@@ -60,6 +60,8 @@ type CardRow = {
   previous_codex_thread_id: string | null;
   preview_hostname: string | null;
   preview_state: string | null;
+  preview_expires_at: string | null;
+  preview_extension_count: number;
   surface_state: string | null;
   surface_guild_id: string | null;
   surface_parent_channel_id: string | null;
@@ -152,6 +154,8 @@ const desiredSurfaceDigestSql = `
   COALESCE(rr.codex_thread_id, 'thread:none') || ':' ||
   COALESCE(rr.previous_codex_thread_id, 'previous-thread:none') || ':' ||
   COALESCE(pl.state, 'preview:none') || ':' ||
+  COALESCE(pl.expires_at, 'expiry:none') || ':' ||
+  COALESCE(pl.extension_count, 0) || ':' ||
   COALESCE(ps.hostname, 'host:none') || ':' ||
   COALESCE(r.stop_reason, 'stop:none') || ':discord-ux-v5'
   || ':' || COALESCE(ci.content_digest, 'ci:none') || ':' ||
@@ -337,6 +341,8 @@ function loadDesiredCards(database: DatabaseSync): CardRow[] {
              rr.previous_codex_thread_id,
              ps.hostname AS preview_hostname,
              pl.state AS preview_state,
+             pl.expires_at AS preview_expires_at,
+             COALESCE(pl.extension_count, 0) AS preview_extension_count,
              ds.state AS surface_state,
              ds.guild_id AS surface_guild_id,
              ds.parent_channel_id AS surface_parent_channel_id,
@@ -454,6 +460,8 @@ function loadCard(database: DatabaseSync, runId: string): CardRow {
              rr.previous_codex_thread_id,
              ps.hostname AS preview_hostname,
              pl.state AS preview_state,
+             pl.expires_at AS preview_expires_at,
+             COALESCE(pl.extension_count, 0) AS preview_extension_count,
              ds.state AS surface_state,
              ds.guild_id AS surface_guild_id,
              ds.parent_channel_id AS surface_parent_channel_id,
@@ -690,6 +698,7 @@ function stageLabel(stage: string): string {
     review_ready: "Ready for review",
     waiting_human: "Waiting for decision",
     preview_queued: "Preview queued",
+    preview_extending: "Extending preview",
     preview_stopping: "Stopping preview",
     preview_building: "Preview building",
     preview_ready: "Preview ready",
@@ -1005,6 +1014,7 @@ export function controlComponents(
       ["parked_review", "waiting_human"].includes(card.run_state);
     const previewRequestPending = [
       "preview_queued",
+      "preview_extending",
       "preview_stopping",
     ].includes(card.stage);
     if (
@@ -1017,6 +1027,13 @@ export function controlComponents(
           ? button("Stop preview", 2, `kurami:preview_stop:${card.run_id}`)
           : button("Start preview", 3, `kurami:preview_start:${card.run_id}`),
       );
+      if (
+        card.preview_state === "running" &&
+        card.detail.includes("Extend it")
+      )
+        controls.push(
+          button("Extend 24h", 3, `kurami:preview_extend:${card.run_id}`),
+        );
     }
     const ciRepairEligible =
       !preservedCancellation &&

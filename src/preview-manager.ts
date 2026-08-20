@@ -6,13 +6,14 @@ import { parse } from "yaml";
 
 process.umask(0o077);
 
-type Command = "allocate" | "inspect" | "release";
+type Command = "allocate" | "inspect" | "release" | "extend";
 
 type Arguments = {
   command: Command;
   runId?: string;
   apply: boolean;
   runtimeAbsent: boolean;
+  releaseReason: "runtime_absence_confirmed" | "preview_owner_stopped" | "preview_ttl_expired";
 };
 
 type OrchestratorConfig = {
@@ -21,6 +22,8 @@ type OrchestratorConfig = {
   limits: {
     max_previews_global: number;
     max_preview_builds_global: number;
+    preview_expiry_warning_hours: number;
+    preview_extension_hours: number;
   };
 };
 
@@ -54,6 +57,8 @@ type LeaseRecord = SlotRecord & {
   updated_at: string;
   released_at: string | null;
   release_reason: string | null;
+  expires_at: string | null;
+  extension_count: number;
 };
 
 const orchestratorHome = resolve(
@@ -69,15 +74,16 @@ function fail(message: string): never {
 function parseArguments(): Arguments {
   const args = process.argv.slice(2);
   const command = args.shift() as Command | undefined;
-  if (!command || !["allocate", "inspect", "release"].includes(command)) {
+  if (!command || !["allocate", "inspect", "release", "extend"].includes(command)) {
     fail(
-      "Usage: preview-manager.ts <allocate|inspect|release> [--run-id <id>] [--apply] [--runtime-absent]",
+      "Usage: preview-manager.ts <allocate|inspect|release|extend> [--run-id <id>] [--apply] [--runtime-absent]",
     );
   }
 
   let runId: string | undefined;
   let apply = false;
   let runtimeAbsent = false;
+  let releaseReason: Arguments["releaseReason"] = "runtime_absence_confirmed";
   for (let index = 0; index < args.length; index += 1) {
     const arg = args[index];
     if (arg === "--run-id") {
@@ -88,12 +94,25 @@ function parseArguments(): Arguments {
       apply = true;
     } else if (arg === "--runtime-absent") {
       runtimeAbsent = true;
+    } else if (arg === "--release-reason") {
+      const value = args[index + 1] as Arguments["releaseReason"] | undefined;
+      if (
+        !value ||
+        ![
+          "runtime_absence_confirmed",
+          "preview_owner_stopped",
+          "preview_ttl_expired",
+        ].includes(value)
+      )
+        fail("--release-reason requires an allowlisted value");
+      releaseReason = value;
+      index += 1;
     } else {
       fail(`Unknown argument: ${arg}`);
     }
   }
 
-  if ((command === "allocate" || command === "release") && !runId) {
+  if (["allocate", "release", "extend"].includes(command) && !runId) {
     fail(`${command} requires --run-id`);
   }
   if (command === "inspect" && (apply || runtimeAbsent)) {
@@ -102,7 +121,10 @@ function parseArguments(): Arguments {
   if (command !== "release" && runtimeAbsent) {
     fail("--runtime-absent is valid only for release");
   }
-  return { command, runId, apply, runtimeAbsent };
+  if (command !== "release" && releaseReason !== "runtime_absence_confirmed") {
+    fail("--release-reason is valid only for release");
+  }
+  return { command, runId, apply, runtimeAbsent, releaseReason };
 }
 
 function activeLeaseForRun(
@@ -180,6 +202,8 @@ function leaseView(lease: LeaseRecord): Record<string, unknown> {
     hostname: lease.hostname,
     assetsHostname: lease.assets_hostname,
     composeProjectName: lease.compose_project_name,
+    expiresAt: lease.expires_at,
+    extensionCount: lease.extension_count,
     ports: {
       frontend: lease.frontend_port,
       backend: lease.backend_port,
@@ -189,6 +213,88 @@ function leaseView(lease: LeaseRecord): Record<string, unknown> {
       minioConsole: lease.minio_console_port,
     },
   };
+}
+
+function extend(
+  database: DatabaseSync,
+  config: OrchestratorConfig,
+  runId: string,
+  apply: boolean,
+): void {
+  database.exec("BEGIN IMMEDIATE");
+  try {
+    const run = runRecord(database, runId);
+    const lease = activeLeaseForRun(database, runId);
+    if (!lease) fail(`Active preview lease not found for run: ${runId}`);
+    if (lease.state !== "running" || !lease.expires_at) {
+      fail(`Preview is not extendable: state=${lease.state}`);
+    }
+    if (Date.parse(lease.expires_at) <= Date.now()) {
+      fail("Preview has already expired and is awaiting guarded cleanup");
+    }
+    if (
+      Date.parse(lease.expires_at) - Date.now() >
+      config.limits.preview_expiry_warning_hours * 60 * 60 * 1_000
+    ) {
+      fail("Preview extension is available only inside the expiry warning window");
+    }
+    const plan = {
+      ...leaseView(lease),
+      extensionHours: config.limits.preview_extension_hours,
+      nextExpiresAt: new Date(
+        Date.parse(lease.expires_at) +
+          config.limits.preview_extension_hours * 60 * 60 * 1_000,
+      ).toISOString(),
+    };
+    if (!apply) {
+      database.exec("ROLLBACK");
+      process.stdout.write(
+        `${JSON.stringify({ ok: true, apply: false, action: "extend", plan })}\n`,
+      );
+      return;
+    }
+    const changed = database
+      .prepare(`
+        UPDATE preview_leases
+        SET expires_at = strftime(
+              '%Y-%m-%dT%H:%M:%fZ', expires_at,
+              '+' || ? || ' hours'
+            ),
+            extension_count = extension_count + 1,
+            updated_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
+        WHERE lease_id = ? AND state = 'running'
+          AND expires_at > strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
+      `)
+      .run(config.limits.preview_extension_hours, lease.lease_id);
+    if (changed.changes !== 1) fail("Preview changed before extension was applied");
+    const updated = activeLeaseForRun(database, runId);
+    if (!updated) fail("Extended preview lease disappeared");
+    database
+      .prepare(`
+        INSERT INTO run_state_history (
+          run_id, from_state, to_state, reason, details_json
+        ) VALUES (?, ?, ?, 'preview_ttl_extended', ?)
+      `)
+      .run(
+        runId,
+        run.state,
+        run.state,
+        JSON.stringify({
+          leaseId: lease.lease_id,
+          previousExpiresAt: lease.expires_at,
+          expiresAt: updated.expires_at,
+          extensionHours: config.limits.preview_extension_hours,
+          extensionCount: updated.extension_count,
+        }),
+      );
+    database.exec("COMMIT");
+    process.stdout.write(
+      `${JSON.stringify({ ok: true, apply: true, action: "extended", ...leaseView(updated) })}\n`,
+    );
+  } catch (error) {
+    database.exec("ROLLBACK");
+    throw error;
+  }
 }
 
 function inspect(database: DatabaseSync): void {
@@ -312,6 +418,7 @@ function release(
   runId: string,
   apply: boolean,
   runtimeAbsent: boolean,
+  releaseReason: Arguments["releaseReason"],
 ): void {
   database.exec("BEGIN IMMEDIATE");
   try {
@@ -346,10 +453,10 @@ function release(
         SET state = 'released',
             released_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now'),
             updated_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now'),
-            release_reason = 'runtime_absence_confirmed'
+            release_reason = ?
         WHERE lease_id = ? AND state <> 'released'
       `)
-      .run(lease.lease_id);
+      .run(releaseReason, lease.lease_id);
     database
       .prepare(`
         UPDATE run_resources
@@ -363,10 +470,15 @@ function release(
           run_id, from_state, to_state, reason, details_json
         ) VALUES (?, ?, ?, 'preview_slot_released', ?)
       `)
-      .run(runId, run.state, run.state, JSON.stringify(leaseView(lease)));
+      .run(
+        runId,
+        run.state,
+        run.state,
+        JSON.stringify({ ...leaseView(lease), releaseReason }),
+      );
     database.exec("COMMIT");
     process.stdout.write(
-      `${JSON.stringify({ ok: true, apply: true, action: "released", ...leaseView(lease) })}\n`,
+      `${JSON.stringify({ ok: true, apply: true, action: "released", ...leaseView(lease), releaseReason })}\n`,
     );
   } catch (error) {
     database.exec("ROLLBACK");
@@ -392,6 +504,26 @@ async function main(): Promise<void> {
   ) {
     fail("Invalid max_preview_builds_global");
   }
+  if (
+    !Number.isInteger(config.limits.preview_expiry_warning_hours) ||
+    config.limits.preview_expiry_warning_hours < 1 ||
+    config.limits.preview_expiry_warning_hours > 168
+  ) {
+    fail("Invalid preview_expiry_warning_hours");
+  }
+  if (
+    !Number.isInteger(config.limits.preview_extension_hours) ||
+    config.limits.preview_extension_hours < 1 ||
+    config.limits.preview_extension_hours > 168
+  ) {
+    fail("Invalid preview_extension_hours");
+  }
+  if (
+    config.limits.preview_expiry_warning_hours >=
+    config.limits.preview_extension_hours
+  ) {
+    fail("preview_expiry_warning_hours must be less than preview_extension_hours");
+  }
   if (args.apply && config.mode !== "live") {
     fail(`Refusing preview mutation in mode=${config.mode}`);
   }
@@ -402,8 +534,16 @@ async function main(): Promise<void> {
     if (args.command === "inspect") inspect(database);
     else if (args.command === "allocate") {
       allocate(database, config, args.runId!, args.apply);
+    } else if (args.command === "release") {
+      release(
+        database,
+        args.runId!,
+        args.apply,
+        args.runtimeAbsent,
+        args.releaseReason,
+      );
     } else {
-      release(database, args.runId!, args.apply, args.runtimeAbsent);
+      extend(database, config, args.runId!, args.apply);
     }
   } finally {
     database.close();

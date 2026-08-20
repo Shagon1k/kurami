@@ -17,13 +17,20 @@ import { parse } from "yaml";
 process.umask(0o077);
 
 type Command = "up" | "down" | "inspect";
-type Arguments = { command: Command; runId: string; apply: boolean };
+type ReleaseReason = "preview_owner_stopped" | "preview_ttl_expired";
+type Arguments = {
+  command: Command;
+  runId: string;
+  apply: boolean;
+  releaseReason: ReleaseReason;
+};
 
 type OrchestratorConfig = {
   version: number;
   mode: "dry_run" | "live";
   limits: {
     max_preview_builds_global: number;
+    preview_ttl_hours: number;
     min_preview_available_memory_mib: number;
     min_preview_available_disk_gib: number;
   };
@@ -120,17 +127,36 @@ function parseArguments(): Arguments {
   }
   const runIndex = args.indexOf("--run-id");
   const runId = runIndex >= 0 ? args[runIndex + 1]?.trim() : undefined;
+  const reasonIndex = args.indexOf("--release-reason");
+  const releaseReason =
+    reasonIndex >= 0 ? args[reasonIndex + 1]?.trim() : "preview_owner_stopped";
   const unknown = args.filter(
     (arg, index) =>
-      arg !== "--apply" && arg !== "--run-id" && index !== runIndex + 1,
+      arg !== "--apply" &&
+      arg !== "--run-id" &&
+      arg !== "--release-reason" &&
+      index !== runIndex + 1 &&
+      index !== reasonIndex + 1,
   );
-  if (!runId || unknown.length > 0) {
+  if (
+    !runId ||
+    unknown.length > 0 ||
+    !["preview_owner_stopped", "preview_ttl_expired"].includes(releaseReason)
+  ) {
     fail("Usage: preview-runtime.ts <up|down|inspect> --run-id <id> [--apply]");
+  }
+  if (command !== "down" && reasonIndex >= 0) {
+    fail("--release-reason is valid only for down");
   }
   if (command === "inspect" && args.includes("--apply")) {
     fail("inspect does not accept --apply");
   }
-  return { command, runId, apply: args.includes("--apply") };
+  return {
+    command,
+    runId,
+    apply: args.includes("--apply"),
+    releaseReason: releaseReason as ReleaseReason,
+  };
 }
 
 async function pathExists(path: string): Promise<boolean> {
@@ -470,14 +496,25 @@ function markLeaseState(
   database: DatabaseSync,
   leaseId: string,
   state: "running" | "releasing" | "failed",
+  ttlHours?: number,
 ): void {
+  if (state === "running" && (!ttlHours || !Number.isInteger(ttlHours))) {
+    fail("Running preview requires a valid TTL");
+  }
   database
     .prepare(`
       UPDATE preview_leases
-      SET state = ?, updated_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
+      SET state = ?,
+          expires_at = CASE
+            WHEN ? = 'running' THEN strftime(
+              '%Y-%m-%dT%H:%M:%fZ', 'now', '+' || ? || ' hours'
+            )
+            ELSE expires_at
+          END,
+          updated_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
       WHERE lease_id = ? AND state <> 'released'
     `)
-    .run(state, leaseId);
+    .run(state, state, ttlHours ?? 0, leaseId);
 }
 
 function reconcileIngress(): void {
@@ -561,7 +598,12 @@ async function up(
     }
     runFile("docker", [...composeArguments(plan), "up", "--build", "-d"]);
     await waitForHealth(plan, preview);
-    markLeaseState(database, record.lease_id, "running");
+    markLeaseState(
+      database,
+      record.lease_id,
+      "running",
+      config.limits.preview_ttl_hours,
+    );
     reconcileIngress();
     process.stdout.write(
       `${JSON.stringify({
@@ -591,6 +633,7 @@ async function down(
   record: RuntimeRecord,
   plan: RuntimePlan,
   apply: boolean,
+  releaseReason: ReleaseReason,
 ): Promise<void> {
   const containers = composeContainers(plan.composeProjectName);
   const runtimeFilesPresent =
@@ -633,6 +676,8 @@ async function down(
       plan.runId,
       "--apply",
       "--runtime-absent",
+      "--release-reason",
+      releaseReason,
     ], { ...process.env, ORCHESTRATOR_HOME: orchestratorHome });
     if (await pathExists(plan.runtimeDirectory)) {
       await rm(plan.runtimeDirectory, { recursive: true, force: false });
@@ -682,11 +727,13 @@ async function main(): Promise<void> {
   }
   for (const [key, value] of Object.entries({
     max_preview_builds_global: config.limits.max_preview_builds_global,
+    preview_ttl_hours: config.limits.preview_ttl_hours,
     min_preview_available_memory_mib: config.limits.min_preview_available_memory_mib,
     min_preview_available_disk_gib: config.limits.min_preview_available_disk_gib,
   })) {
     if (!Number.isInteger(value) || value < 1) fail(`Invalid ${key}`);
   }
+  if (config.limits.preview_ttl_hours > 168) fail("Invalid preview_ttl_hours");
 
   const database = new DatabaseSync(databasePath, { timeout: 5_000 });
   try {
@@ -696,7 +743,7 @@ async function main(): Promise<void> {
     if (args.command === "up") {
       await up(database, record, plan, preview, config, args.apply);
     } else if (args.command === "down") {
-      await down(database, record, plan, args.apply);
+      await down(database, record, plan, args.apply, args.releaseReason);
     } else {
       inspect(record, plan);
     }

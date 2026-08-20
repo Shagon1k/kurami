@@ -10,7 +10,10 @@ process.umask(0o077);
 type OrchestratorConfig = {
   version: number;
   mode: "dry_run" | "live";
-  limits: { max_llm_running_global: number };
+  limits: {
+    max_llm_running_global: number;
+    preview_expiry_warning_hours: number;
+  };
 };
 
 type ProjectConfig = {
@@ -37,6 +40,7 @@ type RunRow = {
   preview_id: string | null;
   preview_lease_id: string | null;
   preview_lease_state: string | null;
+  preview_expires_at: string | null;
   project_item_status: string | null;
   has_newer_run: number;
   backlog_satisfied: number;
@@ -90,6 +94,8 @@ type ControllerAction =
   | "preview_allocate"
   | "preview_up"
   | "preview_down"
+  | "preview_expire"
+  | "preview_extend"
   | "request_stop"
   | "resume_stop"
   | "request_complete"
@@ -108,6 +114,7 @@ type PlannedAction = {
   roundId?: string;
   command?: string;
   reason?: string;
+  requestOutcome?: "applied" | "rejected";
 };
 
 type ProgressRow = RunRow & {
@@ -151,6 +158,7 @@ function baseRunSelect(): string {
            rr.previous_codex_thread_id,
            rr.preview_id, pl.lease_id AS preview_lease_id,
            pl.state AS preview_lease_state,
+           pl.expires_at AS preview_expires_at,
            pi.status AS project_item_status,
            EXISTS (
              SELECT 1 FROM runs newer
@@ -341,6 +349,18 @@ function externalCommand(
       return [previewRuntimePath, "up", "--run-id", runId, "--apply"];
     case "preview_down":
       return [previewRuntimePath, "down", "--run-id", runId, "--apply"];
+    case "preview_expire":
+      return [
+        previewRuntimePath,
+        "down",
+        "--run-id",
+        runId,
+        "--release-reason",
+        "preview_ttl_expired",
+        "--apply",
+      ];
+    case "preview_extend":
+      return [previewManagerPath, "extend", "--run-id", runId, "--apply"];
     case "release":
       return [releaserPath, "--run-id", runId, "--apply"];
     case "discard_cancelled":
@@ -360,7 +380,30 @@ function externalCommand(
   }
 }
 
-function planForRequest(request: RequestRow): PlannedAction {
+function previewNeedsExtension(
+  run: RunRow,
+  warningHours: number,
+  now = Date.now(),
+): boolean {
+  if (run.preview_lease_state !== "running" || !run.preview_expires_at) return false;
+  const expiresAt = Date.parse(run.preview_expires_at);
+  return (
+    Number.isFinite(expiresAt) &&
+    expiresAt > now &&
+    expiresAt - now <= warningHours * 60 * 60 * 1_000
+  );
+}
+
+function previewExpired(run: RunRow, now = Date.now()): boolean {
+  if (run.preview_lease_state !== "running" || !run.preview_expires_at) return false;
+  const expiresAt = Date.parse(run.preview_expires_at);
+  return Number.isFinite(expiresAt) && expiresAt <= now;
+}
+
+function planForRequest(
+  request: RequestRow,
+  config: OrchestratorConfig,
+): PlannedAction {
   const base = {
     runId: request.run_id,
     project: request.project,
@@ -425,6 +468,9 @@ function planForRequest(request: RequestRow): PlannedAction {
         return { ...base, action: "preview_up" };
       }
       if (request.preview_lease_state === "running") {
+        if (previewNeedsExtension(request, config.limits.preview_expiry_warning_hours)) {
+          return { ...base, action: "preview_extend" };
+        }
         return {
           ...base,
           action: "request_complete",
@@ -549,6 +595,9 @@ function planAutomatic(
     issueNumber: run.issue_number,
   };
   const backlog = registry.projects[run.project]?.statuses.backlog;
+  if (previewExpired(run)) {
+    return { ...base, action: "preview_expire", reason: "preview_ttl_expired" };
+  }
   if (
     run.latest_review_fix_state === "resolving" &&
     run.latest_review_fix_round_id &&
@@ -673,6 +722,7 @@ function planAutomatic(
 function buildPlans(
   database: DatabaseSync,
   registry: ProjectsRegistry,
+  config: OrchestratorConfig,
 ): PlannedAction[] {
   const requests = database
     .prepare(
@@ -692,14 +742,43 @@ function buildPlans(
     ${baseRunSelect()}
     WHERE r.state NOT IN ('rejected', 'failed')
       AND (r.state <> 'needs_attention'
-           OR rr.previous_codex_thread_id IS NOT NULL)
+           OR rr.previous_codex_thread_id IS NOT NULL
+           OR (pl.state = 'running'
+               AND pl.expires_at IS NOT NULL
+               AND pl.expires_at <= strftime('%Y-%m-%dT%H:%M:%fZ', 'now')))
       AND (r.state <> 'archived'
            OR rr.previous_codex_thread_id IS NOT NULL)
     ORDER BY r.created_at, r.run_id
   `,
     )
     .all() as RunRow[];
-  const plans = requests.map(planForRequest);
+  const plans: PlannedAction[] = [];
+  const expiryPlanned = new Set<string>();
+  for (const request of requests) {
+    if (previewExpired(request)) {
+      if (expiryPlanned.has(request.run_id)) continue;
+      expiryPlanned.add(request.run_id);
+      const pendingPreviewAction = ["preview_start", "preview_stop"].includes(
+        request.requested_action,
+      );
+      plans.push({
+        runId: request.run_id,
+        project: request.project,
+        issueNumber: request.issue_number,
+        action: "preview_expire",
+        requestId: pendingPreviewAction ? request.request_id : undefined,
+        requestOutcome:
+          request.requested_action === "preview_start"
+            ? "rejected"
+            : request.requested_action === "preview_stop"
+              ? "applied"
+              : undefined,
+        reason: "preview_ttl_expired",
+      });
+    } else {
+      plans.push(planForRequest(request, config));
+    }
+  }
   for (const run of automatic) {
     if (requestedRuns.has(run.run_id)) continue;
     const plan = planAutomatic(run, registry);
@@ -1166,7 +1245,10 @@ function ensureControlEvents(database: DatabaseSync): void {
     .run();
 }
 
-function progressFor(run: ProgressRow): { stage: string; detail: string } {
+function progressFor(
+  run: ProgressRow,
+  config: OrchestratorConfig,
+): { stage: string; detail: string } {
   if (run.preview_lease_state === "failed") {
     return {
       stage: "needs_attention",
@@ -1174,9 +1256,17 @@ function progressFor(run: ProgressRow): { stage: string; detail: string } {
     };
   }
   if (run.preview_lease_state === "running") {
+    if (previewNeedsExtension(run, config.limits.preview_expiry_warning_hours)) {
+      return {
+        stage: "preview_ready",
+        detail: `Preview expires at ${run.preview_expires_at}. Extend it or it will be removed automatically.`,
+      };
+    }
     return {
       stage: "preview_ready",
-      detail: "Preview is running and ready to open.",
+      detail: run.preview_expires_at
+        ? `Preview is running and ready to open. It expires at ${run.preview_expires_at}.`
+        : "Preview is running and ready to open.",
     };
   }
   if (run.preview_lease_state === "provisioning") {
@@ -1334,7 +1424,10 @@ function progressFor(run: ProgressRow): { stage: string; detail: string } {
   return { stage: run.run_state, detail: `Run state: ${run.run_state}.` };
 }
 
-function reconcileProgressCards(database: DatabaseSync): void {
+function reconcileProgressCards(
+  database: DatabaseSync,
+  config: OrchestratorConfig,
+): void {
   const runs = database
     .prepare(
       `
@@ -1385,12 +1478,13 @@ function reconcileProgressCards(database: DatabaseSync): void {
     "handoff_pending",
     "finalizing_review",
     "preview_queued",
+    "preview_extending",
     "preview_building",
     "stopping",
   ]);
   const heartbeatBucket = Math.floor(Date.now() / (5 * 60 * 1_000));
   for (const run of runs) {
-    const progress = progressFor(run);
+    const progress = progressFor(run, config);
     const digest = createHash("sha256")
       .update(
         JSON.stringify({
@@ -1514,6 +1608,12 @@ async function main(): Promise<void> {
     await readFile(projectsPath, "utf8"),
   ) as ProjectsRegistry;
   if (config.version !== 1) fail("Unsupported orchestrator config version");
+  if (
+    !Number.isInteger(config.limits.preview_expiry_warning_hours) ||
+    config.limits.preview_expiry_warning_hours < 1 ||
+    config.limits.preview_expiry_warning_hours > 24 * 7
+  )
+    fail("Invalid preview_expiry_warning_hours");
   if (registry.version !== 1) fail("Unsupported projects registry version");
   if (config.mode !== "live" && apply)
     fail(`Refusing mutation in mode=${config.mode}`);
@@ -1525,10 +1625,10 @@ async function main(): Promise<void> {
     reconcileReviewFixRounds(database);
     reconcileAiReviews(database);
     ensureControlEvents(database);
-    reconcileProgressCards(database);
+    reconcileProgressCards(database, config);
   }
   let llmCount = runningLlmCount(database);
-  const plans = buildPlans(database, registry);
+  const plans = buildPlans(database, registry, config);
 
   if (!apply) {
     database.close();
@@ -1566,11 +1666,16 @@ async function main(): Promise<void> {
         : runExternal(plan);
       if (
         plan.requestId &&
-        ["handoff", "preview_up", "preview_down", "repair_start", "review_start", "review_fix_start"].includes(
+        ["handoff", "preview_up", "preview_down", "preview_expire", "preview_extend", "repair_start", "review_start", "review_fix_start"].includes(
           plan.action,
         )
       ) {
-        completeRequest(database, plan.requestId, "applied", result);
+        completeRequest(
+          database,
+          plan.requestId,
+          plan.requestOutcome ?? "applied",
+          result,
+        );
       }
       if (
         plan.requestId &&
@@ -1595,7 +1700,7 @@ async function main(): Promise<void> {
         llmCount += 1;
       reconcileCiRepairAttempts(database);
       reconcileReviewFixRounds(database);
-      reconcileProgressCards(database);
+      reconcileProgressCards(database, config);
       ensureControlEvents(database);
     } catch (error) {
       const reason = error instanceof Error ? error.message : String(error);
@@ -1624,7 +1729,7 @@ async function main(): Promise<void> {
     }
   }
   ensureControlEvents(database);
-  reconcileProgressCards(database);
+  reconcileProgressCards(database, config);
   database.close();
 
   if (process.env.CONTROLLER_QUIET !== "1") {

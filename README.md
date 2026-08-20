@@ -51,7 +51,7 @@ app/
     release-worktree.ts       Safely releases cancelled or verified-merged Git resources
     cancel-resolution.ts      Guardedly resolves confirmed unpublished or Draft PR results
     project-status.ts         Returns fully cancelled released items to Backlog
-    preview-manager.ts        Atomically leases and releases fixed preview slots
+    preview-manager.ts        Atomically leases, extends, and releases preview slots
     preview-runtime.ts        Builds, verifies, and removes rootless Compose previews
     preview-ingress.ts        Atomically reconciles running previews into Caddy routes
     codex-deeplink.ts         Validates Codex thread IDs and builds HTTPS launch URLs
@@ -74,6 +74,7 @@ app/
     verify-ci-observer.ts     Proves exact-SHA CI normalization and bounded notifications
     verify-preview-slots.ts   Proves six-slot capacity, idempotency, and safe reuse
     verify-preview-ingress.ts Proves deterministic, loopback-only, fail-closed routing
+    verify-preview-ttl.ts     Proves expiry, warning, extension, and guarded cleanup planning
     verify-run-controls.ts    Proves event idempotency and explicit control dispatch
     verify-session-observer.ts
                               Proves idle blocker detection without transient false alerts
@@ -704,6 +705,14 @@ project-specific orchestrator secret file; per-run JWT, E2E, PostgreSQL, and
 MinIO credentials are generated locally and never printed or stored in SQLite.
 After Compose health checks pass, the lease becomes `running`.
 
+Successful health checks also start a bounded 24-hour TTL; build time does not
+consume the owner-visible preview window. During the final two hours, the live
+Discord card warns the owner and offers one `Extend 24h` action. An extension
+is accepted only for the exact still-running, not-yet-expired lease and is
+recorded in `run_state_history`. Repeated early extensions and extensions after
+expiry are refused. Existing active previews receive a fresh 24-hour grace
+period when migration `023_preview_ttl.sql` is first applied.
+
 `src/preview-ingress.ts` is the only writer of the managed Caddy route fragment.
 It renders routes solely for enabled slots whose lease is `running`, validates a
 candidate configuration before replacing the live mode-`600` file, and reloads
@@ -723,6 +732,11 @@ Compose project, removes its volumes, proves that no labeled containers remain,
 releases the durable lease, and finally removes the exact per-run runtime
 directory. Missing evidence or a partial cleanup leaves the lease occupied in
 `failed` state for reconciliation.
+
+The controller plans the same guarded `down` path when a TTL expires. That path
+revokes ingress first, then removes only the recorded Compose project and its
+volumes. The slot is released only after container absence is proven; failed
+cleanup stays visible in runtime health instead of silently freeing the slot.
 
 Branch naming is deterministic and readable:
 
@@ -864,6 +878,22 @@ node src/preview-manager.ts allocate --run-id <run_id>
 
 ORCHESTRATOR_HOME=/home/shagon1k/_hermes/_orchestrator \
 node src/preview-manager.ts allocate --run-id <run_id> --apply
+```
+
+Plan or apply an owner extension while the preview is inside its warning window:
+
+```bash
+ORCHESTRATOR_HOME=/home/shagon1k/_hermes/_orchestrator \
+node src/preview-manager.ts extend --run-id <run_id>
+
+ORCHESTRATOR_HOME=/home/shagon1k/_hermes/_orchestrator \
+node src/preview-manager.ts extend --run-id <run_id> --apply
+```
+
+Verify the isolated TTL lifecycle and populated-v22 migration:
+
+```bash
+npm run test:preview-ttl
 ```
 
 Inspect or reconcile the desired Caddy routes from the Run Store:

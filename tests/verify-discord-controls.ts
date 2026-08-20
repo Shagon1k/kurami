@@ -1062,14 +1062,18 @@ async function main(): Promise<void> {
     preview
       .prepare(
         `INSERT INTO preview_leases (
-           lease_id, run_id, slot_number, state, compose_project_name
-         ) VALUES ('lease-discord', 'r_discord_smoke', 1, 'running', 'discord-smoke')`,
+           lease_id, run_id, slot_number, state, compose_project_name, expires_at
+         ) VALUES (
+           'lease-discord', 'r_discord_smoke', 1, 'running', 'discord-smoke',
+           strftime('%Y-%m-%dT%H:%M:%fZ', 'now', '+1 hour')
+         )`,
       )
       .run();
     preview
       .prepare(
         `UPDATE run_progress_cards
-         SET stage='preview_ready', detail='Preview passed health checks.',
+         SET stage='preview_ready',
+             detail='Preview expires soon. Extend it or it will be removed automatically.',
              content_digest='digest-preview', updated_at='2026-08-16T09:20:00.000Z'
          WHERE run_id='r_discord_smoke'`,
       )
@@ -1098,6 +1102,12 @@ async function main(): Promise<void> {
         "kurami:preview_stop:r_discord_smoke",
       ),
       "Live card did not switch to Stop preview",
+    );
+    assert(
+      customIds(threadControlEdits.at(-1)!).includes(
+        "kurami:preview_extend:r_discord_smoke",
+      ),
+      "Expiring preview did not expose the bounded extension control",
     );
     const stableParentCount = parentMessages.length;
     const stableControlCount = threadControlCreates.length;

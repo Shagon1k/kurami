@@ -13,6 +13,7 @@ type ActiveLease = {
   run_state: string;
   preview_id: string | null;
   updated_at: string;
+  expires_at: string | null;
 };
 
 export type PreviewHealthInput = {
@@ -28,6 +29,7 @@ export type PreviewHealthAnalysis = {
   failedLeases: string[];
   terminalRunLeases: string[];
   mappingMismatches: string[];
+  expiredLeases: string[];
   orphanRuntimeDirectories: string[];
 };
 
@@ -161,6 +163,15 @@ export function analyzePreviewConsistency(
       .filter((lease) => lease.preview_id !== `preview-${lease.slot_number}`)
       .map((lease) => lease.run_id)
       .sort(),
+    expiredLeases: input.leases
+      .filter(
+        (lease) =>
+          lease.lease_state === "running" &&
+          Boolean(lease.expires_at) &&
+          Date.parse(lease.expires_at!) <= input.nowMs,
+      )
+      .map((lease) => lease.run_id)
+      .sort(),
     orphanRuntimeDirectories: input.runtimeDirectories
       .filter(
         (directory) =>
@@ -238,7 +249,8 @@ function activeLeases(database: DatabaseSync): ActiveLease[] {
     .prepare(`
       SELECT pl.lease_id, pl.run_id, pl.slot_number,
              pl.state AS lease_state, pl.compose_project_name,
-             r.state AS run_state, rr.preview_id, pl.updated_at
+             r.state AS run_state, rr.preview_id, pl.updated_at,
+             pl.expires_at
       FROM preview_leases pl
       JOIN runs r USING (run_id)
       JOIN run_resources rr USING (run_id)

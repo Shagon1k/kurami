@@ -12,5 +12,8 @@ limits:
   max_tmux_sessions_global: 2
   max_previews_global: 6
   max_preview_builds_global: 2
+  preview_ttl_hours: 24
+  preview_expiry_warning_hours: 2
+  preview_extension_hours: 24
   min_preview_available_memory_mib: 4096
   min_preview_available_disk_gib: 20

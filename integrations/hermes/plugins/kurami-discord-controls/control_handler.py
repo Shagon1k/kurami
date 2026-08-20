@@ -13,7 +13,7 @@ from zoneinfo import ZoneInfo
 
 
 CONTROL_ID = re.compile(
-    r"^kurami:(status|take_control|preview_start|preview_stop|stop|discard_prompt|discard_local|discard_published_prompt|discard_published|ci_repair|ai_review|review_fix):(r_[A-Za-z0-9_]+)$"
+    r"^kurami:(status|take_control|preview_start|preview_stop|preview_extend|stop|discard_prompt|discard_local|discard_published_prompt|discard_published|ci_repair|ai_review|review_fix):(r_[A-Za-z0-9_]+)$"
 )
 METADATA_CONTROL_ID = re.compile(
     r"^kurami:metadata_(details|accept|skip|discuss|exclude|restore|retry):(pmb_[a-f0-9]+)$"
@@ -23,6 +23,7 @@ _ACTION_LABELS = {
     "take_control": "Take control",
     "preview_start": "Start preview",
     "preview_stop": "Stop preview",
+    "preview_extend": "Extend preview",
     "stop": "Cancel run",
     "discard_local": "Discard local work",
     "discard_published": "Close draft PR and discard published work",
@@ -360,6 +361,7 @@ async def _run_control(action: str, run_id: str) -> dict[str, Any]:
 
     args = [str(node), str(control), "status", "--run-id", run_id]
     if action != "status":
+        request_action = "preview_start" if action == "preview_extend" else action
         args = [
             str(node),
             str(control),
@@ -367,7 +369,7 @@ async def _run_control(action: str, run_id: str) -> dict[str, Any]:
             "--run-id",
             run_id,
             "--action",
-            action,
+            request_action,
             "--via",
             "discord",
             "--apply",

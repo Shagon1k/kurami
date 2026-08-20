@@ -27,6 +27,7 @@ def main() -> None:
         "kurami:take_control:r_run_1": ("take_control", "r_run_1"),
         "kurami:preview_start:r_9": ("preview_start", "r_9"),
         "kurami:preview_stop:r_9": ("preview_stop", "r_9"),
+        "kurami:preview_extend:r_9": ("preview_extend", "r_9"),
         "kurami:stop:r_9": ("stop", "r_9"),
         "kurami:discard_prompt:r_9": ("discard_prompt", "r_9"),
         "kurami:discard_local:r_9": ("discard_local", "r_9"),

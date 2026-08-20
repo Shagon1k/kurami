@@ -65,10 +65,27 @@ const orchestratorHome = resolve(
 );
 const databasePath = resolve(orchestratorHome, "state/orchestrator.db");
 const projectsPath = resolve(orchestratorHome, "config/projects.yaml");
+const configPath = resolve(orchestratorHome, "config/orchestrator.yaml");
 
 type ProjectsRegistry = {
   projects: Record<string, { preview?: Record<string, unknown> }>;
 };
+
+type OrchestratorConfig = {
+  limits: { preview_expiry_warning_hours: number };
+};
+
+function previewExtensionAvailable(expiresAt: unknown): boolean {
+  if (typeof expiresAt !== "string") return false;
+  const config = parse(readFileSync(configPath, "utf8")) as OrchestratorConfig;
+  const expiry = Date.parse(expiresAt);
+  return (
+    Number.isFinite(expiry) &&
+    expiry > Date.now() &&
+    expiry - Date.now() <=
+      config.limits.preview_expiry_warning_hours * 60 * 60 * 1_000
+  );
+}
 
 function projectSupportsPreview(project: string): boolean {
   const registry = parse(
@@ -173,6 +190,8 @@ function status(
            rr.tmux_session_name, rr.preview_id,
            ps.hostname AS preview_hostname,
            pl.state AS preview_state,
+           pl.expires_at AS preview_expires_at,
+           pl.extension_count AS preview_extension_count,
            ci.pull_request_number AS ci_pull_request_number,
            ci.pull_request_url AS ci_pull_request_url,
            ci.head_sha AS ci_head_sha,
@@ -242,7 +261,22 @@ function presentPendingRequest(
   runId: string,
   action: Action,
 ): void {
-  const presentation = pendingPresentations[action];
+  let presentation = pendingPresentations[action];
+  if (action === "preview_start") {
+    const active = database
+      .prepare(`
+        SELECT state FROM preview_leases
+        WHERE run_id = ? AND state <> 'released'
+        ORDER BY leased_at DESC LIMIT 1
+      `)
+      .get(runId) as { state: string } | undefined;
+    if (active?.state === "running") {
+      presentation = {
+        stage: "preview_extending",
+        detail: "Preview extension requested; validating the active lease and expiry window.",
+      };
+    }
+  }
   if (!presentation) return;
   const digest = createHash("sha256")
     .update(
@@ -309,11 +343,12 @@ function request(
          WHERE run_id = ? AND request_state IN ('pending','processing')
            AND (
              action = 'review_fix' OR
-             (? = 'review_fix' AND action IN ('take_control','ci_repair','ai_review'))
+             (? = 'review_fix' AND action IN ('take_control','ci_repair','ai_review')) OR
+             (action IN ('preview_start','preview_stop') AND ? IN ('preview_start','preview_stop'))
            )
          LIMIT 1`,
       )
-      .get(runId, action) as { action: string } | undefined;
+      .get(runId, action, action) as { action: string } | undefined;
     if (conflictingRequest && action !== "stop" && conflictingRequest.action !== action)
       fail(`Action conflicts with queued ${conflictingRequest.action}`);
     if (action === "stop" && run.stop_reason === "cancelled") {
@@ -628,8 +663,16 @@ function controls(
   if (projectSupportsPreview(String(selected.project))) {
     if (!reviewFixBusy && previewState && !pendingActions.has("preview_stop"))
       availableActions.push("preview_stop");
+    if (
+      !reviewFixBusy &&
+      previewState === "running" &&
+      previewExtensionAvailable(selected.preview_expires_at) &&
+      !pendingActions.has("preview_start")
+    )
+      availableActions.push("preview_start");
     else if (
       !reviewFixBusy &&
+      !previewState &&
       !pendingActions.has("preview_start") &&
       ownerState === "none" &&
       ["parked_review", "waiting_human"].includes(runState)
