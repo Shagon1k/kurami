@@ -79,6 +79,7 @@ type RuntimeRecord = {
   minio_api_port: number;
   minio_console_port: number;
   compose_project_name: string;
+  ci_head_sha: string | null;
 };
 
 type RuntimePlan = {
@@ -184,13 +185,15 @@ function loadRuntime(database: DatabaseSync, runId: string): RuntimeRecord {
       SELECT r.run_id, r.project, r.issue_number, r.state AS run_state,
              r.execution_mode, rr.worktree_path, rr.preview_id,
              pl.lease_id, pl.state AS lease_state, pl.slot_number,
-             pl.compose_project_name, ps.hostname, ps.assets_hostname,
+             pl.compose_project_name, ci.head_sha AS ci_head_sha,
+             ps.hostname, ps.assets_hostname,
              ps.frontend_port, ps.backend_port, ps.postgres_port, ps.redis_port,
              ps.minio_api_port, ps.minio_console_port
       FROM runs r
       JOIN run_resources rr USING (run_id)
       JOIN preview_leases pl ON pl.run_id = r.run_id AND pl.state <> 'released'
       JOIN preview_slots ps USING (slot_number)
+      LEFT JOIN run_ci_snapshots ci USING (run_id)
       WHERE r.run_id = ?
     `)
     .get(runId) as RuntimeRecord | undefined;
@@ -497,6 +500,7 @@ function markLeaseState(
   leaseId: string,
   state: "running" | "releasing" | "failed",
   ttlHours?: number,
+  verifiedHeadSha?: string | null,
 ): void {
   if (state === "running" && (!ttlHours || !Number.isInteger(ttlHours))) {
     fail("Running preview requires a valid TTL");
@@ -505,6 +509,10 @@ function markLeaseState(
     .prepare(`
       UPDATE preview_leases
       SET state = ?,
+          verified_head_sha = CASE
+            WHEN ? = 'running' THEN ?
+            ELSE verified_head_sha
+          END,
           expires_at = CASE
             WHEN ? = 'running' THEN strftime(
               '%Y-%m-%dT%H:%M:%fZ', 'now', '+' || ? || ' hours'
@@ -514,7 +522,7 @@ function markLeaseState(
           updated_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
       WHERE lease_id = ? AND state <> 'released'
     `)
-    .run(state, state, ttlHours ?? 0, leaseId);
+    .run(state, state, verifiedHeadSha ?? null, state, ttlHours ?? 0, leaseId);
 }
 
 function reconcileIngress(): void {
@@ -603,6 +611,7 @@ async function up(
       record.lease_id,
       "running",
       config.limits.preview_ttl_hours,
+      record.ci_head_sha,
     );
     reconcileIngress();
     process.stdout.write(
@@ -615,6 +624,7 @@ async function up(
         previewUrl: plan.previewUrl,
         assetsUrl: plan.assetsUrl,
         composeProjectName: plan.composeProjectName,
+        verifiedHeadSha: record.ci_head_sha,
       })}\n`,
     );
   } catch (error) {

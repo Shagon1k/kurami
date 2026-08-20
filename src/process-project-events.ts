@@ -21,6 +21,9 @@ type ProjectConfig = {
     worktree_root: string;
     branch_prefix: string;
   };
+  preview?: {
+    required_label?: string;
+  };
 };
 
 type ProjectsRegistry = {
@@ -58,6 +61,14 @@ type LiveRun = {
   stop_reason: "cancelled" | "completed" | null;
   execution_mode: "dry_run" | "live";
   resource_state: string | null;
+  preview_required: number;
+  preview_required_label: string | null;
+  completion_requested_at: string | null;
+  ci_head_sha: string | null;
+  preview_lease_id: string | null;
+  preview_lease_state: string | null;
+  preview_verified_head_sha: string | null;
+  preview_reviewed_at: string | null;
 };
 
 type EventResult = {
@@ -235,9 +246,19 @@ function latestRun(
 ): LiveRun | undefined {
   return database
     .prepare(`
-      SELECT r.run_id, r.state, r.stop_reason, r.execution_mode, rr.resource_state
+      SELECT r.run_id, r.state, r.stop_reason, r.execution_mode, rr.resource_state,
+             r.preview_required, r.preview_required_label,
+             r.completion_requested_at,
+             ci.head_sha AS ci_head_sha,
+             pl.lease_id AS preview_lease_id,
+             pl.state AS preview_lease_state,
+             pl.verified_head_sha AS preview_verified_head_sha,
+             pl.reviewed_at AS preview_reviewed_at
       FROM runs r
       LEFT JOIN run_resources rr USING (run_id)
+      LEFT JOIN run_ci_snapshots ci USING (run_id)
+      LEFT JOIN preview_leases pl
+        ON pl.run_id = r.run_id AND pl.state <> 'released'
       WHERE r.project = ? AND r.item_id = ?
       ORDER BY r.created_at DESC
       LIMIT 1
@@ -252,9 +273,19 @@ function liveRun(
 ): LiveRun | undefined {
   return database
     .prepare(`
-      SELECT r.run_id, r.state, r.stop_reason, r.execution_mode, rr.resource_state
+      SELECT r.run_id, r.state, r.stop_reason, r.execution_mode, rr.resource_state,
+             r.preview_required, r.preview_required_label,
+             r.completion_requested_at,
+             ci.head_sha AS ci_head_sha,
+             pl.lease_id AS preview_lease_id,
+             pl.state AS preview_lease_state,
+             pl.verified_head_sha AS preview_verified_head_sha,
+             pl.reviewed_at AS preview_reviewed_at
       FROM runs r
       LEFT JOIN run_resources rr USING (run_id)
+      LEFT JOIN run_ci_snapshots ci USING (run_id)
+      LEFT JOIN preview_leases pl
+        ON pl.run_id = r.run_id AND pl.state <> 'released'
       WHERE r.project = ?
         AND r.item_id = ?
         AND r.state IN (${LIVE_STATE_PARAMETERS})
@@ -308,6 +339,9 @@ function createRun(
   const interactionPolicy = metadata.labels.includes(project.human_control_label)
     ? "human_control"
     : "autonomous";
+  const previewRequiredLabel = project.preview?.required_label?.trim() || null;
+  const previewRequired =
+    previewRequiredLabel !== null && metadata.labels.includes(previewRequiredLabel);
   const state = rejected ? "rejected" : "admission_pending";
   const rejectionReason = rejected
     ? `WIP limit reached: global ${globalActive}/${config.limits.max_active_global}, project ${projectActive}/${config.limits.max_active_per_project}`
@@ -318,8 +352,9 @@ function createRun(
       INSERT INTO runs (
         run_id, trigger_event_id, project, item_id, content_id, repository,
         issue_number, interaction_policy, state, owner_state,
-        rejection_reason, execution_mode, previous_run_id
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'none', ?, ?, ?)
+        rejection_reason, execution_mode, previous_run_id,
+        preview_required, preview_required_label
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'none', ?, ?, ?, ?, ?)
     `)
     .run(
       runId,
@@ -334,6 +369,8 @@ function createRun(
       rejectionReason,
       config.mode,
       previousRun?.run_id ?? null,
+      previewRequired ? 1 : 0,
+      previewRequired ? previewRequiredLabel : null,
     );
 
   if (!rejected) {
@@ -364,6 +401,8 @@ function createRun(
       globalActiveBefore: globalActive,
       projectActiveBefore: projectActive,
       executionMode: config.mode,
+      previewRequired,
+      previewRequiredLabel: previewRequired ? previewRequiredLabel : null,
     },
   );
   markEvent(
@@ -488,6 +527,55 @@ function completeRun(database: DatabaseSync, event: EventRow): EventResult {
     markEvent(database, event.event_id, "ignored", reason);
     return { eventId: event.event_id, action: "ignored", runId: current.run_id, reason };
   }
+  const previewEvidenceSatisfied =
+    current.preview_required === 1 &&
+    current.preview_lease_state === "running" &&
+    current.preview_lease_id !== null &&
+    current.preview_reviewed_at !== null &&
+    current.ci_head_sha !== null &&
+    current.preview_verified_head_sha === current.ci_head_sha;
+  if (current.preview_required === 1 && !previewEvidenceSatisfied) {
+    database
+      .prepare(`
+        UPDATE runs
+        SET completion_requested_at = COALESCE(
+              completion_requested_at,
+              strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
+            ),
+            completion_source_event_id = COALESCE(completion_source_event_id, ?),
+            updated_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
+        WHERE run_id = ?
+      `)
+      .run(event.event_id, current.run_id);
+    appendHistory(
+      database,
+      current.run_id,
+      current.state,
+      current.state,
+      "completion_deferred_preview_required",
+      event.event_id,
+      {
+        label: current.preview_required_label,
+        currentHeadSha: current.ci_head_sha,
+        previewLeaseId: current.preview_lease_id,
+        previewState: current.preview_lease_state,
+        previewHeadSha: current.preview_verified_head_sha,
+        reviewed: current.preview_reviewed_at !== null,
+      },
+    );
+    markEvent(
+      database,
+      event.event_id,
+      "processed",
+      "Completion deferred until exact preview is reviewed",
+    );
+    return {
+      eventId: event.event_id,
+      action: "ignored",
+      runId: current.run_id,
+      reason: "preview_required",
+    };
+  }
   const nextState =
     current.execution_mode === "dry_run" || current.resource_state === "planned"
       ? "archived"
@@ -496,12 +584,25 @@ function completeRun(database: DatabaseSync, event: EventRow): EventResult {
     .prepare(`
       UPDATE runs
       SET state = ?, stop_reason = 'completed',
+          preview_requirement_satisfied_at = CASE
+            WHEN preview_required = 1 THEN strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
+            ELSE preview_requirement_satisfied_at
+          END,
+          preview_requirement_lease_id = CASE
+            WHEN preview_required = 1 THEN ? ELSE preview_requirement_lease_id
+          END,
           owner_state = CASE WHEN ? = 'archived' THEN 'none' ELSE owner_state END,
           archived_at = CASE WHEN ? = 'archived' THEN strftime('%Y-%m-%dT%H:%M:%fZ', 'now') ELSE archived_at END,
           updated_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
       WHERE run_id = ?
     `)
-    .run(nextState, nextState, nextState, current.run_id);
+    .run(
+      nextState,
+      previewEvidenceSatisfied ? current.preview_lease_id : null,
+      nextState,
+      nextState,
+      current.run_id,
+    );
   if (nextState === "archived") {
     database
       .prepare(`

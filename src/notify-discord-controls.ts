@@ -65,6 +65,11 @@ type CardRow = {
   preview_reviewed_at: string | null;
   preview_reviewed_by: string | null;
   preview_reviewed_via: string | null;
+  preview_verified_head_sha: string | null;
+  preview_required: number;
+  preview_required_label: string | null;
+  completion_requested_at: string | null;
+  preview_requirement_satisfied_at: string | null;
   surface_state: string | null;
   surface_guild_id: string | null;
   surface_parent_channel_id: string | null;
@@ -161,6 +166,10 @@ const desiredSurfaceDigestSql = `
   COALESCE(pl.extension_count, 0) || ':' ||
   COALESCE(pl.reviewed_at, 'reviewed:none') || ':' ||
   COALESCE(pl.reviewed_by, 'reviewer:none') || ':' ||
+  COALESCE(pl.verified_head_sha, 'preview-head:none') || ':' ||
+  r.preview_required || ':' ||
+  COALESCE(r.completion_requested_at, 'completion:none') || ':' ||
+  COALESCE(r.preview_requirement_satisfied_at, 'preview-satisfied:none') || ':' ||
   COALESCE(ps.hostname, 'host:none') || ':' ||
   COALESCE(r.stop_reason, 'stop:none') || ':discord-ux-v5'
   || ':' || COALESCE(ci.content_digest, 'ci:none') || ':' ||
@@ -351,6 +360,10 @@ function loadDesiredCards(database: DatabaseSync): CardRow[] {
              pl.reviewed_at AS preview_reviewed_at,
              pl.reviewed_by AS preview_reviewed_by,
              pl.reviewed_via AS preview_reviewed_via,
+             pl.verified_head_sha AS preview_verified_head_sha,
+             r.preview_required, r.preview_required_label,
+             r.completion_requested_at,
+             r.preview_requirement_satisfied_at,
              ds.state AS surface_state,
              ds.guild_id AS surface_guild_id,
              ds.parent_channel_id AS surface_parent_channel_id,
@@ -441,7 +454,7 @@ function loadDesiredCards(database: DatabaseSync): CardRow[] {
           )
           OR (
             (
-              pc.stage = 'review_ready'
+              pc.stage IN ('review_ready', 'preview_required')
               OR (pc.stage = 'completed' AND ds.state <> 'archived')
             )
             AND ds.pull_request_url IS NULL
@@ -473,6 +486,10 @@ function loadCard(database: DatabaseSync, runId: string): CardRow {
              pl.reviewed_at AS preview_reviewed_at,
              pl.reviewed_by AS preview_reviewed_by,
              pl.reviewed_via AS preview_reviewed_via,
+             pl.verified_head_sha AS preview_verified_head_sha,
+             r.preview_required, r.preview_required_label,
+             r.completion_requested_at,
+             r.preview_requirement_satisfied_at,
              ds.state AS surface_state,
              ds.guild_id AS surface_guild_id,
              ds.parent_channel_id AS surface_parent_channel_id,
@@ -713,6 +730,7 @@ function stageLabel(stage: string): string {
     preview_stopping: "Stopping preview",
     preview_building: "Preview building",
     preview_ready: "Preview ready",
+    preview_required: "Preview required",
     stopping: "Stopping",
     discarding_cancelled: "Discarding local result",
     completed: "Completed",
@@ -943,6 +961,7 @@ function stageColor(stage: string): number {
   if (stage === "waiting_github") return 0xfee75c;
   if (stage === "review_ready" || stage === "waiting_human") return 0xfee75c;
   if (stage === "finalizing_review") return 0xfee75c;
+  if (stage === "preview_required") return 0xfee75c;
   if (stage === "preview_ready") return 0x57f287;
   return 0x5865f2;
 }
@@ -1214,6 +1233,9 @@ function cardPayload(
       name: "Preview",
       value: [
         `[Open preview](https://${card.preview_hostname})`,
+        card.preview_verified_head_sha
+          ? `SHA \`${card.preview_verified_head_sha.slice(0, 7)}\``
+          : null,
         card.preview_reviewed_at
           ? `✅ Reviewed ${stageTimestamp(card.preview_reviewed_at)}`
           : "👁️ Not reviewed",
@@ -1223,6 +1245,15 @@ function cardPayload(
       ]
         .filter(Boolean)
         .join("\n"),
+    });
+  if (card.preview_required === 1)
+    fields.push({
+      name: "Preview policy",
+      value: card.preview_requirement_satisfied_at
+        ? "✅ Exact preview reviewed"
+        : card.completion_requested_at
+          ? "⏸️ Required · completion paused"
+          : `Required before completion${card.preview_required_label ? ` · \`${card.preview_required_label}\`` : ""}`,
     });
   const remote = remoteCodexContext(card, project);
   if (remote)

@@ -1150,6 +1150,44 @@ async function main(): Promise<void> {
       ).includes("Reviewed"),
       "Live card did not show the preview acknowledgement",
     );
+    const previewPolicy = new DatabaseSync(databasePath);
+    previewPolicy.exec(`
+      UPDATE runs
+      SET preview_required=1,
+          preview_required_label='preview-required',
+          completion_requested_at='2026-08-16T09:22:00.000Z',
+          completion_source_event_id='event-9401'
+      WHERE run_id='r_discord_smoke';
+      UPDATE preview_leases
+      SET verified_head_sha='aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa'
+      WHERE lease_id='lease-discord';
+      UPDATE run_progress_cards
+      SET stage='preview_required',
+          detail='Preview was reviewed for the exact current PR SHA; completion will resume automatically.',
+          content_digest='digest-preview-required',
+          updated_at='2026-08-16T09:22:00.000Z'
+      WHERE run_id='r_discord_smoke';
+    `);
+    previewPolicy.close();
+    await runNode(notifier, ["--apply"], testHome, discordEnv);
+    const policyCard = cardEdits.at(-1)!;
+    const policyFields = (
+      (policyCard.embeds as JsonObject[])[0]!.fields ?? []
+    ) as JsonObject[];
+    assert(
+      String(policyCard.content).includes("Preview required") &&
+        policyFields.some(
+          (field) =>
+            field.name === "Preview policy" &&
+            String(field.value).includes("completion paused"),
+        ) &&
+        policyFields.some(
+          (field) =>
+            field.name === "Preview" &&
+            String(field.value).includes("SHA `aaaaaaa`"),
+        ),
+      "Preview-required policy was not explained on the live card",
+    );
     const stableParentCount = parentMessages.length;
     const stableControlCount = threadControlCreates.length;
     const stableEventCount = threadEvents.length;
@@ -1198,6 +1236,14 @@ async function main(): Promise<void> {
       requestSource.requested_via === "discord",
       "Discord request source was lost",
     );
+    requestCheck
+      .prepare(`
+        UPDATE runs
+        SET preview_required=0, preview_required_label=NULL,
+            completion_requested_at=NULL, completion_source_event_id=NULL
+        WHERE run_id='r_discord_smoke'
+      `)
+      .run();
 
     // The remainder of this regression exercises unpublished cancellation.
     // Remove the earlier synthetic CI/PR fixture so it does not turn that
@@ -1435,6 +1481,7 @@ async function main(): Promise<void> {
         eventControlLinks: true,
         previewReadyDelivered: true,
         previewAcknowledgementVisible: true,
+        previewRequiredPolicyVisible: true,
         publishedCancellationPreserved: true,
         publishedCancellationTerminalControls: true,
         showControlsEdited: true,

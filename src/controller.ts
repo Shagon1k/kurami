@@ -41,6 +41,13 @@ type RunRow = {
   preview_lease_id: string | null;
   preview_lease_state: string | null;
   preview_expires_at: string | null;
+  preview_reviewed_at: string | null;
+  preview_verified_head_sha: string | null;
+  preview_required: number;
+  preview_required_label: string | null;
+  completion_requested_at: string | null;
+  completion_source_event_id: string | null;
+  preview_requirement_satisfied_at: string | null;
   project_item_status: string | null;
   has_newer_run: number;
   backlog_satisfied: number;
@@ -96,6 +103,7 @@ type ControllerAction =
   | "preview_down"
   | "preview_expire"
   | "preview_extend"
+  | "preview_requirement_complete"
   | "request_stop"
   | "resume_stop"
   | "request_complete"
@@ -159,6 +167,11 @@ function baseRunSelect(): string {
            rr.preview_id, pl.lease_id AS preview_lease_id,
            pl.state AS preview_lease_state,
            pl.expires_at AS preview_expires_at,
+           pl.reviewed_at AS preview_reviewed_at,
+           pl.verified_head_sha AS preview_verified_head_sha,
+           r.preview_required, r.preview_required_label,
+           r.completion_requested_at, r.completion_source_event_id,
+           r.preview_requirement_satisfied_at,
            pi.status AS project_item_status,
            EXISTS (
              SELECT 1 FROM runs newer
@@ -400,6 +413,18 @@ function previewExpired(run: RunRow, now = Date.now()): boolean {
   return Number.isFinite(expiresAt) && expiresAt <= now;
 }
 
+function previewRequirementSatisfied(run: RunRow): boolean {
+  return (
+    run.preview_required === 1 &&
+    run.completion_requested_at !== null &&
+    run.preview_lease_id !== null &&
+    run.preview_lease_state === "running" &&
+    run.preview_reviewed_at !== null &&
+    run.ci_head_sha !== null &&
+    run.preview_verified_head_sha === run.ci_head_sha
+  );
+}
+
 function planForRequest(
   request: RequestRow,
   config: OrchestratorConfig,
@@ -597,6 +622,19 @@ function planAutomatic(
   const backlog = registry.projects[run.project]?.statuses.backlog;
   if (previewExpired(run)) {
     return { ...base, action: "preview_expire", reason: "preview_ttl_expired" };
+  }
+  if (
+    run.run_state === "parked_review" &&
+    run.owner_state === "none" &&
+    run.stop_reason === null &&
+    run.preview_requirement_satisfied_at === null &&
+    previewRequirementSatisfied(run)
+  ) {
+    return {
+      ...base,
+      action: "preview_requirement_complete",
+      reason: "exact_preview_reviewed",
+    };
   }
   if (
     run.latest_review_fix_state === "resolving" &&
@@ -1249,6 +1287,58 @@ function progressFor(
   run: ProgressRow,
   config: OrchestratorConfig,
 ): { stage: string; detail: string } {
+  if (
+    run.preview_required === 1 &&
+    run.completion_requested_at !== null &&
+    run.preview_requirement_satisfied_at === null
+  ) {
+    if (!run.preview_lease_id) {
+      return {
+        stage: "preview_required",
+        detail:
+          "Completion is paused by the preview-required policy. Start a preview for the current pull request SHA, inspect it, and mark it reviewed.",
+      };
+    }
+    if (run.preview_lease_state === "leased") {
+      return {
+        stage: "preview_required",
+        detail: "Completion is paused while the required preview waits to build.",
+      };
+    }
+    if (run.preview_lease_state === "provisioning") {
+      return {
+        stage: "preview_required",
+        detail: "Completion is paused while the required preview builds and passes health checks.",
+      };
+    }
+    if (
+      run.preview_lease_state === "running" &&
+      (!run.ci_head_sha || run.preview_verified_head_sha !== run.ci_head_sha)
+    ) {
+      return {
+        stage: "preview_required",
+        detail:
+          "The running preview does not match the current pull request SHA. Stop it, start a fresh preview, then inspect and mark it reviewed.",
+      };
+    }
+    if (run.preview_lease_state === "running" && !run.preview_reviewed_at) {
+      return {
+        stage: "preview_required",
+        detail:
+          "The required preview matches the current pull request SHA. Inspect it and mark it reviewed to continue completion.",
+      };
+    }
+    if (previewRequirementSatisfied(run)) {
+      return {
+        stage: "preview_required",
+        detail: "The exact preview was reviewed; guarded completion is queued.",
+      };
+    }
+    return {
+      stage: "preview_required",
+      detail: "Completion is paused until the required exact preview is reviewed.",
+    };
+  }
   if (run.preview_lease_state === "failed") {
     return {
       stage: "needs_attention",
@@ -1520,7 +1610,10 @@ function completeRequest(
 }
 
 function applyInternal(database: DatabaseSync, plan: PlannedAction): unknown {
-  if (plan.action !== "resume_stop" && !plan.requestId) {
+  if (
+    !["resume_stop", "preview_requirement_complete"].includes(plan.action) &&
+    !plan.requestId
+  ) {
     fail(`Internal action requires a request ID`);
   }
   database.exec("BEGIN IMMEDIATE");
@@ -1570,6 +1663,77 @@ function applyInternal(database: DatabaseSync, plan: PlannedAction): unknown {
         .run(plan.runId);
       if (changed.changes !== 1) fail("Cancellation intent changed before recovery");
       result = { action: "stopping_restored" };
+    } else if (plan.action === "preview_requirement_complete") {
+      const evidence = database
+        .prepare(`
+          SELECT r.state, r.owner_state, r.completion_source_event_id,
+                 ci.head_sha, pl.lease_id, pl.state AS lease_state,
+                 pl.verified_head_sha, pl.reviewed_at
+          FROM runs r
+          LEFT JOIN run_ci_snapshots ci USING (run_id)
+          LEFT JOIN preview_leases pl
+            ON pl.run_id = r.run_id AND pl.state <> 'released'
+          WHERE r.run_id = ? AND r.preview_required = 1
+            AND r.completion_requested_at IS NOT NULL
+            AND r.preview_requirement_satisfied_at IS NULL
+        `)
+        .get(plan.runId) as
+        | {
+            state: string;
+            owner_state: string;
+            completion_source_event_id: string | null;
+            head_sha: string | null;
+            lease_id: string | null;
+            lease_state: string | null;
+            verified_head_sha: string | null;
+            reviewed_at: string | null;
+          }
+        | undefined;
+      if (
+        !evidence ||
+        evidence.state !== "parked_review" ||
+        evidence.owner_state !== "none" ||
+        evidence.lease_state !== "running" ||
+        !evidence.lease_id ||
+        !evidence.reviewed_at ||
+        !evidence.head_sha ||
+        evidence.verified_head_sha !== evidence.head_sha
+      )
+        fail("Preview requirement changed before guarded completion");
+      const changed = database
+        .prepare(`
+          UPDATE runs
+          SET state = 'stopping', stop_reason = 'completed',
+              preview_requirement_satisfied_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now'),
+              preview_requirement_lease_id = ?,
+              updated_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
+          WHERE run_id = ? AND state = 'parked_review' AND owner_state = 'none'
+            AND stop_reason IS NULL AND preview_requirement_satisfied_at IS NULL
+        `)
+        .run(evidence.lease_id, plan.runId);
+      if (changed.changes !== 1)
+        fail("Run changed before guarded preview completion");
+      database
+        .prepare(`
+          INSERT INTO run_state_history (
+            run_id, from_state, to_state, reason, source_event_id, details_json
+          ) VALUES (?, 'parked_review', 'stopping',
+                    'preview_requirement_satisfied', ?, ?)
+        `)
+        .run(
+          plan.runId,
+          evidence.completion_source_event_id,
+          JSON.stringify({
+            leaseId: evidence.lease_id,
+            headSha: evidence.head_sha,
+            reviewedAt: evidence.reviewed_at,
+          }),
+        );
+      result = {
+        action: "preview_requirement_satisfied",
+        leaseId: evidence.lease_id,
+        headSha: evidence.head_sha,
+      };
     } else {
       result = { action: plan.reason ?? plan.action };
       completeRequest(
@@ -1658,6 +1822,7 @@ async function main(): Promise<void> {
         "claim_remote",
         "request_stop",
         "resume_stop",
+        "preview_requirement_complete",
         "request_complete",
         "request_reject",
       ].includes(plan.action);

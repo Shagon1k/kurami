@@ -63,6 +63,7 @@ type LeaseRecord = SlotRecord & {
   reviewed_at: string | null;
   reviewed_by: string | null;
   reviewed_via: string | null;
+  verified_head_sha: string | null;
 };
 
 const orchestratorHome = resolve(
@@ -224,6 +225,7 @@ function leaseView(lease: LeaseRecord): Record<string, unknown> {
     reviewedAt: lease.reviewed_at,
     reviewedBy: lease.reviewed_by,
     reviewedVia: lease.reviewed_via,
+    verifiedHeadSha: lease.verified_head_sha,
     ports: {
       frontend: lease.frontend_port,
       backend: lease.backend_port,
@@ -301,6 +303,7 @@ function review(
           reviewedAt: updated.reviewed_at,
           reviewedBy,
           reviewedVia,
+          verifiedHeadSha: updated.verified_head_sha,
         }),
       );
     database.exec("COMMIT");

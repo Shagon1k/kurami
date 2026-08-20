@@ -77,6 +77,7 @@ app/
     verify-preview-ttl.ts     Proves expiry, warning, extension, and guarded cleanup planning
     verify-preview-reviewed.ts
                               Proves exact-lease owner acknowledgement without lifecycle effects
+    verify-preview-policy.ts  Proves opt-in exact-SHA preview evidence before completion
     verify-run-controls.ts    Proves event idempotency and explicit control dispatch
     verify-session-observer.ts
                               Proves idle blocker detection without transient false alerts
@@ -270,6 +271,7 @@ explicit AI-review request        -> detached read-only review on the exact PR S
 explicit Fix Review request       -> snapshot threads + fresh exact-SHA writer
 passed review-fix SHA             -> bot reply/resolve snapshot + restore primary task
 explicit preview-up request       -> lease, build, health-check, and publish
+preview-required completion       -> wait for exact-SHA reviewed preview, then resume
 stopping + active preview         -> revoke ingress and remove the exact runtime
 stopping + releasable resources   -> safe worktree release
 ```
@@ -722,6 +724,16 @@ event. It does not change the run state, stop the preview, extend its TTL, or
 act as merge approval. The control disappears after acknowledgement, while the
 live card shows `Reviewed`; a newly allocated lease starts unreviewed again.
 
+TailorTales can opt a run into a completion gate with the exact repository
+label `preview-required`. The label is snapshotted only when the issue enters
+`In progress`; adding or removing it later does not silently change the running
+contract. When GitHub moves an enrolled issue to `Done`, Kurami keeps the run
+parked and presents `Preview required` until a healthy preview for the exact
+current PR head SHA has been acknowledged. A preview for an older commit never
+counts. Once exact-SHA evidence exists, the controller resumes completion
+automatically and retains the source event, lease, SHA, reviewer, and timestamps
+as durable provenance. Runs without the label keep the existing lifecycle.
+
 `src/preview-ingress.ts` is the only writer of the managed Caddy route fragment.
 It renders routes solely for enabled slots whose lease is `running`, validates a
 candidate configuration before replacing the live mode-`600` file, and reloads
@@ -919,6 +931,13 @@ Verify acknowledgement provenance and lifecycle isolation:
 
 ```bash
 npm run test:preview-reviewed
+```
+
+Verify opt-in admission, deferred completion, stale-SHA rejection, owner-visible
+state, and automatic guarded completion:
+
+```bash
+npm run test:preview-policy
 ```
 
 Inspect or reconcile the desired Caddy routes from the Run Store:
