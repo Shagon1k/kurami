@@ -39,6 +39,7 @@ app/
                               Plans durable changed-only metadata batches
     metadata-proposal-worker.ts
                               Runs bounded read-only Priority/Effort assessment
+    metadata-sync.ts          Applies accepted metadata with field-level drift guards
     observe-ci.ts             Reads exact-PR CI state without GitHub mutations
     review-manager.ts         Validates and starts explicit exact-SHA AI reviews
     ai-review-worker.ts       Publishes one bounded native GitHub PR review
@@ -484,8 +485,40 @@ ORCHESTRATOR_HOME=/home/shagon1k/_hermes/_orchestrator \
 node src/metadata-proposal-worker.ts --batch-id <batch_id> --apply
 ```
 
-Guarded GitHub Project field application remains a later P4c stage and is
-intentionally absent from this boundary.
+Schema 21 adds guarded GitHub Project synchronization. `Accept batch` is the
+single owner authorization: the per-project poller picks up the durable accepted
+batch and first re-reads every exact Project item field. A proposal may write
+only when that field is blank, or when its current value still equals the last
+value written and owned by Kurami. Any other non-empty value is treated as an
+owner change and preserved as `conflicted`. P0 is rejected again at this final
+boundary, even though proposal validation already forbids it.
+
+Writes are recorded per field in `project_metadata_field_ownership`; matching
+values that already exist are considered satisfied without claiming bot
+ownership. Partial writes are durable and idempotent. Global failures retry at
+most once (two total attempts), then the digest reports `Needs attention`
+instead of looping. The owner-facing states are `Approved`, `Applying`,
+`Applied`, `Partially applied`, and `Needs attention`. A changed sync result
+immediately runs the same snapshot/ranking/digest pipeline, while idle ticks are
+no-ops.
+
+Inspect the next accepted batch without external reads or writes:
+
+```bash
+ORCHESTRATOR_HOME=/home/shagon1k/_hermes/_orchestrator \
+node src/metadata-sync.ts --project tailortales
+```
+
+Re-read all exact live fields and print guarded decisions without mutation:
+
+```bash
+ORCHESTRATOR_HOME=/home/shagon1k/_hermes/_orchestrator \
+node src/metadata-sync.ts --project tailortales --verify
+```
+
+`--apply` is normally invoked by the locked project poller after explicit owner
+acceptance. During a controlled deployment it may be run manually while that
+poller is paused.
 
 ### Worktree Provisioner
 

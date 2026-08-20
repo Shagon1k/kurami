@@ -9,6 +9,7 @@ readonly CONSUMER="${ORCHESTRATOR_HOME}/app/src/process-project-events.ts"
 readonly CI_OBSERVER="${ORCHESTRATOR_HOME}/app/src/observe-ci.ts"
 readonly CONTROLLER="${ORCHESTRATOR_HOME}/app/src/controller.ts"
 readonly DISCORD_NOTIFIER="${ORCHESTRATOR_HOME}/app/src/notify-discord-controls.ts"
+readonly METADATA_SYNC="${ORCHESTRATOR_HOME}/app/src/metadata-sync.ts"
 readonly PROJECTS_DIGEST="${ORCHESTRATOR_HOME}/app/run-projects-digest.sh"
 readonly OBSERVER="${ORCHESTRATOR_HOME}/app/src/observe-sessions.ts"
 readonly ENV_FILE="${ORCHESTRATOR_HOME}/secrets/github.env"
@@ -29,6 +30,7 @@ readonly CONSUMER_ERROR_LOG="${ORCHESTRATOR_HOME}/logs/project-event-consumer-er
 readonly CI_OBSERVER_ERROR_LOG="${ORCHESTRATOR_HOME}/logs/ci-observer-errors.log"
 readonly CONTROLLER_ERROR_LOG="${ORCHESTRATOR_HOME}/logs/controller-errors.log"
 readonly DISCORD_NOTIFIER_ERROR_LOG="${ORCHESTRATOR_HOME}/logs/discord-control-notifier-errors.log"
+readonly METADATA_SYNC_ERROR_LOG="${ORCHESTRATOR_HOME}/logs/metadata-sync-errors.log"
 readonly PROJECTS_DIGEST_EVENT_LOG="${ORCHESTRATOR_HOME}/logs/projects-digest-event-refresh.log"
 readonly OBSERVER_ERROR_LOG="${ORCHESTRATOR_HOME}/logs/session-observer-errors.log"
 
@@ -66,6 +68,19 @@ else
     "${PROJECT}" "${ERROR_LOG}"
 fi
 
+metadata_sync_changed=0
+metadata_sync_output=""
+if metadata_sync_output="$("${NODE_BIN}" "${METADATA_SYNC}" --project "${PROJECT}" --apply \
+  2>>"${METADATA_SYNC_ERROR_LOG}")"; then
+  if [[ "${metadata_sync_output}" != *'"action":"unchanged"'* ]]; then
+    metadata_sync_changed=1
+    printf '%s\n' "${metadata_sync_output}"
+  fi
+else
+  printf 'Guarded metadata sync failed for %s; owner values remain protected. Log: %s\n' \
+    "${PROJECT}" "${METADATA_SYNC_ERROR_LOG}" >>"${METADATA_SYNC_ERROR_LOG}"
+fi
+
 if ! CI_OBSERVER_QUIET=1 "${NODE_BIN}" "${CI_OBSERVER}" --project "${PROJECT}" --apply \
   2>>"${CI_OBSERVER_ERROR_LOG}"; then
   printf 'CI observer failed for %s; continuing core reconciliation.\n' "${PROJECT}" \
@@ -89,7 +104,7 @@ if flock --nonblock 8; then
   fi
 fi
 
-if (( poll_changed == 1 )); then
+if (( poll_changed == 1 || metadata_sync_changed == 1 )); then
   if ! "${PROJECTS_DIGEST}" --project "${PROJECT}" >>"${PROJECTS_DIGEST_EVENT_LOG}" 2>&1; then
     printf 'Projects Digest refresh failed for %s; daily baseline remains active.\n' \
       "${PROJECT}" >>"${PROJECTS_DIGEST_EVENT_LOG}"

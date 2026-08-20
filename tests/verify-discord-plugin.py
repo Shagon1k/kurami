@@ -61,6 +61,7 @@ def main() -> None:
         "kurami:metadata_discuss:pmb_abc123": ("discuss", "pmb_abc123"),
         "kurami:metadata_exclude:pmb_abc123": ("exclude", "pmb_abc123"),
         "kurami:metadata_restore:pmb_abc123": ("restore", "pmb_abc123"),
+        "kurami:metadata_retry:pmb_abc123": ("retry", "pmb_abc123"),
     }
     for custom_id, expected in metadata_accepted.items():
         require(
@@ -128,6 +129,11 @@ def main() -> None:
         "Metadata embed truncated the bounded 12-proposal batch",
     )
     require("Nothing is written to GitHub" in metadata_details, "Metadata safety boundary is hidden")
+    require(
+        "advisory" in module._METADATA_DISCUSSION_INTRO
+        and "never changes SQLite or GitHub" in module._METADATA_DISCUSSION_INTRO,
+        "Metadata discussion can be mistaken for a mutation control",
+    )
 
     class MessageFlags:
         ephemeral = True

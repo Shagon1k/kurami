@@ -15,6 +15,9 @@ type BatchRow = {
   candidate_count: number;
   proposal_count: number;
   summary: string | null;
+  sync_state: string;
+  sync_attempt_count: number;
+  sync_last_error: string | null;
   discussion_thread_id: string | null;
   discussion_archived_at: string | null;
 };
@@ -31,6 +34,9 @@ type ProposalRow = {
   reason: string;
   evidence_json: string;
   proposal_state: string;
+  previous_value: string | null;
+  applied_value: string | null;
+  failure_reason: string | null;
 };
 
 function fail(message: string): never {
@@ -41,7 +47,8 @@ function loadBatch(database: DatabaseSync, batchId: string): BatchRow {
   const row = database
     .prepare(
       `SELECT batch_id, project, batch_number, batch_kind, batch_state,
-              candidate_count, proposal_count, summary, discussion_thread_id,
+              candidate_count, proposal_count, summary, sync_state,
+              sync_attempt_count, sync_last_error, discussion_thread_id,
               discussion_archived_at
        FROM project_metadata_proposal_batches WHERE batch_id = ?`,
     )
@@ -54,7 +61,8 @@ function proposals(database: DatabaseSync, batchId: string): ProposalRow[] {
   return database
     .prepare(
       `SELECT proposal_id, issue_number, title, url, field_name, baseline_value,
-              proposed_value, confidence, reason, evidence_json, proposal_state
+              proposed_value, confidence, reason, evidence_json, proposal_state,
+              previous_value, applied_value, failure_reason
        FROM project_metadata_proposals
        WHERE batch_id = ?
        ORDER BY issue_number, field_name`,
@@ -98,6 +106,9 @@ function status(database: DatabaseSync, batchId: string): Record<string, unknown
     candidateCount: batch.candidate_count,
     proposalCount: batch.proposal_count,
     summary: batch.summary,
+    syncState: batch.sync_state,
+    syncAttemptCount: batch.sync_attempt_count,
+    syncLastError: batch.sync_last_error,
     discussionThreadId: batch.discussion_thread_id,
     counts: {
       pending: count("pending"),
@@ -105,6 +116,7 @@ function status(database: DatabaseSync, batchId: string): Record<string, unknown
       skipped: count("skipped"),
       applied: count("applied"),
       conflicted: count("conflicted"),
+      failed: count("failed"),
     },
     proposals: rows.map((row) => ({
       proposalId: row.proposal_id,
@@ -118,6 +130,9 @@ function status(database: DatabaseSync, batchId: string): Record<string, unknown
       reason: row.reason,
       evidence: JSON.parse(row.evidence_json) as string[],
       state: row.proposal_state,
+      previousValue: row.previous_value,
+      appliedValue: row.applied_value,
+      failureReason: row.failure_reason,
     })),
   };
 }
@@ -151,7 +166,8 @@ function accept(
       .prepare(
         `UPDATE project_metadata_proposal_batches
          SET batch_state='accepted', accepted_by='discord_owner', accepted_at=?,
-             updated_at=?
+             sync_state='queued', sync_attempt_count=0, sync_started_at=NULL,
+             sync_completed_at=NULL, sync_last_error=NULL, updated_at=?
          WHERE batch_id=? AND batch_state IN ('ready', 'discussing')`,
       )
       .run(timestamp, timestamp, batchId);
@@ -440,6 +456,50 @@ function recordDiscussionArchived(
   return { ok: true, apply: true, action: "archive_recorded", batchId };
 }
 
+function retrySync(
+  database: DatabaseSync,
+  batchId: string,
+  apply: boolean,
+): Record<string, unknown> {
+  const batch = loadBatch(database, batchId);
+  if (
+    batch.batch_state !== "accepted" ||
+    batch.sync_state !== "failed" ||
+    batch.sync_attempt_count < 2
+  )
+    fail("Metadata sync has not exhausted its automatic attempts");
+  if (!apply)
+    return {
+      ok: true,
+      apply: false,
+      action: "retry_sync",
+      batchId,
+      previousAttempts: batch.sync_attempt_count,
+    };
+  const now = new Date().toISOString();
+  const changed = database
+    .prepare(
+      `UPDATE project_metadata_proposal_batches
+       SET sync_state='queued', sync_attempt_count=0, sync_started_at=NULL,
+           sync_last_error=NULL, updated_at=?
+       WHERE batch_id=? AND batch_state='accepted' AND sync_state='failed'
+         AND sync_attempt_count>=2`,
+    )
+    .run(now, batchId);
+  if (changed.changes !== 1) fail("Metadata sync retry race");
+  recordEvent(database, batchId, "sync_retry_requested", {
+    previousAttempts: batch.sync_attempt_count,
+  });
+  return {
+    ok: true,
+    apply: true,
+    action: "sync_retry_queued",
+    batchId,
+    previousAttempts: batch.sync_attempt_count,
+    githubWrites: 0,
+  };
+}
+
 function parseArguments(args: string[]): {
   action: string;
   batchId: string;
@@ -455,7 +515,7 @@ function parseArguments(args: string[]): {
   const proposalIds = args.flatMap((arg, index) =>
     arg === "--proposal-id" ? [args[index + 1]?.trim() ?? ""] : [],
   );
-  if (!(["status", "accept", "exclude", "restore", "discuss", "record-thread", "record-archive", "skip"] as string[]).includes(action))
+  if (!(["status", "accept", "exclude", "restore", "discuss", "record-thread", "record-archive", "retry-sync", "skip"] as string[]).includes(action))
     fail("Unknown metadata proposal control action");
   if (!/^pmb_[a-f0-9]+$/u.test(batchId)) fail("--batch-id is required");
   if (proposalIds.some((proposalId) => !/^pmp_[a-f0-9]+$/u.test(proposalId)))
@@ -488,6 +548,8 @@ async function main(): Promise<void> {
       result = recordDiscussionThread(database, parsed.batchId, parsed.threadId, parsed.apply);
     } else if (parsed.action === "record-archive") {
       result = recordDiscussionArchived(database, parsed.batchId, parsed.apply);
+    } else if (parsed.action === "retry-sync") {
+      result = retrySync(database, parsed.batchId, parsed.apply);
     } else {
       const batch = loadBatch(database, parsed.batchId);
       const skipped = skipBatch(

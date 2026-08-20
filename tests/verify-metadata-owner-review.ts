@@ -295,11 +295,39 @@ async function main(): Promise<void> {
       "Owner skip was not SQLite-only",
     );
 
+    const exhausted = new DatabaseSync(resolve(home, "state/orchestrator.db"));
+    exhausted.exec(`
+      UPDATE project_metadata_proposal_batches
+      SET sync_state='failed', sync_attempt_count=2,
+          sync_last_error='bounded attempts exhausted'
+      WHERE batch_id='pmb_bb';
+    `);
+    exhausted.close();
+    const retryPlan = await runControl(control, home, [
+      "retry-sync",
+      "--batch-id",
+      "pmb_bb",
+    ]);
+    assert(
+      retryPlan.action === "retry_sync" && retryPlan.previousAttempts === 2,
+      "Exhausted sync retry was not inspectable",
+    );
+    const retried = await runControl(control, home, [
+      "retry-sync",
+      "--batch-id",
+      "pmb_bb",
+      "--apply",
+    ]);
+    assert(
+      retried.action === "sync_retry_queued" && retried.githubWrites === 0,
+      "Explicit owner retry did not remain SQLite-only",
+    );
+
     const verified = new DatabaseSync(resolve(home, "state/orchestrator.db"));
     const acceptedBatch = verified
       .prepare(
-        `SELECT batch_state, accepted_by, accepted_at, discussion_thread_id,
-                discussion_archived_at
+        `SELECT batch_state, accepted_by, accepted_at, sync_state,
+                sync_attempt_count, discussion_thread_id, discussion_archived_at
          FROM project_metadata_proposal_batches WHERE batch_id='pmb_bb'`,
       )
       .get() as Record<string, unknown>;
@@ -313,6 +341,8 @@ async function main(): Promise<void> {
       acceptedBatch.batch_state === "accepted" &&
         acceptedBatch.accepted_by === "discord_owner" &&
         typeof acceptedBatch.accepted_at === "string" &&
+        acceptedBatch.sync_state === "queued" &&
+        acceptedBatch.sync_attempt_count === 0 &&
         acceptedBatch.discussion_thread_id === "1539929665068601364" &&
         typeof acceptedBatch.discussion_archived_at === "string" &&
         proposalStates.map(({ proposal_state }) => proposal_state).join(",") === "accepted,skipped",
@@ -330,8 +360,9 @@ async function main(): Promise<void> {
       )
       .all() as Array<{ event_type: string; actor: string }>;
     assert(
-      events.some(({ event_type, actor }) => event_type === "accepted" && actor === "discord_owner") &&
-        events.some(({ event_type }) => event_type === "discussion_archived"),
+        events.some(({ event_type, actor }) => event_type === "accepted" && actor === "discord_owner") &&
+        events.some(({ event_type }) => event_type === "discussion_archived") &&
+        events.some(({ event_type }) => event_type === "sync_retry_requested"),
       "Owner decisions lack append-only provenance",
     );
     const skipEvent = verified
@@ -364,6 +395,8 @@ async function main(): Promise<void> {
         batchAccept: true,
         batchSkip: true,
         acceptedBatchHeldForSync: true,
+        guardedSyncQueued: true,
+        explicitSyncRetry: true,
         githubWrites: 0,
         appendOnlyProvenance: true,
       })}\n`,

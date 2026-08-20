@@ -50,9 +50,15 @@ type DigestRow = {
   metadata_proposal_count: number | null;
   metadata_summary: string | null;
   metadata_updated_at: string | null;
+  metadata_sync_state: string | null;
+  metadata_sync_attempt_count: number;
+  metadata_sync_last_error: string | null;
   metadata_pending_count: number;
   metadata_accepted_count: number;
   metadata_skipped_count: number;
+  metadata_applied_count: number;
+  metadata_conflicted_count: number;
+  metadata_failed_count: number;
   metadata_priority_count: number;
   metadata_effort_count: number;
 };
@@ -125,11 +131,16 @@ function desiredDigest(row: DigestRow): string {
         String(row.change_sequence),
         row.metadata_batch_id ?? "none",
         row.metadata_batch_state ?? "none",
+        row.metadata_sync_state ?? "none",
+        String(row.metadata_sync_attempt_count),
         row.metadata_updated_at ?? "none",
         String(row.metadata_pending_count),
         String(row.metadata_accepted_count),
         String(row.metadata_skipped_count),
-        "discord-project-digest-v2",
+        String(row.metadata_applied_count),
+        String(row.metadata_conflicted_count),
+        String(row.metadata_failed_count),
+        "discord-project-digest-v3",
       ].join(":"),
     )
     .digest("hex");
@@ -149,13 +160,67 @@ function metadataField(row: DigestRow): { name: string; value: string } | null {
       value: `Assessing ${row.metadata_candidate_count ?? 0} issues…`,
     };
   const mix = `${row.metadata_priority_count} Priority · ${row.metadata_effort_count} Effort`;
-  if (state === "accepted")
+  if (state === "accepted") {
+    if (row.metadata_sync_state === "syncing")
+      return {
+        name: "Metadata proposals",
+        value: [
+          `🔄 Applying · ${row.metadata_accepted_count} proposals`,
+          mix,
+          "Guarded GitHub sync is revalidating each field.",
+        ].join("\n"),
+      };
+    if (row.metadata_sync_state === "failed") {
+      const retrying = row.metadata_sync_attempt_count < 2;
+      return {
+        name: "Metadata proposals",
+        value: [
+          `${retrying ? "⏳ Retry scheduled" : "⚠️ Needs attention"} · ${row.metadata_accepted_count} proposals`,
+          mix,
+          retrying
+            ? "The guarded sync will retry once; GitHub owner values remain protected."
+            : "Automatic attempts are exhausted. GitHub owner values remain protected.",
+        ].join("\n"),
+      };
+    }
     return {
       name: "Metadata proposals",
       value: [
-        `✅ Accepted · ${row.metadata_accepted_count} proposals`,
+        `⏳ Approved · ${row.metadata_accepted_count} proposals`,
         mix,
-        "Waiting for guarded GitHub sync. GitHub is unchanged.",
+        "Guarded GitHub sync is queued. GitHub is unchanged.",
+      ].join("\n"),
+    };
+  }
+  if (state === "applied")
+    return {
+      name: "Metadata proposals",
+      value: [
+        `✅ Applied · ${row.metadata_applied_count} proposals`,
+        mix,
+        "GitHub Project updated after field-level revalidation.",
+      ].join("\n"),
+    };
+  if (state === "partially_applied") {
+    const nothingApplied = row.metadata_applied_count === 0;
+    return {
+      name: "Metadata proposals",
+      value: [
+        nothingApplied
+          ? "⚠️ Needs attention · nothing applied"
+          : `⚠️ Partially applied · ${row.metadata_applied_count} applied`,
+        `${row.metadata_conflicted_count} owner values preserved · ${row.metadata_failed_count} failed`,
+        "Review the result; no conflicting GitHub value was overwritten.",
+      ].join("\n"),
+    };
+  }
+  if (state === "failed" && row.metadata_sync_state === "failed")
+    return {
+      name: "Metadata proposals",
+      value: [
+        "⚠️ Needs attention",
+        `${row.metadata_applied_count} applied · ${row.metadata_failed_count} failed`,
+        "No conflicting GitHub value was overwritten.",
       ].join("\n"),
     };
   if (state === "ready" || state === "discussing")
@@ -173,7 +238,12 @@ function metadataField(row: DigestRow): { name: string; value: string } | null {
 function metadataComponents(row: DigestRow): DiscordObject[] {
   if (!row.metadata_batch_id || !row.metadata_batch_state) return [];
   const batchId = row.metadata_batch_id;
-  if (row.metadata_batch_state === "accepted")
+  if (
+    row.metadata_batch_state === "accepted" ||
+    row.metadata_batch_state === "applied" ||
+    row.metadata_batch_state === "partially_applied" ||
+    (row.metadata_batch_state === "failed" && row.metadata_accepted_count > 0)
+  )
     return [
       {
         type: 1,
@@ -181,9 +251,24 @@ function metadataComponents(row: DigestRow): DiscordObject[] {
           {
             type: 2,
             style: 2,
-            label: "Review accepted batch",
+            label:
+              row.metadata_batch_state === "accepted"
+                ? "Review approved batch"
+                : "Review sync result",
             custom_id: `kurami:metadata_details:${batchId}`,
           },
+          ...(row.metadata_batch_state === "accepted" &&
+          row.metadata_sync_state === "failed" &&
+          row.metadata_sync_attempt_count >= 2
+            ? [
+                {
+                  type: 2,
+                  style: 1,
+                  label: "Retry sync",
+                  custom_id: `kurami:metadata_retry:${batchId}`,
+                },
+              ]
+            : []),
         ],
       },
     ];
@@ -365,24 +450,38 @@ function loadRows(
              mb.proposal_count AS metadata_proposal_count,
              mb.summary AS metadata_summary,
              mb.updated_at AS metadata_updated_at,
+             mb.sync_state AS metadata_sync_state,
+             mb.sync_attempt_count AS metadata_sync_attempt_count,
+             mb.sync_last_error AS metadata_sync_last_error,
              COALESCE(mp.pending_count, 0) AS metadata_pending_count,
              COALESCE(mp.accepted_count, 0) AS metadata_accepted_count,
              COALESCE(mp.skipped_count, 0) AS metadata_skipped_count,
+             COALESCE(mp.applied_count, 0) AS metadata_applied_count,
+             COALESCE(mp.conflicted_count, 0) AS metadata_conflicted_count,
+             COALESCE(mp.failed_count, 0) AS metadata_failed_count,
              COALESCE(mp.priority_count, 0) AS metadata_priority_count,
              COALESCE(mp.effort_count, 0) AS metadata_effort_count
       FROM project_triage_state ts
       JOIN project_triage_rankings tr ON tr.project = ts.project
         AND tr.factual_hash = ts.factual_hash
       LEFT JOIN project_discord_digest_surfaces ds ON ds.project = ts.project
-      LEFT JOIN project_metadata_proposal_batches mb ON mb.project = ts.project
-        AND mb.batch_state IN ('planned', 'running', 'ready', 'discussing', 'accepted')
+      LEFT JOIN project_metadata_proposal_batches mb ON mb.batch_id = (
+        SELECT latest.batch_id
+        FROM project_metadata_proposal_batches latest
+        WHERE latest.project = ts.project
+        ORDER BY latest.batch_number DESC
+        LIMIT 1
+      )
       LEFT JOIN (
         SELECT batch_id,
                SUM(CASE WHEN proposal_state='pending' THEN 1 ELSE 0 END) AS pending_count,
                SUM(CASE WHEN proposal_state='accepted' THEN 1 ELSE 0 END) AS accepted_count,
                SUM(CASE WHEN proposal_state='skipped' THEN 1 ELSE 0 END) AS skipped_count,
-               SUM(CASE WHEN field_name='priority' AND proposal_state IN ('pending', 'accepted') THEN 1 ELSE 0 END) AS priority_count,
-               SUM(CASE WHEN field_name='effort' AND proposal_state IN ('pending', 'accepted') THEN 1 ELSE 0 END) AS effort_count
+               SUM(CASE WHEN proposal_state='applied' THEN 1 ELSE 0 END) AS applied_count,
+               SUM(CASE WHEN proposal_state='conflicted' THEN 1 ELSE 0 END) AS conflicted_count,
+               SUM(CASE WHEN proposal_state='failed' THEN 1 ELSE 0 END) AS failed_count,
+               SUM(CASE WHEN field_name='priority' AND proposal_state <> 'skipped' THEN 1 ELSE 0 END) AS priority_count,
+               SUM(CASE WHEN field_name='effort' AND proposal_state <> 'skipped' THEN 1 ELSE 0 END) AS effort_count
         FROM project_metadata_proposals GROUP BY batch_id
       ) mp ON mp.batch_id = mb.batch_id
       WHERE (? IS NULL OR ts.project = ?)

@@ -32,7 +32,8 @@
     "test:triage-snapshot": "node tests/verify-triage-snapshot.ts",
     "test:projects-digest": "node tests/verify-triage-digest.ts",
     "test:metadata-proposals": "node tests/verify-metadata-proposals.ts",
-    "test:metadata-owner-review": "node tests/verify-metadata-owner-review.ts"
+    "test:metadata-owner-review": "node tests/verify-metadata-owner-review.ts",
+    "test:metadata-sync": "node tests/verify-metadata-sync.ts"
   },
   "keywords": [],
   "author": "",

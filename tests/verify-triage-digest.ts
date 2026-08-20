@@ -327,6 +327,99 @@ async function main(): Promise<void> {
       "Unchanged metadata batch edited the digest card",
     );
 
+    database.exec(`
+      UPDATE project_metadata_proposal_batches
+      SET batch_state='accepted', sync_state='queued', accepted_by='discord_owner',
+          accepted_at='2026-08-20T13:00:00.000Z', updated_at='2026-08-20T13:00:00.000Z'
+      WHERE batch_id='pmb_aabb';
+      UPDATE project_metadata_proposals
+      SET proposal_state='accepted', accepted_by='discord_owner',
+          accepted_at='2026-08-20T13:00:00.000Z'
+      WHERE batch_id='pmb_aabb';
+    `);
+    await runNode(notifier, ["--apply"], notifierEnvironment);
+    const approvedPayload = JSON.stringify(requests.at(-1)?.body);
+    assert(
+      approvedPayload.includes("Approved · 2 proposals") &&
+        approvedPayload.includes("Guarded GitHub sync is queued") &&
+        approvedPayload.includes("Review approved batch") &&
+        !approvedPayload.includes("Accept batch"),
+      "Approved metadata batch did not enter the guarded-sync UI",
+    );
+    database.exec(`
+      UPDATE project_metadata_proposal_batches
+      SET sync_state='syncing', sync_attempt_count=1,
+          updated_at='2026-08-20T13:01:00.000Z'
+      WHERE batch_id='pmb_aabb';
+    `);
+    await runNode(notifier, ["--apply"], notifierEnvironment);
+    const syncingPayload = JSON.stringify(requests.at(-1)?.body);
+    assert(
+      syncingPayload.includes("Applying · 2 proposals") &&
+        syncingPayload.includes("revalidating each field"),
+      "Active guarded sync is not visible in the digest",
+    );
+    database.exec(`
+      UPDATE project_metadata_proposals
+      SET proposal_state='applied', applied_value=proposed_value,
+          applied_at='2026-08-20T13:02:00.000Z'
+      WHERE proposal_id='pmp_aabb';
+      UPDATE project_metadata_proposals
+      SET proposal_state='conflicted', previous_value='L',
+          failure_reason='Owner value preserved'
+      WHERE proposal_id='pmp_ccdd';
+      UPDATE project_metadata_proposal_batches
+      SET batch_state='partially_applied', sync_state='partial',
+          completed_at='2026-08-20T13:02:00.000Z',
+          sync_completed_at='2026-08-20T13:02:00.000Z',
+          updated_at='2026-08-20T13:02:00.000Z'
+      WHERE batch_id='pmb_aabb';
+    `);
+    await runNode(notifier, ["--apply"], notifierEnvironment);
+    const partialPayload = JSON.stringify(requests.at(-1)?.body);
+    assert(
+      partialPayload.includes("Partially applied · 1 applied") &&
+        partialPayload.includes("1 owner values preserved") &&
+        partialPayload.includes("Review sync result") &&
+        !partialPayload.includes("Accept batch"),
+      "Partial guarded-sync result did not preserve owner-facing evidence",
+    );
+    database.exec(`
+      UPDATE project_metadata_proposals
+      SET proposal_state='conflicted', applied_value=NULL, applied_at=NULL,
+          previous_value='P1', failure_reason='Owner value preserved'
+      WHERE proposal_id='pmp_aabb';
+      UPDATE project_metadata_proposal_batches
+      SET updated_at='2026-08-20T13:02:30.000Z'
+      WHERE batch_id='pmb_aabb';
+    `);
+    await runNode(notifier, ["--apply"], notifierEnvironment);
+    const noWritePayload = JSON.stringify(requests.at(-1)?.body);
+    assert(
+      noWritePayload.includes("Needs attention · nothing applied") &&
+        noWritePayload.includes("2 owner values preserved"),
+      "All-conflict guarded sync was mislabeled as partially applied",
+    );
+    database.exec(`
+      UPDATE project_metadata_proposals
+      SET proposal_state='accepted', applied_value=NULL, applied_at=NULL,
+          previous_value=NULL, failure_reason=NULL
+      WHERE batch_id='pmb_aabb';
+      UPDATE project_metadata_proposal_batches
+      SET batch_state='accepted', sync_state='failed', sync_attempt_count=2,
+          sync_last_error='bounded attempts exhausted', completed_at=NULL,
+          sync_completed_at=NULL, updated_at='2026-08-20T13:03:00.000Z'
+      WHERE batch_id='pmb_aabb';
+    `);
+    await runNode(notifier, ["--apply"], notifierEnvironment);
+    const attentionPayload = JSON.stringify(requests.at(-1)?.body);
+    assert(
+      attentionPayload.includes("Needs attention · 2 proposals") &&
+        attentionPayload.includes("Automatic attempts are exhausted") &&
+        attentionPayload.includes("Retry sync"),
+      "Exhausted guarded sync has no deterministic owner recovery",
+    );
+
     database
       .prepare(
         `UPDATE project_triage_state
@@ -369,7 +462,9 @@ async function main(): Promise<void> {
     const pollerWrapper = await readFile(resolve(app, "run-project-poller.sh"), "utf8");
     assert(
       pollerWrapper.includes('poll_changed=1') &&
-        pollerWrapper.includes('"${PROJECTS_DIGEST}" --project "${PROJECT}"'),
+        pollerWrapper.includes('"${PROJECTS_DIGEST}" --project "${PROJECT}"') &&
+        pollerWrapper.includes('"${METADATA_SYNC}" --project "${PROJECT}" --apply') &&
+        pollerWrapper.includes("metadata_sync_changed == 1"),
       "Project status changes do not trigger Projects Digest",
     );
     database.close();
@@ -393,6 +488,11 @@ async function main(): Promise<void> {
         eventDrivenStatusRefresh: true,
         metadataOwnerReviewCard: true,
         metadataIdleNoOp: true,
+        guardedSyncQueuedCard: true,
+        guardedSyncRunningCard: true,
+        guardedSyncPartialCard: true,
+        guardedSyncAttentionCard: true,
+        explicitSyncRetryControl: true,
         technicalFooterHidden: true,
         persistentMessageIdentity: surface.message_id,
         dueDatesExcluded: true,

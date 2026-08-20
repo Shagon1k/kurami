@@ -16,7 +16,7 @@ CONTROL_ID = re.compile(
     r"^kurami:(status|take_control|preview_start|preview_stop|stop|discard_prompt|discard_local|discard_published_prompt|discard_published|ci_repair|ai_review|review_fix):(r_[A-Za-z0-9_]+)$"
 )
 METADATA_CONTROL_ID = re.compile(
-    r"^kurami:metadata_(details|accept|skip|discuss|exclude|restore):(pmb_[a-f0-9]+)$"
+    r"^kurami:metadata_(details|accept|skip|discuss|exclude|restore|retry):(pmb_[a-f0-9]+)$"
 )
 
 _ACTION_LABELS = {
@@ -30,6 +30,12 @@ _ACTION_LABELS = {
     "ai_review": "AI Code Review",
     "review_fix": "Fix Review",
 }
+
+_METADATA_DISCUSSION_INTRO = (
+    "Discuss this metadata proposal batch here. Discussion is advisory and never "
+    "changes SQLite or GitHub. Use Review proposals on the digest card to exclude "
+    "an item, then Accept or Skip the batch. The thread is archived after a batch decision."
+)
 
 
 def discard_confirmation_id(run_id: str) -> str:
@@ -177,6 +183,19 @@ async def _refresh_digest(project: str) -> None:
 
 def _metadata_details_message(payload: dict[str, Any]) -> str:
     counts = payload.get("counts") or {}
+    state = str(payload.get("batchState") or "")
+    if state in {"applied", "partially_applied", "failed"}:
+        return (
+            f"**Review sync result · {payload.get('project')} · batch {payload.get('batchNumber')}**\n"
+            f"{counts.get('applied', 0)} applied · {counts.get('conflicted', 0)} owner values preserved · "
+            f"{counts.get('failed', 0)} failed."
+        )
+    if state == "accepted":
+        return (
+            f"**Review approved batch · {payload.get('project')} · batch {payload.get('batchNumber')}**\n"
+            f"{counts.get('accepted', 0)} approved · guarded GitHub sync "
+            f"{payload.get('syncState') or 'queued'}."
+        )
     return (
         f"**Review proposals · {payload.get('project')} · batch {payload.get('batchNumber')}**\n"
         f"{counts.get('pending', 0)} pending · {counts.get('skipped', 0)} excluded. "
@@ -189,11 +208,28 @@ def _metadata_details_embeds(payload: dict[str, Any]) -> list[dict[str, Any]]:
     fields: list[dict[str, Any]] = []
     for proposal in payload.get("proposals") or []:
         state = str(proposal.get("state") or "unknown")
-        marker = "✅" if state == "accepted" else "↩️" if state == "skipped" else "📋"
+        marker = (
+            "✅"
+            if state in {"accepted", "applied"}
+            else "⚠️"
+            if state == "conflicted"
+            else "❌"
+            if state == "failed"
+            else "↩️"
+            if state == "skipped"
+            else "📋"
+        )
         title = str(proposal.get("title") or "")[:180]
         reason = str(proposal.get("reason") or "")[:450]
         url = str(proposal.get("url") or "")
         title_line = f"[{title}]({url})" if url.startswith("https://") else title
+        result = ""
+        if state == "applied":
+            result = f"\nApplied: {proposal.get('appliedValue')}"
+        elif state == "conflicted":
+            result = f"\nPreserved current value: {proposal.get('previousValue')}"
+        elif state == "failed" and proposal.get("failureReason"):
+            result = f"\nFailed: {str(proposal.get('failureReason'))[:250]}"
         fields.append(
             {
                 "name": (
@@ -201,7 +237,7 @@ def _metadata_details_embeds(payload: dict[str, Any]) -> list[dict[str, Any]]:
                     f"{proposal.get('field')} → {proposal.get('proposedValue')} · "
                     f"{proposal.get('confidence')}"
                 )[:256],
-                "value": f"{title_line}\n{reason}"[:1024],
+                "value": f"{title_line}\n{reason}{result}"[:1024],
                 "inline": False,
             }
         )
@@ -212,7 +248,12 @@ def _metadata_details_embeds(payload: dict[str, Any]) -> list[dict[str, Any]]:
             "color": 0x5865F2,
             "fields": fields[:25],
             "footer": {
-                "text": "Accept remaining approves only SQLite state; GitHub remains unchanged."
+                "text": (
+                    "Guarded sync preserves owner-authored GitHub values."
+                    if str(payload.get("batchState") or "")
+                    in {"applied", "partially_applied", "failed"}
+                    else "Accept remaining approves only SQLite state; GitHub remains unchanged."
+                )
             },
         }
     ]
@@ -521,11 +562,7 @@ def install_control_listener(
                             "record-thread", batch_id, thread_id=str(thread.id)
                         )
                         thread_id = str(thread.id)
-                        await thread.send(
-                            "Discuss this metadata proposal batch here. Use the digest card "
-                            "to review exceptions, accept, or skip. The thread is archived "
-                            "after a batch decision."
-                        )
+                        await thread.send(_METADATA_DISCUSSION_INTRO)
                     message = f"Discussion opened: <#{thread_id}>"
                 elif action == "accept":
                     before = await _run_metadata_control("status", batch_id)
@@ -542,6 +579,9 @@ def install_control_listener(
                         f"Accepted {payload.get('proposals')} proposals. "
                         "GitHub is unchanged; guarded sync is the next stage."
                     )
+                elif action == "retry":
+                    payload = await _run_metadata_control("retry-sync", batch_id)
+                    message = "Guarded metadata sync retry queued."
                 else:
                     before = await _run_metadata_control("status", batch_id)
                     thread_id = before.get("discussionThreadId")
