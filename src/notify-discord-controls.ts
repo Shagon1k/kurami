@@ -66,6 +66,10 @@ type CardRow = {
   preview_reviewed_by: string | null;
   preview_reviewed_via: string | null;
   preview_verified_head_sha: string | null;
+  preview_runtime_adapter: "compose" | "static" | null;
+  preview_artifact_digest: string | null;
+  preview_artifact_file_count: number | null;
+  preview_artifact_total_bytes: number | null;
   preview_required: number;
   preview_required_label: string | null;
   completion_requested_at: string | null;
@@ -167,11 +171,15 @@ const desiredSurfaceDigestSql = `
   COALESCE(pl.reviewed_at, 'reviewed:none') || ':' ||
   COALESCE(pl.reviewed_by, 'reviewer:none') || ':' ||
   COALESCE(pl.verified_head_sha, 'preview-head:none') || ':' ||
+  COALESCE(pl.runtime_adapter, 'adapter:none') || ':' ||
+  COALESCE(pl.artifact_digest, 'artifact:none') || ':' ||
+  COALESCE(pl.artifact_file_count, -1) || ':' ||
+  COALESCE(pl.artifact_total_bytes, -1) || ':' ||
   r.preview_required || ':' ||
   COALESCE(r.completion_requested_at, 'completion:none') || ':' ||
   COALESCE(r.preview_requirement_satisfied_at, 'preview-satisfied:none') || ':' ||
   COALESCE(ps.hostname, 'host:none') || ':' ||
-  COALESCE(r.stop_reason, 'stop:none') || ':discord-ux-v5'
+  COALESCE(r.stop_reason, 'stop:none') || ':discord-ux-v6'
   || ':' || COALESCE(ci.content_digest, 'ci:none') || ':' ||
   (SELECT COUNT(*) FROM run_ci_repair_attempts repair_count
    WHERE repair_count.run_id = r.run_id) || ':' ||
@@ -361,6 +369,10 @@ function loadDesiredCards(database: DatabaseSync): CardRow[] {
              pl.reviewed_by AS preview_reviewed_by,
              pl.reviewed_via AS preview_reviewed_via,
              pl.verified_head_sha AS preview_verified_head_sha,
+             pl.runtime_adapter AS preview_runtime_adapter,
+             pl.artifact_digest AS preview_artifact_digest,
+             pl.artifact_file_count AS preview_artifact_file_count,
+             pl.artifact_total_bytes AS preview_artifact_total_bytes,
              r.preview_required, r.preview_required_label,
              r.completion_requested_at,
              r.preview_requirement_satisfied_at,
@@ -487,6 +499,10 @@ function loadCard(database: DatabaseSync, runId: string): CardRow {
              pl.reviewed_by AS preview_reviewed_by,
              pl.reviewed_via AS preview_reviewed_via,
              pl.verified_head_sha AS preview_verified_head_sha,
+             pl.runtime_adapter AS preview_runtime_adapter,
+             pl.artifact_digest AS preview_artifact_digest,
+             pl.artifact_file_count AS preview_artifact_file_count,
+             pl.artifact_total_bytes AS preview_artifact_total_bytes,
              r.preview_required, r.preview_required_label,
              r.completion_requested_at,
              r.preview_requirement_satisfied_at,
@@ -1054,8 +1070,16 @@ export function controlComponents(
     ) {
       controls.push(
         card.preview_state
-          ? button("Stop preview", 2, `kurami:preview_stop:${card.run_id}`)
-          : button("Start preview", 3, `kurami:preview_start:${card.run_id}`),
+          ? button(
+              card.preview_runtime_adapter === "static" ? "Remove artifact" : "Stop preview",
+              2,
+              `kurami:preview_stop:${card.run_id}`,
+            )
+          : button(
+              project.preview?.adapter === "static" ? "Publish artifact" : "Start preview",
+              3,
+              `kurami:preview_start:${card.run_id}`,
+            ),
       );
       if (
         card.preview_state === "running" &&
@@ -1183,9 +1207,12 @@ function linkComponents(
   if (pullRequest?.url)
     links.push(button("Open PR", 5, undefined, pullRequest.url));
   if (card.preview_hostname)
-    links.push(
-      button("Open preview", 5, undefined, `https://${card.preview_hostname}`),
-    );
+    links.push(button(
+      card.preview_runtime_adapter === "static" ? "Open artifact" : "Open preview",
+      5,
+      undefined,
+      `https://${card.preview_hostname}`,
+    ));
   if (card.issue_url)
     links.push(button("Open issue", 5, undefined, card.issue_url));
   return links.length > 0 ? [{ type: 1, components: links }] : [];
@@ -1230,9 +1257,12 @@ function cardPayload(
   if (review) fields.push(review);
   if (card.preview_hostname)
     fields.push({
-      name: "Preview",
+      name: card.preview_runtime_adapter === "static" ? "Static artifact" : "Preview",
       value: [
-        `[Open preview](https://${card.preview_hostname})`,
+        `[${card.preview_runtime_adapter === "static" ? "Open artifact" : "Open preview"}](https://${card.preview_hostname})`,
+        card.preview_runtime_adapter === "static" && card.preview_artifact_digest
+          ? `${card.preview_artifact_file_count ?? 0} files · ${card.preview_artifact_total_bytes ?? 0} bytes · \`${card.preview_artifact_digest.slice(0, 12)}\``
+          : null,
         card.preview_verified_head_sha
           ? `SHA \`${card.preview_verified_head_sha.slice(0, 7)}\``
           : null,

@@ -15,6 +15,7 @@
     "test:preview-ttl": "node tests/verify-preview-ttl.ts",
     "test:preview-reviewed": "node tests/verify-preview-reviewed.ts",
     "test:preview-policy": "node tests/verify-preview-policy.ts",
+    "test:preview-static": "node tests/verify-preview-static.ts",
     "test:controls": "node tests/verify-run-controls.ts",
     "test:observer": "node tests/verify-session-observer.ts",
     "test:discord": "node tests/verify-discord-controls.ts",

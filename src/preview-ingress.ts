@@ -8,7 +8,7 @@ import {
   rm,
   writeFile,
 } from "node:fs/promises";
-import { resolve } from "node:path";
+import { isAbsolute, relative, resolve } from "node:path";
 import { pathToFileURL } from "node:url";
 import { DatabaseSync } from "node:sqlite";
 import { parse } from "yaml";
@@ -36,6 +36,8 @@ export type IngressRoute = {
   frontend_port: number;
   backend_port: number;
   minio_api_port: number;
+  runtime_adapter: "compose" | "static";
+  artifact_root: string | null;
 };
 
 const orchestratorHome = resolve(
@@ -47,6 +49,7 @@ const caddyBinary = resolve(orchestratorHome, "runtime/caddy/bin/caddy");
 const caddyConfigPath = resolve(orchestratorHome, "config/Caddyfile");
 const caddyStateDirectory = resolve(orchestratorHome, "state/caddy");
 const routesPath = resolve(caddyStateDirectory, "routes.caddy");
+const previewRuntimeRoot = resolve(orchestratorHome, "state/previews");
 
 function fail(message: string): never {
   throw new Error(message);
@@ -94,6 +97,22 @@ function validateRoute(route: IngressRoute): void {
   assertPort(route.frontend_port, "frontend");
   assertPort(route.backend_port, "backend");
   assertPort(route.minio_api_port, "MinIO API");
+  if (!["compose", "static"].includes(route.runtime_adapter)) {
+    fail(`Unsafe preview adapter: ${route.runtime_adapter}`);
+  }
+  if (route.runtime_adapter === "compose" && route.artifact_root !== null) {
+    fail("Compose route unexpectedly contains a static artifact root");
+  }
+  if (route.runtime_adapter === "static") {
+    if (
+      !route.artifact_root ||
+      !isAbsolute(route.artifact_root) ||
+      route.artifact_root.includes("..") ||
+      !/^\/[a-zA-Z0-9._/-]+$/u.test(route.artifact_root)
+    ) {
+      fail(`Unsafe static artifact root: ${route.artifact_root ?? "missing"}`);
+    }
+  }
 }
 
 export function renderRoutes(routes: IngressRoute[]): string {
@@ -126,26 +145,43 @@ export function renderRoutes(routes: IngressRoute[]): string {
     }
 
     const matcher = `preview_${route.slot_number}`;
-    sections.push(
-      `\t# ${route.run_id}`,
-      `\t@${matcher}_api {`,
-      `\t\thost ${route.hostname}`,
-      "\t\tpath /api /api/*",
-      "\t}",
-      `\thandle @${matcher}_api {`,
-      "\t\turi strip_prefix /api",
-      `\t\treverse_proxy 127.0.0.1:${route.backend_port}`,
-      "\t}",
-      `\t@${matcher}_frontend host ${route.hostname}`,
-      `\thandle @${matcher}_frontend {`,
-      `\t\treverse_proxy 127.0.0.1:${route.frontend_port}`,
-      "\t}",
-      `\t@${matcher}_assets host ${route.assets_hostname}`,
-      `\thandle @${matcher}_assets {`,
-      `\t\treverse_proxy 127.0.0.1:${route.minio_api_port}`,
-      "\t}",
-      "",
-    );
+    if (route.runtime_adapter === "static") {
+      sections.push(
+        `\t# ${route.run_id} · static artifact`,
+        `\t@${matcher}_static host ${route.hostname} ${route.assets_hostname}`,
+        `\thandle @${matcher}_static {`,
+        `\t\troot * ${JSON.stringify(route.artifact_root)}`,
+        "\t\theader {",
+        '\t\t\tX-Content-Type-Options "nosniff"',
+        '\t\t\tReferrer-Policy "no-referrer"',
+        '\t\t\tCache-Control "no-store"',
+        "\t\t}",
+        "\t\tfile_server",
+        "\t}",
+        "",
+      );
+    } else {
+      sections.push(
+        `\t# ${route.run_id}`,
+        `\t@${matcher}_api {`,
+        `\t\thost ${route.hostname}`,
+        "\t\tpath /api /api/*",
+        "\t}",
+        `\thandle @${matcher}_api {`,
+        "\t\turi strip_prefix /api",
+        `\t\treverse_proxy 127.0.0.1:${route.backend_port}`,
+        "\t}",
+        `\t@${matcher}_frontend host ${route.hostname}`,
+        `\thandle @${matcher}_frontend {`,
+        `\t\treverse_proxy 127.0.0.1:${route.frontend_port}`,
+        "\t}",
+        `\t@${matcher}_assets host ${route.assets_hostname}`,
+        `\thandle @${matcher}_assets {`,
+        `\t\treverse_proxy 127.0.0.1:${route.minio_api_port}`,
+        "\t}",
+        "",
+      );
+    }
   }
 
   sections.push(
@@ -159,16 +195,26 @@ export function renderRoutes(routes: IngressRoute[]): string {
 }
 
 function activeRoutes(database: DatabaseSync): IngressRoute[] {
-  return database
+  const routes = database
     .prepare(`
       SELECT pl.run_id, ps.slot_number, ps.hostname, ps.assets_hostname,
-             ps.frontend_port, ps.backend_port, ps.minio_api_port
+             ps.frontend_port, ps.backend_port, ps.minio_api_port,
+             pl.runtime_adapter, pl.artifact_root
       FROM preview_leases pl
       JOIN preview_slots ps USING (slot_number)
       WHERE pl.state = 'running' AND ps.enabled = 1
       ORDER BY ps.slot_number
     `)
     .all() as IngressRoute[];
+  for (const route of routes) {
+    if (route.runtime_adapter !== "static") continue;
+    const root = resolve(route.artifact_root ?? "");
+    const child = relative(previewRuntimeRoot, root);
+    if (!child || child.startsWith("..") || resolve(previewRuntimeRoot, child) !== root) {
+      fail(`Static artifact root escapes managed runtime: ${route.run_id}`);
+    }
+  }
+  return routes;
 }
 
 async function readOptional(path: string): Promise<string | null> {

@@ -19,6 +19,8 @@ function main(): void {
       frontend_port: 43102,
       backend_port: 43202,
       minio_api_port: 49102,
+      runtime_adapter: "compose",
+      artifact_root: null,
     },
     {
       run_id: "r_preview_one",
@@ -28,6 +30,8 @@ function main(): void {
       frontend_port: 43101,
       backend_port: 43201,
       minio_api_port: 49101,
+      runtime_adapter: "compose",
+      artifact_root: null,
     },
   ];
 
@@ -84,6 +88,39 @@ function main(): void {
   }
   assert(rejected, "Unsafe hostname was accepted");
 
+  const staticRendered = renderRoutes([
+    {
+      ...routes[0],
+      runtime_adapter: "static",
+      artifact_root: "/srv/kurami/state/previews/r_preview_two/artifact",
+    },
+  ]);
+  assert(
+    staticRendered.includes("static artifact") &&
+      staticRendered.includes('root * "/srv/kurami/state/previews/r_preview_two/artifact"') &&
+      staticRendered.includes("file_server") &&
+      staticRendered.includes('Cache-Control "no-store"'),
+    "Static artifact route is incomplete",
+  );
+  assert(
+    !staticRendered.includes("reverse_proxy"),
+    "Static artifact unexpectedly uses a Compose upstream",
+  );
+
+  let unsafeRootRejected = false;
+  try {
+    renderRoutes([
+      {
+        ...routes[0],
+        runtime_adapter: "static",
+        artifact_root: "../../etc",
+      },
+    ]);
+  } catch {
+    unsafeRootRejected = true;
+  }
+  assert(unsafeRootRejected, "Unsafe static artifact root was accepted");
+
   process.stdout.write(
     `${JSON.stringify({
       ok: true,
@@ -93,6 +130,8 @@ function main(): void {
       loopbackOnly: true,
       emptyFailClosed: true,
       unsafeHostnameRejected: true,
+      staticArtifact: true,
+      unsafeStaticRootRejected: true,
       codexDeeplinkRedirect: true,
     })}\n`,
   );

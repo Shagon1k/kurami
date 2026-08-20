@@ -14,6 +14,8 @@ type ActiveLease = {
   preview_id: string | null;
   updated_at: string;
   expires_at: string | null;
+  runtime_adapter: "compose" | "static";
+  artifact_root: string | null;
 };
 
 export type PreviewHealthInput = {
@@ -26,6 +28,7 @@ export type PreviewHealthInput = {
 export type PreviewHealthAnalysis = {
   orphanDockerProjects: string[];
   missingDockerProjects: string[];
+  missingStaticArtifacts: string[];
   failedLeases: string[];
   terminalRunLeases: string[];
   mappingMismatches: string[];
@@ -126,9 +129,12 @@ export function analyzePreviewConsistency(
     input.dockerProjects.filter((name) => managedComposePattern.test(name)),
   );
   const leasedProjects = new Set(
-    input.leases.map((lease) => lease.compose_project_name),
+    input.leases
+      .filter((lease) => lease.runtime_adapter === "compose")
+      .map((lease) => lease.compose_project_name),
   );
   const activeRunIds = new Set(input.leases.map((lease) => lease.run_id));
+  const runtimeRunIds = new Set(input.runtimeDirectories.map((entry) => entry.name));
 
   return {
     orphanDockerProjects: [...dockerProjects]
@@ -137,6 +143,7 @@ export function analyzePreviewConsistency(
     missingDockerProjects: input.leases
       .filter(
         (lease) => {
+          if (lease.runtime_adapter !== "compose") return false;
           if (dockerProjects.has(lease.compose_project_name)) return false;
           if (lease.lease_state === "running") return true;
           if (!["provisioning", "releasing"].includes(lease.lease_state)) {
@@ -150,6 +157,15 @@ export function analyzePreviewConsistency(
         },
       )
       .map((lease) => lease.compose_project_name)
+      .sort(),
+    missingStaticArtifacts: input.leases
+      .filter(
+        (lease) =>
+          lease.runtime_adapter === "static" &&
+          lease.lease_state === "running" &&
+          (!lease.artifact_root || !runtimeRunIds.has(lease.run_id)),
+      )
+      .map((lease) => lease.run_id)
       .sort(),
     failedLeases: input.leases
       .filter((lease) => lease.lease_state === "failed")
@@ -250,7 +266,7 @@ function activeLeases(database: DatabaseSync): ActiveLease[] {
       SELECT pl.lease_id, pl.run_id, pl.slot_number,
              pl.state AS lease_state, pl.compose_project_name,
              r.state AS run_state, rr.preview_id, pl.updated_at,
-             pl.expires_at
+             pl.expires_at, pl.runtime_adapter, pl.artifact_root
       FROM preview_leases pl
       JOIN runs r USING (run_id)
       JOIN run_resources rr USING (run_id)

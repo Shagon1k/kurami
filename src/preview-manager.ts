@@ -64,6 +64,11 @@ type LeaseRecord = SlotRecord & {
   reviewed_by: string | null;
   reviewed_via: string | null;
   verified_head_sha: string | null;
+  runtime_adapter: "compose" | "static";
+  artifact_root: string | null;
+  artifact_digest: string | null;
+  artifact_file_count: number | null;
+  artifact_total_bytes: number | null;
 };
 
 const orchestratorHome = resolve(
@@ -220,6 +225,11 @@ function leaseView(lease: LeaseRecord): Record<string, unknown> {
     hostname: lease.hostname,
     assetsHostname: lease.assets_hostname,
     composeProjectName: lease.compose_project_name,
+    runtimeAdapter: lease.runtime_adapter,
+    artifactRoot: lease.artifact_root,
+    artifactDigest: lease.artifact_digest,
+    artifactFileCount: lease.artifact_file_count,
+    artifactTotalBytes: lease.artifact_total_bytes,
     expiresAt: lease.expires_at,
     extensionCount: lease.extension_count,
     reviewedAt: lease.reviewed_at,

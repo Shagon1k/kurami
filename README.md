@@ -52,7 +52,10 @@ app/
     cancel-resolution.ts      Guardedly resolves confirmed unpublished or Draft PR results
     project-status.ts         Returns fully cancelled released items to Backlog
     preview-manager.ts        Leases, acknowledges, extends, and releases preview slots
-    preview-runtime.ts        Builds, verifies, and removes rootless Compose previews
+    preview-runtime.ts        Dispatches each durable lease to its selected adapter
+    preview-compose-runtime.ts
+                              Builds and removes rootless Compose previews
+    preview-static-runtime.ts Publishes immutable static artifact snapshots
     preview-ingress.ts        Atomically reconciles running previews into Caddy routes
     codex-deeplink.ts         Validates Codex thread IDs and builds HTTPS launch URLs
     session-manager.ts        Starts, parks, hands off, and finalizes Codex TUI sessions
@@ -696,11 +699,16 @@ the Compose project name remains run-specific. Runtime concurrency is six,
 while build/provision concurrency is separately limited to two.
 
 Lease release is fail-closed. `--apply` additionally requires
-`--runtime-absent`; the later runtime adapter must first prove that Compose and
-ingress resources are gone. Released rows remain as audit history, while the
-slot becomes reusable.
+`--runtime-absent`; the selected runtime adapter must first prove that its
+runtime and ingress resources are gone. Released rows remain as audit history,
+while the slot becomes reusable.
 
-`src/preview-runtime.ts` is the Compose adapter. It validates the mapped
+`src/preview-runtime.ts` is a narrow dispatcher. Before provisioning it reads
+the project adapter; after a lease is claimed it always follows the adapter
+persisted on that lease, so a later configuration edit cannot make one runtime
+clean up another adapter's resources.
+
+`src/preview-compose-runtime.ts` is the Compose adapter. It validates the mapped
 worktree and repository-owned Compose contract, requires the rootless Docker
 daemon, checks available RAM/disk and fixed loopback ports, transactionally
 claims one of two build slots, and writes per-run runtime files below
@@ -708,6 +716,26 @@ claims one of two build slots, and writes per-run runtime files below
 project-specific orchestrator secret file; per-run JWT, E2E, PostgreSQL, and
 MinIO credentials are generated locally and never printed or stored in SQLite.
 After Compose health checks pass, the lease becomes `running`.
+
+Projects that produce an already-built static site may instead configure:
+
+```yaml
+preview:
+  adapter: static
+  artifact_directory: dist
+  max_files: 5000
+  max_bytes: 268435456
+```
+
+The static adapter requires the conventional root `index.html` and never
+executes a configured build command. It inventories
+only that relative directory in the exact managed worktree, rejects hidden
+paths, symlinks, special files, path escapes, and bounded-size violations, then
+copies and re-verifies an immutable snapshot below
+`../state/previews/<run_id>/artifact`. The digest, file count, byte count, and
+root become durable lease provenance. The same slot, TTL, extension, review
+acknowledgement, exact-SHA policy, Discord controls, and fail-closed cleanup
+apply to both adapters. Existing Compose projects are unchanged.
 
 Successful health checks also start a bounded 24-hour TTL; build time does not
 consume the owner-visible preview window. During the final two hours, the live
@@ -738,10 +766,10 @@ as durable provenance. Runs without the label keep the existing lifecycle.
 It renders routes solely for enabled slots whose lease is `running`, validates a
 candidate configuration before replacing the live mode-`600` file, and reloads
 Caddy through its loopback-only admin endpoint. A failed reload restores and
-reloads the previous route set. Each preview hostname sends `/api` traffic to
-the backend after stripping that prefix and all other traffic to the frontend;
-the paired assets hostname preserves the original Host header while proxying to
-MinIO. Unknown and inactive hostnames receive `404`.
+reloads the previous route set. Compose preview hostnames preserve the existing
+frontend, `/api`, and MinIO routing. Static leases expose only their immutable
+file tree on both assigned hostnames. Unknown and inactive hostnames receive
+`404`.
 The same managed fragment always keeps the narrow Codex launcher route active,
 including when no application preview is running; all other unmatched requests
 remain fail-closed.
@@ -821,9 +849,10 @@ ORCHESTRATOR_HOME=/home/shagon1k/_hermes/_orchestrator \
 node src/runtime-health.ts
 ```
 
-The check compares active `preview_leases`, recorded `preview_id` mappings,
-runtime directories, and actual rootless Docker Compose project labels. It
-reports forgotten `kurami-pv*` projects, missing runtimes, failed leases,
+The check compares active `preview_leases`, adapter provenance, recorded
+`preview_id` mappings, runtime directories, and actual rootless Docker Compose
+project labels. It reports forgotten `kurami-pv*` projects, missing Compose
+projects or static snapshots, failed leases,
 terminal runs that still own a lease, mapping drift, SQLite integrity, and backup
 freshness. It never removes or repairs an orphan automatically.
 The default freshness limit is 84 hours, matching the three-day backup cadence
@@ -857,6 +886,13 @@ Verify deterministic preview route rendering and rejection boundaries:
 
 ```bash
 npm run test:preview-ingress
+```
+
+Verify static adapter migration safety, durable dispatch, deterministic
+artifact inventory, and filesystem rejection boundaries:
+
+```bash
+npm run test:preview-static
 ```
 
 Verify durable control/progress events, preview-ready notification, ambiguous-
