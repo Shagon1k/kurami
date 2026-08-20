@@ -30,6 +30,10 @@ projects:
         - Secret scan
         - Lint, type-check, test
       missing_grace_minutes: 10
+    triage:
+      enabled: true
+      priority_field: Priority
+      effort_field: Effort
     preview:
       adapter: compose
       compose_file: docker-compose.yml
@@ -64,3 +68,7 @@ projects:
       branch_prefix: PF
     ci:
       enabled: false
+    triage:
+      enabled: true
+      priority_field: Priority
+      effort_field: Effort

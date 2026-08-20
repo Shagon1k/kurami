@@ -32,6 +32,7 @@ app/
   src/
     init-run-store.ts         Applies migrations and checks DB integrity
     poll-projects.ts          Reads one or both GitHub Projects
+    triage-snapshot.ts        Persists changed-only Backlog fact snapshots
     observe-ci.ts             Reads exact-PR CI state without GitHub mutations
     review-manager.ts         Validates and starts explicit exact-SHA AI reviews
     ai-review-worker.ts       Publishes one bounded native GitHub PR review
@@ -77,6 +78,7 @@ app/
     verify-monthly-maintenance.ts
                               Proves exact log cleanup selection and exclusions
   run-project-poller.sh       Production poll -> consume wrapper
+  run-triage-snapshot.sh      One bounded all-project P4a snapshot wrapper
   bin/launch-codex-session.sh Secret-aware child launcher used only inside managed tmux
   bin/launch-ai-review.sh     Secret-aware launcher for detached read-only reviewers
   package.json
@@ -363,6 +365,8 @@ already have accepted them. Ordinary polling remains `no_agent`.
 - `run_ai_reviews`: exact-SHA reviewer identity, GitHub Review, counts, and result;
 - `run_review_fix_rounds`: immutable owner-approved snapshot and exact-SHA result;
 - `run_review_fix_threads`: per-thread reply/resolve reconciliation state;
+- `project_triage_state`: latest factual Backlog hash and last checked/changed time;
+- `project_triage_snapshots`: changed-only factual history for ranking and audit;
 - `run_progress_cards`: transport-independent desired lifecycle card per run;
 - `run_discord_surfaces`: Discord starter card, ticket thread, owner membership,
   and persistent thread-control-message identity;
@@ -373,6 +377,21 @@ already have accepted them. Ordinary polling remains `no_agent`.
 
 GitHub Project remains the source of user intent and delivery status. SQLite
 owns runtime state and resource identity.
+
+### Project triage facts
+
+`src/triage-snapshot.ts` is the read-only P4a boundary. It collects all configured
+Project issues, native `blockedBy` / `blocking` relationships, optional Priority
+and Effort fields, readiness facts, active runs, WIP, and stable backlog totals.
+It deliberately has no Due date policy and does not rank, notify Discord, mutate
+Project fields, or start work.
+
+Each project gets a canonical factual hash that excludes observation timestamps.
+An identical rerun updates only `last_checked_at`; it does not append history or
+schedule later ranking/LLM work. A meaningful issue, field, dependency, status, or
+run change appends exactly one new snapshot. The future P4b digest will render one
+English card in a manually created permanent `📋-digest` channel per project; the
+orchestrator must never create, move, or delete that channel.
 
 ### Worktree Provisioner
 
