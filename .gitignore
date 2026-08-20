@@ -41,6 +41,7 @@ __pycache__/
 
 # Editors and OS
 .DS_Store
+._*
 .idea/
 .vscode/
 *.swp
