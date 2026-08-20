@@ -13,8 +13,10 @@ import {
 import {
   buildMetadataProposalInstructions,
   deterministicProposalSummary,
+  maximumMetadataAiAttempts,
   parseMetadataProposalResult,
   persistMetadataProposalResult,
+  runValidatedMetadataAssessment,
 } from "../src/metadata-proposal-worker.ts";
 import { persistTriageRanking, rankTriageFacts } from "../src/triage-rank.ts";
 import {
@@ -245,6 +247,55 @@ async function main(): Promise<void> {
         "2 metadata proposals ready for 1 issue.",
       "Proposal summary trusted model-authored arithmetic",
     );
+    let aiAttempts = 0;
+    const rejectedAttempts: number[] = [];
+    const recoveredValidation = await runValidatedMetadataAssessment(
+      candidates,
+      async () => {
+        aiAttempts += 1;
+        return aiAttempts === 1
+          ? "not-json"
+          : JSON.stringify({ summary: "Valid retry.", proposals: [] });
+      },
+      (attempt) => rejectedAttempts.push(attempt),
+    );
+    assert(
+      maximumMetadataAiAttempts === 2 &&
+        aiAttempts === 2 &&
+        rejectedAttempts.join(",") === "1" &&
+        recoveredValidation.proposals.length === 0,
+      "Invalid AI output did not receive exactly one bounded retry",
+    );
+    let technicalAttempts = 0;
+    try {
+      await runValidatedMetadataAssessment(candidates, async () => {
+        technicalAttempts += 1;
+        throw new Error("transport unavailable");
+      });
+      throw new Error("Technical AI failure unexpectedly succeeded");
+    } catch (error) {
+      assert(
+        error instanceof Error &&
+          error.message.includes("transport unavailable") &&
+          technicalAttempts === 1,
+        "Technical failure was retried as if it were invalid model output",
+      );
+    }
+    let exhaustedAttempts = 0;
+    try {
+      await runValidatedMetadataAssessment(candidates, async () => {
+        exhaustedAttempts += 1;
+        return "still-not-json";
+      });
+      throw new Error("Repeated invalid AI output unexpectedly succeeded");
+    } catch (error) {
+      assert(
+        error instanceof Error &&
+          error.message.includes("failed validation after 2 attempts") &&
+          exhaustedAttempts === 2,
+        "Invalid AI output did not stop after the bounded retry",
+      );
+    }
     expectFailure(
       () =>
         parseMetadataProposalResult(
@@ -464,6 +515,8 @@ async function main(): Promise<void> {
         p0Forbidden: true,
         dependencyInferenceExcluded: true,
         strictResultValidation: true,
+        invalidResultRetryAttempts: maximumMetadataAiAttempts,
+        technicalFailureRetryAttempts: 1,
         deterministicSummary: true,
         proposalProvenance: true,
         githubWrites: 0,

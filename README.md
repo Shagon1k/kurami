@@ -442,8 +442,40 @@ private issue context with read-only `gh api` calls, then removes GitHub tokens
 from the detached Codex environment. Codex runs read-only with no approvals,
 network, external tools, or mutation authority. Its strict JSON result is
 revalidated against the current target facts before durable proposals are stored.
+An invalid model result receives exactly one fresh detached Codex attempt inside
+the same immutable batch. Both rejected outputs are recorded; a second invalid
+result fails the batch. Transport, GitHub context, and source-change failures are
+not treated as formatting failures and are not blindly retried.
 The assessment stage does not edit GitHub Projects, Discord, issues, or
 repository content.
+
+Schema 22 adds the automatic daily continuation boundary. The argument-free
+`Projects Digest` baseline admits at most one metadata-assessment batch per
+project per UTC date, with the existing maximum of 12 issues per batch. Initial
+backlog bootstrap therefore continues over bounded daily chunks; an unchanged
+project, a same-day rerun, and event-driven per-project digest refreshes invoke
+no additional AI work. The admission is durable in
+`project_metadata_daily_admissions`, so a completed or failed batch cannot be
+silently replaced by a second batch that day.
+
+Automatic assessment shares the controller lock and respects
+`limits.max_llm_running_global`. A planned batch interrupted before Codex starts
+is resumed rather than duplicated. A batch still marked `running` from a prior
+UTC day is failed with append-only recovery evidence and replaced by one bounded
+batch on the new daily admission. Worker failure is logged without blocking the
+factual digest card update; owner review and guarded GitHub synchronization keep
+their existing explicit authorization boundaries.
+
+Inspect the daily admission plan without mutation:
+
+```bash
+ORCHESTRATOR_HOME=/home/shagon1k/_hermes/_orchestrator \
+node src/metadata-proposal-scheduler.ts
+```
+
+The normal `kurami-projects-digest` Hermes job invokes the apply form once per
+day. `--project` digest refreshes triggered by project changes deliberately skip
+the scheduler.
 
 Schema 20 adds the owner-review boundary. A ready batch appears inside the same
 per-project Projects Digest card with `Accept batch`, `Review proposals`,

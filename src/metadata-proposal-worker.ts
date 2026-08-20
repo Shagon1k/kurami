@@ -48,6 +48,8 @@ export type ParsedMetadataProposalResult = {
   proposals: ParsedMetadataProposal[];
 };
 
+export const maximumMetadataAiAttempts = 2;
+
 export function deterministicProposalSummary(
   proposals: ParsedMetadataProposal[],
 ): string {
@@ -138,6 +140,28 @@ export function parseMetadataProposalResult(
     };
   });
   return { summary, proposals };
+}
+
+export async function runValidatedMetadataAssessment(
+  candidates: MetadataProposalCandidate[],
+  runAttempt: (attempt: number) => Promise<string>,
+  onRejected: (attempt: number, error: Error) => void = () => undefined,
+): Promise<ParsedMetadataProposalResult> {
+  let lastValidationError: Error | null = null;
+  for (let attempt = 1; attempt <= maximumMetadataAiAttempts; attempt += 1) {
+    const raw = await runAttempt(attempt);
+    try {
+      return parseMetadataProposalResult(raw, candidates);
+    } catch (error) {
+      const validationError =
+        error instanceof Error ? error : new Error(String(error));
+      lastValidationError = validationError;
+      onRejected(attempt, validationError);
+    }
+  }
+  throw new Error(
+    `Codex metadata proposal result failed validation after ${maximumMetadataAiAttempts} attempts: ${lastValidationError?.message ?? "unknown validation error"}`,
+  );
 }
 
 export function buildMetadataProposalInstructions(
@@ -412,22 +436,41 @@ async function main(): Promise<void> {
     recordEvent(database, batchId, "running", {});
     const contexts = loadIssueContexts(candidates);
     const codexBin = process.env.CODEX_BIN?.trim() || run("which", ["codex"], process.env);
-    const result = await runDetachedReview(codexBin, {
-      cwd: resolve(orchestratorHome, "app"),
-      title: `${batch.project} · Metadata proposals #${batch.batch_number}`,
-      instructions: buildMetadataProposalInstructions(batch, candidates, contexts),
-      onStarted: (threadId, turnId) => {
-        database
-          .prepare(
-            `UPDATE project_metadata_proposal_batches
-             SET ai_thread_id=?, ai_turn_id=?,
-                 updated_at=strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
-             WHERE batch_id=? AND batch_state='running'`,
-          )
-          .run(threadId, turnId, batchId);
+    const instructions = buildMetadataProposalInstructions(batch, candidates, contexts);
+    const parsed = await runValidatedMetadataAssessment(
+      candidates,
+      async (attempt) => {
+        const result = await runDetachedReview(codexBin, {
+          cwd: resolve(orchestratorHome, "app"),
+          title: `${batch.project} · Metadata proposals #${batch.batch_number} · attempt ${attempt}/${maximumMetadataAiAttempts}`,
+          instructions,
+          onStarted: (threadId, turnId) => {
+            database
+              .prepare(
+                `UPDATE project_metadata_proposal_batches
+                 SET ai_thread_id=?, ai_turn_id=?,
+                     updated_at=strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
+                 WHERE batch_id=? AND batch_state='running'`,
+              )
+              .run(threadId, turnId, batchId);
+            recordEvent(database, batchId, "ai_attempt_started", {
+              attempt,
+              maximumAttempts: maximumMetadataAiAttempts,
+              threadId,
+              turnId,
+            });
+          },
+        });
+        return result.review;
       },
-    });
-    const parsed = parseMetadataProposalResult(result.review, candidates);
+      (attempt, error) => {
+        recordEvent(database, batchId, "ai_result_rejected", {
+          attempt,
+          maximumAttempts: maximumMetadataAiAttempts,
+          reason: error.message.slice(0, 500),
+        });
+      },
+    );
     const persisted = persistMetadataProposalResult(database, batchId, parsed);
     process.stdout.write(`${JSON.stringify({ ok: true, apply: true, ...persisted })}\n`);
   } catch (error) {
