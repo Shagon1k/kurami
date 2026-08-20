@@ -51,7 +51,7 @@ app/
     release-worktree.ts       Safely releases cancelled or verified-merged Git resources
     cancel-resolution.ts      Guardedly resolves confirmed unpublished or Draft PR results
     project-status.ts         Returns fully cancelled released items to Backlog
-    preview-manager.ts        Atomically leases, extends, and releases preview slots
+    preview-manager.ts        Leases, acknowledges, extends, and releases preview slots
     preview-runtime.ts        Builds, verifies, and removes rootless Compose previews
     preview-ingress.ts        Atomically reconciles running previews into Caddy routes
     codex-deeplink.ts         Validates Codex thread IDs and builds HTTPS launch URLs
@@ -75,6 +75,8 @@ app/
     verify-preview-slots.ts   Proves six-slot capacity, idempotency, and safe reuse
     verify-preview-ingress.ts Proves deterministic, loopback-only, fail-closed routing
     verify-preview-ttl.ts     Proves expiry, warning, extension, and guarded cleanup planning
+    verify-preview-reviewed.ts
+                              Proves exact-lease owner acknowledgement without lifecycle effects
     verify-run-controls.ts    Proves event idempotency and explicit control dispatch
     verify-session-observer.ts
                               Proves idle blocker detection without transient false alerts
@@ -713,6 +715,13 @@ recorded in `run_state_history`. Repeated early extensions and extensions after
 expiry are refused. Existing active previews receive a fresh 24-hour grace
 period when migration `023_preview_ttl.sql` is first applied.
 
+While a healthy preview is running, the owner can use `Mark reviewed` once.
+This acknowledgement belongs to the exact lease and records its timestamp,
+authorized owner identity, source, and an append-only `preview_reviewed` history
+event. It does not change the run state, stop the preview, extend its TTL, or
+act as merge approval. The control disappears after acknowledgement, while the
+live card shows `Reviewed`; a newly allocated lease starts unreviewed again.
+
 `src/preview-ingress.ts` is the only writer of the managed Caddy route fragment.
 It renders routes solely for enabled slots whose lease is `running`, validates a
 candidate configuration before replacing the live mode-`600` file, and reloads
@@ -894,6 +903,22 @@ Verify the isolated TTL lifecycle and populated-v22 migration:
 
 ```bash
 npm run test:preview-ttl
+```
+
+Plan or record the exact-lease acknowledgement from a trusted CLI context:
+
+```bash
+ORCHESTRATOR_HOME=/home/shagon1k/_hermes/_orchestrator \
+node src/preview-manager.ts review --run-id <run_id> --reviewed-by cli:owner
+
+ORCHESTRATOR_HOME=/home/shagon1k/_hermes/_orchestrator \
+node src/preview-manager.ts review --run-id <run_id> --reviewed-by cli:owner --apply
+```
+
+Verify acknowledgement provenance and lifecycle isolation:
+
+```bash
+npm run test:preview-reviewed
 ```
 
 Inspect or reconcile the desired Caddy routes from the Run Store:

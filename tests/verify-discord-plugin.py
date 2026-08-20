@@ -28,6 +28,7 @@ def main() -> None:
         "kurami:preview_start:r_9": ("preview_start", "r_9"),
         "kurami:preview_stop:r_9": ("preview_stop", "r_9"),
         "kurami:preview_extend:r_9": ("preview_extend", "r_9"),
+        "kurami:preview_reviewed:r_9": ("preview_reviewed", "r_9"),
         "kurami:stop:r_9": ("stop", "r_9"),
         "kurami:discard_prompt:r_9": ("discard_prompt", "r_9"),
         "kurami:discard_local:r_9": ("discard_local", "r_9"),
@@ -182,6 +183,13 @@ def main() -> None:
         "review_fix", {"action": "created", "requestState": "pending"}
     )
     require("Fix Review" in fix_review, "Review fix response uses an ambiguous label")
+    reviewed = module._request_message(
+        "preview_reviewed", {"action": "reviewed"}
+    )
+    require(
+        reviewed.startswith("Preview reviewed"),
+        "Preview acknowledgement response is ambiguous",
+    )
     require(
         module.discard_confirmation_id("r_9") == "kurami:discard_local:r_9",
         "Discard confirmation ID is not deterministic",

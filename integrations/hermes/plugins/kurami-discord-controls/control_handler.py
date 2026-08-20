@@ -13,7 +13,7 @@ from zoneinfo import ZoneInfo
 
 
 CONTROL_ID = re.compile(
-    r"^kurami:(status|take_control|preview_start|preview_stop|preview_extend|stop|discard_prompt|discard_local|discard_published_prompt|discard_published|ci_repair|ai_review|review_fix):(r_[A-Za-z0-9_]+)$"
+    r"^kurami:(status|take_control|preview_start|preview_stop|preview_extend|preview_reviewed|stop|discard_prompt|discard_local|discard_published_prompt|discard_published|ci_repair|ai_review|review_fix):(r_[A-Za-z0-9_]+)$"
 )
 METADATA_CONTROL_ID = re.compile(
     r"^kurami:metadata_(details|accept|skip|discuss|exclude|restore|retry):(pmb_[a-f0-9]+)$"
@@ -24,6 +24,7 @@ _ACTION_LABELS = {
     "preview_start": "Start preview",
     "preview_stop": "Stop preview",
     "preview_extend": "Extend preview",
+    "preview_reviewed": "Preview reviewed",
     "stop": "Cancel run",
     "discard_local": "Discard local work",
     "discard_published": "Close draft PR and discard published work",
@@ -354,13 +355,29 @@ def _metadata_updates_source_message(action: str, message_flags: object) -> bool
     return action == "accept" and bool(getattr(message_flags, "ephemeral", False))
 
 
-async def _run_control(action: str, run_id: str) -> dict[str, Any]:
+async def _run_control(
+    action: str, run_id: str, actor_id: Optional[str] = None
+) -> dict[str, Any]:
     node, control, _ = _paths()
     if not node.is_file() or not control.is_file():
         raise RuntimeError("Kurami control runtime is unavailable")
 
     args = [str(node), str(control), "status", "--run-id", run_id]
-    if action != "status":
+    if action == "preview_reviewed":
+        manager = control.with_name("preview-manager.ts")
+        if not manager.is_file() or not actor_id or not actor_id.isdigit():
+            raise RuntimeError("Kurami preview acknowledgement is unavailable")
+        args = [
+            str(node),
+            str(manager),
+            "review",
+            "--run-id",
+            run_id,
+            "--reviewed-by",
+            f"discord:{actor_id}",
+            "--apply",
+        ]
+    elif action != "status":
         request_action = "preview_start" if action == "preview_extend" else action
         args = [
             str(node),
@@ -454,6 +471,8 @@ def _status_message(payload: dict[str, Any]) -> str:
 
 
 def _request_message(action: str, payload: dict[str, Any]) -> str:
+    if action == "preview_reviewed":
+        return "Preview reviewed. TTL and lifecycle are unchanged."
     request_state = payload.get("requestState") or payload.get("request_state")
     if payload.get("action") == "existing":
         return f"{_ACTION_LABELS[action]} is already queued (`{request_state}`)."
@@ -685,7 +704,8 @@ def install_control_listener(
         if not interaction.response.is_done():
             await interaction.response.defer(ephemeral=True, thinking=True)
         try:
-            payload = await _run_control(action, run_id)
+            actor_id = str(getattr(getattr(interaction, "user", None), "id", ""))
+            payload = await _run_control(action, run_id, actor_id=actor_id)
             message = (
                 _status_message(payload)
                 if action == "status"

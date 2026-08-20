@@ -62,6 +62,9 @@ type CardRow = {
   preview_state: string | null;
   preview_expires_at: string | null;
   preview_extension_count: number;
+  preview_reviewed_at: string | null;
+  preview_reviewed_by: string | null;
+  preview_reviewed_via: string | null;
   surface_state: string | null;
   surface_guild_id: string | null;
   surface_parent_channel_id: string | null;
@@ -156,6 +159,8 @@ const desiredSurfaceDigestSql = `
   COALESCE(pl.state, 'preview:none') || ':' ||
   COALESCE(pl.expires_at, 'expiry:none') || ':' ||
   COALESCE(pl.extension_count, 0) || ':' ||
+  COALESCE(pl.reviewed_at, 'reviewed:none') || ':' ||
+  COALESCE(pl.reviewed_by, 'reviewer:none') || ':' ||
   COALESCE(ps.hostname, 'host:none') || ':' ||
   COALESCE(r.stop_reason, 'stop:none') || ':discord-ux-v5'
   || ':' || COALESCE(ci.content_digest, 'ci:none') || ':' ||
@@ -343,6 +348,9 @@ function loadDesiredCards(database: DatabaseSync): CardRow[] {
              pl.state AS preview_state,
              pl.expires_at AS preview_expires_at,
              COALESCE(pl.extension_count, 0) AS preview_extension_count,
+             pl.reviewed_at AS preview_reviewed_at,
+             pl.reviewed_by AS preview_reviewed_by,
+             pl.reviewed_via AS preview_reviewed_via,
              ds.state AS surface_state,
              ds.guild_id AS surface_guild_id,
              ds.parent_channel_id AS surface_parent_channel_id,
@@ -462,6 +470,9 @@ function loadCard(database: DatabaseSync, runId: string): CardRow {
              pl.state AS preview_state,
              pl.expires_at AS preview_expires_at,
              COALESCE(pl.extension_count, 0) AS preview_extension_count,
+             pl.reviewed_at AS preview_reviewed_at,
+             pl.reviewed_by AS preview_reviewed_by,
+             pl.reviewed_via AS preview_reviewed_via,
              ds.state AS surface_state,
              ds.guild_id AS surface_guild_id,
              ds.parent_channel_id AS surface_parent_channel_id,
@@ -1034,6 +1045,17 @@ export function controlComponents(
         controls.push(
           button("Extend 24h", 3, `kurami:preview_extend:${card.run_id}`),
         );
+      if (
+        card.preview_state === "running" &&
+        !card.preview_reviewed_at
+      )
+        controls.push(
+          button(
+            "Mark reviewed",
+            1,
+            `kurami:preview_reviewed:${card.run_id}`,
+          ),
+        );
     }
     const ciRepairEligible =
       !preservedCancellation &&
@@ -1190,7 +1212,17 @@ function cardPayload(
   if (card.preview_hostname)
     fields.push({
       name: "Preview",
-      value: `[Open preview](https://${card.preview_hostname})`,
+      value: [
+        `[Open preview](https://${card.preview_hostname})`,
+        card.preview_reviewed_at
+          ? `✅ Reviewed ${stageTimestamp(card.preview_reviewed_at)}`
+          : "👁️ Not reviewed",
+        card.preview_expires_at
+          ? `Expires ${stageTimestamp(card.preview_expires_at)}`
+          : null,
+      ]
+        .filter(Boolean)
+        .join("\n"),
     });
   const remote = remoteCodexContext(card, project);
   if (remote)

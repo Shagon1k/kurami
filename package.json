@@ -13,6 +13,7 @@
     "test:preview-slots": "node tests/verify-preview-slots.ts",
     "test:preview-ingress": "node tests/verify-preview-ingress.ts",
     "test:preview-ttl": "node tests/verify-preview-ttl.ts",
+    "test:preview-reviewed": "node tests/verify-preview-reviewed.ts",
     "test:controls": "node tests/verify-run-controls.ts",
     "test:observer": "node tests/verify-session-observer.ts",
     "test:discord": "node tests/verify-discord-controls.ts",

@@ -6,7 +6,7 @@ import { parse } from "yaml";
 
 process.umask(0o077);
 
-type Command = "allocate" | "inspect" | "release" | "extend";
+type Command = "allocate" | "inspect" | "release" | "extend" | "review";
 
 type Arguments = {
   command: Command;
@@ -14,6 +14,7 @@ type Arguments = {
   apply: boolean;
   runtimeAbsent: boolean;
   releaseReason: "runtime_absence_confirmed" | "preview_owner_stopped" | "preview_ttl_expired";
+  reviewedBy?: string;
 };
 
 type OrchestratorConfig = {
@@ -59,6 +60,9 @@ type LeaseRecord = SlotRecord & {
   release_reason: string | null;
   expires_at: string | null;
   extension_count: number;
+  reviewed_at: string | null;
+  reviewed_by: string | null;
+  reviewed_via: string | null;
 };
 
 const orchestratorHome = resolve(
@@ -74,9 +78,9 @@ function fail(message: string): never {
 function parseArguments(): Arguments {
   const args = process.argv.slice(2);
   const command = args.shift() as Command | undefined;
-  if (!command || !["allocate", "inspect", "release", "extend"].includes(command)) {
+  if (!command || !["allocate", "inspect", "release", "extend", "review"].includes(command)) {
     fail(
-      "Usage: preview-manager.ts <allocate|inspect|release|extend> [--run-id <id>] [--apply] [--runtime-absent]",
+      "Usage: preview-manager.ts <allocate|inspect|release|extend|review> [--run-id <id>] [--reviewed-by <discord:id|cli:owner>] [--apply] [--runtime-absent]",
     );
   }
 
@@ -84,6 +88,7 @@ function parseArguments(): Arguments {
   let apply = false;
   let runtimeAbsent = false;
   let releaseReason: Arguments["releaseReason"] = "runtime_absence_confirmed";
+  let reviewedBy: string | undefined;
   for (let index = 0; index < args.length; index += 1) {
     const arg = args[index];
     if (arg === "--run-id") {
@@ -107,12 +112,20 @@ function parseArguments(): Arguments {
         fail("--release-reason requires an allowlisted value");
       releaseReason = value;
       index += 1;
+    } else if (arg === "--reviewed-by") {
+      reviewedBy = args[index + 1]?.trim();
+      if (
+        !reviewedBy ||
+        !/^(?:discord:\d{1,30}|cli:owner)$/u.test(reviewedBy)
+      )
+        fail("--reviewed-by requires discord:<numeric-id> or cli:owner");
+      index += 1;
     } else {
       fail(`Unknown argument: ${arg}`);
     }
   }
 
-  if (["allocate", "release", "extend"].includes(command) && !runId) {
+  if (["allocate", "release", "extend", "review"].includes(command) && !runId) {
     fail(`${command} requires --run-id`);
   }
   if (command === "inspect" && (apply || runtimeAbsent)) {
@@ -124,7 +137,11 @@ function parseArguments(): Arguments {
   if (command !== "release" && releaseReason !== "runtime_absence_confirmed") {
     fail("--release-reason is valid only for release");
   }
-  return { command, runId, apply, runtimeAbsent, releaseReason };
+  if (command === "review" && !reviewedBy)
+    fail("review requires --reviewed-by");
+  if (command !== "review" && reviewedBy)
+    fail("--reviewed-by is valid only for review");
+  return { command, runId, apply, runtimeAbsent, releaseReason, reviewedBy };
 }
 
 function activeLeaseForRun(
@@ -204,6 +221,9 @@ function leaseView(lease: LeaseRecord): Record<string, unknown> {
     composeProjectName: lease.compose_project_name,
     expiresAt: lease.expires_at,
     extensionCount: lease.extension_count,
+    reviewedAt: lease.reviewed_at,
+    reviewedBy: lease.reviewed_by,
+    reviewedVia: lease.reviewed_via,
     ports: {
       frontend: lease.frontend_port,
       backend: lease.backend_port,
@@ -213,6 +233,84 @@ function leaseView(lease: LeaseRecord): Record<string, unknown> {
       minioConsole: lease.minio_console_port,
     },
   };
+}
+
+function review(
+  database: DatabaseSync,
+  runId: string,
+  reviewedBy: string,
+  apply: boolean,
+): void {
+  database.exec("BEGIN IMMEDIATE");
+  try {
+    const run = runRecord(database, runId);
+    const lease = activeLeaseForRun(database, runId);
+    if (!lease) fail(`Active preview lease not found for run: ${runId}`);
+    if (lease.state !== "running" || !lease.expires_at) {
+      fail(`Preview is not reviewable: state=${lease.state}`);
+    }
+    if (Date.parse(lease.expires_at) <= Date.now()) {
+      fail("Preview has expired and cannot be marked as reviewed");
+    }
+    if (lease.reviewed_at) {
+      database.exec("COMMIT");
+      process.stdout.write(
+        `${JSON.stringify({ ok: true, apply, action: "already_reviewed", ...leaseView(lease) })}\n`,
+      );
+      return;
+    }
+    const reviewedVia = reviewedBy.startsWith("discord:") ? "discord" : "cli";
+    const plan = {
+      ...leaseView(lease),
+      reviewedBy,
+      reviewedVia,
+    };
+    if (!apply) {
+      database.exec("ROLLBACK");
+      process.stdout.write(
+        `${JSON.stringify({ ok: true, apply: false, action: "review", plan })}\n`,
+      );
+      return;
+    }
+    const changed = database
+      .prepare(`
+        UPDATE preview_leases
+        SET reviewed_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now'),
+            reviewed_by = ?, reviewed_via = ?,
+            updated_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
+        WHERE lease_id = ? AND state = 'running' AND reviewed_at IS NULL
+          AND expires_at > strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
+      `)
+      .run(reviewedBy, reviewedVia, lease.lease_id);
+    if (changed.changes !== 1)
+      fail("Preview changed before acknowledgement was applied");
+    const updated = activeLeaseForRun(database, runId);
+    if (!updated?.reviewed_at) fail("Preview acknowledgement was not persisted");
+    database
+      .prepare(`
+        INSERT INTO run_state_history (
+          run_id, from_state, to_state, reason, details_json
+        ) VALUES (?, ?, ?, 'preview_reviewed', ?)
+      `)
+      .run(
+        runId,
+        run.state,
+        run.state,
+        JSON.stringify({
+          leaseId: lease.lease_id,
+          reviewedAt: updated.reviewed_at,
+          reviewedBy,
+          reviewedVia,
+        }),
+      );
+    database.exec("COMMIT");
+    process.stdout.write(
+      `${JSON.stringify({ ok: true, apply: true, action: "reviewed", ...leaseView(updated) })}\n`,
+    );
+  } catch (error) {
+    database.exec("ROLLBACK");
+    throw error;
+  }
 }
 
 function extend(
@@ -542,8 +640,10 @@ async function main(): Promise<void> {
         args.runtimeAbsent,
         args.releaseReason,
       );
-    } else {
+    } else if (args.command === "extend") {
       extend(database, config, args.runId!, args.apply);
+    } else {
+      review(database, args.runId!, args.reviewedBy!, args.apply);
     }
   } finally {
     database.close();

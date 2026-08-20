@@ -1109,6 +1109,47 @@ async function main(): Promise<void> {
       ),
       "Expiring preview did not expose the bounded extension control",
     );
+    assert(
+      customIds(threadControlEdits.at(-1)!).includes(
+        "kurami:preview_reviewed:r_discord_smoke",
+      ),
+      "Unreviewed preview did not expose owner acknowledgement",
+    );
+    const unreviewedFields = (
+      (cardEdits.at(-1)!.embeds as JsonObject[])[0]!.fields ?? []
+    ) as JsonObject[];
+    assert(
+      String(
+        unreviewedFields.find((field) => field.name === "Preview")?.value ?? "",
+      ).includes("Not reviewed"),
+      "Live card did not identify the unreviewed preview",
+    );
+    const acknowledged = new DatabaseSync(databasePath);
+    acknowledged
+      .prepare(`
+        UPDATE preview_leases
+        SET reviewed_at='2026-08-16T09:21:00.000Z',
+            reviewed_by='discord:424242', reviewed_via='discord'
+        WHERE lease_id='lease-discord'
+      `)
+      .run();
+    acknowledged.close();
+    await runNode(notifier, ["--apply"], testHome, discordEnv);
+    assert(
+      !customIds(threadControlEdits.at(-1)!).includes(
+        "kurami:preview_reviewed:r_discord_smoke",
+      ),
+      "Reviewed preview retained the acknowledgement button",
+    );
+    const reviewedPreviewFields = (
+      (cardEdits.at(-1)!.embeds as JsonObject[])[0]!.fields ?? []
+    ) as JsonObject[];
+    assert(
+      String(
+        reviewedPreviewFields.find((field) => field.name === "Preview")?.value ?? "",
+      ).includes("Reviewed"),
+      "Live card did not show the preview acknowledgement",
+    );
     const stableParentCount = parentMessages.length;
     const stableControlCount = threadControlCreates.length;
     const stableEventCount = threadEvents.length;
@@ -1393,6 +1434,7 @@ async function main(): Promise<void> {
         stageTimestampSemantic: true,
         eventControlLinks: true,
         previewReadyDelivered: true,
+        previewAcknowledgementVisible: true,
         publishedCancellationPreserved: true,
         publishedCancellationTerminalControls: true,
         showControlsEdited: true,
