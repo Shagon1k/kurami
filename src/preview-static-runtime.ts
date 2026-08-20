@@ -1,5 +1,6 @@
 import { execFileSync } from "node:child_process";
 import { createHash } from "node:crypto";
+import { request, type RequestOptions } from "node:http";
 import {
   chmod,
   cp,
@@ -429,18 +430,43 @@ function reconcileIngress(): void {
   runFile(process.execPath, [previewIngressPath, "reconcile", "--apply"]);
 }
 
+export function staticHealthRequest(
+  previewUrl: string,
+  indexFile: string,
+): RequestOptions {
+  return {
+    hostname: "127.0.0.1",
+    port: 9180,
+    path: `/${indexFile}`,
+    method: "GET",
+    headers: { Host: new URL(previewUrl).hostname },
+  };
+}
+
+async function requestHealth(options: RequestOptions): Promise<number> {
+  return await new Promise<number>((resolvePromise, rejectPromise) => {
+    const healthRequest = request(options, (response) => {
+      const status = response.statusCode ?? 0;
+      response.resume();
+      resolvePromise(status);
+    });
+    healthRequest.setTimeout(5_000, () => {
+      healthRequest.destroy(new Error("Static preview health request timed out"));
+    });
+    healthRequest.once("error", rejectPromise);
+    healthRequest.end();
+  });
+}
+
 async function waitForHealth(plan: StaticPlan): Promise<void> {
-  const url = `http://127.0.0.1:9180/${plan.indexFile}`;
+  const options = staticHealthRequest(plan.previewUrl, plan.indexFile);
   const deadline = Date.now() + 30_000;
   let lastError = "health check did not run";
   while (Date.now() < deadline) {
     try {
-      const response = await fetch(url, {
-        headers: { host: new URL(plan.previewUrl).hostname },
-        redirect: "manual",
-      });
-      if (response.ok) return;
-      lastError = `HTTP ${response.status}`;
+      const status = await requestHealth(options);
+      if (status >= 200 && status < 300) return;
+      lastError = `HTTP ${status}`;
     } catch (error) {
       lastError = error instanceof Error ? error.message : String(error);
     }

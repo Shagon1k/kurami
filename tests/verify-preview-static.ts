@@ -147,7 +147,24 @@ async function main(): Promise<void> {
     await mkdir(resolve(artifact, "assets"), { recursive: true, mode: 0o700 });
     await writeFile(resolve(artifact, "index.html"), "<h1>Static</h1>\n");
     await writeFile(resolve(artifact, "assets/app.js"), "console.log('ok');\n");
-    const { inventoryArtifact } = await import("../src/preview-static-runtime.ts");
+    const { inventoryArtifact, staticHealthRequest } = await import(
+      "../src/preview-static-runtime.ts"
+    );
+    const healthRequest = staticHealthRequest(
+      "https://preview-3.example.test",
+      "index.html",
+    );
+    const healthHeaders = healthRequest.headers as
+      | Record<string, string | string[] | number | undefined>
+      | undefined;
+    assert(
+      healthRequest.hostname === "127.0.0.1" &&
+        healthRequest.port === 9180 &&
+        healthRequest.path === "/index.html" &&
+        healthRequest.method === "GET" &&
+        healthHeaders?.Host === "preview-3.example.test",
+      "Static health request did not preserve the external Host header",
+    );
     const canonicalArtifact = await realpath(artifact);
     const first = await inventoryArtifact(canonicalArtifact, 10, 10_000);
     const second = await inventoryArtifact(canonicalArtifact, 10, 10_000);
@@ -180,6 +197,7 @@ async function main(): Promise<void> {
       deterministicInventory: true,
       symlinkRejected: true,
       hiddenPathRejected: true,
+      explicitHealthHostHeader: true,
       arbitraryBuildCommands: false,
       composeBackwardCompatible: true,
     })}\n`);
