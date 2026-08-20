@@ -43,6 +43,18 @@ type DigestRow = {
   surface_channel_id: string | null;
   surface_content_digest: string | null;
   surface_state: string | null;
+  metadata_batch_id: string | null;
+  metadata_batch_number: number | null;
+  metadata_batch_state: string | null;
+  metadata_candidate_count: number | null;
+  metadata_proposal_count: number | null;
+  metadata_summary: string | null;
+  metadata_updated_at: string | null;
+  metadata_pending_count: number;
+  metadata_accepted_count: number;
+  metadata_skipped_count: number;
+  metadata_priority_count: number;
+  metadata_effort_count: number;
 };
 
 type DiscordObject = Record<string, unknown>;
@@ -111,10 +123,103 @@ function desiredDigest(row: DigestRow): string {
         row.stats_json,
         row.last_checked_at.slice(0, 10),
         String(row.change_sequence),
-        "discord-project-digest-v1",
+        row.metadata_batch_id ?? "none",
+        row.metadata_batch_state ?? "none",
+        row.metadata_updated_at ?? "none",
+        String(row.metadata_pending_count),
+        String(row.metadata_accepted_count),
+        String(row.metadata_skipped_count),
+        "discord-project-digest-v2",
       ].join(":"),
     )
     .digest("hex");
+}
+
+function metadataField(row: DigestRow): { name: string; value: string } | null {
+  if (!row.metadata_batch_id || !row.metadata_batch_state) return null;
+  const state = row.metadata_batch_state;
+  if (state === "planned")
+    return {
+      name: "Metadata proposals",
+      value: `Queued · ${row.metadata_candidate_count ?? 0} issues`,
+    };
+  if (state === "running")
+    return {
+      name: "Metadata proposals",
+      value: `Assessing ${row.metadata_candidate_count ?? 0} issues…`,
+    };
+  const mix = `${row.metadata_priority_count} Priority · ${row.metadata_effort_count} Effort`;
+  if (state === "accepted")
+    return {
+      name: "Metadata proposals",
+      value: [
+        `✅ Accepted · ${row.metadata_accepted_count} proposals`,
+        mix,
+        "Waiting for guarded GitHub sync. GitHub is unchanged.",
+      ].join("\n"),
+    };
+  if (state === "ready" || state === "discussing")
+    return {
+      name: "Metadata proposals",
+      value: [
+        `${state === "discussing" ? "💬 Discussing" : "📋 Ready"} · ${row.metadata_pending_count} pending`,
+        `${mix} · ${row.metadata_skipped_count} excluded`,
+        "Owner review required. GitHub is unchanged.",
+      ].join("\n"),
+    };
+  return null;
+}
+
+function metadataComponents(row: DigestRow): DiscordObject[] {
+  if (!row.metadata_batch_id || !row.metadata_batch_state) return [];
+  const batchId = row.metadata_batch_id;
+  if (row.metadata_batch_state === "accepted")
+    return [
+      {
+        type: 1,
+        components: [
+          {
+            type: 2,
+            style: 2,
+            label: "Review accepted batch",
+            custom_id: `kurami:metadata_details:${batchId}`,
+          },
+        ],
+      },
+    ];
+  if (row.metadata_batch_state !== "ready" && row.metadata_batch_state !== "discussing")
+    return [];
+  return [
+    {
+      type: 1,
+      components: [
+        {
+          type: 2,
+          style: 3,
+          label: "Accept batch",
+          custom_id: `kurami:metadata_accept:${batchId}`,
+        },
+        {
+          type: 2,
+          style: 2,
+          label: "Review proposals",
+          custom_id: `kurami:metadata_details:${batchId}`,
+        },
+        {
+          type: 2,
+          style: 1,
+          label: "Discuss batch",
+          custom_id: `kurami:metadata_discuss:${batchId}`,
+        },
+        {
+          type: 2,
+          style: 4,
+          label: "Skip batch",
+          custom_id: `kurami:metadata_skip:${batchId}`,
+        },
+      ],
+    },
+  ];
 }
 
 function overview(stats: TriageStats): string {
@@ -141,6 +246,7 @@ export function digestPayload(
       : row.explanation;
   const suggestedSince = unixTimestamp(row.suggested_since);
   const lastChecked = unixTimestamp(row.last_checked_at);
+  const metadata = metadataField(row);
   const components = [
     ...(row.selected_url
       ? [
@@ -177,13 +283,11 @@ export function digestPayload(
               .filter(Boolean)
               .join(" · "),
           },
+          ...(metadata ? [metadata] : []),
         ],
-        footer: {
-          text: `Snapshot ${row.change_sequence} · ${row.policy_version}`,
-        },
       },
     ],
-    components: [{ type: 1, components }],
+    components: [{ type: 1, components }, ...metadataComponents(row)],
     allowed_mentions: { parse: [] },
     ...(create
       ? {
@@ -253,11 +357,34 @@ function loadRows(
              tr.suggested_since,
              ds.message_id, ds.channel_id AS surface_channel_id,
              ds.content_digest AS surface_content_digest,
-             ds.state AS surface_state
+             ds.state AS surface_state,
+             mb.batch_id AS metadata_batch_id,
+             mb.batch_number AS metadata_batch_number,
+             mb.batch_state AS metadata_batch_state,
+             mb.candidate_count AS metadata_candidate_count,
+             mb.proposal_count AS metadata_proposal_count,
+             mb.summary AS metadata_summary,
+             mb.updated_at AS metadata_updated_at,
+             COALESCE(mp.pending_count, 0) AS metadata_pending_count,
+             COALESCE(mp.accepted_count, 0) AS metadata_accepted_count,
+             COALESCE(mp.skipped_count, 0) AS metadata_skipped_count,
+             COALESCE(mp.priority_count, 0) AS metadata_priority_count,
+             COALESCE(mp.effort_count, 0) AS metadata_effort_count
       FROM project_triage_state ts
       JOIN project_triage_rankings tr ON tr.project = ts.project
         AND tr.factual_hash = ts.factual_hash
       LEFT JOIN project_discord_digest_surfaces ds ON ds.project = ts.project
+      LEFT JOIN project_metadata_proposal_batches mb ON mb.project = ts.project
+        AND mb.batch_state IN ('planned', 'running', 'ready', 'discussing', 'accepted')
+      LEFT JOIN (
+        SELECT batch_id,
+               SUM(CASE WHEN proposal_state='pending' THEN 1 ELSE 0 END) AS pending_count,
+               SUM(CASE WHEN proposal_state='accepted' THEN 1 ELSE 0 END) AS accepted_count,
+               SUM(CASE WHEN proposal_state='skipped' THEN 1 ELSE 0 END) AS skipped_count,
+               SUM(CASE WHEN field_name='priority' AND proposal_state IN ('pending', 'accepted') THEN 1 ELSE 0 END) AS priority_count,
+               SUM(CASE WHEN field_name='effort' AND proposal_state IN ('pending', 'accepted') THEN 1 ELSE 0 END) AS effort_count
+        FROM project_metadata_proposals GROUP BY batch_id
+      ) mp ON mp.batch_id = mb.batch_id
       WHERE (? IS NULL OR ts.project = ?)
       ORDER BY ts.project
     `)

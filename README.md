@@ -441,7 +441,27 @@ private issue context with read-only `gh api` calls, then removes GitHub tokens
 from the detached Codex environment. Codex runs read-only with no approvals,
 network, external tools, or mutation authority. Its strict JSON result is
 revalidated against the current target facts before durable proposals are stored.
-This stage does not edit GitHub Projects, Discord, issues, or repository content.
+The assessment stage does not edit GitHub Projects, Discord, issues, or
+repository content.
+
+Schema 20 adds the owner-review boundary. A ready batch appears inside the same
+per-project Projects Digest card with `Accept batch`, `Review proposals`,
+`Discuss batch`, and `Skip batch` controls. The public card contains plain
+owner-facing status only; internal snapshot and policy identifiers remain in
+SQLite and logs. An unchanged batch is a no-op and does not create another
+message.
+
+`src/metadata-proposal-controls.ts` is deliberately SQLite-only. Accepting a
+batch records the remaining proposals as owner-approved, but performs zero
+GitHub writes and keeps the accepted batch active until the later guarded-sync
+stage. Review proposals uses an ephemeral Discord panel to show the full batch,
+exclude individual proposals without per-ticket confirmation, restore accidental
+exclusions, and accept everything remaining. The panel edits itself after each
+selection instead of creating follow-up messages; acceptance replaces the source
+panel with a final result and removes its stale controls. Discuss creates one temporary thread
+only after an explicit owner action, reuses that thread for the batch, and
+archives it after Accept or Skip. The archive is recorded only after Discord
+confirms the operation. Every decision appends actor and event provenance.
 
 Inspect and then create proposal batch plans:
 
@@ -464,8 +484,8 @@ ORCHESTRATOR_HOME=/home/shagon1k/_hermes/_orchestrator \
 node src/metadata-proposal-worker.ts --batch-id <batch_id> --apply
 ```
 
-Discord review controls and guarded GitHub Project field application are later
-P4c stages and are intentionally absent from this boundary.
+Guarded GitHub Project field application remains a later P4c stage and is
+intentionally absent from this boundary.
 
 ### Worktree Provisioner
 

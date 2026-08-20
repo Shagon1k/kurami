@@ -15,6 +15,9 @@ from zoneinfo import ZoneInfo
 CONTROL_ID = re.compile(
     r"^kurami:(status|take_control|preview_start|preview_stop|stop|discard_prompt|discard_local|discard_published_prompt|discard_published|ci_repair|ai_review|review_fix):(r_[A-Za-z0-9_]+)$"
 )
+METADATA_CONTROL_ID = re.compile(
+    r"^kurami:metadata_(details|accept|skip|discuss|exclude|restore):(pmb_[a-f0-9]+)$"
+)
 
 _ACTION_LABELS = {
     "take_control": "Take control",
@@ -56,6 +59,17 @@ def parse_control_id(custom_id: object) -> Optional[tuple[str, str]]:
     return match.group(1), match.group(2)
 
 
+def parse_metadata_control_id(custom_id: object) -> Optional[tuple[str, str]]:
+    """Return an allowlisted metadata ``(action, batch_id)`` pair or ``None``."""
+
+    if not isinstance(custom_id, str):
+        return None
+    match = METADATA_CONTROL_ID.fullmatch(custom_id)
+    if match is None:
+        return None
+    return match.group(1), match.group(2)
+
+
 def _paths() -> tuple[Path, Path, Path]:
     home = Path(
         os.environ.get(
@@ -68,6 +82,234 @@ def _paths() -> tuple[Path, Path, Path]:
         home / "app/src/run-controls.ts",
         home / "app/src/notify-discord-controls.ts",
     )
+
+
+def _metadata_paths() -> tuple[Path, Path, Path]:
+    home = Path(
+        os.environ.get(
+            "ORCHESTRATOR_HOME",
+            "/home/shagon1k/_hermes/_orchestrator",
+        )
+    ).resolve()
+    return (
+        home / "runtime/node/bin/node",
+        home / "app/src/metadata-proposal-controls.ts",
+        home / "app/src/notify-discord-digest.ts",
+    )
+
+
+async def _run_metadata_control(
+    action: str,
+    batch_id: str,
+    proposal_ids: Optional[list[str]] = None,
+    thread_id: Optional[str] = None,
+) -> dict[str, Any]:
+    node, control, _ = _metadata_paths()
+    if not node.is_file() or not control.is_file():
+        raise RuntimeError("Kurami metadata control runtime is unavailable")
+    args = [str(node), str(control), action, "--batch-id", batch_id]
+    for proposal_id in proposal_ids or []:
+        if not re.fullmatch(r"pmp_[a-f0-9]+", proposal_id):
+            raise RuntimeError("Invalid metadata proposal selection")
+        args.extend(["--proposal-id", proposal_id])
+    if thread_id is not None:
+        if not thread_id.isdigit():
+            raise RuntimeError("Invalid Discord discussion thread ID")
+        args.extend(["--thread-id", thread_id])
+    if action != "status":
+        args.append("--apply")
+    env = dict(os.environ)
+    env["ORCHESTRATOR_HOME"] = str(control.parents[2])
+    process = await asyncio.create_subprocess_exec(
+        *args,
+        stdin=asyncio.subprocess.DEVNULL,
+        stdout=asyncio.subprocess.PIPE,
+        stderr=asyncio.subprocess.PIPE,
+        env=env,
+    )
+    try:
+        stdout, stderr = await asyncio.wait_for(process.communicate(), timeout=10)
+    except asyncio.TimeoutError:
+        process.kill()
+        await process.wait()
+        raise RuntimeError("Kurami metadata control timed out") from None
+    output = stdout.decode("utf-8", errors="replace").strip()
+    error = stderr.decode("utf-8", errors="replace").strip()
+    last_line = next((line for line in reversed(output.splitlines()) if line), "")
+    try:
+        payload = json.loads(last_line) if last_line else {}
+    except json.JSONDecodeError as exc:
+        raise RuntimeError("Kurami metadata control returned invalid output") from exc
+    if process.returncode != 0 or not payload.get("ok"):
+        message = payload.get("error") or error or "Kurami metadata control failed"
+        raise RuntimeError(str(message)[:400])
+    return payload
+
+
+async def _refresh_digest(project: str) -> None:
+    node, control, notifier = _metadata_paths()
+    if not node.is_file() or not notifier.is_file():
+        raise RuntimeError("Kurami Projects Digest notifier is unavailable")
+    env = dict(os.environ)
+    env["ORCHESTRATOR_HOME"] = str(control.parents[2])
+    process = await asyncio.create_subprocess_exec(
+        str(node),
+        str(notifier),
+        "--project",
+        project,
+        "--apply",
+        stdin=asyncio.subprocess.DEVNULL,
+        stdout=asyncio.subprocess.PIPE,
+        stderr=asyncio.subprocess.PIPE,
+        env=env,
+    )
+    try:
+        stdout, stderr = await asyncio.wait_for(process.communicate(), timeout=15)
+    except asyncio.TimeoutError:
+        process.kill()
+        await process.wait()
+        raise RuntimeError("Kurami Projects Digest refresh timed out") from None
+    if process.returncode != 0:
+        error = stderr.decode("utf-8", errors="replace").strip()
+        output = stdout.decode("utf-8", errors="replace").strip()
+        raise RuntimeError(error or output or "Kurami Projects Digest refresh failed")
+
+
+def _metadata_details_message(payload: dict[str, Any]) -> str:
+    counts = payload.get("counts") or {}
+    return (
+        f"**Review proposals · {payload.get('project')} · batch {payload.get('batchNumber')}**\n"
+        f"{counts.get('pending', 0)} pending · {counts.get('skipped', 0)} excluded. "
+        "Select only proposals that should be excluded, or restore an accidental exclusion. "
+        "Nothing is written to GitHub."
+    )
+
+
+def _metadata_details_embeds(payload: dict[str, Any]) -> list[dict[str, Any]]:
+    fields: list[dict[str, Any]] = []
+    for proposal in payload.get("proposals") or []:
+        state = str(proposal.get("state") or "unknown")
+        marker = "✅" if state == "accepted" else "↩️" if state == "skipped" else "📋"
+        title = str(proposal.get("title") or "")[:180]
+        reason = str(proposal.get("reason") or "")[:450]
+        url = str(proposal.get("url") or "")
+        title_line = f"[{title}]({url})" if url.startswith("https://") else title
+        fields.append(
+            {
+                "name": (
+                    f"{marker} #{proposal.get('issueNumber')} · "
+                    f"{proposal.get('field')} → {proposal.get('proposedValue')} · "
+                    f"{proposal.get('confidence')}"
+                )[:256],
+                "value": f"{title_line}\n{reason}"[:1024],
+                "inline": False,
+            }
+        )
+    return [
+        {
+            "title": "Metadata proposal batch",
+            "description": str(payload.get("summary") or "Owner review required.")[:500],
+            "color": 0x5865F2,
+            "fields": fields[:25],
+            "footer": {
+                "text": "Accept remaining approves only SQLite state; GitHub remains unchanged."
+            },
+        }
+    ]
+
+
+def _metadata_embed_objects(payload: dict[str, Any]) -> list[Any]:
+    import discord
+
+    return [discord.Embed.from_dict(embed) for embed in _metadata_details_embeds(payload)]
+
+
+async def _metadata_review_view(payload: dict[str, Any]) -> Any:
+    import discord
+
+    view = discord.ui.View(timeout=300)
+    pending = [
+        proposal
+        for proposal in payload.get("proposals") or []
+        if proposal.get("state") == "pending"
+    ][:25]
+    if pending and payload.get("batchState") in {"ready", "discussing"}:
+        options = []
+        for proposal in pending:
+            title = str(proposal.get("title") or "")
+            options.append(
+                discord.SelectOption(
+                    label=(
+                        f"#{proposal.get('issueNumber')} · "
+                        f"{proposal.get('field')} → {proposal.get('proposedValue')}"
+                    )[:100],
+                    description=title[:100] or "Exclude this proposal",
+                    value=str(proposal.get("proposalId")),
+                )
+            )
+        view.add_item(
+            discord.ui.Select(
+                custom_id=f"kurami:metadata_exclude:{payload.get('batchId')}",
+                placeholder="Exclude selected proposals from this batch",
+                min_values=1,
+                max_values=len(options),
+                options=options,
+            )
+        )
+    skipped = [
+        proposal
+        for proposal in payload.get("proposals") or []
+        if proposal.get("state") == "skipped"
+    ][:25]
+    if skipped and payload.get("batchState") in {"ready", "discussing"}:
+        options = []
+        for proposal in skipped:
+            title = str(proposal.get("title") or "")
+            options.append(
+                discord.SelectOption(
+                    label=(
+                        f"#{proposal.get('issueNumber')} · "
+                        f"{proposal.get('field')} → {proposal.get('proposedValue')}"
+                    )[:100],
+                    description=title[:100] or "Restore this proposal",
+                    value=str(proposal.get("proposalId")),
+                )
+            )
+        view.add_item(
+            discord.ui.Select(
+                custom_id=f"kurami:metadata_restore:{payload.get('batchId')}",
+                placeholder="Restore excluded proposals",
+                min_values=1,
+                max_values=len(options),
+                options=options,
+            )
+        )
+    if pending and payload.get("batchState") in {"ready", "discussing"}:
+        view.add_item(
+            discord.ui.Button(
+                custom_id=f"kurami:metadata_accept:{payload.get('batchId')}",
+                label="Accept remaining",
+                style=discord.ButtonStyle.success,
+            )
+        )
+    return view
+
+
+async def _archive_metadata_thread(client: Any, thread_id: object) -> bool:
+    if not isinstance(thread_id, str) or not thread_id.isdigit():
+        return False
+    try:
+        thread = client.get_channel(int(thread_id)) or await client.fetch_channel(
+            int(thread_id)
+        )
+        await thread.edit(archived=True, reason="Kurami metadata batch decided")
+        return True
+    except Exception:
+        return False
+
+
+def _metadata_updates_source_message(action: str, message_flags: object) -> bool:
+    return action == "accept" and bool(getattr(message_flags, "ephemeral", False))
 
 
 async def _run_control(action: str, run_id: str) -> dict[str, Any]:
@@ -186,7 +428,149 @@ def install_control_listener(
 
     async def on_interaction(interaction: Any) -> None:
         data = getattr(interaction, "data", None)
-        parsed = parse_control_id(data.get("custom_id") if isinstance(data, dict) else None)
+        custom_id = data.get("custom_id") if isinstance(data, dict) else None
+        metadata_parsed = parse_metadata_control_id(custom_id)
+        parsed = parse_control_id(custom_id)
+        if metadata_parsed is not None:
+            action, batch_id = metadata_parsed
+            if not authorized(interaction):
+                if not interaction.response.is_done():
+                    await interaction.response.send_message(
+                        "This Kurami metadata control is not authorized for your account.",
+                        ephemeral=True,
+                    )
+                return
+            if action == "details":
+                try:
+                    payload = await _run_metadata_control("status", batch_id)
+                    view = await _metadata_review_view(payload)
+                    await interaction.response.send_message(
+                        _metadata_details_message(payload),
+                        embeds=_metadata_embed_objects(payload),
+                        view=view,
+                        ephemeral=True,
+                    )
+                except Exception as exc:
+                    await interaction.response.send_message(
+                        f"Metadata review could not be opened safely: {str(exc)[:350]}",
+                        ephemeral=True,
+                    )
+                return
+            if action in {"exclude", "restore"}:
+                if not interaction.response.is_done():
+                    await interaction.response.defer(ephemeral=True)
+                try:
+                    values = data.get("values") if isinstance(data, dict) else None
+                    if not isinstance(values, list):
+                        raise RuntimeError("No metadata proposals were selected")
+                    payload = await _run_metadata_control(
+                        action, batch_id, [str(value) for value in values]
+                    )
+                    fresh = await _run_metadata_control("status", batch_id)
+                    view = await _metadata_review_view(fresh)
+                    verb = "Excluded" if action == "exclude" else "Restored"
+                    message = (
+                        f"{verb} {payload.get('proposals')} proposals. "
+                        f"{payload.get('remaining')} remain pending. GitHub is unchanged.\n\n"
+                        f"{_metadata_details_message(fresh)}"
+                    )
+                    await interaction.edit_original_response(
+                        content=message[:1950],
+                        embeds=_metadata_embed_objects(fresh),
+                        view=view,
+                    )
+                    project = str(fresh.get("project") or "")
+                    if project:
+                        await _refresh_digest(project)
+                except Exception as exc:
+                    await interaction.edit_original_response(
+                        content=(
+                            "Metadata selection was rejected safely: "
+                            f"{str(exc)[:400]}"
+                        ),
+                        embeds=[],
+                        view=None,
+                    )
+                return
+            message_flags = getattr(getattr(interaction, "message", None), "flags", None)
+            updates_source = _metadata_updates_source_message(action, message_flags)
+            if not interaction.response.is_done():
+                if updates_source:
+                    await interaction.response.defer()
+                else:
+                    await interaction.response.defer(ephemeral=True, thinking=True)
+            try:
+                if action == "discuss":
+                    payload = await _run_metadata_control("discuss", batch_id)
+                    thread_id = payload.get("discussionThreadId")
+                    if isinstance(thread_id, str) and thread_id.isdigit():
+                        thread = client.get_channel(int(thread_id)) or await client.fetch_channel(
+                            int(thread_id)
+                        )
+                        await thread.edit(archived=False, locked=False)
+                    else:
+                        thread = await interaction.message.create_thread(
+                            name=(
+                                f"{payload.get('project')} · metadata batch "
+                                f"{payload.get('batchNumber')}"
+                            )[:100],
+                            auto_archive_duration=1440,
+                            reason="Owner requested Kurami metadata discussion",
+                        )
+                        await _run_metadata_control(
+                            "record-thread", batch_id, thread_id=str(thread.id)
+                        )
+                        thread_id = str(thread.id)
+                        await thread.send(
+                            "Discuss this metadata proposal batch here. Use the digest card "
+                            "to review exceptions, accept, or skip. The thread is archived "
+                            "after a batch decision."
+                        )
+                    message = f"Discussion opened: <#{thread_id}>"
+                elif action == "accept":
+                    before = await _run_metadata_control("status", batch_id)
+                    thread_id = before.get("discussionThreadId")
+                    archived = await _archive_metadata_thread(client, thread_id)
+                    if isinstance(thread_id, str) and thread_id.isdigit() and not archived:
+                        raise RuntimeError(
+                            "The discussion thread could not be archived; the batch was not accepted"
+                        )
+                    payload = await _run_metadata_control("accept", batch_id)
+                    if archived:
+                        await _run_metadata_control("record-archive", batch_id)
+                    message = (
+                        f"Accepted {payload.get('proposals')} proposals. "
+                        "GitHub is unchanged; guarded sync is the next stage."
+                    )
+                else:
+                    before = await _run_metadata_control("status", batch_id)
+                    thread_id = before.get("discussionThreadId")
+                    archived = await _archive_metadata_thread(client, thread_id)
+                    if isinstance(thread_id, str) and thread_id.isdigit() and not archived:
+                        raise RuntimeError(
+                            "The discussion thread could not be archived; the batch was not skipped"
+                        )
+                    payload = await _run_metadata_control("skip", batch_id)
+                    if archived:
+                        await _run_metadata_control("record-archive", batch_id)
+                    message = "Metadata proposal batch skipped. GitHub is unchanged."
+                project = str(payload.get("project") or "")
+                if not project:
+                    status_payload = await _run_metadata_control("status", batch_id)
+                    project = str(status_payload.get("project") or "")
+                if project:
+                    await _refresh_digest(project)
+            except Exception as exc:
+                message = f"Metadata control rejected safely: {str(exc)[:400]}"
+            if updates_source:
+                await interaction.edit_original_response(
+                    content=message,
+                    embeds=[],
+                    view=None,
+                )
+            else:
+                await interaction.followup.send(message, ephemeral=True)
+            return
         if parsed is None:
             return
 

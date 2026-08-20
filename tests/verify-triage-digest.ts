@@ -244,16 +244,88 @@ async function main(): Promise<void> {
       "Digest was not posted directly to the configured text channel",
     );
     const payload = requests[0]!.body;
+    const initialPayload = JSON.stringify(payload);
     assert(
-      JSON.stringify(payload).includes("TailorTales · Project digest") &&
-        JSON.stringify(payload).includes("Suggested next") &&
-        !JSON.stringify(payload).toLowerCase().includes("due date"),
+      initialPayload.includes("TailorTales · Project digest") &&
+        initialPayload.includes("Suggested next") &&
+        !initialPayload.toLowerCase().includes("due date") &&
+        !initialPayload.includes("Snapshot") &&
+        !initialPayload.includes("deterministic-v2"),
       "Digest card contract is incomplete",
     );
     const unchanged = JSON.parse(
       (await runNode(notifier, ["--apply"], notifierEnvironment)).stdout,
     ) as { ok: boolean; results: unknown[] };
     assert(unchanged.ok && unchanged.results.length === 0 && requests.length === 1, "Idle digest edited the card");
+
+    database
+      .prepare(
+        `INSERT INTO project_metadata_proposal_batches (
+           batch_id, project, batch_number, batch_kind, batch_state,
+           factual_hash, change_sequence, source_items_json, source_digest,
+           candidate_count, proposal_count, summary
+         ) VALUES (
+           'pmb_aabb', 'tailortales', 1, 'changed', 'ready', ?, 1,
+           '[]', ?, 2, 2, '2 metadata proposals ready for 2 issues.'
+         )`,
+      )
+      .run(snapshot.factualHash, "c".repeat(64));
+    const insertProposal = database.prepare(
+      `INSERT INTO project_metadata_proposals (
+         proposal_id, batch_id, item_id, repository, issue_number, title, url,
+         field_name, baseline_value, proposed_value, confidence, reason,
+         evidence_json
+       ) VALUES (?, 'pmb_aabb', ?, 'Shagon1k/TailorTales', ?, ?, ?, ?, NULL,
+                 ?, 'high', 'Evidence-backed proposal.', '[]')`,
+    );
+    insertProposal.run(
+      "pmp_aabb",
+      "item-1",
+      1,
+      "Issue 1",
+      "https://example.invalid/issues/1",
+      "priority",
+      "P2",
+    );
+    insertProposal.run(
+      "pmp_ccdd",
+      "item-2",
+      2,
+      "Issue 2",
+      "https://example.invalid/issues/2",
+      "effort",
+      "M",
+    );
+    const metadataReady = JSON.parse(
+      (await runNode(notifier, ["--apply"], notifierEnvironment)).stdout,
+    ) as { ok: boolean; results: Array<{ action: string }> };
+    const metadataPayload = JSON.stringify(requests.at(-1)?.body);
+    assert(
+      metadataReady.ok &&
+        metadataReady.results[0]?.action === "edited" &&
+        requests.at(-1)?.method === "PATCH" &&
+        metadataPayload.includes("Metadata proposals") &&
+        metadataPayload.includes("2 pending") &&
+        metadataPayload.includes("1 Priority · 1 Effort") &&
+        metadataPayload.includes("Owner review required. GitHub is unchanged.") &&
+        metadataPayload.includes("Accept batch") &&
+        metadataPayload.includes("Review proposals") &&
+        metadataPayload.includes("Discuss batch") &&
+        metadataPayload.includes("Skip batch") &&
+        !metadataPayload.includes("Snapshot") &&
+        !metadataPayload.includes("deterministic-v2"),
+      "Ready metadata batch did not appear on the persistent digest card",
+    );
+    const requestCountAfterMetadata = requests.length;
+    const metadataIdle = JSON.parse(
+      (await runNode(notifier, ["--apply"], notifierEnvironment)).stdout,
+    ) as { ok: boolean; results: unknown[] };
+    assert(
+      metadataIdle.ok &&
+        metadataIdle.results.length === 0 &&
+        requests.length === requestCountAfterMetadata,
+      "Unchanged metadata batch edited the digest card",
+    );
 
     database
       .prepare(
@@ -319,6 +391,9 @@ async function main(): Promise<void> {
         idleEdits: 0,
         dailyLastCheckedEdit: true,
         eventDrivenStatusRefresh: true,
+        metadataOwnerReviewCard: true,
+        metadataIdleNoOp: true,
+        technicalFooterHidden: true,
         persistentMessageIdentity: surface.message_id,
         dueDatesExcluded: true,
         boardMutations: false,

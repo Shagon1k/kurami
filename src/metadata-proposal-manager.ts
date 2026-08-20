@@ -198,7 +198,7 @@ function loadActiveBatch(database: DatabaseSync, project: string): ActiveBatchRo
         `SELECT batch_id, batch_state, factual_hash, source_items_json
          FROM project_metadata_proposal_batches
          WHERE project = ?
-           AND batch_state IN ('planned', 'running', 'ready', 'discussing')
+           AND batch_state IN ('planned', 'running', 'ready', 'discussing', 'accepted')
          ORDER BY batch_number DESC LIMIT 1`,
       )
       .get(project) as ActiveBatchRow | undefined) ?? null
@@ -321,6 +321,16 @@ export function planProjectAssessment(
   const cursor = loadCursor(database, project);
   const active = loadActiveBatch(database, project);
   if (active) {
+    if (active.batch_state === "accepted") {
+      return {
+        project,
+        action: "active",
+        batchId: active.batch_id,
+        batchState: active.batch_state,
+        deferredFactualHash:
+          active.factual_hash === current.factual_hash ? null : current.factual_hash,
+      };
+    }
     const targetChanged = activeBatchTargetChanged(active, currentFacts);
     if (!targetChanged) {
       return {
@@ -401,14 +411,15 @@ function recordEvent(
   batchId: string,
   eventType: string,
   details: unknown,
+  actor = "kurami",
 ): void {
   database
     .prepare(
       `INSERT INTO project_metadata_proposal_events (
          event_id, batch_id, event_type, actor, details_json
-       ) VALUES (?, ?, ?, 'kurami', ?)`,
+       ) VALUES (?, ?, ?, ?, ?)`,
     )
-    .run(id("pme"), batchId, eventType, JSON.stringify(details));
+    .run(id("pme"), batchId, eventType, actor, JSON.stringify(details));
 }
 
 function updateCursor(
@@ -560,6 +571,7 @@ export function skipBatch(
   database: DatabaseSync,
   batchId: string,
   apply: boolean,
+  actor = "kurami",
 ): Record<string, unknown> {
   const row = database
     .prepare(
@@ -597,7 +609,7 @@ export function skipBatch(
          WHERE batch_id=? AND proposal_state='pending'`,
       )
       .run(batchId);
-    recordEvent(database, batchId, "skipped", {});
+    recordEvent(database, batchId, "skipped", {}, actor);
     let remainingBootstrapCandidates = 0;
     let bootstrapCursor:
       | { factualHash: string; changeSequence: number }

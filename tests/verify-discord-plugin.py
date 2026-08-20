@@ -54,6 +54,97 @@ def main() -> None:
     for custom_id in rejected:
         require(module.parse_control_id(custom_id) is None, f"Accepted {custom_id!r}")
 
+    metadata_accepted = {
+        "kurami:metadata_details:pmb_abc123": ("details", "pmb_abc123"),
+        "kurami:metadata_accept:pmb_abc123": ("accept", "pmb_abc123"),
+        "kurami:metadata_skip:pmb_abc123": ("skip", "pmb_abc123"),
+        "kurami:metadata_discuss:pmb_abc123": ("discuss", "pmb_abc123"),
+        "kurami:metadata_exclude:pmb_abc123": ("exclude", "pmb_abc123"),
+        "kurami:metadata_restore:pmb_abc123": ("restore", "pmb_abc123"),
+    }
+    for custom_id, expected in metadata_accepted.items():
+        require(
+            module.parse_metadata_control_id(custom_id) == expected,
+            f"Rejected metadata control {custom_id}",
+        )
+    metadata_rejected = [
+        None,
+        42,
+        "kurami:metadata_apply:pmb_abc123",
+        "kurami:metadata_accept:abc123",
+        "kurami:metadata_accept:pmb_abc123;rm",
+        "kurami:metadata_accept:pmb_ABC123",
+        "kurami:metadata_accept:pmb_abc123:extra",
+    ]
+    for custom_id in metadata_rejected:
+        require(
+            module.parse_metadata_control_id(custom_id) is None,
+            f"Accepted metadata control {custom_id!r}",
+        )
+
+    metadata_details = module._metadata_details_message(
+        {
+            "project": "tailortales",
+            "batchNumber": 1,
+            "summary": "2 metadata proposals ready for 2 issues.",
+            "proposals": [
+                {
+                    "issueNumber": 55,
+                    "field": "priority",
+                    "proposedValue": "P1",
+                    "confidence": "high",
+                    "title": "Select a Merchant of Record",
+                    "reason": "Owner impact is explicit.",
+                    "state": "pending",
+                }
+            ],
+        }
+    )
+    require("batch 1" in metadata_details, "Metadata details lost batch identity")
+    metadata_embeds = module._metadata_details_embeds(
+        {
+            "summary": "12 metadata proposals ready for 12 issues.",
+            "proposals": [
+                {
+                    "issueNumber": number,
+                    "field": "priority" if number == 55 else "effort",
+                    "proposedValue": "P1" if number == 55 else "M",
+                    "confidence": "high",
+                    "title": f"Proposal issue {number}",
+                    "url": f"https://example.invalid/issues/{number}",
+                    "reason": "Owner impact is explicit.",
+                    "state": "pending",
+                }
+                for number in range(55, 67)
+            ],
+        }
+    )
+    require(
+        "#55 · priority → P1" in metadata_embeds[0]["fields"][0]["name"],
+        "Metadata embed lost proposal",
+    )
+    require(
+        len(metadata_embeds[0]["fields"]) == 12,
+        "Metadata embed truncated the bounded 12-proposal batch",
+    )
+    require("Nothing is written to GitHub" in metadata_details, "Metadata safety boundary is hidden")
+
+    class MessageFlags:
+        ephemeral = True
+
+    require(
+        module._metadata_updates_source_message("accept", MessageFlags()),
+        "Ephemeral accept does not replace its source review panel",
+    )
+    require(
+        not module._metadata_updates_source_message("discuss", MessageFlags()),
+        "Discussion unexpectedly replaces the digest source message",
+    )
+    require(
+        not module._metadata_updates_source_message("accept", None),
+        "Public digest accept unexpectedly replaces the source card",
+    )
+
     status = module._status_message(
         {
             "project": "tailortales",
@@ -100,6 +191,8 @@ def main() -> None:
                 "ok": True,
                 "accepted": len(accepted),
                 "rejected": len(rejected),
+                "metadata_accepted": len(metadata_accepted),
+                "metadata_rejected": len(metadata_rejected),
                 "listener": "strict_component_allowlist",
             },
             separators=(",", ":"),
