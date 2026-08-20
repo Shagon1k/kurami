@@ -35,6 +35,10 @@ app/
     triage-snapshot.ts        Persists changed-only Backlog fact snapshots
     triage-rank.ts            Ranks every eligible issue with explainable policy
     notify-discord-digest.ts  Reconciles persistent per-project digest cards
+    metadata-proposal-manager.ts
+                              Plans durable changed-only metadata batches
+    metadata-proposal-worker.ts
+                              Runs bounded read-only Priority/Effort assessment
     observe-ci.ts             Reads exact-PR CI state without GitHub mutations
     review-manager.ts         Validates and starts explicit exact-SHA AI reviews
     ai-review-worker.ts       Publishes one bounded native GitHub PR review
@@ -371,6 +375,10 @@ already have accepted them. Ordinary polling remains `no_agent`.
 - `project_triage_snapshots`: changed-only factual history for ranking and audit;
 - `project_triage_rankings`: current full eligible ranking and Suggested-next identity;
 - `project_discord_digest_surfaces`: stable direct-message identity per project;
+- `project_metadata_assessment_cursors`: last fully assessed factual baseline;
+- `project_metadata_proposal_batches`: immutable bounded AI assessment inputs and state;
+- `project_metadata_proposals`: field-level proposals and later apply/revert provenance;
+- `project_metadata_proposal_events`: append-only proposal lifecycle evidence;
 - `run_progress_cards`: transport-independent desired lifecycle card per run;
 - `run_discord_surfaces`: Discord starter card, ticket thread, owner membership,
   and persistent thread-control-message identity;
@@ -415,6 +423,49 @@ created. Identical same-day state is a no-op. A daily check may refresh only the
 displayed Last checked date. Status transitions trigger the same locked pipeline
 from the project poller, while the daily Hermes job remains the recovery baseline.
 The orchestrator must never create, move, or delete the `📋-digest` channel.
+
+### Metadata proposal batches
+
+P4c starts behind a read-only boundary. `src/metadata-proposal-manager.ts` plans
+at most 12 Backlog issues per batch from the changed-only Projects Digest facts.
+The initial bootstrap is chunked without losing remaining issues. Later batches
+consider only new or proposal-relevant changed issues. One active batch per
+project prevents daily reruns; unrelated project changes are deferred instead of
+invalidating an existing proposal, while a change to a batch target supersedes
+that stale batch.
+
+`src/metadata-proposal-worker.ts` may suggest missing Priority values P1-P3 and
+Effort values XS-XL. P0 is owner-only and is rejected by both the parser and the
+database. Dependency relationships are excluded. The worker prefetches bounded
+private issue context with read-only `gh api` calls, then removes GitHub tokens
+from the detached Codex environment. Codex runs read-only with no approvals,
+network, external tools, or mutation authority. Its strict JSON result is
+revalidated against the current target facts before durable proposals are stored.
+This stage does not edit GitHub Projects, Discord, issues, or repository content.
+
+Inspect and then create proposal batch plans:
+
+```bash
+ORCHESTRATOR_HOME=/home/shagon1k/_hermes/_orchestrator \
+node src/metadata-proposal-manager.ts prepare
+
+ORCHESTRATOR_HOME=/home/shagon1k/_hermes/_orchestrator \
+node src/metadata-proposal-manager.ts prepare --apply
+```
+
+Inspect a planned batch without GitHub reads or Codex execution, then explicitly
+run its read-only assessment:
+
+```bash
+ORCHESTRATOR_HOME=/home/shagon1k/_hermes/_orchestrator \
+node src/metadata-proposal-worker.ts --batch-id <batch_id>
+
+ORCHESTRATOR_HOME=/home/shagon1k/_hermes/_orchestrator \
+node src/metadata-proposal-worker.ts --batch-id <batch_id> --apply
+```
+
+Discord review controls and guarded GitHub Project field application are later
+P4c stages and are intentionally absent from this boundary.
 
 ### Worktree Provisioner
 
