@@ -21,6 +21,7 @@
     "test:discord": "node tests/verify-discord-controls.ts",
     "test:discord-plugin": "KURAMI_DISCORD_PLUGIN_DIR=/home/shagon1k/_hermes/_core/plugins/kurami-discord-controls python3 tests/verify-discord-plugin.py",
     "test:backup": "node tests/verify-state-backup.ts",
+    "test:recovery": "node tests/verify-recovery-bundle.ts",
     "test:runtime-health": "node tests/verify-runtime-health.ts",
     "test:resource-guard": "node tests/verify-resource-guard.ts",
     "test:resource-guard-discord": "node tests/verify-resource-guard-discord.ts",

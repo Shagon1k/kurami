@@ -8,8 +8,10 @@ non-secret deployment assets. It is not a complete machine image.
 - GitHub: private `Shagon1k/kurami-orchestrator` repository.
 - Runtime backup: the newest verified directory under
   `/home/shagon1k/_hermes/_orchestrator/backups/`.
-- Secrets: the operator-managed secret store or an offline copy. Secrets are
-  intentionally excluded from Git and orchestrator backups.
+- Minimal DR: the newest encrypted `kurami-recovery-*.tar.zst.age` object in
+  the private off-site bucket, plus its `.sha256` sidecar.
+- Recovery identity: the operator's offline `age` private key. It must never be
+  stored on the VPS or in the bucket.
 
 The repository contains TypeScript source, migrations, tests, deployment
 configuration, the Caddy unit, Hermes wrappers, the Discord control plugin, and
@@ -29,6 +31,62 @@ Project root:     /home/shagon1k/_projects
 
 Restore to these paths unless all configuration and service files are reviewed
 and changed together.
+
+## Minimal encrypted recovery bundle
+
+The ordinary backup intentionally excludes credentials. When Minimal DR is
+enabled, the same three-day backup job additionally creates one encrypted
+bundle containing only:
+
+- the newest verified SQLite/config snapshot and both manifests;
+- Hermes `.env`;
+- GitHub and TailorTales preview env files;
+- the Hermes `cron/jobs.json` registry.
+
+Application code remains in the private GitHub repository. Logs, Docker data,
+Codex sessions, canonical clones, worktrees, temporary files, and runtime
+binaries are not copied. Local encrypted retention is three bundles; the
+off-site bucket should also retain only the newest three objects and checksum
+sidecars.
+
+Minimal DR is disabled unless the private file
+`/home/shagon1k/_hermes/_orchestrator/secrets/recovery.env` exists with mode
+`0600` and contains an `age` **public** recipient:
+
+```text
+KURAMI_RECOVERY_RECIPIENT=age1...
+```
+
+The corresponding private identity stays off the VPS. Bundle creation fails
+closed if a required source is missing, symlinked, group/world-readable, does
+not match the state-backup manifest, or fails SQLite integrity verification.
+Plaintext staging is created under the system temporary directory and removed
+after encryption, including on failure.
+
+Before upload is configured, encrypted bundles are written to
+`/home/shagon1k/_hermes/_orchestrator/recovery/`. The summary explicitly says
+that off-site upload is not configured; a local encrypted bundle alone is not
+considered disaster recovery.
+
+On an isolated restore host, install `age`, clone GitHub, download the newest
+bundle plus sidecar, verify the sidecar, and run:
+
+```bash
+export ORCHESTRATOR_HOME=/home/shagon1k/_hermes/_orchestrator
+export HERMES_HOME=/home/shagon1k/_hermes/_core
+export KURAMI_AGE_BIN=/usr/local/bin/age
+export PATH="$ORCHESTRATOR_HOME/runtime/node/bin:$PATH"
+
+sha256sum --check kurami-recovery-*.tar.zst.age.sha256
+node "$ORCHESTRATOR_HOME/app/src/recovery-bundle.ts" verify \
+  --bundle /path/to/kurami-recovery-YYYYMMDDTHHMMSSZ.tar.zst.age \
+  --identity /offline/path/to/kurami-recovery.agekey
+```
+
+The verifier decrypts only inside an isolated temporary directory, rejects
+unsafe archive entries, checks every file against the encrypted manifest, runs
+SQLite `quick_check`, and removes the plaintext drill directory. Actual
+restoration remains an explicit operator action following the order below.
 
 ## Restore order
 
@@ -83,6 +141,7 @@ Recreate or verify:
 | --- | --- | --- |
 | `kurami-tailortales-poller` | `* * * * *` | local |
 | `kurami-pickflick-poller` | `* * * * *` | local |
+| `kurami-projects-digest` | `45 6 * * *` | digest Discord channel |
 | `kurami-orchestrator-state-backup` | `15 3 */3 * *` | maintenance Discord channel |
 | `kurami-orchestrator-runtime-health` | `17 * * * *` | alerts Discord channel |
 | `kurami-orchestrator-health-heartbeat` | `20 */3 * * *` | health Discord channel |
@@ -110,6 +169,7 @@ npm run test:observer
 npm run test:discord
 KURAMI_DISCORD_PLUGIN_DIR="$HERMES_HOME/plugins/kurami-discord-controls" npm run test:discord-plugin
 npm run test:backup
+npm run test:recovery
 npm run test:runtime-health
 npm run test:maintenance
 
@@ -139,7 +199,7 @@ docker system df
 ```
 
 The healthy baseline is an integrity-clean SQLite database, rootless Docker,
-no unexplained preview leases or Compose projects, synchronized ingress, six
+no unexplained preview leases or Compose projects, synchronized ingress, seven
 active cron jobs, and no secrets in Git.
 
 ## Safety
