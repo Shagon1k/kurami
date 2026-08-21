@@ -49,6 +49,13 @@ class MemoryS3 implements S3RecoveryTransport {
 
 const root = await mkdtemp(resolve(tmpdir(), "kurami-s3-recovery-test-"));
 const transport = new MemoryS3();
+const backupWrapper = await readFile(
+  resolve(
+    process.cwd(),
+    "integrations/hermes/scripts/kurami-orchestrator-state-backup.sh",
+  ),
+  "utf8",
+);
 const settings = {
   bucket: "kurami-orchestrator-recovery-123456789012-eu-west-1-an",
   region: "eu-west-1",
@@ -59,6 +66,11 @@ const settings = {
 };
 
 try {
+  if (
+    !/set -a\s+(?:#.*\s+)*source "\$\{RECOVERY_ENV\}"\s+set \+a/.test(backupWrapper)
+  ) {
+    fail("Backup wrapper does not export recovery.env to child processes");
+  }
   await mkdir(resolve(root, "recovery"), { recursive: true, mode: 0o700 });
   const fakeCurl = resolve(root, "fake-curl.cjs");
   const fakeCurlLog = resolve(root, "fake-curl-log.json");
@@ -150,6 +162,7 @@ process.stdin.on("end", () => {
       sizeVerified: true,
       checksumReadBack: true,
       credentialsExcludedFromProcessArgs: true,
+      wrapperExportsRecoveryEnvironment: true,
       tamperRejected,
       exactPrefix: true,
     })}\n`,

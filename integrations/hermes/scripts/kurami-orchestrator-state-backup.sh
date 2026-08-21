@@ -19,8 +19,10 @@ if [[ -f "${RECOVERY_ENV}" ]]; then
     echo "Refusing unsafe Minimal DR config: ${RECOVERY_ENV}" >&2
     exit 1
   fi
+  set -a
   # shellcheck disable=SC1090
   source "${RECOVERY_ENV}"
+  set +a
 fi
 if [[ -n "${KURAMI_RECOVERY_RECIPIENT:-}" ]]; then
   "${NODE_BIN}" "${ORCHESTRATOR_HOME}/app/src/recovery-bundle.ts" create --summary-text
