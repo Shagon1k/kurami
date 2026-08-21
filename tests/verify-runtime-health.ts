@@ -2,6 +2,22 @@ import {
   analyzePreviewConsistency,
   formatHealthSummary,
 } from "../src/runtime-health.ts";
+import type { ResourceGuardAnalysis } from "../src/resource-guard.ts";
+
+const healthyResourceGuard: ResourceGuardAnalysis = {
+  disk: { usedPercent: 18, availableGiB: 160, state: "normal" },
+  worktrees: {
+    global: 0,
+    byProject: { tailortales: 0, pickflick: 0 },
+    maxGlobal: 6,
+    maxPerProject: 4,
+  },
+  observations: [],
+  quarantines: { observed: 0, quarantined: 0, reviewDue: 0 },
+  admissionBlocked: false,
+  blockReasons: [],
+  warnings: [],
+};
 
 const healthy = analyzePreviewConsistency({
   leases: [
@@ -128,11 +144,13 @@ const heartbeat = formatHealthSummary({
   backupMaxAgeHours: 84,
   backupFresh: true,
   preview: healthy,
+  resourceGuard: healthyResourceGuard,
   problems: [],
 });
 if (
   !heartbeat.includes("Kurami Orchestrator healthy") ||
   !heartbeat.includes("Active previews: 2") ||
+  !heartbeat.includes("Managed worktrees: 0/6") ||
   !heartbeat.includes("71.5h (limit 84h)")
 ) {
   throw new Error(`Unexpected healthy heartbeat: ${heartbeat}`);
@@ -148,6 +166,7 @@ const alert = formatHealthSummary({
   backupMaxAgeHours: 84,
   backupFresh: false,
   preview: healthy,
+  resourceGuard: healthyResourceGuard,
   problems: ["Latest state backup is 90h old"],
 });
 if (!alert.includes("needs attention") || !alert.includes("90h old")) {

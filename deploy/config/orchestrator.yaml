@@ -10,6 +10,8 @@ limits:
   max_llm_running_global: 1
   max_parked_review_global: 4
   max_tmux_sessions_global: 2
+  max_managed_worktrees_global: 6
+  max_managed_worktrees_per_project: 4
   max_previews_global: 6
   max_preview_builds_global: 2
   preview_ttl_hours: 24
@@ -17,3 +19,9 @@ limits:
   preview_extension_hours: 24
   min_preview_available_memory_mib: 4096
   min_preview_available_disk_gib: 20
+  disk_warning_percent: 75
+  disk_admission_block_percent: 85
+  disk_emergency_percent: 92
+  orphan_grace_minutes: 30
+  quarantine_review_after_days: 7
+  max_delivery_attempts: 3

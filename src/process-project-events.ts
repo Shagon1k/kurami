@@ -3,6 +3,13 @@ import { readFile } from "node:fs/promises";
 import { resolve } from "node:path";
 import { DatabaseSync } from "node:sqlite";
 import { parse } from "yaml";
+import {
+  inspectResourceGuard,
+  reconcileResourceQuarantines,
+  validateResourceGuardLimits,
+  type ResourceGuardAnalysis,
+  type ResourceGuardLimits,
+} from "./resource-guard.ts";
 
 process.umask(0o077);
 
@@ -37,7 +44,7 @@ type OrchestratorConfig = {
   limits: {
     max_active_global: number;
     max_active_per_project: number;
-  };
+  } & ResourceGuardLimits;
 };
 
 type EventRow = {
@@ -300,6 +307,7 @@ function createRun(
   event: EventRow,
   project: ProjectConfig,
   config: OrchestratorConfig,
+  resourceGuard: ResourceGuardAnalysis,
 ): EventResult {
   if (
     event.content_type !== "Issue" ||
@@ -331,9 +339,10 @@ function createRun(
 
   const globalActive = activeCount(database);
   const projectActive = activeCount(database, event.project);
-  const rejected =
+  const wipRejected =
     globalActive >= config.limits.max_active_global ||
     projectActive >= config.limits.max_active_per_project;
+  const rejected = wipRejected || resourceGuard.admissionBlocked;
   const runId = makeRunId(event.event_id);
   const previousRun = latestRun(database, event.project, event.item_id);
   const interactionPolicy = metadata.labels.includes(project.human_control_label)
@@ -343,9 +352,11 @@ function createRun(
   const previewRequired =
     previewRequiredLabel !== null && metadata.labels.includes(previewRequiredLabel);
   const state = rejected ? "rejected" : "admission_pending";
-  const rejectionReason = rejected
+  const rejectionReason = wipRejected
     ? `WIP limit reached: global ${globalActive}/${config.limits.max_active_global}, project ${projectActive}/${config.limits.max_active_per_project}`
-    : null;
+    : resourceGuard.admissionBlocked
+      ? `Resource guard blocked admission: ${resourceGuard.blockReasons.join("; ")}`
+      : null;
 
   database
     .prepare(`
@@ -395,7 +406,11 @@ function createRun(
     runId,
     null,
     state,
-    rejected ? "wip_limit_rejected" : "activation_event_admitted",
+    rejected
+      ? wipRejected
+        ? "wip_limit_rejected"
+        : "resource_guard_rejected"
+      : "activation_event_admitted",
     event.event_id,
     {
       globalActiveBefore: globalActive,
@@ -403,6 +418,12 @@ function createRun(
       executionMode: config.mode,
       previewRequired,
       previewRequiredLabel: previewRequired ? previewRequiredLabel : null,
+      resourceGuard: {
+        disk: resourceGuard.disk,
+        worktrees: resourceGuard.worktrees,
+        observations: resourceGuard.observations.length,
+        quarantines: resourceGuard.quarantines,
+      },
     },
   );
   markEvent(
@@ -410,7 +431,9 @@ function createRun(
     event.event_id,
     "processed",
     rejected
-      ? "Rejected by WIP gate"
+      ? wipRejected
+        ? "Rejected by WIP gate"
+        : "Rejected by resource guard"
       : `${config.mode === "dry_run" ? "Dry-run" : "Live run"} created`,
   );
 
@@ -640,6 +663,14 @@ async function main(): Promise<void> {
   if (projects.version !== 1 || config.version !== 1) {
     fail("Unsupported projects or orchestrator config version");
   }
+  validateResourceGuardLimits(config.limits);
+  if (
+    config.limits.max_managed_worktrees_global < config.limits.max_active_global ||
+    config.limits.max_managed_worktrees_per_project <
+      config.limits.max_active_per_project
+  ) {
+    fail("Managed worktree limits cannot be lower than active-run limits");
+  }
   const database = new DatabaseSync(databasePath, { timeout: 5_000 });
   const results: EventResult[] = [];
 
@@ -647,6 +678,23 @@ async function main(): Promise<void> {
     database.exec("PRAGMA foreign_keys = ON; PRAGMA busy_timeout = 5000;");
     database.exec("BEGIN IMMEDIATE");
     try {
+      let resourceGuard = inspectResourceGuard(
+        database,
+        projects,
+        config.limits,
+        orchestratorHome,
+      );
+      reconcileResourceQuarantines(
+        database,
+        resourceGuard.observations,
+        config.limits,
+      );
+      resourceGuard = inspectResourceGuard(
+        database,
+        projects,
+        config.limits,
+        orchestratorHome,
+      );
       const events = database
         .prepare(`
           SELECT event_id, observed_at, project, item_id, content_id,
@@ -671,7 +719,9 @@ async function main(): Promise<void> {
           event.to_status === project.statuses.active &&
           event.from_status !== project.statuses.active
         ) {
-          results.push(createRun(database, event, project, config));
+          results.push(
+            createRun(database, event, project, config, resourceGuard),
+          );
         } else if (event.to_status === project.statuses.review) {
           results.push(parkForReview(database, event));
         } else if (event.to_status === project.statuses.done) {

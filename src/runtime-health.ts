@@ -1,8 +1,16 @@
 import { spawnSync } from "node:child_process";
-import { readdir, stat } from "node:fs/promises";
+import { readdir, readFile, stat } from "node:fs/promises";
 import { resolve } from "node:path";
 import { pathToFileURL } from "node:url";
 import { DatabaseSync } from "node:sqlite";
+import { parse } from "yaml";
+import {
+  inspectResourceGuard,
+  validateResourceGuardLimits,
+  type ResourceGuardAnalysis,
+  type ResourceGuardLimits,
+  type ResourceGuardProjects,
+} from "./resource-guard.ts";
 
 type ActiveLease = {
   lease_id: string;
@@ -46,6 +54,7 @@ export type RuntimeHealthResult = {
   backupMaxAgeHours: number;
   backupFresh: boolean;
   preview: PreviewHealthAnalysis;
+  resourceGuard: ResourceGuardAnalysis;
   problems: string[];
 };
 
@@ -117,6 +126,9 @@ export function formatHealthSummary(result: RuntimeHealthResult): string {
     `- SQLite: ${result.databaseIntegrity}`,
     `- Docker: ${result.dockerRootless ? "rootless" : "unexpected daemon"}`,
     `- Active previews: ${result.activePreviewLeases}`,
+    `- Disk: ${result.resourceGuard.disk.usedPercent}% used (${result.resourceGuard.disk.availableGiB} GiB available)`,
+    `- Managed worktrees: ${result.resourceGuard.worktrees.global}/${result.resourceGuard.worktrees.maxGlobal}`,
+    `- Resource quarantines: ${result.resourceGuard.quarantines.quarantined}`,
     `- Backup age: ${backupAge} (limit ${result.backupMaxAgeHours}h)`,
     `- Checked: ${formatVilniusTimestamp(result.checkedAt)}`,
   ].join("\n");
@@ -284,18 +296,35 @@ export async function inspectRuntimeHealth(
   orchestratorHome: string,
 ): Promise<RuntimeHealthResult> {
   const home = resolve(orchestratorHome);
+  const [projects, config] = await Promise.all([
+    readFile(resolve(home, "config/projects.yaml"), "utf8").then(
+      (content) => parse(content) as ResourceGuardProjects,
+    ),
+    readFile(resolve(home, "config/orchestrator.yaml"), "utf8").then(
+      (content) => parse(content) as { version: number; limits: ResourceGuardLimits },
+    ),
+  ]);
+  if (projects.version !== 1 || config.version !== 1) fail("Unsupported config version");
+  validateResourceGuardLimits(config.limits);
   const database = new DatabaseSync(resolve(home, "state/orchestrator.db"), {
     readOnly: true,
     timeout: 5_000,
   });
   let integrity = "unknown";
   let leases: ActiveLease[] = [];
+  let resourceGuard: ResourceGuardAnalysis;
   try {
     database.exec("PRAGMA busy_timeout = 5000");
     integrity = (
       database.prepare("PRAGMA quick_check").get() as { quick_check: string }
     ).quick_check;
     leases = activeLeases(database);
+    resourceGuard = inspectResourceGuard(
+      database,
+      projects,
+      config.limits,
+      home,
+    );
   } finally {
     database.close();
   }
@@ -331,6 +360,12 @@ export async function inspectRuntimeHealth(
       if (values.length > 0) problems.push(`${kind}: ${values.join(", ")}`);
     }
   }
+  for (const problem of new Set([
+    ...resourceGuard.blockReasons,
+    ...resourceGuard.warnings,
+  ])) {
+    problems.push(problem);
+  }
 
   return {
     ok: problems.length === 0,
@@ -342,6 +377,7 @@ export async function inspectRuntimeHealth(
     backupMaxAgeHours,
     backupFresh,
     preview,
+    resourceGuard,
     problems,
   };
 }

@@ -18,6 +18,10 @@ type ProjectsRegistry = {
   version: number;
   projects: Record<string, ProjectConfig>;
 };
+type OrchestratorConfig = {
+  version: number;
+  limits: { max_delivery_attempts: number };
+};
 type EventKind =
   | "review_ready"
   | "human_control_ready"
@@ -148,6 +152,10 @@ const hermesHome = resolve(
 );
 const databasePath = resolve(orchestratorHome, "state/orchestrator.db");
 const projectsPath = resolve(orchestratorHome, "config/projects.yaml");
+const orchestratorConfigPath = resolve(
+  orchestratorHome,
+  "config/orchestrator.yaml",
+);
 const apiBase = (
   process.env.DISCORD_API_BASE ?? "https://discord.com/api/v10"
 ).replace(/\/$/u, "");
@@ -349,7 +357,10 @@ function deterministicNonce(kind: "card" | "event", id: string): string {
   return `${kind[0]}-${createHash("sha256").update(id).digest("hex").slice(0, 20)}`;
 }
 
-function loadDesiredCards(database: DatabaseSync): CardRow[] {
+function loadDesiredCards(
+  database: DatabaseSync,
+  maxDeliveryAttempts: number,
+): CardRow[] {
   return database
     .prepare(
       `
@@ -472,11 +483,11 @@ function loadDesiredCards(database: DatabaseSync): CardRow[] {
             AND ds.pull_request_url IS NULL
           )
         )
-        AND COALESCE(ds.attempt_count, 0) < 5
+        AND COALESCE(ds.attempt_count, 0) < ?
       ORDER BY r.created_at, r.run_id
     `,
     )
-    .all() as CardRow[];
+    .all(maxDeliveryAttempts) as CardRow[];
 }
 
 function loadCard(database: DatabaseSync, runId: string): CardRow {
@@ -602,7 +613,10 @@ function seedEventDeliveries(database: DatabaseSync): void {
     .run();
 }
 
-function loadPendingEvents(database: DatabaseSync): EventRow[] {
+function loadPendingEvents(
+  database: DatabaseSync,
+  maxDeliveryAttempts: number,
+): EventRow[] {
   return database
     .prepare(
       `
@@ -629,12 +643,12 @@ function loadPendingEvents(database: DatabaseSync): EventRow[] {
       LEFT JOIN preview_slots ps USING (slot_number)
       LEFT JOIN run_ci_snapshots ci USING (run_id)
       WHERE dd.delivery_state IN ('pending', 'failed')
-        AND dd.attempt_count < 5
+        AND dd.attempt_count < ?
         AND ds.thread_id IS NOT NULL
       ORDER BY ce.created_at, ce.event_id
     `,
     )
-    .all() as EventRow[];
+    .all(maxDeliveryAttempts) as EventRow[];
 }
 
 function ciEventPayload(value: string): CiEventPayload | null {
@@ -1940,10 +1954,24 @@ async function deliverEvent(
 
 async function main(): Promise<void> {
   const { command, runId, apply } = parseArguments();
-  const registry = parse(
-    await readFile(projectsPath, "utf8"),
-  ) as ProjectsRegistry;
-  if (registry.version !== 1) fail("Unsupported projects config version");
+  const [registry, config] = await Promise.all([
+    readFile(projectsPath, "utf8").then(
+      (content) => parse(content) as ProjectsRegistry,
+    ),
+    readFile(orchestratorConfigPath, "utf8").then(
+      (content) => parse(content) as OrchestratorConfig,
+    ),
+  ]);
+  if (registry.version !== 1 || config.version !== 1)
+    fail("Unsupported config version");
+  const maxDeliveryAttempts = config.limits.max_delivery_attempts;
+  if (
+    !Number.isInteger(maxDeliveryAttempts) ||
+    maxDeliveryAttempts < 1 ||
+    maxDeliveryAttempts > 5
+  ) {
+    fail("Invalid max_delivery_attempts");
+  }
   const database = new DatabaseSync(databasePath, { timeout: 5_000 });
   database.exec("PRAGMA foreign_keys = ON; PRAGMA busy_timeout = 5000;");
   if (command === "show") {
@@ -1974,10 +2002,12 @@ async function main(): Promise<void> {
     return;
   }
   if (apply) seedEventDeliveries(database);
-  const cards = loadDesiredCards(database).filter((card) =>
+  const cards = loadDesiredCards(database, maxDeliveryAttempts).filter((card) =>
     Boolean(registry.projects[card.project]?.discord),
   );
-  const events = apply ? loadPendingEvents(database) : [];
+  const events = apply
+    ? loadPendingEvents(database, maxDeliveryAttempts)
+    : [];
   if (!apply) {
     database.close();
     process.stdout.write(
@@ -2011,7 +2041,7 @@ async function main(): Promise<void> {
       await reconcileCard(database, token, ownerUserId, card, project),
     );
   }
-  for (const event of loadPendingEvents(database)) {
+  for (const event of loadPendingEvents(database, maxDeliveryAttempts)) {
     const project = registry.projects[event.project];
     if (!project?.discord) continue;
     results.push(await deliverEvent(database, token, event, project));

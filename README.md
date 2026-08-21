@@ -65,6 +65,7 @@ app/
                               Reconciles Discord ticket threads and live cards
     backup-state.ts           Creates verified SQLite/config snapshots with retention
     runtime-health.ts         Read-only DB/Docker/preview consistency inspection
+    resource-guard.ts         Inspects admission quotas and reconciles orphan quarantine state
     monthly-maintenance.ts    Bounded old-log and unused Docker cache/image cleanup
   tests/
     verify-dry-run-admission.ts
@@ -89,6 +90,7 @@ app/
     verify-discord-plugin.py  Checks the strict component-ID allowlist without Discord access
     verify-state-backup.ts    Proves consistency, retention, and secret exclusion
     verify-runtime-health.ts  Proves forgotten-preview detection without deletion
+    verify-resource-guard.ts  Proves quota, disk, and quarantine fail-closed boundaries
     verify-monthly-maintenance.ts
                               Proves exact log cleanup selection and exclusions
   run-project-poller.sh       Production poll -> consume wrapper
@@ -849,6 +851,20 @@ occupied historical identity             -> TT-41_retry-2
 `live` does not itself create a worktree or start Codex. Admission records intent;
 the component that owns each external resource performs and records the mutation.
 
+### Resource admission guard
+
+Every event-consumer transaction reconciles managed worktree and tmux evidence
+before admitting a new run. The deployed limits allow at most six managed
+worktrees globally and four per project. Disk usage warns at 75%, blocks new
+admissions at 85%, and enters emergency state at 92%. Discord surface and event
+delivery attempts are capped at three.
+
+An unmapped managed worktree/tmux session or a missing recorded worktree blocks
+new admission immediately because ownership is ambiguous. The evidence is first
+recorded as `observed`; if it remains for 30 minutes it becomes `quarantined`,
+and after seven days it is due for owner review. Disappearing evidence is marked
+`resolved`. The guard never deletes, stops, releases, or repairs a resource.
+
 ## Routine commands
 
 Use the orchestrator-owned Node runtime:
@@ -903,6 +919,21 @@ The default freshness limit is 84 hours, matching the three-day backup cadence
 with a 12-hour execution margin. `KURAMI_BACKUP_MAX_AGE_HOURS` may be set from
 24 through 168. `--alert-text` is silent while healthy; `--summary-text` always
 prints a compact owner-facing status.
+
+Inspect the resource guard without changing quarantine state, or reconcile only
+the durable observation/quarantine records:
+
+```bash
+ORCHESTRATOR_HOME=/home/shagon1k/_hermes/_orchestrator \
+node src/resource-guard.ts
+
+ORCHESTRATOR_HOME=/home/shagon1k/_hermes/_orchestrator \
+node src/resource-guard.ts --apply
+```
+
+Both commands are non-destructive with respect to external resources. `--apply`
+writes only `resource_quarantines` rows; it performs no filesystem, tmux, Docker,
+GitHub, or Discord mutation.
 
 Preview the monthly maintenance scope, then apply it:
 
@@ -1184,6 +1215,8 @@ deliberately changed.
 - Never infer completion from process exit alone; verify state and evidence.
 - Never let polling or retries create a second active run for the same item.
 - Never bypass WIP limits by creating worktrees or sessions manually.
+- Never auto-delete a quarantined resource; owner review must resolve its exact
+  ownership and cleanup boundary first.
 - Never merge a pull request or deploy production autonomously.
 - A return from `In progress` to `Backlog` or `Deferred` is a cancellation signal.
 - A cancelled run keeps historical mapping until guarded cleanup and is moved
