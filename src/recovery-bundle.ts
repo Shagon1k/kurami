@@ -543,7 +543,7 @@ function formatSummary(result: RecoveryBundleResult): string {
     `- Files: ${result.files}`,
     `- Retained bundles: ${result.retained}`,
     `- Pruned bundles: ${result.pruned.length}`,
-    "- Off-site upload: not configured",
+    "- Local encrypted copy: ready",
   ].join("\n");
 }
 

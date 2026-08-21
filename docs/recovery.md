@@ -46,26 +46,44 @@ bundle containing only:
 Application code remains in the private GitHub repository. Logs, Docker data,
 Codex sessions, canonical clones, worktrees, temporary files, and runtime
 binaries are not copied. Local encrypted retention is three bundles; the
-off-site bucket should also retain only the newest three objects and checksum
-sidecars.
+off-site bucket retains the newest three current bundle/checksum pairs.
+Versioning provides a short recovery window for pruned current objects; an S3
+Lifecycle rule permanently removes noncurrent versions after 30 days.
 
 Minimal DR is disabled unless the private file
 `/home/shagon1k/_hermes/_orchestrator/secrets/recovery.env` exists with mode
-`0600` and contains an `age` **public** recipient:
+`0600` and contains the `age` **public** recipient plus the dedicated
+least-privilege S3 writer credentials:
 
 ```text
 KURAMI_RECOVERY_RECIPIENT=age1...
+KURAMI_S3_BUCKET=your-account-regional-recovery-bucket
+KURAMI_S3_REGION=eu-west-1
+KURAMI_S3_PREFIX=recovery/
+KURAMI_S3_RETENTION=3
+AWS_ACCESS_KEY_ID=...
+AWS_SECRET_ACCESS_KEY=...
 ```
 
-The corresponding private identity stays off the VPS. Bundle creation fails
+The corresponding private identity stays off the VPS. The S3 writer can only
+list `recovery/` and get, put, or delete current objects under that prefix. It
+must not have `s3:DeleteObjectVersion`, bucket administration, or access to any
+other AWS resource. AWS credentials are not copied into the encrypted bundle;
+during disaster recovery the operator signs in to AWS and issues a fresh
+read credential.
+
+Bundle creation fails
 closed if a required source is missing, symlinked, group/world-readable, does
 not match the state-backup manifest, or fails SQLite integrity verification.
 Plaintext staging is created under the system temporary directory and removed
 after encryption, including on failure.
 
-Before upload is configured, encrypted bundles are written to
-`/home/shagon1k/_hermes/_orchestrator/recovery/`. The summary explicitly says
-that off-site upload is not configured; a local encrypted bundle alone is not
+Encrypted bundles are first written to
+`/home/shagon1k/_hermes/_orchestrator/recovery/`. The existing backup wrapper
+then uploads the latest bundle and checksum with system `curl` using AWS SigV4,
+reads back the remote size and checksum, and prunes current S3 objects to three
+pairs. Credentials are supplied to `curl` through stdin configuration and do
+not appear in its process arguments. A local encrypted bundle alone is not
 considered disaster recovery.
 
 On an isolated restore host, install `age`, clone GitHub, download the newest
@@ -170,6 +188,7 @@ npm run test:discord
 KURAMI_DISCORD_PLUGIN_DIR="$HERMES_HOME/plugins/kurami-discord-controls" npm run test:discord-plugin
 npm run test:backup
 npm run test:recovery
+npm run test:s3-recovery
 npm run test:runtime-health
 npm run test:maintenance
 

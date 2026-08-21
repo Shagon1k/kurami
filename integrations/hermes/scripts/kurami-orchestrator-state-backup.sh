@@ -24,4 +24,9 @@ if [[ -f "${RECOVERY_ENV}" ]]; then
 fi
 if [[ -n "${KURAMI_RECOVERY_RECIPIENT:-}" ]]; then
   "${NODE_BIN}" "${ORCHESTRATOR_HOME}/app/src/recovery-bundle.ts" create --summary-text
+  if [[ -n "${KURAMI_S3_BUCKET:-}" ]]; then
+    "${NODE_BIN}" "${ORCHESTRATOR_HOME}/app/src/s3-recovery.ts" upload-latest --summary-text
+  else
+    echo "- Off-site upload: not configured"
+  fi
 fi
