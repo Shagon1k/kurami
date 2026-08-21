@@ -1257,7 +1257,19 @@ async function syncSession(
     .get(run.run_id) as
     | { round_id: string; round_number: number }
     | undefined;
-  const title = activeRepair
+  const activeSuccessor = database
+    .prepare(
+      `SELECT succession_id, succession_number
+       FROM run_autonomous_successions
+       WHERE run_id=? AND succession_state IN ('starting','running')
+       ORDER BY succession_number DESC LIMIT 1`,
+    )
+    .get(run.run_id) as
+    | { succession_id: string; succession_number: number }
+    | undefined;
+  const title = activeSuccessor
+    ? `${codexTitle(run, project)} · Autonomous continuation ${activeSuccessor.succession_number}`
+    : activeRepair
     ? `${codexTitle(run, project)} · CI fix ${activeRepair.attempt_number}/2`
     : activeReviewFix
       ? `${codexTitle(run, project)} · Review fix ${activeReviewFix.round_number}`
@@ -1338,6 +1350,16 @@ async function syncSession(
         )
         .run(threadId, activeReviewFix.round_id);
     }
+    if (activeSuccessor) {
+      database
+        .prepare(
+          `UPDATE run_autonomous_successions
+           SET successor_thread_id=?, succession_state='running',
+               updated_at=strftime('%Y-%m-%dT%H:%M:%fZ','now')
+           WHERE succession_id=? AND succession_state IN ('starting','running')`,
+        )
+        .run(threadId, activeSuccessor.succession_id);
+    }
     const synchronizedState =
       current.run_state === "starting" ? "running" : current.run_state;
     appendHistory(
@@ -1349,7 +1371,9 @@ async function syncSession(
         ? "ci_repair_thread_synchronized"
         : activeReviewFix
           ? "review_fix_thread_synchronized"
-          : "codex_thread_synchronized",
+          : activeSuccessor
+            ? "autonomous_successor_thread_synchronized"
+            : "codex_thread_synchronized",
       { codexThreadId: threadId, codexTitle: title },
     );
     database.exec("COMMIT");
@@ -1732,6 +1756,14 @@ async function leaveCliSession(
             updated_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
         WHERE run_id = ?
       `,
+      )
+      .run(run.run_id);
+    database
+      .prepare(
+        `UPDATE run_autonomous_successions
+         SET succession_state='parked', completed_at=strftime('%Y-%m-%dT%H:%M:%fZ','now'),
+             updated_at=strftime('%Y-%m-%dT%H:%M:%fZ','now')
+         WHERE run_id=? AND succession_state IN ('starting','running')`,
       )
       .run(run.run_id);
     appendHistory(

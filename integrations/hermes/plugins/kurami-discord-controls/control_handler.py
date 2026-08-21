@@ -473,6 +473,14 @@ def _status_message(payload: dict[str, Any]) -> str:
 def _request_message(action: str, payload: dict[str, Any]) -> str:
     if action == "preview_reviewed":
         return "Preview reviewed. TTL and lifecycle are unchanged."
+    if action == "take_control" and payload.get("intent") == "autonomous_successor":
+        if payload.get("action") == "existing":
+            return "Autonomous continuation is already queued."
+        return (
+            "Autonomous continuation queued. This confirms the Remote task is "
+            "finished and will not be continued; a fresh managed Codex task will "
+            "continue in the same worktree after reconciliation."
+        )
     request_state = payload.get("requestState") or payload.get("request_state")
     if payload.get("action") == "existing":
         return f"{_ACTION_LABELS[action]} is already queued (`{request_state}`)."
@@ -714,7 +722,10 @@ def install_control_listener(
         except Exception as exc:
             message = f"Control rejected safely: {str(exc)[:400]}"
         await interaction.followup.send(message, ephemeral=True)
-        if action != "status" and message.startswith(_ACTION_LABELS[action]):
+        if action != "status" and (
+            message.startswith(_ACTION_LABELS[action])
+            or message.startswith("Autonomous continuation")
+        ):
             try:
                 await _refresh_control_card(run_id)
             except Exception:

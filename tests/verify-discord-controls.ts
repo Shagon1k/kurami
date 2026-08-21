@@ -1008,12 +1008,13 @@ async function main(): Promise<void> {
     const remoteControls = threadControlEdits.at(-1)!;
     assert(
       componentLabels(remoteControls).includes("Open in Codex") &&
+        componentLabels(remoteControls).includes("Continue autonomously") &&
         componentLabels(remoteControls).includes("Start preview") &&
         componentUrls(remoteControls).includes(codexLaunchUrl) &&
-        !customIds(remoteControls).includes(
+        customIds(remoteControls).includes(
           "kurami:take_control:r_discord_smoke",
         ),
-      "Remote ownership did not expose the HTTPS Codex launcher and preview refresh control",
+      "Remote ownership did not expose the Codex launcher, autonomous continuation, and preview controls",
     );
     const remoteCard = cardEdits.at(-1)!;
     const remoteEmbed = (remoteCard.embeds as JsonObject[])[0]!;

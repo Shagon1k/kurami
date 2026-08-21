@@ -190,6 +190,19 @@ def main() -> None:
         reviewed.startswith("Preview reviewed"),
         "Preview acknowledgement response is ambiguous",
     )
+    successor = module._request_message(
+        "take_control",
+        {
+            "action": "created",
+            "requestState": "pending",
+            "intent": "autonomous_successor",
+        },
+    )
+    require(
+        "Remote task is finished" in successor
+        and "fresh managed Codex task" in successor,
+        "Autonomous successor response lost the explicit owner boundary",
+    )
     require(
         module.discard_confirmation_id("r_9") == "kurami:discard_local:r_9",
         "Discard confirmation ID is not deterministic",

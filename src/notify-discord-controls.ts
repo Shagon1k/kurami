@@ -1051,11 +1051,17 @@ export function controlComponents(
       Boolean(card.codex_thread_id) &&
       card.previous_codex_thread_id === null &&
       (card.owner_state === "cli" ||
+        (card.owner_state === "remote" &&
+          card.run_state === "remote_owned") ||
         (card.owner_state === "none" &&
           ["parked_review", "waiting_human"].includes(card.run_state)));
     if (takeoverEligible) {
       const takeoverLabel =
-        card.owner_state === "cli" ? "Take control" : "Continue in Codex";
+        card.owner_state === "cli"
+          ? "Take control"
+          : card.owner_state === "remote"
+            ? "Continue autonomously"
+            : "Continue in Codex";
       controls.push(
         button(takeoverLabel, 1, `kurami:take_control:${card.run_id}`),
       );

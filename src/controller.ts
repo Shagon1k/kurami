@@ -87,6 +87,7 @@ type RequestRow = RunRow & {
 type ControllerAction =
   | "provision"
   | "start"
+  | "successor_start"
   | "repair_start"
   | "repair_cleanup"
   | "review_start"
@@ -144,6 +145,10 @@ const cancelResolutionPath = resolve(import.meta.dirname, "cancel-resolution.ts"
 const projectStatusPath = resolve(import.meta.dirname, "project-status.ts");
 const reviewManagerPath = resolve(import.meta.dirname, "review-manager.ts");
 const reviewFixManagerPath = resolve(import.meta.dirname, "review-fix-manager.ts");
+const autonomousSuccessorPath = resolve(
+  import.meta.dirname,
+  "autonomous-successor.ts",
+);
 const projectDiscoveryMaxAgeMs = 2 * 60 * 1_000;
 
 function fail(message: string): never {
@@ -302,6 +307,17 @@ function externalCommand(
       return [provisionerPath, "--run-id", runId, "--apply"];
     case "start":
       return [sessionManagerPath, "start", "--run-id", runId, "--apply"];
+    case "successor_start":
+      if (!requestId) fail("Autonomous successor start requires a request ID");
+      return [
+        autonomousSuccessorPath,
+        "start",
+        "--run-id",
+        runId,
+        "--request-id",
+        requestId,
+        "--apply",
+      ];
     case "repair_start":
       if (!requestId) fail("CI repair start requires a request ID");
       return [
@@ -448,10 +464,19 @@ function planForRequest(
   switch (request.requested_action) {
     case "take_control":
       if (request.owner_state === "remote") {
+        if (
+          request.run_state === "remote_owned" &&
+          request.resource_state === "provisioned" &&
+          request.tmux_session_name === null &&
+          request.codex_thread_id &&
+          request.previous_codex_thread_id === null
+        ) {
+          return { ...base, action: "successor_start" };
+        }
         return {
           ...base,
-          action: "request_complete",
-          reason: "already_remote_owned",
+          action: "request_reject",
+          reason: "remote_successor_not_safe",
         };
       }
       if (!request.codex_thread_id) {
@@ -1447,13 +1472,15 @@ function progressFor(
   }
   if (
     run.takeover_pending !== 0 &&
-    run.owner_state === "cli" &&
+    ["cli", "remote"].includes(run.owner_state) &&
     run.stop_reason !== "cancelled"
   ) {
     return {
       stage: "handoff_pending",
       detail:
-        "Take control requested; safely interrupting the active Codex turn and preparing handoff.",
+        run.owner_state === "remote"
+          ? "Autonomous continuation requested; starting a fresh managed Codex task after the owner's explicit Remote-task boundary."
+          : "Take control requested; safely interrupting the active Codex turn and preparing handoff.",
     };
   }
   if (run.run_state === "running" && run.owner_state === "cli") {
@@ -1610,7 +1637,7 @@ function completeRequest(
     SET request_state = ?, result_json = ?,
         updated_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now'),
         completed_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
-    WHERE request_id = ? AND request_state = 'pending'
+    WHERE request_id = ? AND request_state IN ('pending', 'processing')
   `,
     )
     .run(state, JSON.stringify(result), requestId);
@@ -1834,7 +1861,7 @@ async function main(): Promise<void> {
   > = [];
   for (const plan of plans) {
     if (
-      ["start", "repair_start", "review_start", "review_fix_start"].includes(plan.action) &&
+      ["start", "successor_start", "repair_start", "review_start", "review_fix_start"].includes(plan.action) &&
       llmCount >= config.limits.max_llm_running_global
     ) {
       results.push({ ...plan, status: "deferred", reason: "LLM cap reached" });
@@ -1854,7 +1881,7 @@ async function main(): Promise<void> {
         : runExternal(plan);
       if (
         plan.requestId &&
-        ["handoff", "preview_up", "preview_down", "preview_expire", "preview_extend", "repair_start", "review_start", "review_fix_start"].includes(
+        ["handoff", "successor_start", "preview_up", "preview_down", "preview_expire", "preview_extend", "repair_start", "review_start", "review_fix_start"].includes(
           plan.action,
         )
       ) {
@@ -1884,7 +1911,7 @@ async function main(): Promise<void> {
         );
       }
       results.push({ ...plan, status: "applied", result });
-      if (["start", "repair_start", "review_start", "review_fix_start"].includes(plan.action))
+      if (["start", "successor_start", "repair_start", "review_start", "review_fix_start"].includes(plan.action))
         llmCount += 1;
       reconcileCiRepairAttempts(database);
       reconcileReviewFixRounds(database);
@@ -1904,10 +1931,12 @@ async function main(): Promise<void> {
           })}\n`,
         );
       }
-      if (["review_start", "review_fix_start"].includes(plan.action) && plan.requestId) {
+      if (["successor_start", "review_start", "review_fix_start"].includes(plan.action) && plan.requestId) {
         completeRequest(database, plan.requestId, "failed", {
           action:
-            plan.action === "review_start"
+            plan.action === "successor_start"
+              ? "autonomous_successor_start_failed"
+              : plan.action === "review_start"
               ? "ai_review_start_failed"
               : "review_fix_start_failed",
           reason,

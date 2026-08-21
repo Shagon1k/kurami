@@ -268,6 +268,7 @@ starting + provisioned            -> start Codex, subject to the LLM cap
 running + missing thread ID       -> synchronize title/thread mapping
 review-ready + CLI                -> park the persistent task, owner none
 explicit take-control request     -> transfer the same thread to Remote
+explicit autonomous continuation -> freeze Remote task + start fresh managed task
 explicit failed-CI repair request -> fresh bounded task in the same worktree
 finished repair task              -> archive repair task + restore primary task
 explicit AI-review request        -> detached read-only review on the exact PR SHA
@@ -332,6 +333,24 @@ only an exact UUID path on that host and returns a `302` to
 launcher route is intentionally not protected by Cloudflare Access: it exposes
 no task data or authorization and the Codex app still enforces the user's own
 session. The UUID is an identifier rather than a credential.
+
+When Remote ownership is finished, the same control becomes `Continue
+autonomously`. Pressing it is the owner's explicit confirmation that the
+current Remote task is finished and will not be continued. Kurami freezes that
+task as history and starts a **fresh** managed Codex task in the same exact
+worktree and branch; it never resumes or sends another message to the previous
+task. The successor receives a bounded handoff containing the predecessor task
+ID, current HEAD, short Git status, staged and unstaged diffs, and the current
+PR, CI, and AI-review snapshot. Dirty owner changes are preserved.
+
+Only one starting or running successor may exist for a run. The request and
+successor claims are transactional and idempotent, so scheduler overlap cannot
+create two writers. Before launch Kurami revalidates Remote ownership, the
+canonical worktree, branch mapping, absence of managed tmux, and predecessor
+task identity. Any mismatch or ambiguous boundary starts nothing, preserves
+the worktree, and moves the run to `needs_attention`. When the fresh managed
+task later parks, its successor record closes and ordinary lifecycle controls
+resume.
 
 The Discord surface digest includes lifecycle state, owner state, the exact
 Codex thread ID, and preview state in addition to progress-card text. Therefore

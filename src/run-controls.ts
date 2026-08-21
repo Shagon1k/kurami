@@ -275,6 +275,21 @@ function presentPendingRequest(
   action: Action,
 ): void {
   let presentation = pendingPresentations[action];
+  if (action === "take_control") {
+    const ownership = database
+      .prepare("SELECT state, owner_state FROM runs WHERE run_id=?")
+      .get(runId) as { state: string; owner_state: string } | undefined;
+    if (
+      ownership?.state === "remote_owned" &&
+      ownership.owner_state === "remote"
+    ) {
+      presentation = {
+        stage: "handoff_pending",
+        detail:
+          "Autonomous continuation requested; starting a fresh managed Codex task after the owner's explicit Remote-task boundary.",
+      };
+    }
+  }
   if (action === "preview_start") {
     const active = database
       .prepare(`
@@ -332,6 +347,7 @@ function request(
       .prepare(
         `
       SELECT r.project, r.state, r.owner_state, r.stop_reason,
+             rr.resource_state, rr.tmux_session_name, rr.codex_thread_id,
              rr.previous_codex_thread_id
       FROM runs r JOIN run_resources rr USING (run_id)
       WHERE r.run_id = ?
@@ -343,10 +359,19 @@ function request(
           state: string;
           owner_state: string;
           stop_reason: string | null;
+          resource_state: string;
+          tmux_session_name: string | null;
+          codex_thread_id: string | null;
           previous_codex_thread_id: string | null;
         }
       | undefined;
     if (!run) fail(`Run not found: ${runId}`);
+    const requestIntent =
+      action === "take_control" &&
+      run.state === "remote_owned" &&
+      run.owner_state === "remote"
+        ? "autonomous_successor"
+        : undefined;
     if (["rejected", "cancelled", "archived"].includes(run.state)) {
       fail(`Run is terminal: ${run.state}`);
     }
@@ -369,6 +394,25 @@ function request(
     }
     if (action === "take_control" && run.previous_codex_thread_id !== null) {
       fail("Takeover is unavailable while a technical fix task cleanup is pending");
+    }
+    if (action === "take_control" && run.owner_state === "remote") {
+      const activeSuccessor = database
+        .prepare(
+          `SELECT COUNT(*) AS count FROM run_autonomous_successions
+           WHERE run_id=? AND succession_state IN ('starting','running')`,
+        )
+        .get(runId) as { count: number };
+      if (
+        run.state !== "remote_owned" ||
+        run.resource_state !== "provisioned" ||
+        run.tmux_session_name !== null ||
+        !run.codex_thread_id ||
+        activeSuccessor.count !== 0
+      ) {
+        fail(
+          "Autonomous continuation requires one finished Remote task, a provisioned worktree, and no active managed writer",
+        );
+      }
     }
     if (
       ["discard_local", "discard_published"].includes(action) &&
@@ -549,6 +593,7 @@ function request(
         action: "existing",
         runId,
         requestedAction: action,
+        ...(requestIntent ? { intent: requestIntent } : {}),
         ...existing,
       };
     }
@@ -563,7 +608,11 @@ function request(
     };
     if (!apply) {
       database.exec("ROLLBACK");
-      return { action: "create", ...plan };
+      return {
+        action: "create",
+        ...plan,
+        ...(requestIntent ? { intent: requestIntent } : {}),
+      };
     }
     database
       .prepare(
@@ -589,6 +638,7 @@ function request(
       action: stored.request_id === plan.requestId ? "created" : "existing",
       runId,
       requestedAction: action,
+      ...(requestIntent ? { intent: requestIntent } : {}),
       requestId: stored.request_id,
       requestState: stored.request_state,
     };
@@ -669,6 +719,7 @@ function controls(
     threadReady &&
     !repairCleanupPending &&
     (ownerState === "cli" ||
+      (ownerState === "remote" && runState === "remote_owned") ||
       (ownerState === "none" &&
         ["parked_review", "waiting_human"].includes(runState)))
   )

@@ -1,6 +1,6 @@
 ---
 name: kurami-run-control
-description: Inspect, redisplay, or request an allowlisted Kurami Dev Orchestrator action. Use when Alex sends a textual Discord or Telegram fallback command for a Kurami engineering run, including Status, Take control, Continue in Codex, Attempt CI fix, AI Code Review, Fix Review, Start preview, Stop preview, Cancel run, Discard local work, Close draft PR and discard, Open in Codex, or Show controls/actions again.
+description: Inspect, redisplay, or request an allowlisted Kurami Dev Orchestrator action. Use when Alex sends a textual Discord or Telegram fallback command for a Kurami engineering run, including Status, Take control, Continue in Codex, Continue autonomously, Attempt CI fix, AI Code Review, Fix Review, Start preview, Stop preview, Cancel run, Discard local work, Close draft PR and discard, Open in Codex, or Show controls/actions again.
 ---
 
 # Kurami Run Control
@@ -49,6 +49,11 @@ Map exact actions and aliases as follows:
 
 - `Status`: run `$NODE $CONTROL status --run-id <run_id>`.
 - `Take control` or `Continue in Codex`: run `$NODE $CONTROL request --run-id <run_id> --action take_control --via <transport> --apply`.
+- `Continue autonomously`: offer it only when controls expose `take_control` for
+  a Remote-owned run. Treat the owner's request as explicit confirmation that
+  the current Remote task is finished and will not be continued, then run the
+  same allowlisted `take_control` request. The controller starts a fresh managed
+  task in the same worktree; never resume or message the predecessor task.
 - `Attempt CI fix`: run `$NODE $CONTROL request --run-id <run_id> --action ci_repair --via <transport> --apply`. Offer it only when the returned controls include `ci_repair`. This starts one fresh bounded Codex task on the exact failed or missing-check PR SHA; it never reuses the parked task and never starts an automatic retry.
 - `AI Code Review`: run `$NODE $CONTROL request --run-id <run_id> --action ai_review --via <transport> --apply`. Offer it only when the returned controls include `ai_review`. It starts one fresh read-only detached reviewer on the exact current PR SHA; findings are published as a native GitHub review while Discord keeps only aggregate status.
 - `Fix Review`: run `$NODE $CONTROL request --run-id <run_id> --action review_fix --via <transport> --apply`. Offer it only when the returned controls include `review_fix`. It snapshots the current unresolved review threads, starts one fresh writer task on the exact PR SHA, waits for CI, then replies to and resolves only that snapshot.
@@ -119,6 +124,13 @@ thread ID. It refuses approval-blocked turns and remains fail-closed when the
 turn does not become idle in time. Completion requires `state=remote_owned`,
 `owner_state=remote`, and a valid `codex_thread_id`; only then provide the Codex
 launcher URL.
+
+For a Remote-owned run, `Continue autonomously` is a successor transition, not
+a reverse handoff of the existing task. The predecessor remains immutable
+history. Completion of the control request means a new managed writer was
+claimed with a bounded Git/PR/CI/review snapshot. If worktree, branch, ownership,
+or task identity is ambiguous, report `needs_attention`; do not retry by
+resuming the old task or by launching another writer manually.
 
 Cancellation is complete only when status reports `state=cancelled` and
 `resource_state=released`. The controller then returns the GitHub Project item
