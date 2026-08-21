@@ -765,6 +765,45 @@ async function main(): Promise<void> {
       )
       .run();
     notificationState.close();
+    const successorRequest = runNode(
+      controlPath,
+      [
+        "request",
+        "--run-id",
+        "r_take_control",
+        "--action",
+        "take_control",
+        "--via",
+        "discord",
+        "--apply",
+      ],
+      testHome,
+    );
+    assert(
+      successorRequest.action === "created" &&
+        successorRequest.intent === "autonomous_successor",
+      "Remote-owned run did not accept an explicit autonomous successor request",
+    );
+    const successorState = new DatabaseSync(databasePath);
+    const successorCard = successorState
+      .prepare(
+        `SELECT stage, detail FROM run_progress_cards
+         WHERE run_id = 'r_take_control'`,
+      )
+      .get() as { stage: string; detail: string };
+    assert(
+      successorCard.stage === "autonomous_successor_pending" &&
+        successorCard.detail.includes("fresh managed Codex task"),
+      "Autonomous continuation reused the human-control handoff presentation",
+    );
+    successorState
+      .prepare(
+        `DELETE FROM run_control_requests
+         WHERE run_id='r_take_control' AND action='take_control'
+           AND request_state IN ('pending','processing')`,
+      )
+      .run();
+    successorState.close();
     const ambiguousDeliveryPlan = runNode(
       resolve(appDirectory, "src/notify-controls.ts"),
       [],

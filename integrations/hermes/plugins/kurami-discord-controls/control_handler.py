@@ -719,19 +719,21 @@ def install_control_listener(
                 if action == "status"
                 else _request_message(action, payload)
             )
+            refresh_card = action != "status" and (
+                message.startswith(_ACTION_LABELS[action])
+                or message.startswith("Autonomous continuation")
+            )
         except Exception as exc:
             message = f"Control rejected safely: {str(exc)[:400]}"
-        await interaction.followup.send(message, ephemeral=True)
-        if action != "status" and (
-            message.startswith(_ACTION_LABELS[action])
-            or message.startswith("Autonomous continuation")
-        ):
+            refresh_card = False
+        if refresh_card:
             try:
                 await _refresh_control_card(run_id)
             except Exception:
                 # The durable request remains authoritative. The minute controller
                 # and notifier tick are the fallback if this fast refresh fails.
                 pass
+        await interaction.followup.send(message, ephemeral=True)
 
     client.add_listener(on_interaction, "on_interaction")
     client._kurami_control_listener_installed = True

@@ -103,6 +103,14 @@ case "$1" in
   has-session)
     test -f "$FAKE_TMUX_STATE"
     ;;
+  capture-pane)
+    printf '%s\n' '› Write tests for @filename'
+    ;;
+  send-keys)
+    case "$*" in
+      *C-d*) /bin/rm -f "$FAKE_TMUX_STATE" ;;
+    esac
+    ;;
   new-session)
     : > "$FAKE_TMUX_STATE"
     ;;
@@ -140,6 +148,7 @@ esac
       fixtureWorktree: string,
       branchName: string,
       requestId?: string,
+      interactionPolicy: "autonomous" | "human_control" = "autonomous",
     ): void => {
       database
         .prepare(
@@ -161,11 +170,27 @@ esac
         );
       database
         .prepare(
+          `INSERT INTO project_items (
+             project, item_id, content_id, content_type, repository,
+             issue_number, title, url, status, first_seen_at, last_seen_at
+           ) VALUES ('tailortales', ?, ?, 'Issue', 'Shagon1k/TailorTales',
+             ?, ?, ?, 'Human Review', '2026-08-21T00:00:00.000Z',
+             '2026-08-21T00:00:00.000Z')`,
+        )
+        .run(
+          `item-${suffix}`,
+          `content-${suffix}`,
+          issue,
+          `[Test]: Successor ${issue}`,
+          `https://example.invalid/issues/${issue}`,
+        );
+      database
+        .prepare(
           `INSERT INTO runs (
              run_id, trigger_event_id, project, item_id, content_id, repository,
              issue_number, interaction_policy, state, owner_state, execution_mode
            ) VALUES (?, ?, 'tailortales', ?, ?, 'Shagon1k/TailorTales', ?,
-             'autonomous', 'remote_owned', 'remote', 'live')`,
+             ?, 'remote_owned', 'remote', 'live')`,
         )
         .run(
           `r_${suffix}`,
@@ -173,6 +198,7 @@ esac
           `item-${suffix}`,
           `content-${suffix}`,
           issue,
+          interactionPolicy,
         );
       database
         .prepare(
@@ -199,7 +225,14 @@ esac
           .run(requestId, `r_${suffix}`, `successor:${suffix}`);
       }
     };
-    insertFixture("successor", 124, worktree, "TT-124_successor");
+    insertFixture(
+      "successor",
+      124,
+      worktree,
+      "TT-124_successor",
+      undefined,
+      "human_control",
+    );
     insertFixture("ambiguous", 125, ambiguousWorktree, "TT-125_wrong");
     database.close();
 
@@ -265,7 +298,8 @@ esac
     const verify = new DatabaseSync(databasePath, { readOnly: true });
     const row = verify
       .prepare(
-        `SELECT r.state, r.owner_state, rr.tmux_session_name,
+        `SELECT r.state, r.owner_state, r.interaction_policy,
+                rr.tmux_session_name,
                 rr.codex_thread_id, s.succession_state,
                 s.predecessor_thread_id, s.handoff_context_json,
                 q.request_state
@@ -277,6 +311,7 @@ esac
       .get() as {
       state: string;
       owner_state: string;
+      interaction_policy: string;
       tmux_session_name: string;
       codex_thread_id: string | null;
       succession_state: string;
@@ -288,11 +323,13 @@ esac
       previous_thread_id: string;
       git: { status: string; unstagedDiff: string; stagedDiff: string };
       explicitOwnerConfirmation: string;
+      instructions: string[];
     };
     verify.close();
     assert(
       row.state === "running" &&
         row.owner_state === "cli" &&
+        row.interaction_policy === "human_control" &&
         row.tmux_session_name.endsWith("-a1") &&
         row.codex_thread_id === null &&
         row.succession_state === "running" &&
@@ -300,12 +337,88 @@ esac
         row.predecessor_thread_id === "thread-successor-predecessor",
       "Successor claim did not establish one managed writer",
     );
+
+    const synchronized = new DatabaseSync(databasePath);
+    synchronized
+      .prepare(
+        `UPDATE run_resources
+         SET codex_thread_id='thread-successor-managed'
+         WHERE run_id='r_successor'`,
+      )
+      .run();
+    synchronized.close();
+    const postSyncOutput = execFileSync(process.execPath, [controllerPath], {
+      encoding: "utf8",
+      env,
+      stdio: ["ignore", "pipe", "pipe"],
+    });
+    const postSync = JSON.parse(postSyncOutput) as {
+      plans: Array<{ runId: string; action: string }>;
+    };
+    assert(
+      !postSync.plans.some(
+        (plan) =>
+          plan.runId === "r_successor" && plan.action === "handoff",
+      ),
+      "Explicitly approved human-control successor was handed back immediately",
+    );
+    assert(
+      postSync.plans.some(
+        (plan) => plan.runId === "r_successor" && plan.action === "park",
+      ),
+      "Idle successor on an existing Human Review item was not scheduled to park",
+    );
+    const parkedOutput = execFileSync(
+      process.execPath,
+      [controllerPath, "--apply"],
+      { encoding: "utf8", env, stdio: ["ignore", "pipe", "pipe"] },
+    );
+    const parkedController = JSON.parse(parkedOutput) as {
+      results: Array<{ runId: string; action: string; status: string }>;
+    };
+    assert(
+      parkedController.results.some(
+        (entry) =>
+          entry.runId === "r_successor" &&
+          entry.action === "park" &&
+          entry.status === "applied",
+      ),
+      `Controller did not park the completed successor: ${parkedOutput}`,
+    );
+    const parkedDatabase = new DatabaseSync(databasePath, { readOnly: true });
+    const parkedRun = parkedDatabase
+      .prepare(
+        `SELECT r.state, r.owner_state, rr.tmux_session_name,
+                s.succession_state
+         FROM runs r JOIN run_resources rr USING (run_id)
+         JOIN run_autonomous_successions s USING (run_id)
+         WHERE r.run_id='r_successor'`,
+      )
+      .get() as {
+      state: string;
+      owner_state: string;
+      tmux_session_name: string | null;
+      succession_state: string;
+    };
+    parkedDatabase.close();
+    assert(
+      parkedRun.state === "parked_review" &&
+        parkedRun.owner_state === "none" &&
+        parkedRun.tmux_session_name === null &&
+        parkedRun.succession_state === "parked",
+      "Completed no-op successor did not release its managed writer",
+    );
     assert(
       context.previous_thread_id === "thread-successor-predecessor" &&
         context.git.status.includes("README.md") &&
         context.git.unstagedDiff.includes("owner edit") &&
         context.git.stagedDiff.includes("staged owner note") &&
-        context.explicitOwnerConfirmation.includes("will not be continued"),
+        context.explicitOwnerConfirmation.includes("will not be continued") &&
+        context.instructions.some(
+          (value) =>
+            value.includes("do not invent changes") &&
+            value.includes("finish the turn immediately"),
+        ),
       "Bounded handoff omitted predecessor or dirty-worktree evidence",
     );
     assert(
@@ -397,9 +510,11 @@ esac
         freshManagedTask: true,
         predecessorFrozen: true,
         explicitOwnerBoundary: true,
+        humanControlOneShotOverride: true,
         exactWorktreeAndBranch: true,
         dirtyDiffPreserved: true,
         boundedHandoff: true,
+        noOpSuccessorParks: true,
         singleWriter: true,
         repeatedRequestFailClosed: true,
         ambiguityNeedsAttention: true,

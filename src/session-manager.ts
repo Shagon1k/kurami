@@ -46,6 +46,9 @@ type OrchestratorConfig = {
 type ProjectConfig = {
   owner: string;
   repository: string;
+  statuses: {
+    review: string;
+  };
   workspace: {
     canonical_repository: string;
     worktree_root: string;
@@ -78,6 +81,8 @@ type SessionRun = {
   tmux_session_name: string | null;
   codex_thread_id: string | null;
   previous_codex_thread_id: string | null;
+  project_item_status: string | null;
+  autonomous_successor_active: number;
 };
 
 type StartPlan = {
@@ -191,10 +196,18 @@ function loadRun(database: DatabaseSync, runId: string): SessionRun {
              r.owner_state, r.execution_mode,
              rr.resource_state, rr.worktree_path, rr.branch_name, rr.base_sha,
              rr.tmux_session_name, rr.codex_thread_id,
-             rr.previous_codex_thread_id
+             rr.previous_codex_thread_id,
+             pi.status AS project_item_status,
+             EXISTS (
+               SELECT 1 FROM run_autonomous_successions successor_active
+               WHERE successor_active.run_id = r.run_id
+                 AND successor_active.succession_state IN ('starting','running')
+             ) AS autonomous_successor_active
       FROM runs r
       JOIN run_resources rr USING (run_id)
       JOIN project_events pe ON pe.event_id = r.trigger_event_id
+      LEFT JOIN project_items pi
+        ON pi.project = r.project AND pi.item_id = r.item_id
       WHERE r.run_id = ?
     `,
     )
@@ -1592,6 +1605,7 @@ async function cleanupReviewFixSession(
 async function leaveCliSession(
   database: DatabaseSync,
   run: SessionRun,
+  registry: ProjectsRegistry,
   apply: boolean,
   targetOwner: "none" | "remote",
 ): Promise<void> {
@@ -1632,8 +1646,18 @@ async function leaveCliSession(
   const interruptRequired = targetOwner === "remote" && busy;
   const tailDirectory = resolve(orchestratorHome, "logs/session-handoffs");
   const tailPath = resolve(tailDirectory, `${run.run_id}.txt`);
-  const targetState =
-    targetOwner === "remote" ? "remote_owned" : run.run_state;
+  const projectReviewStatus = registry.projects[run.project]?.statuses.review;
+  const completedSuccessor =
+    targetOwner === "none" &&
+    run.run_state === "running" &&
+    run.autonomous_successor_active !== 0 &&
+    Boolean(projectReviewStatus) &&
+    run.project_item_status === projectReviewStatus;
+  const targetState = targetOwner === "remote"
+    ? "remote_owned"
+    : completedSuccessor
+      ? "parked_review"
+      : run.run_state;
   const initialPlan = {
     runId: run.run_id,
     fromState: run.run_state,
@@ -1732,7 +1756,10 @@ async function leaveCliSession(
     if (
       current.run_state !== run.run_state ||
       current.owner_state !== "cli" ||
-      current.tmux_session_name !== run.tmux_session_name
+      current.tmux_session_name !== run.tmux_session_name ||
+      (completedSuccessor &&
+        (current.autonomous_successor_active === 0 ||
+          current.project_item_status !== projectReviewStatus))
     ) {
       fail(
         `Run changed during handoff: state=${current.run_state}, owner=${current.owner_state}, tmux=${current.tmux_session_name ?? "none"}`,
@@ -2105,11 +2132,11 @@ async function main(): Promise<void> {
       return;
     }
     if (args.action === "park") {
-      await leaveCliSession(database, run, args.apply, "none");
+      await leaveCliSession(database, run, registry, args.apply, "none");
       return;
     }
     if (args.action === "handoff") {
-      await leaveCliSession(database, run, args.apply, "remote");
+      await leaveCliSession(database, run, registry, args.apply, "remote");
       return;
     }
     if (args.action === "finalize-stop") {

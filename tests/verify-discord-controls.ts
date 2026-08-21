@@ -1030,6 +1030,33 @@ async function main(): Promise<void> {
         handoffValue.includes("managed CLI/tmux no longer owns this task"),
       "Remote card omitted the task, connection, thread fallback, or ownership note",
     );
+    const successorPending = new DatabaseSync(databasePath);
+    successorPending
+      .prepare(
+        `UPDATE run_progress_cards
+         SET stage='autonomous_successor_pending',
+             detail='Autonomous continuation requested; starting a fresh managed Codex task after the owner boundary.',
+             content_digest='digest-autonomous-successor-pending',
+             updated_at='2026-08-16T09:17:30.000Z'
+         WHERE run_id='r_discord_smoke'`,
+      )
+      .run();
+    successorPending.close();
+    await runNode(notifier, ["--apply"], testHome, discordEnv);
+    const successorPendingControls = threadControlEdits.at(-1)!;
+    assert(
+      String(successorPendingControls.content).includes(
+        "Starting autonomous continuation",
+      ) &&
+        !componentLabels(successorPendingControls).includes(
+          "Continue autonomously",
+        ) &&
+        !componentLabels(successorPendingControls).includes(
+          "Continue in Codex",
+        ) &&
+        componentLabels(successorPendingControls).includes("Cancel run"),
+      "Queued autonomous continuation kept a conflicting continuation control visible",
+    );
     const humanEvent = threadEvents.at(-1)!;
     assert(
       String(humanEvent.content).includes("Preparation is ready for you") &&

@@ -17,7 +17,7 @@ type OrchestratorConfig = {
 };
 
 type ProjectConfig = {
-  statuses: { backlog: string };
+  statuses: { backlog: string; review: string };
 };
 
 type ProjectsRegistry = {
@@ -62,6 +62,7 @@ type RunRow = {
   latest_review_state: string | null;
   latest_review_head_sha: string | null;
   review_fix_active_count: number;
+  autonomous_successor_active: number;
   latest_review_fix_state: string | null;
   latest_review_fix_number: number | null;
   latest_review_fix_round_id: string | null;
@@ -229,6 +230,11 @@ function baseRunSelect(): string {
              WHERE fix_active.run_id = r.run_id
                AND fix_active.round_state IN ('running','waiting_ci','resolving'))
               AS review_fix_active_count
+           ,EXISTS (
+             SELECT 1 FROM run_autonomous_successions successor_active
+             WHERE successor_active.run_id = r.run_id
+               AND successor_active.succession_state IN ('starting','running')
+           ) AS autonomous_successor_active
            ,(SELECT round_state FROM run_review_fix_rounds fix_latest
              WHERE fix_latest.run_id = r.run_id
              ORDER BY fix_latest.round_number DESC LIMIT 1)
@@ -749,9 +755,22 @@ function planAutomatic(
   ) {
     return { ...base, action: "sync" };
   }
+  const review = registry.projects[run.project]?.statuses.review;
+  if (
+    review &&
+    run.run_state === "running" &&
+    run.autonomous_successor_active !== 0 &&
+    run.project_item_status === review &&
+    run.owner_state === "cli" &&
+    run.tmux_session_name &&
+    run.codex_thread_id
+  ) {
+    return { ...base, action: "park" };
+  }
   if (
     run.run_state === "running" &&
     run.interaction_policy === "human_control" &&
+    run.autonomous_successor_active === 0 &&
     run.owner_state === "cli" &&
     run.tmux_session_name &&
     run.codex_thread_id
@@ -1476,7 +1495,10 @@ function progressFor(
     run.stop_reason !== "cancelled"
   ) {
     return {
-      stage: "handoff_pending",
+      stage:
+        run.owner_state === "remote"
+          ? "autonomous_successor_pending"
+          : "handoff_pending",
       detail:
         run.owner_state === "remote"
           ? "Autonomous continuation requested; starting a fresh managed Codex task after the owner's explicit Remote-task boundary."
@@ -1600,6 +1622,7 @@ function reconcileProgressCards(
     "review_fix_waiting",
     "review_fix_resolving",
     "handoff_pending",
+    "autonomous_successor_pending",
     "finalizing_review",
     "preview_queued",
     "preview_extending",

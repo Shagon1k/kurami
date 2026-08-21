@@ -284,7 +284,7 @@ function presentPendingRequest(
       ownership.owner_state === "remote"
     ) {
       presentation = {
-        stage: "handoff_pending",
+        stage: "autonomous_successor_pending",
         detail:
           "Autonomous continuation requested; starting a fresh managed Codex task after the owner's explicit Remote-task boundary.",
       };

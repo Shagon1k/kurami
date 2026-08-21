@@ -343,6 +343,23 @@ task. The successor receives a bounded handoff containing the predecessor task
 ID, current HEAD, short Git status, staged and unstaged diffs, and the current
 PR, CI, and AI-review snapshot. Dirty owner changes are preserved.
 
+For a `human-control` issue, this confirmation is a one-successor autonomy
+grant rather than a label or policy mutation. The active successor is allowed
+to run autonomously instead of immediately re-entering the preparation
+handoff. The issue keeps its `human-control` label, so a future run starts at
+the owner gate again; taking control of the current run also requires another
+explicit `Continue autonomously` transition before automation resumes.
+Once requested, the live card immediately changes to `Starting autonomous
+continuation` and hides both continuation controls while the durable successor
+request is pending; the controller tick remains the fallback if the fast
+Discord refresh is temporarily unavailable.
+The successor contract also treats an already-complete handoff as a valid
+no-op: after verifying the issue, PR, CI, and review state, it must not invent
+additional edits and should finish its turn immediately. If the project item
+was already in Human Review before the successor started, Kurami recognizes the
+idle successor directly, parks it in review, and releases the managed CLI
+writer without waiting for another project-status transition.
+
 Only one starting or running successor may exist for a run. The request and
 successor claims are transactional and idempotent, so scheduler overlap cannot
 create two writers. Before launch Kurami revalidates Remote ownership, the

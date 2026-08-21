@@ -167,6 +167,7 @@ async function buildContext(
       "Treat the prior Remote task as immutable history; never resume or send messages to it.",
       "Inspect the captured status and diff before editing, preserve owner work, and keep a single writer.",
       "Re-read applicable AGENTS.md files and verify the current PR/CI state before acting.",
+      "If the existing branch, PR, CI, and review state already satisfy the issue and there is no unresolved owner instruction, do not invent changes: report that no further work is needed and finish the turn immediately so Kurami can park the run.",
       "Do not merge, deploy, change secrets, billing, or permissions.",
     ],
   };

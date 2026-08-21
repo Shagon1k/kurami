@@ -737,6 +737,7 @@ function stageLabel(stage: string): string {
     review_fix_waiting: "Waiting for CI",
     review_fix_resolving: "Resolving review threads",
     handoff_pending: "Preparing human control",
+    autonomous_successor_pending: "Starting autonomous continuation",
     finalizing_review: "Finalizing for review",
     human_control: "Human control",
     review_ready: "Ready for review",
@@ -1038,7 +1039,9 @@ export function controlComponents(
       );
     const takeoverEligible =
       !preservedCancellation &&
-      card.stage !== "handoff_pending" &&
+      !["handoff_pending", "autonomous_successor_pending"].includes(
+        card.stage,
+      ) &&
       ![
         "ci_repair_queued",
         "ci_repair_working",
