@@ -52,6 +52,7 @@ async function main(): Promise<void> {
   const successorPath = resolve(app, "src/autonomous-successor.ts");
   const controlsPath = resolve(app, "src/run-controls.ts");
   const controllerPath = resolve(app, "src/controller.ts");
+  const injectedCredential = `github_pat_${"Y".repeat(32)}`;
 
   try {
     await mkdir(resolve(home, "config"), { recursive: true, mode: 0o700 });
@@ -85,7 +86,10 @@ async function main(): Promise<void> {
       git(directory, ["add", "README.md"]);
       git(directory, ["commit", "-m", "fixture"]);
     }
-    await writeFile(resolve(worktree, "README.md"), "base\nowner edit\n");
+    await writeFile(
+      resolve(worktree, "README.md"),
+      `base\nowner edit\nGH_TOKEN=${injectedCredential}\n`,
+    );
     await writeFile(resolve(worktree, "notes.txt"), "staged owner note\n");
     git(worktree, ["add", "notes.txt"]);
 
@@ -412,6 +416,8 @@ esac
       context.previous_thread_id === "thread-successor-predecessor" &&
         context.git.status.includes("README.md") &&
         context.git.unstagedDiff.includes("owner edit") &&
+        context.git.unstagedDiff.includes("[REDACTED_CREDENTIAL]") &&
+        !JSON.stringify(context).includes(injectedCredential) &&
         context.git.stagedDiff.includes("staged owner note") &&
         context.explicitOwnerConfirmation.includes("will not be continued") &&
         context.instructions.some(

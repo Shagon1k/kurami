@@ -1,6 +1,7 @@
 import { spawn } from "node:child_process";
 import { createInterface } from "node:readline";
 import { reviewerAppEnvironmentKeys } from "./github-app-auth.ts";
+import { isSecretEnvironmentName } from "./prompt-safety.ts";
 
 type RpcResponse = {
   id?: number;
@@ -56,8 +57,9 @@ export function detachedCodexEnvironment(
   environment: NodeJS.ProcessEnv = process.env,
 ): NodeJS.ProcessEnv {
   const result = { ...environment };
-  delete result.GH_TOKEN;
-  delete result.GITHUB_TOKEN;
+  for (const name of Object.keys(result)) {
+    if (isSecretEnvironmentName(name)) delete result[name];
+  }
   for (const name of reviewerAppEnvironmentKeys) delete result[name];
   return result;
 }

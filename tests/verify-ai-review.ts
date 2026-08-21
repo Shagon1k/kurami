@@ -233,12 +233,14 @@ async function main(): Promise<void> {
     const archiveLog = resolve(home, "review-archives.log");
     await writeFile(
       fakeCodex,
-      `#!${process.execPath}\nimport { appendFileSync } from "node:fs";\nimport { createInterface } from "node:readline";\nif (process.env.GH_TOKEN || process.env.GITHUB_TOKEN) throw new Error("Reviewer received GitHub credentials");\nconst lines = createInterface({ input: process.stdin });\nfor await (const line of lines) {\n  const message = JSON.parse(line);\n  let result = {};\n  if (message.method === "thread/start") result = { thread: { id: "parent-review-thread" } };\n  if (message.method === "review/start") result = { turn: { id: "review-turn", status: "inProgress", items: [] }, reviewThreadId: "detached-review-thread" };\n  if (message.method === "thread/archive") appendFileSync(process.env.FAKE_REVIEW_ARCHIVE_LOG, message.params.threadId + "\\n");\n  if (typeof message.id === "number") process.stdout.write(JSON.stringify({ id: message.id, result }) + "\\n");\n  if (message.method === "review/start") process.stdout.write(JSON.stringify({ method: "turn/completed", params: { threadId: "detached-review-thread", turn: { id: "review-turn", status: "completed", error: null, items: [{ type: "exitedReviewMode", review: "{\\\"summary\\\":\\\"Clean\\\",\\\"findings\\\":[]}" }] } } }) + "\\n");\n}\n`,
+      `#!${process.execPath}\nimport { appendFileSync } from "node:fs";\nimport { createInterface } from "node:readline";\nfor (const name of ["GH_TOKEN", "GITHUB_TOKEN", "KURAMI_TEST_API_TOKEN", "KURAMI_TEST_PRIVATE_KEY"]) {\n  if (process.env[name]) throw new Error("Reviewer received secret environment material");\n}\nconst lines = createInterface({ input: process.stdin });\nfor await (const line of lines) {\n  const message = JSON.parse(line);\n  let result = {};\n  if (message.method === "thread/start") result = { thread: { id: "parent-review-thread" } };\n  if (message.method === "review/start") result = { turn: { id: "review-turn", status: "inProgress", items: [] }, reviewThreadId: "detached-review-thread" };\n  if (message.method === "thread/archive") appendFileSync(process.env.FAKE_REVIEW_ARCHIVE_LOG, message.params.threadId + "\\n");\n  if (typeof message.id === "number") process.stdout.write(JSON.stringify({ id: message.id, result }) + "\\n");\n  if (message.method === "review/start") process.stdout.write(JSON.stringify({ method: "turn/completed", params: { threadId: "detached-review-thread", turn: { id: "review-turn", status: "completed", error: null, items: [{ type: "exitedReviewMode", review: "{\\\"summary\\\":\\\"Clean\\\",\\\"findings\\\":[]}" }] } } }) + "\\n");\n}\n`,
       { mode: 0o700 },
     );
     process.env.FAKE_REVIEW_ARCHIVE_LOG = archiveLog;
     process.env.GH_TOKEN = "must-not-reach-reviewer";
     process.env.GITHUB_TOKEN = "must-not-reach-reviewer";
+    process.env.KURAMI_TEST_API_TOKEN = "must-not-reach-reviewer";
+    process.env.KURAMI_TEST_PRIVATE_KEY = "must-not-reach-reviewer";
     const detached = await runDetachedReview(fakeCodex, {
       cwd: home,
       title: "AI review test",
@@ -248,6 +250,8 @@ async function main(): Promise<void> {
     delete process.env.FAKE_REVIEW_ARCHIVE_LOG;
     delete process.env.GH_TOKEN;
     delete process.env.GITHUB_TOKEN;
+    delete process.env.KURAMI_TEST_API_TOKEN;
+    delete process.env.KURAMI_TEST_PRIVATE_KEY;
     assert(
       detached.parentThreadId === "parent-review-thread" &&
         detached.reviewThreadId === "detached-review-thread" &&
@@ -386,6 +390,7 @@ async function main(): Promise<void> {
         parallelWithCi: true,
         technicalTasksArchived: true,
         reviewerCredentialsExcluded: true,
+        reviewerSecretEnvironmentScrubbed: true,
         githubAppCredentialsValidated: true,
         installationTokenVerified: true,
         visibleAiAttribution: true,

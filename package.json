@@ -23,6 +23,7 @@
     "test:backup": "node tests/verify-state-backup.ts",
     "test:recovery": "node tests/verify-recovery-bundle.ts",
     "test:s3-recovery": "node tests/verify-s3-recovery.ts",
+    "test:adversarial": "node tests/verify-adversarial-boundaries.ts",
     "test:runtime-health": "node tests/verify-runtime-health.ts",
     "test:resource-guard": "node tests/verify-resource-guard.ts",
     "test:resource-guard-discord": "node tests/verify-resource-guard-discord.ts",
