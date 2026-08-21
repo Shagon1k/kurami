@@ -26,3 +26,6 @@ limits:
   orphan_grace_minutes: 30
   quarantine_review_after_days: 7
   max_delivery_attempts: 3
+  main_writer_timeout_minutes: 240
+  technical_worker_timeout_minutes: 90
+  builder_cache_max_used_gib: 8

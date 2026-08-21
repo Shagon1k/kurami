@@ -8,6 +8,7 @@ readonly POLLER="${ORCHESTRATOR_HOME}/app/src/poll-projects.ts"
 readonly CONSUMER="${ORCHESTRATOR_HOME}/app/src/process-project-events.ts"
 readonly CI_OBSERVER="${ORCHESTRATOR_HOME}/app/src/observe-ci.ts"
 readonly CONTROLLER="${ORCHESTRATOR_HOME}/app/src/controller.ts"
+readonly RUNTIME_BUDGET="${ORCHESTRATOR_HOME}/app/src/runtime-budget.ts"
 readonly DISCORD_NOTIFIER="${ORCHESTRATOR_HOME}/app/src/notify-discord-controls.ts"
 readonly METADATA_SYNC="${ORCHESTRATOR_HOME}/app/src/metadata-sync.ts"
 readonly PROJECTS_DIGEST="${ORCHESTRATOR_HOME}/app/run-projects-digest.sh"
@@ -29,6 +30,7 @@ readonly ERROR_LOG="${ORCHESTRATOR_HOME}/logs/project-poller-${PROJECT}-errors.l
 readonly CONSUMER_ERROR_LOG="${ORCHESTRATOR_HOME}/logs/project-event-consumer-errors.log"
 readonly CI_OBSERVER_ERROR_LOG="${ORCHESTRATOR_HOME}/logs/ci-observer-errors.log"
 readonly CONTROLLER_ERROR_LOG="${ORCHESTRATOR_HOME}/logs/controller-errors.log"
+readonly RUNTIME_BUDGET_ERROR_LOG="${ORCHESTRATOR_HOME}/logs/runtime-budget-errors.log"
 readonly DISCORD_NOTIFIER_ERROR_LOG="${ORCHESTRATOR_HOME}/logs/discord-control-notifier-errors.log"
 readonly METADATA_SYNC_ERROR_LOG="${ORCHESTRATOR_HOME}/logs/metadata-sync-errors.log"
 readonly PROJECTS_DIGEST_EVENT_LOG="${ORCHESTRATOR_HOME}/logs/projects-digest-event-refresh.log"
@@ -91,6 +93,11 @@ exec 8>"${CONSUMER_LOCK_FILE}"
 if flock --nonblock 8; then
   if ! CONSUMER_QUIET=1 "${NODE_BIN}" "${CONSUMER}" 2>>"${CONSUMER_ERROR_LOG}"; then
     printf 'Project event consumer failed. Log: %s\n' "${CONSUMER_ERROR_LOG}"
+    exit 1
+  fi
+  if ! RUNTIME_BUDGET_QUIET=1 "${NODE_BIN}" "${RUNTIME_BUDGET}" --apply \
+    2>>"${RUNTIME_BUDGET_ERROR_LOG}"; then
+    printf 'Runtime budget enforcement failed. Log: %s\n' "${RUNTIME_BUDGET_ERROR_LOG}"
     exit 1
   fi
   if ! CONTROLLER_QUIET=1 "${NODE_BIN}" "${CONTROLLER}" --apply 2>>"${CONTROLLER_ERROR_LOG}"; then

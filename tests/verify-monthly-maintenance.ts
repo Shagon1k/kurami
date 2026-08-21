@@ -3,7 +3,9 @@ import { tmpdir } from "node:os";
 import { resolve } from "node:path";
 import {
   findOldLogFiles,
+  builderCachePruneArgs,
   formatMaintenanceSummary,
+  parseBuilderCacheMaxUsedGib,
 } from "../src/monthly-maintenance.ts";
 
 const root = await mkdtemp(resolve(tmpdir(), "kurami-maintenance-test-"));
@@ -50,6 +52,7 @@ try {
         stdout: "Total reclaimed space: 4.5MB",
       },
     ],
+    builderCacheMaxUsedGib: 8,
   });
   if (
     !summary.includes("monthly maintenance completed") ||
@@ -59,6 +62,13 @@ try {
   ) {
     throw new Error(`Unexpected maintenance summary: ${summary}`);
   }
+  const cacheArgs = builderCachePruneArgs(8);
+  if (
+    parseBuilderCacheMaxUsedGib(8) !== 8 ||
+    !cacheArgs.includes("--max-used-space") ||
+    cacheArgs.at(-1) !== String(8 * 1024 ** 3)
+  )
+    throw new Error(`Unexpected builder cache policy: ${JSON.stringify(cacheArgs)}`);
 
   process.stdout.write(
     `${JSON.stringify({
@@ -70,6 +80,7 @@ try {
       symlinksPreserved: true,
       retentionDays: 90,
       dockerSafetyBoundary: "images-and-builder-cache-only",
+      builderCacheMaxUsedGib: 8,
       friendlySummary: true,
     })}\n`,
   );

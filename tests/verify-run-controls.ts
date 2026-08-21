@@ -470,6 +470,25 @@ async function main(): Promise<void> {
       "cli",
       null,
     );
+    addDirect(
+      "r_runtime_timeout",
+      9317,
+      "autonomous",
+      "needs_attention",
+      "none",
+      null,
+    );
+    verify
+      .prepare(
+        `INSERT INTO run_state_history (
+           run_id, from_state, to_state, reason, details_json
+         ) VALUES (
+           'r_runtime_timeout', 'running', 'needs_attention',
+           'main_writer_runtime_budget_exceeded',
+           '{"timeoutMinutes":240,"preserved":["worktree","branch","codex_thread"]}'
+         )`,
+      )
+      .run();
     verify
       .prepare(
         `
@@ -730,6 +749,18 @@ async function main(): Promise<void> {
         finalizingCard.detail.includes("waiting for the active Codex turn"),
       "CLI-owned Human Review was falsely reported as ready",
     );
+    const timeoutCard = notificationState
+      .prepare(
+        `SELECT stage, detail FROM run_progress_cards
+         WHERE run_id = 'r_runtime_timeout'`,
+      )
+      .get() as { stage: string; detail: string };
+    assert(
+      timeoutCard.stage === "needs_attention" &&
+        timeoutCard.detail.includes("240-minute limit") &&
+        timeoutCard.detail.includes("preserved"),
+      "Runtime timeout was not explained in the durable Discord card",
+    );
     const takeoverPendingCard = notificationState
       .prepare(
         `SELECT stage, detail FROM run_progress_cards
@@ -887,6 +918,7 @@ async function main(): Promise<void> {
         notificationPending: notificationPlan.pending.length,
         progressCard: previewCard.stage,
         finalizingReviewCard: finalizingCard.stage,
+        runtimeTimeoutCard: timeoutCard.stage,
         takeoverPendingCard: takeoverPendingCard.stage,
         immediateTakeoverCard: immediateCard.stage,
         repeatedCancellationRejected: true,

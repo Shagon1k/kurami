@@ -13,6 +13,8 @@ type OrchestratorConfig = {
   limits: {
     max_llm_running_global: number;
     preview_expiry_warning_hours: number;
+    main_writer_timeout_minutes: number;
+    technical_worker_timeout_minutes: number;
   };
 };
 
@@ -58,6 +60,7 @@ type RunRow = {
   repair_active_count: number;
   latest_repair_state: string | null;
   latest_repair_number: number | null;
+  latest_repair_failure_reason: string | null;
   review_active_count: number;
   latest_review_state: string | null;
   latest_review_head_sha: string | null;
@@ -67,6 +70,8 @@ type RunRow = {
   latest_review_fix_number: number | null;
   latest_review_fix_round_id: string | null;
   latest_review_fix_codex_thread_id: string | null;
+  latest_review_fix_failure_reason: string | null;
+  latest_attention_reason: string | null;
   project_poll_last_captured_at: string | null;
   project_poll_last_attempt_state: string | null;
 };
@@ -215,6 +220,10 @@ function baseRunSelect(): string {
             WHERE repair_latest.run_id = r.run_id
             ORDER BY repair_latest.attempt_number DESC LIMIT 1)
              AS latest_repair_number
+           ,(SELECT failure_reason FROM run_ci_repair_attempts repair_latest
+             WHERE repair_latest.run_id = r.run_id
+             ORDER BY repair_latest.attempt_number DESC LIMIT 1)
+              AS latest_repair_failure_reason
            ,(SELECT COUNT(*) FROM run_ai_reviews review_active
              WHERE review_active.run_id = r.run_id
                AND review_active.review_state = 'running') AS review_active_count
@@ -251,6 +260,15 @@ function baseRunSelect(): string {
              WHERE fix_latest.run_id = r.run_id
              ORDER BY fix_latest.round_number DESC LIMIT 1)
               AS latest_review_fix_codex_thread_id
+           ,(SELECT failure_reason FROM run_review_fix_rounds fix_latest
+             WHERE fix_latest.run_id = r.run_id
+             ORDER BY fix_latest.round_number DESC LIMIT 1)
+              AS latest_review_fix_failure_reason
+           ,(SELECT reason FROM run_state_history attention_latest
+             WHERE attention_latest.run_id = r.run_id
+               AND attention_latest.to_state = 'needs_attention'
+             ORDER BY attention_latest.sequence DESC LIMIT 1)
+              AS latest_attention_reason
            ,pps.last_captured_at AS project_poll_last_captured_at
            ,pps.last_attempt_state AS project_poll_last_attempt_state
     FROM runs r
@@ -704,7 +722,9 @@ function planAutomatic(
     run.latest_repair_state !== "running" &&
     run.latest_review_fix_state !== "running" &&
     run.latest_review_fix_state !== "waiting_ci" &&
-    run.latest_review_fix_state !== "resolving"
+    run.latest_review_fix_state !== "resolving" &&
+    run.latest_repair_failure_reason !== "runtime_budget_exceeded" &&
+    run.latest_review_fix_failure_reason !== "runtime_budget_exceeded"
   ) {
     return run.latest_review_fix_codex_thread_id === run.codex_thread_id
       ? { ...base, action: "review_fix_cleanup" }
@@ -1562,9 +1582,17 @@ function progressFor(
     };
   }
   if (["failed", "needs_attention"].includes(run.run_state)) {
+    const timeoutLabels: Record<string, string> = {
+      main_writer_runtime_budget_exceeded: `Main Codex writer exceeded its ${config.limits.main_writer_timeout_minutes}-minute limit. The worktree, branch, thread reference, and terminal evidence were preserved.`,
+      ci_repair_runtime_budget_exceeded: `CI repair worker exceeded its ${config.limits.technical_worker_timeout_minutes}-minute limit. The worktree, thread reference, and terminal evidence were preserved.`,
+      review_fix_runtime_budget_exceeded: `Review-fix worker exceeded its ${config.limits.technical_worker_timeout_minutes}-minute limit. The worktree, thread reference, and terminal evidence were preserved.`,
+      ai_review_runtime_budget_exceeded: `AI review worker exceeded its ${config.limits.technical_worker_timeout_minutes}-minute limit. Its terminal evidence and the run worktree were preserved.`,
+    };
     return {
       stage: "needs_attention",
-      detail: "The run needs attention before it can continue.",
+      detail:
+        timeoutLabels[run.latest_attention_reason ?? ""] ??
+        "The run needs attention before it can continue.",
     };
   }
   return { stage: run.run_state, detail: `Run state: ${run.run_state}.` };
@@ -1851,6 +1879,18 @@ async function main(): Promise<void> {
     config.limits.preview_expiry_warning_hours > 24 * 7
   )
     fail("Invalid preview_expiry_warning_hours");
+  if (
+    !Number.isInteger(config.limits.main_writer_timeout_minutes) ||
+    config.limits.main_writer_timeout_minutes < 30 ||
+    config.limits.main_writer_timeout_minutes > 24 * 60
+  )
+    fail("Invalid main_writer_timeout_minutes");
+  if (
+    !Number.isInteger(config.limits.technical_worker_timeout_minutes) ||
+    config.limits.technical_worker_timeout_minutes < 15 ||
+    config.limits.technical_worker_timeout_minutes > 12 * 60
+  )
+    fail("Invalid technical_worker_timeout_minutes");
   if (registry.version !== 1) fail("Unsupported projects registry version");
   if (config.mode !== "live" && apply)
     fail(`Refusing mutation in mode=${config.mode}`);
