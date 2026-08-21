@@ -97,11 +97,14 @@ assert(ambiguous.admissionBlocked, "Resource ambiguity did not block admission")
 
 const database = new DatabaseSync(":memory:");
 database.exec("CREATE TABLE runs (run_id TEXT PRIMARY KEY) STRICT;");
-const migration = await readFile(
-  resolve(import.meta.dirname, "../migrations/028_resource_guardrails.sql"),
-  "utf8",
-);
-database.exec(migration);
+for (const name of [
+  "028_resource_guardrails.sql",
+  "029_resource_guard_discord.sql",
+]) {
+  database.exec(
+    await readFile(resolve(import.meta.dirname, `../migrations/${name}`), "utf8"),
+  );
+}
 reconcileResourceQuarantines(database, [observation], limits, nowMs);
 let row = database
   .prepare(
@@ -115,6 +118,17 @@ let row = database
   resolved_at: string | null;
 };
 assert(row.quarantine_state === "observed", "New orphan skipped observation grace");
+reconcileResourceQuarantines(database, [observation], limits, nowMs + 60_000);
+let eventKinds = database
+  .prepare(
+    `SELECT event_kind FROM resource_guard_events
+     ORDER BY event_at, event_kind`,
+  )
+  .all() as Array<{ event_kind: string }>;
+assert(
+  eventKinds.map((event) => event.event_kind).join(",") === "observed",
+  "Repeated observation created duplicate lifecycle events",
+);
 
 reconcileResourceQuarantines(database, [observation], limits, nowMs + 31 * 60_000);
 row = database
@@ -127,6 +141,14 @@ assert(
   row.quarantine_state === "quarantined" && row.quarantined_at !== null,
   "Persistent orphan was not quarantined after 30 minutes",
 );
+eventKinds = database
+  .prepare(`SELECT event_kind FROM resource_guard_events ORDER BY event_at`)
+  .all() as typeof eventKinds;
+assert(
+  eventKinds.map((event) => event.event_kind).join(",") ===
+    "observed,quarantined",
+  "Quarantine transition event was not durable and idempotent",
+);
 
 const reviewDue = analyzeResourceGuard(
   inventory({
@@ -138,8 +160,19 @@ const reviewDue = analyzeResourceGuard(
   Date.parse(row.quarantined_at) + 7 * 86_400_000,
 );
 assert(reviewDue.quarantines.reviewDue === 1, "Seven-day owner review was not due");
+const reviewAtMs =
+  Date.parse(row.quarantined_at) + 7 * 86_400_000;
+reconcileResourceQuarantines(database, [observation], limits, reviewAtMs);
+eventKinds = database
+  .prepare(`SELECT event_kind FROM resource_guard_events ORDER BY event_at`)
+  .all() as typeof eventKinds;
+assert(
+  eventKinds.map((event) => event.event_kind).join(",") ===
+    "observed,quarantined,review_due",
+  "Seven-day owner-review transition was not emitted once",
+);
 
-reconcileResourceQuarantines(database, [], limits, nowMs + 32 * 60_000);
+reconcileResourceQuarantines(database, [], limits, reviewAtMs + 60_000);
 row = database
   .prepare(
     `SELECT quarantine_state, first_observed_at, quarantined_at, resolved_at
@@ -149,6 +182,25 @@ row = database
 assert(
   row.quarantine_state === "resolved" && row.resolved_at !== null,
   "Disappeared orphan did not resolve without deletion",
+);
+eventKinds = database
+  .prepare(`SELECT event_kind FROM resource_guard_events ORDER BY event_at`)
+  .all() as typeof eventKinds;
+assert(
+  eventKinds.map((event) => event.event_kind).join(",") ===
+    "observed,quarantined,review_due,resolved",
+  "Resolved transition did not preserve the full lifecycle",
+);
+reconcileResourceQuarantines(database, [observation], limits, reviewAtMs + 120_000);
+const observedLifecycles = database
+  .prepare(
+    `SELECT COUNT(*) AS count FROM resource_guard_events
+     WHERE event_kind='observed'`,
+  )
+  .get() as { count: number };
+assert(
+  observedLifecycles.count === 2,
+  "A new orphan lifecycle reused the previous observed event",
 );
 database.close();
 
@@ -174,6 +226,9 @@ process.stdout.write(
     quarantineReviewDays: 7,
     admissionFailClosed: true,
     automaticDeletion: false,
+    lifecycleEvents: ["observed", "quarantined", "review_due", "resolved"],
+    repeatObservationDeduplicated: true,
+    repeatedLifecyclePreserved: true,
     invalidConfigRejected: true,
   })}\n`,
 );

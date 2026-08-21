@@ -92,10 +92,19 @@ type QuarantineRow = {
   quarantine_id: string;
   resource_type: "worktree" | "tmux";
   resource_key: string;
+  project: string | null;
+  run_id: string | null;
   quarantine_state: "observed" | "quarantined" | "resolved";
+  reason: string;
   first_observed_at: string;
   quarantined_at: string | null;
 };
+
+type ResourceGuardEventKind =
+  | "observed"
+  | "quarantined"
+  | "review_due"
+  | "resolved";
 
 const gibibyte = 1024 ** 3;
 const managedTmuxPattern = /^cx-[a-z0-9-]+$/u;
@@ -400,6 +409,85 @@ function quarantineId(resourceType: string, resourceKey: string): string {
     .slice(0, 24)}`;
 }
 
+function resourceGuardEventId(
+  quarantineIdValue: string,
+  lifecycleStartedAt: string,
+  eventKind: ResourceGuardEventKind,
+): string {
+  return `rge_${createHash("sha256")
+    .update(`${quarantineIdValue}\0${lifecycleStartedAt}\0${eventKind}`)
+    .digest("hex")
+    .slice(0, 24)}`;
+}
+
+function recordResourceGuardEvent(
+  database: DatabaseSync,
+  source: {
+    quarantineId: string;
+    lifecycleStartedAt: string;
+    resourceType: "worktree" | "tmux";
+    resourceKey: string;
+    project: string | null;
+    runId: string | null;
+    reason: string;
+  },
+  eventKind: ResourceGuardEventKind,
+  eventAt: string,
+): void {
+  database
+    .prepare(
+      `INSERT OR IGNORE INTO resource_guard_events (
+         event_id, quarantine_id, lifecycle_started_at, event_kind,
+         resource_type, resource_key, project, run_id, reason, event_at
+       ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    )
+    .run(
+      resourceGuardEventId(
+        source.quarantineId,
+        source.lifecycleStartedAt,
+        eventKind,
+      ),
+      source.quarantineId,
+      source.lifecycleStartedAt,
+      eventKind,
+      source.resourceType,
+      source.resourceKey,
+      source.project,
+      source.runId,
+      source.reason,
+      eventAt,
+    );
+}
+
+function recordActiveLifecycleEvents(
+  database: DatabaseSync,
+  source: Parameters<typeof recordResourceGuardEvent>[1],
+  quarantineState: "observed" | "quarantined",
+  quarantinedAt: string | null,
+  limits: ResourceGuardLimits,
+  nowMs: number,
+): void {
+  recordResourceGuardEvent(
+    database,
+    source,
+    "observed",
+    source.lifecycleStartedAt,
+  );
+  if (quarantineState !== "quarantined" || quarantinedAt === null) return;
+  recordResourceGuardEvent(database, source, "quarantined", quarantinedAt);
+  const reviewAtMs =
+    Date.parse(quarantinedAt) +
+    limits.quarantine_review_after_days * 86_400_000;
+  if (Number.isFinite(reviewAtMs) && nowMs >= reviewAtMs) {
+    recordResourceGuardEvent(
+      database,
+      source,
+      "review_due",
+      new Date(reviewAtMs).toISOString(),
+    );
+  }
+}
+
 export function reconcileResourceQuarantines(
   database: DatabaseSync,
   observations: ResourceObservation[],
@@ -415,8 +503,8 @@ export function reconcileResourceQuarantines(
     ),
   );
   const select = database.prepare(
-    `SELECT quarantine_id, resource_type, resource_key, quarantine_state,
-            first_observed_at, quarantined_at
+    `SELECT quarantine_id, resource_type, resource_key, project, run_id,
+            quarantine_state, reason, first_observed_at, quarantined_at
      FROM resource_quarantines
      WHERE resource_type = ? AND resource_key = ?`,
   );
@@ -426,6 +514,10 @@ export function reconcileResourceQuarantines(
       observation.resourceKey,
     ) as QuarantineRow | undefined;
     if (!existing || existing.quarantine_state === "resolved") {
+      const quarantineIdValue = quarantineId(
+        observation.resourceType,
+        observation.resourceKey,
+      );
       database
         .prepare(
           `INSERT INTO resource_quarantines (
@@ -443,7 +535,7 @@ export function reconcileResourceQuarantines(
              updated_at=strftime('%Y-%m-%dT%H:%M:%fZ', 'now')`,
         )
         .run(
-          quarantineId(observation.resourceType, observation.resourceKey),
+          quarantineIdValue,
           observation.resourceType,
           observation.resourceKey,
           observation.project,
@@ -453,6 +545,22 @@ export function reconcileResourceQuarantines(
           now,
           now,
         );
+      recordActiveLifecycleEvents(
+        database,
+        {
+          quarantineId: quarantineIdValue,
+          lifecycleStartedAt: now,
+          resourceType: observation.resourceType,
+          resourceKey: observation.resourceKey,
+          project: observation.project,
+          runId: observation.runId,
+          reason: observation.reason,
+        },
+        "observed",
+        null,
+        limits,
+        nowMs,
+      );
       continue;
     }
     const firstMs = Date.parse(existing.first_observed_at);
@@ -483,19 +591,36 @@ export function reconcileResourceQuarantines(
         now,
         existing.quarantine_id,
       );
+    const quarantineState = shouldQuarantine ? "quarantined" : "observed";
+    const quarantinedAt = shouldQuarantine
+      ? existing.quarantined_at ?? now
+      : null;
+    recordActiveLifecycleEvents(
+      database,
+      {
+        quarantineId: existing.quarantine_id,
+        lifecycleStartedAt: existing.first_observed_at,
+        resourceType: observation.resourceType,
+        resourceKey: observation.resourceKey,
+        project: observation.project,
+        runId: observation.runId,
+        reason: observation.reason,
+      },
+      quarantineState,
+      quarantinedAt,
+      limits,
+      nowMs,
+    );
   }
 
   const active = database
     .prepare(
-      `SELECT quarantine_id, resource_type, resource_key
+      `SELECT quarantine_id, resource_type, resource_key, project, run_id,
+              quarantine_state, reason, first_observed_at, quarantined_at
        FROM resource_quarantines
        WHERE quarantine_state <> 'resolved'`,
     )
-    .all() as Array<{
-    quarantine_id: string;
-    resource_type: string;
-    resource_key: string;
-  }>;
+    .all() as QuarantineRow[];
   const resolveStatement = database.prepare(
     `UPDATE resource_quarantines
      SET quarantine_state='resolved', resolved_at=?, last_observed_at=?,
@@ -504,7 +629,28 @@ export function reconcileResourceQuarantines(
   );
   for (const row of active) {
     if (!currentKeys.has(`${row.resource_type}\0${row.resource_key}`)) {
+      if (row.quarantine_state === "resolved") {
+        fail(`Resolved quarantine returned as active: ${row.quarantine_id}`);
+      }
       resolveStatement.run(now, now, row.quarantine_id);
+      const source = {
+        quarantineId: row.quarantine_id,
+        lifecycleStartedAt: row.first_observed_at,
+        resourceType: row.resource_type,
+        resourceKey: row.resource_key,
+        project: row.project,
+        runId: row.run_id,
+        reason: row.reason,
+      };
+      recordActiveLifecycleEvents(
+        database,
+        source,
+        row.quarantine_state,
+        row.quarantined_at,
+        limits,
+        nowMs,
+      );
+      recordResourceGuardEvent(database, source, "resolved", now);
     }
   }
 }

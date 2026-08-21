@@ -123,6 +123,7 @@ async function main(): Promise<void> {
   const testHome = await mkdtemp(resolve(tmpdir(), "kurami-discord-test-"));
   const guildId = "1538486166330933358";
   const parentChannel = "1538490534820061286";
+  const resourceGuardChannel = "1538633903726788758";
   const ownerUserId = "234723725168082944";
   const codexThreadId = "01a00b9d-e72b-73f3-af6e-30760c2191c4";
   const codexLaunchUrl =
@@ -132,6 +133,7 @@ async function main(): Promise<void> {
   const threadControlCreates: JsonObject[] = [];
   const threadControlEdits: JsonObject[] = [];
   const threadEvents: JsonObject[] = [];
+  const resourceGuardMessages: JsonObject[] = [];
   const threadMemberAdds: string[] = [];
   const threadPatches: JsonObject[] = [];
   const pinnedMessages = new Set<string>();
@@ -143,6 +145,17 @@ async function main(): Promise<void> {
     try {
       const method = request.method ?? "GET";
       const url = request.url ?? "/";
+      if (
+        method === "POST" &&
+        url === `/channels/${resourceGuardChannel}/messages`
+      ) {
+        resourceGuardMessages.push(await readJson(request));
+        sendJson(response, 200, {
+          id: "7001",
+          channel_id: resourceGuardChannel,
+        });
+        return;
+      }
       if (method === "POST" && url === `/channels/${parentChannel}/messages`) {
         parentMessages.push(await readJson(request));
         sendJson(response, 200, { id: "1001", channel_id: parentChannel });
@@ -1274,6 +1287,45 @@ async function main(): Promise<void> {
       "Stable reconciliation produced duplicate Discord messages",
     );
 
+    const resourceGuardState = new DatabaseSync(databasePath);
+    resourceGuardState.exec(`
+      INSERT INTO resource_quarantines (
+        quarantine_id, resource_type, resource_key, project, run_id,
+        quarantine_state, reason, evidence_json,
+        first_observed_at, last_observed_at
+      ) VALUES (
+        'rq_discord_smoke', 'worktree', '/tmp/worktrees/orphan-smoke',
+        'tailortales', NULL, 'observed', 'unmapped_worktree_directory',
+        '{"path":"/tmp/worktrees/orphan-smoke"}',
+        '2026-08-16T09:24:00.000Z', '2026-08-16T09:24:00.000Z'
+      );
+      INSERT INTO resource_guard_events (
+        event_id, quarantine_id, lifecycle_started_at, event_kind,
+        resource_type, resource_key, project, run_id, reason, event_at
+      ) VALUES (
+        'rge_discord_smoke', 'rq_discord_smoke',
+        '2026-08-16T09:24:00.000Z', 'observed', 'worktree',
+        '/tmp/worktrees/orphan-smoke', 'tailortales', NULL,
+        'unmapped_worktree_directory', '2026-08-16T09:24:00.000Z'
+      );
+    `);
+    resourceGuardState.close();
+    await runNode(notifier, ["--apply"], testHome, discordEnv);
+    assert(
+      resourceGuardMessages.length === 1 &&
+        String(resourceGuardMessages[0]!.content).includes(
+          "Kurami Resource Guard",
+        ) &&
+        String(resourceGuardMessages[0]!.content).includes("Observed") &&
+        resourceGuardMessages[0]!.enforce_nonce === true,
+      "Resource Guard event did not use the existing Discord notifier path",
+    );
+    await runNode(notifier, ["--apply"], testHome, discordEnv);
+    assert(
+      resourceGuardMessages.length === 1,
+      "Resource Guard notifier duplicated a delivered transition",
+    );
+
     const selected = await runNode(
       control,
       ["controls", "--project", "tailortales", "--issue", "9401"],
@@ -1562,6 +1614,8 @@ async function main(): Promise<void> {
         deterministicLookup: true,
         ambiguityRejected: true,
         historicalBackfill: false,
+        resourceGuardDelivered: resourceGuardMessages.length === 1,
+        resourceGuardIdempotent: true,
         threadPatches: threadPatches.length,
       })}\n`,
     );

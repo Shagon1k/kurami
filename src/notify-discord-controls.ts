@@ -5,6 +5,11 @@ import { resolve } from "node:path";
 import { DatabaseSync } from "node:sqlite";
 import { parse } from "yaml";
 import { codexLaunchUrl } from "./codex-deeplink.ts";
+import {
+  deliverResourceGuardBatch,
+  planResourceGuardDiscord,
+  prepareResourceGuardDiscord,
+} from "./resource-guard-discord.ts";
 
 process.umask(0o077);
 
@@ -20,6 +25,7 @@ type ProjectsRegistry = {
 };
 type OrchestratorConfig = {
   version: number;
+  discord: { resource_guard_alerts_channel_id: string };
   limits: { max_delivery_attempts: number };
 };
 type EventKind =
@@ -1965,12 +1971,17 @@ async function main(): Promise<void> {
   if (registry.version !== 1 || config.version !== 1)
     fail("Unsupported config version");
   const maxDeliveryAttempts = config.limits.max_delivery_attempts;
+  const resourceGuardChannelId =
+    config.discord.resource_guard_alerts_channel_id;
   if (
     !Number.isInteger(maxDeliveryAttempts) ||
     maxDeliveryAttempts < 1 ||
     maxDeliveryAttempts > 5
   ) {
     fail("Invalid max_delivery_attempts");
+  }
+  if (!/^\d{5,30}$/u.test(resourceGuardChannelId)) {
+    fail("Invalid resource_guard_alerts_channel_id");
   }
   const database = new DatabaseSync(databasePath, { timeout: 5_000 });
   database.exec("PRAGMA foreign_keys = ON; PRAGMA busy_timeout = 5000;");
@@ -2001,7 +2012,18 @@ async function main(): Promise<void> {
     );
     return;
   }
+  const resourceGuardPlan = planResourceGuardDiscord(
+    database,
+    maxDeliveryAttempts,
+  );
   if (apply) seedEventDeliveries(database);
+  const resourceGuardBatches = apply
+    ? prepareResourceGuardDiscord(
+        database,
+        resourceGuardChannelId,
+        maxDeliveryAttempts,
+      )
+    : [];
   const cards = loadDesiredCards(database, maxDeliveryAttempts).filter((card) =>
     Boolean(registry.projects[card.project]?.discord),
   );
@@ -2019,15 +2041,26 @@ async function main(): Promise<void> {
           stage: card.stage,
           action: card.discord_thread_id ? "edit" : "create",
         })),
+        resourceGuard: resourceGuardPlan,
       })}\n`,
     );
     return;
   }
-  if (cards.length === 0 && events.length === 0) {
+  if (
+    cards.length === 0 &&
+    events.length === 0 &&
+    resourceGuardBatches.length === 0
+  ) {
     database.close();
     if (process.env.DISCORD_NOTIFIER_QUIET !== "1")
       process.stdout.write(
-        `${JSON.stringify({ ok: true, apply: true, cards: 0, events: 0 })}\n`,
+        `${JSON.stringify({
+          ok: true,
+          apply: true,
+          cards: 0,
+          events: 0,
+          resourceGuardBatches: 0,
+        })}\n`,
       );
     return;
   }
@@ -2045,6 +2078,22 @@ async function main(): Promise<void> {
     const project = registry.projects[event.project];
     if (!project?.discord) continue;
     results.push(await deliverEvent(database, token, event, project));
+  }
+  for (const batch of resourceGuardBatches) {
+    results.push(
+      await deliverResourceGuardBatch(
+        database,
+        batch,
+        maxDeliveryAttempts,
+        async (channelId, payload) =>
+          await discordRequest(
+            token,
+            "POST",
+            `/channels/${channelId}/messages`,
+            payload,
+          ),
+      ),
+    );
   }
   database.close();
   const failures = results.filter((result) => result.action === "failed");

@@ -66,6 +66,7 @@ app/
     backup-state.ts           Creates verified SQLite/config snapshots with retention
     runtime-health.ts         Read-only DB/Docker/preview consistency inspection
     resource-guard.ts         Inspects admission quotas and reconciles orphan quarantine state
+    resource-guard-discord.ts Batches and delivers durable changed-only guard events
     monthly-maintenance.ts    Bounded old-log and unused Docker cache/image cleanup
   tests/
     verify-dry-run-admission.ts
@@ -91,6 +92,8 @@ app/
     verify-state-backup.ts    Proves consistency, retention, and secret exclusion
     verify-runtime-health.ts  Proves forgotten-preview detection without deletion
     verify-resource-guard.ts  Proves quota, disk, and quarantine fail-closed boundaries
+    verify-resource-guard-discord.ts
+                              Proves batching, retry, restart, and deduplication semantics
     verify-monthly-maintenance.ts
                               Proves exact log cleanup selection and exclusions
   run-project-poller.sh       Production poll -> consume wrapper
@@ -865,6 +868,15 @@ recorded as `observed`; if it remains for 30 minutes it becomes `quarantined`,
 and after seven days it is due for owner review. Disappearing evidence is marked
 `resolved`. The guard never deletes, stops, releases, or repairs a resource.
 
+Each lifecycle transition creates one durable `resource_guard_events` row.
+The existing Discord notifier batches up to six unbatched transitions and sends
+one changed-only message to `discord.resource_guard_alerts_channel_id` under the
+same consumer lock used by run cards. A stable batch nonce prevents duplicate
+messages after a process restart; a stale `sending` lease is retried after five
+minutes, and the configured delivery-attempt limit remains three. Mentions are
+disabled. There is no Discord cleanup control and no historical resolved-event
+backfill.
+
 ## Routine commands
 
 Use the orchestrator-owned Node runtime:
@@ -932,8 +944,16 @@ node src/resource-guard.ts --apply
 ```
 
 Both commands are non-destructive with respect to external resources. `--apply`
-writes only `resource_quarantines` rows; it performs no filesystem, tmux, Docker,
-GitHub, or Discord mutation.
+writes only `resource_quarantines` and changed-only `resource_guard_events` rows;
+it performs no filesystem, tmux, Docker, GitHub, or Discord mutation. The normal
+poller-owned Discord notifier delivers pending event batches separately.
+
+Verify lifecycle events and the Discord outbox without network access:
+
+```bash
+npm run test:resource-guard
+npm run test:resource-guard-discord
+```
 
 Preview the monthly maintenance scope, then apply it:
 
@@ -1173,11 +1193,13 @@ Project query failure is logged but no longer aborts that reconciliation pass;
 the durable per-project poll health guard prevents the other project job from
 starting work against the failed project's stale status.
 After reconciliation, `notify-discord-controls.ts` maintains Discord ticket
-cards, threads, native controls, and one-time lifecycle events through Discord
-REST. It reads the existing platform token from `HERMES_HOME/.env`, never stores
-or prints it, and never consumes Gateway updates. The Hermes Gateway remains the
-only update consumer. A narrow user plugin extends that existing Discord adapter
-to handle only allowlisted Kurami component IDs.
+cards, threads, native controls, one-time run lifecycle events, and the durable
+Resource Guard alert outbox through Discord REST. Resource alerts use the private
+runtime-health channel, are batched and changed-only, and never expose a cleanup
+button. The notifier reads the existing platform token from `HERMES_HOME/.env`,
+never stores or prints it, and never consumes Gateway updates. The Hermes Gateway
+remains the only update consumer. A narrow user plugin extends that existing
+Discord adapter to handle only allowlisted Kurami component IDs.
 
 `notify-controls.ts` and the per-project Telegram targets remain installed as a
 reversible fallback, but the poller does not invoke that notifier while Discord

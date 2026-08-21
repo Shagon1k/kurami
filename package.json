@@ -23,6 +23,7 @@
     "test:backup": "node tests/verify-state-backup.ts",
     "test:runtime-health": "node tests/verify-runtime-health.ts",
     "test:resource-guard": "node tests/verify-resource-guard.ts",
+    "test:resource-guard-discord": "node tests/verify-resource-guard-discord.ts",
     "test:maintenance": "node tests/verify-monthly-maintenance.ts",
     "test:session-cancel": "node tests/verify-session-cancel.ts",
     "test:session-start": "node tests/verify-session-start.ts",

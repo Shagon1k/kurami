@@ -3,6 +3,7 @@ mode: live
 
 discord:
   digest_channel_id: "1539929665068601364"
+  resource_guard_alerts_channel_id: "1538633903726788758"
 
 limits:
   max_active_global: 2
