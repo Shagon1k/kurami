@@ -1,8 +1,10 @@
 import { randomUUID } from "node:crypto";
-import { readFile } from "node:fs/promises";
 import { resolve } from "node:path";
 import { DatabaseSync } from "node:sqlite";
-import { parse } from "yaml";
+import {
+  loadEffectiveOrchestratorConfig,
+  type RuntimeSettingsBaseConfig,
+} from "./runtime-settings.ts";
 
 process.umask(0o077);
 
@@ -17,10 +19,8 @@ type Arguments = {
   reviewedBy?: string;
 };
 
-type OrchestratorConfig = {
-  version: number;
-  mode: "dry_run" | "live";
-  limits: {
+type OrchestratorConfig = RuntimeSettingsBaseConfig & {
+  limits: RuntimeSettingsBaseConfig["limits"] & {
     max_previews_global: number;
     max_preview_builds_global: number;
     preview_expiry_warning_hours: number;
@@ -75,7 +75,6 @@ const orchestratorHome = resolve(
   process.env.ORCHESTRATOR_HOME ?? resolve(import.meta.dirname, "../.."),
 );
 const databasePath = resolve(orchestratorHome, "state/orchestrator.db");
-const configPath = resolve(orchestratorHome, "config/orchestrator.yaml");
 
 function fail(message: string): never {
   throw new Error(message);
@@ -599,7 +598,9 @@ function release(
 
 async function main(): Promise<void> {
   const args = parseArguments();
-  const config = parse(await readFile(configPath, "utf8")) as OrchestratorConfig;
+  const config = await loadEffectiveOrchestratorConfig<OrchestratorConfig>(
+    orchestratorHome,
+  );
   if (config.version !== 1) fail("Unsupported orchestrator config version");
   if (
     !Number.isInteger(config.limits.max_previews_global) ||

@@ -10,6 +10,11 @@ import {
   type ResourceGuardAnalysis,
   type ResourceGuardLimits,
 } from "./resource-guard.ts";
+import {
+  effectiveOrchestratorConfig,
+  projectWipLimit,
+  type RuntimeSettingsBaseConfig,
+} from "./runtime-settings.ts";
 
 process.umask(0o077);
 
@@ -38,12 +43,11 @@ type ProjectsRegistry = {
   projects: Record<string, ProjectConfig>;
 };
 
-type OrchestratorConfig = {
-  version: number;
-  mode: "dry_run" | "live";
-  limits: {
+type OrchestratorConfig = RuntimeSettingsBaseConfig & {
+  limits: RuntimeSettingsBaseConfig["limits"] & {
     max_active_global: number;
     max_active_per_project: number;
+    max_active_by_project?: Record<string, number>;
   } & ResourceGuardLimits;
 };
 
@@ -339,9 +343,10 @@ function createRun(
 
   const globalActive = activeCount(database);
   const projectActive = activeCount(database, event.project);
+  const projectLimit = projectWipLimit(config.limits, event.project);
   const wipRejected =
     globalActive >= config.limits.max_active_global ||
-    projectActive >= config.limits.max_active_per_project;
+    projectActive >= projectLimit;
   const rejected = wipRejected || resourceGuard.admissionBlocked;
   const runId = makeRunId(event.event_id);
   const previousRun = latestRun(database, event.project, event.item_id);
@@ -353,7 +358,7 @@ function createRun(
     previewRequiredLabel !== null && metadata.labels.includes(previewRequiredLabel);
   const state = rejected ? "rejected" : "admission_pending";
   const rejectionReason = wipRejected
-    ? `WIP limit reached: global ${globalActive}/${config.limits.max_active_global}, project ${projectActive}/${config.limits.max_active_per_project}`
+    ? `WIP limit reached: global ${globalActive}/${config.limits.max_active_global}, project ${projectActive}/${projectLimit}`
     : resourceGuard.admissionBlocked
       ? `Resource guard blocked admission: ${resourceGuard.blockReasons.join("; ")}`
       : null;
@@ -655,22 +660,15 @@ function completeRun(database: DatabaseSync, event: EventRow): EventResult {
 }
 
 async function main(): Promise<void> {
-  const [projects, config] = await Promise.all([
+  const [projects, baseConfig] = await Promise.all([
     loadYaml<ProjectsRegistry>(projectsPath),
     loadYaml<OrchestratorConfig>(orchestratorConfigPath),
   ]);
 
-  if (projects.version !== 1 || config.version !== 1) {
+  if (projects.version !== 1 || baseConfig.version !== 1) {
     fail("Unsupported projects or orchestrator config version");
   }
-  validateResourceGuardLimits(config.limits);
-  if (
-    config.limits.max_managed_worktrees_global < config.limits.max_active_global ||
-    config.limits.max_managed_worktrees_per_project <
-      config.limits.max_active_per_project
-  ) {
-    fail("Managed worktree limits cannot be lower than active-run limits");
-  }
+  validateResourceGuardLimits(baseConfig.limits);
   const database = new DatabaseSync(databasePath, { timeout: 5_000 });
   const results: EventResult[] = [];
 
@@ -678,6 +676,20 @@ async function main(): Promise<void> {
     database.exec("PRAGMA foreign_keys = ON; PRAGMA busy_timeout = 5000;");
     database.exec("BEGIN IMMEDIATE");
     try {
+      const config = effectiveOrchestratorConfig(
+        database,
+        baseConfig,
+        Object.keys(projects.projects),
+      );
+      const maximumProjectWip = Math.max(
+        ...Object.values(config.limits.max_active_by_project),
+      );
+      if (
+        config.limits.max_managed_worktrees_global < config.limits.max_active_global ||
+        config.limits.max_managed_worktrees_per_project < maximumProjectWip
+      ) {
+        fail("Managed worktree limits cannot be lower than active-run limits");
+      }
       let resourceGuard = inspectResourceGuard(
         database,
         projects,
@@ -749,7 +761,7 @@ async function main(): Promise<void> {
       process.stdout.write(
         `${JSON.stringify({
           ok: true,
-          mode: config.mode,
+          mode: baseConfig.mode,
           processed: results.length,
           results,
           activeGlobal: activeCount(database),

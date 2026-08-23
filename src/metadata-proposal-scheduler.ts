@@ -1,15 +1,14 @@
 import { execFileSync } from "node:child_process";
 import { randomUUID } from "node:crypto";
-import { readFile } from "node:fs/promises";
 import { resolve } from "node:path";
 import { pathToFileURL } from "node:url";
 import { DatabaseSync } from "node:sqlite";
-import { parse } from "yaml";
 import {
   applyAssessmentPlan,
   planProjectAssessment,
   type AssessmentPlan,
 } from "./metadata-proposal-manager.ts";
+import { loadEffectiveOrchestratorConfig } from "./runtime-settings.ts";
 
 process.umask(0o077);
 
@@ -353,9 +352,7 @@ async function main(): Promise<void> {
   const orchestratorHome = resolve(
     process.env.ORCHESTRATOR_HOME ?? resolve(import.meta.dirname, "../.."),
   );
-  const config = parse(
-    await readFile(resolve(orchestratorHome, "config/orchestrator.yaml"), "utf8"),
-  ) as { version?: number; limits?: { max_llm_running_global?: number } };
+  const config = await loadEffectiveOrchestratorConfig(orchestratorHome);
   const maxActiveLlm = config.limits?.max_llm_running_global;
   if (
     config.version !== 1 ||

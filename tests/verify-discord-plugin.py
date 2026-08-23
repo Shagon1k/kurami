@@ -6,6 +6,7 @@ import importlib.util
 import json
 import os
 from pathlib import Path
+from types import SimpleNamespace
 
 
 def require(condition: bool, message: str) -> None:
@@ -21,6 +22,17 @@ def main() -> None:
     require(spec is not None and spec.loader is not None, "Cannot load control handler")
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)
+
+    settings_path = plugin_dir / "settings_handler.py"
+    settings_spec = importlib.util.spec_from_file_location(
+        "kurami_settings_handler", settings_path
+    )
+    require(
+        settings_spec is not None and settings_spec.loader is not None,
+        "Cannot load settings handler",
+    )
+    settings_module = importlib.util.module_from_spec(settings_spec)
+    settings_spec.loader.exec_module(settings_module)
 
     accepted = {
         "kurami:status:r_abc123": ("status", "r_abc123"),
@@ -213,6 +225,129 @@ def main() -> None:
         "Published discard confirmation ID is not deterministic",
     )
 
+    runtime_settings = {
+        "version": 1,
+        "max_llm_running_global": 3,
+        "max_active_global": 3,
+        "project_wip": {"tailortales": 3, "pickflick": 3},
+        "max_previews_global": 6,
+        "max_preview_builds_global": 2,
+        "preview_ttl_hours": 24,
+    }
+    validated = settings_module._validated_settings(runtime_settings)
+    require(
+        validated["project_wip"]["tailortales"]
+        + validated["project_wip"]["pickflick"]
+        > validated["max_active_global"],
+        "Settings UI incorrectly reserves the sum of project WIP caps",
+    )
+    for invalid in [
+        {**runtime_settings, "max_llm_running_global": 4},
+        {
+            **runtime_settings,
+            "max_active_global": 2,
+            "project_wip": {"tailortales": 3, "pickflick": 2},
+        },
+        {**runtime_settings, "max_preview_builds_global": 7},
+        {**runtime_settings, "preview_ttl_hours": 5},
+    ]:
+        try:
+            settings_module._validated_settings(invalid)
+        except RuntimeError:
+            pass
+        else:
+            raise AssertionError(f"Accepted invalid runtime settings: {invalid}")
+
+    settings_module._paths = lambda: (Path(__file__), Path(__file__))
+    control_args = settings_module._control_args(
+        "apply",
+        actor_id="234723725168082944",
+        expected_revision=7,
+        settings=runtime_settings,
+    )
+    require(
+        control_args[-2:] == ["--preview-ttl-hours", "24"]
+        and control_args.count("--project-wip") == 2
+        and not any("TOKEN" in value or "SECRET" in value for value in control_args),
+        "Settings subprocess arguments are not strictly bounded",
+    )
+    payload = {
+        "revision": 7,
+        "source": "runtime_override",
+        "settings": runtime_settings,
+        "defaults": {**runtime_settings, "max_llm_running_global": 1},
+        "idle": {"idle": True, "reasons": []},
+    }
+    draft = {**runtime_settings, "max_llm_running_global": 2}
+    message = settings_module._settings_message(payload, draft)
+    require(
+        "Pending diff" in message
+        and "Concurrent LLM: `3` → `2`" in message
+        and "Idle gate passed" in message,
+        "Settings review message lost diff or idle evidence",
+    )
+    locked = settings_module._settings_message(
+        {**payload, "idle": {"idle": False, "reasons": ["non-terminal runs: 1"]}}
+    )
+    require(
+        "Apply is locked" in locked and "non-terminal runs: 1" in locked,
+        "Settings locked UX lost its reason",
+    )
+
+    class FakeGroup:
+        def __init__(self, *, name, description, parent=None):
+            self.name = name
+            self.description = description
+            self.children = {}
+            if parent is not None:
+                parent.children[name] = self
+
+        def command(self, *, name, description):
+            def decorator(callback):
+                self.children[name] = SimpleNamespace(
+                    name=name, description=description, callback=callback
+                )
+                return callback
+
+            return decorator
+
+    class FakeTree:
+        def __init__(self):
+            self.commands = {}
+
+        def get_commands(self):
+            return list(self.commands.values())
+
+        def add_command(self, command):
+            self.commands[command.name] = command
+
+    import sys
+
+    old_discord = sys.modules.get("discord")
+    sys.modules["discord"] = SimpleNamespace(
+        app_commands=SimpleNamespace(Group=FakeGroup)
+    )
+    try:
+        client = SimpleNamespace(tree=FakeTree())
+        settings_module.install_settings_command(client, lambda _interaction: True)
+        require(
+            "kurami" in client.tree.commands
+            and "orchestrator" in client.tree.commands["kurami"].children
+            and "settings"
+            in client.tree.commands["kurami"].children["orchestrator"].children,
+            "Nested /kurami orchestrator settings command was not registered",
+        )
+        settings_module.install_settings_command(client, lambda _interaction: True)
+        require(
+            len(client.tree.commands) == 1,
+            "Settings slash command registration is not idempotent",
+        )
+    finally:
+        if old_discord is None:
+            sys.modules.pop("discord", None)
+        else:
+            sys.modules["discord"] = old_discord
+
     print(
         json.dumps(
             {
@@ -222,6 +357,8 @@ def main() -> None:
                 "metadata_accepted": len(metadata_accepted),
                 "metadata_rejected": len(metadata_rejected),
                 "listener": "strict_component_allowlist",
+                "settings": "owner_only_nested_slash",
+                "settings_shared_pool": True,
             },
             separators=(",", ":"),
         )

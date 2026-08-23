@@ -4,13 +4,15 @@ import { readFile } from "node:fs/promises";
 import { resolve } from "node:path";
 import { DatabaseSync } from "node:sqlite";
 import { parse } from "yaml";
+import {
+  loadEffectiveOrchestratorConfig,
+  type RuntimeSettingsBaseConfig,
+} from "./runtime-settings.ts";
 
 process.umask(0o077);
 
-type OrchestratorConfig = {
-  version: number;
-  mode: "dry_run" | "live";
-  limits: {
+type OrchestratorConfig = RuntimeSettingsBaseConfig & {
+  limits: RuntimeSettingsBaseConfig["limits"] & {
     max_llm_running_global: number;
     preview_expiry_warning_hours: number;
     main_writer_timeout_minutes: number;
@@ -1866,9 +1868,9 @@ function runExternal(plan: PlannedAction): unknown {
 
 async function main(): Promise<void> {
   const { apply } = parseArguments();
-  const config = parse(
-    await readFile(configPath, "utf8"),
-  ) as OrchestratorConfig;
+  const config = await loadEffectiveOrchestratorConfig<OrchestratorConfig>(
+    orchestratorHome,
+  );
   const registry = parse(
     await readFile(projectsPath, "utf8"),
   ) as ProjectsRegistry;

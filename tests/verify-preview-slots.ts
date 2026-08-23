@@ -43,6 +43,10 @@ async function main(): Promise<void> {
       resolve(appDirectory, "deploy/config/orchestrator.yaml"),
       resolve(testHome, "config/orchestrator.yaml"),
     );
+    await copyFile(
+      resolve(appDirectory, "deploy/config/projects.yaml"),
+      resolve(testHome, "config/projects.yaml"),
+    );
     execFileSync(process.execPath, [resolve(appDirectory, "src/init-run-store.ts")], {
       env: {
         ...process.env,

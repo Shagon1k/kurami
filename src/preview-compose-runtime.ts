@@ -13,6 +13,10 @@ import {
 import { basename, relative, resolve } from "node:path";
 import { DatabaseSync } from "node:sqlite";
 import { parse } from "yaml";
+import {
+  loadEffectiveOrchestratorConfig,
+  type RuntimeSettingsBaseConfig,
+} from "./runtime-settings.ts";
 
 process.umask(0o077);
 
@@ -25,10 +29,8 @@ type Arguments = {
   releaseReason: ReleaseReason;
 };
 
-type OrchestratorConfig = {
-  version: number;
-  mode: "dry_run" | "live";
-  limits: {
+type OrchestratorConfig = RuntimeSettingsBaseConfig & {
+  limits: RuntimeSettingsBaseConfig["limits"] & {
     max_preview_builds_global: number;
     preview_ttl_hours: number;
     min_preview_available_memory_mib: number;
@@ -110,7 +112,6 @@ const orchestratorHome = resolve(
   process.env.ORCHESTRATOR_HOME ?? resolve(import.meta.dirname, "../.."),
 );
 const databasePath = resolve(orchestratorHome, "state/orchestrator.db");
-const configPath = resolve(orchestratorHome, "config/orchestrator.yaml");
 const projectsPath = resolve(orchestratorHome, "config/projects.yaml");
 const runtimeRoot = resolve(orchestratorHome, "state/previews");
 const previewManagerPath = resolve(import.meta.dirname, "preview-manager.ts");
@@ -727,7 +728,9 @@ function inspect(record: RuntimeRecord, plan: RuntimePlan): void {
 
 async function main(): Promise<void> {
   const args = parseArguments();
-  const config = parse(await readFile(configPath, "utf8")) as OrchestratorConfig;
+  const config = await loadEffectiveOrchestratorConfig<OrchestratorConfig>(
+    orchestratorHome,
+  );
   const registry = parse(await readFile(projectsPath, "utf8")) as ProjectsRegistry;
   if (config.version !== 1 || registry.version !== 1) {
     fail("Unsupported config version");

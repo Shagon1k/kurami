@@ -67,6 +67,8 @@ app/
     runtime-health.ts         Read-only DB/Docker/preview consistency inspection
     resource-guard.ts         Inspects admission quotas and reconciles orphan quarantine state
     resource-guard-discord.ts Batches and delivers durable changed-only guard events
+    runtime-settings.ts       Merges verified SQLite runtime overrides with safe defaults
+    orchestrator-settings.ts  Owner-only status/apply/reset/rollback settings boundary
     monthly-maintenance.ts    Bounded old-log and unused Docker cache/image cleanup
   tests/
     verify-dry-run-admission.ts
@@ -94,6 +96,8 @@ app/
     verify-resource-guard.ts  Proves quota, disk, and quarantine fail-closed boundaries
     verify-resource-guard-discord.ts
                               Proves batching, retry, restart, and deduplication semantics
+    verify-runtime-settings.ts
+                              Proves idle-only revisions, shared WIP, rollback, and tamper rejection
     verify-monthly-maintenance.ts
                               Proves exact log cleanup selection and exclusions
   run-project-poller.sh       Production poll -> consume wrapper
@@ -119,6 +123,7 @@ $HERMES_HOME/plugins/kurami-discord-controls/
   plugin.yaml                 Uniquely keyed extension of the bundled Discord platform
   __init__.py                 Extends the existing Hermes Discord adapter
   control_handler.py          Owner-authorized, bounded native-button callback handler
+  settings_handler.py         Ephemeral /kurami orchestrator settings UI and audit delivery
 ```
 
 ## Components and ownership
@@ -153,6 +158,38 @@ inside a SQLite write transaction. It owns:
 - cancellation when an active item returns to `Backlog` or `Deferred`.
 
 It does not invoke Git, tmux, Codex, or GitHub mutations.
+
+### Owner-only runtime settings
+
+`/kurami orchestrator settings` is an ephemeral Discord panel available only to
+the exact configured owner inside a project guild. It exposes seven bounded
+runtime-policy values: concurrent LLM workers (1–3), Global WIP (1–6), WIP for
+each registered project (1–3), active previews (1–6), concurrent preview builds
+(1–2), and preview lifetime (6–72 hours). Static identity, repositories, paths,
+channels, secrets, disk thresholds, cleanup policy, and physical resource caps
+remain deployment configuration and never enter the UI.
+
+Project WIP limits share the Global WIP pool; they are not reservations. For
+example, TailorTales 3 plus PickFlick 3 is valid with Global WIP 3, while actual
+non-terminal runs across all projects can never exceed three. Each project cap
+must still be no greater than Global WIP. Preview build concurrency cannot exceed
+the active-preview cap, and the LLM cap cannot exceed the internal managed-tmux
+capacity.
+
+Every Apply, Reset, or Undo takes a SQLite write lock, rejects a stale panel
+revision, and repeats the strict idle check. Settings remain locked while any
+non-terminal run, managed resource/tmux, preview, pending Project/control event,
+AI review, CI repair, review-fix round, metadata worker, or autonomous successor
+exists. There is no force override. `process-project-events.ts` reads the current
+revision inside the same admission transaction, so a concurrent new run either
+precedes the settings change and blocks it or uses the new revision.
+
+The append-only `orchestrator_setting_revisions` table stores full current and
+previous settings plus SHA-256 checksums, owner identity, action, and timestamp.
+Git/YAML remain safe defaults; Reset and Undo append new revisions rather than
+rewriting history. SQLite is already included in the encrypted recovery bundle.
+Successful changes also produce a bounded, secret-free message in the existing
+maintenance channel; SQLite remains the durable audit if Discord delivery fails.
 
 ### CI observer
 
@@ -438,6 +475,7 @@ already have accepted them. Ordinary polling remains `no_agent`.
 - `run_discord_event_deliveries`: Discord event delivery state;
 - `preview_slots`: fixed hostnames and loopback port assignments;
 - `preview_leases`: current and historical run-to-slot ownership;
+- `orchestrator_setting_revisions`: append-only runtime policy, rollback, and owner audit;
 - `schema_migrations`: applied schema versions.
 
 GitHub Project remains the source of user intent and delivery status. SQLite
@@ -1247,6 +1285,8 @@ deliberately changed.
 - Never infer completion from process exit alone; verify state and evidence.
 - Never let polling or retries create a second active run for the same item.
 - Never bypass WIP limits by creating worktrees or sessions manually.
+- Never apply runtime settings while a run, worker, preview, managed resource,
+  or pending admission/control event exists; there is no force override.
 - Never auto-delete a quarantined resource; owner review must resolve its exact
   ownership and cleanup boundary first.
 - Never merge a pull request or deploy production autonomously.
