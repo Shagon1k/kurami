@@ -1,0 +1,7 @@
+interface:
+  display_name: "Kurami Project Readiness"
+  short_description: "Check project compatibility without making changes"
+  default_prompt: "Use $kurami-project-readiness to assess one configured project and explain PASS, WARN, and FAIL results."
+
+policy:
+  allow_implicit_invocation: true

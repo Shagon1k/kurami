@@ -5,8 +5,11 @@ durable engineering runs. Hermes provides scheduling and conversation gateways;
 deterministic TypeScript components own polling, admission, resource mapping,
 and recovery; Codex performs engineering work only after those gates pass.
 
-This README is the local developer and AI entry point. The full architecture and
-rollout decisions live in `hermes-dev-orchestrator-plan.md` outside this app.
+Start with the horizontal system guide: `docs/guide.html` (RU) or
+`docs/guide.en.html` (EN). It explains the complete solution by subsystem and
+keeps internal contracts in expandable sections. This README is the detailed
+developer and AI reference. Historical rollout decisions live in
+`hermes-dev-orchestrator-plan.md` outside this app.
 
 ## Mental model
 
@@ -69,9 +72,10 @@ app/
     resource-guard-discord.ts Batches and delivers durable changed-only guard events
     runtime-settings.ts       Merges verified SQLite runtime overrides with safe defaults
     orchestrator-settings.ts  Owner-only status/apply/reset/rollback settings boundary
+    project-readiness.ts      Read-only PASS/WARN/FAIL compatibility assessment
     monthly-maintenance.ts    Bounded old-log and unused Docker cache/image cleanup
   tests/
-    run-regression.ts         Runs all 39 deterministic suites in fail-fast order
+    run-regression.ts         Runs all 40 deterministic suites in fail-fast order
     verify-dry-run-admission.ts
                               Isolated WIP/idempotency/policy regression test
     verify-completed-release.ts
@@ -99,6 +103,8 @@ app/
                               Proves batching, retry, restart, and deduplication semantics
     verify-runtime-settings.ts
                               Proves idle-only revisions, shared WIP, rollback, and tamper rejection
+    verify-project-readiness.ts
+                              Proves config/live read-only compatibility checks
     verify-monthly-maintenance.ts
                               Proves exact log cleanup selection and exclusions
   run-project-poller.sh       Production poll -> consume wrapper
@@ -108,8 +114,11 @@ app/
   package.json
   tsconfig.json
   docs/
+    guide.html                Horizontal system guide in Russian
+    guide.en.html             Matching English system guide
+    project-readiness.md      Project compatibility and onboarding contract
     e2e-scenarios.md          Reproducible full acceptance catalog and cleanup contract
-    e2e-report-2026-08-23.md  Dated certification evidence, findings, and owner remainder
+    e2e-report-2026-08-23.md  Dated certification evidence and findings
     recovery.md               Minimal DR inventory, restore order, and verification
 
 ../config/
@@ -213,8 +222,9 @@ and stores its exact head SHA as passed with an empty check list. This provenanc
 is required before either preview adapter may publish a clean worktree. When CI
 is enabled, `required_checks` contains exact GitHub check names and
 `missing_grace_minutes` controls only the initial missing-check grace period. The
-future project-readiness checker should compare this policy with the repository's
-actual workflows and checks.
+read-only project-readiness checker compares this policy with repository and
+Project evidence. A configured name absent on the base branch remains a warning,
+because some checks are PR-only and must be confirmed on a representative PR.
 
 ### Bounded CI repair
 
@@ -947,6 +957,20 @@ Run the isolated admission regression test:
 ```bash
 npm run test:admission
 ```
+
+Assess tracked project compatibility without changes, then optionally add live
+read-only GitHub/workspace evidence:
+
+```bash
+npm run readiness -- --project tailortales
+
+ORCHESTRATOR_HOME=/home/shagon1k/_hermes/_orchestrator \
+npm run readiness -- --project tailortales --live
+```
+
+The checker reports `PASS`, `WARN`, and `FAIL`. It has no `--apply` option and
+never reads preview-secret contents. See `docs/project-readiness.md` for the full
+contract and onboarding exit checklist.
 
 Create a consistent SQLite/config backup or inspect retained backups:
 

@@ -18,6 +18,7 @@ const suites = [
   "test:s3-recovery",
   "test:adversarial",
   "test:runtime-settings",
+  "test:project-readiness",
   "test:runtime-health",
   "test:resource-guard",
   "test:resource-guard-discord",

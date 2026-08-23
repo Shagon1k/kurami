@@ -5,6 +5,7 @@
   "main": "index.js",
   "scripts": {
     "test": "npm run check && node tests/run-regression.ts",
+    "readiness": "node src/project-readiness.ts",
     "poll": "node src/poll-projects.ts",
     "check": "tsc --noEmit",
     "db:init": "node src/init-run-store.ts",
@@ -25,6 +26,7 @@
     "test:s3-recovery": "node tests/verify-s3-recovery.ts",
     "test:adversarial": "node tests/verify-adversarial-boundaries.ts",
     "test:runtime-settings": "node tests/verify-runtime-settings.ts",
+    "test:project-readiness": "node tests/verify-project-readiness.ts",
     "test:runtime-health": "node tests/verify-runtime-health.ts",
     "test:resource-guard": "node tests/verify-resource-guard.ts",
     "test:resource-guard-discord": "node tests/verify-resource-guard-discord.ts",

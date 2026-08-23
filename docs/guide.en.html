@@ -1,0 +1,564 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta
+      name="description"
+      content="System guide to Kurami Orchestrator: subsystems, use cases, safety boundaries, and project onboarding."
+    />
+    <title>Kurami Orchestrator — system guide</title>
+    <style>
+      :root {
+        color-scheme: dark;
+        --bg: #101412;
+        --panel: #171d1a;
+        --panel-2: #1d2521;
+        --line: #34423b;
+        --line-strong: #52655b;
+        --text: #edf4ef;
+        --muted: #aab9b0;
+        --green: #86d6a5;
+        --amber: #e4bd72;
+        --blue: #91bcec;
+        --red: #ee9387;
+        --radius: 16px;
+        --page: 1240px;
+      }
+
+      * { box-sizing: border-box; }
+      html { scroll-behavior: smooth; }
+      body {
+        margin: 0;
+        background:
+          radial-gradient(circle at 8% -4%, rgba(134, 214, 165, 0.09), transparent 27rem),
+          var(--bg);
+        color: var(--text);
+        font: 16px/1.55 Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      }
+      a { color: var(--blue); }
+      code {
+        border: 1px solid var(--line);
+        border-radius: 6px;
+        background: #0d110f;
+        padding: 0.08rem 0.35rem;
+        font-size: 0.9em;
+      }
+      h1, h2, h3 { line-height: 1.18; }
+      h1 { margin: 0; max-width: 820px; font-size: clamp(2.3rem, 5vw, 4.7rem); letter-spacing: -0.055em; }
+      h2 { margin: 0 0 0.55rem; font-size: clamp(1.7rem, 3vw, 2.5rem); letter-spacing: -0.025em; }
+      h3 { margin: 0; font-size: 1.12rem; }
+      p { margin: 0; }
+      ul { margin: 0.75rem 0 0; padding-left: 1.2rem; }
+      li + li { margin-top: 0.35rem; }
+
+      .page { width: min(calc(100% - 32px), var(--page)); margin: 0 auto; }
+      .topbar {
+        position: sticky;
+        z-index: 10;
+        top: 0;
+        border-bottom: 1px solid rgba(82, 101, 91, 0.55);
+        background: rgba(16, 20, 18, 0.9);
+        backdrop-filter: blur(14px);
+      }
+      .topbar-inner { display: flex; align-items: center; justify-content: space-between; min-height: 58px; gap: 20px; }
+      .brand { color: var(--text); font-weight: 760; text-decoration: none; letter-spacing: -0.02em; }
+      .topbar-controls { display: flex; align-items: center; gap: 12px; min-width: 0; }
+      nav { display: flex; gap: 8px; overflow-x: auto; padding: 8px 0; }
+      nav a { white-space: nowrap; color: var(--muted); text-decoration: none; padding: 0.35rem 0.65rem; border-radius: 8px; }
+      nav a:hover, nav a:focus-visible { color: var(--text); background: var(--panel-2); }
+      .language-switcher { display: flex; flex: 0 0 auto; border: 1px solid var(--line); border-radius: 9px; padding: 2px; background: var(--panel); }
+      .language-switcher a { min-width: 34px; border-radius: 6px; padding: 0.25rem 0.45rem; color: var(--muted); text-align: center; text-decoration: none; font-size: 0.8rem; font-weight: 760; }
+      .language-switcher a[aria-current="page"] { color: var(--bg); background: var(--green); }
+
+      header.hero { padding: 88px 0 54px; }
+      .eyebrow { color: var(--green); font-size: 0.78rem; font-weight: 780; letter-spacing: 0.14em; text-transform: uppercase; }
+      .hero-copy { max-width: 760px; margin-top: 1.5rem; color: var(--muted); font-size: clamp(1.05rem, 2vw, 1.28rem); }
+      .snapshot { display: flex; flex-wrap: wrap; gap: 9px; margin-top: 1.7rem; }
+      .tag { border: 1px solid var(--line); border-radius: 999px; background: var(--panel); padding: 0.38rem 0.7rem; color: var(--muted); font-size: 0.86rem; }
+      .tag strong { color: var(--text); }
+
+      main section { padding: 56px 0; border-top: 1px solid rgba(52, 66, 59, 0.65); }
+      .section-intro { max-width: 780px; color: var(--muted); }
+      .section-head { display: flex; align-items: end; justify-content: space-between; gap: 24px; margin-bottom: 24px; }
+      .detail-actions { display: flex; flex-wrap: wrap; gap: 8px; }
+      .detail-actions button {
+        border: 1px solid var(--line);
+        border-radius: 9px;
+        background: var(--panel);
+        color: var(--text);
+        padding: 0.5rem 0.75rem;
+        cursor: pointer;
+      }
+
+      .system-lane {
+        display: grid;
+        grid-template-columns: repeat(6, minmax(170px, 1fr));
+        gap: 22px;
+        overflow-x: auto;
+        padding: 4px 2px 18px;
+      }
+      .lane-step {
+        position: relative;
+        min-height: 178px;
+        border: 1px solid var(--line);
+        border-radius: var(--radius);
+        background: linear-gradient(145deg, var(--panel-2), var(--panel));
+        padding: 18px;
+      }
+      .lane-step:not(:last-child)::after {
+        content: "→";
+        position: absolute;
+        top: 44%;
+        right: -19px;
+        color: var(--line-strong);
+        font-size: 1.25rem;
+      }
+      .step-number { display: block; color: var(--green); font-size: 0.78rem; font-weight: 780; margin-bottom: 0.6rem; }
+      .lane-step p { margin-top: 0.65rem; color: var(--muted); font-size: 0.93rem; }
+
+      .truth-grid, .subsystem-grid, .case-grid, .rule-grid { display: grid; gap: 14px; }
+      .truth-grid { grid-template-columns: repeat(5, 1fr); margin-top: 24px; }
+      .truth-card, .subsystem, .case, .rule {
+        border: 1px solid var(--line);
+        border-radius: var(--radius);
+        background: var(--panel);
+      }
+      .truth-card { padding: 16px; }
+      .truth-card strong { display: block; margin-bottom: 0.35rem; }
+      .truth-card span { color: var(--muted); font-size: 0.91rem; }
+
+      .subsystem-grid { grid-template-columns: repeat(4, 1fr); }
+      .subsystem { display: flex; flex-direction: column; min-height: 315px; overflow: hidden; }
+      .subsystem-main { padding: 19px; flex: 1; }
+      .subsystem-kicker { display: block; margin-bottom: 0.55rem; color: var(--green); font-size: 0.75rem; font-weight: 760; letter-spacing: 0.09em; text-transform: uppercase; }
+      .purpose { margin-top: 0.7rem; color: var(--muted); }
+      .io { display: grid; gap: 8px; margin-top: 1rem; }
+      .io div { border-left: 2px solid var(--line-strong); padding-left: 10px; font-size: 0.9rem; }
+      .io b { color: var(--amber); font-weight: 700; }
+      details { border-top: 1px solid var(--line); background: #141916; }
+      summary { padding: 13px 18px; cursor: pointer; color: var(--blue); font-weight: 680; }
+      details > div { padding: 0 18px 18px; color: var(--muted); font-size: 0.92rem; }
+      details strong { color: var(--text); }
+
+      .case-grid { grid-template-columns: repeat(2, 1fr); }
+      .case { padding: 20px; }
+      .case p { margin-top: 0.55rem; color: var(--muted); }
+      .route { display: flex; flex-wrap: wrap; align-items: center; gap: 7px; margin-top: 1rem; }
+      .route span { border: 1px solid var(--line); border-radius: 7px; background: var(--panel-2); padding: 0.28rem 0.48rem; font-size: 0.82rem; }
+      .route i { color: var(--line-strong); font-style: normal; }
+
+      .rule-grid { grid-template-columns: repeat(3, 1fr); }
+      .rule { padding: 19px; }
+      .rule p { margin-top: 0.55rem; color: var(--muted); }
+      .rule.stop { border-color: rgba(238, 147, 135, 0.55); }
+
+      .readiness {
+        display: grid;
+        grid-template-columns: minmax(0, 1.3fr) minmax(260px, 0.7fr);
+        gap: 18px;
+      }
+      .checklist, .command-panel { border: 1px solid var(--line); border-radius: var(--radius); background: var(--panel); padding: 22px; }
+      .checklist ol { margin: 1rem 0 0; padding-left: 1.3rem; }
+      .command-panel pre { overflow-x: auto; border: 1px solid var(--line); border-radius: 10px; background: #0d110f; padding: 14px; color: var(--green); }
+      .command-panel p { color: var(--muted); }
+      .result-list { display: grid; gap: 8px; margin-top: 1rem; }
+      .result-list span { border-radius: 7px; padding: 0.45rem 0.6rem; background: var(--panel-2); }
+      .pass { color: var(--green); }
+      .warn { color: var(--amber); }
+      .fail { color: var(--red); }
+
+      .glossary { columns: 3 260px; column-gap: 28px; margin-top: 24px; }
+      .term { break-inside: avoid; margin-bottom: 18px; }
+      .term dt { font-weight: 760; }
+      .term dd { margin: 0.25rem 0 0; color: var(--muted); }
+
+      footer { border-top: 1px solid var(--line); padding: 32px 0 48px; color: var(--muted); }
+      footer .page { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 12px; }
+
+      @media (max-width: 1000px) {
+        .subsystem-grid { grid-template-columns: repeat(2, 1fr); }
+        .truth-grid { grid-template-columns: repeat(3, 1fr); }
+        .rule-grid { grid-template-columns: repeat(2, 1fr); }
+      }
+      @media (max-width: 700px) {
+        .page { width: min(calc(100% - 22px), var(--page)); }
+        .topbar-inner, .section-head { align-items: flex-start; flex-direction: column; }
+        .topbar-controls { width: 100%; }
+        nav { width: 100%; }
+        header.hero { padding-top: 54px; }
+        main section { padding: 42px 0; }
+        .subsystem-grid, .case-grid, .rule-grid, .readiness, .truth-grid { grid-template-columns: 1fr; }
+        .system-lane { grid-template-columns: repeat(6, 235px); }
+      }
+      @media (prefers-reduced-motion: reduce) { html { scroll-behavior: auto; } }
+    </style>
+  </head>
+  <body>
+    <div class="topbar">
+      <div class="page topbar-inner">
+        <a class="brand" href="#top">Kurami Orchestrator</a>
+        <div class="topbar-controls">
+          <nav aria-label="Guide sections">
+            <a href="#model">Model</a>
+            <a href="#subsystems">Subsystems</a>
+            <a href="#cases">Use cases</a>
+            <a href="#boundaries">Boundaries</a>
+            <a href="#readiness">Project onboarding</a>
+            <a href="#glossary">Terms</a>
+          </nav>
+          <div class="language-switcher" aria-label="Language">
+            <a href="guide.html" lang="ru">RU</a>
+            <a href="guide.en.html" lang="en" aria-current="page">EN</a>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <header class="hero page" id="top">
+      <p class="eyebrow">System guide · production reality</p>
+      <h1>Kurami Orchestrator — system guide</h1>
+      <p class="hero-copy">
+        Kurami turns explicit owner actions in a GitHub Project into managed
+        engineering work. It coordinates Git, Codex, CI, previews, and Discord,
+        preserves state across restarts, and stops whenever it cannot prove that
+        the next action is safe.
+      </p>
+      <div class="snapshot" aria-label="Verified production snapshot">
+        <span class="tag"><strong>Release:</strong> P9 · guide + readiness</span>
+        <span class="tag"><strong>E2E baseline:</strong> e4ffec0</span>
+        <span class="tag"><strong>Schema:</strong> 30</span>
+        <span class="tag"><strong>Control plane:</strong> Discord</span>
+        <span class="tag"><strong>Projects:</strong> TailorTales + PickFlick</span>
+      </div>
+    </header>
+
+    <main>
+      <section id="model">
+        <div class="page">
+          <div class="section-head">
+            <div>
+              <h2>System model</h2>
+              <p class="section-intro">
+                This is not one large bot. It is a set of independent subsystems
+                connected by SQLite state and exact run, branch, worktree, PR, and
+                preview identities.
+              </p>
+            </div>
+          </div>
+
+          <div class="system-lane" aria-label="Work moving through the system">
+            <article class="lane-step">
+              <span class="step-number">01 · Intent</span>
+              <h3>GitHub Project</h3>
+              <p>The owner changes an issue status. This is the normal entry point for starting, cancelling, and completing work.</p>
+            </article>
+            <article class="lane-step">
+              <span class="step-number">02 · Decision</span>
+              <h3>Admission</h3>
+              <p>Kurami checks the project, issue, snapshot freshness, WIP, LLM, and physical resources.</p>
+            </article>
+            <article class="lane-step">
+              <span class="step-number">03 · Work</span>
+              <h3>Isolated execution</h3>
+              <p>A separate branch, worktree, and Codex task. The canonical checkout is never used as the workspace.</p>
+            </article>
+            <article class="lane-step">
+              <span class="step-number">04 · Evidence</span>
+              <h3>PR, CI, review</h3>
+              <p>Every result is tied to the exact PR head SHA. Stale evidence cannot advance the lifecycle.</p>
+            </article>
+            <article class="lane-step">
+              <span class="step-number">05 · Control</span>
+              <h3>Discord + preview</h3>
+              <p>The owner sees current state and can trigger only the bounded actions that are valid now.</p>
+            </article>
+            <article class="lane-step">
+              <span class="step-number">06 · Completion</span>
+              <h3>Release or preserve</h3>
+              <p>Resources are released after merge. When evidence is ambiguous, work is preserved for an owner decision.</p>
+            </article>
+          </div>
+
+          <div class="truth-grid" aria-label="Sources of truth">
+            <article class="truth-card"><strong>GitHub Project</strong><span>Owner intent and business status.</span></article>
+            <article class="truth-card"><strong>SQLite Run Store</strong><span>Operational memory, ownership, and audit.</span></article>
+            <article class="truth-card"><strong>Git + GitHub PR</strong><span>Code, exact SHA, checks, and review threads.</span></article>
+            <article class="truth-card"><strong>Discord</strong><span>Observation and allowlisted owner actions.</span></article>
+            <article class="truth-card"><strong>VPS runtime</strong><span>Workers, worktrees, previews, and scheduled jobs.</span></article>
+          </div>
+        </div>
+      </section>
+
+      <section id="subsystems">
+        <div class="page">
+          <div class="section-head">
+            <div>
+              <h2>Subsystems</h2>
+              <p class="section-intro">
+                Read the cards in any order. The main layer explains what the subsystem
+                is for; the expandable layer contains its internal contract and failure behavior.
+              </p>
+            </div>
+            <div class="detail-actions" aria-label="Detail controls">
+              <button type="button" data-details="open">Expand details</button>
+              <button type="button" data-details="close">Collapse details</button>
+            </div>
+          </div>
+
+          <div class="subsystem-grid">
+            <article class="subsystem">
+              <div class="subsystem-main">
+                <span class="subsystem-kicker">Observation</span>
+                <h3>Projects and priorities</h3>
+                <p class="purpose">Reads owner intent and explains the Backlog without starting unnecessary work.</p>
+                <div class="io">
+                  <div><b>Input:</b> Project items, status, labels, Priority/Effort.</div>
+                  <div><b>Output:</b> durable events, ranked digest, metadata proposals.</div>
+                </div>
+              </div>
+              <details><summary>Contract and resilience</summary><div>
+                The first poll creates a baseline, not runs. An unchanged repeat is a no-op.
+                A failure in one Project blocks only new work for that project; reconciliation
+                for existing runs continues. Metadata is written only after owner acceptance
+                and a fresh live drift check.
+              </div></details>
+            </article>
+
+            <article class="subsystem">
+              <div class="subsystem-main">
+                <span class="subsystem-kicker">Admission</span>
+                <h3>Admission and limits</h3>
+                <p class="purpose">Decides whether a new writer can safely start now.</p>
+                <div class="io">
+                  <div><b>Input:</b> issue event, settings, project health, resource inventory.</div>
+                  <div><b>Output:</b> one admitted run or an explained reject/wait.</div>
+                </div>
+              </div>
+              <details><summary>What is checked</summary><div>
+                An open issue, correct repository/status, non-empty description, no other active
+                run, a fresh Project poll, project/global WIP, global LLM, worktree/tmux caps,
+                and disk thresholds. The decision and reservation share one SQLite transaction,
+                so two pollers cannot create two writers.
+              </div></details>
+            </article>
+
+            <article class="subsystem">
+              <div class="subsystem-main">
+                <span class="subsystem-kicker">Execution</span>
+                <h3>Git workspace and Codex</h3>
+                <p class="purpose">Isolates the change and guarantees one current writer.</p>
+                <div class="io">
+                  <div><b>Input:</b> an admitted run and a fresh base branch.</div>
+                  <div><b>Output:</b> exact branch/worktree, managed task, and Draft PR.</div>
+                </div>
+              </div>
+              <details><summary>Ownership and handoff</summary><div>
+                The canonical checkout stays clean. CLI, Remote, and technical workers cannot
+                own the writer role at the same time. Takeover first brings the current task to
+                a stable boundary. Autonomous continuation creates a new linked task instead of
+                reclaiming the old one. Ambiguity stops the transition.
+              </div></details>
+            </article>
+
+            <article class="subsystem">
+              <div class="subsystem-main">
+                <span class="subsystem-kicker">Evidence</span>
+                <h3>CI and code review</h3>
+                <p class="purpose">Verifies the current PR revision and bounds automated fixes.</p>
+                <div class="io">
+                  <div><b>Input:</b> exact PR/head, required check names, review threads.</div>
+                  <div><b>Output:</b> normalized CI, bounded findings, and a newly proven SHA.</div>
+                </div>
+              </div>
+              <details><summary>Why exact SHA matters</summary><div>
+                An old green check does not prove a new commit. CI repair allows at most two
+                separate owner-triggered attempts. AI review is read-only and publishes at most
+                ten findings. Review fix uses only a snapshot of current unresolved threads,
+                then waits for CI and resolves only that snapshot.
+              </div></details>
+            </article>
+
+            <article class="subsystem">
+              <div class="subsystem-main">
+                <span class="subsystem-kicker">Preview</span>
+                <h3>Compose and static preview</h3>
+                <p class="purpose">Gives the owner a verifiable result without a direct production deployment.</p>
+                <div class="io">
+                  <div><b>Input:</b> owner action, exact head, clean worktree, adapter policy.</div>
+                  <div><b>Output:</b> bounded lease, Access-protected URL, and review evidence.</div>
+                </div>
+              </div>
+              <details><summary>Publication and cleanup</summary><div>
+                Six shared slots and at most two concurrent builds. Compose publishes an
+                isolated stack; static publishes an immutable bounded snapshot. Ingress appears
+                only after health checks. Missing/mismatched SHA, a dirty tree, an unsafe artifact,
+                or a failed health check fails closed. TTL starts after readiness; owner review
+                does not extend it automatically. Cleanup is always revoke-first.
+              </div></details>
+            </article>
+
+            <article class="subsystem">
+              <div class="subsystem-main">
+                <span class="subsystem-kicker">Control plane</span>
+                <h3>Discord and human control</h3>
+                <p class="purpose">Shows current state and exposes only currently valid actions.</p>
+                <div class="io">
+                  <div><b>Input:</b> Run Store state and an owner component action.</div>
+                  <div><b>Output:</b> stable card/thread, durable request, and updated status.</div>
+                </div>
+              </div>
+              <details><summary>Authorization boundary</summary><div>
+                The native plugin verifies the exact owner, guild, component ID, run identity,
+                revision, and SHA. A button never executes a shell command directly: it queues a
+                bounded request that the controller validates again. The settings UI is ephemeral
+                and available only at full idle. Telegram is an inbound fallback only.
+              </div></details>
+            </article>
+
+            <article class="subsystem">
+              <div class="subsystem-main">
+                <span class="subsystem-kicker">Operations</span>
+                <h3>Health, guard, and settings</h3>
+                <p class="purpose">Prevents accumulated drift from becoming a hidden failure.</p>
+                <div class="io">
+                  <div><b>Input:</b> DB, Docker, disk, worktrees, tmux, backups, and config.</div>
+                  <div><b>Output:</b> health summary, admission block, quarantine, and audit.</div>
+                </div>
+              </div>
+              <details><summary>Observation without auto-delete</summary><div>
+                Runtime health is read-only. The resource guard blocks admission for unsafe disk
+                use, excess worktrees, or ambiguous orphan evidence. An orphan gets a 30-minute
+                grace period, then quarantine; owner review becomes due after seven days. Nothing
+                is deleted automatically. Runtime settings use ranges, cross-field checks,
+                revision guards, checksums, and rollback.
+              </div></details>
+            </article>
+
+            <article class="subsystem">
+              <div class="subsystem-main">
+                <span class="subsystem-kicker">Recovery</span>
+                <h3>Backup and Minimal DR</h3>
+                <p class="purpose">Makes the system recoverable without turning a personal project into an enterprise platform.</p>
+                <div class="io">
+                  <div><b>Input:</b> SQLite snapshot and allowlisted non-secret config.</div>
+                  <div><b>Output:</b> verified local backup and encrypted S3 recovery pair.</div>
+                </div>
+              </div>
+              <details><summary>What is and is not included</summary><div>
+                The solution is restored from GitHub plus a bundle containing the Run Store
+                snapshot, tracked config, and scheduler inventory. Manifest and checksum are
+                verified before restore. Secrets, OAuth stores, Docker data, and Codex sessions
+                are not archived. The private age key stays with the owner; without it, the S3
+                bundle cannot be decrypted.
+              </div></details>
+            </article>
+          </div>
+        </div>
+      </section>
+
+      <section id="cases">
+        <div class="page">
+          <div class="section-head">
+            <div>
+              <h2>Cross-system use cases</h2>
+              <p class="section-intro">Each row shows which subsystems participate. There is no separate hidden workflow behind it.</p>
+            </div>
+          </div>
+          <div class="case-grid">
+            <article class="case"><h3>Normal engineering task</h3><p>The owner moves an issue to In progress; Kurami creates isolated work and collects evidence. Only the owner merges the PR; Done starts verified release.</p><div class="route"><span>Projects</span><i>→</i><span>Admission</span><i>→</i><span>Execution</span><i>→</i><span>CI/review</span><i>→</i><span>Owner merge</span><i>→</i><span>Done/release</span></div></article>
+            <article class="case"><h3>Human-control task</h3><p>CLI starts the run and safely releases ownership to Remote. Autonomous continuation always creates a fresh successor.</p><div class="route"><span>Admission</span><i>→</i><span>Execution</span><i>→</i><span>Handoff</span><i>→</i><span>Remote</span><i>→</i><span>Successor</span></div></article>
+            <article class="case"><h3>CI or review finds a problem</h3><p>The owner separately authorizes repair or fix; each technical task is bounded by a snapshot and exact SHA.</p><div class="route"><span>Evidence</span><i>→</i><span>Discord action</span><i>→</i><span>Technical worker</span><i>→</i><span>New SHA</span><i>→</i><span>Evidence</span></div></article>
+            <article class="case"><h3>A preview is needed</h3><p>The owner starts the configured adapter. The completion gate accepts only a healthy, exact-SHA, owner-reviewed lease.</p><div class="route"><span>PR head</span><i>→</i><span>Slot/build</span><i>→</i><span>Health</span><i>→</i><span>Ingress</span><i>→</i><span>Owner review</span></div></article>
+            <article class="case"><h3>The task is cancelled</h3><p>Clean unpublished work can be released. After a PR exists, Kurami preserves the work and waits for an explicit keep/discard decision.</p><div class="route"><span>Backlog</span><i>→</i><span>Stop writer</span><i>→</i><span>Revoke preview</span><i>→</i><span>Inspect evidence</span><i>→</i><span>Release / preserve</span></div></article>
+            <article class="case"><h3>The environment looks suspicious</h3><p>Health and guard do not try to “fix everything.” Admission closes, evidence remains, and the owner receives a changed-only alert.</p><div class="route"><span>Observe</span><i>→</i><span>Block</span><i>→</i><span>Grace</span><i>→</i><span>Quarantine</span><i>→</i><span>Owner resolution</span></div></article>
+          </div>
+        </div>
+      </section>
+
+      <section id="boundaries">
+        <div class="page">
+          <div class="section-head"><div><h2>Safety boundaries</h2><p class="section-intro">When a short rule conflicts with convenience, Kurami chooses provability and stops.</p></div></div>
+          <div class="rule-grid">
+            <article class="rule"><h3>One writer</h3><p>A run cannot belong to CLI, Remote, and a technical worker at the same time.</p></article>
+            <article class="rule"><h3>Exact identity</h3><p>Run, branch, worktree, PR, SHA, preview lease, and Discord control are linked explicitly.</p></article>
+            <article class="rule"><h3>The owner completes</h3><p>Kurami never merges a PR or deploys production autonomously.</p></article>
+            <article class="rule"><h3>Published work is preserved</h3><p>A PR or remote branch is not deleted by normal cancellation; destructive cleanup needs separate confirmation.</p></article>
+            <article class="rule"><h3>Secrets stay out of prompts and Git</h3><p>Workers receive only necessary bounded inputs; credential-like output is rejected.</p></article>
+            <article class="rule stop"><h3>When unsure, stop</h3><p>Stale state, ambiguity, drift, missing evidence, and exhausted retries move work to wait or needs attention.</p></article>
+          </div>
+        </div>
+      </section>
+
+      <section id="readiness">
+        <div class="page">
+          <div class="section-head"><div><h2>Onboarding a project</h2><p class="section-intro">Compatibility is checked separately from execution. The checker never creates or fixes anything automatically.</p></div></div>
+          <div class="readiness">
+            <article class="checklist">
+              <h3>Minimum contract</h3>
+              <ol>
+                <li>The GitHub repository and Project v2 are readable; status field/options match the registry.</li>
+                <li>Canonical repository, separate worktree root, base branch, and branch prefix are explicit.</li>
+                <li>Discord guild/project channel and the shared digest channel exist.</li>
+                <li>CI is intentionally disabled or required check names match literally.</li>
+                <li>Triage fields are configured when triage is enabled.</li>
+                <li>Preview is intentionally absent or fully describes a Compose/static adapter.</li>
+                <li>Two read-only polls produce a baseline then a no-op; a disposable issue passes bounded E2E and cleanup.</li>
+              </ol>
+              <p style="margin-top:1rem;color:var(--muted)">Full contract: <code>docs/project-readiness.md</code>.</p>
+            </article>
+            <aside class="command-panel">
+              <h3>Read-only checker</h3>
+              <pre><code>npm run readiness -- --project &lt;key&gt;
+npm run readiness -- --project &lt;key&gt; --live</code></pre>
+              <p>Config mode validates tracked policy. Live mode only reads GitHub and the workspace.</p>
+              <div class="result-list">
+                <span class="pass">PASS · proven</span>
+                <span class="warn">WARN · acceptable only after owner review</span>
+                <span class="fail">FAIL · project admission is forbidden</span>
+              </div>
+            </aside>
+          </div>
+        </div>
+      </section>
+
+      <section id="glossary">
+        <div class="page">
+          <div class="section-head"><div><h2>Terms</h2><p class="section-intro">The minimum vocabulary needed to read cards, logs, and the Run Store.</p></div></div>
+          <dl class="glossary">
+            <div class="term"><dt>Run</dt><dd>One orchestration attempt for a specific Project item.</dd></div>
+            <div class="term"><dt>Admission</dt><dd>The atomic decision to create a run and reserve capacity.</dd></div>
+            <div class="term"><dt>Canonical checkout</dt><dd>The primary local repository copy; agents never work in it.</dd></div>
+            <div class="term"><dt>Worktree</dt><dd>A separate Git copy for one run and one managed branch.</dd></div>
+            <div class="term"><dt>Writer</dt><dd>The current actor allowed to change the worktree.</dd></div>
+            <div class="term"><dt>Exact SHA</dt><dd>The specific commit proven by CI, review, and preview evidence.</dd></div>
+            <div class="term"><dt>Lease</dt><dd>A run's durable right to a preview slot and its runtime.</dd></div>
+            <div class="term"><dt>Reconciliation</dt><dd>Repeatedly converging external resources to recorded state without duplicates.</dd></div>
+            <div class="term"><dt>Fail-closed</dt><dd>The action does not run when evidence is insufficient.</dd></div>
+            <div class="term"><dt>Needs attention</dt><dd>Automation has stopped; evidence is preserved for an owner decision.</dd></div>
+            <div class="term"><dt>Quarantine</dt><dd>A durable marker for ambiguous orphan resources, not deletion.</dd></div>
+            <div class="term"><dt>Minimal DR</dt><dd>GitHub plus an encrypted S3 bundle and a separate owner-held decryption key.</dd></div>
+          </dl>
+        </div>
+      </section>
+    </main>
+
+    <footer>
+      <div class="page">
+        <span>Kurami Orchestrator · system guide v1</span>
+        <span><a href="../README.md">Technical reference</a> · <a href="project-readiness.md">Project readiness</a> · <a href="e2e-scenarios.md">Acceptance catalog</a> · <a href="recovery.md">Recovery</a></span>
+      </div>
+    </footer>
+
+    <script>
+      const detailButtons = document.querySelectorAll("[data-details]");
+      const subsystemDetails = document.querySelectorAll("#subsystems details");
+      for (const button of detailButtons) {
+        button.addEventListener("click", () => {
+          const open = button.dataset.details === "open";
+          for (const detail of subsystemDetails) detail.open = open;
+        });
+      }
+    </script>
+  </body>
+</html>
