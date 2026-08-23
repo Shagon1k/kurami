@@ -19,6 +19,13 @@ type CiPolicy = {
   required_checks?: string[];
   missing_grace_minutes?: number;
 };
+type ValidatedCiPolicy =
+  | { enabled: false }
+  | {
+      enabled: true;
+      required_checks: string[];
+      missing_grace_minutes: number;
+    };
 type ProjectConfig = {
   repository: string;
   ci?: CiPolicy;
@@ -102,7 +109,10 @@ function parseArguments(): { project: string; apply: boolean } {
   return { project, apply: args.includes("--apply") };
 }
 
-function validatePolicy(project: string, policy: CiPolicy | undefined): CiPolicy {
+function validatePolicy(
+  project: string,
+  policy: CiPolicy | undefined,
+): ValidatedCiPolicy {
   if (!policy || typeof policy.enabled !== "boolean")
     fail(`Project ${project} requires ci.enabled`);
   if (!policy.enabled) return { enabled: false };
@@ -121,7 +131,12 @@ function validatePolicy(project: string, policy: CiPolicy | undefined): CiPolicy
   )
     fail(`Project ${project} has invalid ci.required_checks`);
   const grace = policy.missing_grace_minutes;
-  if (!Number.isInteger(grace) || grace! < 0 || grace! > 60)
+  if (
+    typeof grace !== "number" ||
+    !Number.isInteger(grace) ||
+    grace < 0 ||
+    grace > 60
+  )
     fail(`Project ${project} has invalid ci.missing_grace_minutes`);
   return {
     enabled: true,
@@ -286,7 +301,7 @@ function pullRequests(repository: string, branch: string): PullRequest[] {
 
 function observeRun(
   run: RunRow,
-  policy: Required<CiPolicy>,
+  policy: ValidatedCiPolicy,
   existing: ExistingSnapshot | undefined,
   now: string,
 ): Observation {
@@ -315,6 +330,17 @@ function observeRun(
       };
     const pull = pulls[0]!;
     discoveredPull = pull;
+    if (!policy.enabled) {
+      return {
+        pullRequestNumber: pull.number,
+        pullRequestUrl: pull.html_url,
+        pullRequestTitle: pull.title,
+        headSha: pull.head.sha,
+        aggregateState: "passed",
+        checks: [],
+        error: null,
+      };
+    }
     const firstObservedAt =
       existing?.head_sha === pull.head.sha ? existing.first_observed_at : now;
     const checkRuns = githubApi<{ check_runs: CheckRun[] }>(
@@ -450,14 +476,6 @@ async function main(): Promise<void> {
   const projectConfig = registry.projects[project];
   if (!projectConfig) fail(`Unknown project: ${project}`);
   const policy = validatePolicy(project, projectConfig.ci);
-  if (!policy.enabled) {
-    if (process.env.CI_OBSERVER_QUIET !== "1")
-      process.stdout.write(
-        `${JSON.stringify({ ok: true, apply, project, enabled: false, runs: 0 })}\n`,
-      );
-    return;
-  }
-  const requiredPolicy = policy as Required<CiPolicy>;
   const database = new DatabaseSync(databasePath, { timeout: 5_000 });
   database.exec("PRAGMA foreign_keys = ON; PRAGMA busy_timeout = 5000;");
   try {
@@ -474,7 +492,7 @@ async function main(): Promise<void> {
       const now = new Date().toISOString();
       const observation =
         run.repository === projectConfig.repository
-          ? observeRun(run, requiredPolicy, existing, now)
+          ? observeRun(run, policy, existing, now)
           : {
               pullRequestNumber: null,
               pullRequestUrl: null,
@@ -498,7 +516,7 @@ async function main(): Promise<void> {
           ok: true,
           apply,
           project,
-          enabled: true,
+          enabled: policy.enabled,
           runs: results.length,
           results,
         })}\n`,

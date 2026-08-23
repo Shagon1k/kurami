@@ -116,7 +116,11 @@ async function main(): Promise<void> {
       "Populated v25 lease was not preserved as Compose",
     );
 
-    const { selectAdapter } = await import("../src/preview-runtime.ts");
+    const {
+      assertPreviewSourceRevision,
+      requireExactHeadSha,
+      selectAdapter,
+    } = await import("../src/preview-runtime.ts");
     assert(selectAdapter("r_static_test") === "static", "Leased adapter did not use project config");
     migrated.prepare(`
       UPDATE preview_leases SET state='provisioning', runtime_adapter='static'
@@ -131,6 +135,56 @@ async function main(): Promise<void> {
       selectAdapter("r_static_test") === "static",
       "Claimed lease did not retain its durable adapter",
     );
+
+    let missingHeadRejected = false;
+    try {
+      requireExactHeadSha(null);
+    } catch {
+      missingHeadRejected = true;
+    }
+    assert(missingHeadRejected, "Missing preview head snapshot was accepted");
+
+    const revisionRepository = resolve(home, "revision-source");
+    await mkdir(revisionRepository, { recursive: true, mode: 0o700 });
+    await writeFile(resolve(revisionRepository, "index.html"), "<h1>Exact</h1>\n");
+    execFileSync("git", ["init", "-q", revisionRepository]);
+    execFileSync("git", ["-C", revisionRepository, "add", "index.html"]);
+    execFileSync(
+      "git",
+      [
+        "-C",
+        revisionRepository,
+        "-c",
+        "user.name=Kurami Test",
+        "-c",
+        "user.email=kurami@example.invalid",
+        "commit",
+        "-qm",
+        "test fixture",
+      ],
+    );
+    const revisionHead = execFileSync(
+      "git",
+      ["-C", revisionRepository, "rev-parse", "HEAD"],
+      { encoding: "utf8" },
+    ).trim();
+    assertPreviewSourceRevision(revisionRepository, revisionHead);
+    await writeFile(resolve(revisionRepository, "index.html"), "<h1>Dirty</h1>\n");
+    let dirtyRevisionRejected = false;
+    try {
+      assertPreviewSourceRevision(revisionRepository, revisionHead);
+    } catch {
+      dirtyRevisionRejected = true;
+    }
+    assert(dirtyRevisionRejected, "Dirty preview worktree was accepted");
+    await writeFile(resolve(revisionRepository, "index.html"), "<h1>Exact</h1>\n");
+    let mismatchedRevisionRejected = false;
+    try {
+      assertPreviewSourceRevision(revisionRepository, "f".repeat(40));
+    } catch {
+      mismatchedRevisionRejected = true;
+    }
+    assert(mismatchedRevisionRejected, "Mismatched preview HEAD was accepted");
 
     let inconsistentRejected = false;
     try {
@@ -198,6 +252,9 @@ async function main(): Promise<void> {
       symlinkRejected: true,
       hiddenPathRejected: true,
       explicitHealthHostHeader: true,
+      missingHeadRejected: true,
+      dirtyRevisionRejected: true,
+      mismatchedRevisionRejected: true,
       arbitraryBuildCommands: false,
       composeBackwardCompatible: true,
     })}\n`);

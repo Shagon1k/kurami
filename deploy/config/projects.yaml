@@ -73,3 +73,8 @@ projects:
       enabled: true
       priority_field: Priority
       effort_field: Effort
+    preview:
+      adapter: static
+      artifact_directory: preview-fixture
+      max_files: 100
+      max_bytes: 1048576

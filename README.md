@@ -71,6 +71,7 @@ app/
     orchestrator-settings.ts  Owner-only status/apply/reset/rollback settings boundary
     monthly-maintenance.ts    Bounded old-log and unused Docker cache/image cleanup
   tests/
+    run-regression.ts         Runs all 39 deterministic suites in fail-fast order
     verify-dry-run-admission.ts
                               Isolated WIP/idempotency/policy regression test
     verify-completed-release.ts
@@ -106,6 +107,10 @@ app/
   bin/launch-ai-review.sh     Secret-aware launcher for detached read-only reviewers
   package.json
   tsconfig.json
+  docs/
+    e2e-scenarios.md          Reproducible full acceptance catalog and cleanup contract
+    e2e-report-2026-08-23.md  Dated certification evidence, findings, and owner remainder
+    recovery.md               Minimal DR inventory, restore order, and verification
 
 ../config/
   projects.yaml               Project, repository, status, and workspace registry
@@ -162,12 +167,13 @@ It does not invoke Git, tmux, Codex, or GitHub mutations.
 ### Owner-only runtime settings
 
 `/kurami orchestrator settings` is an ephemeral Discord panel available only to
-the exact configured owner inside a project guild. It exposes seven bounded
-runtime-policy values: concurrent LLM workers (1–3), Global WIP (1–6), WIP for
-each registered project (1–3), active previews (1–6), concurrent preview builds
-(1–2), and preview lifetime (6–72 hours). Static identity, repositories, paths,
-channels, secrets, disk thresholds, cleanup policy, and physical resource caps
-remain deployment configuration and never enter the UI.
+the exact configured owner inside a project guild. It exposes five bounded
+scalar runtime-policy values plus one WIP value for every registered project
+(seven values with the current two-project registry): concurrent LLM workers
+(1–3), Global WIP (1–6), project WIP (1–3), active previews (1–6), concurrent
+preview builds (1–2), and preview lifetime (6–72 hours). Static identity,
+repositories, paths, channels, secrets, disk thresholds, cleanup policy, and
+physical resource caps remain deployment configuration and never enter the UI.
 
 Project WIP limits share the Global WIP pool; they are not reservations. For
 example, TailorTales 3 plus PickFlick 3 is valid with Global WIP 3, while actual
@@ -202,10 +208,13 @@ observer never changes a pull request, branch, check, lifecycle state, or code.
 Per-project CI policy is versioned in `deploy/config/projects.yaml`. The deployed
 copy is `${ORCHESTRATOR_HOME}/config/projects.yaml`; both copies must be kept in
 sync by the normal deployment/reconciliation flow. `ci.enabled: false` disables
-observation for a project. When enabled, `required_checks` contains exact GitHub
-check names and `missing_grace_minutes` controls only the initial missing-check
-grace period. The future project-readiness checker should compare this policy
-with the repository's actual workflows and checks.
+check evaluation, but Kurami still maps the managed branch to exactly one open PR
+and stores its exact head SHA as passed with an empty check list. This provenance
+is required before either preview adapter may publish a clean worktree. When CI
+is enabled, `required_checks` contains exact GitHub check names and
+`missing_grace_minutes` controls only the initial missing-check grace period. The
+future project-readiness checker should compare this policy with the repository's
+actual workflows and checks.
 
 ### Bounded CI repair
 
@@ -1251,8 +1260,10 @@ Telegram.
 Empty successful cycles are silent. Discord is the proactive run-notification
 surface; Telegram remains available only as an inbound fallback.
 
-Four additional `no_agent` jobs own operational housekeeping:
+Five additional `no_agent` jobs own digest and operational housekeeping:
 
+- the changed-only Projects Digest every day at `06:45 UTC`, delivered to the
+  permanent private digest channel;
 - state backup on days `1, 4, 7, ...` at `03:15 UTC`, delivered to the muted
   Discord maintenance channel;
 - hourly read-only runtime health inspection, silent while healthy and delivered
@@ -1304,12 +1315,19 @@ For control-plane changes:
 
 1. Preserve deterministic behavior and durable state transitions.
 2. Add a versioned migration for schema changes; never edit an applied migration.
-3. Run `npm run check`.
-4. Run `npm run test:admission` when admission, naming, state, or limits change.
+3. Run `npm test` for the complete deterministic regression suite.
+4. During focused iteration, run the relevant `test:*` script before the full
+   regression; admission, naming, state, or limit changes require
+   `npm run test:admission` at minimum.
 5. Test dangerous mutations first in plan-only or isolated mode.
 6. Update this README when commands, ownership, layout, or safety contracts change.
 7. Update the architecture plan and setup handoff when milestones or decisions
    change materially.
+
+The reproducible acceptance catalog lives in
+[docs/e2e-scenarios.md](docs/e2e-scenarios.md). Record each certification run in
+a dated report so P9 documentation can distinguish automated proof, live
+evidence, and the small owner-only UI checklist.
 
 Avoid adding services, queues, caches, or abstractions without a concrete failure
 mode that the existing SQLite + scripts design cannot handle.

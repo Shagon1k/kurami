@@ -26,7 +26,12 @@ function runNode(
   ) as JsonObject;
 }
 
-function pull(number: number, branch: string, sha: string): JsonObject {
+function pull(
+  number: number,
+  branch: string,
+  sha: string,
+  repository = "Shagon1k/TailorTales",
+): JsonObject {
   return {
     number,
     html_url: `https://example.invalid/pulls/${number}`,
@@ -36,9 +41,9 @@ function pull(number: number, branch: string, sha: string): JsonObject {
     head: {
       ref: branch,
       sha,
-      repo: { full_name: "Shagon1k/TailorTales" },
+      repo: { full_name: repository },
     },
-    base: { repo: { full_name: "Shagon1k/TailorTales" } },
+    base: { repo: { full_name: repository } },
   };
 }
 
@@ -82,6 +87,31 @@ async function main(): Promise<void> {
       ) VALUES (
         'r_ci', 'provisioned', '/tmp/worktrees/120/TailorTales',
         'TT-120_observe-ci', '01a00b9d-e72b-73f3-af6e-30760c2191c4'
+      );
+      INSERT INTO project_events (
+        event_id, observed_at, project, item_id, content_id, content_type,
+        repository, issue_number, title, url, payload_json, processing_state
+      ) VALUES (
+        'event-ci-disabled', '2026-08-18T08:00:00.000Z', 'pickflick',
+        'item-ci-disabled', 'content-ci-disabled', 'Issue',
+        'Shagon1k/PickFlick', 5, 'Static preview provenance',
+        'https://example.invalid/issues/5', '{}', 'processed'
+      );
+      INSERT INTO runs (
+        run_id, trigger_event_id, project, item_id, content_id, repository,
+        issue_number, interaction_policy, state, owner_state, execution_mode,
+        created_at, updated_at
+      ) VALUES (
+        'r_ci_disabled', 'event-ci-disabled', 'pickflick', 'item-ci-disabled',
+        'content-ci-disabled', 'Shagon1k/PickFlick', 5, 'autonomous',
+        'parked_review', 'none', 'live', '2026-08-18T08:00:00.000Z',
+        '2026-08-18T08:00:00.000Z'
+      );
+      INSERT INTO run_resources (
+        run_id, resource_state, worktree_path, branch_name, codex_thread_id
+      ) VALUES (
+        'r_ci_disabled', 'provisioned', '/tmp/worktrees/5/PickFlick',
+        'PF-5_static-preview', '01a00b9d-e72b-73f3-af6e-30760c2191c5'
       );
     `);
 
@@ -299,15 +329,44 @@ esac
       "Ambiguous PR mapping did not fail closed",
     );
 
+    const disabledSha = "dddddddddddddddddddddddddddddddddddddddd";
     const disabled = runNode(
       observer,
       ["--project", "pickflick", "--apply"],
       home,
-      { PATH: path },
+      {
+        PATH: path,
+        KURAMI_TEST_PULLS: JSON.stringify([
+          pull(
+            5,
+            "PF-5_static-preview",
+            disabledSha,
+            "Shagon1k/PickFlick",
+          ),
+        ]),
+      },
     );
     assert(
-      disabled.enabled === false && disabled.runs === 0,
+      disabled.enabled === false && disabled.runs === 1,
       "Project-level CI disable policy was ignored",
+    );
+    const disabledSnapshot = database
+      .prepare(
+        `SELECT pull_request_number, head_sha, aggregate_state, checks_json
+         FROM run_ci_snapshots WHERE run_id='r_ci_disabled'`,
+      )
+      .get() as {
+      pull_request_number: number;
+      head_sha: string;
+      aggregate_state: string;
+      checks_json: string;
+    };
+    assert(
+      disabledSnapshot.pull_request_number === 5 &&
+        disabledSnapshot.head_sha === disabledSha &&
+        disabledSnapshot.aggregate_state === "passed" &&
+        disabledSnapshot.checks_json === "[]",
+      "CI-disabled project lost exact PR-head provenance",
     );
 
     const normalizedFailure = normalizeRequiredChecks(
@@ -346,6 +405,7 @@ esac
         ambiguousFailClosed: true,
         oneShotEvent: true,
         projectPolicy: true,
+        disabledProjectExactSha: true,
       })}\n`,
     );
   } finally {

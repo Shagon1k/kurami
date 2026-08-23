@@ -1,4 +1,4 @@
-import { spawnSync } from "node:child_process";
+import { execFileSync, spawnSync } from "node:child_process";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { DatabaseSync } from "node:sqlite";
@@ -52,6 +52,38 @@ export function selectAdapter(runId: string): PreviewAdapter {
     fail(`Preview adapter is not configured for project: ${row.project}`);
   }
   return adapter;
+}
+
+export function requireExactHeadSha(value: string | null): string {
+  if (!value || !/^[0-9a-f]{40,64}$/u.test(value)) {
+    fail("Preview requires an exact pull-request head snapshot");
+  }
+  return value;
+}
+
+export function assertPreviewSourceRevision(
+  worktreePath: string,
+  expectedHeadSha: string,
+): void {
+  let actualHeadSha: string;
+  let status: string;
+  try {
+    actualHeadSha = execFileSync("git", ["-C", worktreePath, "rev-parse", "HEAD"], {
+      encoding: "utf8",
+      stdio: ["ignore", "pipe", "pipe"],
+    }).trim();
+    status = execFileSync(
+      "git",
+      ["-C", worktreePath, "status", "--porcelain", "--untracked-files=all"],
+      { encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] },
+    ).trim();
+  } catch {
+    fail("Preview source revision could not be verified");
+  }
+  if (actualHeadSha !== expectedHeadSha) {
+    fail("Preview worktree HEAD does not match the observed pull-request head");
+  }
+  if (status) fail("Preview worktree contains uncommitted changes");
 }
 
 function main(): void {

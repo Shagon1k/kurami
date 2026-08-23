@@ -17,6 +17,10 @@ import {
   loadEffectiveOrchestratorConfig,
   type RuntimeSettingsBaseConfig,
 } from "./runtime-settings.ts";
+import {
+  assertPreviewSourceRevision,
+  requireExactHeadSha,
+} from "./preview-runtime.ts";
 
 process.umask(0o077);
 
@@ -217,6 +221,7 @@ function validateRuntimeDirectory(runId: string): string {
 async function buildPlan(
   record: RuntimeRecord,
   registry: ProjectsRegistry,
+  expectedHeadSha?: string,
 ): Promise<{ plan: RuntimePlan; preview: PreviewConfig }> {
   if (record.execution_mode !== "live") fail(`Run is not live: ${record.run_id}`);
   if (
@@ -254,6 +259,9 @@ async function buildPlan(
   const repositoryName = project.repository.split("/").at(-1);
   if (!repositoryName || basename(worktreePath) !== repositoryName) {
     fail(`Worktree does not use the canonical repository basename`);
+  }
+  if (expectedHeadSha) {
+    assertPreviewSourceRevision(worktreePath, expectedHeadSha);
   }
   const composeFile = resolve(worktreePath, preview.compose_file);
   const composeChild = relative(worktreePath, composeFile);
@@ -752,7 +760,9 @@ async function main(): Promise<void> {
   try {
     database.exec("PRAGMA foreign_keys = ON; PRAGMA busy_timeout = 5000;");
     const record = loadRuntime(database, args.runId);
-    const { plan, preview } = await buildPlan(record, registry);
+    const expectedHeadSha =
+      args.command === "up" ? requireExactHeadSha(record.ci_head_sha) : undefined;
+    const { plan, preview } = await buildPlan(record, registry, expectedHeadSha);
     if (args.command === "up") {
       await up(database, record, plan, preview, config, args.apply);
     } else if (args.command === "down") {
