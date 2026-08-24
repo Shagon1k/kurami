@@ -201,6 +201,15 @@ async function main(): Promise<void> {
       "Idle ranking changed Suggested since",
     );
 
+    database.prepare(
+      `INSERT INTO project_discord_digest_surfaces (
+         project, channel_id, message_id, content_digest, state
+       ) VALUES (
+         'tailortales', '1539929665068601364', '8000',
+         'legacy-discord-embed-v1', 'active'
+       )`,
+    ).run();
+
     const requests: Array<{ method: string; url: string; body: Record<string, unknown> }> = [];
     let nextMessageId = 9_001;
     const server = createServer((request, response) => {
@@ -216,7 +225,10 @@ async function main(): Promise<void> {
           body: body ? (JSON.parse(body) as Record<string, unknown>) : {},
         });
         response.writeHead(200, { "content-type": "application/json" });
-        response.end(JSON.stringify({ id: String(nextMessageId++) }));
+        if (request.method === "GET") {
+          const id = request.url?.split("/").at(-1) ?? "";
+          response.end(JSON.stringify({ id, flags: id === "8000" ? 0 : 32768 }));
+        } else response.end(JSON.stringify({ id: String(nextMessageId++) }));
       });
     });
     await new Promise<void>((resolveListen) =>
@@ -235,15 +247,17 @@ async function main(): Promise<void> {
     const created = JSON.parse(
       (await runNode(notifier, ["--apply"], notifierEnvironment)).stdout,
     ) as { ok: boolean; results: Array<{ action: string }> };
-    assert(created.ok && created.results[0]?.action === "created", "Digest card was not created");
+    assert(created.ok && created.results[0]?.action === "replaced", "Legacy digest was not replaced");
     assert(
-      requests.length === 1 &&
-        requests[0]!.method === "POST" &&
-        requests[0]!.url === "/channels/1539929665068601364/messages" &&
-        !requests[0]!.url.includes("thread"),
+      requests.length === 2 &&
+        requests[0]!.method === "GET" &&
+        requests[0]!.url.endsWith("/messages/8000") &&
+        requests[1]!.method === "POST" &&
+        requests[1]!.url === "/channels/1539929665068601364/messages" &&
+        !requests[1]!.url.includes("thread"),
       "Digest was not posted directly to the configured text channel",
     );
-    const payload = requests[0]!.body;
+    const payload = requests[1]!.body;
     const initialPayload = JSON.stringify(payload);
     assert(
       payload.flags === 32768 &&
@@ -263,7 +277,7 @@ async function main(): Promise<void> {
     const unchanged = JSON.parse(
       (await runNode(notifier, ["--apply"], notifierEnvironment)).stdout,
     ) as { ok: boolean; results: unknown[] };
-    assert(unchanged.ok && unchanged.results.length === 0 && requests.length === 1, "Idle digest edited the card");
+    assert(unchanged.ok && unchanged.results.length === 0 && requests.length === 2, "Idle digest edited the card");
 
     database
       .prepare(
@@ -490,6 +504,7 @@ async function main(): Promise<void> {
         directTextChannelCards: true,
         threadsCreated: 0,
         initialMessages: 1,
+        legacyDigestReplaced: true,
         idleEdits: 0,
         dailyLastCheckedEdit: true,
         eventDrivenStatusRefresh: true,

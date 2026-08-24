@@ -8,6 +8,7 @@ import {
   compactTable,
   componentMessage,
   container,
+  discordComponentsV2Flag,
   separator,
   textDisplay,
   type DiscordObject,
@@ -527,14 +528,28 @@ async function reconcile(
   let messageId = row.message_id;
   let action = "edited";
   if (messageId) {
-    const edited = await discordRequest(
+    const messagePath = `/channels/${channelId}/messages/${messageId}`;
+    const existing = await discordRequest(
       token,
-      "PATCH",
-      `/channels/${channelId}/messages/${messageId}`,
-      digestPayload(row, config, false),
+      "GET",
+      messagePath,
+      undefined,
       true,
     );
-    if (!edited) messageId = null;
+    const existingFlags = Number(existing?.flags ?? 0);
+    if (existing && (existingFlags & discordComponentsV2Flag) !== 0) {
+      const edited = await discordRequest(
+        token,
+        "PATCH",
+        messagePath,
+        digestPayload(row, config, false),
+        true,
+      );
+      if (!edited) messageId = null;
+    } else {
+      messageId = null;
+      action = existing ? "replaced" : "created";
+    }
   }
   if (!messageId) {
     const created = await discordRequest(
@@ -545,7 +560,7 @@ async function reconcile(
     );
     messageId = String(created?.id ?? "");
     if (!/^\d+$/u.test(messageId)) fail("Discord returned no digest message ID");
-    action = "created";
+    if (action !== "replaced") action = "created";
   }
   database
     .prepare(`
