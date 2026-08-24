@@ -67,8 +67,6 @@ export function componentMessage(
   extras: DiscordObject = {},
 ): DiscordObject {
   return {
-    content: null,
-    embeds: null,
     flags: discordComponentsV2Flag,
     components,
     allowed_mentions: { parse: [] },

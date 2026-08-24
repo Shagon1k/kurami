@@ -247,8 +247,8 @@ async function main(): Promise<void> {
     const initialPayload = JSON.stringify(payload);
     assert(
       payload.flags === 32768 &&
-        payload.content === null &&
-        payload.embeds === null &&
+        !Object.hasOwn(payload, "content") &&
+        !Object.hasOwn(payload, "embeds") &&
         initialPayload.includes("TailorTales · Project digest") &&
         initialPayload.includes("Suggested next") &&
         initialPayload.includes("```text") &&

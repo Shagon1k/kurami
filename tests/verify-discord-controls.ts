@@ -434,8 +434,8 @@ async function main(): Promise<void> {
     assert(parentMessages.length === 1, "Ticket starter card was duplicated");
     assert(
       parentMessages[0]!.flags === 32768 &&
-        parentMessages[0]!.content === null &&
-        parentMessages[0]!.embeds === null &&
+        !Object.hasOwn(parentMessages[0]!, "content") &&
+        !Object.hasOwn(parentMessages[0]!, "embeds") &&
         componentText(parentMessages[0]!).includes(
           "The current dashboard is the latest bot message",
         ),
@@ -459,8 +459,8 @@ async function main(): Promise<void> {
     const firstCurrentDashboard = threadControlCreates.at(-1)!;
     assert(
       firstCurrentDashboard.flags === 32768 &&
-        firstCurrentDashboard.content === null &&
-        firstCurrentDashboard.embeds === null,
+        !Object.hasOwn(firstCurrentDashboard, "content") &&
+        !Object.hasOwn(firstCurrentDashboard, "embeds"),
       "Run dashboard is not a pure Components V2 message",
     );
     const firstControls = customIds(firstCurrentDashboard);
