@@ -13,6 +13,8 @@ import {
 import {
   buildMetadataProposalInstructions,
   deterministicProposalSummary,
+  metadataAssessmentChunks,
+  maximumMetadataAiChunkIssues,
   maximumMetadataAiAttempts,
   parseMetadataProposalResult,
   persistMetadataProposalResult,
@@ -189,6 +191,13 @@ async function main(): Promise<void> {
         ranking.ranked.slice(0, maximumProposalBatchIssues).map(({ itemId }) => itemId).join(","),
       "Proposal candidates did not follow deterministic digest ranking",
     );
+    const expandedPlan = planProjectAssessment(database, "tailortales", 40);
+    assert(
+      expandedPlan.action === "create" &&
+        expandedPlan.candidates.length === 14 &&
+        expandedPlan.remainingCandidates === 0,
+      "Configurable daily limit did not expand the logical proposal batch",
+    );
 
     const created = applyAssessmentPlan(database, dryPlan) as { batchId: string };
     const batchId = created.batchId;
@@ -217,6 +226,18 @@ async function main(): Promise<void> {
     );
 
     const candidates = dryPlan.candidates;
+    const assessmentChunks = metadataAssessmentChunks(
+      Array.from({ length: 40 }, (_, index) => ({
+        ...candidates[0]!,
+        itemId: `chunk-item-${index + 1}`,
+        issueNumber: index + 1,
+      })),
+    );
+    assert(
+      maximumMetadataAiChunkIssues === 12 &&
+        assessmentChunks.map((chunk) => chunk.length).join(",") === "12,12,12,4",
+      "Large logical batches are not split into bounded AI chunks",
+    );
     const valid = parseMetadataProposalResult(
       JSON.stringify({
         summary: "Two evidence-backed suggestions.",
@@ -516,6 +537,7 @@ async function main(): Promise<void> {
         dependencyInferenceExcluded: true,
         strictResultValidation: true,
         invalidResultRetryAttempts: maximumMetadataAiAttempts,
+        maximumAiChunkIssues: maximumMetadataAiChunkIssues,
         technicalFailureRetryAttempts: 1,
         deterministicSummary: true,
         proposalProvenance: true,

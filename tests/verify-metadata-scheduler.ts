@@ -135,6 +135,37 @@ async function main(): Promise<void> {
       return { state: "ready" };
     };
 
+    const disabled = runDailyProposalCycle(
+      database,
+      "2026-08-20",
+      true,
+      worker,
+      "tailortales",
+      1,
+      0,
+    );
+    assert(
+      disabled.results[0]?.action === "disabled" &&
+        workerCalls === 0 &&
+        (database.prepare("SELECT COUNT(*) AS count FROM project_metadata_daily_admissions").get() as { count: number }).count === 0,
+      "AI triage/day 0 did not disable proposals cleanly",
+    );
+    const raisedLimit = runDailyProposalCycle(
+      database,
+      "2026-08-20",
+      false,
+      worker,
+      "tailortales",
+      1,
+      40,
+    );
+    assert(
+      raisedLimit.results[0]?.action === "create" &&
+        ((raisedLimit.results[0] as { assessment?: { candidates?: unknown[] } }).assessment?.candidates?.length ?? 0) === 25 &&
+        workerCalls === 0,
+      "Raised AI triage/day limit did not expand one logical review batch",
+    );
+
     database
       .prepare(
         `INSERT INTO project_events (
@@ -363,7 +394,7 @@ async function main(): Promise<void> {
     database.close();
 
     process.stdout.write(
-      `${JSON.stringify({ ok: true, populatedV21UpgradePreserved: true, dailyBatchLimit: 1, maximumIssuesPerBatch: 12, dryRunNoMutation: true, globalLlmCapacityRespected: true, eventDrivenCreationDisabled: true, controllerLockShared: true, bootstrapDays: 3, sameDayResume: true, staleWorkerRecovery: true, idleNoAi: true, workerFailureVisible: true, externalWrites: 0 })}\n`,
+      `${JSON.stringify({ ok: true, populatedV21UpgradePreserved: true, dailyBatchLimit: 1, defaultIssuesPerDay: 12, configurableIssuesPerDay: "0-40", dryRunNoMutation: true, globalLlmCapacityRespected: true, eventDrivenCreationDisabled: true, controllerLockShared: true, bootstrapDays: 3, sameDayResume: true, staleWorkerRecovery: true, idleNoAi: true, workerFailureVisible: true, externalWrites: 0 })}\n`,
     );
   } finally {
     await rm(home, { recursive: true, force: true });

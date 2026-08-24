@@ -3,11 +3,14 @@ import { resolve } from "node:path";
 import { pathToFileURL } from "node:url";
 import { DatabaseSync } from "node:sqlite";
 import type { TriageFacts, TriageItemFact } from "./triage-snapshot.ts";
+import { loadEffectiveOrchestratorConfig } from "./runtime-settings.ts";
 
 process.umask(0o077);
 
 export const metadataProposalPolicyVersion = "metadata-v1";
+// One detached AI request stays bounded even when the owner raises the daily limit.
 export const maximumProposalBatchIssues = 12;
+export const maximumProposalDailyIssues = 40;
 
 export type MetadataFieldName = "priority" | "effort";
 
@@ -48,6 +51,11 @@ type ActiveBatchRow = {
 };
 
 export type AssessmentPlan =
+  | {
+      project: string;
+      action: "disabled";
+      reason: "ai_triage_disabled";
+    }
   | {
       project: string;
       action: "active";
@@ -315,7 +323,12 @@ function activeBatchTargetChanged(
 export function planProjectAssessment(
   database: DatabaseSync,
   project: string,
+  dailyLimit = maximumProposalBatchIssues,
 ): AssessmentPlan {
+  if (!Number.isInteger(dailyLimit) || dailyLimit < 0 || dailyLimit > maximumProposalDailyIssues)
+    fail(`AI triage/day must be an integer between 0 and ${maximumProposalDailyIssues}`);
+  if (dailyLimit === 0)
+    return { project, action: "disabled", reason: "ai_triage_disabled" };
   const current = loadCurrent(database, project);
   const currentFacts = parseFacts(current);
   const cursor = loadCursor(database, project);
@@ -400,8 +413,8 @@ export function planProjectAssessment(
     batchKind,
     factualHash: current.factual_hash,
     changeSequence: current.change_sequence,
-    candidates: candidates.slice(0, maximumProposalBatchIssues),
-    remainingCandidates: Math.max(0, candidates.length - maximumProposalBatchIssues),
+    candidates: candidates.slice(0, dailyLimit),
+    remainingCandidates: Math.max(0, candidates.length - dailyLimit),
     supersedeBatchId: active?.batch_id ?? null,
   };
 }
@@ -447,7 +460,8 @@ export function applyAssessmentPlan(
   database: DatabaseSync,
   plan: AssessmentPlan,
 ): Record<string, unknown> {
-  if (plan.action === "active" || plan.action === "unchanged") return plan;
+  if (plan.action === "disabled" || plan.action === "active" || plan.action === "unchanged")
+    return plan;
   database.exec("BEGIN IMMEDIATE");
   try {
     if (plan.action === "cursor") {
@@ -664,8 +678,9 @@ async function main(): Promise<void> {
   try {
     if (args[0] === "prepare") {
       const parsed = parsePrepareArgs(args);
+      const config = await loadEffectiveOrchestratorConfig(orchestratorHome);
       const plans = projects(database, parsed.project).map((project) =>
-        planProjectAssessment(database, project),
+        planProjectAssessment(database, project, config.limits.ai_triage_daily),
       );
       const results = parsed.apply
         ? plans.map((plan) => applyAssessmentPlan(database, plan))

@@ -18,6 +18,13 @@ CONTROL_ID = re.compile(
 METADATA_CONTROL_ID = re.compile(
     r"^kurami:metadata_(details|accept|skip|discuss|exclude|restore|retry):(pmb_[a-f0-9]+)$"
 )
+METADATA_PAGE_CONTROL_ID = re.compile(
+    r"^kurami:metadata_page:(pmb_[a-f0-9]+):([0-9]{1,2})$"
+)
+METADATA_SELECTION_CONTROL_ID = re.compile(
+    r"^kurami:metadata_(exclude|restore):(pmb_[a-f0-9]+):([0-9]{1,2})$"
+)
+_METADATA_PAGE_SIZE = 12
 
 _ACTION_LABELS = {
     "take_control": "Take control",
@@ -76,6 +83,30 @@ def parse_metadata_control_id(custom_id: object) -> Optional[tuple[str, str]]:
     if match is None:
         return None
     return match.group(1), match.group(2)
+
+
+def parse_metadata_page_control_id(custom_id: object) -> Optional[tuple[str, int]]:
+    """Return an allowlisted metadata ``(batch_id, page)`` pair or ``None``."""
+
+    if not isinstance(custom_id, str):
+        return None
+    match = METADATA_PAGE_CONTROL_ID.fullmatch(custom_id)
+    if match is None:
+        return None
+    return match.group(1), int(match.group(2))
+
+
+def parse_metadata_selection_control_id(
+    custom_id: object,
+) -> Optional[tuple[str, str, int]]:
+    """Return an allowlisted paged metadata selection or ``None``."""
+
+    if not isinstance(custom_id, str):
+        return None
+    match = METADATA_SELECTION_CONTROL_ID.fullmatch(custom_id)
+    if match is None:
+        return None
+    return match.group(1), match.group(2), int(match.group(3))
 
 
 def _paths() -> tuple[Path, Path, Path]:
@@ -198,12 +229,30 @@ def _metadata_details_message(payload: dict[str, Any]) -> str:
             f"{counts.get('accepted', 0)} approved · guarded GitHub sync "
             f"{payload.get('syncState') or 'queued'}."
         )
+    page = int(payload.get("_page", 0)) + 1
+    pages = int(payload.get("_pages", 1))
+    page_label = f" · page {page}/{pages}" if pages > 1 else ""
     return (
-        f"**Review proposals · {payload.get('project')} · batch {payload.get('batchNumber')}**\n"
+        f"**Review proposals · {payload.get('project')} · batch {payload.get('batchNumber')}{page_label}**\n"
         f"{counts.get('pending', 0)} pending · {counts.get('skipped', 0)} excluded. "
         "Select only proposals that should be excluded, or restore an accidental exclusion. "
         "Nothing is written to GitHub."
     )
+
+
+def _metadata_paginated_payload(
+    payload: dict[str, Any], page: int
+) -> dict[str, Any]:
+    proposals = list(payload.get("proposals") or [])
+    pages = max(1, (len(proposals) + _METADATA_PAGE_SIZE - 1) // _METADATA_PAGE_SIZE)
+    selected_page = max(0, min(int(page), pages - 1))
+    start = selected_page * _METADATA_PAGE_SIZE
+    paginated = dict(payload)
+    paginated["proposals"] = proposals[start : start + _METADATA_PAGE_SIZE]
+    paginated["_page"] = selected_page
+    paginated["_pages"] = pages
+    paginated["_proposal_total"] = len(proposals)
+    return paginated
 
 
 def _metadata_details_embeds(payload: dict[str, Any]) -> list[dict[str, Any]]:
@@ -256,26 +305,34 @@ def _metadata_details_embeds(payload: dict[str, Any]) -> list[dict[str, Any]]:
                     in {"applied", "partially_applied", "failed"}
                     else "Accept remaining approves only SQLite state; GitHub remains unchanged."
                 )
+                + (
+                    f" Page {int(payload.get('_page', 0)) + 1}/{int(payload.get('_pages', 1))}."
+                    if int(payload.get("_pages", 1)) > 1
+                    else ""
+                )
             },
         }
     ]
 
 
-def _metadata_embed_objects(payload: dict[str, Any]) -> list[Any]:
+def _metadata_embed_objects(payload: dict[str, Any], page: int = 0) -> list[Any]:
     import discord
 
-    return [discord.Embed.from_dict(embed) for embed in _metadata_details_embeds(payload)]
+    paginated = _metadata_paginated_payload(payload, page)
+    return [discord.Embed.from_dict(embed) for embed in _metadata_details_embeds(paginated)]
 
 
-async def _metadata_review_view(payload: dict[str, Any]) -> Any:
+async def _metadata_review_view(payload: dict[str, Any], page: int = 0) -> Any:
     import discord
 
+    paginated = _metadata_paginated_payload(payload, page)
+    selected_page = int(paginated["_page"])
     view = discord.ui.View(timeout=300)
     pending = [
         proposal
-        for proposal in payload.get("proposals") or []
+        for proposal in paginated.get("proposals") or []
         if proposal.get("state") == "pending"
-    ][:25]
+    ]
     if pending and payload.get("batchState") in {"ready", "discussing"}:
         options = []
         for proposal in pending:
@@ -292,7 +349,9 @@ async def _metadata_review_view(payload: dict[str, Any]) -> Any:
             )
         view.add_item(
             discord.ui.Select(
-                custom_id=f"kurami:metadata_exclude:{payload.get('batchId')}",
+                custom_id=(
+                    f"kurami:metadata_exclude:{payload.get('batchId')}:{selected_page}"
+                ),
                 placeholder="Exclude selected proposals from this batch",
                 min_values=1,
                 max_values=len(options),
@@ -301,9 +360,9 @@ async def _metadata_review_view(payload: dict[str, Any]) -> Any:
         )
     skipped = [
         proposal
-        for proposal in payload.get("proposals") or []
+        for proposal in paginated.get("proposals") or []
         if proposal.get("state") == "skipped"
-    ][:25]
+    ]
     if skipped and payload.get("batchState") in {"ready", "discussing"}:
         options = []
         for proposal in skipped:
@@ -320,7 +379,9 @@ async def _metadata_review_view(payload: dict[str, Any]) -> Any:
             )
         view.add_item(
             discord.ui.Select(
-                custom_id=f"kurami:metadata_restore:{payload.get('batchId')}",
+                custom_id=(
+                    f"kurami:metadata_restore:{payload.get('batchId')}:{selected_page}"
+                ),
                 placeholder="Restore excluded proposals",
                 min_values=1,
                 max_values=len(options),
@@ -333,6 +394,28 @@ async def _metadata_review_view(payload: dict[str, Any]) -> Any:
                 custom_id=f"kurami:metadata_accept:{payload.get('batchId')}",
                 label="Accept remaining",
                 style=discord.ButtonStyle.success,
+            )
+        )
+    pages = int(paginated["_pages"])
+    if pages > 1:
+        view.add_item(
+            discord.ui.Button(
+                custom_id=(
+                    f"kurami:metadata_page:{payload.get('batchId')}:{max(0, selected_page - 1)}"
+                ),
+                label="Previous",
+                style=discord.ButtonStyle.secondary,
+                disabled=selected_page == 0,
+            )
+        )
+        view.add_item(
+            discord.ui.Button(
+                custom_id=(
+                    f"kurami:metadata_page:{payload.get('batchId')}:{min(pages - 1, selected_page + 1)}"
+                ),
+                label="Next",
+                style=discord.ButtonStyle.secondary,
+                disabled=selected_page == pages - 1,
             )
         )
     return view
@@ -499,8 +582,40 @@ def install_control_listener(
     async def on_interaction(interaction: Any) -> None:
         data = getattr(interaction, "data", None)
         custom_id = data.get("custom_id") if isinstance(data, dict) else None
+        metadata_page_parsed = parse_metadata_page_control_id(custom_id)
+        metadata_selection_parsed = parse_metadata_selection_control_id(custom_id)
         metadata_parsed = parse_metadata_control_id(custom_id)
         parsed = parse_control_id(custom_id)
+        if metadata_page_parsed is not None:
+            batch_id, page = metadata_page_parsed
+            if not authorized(interaction):
+                if not interaction.response.is_done():
+                    await interaction.response.send_message(
+                        "This Kurami metadata control is not authorized for your account.",
+                        ephemeral=True,
+                    )
+                return
+            await interaction.response.defer()
+            try:
+                payload = await _run_metadata_control("status", batch_id)
+                paginated = _metadata_paginated_payload(payload, page)
+                view = await _metadata_review_view(payload, page)
+                await interaction.edit_original_response(
+                    content=_metadata_details_message(paginated),
+                    embeds=_metadata_embed_objects(payload, page),
+                    view=view,
+                )
+            except Exception as exc:
+                await interaction.edit_original_response(
+                    content=f"Metadata page could not be opened safely: {str(exc)[:350]}",
+                    embeds=[],
+                    view=None,
+                )
+            return
+        metadata_page = 0
+        if metadata_selection_parsed is not None:
+            selection_action, selection_batch_id, metadata_page = metadata_selection_parsed
+            metadata_parsed = (selection_action, selection_batch_id)
         if metadata_parsed is not None:
             action, batch_id = metadata_parsed
             if not authorized(interaction):
@@ -513,10 +628,11 @@ def install_control_listener(
             if action == "details":
                 try:
                     payload = await _run_metadata_control("status", batch_id)
-                    view = await _metadata_review_view(payload)
+                    paginated = _metadata_paginated_payload(payload, 0)
+                    view = await _metadata_review_view(payload, 0)
                     await interaction.response.send_message(
-                        _metadata_details_message(payload),
-                        embeds=_metadata_embed_objects(payload),
+                        _metadata_details_message(paginated),
+                        embeds=_metadata_embed_objects(payload, 0),
                         view=view,
                         ephemeral=True,
                     )
@@ -537,16 +653,17 @@ def install_control_listener(
                         action, batch_id, [str(value) for value in values]
                     )
                     fresh = await _run_metadata_control("status", batch_id)
-                    view = await _metadata_review_view(fresh)
+                    paginated = _metadata_paginated_payload(fresh, metadata_page)
+                    view = await _metadata_review_view(fresh, metadata_page)
                     verb = "Excluded" if action == "exclude" else "Restored"
                     message = (
                         f"{verb} {payload.get('proposals')} proposals. "
                         f"{payload.get('remaining')} remain pending. GitHub is unchanged.\n\n"
-                        f"{_metadata_details_message(fresh)}"
+                        f"{_metadata_details_message(paginated)}"
                     )
                     await interaction.edit_original_response(
                         content=message[:1950],
-                        embeds=_metadata_embed_objects(fresh),
+                        embeds=_metadata_embed_objects(fresh, metadata_page),
                         view=view,
                     )
                     project = str(fresh.get("project") or "")

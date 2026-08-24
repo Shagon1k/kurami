@@ -6,6 +6,7 @@ import { DatabaseSync } from "node:sqlite";
 import { runDetachedReview } from "./codex-app-server.ts";
 import {
   candidateFromFact,
+  maximumProposalBatchIssues,
   proposalRelevantDigest,
   type MetadataFieldName,
   type MetadataProposalCandidate,
@@ -53,6 +54,16 @@ export type ParsedMetadataProposalResult = {
 };
 
 export const maximumMetadataAiAttempts = 2;
+export const maximumMetadataAiChunkIssues = maximumProposalBatchIssues;
+
+export function metadataAssessmentChunks(
+  candidates: MetadataProposalCandidate[],
+): MetadataProposalCandidate[][] {
+  const chunks: MetadataProposalCandidate[][] = [];
+  for (let index = 0; index < candidates.length; index += maximumMetadataAiChunkIssues)
+    chunks.push(candidates.slice(index, index + maximumMetadataAiChunkIssues));
+  return chunks;
+}
 
 export function deterministicProposalSummary(
   proposals: ParsedMetadataProposal[],
@@ -446,41 +457,57 @@ async function main(): Promise<void> {
     recordEvent(database, batchId, "running", {});
     const contexts = loadIssueContexts(candidates);
     const codexBin = process.env.CODEX_BIN?.trim() || run("which", ["codex"], process.env);
-    const instructions = buildMetadataProposalInstructions(batch, candidates, contexts);
-    const parsed = await runValidatedMetadataAssessment(
-      candidates,
-      async (attempt) => {
-        const result = await runDetachedReview(codexBin, {
-          cwd: resolve(orchestratorHome, "app"),
-          title: `${batch.project} · Metadata proposals #${batch.batch_number} · attempt ${attempt}/${maximumMetadataAiAttempts}`,
-          instructions,
-          onStarted: (threadId, turnId) => {
-            database
-              .prepare(
-                `UPDATE project_metadata_proposal_batches
-                 SET ai_thread_id=?, ai_turn_id=?,
-                     updated_at=strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
-                 WHERE batch_id=? AND batch_state='running'`,
-              )
-              .run(threadId, turnId, batchId);
-            recordEvent(database, batchId, "ai_attempt_started", {
-              attempt,
-              maximumAttempts: maximumMetadataAiAttempts,
-              threadId,
-              turnId,
-            });
-          },
-        });
-        return result.review;
-      },
-      (attempt, error) => {
-        recordEvent(database, batchId, "ai_result_rejected", {
-          attempt,
-          maximumAttempts: maximumMetadataAiAttempts,
-          reason: error.message.slice(0, 500),
-        });
-      },
-    );
+    const chunks = metadataAssessmentChunks(candidates);
+    const proposals: ParsedMetadataProposal[] = [];
+    for (const [chunkIndex, chunk] of chunks.entries()) {
+      const chunkContexts = contexts.filter((context) =>
+        chunk.some((candidate) => candidate.issueNumber === context.issueNumber),
+      );
+      const instructions = buildMetadataProposalInstructions(batch, chunk, chunkContexts);
+      const parsedChunk = await runValidatedMetadataAssessment(
+        chunk,
+        async (attempt) => {
+          const result = await runDetachedReview(codexBin, {
+            cwd: resolve(orchestratorHome, "app"),
+            title: `${batch.project} · Metadata proposals #${batch.batch_number} · chunk ${chunkIndex + 1}/${chunks.length} · attempt ${attempt}/${maximumMetadataAiAttempts}`,
+            instructions,
+            onStarted: (threadId, turnId) => {
+              database
+                .prepare(
+                  `UPDATE project_metadata_proposal_batches
+                   SET ai_thread_id=?, ai_turn_id=?,
+                       updated_at=strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
+                   WHERE batch_id=? AND batch_state='running'`,
+                )
+                .run(threadId, turnId, batchId);
+              recordEvent(database, batchId, "ai_attempt_started", {
+                chunk: chunkIndex + 1,
+                chunks: chunks.length,
+                attempt,
+                maximumAttempts: maximumMetadataAiAttempts,
+                threadId,
+                turnId,
+              });
+            },
+          });
+          return result.review;
+        },
+        (attempt, error) => {
+          recordEvent(database, batchId, "ai_result_rejected", {
+            chunk: chunkIndex + 1,
+            chunks: chunks.length,
+            attempt,
+            maximumAttempts: maximumMetadataAiAttempts,
+            reason: error.message.slice(0, 500),
+          });
+        },
+      );
+      proposals.push(...parsedChunk.proposals);
+    }
+    const parsed: ParsedMetadataProposalResult = {
+      summary: deterministicProposalSummary(proposals),
+      proposals,
+    };
     const persisted = persistMetadataProposalResult(database, batchId, parsed);
     process.stdout.write(`${JSON.stringify({ ok: true, apply: true, ...persisted })}\n`);
   } catch (error) {

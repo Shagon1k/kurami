@@ -176,11 +176,11 @@ It does not invoke Git, tmux, Codex, or GitHub mutations.
 ### Owner-only runtime settings
 
 `/kurami orchestrator settings` is an ephemeral Discord panel available only to
-the exact configured owner inside a project guild. It exposes five bounded
-scalar runtime-policy values plus one WIP value for every registered project
-(seven values with the current two-project registry): concurrent LLM workers
-(1–3), Global WIP (1–6), project WIP (1–3), active previews (1–6), concurrent
-preview builds (1–2), and preview lifetime (6–72 hours). Static identity,
+the exact configured owner inside a project guild. It exposes six bounded
+scalar runtime-policy values plus one WIP value for every registered project:
+concurrent LLM workers (1–3), AI triage/day (0–40 issues per project), Global
+WIP (1–6), project WIP (1–3), active previews (1–6), concurrent preview builds
+(1–2), and preview lifetime (6–72 hours). Static identity,
 repositories, paths, channels, secrets, disk thresholds, cleanup policy, and
 physical resource caps remain deployment configuration and never enter the UI.
 
@@ -190,6 +190,12 @@ non-terminal runs across all projects can never exceed three. Each project cap
 must still be no greater than Global WIP. Preview build concurrency cannot exceed
 the active-preview cap, and the LLM cap cannot exceed the internal managed-tmux
 capacity.
+
+`AI triage/day` controls only missing Priority/Effort assessment. Zero disables
+metadata proposals while the factual Projects Digest and Suggested next remain
+active. The default is 12. A raised limit creates one owner-facing logical batch;
+the worker still uses internal chunks of at most 12 issues and the ephemeral
+Discord review paginates proposals in stable groups of 12.
 
 Every Apply, Reset, or Undo takes a SQLite write lock, rejects a stale panel
 revision, and repeats the strict idle check. Settings remain locked while any
@@ -543,14 +549,16 @@ The orchestrator must never create, move, or delete the `📋-digest` channel.
 ### Metadata proposal batches
 
 P4c starts behind a read-only boundary. `src/metadata-proposal-manager.ts` plans
-at most 12 Backlog issues per batch from the changed-only Projects Digest facts.
+up to the configured `AI triage/day` Backlog issues (0–40, default 12) in one
+owner-facing batch from the changed-only Projects Digest facts.
 The initial bootstrap is chunked without losing remaining issues. Later batches
 consider only new or proposal-relevant changed issues. One active batch per
 project prevents daily reruns; unrelated project changes are deferred instead of
 invalidating an existing proposal, while a change to a batch target supersedes
 that stale batch.
 
-`src/metadata-proposal-worker.ts` may suggest missing Priority values P1-P3 and
+`src/metadata-proposal-worker.ts` splits a larger logical batch into bounded
+read-only AI chunks of at most 12 issues. It may suggest missing Priority values P1-P3 and
 Effort values XS-XL. P0 is owner-only and is rejected by both the parser and the
 database. Dependency relationships are excluded. The worker prefetches bounded
 private issue context with read-only `gh api` calls, then removes GitHub tokens
@@ -566,8 +574,9 @@ repository content.
 
 Schema 22 adds the automatic daily continuation boundary. The argument-free
 `Projects Digest` baseline admits at most one metadata-assessment batch per
-project per UTC date, with the existing maximum of 12 issues per batch. Initial
-backlog bootstrap therefore continues over bounded daily chunks; an unchanged
+project per UTC date, with the configured maximum of 0–40 issues per logical
+batch. Initial backlog bootstrap therefore continues over bounded daily batches;
+an unchanged
 project, a same-day rerun, and event-driven per-project digest refreshes invoke
 no additional AI work. The admission is durable in
 `project_metadata_daily_admissions`, so a completed or failed batch cannot be
@@ -606,7 +615,9 @@ stage. Review proposals uses an ephemeral Discord panel to show the full batch,
 exclude individual proposals without per-ticket confirmation, restore accidental
 exclusions, and accept everything remaining. The panel edits itself after each
 selection instead of creating follow-up messages; acceptance replaces the source
-panel with a final result and removes its stale controls. Discuss creates one temporary thread
+panel with a final result and removes its stale controls. Batches larger than one
+page use stable Previous/Next controls without creating additional messages.
+Discuss creates one temporary thread
 only after an explicit owner action, reuses that thread for the batch, and
 archives it after Accept or Skip. The archive is recorded only after Discord
 confirms the operation. Every decision appends actor and event provenance.

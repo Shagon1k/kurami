@@ -5,6 +5,7 @@ import { pathToFileURL } from "node:url";
 import { DatabaseSync } from "node:sqlite";
 import {
   applyAssessmentPlan,
+  maximumProposalBatchIssues,
   planProjectAssessment,
   type AssessmentPlan,
 } from "./metadata-proposal-manager.ts";
@@ -36,7 +37,7 @@ export type DailyProposalPlan =
     }
   | {
       project: string;
-      action: "unchanged" | "daily_limit" | "active" | "capacity";
+      action: "disabled" | "unchanged" | "daily_limit" | "active" | "capacity";
       reason: string;
       batchId?: string;
     };
@@ -163,9 +164,12 @@ export function planDailyProjectAssessment(
   database: DatabaseSync,
   project: string,
   admissionDate: string,
+  dailyLimit = maximumProposalBatchIssues,
 ): DailyProposalPlan {
   if (!validDate(admissionDate)) fail(`Invalid admission date: ${admissionDate}`);
-  const assessment = planProjectAssessment(database, project);
+  const assessment = planProjectAssessment(database, project, dailyLimit);
+  if (assessment.action === "disabled")
+    return { project, action: "disabled", reason: assessment.reason };
   if (assessment.action === "active") {
     if (assessment.batchState === "planned")
       return { project, action: "resume", batchId: assessment.batchId };
@@ -217,6 +221,7 @@ export function runDailyProposalCycle(
   worker: ProposalWorker,
   selectedProject: string | null = null,
   maxActiveLlm = 1,
+  dailyLimit = maximumProposalBatchIssues,
 ): {
   ok: boolean;
   apply: boolean;
@@ -225,7 +230,7 @@ export function runDailyProposalCycle(
   failures: number;
 } {
   const initialPlans = selectedProjects(database, selectedProject).map((project) =>
-    planDailyProjectAssessment(database, project, admissionDate),
+    planDailyProjectAssessment(database, project, admissionDate, dailyLimit),
   );
   const activeLlm = managedLlmCount(database);
   const plans = initialPlans.map<DailyProposalPlan>((plan) =>
@@ -262,7 +267,7 @@ export function runDailyProposalCycle(
       admissionKind = "resume";
     } else if (plan.action === "recover") {
       recoverStaleRunningBatch(database, plan.batchId, admissionDate);
-      const replacement = planProjectAssessment(database, plan.project);
+      const replacement = planProjectAssessment(database, plan.project, dailyLimit);
       if (replacement.action !== "create")
         fail(`Stale metadata recovery did not produce a replacement batch: ${replacement.action}`);
       const created = applyAssessmentPlan(database, replacement) as { batchId: string };
@@ -354,12 +359,16 @@ async function main(): Promise<void> {
   );
   const config = await loadEffectiveOrchestratorConfig(orchestratorHome);
   const maxActiveLlm = config.limits?.max_llm_running_global;
+  const dailyLimit = config.limits?.ai_triage_daily;
   if (
     config.version !== 1 ||
     !Number.isInteger(maxActiveLlm) ||
-    (maxActiveLlm ?? 0) < 1
+    (maxActiveLlm ?? 0) < 1 ||
+    !Number.isInteger(dailyLimit) ||
+    (dailyLimit ?? -1) < 0 ||
+    (dailyLimit ?? 41) > 40
   )
-    fail("Invalid orchestrator max_llm_running_global configuration");
+    fail("Invalid orchestrator AI capacity configuration");
   const database = new DatabaseSync(resolve(orchestratorHome, "state/orchestrator.db"), {
     timeout: 5_000,
   });
@@ -372,6 +381,7 @@ async function main(): Promise<void> {
       workerRunner(orchestratorHome),
       project,
       maxActiveLlm,
+      dailyLimit,
     );
     process.stdout.write(`${JSON.stringify(result)}\n`);
     if (!result.ok) process.exitCode = 1;

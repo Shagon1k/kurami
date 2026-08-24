@@ -77,6 +77,8 @@ function parseArguments(args: string[]): Arguments {
       parsed.via = value;
     } else if (flag === "--max-llm") {
       parsed.values.max_llm_running_global = parseInteger(value, "max LLM");
+    } else if (flag === "--ai-triage-daily") {
+      parsed.values.ai_triage_daily = parseInteger(value, "AI triage/day");
     } else if (flag === "--global-wip") {
       parsed.values.max_active_global = parseInteger(value, "Global WIP");
     } else if (flag === "--project-wip") {
@@ -124,6 +126,7 @@ function changes(
   const result: Array<{ name: string; before: number; after: number }> = [];
   const scalars: Array<keyof Omit<RuntimeSettings, "version" | "project_wip">> = [
     "max_llm_running_global",
+    "ai_triage_daily",
     "max_active_global",
     "max_previews_global",
     "max_preview_builds_global",

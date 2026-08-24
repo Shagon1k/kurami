@@ -10,6 +10,7 @@ limits:
   max_active_global: 2
   max_active_per_project: 2
   max_llm_running_global: 1
+  ai_triage_daily: 12
   max_parked_review_global: 4
   max_tmux_sessions_global: 3
   max_managed_worktrees_global: 6

@@ -125,6 +125,8 @@ try {
       "discord",
       "--max-llm",
       "3",
+      "--ai-triage-daily",
+      "40",
       "--global-wip",
       "3",
       "--project-wip",
@@ -142,6 +144,7 @@ try {
   );
   const applied = sharedPool.settings as {
     max_llm_running_global?: number;
+    ai_triage_daily?: number;
     max_active_global?: number;
     project_wip?: Record<string, number>;
   };
@@ -149,6 +152,7 @@ try {
     sharedPool.action !== "applied" ||
     sharedPool.revision !== 1 ||
     applied.max_llm_running_global !== 3 ||
+    applied.ai_triage_daily !== 40 ||
     applied.max_active_global !== 3 ||
     applied.project_wip?.tailortales !== 3 ||
     applied.project_wip?.pickflick !== 3
@@ -166,6 +170,7 @@ try {
   );
   if (
     effective.limits.max_llm_running_global !== 3 ||
+    effective.limits.ai_triage_daily !== 40 ||
     effective.limits.max_active_by_project.tailortales !== 3 ||
     effective.limits.max_preview_builds_global !== 2 ||
     effective.limits.preview_ttl_hours !== 36
@@ -187,6 +192,21 @@ try {
     ],
     env,
     /Project WIP for (tailortales|pickflick) cannot exceed Global WIP/u,
+  );
+  rejected(
+    [
+      "apply",
+      "--expected-revision",
+      "1",
+      "--actor-id",
+      "234723725168082944",
+      "--via",
+      "discord",
+      "--ai-triage-daily",
+      "41",
+    ],
+    env,
+    /ai_triage_daily must be an integer between 0 and 40/u,
   );
   if (currentRuntimeSettings(database, base, Object.keys(projects.projects)).revision !== 1) {
     fail("Invalid settings created a revision");
@@ -252,7 +272,8 @@ try {
   if (
     rollback.action !== "rolled_back" ||
     rollback.revision !== 2 ||
-    (rollback.settings as { max_llm_running_global?: number }).max_llm_running_global !== 1
+    (rollback.settings as { max_llm_running_global?: number }).max_llm_running_global !== 1 ||
+    (rollback.settings as { ai_triage_daily?: number }).ai_triage_daily !== 12
   ) {
     fail(`Rollback did not restore defaults: ${JSON.stringify(rollback)}`);
   }

@@ -49,6 +49,9 @@ def _validated_settings(value: object) -> dict[str, Any]:
         "max_llm_running_global": _integer(
             value.get("max_llm_running_global"), "Max LLM", 1, 3
         ),
+        "ai_triage_daily": _integer(
+            value.get("ai_triage_daily"), "AI triage/day", 0, 40
+        ),
         "max_active_global": _integer(
             value.get("max_active_global"), "Global WIP", 1, 6
         ),
@@ -102,6 +105,8 @@ def _control_args(
             [
                 "--max-llm",
                 str(validated["max_llm_running_global"]),
+                "--ai-triage-daily",
+                str(validated["ai_triage_daily"]),
                 "--global-wip",
                 str(validated["max_active_global"]),
             ]
@@ -171,6 +176,7 @@ def _settings_diff(
     after = _validated_settings(proposed)
     labels = {
         "max_llm_running_global": "Concurrent LLM",
+        "ai_triage_daily": "AI triage/day",
         "max_active_global": "Global WIP",
         "max_previews_global": "Active previews",
         "max_preview_builds_global": "Preview builds",
@@ -203,6 +209,7 @@ def _settings_message(
         f"Revision: `{revision}` · source: `{payload.get('source', 'unknown')}`",
         "",
         f"Concurrent LLM: **{draft['max_llm_running_global']}**",
+        f"AI triage/day: **{draft['ai_triage_daily']}** issues/project",
         f"Global WIP: **{draft['max_active_global']}**",
     ]
     for project, limit in draft["project_wip"].items():
@@ -293,7 +300,11 @@ def _build_settings_view(
             diff = bool(_settings_diff(self.payload["settings"], self.draft))
             for item in self.children:
                 custom_id = str(getattr(item, "custom_id", ""))
-                if custom_id in {"kurami:settings:capacity", "kurami:settings:previews"}:
+                if custom_id in {
+                    "kurami:settings:capacity",
+                    "kurami:settings:triage",
+                    "kurami:settings:previews",
+                }:
                     item.disabled = not self._idle()
                 elif custom_id == "kurami:settings:apply":
                     item.disabled = not self._idle() or not diff
@@ -409,6 +420,41 @@ def _build_settings_view(
                         )
 
             await interaction.response.send_modal(CapacityModal())
+
+        @discord.ui.button(
+            label="AI triage",
+            style=discord.ButtonStyle.secondary,
+            custom_id="kurami:settings:triage",
+        )
+        async def triage(self, interaction: Any, _button: Any) -> None:
+            parent = self
+
+            class TriageModal(discord.ui.Modal):
+                def __init__(self) -> None:
+                    super().__init__(title="Kurami AI triage", timeout=180)
+                    self.limit = discord.ui.TextInput(
+                        label="Issues per project/day (0-40)",
+                        default=str(parent.draft["ai_triage_daily"]),
+                        min_length=1,
+                        max_length=2,
+                    )
+                    self.add_item(self.limit)
+
+                async def on_submit(self, modal_interaction: Any) -> None:
+                    try:
+                        parent.draft["ai_triage_daily"] = int(str(self.limit.value))
+                        parent.draft = _validated_settings(parent.draft)
+                        parent._sync_buttons()
+                        await modal_interaction.response.edit_message(
+                            content=_settings_message(parent.payload, parent.draft),
+                            view=parent,
+                        )
+                    except Exception as exc:
+                        await modal_interaction.response.send_message(
+                            f"AI triage value rejected: {str(exc)[:350]}", ephemeral=True
+                        )
+
+            await interaction.response.send_modal(TriageModal())
 
         @discord.ui.button(
             label="Previews",

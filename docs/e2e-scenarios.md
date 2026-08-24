@@ -92,7 +92,8 @@ Perform this only after all autonomous scenarios and fixes are complete:
 3. Open two panels; apply a harmless temporary change from the first and confirm
    the second is rejected as stale.
 4. Confirm invalid project-WIP/Global-WIP and preview-build/preview-cap
-   combinations are rejected with understandable feedback.
+   combinations are rejected with understandable feedback. Confirm AI triage/day
+   accepts 0 and 40, rejects 41, and explains that 0 disables proposals only.
 5. Undo the temporary change, verify the original values, and confirm one
    secret-free maintenance audit message per successful action.
 6. If a disposable run is still available, confirm settings are locked while it

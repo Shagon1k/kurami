@@ -96,6 +96,23 @@ def main() -> None:
             module.parse_metadata_control_id(custom_id) is None,
             f"Accepted metadata control {custom_id!r}",
         )
+    require(
+        module.parse_metadata_page_control_id("kurami:metadata_page:pmb_abc123:2")
+        == ("pmb_abc123", 2),
+        "Rejected metadata pagination control",
+    )
+    require(
+        module.parse_metadata_selection_control_id(
+            "kurami:metadata_exclude:pmb_abc123:2"
+        )
+        == ("exclude", "pmb_abc123", 2),
+        "Rejected paged metadata selection",
+    )
+    require(
+        module.parse_metadata_page_control_id("kurami:metadata_page:pmb_abc123:100")
+        is None,
+        "Accepted out-of-range metadata page ID",
+    )
 
     metadata_details = module._metadata_details_message(
         {
@@ -141,6 +158,22 @@ def main() -> None:
     require(
         len(metadata_embeds[0]["fields"]) == 12,
         "Metadata embed truncated the bounded 12-proposal batch",
+    )
+    paginated = module._metadata_paginated_payload(
+        {
+            "proposals": [
+                {"issueNumber": number, "state": "pending"}
+                for number in range(1, 41)
+            ]
+        },
+        2,
+    )
+    require(
+        paginated["_pages"] == 4
+        and paginated["_page"] == 2
+        and len(paginated["proposals"]) == 12
+        and paginated["proposals"][0]["issueNumber"] == 25,
+        "Metadata review pagination is not stable at the 40-issue limit",
     )
     require("Nothing is written to GitHub" in metadata_details, "Metadata safety boundary is hidden")
     require(
@@ -228,6 +261,7 @@ def main() -> None:
     runtime_settings = {
         "version": 1,
         "max_llm_running_global": 3,
+        "ai_triage_daily": 12,
         "max_active_global": 3,
         "project_wip": {"tailortales": 3, "pickflick": 3},
         "max_previews_global": 6,
@@ -243,6 +277,7 @@ def main() -> None:
     )
     for invalid in [
         {**runtime_settings, "max_llm_running_global": 4},
+        {**runtime_settings, "ai_triage_daily": 41},
         {
             **runtime_settings,
             "max_active_global": 2,
@@ -267,6 +302,7 @@ def main() -> None:
     )
     require(
         control_args[-2:] == ["--preview-ttl-hours", "24"]
+        and control_args[control_args.index("--ai-triage-daily") + 1] == "12"
         and control_args.count("--project-wip") == 2
         and not any("TOKEN" in value or "SECRET" in value for value in control_args),
         "Settings subprocess arguments are not strictly bounded",

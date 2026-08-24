@@ -8,6 +8,7 @@ import { parse } from "yaml";
 export type RuntimeSettings = {
   version: 1;
   max_llm_running_global: number;
+  ai_triage_daily: number;
   max_active_global: number;
   project_wip: Record<string, number>;
   max_previews_global: number;
@@ -20,6 +21,7 @@ export type RuntimeSettingsBaseConfig = {
   mode: "dry_run" | "live";
   limits: {
     max_llm_running_global: number;
+    ai_triage_daily: number;
     max_active_global: number;
     max_active_per_project: number;
     max_tmux_sessions_global: number;
@@ -41,6 +43,7 @@ export type RuntimeSettingsProjects = {
 
 export type EffectiveRuntimeLimits = {
   max_llm_running_global: number;
+  ai_triage_daily: number;
   max_active_global: number;
   max_active_by_project: Record<string, number>;
   max_previews_global: number;
@@ -109,6 +112,7 @@ export function canonicalRuntimeSettings(settings: RuntimeSettings): string {
   return JSON.stringify({
     version: 1,
     max_llm_running_global: settings.max_llm_running_global,
+    ai_triage_daily: settings.ai_triage_daily,
     max_active_global: settings.max_active_global,
     project_wip: Object.fromEntries(
       Object.entries(settings.project_wip).sort(([left], [right]) =>
@@ -133,6 +137,7 @@ export function defaultRuntimeSettings(
   return {
     version: 1,
     max_llm_running_global: base.limits.max_llm_running_global,
+    ai_triage_daily: base.limits.ai_triage_daily,
     max_active_global: base.limits.max_active_global,
     project_wip: Object.fromEntries(
       names.map((name) => [name, base.limits.max_active_per_project]),
@@ -168,6 +173,12 @@ export function normalizeRuntimeSettings(
   const settings: RuntimeSettings = {
     version: 1,
     max_llm_running_global: integer(raw.max_llm_running_global, "max_llm_running_global", 1, 3),
+    ai_triage_daily: integer(
+      raw.ai_triage_daily ?? base.limits.ai_triage_daily,
+      "ai_triage_daily",
+      0,
+      40,
+    ),
     max_active_global: integer(raw.max_active_global, "max_active_global", 1, 6),
     project_wip: Object.fromEntries(
       names.map((name) => {
@@ -299,6 +310,7 @@ export function effectiveOrchestratorConfig<T extends RuntimeSettingsBaseConfig>
     limits: {
       ...base.limits,
       max_llm_running_global: snapshot.settings.max_llm_running_global,
+      ai_triage_daily: snapshot.settings.ai_triage_daily,
       max_active_global: snapshot.settings.max_active_global,
       max_active_by_project: { ...snapshot.settings.project_wip },
       max_previews_global: snapshot.settings.max_previews_global,
