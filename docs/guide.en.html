@@ -391,7 +391,8 @@
               </div>
               <details><summary>Publication and cleanup</summary><div>
                 Six shared slots and at most two concurrent builds. Compose publishes an
-                isolated stack; static publishes an immutable bounded snapshot. Ingress appears
+                isolated stack; static publishes an immutable bounded snapshot and falls back
+                to its root index for client-routed SPA paths. Ingress appears
                 only after health checks. Missing/mismatched SHA, a dirty tree, an unsafe artifact,
                 or a failed health check fails closed. TTL starts after readiness; owner review
                 does not extend it automatically. Cleanup is always revoke-first.

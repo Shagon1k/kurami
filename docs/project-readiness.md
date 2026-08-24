@@ -118,6 +118,10 @@ For `adapter: static`, configure:
 - safe repository-relative `artifact_directory`;
 - positive `max_files` and `max_bytes` limits.
 
+The shared static ingress serves existing files directly and falls back to the
+artifact root `index.html` for client-routed SPA paths; the repository does not
+need a preview-only web server or Compose stack.
+
 Both adapters publish only a clean worktree whose HEAD equals the observed PR
 head. Missing provenance, dirty files, mismatched SHA, symlinks/path escapes, or
 failed health checks stop publication before ingress becomes available.

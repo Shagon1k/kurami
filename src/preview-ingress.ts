@@ -156,6 +156,7 @@ export function renderRoutes(routes: IngressRoute[]): string {
         '\t\t\tReferrer-Policy "no-referrer"',
         '\t\t\tCache-Control "no-store"',
         "\t\t}",
+        "\t\ttry_files {path} /index.html",
         "\t\tfile_server",
         "\t}",
         "",

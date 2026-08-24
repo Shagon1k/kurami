@@ -98,6 +98,7 @@ function main(): void {
   assert(
     staticRendered.includes("static artifact") &&
       staticRendered.includes('root * "/srv/kurami/state/previews/r_preview_two/artifact"') &&
+      staticRendered.includes("try_files {path} /index.html") &&
       staticRendered.includes("file_server") &&
       staticRendered.includes('Cache-Control "no-store"'),
     "Static artifact route is incomplete",
@@ -105,6 +106,14 @@ function main(): void {
   assert(
     !staticRendered.includes("reverse_proxy"),
     "Static artifact unexpectedly uses a Compose upstream",
+  );
+  assert(
+    count(staticRendered, "try_files {path} /index.html") === 1,
+    "Static SPA fallback is not unique",
+  );
+  assert(
+    !rendered.includes("try_files {path} /index.html"),
+    "Compose ingress unexpectedly contains a static SPA fallback",
   );
 
   let unsafeRootRejected = false;
@@ -131,6 +140,7 @@ function main(): void {
       emptyFailClosed: true,
       unsafeHostnameRejected: true,
       staticArtifact: true,
+      staticSpaFallback: true,
       unsafeStaticRootRejected: true,
       codexDeeplinkRedirect: true,
     })}\n`,

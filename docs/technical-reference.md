@@ -206,6 +206,12 @@ rewriting history. SQLite is already included in the encrypted recovery bundle.
 Successful changes also produce a bounded, secret-free message in the existing
 maintenance channel; SQLite remains the durable audit if Discord delivery fails.
 
+When a project is added to the registry, a checksum-verified historical revision
+is expanded with the YAML `max_active_per_project` default for that new key. The
+owner then applies the intended project WIP through the normal idle-gated settings
+flow. Missing values are the only values that inherit the default; malformed
+stored values still fail closed, and stale keys for removed projects are ignored.
+
 ### CI observer
 
 `src/observe-ci.ts` maps each active managed branch to exactly one pull request,
@@ -842,6 +848,9 @@ copies and re-verifies an immutable snapshot below
 root become durable lease provenance. The same slot, TTL, extension, review
 acknowledgement, exact-SHA policy, Discord controls, and fail-closed cleanup
 apply to both adapters. Existing Compose projects are unchanged.
+Static ingress serves an existing requested file directly and otherwise falls
+back to the artifact root `index.html`, so client-routed SPA URLs remain
+refreshable without adding a repository-specific web server.
 Owner-facing controls use the same `Start preview`, `Open preview`, and
 `Remove preview` language for both adapters; the runtime type and immutable
 artifact provenance remain visible only in the preview details.

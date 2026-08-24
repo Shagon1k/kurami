@@ -158,20 +158,27 @@ export function normalizeRuntimeSettings(
     fail("project_wip must be an object");
   }
   const names = sortedProjectNames(projectNames);
+  const projectWipValues = projectWip as Record<string, unknown>;
+  const defaultProjectWip = integer(
+    base.limits.max_active_per_project,
+    "limits.max_active_per_project",
+    1,
+    3,
+  );
   const settings: RuntimeSettings = {
     version: 1,
     max_llm_running_global: integer(raw.max_llm_running_global, "max_llm_running_global", 1, 3),
     max_active_global: integer(raw.max_active_global, "max_active_global", 1, 6),
     project_wip: Object.fromEntries(
-      names.map((name) => [
-        name,
-        integer(
-          (projectWip as Record<string, unknown>)[name],
-          `project_wip.${name}`,
-          1,
-          3,
-        ),
-      ]),
+      names.map((name) => {
+        const candidate = projectWipValues[name];
+        return [
+          name,
+          candidate === undefined
+            ? defaultProjectWip
+            : integer(candidate, `project_wip.${name}`, 1, 3),
+        ];
+      }),
     ),
     max_previews_global: integer(raw.max_previews_global, "max_previews_global", 1, 6),
     max_preview_builds_global: integer(

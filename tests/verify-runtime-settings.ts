@@ -1,8 +1,9 @@
 import { execFileSync, spawnSync } from "node:child_process";
-import { chmod, copyFile, mkdir, mkdtemp, readdir, rm, writeFile } from "node:fs/promises";
+import { chmod, copyFile, mkdir, mkdtemp, readFile, readdir, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { resolve } from "node:path";
 import { DatabaseSync } from "node:sqlite";
+import { parse, stringify } from "yaml";
 import {
   currentRuntimeSettings,
   effectiveOrchestratorConfig,
@@ -359,12 +360,86 @@ try {
     fail(`Actual shared WIP pool was not enforced: ${admissionOutput}`);
   }
 
+  const projectsPath = resolve(root, "config/projects.yaml");
+  const expandedRegistry = parse(await readFile(projectsPath, "utf8")) as {
+    projects: Record<string, unknown>;
+  };
+  expandedRegistry.projects["ahurynovich-cv"] = {};
+  await writeFile(projectsPath, stringify(expandedRegistry), { mode: 0o600 });
+
+  const expandedStatus = run(["status"], env);
+  const expandedStatusWip = (expandedStatus.settings as {
+    project_wip?: Record<string, number>;
+  }).project_wip;
+  if (
+    expandedStatus.revision !== 3 ||
+    expandedStatusWip?.["ahurynovich-cv"] !== 2 ||
+    expandedStatusWip?.tailortales !== 3 ||
+    expandedStatusWip?.pickflick !== 3
+  ) {
+    fail(`Historical settings did not expand safely: ${JSON.stringify(expandedStatus)}`);
+  }
+
+  rejected(
+    [
+      "apply",
+      "--expected-revision",
+      "3",
+      "--actor-id",
+      "234723725168082944",
+      "--via",
+      "discord",
+      "--project-wip",
+      "ahurynovich-cv=1",
+    ],
+    env,
+    /locked until the orchestrator is idle.*non-terminal runs: 3/u,
+  );
+  database = new DatabaseSync(databasePath, { timeout: 5_000 });
+  database.exec("BEGIN IMMEDIATE");
+  database
+    .prepare("UPDATE run_resources SET resource_state='released' WHERE resource_state='planned'")
+    .run();
+  database
+    .prepare(`
+      UPDATE runs
+      SET state='archived', owner_state='none', archived_at='2026-08-21T17:01:00.000Z'
+      WHERE state NOT IN ('rejected','cancelled','archived')
+    `)
+    .run();
+  database.exec("COMMIT");
+  database.close();
+
+  const expandedApply = run(
+    [
+      "apply",
+      "--expected-revision",
+      "3",
+      "--actor-id",
+      "234723725168082944",
+      "--via",
+      "discord",
+      "--project-wip",
+      "ahurynovich-cv=1",
+    ],
+    env,
+  );
+  if (
+    expandedApply.action !== "applied" ||
+    expandedApply.revision !== 4 ||
+    (expandedApply.settings as { project_wip?: Record<string, number> }).project_wip?.[
+      "ahurynovich-cv"
+    ] !== 1
+  ) {
+    fail(`Expanded project WIP was not persisted: ${JSON.stringify(expandedApply)}`);
+  }
+
   database = new DatabaseSync(databasePath, { timeout: 5_000 });
   const row = database
-    .prepare("SELECT settings_json FROM orchestrator_setting_revisions WHERE revision=3")
+    .prepare("SELECT settings_json FROM orchestrator_setting_revisions WHERE revision=4")
     .get() as { settings_json: string };
   database
-    .prepare("UPDATE orchestrator_setting_revisions SET settings_json=? WHERE revision=3")
+    .prepare("UPDATE orchestrator_setting_revisions SET settings_json=? WHERE revision=4")
     .run(row.settings_json.replace('"max_llm_running_global":1', '"max_llm_running_global":2'));
   let checksumRejected = false;
   try {
@@ -388,6 +463,7 @@ try {
       staleRevision: true,
       rollback: true,
       previousChecksum: true,
+      newProjectExpansion: true,
       checksum: true,
       noExternalWrites: true,
     })}\n`,
