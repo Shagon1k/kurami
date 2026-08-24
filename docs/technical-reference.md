@@ -1182,6 +1182,7 @@ Run one production poll -> consume cycle manually:
 ```bash
 ./run-project-poller.sh tailortales
 ./run-project-poller.sh pickflick
+./run-project-poller.sh ahurynovich-cv
 ```
 
 Inspect a provision plan without mutation:
@@ -1266,14 +1267,14 @@ node src/session-manager.ts finalize-stop --run-id <run_id> --apply
 
 ## Production scheduling
 
-Hermes runs two one-minute `no_agent` jobs, one per project. They use wall-clock
-cron `* * * * *`, not completion-anchored `every 1m`, and both call the same
+Hermes runs three one-minute `no_agent` jobs, one per project. They use wall-clock
+cron `* * * * *`, not completion-anchored `every 1m`, and all three call the same
 `run-project-poller.sh` wrapper. Per-project locks prevent overlapping polls; a
-global consumer lock prevents both jobs from processing the event queue at once.
+global consumer lock prevents project jobs from processing the event queue at once.
 The same lock also owns the subsequent controller pass, so poll, consume, and
-reconciliation cannot overlap between the two project jobs. A transient GitHub
+reconciliation cannot overlap between project jobs. A transient GitHub
 Project query failure is logged but no longer aborts that reconciliation pass;
-the durable per-project poll health guard prevents the other project job from
+the durable per-project poll health guard prevents another project job from
 starting work against the failed project's stale status.
 After reconciliation, `notify-discord-controls.ts` maintains Discord ticket
 cards, threads, native controls, one-time run lifecycle events, and the durable

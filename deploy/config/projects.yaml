@@ -82,3 +82,44 @@ projects:
       artifact_directory: preview-fixture
       max_files: 100
       max_bytes: 1048576
+
+  ahurynovich-cv:
+    owner: Shagon1k
+    project_number: 1
+    repository: Shagon1k/AHurynovich-CV
+    status_field: Status
+    human_control_label: human-control
+    discord:
+      guild_id: "1538486166330933358"
+      channel_id: "1541415112877932554"
+    statuses:
+      backlog: Backlog
+      active: In progress
+      review: Human Review
+      done: Done
+      deferred: Deferred
+    workspace:
+      canonical_repository: /home/shagon1k/_projects/AHurynovich-CV
+      worktree_root: /home/shagon1k/_projects/.worktrees/ahurynovich-cv
+      base_branch: main
+      branch_prefix: AH
+    ci:
+      enabled: true
+      required_checks:
+        - "ci/circleci: install-packages"
+        - "ci/circleci: lint"
+        - "ci/circleci: test-tsc"
+        - "ci/circleci: test-unit-integration"
+        - "ci/circleci: build-app"
+      missing_grace_minutes: 10
+    triage:
+      enabled: true
+      priority_field: Priority
+      effort_field: Effort
+    preview:
+      adapter: static
+      required_label: preview-required
+      artifact_directory: dist
+      index_file: index.html
+      max_files: 250
+      max_bytes: 16777216

@@ -159,6 +159,7 @@ Recreate or verify:
 | --- | --- | --- |
 | `kurami-tailortales-poller` | `* * * * *` | local |
 | `kurami-pickflick-poller` | `* * * * *` | local |
+| `kurami-ahurynovich-cv-poller` | `* * * * *` | local |
 | `kurami-projects-digest` | `45 6 * * *` | digest Discord channel |
 | `kurami-orchestrator-state-backup` | `15 3 */3 * *` | maintenance Discord channel |
 | `kurami-orchestrator-runtime-health` | `17 * * * *` | alerts Discord channel |

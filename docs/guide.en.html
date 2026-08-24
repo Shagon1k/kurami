@@ -339,7 +339,7 @@
                 An open issue, correct repository/status, non-empty description, no other active
                 run, a fresh Project poll, project/global WIP, global LLM, worktree/tmux caps,
                 and disk thresholds. The decision and reservation share one SQLite transaction,
-                so two pollers cannot create two writers.
+                so concurrent pollers cannot create two writers.
               </div></details>
             </article>
 

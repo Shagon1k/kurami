@@ -17,9 +17,9 @@ readonly ENV_FILE="${ORCHESTRATOR_HOME}/secrets/github.env"
 readonly PROJECT="${1:-}"
 
 case "${PROJECT}" in
-  tailortales|pickflick) ;;
+  tailortales|pickflick|ahurynovich-cv) ;;
   *)
-    printf 'Usage: %s <tailortales|pickflick>\n' "$0" >&2
+    printf 'Usage: %s <tailortales|pickflick|ahurynovich-cv>\n' "$0" >&2
     exit 64
     ;;
 esac

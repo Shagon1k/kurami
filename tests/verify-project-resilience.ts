@@ -1,5 +1,5 @@
 import { execFileSync } from "node:child_process";
-import { chmod, copyFile, mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
+import { chmod, copyFile, mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { resolve } from "node:path";
 import { DatabaseSync } from "node:sqlite";
@@ -59,6 +59,12 @@ async function main(): Promise<void> {
       },
     );
     execFileSync("bash", ["-n", resolve(appDirectory, "run-project-poller.sh")]);
+    const pollerWrapper = await readFile(resolve(appDirectory, "run-project-poller.sh"), "utf8");
+    assert(
+      pollerWrapper.includes("tailortales|pickflick|ahurynovich-cv") &&
+        pollerWrapper.includes("<tailortales|pickflick|ahurynovich-cv>"),
+      "Production poller does not allowlist every configured project",
+    );
 
     const fakeBin = resolve(testHome, "fake-bin");
     await mkdir(fakeBin, { recursive: true, mode: 0o700 });
