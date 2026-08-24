@@ -1,8 +1,17 @@
 import { execFileSync } from "node:child_process";
-import { chmod, copyFile, mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
+import {
+  chmod,
+  copyFile,
+  mkdir,
+  mkdtemp,
+  readFile,
+  rm,
+  writeFile,
+} from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { delimiter, resolve } from "node:path";
 import { DatabaseSync } from "node:sqlite";
+import { parse, stringify } from "yaml";
 import { normalizeRequiredChecks } from "../src/observe-ci.ts";
 
 type JsonObject = Record<string, unknown>;
@@ -52,9 +61,33 @@ async function main(): Promise<void> {
   const home = await mkdtemp(resolve(tmpdir(), "kurami-ci-test-"));
   try {
     await mkdir(resolve(home, "config"), { recursive: true });
-    await copyFile(
-      resolve(app, "deploy/config/projects.yaml"),
+    const sourceProjects = parse(
+      await readFile(resolve(app, "deploy/config/projects.yaml"), "utf8"),
+    ) as {
+      projects: Record<
+        string,
+        {
+          ci: {
+            enabled: boolean;
+            required_checks?: string[];
+            missing_grace_minutes?: number;
+          };
+        }
+      >;
+    };
+    const pickFlickCi = sourceProjects.projects.pickflick?.ci;
+    assert(
+      pickFlickCi?.enabled === true &&
+        JSON.stringify(pickFlickCi.required_checks) ===
+          JSON.stringify(["Secret scan", "Lint, type-check, test"]) &&
+        pickFlickCi.missing_grace_minutes === 10,
+      "Tracked PickFlick CI policy is not aligned with GitHub checks",
+    );
+    sourceProjects.projects.pickflick!.ci = { enabled: false };
+    await writeFile(
       resolve(home, "config/projects.yaml"),
+      stringify(sourceProjects),
+      "utf8",
     );
     await copyFile(
       resolve(app, "deploy/config/orchestrator.yaml"),
@@ -405,6 +438,7 @@ esac
         ambiguousFailClosed: true,
         oneShotEvent: true,
         projectPolicy: true,
+        pickFlickCiEnabled: true,
         disabledProjectExactSha: true,
       })}\n`,
     );

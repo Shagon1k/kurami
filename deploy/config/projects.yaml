@@ -68,7 +68,11 @@ projects:
       base_branch: main
       branch_prefix: PF
     ci:
-      enabled: false
+      enabled: true
+      required_checks:
+        - Secret scan
+        - Lint, type-check, test
+      missing_grace_minutes: 10
     triage:
       enabled: true
       priority_field: Priority
