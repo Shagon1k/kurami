@@ -406,14 +406,17 @@
                 <p class="purpose">Shows current state and exposes only currently valid actions.</p>
                 <div class="io">
                   <div><b>Input:</b> Run Store state and an owner component action.</div>
-                  <div><b>Output:</b> stable card/thread, durable request, and updated status.</div>
+                  <div><b>Output:</b> compact starter, timeline, current dashboard, durable request, and updated status.</div>
                 </div>
               </div>
               <details><summary>Authorization boundary</summary><div>
-                The native plugin verifies the exact owner, guild, component ID, run identity,
-                revision, and SHA. A button never executes a shell command directly: it queues a
-                bounded request that the controller validates again. The settings UI is ephemeral
-                and available only at full idle. Telegram is an inbound fallback only.
+                The Components V2 dashboard remains the latest bot message after lifecycle events;
+                <code>/kurami status</code> moves it back down on owner request. Links remain plain
+                navigation, up to four current actions stay visible as buttons, and the rest use an
+                allowlisted menu. The native plugin verifies the exact owner, guild, component ID,
+                run identity, revision, and SHA. A control never executes a shell command directly:
+                it queues a bounded request that the controller validates again. The settings UI is
+                ephemeral and available only at full idle. Telegram is an inbound fallback only.
               </div></details>
             </article>
 

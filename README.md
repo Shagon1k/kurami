@@ -8,6 +8,7 @@ Discord.
 [System guide — RU](docs/guide.html) ·
 [System guide — EN](docs/guide.en.html) ·
 [Technical reference](docs/technical-reference.md) ·
+[Discord UI contract](docs/discord-ui.md) ·
 [E2E catalog](docs/e2e-scenarios.md)
 
 ## What it does
@@ -72,7 +73,9 @@ ownership.
 3. Use the [technical reference](docs/technical-reference.md) when changing a
    component, investigating a failure, or running an operational command.
 4. Use the [E2E catalog](docs/e2e-scenarios.md) to reproduce accepted behavior.
-5. Use the [recovery guide](docs/recovery.md) only for backup or restore work.
+5. Use the [Discord UI contract](docs/discord-ui.md) when changing cards,
+   controls, links, timeline events, or digest presentation.
+6. Use the [recovery guide](docs/recovery.md) only for backup or restore work.
 
 The README is intentionally an entry point, not the full operating manual.
 

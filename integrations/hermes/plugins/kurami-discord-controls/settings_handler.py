@@ -8,7 +8,7 @@ import json
 import os
 import re
 from pathlib import Path
-from typing import Any, Callable, Optional
+from typing import Any, Awaitable, Callable, Optional
 
 
 _PROJECT = re.compile(r"^[a-z0-9-]+$")
@@ -529,6 +529,7 @@ def _build_settings_view(
 def install_settings_command(
     client: Any,
     authorized: Callable[[Any], bool],
+    refresh_dashboard: Optional[Callable[[str], Awaitable[dict[str, Any]]]] = None,
 ) -> None:
     """Register one nested ``/kurami orchestrator settings`` command."""
 
@@ -550,6 +551,44 @@ def install_settings_command(
         description="Orchestrator runtime controls",
         parent=kurami,
     )
+
+    if refresh_dashboard is not None:
+
+        @kurami.command(
+            name="status",
+            description="Move the current run dashboard to the bottom of this thread",
+        )
+        async def status(interaction: Any) -> None:
+            if not authorized(interaction):
+                await interaction.response.send_message(
+                    "This Kurami status command is owner-only.", ephemeral=True
+                )
+                return
+            thread_id = str(getattr(interaction, "channel_id", "") or "")
+            if not thread_id.isdigit():
+                await interaction.response.send_message(
+                    "Use /kurami status inside an active Kurami session thread.",
+                    ephemeral=True,
+                )
+                return
+            await interaction.response.defer(ephemeral=True, thinking=True)
+            try:
+                payload = await refresh_dashboard(thread_id)
+                guild_id = str(payload.get("guildId") or "")
+                message_id = str(payload.get("messageId") or "")
+                if not guild_id.isdigit() or not message_id.isdigit():
+                    raise RuntimeError("Kurami returned no dashboard location")
+                url = f"https://discord.com/channels/{guild_id}/{thread_id}/{message_id}"
+                await interaction.followup.send(
+                    f"Dashboard refreshed: [open current status]({url}).",
+                    ephemeral=True,
+                )
+            except Exception as exc:
+                await interaction.followup.send(
+                    "Kurami status is available only inside an active session thread: "
+                    f"{str(exc)[:350]}",
+                    ephemeral=True,
+                )
 
     @orchestrator.command(
         name="settings", description="View or change bounded runtime settings"

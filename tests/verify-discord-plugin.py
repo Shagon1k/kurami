@@ -68,6 +68,24 @@ def main() -> None:
     for custom_id in rejected:
         require(module.parse_control_id(custom_id) is None, f"Accepted {custom_id!r}")
 
+    require(
+        module.parse_run_actions_id(
+            "kurami:run_actions:r_abc123", ["ai_review"]
+        )
+        == ("ai_review", "r_abc123"),
+        "Dashboard overflow rejected an allowlisted action",
+    )
+    for custom_id, values in [
+        ("kurami:run_actions:r_abc123", ["merge"]),
+        ("kurami:run_actions:r_abc123", ["ai_review", "stop"]),
+        ("kurami:run_actions:abc123", ["stop"]),
+        ("kurami:run_actions:r_abc123", "stop"),
+    ]:
+        require(
+            module.parse_run_actions_id(custom_id, values) is None,
+            f"Dashboard overflow accepted unsafe selection {custom_id!r} {values!r}",
+        )
+
     metadata_accepted = {
         "kurami:metadata_details:pmb_abc123": ("details", "pmb_abc123"),
         "kurami:metadata_accept:pmb_abc123": ("accept", "pmb_abc123"),
@@ -365,15 +383,23 @@ def main() -> None:
     )
     try:
         client = SimpleNamespace(tree=FakeTree())
-        settings_module.install_settings_command(client, lambda _interaction: True)
+        async def refresh_dashboard(_thread_id):
+            return {"ok": True}
+
+        settings_module.install_settings_command(
+            client, lambda _interaction: True, refresh_dashboard
+        )
         require(
             "kurami" in client.tree.commands
+            and "status" in client.tree.commands["kurami"].children
             and "orchestrator" in client.tree.commands["kurami"].children
             and "settings"
             in client.tree.commands["kurami"].children["orchestrator"].children,
             "Nested /kurami orchestrator settings command was not registered",
         )
-        settings_module.install_settings_command(client, lambda _interaction: True)
+        settings_module.install_settings_command(
+            client, lambda _interaction: True, refresh_dashboard
+        )
         require(
             len(client.tree.commands) == 1,
             "Settings slash command registration is not idempotent",
@@ -394,6 +420,7 @@ def main() -> None:
                 "metadata_rejected": len(metadata_rejected),
                 "listener": "strict_component_allowlist",
                 "settings": "owner_only_nested_slash",
+                "run_status": "owner_only_kurami_status",
                 "settings_shared_pool": True,
             },
             separators=(",", ":"),

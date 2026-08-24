@@ -15,6 +15,20 @@ from zoneinfo import ZoneInfo
 CONTROL_ID = re.compile(
     r"^kurami:(status|take_control|preview_start|preview_stop|preview_extend|preview_reviewed|stop|discard_prompt|discard_local|discard_published_prompt|discard_published|ci_repair|ai_review|review_fix):(r_[A-Za-z0-9_]+)$"
 )
+RUN_ACTIONS_ID = re.compile(r"^kurami:run_actions:(r_[A-Za-z0-9_]+)$")
+RUN_ACTIONS = {
+    "take_control",
+    "preview_start",
+    "preview_stop",
+    "preview_extend",
+    "preview_reviewed",
+    "stop",
+    "discard_prompt",
+    "discard_published_prompt",
+    "ci_repair",
+    "ai_review",
+    "review_fix",
+}
 METADATA_CONTROL_ID = re.compile(
     r"^kurami:metadata_(details|accept|skip|discuss|exclude|restore|retry):(pmb_[a-f0-9]+)$"
 )
@@ -72,6 +86,22 @@ def parse_control_id(custom_id: object) -> Optional[tuple[str, str]]:
     if match is None:
         return None
     return match.group(1), match.group(2)
+
+
+def parse_run_actions_id(
+    custom_id: object, values: object
+) -> Optional[tuple[str, str]]:
+    """Return one allowlisted dashboard overflow action or ``None``."""
+
+    if not isinstance(custom_id, str) or not isinstance(values, list):
+        return None
+    match = RUN_ACTIONS_ID.fullmatch(custom_id)
+    if match is None or len(values) != 1:
+        return None
+    action = values[0]
+    if not isinstance(action, str) or action not in RUN_ACTIONS:
+        return None
+    return action, match.group(1)
 
 
 def parse_metadata_control_id(custom_id: object) -> Optional[tuple[str, str]]:
@@ -504,18 +534,26 @@ async def _run_control(
     return payload
 
 
-async def _refresh_control_card(run_id: str) -> None:
+async def _refresh_dashboard(
+    *, run_id: Optional[str] = None, thread_id: Optional[str] = None
+) -> dict[str, Any]:
     node, control, notifier = _paths()
     if not node.is_file() or not notifier.is_file():
         raise RuntimeError("Kurami Discord notifier is unavailable")
+    if bool(run_id) == bool(thread_id):
+        raise RuntimeError("Kurami dashboard refresh requires one run or thread")
+    if run_id and not re.fullmatch(r"r_[A-Za-z0-9_]+", run_id):
+        raise RuntimeError("Invalid Kurami run ID")
+    if thread_id and not thread_id.isdigit():
+        raise RuntimeError("Invalid Discord thread ID")
     env = dict(os.environ)
     env["ORCHESTRATOR_HOME"] = str(control.parents[2])
+    selector = ["--run-id", run_id] if run_id else ["--thread-id", thread_id]
     process = await asyncio.create_subprocess_exec(
         str(node),
         str(notifier),
         "show",
-        "--run-id",
-        run_id,
+        *selector,
         "--apply",
         stdin=asyncio.subprocess.DEVNULL,
         stdout=asyncio.subprocess.PIPE,
@@ -532,6 +570,21 @@ async def _refresh_control_card(run_id: str) -> None:
         error = stderr.decode("utf-8", errors="replace").strip()
         output = stdout.decode("utf-8", errors="replace").strip()
         raise RuntimeError(error or output or "Kurami card refresh failed")
+    output = stdout.decode("utf-8", errors="replace").strip()
+    last_line = next((line for line in reversed(output.splitlines()) if line), "")
+    try:
+        payload = json.loads(last_line) if last_line else {}
+    except json.JSONDecodeError as exc:
+        raise RuntimeError("Kurami card refresh returned invalid output") from exc
+    if not payload.get("ok"):
+        raise RuntimeError(str(payload.get("error") or "Kurami card refresh failed")[:400])
+    return payload
+
+
+async def refresh_thread_dashboard(thread_id: str) -> dict[str, Any]:
+    """Move the current dashboard to the bottom of one exact run thread."""
+
+    return await _refresh_dashboard(thread_id=thread_id)
 
 
 def _status_message(payload: dict[str, Any]) -> str:
@@ -582,10 +635,11 @@ def install_control_listener(
     async def on_interaction(interaction: Any) -> None:
         data = getattr(interaction, "data", None)
         custom_id = data.get("custom_id") if isinstance(data, dict) else None
+        values = data.get("values") if isinstance(data, dict) else None
         metadata_page_parsed = parse_metadata_page_control_id(custom_id)
         metadata_selection_parsed = parse_metadata_selection_control_id(custom_id)
         metadata_parsed = parse_metadata_control_id(custom_id)
-        parsed = parse_control_id(custom_id)
+        parsed = parse_run_actions_id(custom_id, values) or parse_control_id(custom_id)
         if metadata_page_parsed is not None:
             batch_id, page = metadata_page_parsed
             if not authorized(interaction):
@@ -845,7 +899,7 @@ def install_control_listener(
             refresh_card = False
         if refresh_card:
             try:
-                await _refresh_control_card(run_id)
+                await _refresh_dashboard(run_id=run_id)
             except Exception:
                 # The durable request remains authoritative. The minute controller
                 # and notifier tick are the fallback if this fast refresh fails.

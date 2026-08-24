@@ -246,8 +246,15 @@ async function main(): Promise<void> {
     const payload = requests[0]!.body;
     const initialPayload = JSON.stringify(payload);
     assert(
-      initialPayload.includes("TailorTales · Project digest") &&
+      payload.flags === 32768 &&
+        payload.content === null &&
+        payload.embeds === null &&
+        initialPayload.includes("TailorTales · Project digest") &&
         initialPayload.includes("Suggested next") &&
+        initialPayload.includes("```text") &&
+        initialPayload.includes("[Suggested issue]") &&
+        !initialPayload.includes("Open suggested issue") &&
+        !initialPayload.includes("Open project") &&
         !initialPayload.toLowerCase().includes("due date") &&
         !initialPayload.includes("Snapshot") &&
         !initialPayload.includes("deterministic-v2"),

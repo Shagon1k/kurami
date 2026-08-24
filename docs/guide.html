@@ -406,14 +406,17 @@
                 <p class="purpose">Показывает состояние и предоставляет только актуальные допустимые действия.</p>
                 <div class="io">
                   <div><b>Получает:</b> Run Store state и owner component action.</div>
-                  <div><b>Отдаёт:</b> stable card/thread, durable request и обновлённый status.</div>
+                  <div><b>Отдаёт:</b> compact starter, timeline, current dashboard, durable request и обновлённый status.</div>
                 </div>
               </div>
               <details><summary>Authorization boundary</summary><div>
-                Native plugin проверяет exact owner, guild, component ID, run identity,
-                revision и SHA. Кнопка не выполняет shell-команду напрямую: она ставит bounded
-                request, который повторно валидирует controller. Settings UI ephemeral и
-                доступен только при полном idle. Telegram — только inbound fallback.
+                Components V2 dashboard остаётся последним bot message после lifecycle events;
+                <code>/kurami status</code> возвращает его вниз по запросу owner. Links остаются
+                обычной навигацией, до четырёх актуальных actions показываются кнопками, остальные —
+                в allowlisted menu. Native plugin проверяет exact owner, guild, component ID,
+                run identity, revision и SHA. Control не выполняет shell-команду напрямую: он
+                ставит bounded request, который повторно валидирует controller. Settings UI
+                ephemeral и доступен только при полном idle. Telegram — только inbound fallback.
               </div></details>
             </article>
 

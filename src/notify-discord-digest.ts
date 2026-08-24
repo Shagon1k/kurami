@@ -4,6 +4,14 @@ import { resolve } from "node:path";
 import { pathToFileURL } from "node:url";
 import { DatabaseSync } from "node:sqlite";
 import { parse } from "yaml";
+import {
+  compactTable,
+  componentMessage,
+  container,
+  separator,
+  textDisplay,
+  type DiscordObject,
+} from "./discord-ui.ts";
 import type { TriageStats } from "./triage-snapshot.ts";
 
 process.umask(0o077);
@@ -62,8 +70,6 @@ type DigestRow = {
   metadata_priority_count: number;
   metadata_effort_count: number;
 };
-
-type DiscordObject = Record<string, unknown>;
 
 const apiBase = (
   process.env.DISCORD_API_BASE ?? "https://discord.com/api/v10"
@@ -140,7 +146,7 @@ function desiredDigest(row: DigestRow): string {
         String(row.metadata_applied_count),
         String(row.metadata_conflicted_count),
         String(row.metadata_failed_count),
-        "discord-project-digest-v3",
+        "discord-project-digest-v4",
       ].join(":"),
     )
     .digest("hex");
@@ -307,14 +313,6 @@ function metadataComponents(row: DigestRow): DiscordObject[] {
   ];
 }
 
-function overview(stats: TriageStats): string {
-  return [
-    `Remaining **${stats.remainingOpen}** · Backlog **${stats.backlog}** · Ready **${stats.eligible}**`,
-    `Blocked **${stats.blocked}** · Active **${stats.active}** · Review **${stats.review}**`,
-    `Deferred **${stats.deferred}** · Done **${stats.done}**`,
-  ].join("\n");
-}
-
 export function digestPayload(
   row: DigestRow,
   config: ProjectConfig,
@@ -332,49 +330,42 @@ export function digestPayload(
   const suggestedSince = unixTimestamp(row.suggested_since);
   const lastChecked = unixTimestamp(row.last_checked_at);
   const metadata = metadataField(row);
-  const components = [
-    ...(row.selected_url
-      ? [
-          {
-            type: 2,
-            style: 5,
-            label: "Open suggested issue",
-            url: row.selected_url,
-          },
-        ]
-      : []),
-    {
-      type: 2,
-      style: 5,
-      label: "Open project",
-      url: projectUrl(config),
-    },
+  const links = [
+    row.selected_url ? `[Suggested issue](${row.selected_url})` : "",
+    `[Project](${projectUrl(config)})`,
+  ]
+    .filter(Boolean)
+    .join(" · ");
+  const body: DiscordObject[] = [
+    textDisplay(
+      `## ${projectName(config)} · Project digest\n` +
+        `### Suggested next\n${truncate(suggestion, 2_000)}`,
+    ),
+    textDisplay(
+      compactTable([
+        ["Remaining", String(stats.remainingOpen)],
+        ["Ready", `${stats.eligible} · Backlog ${stats.backlog}`],
+        ["In flight", `${stats.active} active · ${stats.blocked} blocked`],
+        ["Later", `${stats.review} review · ${stats.deferred} deferred · ${stats.done} done`],
+      ]),
+    ),
   ];
-  return {
-    content: `**${projectName(config)} · Project digest**`,
-    embeds: [
-      {
-        title: "Suggested next",
-        description: truncate(suggestion, 4_000),
-        color: row.selected_issue_number ? 0x5865f2 : 0x99aab5,
-        fields: [
-          { name: "Project health", value: overview(stats) },
-          {
-            name: "Freshness",
-            value: [
-              suggestedSince ? `Suggested <t:${suggestedSince}:R>` : "",
-              lastChecked ? `Last checked <t:${lastChecked}:R>` : "",
-            ]
-              .filter(Boolean)
-              .join(" · "),
-          },
-          ...(metadata ? [metadata] : []),
-        ],
-      },
-    ],
-    components: [{ type: 1, components }, ...metadataComponents(row)],
-    allowed_mentions: { parse: [] },
-    ...(create
+  if (metadata)
+    body.push(
+      separator(),
+      textDisplay(`**${metadata.name}**\n${metadata.value}`),
+    );
+  body.push(
+    textDisplay(`**Links** · ${links}`),
+    ...metadataComponents(row),
+    textDisplay(
+      `-# ${suggestedSince ? `Suggested <t:${suggestedSince}:R> · ` : ""}` +
+        `${lastChecked ? `Last checked <t:${lastChecked}:R>` : "Freshness unavailable"}`,
+    ),
+  );
+  return componentMessage(
+    [container(body, row.selected_issue_number ? 0x5865f2 : 0x99aab5)],
+    create
       ? {
           nonce: `digest-${createHash("sha256")
             .update(row.project)
@@ -382,8 +373,8 @@ export function digestPayload(
             .slice(0, 18)}`,
           enforce_nonce: true,
         }
-      : {}),
-  };
+      : {},
+  );
 }
 
 async function delay(milliseconds: number): Promise<void> {

@@ -7,7 +7,7 @@ listener for component IDs owned by the Dev Orchestrator.
 
 from plugins.platforms.discord import adapter as upstream
 
-from .control_handler import install_control_listener
+from .control_handler import install_control_listener, refresh_thread_dashboard
 from .settings_handler import install_settings_command
 
 
@@ -34,7 +34,11 @@ class KuramiDiscordAdapter(_BaseDiscordAdapter):
     def _register_slash_commands(self) -> None:
         super()._register_slash_commands()
         if self._client is not None:
-            install_settings_command(self._client, self._settings_owner_authorized)
+            install_settings_command(
+                self._client,
+                self._settings_owner_authorized,
+                refresh_thread_dashboard,
+            )
 
     async def connect(self, *, is_reconnect: bool = False) -> bool:
         connected = await super().connect(is_reconnect=is_reconnect)

@@ -368,24 +368,32 @@ failed, and attention events remain separate durable notifications.
 
 Discord is the primary control surface. A new run creates one starter card in
 the configured project channel and a public ticket thread named
-`[TT-N] Title` or `[PF-N] Title`. The starter card is edited in place as the
-lifecycle changes and remains link-only because Discord mirrors it into the
-message-started thread as a non-authoritative representation. The notifier adds
-the single allowlisted owner to the thread and creates one persisted,
-thread-local control message. That message is edited rather than duplicated,
-including after restart or an explicit `show controls` request, and is pinned as
-the durable control anchor for the ticket thread. While managed Codex is active
-the ownership action is labelled `Take control`; after autonomous work parks it
-becomes `Continue in Codex` because no CLI owner remains. Native buttons
-carry strict `kurami:*:<run_id>` IDs and are handled by a user-plugin extension
-of the existing Hermes Discord adapter; they do not invoke an LLM. Events such
-as preview-ready are posted once inside the ticket thread from a separate
-durable delivery outbox. Each short lifecycle event includes one `Open controls`
-link back to the pinned control message instead of duplicating action buttons.
-CI and AI review are independent dimensions on the same live card: while both
-are active it reports `Validating changes`; after review completes it keeps
-waiting for CI when necessary. The card never creates a second Discord
-conversation for findings.
+`[TT-N] Title`, `[PF-N] Title`, or another configured prefix. The Components V2
+starter is a compact, non-actionable thread header. The notifier adds the single
+allowlisted owner and creates one complete thread-local dashboard as the latest
+bot message. Normal state changes edit that dashboard in place. A durable
+timeline event or owner `/kurami status` request posts a replacement dashboard
+below the history, commits its new message ID, and deletes the superseded
+dashboard. It is not pinned.
+
+The dashboard composes lifecycle, CI, AI review, preview, policy, ownership,
+exact evidence, navigation links, and owner controls in one container. Issue,
+pull request, preview, and Codex destinations are Markdown links rather than
+link buttons. Up to four current actions remain visible; lower-priority actions
+use one allowlisted `More actions…` select. While managed Codex is active the
+ownership action is labelled `Take control`; after autonomous work parks it
+becomes `Continue in Codex` because no CLI owner remains. Buttons and select
+values map to strict `kurami:*:<run_id>` actions handled by the existing Hermes
+Discord adapter extension; they do not invoke an LLM. Destructive actions keep
+their ephemeral confirmation boundary.
+
+Events such as preview-ready are posted once inside the ticket thread from a
+separate durable delivery outbox. They are compact history and carry no stale
+controls. CI and AI review remain independent dimensions on the same dashboard:
+while both are active it reports `Validating changes`; after review completes it
+keeps waiting for CI when necessary. The dashboard never creates a second
+Discord conversation for findings. The exact layout contract is documented in
+`docs/discord-ui.md`.
 
 An active `Take control` request is shown immediately as `Preparing human
 control`. The controller sends the Codex TUI its normal `Escape` interrupt,
@@ -398,7 +406,7 @@ during the wait, a successful handoff normalizes the durable state to
 `remote_owned` with owner `remote`.
 
 After a successful handoff, ownership becomes `remote` and the interaction is
-replaced by an `Open in Codex` link. The live card and handoff event include the
+represented by an `Open in Codex` Markdown link. The dashboard and handoff event include the
 exact Codex task title, `shagserv / <project>` connection context, the durable
 thread ID as a diagnostic fallback, and an explicit note that managed
 CLI/tmux automation released ownership. Discord rejects custom URI schemes in
@@ -539,11 +547,13 @@ assigns P0/P1, edits Project fields, moves cards, or starts a run.
 
 `src/notify-discord-digest.ts` writes directly into one manually created permanent
 text channel configured as `discord.digest_channel_id` in `orchestrator.yaml`.
-It creates exactly one English bot-owned card per configured project and then
-edits that message in place; no Discord thread, pin, or daily message stream is
-created. Identical same-day state is a no-op. A daily check may refresh only the
-displayed Last checked date. Status transitions trigger the same locked pipeline
-from the project poller, while the daily Hermes job remains the recovery baseline.
+It creates exactly one English bot-owned Components V2 card per configured
+project and then edits that message in place. The card uses a compact health
+table, detailed metadata state, Markdown navigation links, and contextual owner
+actions; no automatic Discord thread, pin, or daily message stream is created.
+Identical same-day state is a no-op. A daily check may refresh only the displayed
+Last checked date. Status transitions trigger the same locked pipeline from the
+project poller, while the daily Hermes job remains the recovery baseline.
 The orchestrator must never create, move, or delete the `📋-digest` channel.
 
 ### Metadata proposal batches

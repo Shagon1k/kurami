@@ -85,37 +85,44 @@ function sendJson(
   response.end(JSON.stringify(payload));
 }
 
+function nestedComponents(payload: JsonObject): JsonObject[] {
+  const result: JsonObject[] = [];
+  const visit = (value: unknown): void => {
+    if (!value || typeof value !== "object") return;
+    if (Array.isArray(value)) {
+      for (const item of value) visit(item);
+      return;
+    }
+    const object = value as JsonObject;
+    if (typeof object.type === "number") result.push(object);
+    if (Array.isArray(object.components)) visit(object.components);
+  };
+  visit(payload.components);
+  return result;
+}
+
 function customIds(payload: JsonObject): string[] {
-  const rows = Array.isArray(payload.components) ? payload.components : [];
-  return rows.flatMap((row) => {
-    const components = (row as JsonObject).components;
-    if (!Array.isArray(components)) return [];
-    return components
-      .map((component) => String((component as JsonObject).custom_id ?? ""))
-      .filter(Boolean);
-  });
+  return nestedComponents(payload)
+    .map((component) => String(component.custom_id ?? ""))
+    .filter(Boolean);
 }
 
 function componentLabels(payload: JsonObject): string[] {
-  const rows = Array.isArray(payload.components) ? payload.components : [];
-  return rows.flatMap((row) => {
-    const components = (row as JsonObject).components;
-    if (!Array.isArray(components)) return [];
-    return components
-      .map((component) => String((component as JsonObject).label ?? ""))
-      .filter(Boolean);
-  });
+  return nestedComponents(payload).flatMap((component) => [
+    ...(component.label ? [String(component.label)] : []),
+    ...(Array.isArray(component.options)
+      ? component.options.map((option) =>
+          String((option as JsonObject).label ?? ""),
+        )
+      : []),
+  ]);
 }
 
-function componentUrls(payload: JsonObject): string[] {
-  const rows = Array.isArray(payload.components) ? payload.components : [];
-  return rows.flatMap((row) => {
-    const components = (row as JsonObject).components;
-    if (!Array.isArray(components)) return [];
-    return components
-      .map((component) => String((component as JsonObject).url ?? ""))
-      .filter(Boolean);
-  });
+function componentText(payload: JsonObject): string {
+  return nestedComponents(payload)
+    .filter((component) => component.type === 10)
+    .map((component) => String(component.content ?? ""))
+    .join("\n");
 }
 
 async function main(): Promise<void> {
@@ -136,8 +143,12 @@ async function main(): Promise<void> {
   const resourceGuardMessages: JsonObject[] = [];
   const threadMemberAdds: string[] = [];
   const threadPatches: JsonObject[] = [];
-  const pinnedMessages = new Set<string>();
-  const pinWrites: string[] = [];
+  const deletedThreadMessages: string[] = [];
+  let latestDashboard: JsonObject | null = null;
+  const currentDashboard = (): JsonObject => {
+    assert(latestDashboard, "No current Discord dashboard was captured");
+    return latestDashboard;
+  };
   let threadExists = false;
   let nextThreadMessage = 2000;
 
@@ -199,23 +210,11 @@ async function main(): Promise<void> {
         response.end();
         return;
       }
-      if (method === "GET" && url === "/channels/1001/messages/pins?limit=50") {
-        sendJson(response, 200, {
-          items: [...pinnedMessages].map((messageId) => ({
-            pinned_at: "2026-08-16T09:10:01.000Z",
-            message: { id: messageId, channel_id: "1001" },
-          })),
-          has_more: false,
-        });
-        return;
-      }
       if (
-        method === "PUT" &&
-        /^\/channels\/1001\/messages\/pins\/\d+$/u.test(url)
+        method === "DELETE" &&
+        /^\/channels\/1001\/messages\/\d+$/u.test(url)
       ) {
-        const messageId = url.split("/").at(-1)!;
-        pinnedMessages.add(messageId);
-        pinWrites.push(messageId);
+        deletedThreadMessages.push(url.split("/").at(-1)!);
         response.writeHead(204);
         response.end();
         return;
@@ -234,6 +233,7 @@ async function main(): Promise<void> {
       ) {
         const payload = await readJson(request);
         threadControlEdits.push(payload);
+        latestDashboard = payload;
         sendJson(response, 200, {
           id: url.split("/").at(-1),
           channel_id: "1001",
@@ -242,9 +242,10 @@ async function main(): Promise<void> {
       }
       if (method === "POST" && url === "/channels/1001/messages") {
         const payload = await readJson(request);
-        if (String(payload.content ?? "").startsWith("**Run controls ·"))
+        if (componentText(payload).includes("Current state · Run")) {
           threadControlCreates.push(payload);
-        else threadEvents.push(payload);
+          latestDashboard = payload;
+        } else threadEvents.push(payload);
         nextThreadMessage += 1;
         sendJson(response, 200, {
           id: String(nextThreadMessage),
@@ -431,12 +432,21 @@ async function main(): Promise<void> {
     trace("first-sync-complete");
     assert(first.ok === true, "Initial Discord reconciliation failed");
     assert(parentMessages.length === 1, "Ticket starter card was duplicated");
+    assert(
+      parentMessages[0]!.flags === 32768 &&
+        parentMessages[0]!.content === null &&
+        parentMessages[0]!.embeds === null &&
+        componentText(parentMessages[0]!).includes(
+          "The current dashboard is the latest bot message",
+        ),
+      "Ticket starter is not a compact Components V2 thread header",
+    );
     assert(threadExists, "Ticket thread was not created from the starter card");
     assert(cardEdits.length === 1, "Live card was not reconciled exactly once");
     assert(threadMemberAdds.length === 1, "Owner was not added to the thread");
     assert(
-      threadControlCreates.length === 1,
-      "Persistent thread-local controls were not created",
+      threadControlCreates.length === 2,
+      "Current dashboard was not recreated below the delivered event",
     );
     assert(
       threadEvents.length === 1,
@@ -446,15 +456,22 @@ async function main(): Promise<void> {
       customIds(cardEdits[0]!).length === 0,
       "Starter card retained thread-inert custom controls",
     );
-    const firstControls = customIds(threadControlCreates[0]!);
+    const firstCurrentDashboard = threadControlCreates.at(-1)!;
     assert(
-      firstControls.includes("kurami:status:r_discord_smoke") &&
-        firstControls.includes("kurami:stop:r_discord_smoke") &&
+      firstCurrentDashboard.flags === 32768 &&
+        firstCurrentDashboard.content === null &&
+        firstCurrentDashboard.embeds === null,
+      "Run dashboard is not a pure Components V2 message",
+    );
+    const firstControls = customIds(firstCurrentDashboard);
+    assert(
+      firstControls.includes("kurami:stop:r_discord_smoke") &&
+        !firstControls.includes("kurami:status:r_discord_smoke") &&
         !firstControls.includes("kurami:take_control:r_discord_smoke") &&
         !firstControls.includes("kurami:preview_start:r_discord_smoke"),
       "Live card has the wrong native control set",
     );
-    const firstLabels = componentLabels(threadControlCreates[0]!);
+    const firstLabels = componentLabels(firstCurrentDashboard);
     assert(
       firstLabels.includes("Cancel run") &&
         !firstLabels.includes("Take control") &&
@@ -463,36 +480,24 @@ async function main(): Promise<void> {
       "Active controls have the wrong contextual labels",
     );
     assert(
-      pinWrites.length === 1 && pinWrites[0] === "2001",
-      "Persistent thread controls were not pinned exactly once",
+      deletedThreadMessages.includes("2001") &&
+        !componentLabels(threadEvents[0]!).includes("Open controls"),
+      "Delivered event did not rotate the unpinned dashboard safely",
     );
     assert(
-      componentLabels(threadEvents[0]!).includes("Open controls") &&
-        componentUrls(threadEvents[0]!).includes(
-          `https://discord.com/channels/${guildId}/1001/2001`,
-        ),
-      "Durable event did not link back to the canonical controls",
-    );
-    assert(
-      String(threadEvents[0]!.content).includes("CI failed") &&
-        String(threadEvents[0]!.content).includes("Secret scan"),
+      componentText(threadEvents[0]!).includes("CI failed") &&
+        componentText(threadEvents[0]!).includes("Secret scan"),
       "CI attention event did not explain the failing check",
     );
-    const embeds = cardEdits[0]!.embeds as JsonObject[];
-    const fields = embeds[0]!.fields as JsonObject[];
     assert(
-      fields.some(
-        (field) =>
-          field.name === "Stage since" &&
-          String(field.value).startsWith("16.08.26 12:10 · <t:") &&
-          String(field.value).endsWith(":R>"),
-      ),
+      componentText(firstCurrentDashboard).includes(
+        "Stage since 16.08.26 12:10 · <t:",
+      ) && componentText(firstCurrentDashboard).includes(":R>"),
       "Stage timestamp is not owner-local and self-updating",
     );
-    const ci = fields.find((field) => field.name === "CI");
     assert(
-      String(ci?.value ?? "").includes("Failed") &&
-        String(ci?.value ?? "").includes("Secret scan"),
+      componentText(firstCurrentDashboard).includes("Failed") &&
+        componentText(firstCurrentDashboard).includes("Secret scan"),
       "Live card omitted the normalized CI snapshot",
     );
 
@@ -515,7 +520,7 @@ async function main(): Promise<void> {
       surface.state === "active" &&
         surface.live_card_message_id === "1001" &&
         surface.thread_id === "1001" &&
-        surface.control_message_id === "2001" &&
+        surface.control_message_id === "2003" &&
         surface.owner_user_id === ownerUserId &&
         surface.attempt_count === 0,
       "Discord surface identity was not durably finalized",
@@ -546,9 +551,9 @@ async function main(): Promise<void> {
     `);
     prePull.close();
     await runNode(notifier, ["--apply"], testHome, discordEnv);
-    const prePullFields = ((cardEdits.at(-1)!.embeds as JsonObject[])[0]!.fields ?? []) as JsonObject[];
+    const prePullText = componentText(currentDashboard());
     assert(
-      !prePullFields.some((field) => field.name === "CI"),
+      !prePullText.includes("**CI**"),
       "CI noise was shown before the managed pull request existed",
     );
     const waitingGithub = new DatabaseSync(databasePath);
@@ -564,7 +569,7 @@ async function main(): Promise<void> {
     waitingGithub.close();
     await runNode(notifier, ["--apply"], testHome, discordEnv);
     assert(
-      String(cardEdits.at(-1)?.content ?? "").includes("Waiting for GitHub"),
+      componentText(currentDashboard()).includes("Waiting for GitHub"),
       "The GitHub discovery wait was not presented clearly on the live card",
     );
     const restorePull = new DatabaseSync(databasePath);
@@ -594,12 +599,11 @@ async function main(): Promise<void> {
       "Idempotent sync recreated the ticket card",
     );
     assert(
-      threadControlCreates.length === 1,
+      threadControlCreates.length === 2,
       "Idempotent sync recreated controls",
     );
     assert(threadEvents.length === 1, "Idempotent sync redelivered an event");
     assert(threadMemberAdds.length === 1, "Idempotent sync re-added the owner");
-    assert(pinWrites.length === 1, "Idempotent sync pinned controls twice");
 
     const threadReady = new DatabaseSync(databasePath);
     threadReady
@@ -610,7 +614,7 @@ async function main(): Promise<void> {
       .run(codexThreadId);
     threadReady.close();
     await runNode(notifier, ["--apply"], testHome, discordEnv);
-    const readyControls = customIds(threadControlEdits.at(-1)!);
+    const readyControls = customIds(currentDashboard());
     assert(
       readyControls.includes("kurami:take_control:r_discord_smoke") &&
         !readyControls.includes("kurami:preview_start:r_discord_smoke"),
@@ -635,11 +639,11 @@ async function main(): Promise<void> {
     `);
     repairReady.close();
     await runNode(notifier, ["--apply"], testHome, discordEnv);
-    const repairControls = customIds(threadControlEdits.at(-1)!);
+    const repairControls = customIds(currentDashboard());
     assert(
       repairControls.includes("kurami:ci_repair:r_discord_smoke") &&
         repairControls.includes("kurami:ai_review:r_discord_smoke") &&
-        componentLabels(threadControlEdits.at(-1)!).includes("Attempt CI fix"),
+        componentLabels(currentDashboard()).includes("Attempt CI fix"),
       "Stable PR did not expose independent CI repair and AI review actions",
     );
     const reviewQueued = new DatabaseSync(databasePath);
@@ -655,8 +659,8 @@ async function main(): Promise<void> {
     reviewQueued.close();
     await runNode(notifier, ["show", "--run-id", "r_discord_smoke", "--apply"], testHome, discordEnv);
     assert(
-      String(threadControlEdits.at(-1)!.content).includes("AI Review queued") &&
-        !customIds(threadControlEdits.at(-1)!).includes(
+      componentText(currentDashboard()).includes("AI Review queued") &&
+        !customIds(currentDashboard()).includes(
           "kurami:ai_review:r_discord_smoke",
         ),
       "Queued AI review did not immediately hide its duplicate action",
@@ -682,15 +686,11 @@ async function main(): Promise<void> {
     `);
     reviewRunning.close();
     await runNode(notifier, ["--apply"], testHome, discordEnv);
-    const reviewingCard = cardEdits.at(-1)!;
-    const reviewingFields = ((reviewingCard.embeds as JsonObject[])[0]!.fields ?? []) as JsonObject[];
+    const reviewingCard = currentDashboard();
     assert(
-      reviewingFields.some(
-        (field) =>
-          field.name === "AI review" &&
-          String(field.value).includes("Reviewing PR"),
-      ) &&
-        !customIds(threadControlEdits.at(-1)!).includes(
+      componentText(reviewingCard).includes("**AI review**") &&
+        componentText(reviewingCard).includes("Reviewing PR") &&
+        !customIds(currentDashboard()).includes(
           "kurami:ai_review:r_discord_smoke",
         ),
       "Running AI review was not composed independently into the live card",
@@ -707,17 +707,14 @@ async function main(): Promise<void> {
     `);
     reviewReady.close();
     await runNode(notifier, ["--apply"], testHome, discordEnv);
-    const reviewedCard = cardEdits.at(-1)!;
-    const reviewedFields = ((reviewedCard.embeds as JsonObject[])[0]!.fields ?? []) as JsonObject[];
+    const reviewedCard = currentDashboard();
     assert(
-      String(threadControlEdits.at(-1)!.content).includes("AI Review Ready") &&
-        customIds(threadControlEdits.at(-1)!).includes(
+      componentText(reviewedCard).includes("AI Review Ready") &&
+        customIds(currentDashboard()).includes(
           "kurami:review_fix:r_discord_smoke",
         ) &&
-        reviewedFields.some(
-          (field) =>
-            field.name === "AI review" &&
-            String(field.value).includes("1 Critical · 2 Important · 3 Suggestions"),
+        componentText(reviewedCard).includes(
+          "1 Critical · 2 Important · 3 Suggestions",
         ),
       "Ready AI review did not expose aggregate findings without Discord chatter",
     );
@@ -734,11 +731,11 @@ async function main(): Promise<void> {
     fixQueued.close();
     await runNode(notifier, ["show", "--run-id", "r_discord_smoke", "--apply"], testHome, discordEnv);
     assert(
-      String(threadControlEdits.at(-1)!.content).includes("Review fix queued") &&
-        !customIds(threadControlEdits.at(-1)!).includes(
+      componentText(currentDashboard()).includes("Review fix queued") &&
+        !customIds(currentDashboard()).includes(
           "kurami:review_fix:r_discord_smoke",
         ) &&
-        !componentLabels(threadControlEdits.at(-1)!).includes("Start preview"),
+        !componentLabels(currentDashboard()).includes("Start preview"),
       "Queued review fix did not hide conflicting controls",
     );
     const activeFix = new DatabaseSync(databasePath);
@@ -771,16 +768,13 @@ async function main(): Promise<void> {
     `);
     newerHead.close();
     await runNode(notifier, ["--apply"], testHome, discordEnv);
-    const validatingCard = cardEdits.at(-1)!;
-    const validatingFields = ((validatingCard.embeds as JsonObject[])[0]!.fields ?? []) as JsonObject[];
+    const validatingCard = currentDashboard();
     assert(
-      validatingFields.some(
-        (field) =>
-          field.name === "AI review" &&
-          String(field.value).includes("Review fixes are still being validated"),
+      componentText(validatingCard).includes(
+        "Review fixes are still being validated",
       ) &&
-        !componentLabels(threadControlEdits.at(-1)!).includes("Start preview") &&
-        !customIds(threadControlEdits.at(-1)!).includes(
+        !componentLabels(currentDashboard()).includes("Start preview") &&
+        !customIds(currentDashboard()).includes(
           "kurami:ai_review:r_discord_smoke",
         ),
       "Active review fix exposed conflicting controls or misleading outdated text",
@@ -792,16 +786,11 @@ async function main(): Promise<void> {
     `);
     clearFix.close();
     await runNode(notifier, ["--apply"], testHome, discordEnv);
-    const outdatedCard = cardEdits.at(-1)!;
-    const outdatedFields = ((outdatedCard.embeds as JsonObject[])[0]!.fields ?? []) as JsonObject[];
+    const outdatedCard = currentDashboard();
     assert(
-      !String(threadControlEdits.at(-1)!.content).includes("AI Review Ready") &&
-        outdatedFields.some(
-          (field) =>
-            field.name === "AI review" &&
-            String(field.value).includes("Outdated"),
-        ) &&
-        customIds(threadControlEdits.at(-1)!).includes(
+      !componentText(outdatedCard).includes("AI Review Ready") &&
+        componentText(outdatedCard).includes("Outdated") &&
+        customIds(currentDashboard()).includes(
           "kurami:ai_review:r_discord_smoke",
         ),
       "A review for an older SHA was not marked outdated and made repeatable",
@@ -821,11 +810,10 @@ async function main(): Promise<void> {
     `);
     retryAfterFailure.close();
     await runNode(notifier, ["show", "--run-id", "r_discord_smoke", "--apply"], testHome, discordEnv);
-    const queuedRetryCard = cardEdits.at(-1)!;
-    const queuedRetryFields = ((queuedRetryCard.embeds as JsonObject[])[0]!.fields ?? []) as JsonObject[];
+    const queuedRetryCard = currentDashboard();
     assert(
-      String(threadControlEdits.at(-1)!.content).includes("AI Review queued") &&
-        !queuedRetryFields.some((field) => field.name === "AI review"),
+      componentText(queuedRetryCard).includes("AI Review queued") &&
+        !componentText(queuedRetryCard).includes("**AI review**"),
       "Queued retry kept the previous failed AI review in the live card",
     );
     const clearReview = new DatabaseSync(databasePath);
@@ -869,20 +857,16 @@ async function main(): Promise<void> {
     `);
     repairWaiting.close();
     await runNode(notifier, ["--apply"], testHome, discordEnv);
-    const waitingControls = threadControlEdits.at(-1)!;
-    const waitingCard = cardEdits.at(-1)!;
-    const waitingEmbed = (waitingCard.embeds as JsonObject[])[0]!;
-    const waitingCi = (waitingEmbed.fields as JsonObject[]).find(
-      (field) => field.name === "CI",
-    );
+    const waitingControls = currentDashboard();
+    const waitingText = componentText(waitingControls);
     assert(
-      String(waitingControls.content).includes("Waiting for CI") &&
+      waitingText.includes("Waiting for CI") &&
         !componentLabels(waitingControls).includes("Take control") &&
         !componentLabels(waitingControls).includes("Continue in Codex") &&
         !componentLabels(waitingControls).includes("Attempt CI fix") &&
-        String(waitingCi?.value ?? "").includes("Waiting for checks") &&
-        String(waitingCi?.value ?? "").includes("Previous failure") &&
-        !String(waitingCi?.value ?? "").includes("❌ Failed"),
+        waitingText.includes("Waiting for checks") &&
+        waitingText.includes("Previous failure") &&
+        !waitingText.includes("❌ Failed"),
       "CI repair waiting state mixed old failure data with new-check status",
     );
     const clearRepairWaiting = new DatabaseSync(databasePath);
@@ -917,9 +901,9 @@ async function main(): Promise<void> {
       .run();
     handoffPending.close();
     await runNode(notifier, ["--apply"], testHome, discordEnv);
-    const pendingControls = threadControlEdits.at(-1)!;
+    const pendingControls = currentDashboard();
     assert(
-      String(pendingControls.content).includes("Preparing human control") &&
+      componentText(pendingControls).includes("Preparing human control") &&
         !componentLabels(pendingControls).includes("Take control") &&
         componentLabels(pendingControls).includes("Cancel run"),
       "Pending takeover did not replace the active Take control button",
@@ -939,26 +923,29 @@ async function main(): Promise<void> {
     workingAgain.close();
     await runNode(notifier, ["--apply"], testHome, discordEnv);
     const readinessEditCount = threadControlEdits.length;
+    const readinessCreateCount = threadControlCreates.length;
+    const readinessDeleteCount = deletedThreadMessages.length;
 
     await runNode(
       notifier,
-      ["show", "--run-id", "r_discord_smoke", "--apply"],
+      ["show", "--thread-id", "1001", "--apply"],
       testHome,
       discordEnv,
     );
     trace("show-controls-complete");
     assert(
-      threadControlCreates.length === 1 &&
-        threadControlEdits.length === readinessEditCount + 1,
-      "Show controls did not edit the persistent thread message",
+      threadControlCreates.length === readinessCreateCount + 1 &&
+        threadControlEdits.length === readinessEditCount &&
+        deletedThreadMessages.length === readinessDeleteCount + 1,
+      "Show controls did not move the current dashboard safely",
     );
     assert(
-      customIds(threadControlEdits.at(-1)!).includes(
-        "kurami:status:r_discord_smoke",
-      ),
+      customIds(currentDashboard()).includes("kurami:stop:r_discord_smoke") &&
+        !customIds(currentDashboard()).includes(
+          "kurami:status:r_discord_smoke",
+        ),
       "Fresh control surface did not contain native controls",
     );
-    assert(pinWrites.length === 1, "Show controls pinned the message twice");
 
     const parked = new DatabaseSync(databasePath);
     parked
@@ -981,7 +968,7 @@ async function main(): Promise<void> {
       .run();
     parked.close();
     await runNode(notifier, ["--apply"], testHome, discordEnv);
-    const parkedLabels = componentLabels(threadControlEdits.at(-1)!);
+    const parkedLabels = componentLabels(currentDashboard());
     assert(
       parkedLabels.includes("Continue in Codex") &&
         parkedLabels.includes("Start preview") &&
@@ -1018,24 +1005,17 @@ async function main(): Promise<void> {
       .run();
     remote.close();
     await runNode(notifier, ["--apply"], testHome, discordEnv);
-    const remoteControls = threadControlEdits.at(-1)!;
+    const remoteControls = currentDashboard();
     assert(
-      componentLabels(remoteControls).includes("Open in Codex") &&
-        componentLabels(remoteControls).includes("Continue autonomously") &&
+      componentLabels(remoteControls).includes("Continue autonomously") &&
         componentLabels(remoteControls).includes("Start preview") &&
-        componentUrls(remoteControls).includes(codexLaunchUrl) &&
+        componentText(remoteControls).includes(`[Codex](${codexLaunchUrl})`) &&
         customIds(remoteControls).includes(
           "kurami:take_control:r_discord_smoke",
         ),
       "Remote ownership did not expose the Codex launcher, autonomous continuation, and preview controls",
     );
-    const remoteCard = cardEdits.at(-1)!;
-    const remoteEmbed = (remoteCard.embeds as JsonObject[])[0]!;
-    const remoteFields = remoteEmbed.fields as JsonObject[];
-    const handoff = remoteFields.find(
-      (field) => field.name === "Codex handoff",
-    );
-    const handoffValue = String(handoff?.value ?? "");
+    const handoffValue = componentText(remoteControls);
     assert(
       handoffValue.includes("[TT-9401]: Discord control 9401") &&
         handoffValue.includes("shagserv / TailorTales") &&
@@ -1056,9 +1036,9 @@ async function main(): Promise<void> {
       .run();
     successorPending.close();
     await runNode(notifier, ["--apply"], testHome, discordEnv);
-    const successorPendingControls = threadControlEdits.at(-1)!;
+    const successorPendingControls = currentDashboard();
     assert(
-      String(successorPendingControls.content).includes(
+      componentText(successorPendingControls).includes(
         "Starting autonomous continuation",
       ) &&
         !componentLabels(successorPendingControls).includes(
@@ -1072,9 +1052,8 @@ async function main(): Promise<void> {
     );
     const humanEvent = threadEvents.at(-1)!;
     assert(
-      String(humanEvent.content).includes("Preparation is ready for you") &&
-        componentLabels(humanEvent).includes("Open in Codex") &&
-        componentUrls(humanEvent).includes(codexLaunchUrl),
+      componentText(humanEvent).includes("Preparation is ready for you") &&
+        componentText(humanEvent).includes(`[Open in Codex](${codexLaunchUrl})`),
       "Human-control event did not include the Codex launcher",
     );
 
@@ -1137,52 +1116,52 @@ async function main(): Promise<void> {
     await runNode(notifier, ["--apply"], testHome, discordEnv);
     trace("preview-sync-complete");
     assert(
-      String(threadEvents.at(-1)!.content).includes("Preview is ready"),
+      componentText(threadEvents.at(-1)!).includes("Preview is ready"),
       "Preview-ready notification was not delivered to the ticket thread",
     );
     assert(
-      componentLabels(threadEvents.at(-1)!).includes("Open controls"),
-      "Preview-ready notification did not link to controls",
+      !componentLabels(threadEvents.at(-1)!).includes("Open controls"),
+      "Preview-ready timeline event retained a stale control link",
     );
     assert(
-      customIds(threadControlEdits.at(-1)!).includes(
+      customIds(currentDashboard()).includes(
         "kurami:preview_stop:r_discord_smoke",
       ),
       "Live card did not switch to Stop preview",
     );
-    const previewLabels = componentLabels(threadControlEdits.at(-1)!);
+    const previewLabels = componentLabels(currentDashboard());
     assert(
-      previewLabels.includes("Open preview") &&
-        previewLabels.includes("Remove preview") &&
+      previewLabels.includes("Remove preview") &&
+        componentText(currentDashboard()).includes("[Preview](https://") &&
         !previewLabels.includes("Open artifact") &&
         !previewLabels.includes("Remove artifact"),
       "Static preview exposed adapter-specific owner-facing controls",
     );
     assert(
-      customIds(threadControlEdits.at(-1)!).includes(
+      customIds(currentDashboard()).includes(
+        "kurami:run_actions:r_discord_smoke",
+      ) && previewLabels.includes("Cancel run"),
+      "Dashboard overflow did not preserve lower-priority contextual actions",
+    );
+    assert(
+      customIds(currentDashboard()).includes(
         "kurami:preview_extend:r_discord_smoke",
       ),
       "Expiring preview did not expose the bounded extension control",
     );
     assert(
-      customIds(threadControlEdits.at(-1)!).includes(
+      customIds(currentDashboard()).includes(
         "kurami:preview_reviewed:r_discord_smoke",
       ),
       "Unreviewed preview did not expose owner acknowledgement",
     );
-    const unreviewedFields = (
-      (cardEdits.at(-1)!.embeds as JsonObject[])[0]!.fields ?? []
-    ) as JsonObject[];
+    const unreviewedText = componentText(currentDashboard());
     assert(
-      String(
-        unreviewedFields.find((field) => field.name === "Preview")?.value ?? "",
-      ).includes("Not reviewed"),
+      unreviewedText.includes("Not reviewed"),
       "Live card did not identify the unreviewed preview",
     );
     assert(
-      String(
-        unreviewedFields.find((field) => field.name === "Preview")?.value ?? "",
-      ).includes("Runtime: Static artifact"),
+      unreviewedText.includes("Runtime: Static artifact"),
       "Live card did not keep the static runtime type in preview details",
     );
     const acknowledged = new DatabaseSync(databasePath);
@@ -1197,18 +1176,14 @@ async function main(): Promise<void> {
     acknowledged.close();
     await runNode(notifier, ["--apply"], testHome, discordEnv);
     assert(
-      !customIds(threadControlEdits.at(-1)!).includes(
+      !customIds(currentDashboard()).includes(
         "kurami:preview_reviewed:r_discord_smoke",
       ),
       "Reviewed preview retained the acknowledgement button",
     );
-    const reviewedPreviewFields = (
-      (cardEdits.at(-1)!.embeds as JsonObject[])[0]!.fields ?? []
-    ) as JsonObject[];
+    const reviewedPreviewText = componentText(currentDashboard());
     assert(
-      String(
-        reviewedPreviewFields.find((field) => field.name === "Preview")?.value ?? "",
-      ).includes("Reviewed artifact `aaaaaaaaaaaa`"),
+      reviewedPreviewText.includes("Reviewed artifact `aaaaaaaaaaaa`"),
       "Live card did not show the preview acknowledgement",
     );
     const previewPolicy = new DatabaseSync(databasePath);
@@ -1231,22 +1206,13 @@ async function main(): Promise<void> {
     `);
     previewPolicy.close();
     await runNode(notifier, ["--apply"], testHome, discordEnv);
-    const policyCard = cardEdits.at(-1)!;
-    const policyFields = (
-      (policyCard.embeds as JsonObject[])[0]!.fields ?? []
-    ) as JsonObject[];
+    const policyCard = currentDashboard();
+    const policyText = componentText(policyCard);
     assert(
-      String(policyCard.content).includes("Preview required") &&
-        policyFields.some(
-          (field) =>
-            field.name === "Preview policy" &&
-            String(field.value).includes("completion paused"),
-        ) &&
-        policyFields.some(
-          (field) =>
-            field.name === "Preview" &&
-            String(field.value).includes("SHA `aaaaaaa`"),
-        ),
+      policyText.includes("Preview required") &&
+        policyText.includes("**Preview policy**") &&
+        policyText.includes("completion paused") &&
+        policyText.includes("SHA `aaaaaaa`"),
       "Preview-required policy was not explained on the live card",
     );
     const stalePreview = new DatabaseSync(databasePath);
@@ -1261,12 +1227,7 @@ async function main(): Promise<void> {
       .run();
     stalePreview.close();
     await runNode(notifier, ["--apply"], testHome, discordEnv);
-    const stalePreviewFields = (
-      (cardEdits.at(-1)!.embeds as JsonObject[])[0]!.fields ?? []
-    ) as JsonObject[];
-    const stalePreviewValue = String(
-      stalePreviewFields.find((field) => field.name === "Preview")?.value ?? "",
-    );
+    const stalePreviewValue = componentText(currentDashboard());
     assert(
       stalePreviewValue.includes("Outdated") &&
         stalePreviewValue.includes("reviewed for SHA `aaaaaaa`") &&
@@ -1412,8 +1373,8 @@ async function main(): Promise<void> {
     requestCheck.close();
 
     await runNode(notifier, ["--apply"], testHome, discordEnv);
-    const preservedControls = customIds(threadControlEdits.at(-1)!);
-    const preservedLabels = componentLabels(threadControlEdits.at(-1)!);
+    const preservedControls = customIds(currentDashboard());
+    const preservedLabels = componentLabels(currentDashboard());
     assert(
       preservedControls.includes("kurami:discard_prompt:r_discord_smoke") &&
         preservedLabels.includes("Discard local work") &&
@@ -1442,14 +1403,13 @@ async function main(): Promise<void> {
       .run();
     publishedCancellation.close();
     await runNode(notifier, ["--apply"], testHome, discordEnv);
-    const publishedControls = threadControlEdits.at(-1)!;
-    const publishedCard = cardEdits.at(-1)!;
-    const publishedEmbed = (publishedCard.embeds as JsonObject[])[0]!;
+    const publishedControls = currentDashboard();
+    const publishedText = componentText(publishedControls);
     assert(
-      String(publishedControls.content).includes(
+      publishedText.includes(
         "Cancelled — published work preserved",
       ) &&
-        componentLabels(publishedControls).includes("Open PR") &&
+        publishedText.includes("[PR") &&
         componentLabels(publishedControls).includes(
           "Close draft PR & discard",
         ) &&
@@ -1464,7 +1424,7 @@ async function main(): Promise<void> {
         !customIds(publishedControls).includes(
           "kurami:stop:r_discord_smoke",
         ) &&
-        String(publishedEmbed.description).includes(
+        publishedText.includes(
           "published branch and pull request were preserved",
         ),
       "Published cancellation still offered an impossible local discard",
@@ -1591,7 +1551,8 @@ async function main(): Promise<void> {
         liveCardEdits: cardEdits.length,
         nativeControls: readyControls.length,
         persistentControlMessages: threadControlCreates.length,
-        controlMessagePinned: pinWrites.length === 1,
+        dashboardUnpinned: true,
+        dashboardRotations: deletedThreadMessages.length,
         contextualTakeoverLabel: true,
         boundedCiRepairControl: true,
         ownerControlledReviewFix: true,
@@ -1603,13 +1564,13 @@ async function main(): Promise<void> {
         parkedPreviewEnabled: true,
         cancelledWorkConfirmation: true,
         stageTimestampSemantic: true,
-        eventControlLinks: true,
+        timelineControlsAbsent: true,
         previewReadyDelivered: true,
         previewAcknowledgementVisible: true,
         previewRequiredPolicyVisible: true,
         publishedCancellationPreserved: true,
         publishedCancellationTerminalControls: true,
-        showControlsEdited: true,
+        statusDashboardMoved: true,
         idempotent: true,
         deterministicLookup: true,
         ambiguityRejected: true,
