@@ -451,7 +451,13 @@ async function discardPublished(
     );
   }
   if (remoteBranchState(plan.canonicalRepository, plan.branchName).exists) {
-    git(plan.canonicalRepository, ["push", "origin", "--delete", plan.branchName]);
+    git(plan.canonicalRepository, [
+      "push",
+      "--no-verify",
+      "origin",
+      "--delete",
+      plan.branchName,
+    ]);
   }
   const remoteAfter = remoteBranchState(plan.canonicalRepository, plan.branchName);
   if (remoteAfter.exists !== false)

@@ -193,6 +193,16 @@ esac
         title: "Draft result",
       },
     ]);
+    const failingHooks = resolve(home, "failing-hooks");
+    const failingPrePush = resolve(failingHooks, "pre-push");
+    await mkdir(failingHooks, { recursive: true });
+    await writeFile(failingPrePush, "#!/bin/sh\nexit 66\n");
+    await chmod(failingPrePush, 0o755);
+    command(
+      "git",
+      ["config", "core.hooksPath", failingHooks],
+      canonical,
+    );
     const publishedDiscard = runNode(
       script,
       ["discard-published", "--run-id", "r_discard_published", "--apply"],

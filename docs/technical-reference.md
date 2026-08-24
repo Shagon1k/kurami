@@ -718,7 +718,10 @@ run becomes `needs_attention` and preserves the exact worktree. Discord then
 offers `Discard local work`; that action requires a second confirmation and
 calls `src/cancel-resolution.ts`, which refuses deletion when the branch has
 commits beyond its recorded base or exists on the remote. Published Draft PR
-results use the separate exact-match resolver described above. A successful
+results use a separate exact-match resolver. Only after the Draft PR, local
+branch, remote branch, worktree, and head SHA match does remote deletion bypass
+repository `pre-push` hooks, so project tooling cannot strand guarded cleanup.
+A successful
 guarded resolution changes the run to `cancelled`, marks resources `released`,
 and records the deleted resources in lifecycle history.
 
