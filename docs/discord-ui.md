@@ -38,7 +38,8 @@ Stage detail
 CI          Passed
 AI review   Outdated
 Preview     Reviewed
-Owner       Released
+
+Control · You (only when ownership is meaningful)
 
 Evidence details
 Links · Issue · PR · Preview · Codex
@@ -46,7 +47,7 @@ Links · Issue · PR · Preview · Codex
 [primary action] [secondary action] [context action] [fourth action]
 [More actions…]
 
-Run identity · stage freshness
+Short run identity · fixed owner-local update time
 ```
 
 Normal state changes edit the dashboard in place. A new timeline event or
@@ -76,11 +77,24 @@ container, compact table, link line, action hierarchy, and freshness footer as
 the run dashboard. Ranking and metadata semantics are unchanged. Same-state
 reconciliation remains a no-op, while the daily job is the recovery baseline.
 
+The health block is a stable two-column matrix: Open/Ready, Backlog/Active,
+Review/Blocked, and Deferred/Done. `Open` is the count of non-deferred,
+non-done open issues; `Backlog` remains the configured Project status.
+
+## Runtime settings
+
+`/kurami orchestrator settings` is an ephemeral Components V2 container. It
+groups capacity and preview limits into fixed-width tables. One `Edit settings…`
+select opens the existing bounded modals; Apply, Undo, and Reset remain visible
+and retain idle, revision, and owner authorization guards.
+
 ## Presentation rules
 
 - Use text as well as color or emoji for every state.
 - Keep code-block tables to short fixed labels and values that remain readable
   on a narrow Discord client.
+- Do not show released ownership as a normal status. Show `Control · You`,
+  `Control · Codex`, or `Control · Handoff pending` only while it adds meaning.
 - Keep detailed CI, review, preview, policy, and handoff evidence below the
   compact table; do not discard evidence merely to shorten a card.
 - Do not attach controls to timeline events or starter cards.

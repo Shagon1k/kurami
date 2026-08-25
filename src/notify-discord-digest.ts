@@ -5,7 +5,7 @@ import { pathToFileURL } from "node:url";
 import { DatabaseSync } from "node:sqlite";
 import { parse } from "yaml";
 import {
-  compactTable,
+  compactMatrix,
   componentMessage,
   container,
   discordComponentsV2Flag,
@@ -111,9 +111,24 @@ function truncate(value: string, maximum: number): string {
   return `${value.slice(0, Math.max(0, maximum - 1))}…`;
 }
 
-function unixTimestamp(value: string): number {
-  const timestamp = Date.parse(value);
-  return Number.isFinite(timestamp) ? Math.floor(timestamp / 1_000) : 0;
+function shortTimestamp(value: string): string {
+  const date = new Date(value);
+  if (Number.isNaN(date.valueOf())) return "unavailable";
+  const parts = Object.fromEntries(
+    new Intl.DateTimeFormat("en-GB", {
+      timeZone: "Europe/Vilnius",
+      day: "2-digit",
+      month: "2-digit",
+      year: "2-digit",
+      hour: "2-digit",
+      minute: "2-digit",
+      hourCycle: "h23",
+    })
+      .formatToParts(date)
+      .filter((part) => part.type !== "literal")
+      .map((part) => [part.type, part.value]),
+  );
+  return `${parts.day}.${parts.month}.${parts.year} ${parts.hour}:${parts.minute}`;
 }
 
 function projectName(config: ProjectConfig): string {
@@ -147,7 +162,7 @@ function desiredDigest(row: DigestRow): string {
         String(row.metadata_applied_count),
         String(row.metadata_conflicted_count),
         String(row.metadata_failed_count),
-        "discord-project-digest-v4",
+        "discord-project-digest-v5",
       ].join(":"),
     )
     .digest("hex");
@@ -328,8 +343,6 @@ export function digestPayload(
           truncate(row.explanation, 700),
         ].join("\n")
       : row.explanation;
-  const suggestedSince = unixTimestamp(row.suggested_since);
-  const lastChecked = unixTimestamp(row.last_checked_at);
   const metadata = metadataField(row);
   const links = [
     row.selected_url ? `[Suggested issue](${row.selected_url})` : "",
@@ -343,11 +356,11 @@ export function digestPayload(
         `### Suggested next\n${truncate(suggestion, 2_000)}`,
     ),
     textDisplay(
-      compactTable([
-        ["Remaining", String(stats.remainingOpen)],
-        ["Ready", `${stats.eligible} · Backlog ${stats.backlog}`],
-        ["In flight", `${stats.active} active · ${stats.blocked} blocked`],
-        ["Later", `${stats.review} review · ${stats.deferred} deferred · ${stats.done} done`],
+      compactMatrix([
+        ["Open", String(stats.remainingOpen), "Ready", String(stats.eligible)],
+        ["Backlog", String(stats.backlog), "Active", String(stats.active)],
+        ["Review", String(stats.review), "Blocked", String(stats.blocked)],
+        ["Deferred", String(stats.deferred), "Done", String(stats.done)],
       ]),
     ),
   ];
@@ -360,8 +373,7 @@ export function digestPayload(
     textDisplay(`**Links** · ${links}`),
     ...metadataComponents(row),
     textDisplay(
-      `-# ${suggestedSince ? `Suggested <t:${suggestedSince}:R> · ` : ""}` +
-        `${lastChecked ? `Last checked <t:${lastChecked}:R>` : "Freshness unavailable"}`,
+      `-# Suggested ${shortTimestamp(row.suggested_since)} · Checked ${shortTimestamp(row.last_checked_at)}`,
     ),
   );
   return componentMessage(

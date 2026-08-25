@@ -335,16 +335,18 @@ def main() -> None:
     draft = {**runtime_settings, "max_llm_running_global": 2}
     message = settings_module._settings_message(payload, draft)
     require(
-        "Pending diff" in message
-        and "Concurrent LLM: `3` → `2`" in message
-        and "Idle gate passed" in message,
+        "Pending changes" in message
+        and "Concurrent LLM** · 3 → 2" in message
+        and "Changes allowed" in message
+        and "### Capacity" in message
+        and "### Previews" in message,
         "Settings review message lost diff or idle evidence",
     )
     locked = settings_module._settings_message(
         {**payload, "idle": {"idle": False, "reasons": ["non-terminal runs: 1"]}}
     )
     require(
-        "Apply is locked" in locked and "non-terminal runs: 1" in locked,
+        "Changes locked" in locked and "non-terminal runs: 1" in locked,
         "Settings locked UX lost its reason",
     )
 

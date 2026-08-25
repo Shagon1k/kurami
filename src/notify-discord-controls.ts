@@ -203,7 +203,7 @@ const desiredSurfaceDigestSql = `
   COALESCE(r.completion_requested_at, 'completion:none') || ':' ||
   COALESCE(r.preview_requirement_satisfied_at, 'preview-satisfied:none') || ':' ||
   COALESCE(ps.hostname, 'host:none') || ':' ||
-  COALESCE(r.stop_reason, 'stop:none') || ':discord-ux-v7'
+  COALESCE(r.stop_reason, 'stop:none') || ':discord-ux-v8'
   || ':' || COALESCE(ci.content_digest, 'ci:none') || ':' ||
   (SELECT COUNT(*) FROM run_ci_repair_attempts repair_count
    WHERE repair_count.run_id = r.run_id) || ':' ||
@@ -1352,9 +1352,7 @@ export function threadControlPayload(
   const preview = previewField(card, pullRequest);
   const policy = previewPolicyField(card);
   const remote = remoteCodexContext(card, project);
-  const statusRows: Array<[string, string]> = [
-    ["Owner", card.owner_state === "none" ? "Released" : card.owner_state],
-  ];
+  const statusRows: Array<[string, string]> = [];
   if (ci) statusRows.unshift(["CI", plainStatus(ci.value)]);
   if (review) statusRows.push(["AI review", plainStatus(review.value)]);
   if (preview)
@@ -1373,13 +1371,23 @@ export function threadControlPayload(
   if (remote) detailSections.push(`**Codex handoff**\n${remote.summary}`);
   const links = runLinks(card, project, pullRequest);
   const controls = controlComponents(card, project, pullRequest);
+  const controlState = ["handoff_pending", "autonomous_successor_pending"].includes(
+    card.stage,
+  )
+    ? "Handoff pending"
+    : card.owner_state === "cli"
+      ? "You"
+      : card.owner_state === "remote" && card.run_state === "remote_owned"
+        ? "Codex"
+        : null;
   const body: DiscordObject[] = [
     textDisplay(
-      `## ${project.workspace.branch_prefix}-${card.issue_number} · ${truncate(cleanTitle(card.title), 180)}\n` +
+      `## ${project.workspace.branch_prefix}-${card.issue_number} · ${truncate(cleanTitle(card.title), 80)}\n` +
         `**${presented.label}**\n${truncate(presented.detail, 1_200)}`,
     ),
-    textDisplay(compactTable(statusRows)),
   ];
+  if (controlState) body.push(textDisplay(`**Control** · ${controlState}`));
+  if (statusRows.length > 0) body.push(textDisplay(compactTable(statusRows)));
   if (detailSections.length > 0) {
     body.push(
       separator(),
@@ -1390,7 +1398,7 @@ export function threadControlPayload(
   if (controls.length > 0) body.push(separator(), ...controls);
   body.push(
     textDisplay(
-      `-# Current state · Run ${card.run_id} · Stage since ${stageTimestamp(card.updated_at)}`,
+      `-# Run ${card.run_id.slice(0, 12)} · Updated ${ownerTimestamp(card.updated_at)}`,
     ),
   );
   return componentMessage(

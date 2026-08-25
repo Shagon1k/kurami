@@ -75,14 +75,33 @@ export function componentMessage(
 }
 
 export function compactTable(rows: Array<[string, string]>): string {
-  const width = Math.min(
-    18,
-    Math.max(1, ...rows.map(([label]) => label.length)),
-  );
+  const labelWidth = 12;
+  const valueWidth = 24;
   return [
     "```text",
     ...rows.map(
-      ([label, value]) => `${label.slice(0, width).padEnd(width)}  ${value}`,
+      ([label, value]) =>
+        `${label.slice(0, labelWidth).padEnd(labelWidth)}  ${value.slice(0, valueWidth).padEnd(valueWidth)}`,
+    ),
+    "```",
+  ].join("\n");
+}
+
+export function compactMatrix(
+  rows: Array<[string, string, string, string]>,
+): string {
+  const labelWidth = 10;
+  const valueWidth = 4;
+  return [
+    "```text",
+    ...rows.map(([leftLabel, leftValue, rightLabel, rightValue]) =>
+      [
+        leftLabel.slice(0, labelWidth).padEnd(labelWidth),
+        leftValue.slice(0, valueWidth).padStart(valueWidth),
+        "   ",
+        rightLabel.slice(0, labelWidth).padEnd(labelWidth),
+        rightValue.slice(0, valueWidth).padStart(valueWidth),
+      ].join(" "),
     ),
     "```",
   ].join("\n");

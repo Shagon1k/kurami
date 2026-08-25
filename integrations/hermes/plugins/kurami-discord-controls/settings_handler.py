@@ -204,38 +204,53 @@ def _settings_message(
     revision = int(payload.get("revision", 0))
     idle = payload.get("idle") if isinstance(payload.get("idle"), dict) else {}
     is_idle = idle.get("idle") is True
-    lines = [
-        "**Kurami Orchestrator settings**",
-        f"Revision: `{revision}` · source: `{payload.get('source', 'unknown')}`",
-        "",
-        f"Concurrent LLM: **{draft['max_llm_running_global']}**",
-        f"AI triage/day: **{draft['ai_triage_daily']}** issues/project",
-        f"Global WIP: **{draft['max_active_global']}**",
+    def table(rows: list[tuple[str, object]]) -> str:
+        return "\n".join(
+            [
+                "```text",
+                *(
+                    f"{label[:18]:<18}  {str(value)[:18]:<18}"
+                    for label, value in rows
+                ),
+                "```",
+            ]
+        )
+
+    capacity = [
+        ("Concurrent LLM", f"{draft['max_llm_running_global']} / 3"),
+        ("Global WIP", draft["max_active_global"]),
+        ("AI triage", f"{draft['ai_triage_daily']} / project/day"),
     ]
-    for project, limit in draft["project_wip"].items():
-        lines.append(f"WIP {project}: **{limit}**")
-    lines.extend(
-        [
-            f"Active previews: **{draft['max_previews_global']}**",
-            f"Concurrent preview builds: **{draft['max_preview_builds_global']}**",
-            f"Preview lifetime: **{draft['preview_ttl_hours']}h**",
-            "",
-        ]
+    capacity.extend(
+        (f"WIP {project}", limit) for project, limit in draft["project_wip"].items()
     )
+    lines = [
+        "## Kurami Orchestrator settings",
+        f"-# Revision {revision} · {payload.get('source', 'unknown')}",
+        "### Capacity",
+        table(capacity),
+        "### Previews",
+        table(
+            [
+                ("Active", draft["max_previews_global"]),
+                ("Concurrent builds", draft["max_preview_builds_global"]),
+                ("Lifetime", f"{draft['preview_ttl_hours']}h"),
+            ]
+        ),
+    ]
     diff = _settings_diff(current, draft)
     if diff:
-        lines.append("**Pending diff**")
-        lines.extend(f"- {label}: `{before}` → `{after}`" for label, before, after in diff)
-        lines.append("")
+        lines.append("### Pending changes")
+        lines.extend(f"- **{label}** · {before} → {after}" for label, before, after in diff)
     if is_idle:
-        lines.append("✅ Idle gate passed. Apply affects future runs only.")
+        lines.append("✅ **Changes allowed** · no active sessions")
     else:
         reasons = idle.get("reasons") if isinstance(idle.get("reasons"), list) else []
         detail = "; ".join(str(reason)[:120] for reason in reasons[:5]) or "runtime is busy"
-        lines.append(f"🔒 Apply is locked until the orchestrator is idle: {detail}.")
+        lines.append(f"🔒 **Changes locked** · {detail}")
     if notice:
         lines.extend(["", str(notice)[:500]])
-    return "\n".join(lines)[:1950]
+    return "\n".join(lines)[:3900]
 
 
 async def _send_audit(client: Any, payload: dict[str, Any], actor_id: str) -> Optional[str]:
@@ -284,36 +299,79 @@ def _build_settings_view(
 ) -> Any:
     import discord
 
-    class SettingsView(discord.ui.View):
+    class SettingsView(discord.ui.LayoutView):
         def __init__(self) -> None:
             super().__init__(timeout=300)
             self.payload = payload
             self.draft = copy.deepcopy(_validated_settings(payload.get("settings")))
             self.actor_id = actor_id
-            self._sync_buttons()
+            self.edit_select: Any = None
+            self.notice = ""
+            self._render()
 
         def _idle(self) -> bool:
             idle = self.payload.get("idle")
             return isinstance(idle, dict) and idle.get("idle") is True
 
-        def _sync_buttons(self) -> None:
+        def _render(self) -> None:
             diff = bool(_settings_diff(self.payload["settings"], self.draft))
-            for item in self.children:
-                custom_id = str(getattr(item, "custom_id", ""))
-                if custom_id in {
-                    "kurami:settings:capacity",
-                    "kurami:settings:triage",
-                    "kurami:settings:previews",
-                }:
-                    item.disabled = not self._idle()
-                elif custom_id == "kurami:settings:apply":
-                    item.disabled = not self._idle() or not diff
-                elif custom_id == "kurami:settings:undo":
-                    item.disabled = not self._idle() or int(self.payload.get("revision", 0)) == 0
-                elif custom_id == "kurami:settings:reset":
-                    item.disabled = not self._idle() or not _settings_diff(
-                        self.payload["settings"], self.payload["defaults"]
-                    )
+            self.clear_items()
+            self.edit_select = discord.ui.Select(
+                custom_id="kurami:settings:edit",
+                placeholder="Edit settings…",
+                min_values=1,
+                max_values=1,
+                disabled=not self._idle(),
+                options=[
+                    discord.SelectOption(
+                        label="Capacity & WIP", value="capacity",
+                        description="LLM and project limits",
+                    ),
+                    discord.SelectOption(
+                        label="AI triage", value="triage",
+                        description="Daily issue analysis limit",
+                    ),
+                    discord.SelectOption(
+                        label="Previews", value="previews",
+                        description="Slots, builds, and lifetime",
+                    ),
+                ],
+            )
+            self.edit_select.callback = self._edit
+            apply_button = discord.ui.Button(
+                label="Apply",
+                style=discord.ButtonStyle.success,
+                custom_id="kurami:settings:apply",
+                disabled=not self._idle() or not diff,
+            )
+            apply_button.callback = self._apply
+            undo_button = discord.ui.Button(
+                label="Undo last",
+                style=discord.ButtonStyle.secondary,
+                custom_id="kurami:settings:undo",
+                disabled=not self._idle() or int(self.payload.get("revision", 0)) == 0,
+            )
+            undo_button.callback = self._undo
+            reset_button = discord.ui.Button(
+                label="Reset defaults",
+                style=discord.ButtonStyle.danger,
+                custom_id="kurami:settings:reset",
+                disabled=not self._idle() or not _settings_diff(
+                    self.payload["settings"], self.payload["defaults"]
+                ),
+            )
+            reset_button.callback = self._reset
+            self.add_item(
+                discord.ui.Container(
+                    discord.ui.TextDisplay(
+                        _settings_message(self.payload, self.draft, self.notice)
+                    ),
+                    discord.ui.Separator(),
+                    discord.ui.ActionRow(self.edit_select),
+                    discord.ui.ActionRow(apply_button, undo_button, reset_button),
+                    accent_color=0x5865F2,
+                )
+            )
 
         async def interaction_check(self, interaction: Any) -> bool:
             interaction_actor = str(
@@ -343,7 +401,6 @@ def _build_settings_view(
                 audit_warning = await _send_audit(client, fresh, self.actor_id)
                 self.payload = fresh
                 self.draft = copy.deepcopy(_validated_settings(fresh["settings"]))
-                self._sync_buttons()
                 notice = {
                     "applied": "✅ Settings applied.",
                     "reset": "✅ Safe defaults restored.",
@@ -352,25 +409,15 @@ def _build_settings_view(
                 }.get(str(fresh.get("action")), "Settings updated.")
                 if audit_warning:
                     notice = f"{notice} ⚠️ {audit_warning}"
-                await interaction.edit_original_response(
-                    content=_settings_message(fresh, notice=notice), view=self
-                )
+                self.notice = notice
+                self._render()
+                await interaction.edit_original_response(view=self)
             except Exception as exc:
-                await interaction.edit_original_response(
-                    content=_settings_message(
-                        self.payload,
-                        self.draft,
-                        notice=f"❌ Settings rejected safely: {str(exc)[:400]}",
-                    ),
-                    view=self,
-                )
+                self.notice = f"❌ Settings rejected safely: {str(exc)[:400]}"
+                self._render()
+                await interaction.edit_original_response(view=self)
 
-        @discord.ui.button(
-            label="Concurrency & WIP",
-            style=discord.ButtonStyle.secondary,
-            custom_id="kurami:settings:capacity",
-        )
-        async def capacity(self, interaction: Any, _button: Any) -> None:
+        async def _capacity(self, interaction: Any) -> None:
             parent = self
 
             class CapacityModal(discord.ui.Modal):
@@ -409,9 +456,8 @@ def _build_settings_view(
                             else:
                                 parent.draft[key] = value
                         parent.draft = _validated_settings(parent.draft)
-                        parent._sync_buttons()
+                        parent._render()
                         await modal_interaction.response.edit_message(
-                            content=_settings_message(parent.payload, parent.draft),
                             view=parent,
                         )
                     except Exception as exc:
@@ -421,12 +467,7 @@ def _build_settings_view(
 
             await interaction.response.send_modal(CapacityModal())
 
-        @discord.ui.button(
-            label="AI triage",
-            style=discord.ButtonStyle.secondary,
-            custom_id="kurami:settings:triage",
-        )
-        async def triage(self, interaction: Any, _button: Any) -> None:
+        async def _triage(self, interaction: Any) -> None:
             parent = self
 
             class TriageModal(discord.ui.Modal):
@@ -444,9 +485,8 @@ def _build_settings_view(
                     try:
                         parent.draft["ai_triage_daily"] = int(str(self.limit.value))
                         parent.draft = _validated_settings(parent.draft)
-                        parent._sync_buttons()
+                        parent._render()
                         await modal_interaction.response.edit_message(
-                            content=_settings_message(parent.payload, parent.draft),
                             view=parent,
                         )
                     except Exception as exc:
@@ -456,12 +496,7 @@ def _build_settings_view(
 
             await interaction.response.send_modal(TriageModal())
 
-        @discord.ui.button(
-            label="Previews",
-            style=discord.ButtonStyle.secondary,
-            custom_id="kurami:settings:previews",
-        )
-        async def previews(self, interaction: Any, _button: Any) -> None:
+        async def _previews(self, interaction: Any) -> None:
             parent = self
 
             class PreviewModal(discord.ui.Modal):
@@ -487,9 +522,8 @@ def _build_settings_view(
                         for key, item in self.inputs:
                             parent.draft[key] = int(str(item.value))
                         parent.draft = _validated_settings(parent.draft)
-                        parent._sync_buttons()
+                        parent._render()
                         await modal_interaction.response.edit_message(
-                            content=_settings_message(parent.payload, parent.draft),
                             view=parent,
                         )
                     except Exception as exc:
@@ -499,28 +533,26 @@ def _build_settings_view(
 
             await interaction.response.send_modal(PreviewModal())
 
-        @discord.ui.button(
-            label="Apply",
-            style=discord.ButtonStyle.success,
-            custom_id="kurami:settings:apply",
-        )
-        async def apply(self, interaction: Any, _button: Any) -> None:
+        async def _edit(self, interaction: Any) -> None:
+            selected = str(self.edit_select.values[0]) if self.edit_select.values else ""
+            if selected == "capacity":
+                await self._capacity(interaction)
+            elif selected == "triage":
+                await self._triage(interaction)
+            elif selected == "previews":
+                await self._previews(interaction)
+            else:
+                await interaction.response.send_message(
+                    "Unknown settings section.", ephemeral=True
+                )
+
+        async def _apply(self, interaction: Any) -> None:
             await self._apply_action(interaction, "apply", self.draft)
 
-        @discord.ui.button(
-            label="Undo last",
-            style=discord.ButtonStyle.secondary,
-            custom_id="kurami:settings:undo",
-        )
-        async def undo(self, interaction: Any, _button: Any) -> None:
+        async def _undo(self, interaction: Any) -> None:
             await self._apply_action(interaction, "rollback")
 
-        @discord.ui.button(
-            label="Reset defaults",
-            style=discord.ButtonStyle.danger,
-            custom_id="kurami:settings:reset",
-        )
-        async def reset(self, interaction: Any, _button: Any) -> None:
+        async def _reset(self, interaction: Any) -> None:
             await self._apply_action(interaction, "reset")
 
     return SettingsView()
@@ -615,9 +647,7 @@ def install_settings_command(
                 return
             actor_id = str(getattr(getattr(interaction, "user", None), "id", ""))
             view = _build_settings_view(client, authorized, payload, actor_id)
-            await interaction.response.send_message(
-                _settings_message(payload), view=view, ephemeral=True
-            )
+            await interaction.response.send_message(view=view, ephemeral=True)
         except Exception as exc:
             await interaction.response.send_message(
                 f"Kurami settings could not be opened safely: {str(exc)[:400]}",

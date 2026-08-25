@@ -266,6 +266,10 @@ async function main(): Promise<void> {
         initialPayload.includes("TailorTales · Project digest") &&
         initialPayload.includes("Suggested next") &&
         initialPayload.includes("```text") &&
+        initialPayload.includes("Open") &&
+        initialPayload.includes("Ready") &&
+        initialPayload.includes("Deferred") &&
+        initialPayload.includes("Done") &&
         initialPayload.includes("[Suggested issue]") &&
         !initialPayload.includes("Open suggested issue") &&
         !initialPayload.includes("Open project") &&

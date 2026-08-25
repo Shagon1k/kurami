@@ -242,7 +242,7 @@ async function main(): Promise<void> {
       }
       if (method === "POST" && url === "/channels/1001/messages") {
         const payload = await readJson(request);
-        if (componentText(payload).includes("Current state · Run")) {
+        if (componentText(payload).includes("-# Run ")) {
           threadControlCreates.push(payload);
           latestDashboard = payload;
         } else threadEvents.push(payload);
@@ -491,9 +491,9 @@ async function main(): Promise<void> {
     );
     assert(
       componentText(firstCurrentDashboard).includes(
-        "Stage since 16.08.26 12:10 · <t:",
-      ) && componentText(firstCurrentDashboard).includes(":R>"),
-      "Stage timestamp is not owner-local and self-updating",
+        "Run r_discord_sm · Updated 16.08.26 12:10",
+      ) && !componentText(firstCurrentDashboard).includes("Owner       Released"),
+      "Dashboard footer is unstable or released ownership is still prominent",
     );
     assert(
       componentText(firstCurrentDashboard).includes("Failed") &&
