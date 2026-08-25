@@ -203,7 +203,7 @@ const desiredSurfaceDigestSql = `
   COALESCE(r.completion_requested_at, 'completion:none') || ':' ||
   COALESCE(r.preview_requirement_satisfied_at, 'preview-satisfied:none') || ':' ||
   COALESCE(ps.hostname, 'host:none') || ':' ||
-  COALESCE(r.stop_reason, 'stop:none') || ':discord-ux-v9'
+  COALESCE(r.stop_reason, 'stop:none') || ':discord-ux-v12'
   || ':' || COALESCE(ci.content_digest, 'ci:none') || ':' ||
   (SELECT COUNT(*) FROM run_ci_repair_attempts repair_count
    WHERE repair_count.run_id = r.run_id) || ':' ||
@@ -984,8 +984,8 @@ function aiReviewField(
       `${card.ai_review_suggestion_count} Suggestions`,
     ].join(" · ");
     const status = card.ai_review_url
-      ? `[✅ Ready](${card.ai_review_url})`
-      : "✅ Ready";
+      ? `✅ **Ready** · [Open review](${card.ai_review_url})`
+      : "✅ **Ready**";
     const currentHead = pullRequest?.headSha ?? card.ci_head_sha;
     if (
       currentHead &&
@@ -1009,7 +1009,7 @@ function aiReviewField(
     }
     return {
       name: "AI review",
-      value: `**${status}**\n${counts}${sha}`,
+      value: `${status}\n${counts}${sha}`,
     };
   }
   if (card.ai_review_state === "superseded")
@@ -1354,7 +1354,11 @@ export function threadControlPayload(
   const remote = remoteCodexContext(card, project);
   const statusRows: Array<[string, string]> = [];
   if (ci) statusRows.unshift(["CI", plainStatus(ci.value)]);
-  if (review) statusRows.push(["AI review", plainStatus(review.value)]);
+  if (review)
+    statusRows.push([
+      "AI review",
+      plainStatus(review.value).replace(/\s*·\s*Open review\b/u, ""),
+    ]);
   if (preview)
     statusRows.push([
       "Preview",

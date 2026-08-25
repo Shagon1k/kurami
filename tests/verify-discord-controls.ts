@@ -710,14 +710,28 @@ async function main(): Promise<void> {
     reviewReady.close();
     await runNode(notifier, ["--apply"], testHome, discordEnv);
     const reviewedCard = currentDashboard();
+    const reviewedText = componentText(reviewedCard);
+    const reviewedSummary = nestedComponents(reviewedCard)
+      .filter((component) => component.type === 10)
+      .map((component) => String(component.content ?? ""))
+      .find(
+        (content) => content.includes("```text") && content.includes("AI review"),
+      );
     assert(
-      componentText(reviewedCard).includes("AI Review Ready") &&
+      reviewedText.includes("AI Review Ready") &&
         customIds(currentDashboard()).includes(
           "kurami:review_fix:r_discord_smoke",
         ) &&
-        componentText(reviewedCard).includes(
+        reviewedText.includes(
           "1 Critical · 2 Important · 3 Suggestions",
-        ),
+        ) &&
+        reviewedText.includes(
+          "✅ **Ready** · [Open review](https://example.invalid/pulls/9401#pullrequestreview-1)",
+        ) &&
+        (reviewedSummary ?? "").includes("✅ Ready") &&
+        !(reviewedSummary ?? "").includes("Open review") &&
+        !reviewedText.includes("[✅ Ready]") &&
+        !reviewedText.includes("**[Open review]"),
       "Ready AI review did not expose aggregate findings without Discord chatter",
     );
     const fixQueued = new DatabaseSync(databasePath);
