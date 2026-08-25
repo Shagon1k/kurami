@@ -39,7 +39,7 @@ CI          Passed
 AI review   Outdated
 Preview     Reviewed
 
-Control · You (only when ownership is meaningful)
+Control · AI Agent (only when ownership is meaningful)
 
 Evidence details
 Links · Issue · PR · Preview · Codex
@@ -93,8 +93,9 @@ and retain idle, revision, and owner authorization guards.
 - Use text as well as color or emoji for every state.
 - Keep code-block tables to short fixed labels and values that remain readable
   on a narrow Discord client.
-- Do not show released ownership as a normal status. Show `Control · You`,
-  `Control · Codex`, or `Control · Handoff pending` only while it adds meaning.
+- Do not show released ownership as a normal status. Show `Control · AI Agent`
+  for managed autonomous execution, `Control · You` for remote owner control,
+  or `Control · Handoff pending` only while it adds meaning.
 - Keep detailed CI, review, preview, policy, and handoff evidence below the
   compact table; do not discard evidence merely to shorten a card.
 - Do not attach controls to timeline events or starter cards.

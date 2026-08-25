@@ -492,8 +492,10 @@ async function main(): Promise<void> {
     assert(
       componentText(firstCurrentDashboard).includes(
         "Run r_discord_sm · Updated 16.08.26 12:10",
-      ) && !componentText(firstCurrentDashboard).includes("Owner       Released"),
-      "Dashboard footer is unstable or released ownership is still prominent",
+      ) &&
+        componentText(firstCurrentDashboard).includes("Control** · AI Agent") &&
+        !componentText(firstCurrentDashboard).includes("Owner       Released"),
+      "Dashboard footer is unstable or autonomous ownership is mislabeled",
     );
     assert(
       componentText(firstCurrentDashboard).includes("Failed") &&
@@ -904,6 +906,7 @@ async function main(): Promise<void> {
     const pendingControls = currentDashboard();
     assert(
       componentText(pendingControls).includes("Preparing human control") &&
+        componentText(pendingControls).includes("Control** · Handoff pending") &&
         !componentLabels(pendingControls).includes("Take control") &&
         componentLabels(pendingControls).includes("Cancel run"),
       "Pending takeover did not replace the active Take control button",
@@ -1009,6 +1012,8 @@ async function main(): Promise<void> {
     assert(
       componentLabels(remoteControls).includes("Continue autonomously") &&
         componentLabels(remoteControls).includes("Start preview") &&
+        componentText(remoteControls).includes("Control** · You") &&
+        !componentText(remoteControls).includes("Control** · AI Agent") &&
         componentText(remoteControls).includes(`[Codex](${codexLaunchUrl})`) &&
         customIds(remoteControls).includes(
           "kurami:take_control:r_discord_smoke",

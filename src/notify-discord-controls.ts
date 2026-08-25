@@ -203,7 +203,7 @@ const desiredSurfaceDigestSql = `
   COALESCE(r.completion_requested_at, 'completion:none') || ':' ||
   COALESCE(r.preview_requirement_satisfied_at, 'preview-satisfied:none') || ':' ||
   COALESCE(ps.hostname, 'host:none') || ':' ||
-  COALESCE(r.stop_reason, 'stop:none') || ':discord-ux-v8'
+  COALESCE(r.stop_reason, 'stop:none') || ':discord-ux-v9'
   || ':' || COALESCE(ci.content_digest, 'ci:none') || ':' ||
   (SELECT COUNT(*) FROM run_ci_repair_attempts repair_count
    WHERE repair_count.run_id = r.run_id) || ':' ||
@@ -1376,9 +1376,9 @@ export function threadControlPayload(
   )
     ? "Handoff pending"
     : card.owner_state === "cli"
-      ? "You"
+      ? "AI Agent"
       : card.owner_state === "remote" && card.run_state === "remote_owned"
-        ? "Codex"
+        ? "You"
         : null;
   const body: DiscordObject[] = [
     textDisplay(
