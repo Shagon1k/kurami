@@ -4,6 +4,8 @@ mode: live
 discord:
   digest_channel_id: "1539929665068601364"
   resource_guard_alerts_channel_id: "1538633903726788758"
+  health_channel_id: "1538633991974817842"
+  alerts_channel_id: "1538633903726788758"
   maintenance_channel_id: "1538634082139902064"
 
 server_health:

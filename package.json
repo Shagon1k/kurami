@@ -29,6 +29,7 @@
     "test:project-readiness": "node tests/verify-project-readiness.ts",
     "test:runtime-health": "node tests/verify-runtime-health.ts",
     "test:server-health": "node tests/verify-server-health.ts",
+    "test:system-health-discord": "node tests/verify-system-health-discord.ts",
     "test:resource-guard": "node tests/verify-resource-guard.ts",
     "test:resource-guard-discord": "node tests/verify-resource-guard-discord.ts",
     "test:maintenance": "node tests/verify-monthly-maintenance.ts",

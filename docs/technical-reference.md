@@ -1325,11 +1325,11 @@ Five additional `no_agent` jobs own digest and operational housekeeping:
 - state backup on days `1, 4, 7, ...` at `03:15 UTC`, delivered to the muted
   Discord maintenance channel;
 - read-only runtime and server health inspection every ten minutes, silent while
-  healthy and delivered to the private Discord alerts channel only on a new
+  healthy and posted as a Discord Components V2 alert card only on a new
   incident, severity change, two-hour reminder, or recovery;
-- a compact Kurami system health dashboard every fifteen minutes, delivered to the muted
-  Discord health channel with CPU, load average, RAM, swap, disk, uptime,
-  preview, backup, and Resource Guard statistics;
+- a persistent Kurami system health card every fifteen minutes. The same Discord
+  message is edited in place and separates host metrics under `System` from
+  application metrics under `Project Orchestrator`;
 - monthly bounded maintenance on the first day at `04:15 UTC`, delivered to the
   muted Discord maintenance channel.
 
@@ -1340,7 +1340,15 @@ for RAM. Disk health continues to use the Resource Guard thresholds from
 `limits`: warning at `75%`, admission block at `85%`, and emergency at `92%`.
 Alert streak and cooldown state is stored atomically in
 `state/runtime-health-alert.json`; changing metric values alone does not bypass
-the cooldown.
+the cooldown. The persistent health-card message ID lives in
+`state/system-health-discord.json`.
+
+Both Hermes jobs use `deliver: local`; their scripts post Components V2 cards
+through the existing Discord bot REST credentials. This keeps Hermes as the
+scheduler while preventing the generic `Cronjob Response` header and job-management
+footer from leaking into Discord. The bot token is read from `HERMES_HOME/.env`
+and is never printed or stored in card state. Discord targets are configured as
+`discord.health_channel_id` and `discord.alerts_channel_id`.
 
 The health job is intentionally not a cleanup reconciler. An orphan Docker
 preview is evidence of state drift and requires owner review before the exact

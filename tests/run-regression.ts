@@ -21,6 +21,7 @@ const suites = [
   "test:project-readiness",
   "test:runtime-health",
   "test:server-health",
+  "test:system-health-discord",
   "test:resource-guard",
   "test:resource-guard-discord",
   "test:maintenance",
