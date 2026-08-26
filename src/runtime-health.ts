@@ -1,6 +1,6 @@
 import { spawnSync } from "node:child_process";
-import { readdir, readFile, stat } from "node:fs/promises";
-import { resolve } from "node:path";
+import { mkdir, readdir, readFile, rename, stat, writeFile } from "node:fs/promises";
+import { dirname, resolve } from "node:path";
 import { pathToFileURL } from "node:url";
 import { DatabaseSync } from "node:sqlite";
 import { parse } from "yaml";
@@ -63,6 +63,10 @@ export type RuntimeHealthResult = {
   checkedAt: string;
   databaseIntegrity: string;
   dockerRootless: boolean;
+  containerRuntime: ContainerRuntimeSnapshot;
+  topConsumers: TopConsumers;
+  oomKillCount: number;
+  oomKillsSincePreviousCheck: number;
   activePreviewLeases: number;
   backupAgeHours: number | null;
   backupMaxAgeHours: number;
@@ -73,6 +77,38 @@ export type RuntimeHealthResult = {
   serverHealthConfig: ServerHealthConfig;
   alertIssues: HealthAlertIssue[];
   problems: string[];
+};
+
+export type ContainerRuntimeSnapshot = {
+  total: number;
+  running: number;
+  unhealthy: number;
+};
+
+export type ResourceConsumer = {
+  name: string;
+  cpuPercent: number;
+  memoryPercent: number;
+  rssMiB: number;
+};
+
+export type ContainerConsumer = {
+  name: string;
+  cpuPercent: number;
+  memoryPercent: number;
+  memoryUsage: string;
+};
+
+export type TopConsumers = {
+  cpu: ResourceConsumer | null;
+  memory: ResourceConsumer | null;
+  containerCpu: ContainerConsumer | null;
+  containerMemory: ContainerConsumer | null;
+};
+
+type RuntimeHealthCounterState = {
+  version: 1;
+  oomKillCount: number;
 };
 
 type CommandResult = {
@@ -98,6 +134,125 @@ function run(command: string, args: string[]): CommandResult {
     stdout: result.stdout,
     stderr: result.stderr,
   };
+}
+
+function parsePercent(value: string): number {
+  const parsed = Number.parseFloat(value.replace(/%$/u, ""));
+  return Number.isFinite(parsed) ? parsed : 0;
+}
+
+function parseProcessConsumer(line: string | undefined): ResourceConsumer | null {
+  const fields = line?.trim().split(/\s+/u) ?? [];
+  if (fields.length < 4) return null;
+  const rssKiB = Number(fields.at(-1));
+  const memoryPercent = Number(fields.at(-2));
+  const cpuPercent = Number(fields.at(-3));
+  const name = fields.slice(0, -3).join(" ");
+  if (
+    !name ||
+    !Number.isFinite(rssKiB) ||
+    !Number.isFinite(memoryPercent) ||
+    !Number.isFinite(cpuPercent)
+  ) {
+    return null;
+  }
+  return {
+    name,
+    cpuPercent,
+    memoryPercent,
+    rssMiB: Math.round((rssKiB / 1024) * 10) / 10,
+  };
+}
+
+function topProcessConsumers(): Pick<TopConsumers, "cpu" | "memory"> {
+  const columns = ["-eo", "comm=,pcpu=,pmem=,rss="];
+  const byCpu = run("ps", [...columns, "--sort=-pcpu"]);
+  const byMemory = run("ps", [...columns, "--sort=-rss"]);
+  return {
+    cpu: byCpu.status === 0
+      ? parseProcessConsumer(byCpu.stdout.split("\n").find(Boolean))
+      : null,
+    memory: byMemory.status === 0
+      ? parseProcessConsumer(byMemory.stdout.split("\n").find(Boolean))
+      : null,
+  };
+}
+
+function parseContainerConsumer(line: string): ContainerConsumer | null {
+  try {
+    const value = JSON.parse(line) as {
+      Name?: string;
+      CPUPerc?: string;
+      MemPerc?: string;
+      MemUsage?: string;
+    };
+    if (!value.Name) return null;
+    return {
+      name: value.Name,
+      cpuPercent: parsePercent(value.CPUPerc ?? "0"),
+      memoryPercent: parsePercent(value.MemPerc ?? "0"),
+      memoryUsage: value.MemUsage?.trim() || "unknown",
+    };
+  } catch {
+    return null;
+  }
+}
+
+function topContainerConsumers(): Pick<
+  TopConsumers,
+  "containerCpu" | "containerMemory"
+> {
+  const stats = run("docker", ["stats", "--no-stream", "--format", "{{json .}}"]);
+  if (stats.status !== 0) return { containerCpu: null, containerMemory: null };
+  const consumers = stats.stdout
+    .split("\n")
+    .filter(Boolean)
+    .map(parseContainerConsumer)
+    .filter((value): value is ContainerConsumer => value !== null);
+  return {
+    containerCpu: consumers.toSorted((left, right) => right.cpuPercent - left.cpuPercent)[0] ?? null,
+    containerMemory:
+      consumers.toSorted((left, right) => right.memoryPercent - left.memoryPercent)[0] ?? null,
+  };
+}
+
+export function parseOomKillCount(content: string): number {
+  const match = /^oom_kill\s+(\d+)$/mu.exec(content);
+  if (!match) fail("/proc/vmstat does not contain oom_kill");
+  return Number(match[1]);
+}
+
+async function readRuntimeHealthCounterState(
+  path: string,
+): Promise<RuntimeHealthCounterState | null> {
+  try {
+    const value = JSON.parse(await readFile(path, "utf8")) as Partial<RuntimeHealthCounterState>;
+    if (
+      value.version === 1 &&
+      Number.isInteger(value.oomKillCount) &&
+      Number(value.oomKillCount) >= 0
+    ) {
+      return value as RuntimeHealthCounterState;
+    }
+    return null;
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === "ENOENT") return null;
+    throw error;
+  }
+}
+
+export async function writeRuntimeHealthCounterState(
+  path: string,
+  oomKillCount: number,
+): Promise<void> {
+  await mkdir(dirname(path), { recursive: true });
+  const temporary = `${path}.${process.pid}.tmp`;
+  await writeFile(
+    temporary,
+    `${JSON.stringify({ version: 1, oomKillCount })}\n`,
+    { mode: 0o600 },
+  );
+  await rename(temporary, path);
 }
 
 function fail(message: string): never {
@@ -143,7 +298,7 @@ export function formatHealthSummary(result: RuntimeHealthResult): string {
     `- Swap: ${swap}`,
     `- Disk: ${result.resourceGuard.disk.usedPercent}% used (${result.resourceGuard.disk.availableGiB} GiB available)`,
     `- SQLite: ${result.databaseIntegrity}`,
-    `- Docker: ${result.dockerRootless ? "rootless" : "unexpected daemon"}`,
+    `- Runtime: ${result.containerRuntime.running} running · ${result.containerRuntime.unhealthy} unhealthy`,
     `- Active previews: ${result.activePreviewLeases}`,
     `- Managed worktrees: ${result.resourceGuard.worktrees.global}/${result.resourceGuard.worktrees.maxGlobal}`,
     `- Resource quarantines: ${result.resourceGuard.quarantines.quarantined}`,
@@ -301,7 +456,11 @@ async function latestBackupAgeHours(orchestratorHome: string): Promise<number | 
   return Math.round(((Date.now() - metadata.mtimeMs) / 3_600_000) * 10) / 10;
 }
 
-function dockerInventory(): { rootless: boolean; projects: string[] } {
+function dockerInventory(): {
+  rootless: boolean;
+  projects: string[];
+  runtime: ContainerRuntimeSnapshot;
+} {
   const info = run("docker", ["info", "--format", "{{json .SecurityOptions}}"]);
   if (info.status !== 0) {
     fail(info.stderr.trim() || "Docker daemon is unavailable");
@@ -317,9 +476,19 @@ function dockerInventory(): { rootless: boolean; projects: string[] } {
   if (list.status !== 0) {
     fail(list.stderr.trim() || "Cannot list Docker Compose projects");
   }
+  const containers = run("docker", ["ps", "-a", "--format", "{{.State}}|{{.Status}}"]);
+  if (containers.status !== 0) {
+    fail(containers.stderr.trim() || "Cannot list Docker containers");
+  }
+  const statuses = containers.stdout.split("\n").map((line) => line.trim()).filter(Boolean);
   return {
     rootless: info.stdout.includes("name=rootless"),
     projects: [...new Set(list.stdout.split("\n").map((line) => line.trim()).filter(Boolean))],
+    runtime: {
+      total: statuses.length,
+      running: statuses.filter((line) => line.startsWith("running|")).length,
+      unhealthy: statuses.filter((line) => line.includes("(unhealthy)")).length,
+    },
   };
 }
 
@@ -347,7 +516,8 @@ export async function inspectRuntimeHealth(
   orchestratorHome: string,
 ): Promise<RuntimeHealthResult> {
   const home = resolve(orchestratorHome);
-  const [projects, config, server] = await Promise.all([
+  const counterStatePath = resolve(home, "state/runtime-health-counters.json");
+  const [projects, config, server, vmstat, previousCounters] = await Promise.all([
     readFile(resolve(home, "config/projects.yaml"), "utf8").then(
       (content) => parse(content) as ResourceGuardProjects,
     ),
@@ -360,6 +530,8 @@ export async function inspectRuntimeHealth(
         },
     ),
     inspectServerHealth(),
+    readFile("/proc/vmstat", "utf8"),
+    readRuntimeHealthCounterState(counterStatePath),
   ]);
   if (projects.version !== 1 || config.version !== 1) fail("Unsupported config version");
   validateResourceGuardLimits(config.limits);
@@ -388,6 +560,14 @@ export async function inspectRuntimeHealth(
   }
 
   const docker = dockerInventory();
+  const topConsumers: TopConsumers = {
+    ...topProcessConsumers(),
+    ...topContainerConsumers(),
+  };
+  const oomKillCount = parseOomKillCount(vmstat);
+  const oomKillsSincePreviousCheck = previousCounters === null
+    ? 0
+    : Math.max(0, oomKillCount - previousCounters.oomKillCount);
   const runtimeDirectoryInventory = await runtimeDirectories(
     resolve(home, "state/previews"),
   );
@@ -404,8 +584,18 @@ export async function inspectRuntimeHealth(
   const backupFresh =
     backupAgeHours !== null && backupAgeHours <= backupMaxAgeHours;
   const problems: string[] = [];
+  if (oomKillsSincePreviousCheck > 0) {
+    problems.push(
+      `Linux OOM killer terminated ${oomKillsSincePreviousCheck} process${oomKillsSincePreviousCheck === 1 ? "" : "es"} since the previous alert check`,
+    );
+  }
   if (integrity !== "ok") problems.push(`SQLite quick_check: ${integrity}`);
   if (!docker.rootless) problems.push("Docker daemon is not rootless");
+  if (docker.runtime.unhealthy > 0) {
+    problems.push(
+      `Docker reports ${docker.runtime.unhealthy} unhealthy container${docker.runtime.unhealthy === 1 ? "" : "s"}`,
+    );
+  }
   if (!backupFresh) {
     problems.push(
       backupAgeHours === null
@@ -444,6 +634,10 @@ export async function inspectRuntimeHealth(
     checkedAt: new Date().toISOString(),
     databaseIntegrity: integrity,
     dockerRootless: docker.rootless,
+    containerRuntime: docker.runtime,
+    topConsumers,
+    oomKillCount,
+    oomKillsSincePreviousCheck,
     activePreviewLeases: leases.length,
     backupAgeHours,
     backupMaxAgeHours,
@@ -470,6 +664,7 @@ async function main(): Promise<void> {
     process.env.ORCHESTRATOR_HOME ?? resolve(import.meta.dirname, "../.."),
   );
   const result = await inspectRuntimeHealth(orchestratorHome);
+  const counterStatePath = resolve(orchestratorHome, "state/runtime-health-counters.json");
   if (alertText) {
     const statePath = resolve(orchestratorHome, "state/runtime-health-alert.json");
     const previous = await readHealthAlertState(statePath);
@@ -480,6 +675,7 @@ async function main(): Promise<void> {
       result.serverHealthConfig.alert_reminder_minutes,
     );
     await writeHealthAlertState(statePath, decision.state);
+    await writeRuntimeHealthCounterState(counterStatePath, result.oomKillCount);
     if (decision.kind) {
       process.stdout.write(`${formatAlertNotification(result, decision)}\n`);
       process.exitCode = 2;

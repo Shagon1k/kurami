@@ -19,6 +19,7 @@ import {
 } from "./server-health.ts";
 import {
   inspectRuntimeHealth,
+  writeRuntimeHealthCounterState,
   type RuntimeHealthResult,
 } from "./runtime-health.ts";
 
@@ -160,7 +161,10 @@ function orchestratorRows(
       : `${result.backupAgeHours}h old  ·  limit ${result.backupMaxAgeHours}h`;
   return [
     ["State DB", result.databaseIntegrity === "ok" ? "healthy" : result.databaseIntegrity],
-    ["Docker", result.dockerRootless ? "rootless" : "unexpected daemon"],
+    [
+      "Runtime",
+      `${result.containerRuntime.running} running  ·  ${result.containerRuntime.unhealthy} unhealthy${result.dockerRootless ? "" : "  ·  daemon not rootless"}`,
+    ],
     ["Previews", `${result.activePreviewLeases} active`],
     [
       "Worktrees",
@@ -169,6 +173,42 @@ function orchestratorRows(
     ["Quarantine", String(result.resourceGuard.quarantines.quarantined)],
     ["Backup", backup],
   ];
+}
+
+function consumerRows(result: RuntimeHealthResult): Array<[string, string]> {
+  const rows: Array<[string, string]> = [];
+  if (result.topConsumers.cpu) {
+    const value = result.topConsumers.cpu;
+    rows.push([
+      "CPU process",
+      `${value.name}  ·  ${value.cpuPercent}% CPU  ·  ${value.rssMiB} MiB RAM`,
+    ]);
+  }
+  if (result.topConsumers.memory) {
+    const value = result.topConsumers.memory;
+    rows.push([
+      "RAM process",
+      `${value.name}  ·  ${value.rssMiB} MiB RAM  ·  ${value.cpuPercent}% CPU`,
+    ]);
+  }
+  if (result.topConsumers.containerCpu) {
+    const value = result.topConsumers.containerCpu;
+    rows.push([
+      "Container CPU",
+      `${value.name}  ·  ${value.cpuPercent}% CPU  ·  ${value.memoryUsage}`,
+    ]);
+  }
+  if (
+    result.topConsumers.containerMemory &&
+    result.topConsumers.containerMemory.name !== result.topConsumers.containerCpu?.name
+  ) {
+    const value = result.topConsumers.containerMemory;
+    rows.push([
+      "Container RAM",
+      `${value.name}  ·  ${value.memoryUsage}  ·  ${value.cpuPercent}% CPU`,
+    ]);
+  }
+  return rows;
 }
 
 function cardColor(result: RuntimeHealthResult): number {
@@ -241,6 +281,13 @@ export function systemHealthAlertCard(
         )}`,
       ),
     );
+    const consumers = consumerRows(result);
+    if (consumers.length > 0) {
+      body.push(
+        separator(),
+        textDisplay(`### Top consumers at alert time\n${table(consumers)}`),
+      );
+    }
   }
   body.push(separator(), ...healthSections(result));
   body.push(
@@ -440,6 +487,7 @@ async function main(): Promise<void> {
     "discord.alerts_channel_id",
   );
   const alertStatePath = resolve(orchestratorHome, "state/runtime-health-alert.json");
+  const counterStatePath = resolve(orchestratorHome, "state/runtime-health-counters.json");
   const previous = await readHealthAlertState(alertStatePath);
   const decision = evaluateHealthAlerts(
     previous,
@@ -449,6 +497,7 @@ async function main(): Promise<void> {
   );
   if (!decision.kind) {
     await writeHealthAlertState(alertStatePath, decision.state);
+    await writeRuntimeHealthCounterState(counterStatePath, result.oomKillCount);
     process.stdout.write(
       `${JSON.stringify({ ok: true, mode, channelId, delivered: false })}\n`,
     );
@@ -467,6 +516,7 @@ async function main(): Promise<void> {
     nonceSeed: `${decision.kind}:${previous.lastNotifiedAt ?? "initial"}:${fingerprint}`,
   });
   await writeHealthAlertState(alertStatePath, decision.state);
+  await writeRuntimeHealthCounterState(counterStatePath, result.oomKillCount);
   process.stdout.write(
     `${JSON.stringify({ ok: true, mode, channelId, delivered: true, messageId })}\n`,
   );

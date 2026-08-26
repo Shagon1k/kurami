@@ -1,6 +1,7 @@
 import {
   analyzePreviewConsistency,
   formatHealthSummary,
+  parseOomKillCount,
 } from "../src/runtime-health.ts";
 import type { ResourceGuardAnalysis } from "../src/resource-guard.ts";
 import { defaultServerHealthConfig } from "../src/server-health.ts";
@@ -54,6 +55,10 @@ const healthy = analyzePreviewConsistency({
   runtimeDirectories: [{ name: "r_healthy", ageMinutes: 60 }],
   nowMs: Date.parse("2026-08-16T13:00:00Z"),
 });
+
+if (parseOomKillCount("pgfault 20\noom_kill 7\n") !== 7) {
+  throw new Error("OOM kill counter parsing failed");
+}
 
 if (Object.values(healthy).some((values) => values.length > 0)) {
   throw new Error("Healthy preview inventory produced a false positive");
@@ -154,6 +159,15 @@ const heartbeat = formatHealthSummary({
   checkedAt: "2026-08-16T18:20:00Z",
   databaseIntegrity: "ok",
   dockerRootless: true,
+  containerRuntime: { total: 0, running: 0, unhealthy: 0 },
+  topConsumers: {
+    cpu: null,
+    memory: null,
+    containerCpu: null,
+    containerMemory: null,
+  },
+  oomKillCount: 0,
+  oomKillsSincePreviousCheck: 0,
   activePreviewLeases: 2,
   backupAgeHours: 71.5,
   backupMaxAgeHours: 84,
@@ -172,6 +186,7 @@ if (
   !heartbeat.includes("uptime 16d 0h") ||
   !heartbeat.includes("Active previews: 2") ||
   !heartbeat.includes("Managed worktrees: 0/6") ||
+  !heartbeat.includes("Runtime: 0 running · 0 unhealthy") ||
   !heartbeat.includes("71.5h (limit 84h)")
 ) {
   throw new Error(`Unexpected healthy heartbeat: ${heartbeat}`);
@@ -182,6 +197,15 @@ const alert = formatHealthSummary({
   checkedAt: "2026-08-16T18:20:00Z",
   databaseIntegrity: "ok",
   dockerRootless: true,
+  containerRuntime: { total: 0, running: 0, unhealthy: 0 },
+  topConsumers: {
+    cpu: null,
+    memory: null,
+    containerCpu: null,
+    containerMemory: null,
+  },
+  oomKillCount: 0,
+  oomKillsSincePreviousCheck: 0,
   activePreviewLeases: 0,
   backupAgeHours: 90,
   backupMaxAgeHours: 84,

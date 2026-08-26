@@ -37,6 +37,15 @@ const result: RuntimeHealthResult = {
   checkedAt: "2026-08-26T09:49:49.121Z",
   databaseIntegrity: "ok",
   dockerRootless: true,
+  containerRuntime: { total: 12, running: 12, unhealthy: 0 },
+  topConsumers: {
+    cpu: { name: "hermes", cpuPercent: 87.4, memoryPercent: 2.1, rssMiB: 492 },
+    memory: { name: "node", cpuPercent: 4.2, memoryPercent: 8.4, rssMiB: 1970 },
+    containerCpu: null,
+    containerMemory: null,
+  },
+  oomKillCount: 0,
+  oomKillsSincePreviousCheck: 0,
   activePreviewLeases: 0,
   backupAgeHours: 30.6,
   backupMaxAgeHours: 84,
@@ -83,6 +92,7 @@ assert(
 );
 assert(serializedCard.includes("Disk") && serializedCard.includes("158.1 GiB"));
 assert(serializedCard.includes("State DB") && serializedCard.includes("Backup"));
+assert(serializedCard.includes("Runtime") && serializedCard.includes("12 running"));
 assert(!serializedCard.includes("Cronjob Response"), "Cron wrapper leaked into card");
 assert(!serializedCard.includes("To stop or manage this job"), "Cron footer leaked into card");
 
@@ -110,6 +120,8 @@ const serializedAlert = JSON.stringify(alertCard);
 assert(serializedAlert.includes("Kurami System Health Alert"));
 assert(serializedAlert.includes("Active checks"));
 assert(serializedAlert.includes("Project Orchestrator"));
+assert(serializedAlert.includes("Top consumers at alert time"));
+assert(serializedAlert.includes("hermes") && serializedAlert.includes("node"));
 
 const requests: Array<{
   method: string;
