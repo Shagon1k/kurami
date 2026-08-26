@@ -136,6 +136,21 @@ function table(rows: Array<[string, string]>): string {
   ].join("\n");
 }
 
+function grid(rows: Array<[string, string, string?]>): string {
+  const labelWidth = Math.max(...rows.map(([label]) => label.length));
+  const valueWidth = Math.max(...rows.map(([, value]) => value.length));
+  return [
+    "```text",
+    ...rows.map(([label, value, detail]) =>
+      [label.padEnd(labelWidth), value.padEnd(valueWidth), detail]
+        .filter((column) => column !== undefined && column !== "")
+        .join("  ")
+        .trimEnd(),
+    ),
+    "```",
+  ].join("\n");
+}
+
 function truncate(value: string, maximum: number): string {
   if (value.length <= maximum) return value;
   return `${value.slice(0, Math.max(0, maximum - 1))}…`;
@@ -153,7 +168,7 @@ function issueRows(
   return visible;
 }
 
-function systemRows(result: RuntimeHealthResult): Array<[string, string]> {
+function systemRows(result: RuntimeHealthResult): Array<[string, string, string?]> {
   const server = result.server;
   const swap =
     server.swapTotalGiB === 0
@@ -165,18 +180,21 @@ function systemRows(result: RuntimeHealthResult): Array<[string, string]> {
     ? `${Math.round(speed.downloadMbps)}↓ / ${Math.round(speed.uploadMbps)}↑ Mbps`
     : "speed pending";
   return [
-    ["CPU", `${server.cpuUsedPercent}%  ·  load ${server.loadAverage.join(" / ")}`],
+    ["CPU", `${server.cpuUsedPercent}%`, `load ${server.loadAverage.join(" / ")}`],
     [
       "RAM",
-      `${server.memoryUsedGiB}/${server.memoryTotalGiB} GiB  ·  ${server.memoryAvailableGiB} GiB available`,
+      `${server.memoryUsedGiB}/${server.memoryTotalGiB} GiB`,
+      `${server.memoryAvailableGiB} GiB free`,
     ],
     [
       "Network",
-      `${network.status}  ·  ${network.latencyMs === null ? "n/a" : `${network.latencyMs} ms`}  ·  ${speedText}`,
+      `${network.status} · ${network.latencyMs === null ? "n/a" : `${network.latencyMs} ms`}`,
+      speedText,
     ],
     [
       "Disk",
-      `${result.resourceGuard.disk.usedPercent}%  ·  ${result.resourceGuard.disk.availableGiB} GiB available`,
+      `${result.resourceGuard.disk.usedPercent}%`,
+      `${result.resourceGuard.disk.availableGiB} GiB free`,
     ],
     ["Swap", swap],
     ["Uptime", formatUptime(server.uptimeSeconds)],
@@ -251,7 +269,7 @@ function cardColor(result: RuntimeHealthResult): number {
 
 function healthSections(result: RuntimeHealthResult): DiscordObject[] {
   return [
-    textDisplay(`### 🖥️ System\n${table(systemRows(result))}`),
+    textDisplay(`### 🖥️ System\n${grid(systemRows(result))}`),
     separator(),
     textDisplay(
       `### 🧭 Project Orchestrator\n${table(orchestratorRows(result))}`,
@@ -541,7 +559,10 @@ export async function cleanupHealthChannel(
     "GET",
     `/channels/${channelId}/messages/${state.messageId}`,
   );
-  const messageIds: string[] = [];
+  const currentUser = await discordRequest(options, "GET", "/users/@me");
+  const botUserId = String(currentUser?.id ?? "");
+  if (!/^\d+$/u.test(botUserId)) fail("Discord returned no bot user ID");
+  const messages: Array<{ id: string; authorId: string }> = [];
   let before: string | null = null;
   for (let pageNumber = 0; pageNumber < 10; pageNumber += 1) {
     const page = await discordRequest(
@@ -550,28 +571,37 @@ export async function cleanupHealthChannel(
       `/channels/${channelId}/messages?limit=100${before ? `&before=${before}` : ""}`,
     ) as unknown;
     if (!Array.isArray(page)) fail("Discord returned an invalid Health message page");
-    const ids = page
-      .map((message) => String((message as { id?: unknown }).id ?? ""))
-      .filter((id) => /^\d+$/u.test(id));
-    messageIds.push(...ids);
+    const pageMessages = page
+      .map((message) => ({
+        id: String((message as { id?: unknown }).id ?? ""),
+        authorId: String(
+          (message as { author?: { id?: unknown } }).author?.id ?? "",
+        ),
+      }))
+      .filter((message) => /^\d+$/u.test(message.id));
+    messages.push(...pageMessages);
+    const ids = pageMessages.map((message) => message.id);
     if (ids.length < 100) break;
     before = ids.at(-1) ?? null;
     if (pageNumber === 9) fail("Health channel cleanup exceeded 1000 messages");
   }
-  if (!messageIds.includes(state.messageId)) {
+  if (!messages.some((message) => message.id === state.messageId)) {
     fail("Persistent health card was not found during cleanup");
   }
-  const stale = messageIds.filter((messageId) => messageId !== state.messageId);
-  for (const messageId of stale) {
+  const stale = messages.filter(
+    (message) =>
+      message.id !== state.messageId && message.authorId === botUserId,
+  );
+  for (const message of stale) {
     await discordRequest(
       options,
       "DELETE",
-      `/channels/${channelId}/messages/${messageId}`,
+      `/channels/${channelId}/messages/${message.id}`,
     );
   }
   return {
     keptMessageId: state.messageId,
-    scanned: messageIds.length,
+    scanned: messages.length,
     deleted: stale.length,
   };
 }

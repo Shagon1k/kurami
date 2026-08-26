@@ -185,12 +185,21 @@ const server = createServer((request, response) => {
       response.end(JSON.stringify({ id: "9001", flags: 32768 }));
       return;
     }
+    if (request.method === "GET" && request.url === "/users/@me") {
+      response.writeHead(200, { "content-type": "application/json" });
+      response.end(JSON.stringify({ id: "1538492507128856596" }));
+      return;
+    }
     if (
       request.method === "GET" &&
       request.url?.startsWith("/channels/1538633991974817842/messages?limit=100")
     ) {
       response.writeHead(200, { "content-type": "application/json" });
-      response.end(JSON.stringify([{ id: "9001" }, { id: "8002" }, { id: "8001" }]));
+      response.end(JSON.stringify([
+        { id: "9001", author: { id: "1538492507128856596" } },
+        { id: "8002", author: { id: "1538492507128856596" } },
+        { id: "8001", author: { id: "424242424242424242" } },
+      ]));
       return;
     }
     if (request.method === "DELETE") {
@@ -274,9 +283,9 @@ try {
   assert.deepEqual(cleanup, {
     keptMessageId: "9001",
     scanned: 3,
-    deleted: 2,
+    deleted: 1,
   });
-  assert.equal(requests.filter((request) => request.method === "DELETE").length, 2);
+  assert.equal(requests.filter((request) => request.method === "DELETE").length, 1);
 } finally {
   await new Promise<void>((resolveClose, rejectClose) =>
     server.close((error) => (error ? rejectClose(error) : resolveClose())),

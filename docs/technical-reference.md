@@ -1369,7 +1369,9 @@ and is never printed or stored in card state. Discord targets are configured as
 
 The normal health cycle is intentionally not a cleanup reconciler. The explicit
 `--cleanup-health-channel` maintenance mode preserves the state-recorded card
-and deletes every other message only after verifying that card is still present.
+and deletes only other messages authored by the current Kurami bot, after
+verifying that the persistent card is still present. Messages from users,
+webhooks, and other bots remain untouched.
 An orphan Docker
 preview is evidence of state drift and requires owner review before the exact
 Compose project is stopped. Monthly maintenance cannot hide that evidence by
