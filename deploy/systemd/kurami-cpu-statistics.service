@@ -1,0 +1,31 @@
+[Unit]
+Description=Kurami rolling CPU statistics sampler
+After=default.target
+
+[Service]
+Type=simple
+ExecStart=/home/shagon1k/_hermes/_kurami/runtime/node/bin/node /home/shagon1k/_hermes/_kurami/app/src/system/health/cpu-statistics-sampler.ts --daemon
+Restart=on-failure
+RestartSec=3s
+TimeoutStopSec=20s
+KillSignal=SIGTERM
+
+Environment=HOME=/home/shagon1k
+Environment=KURAMI_HOME=/home/shagon1k/_hermes/_kurami
+Environment=ORCHESTRATOR_HOME=/home/shagon1k/_hermes/_kurami
+Environment=PATH=/home/shagon1k/_hermes/_kurami/runtime/node/bin:/usr/local/bin:/usr/bin:/bin
+
+UMask=0077
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=read-only
+ReadWritePaths=/home/shagon1k/_hermes/_kurami/state
+RestrictAddressFamilies=AF_UNIX
+RestrictNamespaces=true
+RestrictSUIDSGID=true
+LockPersonality=true
+SystemCallArchitectures=native
+
+[Install]
+WantedBy=default.target

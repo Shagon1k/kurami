@@ -183,6 +183,7 @@ const heartbeat = formatHealthSummary({
   resourceGuard: healthyResourceGuard,
   server: healthyServer,
   serverHealthConfig: defaultServerHealthConfig,
+  cpuStatistics: { windowMinutes: 8, sampleCount: 32, averagePercent: 6.5, peakPercent: 21.8 },
   alertIssues: [],
   problems: [],
 });
@@ -228,6 +229,7 @@ const alert = formatHealthSummary({
   resourceGuard: healthyResourceGuard,
   server: healthyServer,
   serverHealthConfig: defaultServerHealthConfig,
+  cpuStatistics: { windowMinutes: 8, sampleCount: 32, averagePercent: 6.5, peakPercent: 21.8 },
   alertIssues: [
     {
       key: "runtime:backup",

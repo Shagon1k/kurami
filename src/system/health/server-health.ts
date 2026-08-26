@@ -74,6 +74,7 @@ export const defaultServerHealthConfig: ServerHealthConfig = {
 };
 
 const gibibyte = 1024 ** 3;
+const cpuSamplingWindowMs = 5_000;
 
 function rounded(value: number, digits = 1): number {
   const scale = 10 ** digits;
@@ -196,7 +197,7 @@ export async function inspectServerHealth(): Promise<ServerHealthSnapshot> {
     readFile("/proc/stat", "utf8"),
     readFile("/proc/meminfo", "utf8"),
   ]);
-  await delay(250);
+  await delay(cpuSamplingWindowMs);
   const afterContent = await readFile("/proc/stat", "utf8");
   const loads = loadavg();
   return {

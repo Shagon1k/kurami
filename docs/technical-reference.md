@@ -72,6 +72,9 @@ app/
     system/
       health/
         server-health.ts      System CPU, memory, uptime, and alert state engine
+        cpu-statistics.ts     Bounded rolling CPU-statistics storage and aggregation
+        cpu-statistics-sampler.ts
+                              Low-cost configurable CPU sampling daemon
         system-health-discord.ts
                               Persistent Health card and alert delivery
         health-settings.ts    Owner-only health interval and schedule boundary
@@ -1355,7 +1358,8 @@ Five additional `no_agent` jobs own digest and operational housekeeping:
   permanent private digest channel;
 - state backup on days `1, 4, 7, ...` at `03:15 UTC`, delivered to the muted
   Discord maintenance channel;
-- one combined runtime/server/network health inspection every twenty minutes.
+- one combined runtime/server/network health inspection at its owner-configured
+  interval (currently every ten minutes).
   It edits one persistent Discord Components V2 card and posts to Alerts only on
   a new incident, severity change, two-hour reminder, or recovery;
 - a bounded LibreSpeed trend sample every six hours against server 49 (London,
@@ -1374,6 +1378,16 @@ is installed as `runtime/tools/librespeed-cli` v1.0.14 from the upstream release
 the tracked wrapper never enables telemetry. The latest speed sample lives in
 `state/network-speed.json` and is displayed as trend evidence, not as a hard
 capacity guarantee.
+
+`cpu_statistics` is intentionally separate from the full health-check schedule:
+the enabled `kurami-cpu-statistics.service` reads `/proc/stat` every configured
+`sample_interval_seconds` (15 by default), atomically retains a bounded local
+series in `state/cpu-statistics.json`, and derives the configured rolling average
+(8 minutes by default). The card labels the threshold/alert input as the current
+five-second CPU sample and displays the rolling average and peak as context.
+Alerts remain based on the current five-second sample, so a sustained overload is
+not hidden by a rolling average. This service performs no network, Docker,
+SQLite, or Discord work.
 
 Alert streak and cooldown state is stored atomically in
 `state/runtime-health-alert.json`; changing metric values alone does not bypass

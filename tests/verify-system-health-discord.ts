@@ -102,6 +102,7 @@ const result: RuntimeHealthResult = {
     uptimeSeconds: 16 * 86_400,
   },
   serverHealthConfig: defaultServerHealthConfig,
+  cpuStatistics: { windowMinutes: 8, sampleCount: 32, averagePercent: 6.5, peakPercent: 21.8 },
   alertIssues: [],
   problems: [],
 };
@@ -136,6 +137,10 @@ assert(serializedCard.includes("Disk") && serializedCard.includes("158.1 GiB"));
 assert(serializedCard.includes("State DB") && serializedCard.includes("Backup"));
 assert(serializedCard.includes("Runtime") && serializedCard.includes("12 running"));
 assert(serializedCard.includes("Network") && serializedCard.includes("1203↓ / 85↑ Mbps"));
+assert(serializedCard.includes("**CPU 3.4% (5s)**"));
+assert(serializedCard.includes("avg 8m 6.5% · peak 21.8%"));
+assert(serializedCard.includes("**State DB** · healthy"));
+assert(!serializedCard.includes("```text"), "Primary health card must not use a mobile-hostile pseudo-table");
 assert(serializedCard.includes("Recent health runs"));
 assert(serializedCard.includes("kurami:health:history"));
 assert(!serializedCard.includes("Cronjob Response"), "Cron wrapper leaked into card");

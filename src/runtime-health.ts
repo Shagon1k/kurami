@@ -31,6 +31,13 @@ import {
   type ServerHealthConfig,
   type ServerHealthSnapshot,
 } from "./system/health/server-health.ts";
+import {
+  calculateCpuRollingStatistics,
+  readCpuStatistics,
+  resolveCpuStatisticsConfig,
+  type CpuRollingStatistics,
+  type CpuStatisticsConfig,
+} from "./system/health/cpu-statistics.ts";
 
 type ActiveLease = {
   lease_id: string;
@@ -83,6 +90,7 @@ export type RuntimeHealthResult = {
   resourceGuard: ResourceGuardAnalysis;
   server: ServerHealthSnapshot;
   serverHealthConfig: ServerHealthConfig;
+  cpuStatistics: CpuRollingStatistics;
   alertIssues: HealthAlertIssue[];
   problems: string[];
 };
@@ -533,6 +541,7 @@ export async function inspectRuntimeHealth(
     previousCounters,
     networkConnectivity,
     networkSpeed,
+    cpuStatisticsEntries,
   ] = await Promise.all([
     readFile(resolve(home, "config/projects.yaml"), "utf8").then(
       (content) => parse(content) as ResourceGuardProjects,
@@ -543,6 +552,7 @@ export async function inspectRuntimeHealth(
           version: number;
           limits: ResourceGuardLimits;
           server_health?: Partial<ServerHealthConfig>;
+          cpu_statistics?: Partial<CpuStatisticsConfig>;
         },
     ),
     inspectServerHealth(),
@@ -550,10 +560,16 @@ export async function inspectRuntimeHealth(
     readRuntimeHealthCounterState(counterStatePath),
     inspectNetworkConnectivity(),
     readNetworkSpeedSnapshot(resolve(home, "state/network-speed.json")),
+    readCpuStatistics(resolve(home, "state/cpu-statistics.json")),
   ]);
   if (projects.version !== 1 || config.version !== 1) fail("Unsupported config version");
   validateResourceGuardLimits(config.limits);
   const serverHealthConfig = resolveServerHealthConfig(config.server_health);
+  const cpuStatisticsConfig = resolveCpuStatisticsConfig(config.cpu_statistics);
+  const cpuStatistics = calculateCpuRollingStatistics(
+    cpuStatisticsEntries,
+    cpuStatisticsConfig.rolling_window_minutes,
+  );
   const database = new DatabaseSync(resolve(home, "state/orchestrator.db"), {
     readOnly: true,
     timeout: 5_000,
@@ -683,6 +699,7 @@ export async function inspectRuntimeHealth(
     resourceGuard,
     server,
     serverHealthConfig,
+    cpuStatistics,
     alertIssues: [...runtimeIssues, ...serverIssues, ...networkIssues],
     problems,
   };

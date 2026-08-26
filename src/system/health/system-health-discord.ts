@@ -135,19 +135,16 @@ function table(rows: Array<[string, string]>): string {
   ].join("\n");
 }
 
-function grid(rows: Array<[string, string, string?]>): string {
-  const labelWidth = Math.max(...rows.map(([label]) => label.length));
-  const valueWidth = Math.max(...rows.map(([, value]) => value.length));
-  return [
-    "```text",
-    ...rows.map(([label, value, detail]) =>
-      [label.padEnd(labelWidth), value.padEnd(valueWidth), detail]
-        .filter((column) => column !== undefined && column !== "")
-        .join("  ")
-        .trimEnd(),
-    ),
-    "```",
-  ].join("\n");
+function metricStack(rows: Array<[string, string, string?]>): string {
+  return rows
+    .map(([label, value, detail]) =>
+      [`**${label} ${value}**`, detail].filter(Boolean).join("\n"),
+    )
+    .join("\n\n");
+}
+
+function statusStack(rows: Array<[string, string]>): string {
+  return rows.map(([label, value]) => `**${label}** · ${value}`).join("\n");
 }
 
 function truncate(value: string, maximum: number): string {
@@ -169,6 +166,7 @@ function issueRows(
 
 function systemRows(result: RuntimeHealthResult): Array<[string, string, string?]> {
   const server = result.server;
+  const cpuStatistics = result.cpuStatistics;
   const swap =
     server.swapTotalGiB === 0
       ? "off"
@@ -178,8 +176,12 @@ function systemRows(result: RuntimeHealthResult): Array<[string, string, string?
   const speedText = speed
     ? `${Math.round(speed.downloadMbps)}↓ / ${Math.round(speed.uploadMbps)}↑ Mbps`
     : "speed pending";
+  const cpuDetail =
+    cpuStatistics.averagePercent === null
+      ? `avg ${cpuStatistics.windowMinutes}m collecting`
+      : `avg ${cpuStatistics.windowMinutes}m ${cpuStatistics.averagePercent}% · peak ${cpuStatistics.peakPercent}%`;
   return [
-    ["CPU", `${server.cpuUsedPercent}%`, `load ${server.loadAverage.join(" / ")}`],
+    ["CPU", `${server.cpuUsedPercent}% (5s)`, `${cpuDetail} · load ${server.loadAverage.join(" / ")}`],
     [
       "RAM",
       `${server.memoryUsedGiB}/${server.memoryTotalGiB} GiB`,
@@ -268,10 +270,10 @@ function cardColor(result: RuntimeHealthResult): number {
 
 function healthSections(result: RuntimeHealthResult): DiscordObject[] {
   return [
-    textDisplay(`### 🖥️ System\n${grid(systemRows(result))}`),
+    textDisplay(`### 🖥️ System\n${metricStack(systemRows(result))}`),
     separator(),
     textDisplay(
-      `### 🧭 Project Orchestrator\n${table(orchestratorRows(result))}`,
+      `### 🧭 Project Orchestrator\n${statusStack(orchestratorRows(result))}`,
     ),
   ];
 }

@@ -21,6 +21,7 @@ const suites = [
   "test:project-readiness",
   "test:runtime-health",
   "test:server-health",
+  "test:cpu-statistics",
   "test:system-health-discord",
   "test:network-health",
   "test:health-settings",
