@@ -11,6 +11,14 @@ import {
   stableProblemKey,
   type ServerHealthSnapshot,
 } from "../src/server-health.ts";
+import * as canonicalServerHealth from "../src/system/health/server-health.ts";
+
+if (
+  defaultServerHealthConfig !== canonicalServerHealth.defaultServerHealthConfig ||
+  parseCpuSample !== canonicalServerHealth.parseCpuSample
+) {
+  throw new Error("Legacy server-health entrypoint does not re-export the canonical module");
+}
 
 const before = parseCpuSample("cpu  100 0 50 850 0 0 0 0 0 0\n");
 const after = parseCpuSample("cpu  160 0 70 920 0 0 0 0 0 0\n");

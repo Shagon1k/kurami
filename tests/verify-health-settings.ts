@@ -14,6 +14,10 @@ await writeFile(
 );
 await chmod(fakeHermes, 0o700);
 const cli = resolve(import.meta.dirname, "../src/health-settings.ts");
+const canonicalCli = resolve(
+  import.meta.dirname,
+  "../src/system/health/health-settings.ts",
+);
 const env = {
   ...process.env,
   ORCHESTRATOR_HOME: root,
@@ -27,6 +31,13 @@ const run = (args: string[]): Record<string, unknown> =>
 const initial = run(["status"]);
 assert.equal(initial.revision, 0);
 assert.equal(initial.intervalMinutes, 20);
+const canonicalInitial = JSON.parse(
+  execFileSync(process.execPath, [canonicalCli, "status"], {
+    env,
+    encoding: "utf8",
+  }),
+) as Record<string, unknown>;
+assert.deepEqual(canonicalInitial, initial);
 
 const applied = run([
   "apply",
@@ -69,5 +80,6 @@ process.stdout.write(
     optimisticRevision: true,
     allowedIntervals: initial.allowedIntervals,
     cronEditedInPlace: true,
+    canonicalCli: true,
   })}\n`,
 );

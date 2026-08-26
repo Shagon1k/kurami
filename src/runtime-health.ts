@@ -30,7 +30,7 @@ import {
   type HealthAlertIssue,
   type ServerHealthConfig,
   type ServerHealthSnapshot,
-} from "./server-health.ts";
+} from "./system/health/server-health.ts";
 
 type ActiveLease = {
   lease_id: string;

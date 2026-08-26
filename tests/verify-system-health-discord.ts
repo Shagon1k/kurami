@@ -17,6 +17,10 @@ import {
   systemHealthAlertCard,
   systemHealthCard,
 } from "../src/system-health-discord.ts";
+import * as canonicalHealthDiscord from "../src/system/health/system-health-discord.ts";
+
+assert.equal(systemHealthCard, canonicalHealthDiscord.systemHealthCard);
+assert.equal(sendSystemHealthAlert, canonicalHealthDiscord.sendSystemHealthAlert);
 
 const resourceGuard: ResourceGuardAnalysis = {
   disk: { usedPercent: 18, availableGiB: 158.1, state: "normal" },

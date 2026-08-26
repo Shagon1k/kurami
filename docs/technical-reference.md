@@ -68,8 +68,16 @@ app/
                               Reconciles Discord ticket threads and live cards
     backup-state.ts           Creates verified SQLite/config snapshots with retention
     runtime-health.ts         Read-only DB/Docker/preview consistency inspection
+    system/
+      health/
+        server-health.ts      System CPU, memory, uptime, and alert state engine
+        system-health-discord.ts
+                              Persistent Health card and alert delivery
+        health-settings.ts    Owner-only health interval and schedule boundary
+    server-health.ts          Compatibility re-export for existing imports
+    system-health-discord.ts  Compatibility CLI and re-export for cron wrappers
+    health-settings.ts        Compatibility CLI and re-export for Hermes plugin
     network-health.ts         HTTPS quorum and bounded LibreSpeed trend snapshots
-    health-settings.ts        Owner-only health interval and Hermes schedule boundary
     resource-guard.ts         Inspects admission quotas and reconciles orphan quarantine state
     resource-guard-discord.ts Batches and delivers durable changed-only guard events
     runtime-settings.ts       Merges verified SQLite runtime overrides with safe defaults
