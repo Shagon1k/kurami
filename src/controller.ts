@@ -150,7 +150,10 @@ const releaserPath = resolve(import.meta.dirname, "release-worktree.ts");
 const previewManagerPath = resolve(import.meta.dirname, "preview-manager.ts");
 const previewRuntimePath = resolve(import.meta.dirname, "preview-runtime.ts");
 const cancelResolutionPath = resolve(import.meta.dirname, "cancel-resolution.ts");
-const projectStatusPath = resolve(import.meta.dirname, "project-status.ts");
+const projectStatusPath = resolve(
+  import.meta.dirname,
+  "orchestrator/projects/project-status.ts",
+);
 const reviewManagerPath = resolve(import.meta.dirname, "review-manager.ts");
 const reviewFixManagerPath = resolve(import.meta.dirname, "review-fix-manager.ts");
 const autonomousSuccessorPath = resolve(

@@ -3,6 +3,8 @@ import { chmod, copyFile, mkdir, mkdtemp, readFile, rm, writeFile } from "node:f
 import { tmpdir } from "node:os";
 import { resolve } from "node:path";
 import { DatabaseSync } from "node:sqlite";
+import * as legacyProjectPoller from "../src/poll-projects.ts";
+import * as canonicalProjectPoller from "../src/orchestrator/projects/poll-projects.ts";
 
 type ControllerResult = {
   ok: boolean;
@@ -14,6 +16,11 @@ type ControllerResult = {
 function assert(condition: unknown, message: string): asserts condition {
   if (!condition) throw new Error(message);
 }
+
+assert(
+  legacyProjectPoller.runProjectPollerCli === canonicalProjectPoller.runProjectPollerCli,
+  "Legacy poller CLI does not delegate to the canonical implementation",
+);
 
 function runController(
   appDirectory: string,

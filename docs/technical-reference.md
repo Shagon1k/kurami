@@ -34,7 +34,7 @@ app/
   migrations/                 Versioned SQLite schema migrations
   src/
     init-run-store.ts         Applies migrations and checks DB integrity
-    poll-projects.ts          Reads one or both GitHub Projects
+    poll-projects.ts          Compatibility CLI for existing poller callers
     triage-snapshot.ts        Persists changed-only Backlog fact snapshots
     triage-rank.ts            Ranks every eligible issue with explainable policy
     notify-discord-digest.ts  Reconciles persistent per-project digest cards
@@ -53,7 +53,7 @@ app/
     provision-worktree.ts     Plans or explicitly provisions Git worktrees
     release-worktree.ts       Safely releases cancelled or verified-merged Git resources
     cancel-resolution.ts      Guardedly resolves confirmed unpublished or Draft PR results
-    project-status.ts         Returns fully cancelled released items to Backlog
+    project-status.ts         Compatibility CLI for existing controller callers
     preview-manager.ts        Leases, acknowledges, extends, and releases preview slots
     preview-runtime.ts        Dispatches each durable lease to its selected adapter
     preview-compose-runtime.ts
@@ -69,6 +69,10 @@ app/
     discord/
       ui.ts                   Shared Discord Components V2 primitives
     orchestrator/
+      projects/
+        poll-projects.ts      Reads one or both GitHub Projects
+        project-readiness.ts  Read-only PASS/WARN/FAIL compatibility assessment
+        project-status.ts     Returns fully cancelled released items to Backlog
       settings/
         runtime-settings.ts   Verified runtime overrides and effective limits
         orchestrator-settings.ts
@@ -104,7 +108,7 @@ app/
     resource-guard-discord.ts Batches and delivers durable changed-only guard events
     runtime-settings.ts       Compatibility re-export for existing imports
     orchestrator-settings.ts  Compatibility CLI and re-export for Hermes plugin
-    project-readiness.ts      Read-only PASS/WARN/FAIL compatibility assessment
+    project-readiness.ts      Compatibility CLI and re-export for Hermes skill
     monthly-maintenance.ts    Compatibility CLI and re-export for maintenance cron
   tests/
     run-regression.ts         Runs all deterministic suites in fail-fast order
