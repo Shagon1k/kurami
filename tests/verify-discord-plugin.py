@@ -86,6 +86,43 @@ def main() -> None:
             f"Dashboard overflow accepted unsafe selection {custom_id!r} {values!r}",
         )
 
+    require(
+        module.parse_health_history_selection(
+            "kurami:health:history", ["1787742589000"]
+        )
+        == "1787742589000",
+        "Health history selection was rejected",
+    )
+    for custom_id, values in [
+        ("kurami:health:history", []),
+        ("kurami:health:history", ["../../secret"]),
+        ("kurami:health:history:extra", ["1787742589000"]),
+    ]:
+        require(
+            module.parse_health_history_selection(custom_id, values) is None,
+            "Health history accepted an unsafe selection",
+        )
+    history_message = module._health_history_message(
+        {
+            "checkedAt": "2026-08-26T11:20:00.000Z",
+            "ok": True,
+            "cpuPercent": 12.4,
+            "memoryPercent": 24.8,
+            "diskPercent": 18,
+            "networkStatus": "online",
+            "networkLatencyMs": 18.2,
+            "downloadMbps": 1202.9,
+            "uploadMbps": 85.1,
+            "runningContainers": 2,
+            "unhealthyContainers": 0,
+        }
+    )
+    require(
+        "Health snapshot" in history_message
+        and "1202.9↓ / 85.1↑ Mbps" in history_message,
+        "Health history snapshot lost trend data",
+    )
+
     metadata_accepted = {
         "kurami:metadata_details:pmb_abc123": ("details", "pmb_abc123"),
         "kurami:metadata_accept:pmb_abc123": ("accept", "pmb_abc123"),
@@ -312,6 +349,7 @@ def main() -> None:
             raise AssertionError(f"Accepted invalid runtime settings: {invalid}")
 
     settings_module._paths = lambda: (Path(__file__), Path(__file__))
+    settings_module._health_paths = lambda: (Path(__file__), Path(__file__))
     control_args = settings_module._control_args(
         "apply",
         actor_id="234723725168082944",
@@ -394,10 +432,9 @@ def main() -> None:
         require(
             "kurami" in client.tree.commands
             and "status" in client.tree.commands["kurami"].children
-            and "orchestrator" in client.tree.commands["kurami"].children
             and "settings"
-            in client.tree.commands["kurami"].children["orchestrator"].children,
-            "Nested /kurami orchestrator settings command was not registered",
+            in client.tree.commands["kurami"].children,
+            "Concise /kurami settings command was not registered",
         )
         settings_module.install_settings_command(
             client, lambda _interaction: True, refresh_dashboard
@@ -421,7 +458,7 @@ def main() -> None:
                 "metadata_accepted": len(metadata_accepted),
                 "metadata_rejected": len(metadata_rejected),
                 "listener": "strict_component_allowlist",
-                "settings": "owner_only_nested_slash",
+                "settings": "owner_only_kurami_settings",
                 "run_status": "owner_only_kurami_status",
                 "settings_shared_pool": True,
             },

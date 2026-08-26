@@ -5,6 +5,12 @@ import { pathToFileURL } from "node:url";
 import { DatabaseSync } from "node:sqlite";
 import { parse } from "yaml";
 import {
+  inspectNetworkConnectivity,
+  readNetworkSpeedSnapshot,
+  type NetworkConnectivitySnapshot,
+  type NetworkSpeedSnapshot,
+} from "./network-health.ts";
+import {
   inspectResourceGuard,
   validateResourceGuardLimits,
   type ResourceGuardAnalysis,
@@ -67,6 +73,8 @@ export type RuntimeHealthResult = {
   topConsumers: TopConsumers;
   oomKillCount: number;
   oomKillsSincePreviousCheck: number;
+  networkConnectivity: NetworkConnectivitySnapshot;
+  networkSpeed: NetworkSpeedSnapshot | null;
   activePreviewLeases: number;
   backupAgeHours: number | null;
   backupMaxAgeHours: number;
@@ -517,7 +525,15 @@ export async function inspectRuntimeHealth(
 ): Promise<RuntimeHealthResult> {
   const home = resolve(orchestratorHome);
   const counterStatePath = resolve(home, "state/runtime-health-counters.json");
-  const [projects, config, server, vmstat, previousCounters] = await Promise.all([
+  const [
+    projects,
+    config,
+    server,
+    vmstat,
+    previousCounters,
+    networkConnectivity,
+    networkSpeed,
+  ] = await Promise.all([
     readFile(resolve(home, "config/projects.yaml"), "utf8").then(
       (content) => parse(content) as ResourceGuardProjects,
     ),
@@ -532,6 +548,8 @@ export async function inspectRuntimeHealth(
     inspectServerHealth(),
     readFile("/proc/vmstat", "utf8"),
     readRuntimeHealthCounterState(counterStatePath),
+    inspectNetworkConnectivity(),
+    readNetworkSpeedSnapshot(resolve(home, "state/network-speed.json")),
   ]);
   if (projects.version !== 1 || config.version !== 1) fail("Unsupported config version");
   validateResourceGuardLimits(config.limits);
@@ -628,6 +646,23 @@ export async function inspectRuntimeHealth(
     requiredChecks: 1,
   }));
   problems.push(...serverIssues.map((issue) => issue.message));
+  const networkIssues: HealthAlertIssue[] = [];
+  if (networkConnectivity.status === "offline") {
+    networkIssues.push({
+      key: "server:network",
+      severity: "critical",
+      message: "All external HTTPS connectivity probes failed",
+      requiredChecks: 2,
+    });
+  } else if (networkConnectivity.status === "degraded") {
+    networkIssues.push({
+      key: "server:network",
+      severity: "warning",
+      message: `Only ${networkConnectivity.successfulTargets}/${networkConnectivity.totalTargets} external HTTPS probes succeeded`,
+      requiredChecks: 3,
+    });
+  }
+  problems.push(...networkIssues.map((issue) => issue.message));
 
   return {
     ok: problems.length === 0,
@@ -638,6 +673,8 @@ export async function inspectRuntimeHealth(
     topConsumers,
     oomKillCount,
     oomKillsSincePreviousCheck,
+    networkConnectivity,
+    networkSpeed,
     activePreviewLeases: leases.length,
     backupAgeHours,
     backupMaxAgeHours,
@@ -646,7 +683,7 @@ export async function inspectRuntimeHealth(
     resourceGuard,
     server,
     serverHealthConfig,
-    alertIssues: [...runtimeIssues, ...serverIssues],
+    alertIssues: [...runtimeIssues, ...serverIssues, ...networkIssues],
     problems,
   };
 }

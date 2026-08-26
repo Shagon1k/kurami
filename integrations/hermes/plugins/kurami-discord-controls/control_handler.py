@@ -39,6 +39,7 @@ METADATA_SELECTION_CONTROL_ID = re.compile(
     r"^kurami:metadata_(exclude|restore):(pmb_[a-f0-9]+):([0-9]{1,2})$"
 )
 _METADATA_PAGE_SIZE = 12
+_HEALTH_HISTORY_ID = "kurami:health:history"
 
 _ACTION_LABELS = {
     "take_control": "Take control",
@@ -104,6 +105,18 @@ def parse_run_actions_id(
     return action, match.group(1)
 
 
+def parse_health_history_selection(
+    custom_id: object, values: object
+) -> Optional[str]:
+    """Return one bounded millisecond history ID or ``None``."""
+
+    if custom_id != _HEALTH_HISTORY_ID or not isinstance(values, list):
+        return None
+    if len(values) != 1 or not isinstance(values[0], str):
+        return None
+    return values[0] if re.fullmatch(r"\d{10,20}", values[0]) else None
+
+
 def parse_metadata_control_id(custom_id: object) -> Optional[tuple[str, str]]:
     """Return an allowlisted metadata ``(action, batch_id)`` pair or ``None``."""
 
@@ -150,6 +163,62 @@ def _paths() -> tuple[Path, Path, Path]:
         home / "runtime/node/bin/node",
         home / "app/src/run-controls.ts",
         home / "app/src/notify-discord-controls.ts",
+    )
+
+
+def _health_history_path() -> Path:
+    home = Path(
+        os.environ.get(
+            "ORCHESTRATOR_HOME",
+            "/home/shagon1k/_hermes/_orchestrator",
+        )
+    ).resolve()
+    return home / "state/system-health-history.json"
+
+
+def _health_history_message(entry: object) -> str:
+    if not isinstance(entry, dict):
+        raise RuntimeError("Health history entry is invalid")
+    checked_at = str(entry.get("checkedAt") or "")
+    try:
+        checked = datetime.fromisoformat(checked_at.replace("Z", "+00:00")).astimezone(
+            ZoneInfo("Europe/Vilnius")
+        )
+    except ValueError as exc:
+        raise RuntimeError("Health history timestamp is invalid") from exc
+    def number(name: str) -> float:
+        value = entry.get(name)
+        if isinstance(value, bool) or not isinstance(value, (int, float)):
+            raise RuntimeError(f"Health history {name} is invalid")
+        return float(value)
+
+    latency = entry.get("networkLatencyMs")
+    latency_text = (
+        "n/a"
+        if latency is None
+        else f"{number('networkLatencyMs'):g} ms"
+    )
+    download = entry.get("downloadMbps")
+    upload = entry.get("uploadMbps")
+    speed_text = (
+        "pending"
+        if download is None or upload is None
+        else f"{number('downloadMbps'):g}↓ / {number('uploadMbps'):g}↑ Mbps"
+    )
+    status = "healthy" if entry.get("ok") is True else "attention"
+    return "\n".join(
+        [
+            f"## Health snapshot · {checked:%d.%m.%y %H:%M}",
+            f"-# {status} · Europe/Vilnius",
+            "```text",
+            f"CPU       {number('cpuPercent'):g}%",
+            f"RAM       {number('memoryPercent'):g}%",
+            f"Disk      {number('diskPercent'):g}%",
+            f"Network   {str(entry.get('networkStatus') or 'unknown')[:12]} · {latency_text}",
+            f"Speed     {speed_text}",
+            f"Runtime   {int(number('runningContainers'))} running · {int(number('unhealthyContainers'))} unhealthy",
+            "```",
+        ]
     )
 
 
@@ -636,6 +705,42 @@ def install_control_listener(
         data = getattr(interaction, "data", None)
         custom_id = data.get("custom_id") if isinstance(data, dict) else None
         values = data.get("values") if isinstance(data, dict) else None
+        health_history_id = parse_health_history_selection(custom_id, values)
+        if health_history_id is not None:
+            if not authorized(interaction):
+                if not interaction.response.is_done():
+                    await interaction.response.send_message(
+                        "This Kurami health history is not authorized for your account.",
+                        ephemeral=True,
+                    )
+                return
+            try:
+                payload = json.loads(
+                    await asyncio.to_thread(_health_history_path().read_text, "utf-8")
+                )
+                entries = payload.get("entries") if isinstance(payload, dict) else None
+                if not isinstance(entries, list):
+                    raise RuntimeError("Health history is unavailable")
+                entry = next(
+                    (
+                        item
+                        for item in entries
+                        if isinstance(item, dict)
+                        and str(item.get("id") or "") == health_history_id
+                    ),
+                    None,
+                )
+                if entry is None:
+                    raise RuntimeError("This health history entry has expired")
+                await interaction.response.send_message(
+                    _health_history_message(entry), ephemeral=True
+                )
+            except Exception as exc:
+                await interaction.response.send_message(
+                    f"Health history could not be opened safely: {str(exc)[:350]}",
+                    ephemeral=True,
+                )
+            return
         metadata_page_parsed = parse_metadata_page_control_id(custom_id)
         metadata_selection_parsed = parse_metadata_selection_control_id(custom_id)
         metadata_parsed = parse_metadata_control_id(custom_id)

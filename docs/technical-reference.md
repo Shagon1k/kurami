@@ -68,6 +68,8 @@ app/
                               Reconciles Discord ticket threads and live cards
     backup-state.ts           Creates verified SQLite/config snapshots with retention
     runtime-health.ts         Read-only DB/Docker/preview consistency inspection
+    network-health.ts         HTTPS quorum and bounded LibreSpeed trend snapshots
+    health-settings.ts        Owner-only health interval and Hermes schedule boundary
     resource-guard.ts         Inspects admission quotas and reconciles orphan quarantine state
     resource-guard-discord.ts Batches and delivers durable changed-only guard events
     runtime-settings.ts       Merges verified SQLite runtime overrides with safe defaults
@@ -75,7 +77,7 @@ app/
     project-readiness.ts      Read-only PASS/WARN/FAIL compatibility assessment
     monthly-maintenance.ts    Bounded old-log and unused Docker cache/image cleanup
   tests/
-    run-regression.ts         Runs all 40 deterministic suites in fail-fast order
+    run-regression.ts         Runs all deterministic suites in fail-fast order
     verify-dry-run-admission.ts
                               Isolated WIP/idempotency/policy regression test
     verify-completed-release.ts
@@ -173,10 +175,16 @@ inside a SQLite write transaction. It owns:
 
 It does not invoke Git, tmux, Codex, or GitHub mutations.
 
-### Owner-only runtime settings
+### Owner-only Kurami settings
 
-`/kurami orchestrator settings` is an ephemeral Discord panel available only to
-the exact configured owner inside a project guild. It exposes six bounded
+`/kurami settings` is an ephemeral Discord panel available only to the exact
+configured owner inside a project guild. A top-level command is intentional:
+settings now span System Health and Project Orchestrator, so an extra
+`orchestrator` command group would be misleading and unnecessarily long.
+
+System Health exposes a separately revisioned interval of 5, 10, 12, 15, 20,
+30, or 60 minutes and edits the existing Hermes job in place. It is available
+even while a project run is active. Project Orchestrator exposes six bounded
 scalar runtime-policy values plus one WIP value for every registered project:
 concurrent LLM workers (1–3), AI triage/day (0–40 issues per project), Global
 WIP (1–6), project WIP (1–3), active previews (1–6), concurrent preview builds
@@ -1324,12 +1332,12 @@ Five additional `no_agent` jobs own digest and operational housekeeping:
   permanent private digest channel;
 - state backup on days `1, 4, 7, ...` at `03:15 UTC`, delivered to the muted
   Discord maintenance channel;
-- read-only runtime and server health inspection every ten minutes, silent while
-  healthy and posted as a Discord Components V2 alert card only on a new
-  incident, severity change, two-hour reminder, or recovery;
-- a persistent Kurami system health card every fifteen minutes. The same Discord
-  message is edited in place and separates host metrics under `System` from
-  application metrics under `Project Orchestrator`;
+- one combined runtime/server/network health inspection every twenty minutes.
+  It edits one persistent Discord Components V2 card and posts to Alerts only on
+  a new incident, severity change, two-hour reminder, or recovery;
+- a bounded LibreSpeed trend sample every six hours against server 49 (London,
+  Clouvider), with telemetry disabled, one HTTP worker, one-second direction
+  windows, two download chunks, and 64 KiB upload payloads;
 - monthly bounded maintenance on the first day at `04:15 UTC`, delivered to the
   muted Discord maintenance channel.
 
@@ -1338,19 +1346,31 @@ Warnings require three consecutive checks; critical readings require two.
 The default warning/critical boundaries are `85%/95%` for CPU and `80%/90%`
 for RAM. Disk health continues to use the Resource Guard thresholds from
 `limits`: warning at `75%`, admission block at `85%`, and emergency at `92%`.
+External connectivity uses a parallel 2-of-3 HTTPS quorum. The LibreSpeed binary
+is installed as `runtime/tools/librespeed-cli` v1.0.14 from the upstream release;
+the tracked wrapper never enables telemetry. The latest speed sample lives in
+`state/network-speed.json` and is displayed as trend evidence, not as a hard
+capacity guarantee.
+
 Alert streak and cooldown state is stored atomically in
 `state/runtime-health-alert.json`; changing metric values alone does not bypass
 the cooldown. The persistent health-card message ID lives in
-`state/system-health-discord.json`.
+`state/system-health-discord.json`. Ten bounded snapshots live in
+`state/system-health-history.json`; selecting one from the card responds
+ephemerally and never creates another Health-channel message.
 
-Both Hermes jobs use `deliver: local`; their scripts post Components V2 cards
+The Hermes health and speed jobs use `deliver: local`; their scripts post or
+persist bounded results directly
 through the existing Discord bot REST credentials. This keeps Hermes as the
 scheduler while preventing the generic `Cronjob Response` header and job-management
 footer from leaking into Discord. The bot token is read from `HERMES_HOME/.env`
 and is never printed or stored in card state. Discord targets are configured as
 `discord.health_channel_id` and `discord.alerts_channel_id`.
 
-The health job is intentionally not a cleanup reconciler. An orphan Docker
+The normal health cycle is intentionally not a cleanup reconciler. The explicit
+`--cleanup-health-channel` maintenance mode preserves the state-recorded card
+and deletes every other message only after verifying that card is still present.
+An orphan Docker
 preview is evidence of state drift and requires owner review before the exact
 Compose project is stopped. Monthly maintenance cannot hide that evidence by
 pruning containers or volumes.

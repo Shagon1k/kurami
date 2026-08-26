@@ -25,6 +25,16 @@ def _paths() -> tuple[Path, Path]:
     return home / "runtime/node/bin/node", home / "app/src/orchestrator-settings.ts"
 
 
+def _health_paths() -> tuple[Path, Path]:
+    home = Path(
+        os.environ.get(
+            "ORCHESTRATOR_HOME",
+            "/home/shagon1k/_hermes/_orchestrator",
+        )
+    ).resolve()
+    return home / "runtime/node/bin/node", home / "app/src/health-settings.ts"
+
+
 def _integer(value: object, name: str, minimum: int, maximum: int) -> int:
     if isinstance(value, bool) or not isinstance(value, int):
         raise RuntimeError(f"{name} must be an integer")
@@ -169,6 +179,73 @@ async def _run_settings_control(
     return payload
 
 
+async def _run_health_settings_control(
+    action: str,
+    actor_id: Optional[str] = None,
+    expected_revision: Optional[int] = None,
+    minutes: Optional[int] = None,
+) -> dict[str, Any]:
+    if action not in {"status", "apply"}:
+        raise RuntimeError("Invalid Kurami health settings action")
+    node, control = _health_paths()
+    if not node.is_file() or not control.is_file():
+        raise RuntimeError("Kurami health settings runtime is unavailable")
+    args = [str(node), str(control), action]
+    if action == "apply":
+        if (
+            not actor_id
+            or not actor_id.isdigit()
+            or expected_revision is None
+            or minutes not in {5, 10, 12, 15, 20, 30, 60}
+        ):
+            raise RuntimeError("Kurami health settings mutation is invalid")
+        args.extend(
+            [
+                "--minutes", str(minutes),
+                "--expected-revision", str(expected_revision),
+                "--actor-id", actor_id,
+            ]
+        )
+    env = {
+        "ORCHESTRATOR_HOME": str(control.parents[2]),
+        "HERMES_HOME": os.environ.get(
+            "HERMES_HOME", "/home/shagon1k/_hermes/_core"
+        ),
+        "PATH": os.environ.get("PATH", "/usr/local/bin:/usr/bin:/bin"),
+        "LANG": os.environ.get("LANG", "C.UTF-8"),
+        "NODE_NO_WARNINGS": "1",
+    }
+    process = await asyncio.create_subprocess_exec(
+        *args,
+        stdin=asyncio.subprocess.DEVNULL,
+        stdout=asyncio.subprocess.PIPE,
+        stderr=asyncio.subprocess.PIPE,
+        env=env,
+    )
+    try:
+        stdout, stderr = await asyncio.wait_for(process.communicate(), timeout=20)
+    except asyncio.TimeoutError:
+        process.kill()
+        await process.wait()
+        raise RuntimeError("Kurami health settings request timed out") from None
+    output = stdout.decode("utf-8", errors="replace").strip()
+    error = stderr.decode("utf-8", errors="replace").strip()
+    last_line = next((line for line in reversed(output.splitlines()) if line), "")
+    try:
+        payload = json.loads(last_line) if last_line else {}
+    except json.JSONDecodeError as exc:
+        raise RuntimeError("Kurami health settings returned invalid output") from exc
+    if process.returncode != 0 or not payload.get("ok"):
+        message = payload.get("error") or error or "Kurami health settings failed"
+        raise RuntimeError(str(message)[:500])
+    if (
+        not isinstance(payload.get("revision"), int)
+        or payload.get("intervalMinutes") not in {5, 10, 12, 15, 20, 30, 60}
+    ):
+        raise RuntimeError("Kurami health settings payload is invalid")
+    return payload
+
+
 def _settings_diff(
     current: dict[str, Any], proposed: dict[str, Any]
 ) -> list[tuple[str, int, int]]:
@@ -198,6 +275,7 @@ def _settings_message(
     payload: dict[str, Any],
     proposed: Optional[dict[str, Any]] = None,
     notice: str = "",
+    health: Optional[dict[str, Any]] = None,
 ) -> str:
     current = _validated_settings(payload.get("settings"))
     draft = _validated_settings(proposed or current)
@@ -225,8 +303,18 @@ def _settings_message(
         (f"WIP {project}", limit) for project, limit in draft["project_wip"].items()
     )
     lines = [
-        "## Kurami Orchestrator settings",
+        "## Kurami settings",
         f"-# Revision {revision} · {payload.get('source', 'unknown')}",
+        "### System Health",
+        table(
+            [
+                (
+                    "Check interval",
+                    f"{int((health or {}).get('intervalMinutes', 20))} minutes",
+                ),
+            ]
+        ),
+        "### Project Orchestrator",
         "### Capacity",
         table(capacity),
         "### Previews",
@@ -295,6 +383,7 @@ def _build_settings_view(
     client: Any,
     authorized: Callable[[Any], bool],
     payload: dict[str, Any],
+    health_payload: dict[str, Any],
     actor_id: str,
 ) -> Any:
     import discord
@@ -303,6 +392,7 @@ def _build_settings_view(
         def __init__(self) -> None:
             super().__init__(timeout=300)
             self.payload = payload
+            self.health_payload = health_payload
             self.draft = copy.deepcopy(_validated_settings(payload.get("settings")))
             self.actor_id = actor_id
             self.edit_select: Any = None
@@ -361,14 +451,27 @@ def _build_settings_view(
                 ),
             )
             reset_button.callback = self._reset
+            health_button = discord.ui.Button(
+                label="Health interval",
+                style=discord.ButtonStyle.primary,
+                custom_id="kurami:settings:health-interval",
+            )
+            health_button.callback = self._health_interval
             self.add_item(
                 discord.ui.Container(
                     discord.ui.TextDisplay(
-                        _settings_message(self.payload, self.draft, self.notice)
+                        _settings_message(
+                            self.payload,
+                            self.draft,
+                            self.notice,
+                            self.health_payload,
+                        )
                     ),
                     discord.ui.Separator(),
                     discord.ui.ActionRow(self.edit_select),
-                    discord.ui.ActionRow(apply_button, undo_button, reset_button),
+                    discord.ui.ActionRow(
+                        health_button, apply_button, undo_button, reset_button
+                    ),
                     accent_color=0x5865F2,
                 )
             )
@@ -533,6 +636,73 @@ def _build_settings_view(
 
             await interaction.response.send_modal(PreviewModal())
 
+        async def _health_interval(self, interaction: Any) -> None:
+            parent = self
+
+            class HealthIntervalModal(discord.ui.Modal):
+                def __init__(self) -> None:
+                    super().__init__(title="Kurami health interval", timeout=180)
+                    self.minutes = discord.ui.TextInput(
+                        label="Minutes: 5, 10, 12, 15, 20, 30, or 60",
+                        default=str(parent.health_payload["intervalMinutes"]),
+                        min_length=1,
+                        max_length=2,
+                    )
+                    self.add_item(self.minutes)
+
+                async def on_submit(self, modal_interaction: Any) -> None:
+                    await modal_interaction.response.defer()
+                    try:
+                        fresh = await _run_health_settings_control(
+                            "apply",
+                            actor_id=parent.actor_id,
+                            expected_revision=int(
+                                parent.health_payload.get("revision", 0)
+                            ),
+                            minutes=int(str(self.minutes.value)),
+                        )
+                        before_minutes = int(
+                            parent.health_payload.get("intervalMinutes", 20)
+                        )
+                        audit_warning = await _send_audit(
+                            client,
+                            {
+                                **fresh,
+                                "maintenanceChannelId": parent.payload.get(
+                                    "maintenanceChannelId"
+                                ),
+                                "changes": (
+                                    []
+                                    if before_minutes == fresh["intervalMinutes"]
+                                    else [
+                                        {
+                                            "name": "health_check_minutes",
+                                            "before": before_minutes,
+                                            "after": fresh["intervalMinutes"],
+                                        }
+                                    ]
+                                ),
+                            },
+                            parent.actor_id,
+                        )
+                        parent.health_payload = fresh
+                        parent.notice = (
+                            "✅ Health interval updated."
+                            if fresh.get("action") == "applied"
+                            else "Health interval is unchanged."
+                        )
+                        if audit_warning:
+                            parent.notice = f"{parent.notice} ⚠️ {audit_warning}"
+                    except Exception as exc:
+                        parent.notice = (
+                            "❌ Health interval rejected safely: "
+                            f"{str(exc)[:350]}"
+                        )
+                    parent._render()
+                    await modal_interaction.edit_original_response(view=parent)
+
+            await interaction.response.send_modal(HealthIntervalModal())
+
         async def _edit(self, interaction: Any) -> None:
             selected = str(self.edit_select.values[0]) if self.edit_select.values else ""
             if selected == "capacity":
@@ -563,7 +733,7 @@ def install_settings_command(
     authorized: Callable[[Any], bool],
     refresh_dashboard: Optional[Callable[[str], Awaitable[dict[str, Any]]]] = None,
 ) -> None:
-    """Register one nested ``/kurami orchestrator settings`` command."""
+    """Register one concise owner-only ``/kurami settings`` command."""
 
     if getattr(client, "_kurami_settings_command_installed", False):
         return
@@ -576,12 +746,7 @@ def install_settings_command(
     if "kurami" in existing:
         raise RuntimeError("Discord already has a top-level /kurami command")
     kurami = discord.app_commands.Group(
-        name="kurami", description="Kurami Orchestrator owner controls"
-    )
-    orchestrator = discord.app_commands.Group(
-        name="orchestrator",
-        description="Orchestrator runtime controls",
-        parent=kurami,
+        name="kurami", description="Kurami owner controls"
     )
 
     if refresh_dashboard is not None:
@@ -622,8 +787,8 @@ def install_settings_command(
                     ephemeral=True,
                 )
 
-    @orchestrator.command(
-        name="settings", description="View or change bounded runtime settings"
+    @kurami.command(
+        name="settings", description="View or change Kurami system settings"
     )
     async def settings(interaction: Any) -> None:
         if not authorized(interaction):
@@ -632,7 +797,10 @@ def install_settings_command(
             )
             return
         try:
-            payload = await _run_settings_control("status")
+            payload, health_payload = await asyncio.gather(
+                _run_settings_control("status"),
+                _run_health_settings_control("status"),
+            )
             guild_id = str(getattr(interaction, "guild_id", "") or "")
             allowed_guilds = {
                 str(value)
@@ -646,7 +814,9 @@ def install_settings_command(
                 )
                 return
             actor_id = str(getattr(getattr(interaction, "user", None), "id", ""))
-            view = _build_settings_view(client, authorized, payload, actor_id)
+            view = _build_settings_view(
+                client, authorized, payload, health_payload, actor_id
+            )
             await interaction.response.send_message(view=view, ephemeral=True)
         except Exception as exc:
             await interaction.response.send_message(

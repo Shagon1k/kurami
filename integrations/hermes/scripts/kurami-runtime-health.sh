@@ -10,4 +10,4 @@ readonly HEALTH_DELIVERY="${ORCHESTRATOR_HOME}/app/src/system-health-discord.ts"
 export ORCHESTRATOR_HOME
 export HERMES_HOME
 export PATH="${ORCHESTRATOR_HOME}/runtime/node/bin:/usr/local/bin:/usr/bin:/bin"
-exec "${NODE_BIN}" "${HEALTH_DELIVERY}" --alerts
+exec "${NODE_BIN}" "${HEALTH_DELIVERY}" --run

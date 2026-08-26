@@ -30,6 +30,8 @@
     "test:runtime-health": "node tests/verify-runtime-health.ts",
     "test:server-health": "node tests/verify-server-health.ts",
     "test:system-health-discord": "node tests/verify-system-health-discord.ts",
+    "test:network-health": "node tests/verify-network-health.ts",
+    "test:health-settings": "node tests/verify-health-settings.ts",
     "test:resource-guard": "node tests/verify-resource-guard.ts",
     "test:resource-guard-discord": "node tests/verify-resource-guard-discord.ts",
     "test:maintenance": "node tests/verify-monthly-maintenance.ts",

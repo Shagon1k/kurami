@@ -4,9 +4,11 @@ import { dirname, resolve } from "node:path";
 import { pathToFileURL } from "node:url";
 import { parse } from "yaml";
 import {
+  actionRow,
   componentMessage,
   container,
   separator,
+  stringSelect,
   textDisplay,
   type DiscordObject,
 } from "./discord-ui.ts";
@@ -37,6 +39,26 @@ type HealthSurfaceState = {
   version: 1;
   channelId: string;
   messageId: string;
+};
+
+export type HealthHistoryEntry = {
+  id: string;
+  checkedAt: string;
+  ok: boolean;
+  cpuPercent: number;
+  memoryPercent: number;
+  diskPercent: number;
+  networkStatus: "online" | "degraded" | "offline";
+  networkLatencyMs: number | null;
+  downloadMbps: number | null;
+  uploadMbps: number | null;
+  runningContainers: number;
+  unhealthyContainers: number;
+};
+
+type HealthHistoryState = {
+  version: 1;
+  entries: HealthHistoryEntry[];
 };
 
 type DiscordDeliveryOptions = {
@@ -137,11 +159,20 @@ function systemRows(result: RuntimeHealthResult): Array<[string, string]> {
     server.swapTotalGiB === 0
       ? "off"
       : `${server.swapUsedGiB}/${server.swapTotalGiB} GiB`;
+  const network = result.networkConnectivity;
+  const speed = result.networkSpeed;
+  const speedText = speed
+    ? `${Math.round(speed.downloadMbps)}↓ / ${Math.round(speed.uploadMbps)}↑ Mbps`
+    : "speed pending";
   return [
     ["CPU", `${server.cpuUsedPercent}%  ·  load ${server.loadAverage.join(" / ")}`],
     [
       "RAM",
       `${server.memoryUsedGiB}/${server.memoryTotalGiB} GiB  ·  ${server.memoryAvailableGiB} GiB available`,
+    ],
+    [
+      "Network",
+      `${network.status}  ·  ${network.latencyMs === null ? "n/a" : `${network.latencyMs} ms`}  ·  ${speedText}`,
     ],
     [
       "Disk",
@@ -230,6 +261,7 @@ function healthSections(result: RuntimeHealthResult): DiscordObject[] {
 
 export function systemHealthCard(
   result: RuntimeHealthResult,
+  history: HealthHistoryEntry[] = [],
 ): DiscordObject {
   const status = result.ok
     ? "🟢 All monitored checks are healthy"
@@ -245,6 +277,23 @@ export function systemHealthCard(
       textDisplay(
         `### Issues\n${table(issueRows(result.problems.map((problem) => ["!", problem])))}`,
       ),
+    );
+  }
+  if (history.length > 0) {
+    body.push(
+      separator(),
+      textDisplay("### Recent health runs"),
+      actionRow([
+        stringSelect(
+          "kurami:health:history",
+          "Inspect one of the last 10 runs…",
+          history.slice(0, 10).map((entry) => ({
+            label: `${vilniusTimestamp(entry.checkedAt)} · ${entry.ok ? "healthy" : "attention"}`,
+            value: entry.id,
+            description: `CPU ${entry.cpuPercent}% · RAM ${entry.memoryPercent}% · Disk ${entry.diskPercent}%`,
+          })),
+        ),
+      ]),
     );
   }
   body.push(
@@ -375,16 +424,80 @@ async function writeHealthSurfaceState(
   await rename(temporary, path);
 }
 
+function validHistoryEntry(value: unknown): value is HealthHistoryEntry {
+  if (!value || typeof value !== "object") return false;
+  const entry = value as Partial<HealthHistoryEntry>;
+  return (
+    typeof entry.id === "string" &&
+    /^\d{10,20}$/u.test(entry.id) &&
+    typeof entry.checkedAt === "string" &&
+    Number.isFinite(Date.parse(entry.checkedAt)) &&
+    typeof entry.ok === "boolean" &&
+    [entry.cpuPercent, entry.memoryPercent, entry.diskPercent].every(
+      (number) => typeof number === "number" && Number.isFinite(number),
+    ) &&
+    ["online", "degraded", "offline"].includes(entry.networkStatus ?? "") &&
+    (entry.networkLatencyMs === null || typeof entry.networkLatencyMs === "number") &&
+    (entry.downloadMbps === null || typeof entry.downloadMbps === "number") &&
+    (entry.uploadMbps === null || typeof entry.uploadMbps === "number") &&
+    Number.isInteger(entry.runningContainers) &&
+    Number.isInteger(entry.unhealthyContainers)
+  );
+}
+
+export async function readHealthHistory(path: string): Promise<HealthHistoryEntry[]> {
+  try {
+    const value = JSON.parse(await readFile(path, "utf8")) as Partial<HealthHistoryState>;
+    if (value.version !== 1 || !Array.isArray(value.entries)) return [];
+    return value.entries.filter(validHistoryEntry).slice(0, 10);
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === "ENOENT") return [];
+    throw error;
+  }
+}
+
+export async function recordHealthHistory(
+  path: string,
+  result: RuntimeHealthResult,
+): Promise<HealthHistoryEntry[]> {
+  const previous = await readHealthHistory(path);
+  const entry: HealthHistoryEntry = {
+    id: String(Date.parse(result.checkedAt)),
+    checkedAt: result.checkedAt,
+    ok: result.ok,
+    cpuPercent: result.server.cpuUsedPercent,
+    memoryPercent: result.server.memoryUsedPercent,
+    diskPercent: result.resourceGuard.disk.usedPercent,
+    networkStatus: result.networkConnectivity.status,
+    networkLatencyMs: result.networkConnectivity.latencyMs,
+    downloadMbps: result.networkSpeed?.downloadMbps ?? null,
+    uploadMbps: result.networkSpeed?.uploadMbps ?? null,
+    runningContainers: result.containerRuntime.running,
+    unhealthyContainers: result.containerRuntime.unhealthy,
+  };
+  const entries = [entry, ...previous.filter((item) => item.id !== entry.id)].slice(0, 10);
+  await mkdir(dirname(path), { recursive: true });
+  const temporary = `${path}.${process.pid}.tmp`;
+  await writeFile(
+    temporary,
+    `${JSON.stringify({ version: 1, entries } satisfies HealthHistoryState)}\n`,
+    { mode: 0o600 },
+  );
+  await rename(temporary, path);
+  return entries;
+}
+
 export async function reconcileSystemHealthCard(
   options: DiscordDeliveryOptions & {
     result: RuntimeHealthResult;
     statePath: string;
+    history?: HealthHistoryEntry[];
   },
 ): Promise<{ action: "created" | "edited"; messageId: string }> {
   const channelId = validateChannelId(options.channelId, "health channel ID");
   const previous = await readHealthSurfaceState(options.statePath);
   const messageId = previous?.channelId === channelId ? previous.messageId : null;
-  const payload = systemHealthCard(options.result);
+  const payload = systemHealthCard(options.result, options.history ?? []);
   if (messageId) {
     const edited = await discordRequest(
       options,
@@ -415,6 +528,54 @@ export async function reconcileSystemHealthCard(
   return { action: "created", messageId: createdId };
 }
 
+export async function cleanupHealthChannel(
+  options: DiscordDeliveryOptions & { statePath: string },
+): Promise<{ keptMessageId: string; scanned: number; deleted: number }> {
+  const channelId = validateChannelId(options.channelId, "health channel ID");
+  const state = await readHealthSurfaceState(options.statePath);
+  if (!state || state.channelId !== channelId) {
+    fail("Persistent health card state does not match the configured channel");
+  }
+  await discordRequest(
+    options,
+    "GET",
+    `/channels/${channelId}/messages/${state.messageId}`,
+  );
+  const messageIds: string[] = [];
+  let before: string | null = null;
+  for (let pageNumber = 0; pageNumber < 10; pageNumber += 1) {
+    const page = await discordRequest(
+      options,
+      "GET",
+      `/channels/${channelId}/messages?limit=100${before ? `&before=${before}` : ""}`,
+    ) as unknown;
+    if (!Array.isArray(page)) fail("Discord returned an invalid Health message page");
+    const ids = page
+      .map((message) => String((message as { id?: unknown }).id ?? ""))
+      .filter((id) => /^\d+$/u.test(id));
+    messageIds.push(...ids);
+    if (ids.length < 100) break;
+    before = ids.at(-1) ?? null;
+    if (pageNumber === 9) fail("Health channel cleanup exceeded 1000 messages");
+  }
+  if (!messageIds.includes(state.messageId)) {
+    fail("Persistent health card was not found during cleanup");
+  }
+  const stale = messageIds.filter((messageId) => messageId !== state.messageId);
+  for (const messageId of stale) {
+    await discordRequest(
+      options,
+      "DELETE",
+      `/channels/${channelId}/messages/${messageId}`,
+    );
+  }
+  return {
+    keptMessageId: state.messageId,
+    scanned: messageIds.length,
+    deleted: stale.length,
+  };
+}
+
 export async function sendSystemHealthAlert(
   options: DiscordDeliveryOptions & {
     result: RuntimeHealthResult;
@@ -442,10 +603,18 @@ export async function sendSystemHealthAlert(
   return messageId;
 }
 
-function parseMode(args: string[]): "heartbeat" | "alerts" {
+function parseMode(
+  args: string[],
+): "run" | "heartbeat" | "alerts" | "cleanup-health-channel" {
+  if (args.length === 1 && args[0] === "--run") return "run";
   if (args.length === 1 && args[0] === "--heartbeat") return "heartbeat";
   if (args.length === 1 && args[0] === "--alerts") return "alerts";
-  fail("Usage: system-health-discord.ts [--heartbeat | --alerts]");
+  if (args.length === 1 && args[0] === "--cleanup-health-channel") {
+    return "cleanup-health-channel";
+  }
+  fail(
+    "Usage: system-health-discord.ts [--run | --heartbeat | --alerts | --cleanup-health-channel]",
+  );
 }
 
 async function main(): Promise<void> {
@@ -462,64 +631,95 @@ async function main(): Promise<void> {
   if (config.version !== 1) fail("Unsupported configuration version");
   const apiBase = process.env.DISCORD_API_BASE ?? defaultApiBase;
   const token = await loadDiscordToken(hermesHome);
-  const result = await inspectRuntimeHealth(orchestratorHome);
 
-  if (mode === "heartbeat") {
-    const channelId = validateChannelId(
+  if (mode === "cleanup-health-channel") {
+    const healthChannelId = validateChannelId(
       config.discord?.health_channel_id,
       "discord.health_channel_id",
     );
-    const delivery = await reconcileSystemHealthCard({
+    const cleanup = await cleanupHealthChannel({
       token,
-      channelId,
+      channelId: healthChannelId,
       apiBase,
-      result,
       statePath: resolve(orchestratorHome, "state/system-health-discord.json"),
     });
     process.stdout.write(
-      `${JSON.stringify({ ok: true, mode, channelId, ...delivery })}\n`,
+      `${JSON.stringify({ ok: true, mode, channelId: healthChannelId, ...cleanup })}\n`,
     );
     return;
   }
 
-  const channelId = validateChannelId(
-    config.discord?.alerts_channel_id,
-    "discord.alerts_channel_id",
-  );
-  const alertStatePath = resolve(orchestratorHome, "state/runtime-health-alert.json");
-  const counterStatePath = resolve(orchestratorHome, "state/runtime-health-counters.json");
-  const previous = await readHealthAlertState(alertStatePath);
-  const decision = evaluateHealthAlerts(
-    previous,
-    result.alertIssues,
-    new Date(result.checkedAt),
-    result.serverHealthConfig.alert_reminder_minutes,
-  );
-  if (!decision.kind) {
+  const result = await inspectRuntimeHealth(orchestratorHome);
+
+  const deliverAlerts = async (): Promise<Record<string, unknown>> => {
+    const alertsChannelId = validateChannelId(
+      config.discord?.alerts_channel_id,
+      "discord.alerts_channel_id",
+    );
+    const alertStatePath = resolve(orchestratorHome, "state/runtime-health-alert.json");
+    const counterStatePath = resolve(orchestratorHome, "state/runtime-health-counters.json");
+    const previous = await readHealthAlertState(alertStatePath);
+    const decision = evaluateHealthAlerts(
+      previous,
+      result.alertIssues,
+      new Date(result.checkedAt),
+      result.serverHealthConfig.alert_reminder_minutes,
+    );
+    let messageId: string | null = null;
+    if (decision.kind) {
+      const fingerprint = Object.entries(decision.active)
+        .sort(([left], [right]) => left.localeCompare(right))
+        .map(([key, issue]) => `${key}:${issue.severity}`)
+        .join("|");
+      messageId = await sendSystemHealthAlert({
+        token,
+        channelId: alertsChannelId,
+        apiBase,
+        result,
+        decision,
+        nonceSeed: `${decision.kind}:${previous.lastNotifiedAt ?? "initial"}:${fingerprint}`,
+      });
+    }
     await writeHealthAlertState(alertStatePath, decision.state);
     await writeRuntimeHealthCounterState(counterStatePath, result.oomKillCount);
-    process.stdout.write(
-      `${JSON.stringify({ ok: true, mode, channelId, delivered: false })}\n`,
+    return {
+      channelId: alertsChannelId,
+      delivered: messageId !== null,
+      ...(messageId ? { messageId } : {}),
+    };
+  };
+
+  const updateHeartbeat = async (): Promise<Record<string, unknown>> => {
+    const healthChannelId = validateChannelId(
+      config.discord?.health_channel_id,
+      "discord.health_channel_id",
     );
+    const history = await recordHealthHistory(
+      resolve(orchestratorHome, "state/system-health-history.json"),
+      result,
+    );
+    const delivery = await reconcileSystemHealthCard({
+      token,
+      channelId: healthChannelId,
+      apiBase,
+      result,
+      history,
+      statePath: resolve(orchestratorHome, "state/system-health-discord.json"),
+    });
+    return { channelId: healthChannelId, history: history.length, ...delivery };
+  };
+
+  if (mode === "alerts") {
+    process.stdout.write(`${JSON.stringify({ ok: true, mode, ...(await deliverAlerts()) })}\n`);
     return;
   }
-  const fingerprint = Object.entries(decision.active)
-    .sort(([left], [right]) => left.localeCompare(right))
-    .map(([key, issue]) => `${key}:${issue.severity}`)
-    .join("|");
-  const messageId = await sendSystemHealthAlert({
-    token,
-    channelId,
-    apiBase,
-    result,
-    decision,
-    nonceSeed: `${decision.kind}:${previous.lastNotifiedAt ?? "initial"}:${fingerprint}`,
-  });
-  await writeHealthAlertState(alertStatePath, decision.state);
-  await writeRuntimeHealthCounterState(counterStatePath, result.oomKillCount);
-  process.stdout.write(
-    `${JSON.stringify({ ok: true, mode, channelId, delivered: true, messageId })}\n`,
-  );
+  if (mode === "heartbeat") {
+    process.stdout.write(`${JSON.stringify({ ok: true, mode, ...(await updateHeartbeat()) })}\n`);
+    return;
+  }
+  const alerts = await deliverAlerts();
+  const heartbeat = await updateHeartbeat();
+  process.stdout.write(`${JSON.stringify({ ok: true, mode, alerts, heartbeat })}\n`);
 }
 
 const invokedPath = process.argv[1]

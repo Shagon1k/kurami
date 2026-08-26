@@ -11,6 +11,7 @@ import {
   type HealthAlertDecision,
 } from "../src/server-health.ts";
 import {
+  cleanupHealthChannel,
   reconcileSystemHealthCard,
   sendSystemHealthAlert,
   systemHealthAlertCard,
@@ -46,6 +47,23 @@ const result: RuntimeHealthResult = {
   },
   oomKillCount: 0,
   oomKillsSincePreviousCheck: 0,
+  networkConnectivity: {
+    status: "online",
+    successfulTargets: 3,
+    totalTargets: 3,
+    latencyMs: 18.4,
+  },
+  networkSpeed: {
+    version: 1,
+    checkedAt: "2026-08-26T08:00:00.000Z",
+    server: "London, England (Clouvider)",
+    pingMs: 5.4,
+    jitterMs: 0.6,
+    downloadMbps: 1202.9,
+    uploadMbps: 85.1,
+    bytesReceived: 180600242,
+    bytesSent: 12779520,
+  },
   activePreviewLeases: 0,
   backupAgeHours: 30.6,
   backupMaxAgeHours: 84,
@@ -79,7 +97,22 @@ const result: RuntimeHealthResult = {
   problems: [],
 };
 
-const card = systemHealthCard(result);
+const card = systemHealthCard(result, [
+  {
+    id: String(Date.parse(result.checkedAt)),
+    checkedAt: result.checkedAt,
+    ok: true,
+    cpuPercent: result.server.cpuUsedPercent,
+    memoryPercent: result.server.memoryUsedPercent,
+    diskPercent: result.resourceGuard.disk.usedPercent,
+    networkStatus: "online",
+    networkLatencyMs: 18.4,
+    downloadMbps: 1202.9,
+    uploadMbps: 85.1,
+    runningContainers: 12,
+    unhealthyContainers: 0,
+  },
+]);
 const serializedCard = JSON.stringify(card);
 assert.equal(card.flags, 32768, "Health card must use Discord Components V2");
 assert(!Object.hasOwn(card, "content"), "Health card must not fall back to plain content");
@@ -93,6 +126,9 @@ assert(
 assert(serializedCard.includes("Disk") && serializedCard.includes("158.1 GiB"));
 assert(serializedCard.includes("State DB") && serializedCard.includes("Backup"));
 assert(serializedCard.includes("Runtime") && serializedCard.includes("12 running"));
+assert(serializedCard.includes("Network") && serializedCard.includes("1203↓ / 85↑ Mbps"));
+assert(serializedCard.includes("Recent health runs"));
+assert(serializedCard.includes("kurami:health:history"));
 assert(!serializedCard.includes("Cronjob Response"), "Cron wrapper leaked into card");
 assert(!serializedCard.includes("To stop or manage this job"), "Cron footer leaked into card");
 
@@ -141,6 +177,27 @@ const server = createServer((request, response) => {
       url: request.url ?? "",
       body: body ? (JSON.parse(body) as Record<string, unknown>) : {},
     });
+    if (
+      request.method === "GET" &&
+      request.url === "/channels/1538633991974817842/messages/9001"
+    ) {
+      response.writeHead(200, { "content-type": "application/json" });
+      response.end(JSON.stringify({ id: "9001", flags: 32768 }));
+      return;
+    }
+    if (
+      request.method === "GET" &&
+      request.url?.startsWith("/channels/1538633991974817842/messages?limit=100")
+    ) {
+      response.writeHead(200, { "content-type": "application/json" });
+      response.end(JSON.stringify([{ id: "9001" }, { id: "8002" }, { id: "8001" }]));
+      return;
+    }
+    if (request.method === "DELETE") {
+      response.writeHead(204);
+      response.end();
+      return;
+    }
     const requestedId = request.url?.split("/").at(-1);
     response.writeHead(200, { "content-type": "application/json" });
     response.end(
@@ -207,6 +264,19 @@ try {
   assert.equal(requests[0]?.body.enforce_nonce, true);
   assert(!Object.hasOwn(requests[0]?.body ?? {}, "content"));
   assert(!Object.hasOwn(requests[0]?.body ?? {}, "embeds"));
+
+  const cleanup = await cleanupHealthChannel({
+    token: "test-token",
+    channelId: "1538633991974817842",
+    apiBase,
+    statePath,
+  });
+  assert.deepEqual(cleanup, {
+    keptMessageId: "9001",
+    scanned: 3,
+    deleted: 2,
+  });
+  assert.equal(requests.filter((request) => request.method === "DELETE").length, 2);
 } finally {
   await new Promise<void>((resolveClose, rejectClose) =>
     server.close((error) => (error ? rejectClose(error) : resolveClose())),
@@ -221,6 +291,7 @@ process.stdout.write(
     projectOrchestratorSection: true,
     persistentHealthCard: true,
     directAlertCard: true,
+    boundedHealthCleanup: true,
     cronWrapperSuppressed: true,
   })}\n`,
 );
