@@ -114,7 +114,7 @@ async function main(): Promise<void> {
     } else fail(`Unknown health settings argument: ${flag ?? "missing"}`);
   }
   const orchestratorHome = resolve(
-    process.env.ORCHESTRATOR_HOME ?? resolve(import.meta.dirname, "../.."),
+    process.env.KURAMI_HOME ?? process.env.ORCHESTRATOR_HOME ?? resolve(import.meta.dirname, "../.."),
   );
   const statePath = resolve(orchestratorHome, "state/health-settings.json");
   const previous = await readState(statePath);

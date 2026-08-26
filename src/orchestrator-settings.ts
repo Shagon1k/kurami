@@ -209,7 +209,7 @@ function insertRevision(
 async function main(): Promise<void> {
   const args = parseArguments(process.argv.slice(2));
   const orchestratorHome = resolve(
-    process.env.ORCHESTRATOR_HOME ?? resolve(import.meta.dirname, "../.."),
+    process.env.KURAMI_HOME ?? process.env.ORCHESTRATOR_HOME ?? resolve(import.meta.dirname, "../.."),
   );
   const { base, projects } = await loadRuntimeSettingsInputs(orchestratorHome);
   const projectNames = Object.keys(projects.projects).sort();

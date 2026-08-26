@@ -225,7 +225,7 @@ async function main(): Promise<void> {
     fail("Usage: monthly-maintenance.ts [--apply [--summary-text]]");
   }
   const orchestratorHome = resolve(
-    process.env.ORCHESTRATOR_HOME ?? resolve(import.meta.dirname, "../.."),
+    process.env.KURAMI_HOME ?? process.env.ORCHESTRATOR_HOME ?? resolve(import.meta.dirname, "../.."),
   );
   const result = await monthlyMaintenance(orchestratorHome, apply);
   if (summaryText) {

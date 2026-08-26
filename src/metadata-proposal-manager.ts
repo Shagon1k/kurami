@@ -668,7 +668,7 @@ export function skipBatch(
 async function main(): Promise<void> {
   const args = process.argv.slice(2);
   const orchestratorHome = resolve(
-    process.env.ORCHESTRATOR_HOME ?? resolve(import.meta.dirname, "../.."),
+    process.env.KURAMI_HOME ?? process.env.ORCHESTRATOR_HOME ?? resolve(import.meta.dirname, "../.."),
   );
   const database = new DatabaseSync(
     resolve(orchestratorHome, "state/orchestrator.db"),

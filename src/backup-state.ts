@@ -249,7 +249,7 @@ async function main(): Promise<void> {
     fail("Usage: backup-state.ts <create [--summary-text] | inspect>");
   }
   const orchestratorHome = resolve(
-    process.env.ORCHESTRATOR_HOME ?? resolve(import.meta.dirname, "../.."),
+    process.env.KURAMI_HOME ?? process.env.ORCHESTRATOR_HOME ?? resolve(import.meta.dirname, "../.."),
   );
   if (command === "create") {
     const result = await createBackup(orchestratorHome);

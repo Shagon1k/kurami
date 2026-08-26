@@ -15,23 +15,21 @@ _PROJECT = re.compile(r"^[a-z0-9-]+$")
 _MUTATIONS = {"apply", "reset", "rollback"}
 
 
+def _kurami_home() -> Path:
+    return Path(
+        os.environ.get("KURAMI_HOME")
+        or os.environ.get("ORCHESTRATOR_HOME")
+        or "/home/shagon1k/_hermes/_kurami"
+    ).absolute()
+
+
 def _paths() -> tuple[Path, Path]:
-    home = Path(
-        os.environ.get(
-            "ORCHESTRATOR_HOME",
-            "/home/shagon1k/_hermes/_orchestrator",
-        )
-    ).resolve()
+    home = _kurami_home()
     return home / "runtime/node/bin/node", home / "app/src/orchestrator-settings.ts"
 
 
 def _health_paths() -> tuple[Path, Path]:
-    home = Path(
-        os.environ.get(
-            "ORCHESTRATOR_HOME",
-            "/home/shagon1k/_hermes/_orchestrator",
-        )
-    ).resolve()
+    home = _kurami_home()
     return home / "runtime/node/bin/node", home / "app/src/health-settings.ts"
 
 
@@ -145,6 +143,7 @@ async def _run_settings_control(
     args = _control_args(action, actor_id, expected_revision, settings)
     _, control = _paths()
     env = {
+        "KURAMI_HOME": str(control.parents[2]),
         "ORCHESTRATOR_HOME": str(control.parents[2]),
         "PATH": os.environ.get("PATH", "/usr/local/bin:/usr/bin:/bin"),
         "LANG": os.environ.get("LANG", "C.UTF-8"),
@@ -207,6 +206,7 @@ async def _run_health_settings_control(
             ]
         )
     env = {
+        "KURAMI_HOME": str(control.parents[2]),
         "ORCHESTRATOR_HOME": str(control.parents[2]),
         "HERMES_HOME": os.environ.get(
             "HERMES_HOME", "/home/shagon1k/_hermes/_core"

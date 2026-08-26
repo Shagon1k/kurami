@@ -8,7 +8,7 @@ complete machine image.
 
 - GitHub: private `Shagon1k/kurami` repository.
 - Runtime backup: the newest verified directory under
-  `/home/shagon1k/_hermes/_orchestrator/backups/`.
+  `/home/shagon1k/_hermes/_kurami/backups/`.
 - Minimal DR: the newest encrypted `kurami-recovery-*.tar.zst.age` object in
   the private off-site bucket, plus its `.sha256` sidecar.
 - Recovery identity: the operator's offline `age` private key. It must never be
@@ -24,8 +24,8 @@ Cloudflare dashboard configuration, canonical project clones, or worktrees.
 
 ```text
 Linux user:       shagon1k
-Orchestrator:     /home/shagon1k/_hermes/_orchestrator
-Application:      /home/shagon1k/_hermes/_orchestrator/app
+Orchestrator:     /home/shagon1k/_hermes/_kurami
+Application:      /home/shagon1k/_hermes/_kurami/app
 Hermes home:      /home/shagon1k/_hermes/_core
 Project root:     /home/shagon1k/_projects
 ```
@@ -52,7 +52,7 @@ Versioning provides a short recovery window for pruned current objects; an S3
 Lifecycle rule permanently removes noncurrent versions after 30 days.
 
 Minimal DR is disabled unless the private file
-`/home/shagon1k/_hermes/_orchestrator/secrets/recovery.env` exists with mode
+`/home/shagon1k/_hermes/_kurami/secrets/recovery.env` exists with mode
 `0600` and contains the `age` **public** recipient plus the dedicated
 least-privilege S3 writer credentials:
 
@@ -80,7 +80,7 @@ Plaintext staging is created under the system temporary directory and removed
 after encryption, including on failure.
 
 Encrypted bundles are first written to
-`/home/shagon1k/_hermes/_orchestrator/recovery/`. The existing backup wrapper
+`/home/shagon1k/_hermes/_kurami/recovery/`. The existing backup wrapper
 then uploads the latest bundle and checksum with system `curl` using AWS SigV4,
 reads back the remote size and checksum, and prunes current S3 objects to three
 pairs. Credentials are supplied to `curl` through stdin configuration and do
@@ -91,7 +91,7 @@ On an isolated restore host, install `age`, clone GitHub, download the newest
 bundle plus sidecar, verify the sidecar, and run:
 
 ```bash
-export ORCHESTRATOR_HOME=/home/shagon1k/_hermes/_orchestrator
+export ORCHESTRATOR_HOME=/home/shagon1k/_hermes/_kurami
 export HERMES_HOME=/home/shagon1k/_hermes/_core
 export KURAMI_AGE_BIN=/usr/local/bin/age
 export PATH="$ORCHESTRATOR_HOME/runtime/node/bin:$PATH"
@@ -133,8 +133,8 @@ Restore and verify at least:
 
 ```text
 /home/shagon1k/_hermes/_core/.env
-/home/shagon1k/_hermes/_orchestrator/secrets/github.env
-/home/shagon1k/_hermes/_orchestrator/secrets/tailortales-preview.env
+/home/shagon1k/_hermes/_kurami/secrets/github.env
+/home/shagon1k/_hermes/_kurami/secrets/tailortales-preview.env
 ```
 
 Never print their values. Codex authentication and durable task metadata live
@@ -176,7 +176,7 @@ and network trends are generic Kurami-wide jobs.
 From the application directory:
 
 ```bash
-export ORCHESTRATOR_HOME=/home/shagon1k/_hermes/_orchestrator
+export ORCHESTRATOR_HOME=/home/shagon1k/_hermes/_kurami
 export HERMES_HOME=/home/shagon1k/_hermes/_core
 export PATH="$ORCHESTRATOR_HOME/runtime/node/bin:$PATH"
 

@@ -662,7 +662,7 @@ async function main(): Promise<void> {
     fail("Usage: resource-guard.ts [--apply]");
   }
   const orchestratorHome = resolve(
-    process.env.ORCHESTRATOR_HOME ?? resolve(import.meta.dirname, "../.."),
+    process.env.KURAMI_HOME ?? process.env.ORCHESTRATOR_HOME ?? resolve(import.meta.dirname, "../.."),
   );
   const [projects, config] = await Promise.all([
     readFile(resolve(orchestratorHome, "config/projects.yaml"), "utf8").then(

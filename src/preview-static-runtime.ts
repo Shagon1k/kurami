@@ -109,7 +109,7 @@ type StaticPlan = {
 const defaultMaxFiles = 5_000;
 const defaultMaxBytes = 256 * 1024 * 1024;
 const orchestratorHome = resolve(
-  process.env.ORCHESTRATOR_HOME ?? resolve(import.meta.dirname, "../.."),
+  process.env.KURAMI_HOME ?? process.env.ORCHESTRATOR_HOME ?? resolve(import.meta.dirname, "../.."),
 );
 const databasePath = resolve(orchestratorHome, "state/orchestrator.db");
 const projectsPath = resolve(orchestratorHome, "config/projects.yaml");
@@ -176,7 +176,11 @@ async function pathExists(path: string): Promise<boolean> {
 function runFile(command: string, args: string[]): string {
   return execFileSync(command, args, {
     encoding: "utf8",
-    env: { ...process.env, ORCHESTRATOR_HOME: orchestratorHome },
+    env: {
+      ...process.env,
+      KURAMI_HOME: orchestratorHome,
+      ORCHESTRATOR_HOME: orchestratorHome,
+    },
     stdio: ["ignore", "pipe", "pipe"],
     timeout: 60_000,
   }).trim();

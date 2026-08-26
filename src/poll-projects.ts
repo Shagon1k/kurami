@@ -156,7 +156,7 @@ const QUERY = String.raw`
 `;
 
 const orchestratorHome = resolve(
-  process.env.ORCHESTRATOR_HOME ?? resolve(import.meta.dirname, "../.."),
+  process.env.KURAMI_HOME ?? process.env.ORCHESTRATOR_HOME ?? resolve(import.meta.dirname, "../.."),
 );
 const configPath = resolve(orchestratorHome, "config/projects.yaml");
 const selectedProject = process.env.POLLER_PROJECT?.trim() || null;

@@ -161,7 +161,7 @@ type PullRequest = {
   baseRefName?: string;
 };
 const orchestratorHome = resolve(
-  process.env.ORCHESTRATOR_HOME ?? resolve(import.meta.dirname, "../.."),
+  process.env.KURAMI_HOME ?? process.env.ORCHESTRATOR_HOME ?? resolve(import.meta.dirname, "../.."),
 );
 const hermesHome = resolve(
   process.env.HERMES_HOME ?? "/home/shagon1k/_hermes/_core",

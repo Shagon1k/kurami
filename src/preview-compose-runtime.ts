@@ -113,7 +113,7 @@ type RuntimePlan = {
 };
 
 const orchestratorHome = resolve(
-  process.env.ORCHESTRATOR_HOME ?? resolve(import.meta.dirname, "../.."),
+  process.env.KURAMI_HOME ?? process.env.ORCHESTRATOR_HOME ?? resolve(import.meta.dirname, "../.."),
 );
 const databasePath = resolve(orchestratorHome, "state/orchestrator.db");
 const projectsPath = resolve(orchestratorHome, "config/projects.yaml");
@@ -538,7 +538,11 @@ function reconcileIngress(): void {
   runFile(
     process.execPath,
     [previewIngressPath, "reconcile", "--apply"],
-    { ...process.env, ORCHESTRATOR_HOME: orchestratorHome },
+    {
+      ...process.env,
+      KURAMI_HOME: orchestratorHome,
+      ORCHESTRATOR_HOME: orchestratorHome,
+    },
   );
 }
 
@@ -697,7 +701,11 @@ async function down(
       "--runtime-absent",
       "--release-reason",
       releaseReason,
-    ], { ...process.env, ORCHESTRATOR_HOME: orchestratorHome });
+    ], {
+      ...process.env,
+      KURAMI_HOME: orchestratorHome,
+      ORCHESTRATOR_HOME: orchestratorHome,
+    });
     if (await pathExists(plan.runtimeDirectory)) {
       await rm(plan.runtimeDirectory, { recursive: true, force: false });
     }

@@ -186,7 +186,7 @@ export function runLibreSpeed(binary: string): NetworkSpeedSnapshot {
 async function main(): Promise<void> {
   if (process.argv.length !== 2) fail("Usage: network-health.ts");
   const orchestratorHome = resolve(
-    process.env.ORCHESTRATOR_HOME ?? resolve(import.meta.dirname, "../.."),
+    process.env.KURAMI_HOME ?? process.env.ORCHESTRATOR_HOME ?? resolve(import.meta.dirname, "../.."),
   );
   const binary = resolve(
     process.env.LIBRESPEED_BIN ?? resolve(orchestratorHome, "runtime/tools/librespeed-cli"),

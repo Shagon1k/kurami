@@ -39,7 +39,7 @@ type Project = {
 };
 
 const orchestratorHome = resolve(
-  process.env.ORCHESTRATOR_HOME ?? resolve(import.meta.dirname, "../.."),
+  process.env.KURAMI_HOME ?? process.env.ORCHESTRATOR_HOME ?? resolve(import.meta.dirname, "../.."),
 );
 const databasePath = resolve(orchestratorHome, "state/orchestrator.db");
 const configPath = resolve(orchestratorHome, "config/orchestrator.yaml");
@@ -305,6 +305,7 @@ async function main(): Promise<void> {
 
     try {
       runFile("tmux", ["new-session", "-d", "-s", tmuxName, "-c", run.worktree_path!,
+        "-e", `KURAMI_HOME=${orchestratorHome}`,
         "-e", `ORCHESTRATOR_HOME=${orchestratorHome}`,
         "-e", `HERMES_RUN_ID=${runId}`,
         "-e", `HERMES_REPOSITORY=${run.repository}`,

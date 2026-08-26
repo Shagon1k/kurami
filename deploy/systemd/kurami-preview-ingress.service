@@ -6,24 +6,24 @@ After=network-online.target
 
 [Service]
 Type=notify
-ExecStartPre=/home/shagon1k/_hermes/_orchestrator/runtime/caddy/bin/caddy validate --config /home/shagon1k/_hermes/_orchestrator/config/Caddyfile --adapter caddyfile
-ExecStart=/home/shagon1k/_hermes/_orchestrator/runtime/caddy/bin/caddy run --environ --config /home/shagon1k/_hermes/_orchestrator/config/Caddyfile --adapter caddyfile
-ExecReload=/home/shagon1k/_hermes/_orchestrator/runtime/caddy/bin/caddy reload --config /home/shagon1k/_hermes/_orchestrator/config/Caddyfile --adapter caddyfile --force
+ExecStartPre=/home/shagon1k/_hermes/_kurami/runtime/caddy/bin/caddy validate --config /home/shagon1k/_hermes/_kurami/config/Caddyfile --adapter caddyfile
+ExecStart=/home/shagon1k/_hermes/_kurami/runtime/caddy/bin/caddy run --environ --config /home/shagon1k/_hermes/_kurami/config/Caddyfile --adapter caddyfile
+ExecReload=/home/shagon1k/_hermes/_kurami/runtime/caddy/bin/caddy reload --config /home/shagon1k/_hermes/_kurami/config/Caddyfile --adapter caddyfile --force
 Restart=on-failure
 RestartSec=3s
 TimeoutStopSec=10s
 KillMode=mixed
 
 Environment=HOME=/home/shagon1k
-Environment=XDG_DATA_HOME=/home/shagon1k/_hermes/_orchestrator/state/caddy/data
-Environment=XDG_CONFIG_HOME=/home/shagon1k/_hermes/_orchestrator/state/caddy/config
+Environment=XDG_DATA_HOME=/home/shagon1k/_hermes/_kurami/state/caddy/data
+Environment=XDG_CONFIG_HOME=/home/shagon1k/_hermes/_kurami/state/caddy/config
 
 UMask=0077
 NoNewPrivileges=true
 PrivateTmp=true
 ProtectSystem=strict
 ProtectHome=read-only
-ReadWritePaths=/home/shagon1k/_hermes/_orchestrator/state/caddy
+ReadWritePaths=/home/shagon1k/_hermes/_kurami/state/caddy
 RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6
 RestrictNamespaces=true
 RestrictSUIDSGID=true

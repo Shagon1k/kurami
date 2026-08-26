@@ -661,7 +661,7 @@ function parseArguments(args: string[]): {
 async function main(): Promise<void> {
   const { project, apply, verify } = parseArguments(process.argv.slice(2));
   const home = resolve(
-    process.env.ORCHESTRATOR_HOME ?? resolve(import.meta.dirname, "../.."),
+    process.env.KURAMI_HOME ?? process.env.ORCHESTRATOR_HOME ?? resolve(import.meta.dirname, "../.."),
   );
   const registry = parse(await readFile(resolve(home, "config/projects.yaml"), "utf8")) as ProjectsRegistry;
   if (registry.version !== 1) fail("Unsupported projects registry version");

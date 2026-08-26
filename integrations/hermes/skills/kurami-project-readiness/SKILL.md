@@ -11,9 +11,9 @@ or mutation path.
 Use only these fixed production paths:
 
 ```text
-ORCHESTRATOR_HOME=/home/shagon1k/_hermes/_orchestrator
-NODE=/home/shagon1k/_hermes/_orchestrator/runtime/node/bin/node
-CHECKER=/home/shagon1k/_hermes/_orchestrator/app/src/project-readiness.ts
+ORCHESTRATOR_HOME=/home/shagon1k/_hermes/_kurami
+NODE=/home/shagon1k/_hermes/_kurami/runtime/node/bin/node
+CHECKER=/home/shagon1k/_hermes/_kurami/app/src/project-readiness.ts
 ```
 
 ## Resolve the project

@@ -355,7 +355,7 @@ function workerRunner(orchestratorHome: string): ProposalWorker {
 async function main(): Promise<void> {
   const { project, apply, admissionDate } = parseArguments(process.argv.slice(2));
   const orchestratorHome = resolve(
-    process.env.ORCHESTRATOR_HOME ?? resolve(import.meta.dirname, "../.."),
+    process.env.KURAMI_HOME ?? process.env.ORCHESTRATOR_HOME ?? resolve(import.meta.dirname, "../.."),
   );
   const config = await loadEffectiveOrchestratorConfig(orchestratorHome);
   const maxActiveLlm = config.limits?.max_llm_running_global;

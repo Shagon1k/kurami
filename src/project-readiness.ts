@@ -449,8 +449,9 @@ export async function inspectProjectReadiness(options: ReadinessOptions): Promis
 }
 
 function parseArguments(args: string[]): ParsedArguments {
-  const defaultConfigDir = process.env.ORCHESTRATOR_HOME
-    ? resolve(process.env.ORCHESTRATOR_HOME, "config")
+  const kuramiHome = process.env.KURAMI_HOME ?? process.env.ORCHESTRATOR_HOME;
+  const defaultConfigDir = kuramiHome
+    ? resolve(kuramiHome, "config")
     : resolve(import.meta.dirname, "../deploy/config");
   const parsed: ParsedArguments = {
     configDir: defaultConfigDir,

@@ -3,7 +3,8 @@ set -euo pipefail
 
 umask 077
 
-: "${ORCHESTRATOR_HOME:?ORCHESTRATOR_HOME is required}"
+KURAMI_HOME="${KURAMI_HOME:-${ORCHESTRATOR_HOME:-}}"
+: "${KURAMI_HOME:?KURAMI_HOME or ORCHESTRATOR_HOME is required}"
 : "${HERMES_RUN_ID:?HERMES_RUN_ID is required}"
 : "${HERMES_REPOSITORY:?HERMES_REPOSITORY is required}"
 : "${HERMES_ISSUE_NUMBER:?HERMES_ISSUE_NUMBER is required}"
@@ -11,8 +12,10 @@ umask 077
 : "${HERMES_CANONICAL_REPOSITORY:?HERMES_CANONICAL_REPOSITORY is required}"
 : "${HERMES_INITIAL_PROMPT_B64:?HERMES_INITIAL_PROMPT_B64 is required}"
 : "${CODEX_BIN:?CODEX_BIN is required}"
+export KURAMI_HOME
+export ORCHESTRATOR_HOME="${KURAMI_HOME}"
 
-secret_file="${ORCHESTRATOR_HOME}/secrets/github.env"
+secret_file="${KURAMI_HOME}/secrets/github.env"
 if [[ ! -f "${secret_file}" ]]; then
   printf 'GitHub credential file not found\n' >&2
   exit 1

@@ -3,4 +3,4 @@
 	auto_https off
 }
 
-import /home/shagon1k/_hermes/_orchestrator/state/caddy/routes.caddy
+import /home/shagon1k/_hermes/_kurami/state/caddy/routes.caddy

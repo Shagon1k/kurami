@@ -72,7 +72,7 @@ type LeaseRecord = SlotRecord & {
 };
 
 const orchestratorHome = resolve(
-  process.env.ORCHESTRATOR_HOME ?? resolve(import.meta.dirname, "../.."),
+  process.env.KURAMI_HOME ?? process.env.ORCHESTRATOR_HOME ?? resolve(import.meta.dirname, "../.."),
 );
 const databasePath = resolve(orchestratorHome, "state/orchestrator.db");
 

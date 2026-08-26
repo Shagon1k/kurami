@@ -617,7 +617,7 @@ function selectedProjectFromArgs(args: string[]): string | null {
 
 async function main(): Promise<void> {
   const orchestratorHome = resolve(
-    process.env.ORCHESTRATOR_HOME ?? resolve(import.meta.dirname, "../.."),
+    process.env.KURAMI_HOME ?? process.env.ORCHESTRATOR_HOME ?? resolve(import.meta.dirname, "../.."),
   );
   const registry = parse(
     await readFile(resolve(orchestratorHome, "config/projects.yaml"), "utf8"),

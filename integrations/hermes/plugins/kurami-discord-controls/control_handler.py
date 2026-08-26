@@ -62,6 +62,14 @@ _METADATA_DISCUSSION_INTRO = (
 )
 
 
+def _kurami_home() -> Path:
+    return Path(
+        os.environ.get("KURAMI_HOME")
+        or os.environ.get("ORCHESTRATOR_HOME")
+        or "/home/shagon1k/_hermes/_kurami"
+    ).absolute()
+
+
 def discard_confirmation_id(run_id: str) -> str:
     """Return the exact allowlisted destructive-confirmation component ID."""
 
@@ -153,12 +161,7 @@ def parse_metadata_selection_control_id(
 
 
 def _paths() -> tuple[Path, Path, Path]:
-    home = Path(
-        os.environ.get(
-            "ORCHESTRATOR_HOME",
-            "/home/shagon1k/_hermes/_orchestrator",
-        )
-    ).resolve()
+    home = _kurami_home()
     return (
         home / "runtime/node/bin/node",
         home / "app/src/run-controls.ts",
@@ -167,12 +170,7 @@ def _paths() -> tuple[Path, Path, Path]:
 
 
 def _health_history_path() -> Path:
-    home = Path(
-        os.environ.get(
-            "ORCHESTRATOR_HOME",
-            "/home/shagon1k/_hermes/_orchestrator",
-        )
-    ).resolve()
+    home = _kurami_home()
     return home / "state/system-health-history.json"
 
 
@@ -223,12 +221,7 @@ def _health_history_message(entry: object) -> str:
 
 
 def _metadata_paths() -> tuple[Path, Path, Path]:
-    home = Path(
-        os.environ.get(
-            "ORCHESTRATOR_HOME",
-            "/home/shagon1k/_hermes/_orchestrator",
-        )
-    ).resolve()
+    home = _kurami_home()
     return (
         home / "runtime/node/bin/node",
         home / "app/src/metadata-proposal-controls.ts",
@@ -257,6 +250,7 @@ async def _run_metadata_control(
     if action != "status":
         args.append("--apply")
     env = dict(os.environ)
+    env["KURAMI_HOME"] = str(control.parents[2])
     env["ORCHESTRATOR_HOME"] = str(control.parents[2])
     process = await asyncio.create_subprocess_exec(
         *args,
@@ -289,6 +283,7 @@ async def _refresh_digest(project: str) -> None:
     if not node.is_file() or not notifier.is_file():
         raise RuntimeError("Kurami Projects Digest notifier is unavailable")
     env = dict(os.environ)
+    env["KURAMI_HOME"] = str(control.parents[2])
     env["ORCHESTRATOR_HOME"] = str(control.parents[2])
     process = await asyncio.create_subprocess_exec(
         str(node),
@@ -575,6 +570,7 @@ async def _run_control(
         ]
 
     env = dict(os.environ)
+    env["KURAMI_HOME"] = str(control.parents[2])
     env["ORCHESTRATOR_HOME"] = str(control.parents[2])
     process = await asyncio.create_subprocess_exec(
         *args,
@@ -616,6 +612,7 @@ async def _refresh_dashboard(
     if thread_id and not thread_id.isdigit():
         raise RuntimeError("Invalid Discord thread ID")
     env = dict(os.environ)
+    env["KURAMI_HOME"] = str(control.parents[2])
     env["ORCHESTRATOR_HOME"] = str(control.parents[2])
     selector = ["--run-id", run_id] if run_id else ["--thread-id", thread_id]
     process = await asyncio.create_subprocess_exec(

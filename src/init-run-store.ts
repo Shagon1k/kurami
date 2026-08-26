@@ -5,7 +5,7 @@ import { DatabaseSync } from "node:sqlite";
 process.umask(0o077);
 
 const orchestratorHome = resolve(
-  process.env.ORCHESTRATOR_HOME ?? resolve(import.meta.dirname, "../.."),
+  process.env.KURAMI_HOME ?? process.env.ORCHESTRATOR_HOME ?? resolve(import.meta.dirname, "../.."),
 );
 const migrationsDirectory = resolve(
   process.env.ORCHESTRATOR_MIGRATIONS_DIR ??

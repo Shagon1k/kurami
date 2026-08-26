@@ -38,7 +38,7 @@ projects:
       adapter: compose
       required_label: preview-required
       compose_file: docker-compose.yml
-      secrets_file: /home/shagon1k/_hermes/_orchestrator/secrets/tailortales-preview.env
+      secrets_file: /home/shagon1k/_hermes/_kurami/secrets/tailortales-preview.env
       allowed_email: shagon1k@gmail.com
       frontend_health_path: /en
       backend_health_path: /health

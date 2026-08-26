@@ -698,7 +698,7 @@ async function main(): Promise<void> {
     fail("Usage: runtime-health.ts [--alert-text | --summary-text]");
   }
   const orchestratorHome = resolve(
-    process.env.ORCHESTRATOR_HOME ?? resolve(import.meta.dirname, "../.."),
+    process.env.KURAMI_HOME ?? process.env.ORCHESTRATOR_HOME ?? resolve(import.meta.dirname, "../.."),
   );
   const result = await inspectRuntimeHealth(orchestratorHome);
   const counterStatePath = resolve(orchestratorHome, "state/runtime-health-counters.json");

@@ -139,7 +139,7 @@ type ProgressRow = RunRow & {
 };
 
 const orchestratorHome = resolve(
-  process.env.ORCHESTRATOR_HOME ?? resolve(import.meta.dirname, "../.."),
+  process.env.KURAMI_HOME ?? process.env.ORCHESTRATOR_HOME ?? resolve(import.meta.dirname, "../.."),
 );
 const databasePath = resolve(orchestratorHome, "state/orchestrator.db");
 const configPath = resolve(orchestratorHome, "config/orchestrator.yaml");
@@ -1859,7 +1859,11 @@ function runExternal(plan: PlannedAction): unknown {
   if (!args) fail(`No external command for ${plan.action}`);
   const stdout = execFileSync(process.execPath, args, {
     encoding: "utf8",
-    env: { ...process.env, ORCHESTRATOR_HOME: orchestratorHome },
+    env: {
+      ...process.env,
+      KURAMI_HOME: orchestratorHome,
+      ORCHESTRATOR_HOME: orchestratorHome,
+    },
     stdio: ["ignore", "pipe", "pipe"],
   }).trim();
   const lastLine = stdout.split("\n").filter(Boolean).at(-1);

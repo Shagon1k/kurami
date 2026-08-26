@@ -295,7 +295,7 @@ async function main(): Promise<void> {
     fail("Usage: s3-recovery.ts upload-latest [--summary-text]");
   }
   const orchestratorHome = resolve(
-    process.env.ORCHESTRATOR_HOME ?? resolve(import.meta.dirname, "../.."),
+    process.env.KURAMI_HOME ?? process.env.ORCHESTRATOR_HOME ?? resolve(import.meta.dirname, "../.."),
   );
   const result = await uploadRecoveryBundle(
     await latestBundle(orchestratorHome),

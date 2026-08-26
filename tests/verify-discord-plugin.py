@@ -33,6 +33,31 @@ def main() -> None:
     )
     settings_module = importlib.util.module_from_spec(settings_spec)
     settings_spec.loader.exec_module(settings_module)
+    previous_kurami_home = os.environ.get("KURAMI_HOME")
+    previous_orchestrator_home = os.environ.get("ORCHESTRATOR_HOME")
+    try:
+        os.environ["KURAMI_HOME"] = "/tmp/kurami-new-home"
+        os.environ["ORCHESTRATOR_HOME"] = "/tmp/kurami-legacy-home"
+        require(
+            str(settings_module._paths()[0]).startswith("/tmp/kurami-new-home/")
+            and str(module._paths()[0]).startswith("/tmp/kurami-new-home/"),
+            "KURAMI_HOME does not take precedence over the legacy home",
+        )
+        os.environ.pop("KURAMI_HOME")
+        require(
+            str(settings_module._paths()[0]).startswith("/tmp/kurami-legacy-home/")
+            and str(module._paths()[0]).startswith("/tmp/kurami-legacy-home/"),
+            "ORCHESTRATOR_HOME compatibility fallback was lost",
+        )
+    finally:
+        if previous_kurami_home is None:
+            os.environ.pop("KURAMI_HOME", None)
+        else:
+            os.environ["KURAMI_HOME"] = previous_kurami_home
+        if previous_orchestrator_home is None:
+            os.environ.pop("ORCHESTRATOR_HOME", None)
+        else:
+            os.environ["ORCHESTRATOR_HOME"] = previous_orchestrator_home
     settings_source = settings_path.read_text()
     require(
         settings_source.index('label="System Health"')

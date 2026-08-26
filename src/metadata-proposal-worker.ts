@@ -424,7 +424,7 @@ async function main(): Promise<void> {
   if (!batchId || !/^pmb_[a-f0-9]+$/u.test(batchId) || args.some((arg) => !known.has(arg)))
     fail("Usage: metadata-proposal-worker.ts --batch-id <batch_id> [--apply]");
   const orchestratorHome = resolve(
-    process.env.ORCHESTRATOR_HOME ?? resolve(import.meta.dirname, "../.."),
+    process.env.KURAMI_HOME ?? process.env.ORCHESTRATOR_HOME ?? resolve(import.meta.dirname, "../.."),
   );
   const database = new DatabaseSync(resolve(orchestratorHome, "state/orchestrator.db"), {
     timeout: 5_000,

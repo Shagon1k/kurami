@@ -3,12 +3,15 @@ set -euo pipefail
 
 umask 077
 
-: "${ORCHESTRATOR_HOME:?ORCHESTRATOR_HOME is required}"
+KURAMI_HOME="${KURAMI_HOME:-${ORCHESTRATOR_HOME:-}}"
+: "${KURAMI_HOME:?KURAMI_HOME or ORCHESTRATOR_HOME is required}"
 : "${KURAMI_REVIEW_ID:?KURAMI_REVIEW_ID is required}"
 : "${NODE_BIN:?NODE_BIN is required}"
+export KURAMI_HOME
+export ORCHESTRATOR_HOME="${KURAMI_HOME}"
 
-readonly secret_file="${ORCHESTRATOR_HOME}/secrets/github-reviewer-app.env"
-readonly worker="${ORCHESTRATOR_HOME}/app/src/ai-review-worker.ts"
+readonly secret_file="${KURAMI_HOME}/secrets/github-reviewer-app.env"
+readonly worker="${KURAMI_HOME}/app/src/ai-review-worker.ts"
 
 if [[ ! -f "${secret_file}" ]]; then
   printf 'GitHub reviewer App credential file not found\n' >&2

@@ -16,10 +16,10 @@ shell command.
 Use only these fixed paths:
 
 ```text
-ORCHESTRATOR_HOME=/home/shagon1k/_hermes/_orchestrator
-NODE=/home/shagon1k/_hermes/_orchestrator/runtime/node/bin/node
-CONTROL=/home/shagon1k/_hermes/_orchestrator/app/src/run-controls.ts
-DISCORD_NOTIFIER=/home/shagon1k/_hermes/_orchestrator/app/src/notify-discord-controls.ts
+ORCHESTRATOR_HOME=/home/shagon1k/_hermes/_kurami
+NODE=/home/shagon1k/_hermes/_kurami/runtime/node/bin/node
+CONTROL=/home/shagon1k/_hermes/_kurami/app/src/run-controls.ts
+DISCORD_NOTIFIER=/home/shagon1k/_hermes/_kurami/app/src/notify-discord-controls.ts
 CODEX_LAUNCHER=https://go.shagon1k.win/codex/threads
 ```
 

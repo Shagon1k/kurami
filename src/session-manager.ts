@@ -134,7 +134,7 @@ type ReviewFixContext = {
 };
 
 const orchestratorHome = resolve(
-  process.env.ORCHESTRATOR_HOME ?? resolve(import.meta.dirname, "../.."),
+  process.env.KURAMI_HOME ?? process.env.ORCHESTRATOR_HOME ?? resolve(import.meta.dirname, "../.."),
 );
 const databasePath = resolve(orchestratorHome, "state/orchestrator.db");
 const configPath = resolve(orchestratorHome, "config/orchestrator.yaml");
@@ -1147,6 +1147,8 @@ async function startSession(
       plan.tmuxSessionName,
       "-c",
       plan.worktreePath,
+      "-e",
+      `KURAMI_HOME=${orchestratorHome}`,
       "-e",
       `ORCHESTRATOR_HOME=${orchestratorHome}`,
       "-e",

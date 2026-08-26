@@ -2,25 +2,26 @@
 set -Eeuo pipefail
 umask 077
 
-readonly ORCHESTRATOR_HOME="/home/shagon1k/_hermes/_orchestrator"
+readonly KURAMI_HOME="/home/shagon1k/_hermes/_kurami"
 readonly HERMES_HOME="/home/shagon1k/_hermes/_core"
-readonly NODE_BIN="${ORCHESTRATOR_HOME}/runtime/node/bin/node"
-readonly COLLECTOR="${ORCHESTRATOR_HOME}/app/src/triage-snapshot.ts"
-readonly RANKER="${ORCHESTRATOR_HOME}/app/src/triage-rank.ts"
-readonly METADATA_SCHEDULER="${ORCHESTRATOR_HOME}/app/src/metadata-proposal-scheduler.ts"
-readonly DIGEST_NOTIFIER="${ORCHESTRATOR_HOME}/app/src/notify-discord-digest.ts"
-readonly ENV_FILE="${ORCHESTRATOR_HOME}/secrets/github.env"
-readonly LOCK_FILE="${ORCHESTRATOR_HOME}/state/projects-digest.lock"
-readonly CONSUMER_LOCK_FILE="${ORCHESTRATOR_HOME}/state/project-event-consumer.lock"
-readonly FACTS_ERROR_LOG="${ORCHESTRATOR_HOME}/logs/projects-digest-facts-errors.log"
-readonly RANKING_ERROR_LOG="${ORCHESTRATOR_HOME}/logs/projects-digest-ranking-errors.log"
-readonly METADATA_ERROR_LOG="${ORCHESTRATOR_HOME}/logs/metadata-proposal-scheduler-errors.log"
-readonly DISCORD_ERROR_LOG="${ORCHESTRATOR_HOME}/logs/projects-digest-discord-errors.log"
+readonly NODE_BIN="${KURAMI_HOME}/runtime/node/bin/node"
+readonly COLLECTOR="${KURAMI_HOME}/app/src/triage-snapshot.ts"
+readonly RANKER="${KURAMI_HOME}/app/src/triage-rank.ts"
+readonly METADATA_SCHEDULER="${KURAMI_HOME}/app/src/metadata-proposal-scheduler.ts"
+readonly DIGEST_NOTIFIER="${KURAMI_HOME}/app/src/notify-discord-digest.ts"
+readonly ENV_FILE="${KURAMI_HOME}/secrets/github.env"
+readonly LOCK_FILE="${KURAMI_HOME}/state/projects-digest.lock"
+readonly CONSUMER_LOCK_FILE="${KURAMI_HOME}/state/project-event-consumer.lock"
+readonly FACTS_ERROR_LOG="${KURAMI_HOME}/logs/projects-digest-facts-errors.log"
+readonly RANKING_ERROR_LOG="${KURAMI_HOME}/logs/projects-digest-ranking-errors.log"
+readonly METADATA_ERROR_LOG="${KURAMI_HOME}/logs/metadata-proposal-scheduler-errors.log"
+readonly DISCORD_ERROR_LOG="${KURAMI_HOME}/logs/projects-digest-discord-errors.log"
 
-export ORCHESTRATOR_HOME HERMES_HOME
-export PATH="${ORCHESTRATOR_HOME}/runtime/node/bin:/home/shagon1k/.local/bin:/usr/local/bin:/usr/bin:/bin:/snap/bin"
+export KURAMI_HOME HERMES_HOME
+export ORCHESTRATOR_HOME="${KURAMI_HOME}"
+export PATH="${KURAMI_HOME}/runtime/node/bin:/home/shagon1k/.local/bin:/usr/local/bin:/usr/bin:/bin:/snap/bin"
 
-install -d -m 700 "${ORCHESTRATOR_HOME}/state" "${ORCHESTRATOR_HOME}/logs"
+install -d -m 700 "${KURAMI_HOME}/state" "${KURAMI_HOME}/logs"
 
 set -a
 # shellcheck disable=SC1090
