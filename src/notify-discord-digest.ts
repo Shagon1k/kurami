@@ -12,7 +12,7 @@ import {
   separator,
   textDisplay,
   type DiscordObject,
-} from "./discord-ui.ts";
+} from "./discord/ui.ts";
 import type { TriageStats } from "./triage-snapshot.ts";
 
 process.umask(0o077);

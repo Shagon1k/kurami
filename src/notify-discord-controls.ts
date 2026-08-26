@@ -16,7 +16,7 @@ import {
   textDisplay,
   type DiscordObject,
   type SelectOption,
-} from "./discord-ui.ts";
+} from "./discord/ui.ts";
 import {
   deliverResourceGuardBatch,
   planResourceGuardDiscord,

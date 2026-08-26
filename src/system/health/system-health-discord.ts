@@ -10,7 +10,7 @@ import {
   stringSelect,
   textDisplay,
   type DiscordObject,
-} from "../../discord-ui.ts";
+} from "../../discord/ui.ts";
 import {
   formatUptime,
   evaluateHealthAlerts,

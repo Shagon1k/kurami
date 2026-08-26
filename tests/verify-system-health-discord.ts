@@ -17,8 +17,13 @@ import {
   systemHealthAlertCard,
   systemHealthCard,
 } from "../src/system-health-discord.ts";
+import * as legacyDiscordUi from "../src/discord-ui.ts";
+import * as canonicalDiscordUi from "../src/discord/ui.ts";
 import * as canonicalHealthDiscord from "../src/system/health/system-health-discord.ts";
 
+assert.equal(legacyDiscordUi.componentMessage, canonicalDiscordUi.componentMessage);
+assert.equal(legacyDiscordUi.container, canonicalDiscordUi.container);
+assert.equal(legacyDiscordUi.compactTable, canonicalDiscordUi.compactTable);
 assert.equal(systemHealthCard, canonicalHealthDiscord.systemHealthCard);
 assert.equal(sendSystemHealthAlert, canonicalHealthDiscord.sendSystemHealthAlert);
 

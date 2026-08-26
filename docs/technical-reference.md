@@ -66,6 +66,8 @@ app/
     notify-controls.ts        Frozen opt-in proactive Telegram fallback
     notify-discord-controls.ts
                               Reconciles Discord ticket threads and live cards
+    discord/
+      ui.ts                   Shared Discord Components V2 primitives
     runtime-health.ts         Read-only DB/Docker/preview consistency inspection
     system/
       health/
@@ -89,6 +91,7 @@ app/
     backup-state.ts           Compatibility CLI and re-export for backup cron
     recovery-bundle.ts        Compatibility CLI and re-export for recovery tooling
     s3-recovery.ts            Compatibility CLI and re-export for off-site upload
+    discord-ui.ts             Compatibility re-export for existing imports
     resource-guard.ts         Inspects admission quotas and reconciles orphan quarantine state
     resource-guard-discord.ts Batches and delivers durable changed-only guard events
     runtime-settings.ts       Merges verified SQLite runtime overrides with safe defaults

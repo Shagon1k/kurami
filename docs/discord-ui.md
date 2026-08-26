@@ -11,11 +11,14 @@ SQLite and GitHub.
 | Run starter and dashboard | `src/notify-discord-controls.ts` | `run_discord_surfaces` |
 | Run timeline event | `src/notify-discord-controls.ts` | `run_discord_event_deliveries` |
 | Project digest | `src/notify-discord-digest.ts` | `project_discord_digest_surfaces` |
-| Components V2 primitives | `src/discord-ui.ts` | None |
+| Components V2 primitives | `src/discord/ui.ts` | None |
 | Owner interactions | `integrations/hermes/plugins/kurami-discord-controls/` | Control request tables |
 
 The database stores Discord message/thread IDs and reconciliation state. It
 does not store presentation templates.
+
+`src/discord-ui.ts` remains a compatibility re-export for existing external
+imports. New internal code imports the canonical `src/discord/ui.ts` module.
 
 ## Run thread
 

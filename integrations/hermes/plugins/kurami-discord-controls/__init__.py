@@ -2,7 +2,7 @@
 
 The bundled adapter remains the implementation of every normal Discord
 feature.  This user plugin replaces only the adapter factory and adds one
-listener for component IDs owned by the Dev Orchestrator.
+listener for component IDs owned by Kurami.
 """
 
 from plugins.platforms.discord import adapter as upstream

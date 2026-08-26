@@ -4,7 +4,7 @@ kind: platform
 version: 1.0.0
 description: >
   Extends the bundled Hermes Discord adapter with a narrow listener for
-  Kurami Dev Orchestrator native control components.
+  Kurami native control components.
 author: Alex / Kurami
 requires_env:
   - name: DISCORD_BOT_TOKEN
