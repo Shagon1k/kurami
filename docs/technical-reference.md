@@ -74,10 +74,12 @@ app/
         system-health-discord.ts
                               Persistent Health card and alert delivery
         health-settings.ts    Owner-only health interval and schedule boundary
+      network/
+        network-health.ts     HTTPS quorum and bounded LibreSpeed trend snapshots
     server-health.ts          Compatibility re-export for existing imports
     system-health-discord.ts  Compatibility CLI and re-export for cron wrappers
     health-settings.ts        Compatibility CLI and re-export for Hermes plugin
-    network-health.ts         HTTPS quorum and bounded LibreSpeed trend snapshots
+    network-health.ts         Compatibility CLI and re-export for network cron
     resource-guard.ts         Inspects admission quotas and reconciles orphan quarantine state
     resource-guard-discord.ts Batches and delivers durable changed-only guard events
     runtime-settings.ts       Merges verified SQLite runtime overrides with safe defaults

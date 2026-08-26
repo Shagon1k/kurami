@@ -9,7 +9,7 @@ import {
   readNetworkSpeedSnapshot,
   type NetworkConnectivitySnapshot,
   type NetworkSpeedSnapshot,
-} from "./network-health.ts";
+} from "./system/network/network-health.ts";
 import {
   inspectResourceGuard,
   validateResourceGuardLimits,

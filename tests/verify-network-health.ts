@@ -1,13 +1,18 @@
 import { strict as assert } from "node:assert";
-import { mkdtemp } from "node:fs/promises";
+import { execFileSync } from "node:child_process";
+import { mkdtemp, readFile, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { join, resolve } from "node:path";
 import {
   inspectNetworkConnectivity,
   parseLibreSpeedOutput,
   readNetworkSpeedSnapshot,
   writeNetworkSpeedSnapshot,
 } from "../src/network-health.ts";
+import * as canonicalNetworkHealth from "../src/system/network/network-health.ts";
+
+assert.equal(parseLibreSpeedOutput, canonicalNetworkHealth.parseLibreSpeedOutput);
+assert.equal(inspectNetworkConnectivity, canonicalNetworkHealth.inspectNetworkConnectivity);
 
 const parsed = parseLibreSpeedOutput(`transport note
 [{"timestamp":"2026-08-26T11:12:53.543Z","server":{"name":"London, England (Clouvider)"},"bytes_sent":12779520,"bytes_received":180600242,"ping":4.51,"jitter":0.62,"upload":85.12,"download":1202.92,"share":""}]
@@ -32,6 +37,45 @@ const statePath = join(root, "network-speed.json");
 await writeNetworkSpeedSnapshot(statePath, parsed);
 assert.deepEqual(await readNetworkSpeedSnapshot(statePath), parsed);
 
+const fakeLibreSpeed = join(root, "librespeed-cli");
+const argumentLog = join(root, "librespeed-args.log");
+await writeFile(
+  fakeLibreSpeed,
+  `#!/bin/sh
+printf '%s\\n' "$@" > "$NETWORK_TEST_LOG"
+printf '%s\\n' '[{"timestamp":"2026-08-26T11:12:53.543Z","server":{"name":"London, England (Clouvider)"},"bytes_sent":12779520,"bytes_received":180600242,"ping":4.51,"jitter":0.62,"upload":85.12,"download":1202.92}]'
+`,
+  { mode: 0o700 },
+);
+const cliEnvironment = {
+  ...process.env,
+  KURAMI_HOME: root,
+  ORCHESTRATOR_HOME: root,
+  LIBRESPEED_BIN: fakeLibreSpeed,
+  NETWORK_TEST_LOG: argumentLog,
+};
+const legacyCli = resolve(import.meta.dirname, "../src/network-health.ts");
+const canonicalCli = resolve(
+  import.meta.dirname,
+  "../src/system/network/network-health.ts",
+);
+const legacyResult = JSON.parse(
+  execFileSync(process.execPath, [legacyCli], {
+    env: cliEnvironment,
+    encoding: "utf8",
+  }),
+) as Record<string, unknown>;
+const canonicalResult = JSON.parse(
+  execFileSync(process.execPath, [canonicalCli], {
+    env: cliEnvironment,
+    encoding: "utf8",
+  }),
+) as Record<string, unknown>;
+assert.deepEqual(canonicalResult, legacyResult);
+const argumentsUsed = await readFile(argumentLog, "utf8");
+assert(argumentsUsed.includes("--telemetry-level\ndisabled\n"));
+assert(argumentsUsed.includes("--duration\n1\n"));
+
 process.stdout.write(
   `${JSON.stringify({
     ok: true,
@@ -40,5 +84,6 @@ process.stdout.write(
     telemetryDisabledByRunner: true,
     connectivityQuorum: "2-of-3",
     atomicState: true,
+    compatibilityCli: true,
   })}\n`,
 );
