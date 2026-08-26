@@ -265,7 +265,7 @@ async function main(): Promise<void> {
   fail("Usage: backup-state.ts <create [--summary-text] | inspect>");
 }
 
-if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
+if (import.meta.main) {
   main().catch((error: unknown) => {
     const message = error instanceof Error ? error.message : String(error);
     process.stderr.write(`${JSON.stringify({ ok: false, error: message })}\n`);

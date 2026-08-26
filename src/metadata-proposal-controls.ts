@@ -567,7 +567,7 @@ async function main(): Promise<void> {
 }
 
 const invokedPath = process.argv[1] ? pathToFileURL(resolve(process.argv[1])).href : null;
-if (invokedPath === import.meta.url) {
+if (import.meta.main) {
   main().catch((error: unknown) => {
     const message = error instanceof Error ? error.message : String(error);
     process.stderr.write(`${JSON.stringify({ ok: false, error: message })}\n`);

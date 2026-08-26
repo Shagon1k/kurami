@@ -1,6 +1,8 @@
 import assert from "node:assert/strict";
-import { readFile, readdir } from "node:fs/promises";
-import { extname, resolve } from "node:path";
+import { spawnSync } from "node:child_process";
+import { mkdtemp, readFile, readdir, rm, symlink } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { extname, join, resolve } from "node:path";
 
 const root = resolve(import.meta.dirname, "..");
 const canonicalHome = "/home/shagon1k/_hermes/_kurami";
@@ -38,8 +40,14 @@ const sourceFiles = (await filesBelow(resolve(root, "src"))).filter(
   (path) => extname(path) === ".ts",
 );
 const compatibilitySources: string[] = [];
+const directEntries: string[] = [];
 for (const path of sourceFiles) {
   const content = await readFile(path, "utf8");
+  if (content.includes("import.meta.main")) directEntries.push(path);
+  assert(
+    !/if\s*\([^)]*import\.meta\.url/u.test(content),
+    `Symlink-sensitive direct-entry guard remains: ${path}`,
+  );
   if (!content.includes("process.env.ORCHESTRATOR_HOME")) continue;
   assert(
     content.includes("process.env.KURAMI_HOME"),
@@ -67,6 +75,30 @@ const service = await readFile(
 assert(service.includes(canonicalHome));
 assert(!service.includes(legacyHome));
 
+const smokeRoot = await mkdtemp(join(tmpdir(), "kurami-home-smoke-"));
+const appAlias = resolve(smokeRoot, "app");
+try {
+  await symlink(root, appAlias, "dir");
+  const smoke = spawnSync(
+    process.execPath,
+    [
+      resolve(appAlias, "src/project-readiness.ts"),
+      "--config-dir",
+      resolve(appAlias, "deploy/config"),
+      "--project",
+      "tailortales",
+      "--json",
+    ],
+    { encoding: "utf8" },
+  );
+  assert.equal(smoke.status, 0, smoke.stderr);
+  const result = JSON.parse(smoke.stdout) as { ok?: unknown; summary?: { fail?: unknown } };
+  assert.equal(result.ok, true);
+  assert.equal(result.summary?.fail, 0);
+} finally {
+  await rm(smokeRoot, { recursive: true, force: true });
+}
+
 process.stdout.write(
   `${JSON.stringify({
     ok: true,
@@ -74,5 +106,7 @@ process.stdout.write(
     legacyFallbackRetained: true,
     activeRuntimeFiles: runtimeFiles.length,
     compatibilitySources: compatibilitySources.length,
+    symlinkSafeDirectEntries: directEntries.length,
+    symlinkCliSmoke: true,
   })}\n`,
 );
