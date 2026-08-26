@@ -79,6 +79,9 @@ app/
         backup-state.ts       Verified SQLite/config snapshots with retention
         recovery-bundle.ts    Encrypted Minimal DR bundle creation and verification
         s3-recovery.ts        Bounded off-site upload, verification, and retention
+      maintenance/
+        monthly-maintenance.ts
+                              Bounded log and unused Docker cache/image cleanup
     server-health.ts          Compatibility re-export for existing imports
     system-health-discord.ts  Compatibility CLI and re-export for cron wrappers
     health-settings.ts        Compatibility CLI and re-export for Hermes plugin
@@ -91,7 +94,7 @@ app/
     runtime-settings.ts       Merges verified SQLite runtime overrides with safe defaults
     orchestrator-settings.ts  Owner-only status/apply/reset/rollback settings boundary
     project-readiness.ts      Read-only PASS/WARN/FAIL compatibility assessment
-    monthly-maintenance.ts    Bounded old-log and unused Docker cache/image cleanup
+    monthly-maintenance.ts    Compatibility CLI and re-export for maintenance cron
   tests/
     run-regression.ts         Runs all deterministic suites in fail-fast order
     verify-dry-run-admission.ts

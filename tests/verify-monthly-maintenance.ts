@@ -7,6 +7,17 @@ import {
   formatMaintenanceSummary,
   parseBuilderCacheMaxUsedGib,
 } from "../src/monthly-maintenance.ts";
+import * as canonicalMaintenance from "../src/system/maintenance/monthly-maintenance.ts";
+
+if (
+  findOldLogFiles !== canonicalMaintenance.findOldLogFiles ||
+  builderCachePruneArgs !== canonicalMaintenance.builderCachePruneArgs ||
+  formatMaintenanceSummary !== canonicalMaintenance.formatMaintenanceSummary
+) {
+  throw new Error(
+    "Legacy monthly-maintenance entrypoint does not re-export the canonical module",
+  );
+}
 
 const root = await mkdtemp(resolve(tmpdir(), "kurami-maintenance-test-"));
 const now = new Date("2026-08-16T04:15:00Z");
