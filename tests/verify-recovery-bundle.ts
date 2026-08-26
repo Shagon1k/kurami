@@ -17,6 +17,14 @@ import {
   createRecoveryBundle,
   verifyRecoveryBundle,
 } from "../src/recovery-bundle.ts";
+import * as canonicalRecovery from "../src/system/recovery/recovery-bundle.ts";
+
+if (
+  createRecoveryBundle !== canonicalRecovery.createRecoveryBundle ||
+  verifyRecoveryBundle !== canonicalRecovery.verifyRecoveryBundle
+) {
+  throw new Error("Legacy recovery-bundle entrypoint does not re-export the canonical module");
+}
 
 function fail(message: string): never {
   throw new Error(message);

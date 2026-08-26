@@ -66,7 +66,6 @@ app/
     notify-controls.ts        Frozen opt-in proactive Telegram fallback
     notify-discord-controls.ts
                               Reconciles Discord ticket threads and live cards
-    backup-state.ts           Creates verified SQLite/config snapshots with retention
     runtime-health.ts         Read-only DB/Docker/preview consistency inspection
     system/
       health/
@@ -76,10 +75,17 @@ app/
         health-settings.ts    Owner-only health interval and schedule boundary
       network/
         network-health.ts     HTTPS quorum and bounded LibreSpeed trend snapshots
+      recovery/
+        backup-state.ts       Verified SQLite/config snapshots with retention
+        recovery-bundle.ts    Encrypted Minimal DR bundle creation and verification
+        s3-recovery.ts        Bounded off-site upload, verification, and retention
     server-health.ts          Compatibility re-export for existing imports
     system-health-discord.ts  Compatibility CLI and re-export for cron wrappers
     health-settings.ts        Compatibility CLI and re-export for Hermes plugin
     network-health.ts         Compatibility CLI and re-export for network cron
+    backup-state.ts           Compatibility CLI and re-export for backup cron
+    recovery-bundle.ts        Compatibility CLI and re-export for recovery tooling
+    s3-recovery.ts            Compatibility CLI and re-export for off-site upload
     resource-guard.ts         Inspects admission quotas and reconciles orphan quarantine state
     resource-guard-discord.ts Batches and delivers durable changed-only guard events
     runtime-settings.ts       Merges verified SQLite runtime overrides with safe defaults
