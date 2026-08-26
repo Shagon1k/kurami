@@ -4,7 +4,7 @@ import { DatabaseSync } from "node:sqlite";
 import {
   loadEffectiveOrchestratorConfig,
   type RuntimeSettingsBaseConfig,
-} from "./runtime-settings.ts";
+} from "./orchestrator/settings/runtime-settings.ts";
 
 process.umask(0o077);
 

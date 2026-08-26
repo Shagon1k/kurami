@@ -9,7 +9,7 @@ import {
   planProjectAssessment,
   type AssessmentPlan,
 } from "./metadata-proposal-manager.ts";
-import { loadEffectiveOrchestratorConfig } from "./runtime-settings.ts";
+import { loadEffectiveOrchestratorConfig } from "./orchestrator/settings/runtime-settings.ts";
 
 process.umask(0o077);
 

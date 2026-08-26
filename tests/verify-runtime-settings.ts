@@ -1,3 +1,4 @@
+import { strict as assert } from "node:assert";
 import { execFileSync, spawnSync } from "node:child_process";
 import { chmod, copyFile, mkdir, mkdtemp, readFile, readdir, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
@@ -9,10 +10,27 @@ import {
   effectiveOrchestratorConfig,
   loadRuntimeSettingsInputs,
 } from "../src/runtime-settings.ts";
+import * as legacyRuntimeSettings from "../src/runtime-settings.ts";
+import * as canonicalRuntimeSettings from "../src/orchestrator/settings/runtime-settings.ts";
+import * as legacyOrchestratorSettings from "../src/orchestrator-settings.ts";
+import * as canonicalOrchestratorSettings from "../src/orchestrator/settings/orchestrator-settings.ts";
+
+assert.equal(
+  legacyRuntimeSettings.loadEffectiveOrchestratorConfig,
+  canonicalRuntimeSettings.loadEffectiveOrchestratorConfig,
+);
+assert.equal(
+  legacyOrchestratorSettings.runOrchestratorSettingsCli,
+  canonicalOrchestratorSettings.runOrchestratorSettingsCli,
+);
 
 const root = await mkdtemp(resolve(tmpdir(), "kurami-runtime-settings-test-"));
 const app = resolve(import.meta.dirname, "..");
 const settingsCli = resolve(app, "src/orchestrator-settings.ts");
+const canonicalSettingsCli = resolve(
+  app,
+  "src/orchestrator/settings/orchestrator-settings.ts",
+);
 
 function fail(message: string): never {
   throw new Error(message);
@@ -106,6 +124,15 @@ try {
   }
 
   const initial = run(["status"], env);
+  const canonicalInitial = JSON.parse(
+    execFileSync(process.execPath, [canonicalSettingsCli, "status"], {
+      encoding: "utf8",
+      env,
+      stdio: ["ignore", "pipe", "pipe"],
+    }).trim(),
+  ) as Record<string, unknown>;
+  assert.equal(canonicalInitial.revision, initial.revision);
+  assert.deepEqual(canonicalInitial.settings, initial.settings);
   if (
     initial.revision !== 0 ||
     initial.source !== "defaults" ||

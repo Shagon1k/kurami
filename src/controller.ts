@@ -7,7 +7,7 @@ import { parse } from "yaml";
 import {
   loadEffectiveOrchestratorConfig,
   type RuntimeSettingsBaseConfig,
-} from "./runtime-settings.ts";
+} from "./orchestrator/settings/runtime-settings.ts";
 
 process.umask(0o077);
 

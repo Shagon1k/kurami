@@ -68,6 +68,11 @@ app/
                               Reconciles Discord ticket threads and live cards
     discord/
       ui.ts                   Shared Discord Components V2 primitives
+    orchestrator/
+      settings/
+        runtime-settings.ts   Verified runtime overrides and effective limits
+        orchestrator-settings.ts
+                              Owner-only status/apply/reset/rollback boundary
     runtime-health.ts         Read-only DB/Docker/preview consistency inspection
     system/
       health/
@@ -97,8 +102,8 @@ app/
     discord-ui.ts             Compatibility re-export for existing imports
     resource-guard.ts         Inspects admission quotas and reconciles orphan quarantine state
     resource-guard-discord.ts Batches and delivers durable changed-only guard events
-    runtime-settings.ts       Merges verified SQLite runtime overrides with safe defaults
-    orchestrator-settings.ts  Owner-only status/apply/reset/rollback settings boundary
+    runtime-settings.ts       Compatibility re-export for existing imports
+    orchestrator-settings.ts  Compatibility CLI and re-export for Hermes plugin
     project-readiness.ts      Read-only PASS/WARN/FAIL compatibility assessment
     monthly-maintenance.ts    Compatibility CLI and re-export for maintenance cron
   tests/
