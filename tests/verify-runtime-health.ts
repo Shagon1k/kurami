@@ -3,6 +3,7 @@ import {
   formatHealthSummary,
 } from "../src/runtime-health.ts";
 import type { ResourceGuardAnalysis } from "../src/resource-guard.ts";
+import { defaultServerHealthConfig } from "../src/server-health.ts";
 
 const healthyResourceGuard: ResourceGuardAnalysis = {
   disk: { usedPercent: 18, availableGiB: 160, state: "normal" },
@@ -17,6 +18,20 @@ const healthyResourceGuard: ResourceGuardAnalysis = {
   admissionBlocked: false,
   blockReasons: [],
   warnings: [],
+};
+
+const healthyServer = {
+  hostname: "shagserv",
+  cpuUsedPercent: 12.5,
+  cpuCores: 8,
+  loadAverage: [0.44, 0.53, 0.49] as [number, number, number],
+  memoryUsedPercent: 25,
+  memoryUsedGiB: 5.6,
+  memoryTotalGiB: 22,
+  memoryAvailableGiB: 17,
+  swapTotalGiB: 0,
+  swapUsedGiB: 0,
+  uptimeSeconds: 1_382_400,
 };
 
 const healthy = analyzePreviewConsistency({
@@ -145,10 +160,16 @@ const heartbeat = formatHealthSummary({
   backupFresh: true,
   preview: healthy,
   resourceGuard: healthyResourceGuard,
+  server: healthyServer,
+  serverHealthConfig: defaultServerHealthConfig,
+  alertIssues: [],
   problems: [],
 });
 if (
-  !heartbeat.includes("Kurami Orchestrator healthy") ||
+  !heartbeat.includes("Kurami system healthy") ||
+  !heartbeat.includes("CPU: 12.5%") ||
+  !heartbeat.includes("RAM: 25%") ||
+  !heartbeat.includes("uptime 16d 0h") ||
   !heartbeat.includes("Active previews: 2") ||
   !heartbeat.includes("Managed worktrees: 0/6") ||
   !heartbeat.includes("71.5h (limit 84h)")
@@ -167,6 +188,16 @@ const alert = formatHealthSummary({
   backupFresh: false,
   preview: healthy,
   resourceGuard: healthyResourceGuard,
+  server: healthyServer,
+  serverHealthConfig: defaultServerHealthConfig,
+  alertIssues: [
+    {
+      key: "runtime:backup",
+      severity: "critical",
+      message: "Latest state backup is 90h old",
+      requiredChecks: 1,
+    },
+  ],
   problems: ["Latest state backup is 90h old"],
 });
 if (!alert.includes("needs attention") || !alert.includes("90h old")) {

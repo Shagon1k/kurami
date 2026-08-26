@@ -11,6 +11,20 @@ import {
   type ResourceGuardLimits,
   type ResourceGuardProjects,
 } from "./resource-guard.ts";
+import {
+  assessServerHealth,
+  evaluateHealthAlerts,
+  formatUptime,
+  inspectServerHealth,
+  readHealthAlertState,
+  resolveServerHealthConfig,
+  stableProblemKey,
+  writeHealthAlertState,
+  type HealthAlertDecision,
+  type HealthAlertIssue,
+  type ServerHealthConfig,
+  type ServerHealthSnapshot,
+} from "./server-health.ts";
 
 type ActiveLease = {
   lease_id: string;
@@ -55,6 +69,9 @@ export type RuntimeHealthResult = {
   backupFresh: boolean;
   preview: PreviewHealthAnalysis;
   resourceGuard: ResourceGuardAnalysis;
+  server: ServerHealthSnapshot;
+  serverHealthConfig: ServerHealthConfig;
+  alertIssues: HealthAlertIssue[];
   problems: string[];
 };
 
@@ -114,23 +131,57 @@ function formatVilniusTimestamp(value: string): string {
 export function formatHealthSummary(result: RuntimeHealthResult): string {
   const backupAge =
     result.backupAgeHours === null ? "missing" : `${result.backupAgeHours}h`;
-  if (!result.ok) {
-    return [
-      "🚨 Kurami Orchestrator needs attention",
-      ...result.problems.map((problem) => `- ${problem}`),
-      `Checked: ${formatVilniusTimestamp(result.checkedAt)}`,
-    ].join("\n");
-  }
+  const swap =
+    result.server.swapTotalGiB === 0
+      ? "off"
+      : `${result.server.swapUsedGiB}/${result.server.swapTotalGiB} GiB`;
   return [
-    "✅ Kurami Orchestrator healthy",
+    result.ok ? "✅ Kurami system healthy" : "⚠️ Kurami system needs attention",
+    `- Host: ${result.server.hostname} · uptime ${formatUptime(result.server.uptimeSeconds)}`,
+    `- CPU: ${result.server.cpuUsedPercent}% · load ${result.server.loadAverage.join(" / ")} · ${result.server.cpuCores} cores`,
+    `- RAM: ${result.server.memoryUsedPercent}% · ${result.server.memoryUsedGiB}/${result.server.memoryTotalGiB} GiB (${result.server.memoryAvailableGiB} GiB available)`,
+    `- Swap: ${swap}`,
+    `- Disk: ${result.resourceGuard.disk.usedPercent}% used (${result.resourceGuard.disk.availableGiB} GiB available)`,
     `- SQLite: ${result.databaseIntegrity}`,
     `- Docker: ${result.dockerRootless ? "rootless" : "unexpected daemon"}`,
     `- Active previews: ${result.activePreviewLeases}`,
-    `- Disk: ${result.resourceGuard.disk.usedPercent}% used (${result.resourceGuard.disk.availableGiB} GiB available)`,
     `- Managed worktrees: ${result.resourceGuard.worktrees.global}/${result.resourceGuard.worktrees.maxGlobal}`,
     `- Resource quarantines: ${result.resourceGuard.quarantines.quarantined}`,
     `- Backup age: ${backupAge} (limit ${result.backupMaxAgeHours}h)`,
-    `- Checked: ${formatVilniusTimestamp(result.checkedAt)}`,
+    ...(!result.ok ? result.problems.map((problem) => `- Issue: ${problem}`) : []),
+    `- Checked: ${formatVilniusTimestamp(result.checkedAt)} Europe/Vilnius`,
+  ].join("\n");
+}
+
+export function formatAlertNotification(
+  result: RuntimeHealthResult,
+  decision: HealthAlertDecision,
+): string {
+  const checked = formatVilniusTimestamp(result.checkedAt);
+  if (decision.kind === "recovery") {
+    return [
+      "✅ Kurami system recovered",
+      `- CPU: ${result.server.cpuUsedPercent}%`,
+      `- RAM: ${result.server.memoryUsedPercent}% (${result.server.memoryAvailableGiB} GiB available)`,
+      `- Disk: ${result.resourceGuard.disk.usedPercent}% (${result.resourceGuard.disk.availableGiB} GiB available)`,
+      `- Checked: ${checked} Europe/Vilnius`,
+    ].join("\n");
+  }
+  const issues = Object.values(decision.active);
+  const critical = issues.some((issue) => issue.severity === "critical");
+  const title =
+    decision.kind === "reminder"
+      ? "Kurami system health reminder"
+      : "Kurami system health alert";
+  return [
+    `${critical ? "🚨" : "⚠️"} ${title}`,
+    ...issues.map(
+      (issue) => `- ${issue.severity === "critical" ? "CRITICAL" : "WARNING"}: ${issue.message}`,
+    ),
+    `- CPU: ${result.server.cpuUsedPercent}% · load ${result.server.loadAverage.join(" / ")}`,
+    `- RAM: ${result.server.memoryUsedPercent}% (${result.server.memoryAvailableGiB} GiB available)`,
+    `- Disk: ${result.resourceGuard.disk.usedPercent}% (${result.resourceGuard.disk.availableGiB} GiB available)`,
+    `- Checked: ${checked} Europe/Vilnius`,
   ].join("\n");
 }
 
@@ -296,16 +347,23 @@ export async function inspectRuntimeHealth(
   orchestratorHome: string,
 ): Promise<RuntimeHealthResult> {
   const home = resolve(orchestratorHome);
-  const [projects, config] = await Promise.all([
+  const [projects, config, server] = await Promise.all([
     readFile(resolve(home, "config/projects.yaml"), "utf8").then(
       (content) => parse(content) as ResourceGuardProjects,
     ),
     readFile(resolve(home, "config/orchestrator.yaml"), "utf8").then(
-      (content) => parse(content) as { version: number; limits: ResourceGuardLimits },
+      (content) =>
+        parse(content) as {
+          version: number;
+          limits: ResourceGuardLimits;
+          server_health?: Partial<ServerHealthConfig>;
+        },
     ),
+    inspectServerHealth(),
   ]);
   if (projects.version !== 1 || config.version !== 1) fail("Unsupported config version");
   validateResourceGuardLimits(config.limits);
+  const serverHealthConfig = resolveServerHealthConfig(config.server_health);
   const database = new DatabaseSync(resolve(home, "state/orchestrator.db"), {
     readOnly: true,
     timeout: 5_000,
@@ -360,12 +418,26 @@ export async function inspectRuntimeHealth(
       if (values.length > 0) problems.push(`${kind}: ${values.join(", ")}`);
     }
   }
+  const criticalProblems = new Set(problems);
+  for (const problem of resourceGuard.blockReasons) {
+    criticalProblems.add(problem);
+  }
   for (const problem of new Set([
     ...resourceGuard.blockReasons,
     ...resourceGuard.warnings,
   ])) {
     problems.push(problem);
   }
+  const serverIssues = assessServerHealth(server, serverHealthConfig);
+  const runtimeIssues = problems.map((problem) => ({
+    key: stableProblemKey(problem),
+    severity: criticalProblems.has(problem)
+      ? ("critical" as const)
+      : ("warning" as const),
+    message: problem,
+    requiredChecks: 1,
+  }));
+  problems.push(...serverIssues.map((issue) => issue.message));
 
   return {
     ok: problems.length === 0,
@@ -378,6 +450,9 @@ export async function inspectRuntimeHealth(
     backupFresh,
     preview,
     resourceGuard,
+    server,
+    serverHealthConfig,
+    alertIssues: [...runtimeIssues, ...serverIssues],
     problems,
   };
 }
@@ -396,8 +471,17 @@ async function main(): Promise<void> {
   );
   const result = await inspectRuntimeHealth(orchestratorHome);
   if (alertText) {
-    if (!result.ok) {
-      process.stdout.write(`${formatHealthSummary(result)}\n`);
+    const statePath = resolve(orchestratorHome, "state/runtime-health-alert.json");
+    const previous = await readHealthAlertState(statePath);
+    const decision = evaluateHealthAlerts(
+      previous,
+      result.alertIssues,
+      new Date(result.checkedAt),
+      result.serverHealthConfig.alert_reminder_minutes,
+    );
+    await writeHealthAlertState(statePath, decision.state);
+    if (decision.kind) {
+      process.stdout.write(`${formatAlertNotification(result, decision)}\n`);
       process.exitCode = 2;
     }
     return;

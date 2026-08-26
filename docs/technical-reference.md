@@ -1324,12 +1324,23 @@ Five additional `no_agent` jobs own digest and operational housekeeping:
   permanent private digest channel;
 - state backup on days `1, 4, 7, ...` at `03:15 UTC`, delivered to the muted
   Discord maintenance channel;
-- hourly read-only runtime health inspection, silent while healthy and delivered
-  to the private Discord alerts channel only when attention is required;
-- a compact healthy heartbeat every three hours, delivered to the muted Discord
-  health channel;
+- read-only runtime and server health inspection every ten minutes, silent while
+  healthy and delivered to the private Discord alerts channel only on a new
+  incident, severity change, two-hour reminder, or recovery;
+- a compact Kurami system health dashboard every fifteen minutes, delivered to the muted
+  Discord health channel with CPU, load average, RAM, swap, disk, uptime,
+  preview, backup, and Resource Guard statistics;
 - monthly bounded maintenance on the first day at `04:15 UTC`, delivered to the
   muted Discord maintenance channel.
+
+CPU and RAM thresholds live under `server_health` in `orchestrator.yaml`.
+Warnings require three consecutive checks; critical readings require two.
+The default warning/critical boundaries are `85%/95%` for CPU and `80%/90%`
+for RAM. Disk health continues to use the Resource Guard thresholds from
+`limits`: warning at `75%`, admission block at `85%`, and emergency at `92%`.
+Alert streak and cooldown state is stored atomically in
+`state/runtime-health-alert.json`; changing metric values alone does not bypass
+the cooldown.
 
 The health job is intentionally not a cleanup reconciler. An orphan Docker
 preview is evidence of state drift and requires owner review before the exact

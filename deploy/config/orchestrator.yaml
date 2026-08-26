@@ -6,6 +6,15 @@ discord:
   resource_guard_alerts_channel_id: "1538633903726788758"
   maintenance_channel_id: "1538634082139902064"
 
+server_health:
+  cpu_warning_percent: 85
+  cpu_critical_percent: 95
+  memory_warning_percent: 80
+  memory_critical_percent: 90
+  warning_consecutive_checks: 3
+  critical_consecutive_checks: 2
+  alert_reminder_minutes: 120
+
 limits:
   max_active_global: 2
   max_active_per_project: 2
