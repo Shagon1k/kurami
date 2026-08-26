@@ -6,15 +6,18 @@ Kurami's canonical control-plane root is:
 /home/shagon1k/_hermes/_kurami
 ```
 
-The first migration phase is intentionally non-destructive. The physical
-directory remains at the legacy path:
+The physical cutover is complete. `_kurami` is now the real directory that
+owns the application, runtime, configuration, state, secrets, backups, logs,
+and recovery data.
+
+The legacy path is retained as a compatibility symlink:
 
 ```text
-/home/shagon1k/_hermes/_orchestrator
+/home/shagon1k/_hermes/_orchestrator -> /home/shagon1k/_hermes/_kurami
 ```
 
-and `_kurami` is a filesystem alias to that same directory. No state, secret,
-runtime, backup, or repository data is copied or split.
+The cutover was an atomic rename on the same filesystem. No state, secret,
+runtime, backup, or repository data was copied or split.
 
 ## Compatibility contract
 
@@ -24,28 +27,40 @@ runtime, backup, or repository data is copied or split.
   processes.
 - Active systemd, Caddy, wrapper, skill, and documentation paths use
   `/home/shagon1k/_hermes/_kurami`.
-- The legacy physical path must not be removed while the alias phase is active.
+- `_kurami` must remain a real directory.
+- `_orchestrator` must remain a symlink to `_kurami` until legacy fallback is
+  deliberately retired.
 
-## Phase-one verification
+## Post-cutover verification
 
 After deployment, verify:
 
-1. `_kurami` and `_orchestrator` resolve to the same package and state files.
+1. `_kurami` is a real directory and `_orchestrator` resolves to it.
 2. Hermes gateway, Docker, and preview ingress are active.
 3. Project pollers and system-health jobs complete successfully.
 4. `/kurami settings`, health history, and owner controls can invoke their
    bounded subprocesses.
-5. State backup, encrypted recovery bundle, and off-site checksum verification
-   succeed through the new path.
+5. State backup and encrypted recovery bundle creation succeed through the new
+   path; off-site verification remains part of the regular recovery workflow.
 6. The deterministic regression suite passes.
 
 ## Rollback
 
-During phase one, rollback does not move data. Revert the deployment commit,
-restore the previous wrappers and systemd unit, restart the affected services,
-and keep both filesystem names in place until validation is complete.
+Rollback remains bounded because the legacy alias is preserved:
 
-The future physical cutover is a separate maintenance operation. Only after
-all active references use `KURAMI_HOME` should the real directory become
-`_kurami` and the compatibility alias be inverted to
-`_orchestrator -> _kurami`.
+1. Stop Hermes gateway, dashboard, and Kurami preview ingress.
+2. Remove only the `_orchestrator` symlink.
+3. Rename the real `_kurami` directory back to `_orchestrator` on the same
+   filesystem.
+4. Recreate `_kurami -> _orchestrator`.
+5. Restart the services and repeat the verification checklist.
+
+Do not copy the directory during rollback and do not remove either filesystem
+name while compatibility code still accepts `ORCHESTRATOR_HOME`.
+
+## Legacy retirement
+
+The final cleanup is a later, separate change. Remove the `_orchestrator`
+symlink and `ORCHESTRATOR_HOME` fallback only after runtime logs, cron jobs,
+recovery tooling, project worktrees, and operator workflows no longer use the
+legacy name.
