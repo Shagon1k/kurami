@@ -1,11 +1,12 @@
 # Disaster recovery
 
-This repository stores the Kurami Dev Orchestrator implementation and its
-non-secret deployment assets. It is not a complete machine image.
+This repository stores Kurami's versioned system control-plane code, including
+the Project Orchestrator and its non-secret deployment assets. It is not a
+complete machine image.
 
 ## Recovery sources
 
-- GitHub: private `Shagon1k/kurami-orchestrator` repository.
+- GitHub: private `Shagon1k/kurami` repository.
 - Runtime backup: the newest verified directory under
   `/home/shagon1k/_hermes/_orchestrator/backups/`.
 - Minimal DR: the newest encrypted `kurami-recovery-*.tar.zst.age` object in
@@ -162,12 +163,13 @@ Recreate or verify:
 | `kurami-ahurynovich-cv-poller` | `* * * * *` | local |
 | `kurami-projects-digest` | `45 6 * * *` | digest Discord channel |
 | `kurami-orchestrator-state-backup` | `15 3 */3 * *` | maintenance Discord channel |
-| `kurami-orchestrator-runtime-health` | `17 * * * *` | alerts Discord channel |
-| `kurami-orchestrator-health-heartbeat` | `20 */3 * * *` | health Discord channel |
+| `kurami-system-health` | `*/20 * * * *` | local; edits health card and sends alerts |
+| `kurami-network-speed` | `7 */6 * * *` | local; updates bounded speed state |
 | `kurami-orchestrator-monthly-maintenance` | `15 4 1 * *` | maintenance Discord channel |
 
 The pollers remain separate because project events belong to different Discord
-channels. Backup, health, and cleanup are generic orchestrator-wide jobs.
+channels. Backup and project cleanup belong to the orchestrator; system health
+and network trends are generic Kurami-wide jobs.
 
 ## Validation
 

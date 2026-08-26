@@ -33,6 +33,17 @@ def main() -> None:
     )
     settings_module = importlib.util.module_from_spec(settings_spec)
     settings_spec.loader.exec_module(settings_module)
+    settings_source = settings_path.read_text()
+    require(
+        settings_source.index('label="System Health"')
+        < settings_source.index('label="Capacity & WIP"'),
+        "System Health is not the first settings dropdown option",
+    )
+    require(
+        'custom_id="kurami:settings:health-interval"' not in settings_source
+        and 'selected == "system_health"' in settings_source,
+        "Health interval still bypasses the shared settings dropdown",
+    )
 
     accepted = {
         "kurami:status:r_abc123": ("status", "r_abc123"),

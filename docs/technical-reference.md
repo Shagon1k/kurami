@@ -139,7 +139,7 @@ $HERMES_HOME/plugins/kurami-discord-controls/
   plugin.yaml                 Uniquely keyed extension of the bundled Discord platform
   __init__.py                 Extends the existing Hermes Discord adapter
   control_handler.py          Owner-authorized, bounded native-button callback handler
-  settings_handler.py         Ephemeral /kurami orchestrator settings UI and audit delivery
+  settings_handler.py         Ephemeral /kurami settings UI and audit delivery
 ```
 
 ## Components and ownership
@@ -182,9 +182,10 @@ configured owner inside a project guild. A top-level command is intentional:
 settings now span System Health and Project Orchestrator, so an extra
 `orchestrator` command group would be misleading and unnecessarily long.
 
-System Health exposes a separately revisioned interval of 5, 10, 12, 15, 20,
-30, or 60 minutes and edits the existing Hermes job in place. It is available
-even while a project run is active. Project Orchestrator exposes six bounded
+System Health is the first section in the shared settings dropdown. Its modal
+currently exposes one separately revisioned check interval of 5, 10, 12, 15,
+20, 30, or 60 minutes and edits the existing Hermes job in place. It remains
+available even while a project run is active. Project Orchestrator exposes six bounded
 scalar runtime-policy values plus one WIP value for every registered project:
 concurrent LLM workers (1–3), AI triage/day (0–40 issues per project), Global
 WIP (1–6), project WIP (1–3), active previews (1–6), concurrent preview builds

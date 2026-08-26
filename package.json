@@ -1,7 +1,7 @@
 {
-  "name": "kurami-orchestrator",
+  "name": "kurami",
   "version": "1.0.0",
-  "description": "",
+  "description": "Kurami system control plane for Hermes",
   "main": "index.js",
   "scripts": {
     "test": "npm run check && node tests/run-regression.ts",

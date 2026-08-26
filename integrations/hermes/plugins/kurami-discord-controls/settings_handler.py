@@ -408,11 +408,14 @@ def _build_settings_view(
             self.clear_items()
             self.edit_select = discord.ui.Select(
                 custom_id="kurami:settings:edit",
-                placeholder="Edit settings…",
+                placeholder="Choose settings section…",
                 min_values=1,
                 max_values=1,
-                disabled=not self._idle(),
                 options=[
+                    discord.SelectOption(
+                        label="System Health", value="system_health",
+                        description="Health check schedule",
+                    ),
                     discord.SelectOption(
                         label="Capacity & WIP", value="capacity",
                         description="LLM and project limits",
@@ -451,12 +454,6 @@ def _build_settings_view(
                 ),
             )
             reset_button.callback = self._reset
-            health_button = discord.ui.Button(
-                label="Health interval",
-                style=discord.ButtonStyle.primary,
-                custom_id="kurami:settings:health-interval",
-            )
-            health_button.callback = self._health_interval
             self.add_item(
                 discord.ui.Container(
                     discord.ui.TextDisplay(
@@ -469,9 +466,7 @@ def _build_settings_view(
                     ),
                     discord.ui.Separator(),
                     discord.ui.ActionRow(self.edit_select),
-                    discord.ui.ActionRow(
-                        health_button, apply_button, undo_button, reset_button
-                    ),
+                    discord.ui.ActionRow(apply_button, undo_button, reset_button),
                     accent_color=0x5865F2,
                 )
             )
@@ -636,15 +631,16 @@ def _build_settings_view(
 
             await interaction.response.send_modal(PreviewModal())
 
-        async def _health_interval(self, interaction: Any) -> None:
+        async def _system_health(self, interaction: Any) -> None:
             parent = self
 
             class HealthIntervalModal(discord.ui.Modal):
                 def __init__(self) -> None:
-                    super().__init__(title="Kurami health interval", timeout=180)
+                    super().__init__(title="System Health settings", timeout=180)
                     self.minutes = discord.ui.TextInput(
-                        label="Minutes: 5, 10, 12, 15, 20, 30, or 60",
+                        label="Check interval (minutes)",
                         default=str(parent.health_payload["intervalMinutes"]),
+                        placeholder="5, 10, 12, 15, 20, 30, or 60",
                         min_length=1,
                         max_length=2,
                     )
@@ -705,7 +701,14 @@ def _build_settings_view(
 
         async def _edit(self, interaction: Any) -> None:
             selected = str(self.edit_select.values[0]) if self.edit_select.values else ""
-            if selected == "capacity":
+            if selected == "system_health":
+                await self._system_health(interaction)
+            elif not self._idle():
+                await interaction.response.send_message(
+                    "Project Orchestrator settings are locked while sessions are active.",
+                    ephemeral=True,
+                )
+            elif selected == "capacity":
                 await self._capacity(interaction)
             elif selected == "triage":
                 await self._triage(interaction)
