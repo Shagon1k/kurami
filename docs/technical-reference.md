@@ -67,7 +67,7 @@ app/
     preview-static-runtime.ts Publishes immutable static artifact snapshots
     preview-ingress.ts        Atomically reconciles running previews into Caddy routes
     codex-deeplink.ts         Validates Codex thread IDs and builds HTTPS launch URLs
-    session-manager.ts        Starts, parks, hands off, and finalizes Codex TUI sessions
+    session-manager.ts        Compatibility CLI/API for managed Codex sessions
     run-controls.ts           Inspects runs and queues allowlisted owner actions
     notify-controls.ts        Frozen opt-in proactive Telegram fallback
     notify-discord-controls.ts
@@ -96,6 +96,7 @@ app/
             worker.ts         Runs bounded read-only Priority/Effort assessment
             scheduler.ts      Admits at most one daily assessment batch
         sessions/
+          manager.ts          Starts, parks, hands off, and finalizes Codex TUI sessions
           observe.ts          Deduplicates persistent CLI attention conditions
           runtime-budget.ts   Enforces bounded main/technical task runtimes
           autonomous-successor.ts
@@ -789,7 +790,8 @@ planned -> provisioning -> provisioned
 
 ### Session Manager
 
-`src/session-manager.ts` starts interactive Codex TUI processes only for live
+`src/orchestrator/projects/sessions/manager.ts` starts interactive Codex TUI
+processes only for live
 runs whose worktree is already `provisioned`. The default `start` action is
 plan-only; `--apply` claims a unique `cx-*` tmux identity, enforces the global
 tmux cap, starts Codex in the recorded worktree with the initial engineering
@@ -824,6 +826,10 @@ repository `pre-push` hooks, so project tooling cannot strand guarded cleanup.
 A successful
 guarded resolution changes the run to `cancelled`, marks resources `released`,
 and records the deleted resources in lifecycle history.
+
+`src/session-manager.ts` remains a transparent compatibility CLI and API for
+existing operational commands and imports; the controller invokes the canonical
+session module directly.
 
 `bin/launch-codex-session.sh` loads `GH_TOKEN` from the orchestrator-owned
 credential file inside the child launcher. The value is never passed in command

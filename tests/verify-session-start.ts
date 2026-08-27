@@ -12,10 +12,20 @@ import {
 import { tmpdir } from "node:os";
 import { delimiter, resolve } from "node:path";
 import { DatabaseSync } from "node:sqlite";
+import * as canonicalSessionManager from "../src/orchestrator/projects/sessions/manager.ts";
+import * as legacySessionManager from "../src/session-manager.ts";
 
 function assert(condition: unknown, message: string): asserts condition {
   if (!condition) throw new Error(message);
 }
+
+assert(
+  legacySessionManager.reviewFixPrompt ===
+    canonicalSessionManager.reviewFixPrompt &&
+    legacySessionManager.runSessionManagerCli ===
+      canonicalSessionManager.runSessionManagerCli,
+  "Legacy session-manager is not a transparent compatibility wrapper",
+);
 
 function git(directory: string, args: string[]): string {
   return execFileSync("git", ["-C", directory, ...args], {

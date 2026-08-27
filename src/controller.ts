@@ -145,7 +145,10 @@ const databasePath = resolve(orchestratorHome, "state/orchestrator.db");
 const configPath = resolve(orchestratorHome, "config/orchestrator.yaml");
 const projectsPath = resolve(orchestratorHome, "config/projects.yaml");
 const provisionerPath = resolve(import.meta.dirname, "provision-worktree.ts");
-const sessionManagerPath = resolve(import.meta.dirname, "session-manager.ts");
+const sessionManagerPath = resolve(
+  import.meta.dirname,
+  "orchestrator/projects/sessions/manager.ts",
+);
 const releaserPath = resolve(import.meta.dirname, "release-worktree.ts");
 const previewManagerPath = resolve(import.meta.dirname, "preview-manager.ts");
 const previewRuntimePath = resolve(import.meta.dirname, "preview-runtime.ts");
