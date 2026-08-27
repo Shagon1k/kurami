@@ -23,6 +23,22 @@ def _kurami_home() -> Path:
     ).absolute()
 
 
+def _settings_subprocess_env(*, include_hermes: bool = False) -> dict[str, str]:
+    home = str(_kurami_home())
+    env = {
+        "KURAMI_HOME": home,
+        "ORCHESTRATOR_HOME": home,
+        "PATH": os.environ.get("PATH", "/usr/local/bin:/usr/bin:/bin"),
+        "LANG": os.environ.get("LANG", "C.UTF-8"),
+        "NODE_NO_WARNINGS": "1",
+    }
+    if include_hermes:
+        env["HERMES_HOME"] = os.environ.get(
+            "HERMES_HOME", "/home/shagon1k/_hermes/_core"
+        )
+    return env
+
+
 def _paths() -> tuple[Path, Path]:
     home = _kurami_home()
     return home / "runtime/node/bin/node", home / "app/src/orchestrator-settings.ts"
@@ -141,20 +157,12 @@ async def _run_settings_control(
     settings: Optional[dict[str, Any]] = None,
 ) -> dict[str, Any]:
     args = _control_args(action, actor_id, expected_revision, settings)
-    _, control = _paths()
-    env = {
-        "KURAMI_HOME": str(control.parents[2]),
-        "ORCHESTRATOR_HOME": str(control.parents[2]),
-        "PATH": os.environ.get("PATH", "/usr/local/bin:/usr/bin:/bin"),
-        "LANG": os.environ.get("LANG", "C.UTF-8"),
-        "NODE_NO_WARNINGS": "1",
-    }
     process = await asyncio.create_subprocess_exec(
         *args,
         stdin=asyncio.subprocess.DEVNULL,
         stdout=asyncio.subprocess.PIPE,
         stderr=asyncio.subprocess.PIPE,
-        env=env,
+        env=_settings_subprocess_env(),
     )
     try:
         stdout, stderr = await asyncio.wait_for(process.communicate(), timeout=10)
@@ -205,22 +213,12 @@ async def _run_health_settings_control(
                 "--actor-id", actor_id,
             ]
         )
-    env = {
-        "KURAMI_HOME": str(control.parents[2]),
-        "ORCHESTRATOR_HOME": str(control.parents[2]),
-        "HERMES_HOME": os.environ.get(
-            "HERMES_HOME", "/home/shagon1k/_hermes/_core"
-        ),
-        "PATH": os.environ.get("PATH", "/usr/local/bin:/usr/bin:/bin"),
-        "LANG": os.environ.get("LANG", "C.UTF-8"),
-        "NODE_NO_WARNINGS": "1",
-    }
     process = await asyncio.create_subprocess_exec(
         *args,
         stdin=asyncio.subprocess.DEVNULL,
         stdout=asyncio.subprocess.PIPE,
         stderr=asyncio.subprocess.PIPE,
-        env=env,
+        env=_settings_subprocess_env(include_hermes=True),
     )
     try:
         stdout, stderr = await asyncio.wait_for(process.communicate(), timeout=20)

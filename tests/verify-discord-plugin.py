@@ -44,10 +44,22 @@ def main() -> None:
             "KURAMI_HOME does not take precedence over the legacy home",
         )
         subprocess_env = module._kurami_subprocess_env()
+        settings_subprocess_env = settings_module._settings_subprocess_env()
+        health_subprocess_env = settings_module._settings_subprocess_env(
+            include_hermes=True
+        )
         require(
             subprocess_env["KURAMI_HOME"] == "/tmp/kurami-new-home"
             and subprocess_env["ORCHESTRATOR_HOME"] == "/tmp/kurami-new-home",
             "Plugin subprocess environment does not preserve canonical Kurami home",
+        )
+        require(
+            settings_subprocess_env["KURAMI_HOME"] == "/tmp/kurami-new-home"
+            and settings_subprocess_env["ORCHESTRATOR_HOME"]
+            == "/tmp/kurami-new-home"
+            and "HERMES_HOME" not in settings_subprocess_env
+            and health_subprocess_env["HERMES_HOME"],
+            "Settings subprocess environment does not preserve canonical homes",
         )
         os.environ.pop("KURAMI_HOME")
         require(
@@ -69,6 +81,10 @@ def main() -> None:
     require(
         "control.parents[2]" not in control_source,
         "Plugin subprocess home still depends on source-file nesting depth",
+    )
+    require(
+        "control.parents[2]" not in settings_source,
+        "Settings subprocess home still depends on source-file nesting depth",
     )
     require(
         settings_source.index('label="System Health"')
