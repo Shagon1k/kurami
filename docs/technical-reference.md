@@ -46,7 +46,7 @@ app/
     observe-ci.ts             Reads exact-PR CI state without GitHub mutations
     review-manager.ts         Validates and starts explicit exact-SHA AI reviews
     ai-review-worker.ts       Publishes one bounded native GitHub PR review
-    process-project-events.ts Runs admission and cancellation state transitions
+    process-project-events.ts Compatibility CLI for existing event consumers
     controller.ts             Dispatches only handlers eligible for current states
     codex-app-server.ts       Minimal stdio client for durable Codex thread metadata
     observe-sessions.ts       Deduplicates persistent CLI attention conditions
@@ -71,6 +71,8 @@ app/
     orchestrator/
       projects/
         poll-projects.ts      Reads one or both GitHub Projects
+        process-project-events.ts
+                              Runs admission and cancellation state transitions
         project-readiness.ts  Read-only PASS/WARN/FAIL compatibility assessment
         project-status.ts     Returns fully cancelled released items to Backlog
       settings/

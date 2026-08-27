@@ -3,6 +3,8 @@ import { copyFile, mkdir, mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { resolve } from "node:path";
 import { DatabaseSync } from "node:sqlite";
+import * as legacyProjectEvents from "../src/process-project-events.ts";
+import * as canonicalProjectEvents from "../src/orchestrator/projects/process-project-events.ts";
 
 process.umask(0o077);
 
@@ -17,6 +19,12 @@ type ConsumerResult = {
 function assert(condition: unknown, message: string): asserts condition {
   if (!condition) throw new Error(message);
 }
+
+assert(
+  legacyProjectEvents.runProjectEventConsumerCli ===
+    canonicalProjectEvents.runProjectEventConsumerCli,
+  "Legacy project event CLI does not delegate to the canonical implementation",
+);
 
 function runConsumer(appDirectory: string, testHome: string): ConsumerResult {
   const stdout = execFileSync(

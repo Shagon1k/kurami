@@ -5,7 +5,7 @@ umask 077
 readonly KURAMI_HOME="/home/shagon1k/_hermes/_kurami"
 readonly NODE_BIN="${KURAMI_HOME}/runtime/node/bin/node"
 readonly POLLER="${KURAMI_HOME}/app/src/orchestrator/projects/poll-projects.ts"
-readonly CONSUMER="${KURAMI_HOME}/app/src/process-project-events.ts"
+readonly CONSUMER="${KURAMI_HOME}/app/src/orchestrator/projects/process-project-events.ts"
 readonly CI_OBSERVER="${KURAMI_HOME}/app/src/observe-ci.ts"
 readonly CONTROLLER="${KURAMI_HOME}/app/src/controller.ts"
 readonly RUNTIME_BUDGET="${KURAMI_HOME}/app/src/runtime-budget.ts"
