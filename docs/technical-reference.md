@@ -55,6 +55,7 @@ app/
     codex-app-server.ts       Minimal stdio client for durable Codex thread metadata
     observe-sessions.ts       Compatibility CLI/API for session observation
     runtime-budget.ts         Compatibility CLI/API for runtime budget enforcement
+    autonomous-successor.ts   Compatibility CLI/API for managed successor tasks
     provision-worktree.ts     Plans or explicitly provisions Git worktrees
     release-worktree.ts       Safely releases cancelled or verified-merged Git resources
     cancel-resolution.ts      Guardedly resolves confirmed unpublished or Draft PR results
@@ -97,6 +98,8 @@ app/
         sessions/
           observe.ts          Deduplicates persistent CLI attention conditions
           runtime-budget.ts   Enforces bounded main/technical task runtimes
+          autonomous-successor.ts
+                              Starts one guarded successor after Remote ownership
       settings/
         runtime-settings.ts   Verified runtime overrides and effective limits
         orchestrator-settings.ts
@@ -805,6 +808,11 @@ database transition is recoverable when tmux already exited during handoff.
 `finalize-stop` is plan-only by default. It permits the durable transition from
 `stopping` to `cancelled` only after verifying that the tmux session, worktree,
 and local branch are all absent; `--apply` records the verified cleanup.
+`src/orchestrator/projects/sessions/autonomous-successor.ts` owns the separate
+Remote-to-CLI successor boundary. The controller calls the canonical path;
+`src/autonomous-successor.ts` remains a transparent compatibility CLI and API.
+It preserves the predecessor task as immutable history and claims the existing
+worktree only after rechecking the durable single-writer boundary.
 If cancellation finds unpublished local changes, automation still stops but the
 run becomes `needs_attention` and preserves the exact worktree. Discord then
 offers `Discard local work`; that action requires a second confirmation and

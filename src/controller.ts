@@ -158,7 +158,7 @@ const reviewManagerPath = resolve(import.meta.dirname, "review-manager.ts");
 const reviewFixManagerPath = resolve(import.meta.dirname, "review-fix-manager.ts");
 const autonomousSuccessorPath = resolve(
   import.meta.dirname,
-  "autonomous-successor.ts",
+  "orchestrator/projects/sessions/autonomous-successor.ts",
 );
 const projectDiscoveryMaxAgeMs = 2 * 60 * 1_000;
 
