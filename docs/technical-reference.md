@@ -57,7 +57,7 @@ app/
     runtime-budget.ts         Compatibility CLI/API for runtime budget enforcement
     autonomous-successor.ts   Compatibility CLI/API for managed successor tasks
     provision-worktree.ts     Compatibility CLI/API for worktree provisioning
-    release-worktree.ts       Safely releases cancelled or verified-merged Git resources
+    release-worktree.ts       Compatibility CLI/API for guarded worktree release
     cancel-resolution.ts      Guardedly resolves confirmed unpublished or Draft PR results
     project-status.ts         Compatibility CLI for existing controller callers
     preview-manager.ts        Leases, acknowledges, extends, and releases preview slots
@@ -103,6 +103,7 @@ app/
                               Starts one guarded successor after Remote ownership
         worktrees/
           provision.ts        Plans or explicitly provisions Git worktrees
+          release.ts          Releases cancelled or verified-merged Git resources
       settings/
         runtime-settings.ts   Verified runtime overrides and effective limits
         orchestrator-settings.ts
@@ -793,6 +794,12 @@ Provisioning states are durable:
 planned -> provisioning -> provisioned
                        \-> partial + needs_attention on failure
 ```
+
+`src/orchestrator/projects/worktrees/release.ts` owns the guarded inverse
+boundary. It preserves unmerged or ambiguous work, and removes a worktree and
+local branch only after cancellation safety or exact completion evidence passes.
+The controller invokes this canonical path; `src/release-worktree.ts` remains a
+transparent compatibility CLI and API.
 
 ### Session Manager
 

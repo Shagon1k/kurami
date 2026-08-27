@@ -11,6 +11,8 @@ import {
 import { tmpdir } from "node:os";
 import { resolve } from "node:path";
 import { DatabaseSync } from "node:sqlite";
+import * as canonicalRelease from "../src/orchestrator/projects/worktrees/release.ts";
+import * as legacyRelease from "../src/release-worktree.ts";
 
 process.umask(0o077);
 
@@ -40,6 +42,12 @@ async function exists(path: string): Promise<boolean> {
 function assert(condition: unknown, message: string): asserts condition {
   if (!condition) throw new Error(message);
 }
+
+assert(
+  legacyRelease.runReleaseWorktreeCli ===
+    canonicalRelease.runReleaseWorktreeCli,
+  "Legacy release-worktree is not a transparent compatibility wrapper",
+);
 
 async function main(): Promise<void> {
   const appDirectory = resolve(import.meta.dirname, "..");
@@ -148,8 +156,8 @@ async function main(): Promise<void> {
       ORCHESTRATOR_HOME: testHome,
       ORCHESTRATOR_MIGRATIONS_DIR: resolve(appDirectory, "migrations"),
     };
-    const release = (apply: boolean): Record<string, unknown> => {
-      const args = [resolve(appDirectory, "src/release-worktree.ts"), "--run-id", runId];
+    const release = (script: string, apply: boolean): Record<string, unknown> => {
+      const args = [resolve(appDirectory, script), "--run-id", runId];
       if (apply) args.push("--apply");
       return JSON.parse(
         execFileSync(process.execPath, args, {
@@ -160,7 +168,10 @@ async function main(): Promise<void> {
       ) as Record<string, unknown>;
     };
 
-    const beforeMerge = release(true);
+    const beforeMerge = release(
+      "src/orchestrator/projects/worktrees/release.ts",
+      true,
+    );
     assert(beforeMerge.action === "waiting_for_merge", "Unmerged work was released");
     assert(await exists(worktree), "Unmerged worktree was removed");
 
@@ -176,7 +187,7 @@ async function main(): Promise<void> {
       ].join("\n"),
       "utf8",
     );
-    const afterMerge = release(true);
+    const afterMerge = release("src/release-worktree.ts", true);
     assert(afterMerge.action === "released", "Merged worktree was not released");
     assert(
       afterMerge.mergeEvidence === "github_pr",

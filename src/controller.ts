@@ -152,7 +152,10 @@ const sessionManagerPath = resolve(
   import.meta.dirname,
   "orchestrator/projects/sessions/manager.ts",
 );
-const releaserPath = resolve(import.meta.dirname, "release-worktree.ts");
+const releaserPath = resolve(
+  import.meta.dirname,
+  "orchestrator/projects/worktrees/release.ts",
+);
 const previewManagerPath = resolve(import.meta.dirname, "preview-manager.ts");
 const previewRuntimePath = resolve(import.meta.dirname, "preview-runtime.ts");
 const cancelResolutionPath = resolve(import.meta.dirname, "cancel-resolution.ts");
