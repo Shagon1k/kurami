@@ -39,9 +39,11 @@ app/
     triage-rank.ts            Compatibility CLI/API for existing ranking callers
     notify-discord-digest.ts  Reconciles persistent per-project digest cards
     metadata-proposal-manager.ts
-                              Plans durable changed-only metadata batches
+                              Compatibility CLI/API for proposal planning
     metadata-proposal-worker.ts
-                              Runs bounded read-only Priority/Effort assessment
+                              Compatibility CLI/API for proposal assessment
+    metadata-proposal-scheduler.ts
+                              Compatibility CLI/API for daily admission
     metadata-sync.ts          Applies accepted metadata with field-level drift guards
     observe-ci.ts             Reads exact-PR CI state without GitHub mutations
     review-manager.ts         Validates and starts explicit exact-SHA AI reviews
@@ -78,6 +80,11 @@ app/
         triage/
           snapshot.ts         Persists changed-only Backlog fact snapshots
           rank.ts             Ranks eligible issues with explainable policy
+        metadata/
+          proposals/
+            manager.ts        Plans durable changed-only metadata batches
+            worker.ts         Runs bounded read-only Priority/Effort assessment
+            scheduler.ts      Admits at most one daily assessment batch
       settings/
         runtime-settings.ts   Verified runtime overrides and effective limits
         orchestrator-settings.ts
@@ -606,19 +613,21 @@ The orchestrator must never create, move, or delete the `📋-digest` channel.
 
 ### Metadata proposal batches
 
-P4c starts behind a read-only boundary. `src/metadata-proposal-manager.ts` plans
-up to the configured `AI triage/day` Backlog issues (0–40, default 12) in one
-owner-facing batch from the changed-only Projects Digest facts.
+P4c starts behind a read-only boundary.
+`src/orchestrator/projects/metadata/proposals/manager.ts` plans up to the
+configured `AI triage/day` Backlog issues (0–40, default 12) in one owner-facing
+batch from the changed-only Projects Digest facts.
 The initial bootstrap is chunked without losing remaining issues. Later batches
 consider only new or proposal-relevant changed issues. One active batch per
 project prevents daily reruns; unrelated project changes are deferred instead of
 invalidating an existing proposal, while a change to a batch target supersedes
 that stale batch.
 
-`src/metadata-proposal-worker.ts` splits a larger logical batch into bounded
-read-only AI chunks of at most 12 issues. It may suggest missing Priority values P1-P3 and
-Effort values XS-XL. P0 is owner-only and is rejected by both the parser and the
-database. Dependency relationships are excluded. The worker prefetches bounded
+`src/orchestrator/projects/metadata/proposals/worker.ts` splits a larger logical
+batch into bounded read-only AI chunks of at most 12 issues. It may suggest
+missing Priority values P1-P3 and Effort values XS-XL. P0 is owner-only and is
+rejected by both the parser and the database. Dependency relationships are
+excluded. The worker prefetches bounded
 private issue context with read-only `gh api` calls, then removes GitHub tokens
 from the detached Codex environment. Codex runs read-only with no approvals,
 network, external tools, or mutation authority. Its strict JSON result is
@@ -652,7 +661,7 @@ Inspect the daily admission plan without mutation:
 
 ```bash
 ORCHESTRATOR_HOME=/home/shagon1k/_hermes/_kurami \
-node src/metadata-proposal-scheduler.ts
+node src/orchestrator/projects/metadata/proposals/scheduler.ts
 ```
 
 The normal `kurami-projects-digest` Hermes job invokes the apply form once per
@@ -684,10 +693,10 @@ Inspect and then create proposal batch plans:
 
 ```bash
 ORCHESTRATOR_HOME=/home/shagon1k/_hermes/_kurami \
-node src/metadata-proposal-manager.ts prepare
+node src/orchestrator/projects/metadata/proposals/manager.ts prepare
 
 ORCHESTRATOR_HOME=/home/shagon1k/_hermes/_kurami \
-node src/metadata-proposal-manager.ts prepare --apply
+node src/orchestrator/projects/metadata/proposals/manager.ts prepare --apply
 ```
 
 Inspect a planned batch without GitHub reads or Codex execution, then explicitly
@@ -695,10 +704,10 @@ run its read-only assessment:
 
 ```bash
 ORCHESTRATOR_HOME=/home/shagon1k/_hermes/_kurami \
-node src/metadata-proposal-worker.ts --batch-id <batch_id>
+node src/orchestrator/projects/metadata/proposals/worker.ts --batch-id <batch_id>
 
 ORCHESTRATOR_HOME=/home/shagon1k/_hermes/_kurami \
-node src/metadata-proposal-worker.ts --batch-id <batch_id> --apply
+node src/orchestrator/projects/metadata/proposals/worker.ts --batch-id <batch_id> --apply
 ```
 
 Schema 21 adds guarded GitHub Project synchronization. `Accept batch` is the

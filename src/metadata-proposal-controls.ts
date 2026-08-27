@@ -2,7 +2,7 @@ import { randomUUID } from "node:crypto";
 import { resolve } from "node:path";
 import { pathToFileURL } from "node:url";
 import { DatabaseSync } from "node:sqlite";
-import { skipBatch } from "./metadata-proposal-manager.ts";
+import { skipBatch } from "./orchestrator/projects/metadata/proposals/manager.ts";
 
 process.umask(0o077);
 

@@ -6,6 +6,8 @@ import {
   planDailyProjectAssessment,
   runDailyProposalCycle,
 } from "../src/metadata-proposal-scheduler.ts";
+import * as canonicalScheduler from "../src/orchestrator/projects/metadata/proposals/scheduler.ts";
+import * as legacyScheduler from "../src/metadata-proposal-scheduler.ts";
 import { persistTriageRanking, rankTriageFacts } from "../src/triage-rank.ts";
 import {
   buildTriageFacts,
@@ -69,6 +71,13 @@ const config = {
 };
 
 async function main(): Promise<void> {
+  assert(
+    legacyScheduler.runDailyProposalCycle ===
+      canonicalScheduler.runDailyProposalCycle &&
+      legacyScheduler.runMetadataProposalSchedulerCli ===
+        canonicalScheduler.runMetadataProposalSchedulerCli,
+    "Legacy metadata scheduler is not a transparent compatibility wrapper",
+  );
   const app = resolve(import.meta.dirname, "..");
   const migrationsDirectory = resolve(app, "migrations");
   const home = await mkdtemp(resolve(tmpdir(), "kurami-metadata-scheduler-"));
@@ -382,7 +391,9 @@ async function main(): Promise<void> {
     const script = await readFile(resolve(app, "run-projects-digest.sh"), "utf8");
     assert(
       script.includes("if (( $# == 0 )); then") &&
-        script.includes("metadata-proposal-scheduler.ts") &&
+        script.includes(
+          "orchestrator/projects/metadata/proposals/scheduler.ts",
+        ) &&
         script.includes("orchestrator/projects/triage/snapshot.ts") &&
         script.includes("orchestrator/projects/triage/rank.ts") &&
         script.includes("project-event-consumer.lock") &&
