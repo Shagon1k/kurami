@@ -3,6 +3,8 @@ import { copyFile, mkdir, mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { resolve } from "node:path";
 import { DatabaseSync } from "node:sqlite";
+import * as canonicalPreviewManager from "../src/orchestrator/projects/previews/manager.ts";
+import * as legacyPreviewManager from "../src/preview-manager.ts";
 
 process.umask(0o077);
 
@@ -16,6 +18,12 @@ function assert(condition: unknown, message: string): asserts condition {
   if (!condition) throw new Error(message);
 }
 
+assert(
+  legacyPreviewManager.runPreviewManagerCli ===
+    canonicalPreviewManager.runPreviewManagerCli,
+  "Legacy preview-manager is not a transparent compatibility wrapper",
+);
+
 function runManager(
   appDirectory: string,
   testHome: string,
@@ -23,7 +31,10 @@ function runManager(
 ): ManagerResult {
   const stdout = execFileSync(
     process.execPath,
-    [resolve(appDirectory, "src/preview-manager.ts"), ...args],
+    [
+      resolve(appDirectory, "src/orchestrator/projects/previews/manager.ts"),
+      ...args,
+    ],
     {
       encoding: "utf8",
       env: { ...process.env, ORCHESTRATOR_HOME: testHome },

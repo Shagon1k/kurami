@@ -60,7 +60,7 @@ app/
     release-worktree.ts       Compatibility CLI/API for guarded worktree release
     cancel-resolution.ts      Compatibility CLI/API for confirmed cancellation cleanup
     project-status.ts         Compatibility CLI for existing controller callers
-    preview-manager.ts        Leases, acknowledges, extends, and releases preview slots
+    preview-manager.ts        Compatibility CLI/API for preview lease management
     preview-runtime.ts        Dispatches each durable lease to its selected adapter
     preview-compose-runtime.ts
                               Builds and removes rootless Compose previews
@@ -106,6 +106,8 @@ app/
           release.ts          Releases cancelled or verified-merged Git resources
           cancel-resolution.ts
                               Resolves confirmed unpublished or Draft PR cleanup
+        previews/
+          manager.ts          Leases, acknowledges, extends, and releases preview slots
       settings/
         runtime-settings.ts   Verified runtime overrides and effective limits
         orchestrator-settings.ts
@@ -931,7 +933,8 @@ self-transitions cannot emit another review-ready notification.
 
 ### Preview slot leasing
 
-`src/preview-manager.ts` owns the fixed application-preview pool
+`src/orchestrator/projects/previews/manager.ts` owns the fixed
+application-preview pool
 `preview-1.shagon1k.win` through `preview-6.shagon1k.win`. Allocation uses an
 SQLite `BEGIN IMMEDIATE` transaction, applies the global preview cap, selects
 the lowest enabled free slot, records a historical lease, and maps the slot to
@@ -942,6 +945,10 @@ Each slot has deterministic loopback ports for frontend, backend, PostgreSQL,
 Redis, MinIO API, and MinIO console. The slot pool is shared by repositories;
 the Compose project name remains run-specific. Runtime concurrency is six,
 while build/provision concurrency is separately limited to two.
+
+The controller invokes the canonical manager; `src/preview-manager.ts` remains
+a transparent compatibility CLI and API for Hermes controls and existing
+operational commands.
 
 Lease release is fail-closed. `--apply` additionally requires
 `--runtime-absent`; the selected runtime adapter must first prove that its
