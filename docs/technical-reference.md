@@ -132,6 +132,9 @@ app/
           adapters/
             compose.ts        Builds and removes rootless Compose previews
             static.ts         Publishes immutable static artifact snapshots
+      resources/
+        guard.ts              Inspects quotas and reconciles quarantine state
+        discord.ts            Delivers durable changed-only resource events
       settings/
         runtime-settings.ts   Verified runtime overrides and effective limits
         orchestrator-settings.ts
@@ -163,8 +166,8 @@ app/
     recovery-bundle.ts        Compatibility CLI and re-export for recovery tooling
     s3-recovery.ts            Compatibility CLI and re-export for off-site upload
     discord-ui.ts             Compatibility re-export for existing imports
-    resource-guard.ts         Inspects admission quotas and reconciles orphan quarantine state
-    resource-guard-discord.ts Batches and delivers durable changed-only guard events
+    resource-guard.ts         Compatibility CLI/API for resource governance
+    resource-guard-discord.ts Compatibility API for resource event delivery
     runtime-settings.ts       Compatibility re-export for existing imports
     orchestrator-settings.ts  Compatibility CLI and re-export for Hermes plugin
     project-readiness.ts      Compatibility CLI and re-export for Hermes skill
@@ -1205,6 +1208,8 @@ Both commands are non-destructive with respect to external resources. `--apply`
 writes only `resource_quarantines` and changed-only `resource_guard_events` rows;
 it performs no filesystem, tmux, Docker, GitHub, or Discord mutation. The normal
 poller-owned Discord notifier delivers pending event batches separately.
+The implementation lives under `src/orchestrator/resources`; the root files
+remain compatibility entrypoints for operational commands and external imports.
 
 Verify lifecycle events and the Discord outbox without network access:
 

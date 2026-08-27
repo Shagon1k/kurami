@@ -10,7 +10,7 @@ import {
   validateResourceGuardLimits,
   type ResourceGuardAnalysis,
   type ResourceGuardLimits,
-} from "../../resource-guard.ts";
+} from "../resources/guard.ts";
 import {
   effectiveOrchestratorConfig,
   projectWipLimit,

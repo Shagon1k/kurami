@@ -3,7 +3,7 @@ import { createServer } from "node:http";
 import { mkdtemp } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import type { ResourceGuardAnalysis } from "../src/resource-guard.ts";
+import type { ResourceGuardAnalysis } from "../src/orchestrator/resources/guard.ts";
 import type { RuntimeHealthResult } from "../src/runtime-health.ts";
 import {
   defaultServerHealthConfig,

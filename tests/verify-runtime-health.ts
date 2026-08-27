@@ -3,7 +3,7 @@ import {
   formatHealthSummary,
   parseOomKillCount,
 } from "../src/runtime-health.ts";
-import type { ResourceGuardAnalysis } from "../src/resource-guard.ts";
+import type { ResourceGuardAnalysis } from "../src/orchestrator/resources/guard.ts";
 import { defaultServerHealthConfig } from "../src/server-health.ts";
 
 const healthyResourceGuard: ResourceGuardAnalysis = {

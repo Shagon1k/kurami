@@ -8,7 +8,8 @@ import {
   type ResourceGuardInventory,
   type ResourceGuardLimits,
   type ResourceObservation,
-} from "../src/resource-guard.ts";
+} from "../src/orchestrator/resources/guard.ts";
+import * as legacyResourceGuard from "../src/resource-guard.ts";
 
 const limits: ResourceGuardLimits = {
   max_managed_worktrees_global: 6,
@@ -24,6 +25,15 @@ const limits: ResourceGuardLimits = {
 function assert(condition: unknown, message: string): asserts condition {
   if (!condition) throw new Error(message);
 }
+
+assert(
+  legacyResourceGuard.analyzeResourceGuard === analyzeResourceGuard &&
+    legacyResourceGuard.reconcileResourceQuarantines ===
+      reconcileResourceQuarantines &&
+    legacyResourceGuard.validateResourceGuardLimits ===
+      validateResourceGuardLimits,
+  "Legacy Resource Guard wrapper diverged from the canonical module",
+);
 
 function inventory(
   overrides: Partial<ResourceGuardInventory> = {},

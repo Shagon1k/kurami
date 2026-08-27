@@ -16,7 +16,7 @@ import {
   type ResourceGuardAnalysis,
   type ResourceGuardLimits,
   type ResourceGuardProjects,
-} from "./resource-guard.ts";
+} from "./orchestrator/resources/guard.ts";
 import {
   assessServerHealth,
   evaluateHealthAlerts,

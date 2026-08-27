@@ -21,7 +21,7 @@ import {
   deliverResourceGuardBatch,
   planResourceGuardDiscord,
   prepareResourceGuardDiscord,
-} from "../../resource-guard-discord.ts";
+} from "../resources/discord.ts";
 
 process.umask(0o077);
 
