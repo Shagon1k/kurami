@@ -160,7 +160,10 @@ const previewManagerPath = resolve(
   import.meta.dirname,
   "orchestrator/projects/previews/manager.ts",
 );
-const previewRuntimePath = resolve(import.meta.dirname, "preview-runtime.ts");
+const previewRuntimePath = resolve(
+  import.meta.dirname,
+  "orchestrator/projects/previews/runtime.ts",
+);
 const cancelResolutionPath = resolve(
   import.meta.dirname,
   "orchestrator/projects/worktrees/cancel-resolution.ts",

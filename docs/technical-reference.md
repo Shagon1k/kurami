@@ -61,10 +61,10 @@ app/
     cancel-resolution.ts      Compatibility CLI/API for confirmed cancellation cleanup
     project-status.ts         Compatibility CLI for existing controller callers
     preview-manager.ts        Compatibility CLI/API for preview lease management
-    preview-runtime.ts        Dispatches each durable lease to its selected adapter
+    preview-runtime.ts        Compatibility CLI/API for preview runtime dispatch
     preview-compose-runtime.ts
-                              Builds and removes rootless Compose previews
-    preview-static-runtime.ts Publishes immutable static artifact snapshots
+                              Compatibility CLI/API for Compose previews
+    preview-static-runtime.ts Compatibility CLI/API for static previews
     preview-ingress.ts        Compatibility CLI/API for preview ingress reconciliation
     codex-deeplink.ts         Validates Codex thread IDs and builds HTTPS launch URLs
     session-manager.ts        Compatibility CLI/API for managed Codex sessions
@@ -109,6 +109,10 @@ app/
         previews/
           manager.ts          Leases, acknowledges, extends, and releases preview slots
           ingress.ts          Atomically reconciles running previews into Caddy routes
+          runtime.ts          Dispatches each durable lease to its selected adapter
+          adapters/
+            compose.ts        Builds and removes rootless Compose previews
+            static.ts         Publishes immutable static artifact snapshots
       settings/
         runtime-settings.ts   Verified runtime overrides and effective limits
         orchestrator-settings.ts
@@ -956,19 +960,23 @@ Lease release is fail-closed. `--apply` additionally requires
 runtime and ingress resources are gone. Released rows remain as audit history,
 while the slot becomes reusable.
 
-`src/preview-runtime.ts` is a narrow dispatcher. Before provisioning it reads
+`src/orchestrator/projects/previews/runtime.ts` is a narrow dispatcher. Before
+provisioning it reads
 the project adapter; after a lease is claimed it always follows the adapter
 persisted on that lease, so a later configuration edit cannot make one runtime
 clean up another adapter's resources.
 
-`src/preview-compose-runtime.ts` is the Compose adapter. It validates the mapped
-worktree and repository-owned Compose contract, requires the rootless Docker
-daemon, checks available RAM/disk and fixed loopback ports, transactionally
-claims one of two build slots, and writes per-run runtime files below
-`../state/previews/<run_id>` with mode `600`. Google credentials come from the
-project-specific orchestrator secret file; per-run JWT, E2E, PostgreSQL, and
+`src/orchestrator/projects/previews/adapters/compose.ts` is the Compose adapter.
+It validates the mapped worktree and repository-owned Compose contract, requires
+the rootless Docker daemon, checks available RAM/disk and fixed loopback ports,
+transactionally claims one of two build slots, and writes per-run runtime files
+below `../state/previews/<run_id>` with mode `600`. Google credentials come from
+the project-specific orchestrator secret file; per-run JWT, E2E, PostgreSQL, and
 MinIO credentials are generated locally and never printed or stored in SQLite.
 After Compose health checks pass, the lease becomes `running`.
+
+The three root-level preview runtime files remain transparent compatibility
+CLIs and APIs for existing operational commands and installed integrations.
 
 Projects that produce an already-built static site may instead configure:
 
