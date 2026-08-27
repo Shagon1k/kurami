@@ -144,7 +144,10 @@ const orchestratorHome = resolve(
 const databasePath = resolve(orchestratorHome, "state/orchestrator.db");
 const configPath = resolve(orchestratorHome, "config/orchestrator.yaml");
 const projectsPath = resolve(orchestratorHome, "config/projects.yaml");
-const provisionerPath = resolve(import.meta.dirname, "provision-worktree.ts");
+const provisionerPath = resolve(
+  import.meta.dirname,
+  "orchestrator/projects/worktrees/provision.ts",
+);
 const sessionManagerPath = resolve(
   import.meta.dirname,
   "orchestrator/projects/sessions/manager.ts",

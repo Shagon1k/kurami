@@ -56,7 +56,7 @@ app/
     observe-sessions.ts       Compatibility CLI/API for session observation
     runtime-budget.ts         Compatibility CLI/API for runtime budget enforcement
     autonomous-successor.ts   Compatibility CLI/API for managed successor tasks
-    provision-worktree.ts     Plans or explicitly provisions Git worktrees
+    provision-worktree.ts     Compatibility CLI/API for worktree provisioning
     release-worktree.ts       Safely releases cancelled or verified-merged Git resources
     cancel-resolution.ts      Guardedly resolves confirmed unpublished or Draft PR results
     project-status.ts         Compatibility CLI for existing controller callers
@@ -101,6 +101,8 @@ app/
           runtime-budget.ts   Enforces bounded main/technical task runtimes
           autonomous-successor.ts
                               Starts one guarded successor after Remote ownership
+        worktrees/
+          provision.ts        Plans or explicitly provisions Git worktrees
       settings/
         runtime-settings.ts   Verified runtime overrides and effective limits
         orchestrator-settings.ts
@@ -142,6 +144,8 @@ app/
     run-regression.ts         Runs all deterministic suites in fail-fast order
     verify-dry-run-admission.ts
                               Isolated WIP/idempotency/policy regression test
+    verify-worktree-provision.ts
+                              Proves plan-only canonical/compatibility provisioning
     verify-completed-release.ts
                               Proves unmerged work is retained and merged work is released
     verify-cancel-resolution.ts
@@ -765,10 +769,12 @@ poller is paused.
 
 ### Worktree Provisioner
 
-`src/provision-worktree.ts` validates the planned resource mapping and canonical
-repository. Without `--apply`, it only prints a plan. With `--apply`, it requires
-a `live` run, fetches the configured base branch, and creates an isolated branch
-and worktree from the exact recorded base SHA.
+`src/orchestrator/projects/worktrees/provision.ts` validates the planned resource
+mapping and canonical repository. Without `--apply`, it only prints a plan. With
+`--apply`, it requires a `live` run, fetches the configured base branch, and
+creates an isolated branch and worktree from the exact recorded base SHA. The
+controller invokes the canonical path; `src/provision-worktree.ts` remains a
+transparent compatibility CLI and API for existing operational commands.
 
 Each attempt has a unique parent directory, while the Git worktree itself keeps
 the canonical repository basename:
