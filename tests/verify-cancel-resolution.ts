@@ -3,10 +3,18 @@ import { chmod, mkdir, mkdtemp, readFile, realpath, rm, stat, writeFile } from "
 import { tmpdir } from "node:os";
 import { delimiter, dirname, resolve } from "node:path";
 import { DatabaseSync } from "node:sqlite";
+import * as canonicalCancelResolution from "../src/orchestrator/projects/worktrees/cancel-resolution.ts";
+import * as legacyCancelResolution from "../src/cancel-resolution.ts";
 
 function assert(condition: unknown, message: string): asserts condition {
   if (!condition) throw new Error(message);
 }
+
+assert(
+  legacyCancelResolution.runCancelResolutionCli ===
+    canonicalCancelResolution.runCancelResolutionCli,
+  "Legacy cancel-resolution is not a transparent compatibility wrapper",
+);
 
 function command(program: string, args: string[], cwd?: string): string {
   return execFileSync(program, args, {
@@ -95,14 +103,18 @@ async function main(): Promise<void> {
     await writeFile(resolve(worktree, "file.txt"), "discard me\n");
     seed("r_discard", 1, "TT-1_cancel", worktree);
 
-    const script = resolve(app, "src/cancel-resolution.ts");
-    const plan = runNode(script, ["discard", "--run-id", "r_discard"], home) as {
+    const canonicalScript = resolve(
+      app,
+      "src/orchestrator/projects/worktrees/cancel-resolution.ts",
+    );
+    const legacyScript = resolve(app, "src/cancel-resolution.ts");
+    const plan = runNode(canonicalScript, ["discard", "--run-id", "r_discard"], home) as {
       plan: { eligible: boolean; changedFiles: string[] };
     };
     assert(plan.plan.eligible, "Dirty unpublished work was not discardable");
     assert(plan.plan.changedFiles.includes("file.txt"), "Changed file was not reported");
     const applied = runNode(
-      script,
+      canonicalScript,
       ["discard", "--run-id", "r_discard", "--apply"],
       home,
     );
@@ -123,7 +135,7 @@ async function main(): Promise<void> {
     command("git", ["push", "-u", "origin", "TT-2_published"], publishedWorktree);
     seed("r_published", 2, "TT-2_published", publishedWorktree);
     const preserved = runNode(
-      script,
+      canonicalScript,
       ["discard", "--run-id", "r_published", "--apply"],
       home,
     ) as { action: string; blockers: string[] };
@@ -204,7 +216,7 @@ esac
       canonical,
     );
     const publishedDiscard = runNode(
-      script,
+      legacyScript,
       ["discard-published", "--run-id", "r_discard_published", "--apply"],
       home,
     );

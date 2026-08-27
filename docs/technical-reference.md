@@ -58,7 +58,7 @@ app/
     autonomous-successor.ts   Compatibility CLI/API for managed successor tasks
     provision-worktree.ts     Compatibility CLI/API for worktree provisioning
     release-worktree.ts       Compatibility CLI/API for guarded worktree release
-    cancel-resolution.ts      Guardedly resolves confirmed unpublished or Draft PR results
+    cancel-resolution.ts      Compatibility CLI/API for confirmed cancellation cleanup
     project-status.ts         Compatibility CLI for existing controller callers
     preview-manager.ts        Leases, acknowledges, extends, and releases preview slots
     preview-runtime.ts        Dispatches each durable lease to its selected adapter
@@ -104,6 +104,8 @@ app/
         worktrees/
           provision.ts        Plans or explicitly provisions Git worktrees
           release.ts          Releases cancelled or verified-merged Git resources
+          cancel-resolution.ts
+                              Resolves confirmed unpublished or Draft PR cleanup
       settings/
         runtime-settings.ts   Verified runtime overrides and effective limits
         orchestrator-settings.ts
@@ -831,7 +833,8 @@ worktree only after rechecking the durable single-writer boundary.
 If cancellation finds unpublished local changes, automation still stops but the
 run becomes `needs_attention` and preserves the exact worktree. Discord then
 offers `Discard local work`; that action requires a second confirmation and
-calls `src/cancel-resolution.ts`, which refuses deletion when the branch has
+calls `src/orchestrator/projects/worktrees/cancel-resolution.ts`, which refuses
+deletion when the branch has
 commits beyond its recorded base or exists on the remote. Published Draft PR
 results use a separate exact-match resolver. Only after the Draft PR, local
 branch, remote branch, worktree, and head SHA match does remote deletion bypass
@@ -839,6 +842,8 @@ repository `pre-push` hooks, so project tooling cannot strand guarded cleanup.
 A successful
 guarded resolution changes the run to `cancelled`, marks resources `released`,
 and records the deleted resources in lifecycle history.
+`src/cancel-resolution.ts` remains a transparent compatibility CLI and API for
+existing operational commands.
 
 `src/session-manager.ts` remains a transparent compatibility CLI and API for
 existing operational commands and imports; the controller invokes the canonical

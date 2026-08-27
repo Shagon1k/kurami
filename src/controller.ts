@@ -158,7 +158,10 @@ const releaserPath = resolve(
 );
 const previewManagerPath = resolve(import.meta.dirname, "preview-manager.ts");
 const previewRuntimePath = resolve(import.meta.dirname, "preview-runtime.ts");
-const cancelResolutionPath = resolve(import.meta.dirname, "cancel-resolution.ts");
+const cancelResolutionPath = resolve(
+  import.meta.dirname,
+  "orchestrator/projects/worktrees/cancel-resolution.ts",
+);
 const projectStatusPath = resolve(
   import.meta.dirname,
   "orchestrator/projects/project-status.ts",
