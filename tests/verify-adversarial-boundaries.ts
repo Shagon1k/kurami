@@ -1,7 +1,8 @@
 import {
   buildReviewInstructions,
   parseReviewResult,
-} from "../src/ai-review-worker.ts";
+} from "../src/orchestrator/projects/reviews/worker.ts";
+import * as legacyReviewWorker from "../src/ai-review-worker.ts";
 import { detachedCodexEnvironment } from "../src/orchestrator/integrations/codex/app-server.ts";
 import type { MetadataProposalCandidate } from "../src/metadata-proposal-manager.ts";
 import {
@@ -24,7 +25,9 @@ function assert(condition: unknown, message: string): asserts condition {
 }
 
 assert(
-  legacyCodexAppServer.detachedCodexEnvironment === detachedCodexEnvironment &&
+  legacyReviewWorker.buildReviewInstructions === buildReviewInstructions &&
+    legacyReviewWorker.parseReviewResult === parseReviewResult &&
+    legacyCodexAppServer.detachedCodexEnvironment === detachedCodexEnvironment &&
     legacyPromptSafety.assertNoSecretLikeText === assertNoSecretLikeText &&
     legacyPromptSafety.isSecretEnvironmentName === isSecretEnvironmentName &&
     legacyPromptSafety.redactSecretLikeText === redactSecretLikeText &&

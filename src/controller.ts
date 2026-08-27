@@ -172,8 +172,14 @@ const projectStatusPath = resolve(
   import.meta.dirname,
   "orchestrator/projects/project-status.ts",
 );
-const reviewManagerPath = resolve(import.meta.dirname, "review-manager.ts");
-const reviewFixManagerPath = resolve(import.meta.dirname, "review-fix-manager.ts");
+const reviewManagerPath = resolve(
+  import.meta.dirname,
+  "orchestrator/projects/reviews/manager.ts",
+);
+const reviewFixManagerPath = resolve(
+  import.meta.dirname,
+  "orchestrator/projects/reviews/fix-manager.ts",
+);
 const autonomousSuccessorPath = resolve(
   import.meta.dirname,
   "orchestrator/projects/sessions/autonomous-successor.ts",

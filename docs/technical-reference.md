@@ -48,8 +48,9 @@ app/
                               Compatibility CLI/API for owner decisions
     metadata-sync.ts          Compatibility CLI/API for guarded synchronization
     observe-ci.ts             Compatibility CLI/API for existing CI callers
-    review-manager.ts         Validates and starts explicit exact-SHA AI reviews
-    ai-review-worker.ts       Publishes one bounded native GitHub PR review
+    review-manager.ts         Compatibility CLI/API for AI review admission
+    ai-review-worker.ts       Compatibility CLI/API for AI review execution
+    review-fix-manager.ts     Compatibility CLI/API for review-fix resolution
     process-project-events.ts Compatibility CLI for existing event consumers
     controller.ts             Dispatches only handlers eligible for current states
     codex-app-server.ts       Compatibility API for Codex app-server integration
@@ -109,6 +110,10 @@ app/
             manager.ts        Plans durable changed-only metadata batches
             worker.ts         Runs bounded read-only Priority/Effort assessment
             scheduler.ts      Admits at most one daily assessment batch
+        reviews/
+          manager.ts          Validates and starts explicit exact-SHA AI reviews
+          worker.ts           Publishes one bounded native GitHub PR review
+          fix-manager.ts      Resolves and recovers bounded review-fix rounds
         sessions/
           manager.ts          Starts, parks, hands off, and finalizes Codex TUI sessions
           observe.ts          Deduplicates persistent CLI attention conditions
@@ -427,11 +432,16 @@ PR author or an actor with repository write access; that credential is never
 passed to the reviewer or writer task. Only the snapshotted threads are touched.
 Reconciliation is bounded to three attempts and then fails closed at
 `needs_attention`. After a permission or implementation correction, an operator
-may explicitly run `review-fix-manager.ts recover --round-id ... --apply` to
+may explicitly run
+`src/orchestrator/projects/reviews/fix-manager.ts recover --round-id ... --apply`
+to
 retry GitHub resolution only when the exact result SHA already passed CI; it
 never reruns the writer or expands the immutable snapshot. The technical writer
 task is archived and the original primary Codex task is restored. Another AI
 review or fix round starts only through an explicit owner action.
+
+The three root-level review files remain transparent compatibility CLIs and
+APIs for existing operational commands.
 
 ### Controller / Reconciler
 

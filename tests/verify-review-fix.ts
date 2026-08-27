@@ -10,6 +10,8 @@ import {
 import { loadOwnerGitHubTokenFromFile } from "../src/orchestrator/integrations/github/app-auth.ts";
 import * as legacyGitHubAppAuth from "../src/github-app-auth.ts";
 import * as legacyReviewThreads from "../src/github-review-threads.ts";
+import * as canonicalReviewFixManager from "../src/orchestrator/projects/reviews/fix-manager.ts";
+import * as legacyReviewFixManager from "../src/review-fix-manager.ts";
 import { reviewFixPrompt } from "../src/session-manager.ts";
 
 type JsonObject = Record<string, unknown>;
@@ -29,6 +31,8 @@ function runNode(script: string, args: string[], home: string): JsonObject {
 
 async function main(): Promise<void> {
   assert(
+    legacyReviewFixManager.runReviewFixManagerCli ===
+      canonicalReviewFixManager.runReviewFixManagerCli &&
     legacyReviewThreads.replyAndResolveReviewThread ===
       replyAndResolveReviewThread &&
       legacyReviewThreads.selectActionableReviewThreads ===
@@ -382,7 +386,7 @@ async function main(): Promise<void> {
     `);
     recoveryState.close();
     const recoveryPlan = runNode(
-      resolve(app, "src/review-fix-manager.ts"),
+      resolve(app, "src/orchestrator/projects/reviews/fix-manager.ts"),
       ["recover", "--round-id", "rfr_abcdef123456"],
       home,
     );
@@ -393,7 +397,7 @@ async function main(): Promise<void> {
       "Resolution-only recovery was not planned",
     );
     runNode(
-      resolve(app, "src/review-fix-manager.ts"),
+      resolve(app, "src/orchestrator/projects/reviews/fix-manager.ts"),
       ["recover", "--round-id", "rfr_abcdef123456", "--apply"],
       home,
     );

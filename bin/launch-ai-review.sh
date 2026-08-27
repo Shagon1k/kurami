@@ -11,7 +11,7 @@ export KURAMI_HOME
 export ORCHESTRATOR_HOME="${KURAMI_HOME}"
 
 readonly secret_file="${KURAMI_HOME}/secrets/github-reviewer-app.env"
-readonly worker="${KURAMI_HOME}/app/src/ai-review-worker.ts"
+readonly worker="${KURAMI_HOME}/app/src/orchestrator/projects/reviews/worker.ts"
 
 if [[ ! -f "${secret_file}" ]]; then
   printf 'GitHub reviewer App credential file not found\n' >&2
