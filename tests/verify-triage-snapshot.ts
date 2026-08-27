@@ -9,6 +9,8 @@ import {
   persistTriageSnapshot,
   type RawTriageItem,
 } from "../src/triage-snapshot.ts";
+import * as canonicalSnapshot from "../src/orchestrator/projects/triage/snapshot.ts";
+import * as legacySnapshot from "../src/triage-snapshot.ts";
 
 function assert(condition: unknown, message: string): asserts condition {
   if (!condition) throw new Error(message);
@@ -47,6 +49,14 @@ function item(
 
 async function main(): Promise<void> {
   const app = resolve(import.meta.dirname, "..");
+  assert(
+    legacySnapshot.buildTriageFacts === canonicalSnapshot.buildTriageFacts &&
+      legacySnapshot.persistTriageSnapshot ===
+        canonicalSnapshot.persistTriageSnapshot &&
+      legacySnapshot.runTriageSnapshotCli ===
+        canonicalSnapshot.runTriageSnapshotCli,
+    "Legacy triage snapshot module is not a transparent compatibility wrapper",
+  );
   const home = await mkdtemp(resolve(tmpdir(), "kurami-triage-test-"));
   try {
     const migrationsDirectory = resolve(app, "migrations");

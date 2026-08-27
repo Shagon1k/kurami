@@ -13,7 +13,7 @@ import {
   textDisplay,
   type DiscordObject,
 } from "./discord/ui.ts";
-import type { TriageStats } from "./triage-snapshot.ts";
+import type { TriageStats } from "./orchestrator/projects/triage/snapshot.ts";
 
 process.umask(0o077);
 

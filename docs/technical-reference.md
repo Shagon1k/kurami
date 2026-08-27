@@ -35,8 +35,8 @@ app/
   src/
     init-run-store.ts         Applies migrations and checks DB integrity
     poll-projects.ts          Compatibility CLI for existing poller callers
-    triage-snapshot.ts        Persists changed-only Backlog fact snapshots
-    triage-rank.ts            Ranks every eligible issue with explainable policy
+    triage-snapshot.ts        Compatibility CLI/API for existing triage callers
+    triage-rank.ts            Compatibility CLI/API for existing ranking callers
     notify-discord-digest.ts  Reconciles persistent per-project digest cards
     metadata-proposal-manager.ts
                               Plans durable changed-only metadata batches
@@ -75,6 +75,9 @@ app/
                               Runs admission and cancellation state transitions
         project-readiness.ts  Read-only PASS/WARN/FAIL compatibility assessment
         project-status.ts     Returns fully cancelled released items to Backlog
+        triage/
+          snapshot.ts         Persists changed-only Backlog fact snapshots
+          rank.ts             Ranks eligible issues with explainable policy
       settings/
         runtime-settings.ts   Verified runtime overrides and effective limits
         orchestrator-settings.ts
@@ -570,7 +573,7 @@ owns runtime state and resource identity.
 Projects Digest is the user-facing feature name. The `triage-*` source and table
 names below are internal implementation details retained for schema compatibility.
 
-`src/triage-snapshot.ts` is the read-only P4a boundary. It collects all configured
+`src/orchestrator/projects/triage/snapshot.ts` is the read-only P4a boundary. It collects all configured
 Project issues, native `blockedBy` / `blocking` relationships, optional Priority
 and Effort fields, readiness facts, active runs, WIP, and stable backlog totals.
 It deliberately has no Due date policy and does not mutate Project fields or start
@@ -581,7 +584,7 @@ An identical rerun updates only `last_checked_at`; it does not append history or
 recompute ranking. A meaningful issue, field, dependency, status, or run change
 appends exactly one new snapshot.
 
-`src/triage-rank.ts` ranks every eligible Backlog issue with versioned,
+`src/orchestrator/projects/triage/rank.ts` ranks every eligible Backlog issue with versioned,
 deterministic policy. Explicit owner Priority is the dominant tier. Lower Effort,
 age, and issue number provide stable within-tier ordering. Existing explicit
 blocked state is only an eligibility safety guard; dependency relationships do

@@ -2,7 +2,10 @@ import { createHash, randomUUID } from "node:crypto";
 import { resolve } from "node:path";
 import { pathToFileURL } from "node:url";
 import { DatabaseSync } from "node:sqlite";
-import type { TriageFacts, TriageItemFact } from "./triage-snapshot.ts";
+import type {
+  TriageFacts,
+  TriageItemFact,
+} from "./orchestrator/projects/triage/snapshot.ts";
 import { loadEffectiveOrchestratorConfig } from "./orchestrator/settings/runtime-settings.ts";
 
 process.umask(0o077);

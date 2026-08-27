@@ -15,7 +15,7 @@ import {
   assertNoSecretLikeText,
   serializeUntrustedPromptData,
 } from "./prompt-safety.ts";
-import type { TriageFacts } from "./triage-snapshot.ts";
+import type { TriageFacts } from "./orchestrator/projects/triage/snapshot.ts";
 
 process.umask(0o077);
 

@@ -383,6 +383,8 @@ async function main(): Promise<void> {
     assert(
       script.includes("if (( $# == 0 )); then") &&
         script.includes("metadata-proposal-scheduler.ts") &&
+        script.includes("orchestrator/projects/triage/snapshot.ts") &&
+        script.includes("orchestrator/projects/triage/rank.ts") &&
         script.includes("project-event-consumer.lock") &&
         script.includes("digest delivery continues"),
       "Daily-only scheduler boundary is missing from Projects Digest",
