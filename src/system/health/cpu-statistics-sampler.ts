@@ -1,5 +1,6 @@
 import { readFile } from "node:fs/promises";
 import { resolve } from "node:path";
+import { resolveKuramiHome } from "../../core/kurami-home.ts";
 import { parse } from "yaml";
 import { calculateCpuUsedPercent, parseCpuSample } from "./server-health.ts";
 import {
@@ -12,8 +13,8 @@ function delay(milliseconds: number): Promise<void> {
   return new Promise((resolveDelay) => setTimeout(resolveDelay, milliseconds));
 }
 
-async function loadConfig(orchestratorHome: string): Promise<CpuStatisticsConfig> {
-  const raw = await readFile(resolve(orchestratorHome, "config/orchestrator.yaml"), "utf8");
+async function loadConfig(kuramiHome: string): Promise<CpuStatisticsConfig> {
+  const raw = await readFile(resolve(kuramiHome, "config/orchestrator.yaml"), "utf8");
   const config = parse(raw) as { version?: number; cpu_statistics?: Partial<CpuStatisticsConfig> };
   if (config.version !== 1) throw new Error("Unsupported configuration version");
   return resolveCpuStatisticsConfig(config.cpu_statistics);
@@ -27,12 +28,12 @@ export async function sampleCpuUsedPercent(intervalSeconds: number): Promise<num
 }
 
 export async function sampleAndRecordCpuStatistics(
-  orchestratorHome: string,
+  kuramiHome: string,
 ): Promise<{ cpuPercent: number; config: CpuStatisticsConfig; samplesStored: number }> {
-  const config = await loadConfig(orchestratorHome);
+  const config = await loadConfig(kuramiHome);
   const cpuPercent = await sampleCpuUsedPercent(config.sample_interval_seconds);
   const entries = await recordCpuStatistic(
-    resolve(orchestratorHome, "state/cpu-statistics.json"),
+    resolve(kuramiHome, "state/cpu-statistics.json"),
     { checkedAt: new Date().toISOString(), cpuPercent },
   );
   return { cpuPercent, config, samplesStored: entries.length };
@@ -43,13 +44,11 @@ export async function runCpuStatisticsSamplerCli(): Promise<void> {
   if (mode !== "--once" && mode !== "--daemon") {
     throw new Error("Usage: cpu-statistics-sampler.ts [--once|--daemon]");
   }
-  const orchestratorHome = resolve(
-    process.env.KURAMI_HOME ??
-      process.env.ORCHESTRATOR_HOME ??
-      resolve(import.meta.dirname, "../../../.."),
+  const kuramiHome = resolveKuramiHome(
+    resolve(import.meta.dirname, "../../../.."),
   );
   do {
-    const result = await sampleAndRecordCpuStatistics(orchestratorHome);
+    const result = await sampleAndRecordCpuStatistics(kuramiHome);
     process.stdout.write(`${JSON.stringify({ ok: true, ...result })}\n`);
   } while (mode === "--daemon");
 }

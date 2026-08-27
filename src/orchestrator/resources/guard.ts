@@ -7,6 +7,7 @@ import {
 } from "node:fs";
 import { readFile } from "node:fs/promises";
 import { dirname, relative, resolve } from "node:path";
+import { resolveKuramiHome } from "../../core/kurami-home.ts";
 import { pathToFileURL } from "node:url";
 import { DatabaseSync } from "node:sqlite";
 import { parse } from "yaml";
@@ -292,7 +293,7 @@ function inventory(
   database: DatabaseSync,
   projects: ResourceGuardProjects,
   limits: ResourceGuardLimits,
-  orchestratorHome: string,
+  kuramiHome: string,
   nowMs: number,
 ): ResourceGuardInventory {
   const rows = database
@@ -371,7 +372,7 @@ function inventory(
     }
   }
 
-  const filesystem = statfsSync(resolve(orchestratorHome));
+  const filesystem = statfsSync(resolve(kuramiHome));
   const totalBytes = filesystem.blocks * filesystem.bsize;
   const availableBytes = filesystem.bavail * filesystem.bsize;
   return {
@@ -391,12 +392,12 @@ export function inspectResourceGuard(
   database: DatabaseSync,
   projects: ResourceGuardProjects,
   limits: ResourceGuardLimits,
-  orchestratorHome: string,
+  kuramiHome: string,
   nowMs = Date.now(),
 ): ResourceGuardAnalysis {
   validateResourceGuardLimits(limits);
   return analyzeResourceGuard(
-    inventory(database, projects, limits, orchestratorHome, nowMs),
+    inventory(database, projects, limits, kuramiHome, nowMs),
     limits,
     nowMs,
   );
@@ -661,22 +662,20 @@ export async function runResourceGuardCli(): Promise<void> {
   if (args.some((arg) => arg !== "--apply")) {
     fail("Usage: resource-guard.ts [--apply]");
   }
-  const orchestratorHome = resolve(
-    process.env.KURAMI_HOME ??
-      process.env.ORCHESTRATOR_HOME ??
-      resolve(import.meta.dirname, "../../../.."),
+  const kuramiHome = resolveKuramiHome(
+    resolve(import.meta.dirname, "../../../.."),
   );
   const [projects, config] = await Promise.all([
-    readFile(resolve(orchestratorHome, "config/projects.yaml"), "utf8").then(
+    readFile(resolve(kuramiHome, "config/projects.yaml"), "utf8").then(
       (content) => parse(content) as ResourceGuardProjects,
     ),
-    readFile(resolve(orchestratorHome, "config/orchestrator.yaml"), "utf8").then(
+    readFile(resolve(kuramiHome, "config/orchestrator.yaml"), "utf8").then(
       (content) => parse(content) as { version: number; limits: ResourceGuardLimits },
     ),
   ]);
   if (projects.version !== 1 || config.version !== 1) fail("Unsupported config version");
   validateResourceGuardLimits(config.limits);
-  const database = new DatabaseSync(resolve(orchestratorHome, "state/orchestrator.db"), {
+  const database = new DatabaseSync(resolve(kuramiHome, "state/orchestrator.db"), {
     timeout: 5_000,
   });
   try {
@@ -685,7 +684,7 @@ export async function runResourceGuardCli(): Promise<void> {
       database,
       projects,
       config.limits,
-      orchestratorHome,
+      kuramiHome,
     );
     if (apply) {
       database.exec("BEGIN IMMEDIATE");
@@ -704,7 +703,7 @@ export async function runResourceGuardCli(): Promise<void> {
         database,
         projects,
         config.limits,
-        orchestratorHome,
+        kuramiHome,
       );
     }
     process.stdout.write(`${JSON.stringify({ ok: true, apply, ...result })}\n`);

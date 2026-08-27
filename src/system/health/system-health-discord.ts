@@ -1,6 +1,7 @@
 import { createHash } from "node:crypto";
 import { mkdir, readFile, rename, writeFile } from "node:fs/promises";
 import { dirname, resolve } from "node:path";
+import { resolveKuramiHome } from "../../core/kurami-home.ts";
 import { parse } from "yaml";
 import {
   actionRow,
@@ -650,16 +651,14 @@ function parseMode(
 
 export async function runSystemHealthDiscordCli(): Promise<void> {
   const mode = parseMode(process.argv.slice(2));
-  const orchestratorHome = resolve(
-    process.env.KURAMI_HOME ??
-      process.env.ORCHESTRATOR_HOME ??
-      resolve(import.meta.dirname, "../../../.."),
+  const kuramiHome = resolveKuramiHome(
+    resolve(import.meta.dirname, "../../../.."),
   );
   const hermesHome = resolve(
     process.env.HERMES_HOME ?? "/home/shagon1k/_hermes/_core",
   );
   const config = parse(
-    await readFile(resolve(orchestratorHome, "config/orchestrator.yaml"), "utf8"),
+    await readFile(resolve(kuramiHome, "config/orchestrator.yaml"), "utf8"),
   ) as HealthDiscordConfig;
   if (config.version !== 1) fail("Unsupported configuration version");
   const apiBase = process.env.DISCORD_API_BASE ?? defaultApiBase;
@@ -674,7 +673,7 @@ export async function runSystemHealthDiscordCli(): Promise<void> {
       token,
       channelId: healthChannelId,
       apiBase,
-      statePath: resolve(orchestratorHome, "state/system-health-discord.json"),
+      statePath: resolve(kuramiHome, "state/system-health-discord.json"),
     });
     process.stdout.write(
       `${JSON.stringify({ ok: true, mode, channelId: healthChannelId, ...cleanup })}\n`,
@@ -682,15 +681,15 @@ export async function runSystemHealthDiscordCli(): Promise<void> {
     return;
   }
 
-  const result = await inspectRuntimeHealth(orchestratorHome);
+  const result = await inspectRuntimeHealth(kuramiHome);
 
   const deliverAlerts = async (): Promise<Record<string, unknown>> => {
     const alertsChannelId = validateChannelId(
       config.discord?.alerts_channel_id,
       "discord.alerts_channel_id",
     );
-    const alertStatePath = resolve(orchestratorHome, "state/runtime-health-alert.json");
-    const counterStatePath = resolve(orchestratorHome, "state/runtime-health-counters.json");
+    const alertStatePath = resolve(kuramiHome, "state/runtime-health-alert.json");
+    const counterStatePath = resolve(kuramiHome, "state/runtime-health-counters.json");
     const previous = await readHealthAlertState(alertStatePath);
     const decision = evaluateHealthAlerts(
       previous,
@@ -728,7 +727,7 @@ export async function runSystemHealthDiscordCli(): Promise<void> {
       "discord.health_channel_id",
     );
     const history = await recordHealthHistory(
-      resolve(orchestratorHome, "state/system-health-history.json"),
+      resolve(kuramiHome, "state/system-health-history.json"),
       result,
     );
     const delivery = await reconcileSystemHealthCard({
@@ -737,7 +736,7 @@ export async function runSystemHealthDiscordCli(): Promise<void> {
       apiBase,
       result,
       history,
-      statePath: resolve(orchestratorHome, "state/system-health-discord.json"),
+      statePath: resolve(kuramiHome, "state/system-health-discord.json"),
     });
     return { channelId: healthChannelId, history: history.length, ...delivery };
   };

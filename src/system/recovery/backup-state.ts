@@ -10,6 +10,7 @@ import {
   writeFile,
 } from "node:fs/promises";
 import { resolve } from "node:path";
+import { resolveKuramiHome } from "../../core/kurami-home.ts";
 import { DatabaseSync } from "node:sqlite";
 
 process.umask(0o077);
@@ -133,11 +134,11 @@ async function pruneBackups(root: string, keep: number): Promise<string[]> {
 }
 
 export async function createBackup(
-  orchestratorHome: string,
+  kuramiHome: string,
   now = new Date(),
   retention = parseRetention(process.env.KURAMI_BACKUP_RETENTION),
 ): Promise<BackupResult> {
-  const home = resolve(orchestratorHome);
+  const home = resolve(kuramiHome);
   const databasePath = resolve(home, "state/orchestrator.db");
   const backupRoot = resolve(home, "backups");
   const directoryName = backupName(now);
@@ -226,8 +227,8 @@ export async function createBackup(
   }
 }
 
-export async function inspectBackups(orchestratorHome: string): Promise<object> {
-  const backupRoot = resolve(orchestratorHome, "backups");
+export async function inspectBackups(kuramiHome: string): Promise<object> {
+  const backupRoot = resolve(kuramiHome, "backups");
   const names = await listBackupNames(backupRoot);
   const latest = names[0] ?? null;
   return {
@@ -247,20 +248,18 @@ export async function runBackupStateCli(): Promise<void> {
   if (positional.length > 1 || (summaryText && command !== "create")) {
     fail("Usage: backup-state.ts <create [--summary-text] | inspect>");
   }
-  const orchestratorHome = resolve(
-    process.env.KURAMI_HOME ??
-      process.env.ORCHESTRATOR_HOME ??
-      resolve(import.meta.dirname, "../../../.."),
+  const kuramiHome = resolveKuramiHome(
+    resolve(import.meta.dirname, "../../../.."),
   );
   if (command === "create") {
-    const result = await createBackup(orchestratorHome);
+    const result = await createBackup(kuramiHome);
     process.stdout.write(
       summaryText ? `${formatBackupSummary(result)}\n` : `${JSON.stringify(result)}\n`,
     );
     return;
   }
   if (command === "inspect") {
-    process.stdout.write(`${JSON.stringify(await inspectBackups(orchestratorHome))}\n`);
+    process.stdout.write(`${JSON.stringify(await inspectBackups(kuramiHome))}\n`);
     return;
   }
   fail("Usage: backup-state.ts <create [--summary-text] | inspect>");

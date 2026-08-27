@@ -1,6 +1,7 @@
 import { spawnSync } from "node:child_process";
 import { mkdir, readFile, rename, writeFile } from "node:fs/promises";
 import { dirname, resolve } from "node:path";
+import { resolveKuramiHome } from "../../core/kurami-home.ts";
 
 process.umask(0o077);
 
@@ -53,7 +54,7 @@ async function writeState(path: string, state: HealthSettingsState): Promise<voi
   await rename(temporary, path);
 }
 
-function editHealthSchedule(intervalMinutes: number, orchestratorHome: string): void {
+function editHealthSchedule(intervalMinutes: number, kuramiHome: string): void {
   const hermesHome = resolve(
     process.env.HERMES_HOME ?? "/home/shagon1k/_hermes/_core",
   );
@@ -67,7 +68,7 @@ function editHealthSchedule(intervalMinutes: number, orchestratorHome: string): 
     ["cron", "edit", jobId, "--schedule", `*/${intervalMinutes} * * * *`],
     {
       encoding: "utf8",
-      cwd: orchestratorHome,
+      cwd: kuramiHome,
       env: { ...process.env, HERMES_HOME: hermesHome },
       stdio: ["ignore", "pipe", "pipe"],
       timeout: 15_000,
@@ -112,12 +113,10 @@ export async function runHealthSettingsCli(): Promise<void> {
       actorId = value;
     } else fail(`Unknown health settings argument: ${flag ?? "missing"}`);
   }
-  const orchestratorHome = resolve(
-    process.env.KURAMI_HOME ??
-      process.env.ORCHESTRATOR_HOME ??
-      resolve(import.meta.dirname, "../../../.."),
+  const kuramiHome = resolveKuramiHome(
+    resolve(import.meta.dirname, "../../../.."),
   );
-  const statePath = resolve(orchestratorHome, "state/health-settings.json");
+  const statePath = resolve(kuramiHome, "state/health-settings.json");
   const previous = await readState(statePath);
   if (command === "status") {
     if (args.length > 0) fail("Health settings status accepts no arguments");
@@ -142,7 +141,7 @@ export async function runHealthSettingsCli(): Promise<void> {
     process.stdout.write(`${JSON.stringify(response("unchanged", previous))}\n`);
     return;
   }
-  editHealthSchedule(minutes, orchestratorHome);
+  editHealthSchedule(minutes, kuramiHome);
   const next: HealthSettingsState = {
     version: 1,
     revision: currentRevision + 1,

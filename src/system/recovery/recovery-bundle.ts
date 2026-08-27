@@ -14,6 +14,7 @@ import {
 } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { basename, dirname, relative, resolve } from "node:path";
+import { resolveKuramiHome } from "../../core/kurami-home.ts";
 import { DatabaseSync } from "node:sqlite";
 
 process.umask(0o077);
@@ -67,7 +68,9 @@ export type RecoveryBundleVerification = {
 };
 
 export type RecoveryBundleOptions = {
-  orchestratorHome: string;
+  kuramiHome?: string;
+  /** @deprecated Use kuramiHome. */
+  orchestratorHome?: string;
   hermesHome: string;
   recipient: string;
   ageBinary?: string;
@@ -195,8 +198,8 @@ function assertDatabaseIntegrity(path: string): void {
   }
 }
 
-async function latestBackup(orchestratorHome: string): Promise<string> {
-  const backupRoot = resolve(orchestratorHome, "backups");
+async function latestBackup(kuramiHome: string): Promise<string> {
+  const backupRoot = resolve(kuramiHome, "backups");
   const names = (await readdir(backupRoot, { withFileTypes: true }))
     .filter(
       (entry) =>
@@ -246,7 +249,7 @@ async function copyVerifiedSnapshot(
 }
 
 async function createPlaintextStage(
-  orchestratorHome: string,
+  kuramiHome: string,
   hermesHome: string,
   backupDirectory: string,
   stageDirectory: string,
@@ -257,11 +260,11 @@ async function createPlaintextStage(
   const sources = [
     { source: resolve(hermesHome, ".env"), archivePath: "secrets/hermes.env" },
     {
-      source: resolve(orchestratorHome, "secrets/github.env"),
+      source: resolve(kuramiHome, "secrets/github.env"),
       archivePath: "secrets/github.env",
     },
     {
-      source: resolve(orchestratorHome, "secrets/tailortales-preview.env"),
+      source: resolve(kuramiHome, "secrets/tailortales-preview.env"),
       archivePath: "secrets/tailortales-preview.env",
     },
     {
@@ -328,17 +331,21 @@ export async function createRecoveryBundle(
   if (!ageRecipientPattern.test(options.recipient)) {
     fail("KURAMI_RECOVERY_RECIPIENT must be a valid age X25519 recipient");
   }
-  const orchestratorHome = resolve(options.orchestratorHome);
+  const configuredHome = options.kuramiHome ?? options.orchestratorHome;
+  if (configuredHome === undefined) {
+    fail("kuramiHome is required");
+  }
+  const kuramiHome = resolve(configuredHome);
   const hermesHome = resolve(options.hermesHome);
   const outputRoot = resolve(
-    options.outputRoot ?? resolve(orchestratorHome, "recovery"),
+    options.outputRoot ?? resolve(kuramiHome, "recovery"),
   );
   const ageBinary = resolve(
-    options.ageBinary ?? resolve(orchestratorHome, "runtime/age/bin/age"),
+    options.ageBinary ?? resolve(kuramiHome, "runtime/age/bin/age"),
   );
   const now = options.now ?? new Date();
   const retention = parseRetention(options.retention);
-  const backupDirectory = await latestBackup(orchestratorHome);
+  const backupDirectory = await latestBackup(kuramiHome);
   const name = `kurami-recovery-${timestamp(now)}`;
   const bundleName = `${name}.tar.zst.age`;
   if (!bundleNamePattern.test(bundleName)) fail(`Unsafe bundle name: ${bundleName}`);
@@ -362,7 +369,7 @@ export async function createRecoveryBundle(
 
   try {
     const manifest = await createPlaintextStage(
-      orchestratorHome,
+      kuramiHome,
       hermesHome,
       backupDirectory,
       stageDirectory,
@@ -555,22 +562,20 @@ function valueAfter(args: string[], flag: string): string {
 export async function runRecoveryBundleCli(): Promise<void> {
   const args = process.argv.slice(2);
   const command = args[0];
-  const orchestratorHome = resolve(
-    process.env.KURAMI_HOME ??
-      process.env.ORCHESTRATOR_HOME ??
-      resolve(import.meta.dirname, "../../../.."),
+  const kuramiHome = resolveKuramiHome(
+    resolve(import.meta.dirname, "../../../.."),
   );
   const hermesHome = resolve(
     process.env.HERMES_HOME ?? "/home/shagon1k/_hermes/_core",
   );
   const ageBinary = resolve(
-    process.env.KURAMI_AGE_BIN ?? resolve(orchestratorHome, "runtime/age/bin/age"),
+    process.env.KURAMI_AGE_BIN ?? resolve(kuramiHome, "runtime/age/bin/age"),
   );
   if (command === "create") {
     const recipient = process.env.KURAMI_RECOVERY_RECIPIENT;
     if (!recipient) fail("KURAMI_RECOVERY_RECIPIENT is required");
     const result = await createRecoveryBundle({
-      orchestratorHome,
+      kuramiHome,
       hermesHome,
       recipient,
       ageBinary,

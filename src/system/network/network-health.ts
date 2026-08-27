@@ -1,6 +1,7 @@
 import { spawnSync } from "node:child_process";
 import { mkdir, readFile, rename, writeFile } from "node:fs/promises";
 import { dirname, resolve } from "node:path";
+import { resolveKuramiHome } from "../../core/kurami-home.ts";
 
 process.umask(0o077);
 
@@ -184,16 +185,14 @@ export function runLibreSpeed(binary: string): NetworkSpeedSnapshot {
 
 export async function runNetworkHealthCli(): Promise<void> {
   if (process.argv.length !== 2) fail("Usage: network-health.ts");
-  const orchestratorHome = resolve(
-    process.env.KURAMI_HOME ??
-      process.env.ORCHESTRATOR_HOME ??
-      resolve(import.meta.dirname, "../../../.."),
+  const kuramiHome = resolveKuramiHome(
+    resolve(import.meta.dirname, "../../../.."),
   );
   const binary = resolve(
-    process.env.LIBRESPEED_BIN ?? resolve(orchestratorHome, "runtime/tools/librespeed-cli"),
+    process.env.LIBRESPEED_BIN ?? resolve(kuramiHome, "runtime/tools/librespeed-cli"),
   );
   const snapshot = runLibreSpeed(binary);
-  const statePath = resolve(orchestratorHome, "state/network-speed.json");
+  const statePath = resolve(kuramiHome, "state/network-speed.json");
   await writeNetworkSpeedSnapshot(statePath, snapshot);
   process.stdout.write(`${JSON.stringify({ ok: true, ...snapshot })}\n`);
 }

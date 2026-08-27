@@ -1,6 +1,7 @@
 import { spawnSync } from "node:child_process";
 import { mkdir, readdir, readFile, rename, stat, writeFile } from "node:fs/promises";
 import { dirname, resolve } from "node:path";
+import { resolveKuramiHome } from "../../core/kurami-home.ts";
 import { pathToFileURL } from "node:url";
 import { DatabaseSync } from "node:sqlite";
 import { parse } from "yaml";
@@ -461,8 +462,8 @@ async function runtimeDirectories(
   );
 }
 
-async function latestBackupAgeHours(orchestratorHome: string): Promise<number | null> {
-  const root = resolve(orchestratorHome, "backups");
+async function latestBackupAgeHours(kuramiHome: string): Promise<number | null> {
+  const root = resolve(kuramiHome, "backups");
   const names = (await directoryNames(root))
     .filter((name) => /^backup-\d{8}T\d{6}Z$/.test(name))
     .sort()
@@ -529,9 +530,9 @@ function problemCount(analysis: PreviewHealthAnalysis): number {
 }
 
 export async function inspectRuntimeHealth(
-  orchestratorHome: string,
+  kuramiHome: string,
 ): Promise<RuntimeHealthResult> {
-  const home = resolve(orchestratorHome);
+  const home = resolve(kuramiHome);
   const counterStatePath = resolve(home, "state/runtime-health-counters.json");
   const [
     projects,
@@ -714,15 +715,13 @@ export async function runRuntimeHealthCli(): Promise<void> {
   if (unknown.length > 0 || (alertText && summaryText)) {
     fail("Usage: runtime-health.ts [--alert-text | --summary-text]");
   }
-  const orchestratorHome = resolve(
-    process.env.KURAMI_HOME ??
-      process.env.ORCHESTRATOR_HOME ??
-      resolve(import.meta.dirname, "../../../.."),
+  const kuramiHome = resolveKuramiHome(
+    resolve(import.meta.dirname, "../../../.."),
   );
-  const result = await inspectRuntimeHealth(orchestratorHome);
-  const counterStatePath = resolve(orchestratorHome, "state/runtime-health-counters.json");
+  const result = await inspectRuntimeHealth(kuramiHome);
+  const counterStatePath = resolve(kuramiHome, "state/runtime-health-counters.json");
   if (alertText) {
-    const statePath = resolve(orchestratorHome, "state/runtime-health-alert.json");
+    const statePath = resolve(kuramiHome, "state/runtime-health-alert.json");
     const previous = await readHealthAlertState(statePath);
     const decision = evaluateHealthAlerts(
       previous,

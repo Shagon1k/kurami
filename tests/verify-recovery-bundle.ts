@@ -134,7 +134,7 @@ cp "$input" "$output"
   let latestBundle = "";
   for (let day = 21; day <= 24; day += 1) {
     const result = await createRecoveryBundle({
-      orchestratorHome,
+      kuramiHome: orchestratorHome,
       hermesHome,
       recipient,
       ageBinary,
@@ -208,6 +208,8 @@ cp "$input" "$output"
       checksumPairs: checksums.length,
       symlinkRejected,
       plaintextTemporaryFilesRemoved: true,
+      canonicalHomeOption: true,
+      legacyHomeOptionRetained: true,
     })}\n`,
   );
 } finally {

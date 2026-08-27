@@ -3,10 +3,32 @@ import { spawnSync } from "node:child_process";
 import { mkdtemp, readFile, readdir, rm, symlink } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { extname, join, resolve } from "node:path";
+import { resolveKuramiHome } from "../src/core/kurami-home.ts";
 
 const root = resolve(import.meta.dirname, "..");
 const canonicalHome = "/home/shagon1k/_hermes/_kurami";
 const legacyHome = "/home/shagon1k/_hermes/_orchestrator";
+const fallbackHome = "/tmp/kurami-home-fallback";
+const legacyWarnings: string[] = [];
+assert.equal(
+  resolveKuramiHome(
+    fallbackHome,
+    { KURAMI_HOME: canonicalHome, ORCHESTRATOR_HOME: legacyHome },
+    (message) => legacyWarnings.push(message),
+  ),
+  canonicalHome,
+);
+assert.equal(legacyWarnings.length, 0);
+assert.equal(
+  resolveKuramiHome(
+    fallbackHome,
+    { ORCHESTRATOR_HOME: legacyHome },
+    (message) => legacyWarnings.push(message),
+  ),
+  legacyHome,
+);
+assert.equal(legacyWarnings.length, 1);
+assert.equal(resolveKuramiHome(fallbackHome, {}, () => undefined), fallbackHome);
 
 async function filesBelow(directory: string): Promise<string[]> {
   const entries = await readdir(directory, { withFileTypes: true });
@@ -180,6 +202,7 @@ process.stdout.write(
     canonicalEntrypointConsumers: entrypointConsumerFiles.length,
     canonicalOperatorFiles: canonicalOperatorFiles.length,
     canonicalEnvironmentTests: testFiles.length - legacyEnvironmentTestFiles.size,
+    sharedHomeResolver: true,
     symlinkCliSmoke: true,
   })}\n`,
 );

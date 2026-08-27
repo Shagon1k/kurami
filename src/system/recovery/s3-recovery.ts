@@ -2,6 +2,7 @@ import { spawnSync } from "node:child_process";
 import { createHash } from "node:crypto";
 import { lstat, readFile, readdir } from "node:fs/promises";
 import { basename, resolve } from "node:path";
+import { resolveKuramiHome } from "../../core/kurami-home.ts";
 
 type S3Settings = {
   bucket: string;
@@ -242,8 +243,8 @@ export async function uploadRecoveryBundle(
   };
 }
 
-async function latestBundle(orchestratorHome: string): Promise<string> {
-  const root = resolve(orchestratorHome, "recovery");
+async function latestBundle(kuramiHome: string): Promise<string> {
+  const root = resolve(kuramiHome, "recovery");
   const names = (await readdir(root, { withFileTypes: true }))
     .filter(
       (entry) =>
@@ -293,13 +294,11 @@ export async function runS3RecoveryCli(): Promise<void> {
   if (args[0] !== "upload-latest" || args.some((arg) => !["upload-latest", "--summary-text"].includes(arg))) {
     fail("Usage: s3-recovery.ts upload-latest [--summary-text]");
   }
-  const orchestratorHome = resolve(
-    process.env.KURAMI_HOME ??
-      process.env.ORCHESTRATOR_HOME ??
-      resolve(import.meta.dirname, "../../../.."),
+  const kuramiHome = resolveKuramiHome(
+    resolve(import.meta.dirname, "../../../.."),
   );
   const result = await uploadRecoveryBundle(
-    await latestBundle(orchestratorHome),
+    await latestBundle(kuramiHome),
     settingsFromEnvironment(),
   );
   process.stdout.write(

@@ -1,6 +1,7 @@
 import { spawnSync } from "node:child_process";
 import { lstat, readFile, readdir, unlink } from "node:fs/promises";
 import { resolve } from "node:path";
+import { resolveKuramiHome } from "../../core/kurami-home.ts";
 import { parse } from "yaml";
 
 process.umask(0o077);
@@ -41,9 +42,9 @@ export function parseBuilderCacheMaxUsedGib(value: unknown): number {
   return Number(value);
 }
 
-async function builderCacheMaxUsedGib(orchestratorHome: string): Promise<number> {
+async function builderCacheMaxUsedGib(kuramiHome: string): Promise<number> {
   const config = parse(
-    await readFile(resolve(orchestratorHome, "config/orchestrator.yaml"), "utf8"),
+    await readFile(resolve(kuramiHome, "config/orchestrator.yaml"), "utf8"),
   ) as { limits?: { builder_cache_max_used_gib?: unknown } };
   return parseBuilderCacheMaxUsedGib(config.limits?.builder_cache_max_used_gib);
 }
@@ -152,14 +153,14 @@ function assertRootlessDocker(): void {
 }
 
 export async function monthlyMaintenance(
-  orchestratorHome: string,
+  kuramiHome: string,
   apply: boolean,
   nowMs = Date.now(),
 ): Promise<object> {
   const retentionDays = parseLogRetention(process.env.KURAMI_LOG_RETENTION_DAYS);
-  const maxUsedGib = await builderCacheMaxUsedGib(orchestratorHome);
+  const maxUsedGib = await builderCacheMaxUsedGib(kuramiHome);
   const candidates = await findOldLogFiles(
-    resolve(orchestratorHome, "logs"),
+    resolve(kuramiHome, "logs"),
     nowMs,
     retentionDays,
   );
@@ -223,12 +224,10 @@ export async function runMonthlyMaintenanceCli(): Promise<void> {
   if (unknown.length > 0 || (summaryText && !apply)) {
     fail("Usage: monthly-maintenance.ts [--apply [--summary-text]]");
   }
-  const orchestratorHome = resolve(
-    process.env.KURAMI_HOME ??
-      process.env.ORCHESTRATOR_HOME ??
-      resolve(import.meta.dirname, "../../../.."),
+  const kuramiHome = resolveKuramiHome(
+    resolve(import.meta.dirname, "../../../.."),
   );
-  const result = await monthlyMaintenance(orchestratorHome, apply);
+  const result = await monthlyMaintenance(kuramiHome, apply);
   if (summaryText) {
     process.stdout.write(
       `${formatMaintenanceSummary(result as {
