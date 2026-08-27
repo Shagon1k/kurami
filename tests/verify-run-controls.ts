@@ -39,9 +39,22 @@ async function main(): Promise<void> {
     "../src/orchestrator/controls/run.ts"
   );
   const legacyControls = await import("../src/run-controls.ts");
+  const canonicalTelegram = await import(
+    "../src/orchestrator/controls/telegram.ts"
+  );
+  const legacyTelegram = await import("../src/notify-controls.ts");
   assert(
     legacyControls.runRunControlsCli === canonicalControls.runRunControlsCli,
     "Legacy run-controls wrapper diverged from the canonical module",
+  );
+  assert(
+    legacyTelegram.runTelegramFallbackCli ===
+      canonicalTelegram.runTelegramFallbackCli,
+    "Legacy Telegram fallback wrapper diverged from the canonical module",
+  );
+  const canonicalTelegramNotifier = resolve(
+    appDirectory,
+    "src/orchestrator/controls/telegram.ts",
   );
   const testHome = await mkdtemp(
     resolve(tmpdir(), "kurami-run-controls-test-"),
@@ -169,7 +182,7 @@ async function main(): Promise<void> {
     );
     assert(eventCount === 1, "Review notification outbox is not idempotent");
     const notificationPlan = runNode(
-      resolve(appDirectory, "src/notify-controls.ts"),
+      canonicalTelegramNotifier,
       [],
       testHome,
     ) as unknown as {
@@ -190,7 +203,7 @@ async function main(): Promise<void> {
       "Notifier did not expose the durable progress card",
     );
     const disabledTelegram = runNode(
-      resolve(appDirectory, "src/notify-controls.ts"),
+      canonicalTelegramNotifier,
       ["--apply"],
       testHome,
     ) as unknown as { action: string; delivered: number };

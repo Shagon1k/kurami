@@ -73,7 +73,7 @@ app/
     codex-deeplink.ts         Compatibility API for Codex launch URLs
     session-manager.ts        Compatibility CLI/API for managed Codex sessions
     run-controls.ts           Compatibility CLI/API for allowlisted run controls
-    notify-controls.ts        Frozen opt-in proactive Telegram fallback
+    notify-controls.ts        Compatibility CLI for Telegram fallback
     notify-discord-controls.ts
                               Compatibility CLI/API for Discord run controls
     discord/
@@ -86,6 +86,7 @@ app/
       controls/
         run.ts                Inspects runs and queues allowlisted owner actions
         discord.ts            Reconciles Discord ticket threads and live cards
+        telegram.ts           Frozen opt-in proactive Telegram fallback
       integrations/
         codex/
           app-server.ts       Durable Codex thread and detached-task boundary
@@ -599,7 +600,8 @@ through the normal Hermes Gateway and the `kurami-run-control` skill queues only
 allowlisted actions. Both transports share the same Run Store and controller;
 neither transport owns lifecycle state. Proactive Telegram application requires
 the explicit process-local override `KURAMI_TELEGRAM_PROACTIVE=1`; without it,
-`notify-controls.ts --apply` exits successfully without sending anything. This
+`src/orchestrator/controls/telegram.ts --apply` exits successfully without
+sending anything. This
 prevents an old command or cron definition from silently re-enabling Telegram
 spam while preserving a deliberate rollback path. Ambiguous Telegram outbox
 rows left in `sending` are not automatically retried because Telegram may
@@ -1478,9 +1480,11 @@ updates. The Hermes Gateway remains the only update consumer. A narrow user
 plugin extends that existing Discord adapter to handle only allowlisted Kurami
 component IDs. The root notifier remains a compatibility entrypoint.
 
-`notify-controls.ts` and the per-project Telegram targets remain installed as a
-reversible fallback, but the poller does not invoke that notifier while Discord
-is the primary proactive control plane. The notifier also refuses `--apply`
+`src/orchestrator/controls/telegram.ts` and the per-project Telegram targets
+remain installed as a reversible fallback, but the poller does not invoke that
+notifier while Discord is the primary proactive control plane. The root
+`src/notify-controls.ts` CLI remains a compatibility entrypoint. The notifier
+also refuses `--apply`
 unless `KURAMI_TELEGRAM_PROACTIVE=1` is supplied for that exact invocation.
 Cron delivery is local-only, so no proactive run lifecycle messages are sent to
 Telegram.
