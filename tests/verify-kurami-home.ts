@@ -28,6 +28,30 @@ const runtimeFiles = [
   resolve(root, "run-projects-digest.sh"),
 ].filter((path) => [".ts", ".sh", ".yaml", ".yml", ".service", ""].includes(extname(path)));
 
+const entrypointConsumerFiles = [
+  resolve(root, "package.json"),
+  resolve(root, "run-project-poller.sh"),
+  resolve(root, "run-projects-digest.sh"),
+  ...await filesBelow(resolve(root, "deploy")),
+  ...await filesBelow(resolve(root, "integrations/hermes/scripts")),
+  ...await filesBelow(resolve(root, "integrations/hermes/plugins")),
+  ...await filesBelow(resolve(root, "integrations/hermes/skills")),
+].filter((path) =>
+  [".json", ".sh", ".py", ".md", ".yaml", ".yml", ".service", ""].includes(
+    extname(path),
+  )
+);
+
+for (const path of entrypointConsumerFiles) {
+  const content = await readFile(path, "utf8");
+  const legacyEntrypoints = content.match(/(?:app\/)?src\/[a-z0-9-]+\.ts/gu) ?? [];
+  assert.deepEqual(
+    legacyEntrypoints,
+    [],
+    `Runtime consumer still uses a root compatibility entrypoint: ${path}`,
+  );
+}
+
 for (const path of runtimeFiles) {
   const content = await readFile(path, "utf8");
   assert(
@@ -107,6 +131,7 @@ process.stdout.write(
     activeRuntimeFiles: runtimeFiles.length,
     compatibilitySources: compatibilitySources.length,
     symlinkSafeDirectEntries: directEntries.length,
+    canonicalEntrypointConsumers: entrypointConsumerFiles.length,
     symlinkCliSmoke: true,
   })}\n`,
 );

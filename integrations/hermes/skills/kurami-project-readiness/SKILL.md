@@ -13,7 +13,7 @@ Use only these fixed production paths:
 ```text
 ORCHESTRATOR_HOME=/home/shagon1k/_hermes/_kurami
 NODE=/home/shagon1k/_hermes/_kurami/runtime/node/bin/node
-CHECKER=/home/shagon1k/_hermes/_kurami/app/src/project-readiness.ts
+CHECKER=/home/shagon1k/_hermes/_kurami/app/src/orchestrator/projects/project-readiness.ts
 ```
 
 ## Resolve the project

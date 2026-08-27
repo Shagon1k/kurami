@@ -11,7 +11,7 @@ export KURAMI_HOME
 export ORCHESTRATOR_HOME="${KURAMI_HOME}"
 export HERMES_HOME
 
-"${NODE_BIN}" "${KURAMI_HOME}/app/src/backup-state.ts" create --summary-text
+"${NODE_BIN}" "${KURAMI_HOME}/app/src/system/recovery/backup-state.ts" create --summary-text
 
 # Minimal DR is opt-in. The normal state backup remains unchanged until the
 # operator stores an age public recipient in the private recovery env file.
@@ -26,9 +26,9 @@ if [[ -f "${RECOVERY_ENV}" ]]; then
   set +a
 fi
 if [[ -n "${KURAMI_RECOVERY_RECIPIENT:-}" ]]; then
-  "${NODE_BIN}" "${KURAMI_HOME}/app/src/recovery-bundle.ts" create --summary-text
+  "${NODE_BIN}" "${KURAMI_HOME}/app/src/system/recovery/recovery-bundle.ts" create --summary-text
   if [[ -n "${KURAMI_S3_BUCKET:-}" ]]; then
-    "${NODE_BIN}" "${KURAMI_HOME}/app/src/s3-recovery.ts" upload-latest --summary-text
+    "${NODE_BIN}" "${KURAMI_HOME}/app/src/system/recovery/s3-recovery.ts" upload-latest --summary-text
   else
     echo "- Off-site upload: not configured"
   fi

@@ -41,12 +41,18 @@ def _settings_subprocess_env(*, include_hermes: bool = False) -> dict[str, str]:
 
 def _paths() -> tuple[Path, Path]:
     home = _kurami_home()
-    return home / "runtime/node/bin/node", home / "app/src/orchestrator-settings.ts"
+    return (
+        home / "runtime/node/bin/node",
+        home / "app/src/orchestrator/settings/orchestrator-settings.ts",
+    )
 
 
 def _health_paths() -> tuple[Path, Path]:
     home = _kurami_home()
-    return home / "runtime/node/bin/node", home / "app/src/health-settings.ts"
+    return (
+        home / "runtime/node/bin/node",
+        home / "app/src/system/health/health-settings.ts",
+    )
 
 
 def _integer(value: object, name: str, minimum: int, maximum: int) -> int:

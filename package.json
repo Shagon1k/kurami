@@ -5,8 +5,8 @@
   "main": "index.js",
   "scripts": {
     "test": "npm run check && node tests/run-regression.ts",
-    "readiness": "node src/project-readiness.ts",
-    "poll": "node src/poll-projects.ts",
+    "readiness": "node src/orchestrator/projects/project-readiness.ts",
+    "poll": "node src/orchestrator/projects/poll-projects.ts",
     "check": "tsc --noEmit",
     "db:init": "node src/orchestrator/state/init-run-store.ts",
     "test:admission": "node tests/verify-dry-run-admission.ts",

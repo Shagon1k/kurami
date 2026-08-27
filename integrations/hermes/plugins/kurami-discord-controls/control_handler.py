@@ -172,8 +172,8 @@ def _paths() -> tuple[Path, Path, Path]:
     home = _kurami_home()
     return (
         home / "runtime/node/bin/node",
-        home / "app/src/run-controls.ts",
-        home / "app/src/notify-discord-controls.ts",
+        home / "app/src/orchestrator/controls/run.ts",
+        home / "app/src/orchestrator/controls/discord.ts",
     )
 
 
