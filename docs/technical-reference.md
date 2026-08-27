@@ -54,6 +54,7 @@ app/
     controller.ts             Dispatches only handlers eligible for current states
     codex-app-server.ts       Minimal stdio client for durable Codex thread metadata
     observe-sessions.ts       Compatibility CLI/API for session observation
+    runtime-budget.ts         Compatibility CLI/API for runtime budget enforcement
     provision-worktree.ts     Plans or explicitly provisions Git worktrees
     release-worktree.ts       Safely releases cancelled or verified-merged Git resources
     cancel-resolution.ts      Guardedly resolves confirmed unpublished or Draft PR results
@@ -95,6 +96,7 @@ app/
             scheduler.ts      Admits at most one daily assessment batch
         sessions/
           observe.ts          Deduplicates persistent CLI attention conditions
+          runtime-budget.ts   Enforces bounded main/technical task runtimes
       settings/
         runtime-settings.ts   Verified runtime overrides and effective limits
         orchestrator-settings.ts
@@ -850,6 +852,12 @@ such as a stopped publish workflow must persist for two observations before one 
 notification is emitted; the same condition is not repeated until it clears and
 later recurs. Textual blocker matching requires the fresh Codex input prompt to
 appear after the blocker, so transient narration does not trigger an alert.
+
+`src/orchestrator/projects/sessions/runtime-budget.ts` is the canonical runtime
+budget boundary for main writers and technical workers. The poller invokes this
+path directly; `src/runtime-budget.ts` remains a transparent compatibility CLI
+and API for existing callers. A dry run only reports overdue managed sessions,
+while `--apply` performs the bounded stop and records preserved task evidence.
 
 ### Human Review, Done, and release
 
