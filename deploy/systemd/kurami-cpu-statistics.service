@@ -12,7 +12,6 @@ KillSignal=SIGTERM
 
 Environment=HOME=/home/shagon1k
 Environment=KURAMI_HOME=/home/shagon1k/_hermes/_kurami
-Environment=ORCHESTRATOR_HOME=/home/shagon1k/_hermes/_kurami
 Environment=PATH=/home/shagon1k/_hermes/_kurami/runtime/node/bin:/usr/local/bin:/usr/bin:/bin
 
 UMask=0077
