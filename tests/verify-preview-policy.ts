@@ -1,8 +1,16 @@
 import { execFileSync } from "node:child_process";
-import { copyFile, mkdir, mkdtemp, readdir, rm } from "node:fs/promises";
+import { copyFile, mkdir, mkdtemp, readFile, readdir, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { resolve } from "node:path";
 import { DatabaseSync } from "node:sqlite";
+import { parse, stringify } from "yaml";
+
+type ProjectsRegistry = {
+  projects: Record<
+    string,
+    { workspace: { worktree_root: string } }
+  >;
+};
 
 function assert(condition: unknown, message: string): asserts condition {
   if (!condition) throw new Error(message);
@@ -102,10 +110,18 @@ async function main(): Promise<void> {
       resolve(appDirectory, "deploy/config/orchestrator.yaml"),
       resolve(home, "config/orchestrator.yaml"),
     );
+    const projectsPath = resolve(home, "config/projects.yaml");
     await copyFile(
       resolve(appDirectory, "deploy/config/projects.yaml"),
-      resolve(home, "config/projects.yaml"),
+      projectsPath,
     );
+    const projects = parse(await readFile(projectsPath, "utf8")) as ProjectsRegistry;
+    for (const [project, config] of Object.entries(projects.projects)) {
+      const worktreeRoot = resolve(home, "worktrees", project);
+      await mkdir(worktreeRoot, { recursive: true, mode: 0o700 });
+      config.workspace.worktree_root = worktreeRoot;
+    }
+    await writeFile(projectsPath, stringify(projects), { mode: 0o600 });
     await initializeThroughV24(appDirectory, home);
     const databasePath = resolve(home, "state/orchestrator.db");
     const old = new DatabaseSync(databasePath);

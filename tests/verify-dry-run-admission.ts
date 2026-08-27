@@ -1,10 +1,18 @@
 import { execFileSync } from "node:child_process";
-import { copyFile, mkdir, mkdtemp, rm } from "node:fs/promises";
+import { copyFile, mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { resolve } from "node:path";
 import { DatabaseSync } from "node:sqlite";
+import { parse, stringify } from "yaml";
 import * as legacyProjectEvents from "../src/process-project-events.ts";
 import * as canonicalProjectEvents from "../src/orchestrator/projects/process-project-events.ts";
+
+type ProjectsRegistry = {
+  projects: Record<
+    string,
+    { workspace: { worktree_root: string } }
+  >;
+};
 
 process.umask(0o077);
 
@@ -45,10 +53,18 @@ async function main(): Promise<void> {
 
   try {
     await mkdir(resolve(testHome, "config"), { recursive: true, mode: 0o700 });
+    const projectsPath = resolve(testHome, "config/projects.yaml");
     await copyFile(
       resolve(appDirectory, "deploy/config/projects.yaml"),
-      resolve(testHome, "config/projects.yaml"),
+      projectsPath,
     );
+    const projects = parse(await readFile(projectsPath, "utf8")) as ProjectsRegistry;
+    for (const [project, config] of Object.entries(projects.projects)) {
+      const worktreeRoot = resolve(testHome, "worktrees", project);
+      await mkdir(worktreeRoot, { recursive: true, mode: 0o700 });
+      config.workspace.worktree_root = worktreeRoot;
+    }
+    await writeFile(projectsPath, stringify(projects), { mode: 0o600 });
     await copyFile(
       resolve(appDirectory, "deploy/config/orchestrator.yaml"),
       resolve(testHome, "config/orchestrator.yaml"),

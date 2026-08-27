@@ -74,10 +74,20 @@ try {
     resolve(app, "deploy/config/orchestrator.yaml"),
     resolve(root, "config/orchestrator.yaml"),
   );
+  const isolatedProjectsPath = resolve(root, "config/projects.yaml");
   await copyFile(
     resolve(app, "deploy/config/projects.yaml"),
-    resolve(root, "config/projects.yaml"),
+    isolatedProjectsPath,
   );
+  const isolatedRegistry = parse(await readFile(isolatedProjectsPath, "utf8")) as {
+    projects: Record<string, { workspace: { worktree_root: string } }>;
+  };
+  for (const [project, config] of Object.entries(isolatedRegistry.projects)) {
+    const worktreeRoot = resolve(root, "worktrees", project);
+    await mkdir(worktreeRoot, { recursive: true, mode: 0o700 });
+    config.workspace.worktree_root = worktreeRoot;
+  }
+  await writeFile(isolatedProjectsPath, stringify(isolatedRegistry), { mode: 0o600 });
   const fakeTmux = resolve(root, "bin/tmux");
   await writeFile(fakeTmux, "#!/bin/sh\necho 'no server running' >&2\nexit 1\n", {
     mode: 0o700,

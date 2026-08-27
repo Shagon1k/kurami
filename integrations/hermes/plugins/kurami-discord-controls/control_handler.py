@@ -177,6 +177,10 @@ def _paths() -> tuple[Path, Path, Path]:
     )
 
 
+def _preview_manager_path() -> Path:
+    return _kurami_home() / "app/src/orchestrator/projects/previews/manager.ts"
+
+
 def _health_history_path() -> Path:
     home = _kurami_home()
     return home / "state/system-health-history.json"
@@ -545,7 +549,7 @@ async def _run_control(
 
     args = [str(node), str(control), "status", "--run-id", run_id]
     if action == "preview_reviewed":
-        manager = control.with_name("preview-manager.ts")
+        manager = _preview_manager_path()
         if not manager.is_file() or not actor_id or not actor_id.isdigit():
             raise RuntimeError("Kurami preview acknowledgement is unavailable")
         args = [

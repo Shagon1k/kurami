@@ -43,6 +43,11 @@ def main() -> None:
             and str(module._paths()[0]).startswith("/tmp/kurami-new-home/"),
             "KURAMI_HOME does not take precedence over the legacy home",
         )
+        require(
+            module._preview_manager_path()
+            == Path("/tmp/kurami-new-home/app/src/orchestrator/projects/previews/manager.ts"),
+            "Preview acknowledgement does not use the canonical preview manager",
+        )
         subprocess_env = module._kurami_subprocess_env()
         settings_subprocess_env = settings_module._settings_subprocess_env()
         health_subprocess_env = settings_module._settings_subprocess_env(
