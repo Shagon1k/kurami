@@ -71,12 +71,13 @@ app/
     run-controls.ts           Compatibility CLI/API for allowlisted run controls
     notify-controls.ts        Frozen opt-in proactive Telegram fallback
     notify-discord-controls.ts
-                              Reconciles Discord ticket threads and live cards
+                              Compatibility CLI/API for Discord run controls
     discord/
       ui.ts                   Shared Discord Components V2 primitives
     orchestrator/
       controls/
         run.ts                Inspects runs and queues allowlisted owner actions
+        discord.ts            Reconciles Discord ticket threads and live cards
       projects/
         poll-projects.ts      Reads one or both GitHub Projects
         process-project-events.ts
@@ -1429,14 +1430,15 @@ reconciliation cannot overlap between project jobs. A transient GitHub
 Project query failure is logged but no longer aborts that reconciliation pass;
 the durable per-project poll health guard prevents another project job from
 starting work against the failed project's stale status.
-After reconciliation, `notify-discord-controls.ts` maintains Discord ticket
-cards, threads, native controls, one-time run lifecycle events, and the durable
-Resource Guard alert outbox through Discord REST. Resource alerts use the private
-runtime-health channel, are batched and changed-only, and never expose a cleanup
-button. The notifier reads the existing platform token from `HERMES_HOME/.env`,
-never stores or prints it, and never consumes Gateway updates. The Hermes Gateway
-remains the only update consumer. A narrow user plugin extends that existing
-Discord adapter to handle only allowlisted Kurami component IDs.
+After reconciliation, `src/orchestrator/controls/discord.ts` maintains Discord
+ticket cards, threads, native controls, one-time run lifecycle events, and the
+durable Resource Guard alert outbox through Discord REST. Resource alerts use
+the private runtime-health channel, are batched and changed-only, and never
+expose a cleanup button. The notifier reads the existing platform token from
+`HERMES_HOME/.env`, never stores or prints it, and never consumes Gateway
+updates. The Hermes Gateway remains the only update consumer. A narrow user
+plugin extends that existing Discord adapter to handle only allowlisted Kurami
+component IDs. The root notifier remains a compatibility entrypoint.
 
 `notify-controls.ts` and the per-project Telegram targets remain installed as a
 reversible fallback, but the poller does not invoke that notifier while Discord

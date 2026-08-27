@@ -8,8 +8,8 @@ SQLite and GitHub.
 
 | Surface | Renderer | Durable identity |
 | --- | --- | --- |
-| Run starter and dashboard | `src/notify-discord-controls.ts` | `run_discord_surfaces` |
-| Run timeline event | `src/notify-discord-controls.ts` | `run_discord_event_deliveries` |
+| Run starter and dashboard | `src/orchestrator/controls/discord.ts` | `run_discord_surfaces` |
+| Run timeline event | `src/orchestrator/controls/discord.ts` | `run_discord_event_deliveries` |
 | Project digest | `src/orchestrator/projects/digest/discord.ts` | `project_discord_digest_surfaces` |
 | Components V2 primitives | `src/discord/ui.ts` | None |
 | Owner interactions | `integrations/hermes/plugins/kurami-discord-controls/` | Control request tables |
