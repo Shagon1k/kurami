@@ -68,13 +68,15 @@ app/
     preview-ingress.ts        Compatibility CLI/API for preview ingress reconciliation
     codex-deeplink.ts         Validates Codex thread IDs and builds HTTPS launch URLs
     session-manager.ts        Compatibility CLI/API for managed Codex sessions
-    run-controls.ts           Inspects runs and queues allowlisted owner actions
+    run-controls.ts           Compatibility CLI/API for allowlisted run controls
     notify-controls.ts        Frozen opt-in proactive Telegram fallback
     notify-discord-controls.ts
                               Reconciles Discord ticket threads and live cards
     discord/
       ui.ts                   Shared Discord Components V2 primitives
     orchestrator/
+      controls/
+        run.ts                Inspects runs and queues allowlisted owner actions
       projects/
         poll-projects.ts      Reads one or both GitHub Projects
         process-project-events.ts

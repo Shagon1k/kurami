@@ -35,6 +35,14 @@ function runNodeFails(path: string, args: string[], home: string): string {
 
 async function main(): Promise<void> {
   const appDirectory = resolve(import.meta.dirname, "..");
+  const canonicalControls = await import(
+    "../src/orchestrator/controls/run.ts"
+  );
+  const legacyControls = await import("../src/run-controls.ts");
+  assert(
+    legacyControls.runRunControlsCli === canonicalControls.runRunControlsCli,
+    "Legacy run-controls wrapper diverged from the canonical module",
+  );
   const testHome = await mkdtemp(
     resolve(tmpdir(), "kurami-run-controls-test-"),
   );
@@ -531,7 +539,10 @@ async function main(): Promise<void> {
     );
     verify.close();
 
-    const controlPath = resolve(appDirectory, "src/run-controls.ts");
+    const controlPath = resolve(
+      appDirectory,
+      "src/orchestrator/controls/run.ts",
+    );
     const immediateTakeover = runNode(
       controlPath,
       [
@@ -846,7 +857,7 @@ async function main(): Promise<void> {
       ),
       "Ambiguous sending event would be retried and duplicated",
     );
-    const control = resolve(appDirectory, "src/run-controls.ts");
+    const control = resolve(appDirectory, "src/orchestrator/controls/run.ts");
     const remotePreview = runNode(
       control,
       [
