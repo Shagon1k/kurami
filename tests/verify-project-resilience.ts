@@ -5,6 +5,8 @@ import { resolve } from "node:path";
 import { DatabaseSync } from "node:sqlite";
 import * as legacyProjectPoller from "../src/poll-projects.ts";
 import * as canonicalProjectPoller from "../src/orchestrator/projects/poll-projects.ts";
+import * as legacyController from "../src/controller.ts";
+import * as canonicalController from "../src/orchestrator/runtime/controller.ts";
 
 type ControllerResult = {
   ok: boolean;
@@ -21,6 +23,11 @@ assert(
   legacyProjectPoller.runProjectPollerCli === canonicalProjectPoller.runProjectPollerCli,
   "Legacy poller CLI does not delegate to the canonical implementation",
 );
+assert(
+  legacyController.runOrchestratorControllerCli ===
+    canonicalController.runOrchestratorControllerCli,
+  "Legacy controller CLI does not delegate to the canonical implementation",
+);
 
 function runController(
   appDirectory: string,
@@ -29,7 +36,10 @@ function runController(
 ): ControllerResult {
   const output = execFileSync(
     process.execPath,
-    [resolve(appDirectory, "src/controller.ts"), ...(apply ? ["--apply"] : [])],
+    [
+      resolve(appDirectory, "src/orchestrator/runtime/controller.ts"),
+      ...(apply ? ["--apply"] : []),
+    ],
     {
       encoding: "utf8",
       env: { ...process.env, ORCHESTRATOR_HOME: testHome },

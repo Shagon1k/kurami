@@ -20,7 +20,7 @@ coverage/
 /state/
 logs/
 backups/
-runtime/
+/runtime/
 tmp/
 secrets/
 *.db

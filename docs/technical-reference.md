@@ -52,7 +52,7 @@ app/
     ai-review-worker.ts       Compatibility CLI/API for AI review execution
     review-fix-manager.ts     Compatibility CLI/API for review-fix resolution
     process-project-events.ts Compatibility CLI for existing event consumers
-    controller.ts             Dispatches only handlers eligible for current states
+    controller.ts             Compatibility CLI for controller callers
     codex-app-server.ts       Compatibility API for Codex app-server integration
     github-app-auth.ts        Compatibility API for GitHub App authentication
     github-review-threads.ts  Compatibility API for GitHub review threads
@@ -79,6 +79,8 @@ app/
     discord/
       ui.ts                   Shared Discord Components V2 primitives
     orchestrator/
+      runtime/
+        controller.ts         Plans and dispatches eligible state transitions
       state/
         init-run-store.ts     Applies migrations and checks DB integrity
       controls/
@@ -452,8 +454,9 @@ APIs for existing operational commands.
 
 ### Controller / Reconciler
 
-`src/controller.ts` reads actionable Run Store states after event consumption
-and dispatches only the next eligible deterministic handler:
+`src/orchestrator/runtime/controller.ts` reads actionable Run Store states after
+event consumption and dispatches only the next eligible deterministic handler.
+`src/controller.ts` remains available as a compatibility entrypoint:
 
 ```text
 admission_pending + planned       -> provision worktree
