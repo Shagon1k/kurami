@@ -17,6 +17,8 @@ import * as canonicalRank from "../src/orchestrator/projects/triage/rank.ts";
 import * as canonicalSnapshot from "../src/orchestrator/projects/triage/snapshot.ts";
 import * as legacyRank from "../src/triage-rank.ts";
 import * as legacySnapshot from "../src/triage-snapshot.ts";
+import * as canonicalDigest from "../src/orchestrator/projects/digest/discord.ts";
+import * as legacyDigest from "../src/notify-discord-digest.ts";
 
 function assert(condition: unknown, message: string): asserts condition {
   if (!condition) throw new Error(message);
@@ -83,6 +85,12 @@ async function runNode(
 
 async function main(): Promise<void> {
   const app = resolve(import.meta.dirname, "..");
+  assert(
+    legacyDigest.digestPayload === canonicalDigest.digestPayload &&
+      legacyDigest.runDiscordProjectsDigestCli ===
+        canonicalDigest.runDiscordProjectsDigestCli,
+    "Legacy Discord Projects Digest is not a transparent compatibility wrapper",
+  );
   assert(
     legacySnapshot.buildTriageFacts === canonicalSnapshot.buildTriageFacts &&
       legacyRank.rankTriageFacts === canonicalRank.rankTriageFacts &&

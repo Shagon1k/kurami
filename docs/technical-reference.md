@@ -37,7 +37,7 @@ app/
     poll-projects.ts          Compatibility CLI for existing poller callers
     triage-snapshot.ts        Compatibility CLI/API for existing triage callers
     triage-rank.ts            Compatibility CLI/API for existing ranking callers
-    notify-discord-digest.ts  Reconciles persistent per-project digest cards
+    notify-discord-digest.ts  Compatibility CLI/API for Projects Digest cards
     metadata-proposal-manager.ts
                               Compatibility CLI/API for proposal planning
     metadata-proposal-worker.ts
@@ -79,6 +79,8 @@ app/
                               Runs admission and cancellation state transitions
         project-readiness.ts  Read-only PASS/WARN/FAIL compatibility assessment
         project-status.ts     Returns fully cancelled released items to Backlog
+        digest/
+          discord.ts          Reconciles persistent per-project digest cards
         triage/
           snapshot.ts         Persists changed-only Backlog fact snapshots
           rank.ts             Ranks eligible issues with explainable policy
@@ -604,8 +606,9 @@ derived from those same facts, so a model
 cannot silently reorder work or invent urgency. P4b remains advisory: it never
 assigns P0/P1, edits Project fields, moves cards, or starts a run.
 
-`src/notify-discord-digest.ts` writes directly into one manually created permanent
-text channel configured as `discord.digest_channel_id` in `orchestrator.yaml`.
+`src/orchestrator/projects/digest/discord.ts` writes directly into one manually
+created permanent text channel configured as `discord.digest_channel_id` in
+`orchestrator.yaml`.
 It creates exactly one English bot-owned Components V2 card per configured
 project and then edits that message in place. The card uses a compact health
 table, detailed metadata state, Markdown navigation links, and contextual owner

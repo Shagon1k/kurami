@@ -225,7 +225,7 @@ def _metadata_paths() -> tuple[Path, Path, Path]:
     return (
         home / "runtime/node/bin/node",
         home / "app/src/orchestrator/projects/metadata/controls.ts",
-        home / "app/src/notify-discord-digest.ts",
+        home / "app/src/orchestrator/projects/digest/discord.ts",
     )
 
 
