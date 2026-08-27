@@ -44,7 +44,9 @@ app/
                               Compatibility CLI/API for proposal assessment
     metadata-proposal-scheduler.ts
                               Compatibility CLI/API for daily admission
-    metadata-sync.ts          Applies accepted metadata with field-level drift guards
+    metadata-proposal-controls.ts
+                              Compatibility CLI/API for owner decisions
+    metadata-sync.ts          Compatibility CLI/API for guarded synchronization
     observe-ci.ts             Reads exact-PR CI state without GitHub mutations
     review-manager.ts         Validates and starts explicit exact-SHA AI reviews
     ai-review-worker.ts       Publishes one bounded native GitHub PR review
@@ -81,6 +83,8 @@ app/
           snapshot.ts         Persists changed-only Backlog fact snapshots
           rank.ts             Ranks eligible issues with explainable policy
         metadata/
+          controls.ts         Records explicit owner proposal decisions
+          sync.ts             Applies accepted metadata with drift guards
           proposals/
             manager.ts        Plans durable changed-only metadata batches
             worker.ts         Runs bounded read-only Priority/Effort assessment
@@ -675,9 +679,9 @@ owner-facing status only; internal snapshot and policy identifiers remain in
 SQLite and logs. An unchanged batch is a no-op and does not create another
 message.
 
-`src/metadata-proposal-controls.ts` is deliberately SQLite-only. Accepting a
-batch records the remaining proposals as owner-approved, but performs zero
-GitHub writes and keeps the accepted batch active until the later guarded-sync
+`src/orchestrator/projects/metadata/controls.ts` is deliberately SQLite-only.
+Accepting a batch records the remaining proposals as owner-approved, but performs
+zero GitHub writes and keeps the accepted batch active until the later guarded-sync
 stage. Review proposals uses an ephemeral Discord panel to show the full batch,
 exclude individual proposals without per-ticket confirmation, restore accidental
 exclusions, and accept everything remaining. The panel edits itself after each
@@ -731,14 +735,14 @@ Inspect the next accepted batch without external reads or writes:
 
 ```bash
 ORCHESTRATOR_HOME=/home/shagon1k/_hermes/_kurami \
-node src/metadata-sync.ts --project tailortales
+node src/orchestrator/projects/metadata/sync.ts --project tailortales
 ```
 
 Re-read all exact live fields and print guarded decisions without mutation:
 
 ```bash
 ORCHESTRATOR_HOME=/home/shagon1k/_hermes/_kurami \
-node src/metadata-sync.ts --project tailortales --verify
+node src/orchestrator/projects/metadata/sync.ts --project tailortales --verify
 ```
 
 `--apply` is normally invoked by the locked project poller after explicit owner

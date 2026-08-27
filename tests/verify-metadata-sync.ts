@@ -13,6 +13,8 @@ import {
   type MetadataProjectClient,
   type ProjectDefinition,
 } from "../src/metadata-sync.ts";
+import * as canonicalSync from "../src/orchestrator/projects/metadata/sync.ts";
+import * as legacySync from "../src/metadata-sync.ts";
 
 function assert(condition: unknown, message: string): asserts condition {
   if (!condition) throw new Error(message);
@@ -132,6 +134,12 @@ function insertBatch(
 }
 
 async function main(): Promise<void> {
+  assert(
+    legacySync.planNextSync === canonicalSync.planNextSync &&
+      legacySync.syncAcceptedBatch === canonicalSync.syncAcceptedBatch &&
+      legacySync.runMetadataSyncCli === canonicalSync.runMetadataSyncCli,
+    "Legacy metadata sync is not a transparent compatibility wrapper",
+  );
   const app = resolve(import.meta.dirname, "..");
   const migrationsDirectory = resolve(app, "migrations");
   const migrations = (await readdir(migrationsDirectory))

@@ -224,7 +224,7 @@ def _metadata_paths() -> tuple[Path, Path, Path]:
     home = _kurami_home()
     return (
         home / "runtime/node/bin/node",
-        home / "app/src/metadata-proposal-controls.ts",
+        home / "app/src/orchestrator/projects/metadata/controls.ts",
         home / "app/src/notify-discord-digest.ts",
     )
 
