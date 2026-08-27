@@ -47,7 +47,7 @@ app/
     metadata-proposal-controls.ts
                               Compatibility CLI/API for owner decisions
     metadata-sync.ts          Compatibility CLI/API for guarded synchronization
-    observe-ci.ts             Reads exact-PR CI state without GitHub mutations
+    observe-ci.ts             Compatibility CLI/API for existing CI callers
     review-manager.ts         Validates and starts explicit exact-SHA AI reviews
     ai-review-worker.ts       Publishes one bounded native GitHub PR review
     process-project-events.ts Compatibility CLI for existing event consumers
@@ -79,6 +79,8 @@ app/
                               Runs admission and cancellation state transitions
         project-readiness.ts  Read-only PASS/WARN/FAIL compatibility assessment
         project-status.ts     Returns fully cancelled released items to Backlog
+        ci/
+          observe.ts          Reads exact-PR CI without GitHub mutations
         digest/
           discord.ts          Reconciles persistent per-project digest cards
         triage/
@@ -281,9 +283,10 @@ stored values still fail closed, and stale keys for removed projects are ignored
 
 ### CI observer
 
-`src/observe-ci.ts` maps each active managed branch to exactly one pull request,
-reads check-runs and legacy commit statuses for that PR's exact head SHA, and
-stores a normalized snapshot. GitHub API errors become `unknown`; missing
+`src/orchestrator/projects/ci/observe.ts` maps each active managed branch to
+exactly one pull request, reads check-runs and legacy commit statuses for that
+PR's exact head SHA, and stores a normalized snapshot. GitHub API errors become
+`unknown`; missing
 required checks become `missing` only after the configured grace period. The
 observer never changes a pull request, branch, check, lifecycle state, or code.
 
