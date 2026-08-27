@@ -96,7 +96,7 @@ async function main(): Promise<void> {
     execFileSync(process.execPath, [resolve(app, "src/init-run-store.ts")], {
       env: {
         ...process.env,
-        ORCHESTRATOR_HOME: home,
+        KURAMI_HOME: home,
         ORCHESTRATOR_MIGRATIONS_DIR: migrationsDirectory,
       },
       stdio: ["ignore", "ignore", "pipe"],

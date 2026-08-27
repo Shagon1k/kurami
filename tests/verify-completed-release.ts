@@ -107,7 +107,7 @@ async function main(): Promise<void> {
     execFileSync(process.execPath, [resolve(appDirectory, "src/init-run-store.ts")], {
       env: {
         ...process.env,
-        ORCHESTRATOR_HOME: testHome,
+        KURAMI_HOME: testHome,
         ORCHESTRATOR_MIGRATIONS_DIR: resolve(appDirectory, "migrations"),
       },
       stdio: ["ignore", "ignore", "pipe"],
@@ -153,7 +153,7 @@ async function main(): Promise<void> {
 
     const environment = {
       ...process.env,
-      ORCHESTRATOR_HOME: testHome,
+      KURAMI_HOME: testHome,
       ORCHESTRATOR_MIGRATIONS_DIR: resolve(appDirectory, "migrations"),
     };
     const release = (script: string, apply: boolean): Record<string, unknown> => {

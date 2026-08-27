@@ -32,7 +32,7 @@ async function initializeThrough(
   execFileSync(process.execPath, [resolve(appDirectory, "src/init-run-store.ts")], {
     env: {
       ...process.env,
-      ORCHESTRATOR_HOME: home,
+      KURAMI_HOME: home,
       ORCHESTRATOR_MIGRATIONS_DIR: migrations,
     },
     stdio: ["ignore", "ignore", "pipe"],
@@ -42,7 +42,7 @@ async function initializeThrough(
 async function main(): Promise<void> {
   const appDirectory = resolve(import.meta.dirname, "..");
   const home = await mkdtemp(resolve(tmpdir(), "kurami-static-preview-test-"));
-  process.env.ORCHESTRATOR_HOME = home;
+  process.env.KURAMI_HOME = home;
   try {
     await mkdir(resolve(home, "config"), { recursive: true, mode: 0o700 });
     await copyFile(
@@ -101,7 +101,7 @@ async function main(): Promise<void> {
     old.close();
 
     execFileSync(process.execPath, [resolve(appDirectory, "src/init-run-store.ts")], {
-      env: { ...process.env, ORCHESTRATOR_HOME: home },
+      env: { ...process.env, KURAMI_HOME: home },
       stdio: ["ignore", "ignore", "pipe"],
     });
     const migrated = new DatabaseSync(databasePath);

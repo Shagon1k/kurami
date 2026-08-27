@@ -31,7 +31,7 @@ function runNode(
   return JSON.parse(
     execFileSync(process.execPath, [script, ...args], {
       encoding: "utf8",
-      env: { ...process.env, ...env, ORCHESTRATOR_HOME: home },
+      env: { ...process.env, ...env, KURAMI_HOME: home },
       stdio: ["ignore", "pipe", "pipe"],
     }),
   ) as JsonObject;

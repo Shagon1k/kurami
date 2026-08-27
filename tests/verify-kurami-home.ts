@@ -52,6 +52,43 @@ for (const path of entrypointConsumerFiles) {
   );
 }
 
+const legacyEnvironmentTestFiles = new Set([
+  resolve(root, "tests/verify-discord-plugin.py"),
+  resolve(root, "tests/verify-kurami-home.ts"),
+  resolve(root, "tests/verify-worktree-provision.ts"),
+]);
+const testFiles = (await filesBelow(resolve(root, "tests"))).filter((path) =>
+  [".ts", ".py"].includes(extname(path))
+);
+for (const path of testFiles) {
+  if (legacyEnvironmentTestFiles.has(path)) continue;
+  const content = await readFile(path, "utf8");
+  assert(
+    !content.includes("ORCHESTRATOR_HOME"),
+    `Ordinary regression test still uses the legacy environment: ${path}`,
+  );
+}
+
+const canonicalOperatorFiles = [
+  resolve(root, "docs/technical-reference.md"),
+  resolve(root, "docs/recovery.md"),
+  resolve(root, "integrations/hermes/skills/kurami-run-control/SKILL.md"),
+  resolve(root, "integrations/hermes/skills/kurami-project-readiness/SKILL.md"),
+];
+for (const path of canonicalOperatorFiles) {
+  const content = await readFile(path, "utf8");
+  assert(
+    !content.includes("ORCHESTRATOR_HOME"),
+    `Operator documentation still recommends the legacy environment: ${path}`,
+  );
+  const legacyCommands = content.match(/node src\/[a-z0-9-]+\.ts/gu) ?? [];
+  assert.deepEqual(
+    legacyCommands,
+    [],
+    `Operator documentation still recommends a root compatibility CLI: ${path}`,
+  );
+}
+
 for (const path of runtimeFiles) {
   const content = await readFile(path, "utf8");
   assert(
@@ -132,6 +169,8 @@ process.stdout.write(
     compatibilitySources: compatibilitySources.length,
     symlinkSafeDirectEntries: directEntries.length,
     canonicalEntrypointConsumers: entrypointConsumerFiles.length,
+    canonicalOperatorFiles: canonicalOperatorFiles.length,
+    canonicalEnvironmentTests: testFiles.length - legacyEnvironmentTestFiles.size,
     symlinkCliSmoke: true,
   })}\n`,
 );

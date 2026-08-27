@@ -252,7 +252,7 @@ $HERMES_HOME/plugins/kurami-discord-controls/
 
 ### Project Poller
 
-`src/poll-projects.ts` reads GitHub Projects through `gh api graphql`. It stores
+`src/orchestrator/projects/poll-projects.ts` reads GitHub Projects through `gh api graphql`. It stores
 the latest item snapshot and creates an event only for a real status transition.
 The initial observation is a baseline and never starts existing active items.
 
@@ -268,7 +268,7 @@ issue body is not duplicated in SQLite.
 
 ### Event Consumer
 
-`src/process-project-events.ts` processes pending events in chronological order
+`src/orchestrator/projects/process-project-events.ts` processes pending events in chronological order
 inside a SQLite write transaction. It owns:
 
 - open-Issue and repository allowlisting;
@@ -343,7 +343,7 @@ required checks become `missing` only after the configured grace period. The
 observer never changes a pull request, branch, check, lifecycle state, or code.
 
 Per-project CI policy is versioned in `deploy/config/projects.yaml`. The deployed
-copy is `${ORCHESTRATOR_HOME}/config/projects.yaml`; both copies must be kept in
+copy is `${KURAMI_HOME}/config/projects.yaml`; both copies must be kept in
 sync by the normal deployment/reconciliation flow. `ci.enabled: false` disables
 check evaluation, but Kurami still maps the managed branch to exactly one open PR
 and stores its exact head SHA as passed with an empty check list. This provenance
@@ -729,7 +729,7 @@ their existing explicit authorization boundaries.
 Inspect the daily admission plan without mutation:
 
 ```bash
-ORCHESTRATOR_HOME=/home/shagon1k/_hermes/_kurami \
+KURAMI_HOME=/home/shagon1k/_hermes/_kurami \
 node src/orchestrator/projects/metadata/proposals/scheduler.ts
 ```
 
@@ -761,10 +761,10 @@ confirms the operation. Every decision appends actor and event provenance.
 Inspect and then create proposal batch plans:
 
 ```bash
-ORCHESTRATOR_HOME=/home/shagon1k/_hermes/_kurami \
+KURAMI_HOME=/home/shagon1k/_hermes/_kurami \
 node src/orchestrator/projects/metadata/proposals/manager.ts prepare
 
-ORCHESTRATOR_HOME=/home/shagon1k/_hermes/_kurami \
+KURAMI_HOME=/home/shagon1k/_hermes/_kurami \
 node src/orchestrator/projects/metadata/proposals/manager.ts prepare --apply
 ```
 
@@ -772,10 +772,10 @@ Inspect a planned batch without GitHub reads or Codex execution, then explicitly
 run its read-only assessment:
 
 ```bash
-ORCHESTRATOR_HOME=/home/shagon1k/_hermes/_kurami \
+KURAMI_HOME=/home/shagon1k/_hermes/_kurami \
 node src/orchestrator/projects/metadata/proposals/worker.ts --batch-id <batch_id>
 
-ORCHESTRATOR_HOME=/home/shagon1k/_hermes/_kurami \
+KURAMI_HOME=/home/shagon1k/_hermes/_kurami \
 node src/orchestrator/projects/metadata/proposals/worker.ts --batch-id <batch_id> --apply
 ```
 
@@ -799,14 +799,14 @@ no-ops.
 Inspect the next accepted batch without external reads or writes:
 
 ```bash
-ORCHESTRATOR_HOME=/home/shagon1k/_hermes/_kurami \
+KURAMI_HOME=/home/shagon1k/_hermes/_kurami \
 node src/orchestrator/projects/metadata/sync.ts --project tailortales
 ```
 
 Re-read all exact live fields and print guarded decisions without mutation:
 
 ```bash
-ORCHESTRATOR_HOME=/home/shagon1k/_hermes/_kurami \
+KURAMI_HOME=/home/shagon1k/_hermes/_kurami \
 node src/orchestrator/projects/metadata/sync.ts --project tailortales --verify
 ```
 
@@ -1161,7 +1161,7 @@ read-only GitHub/workspace evidence:
 ```bash
 npm run readiness -- --project tailortales
 
-ORCHESTRATOR_HOME=/home/shagon1k/_hermes/_kurami \
+KURAMI_HOME=/home/shagon1k/_hermes/_kurami \
 npm run readiness -- --project tailortales --live
 ```
 
@@ -1172,11 +1172,11 @@ contract and onboarding exit checklist.
 Create a consistent SQLite/config backup or inspect retained backups:
 
 ```bash
-ORCHESTRATOR_HOME=/home/shagon1k/_hermes/_kurami \
-node src/backup-state.ts create
+KURAMI_HOME=/home/shagon1k/_hermes/_kurami \
+node src/system/recovery/backup-state.ts create
 
-ORCHESTRATOR_HOME=/home/shagon1k/_hermes/_kurami \
-node src/backup-state.ts inspect
+KURAMI_HOME=/home/shagon1k/_hermes/_kurami \
+node src/system/recovery/backup-state.ts inspect
 ```
 
 Each backup is a mode-700 directory under `../backups` containing a verified
@@ -1188,8 +1188,8 @@ default; at the three-day schedule this is roughly six weeks of history.
 Inspect runtime consistency without changing anything:
 
 ```bash
-ORCHESTRATOR_HOME=/home/shagon1k/_hermes/_kurami \
-node src/runtime-health.ts
+KURAMI_HOME=/home/shagon1k/_hermes/_kurami \
+node src/orchestrator/health/runtime.ts
 ```
 
 The check compares active `preview_leases`, adapter provenance, recorded
@@ -1209,11 +1209,11 @@ Inspect the resource guard without changing quarantine state, or reconcile only
 the durable observation/quarantine records:
 
 ```bash
-ORCHESTRATOR_HOME=/home/shagon1k/_hermes/_kurami \
-node src/resource-guard.ts
+KURAMI_HOME=/home/shagon1k/_hermes/_kurami \
+node src/orchestrator/resources/guard.ts
 
-ORCHESTRATOR_HOME=/home/shagon1k/_hermes/_kurami \
-node src/resource-guard.ts --apply
+KURAMI_HOME=/home/shagon1k/_hermes/_kurami \
+node src/orchestrator/resources/guard.ts --apply
 ```
 
 Both commands are non-destructive with respect to external resources. `--apply`
@@ -1233,11 +1233,11 @@ npm run test:resource-guard-discord
 Preview the monthly maintenance scope, then apply it:
 
 ```bash
-ORCHESTRATOR_HOME=/home/shagon1k/_hermes/_kurami \
-node src/monthly-maintenance.ts
+KURAMI_HOME=/home/shagon1k/_hermes/_kurami \
+node src/system/maintenance/monthly-maintenance.ts
 
-ORCHESTRATOR_HOME=/home/shagon1k/_hermes/_kurami \
-node src/monthly-maintenance.ts --apply
+KURAMI_HOME=/home/shagon1k/_hermes/_kurami \
+node src/system/maintenance/monthly-maintenance.ts --apply
 ```
 
 Maintenance removes only regular `.log`, `.jsonl`, and `.txt` files older than
@@ -1293,28 +1293,28 @@ npm run test:ai-review
 Inspect the preview pool without mutation:
 
 ```bash
-ORCHESTRATOR_HOME=/home/shagon1k/_hermes/_kurami \
-node src/preview-manager.ts inspect
+KURAMI_HOME=/home/shagon1k/_hermes/_kurami \
+node src/orchestrator/projects/previews/manager.ts inspect
 ```
 
 Plan and then atomically allocate a slot:
 
 ```bash
-ORCHESTRATOR_HOME=/home/shagon1k/_hermes/_kurami \
-node src/preview-manager.ts allocate --run-id <run_id>
+KURAMI_HOME=/home/shagon1k/_hermes/_kurami \
+node src/orchestrator/projects/previews/manager.ts allocate --run-id <run_id>
 
-ORCHESTRATOR_HOME=/home/shagon1k/_hermes/_kurami \
-node src/preview-manager.ts allocate --run-id <run_id> --apply
+KURAMI_HOME=/home/shagon1k/_hermes/_kurami \
+node src/orchestrator/projects/previews/manager.ts allocate --run-id <run_id> --apply
 ```
 
 Plan or apply an owner extension while the preview is inside its warning window:
 
 ```bash
-ORCHESTRATOR_HOME=/home/shagon1k/_hermes/_kurami \
-node src/preview-manager.ts extend --run-id <run_id>
+KURAMI_HOME=/home/shagon1k/_hermes/_kurami \
+node src/orchestrator/projects/previews/manager.ts extend --run-id <run_id>
 
-ORCHESTRATOR_HOME=/home/shagon1k/_hermes/_kurami \
-node src/preview-manager.ts extend --run-id <run_id> --apply
+KURAMI_HOME=/home/shagon1k/_hermes/_kurami \
+node src/orchestrator/projects/previews/manager.ts extend --run-id <run_id> --apply
 ```
 
 Verify the isolated TTL lifecycle and populated-v22 migration:
@@ -1326,11 +1326,11 @@ npm run test:preview-ttl
 Plan or record the exact-lease acknowledgement from a trusted CLI context:
 
 ```bash
-ORCHESTRATOR_HOME=/home/shagon1k/_hermes/_kurami \
-node src/preview-manager.ts review --run-id <run_id> --reviewed-by cli:owner
+KURAMI_HOME=/home/shagon1k/_hermes/_kurami \
+node src/orchestrator/projects/previews/manager.ts review --run-id <run_id> --reviewed-by cli:owner
 
-ORCHESTRATOR_HOME=/home/shagon1k/_hermes/_kurami \
-node src/preview-manager.ts review --run-id <run_id> --reviewed-by cli:owner --apply
+KURAMI_HOME=/home/shagon1k/_hermes/_kurami \
+node src/orchestrator/projects/previews/manager.ts review --run-id <run_id> --reviewed-by cli:owner --apply
 ```
 
 Verify acknowledgement provenance and lifecycle isolation:
@@ -1349,11 +1349,11 @@ npm run test:preview-policy
 Inspect or reconcile the desired Caddy routes from the Run Store:
 
 ```bash
-ORCHESTRATOR_HOME=/home/shagon1k/_hermes/_kurami \
-node src/preview-ingress.ts inspect
+KURAMI_HOME=/home/shagon1k/_hermes/_kurami \
+node src/orchestrator/projects/previews/ingress.ts inspect
 
-ORCHESTRATOR_HOME=/home/shagon1k/_hermes/_kurami \
-node src/preview-ingress.ts reconcile --apply
+KURAMI_HOME=/home/shagon1k/_hermes/_kurami \
+node src/orchestrator/projects/previews/ingress.ts reconcile --apply
 ```
 
 Verify the post-merge release boundary in isolated local Git repositories:
@@ -1365,7 +1365,7 @@ npm run test:release
 Apply pending database migrations and check integrity:
 
 ```bash
-ORCHESTRATOR_HOME=/home/shagon1k/_hermes/_kurami \
+KURAMI_HOME=/home/shagon1k/_hermes/_kurami \
 node src/orchestrator/state/init-run-store.ts
 ```
 
@@ -1382,25 +1382,25 @@ Run one production poll -> consume cycle manually:
 Inspect a provision plan without mutation:
 
 ```bash
-ORCHESTRATOR_HOME=/home/shagon1k/_hermes/_kurami \
-node src/provision-worktree.ts --run-id <run_id>
+KURAMI_HOME=/home/shagon1k/_hermes/_kurami \
+node src/orchestrator/projects/worktrees/provision.ts --run-id <run_id>
 ```
 
 Provision an explicitly approved live run:
 
 ```bash
-ORCHESTRATOR_HOME=/home/shagon1k/_hermes/_kurami \
-node src/provision-worktree.ts --run-id <run_id> --apply
+KURAMI_HOME=/home/shagon1k/_hermes/_kurami \
+node src/orchestrator/projects/worktrees/provision.ts --run-id <run_id> --apply
 ```
 
 Plan and then release a stopping run's clean worktree and local branch:
 
 ```bash
-ORCHESTRATOR_HOME=/home/shagon1k/_hermes/_kurami \
-node src/release-worktree.ts --run-id <run_id>
+KURAMI_HOME=/home/shagon1k/_hermes/_kurami \
+node src/orchestrator/projects/worktrees/release.ts --run-id <run_id>
 
-ORCHESTRATOR_HOME=/home/shagon1k/_hermes/_kurami \
-node src/release-worktree.ts --run-id <run_id> --apply
+KURAMI_HOME=/home/shagon1k/_hermes/_kurami \
+node src/orchestrator/projects/worktrees/release.ts --run-id <run_id> --apply
 ```
 
 Release refuses dirty files, an active tmux mapping, paths outside the configured
@@ -1410,53 +1410,53 @@ into the configured remote base branch.
 Inspect a Codex session start plan without mutation:
 
 ```bash
-ORCHESTRATOR_HOME=/home/shagon1k/_hermes/_kurami \
-node src/session-manager.ts start --run-id <run_id>
+KURAMI_HOME=/home/shagon1k/_hermes/_kurami \
+node src/orchestrator/projects/sessions/manager.ts start --run-id <run_id>
 ```
 
 Start the interactive Codex TUI in managed tmux:
 
 ```bash
-ORCHESTRATOR_HOME=/home/shagon1k/_hermes/_kurami \
-node src/session-manager.ts start --run-id <run_id> --apply
+KURAMI_HOME=/home/shagon1k/_hermes/_kurami \
+node src/orchestrator/projects/sessions/manager.ts start --run-id <run_id> --apply
 ```
 
 Synchronize the stable task title and Remote thread ID after the initial turn:
 
 ```bash
-ORCHESTRATOR_HOME=/home/shagon1k/_hermes/_kurami \
-node src/session-manager.ts sync --run-id <run_id> --apply
+KURAMI_HOME=/home/shagon1k/_hermes/_kurami \
+node src/orchestrator/projects/sessions/manager.ts sync --run-id <run_id> --apply
 ```
 
 Plan and then perform graceful CLI-to-Remote handoff:
 
 ```bash
-ORCHESTRATOR_HOME=/home/shagon1k/_hermes/_kurami \
-node src/session-manager.ts handoff --run-id <run_id>
+KURAMI_HOME=/home/shagon1k/_hermes/_kurami \
+node src/orchestrator/projects/sessions/manager.ts handoff --run-id <run_id>
 
-ORCHESTRATOR_HOME=/home/shagon1k/_hermes/_kurami \
-node src/session-manager.ts handoff --run-id <run_id> --apply
+KURAMI_HOME=/home/shagon1k/_hermes/_kurami \
+node src/orchestrator/projects/sessions/manager.ts handoff --run-id <run_id> --apply
 ```
 
 Inspect durable and live session state:
 
 ```bash
-ORCHESTRATOR_HOME=/home/shagon1k/_hermes/_kurami \
-node src/session-manager.ts inspect --run-id <run_id>
+KURAMI_HOME=/home/shagon1k/_hermes/_kurami \
+node src/orchestrator/projects/sessions/manager.ts inspect --run-id <run_id>
 ```
 
 Verify that a stopping run has no remaining tmux, worktree, or local branch:
 
 ```bash
-ORCHESTRATOR_HOME=/home/shagon1k/_hermes/_kurami \
-node src/session-manager.ts finalize-stop --run-id <run_id>
+KURAMI_HOME=/home/shagon1k/_hermes/_kurami \
+node src/orchestrator/projects/sessions/manager.ts finalize-stop --run-id <run_id>
 ```
 
 After reviewing the plan, record the verified cleanup:
 
 ```bash
-ORCHESTRATOR_HOME=/home/shagon1k/_hermes/_kurami \
-node src/session-manager.ts finalize-stop --run-id <run_id> --apply
+KURAMI_HOME=/home/shagon1k/_hermes/_kurami \
+node src/orchestrator/projects/sessions/manager.ts finalize-stop --run-id <run_id> --apply
 ```
 
 ## Production scheduling

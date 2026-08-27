@@ -16,7 +16,7 @@ shell command.
 Use only these fixed paths:
 
 ```text
-ORCHESTRATOR_HOME=/home/shagon1k/_hermes/_kurami
+KURAMI_HOME=/home/shagon1k/_hermes/_kurami
 NODE=/home/shagon1k/_hermes/_kurami/runtime/node/bin/node
 CONTROL=/home/shagon1k/_hermes/_kurami/app/src/orchestrator/controls/run.ts
 DISCORD_NOTIFIER=/home/shagon1k/_hermes/_kurami/app/src/orchestrator/controls/discord.ts
@@ -38,7 +38,7 @@ ticket.
 - If lookup reports zero or multiple runs, ask for the ticket or full run ID.
   Never guess.
 
-Set `ORCHESTRATOR_HOME` only to the fixed value above for every command.
+Set `KURAMI_HOME` only to the fixed value above for every command.
 
 ## Inspect or mutate
 

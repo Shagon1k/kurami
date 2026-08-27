@@ -91,13 +91,13 @@ On an isolated restore host, install `age`, clone GitHub, download the newest
 bundle plus sidecar, verify the sidecar, and run:
 
 ```bash
-export ORCHESTRATOR_HOME=/home/shagon1k/_hermes/_kurami
+export KURAMI_HOME=/home/shagon1k/_hermes/_kurami
 export HERMES_HOME=/home/shagon1k/_hermes/_core
 export KURAMI_AGE_BIN=/usr/local/bin/age
-export PATH="$ORCHESTRATOR_HOME/runtime/node/bin:$PATH"
+export PATH="$KURAMI_HOME/runtime/node/bin:$PATH"
 
 sha256sum --check kurami-recovery-*.tar.zst.age.sha256
-node "$ORCHESTRATOR_HOME/app/src/recovery-bundle.ts" verify \
+node "$KURAMI_HOME/app/src/system/recovery/recovery-bundle.ts" verify \
   --bundle /path/to/kurami-recovery-YYYYMMDDTHHMMSSZ.tar.zst.age \
   --identity /offline/path/to/kurami-recovery.agekey
 ```
@@ -176,9 +176,9 @@ and network trends are generic Kurami-wide jobs.
 From the application directory:
 
 ```bash
-export ORCHESTRATOR_HOME=/home/shagon1k/_hermes/_kurami
+export KURAMI_HOME=/home/shagon1k/_hermes/_kurami
 export HERMES_HOME=/home/shagon1k/_hermes/_core
-export PATH="$ORCHESTRATOR_HOME/runtime/node/bin:$PATH"
+export PATH="$KURAMI_HOME/runtime/node/bin:$PATH"
 
 npm run check
 npm run test:admission
@@ -196,9 +196,9 @@ npm run test:runtime-health
 npm run test:maintenance
 
 npm run db:init
-node src/runtime-health.ts
-node src/preview-ingress.ts reconcile --apply
-node src/notify-discord-controls.ts --apply
+node src/orchestrator/health/runtime.ts
+node src/orchestrator/projects/previews/ingress.ts reconcile --apply
+node src/orchestrator/controls/discord.ts --apply
 ```
 
 Verify the tracked skill is exactly what Hermes runs:

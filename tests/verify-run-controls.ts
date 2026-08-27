@@ -17,7 +17,7 @@ function runNode(
 ): Record<string, unknown> {
   const output = execFileSync(process.execPath, [path, ...args], {
     encoding: "utf8",
-    env: { ...process.env, ORCHESTRATOR_HOME: home },
+    env: { ...process.env, KURAMI_HOME: home },
     stdio: ["ignore", "pipe", "pipe"],
   });
   return JSON.parse(output) as Record<string, unknown>;

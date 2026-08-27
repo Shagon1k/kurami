@@ -50,7 +50,6 @@ printf '%s\\n' '[{"timestamp":"2026-08-26T11:12:53.543Z","server":{"name":"Londo
 const cliEnvironment = {
   ...process.env,
   KURAMI_HOME: root,
-  ORCHESTRATOR_HOME: root,
   LIBRESPEED_BIN: fakeLibreSpeed,
   NETWORK_TEST_LOG: argumentLog,
 };

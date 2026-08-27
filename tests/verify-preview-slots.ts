@@ -37,7 +37,7 @@ function runManager(
     ],
     {
       encoding: "utf8",
-      env: { ...process.env, ORCHESTRATOR_HOME: testHome },
+      env: { ...process.env, KURAMI_HOME: testHome },
       stdio: ["ignore", "pipe", "pipe"],
     },
   );
@@ -61,7 +61,7 @@ async function main(): Promise<void> {
     execFileSync(process.execPath, [resolve(appDirectory, "src/init-run-store.ts")], {
       env: {
         ...process.env,
-        ORCHESTRATOR_HOME: testHome,
+        KURAMI_HOME: testHome,
         ORCHESTRATOR_MIGRATIONS_DIR: resolve(appDirectory, "migrations"),
       },
       stdio: ["ignore", "ignore", "pipe"],
@@ -147,7 +147,7 @@ async function main(): Promise<void> {
       ],
       {
         encoding: "utf8",
-        env: { ...process.env, ORCHESTRATOR_HOME: testHome },
+        env: { ...process.env, KURAMI_HOME: testHome },
         stdio: ["ignore", "pipe", "pipe"],
       },
     );

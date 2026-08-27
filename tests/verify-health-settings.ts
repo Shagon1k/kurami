@@ -20,7 +20,7 @@ const canonicalCli = resolve(
 );
 const env = {
   ...process.env,
-  ORCHESTRATOR_HOME: root,
+  KURAMI_HOME: root,
   HERMES_HOME: root,
   HERMES_BIN: fakeHermes,
   HEALTH_TEST_LOG: callLog,

@@ -97,7 +97,7 @@ esac
 
     const env = {
       ...process.env,
-      ORCHESTRATOR_HOME: testHome,
+      KURAMI_HOME: testHome,
       ORCHESTRATOR_MIGRATIONS_DIR: resolve(appDirectory, "migrations"),
       PATH: `${fakeBin}${delimiter}${process.env.PATH ?? ""}`,
       FAKE_TMUX_STATE: fakeTmuxState,

@@ -33,7 +33,7 @@ function assert(condition: unknown, message: string): asserts condition {
 function runNode(script: string, args: string[], home: string): JsonObject {
   const output = execFileSync(process.execPath, [script, ...args], {
     encoding: "utf8",
-    env: { ...process.env, ORCHESTRATOR_HOME: home },
+    env: { ...process.env, KURAMI_HOME: home },
     stdio: ["ignore", "pipe", "pipe"],
   });
   return JSON.parse(output.trim().split(/\r?\n/u).filter(Boolean).at(-1)!) as JsonObject;

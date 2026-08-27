@@ -140,7 +140,7 @@ esac
 
     const env = {
       ...process.env,
-      ORCHESTRATOR_HOME: home,
+      KURAMI_HOME: home,
       ORCHESTRATOR_MIGRATIONS_DIR: resolve(app, "migrations"),
       CODEX_BIN: process.execPath,
       PATH: `${fakeBin}${delimiter}${process.env.PATH ?? ""}`,

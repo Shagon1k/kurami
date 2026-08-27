@@ -224,7 +224,7 @@ async function main(): Promise<void> {
       (
         await runNode(worker, ["--batch-id", batchId], {
           ...process.env,
-          ORCHESTRATOR_HOME: home,
+          KURAMI_HOME: home,
           ORCHESTRATOR_MIGRATIONS_DIR: migrationsDirectory,
           GH_BIN: "/definitely/not/invoked",
           CODEX_BIN: "/definitely/not/invoked",

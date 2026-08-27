@@ -42,7 +42,7 @@ function runController(
     ],
     {
       encoding: "utf8",
-      env: { ...process.env, ORCHESTRATOR_HOME: testHome },
+      env: { ...process.env, KURAMI_HOME: testHome },
       stdio: ["ignore", "pipe", "pipe"],
     },
   );
@@ -69,7 +69,7 @@ async function main(): Promise<void> {
       {
         env: {
           ...process.env,
-          ORCHESTRATOR_HOME: testHome,
+          KURAMI_HOME: testHome,
           ORCHESTRATOR_MIGRATIONS_DIR: resolve(appDirectory, "migrations"),
         },
         stdio: ["ignore", "ignore", "pipe"],
@@ -149,7 +149,7 @@ async function main(): Promise<void> {
       execFileSync(process.execPath, [resolve(appDirectory, "src/poll-projects.ts")], {
         env: {
           ...process.env,
-          ORCHESTRATOR_HOME: testHome,
+          KURAMI_HOME: testHome,
           POLLER_PROJECT: "tailortales",
           PATH: `${fakeBin}:${process.env.PATH ?? ""}`,
         },

@@ -23,7 +23,7 @@ async function runControl(
 ): Promise<Record<string, unknown>> {
   return await new Promise((resolveRun, rejectRun) => {
     const child = spawn(process.execPath, [script, ...args], {
-      env: { ...process.env, ORCHESTRATOR_HOME: home },
+      env: { ...process.env, KURAMI_HOME: home },
       stdio: ["ignore", "pipe", "pipe"],
     });
     let stdout = "";

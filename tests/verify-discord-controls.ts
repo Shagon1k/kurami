@@ -29,7 +29,7 @@ async function runNode(
 ): Promise<JsonObject> {
   return await new Promise((resolveRun, rejectRun) => {
     const child = spawn(process.execPath, [path, ...args], {
-      env: { ...process.env, ORCHESTRATOR_HOME: home, ...extraEnv },
+      env: { ...process.env, KURAMI_HOME: home, ...extraEnv },
       stdio: ["ignore", "pipe", "pipe"],
     });
     let stdout = "";

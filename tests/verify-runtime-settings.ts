@@ -102,7 +102,7 @@ try {
   }
   const env = {
     ...process.env,
-    ORCHESTRATOR_HOME: root,
+    KURAMI_HOME: root,
     ORCHESTRATOR_MIGRATIONS_DIR: resolve(app, "migrations"),
     KURAMI_TMUX_BIN: fakeTmux,
   };

@@ -144,7 +144,7 @@ async function main(): Promise<void> {
     );
     await runNode(resolve(app, "src/init-run-store.ts"), [], {
       ...process.env,
-      ORCHESTRATOR_HOME: home,
+      KURAMI_HOME: home,
       ORCHESTRATOR_MIGRATIONS_DIR: migrationsDirectory,
     });
     const database = new DatabaseSync(resolve(home, "state/orchestrator.db"));
@@ -257,7 +257,7 @@ async function main(): Promise<void> {
     assert(address && typeof address === "object", "Fake Discord did not start");
     const notifierEnvironment = {
       ...process.env,
-      ORCHESTRATOR_HOME: home,
+      KURAMI_HOME: home,
       HERMES_HOME: home,
       DISCORD_BOT_TOKEN: "test-token",
       DISCORD_API_BASE: `http://127.0.0.1:${address.port}`,

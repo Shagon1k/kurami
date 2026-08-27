@@ -18,7 +18,7 @@ function runNode(
 ): JsonObject {
   const output = execFileSync(process.execPath, [script, ...args], {
     encoding: "utf8",
-    env: { ...process.env, ...env, ORCHESTRATOR_HOME: home },
+    env: { ...process.env, ...env, KURAMI_HOME: home },
     stdio: ["ignore", "pipe", "pipe"],
   });
   return JSON.parse(output.trim().split(/\r?\n/u).filter(Boolean).at(-1)!) as JsonObject;

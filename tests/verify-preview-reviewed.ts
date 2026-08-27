@@ -19,7 +19,7 @@ function runNode(
     [resolve(appDirectory, relativePath), ...args],
     {
       encoding: "utf8",
-      env: { ...process.env, ORCHESTRATOR_HOME: home },
+      env: { ...process.env, KURAMI_HOME: home },
       stdio: ["ignore", "pipe", "pipe"],
     },
   );
@@ -37,7 +37,7 @@ function nodeFails(
     [resolve(appDirectory, relativePath), ...args],
     {
       encoding: "utf8",
-      env: { ...process.env, ORCHESTRATOR_HOME: home },
+      env: { ...process.env, KURAMI_HOME: home },
       stdio: ["ignore", "pipe", "pipe"],
     },
   );
@@ -63,7 +63,7 @@ async function initializeThroughV23(
   execFileSync(process.execPath, [resolve(appDirectory, "src/init-run-store.ts")], {
     env: {
       ...process.env,
-      ORCHESTRATOR_HOME: home,
+      KURAMI_HOME: home,
       ORCHESTRATOR_MIGRATIONS_DIR: oldMigrations,
     },
     stdio: ["ignore", "ignore", "pipe"],

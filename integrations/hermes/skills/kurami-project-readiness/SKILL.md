@@ -11,7 +11,7 @@ or mutation path.
 Use only these fixed production paths:
 
 ```text
-ORCHESTRATOR_HOME=/home/shagon1k/_hermes/_kurami
+KURAMI_HOME=/home/shagon1k/_hermes/_kurami
 NODE=/home/shagon1k/_hermes/_kurami/runtime/node/bin/node
 CHECKER=/home/shagon1k/_hermes/_kurami/app/src/orchestrator/projects/project-readiness.ts
 ```
@@ -25,13 +25,13 @@ not infer a key from a repository title or conversation memory.
 For one configured project, run config validation first:
 
 ```text
-ORCHESTRATOR_HOME=$ORCHESTRATOR_HOME $NODE $CHECKER --project <key> --json
+KURAMI_HOME=$KURAMI_HOME $NODE $CHECKER --project <key> --json
 ```
 
 If that returns zero failures and the owner asked for live verification, run:
 
 ```text
-ORCHESTRATOR_HOME=$ORCHESTRATOR_HOME $NODE $CHECKER --project <key> --live --json
+KURAMI_HOME=$KURAMI_HOME $NODE $CHECKER --project <key> --live --json
 ```
 
 The live mode is still read-only. It may read the configured GitHub repository,
