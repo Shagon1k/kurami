@@ -12,7 +12,7 @@ readonly RUNTIME_BUDGET="${KURAMI_HOME}/app/src/runtime-budget.ts"
 readonly DISCORD_NOTIFIER="${KURAMI_HOME}/app/src/notify-discord-controls.ts"
 readonly METADATA_SYNC="${KURAMI_HOME}/app/src/orchestrator/projects/metadata/sync.ts"
 readonly PROJECTS_DIGEST="${KURAMI_HOME}/app/run-projects-digest.sh"
-readonly OBSERVER="${KURAMI_HOME}/app/src/observe-sessions.ts"
+readonly OBSERVER="${KURAMI_HOME}/app/src/orchestrator/projects/sessions/observe.ts"
 readonly ENV_FILE="${KURAMI_HOME}/secrets/github.env"
 readonly PROJECT="${1:-}"
 

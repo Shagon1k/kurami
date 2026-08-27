@@ -53,7 +53,7 @@ app/
     process-project-events.ts Compatibility CLI for existing event consumers
     controller.ts             Dispatches only handlers eligible for current states
     codex-app-server.ts       Minimal stdio client for durable Codex thread metadata
-    observe-sessions.ts       Deduplicates persistent CLI attention conditions
+    observe-sessions.ts       Compatibility CLI/API for session observation
     provision-worktree.ts     Plans or explicitly provisions Git worktrees
     release-worktree.ts       Safely releases cancelled or verified-merged Git resources
     cancel-resolution.ts      Guardedly resolves confirmed unpublished or Draft PR results
@@ -93,6 +93,8 @@ app/
             manager.ts        Plans durable changed-only metadata batches
             worker.ts         Runs bounded read-only Priority/Effort assessment
             scheduler.ts      Admits at most one daily assessment batch
+        sessions/
+          observe.ts          Deduplicates persistent CLI attention conditions
       settings/
         runtime-settings.ts   Verified runtime overrides and effective limits
         orchestrator-settings.ts
@@ -842,9 +844,9 @@ environment. Review summaries and inline findings carry visible AI attribution
 plus hidden `review_id`/exact-SHA provenance markers for deterministic P3b
 triage.
 
-`src/observe-sessions.ts` checks only CLI-owned runs. A waiting approval,
-interrupted turn, missing managed tmux, or idle textual blocker such as a stopped
-publish workflow must persist for two observations before one durable
+`src/orchestrator/projects/sessions/observe.ts` checks only CLI-owned runs. A
+waiting approval, interrupted turn, missing managed tmux, or idle textual blocker
+such as a stopped publish workflow must persist for two observations before one durable
 notification is emitted; the same condition is not repeated until it clears and
 later recurs. Textual blocker matching requires the fresh Codex input prompt to
 appear after the blocker, so transient narration does not trigger an alert.
