@@ -162,14 +162,14 @@ Recreate or verify:
 | `kurami-pickflick-poller` | `* * * * *` | local |
 | `kurami-ahurynovich-cv-poller` | `* * * * *` | local |
 | `kurami-projects-digest` | `45 6 * * *` | digest Discord channel |
-| `kurami-orchestrator-state-backup` | `15 3 */3 * *` | maintenance Discord channel |
+| `kurami-state-backup` | `15 3 */3 * *` | maintenance Discord channel |
 | `kurami-system-health` | `*/20 * * * *` | local; edits health card and sends alerts |
 | `kurami-network-speed` | `7 */6 * * *` | local; updates bounded speed state |
-| `kurami-orchestrator-monthly-maintenance` | `15 4 1 * *` | maintenance Discord channel |
+| `kurami-monthly-maintenance` | `15 4 1 * *` | maintenance Discord channel |
 
 The pollers remain separate because project events belong to different Discord
-channels. Backup and project cleanup belong to the orchestrator; system health
-and network trends are generic Kurami-wide jobs.
+channels. Backup, maintenance, system health, and network trends are Kurami-wide jobs.
+Project pollers and their cleanup remain part of the Project Orchestrator.
 
 ## Validation
 

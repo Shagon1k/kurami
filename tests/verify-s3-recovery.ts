@@ -60,7 +60,7 @@ const transport = new MemoryS3();
 const backupWrapper = await readFile(
   resolve(
     process.cwd(),
-    "integrations/hermes/scripts/kurami-orchestrator-state-backup.sh",
+    "integrations/hermes/scripts/kurami-state-backup.sh",
   ),
   "utf8",
 );

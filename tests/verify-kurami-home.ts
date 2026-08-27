@@ -122,11 +122,20 @@ for (const relative of [
   "run-projects-digest.sh",
   "integrations/hermes/scripts/kurami-runtime-health.sh",
   "integrations/hermes/scripts/kurami-network-speed.sh",
-  "integrations/hermes/scripts/kurami-orchestrator-state-backup.sh",
+  "integrations/hermes/scripts/kurami-state-backup.sh",
+  "integrations/hermes/scripts/kurami-monthly-maintenance.sh",
 ]) {
   const content = await readFile(resolve(root, relative), "utf8");
   assert(content.includes(`KURAMI_HOME="${canonicalHome}"`));
   assert(content.includes('export ORCHESTRATOR_HOME="${KURAMI_HOME}"'));
+}
+
+for (const [legacy, canonical] of [
+  ["kurami-orchestrator-state-backup.sh", "kurami-state-backup.sh"],
+  ["kurami-orchestrator-monthly-maintenance.sh", "kurami-monthly-maintenance.sh"],
+] as const) {
+  const content = await readFile(resolve(root, "integrations/hermes/scripts", legacy), "utf8");
+  assert(content.includes(`/scripts/${canonical}`));
 }
 
 const service = await readFile(
