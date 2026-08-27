@@ -33,7 +33,7 @@ records exactly which resources belong to each issue.
 app/
   migrations/                 Versioned SQLite schema migrations
   src/
-    init-run-store.ts         Applies migrations and checks DB integrity
+    init-run-store.ts         Compatibility CLI for Run Store initialization
     poll-projects.ts          Compatibility CLI for existing poller callers
     triage-snapshot.ts        Compatibility CLI/API for existing triage callers
     triage-rank.ts            Compatibility CLI/API for existing ranking callers
@@ -79,6 +79,8 @@ app/
     discord/
       ui.ts                   Shared Discord Components V2 primitives
     orchestrator/
+      state/
+        init-run-store.ts     Applies migrations and checks DB integrity
       controls/
         run.ts                Inspects runs and queues allowlisted owner actions
         discord.ts            Reconciles Discord ticket threads and live cards
@@ -1358,8 +1360,10 @@ Apply pending database migrations and check integrity:
 
 ```bash
 ORCHESTRATOR_HOME=/home/shagon1k/_hermes/_kurami \
-node src/init-run-store.ts
+node src/orchestrator/state/init-run-store.ts
 ```
+
+`src/init-run-store.ts` remains available as a compatibility entrypoint.
 
 Run one production poll -> consume cycle manually:
 

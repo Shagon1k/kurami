@@ -17,7 +17,7 @@ coverage/
 *.p12
 
 # Runtime state
-state/
+/state/
 logs/
 backups/
 runtime/

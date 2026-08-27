@@ -14,6 +14,8 @@ import * as legacyRuntimeSettings from "../src/runtime-settings.ts";
 import * as canonicalRuntimeSettings from "../src/orchestrator/settings/runtime-settings.ts";
 import * as legacyOrchestratorSettings from "../src/orchestrator-settings.ts";
 import * as canonicalOrchestratorSettings from "../src/orchestrator/settings/orchestrator-settings.ts";
+import * as legacyRunStoreInitializer from "../src/init-run-store.ts";
+import * as canonicalRunStoreInitializer from "../src/orchestrator/state/init-run-store.ts";
 
 assert.equal(
   legacyRuntimeSettings.loadEffectiveOrchestratorConfig,
@@ -22,6 +24,10 @@ assert.equal(
 assert.equal(
   legacyOrchestratorSettings.runOrchestratorSettingsCli,
   canonicalOrchestratorSettings.runOrchestratorSettingsCli,
+);
+assert.equal(
+  legacyRunStoreInitializer.runRunStoreInitializerCli,
+  canonicalRunStoreInitializer.runRunStoreInitializerCli,
 );
 
 const root = await mkdtemp(resolve(tmpdir(), "kurami-runtime-settings-test-"));
@@ -90,7 +96,7 @@ try {
     ORCHESTRATOR_MIGRATIONS_DIR: resolve(app, "migrations"),
     KURAMI_TMUX_BIN: fakeTmux,
   };
-  execFileSync(process.execPath, [resolve(app, "src/init-run-store.ts")], {
+  execFileSync(process.execPath, [resolve(app, "src/orchestrator/state/init-run-store.ts")], {
     env: { ...env, ORCHESTRATOR_MIGRATIONS_DIR: oldMigrations },
     stdio: ["ignore", "pipe", "pipe"],
   });
@@ -105,7 +111,7 @@ try {
     `)
     .run();
   upgrade.close();
-  execFileSync(process.execPath, [resolve(app, "src/init-run-store.ts")], {
+  execFileSync(process.execPath, [resolve(app, "src/orchestrator/state/init-run-store.ts")], {
     env,
     stdio: ["ignore", "pipe", "pipe"],
   });
