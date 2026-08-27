@@ -52,7 +52,10 @@ app/
     ai-review-worker.ts       Publishes one bounded native GitHub PR review
     process-project-events.ts Compatibility CLI for existing event consumers
     controller.ts             Dispatches only handlers eligible for current states
-    codex-app-server.ts       Minimal stdio client for durable Codex thread metadata
+    codex-app-server.ts       Compatibility API for Codex app-server integration
+    github-app-auth.ts        Compatibility API for GitHub App authentication
+    github-review-threads.ts  Compatibility API for GitHub review threads
+    prompt-safety.ts          Compatibility API for shared prompt hardening
     observe-sessions.ts       Compatibility CLI/API for session observation
     runtime-budget.ts         Compatibility CLI/API for runtime budget enforcement
     autonomous-successor.ts   Compatibility CLI/API for managed successor tasks
@@ -78,6 +81,14 @@ app/
       controls/
         run.ts                Inspects runs and queues allowlisted owner actions
         discord.ts            Reconciles Discord ticket threads and live cards
+      integrations/
+        codex/
+          app-server.ts       Durable Codex thread and detached-task boundary
+        github/
+          app-auth.ts         GitHub App and owner-token credential boundary
+          review-threads.ts   Fetches and resolves actionable review threads
+      security/
+        prompt-safety.ts      Redacts secrets and bounds untrusted prompt data
       projects/
         poll-projects.ts      Reads one or both GitHub Projects
         process-project-events.ts

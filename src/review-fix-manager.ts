@@ -4,8 +4,8 @@ import {
   createGitHubAppInstallationToken,
   loadGitHubAppCredentialsFromFile,
   loadOwnerGitHubTokenFromFile,
-} from "./github-app-auth.ts";
-import { replyAndResolveReviewThread } from "./github-review-threads.ts";
+} from "./orchestrator/integrations/github/app-auth.ts";
+import { replyAndResolveReviewThread } from "./orchestrator/integrations/github/review-threads.ts";
 
 process.umask(0o077);
 

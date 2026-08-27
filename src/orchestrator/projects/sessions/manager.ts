@@ -3,19 +3,19 @@ import { mkdir, readFile, realpath, stat, writeFile } from "node:fs/promises";
 import { relative, resolve } from "node:path";
 import { DatabaseSync } from "node:sqlite";
 import { parse } from "yaml";
-import { archiveThread, findAndNameThread } from "../../../codex-app-server.ts";
+import { archiveThread, findAndNameThread } from "../../integrations/codex/app-server.ts";
 import {
   createGitHubAppInstallationToken,
   loadGitHubAppCredentialsFromFile,
-} from "../../../github-app-auth.ts";
+} from "../../integrations/github/app-auth.ts";
 import {
   fetchActionableReviewThreads,
   type ActionableReviewThread,
-} from "../../../github-review-threads.ts";
+} from "../../integrations/github/review-threads.ts";
 import {
   redactSecretLikeText,
   serializeUntrustedPromptData,
-} from "../../../prompt-safety.ts";
+} from "../../security/prompt-safety.ts";
 
 process.umask(0o077);
 

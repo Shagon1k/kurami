@@ -7,7 +7,7 @@ import { parse } from "yaml";
 import {
   sanitizeUntrustedPromptData,
   serializeUntrustedPromptData,
-} from "../../../prompt-safety.ts";
+} from "../../security/prompt-safety.ts";
 
 process.umask(0o077);
 

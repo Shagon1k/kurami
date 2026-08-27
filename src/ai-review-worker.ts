@@ -1,16 +1,16 @@
 import { execFileSync } from "node:child_process";
 import { resolve } from "node:path";
 import { DatabaseSync } from "node:sqlite";
-import { runDetachedReview } from "./codex-app-server.ts";
+import { runDetachedReview } from "./orchestrator/integrations/codex/app-server.ts";
 import {
   createGitHubAppInstallationToken,
   loadGitHubAppCredentials,
   reviewerAppEnvironmentKeys,
-} from "./github-app-auth.ts";
+} from "./orchestrator/integrations/github/app-auth.ts";
 import {
   assertNoSecretLikeText,
   serializeUntrustedPromptData,
-} from "./prompt-safety.ts";
+} from "./orchestrator/security/prompt-safety.ts";
 
 process.umask(0o077);
 

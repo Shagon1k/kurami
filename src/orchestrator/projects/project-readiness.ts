@@ -4,7 +4,7 @@ import { readFile } from "node:fs/promises";
 import { isAbsolute, resolve } from "node:path";
 import { pathToFileURL } from "node:url";
 import { parse } from "yaml";
-import { loadOwnerGitHubTokenFromFile } from "../../github-app-auth.ts";
+import { loadOwnerGitHubTokenFromFile } from "../integrations/github/app-auth.ts";
 
 process.umask(0o077);
 

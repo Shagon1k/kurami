@@ -2,7 +2,7 @@ import {
   buildReviewInstructions,
   parseReviewResult,
 } from "../src/ai-review-worker.ts";
-import { detachedCodexEnvironment } from "../src/codex-app-server.ts";
+import { detachedCodexEnvironment } from "../src/orchestrator/integrations/codex/app-server.ts";
 import type { MetadataProposalCandidate } from "../src/metadata-proposal-manager.ts";
 import {
   buildMetadataProposalInstructions,
@@ -14,12 +14,26 @@ import {
   redactSecretLikeText,
   sanitizeUntrustedPromptData,
   serializeUntrustedPromptData,
-} from "../src/prompt-safety.ts";
+} from "../src/orchestrator/security/prompt-safety.ts";
+import * as legacyCodexAppServer from "../src/codex-app-server.ts";
+import * as legacyPromptSafety from "../src/prompt-safety.ts";
 import { reviewFixPrompt } from "../src/session-manager.ts";
 
 function assert(condition: unknown, message: string): asserts condition {
   if (!condition) throw new Error(message);
 }
+
+assert(
+  legacyCodexAppServer.detachedCodexEnvironment === detachedCodexEnvironment &&
+    legacyPromptSafety.assertNoSecretLikeText === assertNoSecretLikeText &&
+    legacyPromptSafety.isSecretEnvironmentName === isSecretEnvironmentName &&
+    legacyPromptSafety.redactSecretLikeText === redactSecretLikeText &&
+    legacyPromptSafety.sanitizeUntrustedPromptData ===
+      sanitizeUntrustedPromptData &&
+    legacyPromptSafety.serializeUntrustedPromptData ===
+      serializeUntrustedPromptData,
+  "Legacy prompt/Codex wrappers diverged from canonical modules",
+);
 
 function expectFailure(action: () => unknown, expected: string, secret: string): void {
   let message = "";

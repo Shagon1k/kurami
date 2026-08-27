@@ -6,8 +6,10 @@ import { DatabaseSync } from "node:sqlite";
 import {
   replyAndResolveReviewThread,
   selectActionableReviewThreads,
-} from "../src/github-review-threads.ts";
-import { loadOwnerGitHubTokenFromFile } from "../src/github-app-auth.ts";
+} from "../src/orchestrator/integrations/github/review-threads.ts";
+import { loadOwnerGitHubTokenFromFile } from "../src/orchestrator/integrations/github/app-auth.ts";
+import * as legacyGitHubAppAuth from "../src/github-app-auth.ts";
+import * as legacyReviewThreads from "../src/github-review-threads.ts";
 import { reviewFixPrompt } from "../src/session-manager.ts";
 
 type JsonObject = Record<string, unknown>;
@@ -26,6 +28,15 @@ function runNode(script: string, args: string[], home: string): JsonObject {
 }
 
 async function main(): Promise<void> {
+  assert(
+    legacyReviewThreads.replyAndResolveReviewThread ===
+      replyAndResolveReviewThread &&
+      legacyReviewThreads.selectActionableReviewThreads ===
+        selectActionableReviewThreads &&
+      legacyGitHubAppAuth.loadOwnerGitHubTokenFromFile ===
+        loadOwnerGitHubTokenFromFile,
+    "Legacy GitHub review wrappers diverged from canonical modules",
+  );
   const app = resolve(import.meta.dirname, "..");
   const home = await realpath(await mkdtemp(resolve(tmpdir(), "kurami-review-fix-test-")));
   try {

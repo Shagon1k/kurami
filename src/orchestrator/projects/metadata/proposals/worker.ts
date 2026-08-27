@@ -2,7 +2,7 @@ import { execFileSync } from "node:child_process";
 import { createHash, randomUUID } from "node:crypto";
 import { resolve } from "node:path";
 import { DatabaseSync } from "node:sqlite";
-import { runDetachedReview } from "../../../../codex-app-server.ts";
+import { runDetachedReview } from "../../../integrations/codex/app-server.ts";
 import {
   candidateFromFact,
   maximumProposalBatchIssues,
@@ -13,7 +13,7 @@ import {
 import {
   assertNoSecretLikeText,
   serializeUntrustedPromptData,
-} from "../../../../prompt-safety.ts";
+} from "../../../security/prompt-safety.ts";
 import type { TriageFacts } from "../../triage/snapshot.ts";
 
 process.umask(0o077);

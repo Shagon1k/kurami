@@ -12,11 +12,13 @@ import {
 import {
   detachedCodexEnvironment,
   runDetachedReview,
-} from "../src/codex-app-server.ts";
+} from "../src/orchestrator/integrations/codex/app-server.ts";
 import {
   createGitHubAppInstallationToken,
   loadGitHubAppCredentials,
-} from "../src/github-app-auth.ts";
+} from "../src/orchestrator/integrations/github/app-auth.ts";
+import * as legacyCodexAppServer from "../src/codex-app-server.ts";
+import * as legacyGitHubAppAuth from "../src/github-app-auth.ts";
 
 type JsonObject = Record<string, unknown>;
 
@@ -34,6 +36,15 @@ function runNode(script: string, args: string[], home: string): JsonObject {
 }
 
 async function main(): Promise<void> {
+  assert(
+    legacyCodexAppServer.detachedCodexEnvironment ===
+      detachedCodexEnvironment &&
+      legacyCodexAppServer.runDetachedReview === runDetachedReview &&
+      legacyGitHubAppAuth.createGitHubAppInstallationToken ===
+        createGitHubAppInstallationToken &&
+      legacyGitHubAppAuth.loadGitHubAppCredentials === loadGitHubAppCredentials,
+    "Legacy review foundation wrappers diverged from canonical modules",
+  );
   const app = resolve(import.meta.dirname, "..");
   const home = await realpath(await mkdtemp(resolve(tmpdir(), "kurami-ai-review-test-")));
   try {
