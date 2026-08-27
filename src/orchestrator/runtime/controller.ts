@@ -1391,6 +1391,12 @@ function progressFor(
   run: ProgressRow,
   config: OrchestratorConfig,
 ): { stage: string; detail: string } {
+  if (run.run_state === "stopping") {
+    return {
+      stage: "stopping",
+      detail: "Stopping active resources and checking cleanup safety.",
+    };
+  }
   if (
     run.preview_required === 1 &&
     run.completion_requested_at !== null &&
@@ -1585,12 +1591,6 @@ function progressFor(
     return {
       stage: "waiting_human",
       detail: "The run is waiting for Alex's decision.",
-    };
-  }
-  if (run.run_state === "stopping") {
-    return {
-      stage: "stopping",
-      detail: "Stopping active resources and checking cleanup safety.",
     };
   }
   if (run.run_state === "archived") {

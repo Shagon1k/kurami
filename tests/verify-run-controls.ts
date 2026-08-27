@@ -463,6 +463,30 @@ async function main(): Promise<void> {
       )
       .run();
     addDirect(
+      "r_completed_stop",
+      9318,
+      "autonomous",
+      "stopping",
+      "cli",
+      "cx-tt-9318-completed",
+    );
+    verify
+      .prepare(
+        `UPDATE runs SET stop_reason = 'completed'
+         WHERE run_id = 'r_completed_stop'`,
+      )
+      .run();
+    verify
+      .prepare(
+        `INSERT INTO preview_leases (
+           lease_id, run_id, slot_number, state, compose_project_name
+         ) VALUES (
+           'lease-completed-stop', 'r_completed_stop', 2, 'running',
+           'completed-stop-preview'
+         )`,
+      )
+      .run();
+    addDirect(
       "r_cancel_race",
       9310,
       "autonomous",
@@ -680,6 +704,10 @@ async function main(): Promise<void> {
       "A later Human Review event must not override cancellation intent",
     );
     assert(
+      actions.r_completed_stop === "cancel_cli",
+      "Completed run with an active CLI session did not plan bounded stop",
+    );
+    assert(
       actions.r_review_ready === undefined,
       "Review-ready must not auto-start preview",
     );
@@ -761,6 +789,17 @@ async function main(): Promise<void> {
     assert(
       previewCard.stage === "preview_ready",
       "Preview progress card is stale",
+    );
+    const stoppingPreviewCard = notificationState
+      .prepare(
+        `SELECT stage, detail FROM run_progress_cards
+         WHERE run_id = 'r_completed_stop'`,
+      )
+      .get() as { stage: string; detail: string };
+    assert(
+      stoppingPreviewCard.stage === "stopping" &&
+        stoppingPreviewCard.detail.includes("cleanup safety"),
+      "Active preview masked the completed run cleanup stage",
     );
     const finalizingCard = notificationState
       .prepare(

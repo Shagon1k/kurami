@@ -1832,9 +1832,13 @@ async function cancelCliSession(
   run: SessionRun,
   apply: boolean,
 ): Promise<void> {
-  if (run.stop_reason !== "cancelled" || run.owner_state !== "cli") {
+  const stopIntent = run.stop_reason;
+  if (
+    (stopIntent !== "cancelled" && stopIntent !== "completed") ||
+    run.owner_state !== "cli"
+  ) {
     fail(
-      `Run is not CLI-owned with cancellation intent: state=${run.run_state}, owner=${run.owner_state}, stopReason=${run.stop_reason ?? "none"}`,
+      `Run is not CLI-owned with stop intent: state=${run.run_state}, owner=${run.owner_state}, stopReason=${run.stop_reason ?? "none"}`,
     );
   }
   if (
@@ -1855,7 +1859,12 @@ async function cancelCliSession(
       if (tmuxSessionExists(run.tmux_session_name)) throw new Error("Failed to capture active Codex session");
     }
   }
-  const tailDirectory = resolve(orchestratorHome, "logs/session-cancellations");
+  const tailDirectory = resolve(
+    orchestratorHome,
+    stopIntent === "completed"
+      ? "logs/session-completions"
+      : "logs/session-cancellations",
+  );
   const tailPath = resolve(tailDirectory, `${run.run_id}.txt`);
   const plan = {
     runId: run.run_id,
@@ -1909,12 +1918,12 @@ async function cancelCliSession(
   try {
     const current = loadRun(database, run.run_id);
     if (
-      current.stop_reason !== "cancelled" ||
+      current.stop_reason !== stopIntent ||
       current.owner_state !== "cli" ||
       current.tmux_session_name !== run.tmux_session_name
     ) {
       fail(
-        `Run changed during cancellation: state=${current.run_state}, owner=${current.owner_state}, tmux=${current.tmux_session_name ?? "none"}`,
+        `Run changed during CLI stop: state=${current.run_state}, owner=${current.owner_state}, tmux=${current.tmux_session_name ?? "none"}`,
       );
     }
     database
@@ -1942,7 +1951,9 @@ async function cancelCliSession(
       run.run_id,
       run.run_state,
       "stopping",
-      "codex_cli_cancel_completed",
+      stopIntent === "completed"
+        ? "codex_cli_completion_stop_completed"
+        : "codex_cli_cancel_completed",
       {
         codexThreadId: run.codex_thread_id,
         previousTmuxSessionName: run.tmux_session_name,
@@ -1957,8 +1968,10 @@ async function cancelCliSession(
     throw error;
   }
 
+  const action =
+    stopIntent === "completed" ? "stopped_cli_for_completion" : "cancelled_cli";
   process.stdout.write(
-    `${JSON.stringify({ ok: true, apply: true, action: "cancelled_cli", ...plan, forced })}\n`,
+    `${JSON.stringify({ ok: true, apply: true, action, ...plan, forced })}\n`,
   );
 }
 

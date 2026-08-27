@@ -246,6 +246,89 @@ esac
       "Cancellation did not target the exact managed tmux session",
     );
 
+    const completionTmuxSession = "cx-tt-9401-complete";
+    await writeFile(fakeTmuxState, `${completionTmuxSession}\n`, {
+      encoding: "utf8",
+      mode: 0o600,
+    });
+    const completionSeed = new DatabaseSync(databasePath);
+    completionSeed
+      .prepare(
+        `UPDATE runs
+         SET state = 'stopping', owner_state = 'cli', stop_reason = 'completed'
+         WHERE run_id = ?`,
+      )
+      .run(runId);
+    completionSeed
+      .prepare(
+        `UPDATE run_resources SET tmux_session_name = ? WHERE run_id = ?`,
+      )
+      .run(completionTmuxSession, runId);
+    completionSeed.close();
+
+    const completionStdout = execFileSync(
+      process.execPath,
+      [
+        resolve(appDirectory, "src/session-manager.ts"),
+        "cancel",
+        "--run-id",
+        runId,
+        "--apply",
+      ],
+      { encoding: "utf8", env, stdio: ["ignore", "pipe", "pipe"] },
+    );
+    const completionResult = JSON.parse(completionStdout) as {
+      ok: boolean;
+      action: string;
+      forced: boolean;
+    };
+    assert(completionResult.ok, "CLI completion stop did not succeed");
+    assert(
+      completionResult.action === "stopped_cli_for_completion",
+      "Completed run used cancellation semantics",
+    );
+    assert(completionResult.forced, "Completed run did not stop its managed tmux");
+
+    const completionVerify = new DatabaseSync(databasePath, { readOnly: true });
+    const completionRow = completionVerify
+      .prepare(
+        `SELECT r.state, r.owner_state, r.stop_reason, rr.tmux_session_name
+         FROM runs r JOIN run_resources rr USING (run_id)
+         WHERE r.run_id = ?`,
+      )
+      .get(runId) as {
+      state: string;
+      owner_state: string;
+      stop_reason: string;
+      tmux_session_name: string | null;
+    };
+    const completionHistory = completionVerify
+      .prepare(
+        `SELECT reason FROM run_state_history
+         WHERE run_id = ? ORDER BY sequence DESC LIMIT 1`,
+      )
+      .get(runId) as { reason: string };
+    completionVerify.close();
+    assert(
+      completionRow.state === "stopping" &&
+        completionRow.owner_state === "none" &&
+        completionRow.stop_reason === "completed" &&
+        completionRow.tmux_session_name === null,
+      "Completion stop did not preserve completed intent while releasing CLI ownership",
+    );
+    assert(
+      completionHistory.reason === "codex_cli_completion_stop_completed",
+      "Completion stop history was not recorded distinctly",
+    );
+    const completionTranscriptPath = resolve(
+      testHome,
+      "logs/session-completions",
+      `${runId}.txt`,
+    );
+    assert(
+      (await readFile(completionTranscriptPath, "utf8")).includes("Working (1s"),
+      "Completion stop transcript was not preserved",
+    );
     process.stdout.write(
       `${JSON.stringify({
         ok: true,
