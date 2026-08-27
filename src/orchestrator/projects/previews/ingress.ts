@@ -16,7 +16,7 @@ import {
   CODEX_DEEPLINK_HOST,
   CODEX_DEEPLINK_PATH_PREFIX,
   CODEX_THREAD_ID_PATTERN,
-} from "../../../codex-deeplink.ts";
+} from "../../integrations/codex/deeplink.ts";
 
 process.umask(0o077);
 

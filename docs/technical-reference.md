@@ -70,7 +70,7 @@ app/
                               Compatibility CLI/API for Compose previews
     preview-static-runtime.ts Compatibility CLI/API for static previews
     preview-ingress.ts        Compatibility CLI/API for preview ingress reconciliation
-    codex-deeplink.ts         Validates Codex thread IDs and builds HTTPS launch URLs
+    codex-deeplink.ts         Compatibility API for Codex launch URLs
     session-manager.ts        Compatibility CLI/API for managed Codex sessions
     run-controls.ts           Compatibility CLI/API for allowlisted run controls
     notify-controls.ts        Frozen opt-in proactive Telegram fallback
@@ -89,6 +89,7 @@ app/
       integrations/
         codex/
           app-server.ts       Durable Codex thread and detached-task boundary
+          deeplink.ts         Validates thread IDs and builds HTTPS launch URLs
         github/
           app-auth.ts         GitHub App and owner-token credential boundary
           review-threads.ts   Fetches and resolves actionable review threads

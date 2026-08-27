@@ -4,7 +4,7 @@ import { readFile } from "node:fs/promises";
 import { resolve } from "node:path";
 import { DatabaseSync } from "node:sqlite";
 import { parse } from "yaml";
-import { codexLaunchUrl } from "../../codex-deeplink.ts";
+import { codexLaunchUrl } from "../integrations/codex/deeplink.ts";
 import {
   actionRow,
   button,
