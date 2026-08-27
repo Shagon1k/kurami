@@ -2,9 +2,20 @@ import {
   analyzePreviewConsistency,
   formatHealthSummary,
   parseOomKillCount,
-} from "../src/runtime-health.ts";
+  runRuntimeHealthCli,
+} from "../src/orchestrator/health/runtime.ts";
+import * as legacyRuntimeHealth from "../src/runtime-health.ts";
 import type { ResourceGuardAnalysis } from "../src/orchestrator/resources/guard.ts";
 import { defaultServerHealthConfig } from "../src/server-health.ts";
+
+if (
+  legacyRuntimeHealth.analyzePreviewConsistency !== analyzePreviewConsistency ||
+  legacyRuntimeHealth.formatHealthSummary !== formatHealthSummary ||
+  legacyRuntimeHealth.parseOomKillCount !== parseOomKillCount ||
+  legacyRuntimeHealth.runRuntimeHealthCli !== runRuntimeHealthCli
+) {
+  throw new Error("Legacy runtime-health wrapper diverged from canonical module");
+}
 
 const healthyResourceGuard: ResourceGuardAnalysis = {
   disk: { usedPercent: 18, availableGiB: 160, state: "normal" },

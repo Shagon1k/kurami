@@ -90,6 +90,8 @@ app/
           review-threads.ts   Fetches and resolves actionable review threads
       security/
         prompt-safety.ts      Redacts secrets and bounds untrusted prompt data
+      health/
+        runtime.ts            Inspects DB, previews, resources, and host signals
       projects/
         poll-projects.ts      Reads one or both GitHub Projects
         process-project-events.ts
@@ -139,7 +141,7 @@ app/
         runtime-settings.ts   Verified runtime overrides and effective limits
         orchestrator-settings.ts
                               Owner-only status/apply/reset/rollback boundary
-    runtime-health.ts         Read-only DB/Docker/preview consistency inspection
+    runtime-health.ts         Compatibility CLI/API for orchestrator runtime health
     system/
       health/
         server-health.ts      System CPU, memory, uptime, and alert state engine
@@ -1192,6 +1194,8 @@ The default freshness limit is 84 hours, matching the three-day backup cadence
 with a 12-hour execution margin. `KURAMI_BACKUP_MAX_AGE_HOURS` may be set from
 24 through 168. `--alert-text` is silent while healthy; `--summary-text` always
 prints a compact owner-facing status.
+The implementation lives at `src/orchestrator/health/runtime.ts`; the root file
+remains a compatibility entrypoint for recovery commands and older integrations.
 
 Inspect the resource guard without changing quarantine state, or reconcile only
 the durable observation/quarantine records:

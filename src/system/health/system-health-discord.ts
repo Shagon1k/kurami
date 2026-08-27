@@ -22,7 +22,7 @@ import {
   inspectRuntimeHealth,
   writeRuntimeHealthCounterState,
   type RuntimeHealthResult,
-} from "../../runtime-health.ts";
+} from "../../orchestrator/health/runtime.ts";
 
 process.umask(0o077);
 
