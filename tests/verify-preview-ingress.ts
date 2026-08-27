@@ -1,9 +1,21 @@
-import { renderRoutes, type IngressRoute } from "../src/preview-ingress.ts";
+import {
+  renderRoutes,
+  type IngressRoute,
+} from "../src/orchestrator/projects/previews/ingress.ts";
 import { codexLaunchUrl } from "../src/codex-deeplink.ts";
+import * as canonicalPreviewIngress from "../src/orchestrator/projects/previews/ingress.ts";
+import * as legacyPreviewIngress from "../src/preview-ingress.ts";
 
 function assert(condition: unknown, message: string): asserts condition {
   if (!condition) throw new Error(message);
 }
+
+assert(
+  legacyPreviewIngress.renderRoutes === canonicalPreviewIngress.renderRoutes &&
+    legacyPreviewIngress.runPreviewIngressCli ===
+      canonicalPreviewIngress.runPreviewIngressCli,
+  "Legacy preview-ingress is not a transparent compatibility wrapper",
+);
 
 function count(content: string, fragment: string): number {
   return content.split(fragment).length - 1;

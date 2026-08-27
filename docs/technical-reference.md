@@ -65,7 +65,7 @@ app/
     preview-compose-runtime.ts
                               Builds and removes rootless Compose previews
     preview-static-runtime.ts Publishes immutable static artifact snapshots
-    preview-ingress.ts        Atomically reconciles running previews into Caddy routes
+    preview-ingress.ts        Compatibility CLI/API for preview ingress reconciliation
     codex-deeplink.ts         Validates Codex thread IDs and builds HTTPS launch URLs
     session-manager.ts        Compatibility CLI/API for managed Codex sessions
     run-controls.ts           Inspects runs and queues allowlisted owner actions
@@ -108,6 +108,7 @@ app/
                               Resolves confirmed unpublished or Draft PR cleanup
         previews/
           manager.ts          Leases, acknowledges, extends, and releases preview slots
+          ingress.ts          Atomically reconciles running previews into Caddy routes
       settings/
         runtime-settings.ts   Verified runtime overrides and effective limits
         orchestrator-settings.ts
@@ -1020,7 +1021,9 @@ counts. Once exact-SHA evidence exists, the controller resumes completion
 automatically and retains the source event, lease, SHA, reviewer, and timestamps
 as durable provenance. Runs without the label keep the existing lifecycle.
 
-`src/preview-ingress.ts` is the only writer of the managed Caddy route fragment.
+`src/orchestrator/projects/previews/ingress.ts` is the only writer of the managed
+Caddy route fragment. `src/preview-ingress.ts` remains a transparent
+compatibility CLI and API for existing operational commands.
 It renders routes solely for enabled slots whose lease is `running`, validates a
 candidate configuration before replacing the live mode-`600` file, and reloads
 Caddy through its loopback-only admin endpoint. A failed reload restores and
