@@ -70,6 +70,14 @@ def _kurami_home() -> Path:
     ).absolute()
 
 
+def _kurami_subprocess_env() -> dict[str, str]:
+    env = dict(os.environ)
+    home = str(_kurami_home())
+    env["KURAMI_HOME"] = home
+    env["ORCHESTRATOR_HOME"] = home
+    return env
+
+
 def discard_confirmation_id(run_id: str) -> str:
     """Return the exact allowlisted destructive-confirmation component ID."""
 
@@ -249,9 +257,7 @@ async def _run_metadata_control(
         args.extend(["--thread-id", thread_id])
     if action != "status":
         args.append("--apply")
-    env = dict(os.environ)
-    env["KURAMI_HOME"] = str(control.parents[2])
-    env["ORCHESTRATOR_HOME"] = str(control.parents[2])
+    env = _kurami_subprocess_env()
     process = await asyncio.create_subprocess_exec(
         *args,
         stdin=asyncio.subprocess.DEVNULL,
@@ -282,9 +288,7 @@ async def _refresh_digest(project: str) -> None:
     node, control, notifier = _metadata_paths()
     if not node.is_file() or not notifier.is_file():
         raise RuntimeError("Kurami Projects Digest notifier is unavailable")
-    env = dict(os.environ)
-    env["KURAMI_HOME"] = str(control.parents[2])
-    env["ORCHESTRATOR_HOME"] = str(control.parents[2])
+    env = _kurami_subprocess_env()
     process = await asyncio.create_subprocess_exec(
         str(node),
         str(notifier),
@@ -569,9 +573,7 @@ async def _run_control(
             "--apply",
         ]
 
-    env = dict(os.environ)
-    env["KURAMI_HOME"] = str(control.parents[2])
-    env["ORCHESTRATOR_HOME"] = str(control.parents[2])
+    env = _kurami_subprocess_env()
     process = await asyncio.create_subprocess_exec(
         *args,
         stdin=asyncio.subprocess.DEVNULL,
@@ -611,9 +613,7 @@ async def _refresh_dashboard(
         raise RuntimeError("Invalid Kurami run ID")
     if thread_id and not thread_id.isdigit():
         raise RuntimeError("Invalid Discord thread ID")
-    env = dict(os.environ)
-    env["KURAMI_HOME"] = str(control.parents[2])
-    env["ORCHESTRATOR_HOME"] = str(control.parents[2])
+    env = _kurami_subprocess_env()
     selector = ["--run-id", run_id] if run_id else ["--thread-id", thread_id]
     process = await asyncio.create_subprocess_exec(
         str(node),

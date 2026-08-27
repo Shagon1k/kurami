@@ -43,6 +43,12 @@ def main() -> None:
             and str(module._paths()[0]).startswith("/tmp/kurami-new-home/"),
             "KURAMI_HOME does not take precedence over the legacy home",
         )
+        subprocess_env = module._kurami_subprocess_env()
+        require(
+            subprocess_env["KURAMI_HOME"] == "/tmp/kurami-new-home"
+            and subprocess_env["ORCHESTRATOR_HOME"] == "/tmp/kurami-new-home",
+            "Plugin subprocess environment does not preserve canonical Kurami home",
+        )
         os.environ.pop("KURAMI_HOME")
         require(
             str(settings_module._paths()[0]).startswith("/tmp/kurami-legacy-home/")
@@ -59,6 +65,11 @@ def main() -> None:
         else:
             os.environ["ORCHESTRATOR_HOME"] = previous_orchestrator_home
     settings_source = settings_path.read_text()
+    control_source = module_path.read_text()
+    require(
+        "control.parents[2]" not in control_source,
+        "Plugin subprocess home still depends on source-file nesting depth",
+    )
     require(
         settings_source.index('label="System Health"')
         < settings_source.index('label="Capacity & WIP"'),
