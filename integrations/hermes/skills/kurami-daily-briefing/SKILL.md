@@ -19,7 +19,7 @@ Use these fixed production locations:
 KURAMI_HOME=/home/shagon1k/_hermes/_kurami
 CONFIG=/home/shagon1k/_hermes/_kurami/config/briefing.yaml
 TOPIC_SEED=/home/shagon1k/_hermes/_kurami/config/briefing-topics.yaml
-BRIEFING_CLI=/home/shagon1k/_hermes/_kurami/app/src/briefing/cli.ts
+BRIEFING_CLI=/home/shagon1k/_hermes/_kurami/app/dist/briefing/cli.js
 BRIEFING_NODE=/home/shagon1k/_hermes/_kurami/runtime/node/bin/node
 ```
 
@@ -90,8 +90,12 @@ Default manual experiments to `dry-run`. Generation never archives Gmail;
 11. Invoke `kurami-ui-preview-language` with the prepared payload. The renderer
     may choose components but must not rewrite facts, ordering, topics,
     reactions, read state, or action semantics.
-12. In `dry-run`, save the payload and inert HTML under a run-specific artifact
-    directory, then stage it with
+12. In `dry-run`, create the run-specific artifact directory, then write the
+    payload and inert HTML with the Hermes `write_file` tool. Do not generate
+    artifact files through a shell heredoc, inline Python/Node program, or a
+    dynamically assembled terminal command: the gateway lifecycle guard scans
+    referenced paths and will correctly fail closed on ambiguous inline code.
+    Stage the two completed files with the single short command
     `$BRIEFING_NODE $BRIEFING_CLI prepare-preview --payload <payload.json> --html <rendered.html>`.
     Return the preview path printed by the runtime. Do not claim a live publish.
 

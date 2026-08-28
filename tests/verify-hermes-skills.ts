@@ -82,6 +82,38 @@ for (const reference of briefingReferences) {
   );
 }
 
+const briefingSkill = fs.readFileSync(
+  path.join(skillsRoot, "kurami-daily-briefing", "SKILL.md"),
+  "utf8",
+);
+assert.match(briefingSkill, /\/dist\/briefing\/cli\.js/);
+assert.match(briefingSkill, /Hermes `write_file` tool/);
+assert.doesNotMatch(briefingSkill, /app\/src\/briefing\/cli\.ts/);
+
+const telegramProfile = fs.readFileSync(
+  path.join(
+    skillsRoot,
+    "kurami-daily-briefing",
+    "references",
+    "provider-telegram-user.md",
+  ),
+  "utf8",
+);
+assert.match(telegramProfile, /min\(captured unread count, settings\.page_size\)/);
+assert.match(telegramProfile, /Keep that request size\s+constant across pages/);
+
+const topicsProfile = fs.readFileSync(
+  path.join(
+    skillsRoot,
+    "kurami-daily-briefing",
+    "references",
+    "topics-and-ranking.md",
+  ),
+  "utf8",
+);
+assert.match(topicsProfile, /exact `id` and exact `label`/);
+assert.match(topicsProfile, /Never let one unknown candidate abort the\s+edition/);
+
 const config = readYaml(path.join(root, "deploy", "config", "briefing.yaml")) as {
   version: number;
   edition: { timezone: string; daily_retention_days: number };

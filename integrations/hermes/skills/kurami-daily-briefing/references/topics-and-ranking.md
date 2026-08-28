@@ -23,6 +23,14 @@ Start from the configured seed registry. Match a story to existing topics
 before proposing a new one. Treat close synonyms such as `Cinema`, `Films`, and
 `Movies` as one concept unless a narrower recurring distinction already exists.
 
+Build the lookup directly from the registry's `id`, `label`, and `aliases`.
+Every topic placed in a briefing payload must reuse an existing active topic's
+exact `id` and exact `label`. Do not construct a separate label-to-ID map in an
+ad-hoc script, title-case a candidate, or emit a free-form label. If a candidate
+does not resolve by ID, label, or alias, choose a genuinely relevant broader
+active topic or omit the candidate. Never let one unknown candidate abort the
+edition.
+
 ## Assign topics
 
 - Target three or four useful topics per story.
@@ -37,8 +45,9 @@ before proposing a new one. Treat close synonyms such as `Cinema`, `Films`, and
 ## Propose and promote
 
 Create a `proposed` topic only when no active topic expresses a durable,
-repeatable distinction. A proposed topic does not immediately affect the
-long-term profile.
+repeatable distinction. Keep proposals outside the edition payload until they
+are promoted; a proposed topic does not immediately affect the long-term
+profile.
 
 Promote it after it appears in at least three stories across at least two
 editions or independent sources. Before promotion, check aliases and neighboring

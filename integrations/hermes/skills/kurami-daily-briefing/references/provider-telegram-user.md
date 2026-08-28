@@ -30,8 +30,14 @@ For every enabled configured channel:
 
 1. Read its unread count and capture the newest visible message ID as the
    batch's upper boundary.
-2. Fetch newest messages a configured page at a time until the captured unread
-   count is covered.
+2. If the unread count is zero, do not call `get_messages`. Otherwise set one
+   fixed request size for that channel to
+   `min(captured unread count, settings.page_size)`. Fetch pages starting at
+   page 1 until the captured unread count is covered. Keep that request size
+   constant across pages because this connector uses page-number pagination;
+   changing it between pages can overlap or skip messages. Discard returned
+   entries beyond the captured unread count. In particular, never request the
+   configured maximum of 100 when a channel has only a few unread messages.
 3. Preserve the exact channel ID, message ID, and upper boundary.
 4. If the connector cannot cover the captured count, return that channel as
    partial rather than silently dropping older unread posts.
