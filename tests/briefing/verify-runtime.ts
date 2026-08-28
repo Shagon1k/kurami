@@ -4,6 +4,8 @@ import type { AddressInfo } from "node:net";
 import { tmpdir } from "node:os";
 import { resolve } from "node:path";
 import { createBriefingServer } from "../../src/briefing/server.ts";
+import { parseBriefingPayload } from "../../src/briefing/model.ts";
+import { renderBriefingPage } from "../../src/briefing/ui/render-page.ts";
 import {
   briefingPaths,
   cleanupExpired,
@@ -50,42 +52,30 @@ const payload = {
     state: "ready",
     pageSize: 10,
     mainStoryIds: ["story-1"],
-    items: [
-      {
-        id: "story-1",
-        fingerprint: "fp-story-1",
-        headline: "Тестовая новость",
-        summary: "Короткое проверяемое описание.",
-        details: ["Расширенный проверяемый абзац с фактическими деталями новости."],
-        topics: [
-          { id: "ai", label: "AI" },
-          { id: "technology", label: "Technology" },
-        ],
-      },
-    ],
+    items: Array.from({ length: 11 }, (_, index) => ({
+      id: `story-${index + 1}`,
+      fingerprint: `fp-story-${index + 1}`,
+      headline: index === 0 ? "Тестовая новость" : `Тестовая новость ${index + 1}`,
+      summary: "Короткое проверяемое описание.",
+      details: ["Расширенный проверяемый абзац с фактическими деталями новости."],
+      topics: [
+        { id: "ai", label: "AI" },
+        { id: "technology", label: "Technology" },
+      ],
+    })),
   },
   dataQuality: { state: "ready" },
 };
 
-const html = `<!doctype html>
-<html lang="ru">
-<head><meta charset="utf-8"><title>Briefing test</title></head>
-<body>
-  <button type="button" data-theme-toggle>Тема</button>
-  <section data-paginated-feed data-page-size="10" data-page-param="newsPage">
-    <h2 data-feed-heading>Новости</h2>
-    <article data-feed-item data-item-id="story-1">
-      <h3>Тестовая новость</h3>
-      <p>Короткое проверяемое описание.</p>
-      <details data-story-details data-edition-id="daily:2026-08-28" data-item-id="story-1">
-        <summary>Подробнее</summary>
-        <p>Расширенный проверяемый абзац с фактическими деталями новости.</p>
-      </details>
-    </article>
-  </section>
-  <button type="button" data-edition-id="daily:2026-08-28" data-item-id="story-1" data-reaction="like" aria-pressed="false">👍</button>
-</body>
-</html>`;
+const parsedPayload = parseBriefingPayload(payload);
+const html = renderBriefingPage(parsedPayload);
+assert.match(html, /\[hidden\]\s*\{\s*display:\s*none !important/);
+assert.match(html, /class="topic-chip"/);
+assert.match(html, /class="story-disclosure__body"/);
+assert.match(html, /data-feed-pagination/);
+assert.match(html, /data-page-prev/);
+assert.match(html, /data-page-next/);
+assert.doesNotMatch(html, /<script\b/i);
 
 const initialized = await initializeBriefingStore(paths);
 assert.equal(initialized.integrity, "ok");
@@ -102,13 +92,13 @@ try {
   assert(edition);
   assert.equal(edition.state, "prepared");
   assert.equal(edition.is_current, 0);
-  const items = database
-    .prepare("SELECT item_id, item_type FROM edition_items ORDER BY item_id")
+  const itemCounts = database
+    .prepare("SELECT item_type, COUNT(*) AS count FROM edition_items GROUP BY item_type ORDER BY item_type")
     .all()
     .map((item) => ({ ...item }));
-  assert.deepEqual(items, [
-    { item_id: "mail-1", item_type: "mail" },
-    { item_id: "story-1", item_type: "story" },
+  assert.deepEqual(itemCounts, [
+    { item_type: "mail", count: 1 },
+    { item_type: "story", count: 11 },
   ]);
 } finally {
   database.close();
@@ -230,6 +220,8 @@ process.stdout.write(
     themeToggleRequired: true,
     storyDetailsRequired: true,
     paginationRuntime: true,
+    deterministicComponents: true,
+    hiddenItemsCannotOverrideLayout: true,
     csp: true,
     scriptInjectionBlocked: true,
     readState: true,

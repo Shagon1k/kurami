@@ -3,7 +3,7 @@ name: kurami-ui-preview-language
 description: Render pages in Kurami's fixed visual language.
 license: private
 metadata:
-  version: 0.6.0
+  version: 0.7.0
   author: Aliaksei Hurynovich with Hermes Agent
   hermes:
     tags:
@@ -49,7 +49,12 @@ Read these references before making visual decisions:
 - `references/layout-archetypes.md` for density profiles and section composition.
 - `references/kurami-notes.md` for semantic note roles, placement, and daily variation.
 
-When implementing React or CSS, inspect the files in `templates/reference/`. They are the approved visual baseline, not a source of facts or demo copy. If a prose recipe and a reference component differ, preserve the reference component's structure and density, then adapt only what the payload requires.
+For Kurami Briefing pages, the production components in
+`/home/shagon1k/_hermes/_kurami/app/src/briefing/ui/` are canonical. Use the
+runtime renderer instead of hand-authoring known components. Inspect
+`templates/reference/` only for a new target that cannot use the canonical
+renderer; those files are a portable visual baseline, not a second component
+implementation and not a source of facts or demo copy.
 
 ## How to Run
 
@@ -58,6 +63,17 @@ A calling task can say:
 > Use `kurami-ui-preview-language` to render this prepared payload. Preserve all facts and ordering. Produce a responsive light/dark preview.
 
 For a Hermes cron job, include this skill in the job's `skills` field and pass the completed payload in the prompt. The data-producing skill remains responsible for sources and editorial logic; this skill remains responsible for display.
+
+For the configured Daily Briefing runtime, write only the validated payload and
+run:
+
+```text
+$BRIEFING_NODE $BRIEFING_CLI render-preview --payload <payload.json>
+```
+
+This invokes the canonical deterministic renderer. Do not generate a parallel
+HTML document, copy component markup into the prompt, or call the legacy
+`prepare-preview --html` path for a normal briefing run.
 
 Use Hermes file tools to inspect and edit the target project. Use the target project's normal verification commands only after checking its own instructions.
 
@@ -104,6 +120,13 @@ Use Hermes file tools to inspect and edit the target project. Use the target pro
 - Keep source-management and technical diagnostics out of the default reader flow unless the payload explicitly requests them or data quality requires disclosure.
 
 ### 3. Map content to components
+
+- Prefer canonical production components whenever the target runtime provides
+  them. The agent supplies payload and composition intent; component markup,
+  CSS, accessibility hooks, and runtime data attributes stay deterministic.
+- In the Daily Briefing runtime, use `PaginatedFeed`, `NewsStory`, `TopicSet`,
+  `StoryDisclosure`, `ReactionGroup`, and `ThemeToggle` from the production UI
+  layer. Do not recreate them with one-off HTML.
 
 - Use story rows for readable news items.
 - Use a paginated Digest Feed for long collections of news, messages, updates, or saved items. Keep the feed generic; render provider names only from the payload.

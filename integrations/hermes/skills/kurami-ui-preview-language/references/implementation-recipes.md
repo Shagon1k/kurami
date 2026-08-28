@@ -2,6 +2,11 @@
 
 Use this reference when implementing or refining HTML, CSS, React, or another web UI. The recipes are framework-neutral baselines; preserve their semantic roles when translating them into components or utility classes.
 
+For the configured Kurami Briefing runtime, these recipes are fallback
+documentation. The production TypeScript components in
+`app/src/briefing/ui/` are authoritative and must render the repeated elements.
+Do not copy this sample markup into a generated briefing.
+
 ## Font loading
 
 Load all three approved families from Google Fonts:

@@ -87,25 +87,28 @@ Default manual experiments to `dry-run`. Generation never archives Gmail;
    normal daily edition.
 10. Construct the versioned payload and validate its required identifiers,
     source provenance, pagination, actions, and data-quality state.
-11. Invoke `kurami-ui-preview-language` with the prepared payload. The renderer
-    may choose components but must not rewrite facts, ordering, topics,
+11. Invoke `kurami-ui-preview-language` with the prepared payload. For the
+    configured Briefing runtime this selects the canonical deterministic
+    component renderer; the agent must not hand-author `PaginatedFeed`,
+    `NewsStory`, `TopicSet`, `StoryDisclosure`, `ReactionGroup`, or
+    `ThemeToggle`. The renderer must not rewrite facts, ordering, topics,
     reactions, read state, or action semantics.
-12. In `dry-run`, create the run-specific artifact directory, then write the
-    payload and inert HTML with the Hermes `write_file` tool. Do not generate
-    artifact files through a shell heredoc, inline Python/Node program, or a
+12. In `dry-run`, create the run-specific artifact directory and write only the
+    completed payload with the Hermes `write_file` tool. Do not generate the
+    artifact through a shell heredoc, inline Python/Node program, or a
     dynamically assembled terminal command: the gateway lifecycle guard scans
     referenced paths and will correctly fail closed on ambiguous inline code.
-    Stage the two completed files with the single short command
-    `$BRIEFING_NODE $BRIEFING_CLI prepare-preview --payload <payload.json> --html <rendered.html>`.
+    Render and stage it with the single short command
+    `$BRIEFING_NODE $BRIEFING_CLI render-preview --payload <payload.json>`.
     Return the preview path printed by the runtime. Do not claim a live publish.
 
 ## Publish safely
 
-For a dry run, stop after the runtime accepts the payload and inert rendered
-HTML. Return the preview location plus a concise data-quality report. The
-runtime owns theme, read-state, and reaction behavior; generated HTML must not
-contain scripts, inline event handlers, forms, frames, or embedded active
-content.
+For a dry run, stop after the runtime accepts the payload and its deterministic
+renderer produces inert HTML. Return the preview location plus a concise
+data-quality report. The runtime owns component markup, theme, pagination,
+read-state, and reaction behavior; rendered HTML must not contain scripts,
+inline event handlers, forms, frames, or embedded active content.
 
 For a production run:
 

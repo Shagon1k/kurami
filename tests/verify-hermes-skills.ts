@@ -88,7 +88,16 @@ const briefingSkill = fs.readFileSync(
 );
 assert.match(briefingSkill, /\/dist\/briefing\/cli\.js/);
 assert.match(briefingSkill, /Hermes `write_file` tool/);
+assert.match(briefingSkill, /render-preview --payload/);
+assert.doesNotMatch(briefingSkill, /prepare-preview --payload <payload\.json> --html/);
 assert.doesNotMatch(briefingSkill, /app\/src\/briefing\/cli\.ts/);
+
+const uiSkill = fs.readFileSync(
+  path.join(skillsRoot, "kurami-ui-preview-language", "SKILL.md"),
+  "utf8",
+);
+assert.match(uiSkill, /canonical deterministic renderer/);
+assert.match(uiSkill, /PaginatedFeed/);
 
 const telegramProfile = fs.readFileSync(
   path.join(
