@@ -98,7 +98,7 @@ const config = readYaml(path.join(root, "deploy", "config", "briefing.yaml")) as
     news: {
       profile: string;
       enabled: boolean;
-      settings: { unread_only: boolean; page_size: number };
+      settings: { unread_only: boolean; page_size: number; discovery_limit: number };
       channels: Array<{ id: number; key: string }>;
     };
   };
@@ -118,6 +118,7 @@ assert.equal(config.sources.mail.settings.page_size, 100);
 assert.equal(config.sources.weather.profile, "hermes-weather");
 assert.equal(config.sources.news.profile, "telegram-user");
 assert.equal(config.sources.news.settings.unread_only, true);
+assert.equal(config.sources.news.settings.discovery_limit, 200);
 assert.equal(config.sources.news.channels.length, 15);
 assert.equal(new Set(config.sources.news.channels.map((source) => source.id)).size, 15);
 assert.equal(new Set(config.sources.news.channels.map((source) => source.key)).size, 15);

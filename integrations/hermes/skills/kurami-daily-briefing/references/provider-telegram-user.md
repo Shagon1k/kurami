@@ -14,6 +14,16 @@ known `list_chats` and `get_messages` operations only when their live schemas
 match this profile. Do not use send, delete, edit, reaction, or unbounded
 mark-read operations during collection.
 
+Configured numeric channel IDs are authoritative. Normal collection should
+address those IDs directly and must not depend on their presence in the first
+page of `list_chats`.
+
+Use `list_chats` only for initial discovery or an explicit health check. This
+provider has no chat-list cursor: request `chat_type: channel`,
+`limit: settings.discovery_limit`, and `with_about: false`. The upstream
+default is only 20 dialogs, so never report a configured channel as missing
+from a default-sized response.
+
 ## Collect
 
 For every enabled configured channel:

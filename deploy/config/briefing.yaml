@@ -55,6 +55,7 @@ sources:
     settings:
       unread_only: true
       page_size: 100
+      discovery_limit: 200
     channels:
     - key: delfi-lithuania
       id: -1001260471035
