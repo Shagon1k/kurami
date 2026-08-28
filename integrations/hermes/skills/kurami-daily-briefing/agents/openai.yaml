@@ -1,0 +1,7 @@
+interface:
+  display_name: "Kurami Daily Briefing"
+  short_description: "Build Alex's safe, personalized morning briefing"
+  default_prompt: "Use $kurami-daily-briefing to prepare today's configured briefing in safe dry-run mode and render it with $kurami-ui-preview-language."
+
+policy:
+  allow_implicit_invocation: true

@@ -1,0 +1,129 @@
+version: 1
+
+edition:
+  timezone: Europe/Vilnius
+  daily_schedule: "0 9 * * *"
+  cinema_schedule: "0 9 * * 6"
+  daily_retention_days: 5
+  cinema_retention: until_next_success
+
+safety:
+  production_mutations_enabled: false
+  initial_channel_cleanup_confirmed: false
+  require_bounded_telegram_commit: true
+  gmail_generation_is_read_only: true
+
+publication:
+  latest_path: /
+  daily_path_template: /daily/{local_date}
+  cinema_path: /cinema
+  access: cloudflare_access
+
+notification:
+  provider: discord
+  destination: owner_briefing
+  notify_on_release: true
+  notify_on_total_failure: true
+
+capabilities:
+  news:
+    provider: telegram
+    operations:
+      unread_count: list_chats
+      fetch_recent: get_messages
+      mark_read_through: mark_as_read_with_max_id
+  mail:
+    provider: composio
+    operations:
+      list_unread: GMAIL_FETCH_EMAILS
+      fetch_message: GMAIL_FETCH_MESSAGE_BY_MESSAGE_ID
+      read_and_archive: GMAIL_BATCH_MODIFY_MESSAGES
+  calendar:
+    provider: composio
+    calendar: primary
+    operations:
+      list_primary: GOOGLECALENDAR_EVENTS_LIST
+  weather:
+    provider: hermes_weather
+  renderer:
+    skill: kurami-ui-preview-language
+  publisher:
+    provider: kurami_briefing_runtime
+
+sources:
+  telegram:
+    - key: delfi-lithuania
+      id: -1001260471035
+      label: Delfi Литва
+      group: lithuania
+      enabled: true
+    - key: volna-lithuania
+      id: -1001532237933
+      label: 🇱🇹 Волна / Литва
+      group: lithuania
+      enabled: true
+    - key: kita-stotele
+      id: -1001289337082
+      label: Kita stotelė [Кита стотяле]
+      group: lithuania
+      enabled: true
+    - key: onliner
+      id: -1001008079077
+      label: Onliner
+      group: belarus
+      enabled: true
+    - key: lithuanian-housing
+      id: -1001207172276
+      label: Литовская о жилье
+      group: belarus
+      enabled: true
+    - key: ai-for-everyone
+      id: -1001281889829
+      label: AI для Всех
+      group: ai
+      enabled: true
+    - key: sioloshnaia
+      id: -1001511414765
+      label: Сиолошная
+      group: ai
+      enabled: true
+    - key: ai-news
+      id: -1001466120158
+      label: эйай ньюз
+      group: ai
+      enabled: true
+    - key: wren-japan
+      id: -1001103087169
+      label: Врен о Японии для туриста
+      group: hobbies
+      enabled: true
+    - key: tea-workshop
+      id: -1001033871555
+      label: Чайная мастерская — лучший китайский чай
+      group: hobbies
+      enabled: true
+    - key: surdin-space
+      id: -1001664826236
+      label: Неземной телеграм / Астроном Сурдин
+      group: hobbies
+      enabled: true
+    - key: art-simple
+      id: -1001740944353
+      label: Просто и вкусно об искусстве
+      group: hobbies
+      enabled: true
+    - key: kinopoisk
+      id: -1001054210809
+      label: Кинопоиск
+      group: geek-cinema
+      enabled: true
+    - key: qewbite
+      id: -1001301940596
+      label: Qewbite
+      group: geek-cinema
+      enabled: true
+    - key: travel-34
+      id: -1001080995086
+      label: 34travel
+      group: travel
+      enabled: true

@@ -1,0 +1,47 @@
+version: 1
+
+promotion:
+  minimum_story_count: 3
+  minimum_edition_or_source_count: 2
+
+topics:
+  - { id: ai, label: AI, aliases: [artificial intelligence, искусственный интеллект, ии] }
+  - { id: technology, label: Technology, aliases: [tech, технологии] }
+  - { id: software-development, label: Software Development, aliases: [development, программирование, разработка] }
+  - { id: web-development, label: Web Development, aliases: [web, веб-разработка] }
+  - { id: design, label: Design, aliases: [дизайн] }
+  - { id: privacy, label: Privacy, aliases: [приватность, конфиденциальность] }
+  - { id: security, label: Security, aliases: [cybersecurity, безопасность] }
+  - { id: business, label: Business, aliases: [бизнес] }
+  - { id: startups, label: Startups, aliases: [стартапы] }
+  - { id: economy, label: Economy, aliases: [экономика] }
+  - { id: politics, label: Politics, aliases: [политика] }
+  - { id: society, label: Society, aliases: [общество] }
+  - { id: law, label: Law, aliases: [legal, законодательство, право] }
+  - { id: housing, label: Housing, aliases: [real estate, жилье, недвижимость] }
+  - { id: lithuania, label: Lithuania, aliases: [литва, lietuva] }
+  - { id: belarus, label: Belarus, aliases: [беларусь] }
+  - { id: europe, label: Europe, aliases: [европа] }
+  - { id: science, label: Science, aliases: [наука] }
+  - { id: space, label: Space, aliases: [astronomy, космос, астрономия] }
+  - { id: climate, label: Climate, aliases: [экология, климат] }
+  - { id: travel, label: Travel, aliases: [туризм, путешествия] }
+  - { id: japan, label: Japan, aliases: [япония] }
+  - { id: tea, label: Tea, aliases: [чай] }
+  - { id: food, label: Food, aliases: [еда, кулинария] }
+  - { id: art, label: Art, aliases: [искусство] }
+  - { id: culture, label: Culture, aliases: [культура] }
+  - { id: cinema, label: Cinema, aliases: [films, movies, кино, фильмы] }
+  - { id: television, label: Television, aliases: [tv, сериалы, телевидение] }
+  - { id: gaming, label: Gaming, aliases: [games, игры] }
+  - { id: comics, label: Comics, aliases: [комиксы] }
+  - { id: theatrical-release, label: Theatrical Release, aliases: [cinema release, прокат, кинопрокат] }
+  - { id: streaming, label: Streaming, aliases: [стриминг] }
+  - { id: trailers, label: Trailers, aliases: [трейлеры] }
+  - { id: box-office, label: Box Office, aliases: [кассовые сборы, бокс-офис] }
+  - { id: media, label: Media, aliases: [медиа, сми] }
+  - { id: education, label: Education, aliases: [образование] }
+  - { id: health, label: Health, aliases: [здоровье] }
+  - { id: transport, label: Transport, aliases: [транспорт] }
+  - { id: productivity, label: Productivity, aliases: [продуктивность] }
+  - { id: personal-finance, label: Personal Finance, aliases: [личные финансы, деньги] }
