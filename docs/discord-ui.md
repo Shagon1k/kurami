@@ -83,6 +83,13 @@ The health block is a stable two-column matrix: Open/Ready, Backlog/Active,
 Review/Blocked, and Deferred/Done. `Open` is the count of non-deferred,
 non-done open issues; `Backlog` remains the configured Project status.
 
+## Composio Session
+
+`/kurami composio-check` is an owner-only ephemeral panel. It is read-only by
+default; a button appears only when the version-controlled Session policy has
+drifted. The button applies only the exact diff that was displayed and asks for
+a second review if the Session revision changes before confirmation.
+
 ## Runtime settings
 
 `/kurami orchestrator settings` is an ephemeral Components V2 container. It

@@ -191,7 +191,7 @@ $HERMES_HOME/plugins/kurami-discord-controls/
   plugin.yaml                 Uniquely keyed extension of the bundled Discord platform
   __init__.py                 Extends the existing Hermes Discord adapter
   control_handler.py          Owner-authorized, bounded native-button callback handler
-  settings_handler.py         Ephemeral /kurami settings UI and audit delivery
+  settings_handler.py         Ephemeral /kurami settings and composio-check UI
 ```
 
 ## Components and ownership
@@ -244,6 +244,16 @@ WIP (1–6), project WIP (1–3), active previews (1–6), concurrent preview bu
 (1–2), and preview lifetime (6–72 hours). Static identity,
 repositories, paths, channels, secrets, disk thresholds, cleanup policy, and
 physical resource caps remain deployment configuration and never enter the UI.
+
+### Owner-only Composio Session check
+
+`/kurami composio-check` runs the permanent Session reconciler in read-only
+mode and opens an ephemeral Components V2 panel. A matching Session shows a
+compact healthy state. Drift shows only the redacted desired-state diff and an
+`Apply changes` button. Apply is not exposed as a slash command: the button
+re-runs check, binds confirmation to the exact config version and diff, and
+refuses to mutate if either changed while the panel was open. The underlying
+CLI remains authoritative and preserves the persistent Session ID and MCP URL.
 
 Project WIP limits share the Global WIP pool; they are not reservations. For
 example, TailorTales 3 plus PickFlick 3 is valid with Global WIP 3, while actual

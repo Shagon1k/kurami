@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import copy
+import hashlib
 import json
 import os
 import re
@@ -13,6 +14,9 @@ from typing import Any, Awaitable, Callable, Optional
 
 _PROJECT = re.compile(r"^[a-z0-9-]+$")
 _MUTATIONS = {"apply", "reset", "rollback"}
+_COMPOSIO_TOOLKIT = re.compile(r"^[a-z0-9_]+$")
+_COMPOSIO_FIELD = re.compile(r"^[a-z0-9_.-]+$")
+_COMPOSIO_SAFE_VALUE = re.compile(r"^[A-Za-z0-9_. ,+%-]*$")
 
 
 def _kurami_home() -> Path:
@@ -246,6 +250,259 @@ async def _run_health_settings_control(
     ):
         raise RuntimeError("Kurami health settings payload is invalid")
     return payload
+
+
+def _composio_path() -> Path:
+    return _kurami_home() / "app/bin/kurami-composio-session"
+
+
+def _composio_args(action: str) -> list[str]:
+    if action not in {"check", "apply"}:
+        raise RuntimeError("Invalid Composio Session action")
+    control = _composio_path()
+    if not control.is_file():
+        raise RuntimeError("Composio Session control is unavailable")
+    return [str(control), action, "--json"]
+
+
+def _safe_composio_scalar(value: object) -> object:
+    if value is None or isinstance(value, (bool, int)):
+        return value
+    if not isinstance(value, str) or len(value) > 120:
+        raise RuntimeError("Composio Session diff contains an invalid value")
+    if _COMPOSIO_SAFE_VALUE.fullmatch(value) is None:
+        raise RuntimeError("Composio Session diff contains a private value")
+    lowered = value.lower()
+    if "ca_" in lowered or "trs_" in lowered or "api_key" in lowered:
+        raise RuntimeError("Composio Session diff contains a private identifier")
+    return value
+
+
+def _validated_composio_payload(value: object) -> dict[str, Any]:
+    if not isinstance(value, dict) or value.get("ok") is not True:
+        raise RuntimeError("Composio Session payload is invalid")
+    mode = value.get("mode")
+    changed = value.get("changed")
+    config_version = value.get("configVersion")
+    raw_diff = value.get("diff")
+    if (
+        mode not in {"check", "apply"}
+        or not isinstance(changed, bool)
+        or isinstance(config_version, bool)
+        or (config_version is not None and not isinstance(config_version, int))
+        or not isinstance(raw_diff, list)
+        or len(raw_diff) > 100
+    ):
+        raise RuntimeError("Composio Session status is invalid")
+    diff: list[dict[str, object]] = []
+    for raw_entry in raw_diff:
+        if not isinstance(raw_entry, dict):
+            raise RuntimeError("Composio Session diff is invalid")
+        kind = raw_entry.get("kind")
+        field = raw_entry.get("field")
+        if (
+            kind not in {"add", "remove", "change"}
+            or not isinstance(field, str)
+            or _COMPOSIO_FIELD.fullmatch(field) is None
+        ):
+            raise RuntimeError("Composio Session diff entry is invalid")
+        entry: dict[str, object] = {"kind": kind, "field": field}
+        if "before" in raw_entry:
+            entry["before"] = _safe_composio_scalar(raw_entry.get("before"))
+        if "after" in raw_entry:
+            entry["after"] = _safe_composio_scalar(raw_entry.get("after"))
+        diff.append(entry)
+    if changed is not bool(diff):
+        raise RuntimeError("Composio Session changed state does not match its diff")
+
+    counts: dict[str, dict[str, int]] = {}
+    for key in ("activeAccountCounts", "selectedAccountCounts"):
+        raw_counts = value.get(key)
+        if not isinstance(raw_counts, dict):
+            raise RuntimeError("Composio Session account counts are invalid")
+        normalized: dict[str, int] = {}
+        for toolkit, count in raw_counts.items():
+            if (
+                not isinstance(toolkit, str)
+                or _COMPOSIO_TOOLKIT.fullmatch(toolkit) is None
+                or isinstance(count, bool)
+                or not isinstance(count, int)
+                or count < 0
+                or count > 100
+            ):
+                raise RuntimeError("Composio Session account count is invalid")
+            normalized[toolkit] = count
+        counts[key] = normalized
+    warnings = value.get("warnings")
+    if not isinstance(warnings, list) or warnings:
+        # Runtime warnings can mention environment-variable names. Keep the
+        # Discord surface fail-closed until each warning type has explicit UX.
+        raise RuntimeError("Composio Session requires operator review in the CLI")
+    return {
+        "ok": True,
+        "mode": mode,
+        "changed": changed,
+        "configVersion": config_version,
+        "diff": diff,
+        **counts,
+        "warnings": [],
+    }
+
+
+async def _run_composio_control(action: str) -> dict[str, Any]:
+    process = await asyncio.create_subprocess_exec(
+        *_composio_args(action),
+        stdin=asyncio.subprocess.DEVNULL,
+        stdout=asyncio.subprocess.PIPE,
+        stderr=asyncio.subprocess.PIPE,
+        env=_settings_subprocess_env(),
+    )
+    try:
+        stdout, stderr = await asyncio.wait_for(process.communicate(), timeout=30)
+    except asyncio.TimeoutError:
+        process.kill()
+        await process.wait()
+        raise RuntimeError("Composio Session request timed out") from None
+    output = stdout.decode("utf-8", errors="replace").strip()
+    error = stderr.decode("utf-8", errors="replace").strip()
+    last_line = next((line for line in reversed(output.splitlines()) if line), "")
+    try:
+        payload = json.loads(last_line) if last_line else {}
+    except json.JSONDecodeError as exc:
+        raise RuntimeError("Composio Session returned invalid output") from exc
+    allowed_return_codes = {0, 2} if action == "check" else {0}
+    if process.returncode not in allowed_return_codes or not payload.get("ok"):
+        message = payload.get("error") or error or "Composio Session request failed"
+        raise RuntimeError(str(message)[:500])
+    validated = _validated_composio_payload(payload)
+    if validated["mode"] != action:
+        raise RuntimeError("Composio Session returned the wrong operation mode")
+    return validated
+
+
+def _composio_diff_signature(payload: dict[str, Any]) -> str:
+    validated = _validated_composio_payload(payload)
+    canonical = json.dumps(
+        {
+            "configVersion": validated["configVersion"],
+            "diff": validated["diff"],
+        },
+        sort_keys=True,
+        separators=(",", ":"),
+    )
+    return hashlib.sha256(canonical.encode("utf-8")).hexdigest()
+
+
+def _composio_message(payload: dict[str, Any], notice: str = "") -> str:
+    status = _validated_composio_payload(payload)
+    selected = status["selectedAccountCounts"]
+    config_version = status["configVersion"]
+    lines = [
+        "## Composio Session",
+        "⚠️ **Changes require review**" if status["changed"] else "✅ **In sync**",
+        (
+            f"{len(selected)} toolkits · {sum(selected.values())} selected accounts"
+            f" · config v{config_version if config_version is not None else '?'}"
+        ),
+    ]
+    if notice:
+        lines.extend(["", notice])
+    diff = status["diff"]
+    if diff:
+        lines.extend(["", "### Proposed diff"])
+        markers = {"add": "+", "remove": "−", "change": "~"}
+        for entry in diff[:12]:
+            marker = markers[str(entry["kind"])]
+            if entry["kind"] == "add":
+                detail = f"{entry['field']}: {entry.get('after')}"
+            elif entry["kind"] == "remove":
+                detail = f"{entry['field']}: {entry.get('before')}"
+            else:
+                detail = f"{entry['field']}: {entry.get('before')} → {entry.get('after')}"
+            lines.append(f"`{marker}` {detail}")
+        if len(diff) > 12:
+            lines.append(f"…and {len(diff) - 12} more changes. Use the CLI to review.")
+    else:
+        lines.extend(["", "Desired state and the persistent Session match."])
+    lines.extend(["", "-# Owner-only · no Session or MCP URL rotation"])
+    return "\n".join(lines)[:3900]
+
+
+def _build_composio_view(
+    authorized: Callable[[Any], bool],
+    payload: dict[str, Any],
+    actor_id: str,
+) -> Any:
+    import discord
+
+    class ComposioView(discord.ui.LayoutView):
+        def __init__(self) -> None:
+            super().__init__(timeout=300)
+            self.payload = _validated_composio_payload(payload)
+            self.actor_id = actor_id
+            self.signature = _composio_diff_signature(self.payload)
+            self.notice = ""
+            self._render()
+
+        def _render(self) -> None:
+            self.clear_items()
+            content: list[Any] = [
+                discord.ui.TextDisplay(_composio_message(self.payload, self.notice))
+            ]
+            if self.payload["changed"]:
+                apply_button = discord.ui.Button(
+                    label="Apply changes",
+                    style=discord.ButtonStyle.success,
+                    custom_id="kurami:composio:apply",
+                )
+                apply_button.callback = self._apply
+                content.extend([
+                    discord.ui.Separator(),
+                    discord.ui.ActionRow(apply_button),
+                ])
+            self.add_item(discord.ui.Container(*content, accent_color=0x5865F2))
+
+        async def interaction_check(self, interaction: Any) -> bool:
+            interaction_actor = str(
+                getattr(getattr(interaction, "user", None), "id", "")
+            )
+            if interaction_actor != self.actor_id or not authorized(interaction):
+                if not interaction.response.is_done():
+                    await interaction.response.send_message(
+                        "This Composio Session control is owner-only.", ephemeral=True
+                    )
+                return False
+            return True
+
+        async def _apply(self, interaction: Any) -> None:
+            await interaction.response.defer()
+            try:
+                fresh = await _run_composio_control("check")
+                fresh_signature = _composio_diff_signature(fresh)
+                if not fresh["changed"]:
+                    self.payload = fresh
+                    self.signature = fresh_signature
+                    self.notice = "No changes remain; nothing was applied."
+                elif fresh_signature != self.signature:
+                    self.payload = fresh
+                    self.signature = fresh_signature
+                    self.notice = (
+                        "⚠️ The diff changed since this panel opened. Review it, then "
+                        "press Apply again."
+                    )
+                else:
+                    await _run_composio_control("apply")
+                    self.payload = await _run_composio_control("check")
+                    self.signature = _composio_diff_signature(self.payload)
+                    self.notice = "✅ Changes applied and the Session was verified."
+                self._render()
+                await interaction.edit_original_response(view=self)
+            except Exception as exc:
+                self.notice = f"❌ Composio update rejected safely: {str(exc)[:350]}"
+                self._render()
+                await interaction.edit_original_response(view=self)
+
+    return ComposioView()
 
 
 def _settings_diff(
@@ -738,7 +995,7 @@ def install_settings_command(
     authorized: Callable[[Any], bool],
     refresh_dashboard: Optional[Callable[[str], Awaitable[dict[str, Any]]]] = None,
 ) -> None:
-    """Register one concise owner-only ``/kurami settings`` command."""
+    """Register the concise owner-only ``/kurami`` command group."""
 
     if getattr(client, "_kurami_settings_command_installed", False):
         return
@@ -793,6 +1050,28 @@ def install_settings_command(
                 )
 
     @kurami.command(
+        name="composio-check",
+        description="Check Composio Session drift and review safe synchronization",
+    )
+    async def composio_check(interaction: Any) -> None:
+        if not authorized(interaction):
+            await interaction.response.send_message(
+                "This Composio Session command is owner-only.", ephemeral=True
+            )
+            return
+        await interaction.response.defer(ephemeral=True, thinking=True)
+        try:
+            payload = await _run_composio_control("check")
+            actor_id = str(getattr(getattr(interaction, "user", None), "id", ""))
+            view = _build_composio_view(authorized, payload, actor_id)
+            await interaction.followup.send(view=view, ephemeral=True)
+        except Exception as exc:
+            await interaction.followup.send(
+                f"Composio Session check failed safely: {str(exc)[:400]}",
+                ephemeral=True,
+            )
+
+    @kurami.command(
         name="settings", description="View or change Kurami system settings"
     )
     async def settings(interaction: Any) -> None:
@@ -839,4 +1118,8 @@ __all__ = [
     "_settings_diff",
     "_settings_message",
     "_validated_settings",
+    "_composio_args",
+    "_composio_diff_signature",
+    "_composio_message",
+    "_validated_composio_payload",
 ]

@@ -1,7 +1,7 @@
 name: kurami-discord-controls
 label: Discord with Kurami controls
 kind: platform
-version: 1.0.0
+version: 1.1.0
 description: >
   Extends the bundled Hermes Discord adapter with a narrow listener for
   Kurami native control components.

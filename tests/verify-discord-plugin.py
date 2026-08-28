@@ -38,7 +38,9 @@ def main() -> None:
         os.environ["KURAMI_HOME"] = "/tmp/kurami-new-home"
         require(
             str(settings_module._paths()[0]).startswith("/tmp/kurami-new-home/")
-            and str(module._paths()[0]).startswith("/tmp/kurami-new-home/"),
+            and str(module._paths()[0]).startswith("/tmp/kurami-new-home/")
+            and settings_module._composio_path()
+            == Path("/tmp/kurami-new-home/app/bin/kurami-composio-session"),
             "KURAMI_HOME does not select the canonical home",
         )
         require(
@@ -86,6 +88,66 @@ def main() -> None:
         and 'selected == "system_health"' in settings_source,
         "Health interval still bypasses the shared settings dropdown",
     )
+
+    composio_payload = {
+        "ok": True,
+        "mode": "check",
+        "changed": True,
+        "configVersion": 2,
+        "diff": [
+            {"kind": "add", "field": "toolkit", "after": "slack"},
+            {
+                "kind": "change",
+                "field": "accounts.slack",
+                "before": 0,
+                "after": 1,
+            },
+        ],
+        "activeAccountCounts": {"gmail": 1, "slack": 1},
+        "selectedAccountCounts": {"gmail": 1, "slack": 1},
+        "warnings": [],
+    }
+    composio_validated = settings_module._validated_composio_payload(
+        composio_payload
+    )
+    require(
+        composio_validated["changed"] is True
+        and "Changes require review"
+        in settings_module._composio_message(composio_payload)
+        and "toolkit: slack" in settings_module._composio_message(composio_payload),
+        "Composio check panel lost its bounded diff",
+    )
+    require(
+        settings_module._composio_diff_signature(composio_payload)
+        != settings_module._composio_diff_signature(
+            {**composio_payload, "configVersion": 3}
+        ),
+        "Composio apply confirmation is not revision-bound",
+    )
+    try:
+        settings_module._validated_composio_payload(
+            {
+                **composio_payload,
+                "diff": [
+                    {"kind": "add", "field": "toolkit", "after": "ca_private"}
+                ],
+            }
+        )
+        raise AssertionError("Composio panel accepted a private account identifier")
+    except RuntimeError:
+        pass
+    original_composio_path = settings_module._composio_path
+    try:
+        settings_module._composio_path = lambda: settings_path
+        require(
+            settings_module._composio_args("check")
+            == [str(settings_path), "check", "--json"]
+            and settings_module._composio_args("apply")
+            == [str(settings_path), "apply", "--json"],
+            "Composio subprocess arguments are not exact",
+        )
+    finally:
+        settings_module._composio_path = original_composio_path
 
     accepted = {
         "kurami:status:r_abc123": ("status", "r_abc123"),
@@ -486,8 +548,9 @@ def main() -> None:
             "kurami" in client.tree.commands
             and "status" in client.tree.commands["kurami"].children
             and "settings"
-            in client.tree.commands["kurami"].children,
-            "Concise /kurami settings command was not registered",
+            in client.tree.commands["kurami"].children
+            and "composio-check" in client.tree.commands["kurami"].children,
+            "Concise /kurami command group was not registered",
         )
         settings_module.install_settings_command(
             client, lambda _interaction: True, refresh_dashboard
@@ -513,6 +576,7 @@ def main() -> None:
                 "listener": "strict_component_allowlist",
                 "settings": "owner_only_kurami_settings",
                 "run_status": "owner_only_kurami_status",
+                "composio": "owner_only_check_with_revision_bound_apply",
                 "settings_shared_pool": True,
             },
             separators=(",", ":"),
