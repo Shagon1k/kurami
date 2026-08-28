@@ -1,9 +1,11 @@
-# Kurami Dev Orchestrator — Technical Reference
+# Kurami — Technical Reference
 
-Kurami Dev Orchestrator turns explicit GitHub Project status changes into safe,
-durable engineering runs. Hermes provides scheduling and conversation gateways;
-deterministic TypeScript components own polling, admission, resource mapping,
-and recovery; Codex performs engineering work only after those gates pass.
+Kurami is Alex's operational layer around Hermes. Its Project Orchestrator turns
+explicit GitHub Project status changes into safe, durable engineering runs,
+while sibling system modules own host health, maintenance, backup, and recovery.
+Hermes provides scheduling and conversation gateways; deterministic TypeScript
+components own policy and durable state; Codex performs engineering work only
+after those gates pass.
 
 Start with the horizontal system guide: `guide.html` (RU) or
 `guide.en.html` (EN). It explains the complete solution by subsystem and keeps
@@ -33,49 +35,8 @@ records exactly which resources belong to each issue.
 app/
   migrations/                 Versioned SQLite schema migrations
   src/
-    init-run-store.ts         Compatibility CLI for Run Store initialization
-    poll-projects.ts          Compatibility CLI for existing poller callers
-    triage-snapshot.ts        Compatibility CLI/API for existing triage callers
-    triage-rank.ts            Compatibility CLI/API for existing ranking callers
-    notify-discord-digest.ts  Compatibility CLI/API for Projects Digest cards
-    metadata-proposal-manager.ts
-                              Compatibility CLI/API for proposal planning
-    metadata-proposal-worker.ts
-                              Compatibility CLI/API for proposal assessment
-    metadata-proposal-scheduler.ts
-                              Compatibility CLI/API for daily admission
-    metadata-proposal-controls.ts
-                              Compatibility CLI/API for owner decisions
-    metadata-sync.ts          Compatibility CLI/API for guarded synchronization
-    observe-ci.ts             Compatibility CLI/API for existing CI callers
-    review-manager.ts         Compatibility CLI/API for AI review admission
-    ai-review-worker.ts       Compatibility CLI/API for AI review execution
-    review-fix-manager.ts     Compatibility CLI/API for review-fix resolution
-    process-project-events.ts Compatibility CLI for existing event consumers
-    controller.ts             Compatibility CLI for controller callers
-    codex-app-server.ts       Compatibility API for Codex app-server integration
-    github-app-auth.ts        Compatibility API for GitHub App authentication
-    github-review-threads.ts  Compatibility API for GitHub review threads
-    prompt-safety.ts          Compatibility API for shared prompt hardening
-    observe-sessions.ts       Compatibility CLI/API for session observation
-    runtime-budget.ts         Compatibility CLI/API for runtime budget enforcement
-    autonomous-successor.ts   Compatibility CLI/API for managed successor tasks
-    provision-worktree.ts     Compatibility CLI/API for worktree provisioning
-    release-worktree.ts       Compatibility CLI/API for guarded worktree release
-    cancel-resolution.ts      Compatibility CLI/API for confirmed cancellation cleanup
-    project-status.ts         Compatibility CLI for existing controller callers
-    preview-manager.ts        Compatibility CLI/API for preview lease management
-    preview-runtime.ts        Compatibility CLI/API for preview runtime dispatch
-    preview-compose-runtime.ts
-                              Compatibility CLI/API for Compose previews
-    preview-static-runtime.ts Compatibility CLI/API for static previews
-    preview-ingress.ts        Compatibility CLI/API for preview ingress reconciliation
-    codex-deeplink.ts         Compatibility API for Codex launch URLs
-    session-manager.ts        Compatibility CLI/API for managed Codex sessions
-    run-controls.ts           Compatibility CLI/API for allowlisted run controls
-    notify-controls.ts        Compatibility CLI for Telegram fallback
-    notify-discord-controls.ts
-                              Compatibility CLI/API for Discord run controls
+    core/
+      kurami-home.ts          Canonical KURAMI_HOME resolution
     discord/
       ui.ts                   Shared Discord Components V2 primitives
     orchestrator/
@@ -147,7 +108,6 @@ app/
         runtime-settings.ts   Verified runtime overrides and effective limits
         orchestrator-settings.ts
                               Owner-only status/apply/reset/rollback boundary
-    runtime-health.ts         Compatibility CLI/API for orchestrator runtime health
     system/
       health/
         server-health.ts      System CPU, memory, uptime, and alert state engine
@@ -166,20 +126,6 @@ app/
       maintenance/
         monthly-maintenance.ts
                               Bounded log and unused Docker cache/image cleanup
-    server-health.ts          Compatibility re-export for existing imports
-    system-health-discord.ts  Compatibility CLI and re-export for cron wrappers
-    health-settings.ts        Compatibility CLI and re-export for Hermes plugin
-    network-health.ts         Compatibility CLI and re-export for network cron
-    backup-state.ts           Compatibility CLI and re-export for backup cron
-    recovery-bundle.ts        Compatibility CLI and re-export for recovery tooling
-    s3-recovery.ts            Compatibility CLI and re-export for off-site upload
-    discord-ui.ts             Compatibility re-export for existing imports
-    resource-guard.ts         Compatibility CLI/API for resource governance
-    resource-guard-discord.ts Compatibility API for resource event delivery
-    runtime-settings.ts       Compatibility re-export for existing imports
-    orchestrator-settings.ts  Compatibility CLI and re-export for Hermes plugin
-    project-readiness.ts      Compatibility CLI and re-export for Hermes skill
-    monthly-maintenance.ts    Compatibility CLI and re-export for maintenance cron
   tests/
     run-regression.ts         Runs all deterministic suites in fail-fast order
     verify-dry-run-admission.ts
@@ -231,7 +177,7 @@ app/
 
 ../config/
   projects.yaml               Project, repository, status, and workspace registry
-  orchestrator.yaml           Execution mode, digest channel, and hard limits
+  orchestrator.yaml           Project Orchestrator limits plus shared operational settings
 
 ../state/orchestrator.db      SQLite Run Store (WAL mode)
 ../logs/                      Poller/consumer audit and error logs
