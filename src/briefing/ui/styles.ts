@@ -110,8 +110,9 @@ a { color: inherit; }
 .pagination__range { color: var(--muted); font-size: .6875rem; }
 .pagination__controls { display: flex; align-items: center; gap: 5px; }
 .pagination__button { min-width: 42px; min-height: 42px; display: inline-flex; align-items: center; justify-content: center; padding: 0 11px; color: var(--ink); background: transparent; border: 1px solid transparent; border-radius: 3px; cursor: pointer; font-size: .6875rem; font-weight: 600; line-height: 1; transition: color 150ms, background 150ms, border-color 150ms, transform 150ms; }
-.pagination__button:hover:not(:disabled) { background: var(--panel); border-color: var(--line); }
+.pagination__button:hover:not(:disabled):not([aria-current="page"]) { background: var(--panel); border-color: var(--line); }
 .pagination__button[aria-current="page"] { color: #fff; background: var(--signal); border-color: var(--signal); }
+.pagination__button[data-page-prev], .pagination__button[data-page-next] { min-width: 84px; }
 .pagination__button:disabled { color: var(--muted); cursor: default; opacity: .45; }
 
 .quality-strip { min-height: 92px; display: flex; align-items: center; justify-content: space-between; gap: 30px; margin: 38px 0; padding: 18px 20px; border-left: 4px solid var(--warning); background: var(--panel); }
