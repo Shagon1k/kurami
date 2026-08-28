@@ -1,4 +1,5 @@
 import { resolve } from "node:path";
+import { resolveKuramiHome } from "../../../core/kurami-home.ts";
 import { DatabaseSync } from "node:sqlite";
 import {
   createGitHubAppInstallationToken,
@@ -9,10 +10,8 @@ import { replyAndResolveReviewThread } from "../../integrations/github/review-th
 
 process.umask(0o077);
 
-const orchestratorHome = resolve(
-  process.env.KURAMI_HOME ??
-    process.env.ORCHESTRATOR_HOME ??
-    resolve(import.meta.dirname, "../../../../.."),
+const orchestratorHome = resolveKuramiHome(
+  resolve(import.meta.dirname, "../../../../.."),
 );
 const databasePath = resolve(orchestratorHome, "state/orchestrator.db");
 

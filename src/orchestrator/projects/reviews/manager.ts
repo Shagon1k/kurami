@@ -1,6 +1,7 @@
 import { execFileSync, spawnSync } from "node:child_process";
 import { readFile, realpath, stat } from "node:fs/promises";
 import { relative, resolve } from "node:path";
+import { resolveKuramiHome } from "../../../core/kurami-home.ts";
 import { DatabaseSync } from "node:sqlite";
 import { parse } from "yaml";
 
@@ -45,10 +46,8 @@ type PullSummary = {
 };
 type PullDetails = { base?: { sha?: string } };
 
-const orchestratorHome = resolve(
-  process.env.KURAMI_HOME ??
-    process.env.ORCHESTRATOR_HOME ??
-    resolve(import.meta.dirname, "../../../../.."),
+const orchestratorHome = resolveKuramiHome(
+  resolve(import.meta.dirname, "../../../../.."),
 );
 const databasePath = resolve(orchestratorHome, "state/orchestrator.db");
 const configPath = resolve(orchestratorHome, "config/orchestrator.yaml");

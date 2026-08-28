@@ -1,5 +1,6 @@
 import { execFileSync } from "node:child_process";
 import { resolve } from "node:path";
+import { resolveKuramiHome } from "../../../core/kurami-home.ts";
 import { DatabaseSync } from "node:sqlite";
 import { runDetachedReview } from "../../integrations/codex/app-server.ts";
 import {
@@ -65,10 +66,8 @@ export type ReviewSourceContext = {
   issueBody: string;
 };
 
-const orchestratorHome = resolve(
-  process.env.KURAMI_HOME ??
-    process.env.ORCHESTRATOR_HOME ??
-    resolve(import.meta.dirname, "../../../../.."),
+const orchestratorHome = resolveKuramiHome(
+  resolve(import.meta.dirname, "../../../../.."),
 );
 const databasePath = resolve(orchestratorHome, "state/orchestrator.db");
 

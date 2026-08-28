@@ -1,5 +1,6 @@
 import { spawnSync } from "node:child_process";
 import { resolve } from "node:path";
+import { resolveKuramiHome } from "../../../core/kurami-home.ts";
 import { DatabaseSync } from "node:sqlite";
 
 process.umask(0o077);
@@ -21,10 +22,8 @@ type AttentionRow = {
   notified_kind: string | null;
 };
 
-const orchestratorHome = resolve(
-  process.env.KURAMI_HOME ??
-    process.env.ORCHESTRATOR_HOME ??
-    resolve(import.meta.dirname, "../../../../.."),
+const orchestratorHome = resolveKuramiHome(
+  resolve(import.meta.dirname, "../../../../.."),
 );
 const databasePath = resolve(orchestratorHome, "state/orchestrator.db");
 

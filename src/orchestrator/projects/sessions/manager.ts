@@ -1,6 +1,7 @@
 import { execFileSync, spawnSync } from "node:child_process";
 import { mkdir, readFile, realpath, stat, writeFile } from "node:fs/promises";
 import { relative, resolve } from "node:path";
+import { resolveKuramiHome } from "../../../core/kurami-home.ts";
 import { DatabaseSync } from "node:sqlite";
 import { parse } from "yaml";
 import { archiveThread, findAndNameThread } from "../../integrations/codex/app-server.ts";
@@ -133,10 +134,8 @@ type ReviewFixContext = {
   threads: ActionableReviewThread[];
 };
 
-const orchestratorHome = resolve(
-  process.env.KURAMI_HOME ??
-    process.env.ORCHESTRATOR_HOME ??
-    resolve(import.meta.dirname, "../../../../.."),
+const orchestratorHome = resolveKuramiHome(
+  resolve(import.meta.dirname, "../../../../.."),
 );
 const databasePath = resolve(orchestratorHome, "state/orchestrator.db");
 const configPath = resolve(orchestratorHome, "config/orchestrator.yaml");

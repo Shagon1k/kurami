@@ -1,6 +1,7 @@
 import { execFileSync, spawnSync } from "node:child_process";
 import { realpath, rmdir, stat } from "node:fs/promises";
 import { basename, dirname, relative, resolve } from "node:path";
+import { resolveKuramiHome } from "../../../core/kurami-home.ts";
 import { DatabaseSync } from "node:sqlite";
 import { readFile } from "node:fs/promises";
 import { parse } from "yaml";
@@ -65,10 +66,8 @@ type PublishedDiscardPlan = DiscardPlan & {
   pullRequest: PullRequest | null;
 };
 
-const orchestratorHome = resolve(
-  process.env.KURAMI_HOME ??
-    process.env.ORCHESTRATOR_HOME ??
-    resolve(import.meta.dirname, "../../../../.."),
+const orchestratorHome = resolveKuramiHome(
+  resolve(import.meta.dirname, "../../../../.."),
 );
 const databasePath = resolve(orchestratorHome, "state/orchestrator.db");
 const projectsPath = resolve(orchestratorHome, "config/projects.yaml");
