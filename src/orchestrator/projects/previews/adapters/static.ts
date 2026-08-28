@@ -15,6 +15,7 @@ import {
 } from "node:fs/promises";
 import { basename, isAbsolute, relative, resolve } from "node:path";
 import { DatabaseSync } from "node:sqlite";
+import { resolveKuramiHome } from "../../../../core/kurami-home.ts";
 import { parse } from "yaml";
 import {
   loadEffectiveOrchestratorConfig,
@@ -108,11 +109,7 @@ type StaticPlan = {
 
 const defaultMaxFiles = 5_000;
 const defaultMaxBytes = 256 * 1024 * 1024;
-const orchestratorHome = resolve(
-  process.env.KURAMI_HOME ??
-    process.env.ORCHESTRATOR_HOME ??
-    resolve(import.meta.dirname, "../../../../../.."),
-);
+const orchestratorHome = resolveKuramiHome(resolve(import.meta.dirname, "../../../../../.."));
 const databasePath = resolve(orchestratorHome, "state/orchestrator.db");
 const projectsPath = resolve(orchestratorHome, "config/projects.yaml");
 const runtimeRoot = resolve(orchestratorHome, "state/previews");

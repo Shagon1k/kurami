@@ -1,6 +1,7 @@
 import { createHash, randomUUID } from "node:crypto";
 import { resolve } from "node:path";
 import { DatabaseSync } from "node:sqlite";
+import { resolveKuramiHome } from "../../../../core/kurami-home.ts";
 import type {
   TriageFacts,
   TriageItemFact,
@@ -669,11 +670,7 @@ export function skipBatch(
 
 export async function runMetadataProposalManagerCli(): Promise<void> {
   const args = process.argv.slice(2);
-  const orchestratorHome = resolve(
-    process.env.KURAMI_HOME ??
-      process.env.ORCHESTRATOR_HOME ??
-      resolve(import.meta.dirname, "../../../../../.."),
-  );
+  const orchestratorHome = resolveKuramiHome(resolve(import.meta.dirname, "../../../../../.."));
   const database = new DatabaseSync(
     resolve(orchestratorHome, "state/orchestrator.db"),
     { timeout: 5_000 },

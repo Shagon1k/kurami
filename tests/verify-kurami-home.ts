@@ -139,6 +139,12 @@ for (const path of sourceFiles) {
   compatibilitySources.push(path);
 }
 
+assert.deepEqual(
+  compatibilitySources,
+  [],
+  "TypeScript runtime modules must use the shared Kurami home resolver",
+);
+
 for (const relative of [
   "run-project-poller.sh",
   "run-projects-digest.sh",

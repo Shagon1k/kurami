@@ -11,6 +11,7 @@ import {
 import { isAbsolute, relative, resolve } from "node:path";
 import { pathToFileURL } from "node:url";
 import { DatabaseSync } from "node:sqlite";
+import { resolveKuramiHome } from "../../../core/kurami-home.ts";
 import { parse } from "yaml";
 import {
   CODEX_DEEPLINK_HOST,
@@ -40,11 +41,7 @@ export type IngressRoute = {
   artifact_root: string | null;
 };
 
-const orchestratorHome = resolve(
-  process.env.KURAMI_HOME ??
-    process.env.ORCHESTRATOR_HOME ??
-    resolve(import.meta.dirname, "../../../../.."),
-);
+const orchestratorHome = resolveKuramiHome(resolve(import.meta.dirname, "../../../../.."));
 const databasePath = resolve(orchestratorHome, "state/orchestrator.db");
 const configPath = resolve(orchestratorHome, "config/orchestrator.yaml");
 const caddyBinary = resolve(orchestratorHome, "runtime/caddy/bin/caddy");

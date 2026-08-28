@@ -1,6 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { resolve } from "node:path";
 import { DatabaseSync } from "node:sqlite";
+import { resolveKuramiHome } from "../../../core/kurami-home.ts";
 import {
   loadEffectiveOrchestratorConfig,
   type RuntimeSettingsBaseConfig,
@@ -71,11 +72,7 @@ type LeaseRecord = SlotRecord & {
   artifact_total_bytes: number | null;
 };
 
-const orchestratorHome = resolve(
-  process.env.KURAMI_HOME ??
-    process.env.ORCHESTRATOR_HOME ??
-    resolve(import.meta.dirname, "../../../../.."),
-);
+const orchestratorHome = resolveKuramiHome(resolve(import.meta.dirname, "../../../../.."));
 const databasePath = resolve(orchestratorHome, "state/orchestrator.db");
 
 function fail(message: string): never {

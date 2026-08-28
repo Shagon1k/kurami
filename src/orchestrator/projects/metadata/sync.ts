@@ -3,6 +3,7 @@ import { randomUUID } from "node:crypto";
 import { readFile } from "node:fs/promises";
 import { resolve } from "node:path";
 import { DatabaseSync } from "node:sqlite";
+import { resolveKuramiHome } from "../../../core/kurami-home.ts";
 import { parse } from "yaml";
 
 process.umask(0o077);
@@ -659,11 +660,7 @@ function parseArguments(args: string[]): {
 
 export async function runMetadataSyncCli(): Promise<void> {
   const { project, apply, verify } = parseArguments(process.argv.slice(2));
-  const home = resolve(
-    process.env.KURAMI_HOME ??
-      process.env.ORCHESTRATOR_HOME ??
-      resolve(import.meta.dirname, "../../../../.."),
-  );
+  const home = resolveKuramiHome(resolve(import.meta.dirname, "../../../../.."));
   const registry = parse(await readFile(resolve(home, "config/projects.yaml"), "utf8")) as ProjectsRegistry;
   if (registry.version !== 1) fail("Unsupported projects registry version");
   const database = new DatabaseSync(resolve(home, "state/orchestrator.db"), { timeout: 5_000 });

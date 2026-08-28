@@ -1,6 +1,7 @@
 import { createHash } from "node:crypto";
 import { resolve } from "node:path";
 import { DatabaseSync } from "node:sqlite";
+import { resolveKuramiHome } from "../../../core/kurami-home.ts";
 import type { TriageFacts, TriageItemFact } from "./snapshot.ts";
 
 process.umask(0o077);
@@ -252,11 +253,7 @@ function selectedProjectFromArgs(args: string[]): string | null {
 }
 
 export async function runTriageRankCli(): Promise<void> {
-  const orchestratorHome = resolve(
-    process.env.KURAMI_HOME ??
-      process.env.ORCHESTRATOR_HOME ??
-      resolve(import.meta.dirname, "../../../../.."),
-  );
+  const orchestratorHome = resolveKuramiHome(resolve(import.meta.dirname, "../../../../.."));
   const database = new DatabaseSync(
     resolve(orchestratorHome, "state/orchestrator.db"),
     { timeout: 5_000 },

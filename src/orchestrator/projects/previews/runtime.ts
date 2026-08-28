@@ -2,6 +2,7 @@ import { execFileSync, spawnSync } from "node:child_process";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { DatabaseSync } from "node:sqlite";
+import { resolveKuramiHome } from "../../../core/kurami-home.ts";
 import { parse } from "yaml";
 
 type PreviewAdapter = "compose" | "static";
@@ -11,11 +12,7 @@ type ProjectsRegistry = {
   projects: Record<string, { preview?: { adapter?: PreviewAdapter } }>;
 };
 
-const orchestratorHome = resolve(
-  process.env.KURAMI_HOME ??
-    process.env.ORCHESTRATOR_HOME ??
-    resolve(import.meta.dirname, "../../../../.."),
-);
+const orchestratorHome = resolveKuramiHome(resolve(import.meta.dirname, "../../../../.."));
 
 function fail(message: string): never {
   throw new Error(message);

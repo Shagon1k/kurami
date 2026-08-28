@@ -3,6 +3,7 @@ import { createHash } from "node:crypto";
 import { readFile } from "node:fs/promises";
 import { resolve } from "node:path";
 import { DatabaseSync } from "node:sqlite";
+import { resolveKuramiHome } from "../../../core/kurami-home.ts";
 import { parse } from "yaml";
 
 process.umask(0o077);
@@ -615,11 +616,7 @@ function selectedProjectFromArgs(args: string[]): string | null {
 }
 
 export async function runTriageSnapshotCli(): Promise<void> {
-  const orchestratorHome = resolve(
-    process.env.KURAMI_HOME ??
-      process.env.ORCHESTRATOR_HOME ??
-      resolve(import.meta.dirname, "../../../../.."),
-  );
+  const orchestratorHome = resolveKuramiHome(resolve(import.meta.dirname, "../../../../.."));
   const registry = parse(
     await readFile(resolve(orchestratorHome, "config/projects.yaml"), "utf8"),
   ) as Registry;

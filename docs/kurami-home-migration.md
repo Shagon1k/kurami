@@ -26,9 +26,8 @@ runtime, backup, or repository data was copied or split.
 - `src/core/kurami-home.ts` centralizes canonical precedence and emits at most
   one `KURAMI_LEGACY_HOME` warning per process when only the legacy variable is
   available. It never includes the resolved path in that warning.
-- System health, network, maintenance, recovery, runtime-health, and resource
-  guard modules use the shared resolver. Project Orchestrator modules will move
-  to it in subsequent isolated slices while the fallback remains available.
+- All TypeScript runtime modules use the shared resolver. Direct legacy fallback is
+  centralized in `src/core/kurami-home.ts` while compatibility remains available.
 - Shell entrypoints export `ORCHESTRATOR_HOME=$KURAMI_HOME` for older child
   processes.
 - Active systemd, Caddy, wrapper, skill, and documentation paths use

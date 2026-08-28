@@ -2,6 +2,7 @@ import { execFileSync } from "node:child_process";
 import { randomUUID } from "node:crypto";
 import { resolve } from "node:path";
 import { DatabaseSync } from "node:sqlite";
+import { resolveKuramiHome } from "../../../../core/kurami-home.ts";
 import {
   applyAssessmentPlan,
   maximumProposalBatchIssues,
@@ -361,11 +362,7 @@ function workerRunner(orchestratorHome: string): ProposalWorker {
 
 export async function runMetadataProposalSchedulerCli(): Promise<void> {
   const { project, apply, admissionDate } = parseArguments(process.argv.slice(2));
-  const orchestratorHome = resolve(
-    process.env.KURAMI_HOME ??
-      process.env.ORCHESTRATOR_HOME ??
-      resolve(import.meta.dirname, "../../../../../.."),
-  );
+  const orchestratorHome = resolveKuramiHome(resolve(import.meta.dirname, "../../../../../.."));
   const config = await loadEffectiveOrchestratorConfig(orchestratorHome);
   const maxActiveLlm = config.limits?.max_llm_running_global;
   const dailyLimit = config.limits?.ai_triage_daily;
