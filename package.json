@@ -35,6 +35,7 @@
     "test:network-health": "node tests/verify-network-health.ts",
     "test:health-settings": "node tests/verify-health-settings.ts",
     "test:kurami-home": "node tests/verify-kurami-home.ts",
+    "test:composio-session": "node tests/verify-composio-session-sync.ts",
     "test:resource-guard": "node tests/verify-resource-guard.ts",
     "test:resource-guard-discord": "node tests/verify-resource-guard-discord.ts",
     "test:maintenance": "node tests/verify-monthly-maintenance.ts",
@@ -62,6 +63,8 @@
     "briefing:init": "node src/briefing/cli.ts init",
     "briefing:inspect": "node src/briefing/cli.ts inspect",
     "briefing:serve": "node src/briefing/server.ts",
+    "composio:check": "node src/connectors/composio/cli.ts check",
+    "composio:apply": "node src/connectors/composio/cli.ts apply",
     "skills:check": "bash bin/sync-hermes-skills.sh --check",
     "skills:sync": "bash bin/sync-hermes-skills.sh --apply"
   },

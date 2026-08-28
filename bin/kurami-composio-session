@@ -1,0 +1,5 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+KURAMI_HOME="${KURAMI_HOME:-/home/shagon1k/_hermes/_kurami}"
+exec node "${KURAMI_HOME}/src/connectors/composio/cli.ts" "$@"

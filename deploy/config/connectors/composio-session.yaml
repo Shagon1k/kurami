@@ -1,0 +1,24 @@
+version: 1
+
+# This file is the non-secret source of truth for the persistent Composio
+# Session used by Kurami. Connected-account IDs remain in runtime state.
+toolkits:
+  - box
+  - gmail
+  - google_analytics
+  - google_maps
+  - google_search_console
+  - googlecalendar
+  - googletasks
+  - instagram
+  - notion
+  - youtube
+
+# Keep this empty while Kurami needs reviewed write operations such as Gmail
+# archive/read. Skills maintain narrower behavioral capability lists.
+disable_tags: []
+
+manage_connections: false
+workbench: false
+multi_account: true
+require_explicit_account_selection: true

@@ -29,6 +29,7 @@ const suites = [
   "test:network-health",
   "test:health-settings",
   "test:kurami-home",
+  "test:composio-session",
   "test:resource-guard",
   "test:resource-guard-discord",
   "test:maintenance",

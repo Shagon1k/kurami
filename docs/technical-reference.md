@@ -1552,3 +1552,27 @@ post-restore verification.
 
 The deployed `kurami-run-control` skill must remain byte-for-byte aligned
 with `integrations/hermes/skills/kurami-run-control/`.
+
+# Composio Session reconciliation
+
+Kurami uses one persistent Composio-hosted HTTP MCP Session. Its non-secret
+toolkit allowlist and safety policy live in
+`deploy/config/connectors/composio-session.yaml`; credentials and account IDs
+remain in `connectors/external/composio-session/.env` on the runtime host.
+
+Inspect drift without changing Composio:
+
+```bash
+npm run composio:check
+```
+
+Apply an already reviewed diff to the existing Session:
+
+```bash
+npm run composio:apply
+```
+
+The command preserves the Session ID and MCP URL, verifies the result, and
+updates `mcp-meta.json` atomically with mode `0600`. If a toolkit has more than
+one active account, keep the current pin or set a runtime-only comma-separated
+`COMPOSIO_ACCOUNT_<TOOLKIT>` value. Account IDs must not be committed.
