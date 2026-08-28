@@ -225,6 +225,12 @@ try {
   await rm(temporary, { recursive: true, force: true });
 }
 
+const wrapper = await readFile(
+  resolve(import.meta.dirname, "../bin/kurami-composio-session"),
+  "utf8",
+);
+assert(wrapper.includes("${KURAMI_HOME}/app/src/connectors/composio/cli.ts"));
+
 process.stdout.write(`${JSON.stringify({
   ok: true,
   dryRunDefault: true,
@@ -232,4 +238,5 @@ process.stdout.write(`${JSON.stringify({
   accountIdsRedacted: true,
   persistentSessionVerified: true,
   atomicMetaMode: "0600",
+  canonicalRuntimeEntrypoint: true,
 })}\n`);

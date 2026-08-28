@@ -73,11 +73,12 @@ function printHuman(result: RunSessionSyncResult): void {
 
 export async function runComposioSessionCli(arguments_ = process.argv.slice(2)): Promise<void> {
   const options = parseArguments(arguments_);
-  const kuramiHome = resolveKuramiHome(resolve(import.meta.dirname, "../../.."));
+  const applicationRoot = resolve(import.meta.dirname, "../../..");
+  const kuramiHome = resolveKuramiHome(resolve(import.meta.dirname, "../../../.."));
   const result = await runSessionSync({
     apply: options.apply,
     desiredStatePath: resolve(
-      options.config ?? resolve(kuramiHome, "deploy/config/connectors/composio-session.yaml"),
+      options.config ?? resolve(applicationRoot, "deploy/config/connectors/composio-session.yaml"),
     ),
     runtimeDirectory: resolve(
       options.runtimeDirectory ??
