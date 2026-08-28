@@ -112,6 +112,8 @@ a { color: inherit; }
   border-bottom: 3px solid var(--ink);
 }
 .digest-feed__header h2 { margin: 0; font-size: clamp(2.25rem, 5vw, 4.25rem); font-weight: 600; line-height: 1; letter-spacing: -.045em; }
+.digest-feed__header h2[data-feed-heading] { scroll-margin-top: 28px; }
+.digest-feed__header h2[data-feed-heading]:focus { outline: 2px solid var(--signal); outline-offset: 6px; }
 .digest-feed__header p { margin: 10px 0 0; color: var(--muted); font-size: 1rem; }
 .digest-feed__count { flex: none; color: var(--muted); font: 400 .75rem/1.4 var(--font-mono); text-transform: uppercase; }
 .digest-feed__items { border-bottom: 1px solid var(--line); }
