@@ -1,0 +1,34 @@
+[Unit]
+Description=Kurami Daily Briefing preview runtime
+After=default.target
+
+[Service]
+Type=simple
+ExecStartPre=/home/shagon1k/_hermes/_kurami/runtime/node/bin/node --jitless /home/shagon1k/_hermes/_kurami/app/dist/briefing/cli.js init
+ExecStart=/home/shagon1k/_hermes/_kurami/runtime/node/bin/node --jitless /home/shagon1k/_hermes/_kurami/app/dist/briefing/server.js
+Restart=on-failure
+RestartSec=3s
+TimeoutStopSec=20s
+KillSignal=SIGTERM
+
+Environment=HOME=/home/shagon1k
+Environment=KURAMI_HOME=/home/shagon1k/_hermes/_kurami
+Environment=BRIEFING_HOST=127.0.0.1
+Environment=BRIEFING_PORT=8787
+Environment=PATH=/home/shagon1k/_hermes/_kurami/runtime/node/bin:/usr/local/bin:/usr/bin:/bin
+
+UMask=0077
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=read-only
+ReadWritePaths=/home/shagon1k/_hermes/_kurami/state/briefing
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6
+RestrictNamespaces=true
+RestrictSUIDSGID=true
+LockPersonality=true
+MemoryDenyWriteExecute=true
+SystemCallArchitectures=native
+
+[Install]
+WantedBy=default.target

@@ -35,7 +35,22 @@ For each configured channel:
 
 Never call an unbounded `mark_as_read(chat_id)` as a substitute. If the current
 Telegram connector lacks `max_id`, production mutation remains disabled until
-the connector is patched and tested.
+a Kurami-owned bounded adapter is installed and tested. Keep the external
+connector checkout pinned and unmodified.
+
+## Runtime MVP boundary
+
+The initial runtime provides only local, reversible operations:
+
+- migrate and inspect the dedicated briefing SQLite database;
+- validate and stage a versioned payload plus inert rendered HTML;
+- serve prepared previews on loopback;
+- record briefing-local read state and explicit story reactions;
+- delete expired daily editions while retaining compact preference events.
+
+It does not finalize editions, make a prepared edition current, mutate Telegram
+or Gmail, send notifications, or expose a public listener. Those capabilities
+remain gated until their bounded adapters and commit receipts are implemented.
 
 One failed channel does not block successful channels. Its messages remain
 unread and the edition records a partial source. Retries fetch only failed

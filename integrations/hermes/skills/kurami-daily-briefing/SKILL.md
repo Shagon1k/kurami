@@ -19,6 +19,8 @@ Use these fixed production locations:
 KURAMI_HOME=/home/shagon1k/_hermes/_kurami
 CONFIG=/home/shagon1k/_hermes/_kurami/config/briefing.yaml
 TOPIC_SEED=/home/shagon1k/_hermes/_kurami/config/briefing-topics.yaml
+BRIEFING_CLI=/home/shagon1k/_hermes/_kurami/app/src/briefing/cli.ts
+BRIEFING_NODE=/home/shagon1k/_hermes/_kurami/runtime/node/bin/node
 ```
 
 If the config or a required capability is unavailable, produce a diagnostic or
@@ -79,11 +81,18 @@ Default manual experiments to `dry-run`. Generation never archives Gmail;
 11. Invoke `kurami-ui-preview-language` with the prepared payload. The renderer
     may choose components but must not rewrite facts, ordering, topics,
     reactions, read state, or action semantics.
+12. In `dry-run`, save the payload and inert HTML under a run-specific artifact
+    directory, then stage it with
+    `$BRIEFING_NODE $BRIEFING_CLI prepare-preview --payload <payload.json> --html <rendered.html>`.
+    Return the preview path printed by the runtime. Do not claim a live publish.
 
 ## Publish safely
 
-For a dry run, stop after validated rendering and return the preview location
-plus a concise data-quality report.
+For a dry run, stop after the runtime accepts the payload and inert rendered
+HTML. Return the preview location plus a concise data-quality report. The
+runtime owns theme, read-state, and reaction behavior; generated HTML must not
+contain scripts, inline event handlers, forms, frames, or embedded active
+content.
 
 For a production run:
 

@@ -25,7 +25,12 @@ Every payload uses a versioned envelope with these roles:
   "calendar": {},
   "priorities": [],
   "mail": {},
-  "news": {},
+  "news": {
+    "state": "ready",
+    "pageSize": 10,
+    "mainStoryIds": ["story:example"],
+    "items": []
+  },
   "cinemaPreview": null,
   "dataQuality": {},
   "actions": {}
@@ -74,6 +79,7 @@ Use a flexible story rather than a mandatory prose template:
 ```json
 {
   "id": "stable internal story id",
+  "fingerprint": "stable cross-edition content fingerprint",
   "headline": "Russian headline",
   "summary": "Concise Russian summary",
   "details": ["optional extended factual paragraphs"],
@@ -99,6 +105,13 @@ Use a flexible story rather than a mandatory prose template:
   "reaction": null
 }
 ```
+
+`news.items` is the complete normalized collection for the edition.
+`news.mainStoryIds` references zero or more IDs from that collection and
+`news.pageSize` is an integer from 10 through 12. The renderer may paginate but
+must not drop items. Story IDs identify one edition item; fingerprints identify
+the same underlying story across editions and are used only for deduplication
+and durable preference events.
 
 Target three or four canonical topics. Use two only for a genuinely narrow
 story; never pad with a provider, channel name, arbitrary person, or vague
