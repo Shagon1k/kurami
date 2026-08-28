@@ -89,7 +89,7 @@ export function formatMaintenanceSummary(result: {
     hour12: false,
   }).format(new Date());
   return [
-    "🧹 Kurami Orchestrator monthly maintenance completed",
+    "🧹 Kurami monthly maintenance completed",
     `- Removed logs: ${result.removedLogFiles} (${formatBytes(result.removedLogBytes)})`,
     `- Unused images reclaimed: ${reclaimedSpace(result.docker[0])}`,
     `- Builder cache reclaimed: ${reclaimedSpace(result.docker[1])}`,

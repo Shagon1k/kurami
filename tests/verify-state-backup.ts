@@ -69,7 +69,7 @@ try {
   }
   const summary = formatBackupSummary(last);
   if (
-    !summary.includes("Kurami Orchestrator backup completed") ||
+    !summary.includes("Kurami backup completed") ||
     !summary.includes("SQLite: ok") ||
     !summary.includes("Retained snapshots: 2")
   ) {

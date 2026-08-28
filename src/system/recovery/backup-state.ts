@@ -76,7 +76,7 @@ function formatVilniusTimestamp(value: string): string {
 export function formatBackupSummary(result: BackupResult): string {
   const directoryName = result.directory.split("/").at(-1) ?? result.directory;
   return [
-    "💾 Kurami Orchestrator backup completed",
+    "💾 Kurami backup completed",
     `- Snapshot: ${directoryName}`,
     `- SQLite: ${result.manifest.databaseIntegrity}`,
     `- Files: ${result.manifest.files.length}`,
