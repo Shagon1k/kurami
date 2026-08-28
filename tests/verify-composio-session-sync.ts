@@ -230,6 +230,7 @@ const wrapper = await readFile(
   "utf8",
 );
 assert(wrapper.includes("${KURAMI_HOME}/app/src/connectors/composio/cli.ts"));
+assert(wrapper.includes("${KURAMI_HOME}/runtime/node/bin/node"));
 
 process.stdout.write(`${JSON.stringify({
   ok: true,

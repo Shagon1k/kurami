@@ -2,4 +2,5 @@
 set -euo pipefail
 
 KURAMI_HOME="${KURAMI_HOME:-/home/shagon1k/_hermes/_kurami}"
-exec node "${KURAMI_HOME}/app/src/connectors/composio/cli.ts" "$@"
+exec "${KURAMI_HOME}/runtime/node/bin/node" \
+  "${KURAMI_HOME}/app/src/connectors/composio/cli.ts" "$@"
