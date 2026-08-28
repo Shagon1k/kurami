@@ -8,9 +8,9 @@ import {
   factualHash,
   persistTriageSnapshot,
   type RawTriageItem,
-} from "../src/triage-snapshot.ts";
+} from "../src/orchestrator/projects/triage/snapshot.ts";
 import * as canonicalSnapshot from "../src/orchestrator/projects/triage/snapshot.ts";
-import * as legacySnapshot from "../src/triage-snapshot.ts";
+import * as legacySnapshot from "../src/orchestrator/projects/triage/snapshot.ts";
 
 function assert(condition: unknown, message: string): asserts condition {
   if (!condition) throw new Error(message);
@@ -93,7 +93,7 @@ async function main(): Promise<void> {
     upgrade.close();
 
     await mkdir(resolve(home, "state"), { recursive: true });
-    execFileSync(process.execPath, [resolve(app, "src/init-run-store.ts")], {
+    execFileSync(process.execPath, [resolve(app, "src/orchestrator/state/init-run-store.ts")], {
       env: {
         ...process.env,
         KURAMI_HOME: home,

@@ -12,9 +12,9 @@ import {
   syncAcceptedBatch,
   type MetadataProjectClient,
   type ProjectDefinition,
-} from "../src/metadata-sync.ts";
+} from "../src/orchestrator/projects/metadata/sync.ts";
 import * as canonicalSync from "../src/orchestrator/projects/metadata/sync.ts";
-import * as legacySync from "../src/metadata-sync.ts";
+import * as legacySync from "../src/orchestrator/projects/metadata/sync.ts";
 
 function assert(condition: unknown, message: string): asserts condition {
   if (!condition) throw new Error(message);

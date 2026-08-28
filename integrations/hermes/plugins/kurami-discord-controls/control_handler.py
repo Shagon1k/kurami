@@ -65,7 +65,6 @@ _METADATA_DISCUSSION_INTRO = (
 def _kurami_home() -> Path:
     return Path(
         os.environ.get("KURAMI_HOME")
-        or os.environ.get("ORCHESTRATOR_HOME")
         or "/home/shagon1k/_hermes/_kurami"
     ).absolute()
 
@@ -74,7 +73,6 @@ def _kurami_subprocess_env() -> dict[str, str]:
     env = dict(os.environ)
     home = str(_kurami_home())
     env["KURAMI_HOME"] = home
-    env["ORCHESTRATOR_HOME"] = home
     return env
 
 

@@ -9,15 +9,15 @@ import {
   defaultServerHealthConfig,
   emptyHealthAlertState,
   type HealthAlertDecision,
-} from "../src/server-health.ts";
+} from "../src/system/health/server-health.ts";
 import {
   cleanupHealthChannel,
   reconcileSystemHealthCard,
   sendSystemHealthAlert,
   systemHealthAlertCard,
   systemHealthCard,
-} from "../src/system-health-discord.ts";
-import * as legacyDiscordUi from "../src/discord-ui.ts";
+} from "../src/system/health/system-health-discord.ts";
+import * as legacyDiscordUi from "../src/discord/ui.ts";
 import * as canonicalDiscordUi from "../src/discord/ui.ts";
 import * as canonicalHealthDiscord from "../src/system/health/system-health-discord.ts";
 
@@ -135,7 +135,7 @@ assert(
 );
 assert(serializedCard.includes("Disk") && serializedCard.includes("158.1 GiB"));
 assert(serializedCard.includes("State DB") && serializedCard.includes("Backup"));
-assert(serializedCard.includes("Runtime") && serializedCard.includes("12 running"));
+assert(serializedCard.includes("Docker") && serializedCard.includes("12 up"));
 assert(serializedCard.includes("Network") && serializedCard.includes("1203↓ / 85↑ Mbps"));
 assert(serializedCard.includes("**CPU 3.4% (5s)**"));
 assert(serializedCard.includes("avg 8m 6.5% · peak 21.8%"));

@@ -37,7 +37,6 @@ readonly PROJECTS_DIGEST_EVENT_LOG="${KURAMI_HOME}/logs/projects-digest-event-re
 readonly OBSERVER_ERROR_LOG="${KURAMI_HOME}/logs/session-observer-errors.log"
 
 export KURAMI_HOME
-export ORCHESTRATOR_HOME="${KURAMI_HOME}"
 export POLLER_PROJECT="${PROJECT}"
 export POLLER_QUIET=1
 export PATH="${KURAMI_HOME}/runtime/node/bin:/home/shagon1k/.local/bin:/usr/local/bin:/usr/bin:/bin:/snap/bin"

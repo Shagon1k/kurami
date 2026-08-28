@@ -8,11 +8,11 @@ import {
   selectActionableReviewThreads,
 } from "../src/orchestrator/integrations/github/review-threads.ts";
 import { loadOwnerGitHubTokenFromFile } from "../src/orchestrator/integrations/github/app-auth.ts";
-import * as legacyGitHubAppAuth from "../src/github-app-auth.ts";
-import * as legacyReviewThreads from "../src/github-review-threads.ts";
+import * as legacyGitHubAppAuth from "../src/orchestrator/integrations/github/app-auth.ts";
+import * as legacyReviewThreads from "../src/orchestrator/integrations/github/review-threads.ts";
 import * as canonicalReviewFixManager from "../src/orchestrator/projects/reviews/fix-manager.ts";
-import * as legacyReviewFixManager from "../src/review-fix-manager.ts";
-import { reviewFixPrompt } from "../src/session-manager.ts";
+import * as legacyReviewFixManager from "../src/orchestrator/projects/reviews/fix-manager.ts";
+import { reviewFixPrompt } from "../src/orchestrator/projects/sessions/manager.ts";
 
 type JsonObject = Record<string, unknown>;
 
@@ -284,7 +284,7 @@ async function main(): Promise<void> {
       resolve(home, "config/projects.yaml"),
       await readFile(resolve(app, "deploy/config/projects.yaml"), "utf8"),
     );
-    runNode(resolve(app, "src/init-run-store.ts"), [], home);
+    runNode(resolve(app, "src/orchestrator/state/init-run-store.ts"), [], home);
     const state = new DatabaseSync(resolve(home, "state/orchestrator.db"));
     state.exec(`
       INSERT INTO project_events (
@@ -323,7 +323,7 @@ async function main(): Promise<void> {
     `);
     state.close();
     const controls = runNode(
-      resolve(app, "src/run-controls.ts"),
+      resolve(app, "src/orchestrator/controls/run.ts"),
       ["controls", "--project", "tailortales", "--issue", "141"],
       home,
     );
@@ -332,11 +332,11 @@ async function main(): Promise<void> {
       "Current actionable review did not expose Fix Review",
     );
     const created = runNode(
-      resolve(app, "src/run-controls.ts"),
+      resolve(app, "src/orchestrator/controls/run.ts"),
       ["request", "--run-id", "r_review_fix", "--action", "review_fix", "--via", "discord", "--apply"],
       home,
     );
-    const controller = runNode(resolve(app, "src/controller.ts"), [], home);
+    const controller = runNode(resolve(app, "src/orchestrator/runtime/controller.ts"), [], home);
     assert(
       (controller.plans as JsonObject[]).some(
         (plan) => plan.action === "review_fix_start" && plan.requestId === created.requestId,
@@ -428,7 +428,7 @@ async function main(): Promise<void> {
       "Resolution-only recovery did not restore a bounded retry state",
     );
     const recoveryController = runNode(
-      resolve(app, "src/controller.ts"),
+      resolve(app, "src/orchestrator/runtime/controller.ts"),
       [],
       home,
     );

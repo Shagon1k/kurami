@@ -8,7 +8,7 @@ import {
   parseLibreSpeedOutput,
   readNetworkSpeedSnapshot,
   writeNetworkSpeedSnapshot,
-} from "../src/network-health.ts";
+} from "../src/system/network/network-health.ts";
 import * as canonicalNetworkHealth from "../src/system/network/network-health.ts";
 
 assert.equal(parseLibreSpeedOutput, canonicalNetworkHealth.parseLibreSpeedOutput);
@@ -53,24 +53,16 @@ const cliEnvironment = {
   LIBRESPEED_BIN: fakeLibreSpeed,
   NETWORK_TEST_LOG: argumentLog,
 };
-const legacyCli = resolve(import.meta.dirname, "../src/network-health.ts");
 const canonicalCli = resolve(
   import.meta.dirname,
   "../src/system/network/network-health.ts",
 );
-const legacyResult = JSON.parse(
-  execFileSync(process.execPath, [legacyCli], {
-    env: cliEnvironment,
-    encoding: "utf8",
-  }),
-) as Record<string, unknown>;
 const canonicalResult = JSON.parse(
   execFileSync(process.execPath, [canonicalCli], {
     env: cliEnvironment,
     encoding: "utf8",
   }),
 ) as Record<string, unknown>;
-assert.deepEqual(canonicalResult, legacyResult);
 const argumentsUsed = await readFile(argumentLog, "utf8");
 assert(argumentsUsed.includes("--telemetry-level\ndisabled\n"));
 assert(argumentsUsed.includes("--duration\n1\n"));
@@ -83,6 +75,6 @@ process.stdout.write(
     telemetryDisabledByRunner: true,
     connectivityQuorum: "2-of-3",
     atomicState: true,
-    compatibilityCli: true,
+    canonicalCli: true,
   })}\n`,
 );

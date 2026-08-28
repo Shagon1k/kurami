@@ -17,8 +17,7 @@ SQLite and GitHub.
 The database stores Discord message/thread IDs and reconciliation state. It
 does not store presentation templates.
 
-`src/discord-ui.ts` remains a compatibility re-export for existing external
-imports. New internal code imports the canonical `src/discord/ui.ts` module.
+Internal and external code imports the canonical `src/discord/ui.ts` module directly.
 
 ## Run thread
 

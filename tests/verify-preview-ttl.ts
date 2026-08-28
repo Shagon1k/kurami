@@ -60,7 +60,7 @@ async function initializeThroughV22(
       );
     }
   }
-  execFileSync(process.execPath, [resolve(appDirectory, "src/init-run-store.ts")], {
+  execFileSync(process.execPath, [resolve(appDirectory, "src/orchestrator/state/init-run-store.ts")], {
     env: {
       ...process.env,
       KURAMI_HOME: home,
@@ -141,7 +141,7 @@ async function main(): Promise<void> {
     seedRun(v22);
     v22.close();
 
-    runNode(appDirectory, home, "src/init-run-store.ts", []);
+    runNode(appDirectory, home, "src/orchestrator/state/init-run-store.ts", []);
     const migrated = new DatabaseSync(databasePath);
     const grace = migrated
       .prepare(`SELECT expires_at FROM preview_leases WHERE lease_id='pv_preview_ttl'`)
@@ -160,7 +160,7 @@ async function main(): Promise<void> {
       .run();
     migrated.close();
 
-    const controls = runNode(appDirectory, home, "src/run-controls.ts", [
+    const controls = runNode(appDirectory, home, "src/orchestrator/controls/run.ts", [
       "controls",
       "--project",
       "tailortales",
@@ -173,13 +173,13 @@ async function main(): Promise<void> {
       "Warning window did not expose both extend and stop controls",
     );
 
-    const planned = runNode(appDirectory, home, "src/preview-manager.ts", [
+    const planned = runNode(appDirectory, home, "src/orchestrator/projects/previews/manager.ts", [
       "extend",
       "--run-id",
       "r_preview_ttl",
     ]);
     assert(planned.action === "extend", "Extension dry plan was not produced");
-    const extended = runNode(appDirectory, home, "src/preview-manager.ts", [
+    const extended = runNode(appDirectory, home, "src/orchestrator/projects/previews/manager.ts", [
       "extend",
       "--run-id",
       "r_preview_ttl",
@@ -191,7 +191,7 @@ async function main(): Promise<void> {
     const earlyFailure = nodeFails(
       appDirectory,
       home,
-      "src/preview-manager.ts",
+      "src/orchestrator/projects/previews/manager.ts",
       ["extend", "--run-id", "r_preview_ttl", "--apply"],
     );
     assert(
@@ -221,7 +221,7 @@ async function main(): Promise<void> {
       `)
       .run();
     expired.close();
-    const controller = runNode(appDirectory, home, "src/controller.ts", []);
+    const controller = runNode(appDirectory, home, "src/orchestrator/runtime/controller.ts", []);
     const expiryPlan = (controller.plans as Array<Record<string, unknown>>).find(
       (plan) => plan.runId === "r_preview_ttl",
     );
@@ -240,7 +240,7 @@ async function main(): Promise<void> {
       `)
       .run();
     pendingExtension.close();
-    const extensionRace = runNode(appDirectory, home, "src/controller.ts", []);
+    const extensionRace = runNode(appDirectory, home, "src/orchestrator/runtime/controller.ts", []);
     const extensionRacePlan = (
       extensionRace.plans as Array<Record<string, unknown>>
     ).find((plan) => plan.runId === "r_preview_ttl");
@@ -253,14 +253,14 @@ async function main(): Promise<void> {
     const expiredFailure = nodeFails(
       appDirectory,
       home,
-      "src/preview-manager.ts",
+      "src/orchestrator/projects/previews/manager.ts",
       ["extend", "--run-id", "r_preview_ttl", "--apply"],
     );
     assert(
       expiredFailure.includes("already expired"),
       "Expired preview was unexpectedly extendable",
     );
-    const released = runNode(appDirectory, home, "src/preview-manager.ts", [
+    const released = runNode(appDirectory, home, "src/orchestrator/projects/previews/manager.ts", [
       "release",
       "--run-id",
       "r_preview_ttl",
@@ -275,7 +275,7 @@ async function main(): Promise<void> {
       .prepare(`UPDATE runs SET state='parked_review' WHERE run_id='r_preview_ttl'`)
       .run();
     reallocate.close();
-    runNode(appDirectory, home, "src/preview-manager.ts", [
+    runNode(appDirectory, home, "src/orchestrator/projects/previews/manager.ts", [
       "allocate",
       "--run-id",
       "r_preview_ttl",

@@ -4,7 +4,7 @@ import { tmpdir } from "node:os";
 import { delimiter, dirname, resolve } from "node:path";
 import { DatabaseSync } from "node:sqlite";
 import * as canonicalCancelResolution from "../src/orchestrator/projects/worktrees/cancel-resolution.ts";
-import * as legacyCancelResolution from "../src/cancel-resolution.ts";
+import * as legacyCancelResolution from "../src/orchestrator/projects/worktrees/cancel-resolution.ts";
 
 function assert(condition: unknown, message: string): asserts condition {
   if (!condition) throw new Error(message);
@@ -69,7 +69,7 @@ async function main(): Promise<void> {
       resolve(home, "config/projects.yaml"),
       `version: 1\nprojects:\n  tailortales:\n    repository: Shagon1k/TailorTales\n    workspace:\n      canonical_repository: ${canonical}\n      worktree_root: ${worktreeRoot}\n`,
     );
-    runNode(resolve(app, "src/init-run-store.ts"), [], home);
+    runNode(resolve(app, "src/orchestrator/state/init-run-store.ts"), [], home);
     const database = new DatabaseSync(resolve(home, "state/orchestrator.db"));
 
     const seed = (runId: string, issue: number, branch: string, path: string): void => {
@@ -107,7 +107,7 @@ async function main(): Promise<void> {
       app,
       "src/orchestrator/projects/worktrees/cancel-resolution.ts",
     );
-    const legacyScript = resolve(app, "src/cancel-resolution.ts");
+    const legacyScript = resolve(app, "src/orchestrator/projects/worktrees/cancel-resolution.ts");
     const plan = runNode(canonicalScript, ["discard", "--run-id", "r_discard"], home) as {
       plan: { eligible: boolean; changedFiles: string[] };
     };

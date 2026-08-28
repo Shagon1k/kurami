@@ -3,11 +3,11 @@ import { readFileSync } from "node:fs";
 import { chmod, mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { basename, resolve } from "node:path";
-import type { S3RecoveryTransport } from "../src/s3-recovery.ts";
+import type { S3RecoveryTransport } from "../src/system/recovery/s3-recovery.ts";
 import {
   createCurlS3Transport,
   uploadRecoveryBundle,
-} from "../src/s3-recovery.ts";
+} from "../src/system/recovery/s3-recovery.ts";
 import * as canonicalS3Recovery from "../src/system/recovery/s3-recovery.ts";
 
 if (

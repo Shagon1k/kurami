@@ -4,7 +4,7 @@ import { tmpdir } from "node:os";
 import { resolve } from "node:path";
 import { DatabaseSync } from "node:sqlite";
 import * as canonicalPreviewManager from "../src/orchestrator/projects/previews/manager.ts";
-import * as legacyPreviewManager from "../src/preview-manager.ts";
+import * as legacyPreviewManager from "../src/orchestrator/projects/previews/manager.ts";
 
 process.umask(0o077);
 
@@ -58,7 +58,7 @@ async function main(): Promise<void> {
       resolve(appDirectory, "deploy/config/projects.yaml"),
       resolve(testHome, "config/projects.yaml"),
     );
-    execFileSync(process.execPath, [resolve(appDirectory, "src/init-run-store.ts")], {
+    execFileSync(process.execPath, [resolve(appDirectory, "src/orchestrator/state/init-run-store.ts")], {
       env: {
         ...process.env,
         KURAMI_HOME: testHome,
@@ -139,7 +139,7 @@ async function main(): Promise<void> {
     const exhausted = spawnSync(
       process.execPath,
       [
-        resolve(appDirectory, "src/preview-manager.ts"),
+        resolve(appDirectory, "src/orchestrator/projects/previews/manager.ts"),
         "allocate",
         "--run-id",
         "r_preview_test_7",

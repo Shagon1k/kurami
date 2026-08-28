@@ -1890,7 +1890,6 @@ function runExternal(plan: PlannedAction): unknown {
     env: {
       ...process.env,
       KURAMI_HOME: orchestratorHome,
-      ORCHESTRATOR_HOME: orchestratorHome,
     },
     stdio: ["ignore", "pipe", "pipe"],
   }).trim();

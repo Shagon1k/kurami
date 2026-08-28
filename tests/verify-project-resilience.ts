@@ -3,9 +3,9 @@ import { chmod, copyFile, mkdir, mkdtemp, readFile, rm, writeFile } from "node:f
 import { tmpdir } from "node:os";
 import { resolve } from "node:path";
 import { DatabaseSync } from "node:sqlite";
-import * as legacyProjectPoller from "../src/poll-projects.ts";
+import * as legacyProjectPoller from "../src/orchestrator/projects/poll-projects.ts";
 import * as canonicalProjectPoller from "../src/orchestrator/projects/poll-projects.ts";
-import * as legacyController from "../src/controller.ts";
+import * as legacyController from "../src/orchestrator/runtime/controller.ts";
 import * as canonicalController from "../src/orchestrator/runtime/controller.ts";
 
 type ControllerResult = {
@@ -65,7 +65,7 @@ async function main(): Promise<void> {
     );
     execFileSync(
       process.execPath,
-      [resolve(appDirectory, "src/init-run-store.ts")],
+      [resolve(appDirectory, "src/orchestrator/state/init-run-store.ts")],
       {
         env: {
           ...process.env,
@@ -146,7 +146,7 @@ async function main(): Promise<void> {
 
     let pollFailed = false;
     try {
-      execFileSync(process.execPath, [resolve(appDirectory, "src/poll-projects.ts")], {
+      execFileSync(process.execPath, [resolve(appDirectory, "src/orchestrator/projects/poll-projects.ts")], {
         env: {
           ...process.env,
           KURAMI_HOME: testHome,

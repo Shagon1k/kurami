@@ -4,7 +4,7 @@ import { tmpdir } from "node:os";
 import { resolve } from "node:path";
 import { DatabaseSync } from "node:sqlite";
 import { parse, stringify } from "yaml";
-import * as legacyProjectEvents from "../src/process-project-events.ts";
+import * as legacyProjectEvents from "../src/orchestrator/projects/process-project-events.ts";
 import * as canonicalProjectEvents from "../src/orchestrator/projects/process-project-events.ts";
 
 type ProjectsRegistry = {
@@ -37,7 +37,7 @@ assert(
 function runConsumer(appDirectory: string, testHome: string): ConsumerResult {
   const stdout = execFileSync(
     process.execPath,
-    [resolve(appDirectory, "src/process-project-events.ts")],
+    [resolve(appDirectory, "src/orchestrator/projects/process-project-events.ts")],
     {
       encoding: "utf8",
       env: { ...process.env, KURAMI_HOME: testHome },
@@ -70,7 +70,7 @@ async function main(): Promise<void> {
       resolve(testHome, "config/orchestrator.yaml"),
     );
 
-    execFileSync(process.execPath, [resolve(appDirectory, "src/init-run-store.ts")], {
+    execFileSync(process.execPath, [resolve(appDirectory, "src/orchestrator/state/init-run-store.ts")], {
       env: {
         ...process.env,
         KURAMI_HOME: testHome,

@@ -9,7 +9,7 @@ import {
   type ResourceGuardLimits,
   type ResourceObservation,
 } from "../src/orchestrator/resources/guard.ts";
-import * as legacyResourceGuard from "../src/resource-guard.ts";
+import * as legacyResourceGuard from "../src/orchestrator/resources/guard.ts";
 
 const limits: ResourceGuardLimits = {
   max_managed_worktrees_global: 6,

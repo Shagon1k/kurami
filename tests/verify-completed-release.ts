@@ -12,7 +12,7 @@ import { tmpdir } from "node:os";
 import { resolve } from "node:path";
 import { DatabaseSync } from "node:sqlite";
 import * as canonicalRelease from "../src/orchestrator/projects/worktrees/release.ts";
-import * as legacyRelease from "../src/release-worktree.ts";
+import * as legacyRelease from "../src/orchestrator/projects/worktrees/release.ts";
 
 process.umask(0o077);
 
@@ -104,7 +104,7 @@ async function main(): Promise<void> {
       ].join("\n"),
       "utf8",
     );
-    execFileSync(process.execPath, [resolve(appDirectory, "src/init-run-store.ts")], {
+    execFileSync(process.execPath, [resolve(appDirectory, "src/orchestrator/state/init-run-store.ts")], {
       env: {
         ...process.env,
         KURAMI_HOME: testHome,
@@ -187,7 +187,7 @@ async function main(): Promise<void> {
       ].join("\n"),
       "utf8",
     );
-    const afterMerge = release("src/release-worktree.ts", true);
+    const afterMerge = release("src/orchestrator/projects/worktrees/release.ts", true);
     assert(afterMerge.action === "released", "Merged worktree was not released");
     assert(
       afterMerge.mergeEvidence === "github_pr",

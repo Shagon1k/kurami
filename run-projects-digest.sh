@@ -18,7 +18,6 @@ readonly METADATA_ERROR_LOG="${KURAMI_HOME}/logs/metadata-proposal-scheduler-err
 readonly DISCORD_ERROR_LOG="${KURAMI_HOME}/logs/projects-digest-discord-errors.log"
 
 export KURAMI_HOME HERMES_HOME
-export ORCHESTRATOR_HOME="${KURAMI_HOME}"
 export PATH="${KURAMI_HOME}/runtime/node/bin:/home/shagon1k/.local/bin:/usr/local/bin:/usr/bin:/bin:/snap/bin"
 
 install -d -m 700 "${KURAMI_HOME}/state" "${KURAMI_HOME}/logs"

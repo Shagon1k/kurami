@@ -29,7 +29,7 @@ async function initializeThrough(
       await copyFile(resolve(appDirectory, "migrations", name), resolve(migrations, name));
     }
   }
-  execFileSync(process.execPath, [resolve(appDirectory, "src/init-run-store.ts")], {
+  execFileSync(process.execPath, [resolve(appDirectory, "src/orchestrator/state/init-run-store.ts")], {
     env: {
       ...process.env,
       KURAMI_HOME: home,
@@ -100,7 +100,7 @@ async function main(): Promise<void> {
     old.prepare(`UPDATE run_resources SET preview_id='preview-1' WHERE run_id='r_static_test'`).run();
     old.close();
 
-    execFileSync(process.execPath, [resolve(appDirectory, "src/init-run-store.ts")], {
+    execFileSync(process.execPath, [resolve(appDirectory, "src/orchestrator/state/init-run-store.ts")], {
       env: { ...process.env, KURAMI_HOME: home },
       stdio: ["ignore", "ignore", "pipe"],
     });
@@ -119,7 +119,7 @@ async function main(): Promise<void> {
     const canonicalRuntime = await import(
       "../src/orchestrator/projects/previews/runtime.ts"
     );
-    const legacyRuntime = await import("../src/preview-runtime.ts");
+    const legacyRuntime = await import("../src/orchestrator/projects/previews/runtime.ts");
     const {
       assertPreviewSourceRevision,
       requireExactHeadSha,
@@ -216,7 +216,7 @@ async function main(): Promise<void> {
     const canonicalStaticRuntime = await import(
       "../src/orchestrator/projects/previews/adapters/static.ts"
     );
-    const legacyStaticRuntime = await import("../src/preview-static-runtime.ts");
+    const legacyStaticRuntime = await import("../src/orchestrator/projects/previews/adapters/static.ts");
     const {
       inventoryArtifact,
       runPreviewStaticRuntimeCli,
@@ -232,7 +232,7 @@ async function main(): Promise<void> {
     const canonicalComposeRuntime = await import(
       "../src/orchestrator/projects/previews/adapters/compose.ts"
     );
-    const legacyComposeRuntime = await import("../src/preview-compose-runtime.ts");
+    const legacyComposeRuntime = await import("../src/orchestrator/projects/previews/adapters/compose.ts");
     assert(
       legacyComposeRuntime.runPreviewComposeRuntimeCli ===
         canonicalComposeRuntime.runPreviewComposeRuntimeCli,

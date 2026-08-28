@@ -7,28 +7,14 @@ import { resolveKuramiHome } from "../src/core/kurami-home.ts";
 
 const root = resolve(import.meta.dirname, "..");
 const canonicalHome = "/home/shagon1k/_hermes/_kurami";
-const legacyHome = "/home/shagon1k/_hermes/_orchestrator";
+const legacyHome = ["/home/shagon1k/_hermes/", "orchestrator"].join("_");
+const retiredHomeEnvironment = ["ORCHESTRATOR", "HOME"].join("_");
 const fallbackHome = "/tmp/kurami-home-fallback";
-const legacyWarnings: string[] = [];
 assert.equal(
-  resolveKuramiHome(
-    fallbackHome,
-    { KURAMI_HOME: canonicalHome, ORCHESTRATOR_HOME: legacyHome },
-    (message) => legacyWarnings.push(message),
-  ),
+  resolveKuramiHome(fallbackHome, { KURAMI_HOME: canonicalHome }),
   canonicalHome,
 );
-assert.equal(legacyWarnings.length, 0);
-assert.equal(
-  resolveKuramiHome(
-    fallbackHome,
-    { ORCHESTRATOR_HOME: legacyHome },
-    (message) => legacyWarnings.push(message),
-  ),
-  legacyHome,
-);
-assert.equal(legacyWarnings.length, 1);
-assert.equal(resolveKuramiHome(fallbackHome, {}, () => undefined), fallbackHome);
+assert.equal(resolveKuramiHome(fallbackHome, {}), fallbackHome);
 
 async function filesBelow(directory: string): Promise<string[]> {
   const entries = await readdir(directory, { withFileTypes: true });
@@ -46,6 +32,7 @@ const runtimeFiles = [
   ...await filesBelow(resolve(root, "bin")),
   ...await filesBelow(resolve(root, "deploy")),
   ...await filesBelow(resolve(root, "integrations/hermes/scripts")),
+  ...await filesBelow(resolve(root, "integrations/hermes/plugins")),
   resolve(root, "run-project-poller.sh"),
   resolve(root, "run-projects-digest.sh"),
 ].filter((path) => [".ts", ".sh", ".yaml", ".yml", ".service", ""].includes(extname(path)));
@@ -74,20 +61,14 @@ for (const path of entrypointConsumerFiles) {
   );
 }
 
-const legacyEnvironmentTestFiles = new Set([
-  resolve(root, "tests/verify-discord-plugin.py"),
-  resolve(root, "tests/verify-kurami-home.ts"),
-  resolve(root, "tests/verify-worktree-provision.ts"),
-]);
 const testFiles = (await filesBelow(resolve(root, "tests"))).filter((path) =>
   [".ts", ".py"].includes(extname(path))
 );
 for (const path of testFiles) {
-  if (legacyEnvironmentTestFiles.has(path)) continue;
   const content = await readFile(path, "utf8");
   assert(
-    !content.includes("ORCHESTRATOR_HOME"),
-    `Ordinary regression test still uses the legacy environment: ${path}`,
+    !content.includes(retiredHomeEnvironment),
+    "Regression test still uses the retired home environment",
   );
 }
 
@@ -100,7 +81,7 @@ const canonicalOperatorFiles = [
 for (const path of canonicalOperatorFiles) {
   const content = await readFile(path, "utf8");
   assert(
-    !content.includes("ORCHESTRATOR_HOME"),
+    !content.includes(retiredHomeEnvironment),
     `Operator documentation still recommends the legacy environment: ${path}`,
   );
   const legacyCommands = content.match(/node src\/[a-z0-9-]+\.ts/gu) ?? [];
@@ -122,28 +103,25 @@ for (const path of runtimeFiles) {
 const sourceFiles = (await filesBelow(resolve(root, "src"))).filter(
   (path) => extname(path) === ".ts",
 );
-const compatibilitySources: string[] = [];
+const rootSource = resolve(root, "src");
+const rootEntrypoints = sourceFiles.filter((path) =>
+  !path.slice(rootSource.length + 1).includes("/"),
+);
+assert.deepEqual(rootEntrypoints, [], "Flat compatibility entrypoints remain");
+
 const directEntries: string[] = [];
 for (const path of sourceFiles) {
   const content = await readFile(path, "utf8");
   if (content.includes("import.meta.main")) directEntries.push(path);
   assert(
     !/if\s*\([^)]*import\.meta\.url/u.test(content),
-    `Symlink-sensitive direct-entry guard remains: ${path}`,
+    "Symlink-sensitive direct-entry guard remains",
   );
-  if (!content.includes("process.env.ORCHESTRATOR_HOME")) continue;
   assert(
-    content.includes("process.env.KURAMI_HOME"),
-    `TypeScript source lost KURAMI_HOME precedence: ${path}`,
+    !content.includes(retiredHomeEnvironment),
+    "TypeScript source still uses the retired home environment",
   );
-  compatibilitySources.push(path);
 }
-
-assert.deepEqual(
-  compatibilitySources,
-  [],
-  "TypeScript runtime modules must use the shared Kurami home resolver",
-);
 
 for (const relative of [
   "run-project-poller.sh",
@@ -155,15 +133,7 @@ for (const relative of [
 ]) {
   const content = await readFile(resolve(root, relative), "utf8");
   assert(content.includes(`KURAMI_HOME="${canonicalHome}"`));
-  assert(content.includes('export ORCHESTRATOR_HOME="${KURAMI_HOME}"'));
-}
-
-for (const [legacy, canonical] of [
-  ["kurami-orchestrator-state-backup.sh", "kurami-state-backup.sh"],
-  ["kurami-orchestrator-monthly-maintenance.sh", "kurami-monthly-maintenance.sh"],
-] as const) {
-  const content = await readFile(resolve(root, "integrations/hermes/scripts", legacy), "utf8");
-  assert(content.includes(`/scripts/${canonical}`));
+  assert(!content.includes(retiredHomeEnvironment));
 }
 
 const service = await readFile(
@@ -180,7 +150,7 @@ try {
   const smoke = spawnSync(
     process.execPath,
     [
-      resolve(appAlias, "src/project-readiness.ts"),
+      resolve(appAlias, "src/orchestrator/projects/project-readiness.ts"),
       "--config-dir",
       resolve(appAlias, "deploy/config"),
       "--project",
@@ -201,13 +171,13 @@ process.stdout.write(
   `${JSON.stringify({
     ok: true,
     canonicalHome,
-    legacyFallbackRetained: true,
+    legacyFallbackRetained: false,
     activeRuntimeFiles: runtimeFiles.length,
-    compatibilitySources: compatibilitySources.length,
+    compatibilitySources: 0,
     symlinkSafeDirectEntries: directEntries.length,
     canonicalEntrypointConsumers: entrypointConsumerFiles.length,
     canonicalOperatorFiles: canonicalOperatorFiles.length,
-    canonicalEnvironmentTests: testFiles.length - legacyEnvironmentTestFiles.size,
+    canonicalEnvironmentTests: testFiles.length,
     sharedHomeResolver: true,
     symlinkCliSmoke: true,
   })}\n`,

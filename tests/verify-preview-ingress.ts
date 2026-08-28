@@ -4,9 +4,9 @@ import {
 } from "../src/orchestrator/projects/previews/ingress.ts";
 import { codexLaunchUrl } from "../src/orchestrator/integrations/codex/deeplink.ts";
 import * as canonicalPreviewIngress from "../src/orchestrator/projects/previews/ingress.ts";
-import * as legacyPreviewIngress from "../src/preview-ingress.ts";
+import * as legacyPreviewIngress from "../src/orchestrator/projects/previews/ingress.ts";
 import * as canonicalCodexDeeplink from "../src/orchestrator/integrations/codex/deeplink.ts";
-import * as legacyCodexDeeplink from "../src/codex-deeplink.ts";
+import * as legacyCodexDeeplink from "../src/orchestrator/integrations/codex/deeplink.ts";
 
 function assert(condition: unknown, message: string): asserts condition {
   if (!condition) throw new Error(message);

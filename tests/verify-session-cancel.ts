@@ -95,7 +95,7 @@ esac
     };
     execFileSync(
       process.execPath,
-      [resolve(appDirectory, "src/init-run-store.ts")],
+      [resolve(appDirectory, "src/orchestrator/state/init-run-store.ts")],
       { env, stdio: ["ignore", "ignore", "pipe"] },
     );
 
@@ -152,7 +152,7 @@ esac
     const stdout = execFileSync(
       process.execPath,
       [
-        resolve(appDirectory, "src/session-manager.ts"),
+        resolve(appDirectory, "src/orchestrator/projects/sessions/manager.ts"),
         "cancel",
         "--run-id",
         runId,
@@ -269,7 +269,7 @@ esac
     const completionStdout = execFileSync(
       process.execPath,
       [
-        resolve(appDirectory, "src/session-manager.ts"),
+        resolve(appDirectory, "src/orchestrator/projects/sessions/manager.ts"),
         "cancel",
         "--run-id",
         runId,

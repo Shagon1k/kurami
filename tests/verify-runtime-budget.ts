@@ -10,7 +10,7 @@ import { tmpdir } from "node:os";
 import { resolve } from "node:path";
 import { DatabaseSync } from "node:sqlite";
 import * as canonicalRuntimeBudget from "../src/orchestrator/projects/sessions/runtime-budget.ts";
-import * as legacyRuntimeBudget from "../src/runtime-budget.ts";
+import * as legacyRuntimeBudget from "../src/orchestrator/projects/sessions/runtime-budget.ts";
 import {
   inspectRuntimeBudgets,
   recordRuntimeTimeout,

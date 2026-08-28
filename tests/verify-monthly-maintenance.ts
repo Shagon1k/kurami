@@ -6,7 +6,7 @@ import {
   builderCachePruneArgs,
   formatMaintenanceSummary,
   parseBuilderCacheMaxUsedGib,
-} from "../src/monthly-maintenance.ts";
+} from "../src/system/maintenance/monthly-maintenance.ts";
 import * as canonicalMaintenance from "../src/system/maintenance/monthly-maintenance.ts";
 
 if (

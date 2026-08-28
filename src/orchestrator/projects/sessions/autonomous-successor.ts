@@ -310,7 +310,6 @@ export async function runAutonomousSuccessorCli(): Promise<void> {
     try {
       runFile("tmux", ["new-session", "-d", "-s", tmuxName, "-c", run.worktree_path!,
         "-e", `KURAMI_HOME=${orchestratorHome}`,
-        "-e", `ORCHESTRATOR_HOME=${orchestratorHome}`,
         "-e", `HERMES_RUN_ID=${runId}`,
         "-e", `HERMES_REPOSITORY=${run.repository}`,
         "-e", `HERMES_ISSUE_NUMBER=${run.issue_number}`,

@@ -12,9 +12,9 @@ import { tmpdir } from "node:os";
 import { delimiter, resolve } from "node:path";
 import { DatabaseSync } from "node:sqlite";
 import { parse, stringify } from "yaml";
-import { normalizeRequiredChecks } from "../src/observe-ci.ts";
+import { normalizeRequiredChecks } from "../src/orchestrator/projects/ci/observe.ts";
 import * as canonicalCiObserver from "../src/orchestrator/projects/ci/observe.ts";
-import * as legacyCiObserver from "../src/observe-ci.ts";
+import * as legacyCiObserver from "../src/orchestrator/projects/ci/observe.ts";
 
 type JsonObject = Record<string, unknown>;
 
@@ -102,7 +102,7 @@ async function main(): Promise<void> {
       resolve(app, "deploy/config/orchestrator.yaml"),
       resolve(home, "config/orchestrator.yaml"),
     );
-    runNode(resolve(app, "src/init-run-store.ts"), [], home);
+    runNode(resolve(app, "src/orchestrator/state/init-run-store.ts"), [], home);
 
     const databasePath = resolve(home, "state/orchestrator.db");
     const database = new DatabaseSync(databasePath);
@@ -185,7 +185,7 @@ esac
 `,
     );
     await chmod(fakeGh, 0o700);
-    const observer = resolve(app, "src/observe-ci.ts");
+    const observer = resolve(app, "src/orchestrator/projects/ci/observe.ts");
     const path = `${bin}${delimiter}${process.env.PATH ?? ""}`;
     const shaA = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
     const shaB = "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb";
@@ -311,8 +311,8 @@ esac
       .get() as typeof snapshot;
     assert(snapshot.aggregate_state === "missing", "Missing grace did not expire");
 
-    runNode(resolve(app, "src/controller.ts"), ["--apply"], home);
-    runNode(resolve(app, "src/controller.ts"), ["--apply"], home);
+    runNode(resolve(app, "src/orchestrator/runtime/controller.ts"), ["--apply"], home);
+    runNode(resolve(app, "src/orchestrator/runtime/controller.ts"), ["--apply"], home);
     const ciEvents = database
       .prepare(
         `SELECT event_id, payload_json FROM run_control_events

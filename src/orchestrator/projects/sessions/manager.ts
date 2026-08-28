@@ -1151,8 +1151,6 @@ async function startSession(
       "-e",
       `KURAMI_HOME=${orchestratorHome}`,
       "-e",
-      `ORCHESTRATOR_HOME=${orchestratorHome}`,
-      "-e",
       `HERMES_RUN_ID=${run.run_id}`,
       "-e",
       `HERMES_REPOSITORY=${run.repository}`,

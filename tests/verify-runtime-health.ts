@@ -4,9 +4,9 @@ import {
   parseOomKillCount,
   runRuntimeHealthCli,
 } from "../src/orchestrator/health/runtime.ts";
-import * as legacyRuntimeHealth from "../src/runtime-health.ts";
+import * as legacyRuntimeHealth from "../src/orchestrator/health/runtime.ts";
 import type { ResourceGuardAnalysis } from "../src/orchestrator/resources/guard.ts";
-import { defaultServerHealthConfig } from "../src/server-health.ts";
+import { defaultServerHealthConfig } from "../src/system/health/server-health.ts";
 
 if (
   legacyRuntimeHealth.analyzePreviewConsistency !== analyzePreviewConsistency ||
@@ -205,7 +205,7 @@ if (
   !heartbeat.includes("uptime 16d 0h") ||
   !heartbeat.includes("Active previews: 2") ||
   !heartbeat.includes("Managed worktrees: 0/6") ||
-  !heartbeat.includes("Runtime: 0 running · 0 unhealthy") ||
+  !heartbeat.includes("Docker: 0 up · 0 unhealthy") ||
   !heartbeat.includes("71.5h (limit 84h)")
 ) {
   throw new Error(`Unexpected healthy heartbeat: ${heartbeat}`);

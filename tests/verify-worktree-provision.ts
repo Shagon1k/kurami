@@ -12,7 +12,7 @@ import { tmpdir } from "node:os";
 import { resolve } from "node:path";
 import { DatabaseSync } from "node:sqlite";
 import * as canonicalProvision from "../src/orchestrator/projects/worktrees/provision.ts";
-import * as legacyProvision from "../src/provision-worktree.ts";
+import * as legacyProvision from "../src/orchestrator/projects/worktrees/provision.ts";
 
 function assert(condition: unknown, message: string): asserts condition {
   if (!condition) throw new Error(message);
@@ -83,10 +83,9 @@ try {
   const env = {
     ...process.env,
     KURAMI_HOME: home,
-    ORCHESTRATOR_HOME: resolve(home, "legacy-home-must-not-win"),
     ORCHESTRATOR_MIGRATIONS_DIR: resolve(app, "migrations"),
   };
-  execFileSync(process.execPath, [resolve(app, "src/init-run-store.ts")], {
+  execFileSync(process.execPath, [resolve(app, "src/orchestrator/state/init-run-store.ts")], {
     env,
     stdio: ["ignore", "ignore", "pipe"],
   });
@@ -135,14 +134,9 @@ try {
         { encoding: "utf8", env, stdio: ["ignore", "pipe", "pipe"] },
       ),
     ) as Record<string, unknown>;
-  const legacy = run("src/provision-worktree.ts");
-  const canonical = run("src/orchestrator/projects/worktrees/provision.ts");
+  const plan = run("src/orchestrator/projects/worktrees/provision.ts");
   assert(
-    JSON.stringify(legacy) === JSON.stringify(canonical),
-    "Canonical and compatibility provision plans differ",
-  );
-  assert(
-    legacy.ok === true && legacy.apply === false,
+    plan.ok === true && plan.apply === false,
     "Provision plan did not remain read-only",
   );
   assert(!(await exists(worktreePath)), "Plan-only provision created a worktree");
@@ -165,7 +159,6 @@ try {
       ok: true,
       isolated: true,
       canonicalCli: true,
-      compatibilityCli: true,
       planOnly: true,
       durableStateUnchanged: true,
       worktreeCreated: false,

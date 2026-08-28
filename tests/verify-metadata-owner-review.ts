@@ -3,14 +3,14 @@ import { mkdir, mkdtemp, readFile, readdir, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { resolve } from "node:path";
 import { DatabaseSync } from "node:sqlite";
-import { planProjectAssessment } from "../src/metadata-proposal-manager.ts";
+import { planProjectAssessment } from "../src/orchestrator/projects/metadata/proposals/manager.ts";
 import {
   buildTriageFacts,
   persistTriageSnapshot,
   type RawTriageItem,
-} from "../src/triage-snapshot.ts";
+} from "../src/orchestrator/projects/triage/snapshot.ts";
 import * as canonicalControls from "../src/orchestrator/projects/metadata/controls.ts";
-import * as legacyControls from "../src/metadata-proposal-controls.ts";
+import * as legacyControls from "../src/orchestrator/projects/metadata/controls.ts";
 
 function assert(condition: unknown, message: string): asserts condition {
   if (!condition) throw new Error(message);
@@ -213,7 +213,7 @@ async function main(): Promise<void> {
     }
     database.close();
 
-    const control = resolve(app, "src/metadata-proposal-controls.ts");
+    const control = resolve(app, "src/orchestrator/projects/metadata/controls.ts");
     const initial = await runControl(control, home, ["status", "--batch-id", "pmb_bb"]);
     assert(
       initial.batchState === "ready" &&

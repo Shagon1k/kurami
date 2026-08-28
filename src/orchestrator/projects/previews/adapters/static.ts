@@ -178,7 +178,6 @@ function runFile(command: string, args: string[]): string {
     env: {
       ...process.env,
       KURAMI_HOME: orchestratorHome,
-      ORCHESTRATOR_HOME: orchestratorHome,
     },
     stdio: ["ignore", "pipe", "pipe"],
     timeout: 60_000,

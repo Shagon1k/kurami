@@ -60,7 +60,7 @@ async function initializeThroughV23(
       );
     }
   }
-  execFileSync(process.execPath, [resolve(appDirectory, "src/init-run-store.ts")], {
+  execFileSync(process.execPath, [resolve(appDirectory, "src/orchestrator/state/init-run-store.ts")], {
     env: {
       ...process.env,
       KURAMI_HOME: home,
@@ -143,7 +143,7 @@ async function main(): Promise<void> {
     seed(v23);
     v23.close();
 
-    runNode(appDirectory, home, "src/init-run-store.ts", []);
+    runNode(appDirectory, home, "src/orchestrator/state/init-run-store.ts", []);
     const migrated = new DatabaseSync(databasePath, { readOnly: true });
     const initial = migrated
       .prepare(`
@@ -175,7 +175,7 @@ async function main(): Promise<void> {
     }
     assert(provenanceRejected, "Partial review provenance was accepted");
 
-    const dry = runNode(appDirectory, home, "src/preview-manager.ts", [
+    const dry = runNode(appDirectory, home, "src/orchestrator/projects/previews/manager.ts", [
       "review",
       "--run-id",
       "r_preview_reviewed",
@@ -183,7 +183,7 @@ async function main(): Promise<void> {
       "discord:123456789",
     ]);
     assert(dry.action === "review", "Review dry plan was not produced");
-    const applied = runNode(appDirectory, home, "src/preview-manager.ts", [
+    const applied = runNode(appDirectory, home, "src/orchestrator/projects/previews/manager.ts", [
       "review",
       "--run-id",
       "r_preview_reviewed",
@@ -197,7 +197,7 @@ async function main(): Promise<void> {
         applied.reviewedVia === "discord",
       "Owner provenance was not preserved",
     );
-    const repeated = runNode(appDirectory, home, "src/preview-manager.ts", [
+    const repeated = runNode(appDirectory, home, "src/orchestrator/projects/previews/manager.ts", [
       "review",
       "--run-id",
       "r_preview_reviewed",
@@ -232,7 +232,7 @@ async function main(): Promise<void> {
       `)
       .run();
     verified.close();
-    const expired = nodeFails(appDirectory, home, "src/preview-manager.ts", [
+    const expired = nodeFails(appDirectory, home, "src/orchestrator/projects/previews/manager.ts", [
       "review",
       "--run-id",
       "r_preview_reviewed",
@@ -241,7 +241,7 @@ async function main(): Promise<void> {
       "--apply",
     ]);
     assert(expired.includes("expired"), "Expired preview was reviewable");
-    const invalidActor = nodeFails(appDirectory, home, "src/preview-manager.ts", [
+    const invalidActor = nodeFails(appDirectory, home, "src/orchestrator/projects/previews/manager.ts", [
       "review",
       "--run-id",
       "r_preview_reviewed",
@@ -250,14 +250,14 @@ async function main(): Promise<void> {
     ]);
     assert(invalidActor.includes("numeric-id"), "Invalid actor was accepted");
 
-    runNode(appDirectory, home, "src/preview-manager.ts", [
+    runNode(appDirectory, home, "src/orchestrator/projects/previews/manager.ts", [
       "release",
       "--run-id",
       "r_preview_reviewed",
       "--apply",
       "--runtime-absent",
     ]);
-    runNode(appDirectory, home, "src/preview-manager.ts", [
+    runNode(appDirectory, home, "src/orchestrator/projects/previews/manager.ts", [
       "allocate",
       "--run-id",
       "r_preview_reviewed",

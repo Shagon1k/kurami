@@ -322,8 +322,6 @@ export async function runReviewManagerCli(): Promise<void> {
         "-e",
         `KURAMI_HOME=${orchestratorHome}`,
         "-e",
-        `ORCHESTRATOR_HOME=${orchestratorHome}`,
-        "-e",
         `KURAMI_REVIEW_ID=${reviewId}`,
         "-e",
         `NODE_BIN=${process.execPath}`,

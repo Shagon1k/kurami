@@ -73,7 +73,7 @@ async function main(): Promise<void> {
     const sourceSha = git(worktree, ["rev-parse", "HEAD"]);
     const injectedCredential = `github_pat_${"Z".repeat(32)}`;
 
-    runNode(resolve(app, "src/init-run-store.ts"), [], home);
+    runNode(resolve(app, "src/orchestrator/state/init-run-store.ts"), [], home);
     const database = new DatabaseSync(resolve(home, "state/orchestrator.db"));
     const checks = JSON.stringify([
       {
@@ -127,9 +127,9 @@ async function main(): Promise<void> {
       .run(sourceSha, checks);
     database.close();
 
-    const controlsPath = resolve(app, "src/run-controls.ts");
-    const controllerPath = resolve(app, "src/controller.ts");
-    const sessionManagerPath = resolve(app, "src/session-manager.ts");
+    const controlsPath = resolve(app, "src/orchestrator/controls/run.ts");
+    const controllerPath = resolve(app, "src/orchestrator/runtime/controller.ts");
+    const sessionManagerPath = resolve(app, "src/orchestrator/projects/sessions/manager.ts");
     const created = runNode(
       controlsPath,
       [

@@ -1,71 +1,61 @@
-# KURAMI_HOME migration
+# KURAMI_HOME cutover
 
-Kurami's canonical control-plane root is:
+The canonical control-plane root for Kurami is:
 
 ```text
 /home/shagon1k/_hermes/_kurami
 ```
 
-The physical cutover is complete. `_kurami` is now the real directory that
-owns the application, runtime, configuration, state, secrets, backups, logs,
-and recovery data.
+`_kurami` is the real directory that owns the application, runtime,
+configuration, state, secrets, backups, logs, and recovery data. The original
+physical cutover was an atomic rename on the same filesystem; no data was
+copied or split.
 
-The legacy path is retained as a compatibility symlink:
+## Canonical contract
 
-```text
-/home/shagon1k/_hermes/_orchestrator -> /home/shagon1k/_hermes/_kurami
-```
-
-The cutover was an atomic rename on the same filesystem. No state, secret,
-runtime, backup, or repository data was copied or split.
-
-## Compatibility contract
-
-- New entrypoints set and prefer `KURAMI_HOME`.
-- TypeScript and Discord plugin code accepts `ORCHESTRATOR_HOME` as a fallback.
-- `src/core/kurami-home.ts` centralizes canonical precedence and emits at most
-  one `KURAMI_LEGACY_HOME` warning per process when only the legacy variable is
-  available. It never includes the resolved path in that warning.
-- All TypeScript runtime modules use the shared resolver. Direct legacy fallback is
-  centralized in `src/core/kurami-home.ts` while compatibility remains available.
-- Shell entrypoints export `ORCHESTRATOR_HOME=$KURAMI_HOME` for older child
-  processes.
-- Active systemd, Caddy, wrapper, skill, and documentation paths use
+- Runtime entrypoints use `KURAMI_HOME` exclusively.
+- `src/core/kurami-home.ts` resolves `KURAMI_HOME` or its location-derived
+  default; it has no legacy environment fallback.
+- TypeScript CLIs live in their canonical `src/system`, `src/orchestrator`,
+  `src/discord`, and `src/core` modules. Flat `src/*.ts` compatibility
+  entrypoints have been retired.
+- Active systemd, Caddy, shell, plugin, skill, cron, and documentation paths use
   `/home/shagon1k/_hermes/_kurami`.
 - `_kurami` must remain a real directory.
-- `_orchestrator` must remain a symlink to `_kurami` until legacy fallback is
-  deliberately retired.
+- The retired `_orchestrator` filesystem alias must not be recreated during
+  normal operation.
 
-## Post-cutover verification
+## Verification
 
 After deployment, verify:
 
-1. `_kurami` is a real directory and `_orchestrator` resolves to it.
-2. Hermes gateway, Docker, and preview ingress are active.
+1. `_kurami` is a real directory and the retired alias is absent.
+2. Hermes gateway, dashboard, CPU sampler, and preview ingress are active.
 3. Project pollers and system-health jobs complete successfully.
-4. `/kurami settings`, health history, and owner controls can invoke their
-   bounded subprocesses.
-5. State backup and encrypted recovery bundle creation succeed through the new
-   path; off-site verification remains part of the regular recovery workflow.
+4. `/kurami settings`, health history, and owner controls invoke their bounded
+   canonical subprocesses.
+5. State backup and encrypted recovery bundle creation succeed through the
+   canonical path; off-site verification remains part of the regular recovery
+   workflow.
 6. The deterministic regression suite passes.
+7. Runtime source, tests, and deployed scripts contain no retired home
+   environment reference or flat compatibility entrypoint consumer.
 
 ## Rollback
 
-Rollback remains bounded because the legacy alias is preserved:
+The physical `_kurami` directory remains authoritative. Do not rename or copy
+it during a code rollback. If an undiscovered external consumer requires the
+retired interface:
 
-1. Stop Hermes gateway, dashboard, and Kurami preview ingress.
-2. Remove only the `_orchestrator` symlink.
-3. Rename the real `_kurami` directory back to `_orchestrator` on the same
-   filesystem.
-4. Recreate `_kurami -> _orchestrator`.
-5. Restart the services and repeat the verification checklist.
+1. Revert the compatibility-retirement commit.
+2. Recreate only the temporary filesystem alias to `_kurami`.
+3. Restart the affected services and repeat the verification checklist.
+4. Record the consumer and migrate it before attempting retirement again.
 
-Do not copy the directory during rollback and do not remove either filesystem
-name while compatibility code still accepts `ORCHESTRATOR_HOME`.
+## Retirement record
 
-## Legacy retirement
-
-The final cleanup is a later, separate change. Remove the `_orchestrator`
-symlink and `ORCHESTRATOR_HOME` fallback only after runtime logs, cron jobs,
-recovery tooling, project worktrees, and operator workflows no longer use the
-legacy name.
+The compatibility layer was retired on 2026-08-28 after a full TailorTales
+dummy lifecycle, targeted migration tests, the complete regression suite, and
+live cron/service checks. This removed the legacy environment fallback, child
+environment exports, flat TypeScript entrypoints, legacy-named maintenance
+wrappers, and the filesystem alias.

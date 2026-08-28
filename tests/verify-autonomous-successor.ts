@@ -13,7 +13,7 @@ import { tmpdir } from "node:os";
 import { delimiter, resolve } from "node:path";
 import { DatabaseSync } from "node:sqlite";
 import * as canonicalAutonomousSuccessor from "../src/orchestrator/projects/sessions/autonomous-successor.ts";
-import * as legacyAutonomousSuccessor from "../src/autonomous-successor.ts";
+import * as legacyAutonomousSuccessor from "../src/orchestrator/projects/sessions/autonomous-successor.ts";
 
 function assert(condition: unknown, message: string): asserts condition {
   if (!condition) throw new Error(message);
@@ -57,9 +57,9 @@ async function main(): Promise<void> {
   const worktree = resolve(worktreeRoot, "124/TailorTales");
   const ambiguousWorktree = resolve(worktreeRoot, "125/TailorTales");
   const canonical = resolve(home, "repositories/TailorTales");
-  const successorPath = resolve(app, "src/autonomous-successor.ts");
-  const controlsPath = resolve(app, "src/run-controls.ts");
-  const controllerPath = resolve(app, "src/controller.ts");
+  const successorPath = resolve(app, "src/orchestrator/projects/sessions/autonomous-successor.ts");
+  const controlsPath = resolve(app, "src/orchestrator/controls/run.ts");
+  const controllerPath = resolve(app, "src/orchestrator/runtime/controller.ts");
   const injectedCredential = `github_pat_${"Y".repeat(32)}`;
 
   try {
@@ -147,7 +147,7 @@ esac
       FAKE_TMUX_STATE: fakeTmuxState,
       FAKE_TMUX_LOG: fakeTmuxLog,
     };
-    execFileSync(process.execPath, [resolve(app, "src/init-run-store.ts")], {
+    execFileSync(process.execPath, [resolve(app, "src/orchestrator/state/init-run-store.ts")], {
       env,
       stdio: ["ignore", "ignore", "pipe"],
     });

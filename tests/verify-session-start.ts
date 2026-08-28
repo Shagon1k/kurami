@@ -13,7 +13,7 @@ import { tmpdir } from "node:os";
 import { delimiter, resolve } from "node:path";
 import { DatabaseSync } from "node:sqlite";
 import * as canonicalSessionManager from "../src/orchestrator/projects/sessions/manager.ts";
-import * as legacySessionManager from "../src/session-manager.ts";
+import * as legacySessionManager from "../src/orchestrator/projects/sessions/manager.ts";
 
 function assert(condition: unknown, message: string): asserts condition {
   if (!condition) throw new Error(message);
@@ -115,7 +115,7 @@ esac
       FAKE_TMUX_STATE: fakeTmuxState,
       FAKE_TMUX_LOG: fakeTmuxLog,
     };
-    execFileSync(process.execPath, [resolve(app, "src/init-run-store.ts")], {
+    execFileSync(process.execPath, [resolve(app, "src/orchestrator/state/init-run-store.ts")], {
       env,
       stdio: ["ignore", "ignore", "pipe"],
     });
@@ -158,7 +158,7 @@ esac
     const output = execFileSync(
       process.execPath,
       [
-        resolve(app, "src/session-manager.ts"),
+        resolve(app, "src/orchestrator/projects/sessions/manager.ts"),
         "start",
         "--run-id",
         runId,
@@ -237,7 +237,7 @@ esac
       execFileSync(
         process.execPath,
         [
-          resolve(app, "src/session-manager.ts"),
+          resolve(app, "src/orchestrator/projects/sessions/manager.ts"),
           "start",
           "--run-id",
           runId,

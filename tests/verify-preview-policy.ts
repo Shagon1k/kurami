@@ -49,7 +49,7 @@ async function initializeThroughV24(
       );
     }
   }
-  execFileSync(process.execPath, [resolve(appDirectory, "src/init-run-store.ts")], {
+  execFileSync(process.execPath, [resolve(appDirectory, "src/orchestrator/state/init-run-store.ts")], {
     env: {
       ...process.env,
       KURAMI_HOME: home,
@@ -154,7 +154,7 @@ async function main(): Promise<void> {
       .run();
     old.close();
 
-    runNode(appDirectory, home, "src/init-run-store.ts");
+    runNode(appDirectory, home, "src/orchestrator/state/init-run-store.ts");
     const migrated = new DatabaseSync(databasePath, { readOnly: true });
     const legacy = migrated
       .prepare(`
@@ -191,7 +191,7 @@ async function main(): Promise<void> {
       observedAt: "2026-08-20T15:01:01.000Z",
     });
     seed.close();
-    runNode(appDirectory, home, "src/process-project-events.ts");
+    runNode(appDirectory, home, "src/orchestrator/projects/process-project-events.ts");
 
     const prepare = new DatabaseSync(databasePath);
     const requiredRun = prepare
@@ -264,7 +264,7 @@ async function main(): Promise<void> {
     const completion = runNode(
       appDirectory,
       home,
-      "src/process-project-events.ts",
+      "src/orchestrator/projects/process-project-events.ts",
     ) as { results: Array<{ reason?: string }> };
     assert(
       completion.results.some(({ reason }) => reason === "preview_required"),
@@ -293,7 +293,7 @@ async function main(): Promise<void> {
       "Unlabelled run was affected by preview policy",
     );
     deferred.close();
-    runNode(appDirectory, home, "src/controller.ts", ["--apply"]);
+    runNode(appDirectory, home, "src/orchestrator/runtime/controller.ts", ["--apply"]);
     const ownerVisible = new DatabaseSync(databasePath, { readOnly: true });
     const ownerVisibleCard = ownerVisible
       .prepare(`SELECT stage FROM run_progress_cards WHERE run_id=?`)
@@ -325,7 +325,7 @@ async function main(): Promise<void> {
       .run(requiredRun.run_id);
     previewSeed.close();
 
-    const stalePlan = runNode(appDirectory, home, "src/controller.ts") as {
+    const stalePlan = runNode(appDirectory, home, "src/orchestrator/runtime/controller.ts") as {
       plans: Array<{ action: string }>;
     };
     assert(
@@ -348,7 +348,7 @@ async function main(): Promise<void> {
       `)
       .run(requiredRun.run_id);
     exact.close();
-    const exactPlan = runNode(appDirectory, home, "src/controller.ts") as {
+    const exactPlan = runNode(appDirectory, home, "src/orchestrator/runtime/controller.ts") as {
       plans: Array<{ action: string }>;
     };
     assert(
@@ -357,7 +357,7 @@ async function main(): Promise<void> {
       ),
       "Exact reviewed preview did not queue guarded completion",
     );
-    runNode(appDirectory, home, "src/controller.ts", ["--apply"]);
+    runNode(appDirectory, home, "src/orchestrator/runtime/controller.ts", ["--apply"]);
 
     const final = new DatabaseSync(databasePath, { readOnly: true });
     const completed = final

@@ -18,7 +18,6 @@ _MUTATIONS = {"apply", "reset", "rollback"}
 def _kurami_home() -> Path:
     return Path(
         os.environ.get("KURAMI_HOME")
-        or os.environ.get("ORCHESTRATOR_HOME")
         or "/home/shagon1k/_hermes/_kurami"
     ).absolute()
 
@@ -27,7 +26,6 @@ def _settings_subprocess_env(*, include_hermes: bool = False) -> dict[str, str]:
     home = str(_kurami_home())
     env = {
         "KURAMI_HOME": home,
-        "ORCHESTRATOR_HOME": home,
         "PATH": os.environ.get("PATH", "/usr/local/bin:/usr/bin:/bin"),
         "LANG": os.environ.get("LANG", "C.UTF-8"),
         "NODE_NO_WARNINGS": "1",

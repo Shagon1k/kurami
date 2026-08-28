@@ -213,8 +213,8 @@ function orchestratorRows(
   return [
     ["State DB", result.databaseIntegrity === "ok" ? "healthy" : result.databaseIntegrity],
     [
-      "Runtime",
-      `${result.containerRuntime.running} running  ·  ${result.containerRuntime.unhealthy} unhealthy${result.dockerRootless ? "" : "  ·  daemon not rootless"}`,
+      "Docker",
+      `${result.containerRuntime.running} up  ·  ${result.containerRuntime.unhealthy} unhealthy${result.dockerRootless ? "" : "  ·  daemon not rootless"}`,
     ],
     ["Previews", `${result.activePreviewLeases} active`],
     [

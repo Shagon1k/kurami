@@ -38,11 +38,11 @@ async function main(): Promise<void> {
   const canonicalControls = await import(
     "../src/orchestrator/controls/run.ts"
   );
-  const legacyControls = await import("../src/run-controls.ts");
+  const legacyControls = await import("../src/orchestrator/controls/run.ts");
   const canonicalTelegram = await import(
     "../src/orchestrator/controls/telegram.ts"
   );
-  const legacyTelegram = await import("../src/notify-controls.ts");
+  const legacyTelegram = await import("../src/orchestrator/controls/telegram.ts");
   assert(
     legacyControls.runRunControlsCli === canonicalControls.runRunControlsCli,
     "Legacy run-controls wrapper diverged from the canonical module",
@@ -69,7 +69,7 @@ async function main(): Promise<void> {
       resolve(appDirectory, "deploy/config/projects.yaml"),
       resolve(testHome, "config/projects.yaml"),
     );
-    runNode(resolve(appDirectory, "src/init-run-store.ts"), [], testHome);
+    runNode(resolve(appDirectory, "src/orchestrator/state/init-run-store.ts"), [], testHome);
     const databasePath = resolve(testHome, "state/orchestrator.db");
     const database = new DatabaseSync(databasePath);
 
@@ -147,7 +147,7 @@ async function main(): Promise<void> {
       .run();
     database.close();
 
-    const controller = resolve(appDirectory, "src/controller.ts");
+    const controller = resolve(appDirectory, "src/orchestrator/runtime/controller.ts");
     runNode(controller, ["--apply"], testHome);
 
     const previewHistory = new DatabaseSync(databasePath);
@@ -899,7 +899,7 @@ async function main(): Promise<void> {
       .run();
     successorState.close();
     const ambiguousDeliveryPlan = runNode(
-      resolve(appDirectory, "src/notify-controls.ts"),
+      resolve(appDirectory, "src/orchestrator/controls/telegram.ts"),
       [],
       testHome,
     ) as unknown as { pending: Array<{ runId: string }> };

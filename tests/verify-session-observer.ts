@@ -1,6 +1,6 @@
-import { classifyTranscript } from "../src/observe-sessions.ts";
+import { classifyTranscript } from "../src/orchestrator/projects/sessions/observe.ts";
 import * as canonicalObserver from "../src/orchestrator/projects/sessions/observe.ts";
-import * as legacyObserver from "../src/observe-sessions.ts";
+import * as legacyObserver from "../src/orchestrator/projects/sessions/observe.ts";
 
 function assert(condition: unknown, message: string): asserts condition {
   if (!condition) throw new Error(message);

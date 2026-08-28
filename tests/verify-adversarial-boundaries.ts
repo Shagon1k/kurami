@@ -2,13 +2,13 @@ import {
   buildReviewInstructions,
   parseReviewResult,
 } from "../src/orchestrator/projects/reviews/worker.ts";
-import * as legacyReviewWorker from "../src/ai-review-worker.ts";
+import * as legacyReviewWorker from "../src/orchestrator/projects/reviews/worker.ts";
 import { detachedCodexEnvironment } from "../src/orchestrator/integrations/codex/app-server.ts";
-import type { MetadataProposalCandidate } from "../src/metadata-proposal-manager.ts";
+import type { MetadataProposalCandidate } from "../src/orchestrator/projects/metadata/proposals/manager.ts";
 import {
   buildMetadataProposalInstructions,
   parseMetadataProposalResult,
-} from "../src/metadata-proposal-worker.ts";
+} from "../src/orchestrator/projects/metadata/proposals/worker.ts";
 import {
   assertNoSecretLikeText,
   isSecretEnvironmentName,
@@ -16,9 +16,9 @@ import {
   sanitizeUntrustedPromptData,
   serializeUntrustedPromptData,
 } from "../src/orchestrator/security/prompt-safety.ts";
-import * as legacyCodexAppServer from "../src/codex-app-server.ts";
-import * as legacyPromptSafety from "../src/prompt-safety.ts";
-import { reviewFixPrompt } from "../src/session-manager.ts";
+import * as legacyCodexAppServer from "../src/orchestrator/integrations/codex/app-server.ts";
+import * as legacyPromptSafety from "../src/orchestrator/security/prompt-safety.ts";
+import { reviewFixPrompt } from "../src/orchestrator/projects/sessions/manager.ts";
 
 function assert(condition: unknown, message: string): asserts condition {
   if (!condition) throw new Error(message);

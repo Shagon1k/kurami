@@ -3,7 +3,7 @@ import { chmod, mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises
 import { tmpdir } from "node:os";
 import { resolve } from "node:path";
 import { DatabaseSync } from "node:sqlite";
-import * as legacyProjectStatus from "../src/project-status.ts";
+import * as legacyProjectStatus from "../src/orchestrator/projects/project-status.ts";
 import * as canonicalProjectStatus from "../src/orchestrator/projects/project-status.ts";
 
 function assert(condition: unknown, message: string): asserts condition {
@@ -39,7 +39,7 @@ async function main(): Promise<void> {
       resolve(home, "config/projects.yaml"),
       `version: 1\nprojects:\n  tailortales:\n    owner: Shagon1k\n    project_number: 2\n    status_field: Status\n    statuses:\n      backlog: Backlog\n`,
     );
-    runNode(resolve(app, "src/init-run-store.ts"), [], home);
+    runNode(resolve(app, "src/orchestrator/state/init-run-store.ts"), [], home);
     const database = new DatabaseSync(resolve(home, "state/orchestrator.db"));
     database.exec(`
       INSERT INTO project_events (
@@ -76,7 +76,7 @@ async function main(): Promise<void> {
     );
     await chmod(fakeGh, 0o700);
 
-    const script = resolve(app, "src/project-status.ts");
+    const script = resolve(app, "src/orchestrator/projects/project-status.ts");
     const canonicalScript = resolve(
       app,
       "src/orchestrator/projects/project-status.ts",

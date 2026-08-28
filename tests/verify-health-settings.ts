@@ -13,7 +13,7 @@ await writeFile(
   { mode: 0o700 },
 );
 await chmod(fakeHermes, 0o700);
-const cli = resolve(import.meta.dirname, "../src/health-settings.ts");
+const cli = resolve(import.meta.dirname, "../src/system/health/health-settings.ts");
 const canonicalCli = resolve(
   import.meta.dirname,
   "../src/system/health/health-settings.ts",

@@ -9,7 +9,7 @@ import {
   planProjectAssessment,
   skipBatch,
   type MetadataProposalCandidate,
-} from "../src/metadata-proposal-manager.ts";
+} from "../src/orchestrator/projects/metadata/proposals/manager.ts";
 import {
   buildMetadataProposalInstructions,
   deterministicProposalSummary,
@@ -19,17 +19,17 @@ import {
   parseMetadataProposalResult,
   persistMetadataProposalResult,
   runValidatedMetadataAssessment,
-} from "../src/metadata-proposal-worker.ts";
+} from "../src/orchestrator/projects/metadata/proposals/worker.ts";
 import * as canonicalManager from "../src/orchestrator/projects/metadata/proposals/manager.ts";
 import * as canonicalWorker from "../src/orchestrator/projects/metadata/proposals/worker.ts";
-import * as legacyManager from "../src/metadata-proposal-manager.ts";
-import * as legacyWorker from "../src/metadata-proposal-worker.ts";
-import { persistTriageRanking, rankTriageFacts } from "../src/triage-rank.ts";
+import * as legacyManager from "../src/orchestrator/projects/metadata/proposals/manager.ts";
+import * as legacyWorker from "../src/orchestrator/projects/metadata/proposals/worker.ts";
+import { persistTriageRanking, rankTriageFacts } from "../src/orchestrator/projects/triage/rank.ts";
 import {
   buildTriageFacts,
   persistTriageSnapshot,
   type RawTriageItem,
-} from "../src/triage-snapshot.ts";
+} from "../src/orchestrator/projects/triage/snapshot.ts";
 
 function assert(condition: unknown, message: string): asserts condition {
   if (!condition) throw new Error(message);
@@ -219,7 +219,7 @@ async function main(): Promise<void> {
     const active = planProjectAssessment(database, "tailortales");
     assert(active.action === "active" && active.batchId === batchId, "A second active batch was planned");
 
-    const worker = resolve(app, "src/metadata-proposal-worker.ts");
+    const worker = resolve(app, "src/orchestrator/projects/metadata/proposals/worker.ts");
     const workerDryRun = JSON.parse(
       (
         await runNode(worker, ["--batch-id", batchId], {

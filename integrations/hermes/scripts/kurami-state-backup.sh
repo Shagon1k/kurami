@@ -8,7 +8,6 @@ readonly NODE_BIN="${KURAMI_HOME}/runtime/node/bin/node"
 readonly RECOVERY_ENV="${KURAMI_HOME}/secrets/recovery.env"
 
 export KURAMI_HOME
-export ORCHESTRATOR_HOME="${KURAMI_HOME}"
 export HERMES_HOME
 
 "${NODE_BIN}" "${KURAMI_HOME}/app/src/system/recovery/backup-state.ts" create --summary-text

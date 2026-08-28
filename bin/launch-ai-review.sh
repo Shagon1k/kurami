@@ -3,12 +3,11 @@ set -euo pipefail
 
 umask 077
 
-KURAMI_HOME="${KURAMI_HOME:-${ORCHESTRATOR_HOME:-}}"
-: "${KURAMI_HOME:?KURAMI_HOME or ORCHESTRATOR_HOME is required}"
+KURAMI_HOME="${KURAMI_HOME:-}"
+: "${KURAMI_HOME:?KURAMI_HOME is required}"
 : "${KURAMI_REVIEW_ID:?KURAMI_REVIEW_ID is required}"
 : "${NODE_BIN:?NODE_BIN is required}"
 export KURAMI_HOME
-export ORCHESTRATOR_HOME="${KURAMI_HOME}"
 
 readonly secret_file="${KURAMI_HOME}/secrets/github-reviewer-app.env"
 readonly worker="${KURAMI_HOME}/app/src/orchestrator/projects/reviews/worker.ts"

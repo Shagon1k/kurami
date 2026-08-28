@@ -185,7 +185,7 @@ app/
     verify-dry-run-admission.ts
                               Isolated WIP/idempotency/policy regression test
     verify-worktree-provision.ts
-                              Proves plan-only canonical/compatibility provisioning
+                              Proves plan-only canonical provisioning
     verify-completed-release.ts
                               Proves unmerged work is retained and merged work is released
     verify-cancel-resolution.ts
@@ -451,14 +451,10 @@ never reruns the writer or expands the immutable snapshot. The technical writer
 task is archived and the original primary Codex task is restored. Another AI
 review or fix round starts only through an explicit owner action.
 
-The three root-level review files remain transparent compatibility CLIs and
-APIs for existing operational commands.
-
 ### Controller / Reconciler
 
 `src/orchestrator/runtime/controller.ts` reads actionable Run Store states after
 event consumption and dispatches only the next eligible deterministic handler.
-`src/controller.ts` remains available as a compatibility entrypoint:
 
 ```text
 admission_pending + planned       -> provision worktree
@@ -819,9 +815,7 @@ poller is paused.
 `src/orchestrator/projects/worktrees/provision.ts` validates the planned resource
 mapping and canonical repository. Without `--apply`, it only prints a plan. With
 `--apply`, it requires a `live` run, fetches the configured base branch, and
-creates an isolated branch and worktree from the exact recorded base SHA. The
-controller invokes the canonical path; `src/provision-worktree.ts` remains a
-transparent compatibility CLI and API for existing operational commands.
+creates an isolated branch and worktree from the exact recorded base SHA. The controller invokes this canonical path.
 
 Each attempt has a unique parent directory, while the Git worktree itself keeps
 the canonical repository basename:
@@ -844,8 +838,7 @@ planned -> provisioning -> provisioned
 `src/orchestrator/projects/worktrees/release.ts` owns the guarded inverse
 boundary. It preserves unmerged or ambiguous work, and removes a worktree and
 local branch only after cancellation safety or exact completion evidence passes.
-The controller invokes this canonical path; `src/release-worktree.ts` remains a
-transparent compatibility CLI and API.
+The controller invokes this canonical path.
 
 ### Session Manager
 
@@ -870,8 +863,7 @@ database transition is recoverable when tmux already exited during handoff.
 `stopping` to `cancelled` only after verifying that the tmux session, worktree,
 and local branch are all absent; `--apply` records the verified cleanup.
 `src/orchestrator/projects/sessions/autonomous-successor.ts` owns the separate
-Remote-to-CLI successor boundary. The controller calls the canonical path;
-`src/autonomous-successor.ts` remains a transparent compatibility CLI and API.
+Remote-to-CLI successor boundary. The controller calls this canonical path.
 It preserves the predecessor task as immutable history and claims the existing
 worktree only after rechecking the durable single-writer boundary.
 If cancellation finds unpublished local changes, automation still stops but the
@@ -886,12 +878,7 @@ repository `pre-push` hooks, so project tooling cannot strand guarded cleanup.
 A successful
 guarded resolution changes the run to `cancelled`, marks resources `released`,
 and records the deleted resources in lifecycle history.
-`src/cancel-resolution.ts` remains a transparent compatibility CLI and API for
-existing operational commands.
-
-`src/session-manager.ts` remains a transparent compatibility CLI and API for
-existing operational commands and imports; the controller invokes the canonical
-session module directly.
+The controller invokes the canonical session module directly.
 
 `bin/launch-codex-session.sh` loads `GH_TOKEN` from the orchestrator-owned
 credential file inside the child launcher. The value is never passed in command
@@ -930,9 +917,7 @@ later recurs. Textual blocker matching requires the fresh Codex input prompt to
 appear after the blocker, so transient narration does not trigger an alert.
 
 `src/orchestrator/projects/sessions/runtime-budget.ts` is the canonical runtime
-budget boundary for main writers and technical workers. The poller invokes this
-path directly; `src/runtime-budget.ts` remains a transparent compatibility CLI
-and API for existing callers. A dry run only reports overdue managed sessions,
+budget boundary for main writers and technical workers. The poller invokes this path directly. A dry run only reports overdue managed sessions,
 while `--apply` performs the bounded stop and records preserved task evidence.
 
 ### Human Review, Done, and release
@@ -962,7 +947,7 @@ recorded base block automatic deletion and require attention. Only a deliberate
 two-step action can remove dirty unpublished files or one exact clean managed
 Draft PR result; merged/non-draft/ambiguous/mismatched published work remains
 preserved. Once cleanup is complete,
-`src/project-status.ts` returns the item to the project's configured Backlog
+`src/orchestrator/projects/project-status.ts` returns the item to the project's configured Backlog
 option and updates the local Project snapshot idempotently.
 
 `Human Review` is intentionally not synonymous with immediate readiness. If the
@@ -988,9 +973,7 @@ Redis, MinIO API, and MinIO console. The slot pool is shared by repositories;
 the Compose project name remains run-specific. Runtime concurrency is six,
 while build/provision concurrency is separately limited to two.
 
-The controller invokes the canonical manager; `src/preview-manager.ts` remains
-a transparent compatibility CLI and API for Hermes controls and existing
-operational commands.
+The controller and Hermes controls invoke the canonical manager directly.
 
 Lease release is fail-closed. `--apply` additionally requires
 `--runtime-absent`; the selected runtime adapter must first prove that its
@@ -1011,9 +994,6 @@ below `../state/previews/<run_id>` with mode `600`. Google credentials come from
 the project-specific orchestrator secret file; per-run JWT, E2E, PostgreSQL, and
 MinIO credentials are generated locally and never printed or stored in SQLite.
 After Compose health checks pass, the lease becomes `running`.
-
-The three root-level preview runtime files remain transparent compatibility
-CLIs and APIs for existing operational commands and installed integrations.
 
 Projects that produce an already-built static site may instead configure:
 
@@ -1067,8 +1047,7 @@ automatically and retains the source event, lease, SHA, reviewer, and timestamps
 as durable provenance. Runs without the label keep the existing lifecycle.
 
 `src/orchestrator/projects/previews/ingress.ts` is the only writer of the managed
-Caddy route fragment. `src/preview-ingress.ts` remains a transparent
-compatibility CLI and API for existing operational commands.
+Caddy route fragment.
 It renders routes solely for enabled slots whose lease is `running`, validates a
 candidate configuration before replacing the live mode-`600` file, and reloads
 Caddy through its loopback-only admin endpoint. A failed reload restores and
@@ -1202,8 +1181,7 @@ The default freshness limit is 84 hours, matching the three-day backup cadence
 with a 12-hour execution margin. `KURAMI_BACKUP_MAX_AGE_HOURS` may be set from
 24 through 168. `--alert-text` is silent while healthy; `--summary-text` always
 prints a compact owner-facing status.
-The implementation lives at `src/orchestrator/health/runtime.ts`; the root file
-remains a compatibility entrypoint for recovery commands and older integrations.
+The implementation lives at `src/orchestrator/health/runtime.ts`.
 
 Inspect the resource guard without changing quarantine state, or reconcile only
 the durable observation/quarantine records:
@@ -1220,8 +1198,7 @@ Both commands are non-destructive with respect to external resources. `--apply`
 writes only `resource_quarantines` and changed-only `resource_guard_events` rows;
 it performs no filesystem, tmux, Docker, GitHub, or Discord mutation. The normal
 poller-owned Discord notifier delivers pending event batches separately.
-The implementation lives under `src/orchestrator/resources`; the root files
-remain compatibility entrypoints for operational commands and external imports.
+The implementation lives under `src/orchestrator/resources`.
 
 Verify lifecycle events and the Discord outbox without network access:
 
@@ -1369,8 +1346,6 @@ KURAMI_HOME=/home/shagon1k/_hermes/_kurami \
 node src/orchestrator/state/init-run-store.ts
 ```
 
-`src/init-run-store.ts` remains available as a compatibility entrypoint.
-
 Run one production poll -> consume cycle manually:
 
 ```bash
@@ -1478,12 +1453,12 @@ expose a cleanup button. The notifier reads the existing platform token from
 `HERMES_HOME/.env`, never stores or prints it, and never consumes Gateway
 updates. The Hermes Gateway remains the only update consumer. A narrow user
 plugin extends that existing Discord adapter to handle only allowlisted Kurami
-component IDs. The root notifier remains a compatibility entrypoint.
+component IDs.
 
 `src/orchestrator/controls/telegram.ts` and the per-project Telegram targets
 remain installed as a reversible fallback, but the poller does not invoke that
-notifier while Discord is the primary proactive control plane. The root
-`src/notify-controls.ts` CLI remains a compatibility entrypoint. The notifier
+notifier while Discord is the primary proactive control plane. The canonical CLI is
+`src/orchestrator/controls/telegram.ts`. The notifier
 also refuses `--apply`
 unless `KURAMI_TELEGRAM_PROACTIVE=1` is supplied for that exact invocation.
 Cron delivery is local-only, so no proactive run lifecycle messages are sent to

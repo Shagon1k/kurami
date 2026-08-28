@@ -315,7 +315,7 @@ export function formatHealthSummary(result: RuntimeHealthResult): string {
     `- Swap: ${swap}`,
     `- Disk: ${result.resourceGuard.disk.usedPercent}% used (${result.resourceGuard.disk.availableGiB} GiB available)`,
     `- SQLite: ${result.databaseIntegrity}`,
-    `- Runtime: ${result.containerRuntime.running} running · ${result.containerRuntime.unhealthy} unhealthy`,
+    `- Docker: ${result.containerRuntime.running} up · ${result.containerRuntime.unhealthy} unhealthy`,
     `- Active previews: ${result.activePreviewLeases}`,
     `- Managed worktrees: ${result.resourceGuard.worktrees.global}/${result.resourceGuard.worktrees.maxGlobal}`,
     `- Resource quarantines: ${result.resourceGuard.quarantines.quarantined}`,

@@ -14,7 +14,7 @@ import {
   type ResourceGuardLimits,
   type ResourceObservation,
 } from "../src/orchestrator/resources/guard.ts";
-import * as legacyResourceGuardDiscord from "../src/resource-guard-discord.ts";
+import * as legacyResourceGuardDiscord from "../src/orchestrator/resources/discord.ts";
 
 function assert(condition: unknown, message: string): asserts condition {
   if (!condition) throw new Error(message);

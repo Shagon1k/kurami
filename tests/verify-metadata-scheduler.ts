@@ -5,15 +5,15 @@ import { DatabaseSync } from "node:sqlite";
 import {
   planDailyProjectAssessment,
   runDailyProposalCycle,
-} from "../src/metadata-proposal-scheduler.ts";
+} from "../src/orchestrator/projects/metadata/proposals/scheduler.ts";
 import * as canonicalScheduler from "../src/orchestrator/projects/metadata/proposals/scheduler.ts";
-import * as legacyScheduler from "../src/metadata-proposal-scheduler.ts";
-import { persistTriageRanking, rankTriageFacts } from "../src/triage-rank.ts";
+import * as legacyScheduler from "../src/orchestrator/projects/metadata/proposals/scheduler.ts";
+import { persistTriageRanking, rankTriageFacts } from "../src/orchestrator/projects/triage/rank.ts";
 import {
   buildTriageFacts,
   persistTriageSnapshot,
   type RawTriageItem,
-} from "../src/triage-snapshot.ts";
+} from "../src/orchestrator/projects/triage/snapshot.ts";
 
 function assert(condition: unknown, message: string): asserts condition {
   if (!condition) throw new Error(message);

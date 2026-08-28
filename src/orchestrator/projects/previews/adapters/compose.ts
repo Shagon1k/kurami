@@ -540,7 +540,6 @@ function reconcileIngress(): void {
     {
       ...process.env,
       KURAMI_HOME: orchestratorHome,
-      ORCHESTRATOR_HOME: orchestratorHome,
     },
   );
 }
@@ -703,7 +702,6 @@ async function down(
     ], {
       ...process.env,
       KURAMI_HOME: orchestratorHome,
-      ORCHESTRATOR_HOME: orchestratorHome,
     });
     if (await pathExists(plan.runtimeDirectory)) {
       await rm(plan.runtimeDirectory, { recursive: true, force: false });

@@ -12,11 +12,11 @@ import {
 import { tmpdir } from "node:os";
 import { resolve } from "node:path";
 import { DatabaseSync } from "node:sqlite";
-import { createBackup } from "../src/backup-state.ts";
+import { createBackup } from "../src/system/recovery/backup-state.ts";
 import {
   createRecoveryBundle,
   verifyRecoveryBundle,
-} from "../src/recovery-bundle.ts";
+} from "../src/system/recovery/recovery-bundle.ts";
 import * as canonicalRecovery from "../src/system/recovery/recovery-bundle.ts";
 
 if (
@@ -209,7 +209,6 @@ cp "$input" "$output"
       symlinkRejected,
       plaintextTemporaryFilesRemoved: true,
       canonicalHomeOption: true,
-      legacyHomeOptionRetained: true,
     })}\n`,
   );
 } finally {

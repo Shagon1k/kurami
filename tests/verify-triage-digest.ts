@@ -7,18 +7,18 @@ import { DatabaseSync } from "node:sqlite";
 import {
   persistTriageRanking,
   rankTriageFacts,
-} from "../src/triage-rank.ts";
+} from "../src/orchestrator/projects/triage/rank.ts";
 import {
   buildTriageFacts,
   persistTriageSnapshot,
   type RawTriageItem,
-} from "../src/triage-snapshot.ts";
+} from "../src/orchestrator/projects/triage/snapshot.ts";
 import * as canonicalRank from "../src/orchestrator/projects/triage/rank.ts";
 import * as canonicalSnapshot from "../src/orchestrator/projects/triage/snapshot.ts";
-import * as legacyRank from "../src/triage-rank.ts";
-import * as legacySnapshot from "../src/triage-snapshot.ts";
+import * as legacyRank from "../src/orchestrator/projects/triage/rank.ts";
+import * as legacySnapshot from "../src/orchestrator/projects/triage/snapshot.ts";
 import * as canonicalDigest from "../src/orchestrator/projects/digest/discord.ts";
-import * as legacyDigest from "../src/notify-discord-digest.ts";
+import * as legacyDigest from "../src/orchestrator/projects/digest/discord.ts";
 
 function assert(condition: unknown, message: string): asserts condition {
   if (!condition) throw new Error(message);
@@ -142,7 +142,7 @@ async function main(): Promise<void> {
       resolve(home, "config/projects.yaml"),
       `version: 1\nprojects:\n  tailortales:\n    owner: Shagon1k\n    project_number: 2\n    repository: Shagon1k/TailorTales\n    workspace:\n      branch_prefix: TT\n`,
     );
-    await runNode(resolve(app, "src/init-run-store.ts"), [], {
+    await runNode(resolve(app, "src/orchestrator/state/init-run-store.ts"), [], {
       ...process.env,
       KURAMI_HOME: home,
       ORCHESTRATOR_MIGRATIONS_DIR: migrationsDirectory,
@@ -262,7 +262,7 @@ async function main(): Promise<void> {
       DISCORD_BOT_TOKEN: "test-token",
       DISCORD_API_BASE: `http://127.0.0.1:${address.port}`,
     };
-    const notifier = resolve(app, "src/notify-discord-digest.ts");
+    const notifier = resolve(app, "src/orchestrator/projects/digest/discord.ts");
     const created = JSON.parse(
       (await runNode(notifier, ["--apply"], notifierEnvironment)).stdout,
     ) as { ok: boolean; results: Array<{ action: string }> };

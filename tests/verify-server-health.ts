@@ -10,7 +10,7 @@ import {
   resolveServerHealthConfig,
   stableProblemKey,
   type ServerHealthSnapshot,
-} from "../src/server-health.ts";
+} from "../src/system/health/server-health.ts";
 import * as canonicalServerHealth from "../src/system/health/server-health.ts";
 
 if (

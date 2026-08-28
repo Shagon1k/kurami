@@ -10,7 +10,7 @@ import {
 import { tmpdir } from "node:os";
 import { resolve } from "node:path";
 import { DatabaseSync } from "node:sqlite";
-import { createBackup, formatBackupSummary } from "../src/backup-state.ts";
+import { createBackup, formatBackupSummary } from "../src/system/recovery/backup-state.ts";
 import * as canonicalBackup from "../src/system/recovery/backup-state.ts";
 
 if (

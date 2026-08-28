@@ -5,8 +5,8 @@ import { stringify } from "yaml";
 import {
   inspectProjectReadiness,
   type ReadinessResult,
-} from "../src/project-readiness.ts";
-import * as legacyProjectReadiness from "../src/project-readiness.ts";
+} from "../src/orchestrator/projects/project-readiness.ts";
+import * as legacyProjectReadiness from "../src/orchestrator/projects/project-readiness.ts";
 import * as canonicalProjectReadiness from "../src/orchestrator/projects/project-readiness.ts";
 
 function assert(condition: unknown, message: string): asserts condition {

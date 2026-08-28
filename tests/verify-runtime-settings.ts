@@ -9,12 +9,12 @@ import {
   currentRuntimeSettings,
   effectiveOrchestratorConfig,
   loadRuntimeSettingsInputs,
-} from "../src/runtime-settings.ts";
-import * as legacyRuntimeSettings from "../src/runtime-settings.ts";
+} from "../src/orchestrator/settings/runtime-settings.ts";
+import * as legacyRuntimeSettings from "../src/orchestrator/settings/runtime-settings.ts";
 import * as canonicalRuntimeSettings from "../src/orchestrator/settings/runtime-settings.ts";
-import * as legacyOrchestratorSettings from "../src/orchestrator-settings.ts";
+import * as legacyOrchestratorSettings from "../src/orchestrator/settings/orchestrator-settings.ts";
 import * as canonicalOrchestratorSettings from "../src/orchestrator/settings/orchestrator-settings.ts";
-import * as legacyRunStoreInitializer from "../src/init-run-store.ts";
+import * as legacyRunStoreInitializer from "../src/orchestrator/state/init-run-store.ts";
 import * as canonicalRunStoreInitializer from "../src/orchestrator/state/init-run-store.ts";
 
 assert.equal(
@@ -32,7 +32,7 @@ assert.equal(
 
 const root = await mkdtemp(resolve(tmpdir(), "kurami-runtime-settings-test-"));
 const app = resolve(import.meta.dirname, "..");
-const settingsCli = resolve(app, "src/orchestrator-settings.ts");
+const settingsCli = resolve(app, "src/orchestrator/settings/orchestrator-settings.ts");
 const canonicalSettingsCli = resolve(
   app,
   "src/orchestrator/settings/orchestrator-settings.ts",
@@ -409,7 +409,7 @@ try {
   database.close();
   const admissionOutput = execFileSync(
     process.execPath,
-    [resolve(app, "src/process-project-events.ts")],
+    [resolve(app, "src/orchestrator/projects/process-project-events.ts")],
     { encoding: "utf8", env, stdio: ["ignore", "pipe", "pipe"] },
   ).trim();
   const admission = JSON.parse(admissionOutput) as {

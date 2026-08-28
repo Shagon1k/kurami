@@ -18,11 +18,11 @@ import {
   createGitHubAppInstallationToken,
   loadGitHubAppCredentials,
 } from "../src/orchestrator/integrations/github/app-auth.ts";
-import * as legacyCodexAppServer from "../src/codex-app-server.ts";
-import * as legacyGitHubAppAuth from "../src/github-app-auth.ts";
+import * as legacyCodexAppServer from "../src/orchestrator/integrations/codex/app-server.ts";
+import * as legacyGitHubAppAuth from "../src/orchestrator/integrations/github/app-auth.ts";
 import * as canonicalReviewManager from "../src/orchestrator/projects/reviews/manager.ts";
-import * as legacyReviewManager from "../src/review-manager.ts";
-import * as legacyReviewWorker from "../src/ai-review-worker.ts";
+import * as legacyReviewManager from "../src/orchestrator/projects/reviews/manager.ts";
+import * as legacyReviewWorker from "../src/orchestrator/projects/reviews/worker.ts";
 
 type JsonObject = Record<string, unknown>;
 
@@ -119,7 +119,7 @@ async function main(): Promise<void> {
       resolve(home, "worktrees/tailortales"),
     );
     await writeFile(resolve(home, "config/projects.yaml"), projects);
-    runNode(resolve(app, "src/init-run-store.ts"), [], home);
+    runNode(resolve(app, "src/orchestrator/state/init-run-store.ts"), [], home);
 
     const database = new DatabaseSync(resolve(home, "state/orchestrator.db"));
     database.exec(`
@@ -153,8 +153,8 @@ async function main(): Promise<void> {
       .run(resolve(home, "worktrees/tailortales/130/TailorTales"), "a".repeat(40));
     database.close();
 
-    const controlsPath = resolve(app, "src/run-controls.ts");
-    const controllerPath = resolve(app, "src/controller.ts");
+    const controlsPath = resolve(app, "src/orchestrator/controls/run.ts");
+    const controllerPath = resolve(app, "src/orchestrator/runtime/controller.ts");
     const created = runNode(
       controlsPath,
       [

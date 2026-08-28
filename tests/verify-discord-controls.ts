@@ -130,7 +130,7 @@ async function main(): Promise<void> {
   const canonicalNotifier = await import(
     "../src/orchestrator/controls/discord.ts"
   );
-  const legacyNotifier = await import("../src/notify-discord-controls.ts");
+  const legacyNotifier = await import("../src/orchestrator/controls/discord.ts");
   assert(
     legacyNotifier.runDiscordControlsCli ===
       canonicalNotifier.runDiscordControlsCli &&
@@ -443,7 +443,7 @@ async function main(): Promise<void> {
       appDirectory,
       "src/orchestrator/controls/discord.ts",
     );
-    const control = resolve(appDirectory, "src/run-controls.ts");
+    const control = resolve(appDirectory, "src/orchestrator/controls/run.ts");
     const first = await runNode(notifier, ["--apply"], testHome, discordEnv);
     trace("first-sync-complete");
     assert(first.ok === true, "Initial Discord reconciliation failed");
