@@ -41,8 +41,17 @@ confident source erase uncertainty in the others.
 - Include concrete actors, changes, dates, places, and consequences.
 - Use one concise summary when it is enough.
 - Give every included textual story one to eight `details` paragraphs that
-  preserve the useful facts needed for inline reading. Do not duplicate the
-  summary just to satisfy the field.
+  form a self-contained reading layer. Preserve concrete actors, what changed,
+  relevant dates or numbers, necessary background, material uncertainty, and
+  the practical consequence. Do not stop after another two-sentence teaser and
+  do not duplicate the summary just to satisfy the field.
+- Treat 250–500 characters for compact, 500–1000 for standard, and 900–1600
+  for deep stories as editorial diagnostics. Shorter is correct only when the
+  source itself contains no additional meaningful facts; longer is acceptable
+  when needed. Never pad or invent to hit a range.
+- For standard and deep items, read the linked primary article when available
+  and permitted instead of summarizing only the Telegram lead. Keep the source
+  provenance and state any access limitation rather than fabricating context.
 - Add `whyItMatters` only when it contributes a non-obvious consequence.
 - Avoid repeated introductions, generic excitement, and phrases that merely
   restate the headline.

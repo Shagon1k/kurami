@@ -81,7 +81,10 @@ Default manual experiments to `dry-run`. Generation never archives Gmail;
    makes only that section partial.
 8. Normalize, cluster, merge, summarize, assign topics, and rank content using
    the editorial and topic references. Process every fetched unread item; use
-    compact rows for low-signal items instead of silently discarding them.
+    compact rows for low-signal items instead of silently discarding them. The
+    expanded reading layer must contain the useful substance, not another brief
+    teaser; retrieve linked primary context for standard and deep stories when
+    the configured capability permits it.
 9. On Saturday, build or refresh the weekly cinema edition from sources that
    can prove release dates and freshness. A cinema failure must not block the
    normal daily edition.

@@ -118,12 +118,24 @@ Target three or four canonical topics. Use two only for a genuinely narrow
 story; never pad with a provider, channel name, arbitrary person, or vague
 synonym. Entities remain separate from topics.
 
-`summary` must make the news understandable without opening the source. Every
-included textual story has one to eight `details` paragraphs so Alex can read
-the useful source content without leaving the briefing. Keep them factual,
-remove channel boilerplate, and do not merely repeat the summary. A short post
-may have one compact paragraph; a genuinely complex event may use several.
-Do not add `whyItMatters` merely to fill a card.
+`summary` is the scan layer: it says what happened without turning into a
+second headline. `details` is a self-contained reading layer, not a two-sentence
+teaser. It must preserve enough concrete actors, actions, dates, numbers,
+background, uncertainty, and consequences for Alex to understand the useful
+substance without leaving the briefing. Remove channel boilerplate and do not
+merely repeat the summary.
+
+Use length as a diagnostic, never as a reason to pad or invent:
+
+- `compact`: normally 250–500 characters when the source supports it;
+- `standard`: normally 500–1000 characters;
+- `deep`: normally 900–1600 characters.
+
+A genuinely short source may remain shorter if the details contain every
+meaningful fact. A complex event may use several paragraphs. For standard and
+deep stories, follow the linked primary article when it is available and the
+configured capability permits it; preserve that provenance in `sources`. Do
+not add `whyItMatters` merely to fill a card.
 
 ## Feed controls
 

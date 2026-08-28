@@ -67,9 +67,23 @@ const CLIENT_SCRIPT = `(() => {
         items.forEach((item, index) => {
           item.hidden = index < first || index >= last;
           item.setAttribute('aria-hidden', String(item.hidden));
+          if (item.hidden) {
+            const panel = item.querySelector('[data-story-details]');
+            const toggle = item.querySelector('[data-story-toggle]');
+            if (panel) panel.hidden = true;
+            if (toggle) {
+              toggle.setAttribute('aria-expanded', 'false');
+              const label = toggle.querySelector('[data-disclosure-label]');
+              if (label) label.textContent = 'Читать';
+            }
+            item.classList.remove('is-expanded');
+          }
         });
         feed.querySelectorAll('[data-page-status]').forEach((status) => {
-          status.textContent = page + ' / ' + totalPages;
+          status.textContent = 'Страница ' + page + ' из ' + totalPages;
+        });
+        feed.querySelectorAll('[data-page-range]').forEach((range) => {
+          range.textContent = (first + 1) + '–' + Math.min(last, items.length) + ' из ' + items.length;
         });
         feed.querySelectorAll('[data-page-prev]').forEach((button) => {
           button.disabled = page <= 1;
@@ -109,12 +123,50 @@ const CLIENT_SCRIPT = `(() => {
   initializePaginatedFeeds();
 
   document.addEventListener('click', async (event) => {
-    const target = event.target instanceof Element ? event.target.closest('[data-theme-toggle], [data-reaction]') : null;
+    const target = event.target instanceof Element ? event.target.closest('[data-theme-toggle], [data-story-toggle], [data-reaction]') : null;
     if (!target) return;
     if (target.hasAttribute('data-theme-toggle')) {
       const next = document.documentElement.dataset.theme === 'dark' ? 'light' : 'dark';
       localStorage.setItem('kurami-theme', next);
       applyTheme(next);
+      return;
+    }
+    if (target.hasAttribute('data-story-toggle')) {
+      const controls = target.getAttribute('aria-controls');
+      const panel = controls ? document.getElementById(controls) : null;
+      if (!panel) return;
+      const willOpen = panel.hidden;
+      const feed = target.closest('[data-paginated-feed]');
+      if (feed) {
+        feed.querySelectorAll('[data-story-details]:not([hidden])').forEach((other) => {
+          if (other === panel) return;
+          other.hidden = true;
+          const otherToggle = feed.querySelector('[aria-controls="' + CSS.escape(other.id) + '"]');
+          if (otherToggle) {
+            otherToggle.setAttribute('aria-expanded', 'false');
+            const otherLabel = otherToggle.querySelector('[data-disclosure-label]');
+            if (otherLabel) otherLabel.textContent = 'Читать';
+          }
+          other.closest('[data-feed-item]')?.classList.remove('is-expanded');
+        });
+      }
+      panel.hidden = !willOpen;
+      target.setAttribute('aria-expanded', String(willOpen));
+      const label = target.querySelector('[data-disclosure-label]');
+      if (label) label.textContent = willOpen ? 'Свернуть' : 'Читать';
+      target.closest('[data-feed-item]')?.classList.toggle('is-expanded', willOpen);
+      if (!willOpen) return;
+      const editionId = panel.dataset.editionId;
+      const itemId = panel.dataset.itemId;
+      if (!editionId || !itemId || panel.dataset.read === 'true') return;
+      panel.dataset.read = 'true';
+      panel.classList.add('is-read');
+      try {
+        await request('/api/items/read', { editionId, itemId });
+      } catch {
+        panel.dataset.read = 'false';
+        panel.classList.remove('is-read');
+      }
       return;
     }
     const reaction = target.getAttribute('data-reaction');

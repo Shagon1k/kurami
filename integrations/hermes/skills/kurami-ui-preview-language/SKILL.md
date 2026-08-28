@@ -170,10 +170,11 @@ Use Hermes file tools to inspect and edit the target project. Use the target pro
   `data-theme-label`; never rely only on the browser color preference.
 - Provide visible hover, focus-visible, active, disabled, and selected states.
 - Render every long-feed item with `data-feed-item` and its stable
-  `data-item-id`. Render the supplied extended story as a native
-  `details[data-story-details]` with the matching `data-edition-id` and
-  `data-item-id`; use `Подробнее` as the clear disclosure label and keep the
-  external source link separate.
+  `data-item-id`. Use the canonical accessible disclosure pair:
+  `button[data-story-toggle]` plus the matching region
+  `[data-story-details]`, `data-edition-id`, and `data-item-id`. Keep the
+  external source action in the same control group, while its destination
+  remains semantically separate from the inline reading action.
 - For a collection larger than its page size, include the runtime hooks
   `data-paginated-feed`, `data-feed-pagination`, `data-page-prev`,
   `data-page-next`, and `data-page-status`. A printed `1 / 2` without working
@@ -227,7 +228,7 @@ Before handoff, confirm all of the following:
 - Emoji actions have accessible names and unmistakable selected states.
 - Collections render zero, one, and many items without structural distortion.
 - Long feeds expose pagination, inline expansion, source metadata, reaction state, and an external destination when supplied.
-- Every feed item remains present in the document, every `Подробнее` disclosure
+- Every feed item remains present in the document, every inline disclosure
   contains the caller-supplied details, and next/previous controls reach every
   page without a full reload.
 - Topic labels preserve the caller's strings and order, remain secondary to the headline, and are not styled as primary red signals.
