@@ -82,7 +82,7 @@ Use a flexible story rather than a mandatory prose template:
   "fingerprint": "stable cross-edition content fingerprint",
   "headline": "Russian headline",
   "summary": "Concise Russian summary",
-  "details": ["optional extended factual paragraphs"],
+  "details": ["extended factual paragraph available inline"],
   "context": "optional background",
   "whyItMatters": "optional, only when it adds information",
   "depth": "compact | standard | deep",
@@ -118,9 +118,12 @@ Target three or four canonical topics. Use two only for a genuinely narrow
 story; never pad with a provider, channel name, arbitrary person, or vague
 synonym. Entities remain separate from topics.
 
-`summary` must make the news understandable without opening the source.
-`details` may be long when the event genuinely needs explanation. Do not add
-`whyItMatters` merely to fill a card.
+`summary` must make the news understandable without opening the source. Every
+included textual story has one to eight `details` paragraphs so Alex can read
+the useful source content without leaving the briefing. Keep them factual,
+remove channel boilerplate, and do not merely repeat the summary. A short post
+may have one compact paragraph; a genuinely complex event may use several.
+Do not add `whyItMatters` merely to fill a card.
 
 ## Feed controls
 

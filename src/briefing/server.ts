@@ -41,10 +41,72 @@ const CLIENT_SCRIPT = `(() => {
     document.documentElement.dataset.theme = theme;
     document.querySelectorAll('[data-theme-toggle]').forEach((button) => {
       button.setAttribute('aria-label', theme === 'dark' ? 'Включить светлую тему' : 'Включить тёмную тему');
+      button.setAttribute('aria-pressed', String(theme === 'dark'));
+      const label = button.querySelector('[data-theme-label]');
+      if (label) label.textContent = theme === 'dark' ? 'Светлая тема' : 'Тёмная тема';
+      const icon = button.querySelector('[data-theme-icon]');
+      if (icon) icon.textContent = theme === 'dark' ? '☀' : '◐';
     });
   };
   const storedTheme = localStorage.getItem('kurami-theme');
   applyTheme(storedTheme || (matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light'));
+
+  const initializePaginatedFeeds = () => {
+    document.querySelectorAll('[data-paginated-feed]').forEach((feed) => {
+      const items = Array.from(feed.querySelectorAll('[data-feed-item]'));
+      const requestedPageSize = Number.parseInt(feed.getAttribute('data-page-size') || '10', 10);
+      const pageSize = Number.isInteger(requestedPageSize) && requestedPageSize > 0 ? requestedPageSize : 10;
+      const totalPages = Math.max(1, Math.ceil(items.length / pageSize));
+      const parameter = feed.getAttribute('data-page-param') || 'newsPage';
+      const query = new URLSearchParams(location.search);
+      let page = Math.min(totalPages, Math.max(1, Number.parseInt(query.get(parameter) || '1', 10) || 1));
+
+      const renderPage = (moveFocus = false) => {
+        const first = (page - 1) * pageSize;
+        const last = first + pageSize;
+        items.forEach((item, index) => {
+          item.hidden = index < first || index >= last;
+          item.setAttribute('aria-hidden', String(item.hidden));
+        });
+        feed.querySelectorAll('[data-page-status]').forEach((status) => {
+          status.textContent = page + ' / ' + totalPages;
+        });
+        feed.querySelectorAll('[data-page-prev]').forEach((button) => {
+          button.disabled = page <= 1;
+        });
+        feed.querySelectorAll('[data-page-next]').forEach((button) => {
+          button.disabled = page >= totalPages;
+        });
+        feed.querySelectorAll('[data-page]').forEach((button) => {
+          const selected = Number.parseInt(button.getAttribute('data-page') || '', 10) === page;
+          button.setAttribute('aria-current', selected ? 'page' : 'false');
+        });
+        const nextQuery = new URLSearchParams(location.search);
+        if (page === 1) nextQuery.delete(parameter);
+        else nextQuery.set(parameter, String(page));
+        const search = nextQuery.toString();
+        history.replaceState(null, '', location.pathname + (search ? '?' + search : '') + location.hash);
+        if (moveFocus) {
+          const heading = feed.querySelector('[data-feed-heading]') || feed;
+          if (!heading.hasAttribute('tabindex')) heading.setAttribute('tabindex', '-1');
+          heading.focus({ preventScroll: true });
+          heading.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        }
+      };
+
+      feed.addEventListener('click', (event) => {
+        const target = event.target instanceof Element ? event.target.closest('[data-page-prev], [data-page-next], [data-page]') : null;
+        if (!target || target.disabled) return;
+        if (target.hasAttribute('data-page-prev')) page = Math.max(1, page - 1);
+        else if (target.hasAttribute('data-page-next')) page = Math.min(totalPages, page + 1);
+        else page = Math.min(totalPages, Math.max(1, Number.parseInt(target.getAttribute('data-page') || '1', 10) || 1));
+        renderPage(true);
+      });
+
+      renderPage(false);
+    });
+  };
+  initializePaginatedFeeds();
 
   document.addEventListener('click', async (event) => {
     const target = event.target instanceof Element ? event.target.closest('[data-theme-toggle], [data-reaction]') : null;
@@ -73,6 +135,12 @@ const CLIENT_SCRIPT = `(() => {
   document.addEventListener('toggle', async (event) => {
     const details = event.target;
     if (!(details instanceof HTMLDetailsElement) || !details.open) return;
+    const feed = details.closest('[data-paginated-feed]');
+    if (feed) {
+      feed.querySelectorAll('details[data-story-details][open]').forEach((other) => {
+        if (other !== details) other.open = false;
+      });
+    }
     const editionId = details.dataset.editionId;
     const itemId = details.dataset.itemId;
     if (!editionId || !itemId || details.dataset.read === 'true') return;
@@ -158,7 +226,7 @@ function routeEdition(database: DatabaseSync, pathname: string): EditionRow | nu
 }
 
 function emptyPage(): string {
-  return `<!doctype html><html lang="ru"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Kurami Briefing</title><style>body{margin:0;padding:48px;font:16px/1.5 system-ui;background:#faf9f6;color:#111}main{max-width:760px;margin:auto;border:1px solid #ccc;padding:32px}h1{font-size:32px;margin:0 0 12px}</style></head><body><main><h1>Briefing ещё не опубликован</h1><p>Runtime работает. Подготовленный preview будет доступен по своему адресу.</p></main></body></html>`;
+  return `<!doctype html><html lang="ru"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Kurami Briefing</title><style>:root{color-scheme:light dark}body{margin:0;padding:48px;font:16px/1.5 system-ui;background:#faf9f6;color:#111}html[data-theme=dark] body{background:#0a0a0a;color:#f7f4ec}main{max-width:760px;margin:auto;border:1px solid #888;padding:32px}h1{font-size:32px;margin:0 0 12px}button{min-height:44px;padding:8px 14px;float:right}</style></head><body><button type="button" data-theme-toggle><span data-theme-icon aria-hidden="true">◐</span> <span data-theme-label>Тёмная тема</span></button><main><h1>Briefing ещё не опубликован</h1><p>Runtime работает. Подготовленный preview будет доступен по своему адресу.</p></main></body></html>`;
 }
 
 async function serveEdition(

@@ -133,7 +133,19 @@ export function openBriefingDatabase(paths: BriefingPaths = briefingPaths()): Da
   return database;
 }
 
-export function validateRenderedHtml(html: string): void {
+function htmlHasAttributes(html: string, attributes: Record<string, string | null>): boolean {
+  const tags = html.match(/<[a-z][^>]*>/gi) ?? [];
+  return tags.some((tag) =>
+    Object.entries(attributes).every(([name, value]) => {
+      const escapedName = name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+      if (value === null) return new RegExp(`\\s${escapedName}(?:\\s|=|>|\\/)`, "i").test(tag);
+      const escapedValue = value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+      return new RegExp(`\\s${escapedName}\\s*=\\s*["']${escapedValue}["']`, "i").test(tag);
+    }),
+  );
+}
+
+export function validateRenderedHtml(html: string, payload?: BriefingPayload): void {
   if (Buffer.byteLength(html, "utf8") > 2 * 1024 * 1024) fail("Rendered HTML exceeds 2 MiB");
   if (!/^\s*<!doctype html>/i.test(html)) fail("Rendered HTML must begin with a doctype");
   if (!/<html\b/i.test(html) || !/<body\b/i.test(html) || !/<\/body>/i.test(html)) {
@@ -147,6 +159,41 @@ export function validateRenderedHtml(html: string): void {
   ];
   for (const [pattern, label] of forbidden) {
     if (pattern.test(html)) fail(`Rendered HTML contains forbidden ${label}`);
+  }
+  if (!htmlHasAttributes(html, { "data-theme-toggle": null })) {
+    fail("Rendered HTML must contain a visible theme toggle");
+  }
+  if (!payload) return;
+
+  for (const story of payload.news.items) {
+    const itemAttributes = { "data-item-id": story.id };
+    if (!htmlHasAttributes(html, { ...itemAttributes, "data-feed-item": null })) {
+      fail(`Rendered HTML is missing feed item ${story.id}`);
+    }
+    if (
+      !htmlHasAttributes(html, {
+        ...itemAttributes,
+        "data-edition-id": payload.edition.id,
+        "data-story-details": null,
+      })
+    ) {
+      fail(`Rendered HTML is missing expandable details for ${story.id}`);
+    }
+  }
+
+  const pageSize = payload.news.pageSize ?? 10;
+  if (payload.news.items.length > pageSize) {
+    for (const attribute of [
+      "data-paginated-feed",
+      "data-feed-pagination",
+      "data-page-prev",
+      "data-page-next",
+      "data-page-status",
+    ]) {
+      if (!htmlHasAttributes(html, { [attribute]: null })) {
+        fail(`Rendered HTML is missing pagination hook ${attribute}`);
+      }
+    }
   }
 }
 
@@ -180,7 +227,7 @@ export async function preparePreview(
   paths: BriefingPaths = briefingPaths(),
 ): Promise<{ editionId: string; previewPath: string; digest: string; state: "prepared" }> {
   const payload = parseBriefingPayload(payloadValue);
-  validateRenderedHtml(html);
+  validateRenderedHtml(html, payload);
   await initializeBriefingStore(paths);
 
   const currentDatabase = openBriefingDatabase(paths);

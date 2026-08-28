@@ -40,7 +40,9 @@ confident source erase uncertainty in the others.
 - Lead with what happened.
 - Include concrete actors, changes, dates, places, and consequences.
 - Use one concise summary when it is enough.
-- Add `details` or `context` when omitting them would make the story misleading.
+- Give every included textual story one to eight `details` paragraphs that
+  preserve the useful facts needed for inline reading. Do not duplicate the
+  summary just to satisfy the field.
 - Add `whyItMatters` only when it contributes a non-obvious consequence.
 - Avoid repeated introductions, generic excitement, and phrases that merely
   restate the headline.

@@ -56,6 +56,7 @@ const payload = {
         fingerprint: "fp-story-1",
         headline: "Тестовая новость",
         summary: "Короткое проверяемое описание.",
+        details: ["Расширенный проверяемый абзац с фактическими деталями новости."],
         topics: [
           { id: "ai", label: "AI" },
           { id: "technology", label: "Technology" },
@@ -71,10 +72,17 @@ const html = `<!doctype html>
 <head><meta charset="utf-8"><title>Briefing test</title></head>
 <body>
   <button type="button" data-theme-toggle>Тема</button>
-  <details data-edition-id="daily:2026-08-28" data-item-id="story-1">
-    <summary>Тестовая новость</summary>
-    <p>Короткое проверяемое описание.</p>
-  </details>
+  <section data-paginated-feed data-page-size="10" data-page-param="newsPage">
+    <h2 data-feed-heading>Новости</h2>
+    <article data-feed-item data-item-id="story-1">
+      <h3>Тестовая новость</h3>
+      <p>Короткое проверяемое описание.</p>
+      <details data-story-details data-edition-id="daily:2026-08-28" data-item-id="story-1">
+        <summary>Подробнее</summary>
+        <p>Расширенный проверяемый абзац с фактическими деталями новости.</p>
+      </details>
+    </article>
+  </section>
   <button type="button" data-edition-id="daily:2026-08-28" data-item-id="story-1" data-reaction="like" aria-pressed="false">👍</button>
 </body>
 </html>`;
@@ -110,6 +118,18 @@ assert.throws(
   () => validateRenderedHtml("<!doctype html><html><body><script>alert(1)</script></body></html>"),
   /forbidden script elements/,
 );
+assert.throws(
+  () => validateRenderedHtml("<!doctype html><html><body><p>Без темы</p></body></html>"),
+  /visible theme toggle/,
+);
+await assert.rejects(
+  preparePreview(
+    payload,
+    '<!doctype html><html><body><button data-theme-toggle>Тема</button></body></html>',
+    paths,
+  ),
+  /missing feed item story-1/,
+);
 
 const server = await createBriefingServer(paths);
 await new Promise<void>((resolvePromise, reject) => {
@@ -136,7 +156,9 @@ try {
 
   const script = await fetch(`${base}/assets/briefing.js`);
   assert.equal(script.status, 200);
-  assert.match(await script.text(), /markItemRead|\/api\/items\/read|data-reaction/);
+  const clientScript = await script.text();
+  assert.match(clientScript, /\/api\/items\/read|data-reaction/);
+  assert.match(clientScript, /data-page-next|URLSearchParams|data-story-details/);
 
   const read = await fetch(`${base}/api/items/read`, {
     method: "POST",
@@ -205,6 +227,9 @@ process.stdout.write(
     isolated: true,
     migrations: initialized.applied.length,
     preview: true,
+    themeToggleRequired: true,
+    storyDetailsRequired: true,
+    paginationRuntime: true,
     csp: true,
     scriptInjectionBlocked: true,
     readState: true,

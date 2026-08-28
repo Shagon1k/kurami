@@ -195,13 +195,13 @@ Keep label, value, delta, and context/period legible. Use the empty third row as
 Keep provider names in data attributes or rendered values, not in component or class names.
 
 ```html
-<section class="digest-feed" aria-labelledby="digest-title">
+<section class="digest-feed" aria-labelledby="digest-title" data-paginated-feed data-page-size="10" data-page-param="newsPage">
   <header class="digest-feed__header">
-    <div><h2 id="digest-title">Prepared title</h2><p>Prepared total and cutoff</p></div>
+    <div><h2 id="digest-title" data-feed-heading>Prepared title</h2><p>Prepared total and cutoff</p></div>
     <span class="source-facet">Prepared source · 126</span>
   </header>
 
-  <article class="digest-item">
+  <article class="digest-item" data-feed-item data-item-id="prepared-stable-id">
     <span class="digest-item__index">01</span>
     <div class="digest-item__copy">
       <p class="digest-item__meta">Prepared source · Prepared sub-source · Prepared time</p>
@@ -210,12 +210,19 @@ Keep provider names in data attributes or rendered values, not in component or c
       <div class="topic-set" aria-label="Prepared topics">
         <span>Prepared topic</span><span>Another topic</span>
       </div>
-      <div class="digest-item__expanded">Prepared extended digest</div>
+      <details class="digest-item__details" data-story-details data-edition-id="prepared-edition-id" data-item-id="prepared-stable-id">
+        <summary class="button button--secondary">Подробнее</summary>
+        <div class="digest-item__expanded"><p>Prepared extended digest paragraph.</p></div>
+      </details>
     </div>
     <div class="digest-item__actions">…</div>
   </article>
 
-  <nav class="pagination" aria-label="Prepared pagination label">…</nav>
+  <nav class="pagination" aria-label="Prepared pagination label" data-feed-pagination>
+    <button class="button button--secondary" type="button" data-page-prev>← Назад</button>
+    <span aria-live="polite" data-page-status>1 / prepared total</span>
+    <button class="button button--secondary" type="button" data-page-next>Дальше →</button>
+  </nav>
 </section>
 ```
 
@@ -261,6 +268,18 @@ Keep provider names in data attributes or rendered values, not in component or c
 ```
 
 Use 10–12 items per page for long primary feeds. Do not add `Show all`, infinite document growth, or an independently scrolling feed window. Expand content inline and keep only one item open by default. Render one to four caller-supplied topics without changing their strings or order. On small screens, reduce numeric controls to newer/current/older while preserving the current range.
+
+The runtime owns pagination, theme persistence, reactions, and read-state. The
+generated HTML stays inert but must expose the exact `data-*` hooks shown above.
+Include all feed items in document order; the runtime hides pages outside the
+current range. Put this visible theme control in the utility header:
+
+```html
+<button class="button button--secondary" type="button" data-theme-toggle aria-pressed="false">
+  <span data-theme-icon aria-hidden="true">◐</span>
+  <span data-theme-label>Тёмная тема</span>
+</button>
+```
 
 ## Bulk Source Action recipe
 

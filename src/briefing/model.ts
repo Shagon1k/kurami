@@ -13,6 +13,7 @@ export type NewsItem = {
   fingerprint: string;
   headline: string;
   summary: string;
+  details: string[];
   topics: Topic[];
   [key: string]: unknown;
 };
@@ -116,6 +117,17 @@ function topics(value: unknown, label: string): Topic[] {
   });
 }
 
+function details(value: unknown, label: string): string[] {
+  if (!Array.isArray(value) || value.length < 1 || value.length > 8) {
+    fail(`${label} must contain one to eight paragraphs`);
+  }
+  return value.map((paragraph, index) => {
+    const result = string(paragraph, `${label}[${index}]`).trim();
+    if (result.length > 4_000) fail(`${label}[${index}] exceeds 4000 characters`);
+    return result;
+  });
+}
+
 export function parseBriefingPayload(value: unknown): BriefingPayload {
   const root = record(value, "root");
   if (root.schemaVersion !== 1) fail("schemaVersion must equal 1");
@@ -154,6 +166,7 @@ export function parseBriefingPayload(value: unknown): BriefingPayload {
       fingerprint: safeId(item.fingerprint, `news.items[${index}].fingerprint`),
       headline: string(item.headline, `news.items[${index}].headline`),
       summary: string(item.summary, `news.items[${index}].summary`),
+      details: details(item.details, `news.items[${index}].details`),
       topics: topics(item.topics, `news.items[${index}].topics`),
     };
   });

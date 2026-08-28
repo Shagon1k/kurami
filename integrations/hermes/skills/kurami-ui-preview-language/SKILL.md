@@ -3,7 +3,7 @@ name: kurami-ui-preview-language
 description: Render pages in Kurami's fixed visual language.
 license: private
 metadata:
-  version: 0.5.0
+  version: 0.6.0
   author: Aliaksei Hurynovich with Hermes Agent
   hermes:
     tags:
@@ -77,7 +77,7 @@ Use Hermes file tools to inspect and edit the target project. Use the target pro
 | Long feeds | Paginate 10–12 items; never use `Show all` or a nested feed scrollbar |
 | Topics | Render 1–4 caller-supplied canonical strings as quiet labels |
 | Service scope | Keep components provider-agnostic; service names belong to payloads |
-| Theme | Complete light and dark support |
+| Theme | Complete light/dark support with a visible switch |
 | Responsive behavior | Same information and note limits on mobile and desktop |
 | Density | Briefing compact; report standard; media visual |
 | Emoji | Functional familiar symbols are welcome; decoration is restrained |
@@ -142,7 +142,19 @@ Use Hermes file tools to inspect and edit the target project. Use the target pro
 
 ### 6. Implement interaction and themes
 
+- Put one visible theme control in the page utility header. It must use
+  `data-theme-toggle` and may contain `data-theme-icon` and
+  `data-theme-label`; never rely only on the browser color preference.
 - Provide visible hover, focus-visible, active, disabled, and selected states.
+- Render every long-feed item with `data-feed-item` and its stable
+  `data-item-id`. Render the supplied extended story as a native
+  `details[data-story-details]` with the matching `data-edition-id` and
+  `data-item-id`; use `Подробнее` as the clear disclosure label and keep the
+  external source link separate.
+- For a collection larger than its page size, include the runtime hooks
+  `data-paginated-feed`, `data-feed-pagination`, `data-page-prev`,
+  `data-page-next`, and `data-page-status`. A printed `1 / 2` without working
+  controls is invalid.
 - Preserve pagination position in the URL or caller state when the target application supports it. After a page change, return focus or scroll position to the feed heading rather than the top of the full page.
 - Keep long feeds page-bounded. Do not add `Show all`; do not place the primary reading feed inside an independently scrolling window.
 - Use a minimum 44px pointer target for controls.
@@ -182,6 +194,7 @@ Before handoff, confirm all of the following:
 
 - The page uses Onest, Fragment Mono only where allowed, and Caveat only for Kurami Notes.
 - Light and dark themes use semantic tokens rather than isolated hard-coded colors.
+- A visible `data-theme-toggle` changes the theme in the rendered runtime.
 - Headings are readable, sentence case by default, and never collide.
 - Buttons and links use weight 600 and appear vertically centered.
 - Icons share consistent size, stroke, and alignment.
@@ -191,6 +204,9 @@ Before handoff, confirm all of the following:
 - Emoji actions have accessible names and unmistakable selected states.
 - Collections render zero, one, and many items without structural distortion.
 - Long feeds expose pagination, inline expansion, source metadata, reaction state, and an external destination when supplied.
+- Every feed item remains present in the document, every `Подробнее` disclosure
+  contains the caller-supplied details, and next/previous controls reach every
+  page without a full reload.
 - Topic labels preserve the caller's strings and order, remain secondary to the headline, and are not styled as primary red signals.
 - Bulk actions show their exact scope and consequences, require confirmation when consequential, and have loading, success, and error states supplied by the caller.
 - There are 2–3 Kurami Notes, attached to clear targets and using at least two placement variants.
