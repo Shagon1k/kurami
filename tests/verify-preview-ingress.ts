@@ -3,25 +3,10 @@ import {
   type IngressRoute,
 } from "../src/orchestrator/projects/previews/ingress.ts";
 import { codexLaunchUrl } from "../src/orchestrator/integrations/codex/deeplink.ts";
-import * as canonicalPreviewIngress from "../src/orchestrator/projects/previews/ingress.ts";
-import * as legacyPreviewIngress from "../src/orchestrator/projects/previews/ingress.ts";
-import * as canonicalCodexDeeplink from "../src/orchestrator/integrations/codex/deeplink.ts";
-import * as legacyCodexDeeplink from "../src/orchestrator/integrations/codex/deeplink.ts";
 
 function assert(condition: unknown, message: string): asserts condition {
   if (!condition) throw new Error(message);
 }
-
-assert(
-  legacyPreviewIngress.renderRoutes === canonicalPreviewIngress.renderRoutes &&
-    legacyPreviewIngress.runPreviewIngressCli ===
-      canonicalPreviewIngress.runPreviewIngressCli,
-  "Legacy preview-ingress is not a transparent compatibility wrapper",
-);
-assert(
-  legacyCodexDeeplink.codexLaunchUrl === canonicalCodexDeeplink.codexLaunchUrl,
-  "Legacy Codex deeplink is not a transparent compatibility wrapper",
-);
 
 function count(content: string, fragment: string): number {
   return content.split(fragment).length - 1;

@@ -9,8 +9,6 @@ import {
   persistTriageSnapshot,
   type RawTriageItem,
 } from "../src/orchestrator/projects/triage/snapshot.ts";
-import * as canonicalControls from "../src/orchestrator/projects/metadata/controls.ts";
-import * as legacyControls from "../src/orchestrator/projects/metadata/controls.ts";
 
 function assert(condition: unknown, message: string): asserts condition {
   if (!condition) throw new Error(message);
@@ -142,11 +140,6 @@ function insertBatch(
 }
 
 async function main(): Promise<void> {
-  assert(
-    legacyControls.runMetadataProposalControlsCli ===
-      canonicalControls.runMetadataProposalControlsCli,
-    "Legacy metadata controls are not a transparent compatibility wrapper",
-  );
   const app = resolve(import.meta.dirname, "..");
   const migrationsDirectory = resolve(app, "migrations");
   const migrations = (await readdir(migrationsDirectory))

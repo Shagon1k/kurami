@@ -8,14 +8,6 @@ import {
   createCurlS3Transport,
   uploadRecoveryBundle,
 } from "../src/system/recovery/s3-recovery.ts";
-import * as canonicalS3Recovery from "../src/system/recovery/s3-recovery.ts";
-
-if (
-  createCurlS3Transport !== canonicalS3Recovery.createCurlS3Transport ||
-  uploadRecoveryBundle !== canonicalS3Recovery.uploadRecoveryBundle
-) {
-  throw new Error("Legacy s3-recovery entrypoint does not re-export the canonical module");
-}
 
 function fail(message: string): never {
   throw new Error(message);

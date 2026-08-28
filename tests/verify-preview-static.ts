@@ -116,23 +116,15 @@ async function main(): Promise<void> {
       "Populated v25 lease was not preserved as Compose",
     );
 
-    const canonicalRuntime = await import(
+    const previewRuntime = await import(
       "../src/orchestrator/projects/previews/runtime.ts"
     );
-    const legacyRuntime = await import("../src/orchestrator/projects/previews/runtime.ts");
     const {
       assertPreviewSourceRevision,
       requireExactHeadSha,
       runPreviewRuntimeCli,
       selectAdapter,
-    } = canonicalRuntime;
-    assert(
-      legacyRuntime.assertPreviewSourceRevision === assertPreviewSourceRevision &&
-        legacyRuntime.requireExactHeadSha === requireExactHeadSha &&
-        legacyRuntime.runPreviewRuntimeCli === runPreviewRuntimeCli &&
-        legacyRuntime.selectAdapter === selectAdapter,
-      "Legacy preview runtime wrapper diverged from the canonical module",
-    );
+    } = previewRuntime;
     assert(selectAdapter("r_static_test") === "static", "Leased adapter did not use project config");
     migrated.prepare(`
       UPDATE preview_leases SET state='provisioning', runtime_adapter='static'
@@ -213,31 +205,14 @@ async function main(): Promise<void> {
     await mkdir(resolve(artifact, "assets"), { recursive: true, mode: 0o700 });
     await writeFile(resolve(artifact, "index.html"), "<h1>Static</h1>\n");
     await writeFile(resolve(artifact, "assets/app.js"), "console.log('ok');\n");
-    const canonicalStaticRuntime = await import(
+    const staticRuntime = await import(
       "../src/orchestrator/projects/previews/adapters/static.ts"
     );
-    const legacyStaticRuntime = await import("../src/orchestrator/projects/previews/adapters/static.ts");
     const {
       inventoryArtifact,
       runPreviewStaticRuntimeCli,
       staticHealthRequest,
-    } = canonicalStaticRuntime;
-    assert(
-      legacyStaticRuntime.inventoryArtifact === inventoryArtifact &&
-        legacyStaticRuntime.runPreviewStaticRuntimeCli ===
-          runPreviewStaticRuntimeCli &&
-        legacyStaticRuntime.staticHealthRequest === staticHealthRequest,
-      "Legacy static preview wrapper diverged from the canonical adapter",
-    );
-    const canonicalComposeRuntime = await import(
-      "../src/orchestrator/projects/previews/adapters/compose.ts"
-    );
-    const legacyComposeRuntime = await import("../src/orchestrator/projects/previews/adapters/compose.ts");
-    assert(
-      legacyComposeRuntime.runPreviewComposeRuntimeCli ===
-        canonicalComposeRuntime.runPreviewComposeRuntimeCli,
-      "Legacy Compose preview wrapper diverged from the canonical adapter",
-    );
+    } = staticRuntime;
     const healthRequest = staticHealthRequest(
       "https://preview-3.example.test",
       "index.html",

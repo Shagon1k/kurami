@@ -3,18 +3,10 @@ import { chmod, mkdir, mkdtemp, readFile, realpath, rm, stat, writeFile } from "
 import { tmpdir } from "node:os";
 import { delimiter, dirname, resolve } from "node:path";
 import { DatabaseSync } from "node:sqlite";
-import * as canonicalCancelResolution from "../src/orchestrator/projects/worktrees/cancel-resolution.ts";
-import * as legacyCancelResolution from "../src/orchestrator/projects/worktrees/cancel-resolution.ts";
 
 function assert(condition: unknown, message: string): asserts condition {
   if (!condition) throw new Error(message);
 }
-
-assert(
-  legacyCancelResolution.runCancelResolutionCli ===
-    canonicalCancelResolution.runCancelResolutionCli,
-  "Legacy cancel-resolution is not a transparent compatibility wrapper",
-);
 
 function command(program: string, args: string[], cwd?: string): string {
   return execFileSync(program, args, {
@@ -107,7 +99,6 @@ async function main(): Promise<void> {
       app,
       "src/orchestrator/projects/worktrees/cancel-resolution.ts",
     );
-    const legacyScript = resolve(app, "src/orchestrator/projects/worktrees/cancel-resolution.ts");
     const plan = runNode(canonicalScript, ["discard", "--run-id", "r_discard"], home) as {
       plan: { eligible: boolean; changedFiles: string[] };
     };
@@ -216,7 +207,7 @@ esac
       canonical,
     );
     const publishedDiscard = runNode(
-      legacyScript,
+      canonicalScript,
       ["discard-published", "--run-id", "r_discard_published", "--apply"],
       home,
     );

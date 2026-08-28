@@ -14,25 +14,10 @@ import {
   type ResourceGuardLimits,
   type ResourceObservation,
 } from "../src/orchestrator/resources/guard.ts";
-import * as legacyResourceGuardDiscord from "../src/orchestrator/resources/discord.ts";
 
 function assert(condition: unknown, message: string): asserts condition {
   if (!condition) throw new Error(message);
 }
-
-assert(
-  legacyResourceGuardDiscord.deliverResourceGuardBatch ===
-    deliverResourceGuardBatch &&
-    legacyResourceGuardDiscord.formatResourceGuardBatch ===
-      formatResourceGuardBatch &&
-    legacyResourceGuardDiscord.loadPendingResourceGuardBatches ===
-      loadPendingResourceGuardBatches &&
-    legacyResourceGuardDiscord.planResourceGuardDiscord ===
-      planResourceGuardDiscord &&
-    legacyResourceGuardDiscord.prepareResourceGuardDiscord ===
-      prepareResourceGuardDiscord,
-  "Legacy Resource Guard Discord wrapper diverged from the canonical module",
-);
 
 const limits: ResourceGuardLimits = {
   max_managed_worktrees_global: 6,

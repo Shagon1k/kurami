@@ -20,10 +20,6 @@ import {
   persistMetadataProposalResult,
   runValidatedMetadataAssessment,
 } from "../src/orchestrator/projects/metadata/proposals/worker.ts";
-import * as canonicalManager from "../src/orchestrator/projects/metadata/proposals/manager.ts";
-import * as canonicalWorker from "../src/orchestrator/projects/metadata/proposals/worker.ts";
-import * as legacyManager from "../src/orchestrator/projects/metadata/proposals/manager.ts";
-import * as legacyWorker from "../src/orchestrator/projects/metadata/proposals/worker.ts";
 import { persistTriageRanking, rankTriageFacts } from "../src/orchestrator/projects/triage/rank.ts";
 import {
   buildTriageFacts,
@@ -126,17 +122,6 @@ function expectFailure(action: () => unknown, expected: string): void {
 }
 
 async function main(): Promise<void> {
-  assert(
-    legacyManager.planProjectAssessment ===
-      canonicalManager.planProjectAssessment &&
-      legacyManager.runMetadataProposalManagerCli ===
-        canonicalManager.runMetadataProposalManagerCli &&
-      legacyWorker.parseMetadataProposalResult ===
-        canonicalWorker.parseMetadataProposalResult &&
-      legacyWorker.runMetadataProposalWorkerCli ===
-        canonicalWorker.runMetadataProposalWorkerCli,
-    "Legacy metadata proposal modules are not transparent compatibility wrappers",
-  );
   const app = resolve(import.meta.dirname, "..");
   const migrationsDirectory = resolve(app, "migrations");
   const migrations = (await readdir(migrationsDirectory))

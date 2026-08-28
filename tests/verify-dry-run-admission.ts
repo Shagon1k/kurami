@@ -4,8 +4,6 @@ import { tmpdir } from "node:os";
 import { resolve } from "node:path";
 import { DatabaseSync } from "node:sqlite";
 import { parse, stringify } from "yaml";
-import * as legacyProjectEvents from "../src/orchestrator/projects/process-project-events.ts";
-import * as canonicalProjectEvents from "../src/orchestrator/projects/process-project-events.ts";
 
 type ProjectsRegistry = {
   projects: Record<
@@ -27,12 +25,6 @@ type ConsumerResult = {
 function assert(condition: unknown, message: string): asserts condition {
   if (!condition) throw new Error(message);
 }
-
-assert(
-  legacyProjectEvents.runProjectEventConsumerCli ===
-    canonicalProjectEvents.runProjectEventConsumerCli,
-  "Legacy project event CLI does not delegate to the canonical implementation",
-);
 
 function runConsumer(appDirectory: string, testHome: string): ConsumerResult {
   const stdout = execFileSync(

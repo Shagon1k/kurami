@@ -11,8 +11,6 @@ import {
 import { tmpdir } from "node:os";
 import { resolve } from "node:path";
 import { DatabaseSync } from "node:sqlite";
-import * as canonicalRelease from "../src/orchestrator/projects/worktrees/release.ts";
-import * as legacyRelease from "../src/orchestrator/projects/worktrees/release.ts";
 
 process.umask(0o077);
 
@@ -42,12 +40,6 @@ async function exists(path: string): Promise<boolean> {
 function assert(condition: unknown, message: string): asserts condition {
   if (!condition) throw new Error(message);
 }
-
-assert(
-  legacyRelease.runReleaseWorktreeCli ===
-    canonicalRelease.runReleaseWorktreeCli,
-  "Legacy release-worktree is not a transparent compatibility wrapper",
-);
 
 async function main(): Promise<void> {
   const appDirectory = resolve(import.meta.dirname, "..");

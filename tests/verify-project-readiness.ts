@@ -6,23 +6,10 @@ import {
   inspectProjectReadiness,
   type ReadinessResult,
 } from "../src/orchestrator/projects/project-readiness.ts";
-import * as legacyProjectReadiness from "../src/orchestrator/projects/project-readiness.ts";
-import * as canonicalProjectReadiness from "../src/orchestrator/projects/project-readiness.ts";
 
 function assert(condition: unknown, message: string): asserts condition {
   if (!condition) throw new Error(message);
 }
-
-assert(
-  legacyProjectReadiness.inspectProjectReadiness ===
-    canonicalProjectReadiness.inspectProjectReadiness,
-  "Legacy readiness import does not re-export the canonical implementation",
-);
-assert(
-  legacyProjectReadiness.runProjectReadinessCli ===
-    canonicalProjectReadiness.runProjectReadinessCli,
-  "Legacy readiness CLI does not delegate to the canonical implementation",
-);
 
 function check(result: ReadinessResult, id: string, project: string) {
   return result.checks.find((item) => item.id === id && item.project === project);

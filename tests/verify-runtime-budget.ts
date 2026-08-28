@@ -9,8 +9,6 @@ import {
 import { tmpdir } from "node:os";
 import { resolve } from "node:path";
 import { DatabaseSync } from "node:sqlite";
-import * as canonicalRuntimeBudget from "../src/orchestrator/projects/sessions/runtime-budget.ts";
-import * as legacyRuntimeBudget from "../src/orchestrator/projects/sessions/runtime-budget.ts";
 import {
   inspectRuntimeBudgets,
   recordRuntimeTimeout,
@@ -34,18 +32,6 @@ const config: RuntimeBudgetConfig = {
 function assert(value: unknown, message: string): asserts value {
   if (!value) throw new Error(message);
 }
-
-assert(
-  legacyRuntimeBudget.inspectRuntimeBudgets ===
-    canonicalRuntimeBudget.inspectRuntimeBudgets &&
-    legacyRuntimeBudget.recordRuntimeTimeout ===
-      canonicalRuntimeBudget.recordRuntimeTimeout &&
-    legacyRuntimeBudget.stopManagedRuntime ===
-      canonicalRuntimeBudget.stopManagedRuntime &&
-    legacyRuntimeBudget.runRuntimeBudgetCli ===
-      canonicalRuntimeBudget.runRuntimeBudgetCli,
-  "Legacy runtime-budget is not a transparent compatibility wrapper",
-);
 
 try {
   database.exec(`

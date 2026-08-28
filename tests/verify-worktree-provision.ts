@@ -11,18 +11,10 @@ import {
 import { tmpdir } from "node:os";
 import { resolve } from "node:path";
 import { DatabaseSync } from "node:sqlite";
-import * as canonicalProvision from "../src/orchestrator/projects/worktrees/provision.ts";
-import * as legacyProvision from "../src/orchestrator/projects/worktrees/provision.ts";
 
 function assert(condition: unknown, message: string): asserts condition {
   if (!condition) throw new Error(message);
 }
-
-assert(
-  legacyProvision.runProvisionWorktreeCli ===
-    canonicalProvision.runProvisionWorktreeCli,
-  "Legacy provision-worktree is not a transparent compatibility wrapper",
-);
 
 function git(directory: string, args: string[]): string {
   return execFileSync("git", ["-C", directory, ...args], {

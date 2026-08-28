@@ -127,19 +127,6 @@ function componentText(payload: JsonObject): string {
 
 async function main(): Promise<void> {
   const appDirectory = resolve(import.meta.dirname, "..");
-  const canonicalNotifier = await import(
-    "../src/orchestrator/controls/discord.ts"
-  );
-  const legacyNotifier = await import("../src/orchestrator/controls/discord.ts");
-  assert(
-    legacyNotifier.runDiscordControlsCli ===
-      canonicalNotifier.runDiscordControlsCli &&
-      legacyNotifier.controlComponents === canonicalNotifier.controlComponents &&
-      legacyNotifier.threadControlPayload ===
-        canonicalNotifier.threadControlPayload &&
-      legacyNotifier.cardPayload === canonicalNotifier.cardPayload,
-    "Legacy Discord controls wrapper diverged from the canonical module",
-  );
   const testHome = await mkdtemp(resolve(tmpdir(), "kurami-discord-test-"));
   const guildId = "1538486166330933358";
   const parentChannel = "1538490534820061286";

@@ -10,33 +10,10 @@ import {
   effectiveOrchestratorConfig,
   loadRuntimeSettingsInputs,
 } from "../src/orchestrator/settings/runtime-settings.ts";
-import * as legacyRuntimeSettings from "../src/orchestrator/settings/runtime-settings.ts";
-import * as canonicalRuntimeSettings from "../src/orchestrator/settings/runtime-settings.ts";
-import * as legacyOrchestratorSettings from "../src/orchestrator/settings/orchestrator-settings.ts";
-import * as canonicalOrchestratorSettings from "../src/orchestrator/settings/orchestrator-settings.ts";
-import * as legacyRunStoreInitializer from "../src/orchestrator/state/init-run-store.ts";
-import * as canonicalRunStoreInitializer from "../src/orchestrator/state/init-run-store.ts";
-
-assert.equal(
-  legacyRuntimeSettings.loadEffectiveOrchestratorConfig,
-  canonicalRuntimeSettings.loadEffectiveOrchestratorConfig,
-);
-assert.equal(
-  legacyOrchestratorSettings.runOrchestratorSettingsCli,
-  canonicalOrchestratorSettings.runOrchestratorSettingsCli,
-);
-assert.equal(
-  legacyRunStoreInitializer.runRunStoreInitializerCli,
-  canonicalRunStoreInitializer.runRunStoreInitializerCli,
-);
 
 const root = await mkdtemp(resolve(tmpdir(), "kurami-runtime-settings-test-"));
 const app = resolve(import.meta.dirname, "..");
 const settingsCli = resolve(app, "src/orchestrator/settings/orchestrator-settings.ts");
-const canonicalSettingsCli = resolve(
-  app,
-  "src/orchestrator/settings/orchestrator-settings.ts",
-);
 
 function fail(message: string): never {
   throw new Error(message);
@@ -140,15 +117,6 @@ try {
   }
 
   const initial = run(["status"], env);
-  const canonicalInitial = JSON.parse(
-    execFileSync(process.execPath, [canonicalSettingsCli, "status"], {
-      encoding: "utf8",
-      env,
-      stdio: ["ignore", "pipe", "pipe"],
-    }).trim(),
-  ) as Record<string, unknown>;
-  assert.equal(canonicalInitial.revision, initial.revision);
-  assert.deepEqual(canonicalInitial.settings, initial.settings);
   if (
     initial.revision !== 0 ||
     initial.source !== "defaults" ||

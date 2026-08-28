@@ -11,14 +11,6 @@ import { tmpdir } from "node:os";
 import { resolve } from "node:path";
 import { DatabaseSync } from "node:sqlite";
 import { createBackup, formatBackupSummary } from "../src/system/recovery/backup-state.ts";
-import * as canonicalBackup from "../src/system/recovery/backup-state.ts";
-
-if (
-  createBackup !== canonicalBackup.createBackup ||
-  formatBackupSummary !== canonicalBackup.formatBackupSummary
-) {
-  throw new Error("Legacy backup-state entrypoint does not re-export the canonical module");
-}
 
 const root = await mkdtemp(resolve(tmpdir(), "kurami-backup-test-"));
 

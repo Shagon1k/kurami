@@ -12,18 +12,10 @@ import {
 import { tmpdir } from "node:os";
 import { delimiter, resolve } from "node:path";
 import { DatabaseSync } from "node:sqlite";
-import * as canonicalAutonomousSuccessor from "../src/orchestrator/projects/sessions/autonomous-successor.ts";
-import * as legacyAutonomousSuccessor from "../src/orchestrator/projects/sessions/autonomous-successor.ts";
 
 function assert(condition: unknown, message: string): asserts condition {
   if (!condition) throw new Error(message);
 }
-
-assert(
-  legacyAutonomousSuccessor.runAutonomousSuccessorCli ===
-    canonicalAutonomousSuccessor.runAutonomousSuccessorCli,
-  "Legacy autonomous-successor is not a transparent compatibility wrapper",
-);
 
 function git(directory: string, args: string[]): string {
   return execFileSync("git", ["-C", directory, ...args], {

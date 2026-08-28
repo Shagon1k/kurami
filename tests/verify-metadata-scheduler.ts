@@ -6,8 +6,6 @@ import {
   planDailyProjectAssessment,
   runDailyProposalCycle,
 } from "../src/orchestrator/projects/metadata/proposals/scheduler.ts";
-import * as canonicalScheduler from "../src/orchestrator/projects/metadata/proposals/scheduler.ts";
-import * as legacyScheduler from "../src/orchestrator/projects/metadata/proposals/scheduler.ts";
 import { persistTriageRanking, rankTriageFacts } from "../src/orchestrator/projects/triage/rank.ts";
 import {
   buildTriageFacts,
@@ -71,13 +69,6 @@ const config = {
 };
 
 async function main(): Promise<void> {
-  assert(
-    legacyScheduler.runDailyProposalCycle ===
-      canonicalScheduler.runDailyProposalCycle &&
-      legacyScheduler.runMetadataProposalSchedulerCli ===
-        canonicalScheduler.runMetadataProposalSchedulerCli,
-    "Legacy metadata scheduler is not a transparent compatibility wrapper",
-  );
   const app = resolve(import.meta.dirname, "..");
   const migrationsDirectory = resolve(app, "migrations");
   const home = await mkdtemp(resolve(tmpdir(), "kurami-metadata-scheduler-"));

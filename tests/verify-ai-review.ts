@@ -18,11 +18,6 @@ import {
   createGitHubAppInstallationToken,
   loadGitHubAppCredentials,
 } from "../src/orchestrator/integrations/github/app-auth.ts";
-import * as legacyCodexAppServer from "../src/orchestrator/integrations/codex/app-server.ts";
-import * as legacyGitHubAppAuth from "../src/orchestrator/integrations/github/app-auth.ts";
-import * as canonicalReviewManager from "../src/orchestrator/projects/reviews/manager.ts";
-import * as legacyReviewManager from "../src/orchestrator/projects/reviews/manager.ts";
-import * as legacyReviewWorker from "../src/orchestrator/projects/reviews/worker.ts";
 
 type JsonObject = Record<string, unknown>;
 
@@ -40,21 +35,6 @@ function runNode(script: string, args: string[], home: string): JsonObject {
 }
 
 async function main(): Promise<void> {
-  assert(
-    legacyReviewWorker.buildReviewInstructions === buildReviewInstructions &&
-      legacyReviewWorker.buildGitHubReviewPayload === buildGitHubReviewPayload &&
-      legacyReviewWorker.parseReviewResult === parseReviewResult &&
-      legacyReviewWorker.runAiReviewWorkerCli === runAiReviewWorkerCli &&
-      legacyReviewManager.runReviewManagerCli ===
-        canonicalReviewManager.runReviewManagerCli &&
-    legacyCodexAppServer.detachedCodexEnvironment ===
-      detachedCodexEnvironment &&
-      legacyCodexAppServer.runDetachedReview === runDetachedReview &&
-      legacyGitHubAppAuth.createGitHubAppInstallationToken ===
-        createGitHubAppInstallationToken &&
-      legacyGitHubAppAuth.loadGitHubAppCredentials === loadGitHubAppCredentials,
-    "Legacy review wrappers diverged from canonical modules",
-  );
   const app = resolve(import.meta.dirname, "..");
   const home = await realpath(await mkdtemp(resolve(tmpdir(), "kurami-ai-review-test-")));
   try {

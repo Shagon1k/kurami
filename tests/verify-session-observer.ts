@@ -1,17 +1,8 @@
 import { classifyTranscript } from "../src/orchestrator/projects/sessions/observe.ts";
-import * as canonicalObserver from "../src/orchestrator/projects/sessions/observe.ts";
-import * as legacyObserver from "../src/orchestrator/projects/sessions/observe.ts";
 
 function assert(condition: unknown, message: string): asserts condition {
   if (!condition) throw new Error(message);
 }
-
-assert(
-  legacyObserver.classifyTranscript === canonicalObserver.classifyTranscript &&
-    legacyObserver.runSessionObserverCli ===
-      canonicalObserver.runSessionObserverCli,
-  "Legacy session observer is not a transparent compatibility wrapper",
-);
 
 const blocker = `
 Publishing is blocked because gh credentials are invalid.

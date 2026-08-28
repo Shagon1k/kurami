@@ -3,17 +3,10 @@ import { chmod, mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises
 import { tmpdir } from "node:os";
 import { resolve } from "node:path";
 import { DatabaseSync } from "node:sqlite";
-import * as legacyProjectStatus from "../src/orchestrator/projects/project-status.ts";
-import * as canonicalProjectStatus from "../src/orchestrator/projects/project-status.ts";
 
 function assert(condition: unknown, message: string): asserts condition {
   if (!condition) throw new Error(message);
 }
-
-assert(
-  legacyProjectStatus.runProjectStatusCli === canonicalProjectStatus.runProjectStatusCli,
-  "Legacy project-status CLI does not delegate to the canonical implementation",
-);
 
 function runNode(
   path: string,
@@ -77,21 +70,8 @@ async function main(): Promise<void> {
     await chmod(fakeGh, 0o700);
 
     const script = resolve(app, "src/orchestrator/projects/project-status.ts");
-    const canonicalScript = resolve(
-      app,
-      "src/orchestrator/projects/project-status.ts",
-    );
     const plan = runNode(script, ["backlog", "--run-id", "r_backlog"], home);
-    const canonicalPlan = runNode(
-      canonicalScript,
-      ["backlog", "--run-id", "r_backlog"],
-      home,
-    );
     assert(plan.action === "move_to_backlog", "Backlog move was not planned");
-    assert(
-      canonicalPlan.action === plan.action,
-      "Canonical and legacy project-status plans differ",
-    );
     const applied = runNode(
       script,
       ["backlog", "--run-id", "r_backlog", "--apply"],

@@ -13,8 +13,6 @@ import { delimiter, resolve } from "node:path";
 import { DatabaseSync } from "node:sqlite";
 import { parse, stringify } from "yaml";
 import { normalizeRequiredChecks } from "../src/orchestrator/projects/ci/observe.ts";
-import * as canonicalCiObserver from "../src/orchestrator/projects/ci/observe.ts";
-import * as legacyCiObserver from "../src/orchestrator/projects/ci/observe.ts";
 
 type JsonObject = Record<string, unknown>;
 
@@ -59,13 +57,6 @@ function pull(
 }
 
 async function main(): Promise<void> {
-  assert(
-    legacyCiObserver.normalizeRequiredChecks ===
-      canonicalCiObserver.normalizeRequiredChecks &&
-      legacyCiObserver.runCiObserverCli ===
-        canonicalCiObserver.runCiObserverCli,
-    "Legacy CI observer is not a transparent compatibility wrapper",
-  );
   const app = resolve(import.meta.dirname, "..");
   const home = await mkdtemp(resolve(tmpdir(), "kurami-ci-test-"));
   try {

@@ -9,10 +9,6 @@ import {
   readNetworkSpeedSnapshot,
   writeNetworkSpeedSnapshot,
 } from "../src/system/network/network-health.ts";
-import * as canonicalNetworkHealth from "../src/system/network/network-health.ts";
-
-assert.equal(parseLibreSpeedOutput, canonicalNetworkHealth.parseLibreSpeedOutput);
-assert.equal(inspectNetworkConnectivity, canonicalNetworkHealth.inspectNetworkConnectivity);
 
 const parsed = parseLibreSpeedOutput(`transport note
 [{"timestamp":"2026-08-26T11:12:53.543Z","server":{"name":"London, England (Clouvider)"},"bytes_sent":12779520,"bytes_received":180600242,"ping":4.51,"jitter":0.62,"upload":85.12,"download":1202.92,"share":""}]

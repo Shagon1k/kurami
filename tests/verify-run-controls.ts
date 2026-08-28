@@ -35,23 +35,6 @@ function runNodeFails(path: string, args: string[], home: string): string {
 
 async function main(): Promise<void> {
   const appDirectory = resolve(import.meta.dirname, "..");
-  const canonicalControls = await import(
-    "../src/orchestrator/controls/run.ts"
-  );
-  const legacyControls = await import("../src/orchestrator/controls/run.ts");
-  const canonicalTelegram = await import(
-    "../src/orchestrator/controls/telegram.ts"
-  );
-  const legacyTelegram = await import("../src/orchestrator/controls/telegram.ts");
-  assert(
-    legacyControls.runRunControlsCli === canonicalControls.runRunControlsCli,
-    "Legacy run-controls wrapper diverged from the canonical module",
-  );
-  assert(
-    legacyTelegram.runTelegramFallbackCli ===
-      canonicalTelegram.runTelegramFallbackCli,
-    "Legacy Telegram fallback wrapper diverged from the canonical module",
-  );
   const canonicalTelegramNotifier = resolve(
     appDirectory,
     "src/orchestrator/controls/telegram.ts",
