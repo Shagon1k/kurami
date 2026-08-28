@@ -67,6 +67,11 @@ for (const skillName of skillNames) {
 const briefingReferences = [
   "content-contract.md",
   "editorial-policy.md",
+  "item-contract.md",
+  "provider-composio-gmail.md",
+  "provider-composio-google-calendar.md",
+  "provider-hermes-weather.md",
+  "provider-telegram-user.md",
   "state-and-capabilities.md",
   "topics-and-ranking.md",
 ];
@@ -78,29 +83,48 @@ for (const reference of briefingReferences) {
 }
 
 const config = readYaml(path.join(root, "deploy", "config", "briefing.yaml")) as {
+  version: number;
   edition: { timezone: string; daily_retention_days: number };
   safety: {
     production_mutations_enabled: boolean;
     initial_channel_cleanup_confirmed: boolean;
     require_bounded_telegram_commit: boolean;
   };
-  capabilities: {
-    mail: { operations: { read_and_archive: string } };
-    calendar: { calendar: string; operations: { list_primary: string } };
+  capabilities: Record<string, unknown>;
+  sources: {
+    calendar: { profile: string; enabled: boolean; settings: { calendar: string } };
+    mail: { profile: string; enabled: boolean; settings: { query: string; page_size: number } };
+    weather: { profile: string; enabled: boolean; settings: { location: string } };
+    news: {
+      profile: string;
+      enabled: boolean;
+      settings: { unread_only: boolean; page_size: number };
+      channels: Array<{ id: number; key: string }>;
+    };
   };
-  sources: { telegram: Array<{ id: number; key: string }> };
 };
+assert.equal(config.version, 2);
 assert.equal(config.edition.timezone, "Europe/Vilnius");
 assert.equal(config.edition.daily_retention_days, 5);
 assert.equal(config.safety.production_mutations_enabled, false);
 assert.equal(config.safety.initial_channel_cleanup_confirmed, false);
 assert.equal(config.safety.require_bounded_telegram_commit, true);
-assert.equal(config.capabilities.mail.operations.read_and_archive, "GMAIL_BATCH_MODIFY_MESSAGES");
-assert.equal(config.capabilities.calendar.calendar, "primary");
-assert.equal(config.capabilities.calendar.operations.list_primary, "GOOGLECALENDAR_EVENTS_LIST");
-assert.equal(config.sources.telegram.length, 15);
-assert.equal(new Set(config.sources.telegram.map((source) => source.id)).size, 15);
-assert.equal(new Set(config.sources.telegram.map((source) => source.key)).size, 15);
+assert.deepEqual(Object.keys(config.capabilities).sort(), ["publisher", "renderer"]);
+assert.equal(config.sources.calendar.profile, "composio-google-calendar");
+assert.equal(config.sources.calendar.settings.calendar, "primary");
+assert.equal(config.sources.mail.profile, "composio-gmail");
+assert.equal(config.sources.mail.settings.query, "in:inbox is:unread category:primary");
+assert.equal(config.sources.mail.settings.page_size, 100);
+assert.equal(config.sources.weather.profile, "hermes-weather");
+assert.equal(config.sources.news.profile, "telegram-user");
+assert.equal(config.sources.news.settings.unread_only, true);
+assert.equal(config.sources.news.channels.length, 15);
+assert.equal(new Set(config.sources.news.channels.map((source) => source.id)).size, 15);
+assert.equal(new Set(config.sources.news.channels.map((source) => source.key)).size, 15);
+const serializedConfig = JSON.stringify(config);
+assert(!serializedConfig.includes("GMAIL_FETCH_EMAILS"));
+assert(!serializedConfig.includes("GOOGLECALENDAR_EVENTS_LIST"));
+assert(!serializedConfig.includes("get_messages"));
 
 const topicSeed = readYaml(path.join(root, "deploy", "config", "briefing-topics.yaml")) as {
   topics: Array<{ id: string; label: string }>;

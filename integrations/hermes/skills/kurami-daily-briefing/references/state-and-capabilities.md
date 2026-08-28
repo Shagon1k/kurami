@@ -1,8 +1,17 @@
 # State, capabilities, and mutations
 
-The skill speaks in narrow capabilities. Configuration binds each capability to
-the current Telegram, Composio, Hermes, or Kurami implementation. Provider names
-must not leak into generic content components.
+The skill speaks in narrow capabilities. Configuration selects one provider
+profile per source and supplies only safe source settings. The matching
+`provider-<profile>.md` reference owns discovery, schema validation,
+pagination, normalization, and acknowledgement constraints for the current
+Telegram, Composio, Hermes, or Kurami implementation. Provider names must not
+leak into generic content components.
+
+Provider profiles are instructions, not a new integration DSL and not a hard
+security boundary. Do not put MCP tool names, parameter mappings, or response
+mappings in `briefing.yaml`. If a profile becomes large, fragile, or requires
+deterministic transformation tests, replace that profile logic with a real
+Kurami-owned adapter exposing a stable MCP schema.
 
 ## Required capabilities
 

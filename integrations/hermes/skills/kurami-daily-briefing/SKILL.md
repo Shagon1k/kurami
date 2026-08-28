@@ -36,6 +36,10 @@ or mutation path.
   reactions.
 - Read `references/state-and-capabilities.md` before any provider call,
   publication, retry, or mutation.
+- Read `references/item-contract.md` before collecting source items.
+- For every enabled source, read the provider reference whose filename is
+  `references/provider-<profile>.md`. A missing profile is a configuration
+  error; do not guess a provider or operation.
 
 ## Choose the run mode
 
@@ -52,27 +56,32 @@ Default manual experiments to `dry-run`. Generation never archives Gmail;
 
 ## Build the snapshot
 
-1. Load the source registry, topic seed, retention, timezone, capability
-   bindings, publication target, and mutation gates from configuration.
-2. Resolve every configured capability to one allowed provider operation.
-   Fail closed on ambiguous bindings or a provider that exposes only a broader
-   mutation than the contract permits.
+1. Load the source registry, topic seed, retention, timezone, publication
+   target, and mutation gates from configuration.
+2. For each enabled source, load its provider profile, validate the available
+   MCP or built-in operation against that profile, collect a bounded page at a
+   time, and normalize the result to `references/item-contract.md`. Provider
+   profiles own vendor-specific discovery, parameters, pagination, response
+   mapping, and acknowledgement constraints. Configuration owns only profile
+   selection and safe source settings.
 3. Capture the current time in `Europe/Vilnius` and create a stable edition ID
    for the local date. A successful existing edition makes an automatic rerun
    a no-op; a partial edition may retry only failed sources.
-4. Read accepted or tentative events from the primary calendar. Separate
+4. From the normalized calendar collection, read accepted or tentative events
+   from the primary calendar. Separate
    all-day events, exclude declined or cancelled events, detect conflicts, and
    derive useful free windows without inventing priorities.
-5. Fetch all unread Gmail messages needed for the snapshot. Classify every
+5. From the normalized mail collection, process all unread Primary Gmail
+   messages. Classify every
    message as `ACTION`, `IMPORTANT`, or `GENERAL`; do not change Gmail state.
-6. For every enabled Telegram channel, record its unread count and a stable
+6. For every enabled Telegram news channel, record its unread count and a stable
    upper message ID before fetching the corresponding newest unread messages.
    Preserve the per-channel cutoff in the source batch.
 7. Fetch weather when the configured capability is available. Weather failure
    makes only that section partial.
 8. Normalize, cluster, merge, summarize, assign topics, and rank content using
    the editorial and topic references. Process every fetched unread item; use
-   compact rows for low-signal items instead of silently discarding them.
+    compact rows for low-signal items instead of silently discarding them.
 9. On Saturday, build or refresh the weekly cinema edition from sources that
    can prove release dates and freshness. A cinema failure must not block the
    normal daily edition.

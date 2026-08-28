@@ -93,6 +93,7 @@ Use a flexible story rather than a mandatory prose template:
   "sources": [
     {
       "provider": "Telegram",
+      "profile": "telegram-user",
       "sourceId": "configured source key",
       "sourceLabel": "channel display name",
       "url": "original destination",

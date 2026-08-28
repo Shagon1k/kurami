@@ -1,4 +1,4 @@
-version: 1
+version: 2
 
 edition:
   timezone: Europe/Vilnius
@@ -26,32 +26,36 @@ notification:
   notify_on_total_failure: true
 
 capabilities:
-  news:
-    provider: telegram
-    operations:
-      unread_count: list_chats
-      fetch_recent: get_messages
-      mark_read_through: mark_as_read_with_max_id
-  mail:
-    provider: composio
-    operations:
-      list_unread: GMAIL_FETCH_EMAILS
-      fetch_message: GMAIL_FETCH_MESSAGE_BY_MESSAGE_ID
-      read_and_archive: GMAIL_BATCH_MODIFY_MESSAGES
-  calendar:
-    provider: composio
-    calendar: primary
-    operations:
-      list_primary: GOOGLECALENDAR_EVENTS_LIST
-  weather:
-    provider: hermes_weather
   renderer:
     skill: kurami-ui-preview-language
   publisher:
     provider: kurami_briefing_runtime
 
 sources:
-  telegram:
+  calendar:
+    profile: composio-google-calendar
+    enabled: true
+    settings:
+      calendar: primary
+      window: local_day
+  mail:
+    profile: composio-gmail
+    enabled: true
+    settings:
+      query: "in:inbox is:unread category:primary"
+      page_size: 100
+  weather:
+    profile: hermes-weather
+    enabled: true
+    settings:
+      location: Vilnius, Lithuania
+  news:
+    profile: telegram-user
+    enabled: true
+    settings:
+      unread_only: true
+      page_size: 100
+    channels:
     - key: delfi-lithuania
       id: -1001260471035
       label: Delfi Литва
