@@ -3,6 +3,7 @@ import { execFileSync } from "node:child_process";
 import { createHash } from "node:crypto";
 import { appendFile, chmod, mkdir, readFile } from "node:fs/promises";
 import { dirname, resolve } from "node:path";
+import { resolveKuramiHome } from "../../core/kurami-home.ts";
 import { DatabaseSync } from "node:sqlite";
 import { parse } from "yaml";
 
@@ -156,10 +157,8 @@ const QUERY = String.raw`
   }
 `;
 
-const orchestratorHome = resolve(
-  process.env.KURAMI_HOME ??
-    process.env.ORCHESTRATOR_HOME ??
-    resolve(import.meta.dirname, "../../../.."),
+const orchestratorHome = resolveKuramiHome(
+  resolve(import.meta.dirname, "../../../.."),
 );
 const configPath = resolve(orchestratorHome, "config/projects.yaml");
 const selectedProject = process.env.POLLER_PROJECT?.trim() || null;

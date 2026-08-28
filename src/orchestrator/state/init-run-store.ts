@@ -1,13 +1,12 @@
 import { chmod, mkdir, readdir, readFile } from "node:fs/promises";
 import { resolve } from "node:path";
+import { resolveKuramiHome } from "../../core/kurami-home.ts";
 import { DatabaseSync } from "node:sqlite";
 
 process.umask(0o077);
 
-const orchestratorHome = resolve(
-  process.env.KURAMI_HOME ??
-    process.env.ORCHESTRATOR_HOME ??
-    resolve(import.meta.dirname, "../../../.."),
+const orchestratorHome = resolveKuramiHome(
+  resolve(import.meta.dirname, "../../../.."),
 );
 const migrationsDirectory = resolve(
   process.env.ORCHESTRATOR_MIGRATIONS_DIR ??

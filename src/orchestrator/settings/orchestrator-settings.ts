@@ -1,4 +1,5 @@
 import { resolve } from "node:path";
+import { resolveKuramiHome } from "../../core/kurami-home.ts";
 import { DatabaseSync } from "node:sqlite";
 import {
   canonicalRuntimeSettings,
@@ -207,10 +208,8 @@ function insertRevision(
 
 export async function runOrchestratorSettingsCli(): Promise<void> {
   const args = parseArguments(process.argv.slice(2));
-  const orchestratorHome = resolve(
-    process.env.KURAMI_HOME ??
-      process.env.ORCHESTRATOR_HOME ??
-      resolve(import.meta.dirname, "../../../.."),
+  const orchestratorHome = resolveKuramiHome(
+    resolve(import.meta.dirname, "../../../.."),
   );
   const { base, projects } = await loadRuntimeSettingsInputs(orchestratorHome);
   const projectNames = Object.keys(projects.projects).sort();

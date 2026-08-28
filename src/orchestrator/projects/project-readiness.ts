@@ -2,6 +2,7 @@ import { execFileSync } from "node:child_process";
 import { existsSync } from "node:fs";
 import { readFile } from "node:fs/promises";
 import { isAbsolute, resolve } from "node:path";
+import { resolveKuramiHome } from "../../core/kurami-home.ts";
 import { pathToFileURL } from "node:url";
 import { parse } from "yaml";
 import { loadOwnerGitHubTokenFromFile } from "../integrations/github/app-auth.ts";
@@ -449,10 +450,10 @@ export async function inspectProjectReadiness(options: ReadinessOptions): Promis
 }
 
 function parseArguments(args: string[]): ParsedArguments {
-  const kuramiHome = process.env.KURAMI_HOME ?? process.env.ORCHESTRATOR_HOME;
-  const defaultConfigDir = kuramiHome
-    ? resolve(kuramiHome, "config")
-    : resolve(import.meta.dirname, "../../../deploy/config");
+  const kuramiHome = resolveKuramiHome(
+    resolve(import.meta.dirname, "../../../deploy"),
+  );
+  const defaultConfigDir = resolve(kuramiHome, "config");
   const parsed: ParsedArguments = {
     configDir: defaultConfigDir,
     selectedProject: null,
