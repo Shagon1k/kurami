@@ -77,6 +77,21 @@ assert.equal(
   }).sessionId,
   "trs_test",
 );
+assert.deepEqual(
+  resolveRuntime({
+    COMPOSIO_API_KEY: "broad-key",
+    COMPOSIO_SESSION_ID: "trs_broad",
+    COMPOSIO_READ_API_KEY: "read-key",
+    COMPOSIO_READ_SESSION_ID: "trs_read",
+    COMPOSIO_READ_MCP_URL: "https://app.composio.dev/tool_router/v3/trs_read/mcp",
+  }),
+  {
+    apiKey: "read-key",
+    sessionId: "trs_read",
+    mcpUrl: "https://app.composio.dev/tool_router/v3/trs_read/mcp",
+    accountPins: {},
+  },
+);
 
 const baseSession: SessionSnapshot = {
   session_id: "trs_test",
@@ -343,7 +358,10 @@ try {
   const readEnvironment = parseEnvFile(
     await readFile(resolve(readRuntimeDirectory, ".env"), "utf8"),
   );
-  assert.equal(readEnvironment.COMPOSIO_SESSION_ID, "trs_created");
+  assert.equal(readEnvironment.COMPOSIO_READ_SESSION_ID, "trs_created");
+  assert.equal(readEnvironment.COMPOSIO_API_KEY, undefined);
+  assert.equal(readEnvironment.COMPOSIO_SESSION_ID, undefined);
+  assert.equal(readEnvironment.COMPOSIO_MCP_URL, undefined);
   assert.equal((await stat(resolve(readRuntimeDirectory, ".env"))).mode & 0o777, 0o600);
   await assert.rejects(
     () => createSiblingSession({

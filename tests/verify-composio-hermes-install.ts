@@ -24,9 +24,9 @@ await chmod(configPath, 0o640);
 await writeFile(
   resolve(runtimeDirectory, ".env"),
   [
-    "COMPOSIO_API_KEY=must-not-enter-hermes-config",
-    "COMPOSIO_SESSION_ID=trs_read_test",
-    "COMPOSIO_MCP_URL=https://example.invalid/trs_read_test/mcp",
+    "COMPOSIO_READ_API_KEY=must-not-enter-hermes-config",
+    "COMPOSIO_READ_SESSION_ID=trs_read_test",
+    "COMPOSIO_READ_MCP_URL=https://example.invalid/trs_read_test/mcp",
     "",
   ].join("\n"),
   { mode: 0o600 },
@@ -44,8 +44,8 @@ const installedText = await readFile(configPath, "utf8");
 const installed = parse(installedText) as Record<string, unknown>;
 const servers = installed.mcp_servers as Record<string, Record<string, unknown>>;
 const readServer = servers["composio-read"]!;
-assert.equal(readServer.url, "${COMPOSIO_MCP_URL}");
-assert.deepEqual(readServer.headers, { "x-api-key": "${COMPOSIO_API_KEY}" });
+assert.equal(readServer.url, "${COMPOSIO_READ_MCP_URL}");
+assert.deepEqual(readServer.headers, { "x-api-key": "${COMPOSIO_READ_API_KEY}" });
 assert.equal(readServer.trust, "untrusted");
 assert.deepEqual((readServer.tools as Record<string, unknown>).include, [
   "GMAIL_FETCH_EMAILS",

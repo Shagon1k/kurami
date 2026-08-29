@@ -57,8 +57,8 @@ async function writeIfChanged(path: string, content: string, mode: number): Prom
 
 function desiredServer(): Record<string, unknown> {
   return {
-    url: "${COMPOSIO_MCP_URL}",
-    headers: { "x-api-key": "${COMPOSIO_API_KEY}" },
+    url: "${COMPOSIO_READ_MCP_URL}",
+    headers: { "x-api-key": "${COMPOSIO_READ_API_KEY}" },
     enabled: true,
     timeout: 300,
     connect_timeout: 60,
@@ -81,7 +81,7 @@ export async function installHermesReadSession(
   const runtimeDirectory = resolve(options.runtimeDirectory);
   const dropInPath = resolve(options.systemdDropInPath);
   const runtime = await loadRuntime(resolve(runtimeDirectory, ".env"));
-  if (!runtime.mcpUrl) fail("COMPOSIO_MCP_URL is missing from the read Session runtime");
+  if (!runtime.mcpUrl) fail("Composio read Session MCP URL is missing from its runtime");
 
   const info = await lstat(configPath);
   if (!info.isFile()) fail("Hermes config must be a regular file");

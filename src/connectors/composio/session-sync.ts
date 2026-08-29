@@ -224,13 +224,18 @@ export function accountPinEnvironmentName(toolkit: string): string {
 }
 
 export function resolveRuntime(environment: Record<string, string>): ComposioRuntime {
-  const apiKey = environment.COMPOSIO_API_KEY?.trim();
-  if (!apiKey) fail("COMPOSIO_API_KEY is missing from the runtime .env");
-  const mcpUrl = environment.COMPOSIO_MCP_URL?.trim();
-  const sessionId = environment.COMPOSIO_SESSION_ID?.trim() ??
+  const apiKey = environment.COMPOSIO_READ_API_KEY?.trim() ??
+    environment.COMPOSIO_API_KEY?.trim();
+  if (!apiKey) {
+    fail("COMPOSIO_READ_API_KEY or COMPOSIO_API_KEY is missing from the runtime .env");
+  }
+  const mcpUrl = environment.COMPOSIO_READ_MCP_URL?.trim() ??
+    environment.COMPOSIO_MCP_URL?.trim();
+  const sessionId = environment.COMPOSIO_READ_SESSION_ID?.trim() ??
+    environment.COMPOSIO_SESSION_ID?.trim() ??
     /(?:^|\/)(trs_[A-Za-z0-9_-]+)(?:\/|$)/u.exec(mcpUrl ?? "")?.[1];
   if (!sessionId) {
-    fail("COMPOSIO_SESSION_ID is missing and could not be derived from COMPOSIO_MCP_URL");
+    fail("Composio Session ID is missing and could not be derived from its MCP URL");
   }
   const accountPins: Record<string, string[]> = {};
   for (const [name, value] of Object.entries(environment)) {
@@ -772,9 +777,9 @@ export async function createSiblingSession(
   await writeFile(
     temporary,
     `${[
-      environmentValue("COMPOSIO_API_KEY", sourceRuntime.apiKey),
-      environmentValue("COMPOSIO_SESSION_ID", created.session_id),
-      environmentValue("COMPOSIO_MCP_URL", mcpUrl),
+      environmentValue("COMPOSIO_READ_API_KEY", sourceRuntime.apiKey),
+      environmentValue("COMPOSIO_READ_SESSION_ID", created.session_id),
+      environmentValue("COMPOSIO_READ_MCP_URL", mcpUrl),
       "",
     ].join("\n")}`,
     { mode: 0o600 },
