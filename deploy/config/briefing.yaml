@@ -39,17 +39,17 @@ sources:
       window: local_day
       calendars:
       - key: personal
-        id: c2hhZ29uMWtAZ21haWwuY29t
+        id: shagon1k@gmail.com
         label: Aliaksei Hurynovich
         role: personal
         enabled: true
       - key: family
-        id: OTU0MDA3ZmE2NGZiOWEwMjYyN2ExOWQ3ODc0OTdmNTcyZjFlYzA5ZWYxNTdlN2I4ZDFkMjczODQyOWJiZDU1MUBncm91cC5jYWxlbmRhci5nb29nbGUuY29t
+        id: 954007fa64fb9a02627a19d787497f572f1ec09ef157e7b8d1d2738429bbd551@group.calendar.google.com
         label: G-Fam
         role: family
         enabled: true
       - key: work
-        id: ZGVlMTM1ZTg3NTkwYzE4NjAxOGI0OGNjOTE1MjYwMjc1OWJlOTY5NjEyNmZjZjI0YjI3Yzk3N2U4MGE3Y2Q4N0Bncm91cC5jYWxlbmRhci5nb29nbGUuY29t
+        id: dee135e87590c186018b48cc9152602759be9696126fcf24b27c977e80a7cd87@group.calendar.google.com
         label: EPAM
         role: work
         enabled: true
