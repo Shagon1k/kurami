@@ -52,6 +52,16 @@ export type SessionPatch = {
   };
 };
 
+export type SessionCreatePayload = {
+  user_id: string;
+  toolkits: { enable: string[] };
+  connected_accounts: Record<string, string[]>;
+  tags: { enable: string[]; disable: string[] };
+  manage_connections: { enable: boolean };
+  workbench: { enable: boolean; enable_proxy_execution: boolean };
+  multi_account: { enable: boolean; require_explicit_selection?: boolean };
+};
+
 export type SessionDiffEntry = {
   kind: "add" | "remove" | "change";
   field: string;
@@ -70,7 +80,7 @@ export type SessionSyncPlan = {
 export interface ComposioSessionApi {
   getSession(sessionId: string): Promise<SessionSnapshot>;
   listConnectedAccounts(userId: string): Promise<ConnectedAccount[]>;
-  createSession(config: SessionPatch & { user_id: string }): Promise<SessionSnapshot>;
+  createSession(config: SessionCreatePayload): Promise<SessionSnapshot>;
   patchSession(
     sessionId: string,
     patch: SessionPatch,
@@ -452,7 +462,7 @@ export class HttpComposioSessionApi implements ComposioSessionApi {
     return accounts;
   }
 
-  async createSession(config: SessionPatch & { user_id: string }): Promise<SessionSnapshot> {
+  async createSession(config: SessionCreatePayload): Promise<SessionSnapshot> {
     const value = record(await this.#request(
       "/tool_router/session",
       { method: "POST", body: JSON.stringify(config) },
@@ -619,6 +629,32 @@ function environmentValue(name: string, value: string): string {
   return `${name}=${value}`;
 }
 
+export function buildSessionCreatePayload(
+  userId: string,
+  patch: SessionPatch,
+): SessionCreatePayload {
+  return {
+    user_id: userId,
+    toolkits: { enable: patch.toolkits.enabled },
+    connected_accounts: patch.connected_accounts,
+    tags: {
+      enable: patch.tags.enabled,
+      disable: patch.tags.disabled,
+    },
+    manage_connections: { enable: patch.manage_connections.enabled },
+    workbench: {
+      enable: patch.workbench.enable,
+      enable_proxy_execution: patch.workbench.enable,
+    },
+    multi_account: patch.multi_account.enable
+      ? {
+        enable: true,
+        require_explicit_selection: patch.multi_account.require_explicit_selection,
+      }
+      : { enable: false },
+  };
+}
+
 async function ensureRuntimeTargetIsEmpty(path: string): Promise<void> {
   try {
     await readFile(resolve(path, ".env"), "utf8");
@@ -640,10 +676,9 @@ export async function createSiblingSession(
   const plan = buildSessionSyncPlan(desired, source, accounts, sourceRuntime.accountPins);
 
   await ensureRuntimeTargetIsEmpty(options.targetRuntimeDirectory);
-  const created = await api.createSession({
-    user_id: sessionUserId(source),
-    ...plan.patch,
-  });
+  const created = await api.createSession(
+    buildSessionCreatePayload(sessionUserId(source), plan.patch),
+  );
   const mcpUrl = created.mcp?.url;
   if (!mcpUrl) fail("Created Composio session has no MCP URL");
 

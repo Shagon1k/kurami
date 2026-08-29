@@ -15,4 +15,4 @@ disable_tags:
 manage_connections: false
 workbench: false
 multi_account: false
-require_explicit_account_selection: true
+require_explicit_account_selection: false

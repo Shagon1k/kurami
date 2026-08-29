@@ -4,6 +4,7 @@ import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import {
   accountPinEnvironmentName,
+  buildSessionCreatePayload,
   buildSessionSyncPlan,
   createSiblingSession,
   parseDesiredState,
@@ -13,6 +14,7 @@ import {
   runSessionSync,
   type ComposioSessionApi,
   type ConnectedAccount,
+  type SessionCreatePayload,
   type SessionPatch,
   type SessionSnapshot,
 } from "../src/connectors/composio/session-sync.ts";
@@ -47,7 +49,7 @@ disable_tags:
 manage_connections: false
 workbench: false
 multi_account: false
-require_explicit_account_selection: true
+require_explicit_account_selection: false
 `;
 const readDesired = parseDesiredState(readDesiredYaml);
 assert.deepEqual(readDesired.enableTags, ["readOnlyHint"]);
@@ -117,6 +119,14 @@ assert(plan.diff.some((entry) => entry.field === "accounts.google_analytics"));
 assert.deepEqual(plan.patch.connected_accounts.google_analytics, ["ca_analytics"]);
 assert(!JSON.stringify(plan.diff).includes("ca_analytics"));
 
+const createWirePayload = buildSessionCreatePayload("kurami", plan.patch);
+assert.deepEqual(createWirePayload.toolkits.enable, plan.patch.toolkits.enabled);
+assert.equal(createWirePayload.manage_connections.enable, false);
+assert.equal(createWirePayload.workbench.enable_proxy_execution, false);
+assert.equal(Object.hasOwn(createWirePayload.manage_connections, "enabled"), false);
+assert.equal(Object.hasOwn(createWirePayload.workbench, "proxy_execution_enabled"), false);
+assert.equal(Object.hasOwn(createWirePayload.multi_account, "max_accounts_per_toolkit"), false);
+
 const workbenchAliasPreserved = buildSessionSyncPlan(
   desired,
   {
@@ -178,7 +188,7 @@ class FakeApi implements ComposioSessionApi {
   }
 
   async createSession(
-    config: SessionPatch & { user_id: string },
+    config: SessionCreatePayload,
   ): Promise<SessionSnapshot> {
     this.createCalls += 1;
     return {
@@ -193,7 +203,25 @@ class FakeApi implements ComposioSessionApi {
         "COMPOSIO_SEARCH_TOOLS",
       ],
       config_version: 1,
-      config: structuredClone(config),
+      config: {
+        user_id: config.user_id,
+        toolkits: { enabled: config.toolkits.enable },
+        connected_accounts: structuredClone(config.connected_accounts),
+        tags: {
+          enabled: config.tags.enable,
+          disabled: config.tags.disable,
+        },
+        manage_connections: { enabled: config.manage_connections.enable },
+        workbench: {
+          enable: config.workbench.enable,
+          proxy_execution_enabled: config.workbench.enable_proxy_execution,
+        },
+        multi_account: {
+          enable: config.multi_account.enable,
+          require_explicit_selection:
+            config.multi_account.require_explicit_selection ?? false,
+        },
+      },
     };
   }
 
