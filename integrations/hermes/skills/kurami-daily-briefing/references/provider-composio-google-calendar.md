@@ -5,8 +5,9 @@ Use this profile only when the configured source has
 
 ## Connection and discovery
 
-Require the configured Composio MCP connection with Google Calendar
-authorization. Use Composio discovery and prefer
+Require the restricted `composio-read` MCP connection with Google Calendar
+authorization. Do not fall back to the broader write-capable `composio`
+connection during an automatic or dry-run briefing. Use Composio discovery and prefer
 `GOOGLECALENDAR_EVENTS_LIST` when its live schema matches this profile.
 
 Validate that the leaf operation is read-only, accepts a calendar identifier

@@ -65,6 +65,7 @@
     "briefing:serve": "node src/briefing/server.ts",
     "composio:check": "node src/connectors/composio/cli.ts check",
     "composio:apply": "node src/connectors/composio/cli.ts apply",
+    "composio:create-read": "node src/connectors/composio/cli.ts create",
     "skills:check": "bash bin/sync-hermes-skills.sh --check",
     "skills:sync": "bash bin/sync-hermes-skills.sh --apply"
   },

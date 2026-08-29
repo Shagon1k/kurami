@@ -1565,10 +1565,18 @@ with `integrations/hermes/skills/kurami-run-control/`.
 
 # Composio Session reconciliation
 
-Kurami uses one persistent Composio-hosted HTTP MCP Session. Its non-secret
-toolkit allowlist and safety policy live in
-`deploy/config/connectors/composio-session.yaml`; credentials and account IDs
-remain in `connectors/external/composio-session/.env` on the runtime host.
+Kurami keeps two persistent Composio-hosted HTTP MCP boundaries:
+
+- `composio` is the broad interactive Session. Its policy lives in
+  `deploy/config/connectors/composio-session.yaml`; Hermes keeps it untrusted so
+  write-capable agent calls require approval.
+- `composio-read` is the automatic-ingestion Session. Its policy lives in
+  `deploy/config/connectors/composio-read-session.yaml`; Composio enforces
+  `readOnlyHint` and rejects destructive tools during both discovery and
+  execution, so Hermes may trust this narrowly scoped connector.
+
+Credentials, Session IDs, MCP URLs, and connected-account IDs remain in the
+matching `connectors/external/*/.env` runtime directories.
 
 Inspect drift without changing Composio:
 
@@ -1580,6 +1588,20 @@ Apply an already reviewed diff to the existing Session:
 
 ```bash
 npm run composio:apply
+```
+
+Create the restricted sibling Session once from the active connected accounts:
+
+```bash
+npm run composio:create-read
+```
+
+After creation, reconcile it with the same CLI's explicit path overrides:
+
+```bash
+node src/connectors/composio/cli.ts check \
+  --config deploy/config/connectors/composio-read-session.yaml \
+  --runtime-dir /home/shagon1k/_hermes/_kurami/connectors/external/composio-read-session
 ```
 
 The command preserves the Session ID and MCP URL, verifies the result, and

@@ -27,6 +27,10 @@ If the config or a required capability is unavailable, produce a diagnostic or
 safe dry run. Never improvise a provider, credential, destination, source list,
 or mutation path.
 
+For Composio-backed collection, use only the restricted `composio-read`
+connection. The broader `composio` connection remains an interactive action
+surface and is not an automatic-ingestion fallback.
+
 ## Read the references
 
 - Read `references/content-contract.md` before constructing the payload.

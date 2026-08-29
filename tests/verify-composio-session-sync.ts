@@ -5,6 +5,7 @@ import { join, resolve } from "node:path";
 import {
   accountPinEnvironmentName,
   buildSessionSyncPlan,
+  createSiblingSession,
   parseDesiredState,
   parseEnvFile,
   redactComposioText,
@@ -32,6 +33,24 @@ require_explicit_account_selection: true
 
 const desired = parseDesiredState(desiredYaml);
 assert.deepEqual(desired.toolkits, ["gmail", "google_analytics", "googlecalendar"]);
+assert.deepEqual(desired.enableTags, []);
+
+const readDesiredYaml = `
+version: 2
+toolkits:
+  - gmail
+  - googlecalendar
+enable_tags:
+  - readOnlyHint
+disable_tags:
+  - destructiveHint
+manage_connections: false
+workbench: false
+multi_account: false
+require_explicit_account_selection: true
+`;
+const readDesired = parseDesiredState(readDesiredYaml);
+assert.deepEqual(readDesired.enableTags, ["readOnlyHint"]);
 assert.deepEqual(
   parseEnvFile("export COMPOSIO_API_KEY='safe-test-key'\nCOMPOSIO_SESSION_ID=trs_test\n"),
   { COMPOSIO_API_KEY: "safe-test-key", COMPOSIO_SESSION_ID: "trs_test" },
@@ -146,6 +165,7 @@ assert(!redacted.includes("trs_private"));
 
 class FakeApi implements ComposioSessionApi {
   patchCalls = 0;
+  createCalls = 0;
   observedConfigVersion: number | undefined;
   session = structuredClone(baseSession);
 
@@ -155,6 +175,26 @@ class FakeApi implements ComposioSessionApi {
 
   async listConnectedAccounts(): Promise<ConnectedAccount[]> {
     return structuredClone(accounts);
+  }
+
+  async createSession(
+    config: SessionPatch & { user_id: string },
+  ): Promise<SessionSnapshot> {
+    this.createCalls += 1;
+    return {
+      session_id: "trs_created",
+      mcp: {
+        type: "http",
+        url: "https://app.composio.dev/tool_router/v3/trs_created/mcp",
+      },
+      tool_router_tools: [
+        "COMPOSIO_GET_TOOL_SCHEMAS",
+        "COMPOSIO_MULTI_EXECUTE_TOOL",
+        "COMPOSIO_SEARCH_TOOLS",
+      ],
+      config_version: 1,
+      config: structuredClone(config),
+    };
   }
 
   async patchSession(
@@ -221,6 +261,35 @@ try {
   assert(meta.session_sync);
   assert(!JSON.stringify(meta.session_sync).includes("ca_"));
   assert.equal((await stat(resolve(runtimeDirectory, "mcp-meta.json"))).mode & 0o777, 0o600);
+
+  const readConfigPath = resolve(temporary, "composio-read-session.yaml");
+  const readRuntimeDirectory = resolve(temporary, "read-runtime");
+  await writeFile(readConfigPath, readDesiredYaml);
+  const createApi = new FakeApi();
+  const created = await createSiblingSession({
+    desiredStatePath: readConfigPath,
+    sourceRuntimeDirectory: runtimeDirectory,
+    targetRuntimeDirectory: readRuntimeDirectory,
+    api: createApi,
+  });
+  assert.equal(created.session.session_id, "trs_created");
+  assert.equal(createApi.createCalls, 1);
+  assert.deepEqual(created.plan.patch.tags.enabled, ["readOnlyHint"]);
+  assert.deepEqual(created.plan.patch.tags.disabled, ["destructiveHint"]);
+  const readEnvironment = parseEnvFile(
+    await readFile(resolve(readRuntimeDirectory, ".env"), "utf8"),
+  );
+  assert.equal(readEnvironment.COMPOSIO_SESSION_ID, "trs_created");
+  assert.equal((await stat(resolve(readRuntimeDirectory, ".env"))).mode & 0o777, 0o600);
+  await assert.rejects(
+    () => createSiblingSession({
+      desiredStatePath: readConfigPath,
+      sourceRuntimeDirectory: runtimeDirectory,
+      targetRuntimeDirectory: readRuntimeDirectory,
+      api: createApi,
+    }),
+    /already exists/u,
+  );
 } finally {
   await rm(temporary, { recursive: true, force: true });
 }
@@ -236,6 +305,7 @@ process.stdout.write(`${JSON.stringify({
   ok: true,
   dryRunDefault: true,
   explicitApply: true,
+  restrictedSiblingCreate: true,
   accountIdsRedacted: true,
   persistentSessionVerified: true,
   atomicMetaMode: "0600",

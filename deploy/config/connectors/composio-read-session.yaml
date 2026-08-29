@@ -1,0 +1,18 @@
+version: 2
+
+# Cron-safe Composio boundary for Kurami ingestion. The hosted Session enforces
+# this policy during tool discovery and execution; Hermes may therefore trust
+# this connector without trusting the broader write-capable Composio Session.
+toolkits:
+  - gmail
+  - googlecalendar
+
+enable_tags:
+  - readOnlyHint
+disable_tags:
+  - destructiveHint
+
+manage_connections: false
+workbench: false
+multi_account: false
+require_explicit_account_selection: true

@@ -3,8 +3,9 @@ import { dirname, resolve } from "node:path";
 import { parse as parseYaml } from "yaml";
 
 export type ComposioDesiredState = {
-  version: 1;
+  version: 1 | 2;
   toolkits: string[];
+  enableTags: string[];
   disableTags: string[];
   manageConnections: boolean;
   workbench: boolean;
@@ -39,7 +40,7 @@ export type SessionSnapshot = {
 export type SessionPatch = {
   toolkits: { enabled: string[] };
   connected_accounts: Record<string, string[]>;
-  tags: { disabled: string[] };
+  tags: { enabled: string[]; disabled: string[] };
   manage_connections: Record<string, unknown> & { enabled: boolean };
   workbench: Record<string, unknown> & {
     enable: boolean;
@@ -69,6 +70,7 @@ export type SessionSyncPlan = {
 export interface ComposioSessionApi {
   getSession(sessionId: string): Promise<SessionSnapshot>;
   listConnectedAccounts(userId: string): Promise<ConnectedAccount[]>;
+  createSession(config: SessionPatch & { user_id: string }): Promise<SessionSnapshot>;
   patchSession(
     sessionId: string,
     patch: SessionPatch,
@@ -110,6 +112,10 @@ function readDisabledTags(value: JsonRecord): string[] {
   return uniqueSorted(stringArray(value.disabled ?? value.disable));
 }
 
+function readEnabledTags(value: JsonRecord): string[] {
+  return uniqueSorted(stringArray(value.enabled ?? value.enable));
+}
+
 function readAccountMap(value: unknown): Record<string, string[]> {
   const result: Record<string, string[]> = {};
   for (const [toolkit, raw] of Object.entries(record(value))) {
@@ -121,7 +127,9 @@ function readAccountMap(value: unknown): Record<string, string[]> {
 
 export function parseDesiredState(input: string): ComposioDesiredState {
   const raw = record(parseYaml(input));
-  if (raw.version !== 1) fail("Composio desired state must use version: 1");
+  if (raw.version !== 1 && raw.version !== 2) {
+    fail("Composio desired state must use version: 1 or 2");
+  }
   const toolkits = uniqueSorted(stringArray(raw.toolkits));
   if (toolkits.length === 0) fail("Composio desired state has no toolkits");
   for (const toolkit of toolkits) {
@@ -130,8 +138,9 @@ export function parseDesiredState(input: string): ComposioDesiredState {
     }
   }
   return {
-    version: 1,
+    version: raw.version,
     toolkits,
+    enableTags: raw.version === 2 ? uniqueSorted(stringArray(raw.enable_tags)) : [],
     disableTags: uniqueSorted(stringArray(raw.disable_tags)),
     manageConnections: booleanField(raw.manage_connections, "manage_connections"),
     workbench: booleanField(raw.workbench, "workbench"),
@@ -260,6 +269,7 @@ export function buildSessionSyncPlan(
 ): SessionSyncPlan {
   const currentConfig = record(session.config);
   const currentToolkits = readToolkitList(record(currentConfig.toolkits));
+  const currentEnabledTags = readEnabledTags(record(currentConfig.tags));
   const currentTags = readDisabledTags(record(currentConfig.tags));
   const currentAccounts = readAccountMap(currentConfig.connected_accounts);
   const currentManage = record(currentConfig.manage_connections);
@@ -287,7 +297,7 @@ export function buildSessionSyncPlan(
   const patch: SessionPatch = {
     toolkits: { enabled: desired.toolkits },
     connected_accounts: selectedAccounts,
-    tags: { disabled: desired.disableTags },
+    tags: { enabled: desired.enableTags, disabled: desired.disableTags },
     manage_connections: {
       ...currentManage,
       enabled: desired.manageConnections,
@@ -323,6 +333,7 @@ export function buildSessionSyncPlan(
     }
   }
   const policyChecks: Array<[string, unknown, unknown]> = [
+    ["enable_tags", currentEnabledTags, desired.enableTags],
     ["disable_tags", currentTags, desired.disableTags],
     ["manage_connections", currentManage.enabled ?? true, desired.manageConnections],
     ["workbench", currentWorkbench.enable ?? true, desired.workbench],
@@ -441,6 +452,18 @@ export class HttpComposioSessionApi implements ComposioSessionApi {
     return accounts;
   }
 
+  async createSession(config: SessionPatch & { user_id: string }): Promise<SessionSnapshot> {
+    const value = record(await this.#request(
+      "/tool_router/session",
+      { method: "POST", body: JSON.stringify(config) },
+      "Composio session creation",
+    ));
+    if (typeof value.session_id !== "string" || !value.config || !record(value.mcp).url) {
+      fail("Composio session creation returned an invalid session");
+    }
+    return value as SessionSnapshot;
+  }
+
   async patchSession(
     sessionId: string,
     patch: SessionPatch,
@@ -480,8 +503,9 @@ function verifySession(
   }
   const verified = buildSessionSyncPlan(
     {
-      version: 1,
+      version: plan.patch.tags.enabled.length > 0 ? 2 : 1,
       toolkits: plan.patch.toolkits.enabled,
+      enableTags: plan.patch.tags.enabled,
       disableTags: plan.patch.tags.disabled,
       manageConnections: plan.patch.manage_connections.enabled,
       workbench: plan.patch.workbench.enable,
@@ -524,6 +548,7 @@ export async function writeSessionMeta(
       active_account_counts: plan.activeAccountCounts,
       top_level_tools: uniqueSorted(session.tool_router_tools ?? []),
       policy: {
+        enable_tags: plan.patch.tags.enabled,
         disable_tags: plan.patch.tags.disabled,
         manage_connections: plan.patch.manage_connections.enabled,
         workbench: plan.patch.workbench.enable,
@@ -545,6 +570,13 @@ export type RunSessionSyncOptions = {
   apply: boolean;
   desiredStatePath: string;
   runtimeDirectory: string;
+  api?: ComposioSessionApi;
+};
+
+export type CreateSessionOptions = {
+  desiredStatePath: string;
+  sourceRuntimeDirectory: string;
+  targetRuntimeDirectory: string;
   api?: ComposioSessionApi;
 };
 
@@ -580,4 +612,65 @@ export async function runSessionSync(
     plan,
   );
   return { applied: true, changed: plan.diff.length > 0, session: after, plan };
+}
+
+function environmentValue(name: string, value: string): string {
+  if (!value || /[\r\n]/u.test(value)) fail(`${name} has an invalid value`);
+  return `${name}=${value}`;
+}
+
+async function ensureRuntimeTargetIsEmpty(path: string): Promise<void> {
+  try {
+    await readFile(resolve(path, ".env"), "utf8");
+    fail(`Target Composio runtime already exists: ${path}`);
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error;
+  }
+  await mkdir(path, { recursive: true });
+}
+
+export async function createSiblingSession(
+  options: CreateSessionOptions,
+): Promise<RunSessionSyncResult> {
+  const desired = await loadDesiredState(options.desiredStatePath);
+  const sourceRuntime = await loadRuntime(resolve(options.sourceRuntimeDirectory, ".env"));
+  const api = options.api ?? new HttpComposioSessionApi(sourceRuntime.apiKey);
+  const source = await api.getSession(sourceRuntime.sessionId);
+  const accounts = await api.listConnectedAccounts(sessionUserId(source));
+  const plan = buildSessionSyncPlan(desired, source, accounts, sourceRuntime.accountPins);
+
+  await ensureRuntimeTargetIsEmpty(options.targetRuntimeDirectory);
+  const created = await api.createSession({
+    user_id: sessionUserId(source),
+    ...plan.patch,
+  });
+  const mcpUrl = created.mcp?.url;
+  if (!mcpUrl) fail("Created Composio session has no MCP URL");
+
+  const verifiedPlan = buildSessionSyncPlan(desired, created, accounts);
+  if (verifiedPlan.diff.length > 0) {
+    fail("Created Composio session does not match the requested policy");
+  }
+
+  const runtimePath = resolve(options.targetRuntimeDirectory, ".env");
+  const temporary = `${runtimePath}.${process.pid}.tmp`;
+  await writeFile(
+    temporary,
+    `${[
+      environmentValue("COMPOSIO_API_KEY", sourceRuntime.apiKey),
+      environmentValue("COMPOSIO_SESSION_ID", created.session_id),
+      environmentValue("COMPOSIO_MCP_URL", mcpUrl),
+      "",
+    ].join("\n")}`,
+    { mode: 0o600 },
+  );
+  await chmod(temporary, 0o600);
+  await rename(temporary, runtimePath);
+  await chmod(runtimePath, 0o600);
+  await writeSessionMeta(
+    resolve(options.targetRuntimeDirectory, "mcp-meta.json"),
+    created,
+    verifiedPlan,
+  );
+  return { applied: true, changed: true, session: created, plan: verifiedPlan };
 }

@@ -1,6 +1,7 @@
 import { resolve } from "node:path";
 import { resolveKuramiHome } from "../../core/kurami-home.ts";
 import {
+  createSiblingSession,
   redactComposioText,
   runSessionSync,
   type RunSessionSyncResult,
@@ -8,10 +9,11 @@ import {
 } from "./session-sync.ts";
 
 type CliOptions = {
-  apply: boolean;
+  command: "check" | "apply" | "create";
   json: boolean;
   config?: string;
   runtimeDirectory?: string;
+  sourceRuntimeDirectory?: string;
 };
 
 function fail(message: string): never {
@@ -19,20 +21,24 @@ function fail(message: string): never {
 }
 
 function parseArguments(arguments_: string[]): CliOptions {
-  const options: CliOptions = { apply: false, json: false };
+  const options: CliOptions = { command: "check", json: false };
   const values = [...arguments_];
   const command = values.shift();
-  if (command === "apply" || command === "--apply") options.apply = true;
+  if (command === "apply" || command === "--apply") options.command = "apply";
+  else if (command === "create") options.command = "create";
   else if (command !== "check" && command !== undefined) {
-    fail("Usage: composio-session-sync [check|apply] [--config PATH] [--runtime-dir PATH] [--json]");
+    fail("Usage: composio-session-sync [check|apply|create] [--config PATH] [--runtime-dir PATH] [--source-runtime-dir PATH] [--json]");
   }
   while (values.length > 0) {
     const argument = values.shift();
     if (argument === "--json") options.json = true;
-    else if (argument === "--apply") options.apply = true;
+    else if (argument === "--apply") options.command = "apply";
     else if (argument === "--config") options.config = values.shift() ?? fail("--config requires a path");
     else if (argument === "--runtime-dir") {
       options.runtimeDirectory = values.shift() ?? fail("--runtime-dir requires a path");
+    } else if (argument === "--source-runtime-dir") {
+      options.sourceRuntimeDirectory = values.shift() ??
+        fail("--source-runtime-dir requires a path");
     } else fail(`Unknown argument: ${argument}`);
   }
   return options;
@@ -44,10 +50,13 @@ function diffLine(entry: SessionDiffEntry): string {
   return `~ ${entry.field}: ${entry.before} -> ${entry.after}`;
 }
 
-function printableResult(result: RunSessionSyncResult): Record<string, unknown> {
+function printableResult(
+  result: RunSessionSyncResult,
+  command: CliOptions["command"],
+): Record<string, unknown> {
   return {
     ok: true,
-    mode: result.applied ? "apply" : "check",
+    mode: command,
     changed: result.changed,
     configVersion: result.session.config_version ?? null,
     diff: result.plan.diff,
@@ -57,7 +66,11 @@ function printableResult(result: RunSessionSyncResult): Record<string, unknown> 
   };
 }
 
-function printHuman(result: RunSessionSyncResult): void {
+function printHuman(result: RunSessionSyncResult, command: CliOptions["command"]): void {
+  if (command === "create") {
+    process.stdout.write("Created and verified a restricted Composio Session.\n");
+    return;
+  }
   process.stdout.write("Composio Session diff\n");
   if (result.plan.diff.length === 0) process.stdout.write("No changes. Session matches desired state.\n");
   else for (const entry of result.plan.diff) process.stdout.write(`${diffLine(entry)}\n`);
@@ -75,19 +88,33 @@ export async function runComposioSessionCli(arguments_ = process.argv.slice(2)):
   const options = parseArguments(arguments_);
   const applicationRoot = resolve(import.meta.dirname, "../../..");
   const kuramiHome = resolveKuramiHome(resolve(import.meta.dirname, "../../../.."));
-  const result = await runSessionSync({
-    apply: options.apply,
-    desiredStatePath: resolve(
-      options.config ?? resolve(applicationRoot, "deploy/config/connectors/composio-session.yaml"),
-    ),
-    runtimeDirectory: resolve(
-      options.runtimeDirectory ??
-        resolve(kuramiHome, "connectors/external/composio-session"),
-    ),
-  });
-  if (options.json) process.stdout.write(`${JSON.stringify(printableResult(result))}\n`);
-  else printHuman(result);
-  if (!options.apply && result.changed) process.exitCode = 2;
+  const defaultSourceRuntime = resolve(kuramiHome, "connectors/external/composio-session");
+  const result = options.command === "create"
+    ? await createSiblingSession({
+      desiredStatePath: resolve(
+        options.config ??
+          resolve(applicationRoot, "deploy/config/connectors/composio-read-session.yaml"),
+      ),
+      sourceRuntimeDirectory: resolve(
+        options.sourceRuntimeDirectory ?? defaultSourceRuntime,
+      ),
+      targetRuntimeDirectory: resolve(
+        options.runtimeDirectory ??
+          resolve(kuramiHome, "connectors/external/composio-read-session"),
+      ),
+    })
+    : await runSessionSync({
+      apply: options.command === "apply",
+      desiredStatePath: resolve(
+        options.config ?? resolve(applicationRoot, "deploy/config/connectors/composio-session.yaml"),
+      ),
+      runtimeDirectory: resolve(
+        options.runtimeDirectory ?? defaultSourceRuntime,
+      ),
+    });
+  if (options.json) process.stdout.write(`${JSON.stringify(printableResult(result, options.command))}\n`);
+  else printHuman(result, options.command);
+  if (options.command === "check" && result.changed) process.exitCode = 2;
 }
 
 if (import.meta.main) {

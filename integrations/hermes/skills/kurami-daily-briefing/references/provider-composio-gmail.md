@@ -5,8 +5,9 @@ Use this profile only when the configured source has
 
 ## Connection and discovery
 
-Require the configured Composio MCP connection with Gmail authorization. Use
-Composio tool discovery to resolve a current Gmail message-fetch operation.
+Require the restricted `composio-read` MCP connection with Gmail authorization.
+Do not fall back to the broader write-capable `composio` connection during an
+automatic or dry-run briefing. Use Composio tool discovery to resolve a current Gmail message-fetch operation.
 Prefer `GMAIL_FETCH_EMAILS` when its live schema matches this profile. Use
 `GMAIL_FETCH_MESSAGE_BY_MESSAGE_ID` only when the list response omits content
 needed for a useful summary.
@@ -44,4 +45,5 @@ credentials, raw MIME payloads, or tracking markup.
 Collection is always read-only. The later `read_and_archive` action may prefer
 `GMAIL_BATCH_MODIFY_MESSAGES`, but only after the briefing runtime resolves the
 selected internal IDs to stored Gmail message IDs. It removes `UNREAD` and
-`INBOX`; it does not delete, send, reply, or change any other message.
+`INBOX`; it does not delete, send, reply, or change any other message. That
+deterministic page action must not execute through `composio-read`.
