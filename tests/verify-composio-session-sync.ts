@@ -206,7 +206,6 @@ assert(!redacted.includes("trs_private"));
 class FakeApi implements ComposioSessionApi {
   patchCalls = 0;
   createCalls = 0;
-  observedConfigVersion: number | undefined;
   session = structuredClone(baseSession);
 
   async getSession(): Promise<SessionSnapshot> {
@@ -263,10 +262,8 @@ class FakeApi implements ComposioSessionApi {
   async patchSession(
     _sessionId: string,
     patch: SessionPatch,
-    configVersion?: number,
   ): Promise<SessionSnapshot> {
     this.patchCalls += 1;
-    this.observedConfigVersion = configVersion;
     this.session = {
       ...this.session,
       config_version: (this.session.config_version ?? 0) + 1,
@@ -317,7 +314,6 @@ try {
   });
   assert.equal(applied.applied, true);
   assert.equal(applyApi.patchCalls, 1);
-  assert.equal(applyApi.observedConfigVersion, 7);
   const meta = JSON.parse(
     await readFile(resolve(runtimeDirectory, "mcp-meta.json"), "utf8"),
   ) as Record<string, unknown>;

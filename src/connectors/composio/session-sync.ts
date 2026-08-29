@@ -96,7 +96,6 @@ export interface ComposioSessionApi {
   patchSession(
     sessionId: string,
     patch: SessionPatch,
-    configVersion?: number,
   ): Promise<SessionSnapshot>;
 }
 
@@ -538,13 +537,10 @@ export class HttpComposioSessionApi implements ComposioSessionApi {
   async patchSession(
     sessionId: string,
     patch: SessionPatch,
-    configVersion?: number,
   ): Promise<SessionSnapshot> {
-    const headers: Record<string, string> = {};
-    if (configVersion !== undefined) headers["if-match"] = String(configVersion);
     const value = record(await this.#request(
       `/tool_router/session/${encodeURIComponent(sessionId)}`,
-      { method: "PATCH", headers, body: JSON.stringify(buildSessionUpdatePayload(patch)) },
+      { method: "PATCH", body: JSON.stringify(buildSessionUpdatePayload(patch)) },
       "Composio session update",
     ));
     if (typeof value.session_id !== "string" || !value.config) {
@@ -679,7 +675,7 @@ export async function runSessionSync(
     return { applied: false, changed: plan.diff.length > 0, session: before, plan };
   }
   const after = plan.diff.length > 0
-    ? await api.patchSession(runtime.sessionId, plan.patch, before.config_version)
+    ? await api.patchSession(runtime.sessionId, plan.patch)
     : before;
   verifySession(desired, before, after, plan);
   await writeSessionMeta(
