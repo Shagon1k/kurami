@@ -2,6 +2,7 @@ import type { BriefingPayload, NewsItem, Reaction } from "../../model.ts";
 import { displayString, escapeHtml, externalUrl, records } from "../html.ts";
 import { renderReactionGroup } from "./reaction-group.ts";
 import { renderStoryPanel, renderStoryToggle } from "./story-disclosure.ts";
+import { renderStoryCover } from "./story-media.ts";
 import { renderTopicSet } from "./topic-set.ts";
 
 function sourceMetadata(story: NewsItem): {
@@ -47,8 +48,10 @@ export function renderNewsStory(input: {
     : "";
   const depth = displayString(story.depth, "standard");
   const safeDepth = ["featured", "standard", "compact"].includes(depth) ? depth : "standard";
-  return `<article class="news-story news-story--${safeDepth}${read ? " is-read" : ""}" data-feed-item data-item-id="${escapeHtml(story.id)}">
+  const cover = renderStoryCover(story.media);
+  return `<article class="news-story news-story--${safeDepth}${read ? " is-read" : ""}${cover ? " has-media" : ""}" data-feed-item data-item-id="${escapeHtml(story.id)}">
     <span class="news-story__index" aria-hidden="true">${String(input.index + 1).padStart(2, "0")}</span>
+    ${cover}
     <div class="news-story__copy">
       <div class="news-story__meta"><span class="news-story__provider">${escapeHtml(source.provider)}</span><span class="news-story__channel">${escapeHtml(source.label)}</span>${source.time ? `<time class="news-story__time">${escapeHtml(source.time)}</time>` : ""}<span class="news-story__read-state" data-read-state>✓ прочитано</span></div>
       <h3>${escapeHtml(story.headline)}</h3>
@@ -56,6 +59,6 @@ export function renderNewsStory(input: {
       ${renderTopicSet(story.topics)}
     </div>
     <div class="news-story__actions">${renderStoryToggle(story.id)}${sourceLink}${renderReactionGroup({ editionId: edition.id, itemId: story.id, reaction })}</div>
-    ${renderStoryPanel({ editionId: edition.id, itemId: story.id, details: story.details, sourceUrl: source.url, read })}
+    ${renderStoryPanel({ editionId: edition.id, itemId: story.id, details: story.details, sourceUrl: source.url, read, media: story.media })}
   </article>`;
 }

@@ -1,5 +1,5 @@
 import { createHash, randomUUID } from "node:crypto";
-import { chmod, mkdir, readFile, readdir, rename, unlink, writeFile } from "node:fs/promises";
+import { chmod, mkdir, readFile, readdir, rename, rm, unlink, writeFile } from "node:fs/promises";
 import { isAbsolute, relative, resolve } from "node:path";
 import { DatabaseSync } from "node:sqlite";
 import { resolveKuramiHome } from "../core/kurami-home.ts";
@@ -17,6 +17,8 @@ export type BriefingPaths = {
   stateDirectory: string;
   pagesDirectory: string;
   previewDirectory: string;
+  mediaDirectory: string;
+  mediaInboxDirectory: string;
   databasePath: string;
   migrationsDirectory: string;
 };
@@ -53,6 +55,8 @@ export function briefingPaths(environment: NodeJS.ProcessEnv = process.env): Bri
     stateDirectory,
     pagesDirectory: resolve(stateDirectory, "pages"),
     previewDirectory: resolve(stateDirectory, "pages/preview"),
+    mediaDirectory: resolve(stateDirectory, "media"),
+    mediaInboxDirectory: resolve(stateDirectory, "media-inbox"),
     databasePath: resolve(stateDirectory, "briefing.db"),
     migrationsDirectory: resolve(
       environment.BRIEFING_MIGRATIONS_DIR ?? resolve(import.meta.dirname, "../../migrations/briefing"),
@@ -81,6 +85,8 @@ export async function initializeBriefingStore(
   paths: BriefingPaths = briefingPaths(),
 ): Promise<{ database: string; applied: string[]; integrity: string }> {
   await mkdir(paths.previewDirectory, { recursive: true, mode: 0o700 });
+  await mkdir(paths.mediaDirectory, { recursive: true, mode: 0o700 });
+  await mkdir(paths.mediaInboxDirectory, { recursive: true, mode: 0o700 });
   const database = new DatabaseSync(paths.databasePath, { timeout: 5_000 });
   const applied: string[] = [];
   try {
@@ -466,11 +472,16 @@ export async function cleanupExpired(
   const database = openBriefingDatabase(paths);
   const expired = database
     .prepare(`
-      SELECT id, html_path
+      SELECT id, edition_type, local_date, html_path
       FROM editions
       WHERE edition_type = 'daily' AND retention_until <= ?
     `)
-    .all(currentTime) as Array<{ id: string; html_path: string }>;
+    .all(currentTime) as Array<{
+    id: string;
+    edition_type: "daily" | "cinema";
+    local_date: string;
+    html_path: string;
+  }>;
   try {
     database.exec("BEGIN IMMEDIATE");
     try {
@@ -487,6 +498,10 @@ export async function cleanupExpired(
   for (const edition of expired) {
     await unlink(resolvedHtmlPath(paths, edition.html_path)).catch((error: NodeJS.ErrnoException) => {
       if (error.code !== "ENOENT") throw error;
+    });
+    await rm(resolve(paths.mediaDirectory, edition.edition_type, edition.local_date), {
+      recursive: true,
+      force: true,
     });
   }
   return { deleted: expired.map((edition) => edition.id) };

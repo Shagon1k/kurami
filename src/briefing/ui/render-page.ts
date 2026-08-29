@@ -76,10 +76,12 @@ export function renderBriefingPage(payload: BriefingPayload): string {
 </head>
 <body>
   <a class="skip-link" href="#main">К содержанию</a>
-  <header class="utility-header page-shell" data-utility-header>
-    <div class="utility-brand">Kurami Daily Briefing</div>
-    <time class="utility-meta" datetime="${escapeHtml(payload.edition.localDate)}">${escapeHtml(formatDate(payload))}</time>
-    <div class="utility-actions">${renderThemeToggle()}</div>
+  <header class="utility-header" data-utility-header>
+    <div class="utility-header__inner page-shell">
+      <div class="utility-brand"><span class="utility-brand__mark" aria-hidden="true">K</span><span>Kurami Daily Briefing</span></div>
+      <time class="utility-meta" datetime="${escapeHtml(payload.edition.localDate)}">${escapeHtml(formatDate(payload))}</time>
+      <div class="utility-actions">${renderThemeToggle()}</div>
+    </div>
   </header>
   <main id="main" class="page-shell">
     <section class="hero">
@@ -93,6 +95,7 @@ export function renderBriefingPage(payload: BriefingPayload): string {
     ${renderQuality(payload)}
   </main>
   <footer class="page-footer page-shell"><span>Kurami · ${escapeHtml(payload.edition.localDate)}</span><span>Собрано в ${escapeHtml(generated)} · ${escapeHtml(payload.edition.timezone)}</span></footer>
+  <dialog class="media-lightbox" data-media-dialog aria-label="Просмотр изображения"><button class="media-lightbox__close" type="button" data-media-close aria-label="Закрыть">×</button><img data-media-dialog-image alt=""></dialog>
 </body>
 </html>`;
 }

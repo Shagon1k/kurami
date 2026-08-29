@@ -93,16 +93,24 @@ Default manual experiments to `dry-run`. Generation never archives Gmail;
 11. Invoke `kurami-ui-preview-language` with the prepared payload. For the
     configured Briefing runtime this selects the canonical deterministic
     component renderer; the agent must not hand-author `PaginatedFeed`,
-    `NewsStory`, `TopicSet`, `StoryDisclosure`, `ReactionGroup`, or
-    `ThemeToggle`. The renderer must not rewrite facts, ordering, topics,
-    reactions, read state, or action semantics.
-12. In `dry-run`, create the run-specific artifact directory and write only the
+    `NewsStory`, `TopicSet`, `StoryDisclosure`, `StoryCover`,
+    `StoryMediaGallery`, `MediaLightbox`, `ReactionGroup`, or `ThemeToggle`.
+    The renderer must not rewrite facts, ordering, topics, reactions, read
+    state, or action semantics.
+12. After the runtime accepts the base edition, download retained Telegram
+    media by path only, write a bounded media manifest, and run the canonical
+    `import-media` command described by the Telegram provider reference. Do not
+    ask the model to inspect images or video unless an explicit later task
+    requires visual analysis.
+13. In `dry-run`, create the run-specific artifact directory and write only the
     completed payload with the Hermes `write_file` tool. Do not generate the
     artifact through a shell heredoc, inline Python/Node program, or a
     dynamically assembled terminal command: the gateway lifecycle guard scans
     referenced paths and will correctly fail closed on ambiguous inline code.
     Render and stage it with the single short command
     `$BRIEFING_NODE $BRIEFING_CLI render-preview --payload <payload.json>`.
+    When the edition has retained media, follow it with
+    `$BRIEFING_NODE $BRIEFING_CLI import-media --manifest <media-manifest.json>`.
     Return the preview path printed by the runtime. Do not claim a live publish.
 
 ## Publish safely

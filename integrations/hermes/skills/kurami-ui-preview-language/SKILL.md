@@ -3,7 +3,7 @@ name: kurami-ui-preview-language
 description: Render pages in Kurami's fixed visual language.
 license: private
 metadata:
-  version: 0.7.0
+  version: 0.8.0
   author: Aliaksei Hurynovich with Hermes Agent
   hermes:
     tags:
@@ -125,13 +125,17 @@ Use Hermes file tools to inspect and edit the target project. Use the target pro
   them. The agent supplies payload and composition intent; component markup,
   CSS, accessibility hooks, and runtime data attributes stay deterministic.
 - In the Daily Briefing runtime, use `PaginatedFeed`, `NewsStory`, `TopicSet`,
-  `StoryDisclosure`, `ReactionGroup`, and `ThemeToggle` from the production UI
-  layer. Do not recreate them with one-off HTML.
+  `StoryDisclosure`, `StoryCover`, `StoryMediaGallery`, `MediaLightbox`,
+  `ReactionGroup`, and `ThemeToggle` from the production UI layer. Do not
+  recreate them with one-off HTML.
 
 - Use story rows for readable news items.
-- When a story supplies canonical cached media, use one restrained thumbnail
-  that opens the full image. Do not reserve an empty media column for stories
-  without an image and do not hotlink provider-authenticated attachments.
+- When a story supplies canonical cached media, use the first image as a
+  restrained cover that opens the lightbox. Render the complete supplied media
+  set inside its disclosure: images open in the same lightbox and videos play
+  inline with browser controls. Do not reserve an empty media column for
+  stories without an image and do not hotlink provider-authenticated
+  attachments.
 - Use a paginated Digest Feed for long collections of news, messages, updates, or saved items. Keep the feed generic; render provider names only from the payload.
 - Render a Topic Set when the payload supplies canonical topic strings. Preserve the strings and order exactly; keep topics visually separate from source provenance.
 - Use an Expandable Feed Item when the payload supplies an extended digest. Keep only one item expanded by default unless the caller explicitly requests comparison.
@@ -175,6 +179,9 @@ Use Hermes file tools to inspect and edit the target project. Use the target pro
 - Make briefing read state explicit but quiet (for example `✓ прочитано` in
   metadata). Expanding the canonical story disclosure may set this state; it
   must remain possible to reopen and reread the story.
+- Keep the utility header full-width with a padded page-shell inner container;
+  its controls must never touch the structural border. Add the stronger border
+  and small shadow only after scroll.
 - Render every long-feed item with `data-feed-item` and its stable
   `data-item-id`. Use the canonical accessible disclosure pair:
   `button[data-story-toggle]` plus the matching region

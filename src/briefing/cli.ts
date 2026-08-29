@@ -11,14 +11,16 @@ import {
 } from "./store.ts";
 import { parseBriefingPayload } from "./model.ts";
 import { renderBriefingPage } from "./ui/render-page.ts";
+import { importEditionMedia, readMediaManifest } from "./media.ts";
 
-type Command = "init" | "prepare-preview" | "render-preview" | "rerender-preview" | "inspect" | "cleanup";
+type Command = "init" | "prepare-preview" | "render-preview" | "rerender-preview" | "import-media" | "inspect" | "cleanup";
 
 type Arguments = {
   command: Command;
   payloadPath?: string;
   htmlPath?: string;
   editionId?: string;
+  manifestPath?: string;
   at?: string;
 };
 
@@ -28,8 +30,8 @@ function fail(message: string): never {
 
 function parseArguments(argv = process.argv.slice(2)): Arguments {
   const command = argv.shift() as Command | undefined;
-  if (!command || !["init", "prepare-preview", "render-preview", "rerender-preview", "inspect", "cleanup"].includes(command)) {
-    fail("Usage: briefing <init|prepare-preview|render-preview|rerender-preview|inspect|cleanup> [options]");
+  if (!command || !["init", "prepare-preview", "render-preview", "rerender-preview", "import-media", "inspect", "cleanup"].includes(command)) {
+    fail("Usage: briefing <init|prepare-preview|render-preview|rerender-preview|import-media|inspect|cleanup> [options]");
   }
   const result: Arguments = { command };
   while (argv.length > 0) {
@@ -39,6 +41,7 @@ function parseArguments(argv = process.argv.slice(2)): Arguments {
     if (option === "--payload") result.payloadPath = resolve(value);
     else if (option === "--html") result.htmlPath = resolve(value);
     else if (option === "--id") result.editionId = value;
+    else if (option === "--manifest") result.manifestPath = resolve(value);
     else if (option === "--at") result.at = value;
     else fail(`Unknown option ${option}`);
   }
@@ -50,6 +53,9 @@ function parseArguments(argv = process.argv.slice(2)): Arguments {
   }
   if (command === "rerender-preview" && !result.editionId) {
     fail("rerender-preview requires --id");
+  }
+  if (command === "import-media" && !result.manifestPath) {
+    fail("import-media requires --manifest");
   }
   if (command !== "cleanup" && result.at) fail("--at is valid only for cleanup");
   return result;
@@ -122,6 +128,14 @@ export async function runBriefingCli(argv = process.argv.slice(2)): Promise<unkn
       renderer: "kurami-ui-components-v1",
       externalMutations: false,
       ...(await preparePreview(payload, renderBriefingPage(payload), paths)),
+    };
+  }
+  if (args.command === "import-media") {
+    return {
+      ok: true,
+      action: "import-media",
+      externalMutations: false,
+      ...(await importEditionMedia(await readMediaManifest(args.manifestPath!), paths)),
     };
   }
   if (args.command === "cleanup") {

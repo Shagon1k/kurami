@@ -8,6 +8,15 @@ export type Topic = {
   label: string;
 };
 
+export type StoryMedia = {
+  id: string;
+  kind: "image" | "video";
+  src: string;
+  alt: string;
+  mimeType: string;
+  posterSrc?: string;
+};
+
 export type NewsItem = {
   id: string;
   fingerprint: string;
@@ -15,6 +24,7 @@ export type NewsItem = {
   summary: string;
   details: string[];
   topics: Topic[];
+  media?: StoryMedia[];
   [key: string]: unknown;
 };
 
@@ -63,6 +73,17 @@ const SECTION_STATES = new Set<SectionState>([
   "partial",
   "stale",
   "failed",
+]);
+const MEDIA_PATH = /^\/media\/[A-Za-z0-9][A-Za-z0-9._/-]*$/;
+const MEDIA_MIME_TYPES = new Set([
+  "image/avif",
+  "image/gif",
+  "image/jpeg",
+  "image/png",
+  "image/webp",
+  "video/mp4",
+  "video/quicktime",
+  "video/webm",
 ]);
 
 function fail(message: string): never {
@@ -128,6 +149,37 @@ function details(value: unknown, label: string): string[] {
   });
 }
 
+function media(value: unknown, label: string): StoryMedia[] | undefined {
+  if (value === undefined) return undefined;
+  if (!Array.isArray(value) || value.length < 1 || value.length > 12) {
+    fail(`${label} must contain one to twelve assets`);
+  }
+  const seen = new Set<string>();
+  return value.map((raw, index) => {
+    const asset = record(raw, `${label}[${index}]`);
+    const id = safeId(asset.id, `${label}[${index}].id`);
+    if (seen.has(id)) fail(`${label} contains duplicate media ID ${id}`);
+    seen.add(id);
+    const kind = string(asset.kind, `${label}[${index}].kind`);
+    if (kind !== "image" && kind !== "video") fail(`${label}[${index}].kind is unsupported`);
+    const src = string(asset.src, `${label}[${index}].src`);
+    if (!MEDIA_PATH.test(src) || src.includes("..")) fail(`${label}[${index}].src is unsafe`);
+    const mimeType = string(asset.mimeType, `${label}[${index}].mimeType`);
+    if (!MEDIA_MIME_TYPES.has(mimeType)) fail(`${label}[${index}].mimeType is unsupported`);
+    if (!mimeType.startsWith(`${kind}/`)) fail(`${label}[${index}] kind and MIME type differ`);
+    const alt = string(asset.alt, `${label}[${index}].alt`).trim();
+    if (alt.length > 240) fail(`${label}[${index}].alt exceeds 240 characters`);
+    let posterSrc: string | undefined;
+    if (asset.posterSrc !== undefined) {
+      posterSrc = string(asset.posterSrc, `${label}[${index}].posterSrc`);
+      if (!MEDIA_PATH.test(posterSrc) || posterSrc.includes("..")) {
+        fail(`${label}[${index}].posterSrc is unsafe`);
+      }
+    }
+    return { id, kind, src, alt, mimeType, ...(posterSrc ? { posterSrc } : {}) };
+  });
+}
+
 export function parseBriefingPayload(value: unknown): BriefingPayload {
   const root = record(value, "root");
   if (root.schemaVersion !== 1) fail("schemaVersion must equal 1");
@@ -168,6 +220,7 @@ export function parseBriefingPayload(value: unknown): BriefingPayload {
       summary: string(item.summary, `news.items[${index}].summary`),
       details: details(item.details, `news.items[${index}].details`),
       topics: topics(item.topics, `news.items[${index}].topics`),
+      media: media(item.media, `news.items[${index}].media`),
     };
   });
   const itemIds = new Set(newsItems.map((item) => item.id));

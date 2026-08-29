@@ -90,13 +90,15 @@ Use a flexible story rather than a mandatory prose template:
     {"id": "cinema", "label": "Cinema"}
   ],
   "entities": ["Original entity spelling"],
-  "media": {
-    "kind": "image",
-    "src": "/media/daily-2026-08-28/story-example.jpg",
-    "alt": "Factual image description",
-    "width": 1280,
-    "height": 720
-  },
+  "media": [
+    {
+      "id": "story-example-media-1",
+      "kind": "image",
+      "src": "/media/daily/2026-08-28/story-example/01.jpg",
+      "mimeType": "image/jpeg",
+      "alt": "Contextual image description"
+    }
+  ],
   "sources": [
     {
       "provider": "Telegram",
@@ -113,6 +115,11 @@ Use a flexible story rather than a mandatory prose template:
   "reaction": null
 }
 ```
+
+`media` is optional and may contain one to twelve edition-cached images or
+videos in provider order. The first image becomes the compact feed cover; the
+full set appears only inside the expanded story. Do not put provider-local
+paths, Telegram-authenticated URLs, or base64 payloads into this contract.
 
 `news.items` is the complete normalized collection for the edition.
 `news.mainStoryIds` references zero or more IDs from that collection and

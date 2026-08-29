@@ -1,11 +1,12 @@
 import assert from "node:assert/strict";
-import { mkdtemp, readFile } from "node:fs/promises";
+import { mkdir, mkdtemp, readFile, writeFile } from "node:fs/promises";
 import type { AddressInfo } from "node:net";
 import { tmpdir } from "node:os";
 import { resolve } from "node:path";
 import { createBriefingServer } from "../../src/briefing/server.ts";
 import { parseBriefingPayload } from "../../src/briefing/model.ts";
 import { renderBriefingPage } from "../../src/briefing/ui/render-page.ts";
+import { importEditionMedia } from "../../src/briefing/media.ts";
 import {
   briefingPaths,
   cleanupExpired,
@@ -75,6 +76,8 @@ assert.match(html, /class="story-disclosure__body"/);
 assert.match(html, /data-story-toggle/);
 assert.match(html, /class="metric-strip"/);
 assert.match(html, /data-utility-header/);
+assert.match(html, /utility-header__inner/);
+assert.match(html, /data-media-dialog/);
 assert.match(html, /data-read-state/);
 assert.match(html, /family=Caveat/);
 assert.match(html, /data-feed-pagination/);
@@ -93,6 +96,16 @@ assert.equal(prepared.editionId, "daily:2026-08-28");
 assert.equal(prepared.previewPath, "/preview/daily/2026-08-28");
 assert.equal(prepared.state, "prepared");
 
+const inboxAsset = resolve(paths.mediaInboxDirectory, "story-1.jpg");
+await mkdir(paths.mediaInboxDirectory, { recursive: true });
+await writeFile(inboxAsset, Buffer.from([0xff, 0xd8, 0xff, 0xd9]));
+const importedMedia = await importEditionMedia({
+  editionId: "daily:2026-08-28",
+  stories: [{ itemId: "story-1", assets: [{ sourcePath: inboxAsset, alt: "Тестовая иллюстрация" }] }],
+}, paths);
+assert.equal(importedMedia.imported, 1);
+assert.equal(importedMedia.previewPath, prepared.previewPath);
+
 const database = openBriefingDatabase(paths);
 try {
   const edition = loadEdition(database, { id: "daily:2026-08-28" });
@@ -107,6 +120,8 @@ try {
     { item_type: "mail", count: 1 },
     { item_type: "story", count: 11 },
   ]);
+  const storedPayload = parseBriefingPayload(JSON.parse(edition.payload_json) as unknown);
+  assert.equal(storedPayload.news.items[0]?.media?.[0]?.src, "/media/daily/2026-08-28/story-1/01.jpg");
 } finally {
   database.close();
 }
@@ -149,7 +164,18 @@ try {
   const preview = await fetch(`${base}${prepared.previewPath}`);
   assert.equal(preview.status, 200);
   assert.match(preview.headers.get("content-security-policy") ?? "", /default-src 'self'/);
-  assert.match(await preview.text(), /\/assets\/briefing\.js/);
+  const previewHtml = await preview.text();
+  assert.match(previewHtml, /\/assets\/briefing\.js/);
+  assert.match(previewHtml, /class="story-cover"/);
+  assert.match(previewHtml, /class="story-media"/);
+
+  const mediaResponse = await fetch(`${base}/media/daily/2026-08-28/story-1/01.jpg`, {
+    headers: { range: "bytes=0-1" },
+  });
+  assert.equal(mediaResponse.status, 206);
+  assert.equal(mediaResponse.headers.get("content-type"), "image/jpeg");
+  assert.equal(mediaResponse.headers.get("content-range"), "bytes 0-1/4");
+  assert.deepEqual(new Uint8Array(await mediaResponse.arrayBuffer()), new Uint8Array([0xff, 0xd8]));
 
   const script = await fetch(`${base}/assets/briefing.js`);
   assert.equal(script.status, 200);

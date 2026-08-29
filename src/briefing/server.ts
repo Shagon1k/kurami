@@ -1,4 +1,7 @@
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from "node:http";
+import { createReadStream } from "node:fs";
+import { stat } from "node:fs/promises";
+import { extname, relative, resolve } from "node:path";
 import type { DatabaseSync } from "node:sqlite";
 import {
   briefingPaths,
@@ -21,6 +24,7 @@ const CSP = [
   "form-action 'none'",
   "frame-ancestors 'none'",
   "img-src 'self' data: https:",
+  "media-src 'self'",
   "object-src 'none'",
   "script-src 'self'",
   "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
@@ -156,8 +160,23 @@ const CLIENT_SCRIPT = `(() => {
   initializePaginatedFeeds();
 
   document.addEventListener('click', async (event) => {
-    const target = event.target instanceof Element ? event.target.closest('[data-theme-toggle], [data-story-toggle], [data-reaction]') : null;
+    const target = event.target instanceof Element ? event.target.closest('[data-theme-toggle], [data-story-toggle], [data-reaction], [data-media-lightbox], [data-media-close]') : null;
     if (!target) return;
+    if (target.hasAttribute('data-media-lightbox')) {
+      event.preventDefault();
+      const dialog = document.querySelector('[data-media-dialog]');
+      const image = dialog?.querySelector('[data-media-dialog-image]');
+      if (!(dialog instanceof HTMLDialogElement) || !(image instanceof HTMLImageElement)) return;
+      image.src = target.getAttribute('data-media-src') || target.getAttribute('href') || '';
+      image.alt = target.getAttribute('data-media-alt') || '';
+      dialog.showModal();
+      return;
+    }
+    if (target.hasAttribute('data-media-close')) {
+      const dialog = target.closest('[data-media-dialog]');
+      if (dialog instanceof HTMLDialogElement) dialog.close();
+      return;
+    }
     if (target.hasAttribute('data-theme-toggle')) {
       const next = document.documentElement.dataset.theme === 'dark' ? 'light' : 'dark';
       localStorage.setItem('kurami-theme', next);
@@ -218,6 +237,16 @@ const CLIENT_SCRIPT = `(() => {
     } finally {
       target.removeAttribute('aria-busy');
     }
+  });
+
+  document.querySelectorAll('[data-media-dialog]').forEach((dialog) => {
+    dialog.addEventListener('click', (event) => {
+      if (event.target === dialog && dialog instanceof HTMLDialogElement) dialog.close();
+    });
+    dialog.addEventListener('close', () => {
+      const image = dialog.querySelector('[data-media-dialog-image]');
+      if (image instanceof HTMLImageElement) image.removeAttribute('src');
+    });
   });
 
   document.addEventListener('toggle', async (event) => {
@@ -321,6 +350,81 @@ function requiredString(value: unknown, label: string): string {
   return value;
 }
 
+const MEDIA_TYPES = new Map<string, string>([
+  [".avif", "image/avif"],
+  [".gif", "image/gif"],
+  [".jpeg", "image/jpeg"],
+  [".jpg", "image/jpeg"],
+  [".png", "image/png"],
+  [".webp", "image/webp"],
+  [".mov", "video/quicktime"],
+  [".mp4", "video/mp4"],
+  [".webm", "video/webm"],
+]);
+
+function resolvedMediaPath(paths: BriefingPaths, pathname: string): string {
+  const raw = decodeURIComponent(pathname.slice("/media/".length));
+  if (!/^[A-Za-z0-9][A-Za-z0-9._/-]*$/.test(raw) || raw.includes("..")) {
+    throw new Error("Unsafe media path");
+  }
+  const candidate = resolve(paths.mediaDirectory, raw);
+  const child = relative(paths.mediaDirectory, candidate);
+  if (child.startsWith("..") || resolve(paths.mediaDirectory, child) !== candidate) {
+    throw new Error("Media path escapes edition cache");
+  }
+  if (!MEDIA_TYPES.has(extname(candidate).toLowerCase())) throw new Error("Unsupported media type");
+  return candidate;
+}
+
+async function serveMedia(
+  request: IncomingMessage,
+  response: ServerResponse,
+  paths: BriefingPaths,
+  pathname: string,
+): Promise<void> {
+  const path = resolvedMediaPath(paths, pathname);
+  const file = await stat(path);
+  if (!file.isFile()) throw new Error("Media path is not a file");
+  const contentType = MEDIA_TYPES.get(extname(path).toLowerCase())!;
+  response.setHeader("content-type", contentType);
+  response.setHeader("accept-ranges", "bytes");
+  response.setHeader("cache-control", "private, max-age=3600");
+  response.setHeader("x-content-type-options", "nosniff");
+  const range = request.headers.range?.match(/^bytes=(\d*)-(\d*)$/);
+  let start = 0;
+  let end = file.size - 1;
+  if (range) {
+    if (!range[1] && range[2]) {
+      const suffix = Number.parseInt(range[2], 10);
+      start = Math.max(0, file.size - suffix);
+    } else {
+      if (range[1]) start = Number.parseInt(range[1], 10);
+      if (range[2]) end = Number.parseInt(range[2], 10);
+    }
+    if (!Number.isInteger(start) || !Number.isInteger(end) || start < 0 || end < start || end >= file.size) {
+      response.statusCode = 416;
+      response.setHeader("content-range", `bytes */${file.size}`);
+      response.end();
+      return;
+    }
+    response.statusCode = 206;
+    response.setHeader("content-range", `bytes ${start}-${end}/${file.size}`);
+  } else {
+    response.statusCode = 200;
+  }
+  response.setHeader("content-length", String(end - start + 1));
+  if (request.method === "HEAD") {
+    response.end();
+    return;
+  }
+  await new Promise<void>((resolvePromise, reject) => {
+    const stream = createReadStream(path, { start, end });
+    stream.once("error", reject);
+    response.once("finish", resolvePromise);
+    stream.pipe(response);
+  });
+}
+
 function routeEdition(database: DatabaseSync, pathname: string): EditionRow | null {
   if (pathname === "/") return loadEdition(database, { type: "daily", current: true });
   if (pathname === "/cinema") return loadEdition(database, { type: "cinema", current: true });
@@ -396,6 +500,10 @@ export async function createBriefingServer(
         sendHeaders(response, "text/javascript; charset=utf-8");
         response.statusCode = 200;
         response.end(CLIENT_SCRIPT);
+        return;
+      }
+      if ((request.method === "GET" || request.method === "HEAD") && url.pathname.startsWith("/media/")) {
+        await serveMedia(request, response, paths, url.pathname);
         return;
       }
       if (request.method === "GET" && url.pathname === "/api/profile/topics") {
