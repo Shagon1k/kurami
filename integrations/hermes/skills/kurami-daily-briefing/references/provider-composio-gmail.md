@@ -43,8 +43,11 @@ credentials, raw MIME payloads, or tracking markup.
 
 ## Acknowledge
 
-Collection is always read-only. The later `read_and_archive` action may prefer
-`GMAIL_BATCH_MODIFY_MESSAGES`, but only after the briefing runtime resolves the
-selected internal IDs to stored Gmail message IDs. It removes `UNREAD` and
-`INBOX`; it does not delete, send, reply, or change any other message. That
-deterministic page action must not execute through `composio-read`.
+Collection is always read-only. The later `read_and_archive` action uses only
+the `GMAIL_BATCH_MODIFY_MESSAGES` leaf tool through `composio-automation`, and
+only after the briefing runtime resolves selected internal IDs to stored Gmail
+message IDs. Pass no `addLabelIds`; `removeLabelIds` must be a non-empty subset
+of `INBOX` and `UNREAD`. Removing `INBOX` archives and removing `UNREAD` marks
+read. The action must not delete, trash, send, reply, forward, or change any
+other label, and must never execute through `composio-read` or broad
+`composio`. See `docs/composio-capability-contours.md` for the security contract.

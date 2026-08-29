@@ -1565,7 +1565,9 @@ with `integrations/hermes/skills/kurami-run-control/`.
 
 # Composio Session reconciliation
 
-Kurami keeps two persistent Composio-hosted HTTP MCP boundaries:
+Kurami keeps three persistent Composio-hosted HTTP MCP boundaries. The full
+capability and rollout contract lives in
+[composio-capability-contours.md](composio-capability-contours.md).
 
 - `composio` is the broad interactive Session. Its policy lives in
   `deploy/config/connectors/composio-session.yaml`; Hermes keeps it untrusted so
@@ -1576,6 +1578,14 @@ Kurami keeps two persistent Composio-hosted HTTP MCP boundaries:
   multi-execute meta tools, and rejects destructive tools during execution.
   Hermes keeps the resulting direct leaf-tool connector untrusted and relies
   on the leaf tools' read-only annotations instead of widening server trust.
+- `composio-automation` is the autonomous side-effect registry. Its policy
+  lives in `deploy/config/connectors/composio-automation-session.yaml`. It
+  exposes only `GMAIL_BATCH_MODIFY_MESSAGES`, with search, multi-execute,
+  workbench, connection management, and destructive-tagged tools disabled.
+  Hermes sets this exact leaf-only server to `trust: full` so reviewed cron
+  operations do not require runtime approval; the positive Composio and Hermes
+  allowlists are therefore the approval decision. The current workflow contract
+  permits only removal of `INBOX` and/or `UNREAD` with no labels added.
 
 Credentials, Session IDs, MCP URLs, and connected-account IDs remain in the
 matching `connectors/external/*/.env` runtime directories.
@@ -1598,15 +1608,30 @@ Create the restricted sibling Session once from the active connected accounts:
 npm run composio:create-read
 ```
 
+Create and install the autonomous-write sibling separately:
+
+```bash
+npm run composio:create-automation
+npm run composio:install-hermes-automation
+```
+
 After creation, reconcile it with the same CLI's explicit path overrides:
 
 ```bash
 node src/connectors/composio/cli.ts check \
   --config deploy/config/connectors/composio-read-session.yaml \
-  --runtime-dir /home/shagon1k/_hermes/_kurami/connectors/external/composio-read-session
+  --runtime-dir /home/shagon1k/_hermes/_kurami/connectors/external/composio-read-session \
+  --contour read
 ```
 
 The command preserves the Session ID and MCP URL, verifies the result, and
 updates `mcp-meta.json` atomically with mode `0600`. If a toolkit has more than
-one active account, keep the current pin or set a runtime-only comma-separated
-`COMPOSIO_ACCOUNT_<TOOLKIT>` value. Account IDs must not be committed.
+one active account, keep the current pin or set the contour's runtime-only
+comma-separated `<NAMESPACE>_ACCOUNT_<TOOLKIT>` value. Account IDs must not be
+committed.
+
+Inspect the automation contour without executing a Gmail write:
+
+```bash
+npm run composio:check-automation
+```

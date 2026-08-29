@@ -65,11 +65,71 @@ const readDesired = parseDesiredState(readDesiredYaml);
 assert.deepEqual(readDesired.enableTags, ["readOnlyHint"]);
 assert.equal(readDesired.directTools, true);
 assert.deepEqual(readDesired.tools.googlecalendar, ["GOOGLECALENDAR_EVENTS_LIST"]);
+
+const automationDesiredYaml = `
+version: 3
+toolkits:
+  - gmail
+tools:
+  gmail:
+    enabled:
+      - GMAIL_BATCH_MODIFY_MESSAGES
+direct_tools: true
+enable_tags:
+  - updateHint
+disable_tags:
+  - destructiveHint
+manage_connections: false
+workbench: false
+multi_account: false
+require_explicit_account_selection: false
+`;
+const automationDesired = parseDesiredState(automationDesiredYaml);
+assert.deepEqual(automationDesired.tools.gmail, ["GMAIL_BATCH_MODIFY_MESSAGES"]);
+assert.deepEqual(automationDesired.enableTags, ["updateHint"]);
+const trackedAutomationDesired = parseDesiredState(await readFile(
+  resolve(
+    import.meta.dirname,
+    "../deploy/config/connectors/composio-automation-session.yaml",
+  ),
+  "utf8",
+));
+assert.deepEqual(trackedAutomationDesired.tools, {
+  gmail: ["GMAIL_BATCH_MODIFY_MESSAGES"],
+});
+assert.equal(trackedAutomationDesired.directTools, true);
+assert.deepEqual(trackedAutomationDesired.enableTags, ["updateHint"]);
+assert.deepEqual(trackedAutomationDesired.disableTags, ["destructiveHint"]);
+assert.equal(trackedAutomationDesired.manageConnections, false);
+assert.equal(trackedAutomationDesired.workbench, false);
+assert.equal(trackedAutomationDesired.multiAccount, false);
+const forbiddenAutomationTools = [
+  "DELETE",
+  "SEND",
+  "REPLY",
+  "FORWARD",
+  "FILTER",
+  "SETTINGS",
+  "CALENDAR",
+  "CONNECTION",
+  "SEARCH",
+  "EXECUTE",
+];
+assert.equal(
+  Object.values(trackedAutomationDesired.tools).flat().some((tool) =>
+    forbiddenAutomationTools.some((fragment) => tool.includes(fragment))
+  ),
+  false,
+);
 assert.deepEqual(
   parseEnvFile("export COMPOSIO_API_KEY='safe-test-key'\nCOMPOSIO_SESSION_ID=trs_test\n"),
   { COMPOSIO_API_KEY: "safe-test-key", COMPOSIO_SESSION_ID: "trs_test" },
 );
 assert.equal(accountPinEnvironmentName("google_analytics"), "COMPOSIO_ACCOUNT_GOOGLE_ANALYTICS");
+assert.equal(
+  accountPinEnvironmentName("gmail", "automation"),
+  "COMPOSIO_AUTOMATION_ACCOUNT_GMAIL",
+);
 assert.equal(
   resolveRuntime({
     COMPOSIO_API_KEY: "safe-test-key",
@@ -91,6 +151,29 @@ assert.deepEqual(
     mcpUrl: "https://app.composio.dev/tool_router/v3/trs_read/mcp",
     accountPins: {},
   },
+);
+assert.deepEqual(
+  resolveRuntime({
+    COMPOSIO_API_KEY: "broad-key",
+    COMPOSIO_SESSION_ID: "trs_broad",
+    COMPOSIO_AUTOMATION_API_KEY: "automation-key",
+    COMPOSIO_AUTOMATION_SESSION_ID: "trs_automation",
+    COMPOSIO_AUTOMATION_MCP_URL:
+      "https://app.composio.dev/tool_router/v3/trs_automation/mcp",
+  }, "automation"),
+  {
+    apiKey: "automation-key",
+    sessionId: "trs_automation",
+    mcpUrl: "https://app.composio.dev/tool_router/v3/trs_automation/mcp",
+    accountPins: {},
+  },
+);
+assert.throws(
+  () => resolveRuntime({
+    COMPOSIO_API_KEY: "broad-key",
+    COMPOSIO_SESSION_ID: "trs_broad",
+  }, "automation"),
+  /COMPOSIO_AUTOMATION_API_KEY/u,
 );
 
 const baseSession: SessionSnapshot = {
@@ -372,6 +455,38 @@ try {
     }),
     /already exists/u,
   );
+
+  const automationConfigPath = resolve(temporary, "composio-automation-session.yaml");
+  const automationRuntimeDirectory = resolve(temporary, "automation-runtime");
+  await writeFile(automationConfigPath, automationDesiredYaml);
+  const automationApi = new FakeApi();
+  const automation = await createSiblingSession({
+    desiredStatePath: automationConfigPath,
+    sourceRuntimeDirectory: runtimeDirectory,
+    targetRuntimeDirectory: automationRuntimeDirectory,
+    sourceRuntimeProfile: "broad",
+    targetRuntimeProfile: "automation",
+    api: automationApi,
+  });
+  assert.deepEqual(automation.session.tool_router_tools, [
+    "GMAIL_BATCH_MODIFY_MESSAGES",
+  ]);
+  assert.equal(automation.plan.patch.search?.enable, false);
+  assert.equal(automation.plan.patch.execute?.enable_multi_execute, false);
+  const automationEnvironment = parseEnvFile(
+    await readFile(resolve(automationRuntimeDirectory, ".env"), "utf8"),
+  );
+  assert.equal(
+    automationEnvironment.COMPOSIO_AUTOMATION_SESSION_ID,
+    "trs_created",
+  );
+  assert.equal(automationEnvironment.COMPOSIO_AUTOMATION_API_KEY, "safe-test-key");
+  assert.equal(automationEnvironment.COMPOSIO_API_KEY, undefined);
+  assert.equal(automationEnvironment.COMPOSIO_READ_API_KEY, undefined);
+  assert.equal(
+    (await stat(resolve(automationRuntimeDirectory, ".env"))).mode & 0o777,
+    0o600,
+  );
 } finally {
   await rm(temporary, { recursive: true, force: true });
 }
@@ -388,6 +503,9 @@ process.stdout.write(`${JSON.stringify({
   dryRunDefault: true,
   explicitApply: true,
   restrictedSiblingCreate: true,
+  isolatedAutomationRuntime: true,
+  automationDirectToolsOnly: true,
+  forbiddenAutomationCapabilitiesAbsent: true,
   accountIdsRedacted: true,
   persistentSessionVerified: true,
   atomicMetaMode: "0600",

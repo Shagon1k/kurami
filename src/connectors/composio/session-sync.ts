@@ -22,6 +22,8 @@ export type ComposioRuntime = {
   accountPins: Record<string, string[]>;
 };
 
+export type ComposioRuntimeProfile = "broad" | "read" | "automation";
+
 export type ConnectedAccount = {
   id: string;
   toolkit: { slug: string };
@@ -219,34 +221,52 @@ export function parseEnvFile(input: string): Record<string, string> {
   return environment;
 }
 
-export function accountPinEnvironmentName(toolkit: string): string {
-  return `COMPOSIO_ACCOUNT_${toolkit.toUpperCase().replace(/[^A-Z0-9]+/gu, "_")}`;
+function runtimePrefix(profile: ComposioRuntimeProfile): string {
+  if (profile === "read") return "COMPOSIO_READ";
+  if (profile === "automation") return "COMPOSIO_AUTOMATION";
+  return "COMPOSIO";
 }
 
-export function resolveRuntime(environment: Record<string, string>): ComposioRuntime {
-  const apiKey = environment.COMPOSIO_READ_API_KEY?.trim() ??
-    environment.COMPOSIO_API_KEY?.trim();
+export function accountPinEnvironmentName(
+  toolkit: string,
+  profile: ComposioRuntimeProfile = "broad",
+): string {
+  const suffix = toolkit.toUpperCase().replace(/[^A-Z0-9]+/gu, "_");
+  return `${runtimePrefix(profile)}_ACCOUNT_${suffix}`;
+}
+
+export function resolveRuntime(
+  environment: Record<string, string>,
+  profile: ComposioRuntimeProfile = "read",
+): ComposioRuntime {
+  const prefix = runtimePrefix(profile);
+  const apiKey = environment[`${prefix}_API_KEY`]?.trim() ??
+    (profile === "read" ? environment.COMPOSIO_API_KEY?.trim() : undefined);
   if (!apiKey) {
-    fail("COMPOSIO_READ_API_KEY or COMPOSIO_API_KEY is missing from the runtime .env");
+    fail(`${prefix}_API_KEY is missing from the runtime .env`);
   }
-  const mcpUrl = environment.COMPOSIO_READ_MCP_URL?.trim() ??
-    environment.COMPOSIO_MCP_URL?.trim();
-  const sessionId = environment.COMPOSIO_READ_SESSION_ID?.trim() ??
-    environment.COMPOSIO_SESSION_ID?.trim() ??
+  const mcpUrl = environment[`${prefix}_MCP_URL`]?.trim() ??
+    (profile === "read" ? environment.COMPOSIO_MCP_URL?.trim() : undefined);
+  const sessionId = environment[`${prefix}_SESSION_ID`]?.trim() ??
+    (profile === "read" ? environment.COMPOSIO_SESSION_ID?.trim() : undefined) ??
     /(?:^|\/)(trs_[A-Za-z0-9_-]+)(?:\/|$)/u.exec(mcpUrl ?? "")?.[1];
   if (!sessionId) {
     fail("Composio Session ID is missing and could not be derived from its MCP URL");
   }
   const accountPins: Record<string, string[]> = {};
+  const accountPrefix = `${prefix}_ACCOUNT_`;
   for (const [name, value] of Object.entries(environment)) {
-    if (!name.startsWith("COMPOSIO_ACCOUNT_")) continue;
+    if (!name.startsWith(accountPrefix)) continue;
     accountPins[name] = uniqueSorted(value.split(","));
   }
   return { apiKey, sessionId, mcpUrl, accountPins };
 }
 
-export async function loadRuntime(path: string): Promise<ComposioRuntime> {
-  return resolveRuntime(parseEnvFile(await readFile(path, "utf8")));
+export async function loadRuntime(
+  path: string,
+  profile: ComposioRuntimeProfile = "read",
+): Promise<ComposioRuntime> {
+  return resolveRuntime(parseEnvFile(await readFile(path, "utf8")), profile);
 }
 
 function selectedAccountsForToolkit(
@@ -255,6 +275,7 @@ function selectedAccountsForToolkit(
   currentPins: Record<string, string[]>,
   runtimePins: Record<string, string[]>,
   desired: ComposioDesiredState,
+  runtimeProfile: ComposioRuntimeProfile,
 ): { ids: string[]; activeCount: number; warning?: string } {
   const active = accounts
     .filter((account) =>
@@ -269,7 +290,7 @@ function selectedAccountsForToolkit(
     fail(`Toolkit ${toolkit} has no active connected account`);
   }
   const activeIds = new Set(active.map((account) => account.id));
-  const environmentName = accountPinEnvironmentName(toolkit);
+  const environmentName = accountPinEnvironmentName(toolkit, runtimeProfile);
   const explicit = runtimePins[environmentName] ?? [];
   if (explicit.length > 0) {
     if (explicit.some((id) => !activeIds.has(id))) {
@@ -314,6 +335,7 @@ export function buildSessionSyncPlan(
   session: SessionSnapshot,
   accounts: ConnectedAccount[],
   runtimePins: Record<string, string[]> = {},
+  runtimeProfile: ComposioRuntimeProfile = "broad",
 ): SessionSyncPlan {
   const currentConfig = record(session.config);
   const currentToolkits = readToolkitList(record(currentConfig.toolkits));
@@ -339,6 +361,7 @@ export function buildSessionSyncPlan(
       currentAccounts,
       runtimePins,
       desired,
+      runtimeProfile,
     );
     selectedAccounts[toolkit] = selection.ids;
     activeAccountCounts[toolkit] = selection.activeCount;
@@ -647,6 +670,7 @@ export type RunSessionSyncOptions = {
   apply: boolean;
   desiredStatePath: string;
   runtimeDirectory: string;
+  runtimeProfile?: ComposioRuntimeProfile;
   api?: ComposioSessionApi;
 };
 
@@ -654,6 +678,8 @@ export type CreateSessionOptions = {
   desiredStatePath: string;
   sourceRuntimeDirectory: string;
   targetRuntimeDirectory: string;
+  sourceRuntimeProfile?: ComposioRuntimeProfile;
+  targetRuntimeProfile?: Exclude<ComposioRuntimeProfile, "broad">;
   api?: ComposioSessionApi;
 };
 
@@ -668,14 +694,23 @@ export async function runSessionSync(
   options: RunSessionSyncOptions,
 ): Promise<RunSessionSyncResult> {
   const desired = await loadDesiredState(options.desiredStatePath);
-  const runtime = await loadRuntime(resolve(options.runtimeDirectory, ".env"));
+  const runtimeProfile = options.runtimeProfile ?? "read";
+  const runtime = await loadRuntime(resolve(options.runtimeDirectory, ".env"), runtimeProfile);
   const api = options.api ?? new HttpComposioSessionApi(runtime.apiKey);
   const before = await api.getSession(runtime.sessionId);
   if (runtime.mcpUrl && before.mcp?.url && runtime.mcpUrl !== before.mcp.url) {
-    fail("Runtime COMPOSIO_MCP_URL does not match the active Session URL");
+    fail(
+      `Runtime ${runtimePrefix(runtimeProfile)}_MCP_URL does not match the active Session URL`,
+    );
   }
   const accounts = await api.listConnectedAccounts(sessionUserId(before));
-  const plan = buildSessionSyncPlan(desired, before, accounts, runtime.accountPins);
+  const plan = buildSessionSyncPlan(
+    desired,
+    before,
+    accounts,
+    runtime.accountPins,
+    runtimeProfile,
+  );
   if (!options.apply) {
     return { applied: false, changed: plan.diff.length > 0, session: before, plan };
   }
@@ -753,11 +788,22 @@ export async function createSiblingSession(
   options: CreateSessionOptions,
 ): Promise<RunSessionSyncResult> {
   const desired = await loadDesiredState(options.desiredStatePath);
-  const sourceRuntime = await loadRuntime(resolve(options.sourceRuntimeDirectory, ".env"));
+  const sourceRuntimeProfile = options.sourceRuntimeProfile ?? "broad";
+  const targetRuntimeProfile = options.targetRuntimeProfile ?? "read";
+  const sourceRuntime = await loadRuntime(
+    resolve(options.sourceRuntimeDirectory, ".env"),
+    sourceRuntimeProfile,
+  );
   const api = options.api ?? new HttpComposioSessionApi(sourceRuntime.apiKey);
   const source = await api.getSession(sourceRuntime.sessionId);
   const accounts = await api.listConnectedAccounts(sessionUserId(source));
-  const plan = buildSessionSyncPlan(desired, source, accounts, sourceRuntime.accountPins);
+  const plan = buildSessionSyncPlan(
+    desired,
+    source,
+    accounts,
+    sourceRuntime.accountPins,
+    sourceRuntimeProfile,
+  );
 
   await ensureRuntimeTargetIsEmpty(options.targetRuntimeDirectory);
   const created = await api.createSession(
@@ -766,7 +812,13 @@ export async function createSiblingSession(
   const mcpUrl = created.mcp?.url;
   if (!mcpUrl) fail("Created Composio session has no MCP URL");
 
-  const verifiedPlan = buildSessionSyncPlan(desired, created, accounts);
+  const verifiedPlan = buildSessionSyncPlan(
+    desired,
+    created,
+    accounts,
+    {},
+    targetRuntimeProfile,
+  );
   if (verifiedPlan.diff.length > 0) {
     fail("Created Composio session does not match the requested policy");
   }
@@ -777,9 +829,9 @@ export async function createSiblingSession(
   await writeFile(
     temporary,
     `${[
-      environmentValue("COMPOSIO_READ_API_KEY", sourceRuntime.apiKey),
-      environmentValue("COMPOSIO_READ_SESSION_ID", created.session_id),
-      environmentValue("COMPOSIO_READ_MCP_URL", mcpUrl),
+      environmentValue(`${runtimePrefix(targetRuntimeProfile)}_API_KEY`, sourceRuntime.apiKey),
+      environmentValue(`${runtimePrefix(targetRuntimeProfile)}_SESSION_ID`, created.session_id),
+      environmentValue(`${runtimePrefix(targetRuntimeProfile)}_MCP_URL`, mcpUrl),
       "",
     ].join("\n")}`,
     { mode: 0o600 },

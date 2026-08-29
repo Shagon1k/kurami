@@ -1,0 +1,24 @@
+version: 3
+
+# Autonomous, explicitly allowlisted Gmail side effects. The current Composio
+# catalog has no separate archive/read actions: this leaf tool archives by
+# removing INBOX and marks read by removing UNREAD. Workflow contracts must
+# keep addLabelIds empty and removeLabelIds within {INBOX, UNREAD}.
+toolkits:
+  - gmail
+
+tools:
+  gmail:
+    enabled:
+      - GMAIL_BATCH_MODIFY_MESSAGES
+direct_tools: true
+
+enable_tags:
+  - updateHint
+disable_tags:
+  - destructiveHint
+
+manage_connections: false
+workbench: false
+multi_account: false
+require_explicit_account_selection: false

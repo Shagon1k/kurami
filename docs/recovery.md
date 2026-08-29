@@ -135,6 +135,9 @@ Restore and verify at least:
 /home/shagon1k/_hermes/_core/.env
 /home/shagon1k/_hermes/_kurami/secrets/github.env
 /home/shagon1k/_hermes/_kurami/secrets/tailortales-preview.env
+/home/shagon1k/_hermes/_kurami/connectors/external/composio-session/.env
+/home/shagon1k/_hermes/_kurami/connectors/external/composio-read-session/.env
+/home/shagon1k/_hermes/_kurami/connectors/external/composio-automation-session/.env
 ```
 
 Never print their values. Codex authentication and durable task metadata live
