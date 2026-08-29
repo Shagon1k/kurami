@@ -1,6 +1,8 @@
 import type { BriefingPayload } from "../model.ts";
 import { displayString, escapeHtml } from "./html.ts";
 import { renderKuramiNote } from "./components/kurami-note.ts";
+import { renderCalendarSection } from "./components/calendar-section.ts";
+import { renderMailSection } from "./components/mail-section.ts";
 import { renderPaginatedFeed } from "./components/paginated-feed.ts";
 import { renderThemeToggle } from "./components/theme-toggle.ts";
 import { BRIEFING_STYLES } from "./styles.ts";
@@ -93,6 +95,10 @@ export function renderBriefingPage(payload: BriefingPayload): string {
       ${renderKuramiNote(heroNote, "hero__note")}
     </section>
     ${renderMetrics(payload)}
+    <div class="briefing-overview">
+      ${renderCalendarSection(payload)}
+      ${renderMailSection(payload)}
+    </div>
     ${renderPaginatedFeed(payload)}
     ${renderQuality(payload)}
   </main>

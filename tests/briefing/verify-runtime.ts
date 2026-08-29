@@ -65,10 +65,27 @@ const payload = {
       mark: "arrow-down",
     },
   ],
-  calendar: { state: "ready", events: [] },
+  calendar: {
+    state: "ready",
+    events: [],
+    demoEvents: [{
+      id: "demo-calendar-1",
+      title: "Проверка расписания",
+      displayTime: "11:00",
+      calendarLabel: "Demo",
+      duration: "45 мин",
+      demo: true,
+    }],
+  },
   mail: {
     state: "ready",
-    items: [{ id: "mail-1", subject: "Проверка" }],
+    items: [{
+      id: "mail-1",
+      subject: "Проверка",
+      sender: "Kurami",
+      class: "ACTION",
+      summary: "Короткая проверка почтового компонента.",
+    }],
   },
   news: {
     state: "ready",
@@ -96,6 +113,11 @@ assert.match(html, /class="topic-chip"/);
 assert.match(html, /class="story-disclosure__body"/);
 assert.match(html, /data-story-toggle/);
 assert.match(html, /class="metric-strip"/);
+assert.match(html, /class="briefing-overview"/);
+assert.match(html, /id="calendar-heading">Сегодня/);
+assert.match(html, /class="agenda-row__demo">DEMO/);
+assert.match(html, /id="mail-heading">Почта/);
+assert.match(html, /data-mail-class="action"/);
 assert.match(html, /data-utility-header/);
 assert.match(html, /utility-header__inner/);
 assert.match(html, /data-media-dialog/);
