@@ -7,8 +7,9 @@ Use this profile only when the configured source has
 
 Require the restricted `composio-read` MCP connection with Google Calendar
 authorization. Do not fall back to the broader write-capable `composio`
-connection during an automatic or dry-run briefing. Use Composio discovery and prefer
-`GOOGLECALENDAR_EVENTS_LIST` when its live schema matches this profile.
+connection during an automatic or dry-run briefing. Call the directly exposed
+`GOOGLECALENDAR_EVENTS_LIST` leaf tool; this restricted Session intentionally
+does not expose Composio search or multi-execute meta tools.
 
 Validate that the leaf operation is read-only, accepts a calendar identifier
 and RFC3339 time bounds, and can return all events in the requested window.

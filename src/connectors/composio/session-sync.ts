@@ -3,8 +3,10 @@ import { dirname, resolve } from "node:path";
 import { parse as parseYaml } from "yaml";
 
 export type ComposioDesiredState = {
-  version: 1 | 2;
+  version: 1 | 2 | 3;
   toolkits: string[];
+  tools: Record<string, string[]>;
+  directTools: boolean;
   enableTags: string[];
   disableTags: string[];
   manageConnections: boolean;
@@ -50,6 +52,10 @@ export type SessionPatch = {
     enable: boolean;
     require_explicit_selection: boolean;
   };
+  tools?: Record<string, { enabled: string[] }>;
+  preload?: { tools: string[] };
+  search?: { enable: boolean };
+  execute?: { enable_multi_execute: boolean };
 };
 
 export type SessionCreatePayload = {
@@ -60,6 +66,10 @@ export type SessionCreatePayload = {
   manage_connections: { enable: boolean };
   workbench: { enable: boolean; enable_proxy_execution: boolean };
   multi_account: { enable: boolean; require_explicit_selection?: boolean };
+  tools?: Record<string, { enable: string[] }>;
+  preload?: { tools: string[] };
+  search?: { enable: boolean };
+  execute?: { enable_multi_execute: boolean };
 };
 
 export type SessionDiffEntry = {
@@ -135,10 +145,20 @@ function readAccountMap(value: unknown): Record<string, string[]> {
   return result;
 }
 
+function readToolMap(value: unknown): Record<string, string[]> {
+  const result: Record<string, string[]> = {};
+  for (const [toolkit, raw] of Object.entries(record(value))) {
+    const config = record(raw);
+    const tools = uniqueSorted(stringArray(config.enabled ?? config.enable));
+    if (tools.length > 0) result[toolkit] = tools;
+  }
+  return result;
+}
+
 export function parseDesiredState(input: string): ComposioDesiredState {
   const raw = record(parseYaml(input));
-  if (raw.version !== 1 && raw.version !== 2) {
-    fail("Composio desired state must use version: 1 or 2");
+  if (raw.version !== 1 && raw.version !== 2 && raw.version !== 3) {
+    fail("Composio desired state must use version: 1, 2, or 3");
   }
   const toolkits = uniqueSorted(stringArray(raw.toolkits));
   if (toolkits.length === 0) fail("Composio desired state has no toolkits");
@@ -147,10 +167,22 @@ export function parseDesiredState(input: string): ComposioDesiredState {
       fail(`Invalid Composio toolkit slug: ${toolkit}`);
     }
   }
+  const tools = raw.version === 3 ? readToolMap(raw.tools) : {};
+  const directTools = raw.version === 3
+    ? booleanField(raw.direct_tools, "direct_tools")
+    : false;
+  if (directTools) {
+    for (const toolkit of Object.keys(tools)) {
+      if (!toolkits.includes(toolkit)) fail(`Tool allowlist uses disabled toolkit: ${toolkit}`);
+    }
+    if (Object.keys(tools).length === 0) fail("Direct-tools Session has no tools");
+  }
   return {
     version: raw.version,
     toolkits,
-    enableTags: raw.version === 2 ? uniqueSorted(stringArray(raw.enable_tags)) : [],
+    tools,
+    directTools,
+    enableTags: raw.version >= 2 ? uniqueSorted(stringArray(raw.enable_tags)) : [],
     disableTags: uniqueSorted(stringArray(raw.disable_tags)),
     manageConnections: booleanField(raw.manage_connections, "manage_connections"),
     workbench: booleanField(raw.workbench, "workbench"),
@@ -282,6 +314,10 @@ export function buildSessionSyncPlan(
   const currentEnabledTags = readEnabledTags(record(currentConfig.tags));
   const currentTags = readDisabledTags(record(currentConfig.tags));
   const currentAccounts = readAccountMap(currentConfig.connected_accounts);
+  const currentTools = readToolMap(currentConfig.tools);
+  const currentPreload = uniqueSorted(stringArray(record(currentConfig.preload).tools));
+  const currentSearch = record(currentConfig.search).enable ?? true;
+  const currentExecute = record(currentConfig.execute).enable_multi_execute ?? true;
   const currentManage = record(currentConfig.manage_connections);
   const currentWorkbench = record(currentConfig.workbench ?? currentConfig.sandbox);
   const currentMulti = record(currentConfig.multi_account);
@@ -326,6 +362,15 @@ export function buildSessionSyncPlan(
     },
   };
 
+  if (desired.directTools) {
+    patch.tools = Object.fromEntries(
+      Object.entries(desired.tools).map(([toolkit, tools]) => [toolkit, { enabled: tools }]),
+    );
+    patch.preload = { tools: uniqueSorted(Object.values(desired.tools).flat()) };
+    patch.search = { enable: false };
+    patch.execute = { enable_multi_execute: false };
+  }
+
   const diff: SessionDiffEntry[] = [];
   for (const toolkit of desired.toolkits.filter((entry) => !currentToolkits.includes(entry))) {
     diff.push({ kind: "add", field: "toolkit", after: toolkit });
@@ -340,6 +385,20 @@ export function buildSessionSyncPlan(
     const afterIds = uniqueSorted(selectedAccounts[toolkit]!);
     if (!same(beforeIds, afterIds)) {
       diff.push({ kind: "change", field: `accounts.${toolkit}`, before, after });
+    }
+  }
+  if (desired.directTools) {
+    for (const toolkit of desired.toolkits) {
+      if (!same(currentTools[toolkit] ?? [], desired.tools[toolkit] ?? [])) {
+        diff.push({ kind: "change", field: `tools.${toolkit}` });
+      }
+    }
+    if (!same(currentPreload, patch.preload!.tools)) {
+      diff.push({ kind: "change", field: "preload.tools" });
+    }
+    if (currentSearch !== false) diff.push({ kind: "change", field: "search", before: true, after: false });
+    if (currentExecute !== false) {
+      diff.push({ kind: "change", field: "multi_execute", before: true, after: false });
     }
   }
   const policyChecks: Array<[string, unknown, unknown]> = [
@@ -500,6 +559,7 @@ function sessionUserId(session: SessionSnapshot): string {
 }
 
 function verifySession(
+  desired: ComposioDesiredState,
   before: SessionSnapshot,
   after: SessionSnapshot,
   plan: SessionSyncPlan,
@@ -508,20 +568,16 @@ function verifySession(
   if (after.mcp?.url !== before.mcp?.url) fail("Composio changed the persistent MCP URL");
   const beforeTools = uniqueSorted(before.tool_router_tools ?? []);
   const afterTools = uniqueSorted(after.tool_router_tools ?? []);
-  if (!same(beforeTools, afterTools)) {
+  if (desired.directTools) {
+    const expectedTools = uniqueSorted(Object.values(desired.tools).flat());
+    if (!same(afterTools, expectedTools)) {
+      fail("Composio direct-tools MCP surface does not match the exact allowlist");
+    }
+  } else if (!same(beforeTools, afterTools)) {
     fail("Composio changed the top-level MCP tool set; review the Hermes allowlist separately");
   }
   const verified = buildSessionSyncPlan(
-    {
-      version: plan.patch.tags.enabled.length > 0 ? 2 : 1,
-      toolkits: plan.patch.toolkits.enabled,
-      enableTags: plan.patch.tags.enabled,
-      disableTags: plan.patch.tags.disabled,
-      manageConnections: plan.patch.manage_connections.enabled,
-      workbench: plan.patch.workbench.enable,
-      multiAccount: plan.patch.multi_account.enable,
-      requireExplicitAccountSelection: plan.patch.multi_account.require_explicit_selection,
-    },
+    desired,
     after,
     Object.entries(plan.patch.connected_accounts).flatMap(([toolkit, ids]) =>
       ids.map((id) => ({
@@ -558,6 +614,14 @@ export async function writeSessionMeta(
       active_account_counts: plan.activeAccountCounts,
       top_level_tools: uniqueSorted(session.tool_router_tools ?? []),
       policy: {
+        direct_tools: plan.patch.search?.enable === false &&
+          plan.patch.execute?.enable_multi_execute === false,
+        tools: Object.fromEntries(
+          Object.entries(plan.patch.tools ?? {}).map(([toolkit, value]) => [
+            toolkit,
+            value.enabled,
+          ]),
+        ),
         enable_tags: plan.patch.tags.enabled,
         disable_tags: plan.patch.tags.disabled,
         manage_connections: plan.patch.manage_connections.enabled,
@@ -615,7 +679,7 @@ export async function runSessionSync(
   const after = plan.diff.length > 0
     ? await api.patchSession(runtime.sessionId, plan.patch, before.config_version)
     : before;
-  verifySession(before, after, plan);
+  verifySession(desired, before, after, plan);
   await writeSessionMeta(
     resolve(options.runtimeDirectory, "mcp-meta.json"),
     after,
@@ -633,7 +697,7 @@ export function buildSessionCreatePayload(
   userId: string,
   patch: SessionPatch,
 ): SessionCreatePayload {
-  return {
+  const payload: SessionCreatePayload = {
     user_id: userId,
     toolkits: { enable: patch.toolkits.enabled },
     connected_accounts: patch.connected_accounts,
@@ -653,6 +717,18 @@ export function buildSessionCreatePayload(
       }
       : { enable: false },
   };
+  if (patch.tools) {
+    payload.tools = Object.fromEntries(
+      Object.entries(patch.tools).map(([toolkit, config]) => [
+        toolkit,
+        { enable: config.enabled },
+      ]),
+    );
+  }
+  if (patch.preload) payload.preload = patch.preload;
+  if (patch.search) payload.search = patch.search;
+  if (patch.execute) payload.execute = patch.execute;
+  return payload;
 }
 
 async function ensureRuntimeTargetIsEmpty(path: string): Promise<void> {
@@ -686,6 +762,7 @@ export async function createSiblingSession(
   if (verifiedPlan.diff.length > 0) {
     fail("Created Composio session does not match the requested policy");
   }
+  verifySession(desired, created, created, verifiedPlan);
 
   const runtimePath = resolve(options.targetRuntimeDirectory, ".env");
   const temporary = `${runtimePath}.${process.pid}.tmp`;

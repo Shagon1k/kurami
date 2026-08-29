@@ -38,10 +38,19 @@ assert.deepEqual(desired.toolkits, ["gmail", "google_analytics", "googlecalendar
 assert.deepEqual(desired.enableTags, []);
 
 const readDesiredYaml = `
-version: 2
+version: 3
 toolkits:
   - gmail
   - googlecalendar
+tools:
+  gmail:
+    enabled:
+      - GMAIL_FETCH_EMAILS
+      - GMAIL_FETCH_MESSAGE_BY_MESSAGE_ID
+  googlecalendar:
+    enabled:
+      - GOOGLECALENDAR_EVENTS_LIST
+direct_tools: true
 enable_tags:
   - readOnlyHint
 disable_tags:
@@ -53,6 +62,8 @@ require_explicit_account_selection: false
 `;
 const readDesired = parseDesiredState(readDesiredYaml);
 assert.deepEqual(readDesired.enableTags, ["readOnlyHint"]);
+assert.equal(readDesired.directTools, true);
+assert.deepEqual(readDesired.tools.googlecalendar, ["GOOGLECALENDAR_EVENTS_LIST"]);
 assert.deepEqual(
   parseEnvFile("export COMPOSIO_API_KEY='safe-test-key'\nCOMPOSIO_SESSION_ID=trs_test\n"),
   { COMPOSIO_API_KEY: "safe-test-key", COMPOSIO_SESSION_ID: "trs_test" },
@@ -127,6 +138,20 @@ assert.equal(Object.hasOwn(createWirePayload.manage_connections, "enabled"), fal
 assert.equal(Object.hasOwn(createWirePayload.workbench, "proxy_execution_enabled"), false);
 assert.equal(Object.hasOwn(createWirePayload.multi_account, "max_accounts_per_toolkit"), false);
 
+const directPlan = buildSessionSyncPlan(readDesired, baseSession, accounts);
+const directWirePayload = buildSessionCreatePayload("kurami", directPlan.patch);
+assert.equal(directWirePayload.search?.enable, false);
+assert.equal(directWirePayload.execute?.enable_multi_execute, false);
+assert.deepEqual(directWirePayload.preload?.tools, [
+  "GMAIL_FETCH_EMAILS",
+  "GMAIL_FETCH_MESSAGE_BY_MESSAGE_ID",
+  "GOOGLECALENDAR_EVENTS_LIST",
+]);
+assert.deepEqual(directWirePayload.tools?.gmail.enable, [
+  "GMAIL_FETCH_EMAILS",
+  "GMAIL_FETCH_MESSAGE_BY_MESSAGE_ID",
+]);
+
 const workbenchAliasPreserved = buildSessionSyncPlan(
   desired,
   {
@@ -197,11 +222,7 @@ class FakeApi implements ComposioSessionApi {
         type: "http",
         url: "https://app.composio.dev/tool_router/v3/trs_created/mcp",
       },
-      tool_router_tools: [
-        "COMPOSIO_GET_TOOL_SCHEMAS",
-        "COMPOSIO_MULTI_EXECUTE_TOOL",
-        "COMPOSIO_SEARCH_TOOLS",
-      ],
+      tool_router_tools: Object.values(config.tools ?? {}).flatMap((value) => value.enable),
       config_version: 1,
       config: {
         user_id: config.user_id,
@@ -221,6 +242,15 @@ class FakeApi implements ComposioSessionApi {
           require_explicit_selection:
             config.multi_account.require_explicit_selection ?? false,
         },
+        tools: Object.fromEntries(
+          Object.entries(config.tools ?? {}).map(([toolkit, value]) => [
+            toolkit,
+            { enabled: value.enable },
+          ]),
+        ),
+        preload: structuredClone(config.preload),
+        search: structuredClone(config.search),
+        execute: structuredClone(config.execute),
       },
     };
   }
@@ -304,6 +334,11 @@ try {
   assert.equal(createApi.createCalls, 1);
   assert.deepEqual(created.plan.patch.tags.enabled, ["readOnlyHint"]);
   assert.deepEqual(created.plan.patch.tags.disabled, ["destructiveHint"]);
+  assert.deepEqual(created.session.tool_router_tools, [
+    "GMAIL_FETCH_EMAILS",
+    "GMAIL_FETCH_MESSAGE_BY_MESSAGE_ID",
+    "GOOGLECALENDAR_EVENTS_LIST",
+  ]);
   const readEnvironment = parseEnvFile(
     await readFile(resolve(readRuntimeDirectory, ".env"), "utf8"),
   );

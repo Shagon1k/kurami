@@ -7,10 +7,11 @@ Use this profile only when the configured source has
 
 Require the restricted `composio-read` MCP connection with Gmail authorization.
 Do not fall back to the broader write-capable `composio` connection during an
-automatic or dry-run briefing. Use Composio tool discovery to resolve a current Gmail message-fetch operation.
-Prefer `GMAIL_FETCH_EMAILS` when its live schema matches this profile. Use
+automatic or dry-run briefing. Call the directly exposed
+`GMAIL_FETCH_EMAILS` leaf tool. Use
 `GMAIL_FETCH_MESSAGE_BY_MESSAGE_ID` only when the list response omits content
-needed for a useful summary.
+needed for a useful summary. This restricted Session intentionally does not
+expose Composio search or multi-execute meta tools.
 
 Before execution, verify that the resolved leaf operation belongs to Gmail,
 is a read operation, accepts a Gmail search query, and supports pagination or a

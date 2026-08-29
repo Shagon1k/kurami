@@ -1,4 +1,4 @@
-version: 2
+version: 3
 
 # Cron-safe Composio boundary for Kurami ingestion. The hosted Session enforces
 # this policy during tool discovery and execution; Hermes may therefore trust
@@ -6,6 +6,16 @@ version: 2
 toolkits:
   - gmail
   - googlecalendar
+
+tools:
+  gmail:
+    enabled:
+      - GMAIL_FETCH_EMAILS
+      - GMAIL_FETCH_MESSAGE_BY_MESSAGE_ID
+  googlecalendar:
+    enabled:
+      - GOOGLECALENDAR_EVENTS_LIST
+direct_tools: true
 
 enable_tags:
   - readOnlyHint

@@ -1572,8 +1572,10 @@ Kurami keeps two persistent Composio-hosted HTTP MCP boundaries:
   write-capable agent calls require approval.
 - `composio-read` is the automatic-ingestion Session. Its policy lives in
   `deploy/config/connectors/composio-read-session.yaml`; Composio enforces
-  `readOnlyHint` and rejects destructive tools during both discovery and
-  execution, so Hermes may trust this narrowly scoped connector.
+  an exact three-tool allowlist plus `readOnlyHint`, disables search and
+  multi-execute meta tools, and rejects destructive tools during execution.
+  Hermes keeps the resulting direct leaf-tool connector untrusted and relies
+  on the leaf tools' read-only annotations instead of widening server trust.
 
 Credentials, Session IDs, MCP URLs, and connected-account IDs remain in the
 matching `connectors/external/*/.env` runtime directories.
