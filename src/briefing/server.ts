@@ -51,6 +51,34 @@ const CLIENT_SCRIPT = `(() => {
   const storedTheme = localStorage.getItem('kurami-theme');
   applyTheme(storedTheme || (matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light'));
 
+  const applyPersistedState = () => {
+    const source = document.getElementById('briefing-state');
+    if (!source) return;
+    let state;
+    try {
+      state = JSON.parse(source.textContent || '{}');
+    } catch {
+      return;
+    }
+    if (!Array.isArray(state.items)) return;
+    state.items.forEach((itemState) => {
+      if (!itemState || typeof itemState.itemId !== 'string') return;
+      document.querySelectorAll('[data-feed-item][data-item-id="' + CSS.escape(itemState.itemId) + '"]').forEach((story) => {
+        story.classList.toggle('is-read', itemState.read === true);
+        const panel = story.querySelector('[data-story-details]');
+        if (panel) {
+          panel.dataset.read = String(itemState.read === true);
+          panel.classList.toggle('is-read', itemState.read === true);
+        }
+      });
+      if (itemState.reaction !== 'like' && itemState.reaction !== 'dislike') return;
+      document.querySelectorAll('[data-reaction][data-item-id="' + CSS.escape(itemState.itemId) + '"]').forEach((button) => {
+        button.setAttribute('aria-pressed', String(button.getAttribute('data-reaction') === itemState.reaction));
+      });
+    });
+  };
+  applyPersistedState();
+
   const stickyHeader = document.querySelector('[data-utility-header]');
   const updateStickyHeader = () => stickyHeader?.classList.toggle('is-scrolled', window.scrollY > 4);
   updateStickyHeader();
@@ -236,9 +264,38 @@ function text(response: ServerResponse, status: number, value: string): void {
   response.end(value);
 }
 
-function injectRuntime(html: string): string {
+type ClientItemState = {
+  itemId: string;
+  read: boolean;
+  reaction: "like" | "dislike" | null;
+};
+
+function editionClientState(database: DatabaseSync, editionId: string): ClientItemState[] {
+  const rows = database
+    .prepare("SELECT item_id, read_at, reaction FROM edition_items WHERE edition_id = ?")
+    .all(editionId) as Array<{
+    item_id: string;
+    read_at: string | null;
+    reaction: "like" | "dislike" | null;
+  }>;
+  return rows.map((row) => ({
+    itemId: row.item_id,
+    read: row.read_at !== null,
+    reaction: row.reaction,
+  }));
+}
+
+function stateTag(items: ClientItemState[]): string {
+  const json = JSON.stringify({ items })
+    .replaceAll("<", "\\u003c")
+    .replaceAll(">", "\\u003e")
+    .replaceAll("&", "\\u0026");
+  return `<script id="briefing-state" type="application/json">${json}</script>`;
+}
+
+function injectRuntime(html: string, items: ClientItemState[] = []): string {
   const tag = '<script src="/assets/briefing.js" defer></script>';
-  return html.replace(/<\/body>/i, `${tag}</body>`);
+  return html.replace(/<\/body>/i, `${stateTag(items)}${tag}</body>`);
 }
 
 async function body(request: IncomingMessage): Promise<Record<string, unknown>> {
@@ -309,7 +366,7 @@ async function serveEdition(
   const html = await readEditionHtml(edition, paths);
   sendHeaders(response, "text/html; charset=utf-8");
   response.statusCode = 200;
-  response.end(injectRuntime(html));
+  response.end(injectRuntime(html, editionClientState(database, edition.id)));
 }
 
 export async function createBriefingServer(

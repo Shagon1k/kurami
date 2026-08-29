@@ -176,6 +176,12 @@ try {
   });
   assert.equal(reaction.status, 200);
 
+  const refreshedPreview = await fetch(`${base}${prepared.previewPath}`);
+  assert.equal(refreshedPreview.status, 200);
+  const refreshedHtml = await refreshedPreview.text();
+  assert.match(refreshedHtml, /id="briefing-state"/);
+  assert.match(refreshedHtml, /"itemId":"story-1","read":true,"reaction":"like"/);
+
   const profileResponse = await fetch(`${base}/api/profile/topics`);
   assert.equal(profileResponse.status, 200);
   assert.deepEqual(await profileResponse.json(), {
