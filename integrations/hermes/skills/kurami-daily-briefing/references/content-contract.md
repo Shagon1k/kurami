@@ -90,6 +90,13 @@ Use a flexible story rather than a mandatory prose template:
     {"id": "cinema", "label": "Cinema"}
   ],
   "entities": ["Original entity spelling"],
+  "media": {
+    "kind": "image",
+    "src": "/media/daily-2026-08-28/story-example.jpg",
+    "alt": "Factual image description",
+    "width": 1280,
+    "height": 720
+  },
   "sources": [
     {
       "provider": "Telegram",
@@ -136,6 +143,12 @@ meaningful fact. A complex event may use several paragraphs. For standard and
 deep stories, follow the linked primary article when it is available and the
 configured capability permits it; preserve that provenance in `sources`. Do
 not add `whyItMatters` merely to fill a card.
+
+`media` is optional. Include only one representative image owned by the
+edition cache; omit the entire field when no safe image is available. `src`
+must be a runtime-local media path, never an authenticated Telegram URL or an
+arbitrary filesystem path. Preserve intrinsic dimensions and write factual alt
+text. The renderer must not invent a placeholder.
 
 ## Feed controls
 

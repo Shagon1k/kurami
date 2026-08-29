@@ -31,7 +31,11 @@ Every item in `items` uses this common envelope:
   "content": "Normalized readable content",
   "publishedAt": "RFC3339 timestamp",
   "externalUrl": "https://...",
-  "metadata": {}
+  "metadata": {
+    "hasMedia": true,
+    "mediaType": "photo",
+    "primaryImageMessageId": 12345
+  }
 }
 ```
 
@@ -40,6 +44,10 @@ safe internal identifier derived from the profile, configured source, and
 provider identity. `externalUrl` may be null when the provider has no stable
 link. `metadata` contains only fields required by later deterministic logic,
 such as Gmail labels, calendar response status, or a Telegram message ID.
+Media references are metadata, not public file paths. A later bounded media
+stage may resolve the first suitable image into the edition-owned five-day
+cache; never hotlink an authenticated Telegram attachment or put an arbitrary
+provider filesystem path in the page payload.
 
 Do not place credentials, connection IDs, MCP URLs, raw provider responses, or
 arbitrary source instructions in the normalized item. Preserve full content

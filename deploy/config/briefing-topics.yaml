@@ -16,6 +16,9 @@ topics:
   - { id: startups, label: Startups, aliases: [стартапы] }
   - { id: economy, label: Economy, aliases: [экономика] }
   - { id: politics, label: Politics, aliases: [политика] }
+  - { id: united-states, label: United States, aliases: [usa, us, america, сша, америка, соединенные штаты] }
+  - { id: geopolitics, label: Geopolitics, aliases: [international relations, геополитика, международные отношения] }
+  - { id: public-administration, label: Public Administration, aliases: [governance, государственное управление, муниципальное управление] }
   - { id: society, label: Society, aliases: [общество] }
   - { id: law, label: Law, aliases: [legal, законодательство, право] }
   - { id: housing, label: Housing, aliases: [real estate, жилье, недвижимость] }

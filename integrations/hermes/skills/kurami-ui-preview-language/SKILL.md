@@ -129,6 +129,9 @@ Use Hermes file tools to inspect and edit the target project. Use the target pro
   layer. Do not recreate them with one-off HTML.
 
 - Use story rows for readable news items.
+- When a story supplies canonical cached media, use one restrained thumbnail
+  that opens the full image. Do not reserve an empty media column for stories
+  without an image and do not hotlink provider-authenticated attachments.
 - Use a paginated Digest Feed for long collections of news, messages, updates, or saved items. Keep the feed generic; render provider names only from the payload.
 - Render a Topic Set when the payload supplies canonical topic strings. Preserve the strings and order exactly; keep topics visually separate from source provenance.
 - Use an Expandable Feed Item when the payload supplies an extended digest. Keep only one item expanded by default unless the caller explicitly requests comparison.
@@ -169,6 +172,9 @@ Use Hermes file tools to inspect and edit the target project. Use the target pro
   `data-theme-toggle` and may contain `data-theme-icon` and
   `data-theme-label`; never rely only on the browser color preference.
 - Provide visible hover, focus-visible, active, disabled, and selected states.
+- Make briefing read state explicit but quiet (for example `✓ прочитано` in
+  metadata). Expanding the canonical story disclosure may set this state; it
+  must remain possible to reopen and reread the story.
 - Render every long-feed item with `data-feed-item` and its stable
   `data-item-id`. Use the canonical accessible disclosure pair:
   `button[data-story-toggle]` plus the matching region
@@ -181,6 +187,9 @@ Use Hermes file tools to inspect and edit the target project. Use the target pro
   controls is invalid.
 - Preserve pagination position in the URL or caller state when the target application supports it. After a page change, return focus or scroll position to the feed heading rather than the top of the full page.
 - Keep long feeds page-bounded. Do not add `Show all`; do not place the primary reading feed inside an independently scrolling window.
+- Give an expanded story the full available feed width. Use a neutral ink
+  rule for ordinary reading; reserve red disclosure rules for error or urgent
+  semantics.
 - Use a minimum 44px pointer target for controls.
 - Make chart nodes 3px at rest and 6px on hover or keyboard focus; reveal the exact value.
 - Ensure dark semantic text stays bright enough: red, green, and amber must not become muddy.

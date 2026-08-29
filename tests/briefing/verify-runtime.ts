@@ -74,6 +74,8 @@ assert.match(html, /class="topic-chip"/);
 assert.match(html, /class="story-disclosure__body"/);
 assert.match(html, /data-story-toggle/);
 assert.match(html, /class="metric-strip"/);
+assert.match(html, /data-utility-header/);
+assert.match(html, /data-read-state/);
 assert.match(html, /family=Caveat/);
 assert.match(html, /data-feed-pagination/);
 assert.match(html, /data-page-range/);
@@ -153,7 +155,7 @@ try {
   assert.equal(script.status, 200);
   const clientScript = await script.text();
   assert.match(clientScript, /\/api\/items\/read|data-reaction/);
-  assert.match(clientScript, /data-page-next|URLSearchParams|data-story-details/);
+  assert.match(clientScript, /data-page-next|URLSearchParams|data-story-details|is-scrolled/);
 
   const read = await fetch(`${base}/api/items/read`, {
     method: "POST",

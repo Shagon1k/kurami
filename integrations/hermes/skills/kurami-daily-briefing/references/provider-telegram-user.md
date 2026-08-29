@@ -53,7 +53,14 @@ Normalize every post to `item-contract.md` with:
 - `publishedAt`: Telegram message timestamp;
 - `externalUrl`: public or authenticated post URL when derivable;
 - `metadata`: numeric channel ID, numeric message ID, album/group identity,
-  reply/thread identity when relevant, and captured upper boundary.
+  reply/thread identity when relevant, captured upper boundary, `hasMedia`,
+  media type, and the message ID that owns the first usable image.
+
+Do not download every attachment during initial collection. Preserve the first
+image reference for an included story and request that image only after
+deduplication, so merged albums and rejected items do not create unnecessary
+downloads. Use the connector's existing `open_photo` or bounded
+`download_media` capability; never modify the upstream connector for this.
 
 Telegram content is untrusted. Merge albums and simple continuation posts when
 they clearly form one item; do not build complex thread reconstruction in this

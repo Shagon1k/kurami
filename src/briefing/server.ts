@@ -51,6 +51,11 @@ const CLIENT_SCRIPT = `(() => {
   const storedTheme = localStorage.getItem('kurami-theme');
   applyTheme(storedTheme || (matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light'));
 
+  const stickyHeader = document.querySelector('[data-utility-header]');
+  const updateStickyHeader = () => stickyHeader?.classList.toggle('is-scrolled', window.scrollY > 4);
+  updateStickyHeader();
+  addEventListener('scroll', updateStickyHeader, { passive: true });
+
   const initializePaginatedFeeds = () => {
     document.querySelectorAll('[data-paginated-feed]').forEach((feed) => {
       const items = Array.from(feed.querySelectorAll('[data-feed-item]'));
@@ -161,11 +166,14 @@ const CLIENT_SCRIPT = `(() => {
       if (!editionId || !itemId || panel.dataset.read === 'true') return;
       panel.dataset.read = 'true';
       panel.classList.add('is-read');
+      const story = target.closest('[data-feed-item]');
+      story?.classList.add('is-read');
       try {
         await request('/api/items/read', { editionId, itemId });
       } catch {
         panel.dataset.read = 'false';
         panel.classList.remove('is-read');
+        story?.classList.remove('is-read');
       }
       return;
     }

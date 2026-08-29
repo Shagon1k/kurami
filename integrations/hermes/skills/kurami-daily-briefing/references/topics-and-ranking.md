@@ -34,8 +34,12 @@ edition.
 ## Assign topics
 
 - Target three or four useful topics per story.
-- Prefer a mix of domain, event type, geography, and durable subdomain when each
-  is genuinely relevant.
+- Prefer a compositional mix of domain, geography, and durable subtype when
+  each is genuinely relevant. For example, American AI regulation may carry
+  `AI`, `Law`, `Politics`, and `United States`; Lithuanian municipal politics
+  may carry `Politics`, `Lithuania`, and `Public Administration`. Do not create
+  one combined topic such as `American Politics` when the intersection can be
+  represented by stable independent topics.
 - Use two for an unusually narrow story rather than padding.
 - Do not use a person's name, company, product, city, channel, or provider as a
   topic by default; store it as an entity.
@@ -72,9 +76,14 @@ Store an event for every explicit `like`, `dislike`, or clear action:
 Do not store the full story indefinitely with the event. Reading, expanding,
 opening a source, dwell time, and Gmail actions are not preference signals.
 
-Initially calculate simple per-topic positive and negative counts. Do not add a
-machine-learning model, source preference, time decay, or inferred negative
-feedback in the first version.
+Initially calculate per-topic positive and negative counts. Also retain the
+canonical topic set on each explicit event so later profiling can distinguish
+intersections such as `Politics + United States` from `Politics + Lithuania`.
+After an exact topic pair has at least three explicit reactions, a bounded pair
+score may refine `For You`; shrink sparse pairs toward their individual topic
+scores. Do not create visible combined categories merely to support this score.
+Do not add a machine-learning model, source preference, time decay, or inferred
+negative feedback in the first version.
 
 ## Ranking modes
 
@@ -85,6 +94,11 @@ freshness, novelty, confidence, and diversity.
 bounded preference adjustment to the same editorial base. The adjustment must
 not override critical or strongly time-sensitive news and must not hide any
 story.
+
+Preserve variety inside each page: do not allow one domain, geography, source,
+or learned preference cluster to dominate consecutive top positions when
+comparably important alternatives exist. Diversity is a bounded reranking
+constraint, not a reason to promote weak material or hide disliked topics.
 
 `Newest` sorts by the newest reliable publication time. Merged stories use the
 time of the newest contributing report while retaining all source times.

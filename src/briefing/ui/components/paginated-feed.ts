@@ -15,7 +15,7 @@ export function renderPaginatedFeed(payload: BriefingPayload): string {
     <div class="digest-feed__items">${payload.news.items.map((story, index) => renderNewsStory({ edition: payload.edition, story, index })).join("")}</div>
     ${pages > 1 ? `<nav class="pagination" aria-label="Страницы новостей" data-feed-pagination>
       <span class="pagination__range" data-page-range>1–${Math.min(pageSize, total)} из ${total}</span>
-      <div class="pagination__controls"><button class="pagination__button" type="button" data-page-prev>← Новее</button>${Array.from({ length: pages }, (_, index) => `<button class="pagination__button" type="button" data-page="${index + 1}" aria-label="Страница ${index + 1}"${index === 0 ? ' aria-current="page"' : ""}>${index + 1}</button>`).join("")}<button class="pagination__button" type="button" data-page-next>Старее →</button></div>
+      <div class="pagination__controls"><button class="pagination__button" type="button" data-page-prev aria-label="Предыдущая страница">←</button>${Array.from({ length: pages }, (_, index) => `<button class="pagination__button" type="button" data-page="${index + 1}" aria-label="Страница ${index + 1}"${index === 0 ? ' aria-current="page"' : ""}>${index + 1}</button>`).join("")}<button class="pagination__button" type="button" data-page-next aria-label="Следующая страница">→</button></div>
       <span class="sr-only" aria-live="polite" data-page-status>Страница 1 из ${pages}</span>
     </nav>` : ""}
   </section>`;

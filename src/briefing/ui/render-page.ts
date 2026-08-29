@@ -76,7 +76,7 @@ export function renderBriefingPage(payload: BriefingPayload): string {
 </head>
 <body>
   <a class="skip-link" href="#main">К содержанию</a>
-  <header class="utility-header page-shell">
+  <header class="utility-header page-shell" data-utility-header>
     <div class="utility-brand">Kurami Daily Briefing</div>
     <time class="utility-meta" datetime="${escapeHtml(payload.edition.localDate)}">${escapeHtml(formatDate(payload))}</time>
     <div class="utility-actions">${renderThemeToggle()}</div>

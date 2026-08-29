@@ -47,10 +47,10 @@ export function renderNewsStory(input: {
     : "";
   const depth = displayString(story.depth, "standard");
   const safeDepth = ["featured", "standard", "compact"].includes(depth) ? depth : "standard";
-  return `<article class="news-story news-story--${safeDepth}" data-feed-item data-item-id="${escapeHtml(story.id)}">
+  return `<article class="news-story news-story--${safeDepth}${read ? " is-read" : ""}" data-feed-item data-item-id="${escapeHtml(story.id)}">
     <span class="news-story__index" aria-hidden="true">${String(input.index + 1).padStart(2, "0")}</span>
     <div class="news-story__copy">
-      <div class="news-story__meta"><span class="news-story__provider">${escapeHtml(source.provider)}</span><span class="news-story__channel">${escapeHtml(source.label)}</span>${source.time ? `<time class="news-story__time">${escapeHtml(source.time)}</time>` : ""}</div>
+      <div class="news-story__meta"><span class="news-story__provider">${escapeHtml(source.provider)}</span><span class="news-story__channel">${escapeHtml(source.label)}</span>${source.time ? `<time class="news-story__time">${escapeHtml(source.time)}</time>` : ""}<span class="news-story__read-state" data-read-state>✓ прочитано</span></div>
       <h3>${escapeHtml(story.headline)}</h3>
       <p class="news-story__summary">${escapeHtml(story.summary)}</p>
       ${renderTopicSet(story.topics)}
