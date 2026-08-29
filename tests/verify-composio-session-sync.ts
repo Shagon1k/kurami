@@ -75,8 +75,7 @@ tools:
     enabled:
       - GMAIL_BATCH_MODIFY_MESSAGES
 direct_tools: true
-enable_tags:
-  - updateHint
+enable_tags: []
 disable_tags:
   - destructiveHint
 manage_connections: false
@@ -86,7 +85,7 @@ require_explicit_account_selection: false
 `;
 const automationDesired = parseDesiredState(automationDesiredYaml);
 assert.deepEqual(automationDesired.tools.gmail, ["GMAIL_BATCH_MODIFY_MESSAGES"]);
-assert.deepEqual(automationDesired.enableTags, ["updateHint"]);
+assert.deepEqual(automationDesired.enableTags, []);
 const trackedAutomationDesired = parseDesiredState(await readFile(
   resolve(
     import.meta.dirname,
@@ -98,7 +97,7 @@ assert.deepEqual(trackedAutomationDesired.tools, {
   gmail: ["GMAIL_BATCH_MODIFY_MESSAGES"],
 });
 assert.equal(trackedAutomationDesired.directTools, true);
-assert.deepEqual(trackedAutomationDesired.enableTags, ["updateHint"]);
+assert.deepEqual(trackedAutomationDesired.enableTags, []);
 assert.deepEqual(trackedAutomationDesired.disableTags, ["destructiveHint"]);
 assert.equal(trackedAutomationDesired.manageConnections, false);
 assert.equal(trackedAutomationDesired.workbench, false);

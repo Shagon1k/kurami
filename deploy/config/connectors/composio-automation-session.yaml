@@ -13,8 +13,7 @@ tools:
       - GMAIL_BATCH_MODIFY_MESSAGES
 direct_tools: true
 
-enable_tags:
-  - updateHint
+enable_tags: []
 disable_tags:
   - destructiveHint
 
