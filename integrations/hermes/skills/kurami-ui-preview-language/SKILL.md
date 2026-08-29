@@ -3,7 +3,7 @@ name: kurami-ui-preview-language
 description: Render pages in Kurami's fixed visual language.
 license: private
 metadata:
-  version: 0.8.0
+  version: 0.8.1
   author: Aliaksei Hurynovich with Hermes Agent
   hermes:
     tags:
@@ -133,9 +133,14 @@ Use Hermes file tools to inspect and edit the target project. Use the target pro
 - When a story supplies canonical cached media, use the first image as a
   restrained cover that opens the lightbox. Render the complete supplied media
   set inside its disclosure: images open in the same lightbox and videos play
-  inline with browser controls. Do not reserve an empty media column for
-  stories without an image and do not hotlink provider-authenticated
-  attachments.
+  inline with browser controls. On wide feed layouts, keep one stable cover
+  track for every row so headlines align whether media exists or not; leave the
+  track empty rather than fabricating a placeholder. Collapse that track at the
+  mobile breakpoint. Do not hotlink provider-authenticated attachments.
+- Keep disclosure media tiles a stable compact size. On wide layouts use four
+  equal tracks: one or two assets occupy only their own tracks, while five or
+  more wrap into additional rows. Reduce the track count responsively instead
+  of stretching a small collection across the full detail width.
 - Use a paginated Digest Feed for long collections of news, messages, updates, or saved items. Keep the feed generic; render provider names only from the payload.
 - Render a Topic Set when the payload supplies canonical topic strings. Preserve the strings and order exactly; keep topics visually separate from source provenance.
 - Use an Expandable Feed Item when the payload supplies an extended digest. Keep only one item expanded by default unless the caller explicitly requests comparison.

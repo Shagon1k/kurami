@@ -168,6 +168,8 @@ try {
   assert.match(previewHtml, /\/assets\/briefing\.js/);
   assert.match(previewHtml, /class="story-cover"/);
   assert.match(previewHtml, /class="story-media"/);
+  assert.match(previewHtml, /\.news-story \{[^}]*grid-template-columns: 36px 176px minmax\(0, 1fr\) auto/);
+  assert.match(previewHtml, /\.story-media__grid \{[^}]*grid-template-columns: repeat\(4, minmax\(0, 1fr\)\)/);
 
   const mediaResponse = await fetch(`${base}/media/daily/2026-08-28/story-1/01.jpg`, {
     headers: { range: "bytes=0-1" },

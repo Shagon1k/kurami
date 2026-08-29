@@ -85,15 +85,20 @@ When a feed item supplies cached media, use the shared media primitives:
 - `StoryCover` uses the first image as a compact visual anchor and shows a
   quiet `+N` count when more assets exist;
 - `StoryMediaGallery` lives inside the expanded detail panel and renders all
-  supplied images and videos;
+  supplied images and videos in stable compact tiles. A wide gallery uses four
+  equal tracks: one or two assets do not stretch, and five or more wrap into a
+  second row. Reduce the track count at narrower breakpoints;
 - `MediaLightbox` enlarges images without navigating away; the original media
   URL remains a new-tab fallback;
 - videos use native controls and `preload="metadata"`, so the page does not
   eagerly download every video.
 
-Never display an empty cover slot, fabricate a placeholder for an ordinary
-news row, or infer media from an authenticated provider URL. Media must already
-be in the edition-owned cache and represented in the payload.
+On wide feed layouts, reserve the same cover track for every news row so the
+metadata and headline columns stay vertically aligned. When media is absent,
+leave that track visually empty rather than fabricating a placeholder; remove
+the unused track when the layout collapses for mobile. Never infer media from
+an authenticated provider URL. Media must already be in the edition-owned
+cache and represented in the payload.
 
 Paginate long feeds with 10–12 items per page. Do not use `Show all`, infinite document growth, or a nested scroll container for the primary reading feed. For a live dataset, the caller may use cursor pagination internally while the UI exposes `Newer` and `Older`. For a frozen report, numbered pages are acceptable.
 
