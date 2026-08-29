@@ -6,6 +6,7 @@ import {
   accountPinEnvironmentName,
   buildSessionCreatePayload,
   buildSessionSyncPlan,
+  buildSessionUpdatePayload,
   createSiblingSession,
   parseDesiredState,
   parseEnvFile,
@@ -131,12 +132,16 @@ assert.deepEqual(plan.patch.connected_accounts.google_analytics, ["ca_analytics"
 assert(!JSON.stringify(plan.diff).includes("ca_analytics"));
 
 const createWirePayload = buildSessionCreatePayload("kurami", plan.patch);
+const updateWirePayload = buildSessionUpdatePayload(plan.patch);
 assert.deepEqual(createWirePayload.toolkits.enable, plan.patch.toolkits.enabled);
+assert.deepEqual(updateWirePayload.toolkits.enable, plan.patch.toolkits.enabled);
 assert.equal(createWirePayload.manage_connections.enable, false);
 assert.equal(createWirePayload.workbench.enable_proxy_execution, false);
 assert.equal(Object.hasOwn(createWirePayload.manage_connections, "enabled"), false);
 assert.equal(Object.hasOwn(createWirePayload.workbench, "proxy_execution_enabled"), false);
 assert.equal(Object.hasOwn(createWirePayload.multi_account, "max_accounts_per_toolkit"), false);
+assert.equal(Object.hasOwn(updateWirePayload.manage_connections, "enabled"), false);
+assert.equal(Object.hasOwn(updateWirePayload.workbench, "proxy_execution_enabled"), false);
 
 const directPlan = buildSessionSyncPlan(readDesired, baseSession, accounts);
 const directWirePayload = buildSessionCreatePayload("kurami", directPlan.patch);

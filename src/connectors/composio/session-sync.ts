@@ -72,6 +72,8 @@ export type SessionCreatePayload = {
   execute?: { enable_multi_execute: boolean };
 };
 
+export type SessionUpdatePayload = Omit<SessionCreatePayload, "user_id">;
+
 export type SessionDiffEntry = {
   kind: "add" | "remove" | "change";
   field: string;
@@ -542,7 +544,7 @@ export class HttpComposioSessionApi implements ComposioSessionApi {
     if (configVersion !== undefined) headers["if-match"] = String(configVersion);
     const value = record(await this.#request(
       `/tool_router/session/${encodeURIComponent(sessionId)}`,
-      { method: "PATCH", headers, body: JSON.stringify(patch) },
+      { method: "PATCH", headers, body: JSON.stringify(buildSessionUpdatePayload(patch)) },
       "Composio session update",
     ));
     if (typeof value.session_id !== "string" || !value.config) {
@@ -697,8 +699,13 @@ export function buildSessionCreatePayload(
   userId: string,
   patch: SessionPatch,
 ): SessionCreatePayload {
-  const payload: SessionCreatePayload = {
-    user_id: userId,
+  return { user_id: userId, ...buildSessionUpdatePayload(patch) };
+}
+
+export function buildSessionUpdatePayload(
+  patch: SessionPatch,
+): SessionUpdatePayload {
+  const payload: SessionUpdatePayload = {
     toolkits: { enable: patch.toolkits.enabled },
     connected_accounts: patch.connected_accounts,
     tags: {
@@ -708,7 +715,7 @@ export function buildSessionCreatePayload(
     manage_connections: { enable: patch.manage_connections.enabled },
     workbench: {
       enable: patch.workbench.enable,
-      enable_proxy_execution: patch.workbench.enable,
+      enable_proxy_execution: patch.workbench.proxy_execution_enabled,
     },
     multi_account: patch.multi_account.enable
       ? {
