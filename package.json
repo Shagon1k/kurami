@@ -36,6 +36,7 @@
     "test:health-settings": "node tests/verify-health-settings.ts",
     "test:kurami-home": "node tests/verify-kurami-home.ts",
     "test:composio-session": "node tests/verify-composio-session-sync.ts",
+    "test:composio-hermes": "node tests/verify-composio-hermes-install.ts",
     "test:resource-guard": "node tests/verify-resource-guard.ts",
     "test:resource-guard-discord": "node tests/verify-resource-guard-discord.ts",
     "test:maintenance": "node tests/verify-monthly-maintenance.ts",
@@ -66,6 +67,7 @@
     "composio:check": "node src/connectors/composio/cli.ts check",
     "composio:apply": "node src/connectors/composio/cli.ts apply",
     "composio:create-read": "node src/connectors/composio/cli.ts create",
+    "composio:install-hermes-read": "node src/connectors/composio/cli.ts install-hermes-read",
     "skills:check": "bash bin/sync-hermes-skills.sh --check",
     "skills:sync": "bash bin/sync-hermes-skills.sh --apply"
   },
