@@ -1,4 +1,4 @@
-version: 2
+version: 3
 
 edition:
   timezone: Europe/Vilnius
@@ -36,8 +36,23 @@ sources:
     profile: composio-google-calendar
     enabled: true
     settings:
-      calendar: primary
       window: local_day
+      calendars:
+      - key: personal
+        id: c2hhZ29uMWtAZ21haWwuY29t
+        label: Aliaksei Hurynovich
+        role: personal
+        enabled: true
+      - key: family
+        id: OTU0MDA3ZmE2NGZiOWEwMjYyN2ExOWQ3ODc0OTdmNTcyZjFlYzA5ZWYxNTdlN2I4ZDFkMjczODQyOWJiZDU1MUBncm91cC5jYWxlbmRhci5nb29nbGUuY29t
+        label: G-Fam
+        role: family
+        enabled: true
+      - key: work
+        id: ZGVlMTM1ZTg3NTkwYzE4NjAxOGI0OGNjOTE1MjYwMjc1OWJlOTY5NjEyNmZjZjI0YjI3Yzk3N2U4MGE3Y2Q4N0Bncm91cC5jYWxlbmRhci5nb29nbGUuY29t
+        label: EPAM
+        role: work
+        enabled: true
   mail:
     profile: composio-gmail
     enabled: true

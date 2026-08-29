@@ -22,7 +22,7 @@ Kurami-owned adapter exposing a stable MCP schema.
 | `news.mark_read_through` | Mark one source read through an exact upper item ID | yes |
 | `mail.list_unread` | Fetch all unread Gmail messages with pagination | no |
 | `mail.read_and_archive` | Remove `UNREAD` and `INBOX` from selected messages | yes |
-| `calendar.list_primary` | Fetch primary-calendar events for the briefing window | no |
+| `calendar.list_events` | Fetch one configured calendar for the briefing window | no |
 | `weather.forecast` | Fetch local weather | no |
 | `publisher.prepare` | Validate and durably stage an edition | local |
 | `publisher.finalize` | Record commit results and make the edition current | local |

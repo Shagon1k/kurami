@@ -133,7 +133,14 @@ const config = readYaml(path.join(root, "deploy", "config", "briefing.yaml")) as
   };
   capabilities: Record<string, unknown>;
   sources: {
-    calendar: { profile: string; enabled: boolean; settings: { calendar: string } };
+    calendar: {
+      profile: string;
+      enabled: boolean;
+      settings: {
+        window: string;
+        calendars: Array<{ key: string; id: string; label: string; role: string; enabled: boolean }>;
+      };
+    };
     mail: { profile: string; enabled: boolean; settings: { query: string; page_size: number } };
     weather: { profile: string; enabled: boolean; settings: { location: string } };
     news: {
@@ -144,7 +151,7 @@ const config = readYaml(path.join(root, "deploy", "config", "briefing.yaml")) as
     };
   };
 };
-assert.equal(config.version, 2);
+assert.equal(config.version, 3);
 assert.equal(config.edition.timezone, "Europe/Vilnius");
 assert.equal(config.edition.daily_retention_days, 5);
 assert.equal(config.safety.production_mutations_enabled, false);
@@ -152,7 +159,21 @@ assert.equal(config.safety.initial_channel_cleanup_confirmed, false);
 assert.equal(config.safety.require_bounded_telegram_commit, true);
 assert.deepEqual(Object.keys(config.capabilities).sort(), ["publisher", "renderer"]);
 assert.equal(config.sources.calendar.profile, "composio-google-calendar");
-assert.equal(config.sources.calendar.settings.calendar, "primary");
+assert.equal(config.sources.calendar.settings.window, "local_day");
+assert.equal(config.sources.calendar.settings.calendars.length, 3);
+assert.deepEqual(
+  config.sources.calendar.settings.calendars.map((calendar) => calendar.label),
+  ["Aliaksei Hurynovich", "G-Fam", "EPAM"],
+);
+assert.equal(
+  new Set(config.sources.calendar.settings.calendars.map((calendar) => calendar.key)).size,
+  3,
+);
+assert.equal(
+  new Set(config.sources.calendar.settings.calendars.map((calendar) => calendar.id)).size,
+  3,
+);
+assert(config.sources.calendar.settings.calendars.every((calendar) => calendar.enabled));
 assert.equal(config.sources.mail.profile, "composio-gmail");
 assert.equal(config.sources.mail.settings.query, "in:inbox is:unread category:primary");
 assert.equal(config.sources.mail.settings.page_size, 100);

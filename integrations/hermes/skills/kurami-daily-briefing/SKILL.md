@@ -1,6 +1,6 @@
 ---
 name: kurami-daily-briefing
-description: Build, inspect, dry-run, or publish Alex's configured Kurami Daily Briefing from unread news, Gmail, the primary Google Calendar, weather, and the optional Saturday cinema edition. Use for the scheduled morning briefing or an explicit briefing run; deduplicate stories, write concise Russian summaries, assign canonical English topics, rank the feed, and hand a complete presentation payload to kurami-ui-preview-language. Do not use for ad-hoc news questions or generic email and calendar summaries.
+description: Build, inspect, dry-run, or publish Alex's configured Kurami Daily Briefing from unread news, Gmail, configured Google Calendars, weather, and the optional Saturday cinema edition. Use for the scheduled morning briefing or an explicit briefing run; deduplicate stories, write concise Russian summaries, assign canonical English topics, rank the feed, and hand a complete presentation payload to kurami-ui-preview-language. Do not use for ad-hoc news questions or generic email and calendar summaries.
 ---
 
 # Kurami Daily Briefing
@@ -67,10 +67,12 @@ Default manual experiments to `dry-run`. Generation never archives Gmail;
 3. Capture the current time in `Europe/Vilnius` and create a stable edition ID
    for the local date. A successful existing edition makes an automatic rerun
    a no-op; a partial edition may retry only failed sources.
-4. From the normalized calendar collection, read accepted or tentative events
-   from the primary calendar. Separate
-   all-day events, exclude declined or cancelled events, detect conflicts, and
-   derive useful free windows without inventing priorities.
+4. From every enabled configured calendar, read accepted or tentative events
+   independently. Preserve the configured calendar key and label, then merge
+   the successful batches for display. Separate all-day events, exclude
+   declined or cancelled events, detect conflicts across calendars, and derive
+   useful free windows without inventing priorities. One failed calendar makes
+   the aggregate section partial; it does not erase successful calendars.
 5. From the normalized mail collection, process all unread Primary Gmail
    messages. Classify every
    message as `ACTION`, `IMPORTANT`, or `GENERAL`; do not change Gmail state.

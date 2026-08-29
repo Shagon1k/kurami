@@ -82,14 +82,17 @@ it is not a rendering error.
 
 Provide:
 
-- accepted and tentative timed events from the primary calendar;
+- accepted and tentative timed events from every enabled configured calendar;
 - all-day events in a separate collection;
 - conflicts with the exact overlapping events and duration;
 - useful free windows derived from known events;
-- source freshness and retrieval status.
+- calendar key and display label on every event;
+- independent source freshness and retrieval status per calendar.
 
 Do not infer an event priority from its title. Exclude declined and cancelled
 events. Preserve source time zones and provide normalized local display times.
+One failed calendar makes the aggregate section partial while successful
+calendar events remain visible.
 
 ## Mail
 
