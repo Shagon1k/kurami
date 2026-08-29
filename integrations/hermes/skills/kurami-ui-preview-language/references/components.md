@@ -167,7 +167,9 @@ Trailers, upcoming premieres, and currently playing films are independent repeat
 
 ## Kurami Note component
 
-Use the roles and placement matrix from `references/kurami-notes.md`. A note must have a semantic target and cannot be added merely to fill empty space.
+Use the roles and placement matrix from `references/kurami-notes.md`. A note
+must be supplied by the caller with a semantic target and cannot be added or
+replaced merely to fill empty space.
 
 ## Responsive rules
 

@@ -3,7 +3,7 @@ name: kurami-ui-preview-language
 description: Render pages in Kurami's fixed visual language.
 license: private
 metadata:
-  version: 0.8.1
+  version: 0.9.0
   author: Aliaksei Hurynovich with Hermes Agent
   hermes:
     tags:
@@ -86,7 +86,7 @@ Use Hermes file tools to inspect and edit the target project. Use the target pro
 | Technical Latin labels | Fragment Mono |
 | Handwritten notes | Caveat 600 |
 | Heading case | Sentence/title case; uppercase only for micro-labels |
-| Surfaces | Mostly square, subtle border, tiny radius, offset shadow |
+| Surfaces | Warm framed metric/feed blocks, quiet white rows, tiny radius, offset shadow |
 | Accent | Red for primary emphasis, not decoration everywhere |
 | Kurami Notes | 1–4 words, useful, restrained, feminine voice in Russian |
 | Collections | Repeatable and variable-count; never force one hero item |
@@ -161,15 +161,23 @@ Use Hermes file tools to inspect and edit the target project. Use the target pro
 - Keep briefing headings compact enough for scan-first reading: section titles use Onest 600 and the page title must not exceed the approved fluid maximum.
 - Set controls and links to Onest 600 and optically center their labels.
 - Keep icon geometry consistent, centered, and at least 18px inside 44px targets.
-- Prefer one-pixel borders and tiny radii. Apply the offset shadow only to selected structural blocks, never to every section.
+- Prefer one-pixel borders and tiny radii. In the canonical briefing, frame the
+  metric strip and digest feed with the warm section surface and a 3–5px offset
+  shadow; keep story rows on the quieter surface inside the feed. Apply the
+  shadow only to selected structural blocks, never to every row or section.
 - Use red as a deliberate signal; do not turn the full page into a red interface.
 
-### 5. Add Kurami Notes sparingly
+### 5. Render supplied Kurami Notes sparingly
 
-- Read `references/kurami-notes.md` and add exactly 2–3 notes unless the payload supplies a stricter count.
-- Add a note only when it contributes focus, context, action, reassurance, or restrained humor and points to a clear semantic target.
+- Read `references/kurami-notes.md` and render only the notes supplied by the
+  content producer. The renderer does not select copy from a built-in pool and
+  does not add fallback phrases.
+- Omit a supplied note if it violates the safety or length contract; otherwise
+  preserve its text, target, semantic role, tone, rotation, and mark.
 - Keep each note to 1–4 words in Caveat 600.
-- Use at least two placement variants. Do not give every note the same color, rotation, alignment, or position beside a heading.
+- When multiple supplied notes exist, preserve at least two placement or style
+  variants. Do not collapse them into the same color, rotation, alignment, or
+  position beside a heading.
 - Use no more than one joke on a page unless the user explicitly requests otherwise.
 - In Russian, refer to Kurami as `она` and write in a feminine voice where grammar exposes gender.
 - Never joke about serious failures, safety, loss, emergencies, or personal distress.

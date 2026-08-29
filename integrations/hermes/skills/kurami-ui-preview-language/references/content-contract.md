@@ -19,7 +19,8 @@ The caller supplies:
 - preference state, if already known;
 - featured flags, if editorial featuring is intended;
 - whether source diagnostics should be visible or only summarized as data quality;
-- optional Kurami Note text or enough harmless context to write one.
+- optional display-ready Kurami Notes with target, semantic role, tone,
+  rotation, and optional mark.
 
 This skill may decide:
 
@@ -28,7 +29,7 @@ This skill may decide:
 - visual emphasis consistent with supplied priority;
 - light/dark token application;
 - interaction states and accessible labeling;
-- whether to omit an optional Kurami Note.
+- whether to omit an invalid or unsafe optional Kurami Note.
 
 This skill may not:
 
@@ -152,7 +153,11 @@ A Bulk Source Action is a representation of caller-owned behavior. Require the c
 
 ## Kurami Notes
 
-When the caller supplies exact note text, preserve it unless it violates the 1–4 word or safety rule; in that case omit it or ask for revision. When the caller asks the renderer to write a note, it may create only a short presentational aside grounded in visible content. It must never add a new factual claim.
+The caller supplies exact note text and its semantic target. Preserve it unless
+it violates the 1–4 word or safety rule; in that case omit it or ask for
+revision. The renderer never writes generic fallback copy or selects a phrase
+from a pool. Freshness and recent-repeat checks belong to the producing
+workflow because they require edition history.
 
 ## Cron composition
 

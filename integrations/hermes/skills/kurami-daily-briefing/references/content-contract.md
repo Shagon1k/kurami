@@ -21,6 +21,7 @@ Every payload uses a versioned envelope with these roles:
     "retentionUntil": "RFC3339 timestamp"
   },
   "hero": {},
+  "notes": [],
   "weather": {},
   "calendar": {},
   "priorities": [],
@@ -36,6 +37,41 @@ Every payload uses a versioned envelope with these roles:
   "actions": {}
 }
 ```
+
+## Kurami Notes
+
+The producer, not the renderer, writes the daily note copy. Notes are authored
+from the finished visible payload after inspecting `recentNotes` from
+`briefing inspect`:
+
+```json
+{
+  "notes": [
+    {
+      "id": "note:hero",
+      "target": "hero",
+      "text": "утро без суеты",
+      "role": "reassurance",
+      "tone": "signal",
+      "rotation": "positive",
+      "mark": "arrow-down-right"
+    }
+  ]
+}
+```
+
+Supply one or two notes, each one to four words. Supported targets are `hero`
+and `news`; supported roles are `focus`, `context`, `action`, `reassurance`,
+and `personality`; supported tones are `signal` and `ink`; supported rotations
+are `none`, `negative`, and `positive`. `mark` may be `arrow-down`,
+`arrow-down-right`, or `arrow-right`.
+
+Write fresh copy for the edition rather than choosing from a phrase pool. Every
+note must point to visible content, use a different role or treatment when two
+are present, and avoid exact or conspicuously near repeats from the retained
+five-day history. Omit a slot when no grounded note is useful. The renderer
+validates and positions supplied notes; it never supplies generic fallback
+phrases.
 
 `weather`, `priorities`, and `cinemaPreview` may be absent when no trustworthy
 input exists. `calendar`, `mail`, `news`, and `dataQuality` must always disclose
@@ -151,8 +187,10 @@ deep stories, follow the linked primary article when it is available and the
 configured capability permits it; preserve that provenance in `sources`. Do
 not add `whyItMatters` merely to fill a card.
 
-`media` is optional. Include only one representative image owned by the
-edition cache; omit the entire field when no safe image is available. `src`
+`media` is optional. Include one to twelve ordered edition-cached images or
+videos when safe media is available; omit the entire field otherwise. The
+first image is the compact cover and the complete set belongs to the expanded
+reading layer. `src`
 must be a runtime-local media path, never an authenticated Telegram URL or an
 arbitrary filesystem path. Preserve intrinsic dimensions and write factual alt
 text. The renderer must not invent a placeholder.

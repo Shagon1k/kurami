@@ -56,9 +56,14 @@ Normalize every post to `item-contract.md` with:
   reply/thread identity when relevant, captured upper boundary, `hasMedia`,
   media type, and the message ID that owns the first usable image.
 
-For an album or a clearly merged continuation, also preserve the ordered
-`mediaMessageIds` for every included attachment. Do not add unrelated media
-from neighboring posts.
+Use the canonical metadata names `telegramChatId`, `telegramMessageId`, and
+`telegramGroupId`. Every message in one Telegram album shares the same
+`telegramGroupId`. After collection, run the skill's deterministic
+`scripts/normalize_telegram_albums.py` over the complete normalized batch.
+For an album or a clearly merged continuation, preserve its resulting ordered
+`mediaMessageIds` for every included attachment. Deduplication may merge album
+captions into one story, but it must carry forward the union of all member IDs
+in provider order. Do not add unrelated media from neighboring posts.
 
 Do not download attachments during initial collection. After deduplication and
 story selection, download the retained story media with the connector's

@@ -76,7 +76,16 @@ Default manual experiments to `dry-run`. Generation never archives Gmail;
    message as `ACTION`, `IMPORTANT`, or `GENERAL`; do not change Gmail state.
 6. For every enabled Telegram news channel, record its unread count and a stable
    upper message ID before fetching the corresponding newest unread messages.
-   Preserve the per-channel cutoff in the source batch.
+   Preserve the per-channel cutoff in the source batch. Before editorial
+   merging, write the normalized Telegram batch to a run artifact and run:
+
+   ```text
+   python3 /home/shagon1k/_hermes/_core/skills/kurami-daily-briefing/scripts/normalize_telegram_albums.py --input <batch.json> --output <normalized-batch.json>
+   ```
+
+   Use the normalized output. This deterministically expands every Telegram
+   `grouped_id` present in the captured batch into ordered `mediaMessageIds`;
+   do not hand-pick only one or two album members.
 7. Fetch weather when the configured capability is available. Weather failure
    makes only that section partial.
 8. Normalize, cluster, merge, summarize, assign topics, and rank content using
@@ -89,7 +98,12 @@ Default manual experiments to `dry-run`. Generation never archives Gmail;
    can prove release dates and freshness. A cinema failure must not block the
    normal daily edition.
 10. Construct the versioned payload and validate its required identifiers,
-    source provenance, pagination, actions, and data-quality state.
+    source provenance, pagination, actions, and data-quality state. Run
+    `$BRIEFING_NODE $BRIEFING_CLI inspect` and use its `recentNotes` from the
+    retained five-day window before writing Kurami Notes. Author one or two
+    short content-grounded notes for the payload; do not select them from a
+    static phrase pool, repeat a recent phrase, or let the renderer invent
+    fallback copy.
 11. Invoke `kurami-ui-preview-language` with the prepared payload. For the
     configured Briefing runtime this selects the canonical deterministic
     component renderer; the agent must not hand-author `PaginatedFeed`,

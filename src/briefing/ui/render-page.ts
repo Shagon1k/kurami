@@ -1,5 +1,6 @@
 import type { BriefingPayload } from "../model.ts";
 import { displayString, escapeHtml } from "./html.ts";
+import { renderKuramiNote } from "./components/kurami-note.ts";
 import { renderPaginatedFeed } from "./components/paginated-feed.ts";
 import { renderThemeToggle } from "./components/theme-toggle.ts";
 import { BRIEFING_STYLES } from "./styles.ts";
@@ -62,6 +63,7 @@ export function renderBriefingPage(payload: BriefingPayload): string {
     minute: "2-digit",
     timeZone: payload.edition.timezone,
   }).format(new Date(payload.edition.generatedAt));
+  const heroNote = payload.notes?.find((note) => note.target === "hero");
   return `<!doctype html>
 <html lang="ru" data-theme="light">
 <head>
@@ -88,7 +90,7 @@ export function renderBriefingPage(payload: BriefingPayload): string {
       <div><p class="hero__eyebrow">${escapeHtml(payloadTitle)} · ${escapeHtml(payload.edition.localDate)}</p>
         <h1>${escapeHtml(title)}</h1>
         <p class="hero__subtitle">${escapeHtml(subtitle)}</p></div>
-      <span class="kurami-note hero__note">спокойно, всё собрано ↘</span>
+      ${renderKuramiNote(heroNote, "hero__note")}
     </section>
     ${renderMetrics(payload)}
     ${renderPaginatedFeed(payload)}

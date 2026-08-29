@@ -3,6 +3,16 @@ export type PayloadStatus = "complete" | "partial";
 export type SectionState = "ready" | "empty" | "partial" | "stale" | "failed";
 export type Reaction = "like" | "dislike";
 
+export type KuramiNote = {
+  id: string;
+  target: "hero" | "news";
+  text: string;
+  role: "focus" | "context" | "action" | "reassurance" | "personality";
+  tone: "signal" | "ink";
+  rotation: "none" | "negative" | "positive";
+  mark?: "arrow-down" | "arrow-down-right" | "arrow-right";
+};
+
 export type Topic = {
   id: string;
   label: string;
@@ -45,6 +55,7 @@ export type BriefingPayload = {
     retentionUntil: string;
   };
   hero: Record<string, unknown>;
+  notes?: KuramiNote[];
   calendar: Record<string, unknown> & { state: SectionState };
   mail: Record<string, unknown> & { state: SectionState; items: MailItem[] };
   news: Record<string, unknown> & {
@@ -84,6 +95,21 @@ const MEDIA_MIME_TYPES = new Set([
   "video/mp4",
   "video/quicktime",
   "video/webm",
+]);
+const NOTE_TARGETS = new Set<KuramiNote["target"]>(["hero", "news"]);
+const NOTE_ROLES = new Set<KuramiNote["role"]>([
+  "focus",
+  "context",
+  "action",
+  "reassurance",
+  "personality",
+]);
+const NOTE_TONES = new Set<KuramiNote["tone"]>(["signal", "ink"]);
+const NOTE_ROTATIONS = new Set<KuramiNote["rotation"]>(["none", "negative", "positive"]);
+const NOTE_MARKS = new Set<NonNullable<KuramiNote["mark"]>>([
+  "arrow-down",
+  "arrow-down-right",
+  "arrow-right",
 ]);
 
 function fail(message: string): never {
@@ -180,6 +206,42 @@ function media(value: unknown, label: string): StoryMedia[] | undefined {
   });
 }
 
+function notes(value: unknown): KuramiNote[] | undefined {
+  if (value === undefined) return undefined;
+  if (!Array.isArray(value) || value.length < 1 || value.length > 3) {
+    fail("notes must contain one to three notes");
+  }
+  const seenIds = new Set<string>();
+  const seenTargets = new Set<KuramiNote["target"]>();
+  return value.map((raw, index) => {
+    const note = record(raw, `notes[${index}]`);
+    const id = safeId(note.id, `notes[${index}].id`);
+    if (seenIds.has(id)) fail(`notes contains duplicate ID ${id}`);
+    seenIds.add(id);
+    const target = string(note.target, `notes[${index}].target`) as KuramiNote["target"];
+    if (!NOTE_TARGETS.has(target)) fail(`notes[${index}].target is unsupported`);
+    if (seenTargets.has(target)) fail(`notes contains duplicate target ${target}`);
+    seenTargets.add(target);
+    const text = string(note.text, `notes[${index}].text`).trim();
+    const words = text.match(/[\p{L}\p{N}]+/gu) ?? [];
+    if (words.length < 1 || words.length > 4 || text.length > 48) {
+      fail(`notes[${index}].text must contain one to four words and at most 48 characters`);
+    }
+    const role = string(note.role, `notes[${index}].role`) as KuramiNote["role"];
+    if (!NOTE_ROLES.has(role)) fail(`notes[${index}].role is unsupported`);
+    const tone = string(note.tone, `notes[${index}].tone`) as KuramiNote["tone"];
+    if (!NOTE_TONES.has(tone)) fail(`notes[${index}].tone is unsupported`);
+    const rotation = string(note.rotation, `notes[${index}].rotation`) as KuramiNote["rotation"];
+    if (!NOTE_ROTATIONS.has(rotation)) fail(`notes[${index}].rotation is unsupported`);
+    let mark: KuramiNote["mark"];
+    if (note.mark !== undefined) {
+      mark = string(note.mark, `notes[${index}].mark`) as NonNullable<KuramiNote["mark"]>;
+      if (!NOTE_MARKS.has(mark)) fail(`notes[${index}].mark is unsupported`);
+    }
+    return { id, target, text, role, tone, rotation, ...(mark ? { mark } : {}) };
+  });
+}
+
 export function parseBriefingPayload(value: unknown): BriefingPayload {
   const root = record(value, "root");
   if (root.schemaVersion !== 1) fail("schemaVersion must equal 1");
@@ -197,6 +259,7 @@ export function parseBriefingPayload(value: unknown): BriefingPayload {
   }
 
   const hero = record(root.hero, "hero");
+  const parsedNotes = notes(root.notes);
   const calendar = record(root.calendar, "calendar");
   calendar.state = sectionState(calendar.state, "calendar.state");
   const mail = record(root.mail, "mail");
@@ -254,6 +317,7 @@ export function parseBriefingPayload(value: unknown): BriefingPayload {
       retentionUntil: timestamp(edition.retentionUntil, "edition.retentionUntil"),
     },
     hero,
+    ...(parsedNotes ? { notes: parsedNotes } : {}),
     calendar: calendar as BriefingPayload["calendar"],
     mail: { ...mail, items: mailItems } as BriefingPayload["mail"],
     news: { ...news, items: newsItems } as BriefingPayload["news"],

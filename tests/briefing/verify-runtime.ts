@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { spawnSync } from "node:child_process";
 import { mkdir, mkdtemp, readFile, writeFile } from "node:fs/promises";
 import type { AddressInfo } from "node:net";
 import { tmpdir } from "node:os";
@@ -44,6 +45,26 @@ const payload = {
     retentionUntil: "2026-09-02T09:00:00+03:00",
   },
   hero: { title: "Доброе утро, Alex." },
+  notes: [
+    {
+      id: "note:hero",
+      target: "hero",
+      text: "утро без суеты",
+      role: "reassurance",
+      tone: "signal",
+      rotation: "positive",
+      mark: "arrow-down-right",
+    },
+    {
+      id: "note:news",
+      target: "news",
+      text: "главное в одной пачке",
+      role: "focus",
+      tone: "ink",
+      rotation: "none",
+      mark: "arrow-down",
+    },
+  ],
   calendar: { state: "ready", events: [] },
   mail: {
     state: "ready",
@@ -85,7 +106,40 @@ assert.match(html, /data-page-range/);
 assert.match(html, /data-page="2"/);
 assert.match(html, /data-page-prev/);
 assert.match(html, /data-page-next/);
+assert.match(html, /data-note-id="note:hero"[^>]*>утро без суеты/);
+assert.match(html, /data-note-id="note:news"[^>]*>главное в одной пачке/);
+assert.doesNotMatch(html, /спокойно, всё собрано|главное — рядом/);
 assert.doesNotMatch(html, /<script\b/i);
+
+assert.throws(
+  () => parseBriefingPayload({ ...payload, notes: [{ ...payload.notes[0], text: "раз два три четыре пять" }] }),
+  /one to four words/,
+);
+
+const albumInput = resolve(home, "telegram-batch.json");
+const albumOutput = resolve(home, "telegram-batch-normalized.json");
+await writeFile(albumInput, JSON.stringify({
+  items: [7915, 7907, 7912].map((messageId) => ({
+    metadata: {
+      hasMedia: true,
+      telegramChatId: -1001033871555,
+      telegramMessageId: messageId,
+      telegramGroupId: 444,
+    },
+  })),
+}));
+const normalizedAlbum = spawnSync("python3", [
+  resolve(root, "integrations/hermes/skills/kurami-daily-briefing/scripts/normalize_telegram_albums.py"),
+  "--input",
+  albumInput,
+  "--output",
+  albumOutput,
+], { encoding: "utf8" });
+assert.equal(normalizedAlbum.status, 0, normalizedAlbum.stderr);
+const albumBatch = JSON.parse(await readFile(albumOutput, "utf8")) as {
+  items: Array<{ metadata: { mediaMessageIds: number[] } }>;
+};
+assert.deepEqual(albumBatch.items[0]?.metadata.mediaMessageIds, [7907, 7912, 7915]);
 
 const initialized = await initializeBriefingStore(paths);
 assert.equal(initialized.integrity, "ok");

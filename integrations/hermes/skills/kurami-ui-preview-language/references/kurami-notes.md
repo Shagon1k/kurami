@@ -4,7 +4,7 @@ Kurami Notes add a small daily human layer without becoming decorative noise. Th
 
 ## Hard limits
 
-- Use exactly 2–3 notes per page unless the payload explicitly requires fewer.
+- Render only caller-supplied notes: normally 1–2 and never more than 3.
 - Keep each note to 1–4 words.
 - Use Caveat 600.
 - Use at most one joke.
@@ -80,6 +80,10 @@ Good patterns:
 - `🎬 на вечер?`
 - a small circle around the most relevant supplied value with no text.
 
+These are structural examples, not a phrase pool. Do not copy them merely to
+fill a slot. The producing workflow authors fresh text after comparing the
+retained edition history; the renderer owns only placement and styling.
+
 Weak patterns:
 
 - `Важное число` floating above several unrelated metrics;
@@ -90,9 +94,8 @@ Weak patterns:
 
 ## Selection procedure
 
-1. Identify two or three genuine targets after the layout is stable.
-2. Assign different semantic roles.
-3. Choose at least two placement variants.
-4. Use at least one non-rotated note or mark-only doodle.
-5. Check that removing a note would remove useful focus or personality; otherwise omit it.
-6. Re-check overlaps and target clarity at mobile width.
+1. Validate that each supplied target exists after the layout is stable.
+2. Preserve its supplied semantic role and treatment.
+3. When two notes exist, use their distinct placement or style variants.
+4. Omit invalid or unsafe notes instead of replacing them with generic copy.
+5. Re-check overlaps and target clarity at mobile width.

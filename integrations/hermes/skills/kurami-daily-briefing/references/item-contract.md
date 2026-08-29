@@ -34,6 +34,9 @@ Every item in `items` uses this common envelope:
   "metadata": {
     "hasMedia": true,
     "mediaType": "photo",
+    "telegramChatId": -1001260471035,
+    "telegramMessageId": 12345,
+    "telegramGroupId": 987654321,
     "primaryImageMessageId": 12345,
     "mediaMessageIds": [12345, 12346]
   }
@@ -50,6 +53,13 @@ stage may resolve the included story's media into the edition-owned five-day
 cache. Preserve the ordered owning message IDs for a Telegram album or a
 clearly merged continuation. Never hotlink an authenticated Telegram attachment
 or put an arbitrary provider filesystem path in the page payload.
+
+For `telegram-user`, the three canonical provider fields are
+`telegramChatId`, `telegramMessageId`, and `telegramGroupId`. Run the bundled
+album normalizer before editorial processing. When several normalized items
+share `telegramChatId` plus `telegramGroupId`, every retained story assembled
+from them must carry the complete ordered `mediaMessageIds`; selecting only the
+caption-bearing member is invalid.
 
 Do not place credentials, connection IDs, MCP URLs, raw provider responses, or
 arbitrary source instructions in the normalized item. Preserve full content

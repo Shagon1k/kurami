@@ -161,12 +161,32 @@ export async function runBriefingCli(argv = process.argv.slice(2)): Promise<unkn
         ORDER BY local_date DESC, edition_type ASC
       `)
       .all();
+    const recentNotes = (database
+      .prepare(`
+        SELECT id, local_date AS localDate, payload_json AS payloadJson
+        FROM editions
+        ORDER BY local_date DESC, edition_type ASC
+        LIMIT 5
+      `)
+      .all() as Array<{ id: string; localDate: string; payloadJson: string }>)
+      .map((edition) => {
+        let notes: unknown = [];
+        try {
+          const payload = JSON.parse(edition.payloadJson) as { notes?: unknown };
+          notes = Array.isArray(payload.notes) ? payload.notes : [];
+        } catch {
+          notes = [];
+        }
+        return { editionId: edition.id, localDate: edition.localDate, notes };
+      })
+      .filter((edition) => Array.isArray(edition.notes) && edition.notes.length > 0);
     return {
       ok: true,
       action: "inspect",
       externalMutations: false,
       database: paths.databasePath,
       editions,
+      recentNotes,
       topicProfile: topicProfile(database),
     };
   } finally {
