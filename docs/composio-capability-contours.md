@@ -88,6 +88,14 @@ npm run composio:apply-automation
 npm run composio:install-hermes-automation
 ```
 
+The owner-only Discord command `/kurami composio-check` provides the same
+reconciliation surface for routine operations. It checks `Broad`, `Read-only`,
+and `Automation` together, then lets the owner select one contour. Apply appears
+only for the selected drifting contour and is bound to its contour name,
+Session revision, discovered tool inventory, and displayed diff. Session
+creation and Hermes installation remain CLI/deployment operations; the Discord
+panel only reconciles an existing Session.
+
 Creation derives the stable Composio user and existing Gmail account pin from
 the broad runtime but writes a new `COMPOSIO_AUTOMATION_*` namespace. It refuses
 to overwrite an existing target runtime. Hermes installation preserves the

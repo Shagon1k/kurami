@@ -92,8 +92,10 @@ def main() -> None:
     composio_payload = {
         "ok": True,
         "mode": "check",
+        "contour": "broad",
         "changed": True,
         "configVersion": 2,
+        "tools": ["COMPOSIO_SEARCH_TOOLS"],
         "diff": [
             {"kind": "add", "field": "toolkit", "after": "slack"},
             {
@@ -114,7 +116,9 @@ def main() -> None:
         composio_validated["changed"] is True
         and "Changes require review"
         in settings_module._composio_message(composio_payload)
-        and "toolkit: slack" in settings_module._composio_message(composio_payload),
+        and "toolkit: slack" in settings_module._composio_message(composio_payload)
+        and "COMPOSIO_SEARCH_TOOLS"
+        in settings_module._composio_message(composio_payload),
         "Composio check panel lost its bounded diff",
     )
     require(
@@ -124,6 +128,45 @@ def main() -> None:
         ),
         "Composio apply confirmation is not revision-bound",
     )
+    require(
+        settings_module._composio_diff_signature(composio_payload)
+        != settings_module._composio_diff_signature(
+            {**composio_payload, "contour": "automation"}
+        ),
+        "Composio apply confirmation is not contour-bound",
+    )
+    require(
+        settings_module._composio_diff_signature(composio_payload)
+        != settings_module._composio_diff_signature(
+            {**composio_payload, "tools": ["GMAIL_FETCH_EMAILS"]}
+        ),
+        "Composio apply confirmation is not tool-inventory-bound",
+    )
+    require(
+        "trust: full"
+        in settings_module._composio_message(
+            {
+                **composio_payload,
+                "contour": "automation",
+                "tools": ["GMAIL_BATCH_MODIFY_MESSAGES"],
+            }
+        ),
+        "Automation contour lost its unattended-write warning",
+    )
+    try:
+        settings_module._validated_composio_payload(
+            {**composio_payload, "contour": "unknown"}
+        )
+        raise AssertionError("Composio panel accepted an unknown contour")
+    except RuntimeError:
+        pass
+    try:
+        settings_module._validated_composio_payload(
+            {**composio_payload, "tools": ["GMAIL_SEND_EMAIL", "bad-tool"]}
+        )
+        raise AssertionError("Composio panel accepted an invalid tool inventory")
+    except RuntimeError:
+        pass
     try:
         settings_module._validated_composio_payload(
             {
@@ -140,14 +183,38 @@ def main() -> None:
     try:
         settings_module._composio_path = lambda: settings_path
         require(
-            settings_module._composio_args("check")
-            == [str(settings_path), "check", "--json"]
-            and settings_module._composio_args("apply")
-            == [str(settings_path), "apply", "--json"],
+            settings_module._composio_args("check", "broad")
+            == [
+                str(settings_path),
+                "check",
+                "--contour",
+                "broad",
+                "--json",
+            ]
+            and settings_module._composio_args("apply", "automation")
+            == [
+                str(settings_path),
+                "apply",
+                "--contour",
+                "automation",
+                "--json",
+            ],
             "Composio subprocess arguments are not exact",
         )
+        try:
+            settings_module._composio_args("check", "unknown")
+            raise AssertionError("Composio subprocess accepted an unknown contour")
+        except RuntimeError:
+            pass
     finally:
         settings_module._composio_path = original_composio_path
+
+    require(
+        'custom_id="kurami:composio:contour"' in settings_source
+        and 'custom_id=f"kurami:composio:apply:{self.contour}"' in settings_source
+        and "_COMPOSIO_CONTOURS" in settings_source,
+        "Composio contour selector or contour-bound Apply control is missing",
+    )
 
     accepted = {
         "kurami:status:r_abc123": ("status", "r_abc123"),
@@ -576,7 +643,7 @@ def main() -> None:
                 "listener": "strict_component_allowlist",
                 "settings": "owner_only_kurami_settings",
                 "run_status": "owner_only_kurami_status",
-                "composio": "owner_only_check_with_revision_bound_apply",
+                "composio": "owner_only_three_contour_check_with_bound_apply",
                 "settings_shared_pool": True,
             },
             separators=(",", ":"),

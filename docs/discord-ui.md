@@ -85,10 +85,16 @@ non-done open issues; `Backlog` remains the configured Project status.
 
 ## Composio Session
 
-`/kurami composio-check` is an owner-only ephemeral panel. It is read-only by
-default; a button appears only when the version-controlled Session policy has
-drifted. The button applies only the exact diff that was displayed and asks for
-a second review if the Session revision changes before confirmation.
+`/kurami composio-check` is an owner-only ephemeral panel covering all three
+capability contours: `Broad`, `Read-only`, and `Automation`. Opening the panel
+checks them concurrently without changing Composio. Use the selector to inspect
+one contour; an Apply button appears only when that contour's version-controlled
+Session policy has drifted. Apply is bound to the selected contour, Session
+revision, discovered tool inventory, and exact displayed diff. The panel shows
+the selected contour's current top-level tools. If any bound value changes
+before confirmation, the panel refreshes and requires a second review.
+`Automation` explicitly warns that its exact allowlist is trusted for unattended
+writes.
 
 ## Runtime settings
 

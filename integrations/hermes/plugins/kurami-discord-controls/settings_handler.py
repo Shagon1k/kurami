@@ -15,8 +15,20 @@ from typing import Any, Awaitable, Callable, Optional
 _PROJECT = re.compile(r"^[a-z0-9-]+$")
 _MUTATIONS = {"apply", "reset", "rollback"}
 _COMPOSIO_TOOLKIT = re.compile(r"^[a-z0-9_]+$")
+_COMPOSIO_TOOL = re.compile(r"^[A-Z][A-Z0-9_]+$")
 _COMPOSIO_FIELD = re.compile(r"^[a-z0-9_.-]+$")
 _COMPOSIO_SAFE_VALUE = re.compile(r"^[A-Za-z0-9_. ,+%-]*$")
+_COMPOSIO_CONTOURS = ("broad", "read", "automation")
+_COMPOSIO_CONTOUR_LABELS = {
+    "broad": "Broad",
+    "read": "Read-only",
+    "automation": "Automation",
+}
+_COMPOSIO_CONTOUR_DESCRIPTIONS = {
+    "broad": "Interactive capabilities; writes require approval",
+    "read": "Autonomous ingestion; read-only leaf tools",
+    "automation": "Autonomous writes; trust: full; exact pre-approved allowlist",
+}
 
 
 def _kurami_home() -> Path:
@@ -256,13 +268,15 @@ def _composio_path() -> Path:
     return _kurami_home() / "app/bin/kurami-composio-session"
 
 
-def _composio_args(action: str) -> list[str]:
+def _composio_args(action: str, contour: str) -> list[str]:
     if action not in {"check", "apply"}:
         raise RuntimeError("Invalid Composio Session action")
+    if contour not in _COMPOSIO_CONTOURS:
+        raise RuntimeError("Invalid Composio capability contour")
     control = _composio_path()
     if not control.is_file():
         raise RuntimeError("Composio Session control is unavailable")
-    return [str(control), action, "--json"]
+    return [str(control), action, "--contour", contour, "--json"]
 
 
 def _safe_composio_scalar(value: object) -> object:
@@ -282,18 +296,32 @@ def _validated_composio_payload(value: object) -> dict[str, Any]:
     if not isinstance(value, dict) or value.get("ok") is not True:
         raise RuntimeError("Composio Session payload is invalid")
     mode = value.get("mode")
+    contour = value.get("contour")
     changed = value.get("changed")
     config_version = value.get("configVersion")
+    raw_tools = value.get("tools")
     raw_diff = value.get("diff")
     if (
         mode not in {"check", "apply"}
+        or contour not in _COMPOSIO_CONTOURS
         or not isinstance(changed, bool)
         or isinstance(config_version, bool)
         or (config_version is not None and not isinstance(config_version, int))
+        or not isinstance(raw_tools, list)
+        or len(raw_tools) > 100
         or not isinstance(raw_diff, list)
         or len(raw_diff) > 100
     ):
         raise RuntimeError("Composio Session status is invalid")
+    tools = sorted(
+        {
+            tool
+            for tool in raw_tools
+            if isinstance(tool, str) and _COMPOSIO_TOOL.fullmatch(tool) is not None
+        }
+    )
+    if len(tools) != len(raw_tools):
+        raise RuntimeError("Composio Session tool inventory is invalid")
     diff: list[dict[str, object]] = []
     for raw_entry in raw_diff:
         if not isinstance(raw_entry, dict):
@@ -341,17 +369,19 @@ def _validated_composio_payload(value: object) -> dict[str, Any]:
     return {
         "ok": True,
         "mode": mode,
+        "contour": contour,
         "changed": changed,
         "configVersion": config_version,
+        "tools": tools,
         "diff": diff,
         **counts,
         "warnings": [],
     }
 
 
-async def _run_composio_control(action: str) -> dict[str, Any]:
+async def _run_composio_control(action: str, contour: str) -> dict[str, Any]:
     process = await asyncio.create_subprocess_exec(
-        *_composio_args(action),
+        *_composio_args(action, contour),
         stdin=asyncio.subprocess.DEVNULL,
         stdout=asyncio.subprocess.PIPE,
         stderr=asyncio.subprocess.PIPE,
@@ -377,6 +407,8 @@ async def _run_composio_control(action: str) -> dict[str, Any]:
     validated = _validated_composio_payload(payload)
     if validated["mode"] != action:
         raise RuntimeError("Composio Session returned the wrong operation mode")
+    if validated["contour"] != contour:
+        raise RuntimeError("Composio Session returned the wrong capability contour")
     return validated
 
 
@@ -384,7 +416,9 @@ def _composio_diff_signature(payload: dict[str, Any]) -> str:
     validated = _validated_composio_payload(payload)
     canonical = json.dumps(
         {
+            "contour": validated["contour"],
             "configVersion": validated["configVersion"],
+            "tools": validated["tools"],
             "diff": validated["diff"],
         },
         sort_keys=True,
@@ -395,16 +429,23 @@ def _composio_diff_signature(payload: dict[str, Any]) -> str:
 
 def _composio_message(payload: dict[str, Any], notice: str = "") -> str:
     status = _validated_composio_payload(payload)
+    contour = str(status["contour"])
     selected = status["selectedAccountCounts"]
     config_version = status["configVersion"]
     lines = [
-        "## Composio Session",
+        f"## Composio · {_COMPOSIO_CONTOUR_LABELS[contour]}",
         "⚠️ **Changes require review**" if status["changed"] else "✅ **In sync**",
+        _COMPOSIO_CONTOUR_DESCRIPTIONS[contour],
         (
             f"{len(selected)} toolkits · {sum(selected.values())} selected accounts"
             f" · config v{config_version if config_version is not None else '?'}"
         ),
     ]
+    tools = status["tools"]
+    if tools:
+        lines.append(f"Tools · {', '.join(f'`{tool}`' for tool in tools[:6])}")
+        if len(tools) > 6:
+            lines.append(f"…and {len(tools) - 6} more tools. Use the CLI to review.")
     if notice:
         lines.extend(["", notice])
     diff = status["diff"]
@@ -430,7 +471,7 @@ def _composio_message(payload: dict[str, Any], notice: str = "") -> str:
 
 def _build_composio_view(
     authorized: Callable[[Any], bool],
-    payload: dict[str, Any],
+    payloads: dict[str, dict[str, Any]],
     actor_id: str,
 ) -> Any:
     import discord
@@ -438,26 +479,56 @@ def _build_composio_view(
     class ComposioView(discord.ui.LayoutView):
         def __init__(self) -> None:
             super().__init__(timeout=300)
-            self.payload = _validated_composio_payload(payload)
+            if set(payloads) != set(_COMPOSIO_CONTOURS):
+                raise RuntimeError("Composio contour overview is incomplete")
+            self.payloads = {
+                contour: _validated_composio_payload(payloads[contour])
+                for contour in _COMPOSIO_CONTOURS
+            }
+            for contour, status in self.payloads.items():
+                if status["contour"] != contour:
+                    raise RuntimeError("Composio contour overview is inconsistent")
+            self.contour = "broad"
             self.actor_id = actor_id
-            self.signature = _composio_diff_signature(self.payload)
+            self.signatures = {
+                contour: _composio_diff_signature(status)
+                for contour, status in self.payloads.items()
+            }
             self.notice = ""
             self._render()
 
         def _render(self) -> None:
             self.clear_items()
+            payload = self.payloads[self.contour]
+            contour_select = discord.ui.Select(
+                custom_id="kurami:composio:contour",
+                placeholder="Choose capability contour…",
+                min_values=1,
+                max_values=1,
+                options=[
+                    discord.SelectOption(
+                        label=_COMPOSIO_CONTOUR_LABELS[contour],
+                        value=contour,
+                        description=_COMPOSIO_CONTOUR_DESCRIPTIONS[contour][:100],
+                        default=contour == self.contour,
+                    )
+                    for contour in _COMPOSIO_CONTOURS
+                ],
+            )
+            contour_select.callback = self._select_contour
             content: list[Any] = [
-                discord.ui.TextDisplay(_composio_message(self.payload, self.notice))
+                discord.ui.TextDisplay(_composio_message(payload, self.notice)),
+                discord.ui.Separator(),
+                discord.ui.ActionRow(contour_select),
             ]
-            if self.payload["changed"]:
+            if payload["changed"]:
                 apply_button = discord.ui.Button(
-                    label="Apply changes",
+                    label=f"Apply {_COMPOSIO_CONTOUR_LABELS[self.contour]} changes",
                     style=discord.ButtonStyle.success,
-                    custom_id="kurami:composio:apply",
+                    custom_id=f"kurami:composio:apply:{self.contour}",
                 )
                 apply_button.callback = self._apply
                 content.extend([
-                    discord.ui.Separator(),
                     discord.ui.ActionRow(apply_button),
                 ])
             self.add_item(discord.ui.Container(*content, accent_color=0x5865F2))
@@ -474,26 +545,43 @@ def _build_composio_view(
                 return False
             return True
 
+        async def _select_contour(self, interaction: Any) -> None:
+            data = getattr(interaction, "data", None)
+            values = data.get("values", []) if isinstance(data, dict) else []
+            selected = str(values[0]) if values else ""
+            if selected not in _COMPOSIO_CONTOURS:
+                await interaction.response.send_message(
+                    "Unknown Composio capability contour.", ephemeral=True
+                )
+                return
+            self.contour = selected
+            self.notice = ""
+            self._render()
+            await interaction.response.edit_message(view=self)
+
         async def _apply(self, interaction: Any) -> None:
+            contour = self.contour
+            expected_signature = self.signatures[contour]
             await interaction.response.defer()
             try:
-                fresh = await _run_composio_control("check")
+                fresh = await _run_composio_control("check", contour)
                 fresh_signature = _composio_diff_signature(fresh)
                 if not fresh["changed"]:
-                    self.payload = fresh
-                    self.signature = fresh_signature
+                    self.payloads[contour] = fresh
+                    self.signatures[contour] = fresh_signature
                     self.notice = "No changes remain; nothing was applied."
-                elif fresh_signature != self.signature:
-                    self.payload = fresh
-                    self.signature = fresh_signature
+                elif fresh_signature != expected_signature:
+                    self.payloads[contour] = fresh
+                    self.signatures[contour] = fresh_signature
                     self.notice = (
                         "⚠️ The diff changed since this panel opened. Review it, then "
                         "press Apply again."
                     )
                 else:
-                    await _run_composio_control("apply")
-                    self.payload = await _run_composio_control("check")
-                    self.signature = _composio_diff_signature(self.payload)
+                    await _run_composio_control("apply", contour)
+                    verified = await _run_composio_control("check", contour)
+                    self.payloads[contour] = verified
+                    self.signatures[contour] = _composio_diff_signature(verified)
                     self.notice = "✅ Changes applied and the Session was verified."
                 self._render()
                 await interaction.edit_original_response(view=self)
@@ -1061,9 +1149,15 @@ def install_settings_command(
             return
         await interaction.response.defer(ephemeral=True, thinking=True)
         try:
-            payload = await _run_composio_control("check")
+            results = await asyncio.gather(
+                *(
+                    _run_composio_control("check", contour)
+                    for contour in _COMPOSIO_CONTOURS
+                )
+            )
+            payloads = dict(zip(_COMPOSIO_CONTOURS, results, strict=True))
             actor_id = str(getattr(getattr(interaction, "user", None), "id", ""))
-            view = _build_composio_view(authorized, payload, actor_id)
+            view = _build_composio_view(authorized, payloads, actor_id)
             await interaction.followup.send(view=view, ephemeral=True)
         except Exception as exc:
             await interaction.followup.send(

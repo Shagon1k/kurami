@@ -100,6 +100,7 @@ function printableResult(
     contour,
     changed: result.changed,
     configVersion: result.session.config_version ?? null,
+    tools: [...(result.session.tool_router_tools ?? [])].sort(),
     diff: result.plan.diff,
     activeAccountCounts: result.plan.activeAccountCounts,
     selectedAccountCounts: result.plan.selectedAccountCounts,
