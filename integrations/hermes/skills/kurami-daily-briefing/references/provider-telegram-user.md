@@ -98,21 +98,24 @@ captions into one story, but it must carry forward the union of all member IDs
 in provider order. Do not add unrelated media from neighboring posts.
 
 Do not download attachments during initial collection. After deduplication and
-story selection, download the retained story media with the connector's
-existing bounded `download_media` capability into
+story selection, download the retained story media with the Kurami-owned
+bounded `download_media_batch` capability in the same Telegram stdio process
+into
 `$KURAMI_HOME/state/briefing/media-inbox`. The Hermes Telegram MCP contour must
-explicitly expose `download_media`, and that exact inbox must be the only
+explicitly expose `download_media_batch`, and that exact inbox must be the only
 server-side allowed root used for briefing downloads. Prefer this path-only
 operation over `open_photo`: copying bytes does not require the model to inspect
 the image. If either capability or root is missing, keep the story, report its
 media as partial, and never invent or hotlink an attachment.
 
-For each retained story, iterate the complete ordered `mediaMessageIds` and
-invoke `download_media` once for every member until all are downloaded or the
-limit of 12 is reached. Do not stop after the cover or after two successful
-downloads. Record an individual safe diagnostic for a failed asset and
-continue the remaining members. Write every successful path to the manifest in
-the same order, then run:
+For each retained story, take the complete ordered `mediaMessageIds` up to the
+limit of 12. Combine all resulting `{chat_id, message_id}` pairs for the
+edition and invoke `download_media_batch` once (at most 256 unique entries).
+The tool calls the upstream path-safe downloader internally and returns one
+result per ID. Do not replace this with dozens of model-mediated
+`download_media` calls. Record an individual safe diagnostic for a failed
+asset, continue the remaining members, and write every successful path to the
+manifest in the same provider order. Then run:
 
 ```text
 $BRIEFING_NODE $BRIEFING_CLI import-media --manifest <media-manifest.json>

@@ -129,12 +129,12 @@ Default manual experiments to `dry-run`. Generation never archives Gmail;
     The renderer must not rewrite facts, ordering, topics, reactions, read
     state, or action semantics.
 12. After the runtime accepts the base edition, download retained Telegram
-    media by path only. The manifest must contain every successfully downloaded
-    attachment in provider order, up to the per-story limit, rather than a
-    fixed sample of one or two files. Run the canonical `import-media` command
-    described by the Telegram provider reference. Do not ask the model to
-    inspect images or video unless an explicit later task requires visual
-    analysis.
+    media by path only with the Kurami-owned bounded batch capability. The
+    manifest must contain every successfully downloaded attachment in provider
+    order, up to the per-story limit, rather than a fixed sample of one or two
+    files. Run the canonical `import-media` command described by the Telegram
+    provider reference. Do not ask the model to inspect images or video unless
+    an explicit later task requires visual analysis.
 13. In `dry-run`, create the run-specific artifact directory and write only the
     completed payload with the Hermes `write_file` tool. Do not generate the
     artifact through a shell heredoc, inline Python/Node program, or a

@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { spawnSync } from "node:child_process";
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -114,6 +115,29 @@ assert.match(telegramProfile, /Do not\s+parse the human-readable line stream fro
 assert.match(telegramProfile, /validate-telegram-batch/);
 assert.match(telegramProfile, /capturedUnreadCount/);
 assert.match(telegramProfile, /download_media/);
+assert.match(telegramProfile, /download_media_batch/);
+
+const telegramWrapperPath = path.resolve(
+  root,
+  "integrations",
+  "hermes",
+  "connectors",
+  "telegram_stdio_wrapper.py",
+);
+const telegramWrapper = fs.readFileSync(telegramWrapperPath, "utf8");
+assert.match(telegramWrapper, /MAX_BATCH_MEDIA = 256/);
+assert.match(telegramWrapper, /await download_media\(/);
+assert.match(telegramWrapper, /set\(item\) != \{"chat_id", "message_id"\}/);
+const compiledWrapper = spawnSync(
+  "python3",
+  [
+    "-c",
+    "import pathlib,sys; p=pathlib.Path(sys.argv[1]); compile(p.read_text(), str(p), 'exec')",
+    telegramWrapperPath,
+  ],
+  { encoding: "utf8" },
+);
+assert.equal(compiledWrapper.status, 0, compiledWrapper.stderr);
 
 const topicsProfile = fs.readFileSync(
   path.join(
