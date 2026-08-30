@@ -9,10 +9,14 @@ Require the configured Telegram MCP authenticated as Alex's user account. A
 Bot API connection cannot supply the required unread-channel state and must be
 rejected.
 
-Resolve the available chat-list and message-history operations. Prefer the
-known `list_chats` and `get_messages` operations only when their live schemas
-match this profile. Do not use send, delete, edit, reaction, or unbounded
-mark-read operations during collection.
+Resolve the available chat-list and structured message-list operations. Prefer
+the known `list_chats` and `list_messages` operations only when their live
+schemas match this profile. `list_messages` returns a JSON object with a
+`results` array containing message IDs, dates, text, media labels, and
+`grouped_id`; use that structured response for the persisted raw batch. Do not
+parse the human-readable line stream from `get_messages` into a batch. Do not
+use send, delete, edit, reaction, or unbounded mark-read operations during
+collection.
 
 Configured numeric channel IDs are authoritative. Normal collection should
 address those IDs directly and must not depend on their presence in the first
@@ -30,14 +34,14 @@ For every enabled configured channel:
 
 1. Read its unread count and capture the newest visible message ID as the
    batch's upper boundary.
-2. If the unread count is zero, do not call `get_messages`. Otherwise set one
-   fixed request size for that channel to
-   `min(captured unread count, settings.page_size)`. Fetch pages starting at
-   page 1 until the captured unread count is covered. Keep that request size
-   constant across pages because this connector uses page-number pagination;
-   changing it between pages can overlap or skip messages. Discard returned
-   entries beyond the captured unread count. In particular, never request the
-   configured maximum of 100 when a channel has only a few unread messages.
+2. If the unread count is zero, do not call `list_messages`. Otherwise call
+   `list_messages` once for that channel with `limit` equal to the captured
+   unread count. This is a bounded snapshot request, not an arbitrary history
+   query. Parse its JSON `results` array and discard any returned entries beyond
+   the captured count. Never substitute a visually sampled subset or the
+   human-readable `get_messages` output. If the structured operation cannot
+   return the captured count, leave that channel partial rather than silently
+   falling back to lossy parsing.
 3. Preserve the exact channel ID, message ID, and upper boundary.
 4. If the connector cannot cover the captured count, return that channel as
    partial rather than silently dropping older unread posts.

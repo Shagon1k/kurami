@@ -108,8 +108,9 @@ const telegramProfile = fs.readFileSync(
   ),
   "utf8",
 );
-assert.match(telegramProfile, /min\(captured unread count, settings\.page_size\)/);
-assert.match(telegramProfile, /Keep that request size\s+constant across pages/);
+assert.match(telegramProfile, /`list_messages` returns a JSON object/);
+assert.match(telegramProfile, /limit` equal to the captured\s+unread count/);
+assert.match(telegramProfile, /Do not\s+parse the human-readable line stream from `get_messages`/);
 assert.match(telegramProfile, /validate-telegram-batch/);
 assert.match(telegramProfile, /capturedUnreadCount/);
 assert.match(telegramProfile, /download_media/);
