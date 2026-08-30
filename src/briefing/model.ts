@@ -328,6 +328,9 @@ export function parseBriefingPayload(value: unknown): BriefingPayload {
       provider = "gmail";
       providerItemId = safeId(item.providerItemId, `mail.items[${index}].providerItemId`);
     }
+    if (item.demo !== true && (!provider || !providerItemId)) {
+      fail(`mail.items[${index}] requires provider and providerItemId unless demo is true`);
+    }
     return {
       ...item,
       id: safeId(item.id, `mail.items[${index}].id`),

@@ -150,6 +150,9 @@ assert.match(html, /id="mail-heading">Почта/);
 assert.match(html, /data-mail-class="action"/);
 assert.match(html, /class="mail-row__demo">DEMO/);
 assert.match(html, /aria-label="Все непрочитанные письма"/);
+assert.match(html, /class="mail-row__select"/);
+assert.match(html, /class="mail-row__select-placeholder"/);
+assert.match(html, /data-mail-archive disabled>Прочитать и архивировать/);
 assert.match(html, /data-utility-header/);
 assert.match(html, /utility-header__inner/);
 assert.match(html, /data-media-dialog/);
@@ -164,6 +167,17 @@ assert.match(html, /data-note-id="note:hero"[^>]*>утро без суеты/);
 assert.match(html, /data-note-id="note:news"[^>]*>главное в одной пачке/);
 assert.doesNotMatch(html, /спокойно, всё собрано|главное — рядом/);
 assert.doesNotMatch(html, /<script\b/i);
+
+assert.throws(
+  () => parseBriefingPayload({
+    ...payload,
+    mail: {
+      ...payload.mail,
+      items: [{ id: "mail-without-provider", subject: "Real mail without provider ID" }],
+    },
+  }),
+  /requires provider and providerItemId unless demo is true/,
+);
 
 assert.throws(
   () => parseBriefingPayload({ ...payload, notes: [{ ...payload.notes[0], text: "раз два три четыре пять" }] }),
