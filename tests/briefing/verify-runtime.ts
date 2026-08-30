@@ -74,8 +74,16 @@ const payload = {
       displayTime: "11:00",
       calendarLabel: "Demo",
       duration: "45 мин",
+      location: "Bernardinų sodas, Vilnius",
+      description: "Длинное описание проверяет перенос строк внутри компактной строки события.",
       demo: true,
-    }],
+    }, ...Array.from({ length: 4 }, (_, index) => ({
+      id: `demo-calendar-${index + 2}`,
+      title: `Демонстрационное событие ${index + 2}`,
+      displayTime: `${12 + index}:00`,
+      calendarLabel: "Demo",
+      demo: true,
+    }))],
   },
   mail: {
     state: "ready",
@@ -85,7 +93,14 @@ const payload = {
       sender: "Kurami",
       class: "ACTION",
       summary: "Короткая проверка почтового компонента.",
-    }],
+    }, ...Array.from({ length: 4 }, (_, index) => ({
+      id: `mail-${index + 2}`,
+      subject: `Демонстрационное письмо ${index + 2}`,
+      sender: "Demo Sender",
+      class: index === 0 ? "IMPORTANT" : "GENERAL",
+      summary: "Тестовое содержимое для проверки прокрутки и длинной выборки.",
+      demo: true,
+    }))],
   },
   news: {
     state: "ready",
@@ -115,9 +130,13 @@ assert.match(html, /data-story-toggle/);
 assert.match(html, /class="metric-strip"/);
 assert.match(html, /class="briefing-overview"/);
 assert.match(html, /id="calendar-heading">Сегодня/);
-assert.match(html, /class="agenda-row__demo">DEMO/);
+assert.match(html, /class="agenda-row__badge is-demo">DEMO/);
+assert.match(html, /href="https:\/\/www\.google\.com\/maps\/search\//);
+assert.match(html, /aria-label="Все события на сегодня"/);
 assert.match(html, /id="mail-heading">Почта/);
 assert.match(html, /data-mail-class="action"/);
+assert.match(html, /class="mail-row__demo">DEMO/);
+assert.match(html, /aria-label="Все непрочитанные письма"/);
 assert.match(html, /data-utility-header/);
 assert.match(html, /utility-header__inner/);
 assert.match(html, /data-media-dialog/);
@@ -193,7 +212,7 @@ try {
     .all()
     .map((item) => ({ ...item }));
   assert.deepEqual(itemCounts, [
-    { item_type: "mail", count: 1 },
+    { item_type: "mail", count: 5 },
     { item_type: "story", count: 11 },
   ]);
   const storedPayload = parseBriefingPayload(JSON.parse(edition.payload_json) as unknown);

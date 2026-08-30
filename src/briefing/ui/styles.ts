@@ -87,6 +87,11 @@ a { color: inherit; }
 .briefing-panel__header h2 { margin: 0; font-size: clamp(30px, 3.4vw, 42px); font-weight: 600; line-height: 1; letter-spacing: -.045em; }
 .briefing-panel__header > span { color: var(--muted); font-size: .625rem; }
 .agenda-list, .mail-list { display: grid; }
+.briefing-panel__scroll[data-overflow="true"] { max-height: 372px; overflow-y: auto; overscroll-behavior: contain; scrollbar-gutter: stable; padding-right: 10px; }
+.briefing-panel__scroll[data-overflow="true"]:focus-visible { outline: 2px solid var(--signal); outline-offset: 6px; }
+.briefing-panel__scroll[data-overflow="true"]::-webkit-scrollbar { width: 8px; }
+.briefing-panel__scroll[data-overflow="true"]::-webkit-scrollbar-track { background: color-mix(in srgb, var(--panel) 62%, transparent); }
+.briefing-panel__scroll[data-overflow="true"]::-webkit-scrollbar-thumb { background: var(--line); border: 2px solid var(--section); border-radius: 8px; }
 .agenda-row, .mail-row { min-height: 76px; display: grid; align-items: start; gap: 14px; padding: 17px 0; border-bottom: 1px solid var(--line); }
 .agenda-row:last-child, .mail-row:last-child { border-bottom: 0; }
 .agenda-row { grid-template-columns: 58px minmax(0, 1fr) auto; }
@@ -94,13 +99,18 @@ a { color: inherit; }
 .agenda-row__copy, .mail-row__copy { min-width: 0; display: grid; gap: 4px; }
 .agenda-row__copy strong, .mail-row__copy strong { font-size: .8125rem; font-weight: 600; line-height: 1.35; }
 .agenda-row__copy span, .mail-row__copy span { color: var(--muted); font-size: .625rem; }
-.agenda-row__demo { min-height: 22px; display: inline-flex; align-items: center; justify-content: center; padding: 2px 6px; color: var(--warning); border: 1px solid currentColor; border-radius: 4px; font: 600 .5625rem/1 var(--font-mono); }
+.agenda-row__copy p { display: -webkit-box; overflow: hidden; -webkit-box-orient: vertical; -webkit-line-clamp: 2; margin: 3px 0 0; color: var(--muted); font-size: .6875rem; line-height: 1.45; }
+.agenda-row__location { width: max-content; max-width: 100%; overflow: hidden; color: var(--ink); font-size: .625rem; font-weight: 500; text-decoration-thickness: 1px; text-overflow: ellipsis; text-underline-offset: 3px; white-space: nowrap; }
+.agenda-row__badges, .mail-row__badges { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 5px; }
+.agenda-row__badge, .mail-row__demo { min-height: 22px; display: inline-flex; align-items: center; justify-content: center; padding: 2px 6px; color: var(--muted); border: 1px solid currentColor; border-radius: 4px; font: 600 .5625rem/1 var(--font-mono); }
+.agenda-row__badge.is-demo, .mail-row__demo { color: var(--warning); }
 .mail-row { grid-template-columns: 72px minmax(0, 1fr); }
+.mail-row__badges { justify-content: flex-start; }
 .mail-row__class { width: max-content; min-height: 22px; display: inline-flex; align-items: center; justify-content: center; padding: 2px 6px; color: var(--muted); border: 1px solid currentColor; border-radius: 4px; font: 600 .5625rem/1 var(--font-mono); }
 .mail-row[data-mail-class="action"] .mail-row__class { color: var(--signal); }
 .mail-row[data-mail-class="important"] .mail-row__class { color: var(--warning); }
 .mail-row__copy strong a { text-decoration-thickness: 1px; text-underline-offset: 3px; }
-.mail-row__copy p { margin: 4px 0 0; color: var(--muted); font-size: .6875rem; line-height: 1.5; }
+.mail-row__copy p { display: -webkit-box; overflow: hidden; -webkit-box-orient: vertical; -webkit-line-clamp: 2; margin: 4px 0 0; color: var(--muted); font-size: .6875rem; line-height: 1.5; }
 .section-empty { min-height: 154px; display: grid; place-content: center start; gap: 6px; color: var(--muted); }
 .section-empty strong { color: var(--ink); font-size: .875rem; }
 .section-empty span { font-size: .6875rem; }
@@ -211,7 +221,7 @@ a { color: inherit; }
   .briefing-panel { padding: 24px 18px; box-shadow: 3px 3px 0 var(--section-shadow); }
   .briefing-panel__header { align-items: start; }
   .agenda-row { grid-template-columns: 52px minmax(0, 1fr); }
-  .agenda-row__demo { grid-column: 2; width: max-content; }
+  .agenda-row__badges { grid-column: 2; justify-content: flex-start; }
   .mail-row { grid-template-columns: 1fr; gap: 8px; }
   .digest-feed { margin-top: 36px; padding: 24px 16px; box-shadow: 3px 3px 0 var(--section-shadow); }
   .digest-feed__header { align-items: start; flex-direction: column; gap: 10px; }
