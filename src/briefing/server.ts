@@ -159,6 +159,24 @@ const CLIENT_SCRIPT = `(() => {
   };
   initializePaginatedFeeds();
 
+  document.querySelectorAll('[data-overflow="true"]').forEach((region) => {
+    region.addEventListener('keydown', (event) => {
+      if (event.target !== region) return;
+      const steps = {
+        ArrowDown: 48,
+        ArrowUp: -48,
+        PageDown: Math.max(120, Math.round(region.clientHeight * 0.8)),
+        PageUp: -Math.max(120, Math.round(region.clientHeight * 0.8)),
+        Home: -region.scrollHeight,
+        End: region.scrollHeight,
+      };
+      const amount = steps[event.key];
+      if (amount === undefined) return;
+      event.preventDefault();
+      region.scrollBy({ top: amount, behavior: 'smooth' });
+    });
+  });
+
   document.addEventListener('click', async (event) => {
     const target = event.target instanceof Element ? event.target.closest('[data-theme-toggle], [data-story-toggle], [data-reaction], [data-media-lightbox], [data-media-close]') : null;
     if (!target) return;

@@ -133,6 +133,7 @@ assert.match(html, /id="calendar-heading">Сегодня/);
 assert.match(html, /class="agenda-row__badge is-demo">DEMO/);
 assert.match(html, /href="https:\/\/www\.google\.com\/maps\/search\//);
 assert.match(html, /aria-label="Все события на сегодня"/);
+assert.match(html, /role="region" tabindex="0"/);
 assert.match(html, /id="mail-heading">Почта/);
 assert.match(html, /data-mail-class="action"/);
 assert.match(html, /class="mail-row__demo">DEMO/);
@@ -279,6 +280,7 @@ try {
   const clientScript = await script.text();
   assert.match(clientScript, /\/api\/items\/read|data-reaction/);
   assert.match(clientScript, /data-page-next|URLSearchParams|data-story-details|is-scrolled/);
+  assert.match(clientScript, /data-overflow|PageDown|region\.scrollBy/);
 
   const read = await fetch(`${base}/api/items/read`, {
     method: "POST",

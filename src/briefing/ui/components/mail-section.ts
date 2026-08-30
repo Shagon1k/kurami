@@ -38,6 +38,6 @@ export function renderMailSection(payload: BriefingPayload): string {
 
   return `<section class="briefing-panel briefing-panel--mail" aria-labelledby="mail-heading">
     <header class="briefing-panel__header"><div><p class="section-kicker">Primary · unread</p><h2 id="mail-heading">Почта</h2></div><span>${items.length} новых${actionCount ? ` · ${actionCount} action` : ""}${demoCount ? ` · ${demoCount} demo` : ""}</span></header>
-    <div class="mail-list briefing-panel__scroll"${items.length > 4 ? ' data-overflow="true" tabindex="0" aria-label="Все непрочитанные письма"' : ""}>${rows}</div>
+    <div class="mail-list briefing-panel__scroll"${items.length > 4 ? ' data-overflow="true" role="region" tabindex="0" aria-label="Все непрочитанные письма"' : ""}>${rows}</div>
   </section>`;
 }

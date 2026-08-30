@@ -66,6 +66,6 @@ export function renderCalendarSection(payload: BriefingPayload): string {
 
   return `<section class="briefing-panel briefing-panel--calendar" aria-labelledby="calendar-heading">
     <header class="briefing-panel__header"><div><p class="section-kicker">Три календаря</p><h2 id="calendar-heading">Сегодня</h2></div><span>${escapeHtml(conflicts ? `${conflicts} конфликт` : label)}</span></header>
-    <div class="agenda-list briefing-panel__scroll"${events.length > 4 ? ' data-overflow="true" tabindex="0" aria-label="Все события на сегодня"' : ""}>${rows}</div>
+    <div class="agenda-list briefing-panel__scroll"${events.length > 4 ? ' data-overflow="true" role="region" tabindex="0" aria-label="Все события на сегодня"' : ""}>${rows}</div>
   </section>`;
 }

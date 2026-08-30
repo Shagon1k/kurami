@@ -219,6 +219,7 @@ a { color: inherit; }
   .metric-card { min-height: 140px; padding: 16px; }
   .briefing-overview { margin-top: 36px; gap: 18px; }
   .briefing-panel { padding: 24px 18px; box-shadow: 3px 3px 0 var(--section-shadow); }
+  .briefing-panel__scroll[data-overflow="true"] { max-height: 460px; }
   .briefing-panel__header { align-items: start; }
   .agenda-row { grid-template-columns: 52px minmax(0, 1fr); }
   .agenda-row__badges { grid-column: 2; justify-content: flex-start; }
