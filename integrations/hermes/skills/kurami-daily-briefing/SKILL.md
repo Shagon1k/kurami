@@ -82,16 +82,27 @@ Default manual experiments to `dry-run`. Generation never archives Gmail;
    message as `ACTION`, `IMPORTANT`, or `GENERAL`; do not change Gmail state.
 6. For every enabled Telegram news channel, record its unread count and a stable
    upper message ID before fetching the corresponding newest unread messages.
-   Preserve the per-channel cutoff in the source batch. Before editorial
-   merging, write the normalized Telegram batch to a run artifact and run:
+   Preserve the per-channel cutoff, exact fetched message IDs, and collection
+   state in the source batch. Before editorial merging, write both the raw and
+   normalized Telegram batches to run artifacts and run:
 
    ```text
    python3 /home/shagon1k/_hermes/_core/skills/kurami-daily-briefing/scripts/normalize_telegram_albums.py --input <batch.json> --output <normalized-batch.json>
    ```
 
-   Use the normalized output. This deterministically expands every Telegram
-   `grouped_id` present in the captured batch into ordered `mediaMessageIds`;
-   do not hand-pick only one or two album members.
+   Then validate the exact configured-channel coverage, captured unread counts,
+   fetched IDs, normalized IDs, and complete album membership with:
+
+   ```text
+   $BRIEFING_NODE $BRIEFING_CLI validate-telegram-batch --config $CONFIG --raw <batch.json> --normalized <normalized-batch.json>
+   ```
+
+   Use its counters in the run report. A `complete: false` result must remain a
+   visible partial source; a validation error stops Telegram editorial
+   processing instead of permitting a smaller hand-selected list. Use the
+   normalized output only after validation. This deterministically expands
+   every Telegram `grouped_id` present in the captured batch into ordered
+   `mediaMessageIds`; do not hand-pick only one or two album members.
 7. Fetch weather when the configured capability is available. Weather failure
    makes only that section partial.
 8. Normalize, cluster, merge, summarize, assign topics, and rank content using
@@ -118,10 +129,12 @@ Default manual experiments to `dry-run`. Generation never archives Gmail;
     The renderer must not rewrite facts, ordering, topics, reactions, read
     state, or action semantics.
 12. After the runtime accepts the base edition, download retained Telegram
-    media by path only, write a bounded media manifest, and run the canonical
-    `import-media` command described by the Telegram provider reference. Do not
-    ask the model to inspect images or video unless an explicit later task
-    requires visual analysis.
+    media by path only. The manifest must contain every successfully downloaded
+    attachment in provider order, up to the per-story limit, rather than a
+    fixed sample of one or two files. Run the canonical `import-media` command
+    described by the Telegram provider reference. Do not ask the model to
+    inspect images or video unless an explicit later task requires visual
+    analysis.
 13. In `dry-run`, create the run-specific artifact directory and write only the
     completed payload with the Hermes `write_file` tool. Do not generate the
     artifact through a shell heredoc, inline Python/Node program, or a

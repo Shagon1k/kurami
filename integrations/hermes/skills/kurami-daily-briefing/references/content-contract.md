@@ -228,6 +228,9 @@ Provide a compact public summary and detailed diagnostics containing only
 non-secret operational facts:
 
 - section and source status;
+- Telegram collection counts kept as distinct values: captured unread
+  messages, fetched messages, normalized messages, resulting stories, and
+  imported media assets;
 - last successful timestamp;
 - missing or stale source label;
 - safe error code and short explanation;

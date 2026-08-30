@@ -12,8 +12,9 @@ import {
 import { parseBriefingPayload } from "./model.ts";
 import { renderBriefingPage } from "./ui/render-page.ts";
 import { importEditionMedia, readMediaManifest } from "./media.ts";
+import { validateTelegramBatch } from "./telegram-batch.ts";
 
-type Command = "init" | "prepare-preview" | "render-preview" | "rerender-preview" | "import-media" | "inspect" | "cleanup";
+type Command = "init" | "prepare-preview" | "render-preview" | "rerender-preview" | "import-media" | "validate-telegram-batch" | "inspect" | "cleanup";
 
 type Arguments = {
   command: Command;
@@ -21,6 +22,9 @@ type Arguments = {
   htmlPath?: string;
   editionId?: string;
   manifestPath?: string;
+  configPath?: string;
+  rawPath?: string;
+  normalizedPath?: string;
   at?: string;
 };
 
@@ -30,8 +34,8 @@ function fail(message: string): never {
 
 function parseArguments(argv = process.argv.slice(2)): Arguments {
   const command = argv.shift() as Command | undefined;
-  if (!command || !["init", "prepare-preview", "render-preview", "rerender-preview", "import-media", "inspect", "cleanup"].includes(command)) {
-    fail("Usage: briefing <init|prepare-preview|render-preview|rerender-preview|import-media|inspect|cleanup> [options]");
+  if (!command || !["init", "prepare-preview", "render-preview", "rerender-preview", "import-media", "validate-telegram-batch", "inspect", "cleanup"].includes(command)) {
+    fail("Usage: briefing <init|prepare-preview|render-preview|rerender-preview|import-media|validate-telegram-batch|inspect|cleanup> [options]");
   }
   const result: Arguments = { command };
   while (argv.length > 0) {
@@ -42,6 +46,9 @@ function parseArguments(argv = process.argv.slice(2)): Arguments {
     else if (option === "--html") result.htmlPath = resolve(value);
     else if (option === "--id") result.editionId = value;
     else if (option === "--manifest") result.manifestPath = resolve(value);
+    else if (option === "--config") result.configPath = resolve(value);
+    else if (option === "--raw") result.rawPath = resolve(value);
+    else if (option === "--normalized") result.normalizedPath = resolve(value);
     else if (option === "--at") result.at = value;
     else fail(`Unknown option ${option}`);
   }
@@ -56,6 +63,9 @@ function parseArguments(argv = process.argv.slice(2)): Arguments {
   }
   if (command === "import-media" && !result.manifestPath) {
     fail("import-media requires --manifest");
+  }
+  if (command === "validate-telegram-batch" && (!result.configPath || !result.rawPath || !result.normalizedPath)) {
+    fail("validate-telegram-batch requires --config, --raw, and --normalized");
   }
   if (command !== "cleanup" && result.at) fail("--at is valid only for cleanup");
   return result;
@@ -136,6 +146,14 @@ export async function runBriefingCli(argv = process.argv.slice(2)): Promise<unkn
       action: "import-media",
       externalMutations: false,
       ...(await importEditionMedia(await readMediaManifest(args.manifestPath!), paths)),
+    };
+  }
+  if (args.command === "validate-telegram-batch") {
+    return {
+      ok: true,
+      action: "validate-telegram-batch",
+      externalMutations: false,
+      ...(await validateTelegramBatch(args.configPath!, args.rawPath!, args.normalizedPath!)),
     };
   }
   if (args.command === "cleanup") {

@@ -8,6 +8,7 @@ import { createBriefingServer } from "../../src/briefing/server.ts";
 import { parseBriefingPayload } from "../../src/briefing/model.ts";
 import { renderBriefingPage } from "../../src/briefing/ui/render-page.ts";
 import { importEditionMedia } from "../../src/briefing/media.ts";
+import { validateTelegramBatch } from "../../src/briefing/telegram-batch.ts";
 import {
   briefingPaths,
   cleanupExpired,
@@ -182,6 +183,115 @@ const albumBatch = JSON.parse(await readFile(albumOutput, "utf8")) as {
   items: Array<{ metadata: { mediaMessageIds: number[] } }>;
 };
 assert.deepEqual(albumBatch.items[0]?.metadata.mediaMessageIds, [7907, 7912, 7915]);
+
+const telegramConfig = resolve(home, "briefing.yaml");
+await writeFile(telegramConfig, `
+sources:
+  news:
+    enabled: true
+    channels:
+      - key: tea-workshop
+        id: -1001033871555
+        label: Tea Workshop
+        enabled: true
+      - key: empty-channel
+        id: -1001000000001
+        label: Empty Channel
+        enabled: true
+`);
+const telegramRaw = resolve(home, "telegram-raw.json");
+const rawItems = [7915, 7907, 7912].map((messageId) => ({
+  metadata: {
+    hasMedia: true,
+    telegramChatId: -1001033871555,
+    telegramMessageId: messageId,
+    telegramGroupId: 444,
+  },
+}));
+await writeFile(telegramRaw, JSON.stringify({
+  sourceKey: "news",
+  profile: "telegram-user",
+  status: "ready",
+  capture: {
+    channels: [
+      {
+        sourceKey: "tea-workshop",
+        channelId: -1001033871555,
+        label: "Tea Workshop",
+        status: "ready",
+        capturedUnreadCount: 3,
+        upperMessageId: 7915,
+        fetchedMessageIds: [7915, 7907, 7912],
+      },
+      {
+        sourceKey: "empty-channel",
+        channelId: -1001000000001,
+        label: "Empty Channel",
+        status: "empty",
+        capturedUnreadCount: 0,
+        upperMessageId: null,
+        fetchedMessageIds: [],
+      },
+    ],
+  },
+  items: rawItems,
+}));
+const telegramNormalized = resolve(home, "telegram-normalized.json");
+await writeFile(telegramNormalized, JSON.stringify({
+  items: rawItems.map((item) => ({
+    metadata: { ...item.metadata, mediaMessageIds: [7907, 7912, 7915] },
+  })),
+}));
+const telegramReport = await validateTelegramBatch(telegramConfig, telegramRaw, telegramNormalized);
+assert.deepEqual({
+  complete: telegramReport.complete,
+  configuredChannels: telegramReport.configuredChannels,
+  capturedUnread: telegramReport.capturedUnread,
+  fetched: telegramReport.fetched,
+  normalized: telegramReport.normalized,
+  mediaMessages: telegramReport.mediaMessages,
+  albumGroups: telegramReport.albumGroups,
+}, {
+  complete: true,
+  configuredChannels: 2,
+  capturedUnread: 3,
+  fetched: 3,
+  normalized: 3,
+  mediaMessages: 3,
+  albumGroups: 1,
+});
+await writeFile(telegramRaw, JSON.stringify({
+  sourceKey: "news",
+  profile: "telegram-user",
+  status: "ready",
+  capture: {
+    channels: [
+      {
+        sourceKey: "tea-workshop",
+        channelId: -1001033871555,
+        label: "Tea Workshop",
+        status: "ready",
+        capturedUnreadCount: 4,
+        upperMessageId: 7915,
+        fetchedMessageIds: [7915, 7907, 7912],
+      },
+      {
+        sourceKey: "empty-channel",
+        channelId: -1001000000001,
+        label: "Empty Channel",
+        status: "empty",
+        capturedUnreadCount: 0,
+        upperMessageId: null,
+        fetchedMessageIds: [],
+      },
+    ],
+  },
+  items: rawItems,
+}));
+await assert.rejects(
+  validateTelegramBatch(telegramConfig, telegramRaw, telegramNormalized),
+  /claims ready but fetched 3 of 4/,
+);
 
 const initialized = await initializeBriefingStore(paths);
 assert.equal(initialized.integrity, "ok");

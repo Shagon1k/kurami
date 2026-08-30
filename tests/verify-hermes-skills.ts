@@ -110,6 +110,9 @@ const telegramProfile = fs.readFileSync(
 );
 assert.match(telegramProfile, /min\(captured unread count, settings\.page_size\)/);
 assert.match(telegramProfile, /Keep that request size\s+constant across pages/);
+assert.match(telegramProfile, /validate-telegram-batch/);
+assert.match(telegramProfile, /capturedUnreadCount/);
+assert.match(telegramProfile, /download_media/);
 
 const topicsProfile = fs.readFileSync(
   path.join(

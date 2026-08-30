@@ -42,6 +42,34 @@ For every enabled configured channel:
 4. If the connector cannot cover the captured count, return that channel as
    partial rather than silently dropping older unread posts.
 
+The raw batch must include a deterministic capture ledger alongside `items`:
+
+```json
+{
+  "capture": {
+    "channels": [
+      {
+        "sourceKey": "tea-workshop",
+        "channelId": -1001033871555,
+        "label": "Чайная мастерская — лучший китайский чай",
+        "status": "ready",
+        "capturedUnreadCount": 6,
+        "upperMessageId": 7915,
+        "fetchedMessageIds": [7915, 7914, 7913, 7912, 7911, 7910]
+      }
+    ]
+  }
+}
+```
+
+Include one ledger entry for every enabled configured channel, including
+`empty`, `partial`, and `failed` channels. `fetchedMessageIds` identifies the
+exact normalized items; it is not a story count. After album normalization run
+the runtime's `validate-telegram-batch` command from `SKILL.md`. Its
+`capturedUnread`, `fetched`, `normalized`, `mediaMessages`, and `albumGroups`
+are the authoritative collection counters. Do not replace them with an
+estimate from the final editorial story list.
+
 Normalize every post to `item-contract.md` with:
 
 - `kind`: `news`;
@@ -68,9 +96,19 @@ in provider order. Do not add unrelated media from neighboring posts.
 Do not download attachments during initial collection. After deduplication and
 story selection, download the retained story media with the connector's
 existing bounded `download_media` capability into
-`$KURAMI_HOME/state/briefing/media-inbox`. Prefer this path-only operation over
-`open_photo`: copying bytes does not require the model to inspect the image.
-Keep provider order, import at most 12 assets per story, and run:
+`$KURAMI_HOME/state/briefing/media-inbox`. The Hermes Telegram MCP contour must
+explicitly expose `download_media`, and that exact inbox must be the only
+server-side allowed root used for briefing downloads. Prefer this path-only
+operation over `open_photo`: copying bytes does not require the model to inspect
+the image. If either capability or root is missing, keep the story, report its
+media as partial, and never invent or hotlink an attachment.
+
+For each retained story, iterate the complete ordered `mediaMessageIds` and
+invoke `download_media` once for every member until all are downloaded or the
+limit of 12 is reached. Do not stop after the cover or after two successful
+downloads. Record an individual safe diagnostic for a failed asset and
+continue the remaining members. Write every successful path to the manifest in
+the same order, then run:
 
 ```text
 $BRIEFING_NODE $BRIEFING_CLI import-media --manifest <media-manifest.json>
