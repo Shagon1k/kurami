@@ -104,7 +104,7 @@ a { color: inherit; }
 .agenda-row__badges, .mail-row__badges { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 5px; }
 .agenda-row__badge, .mail-row__demo { min-height: 22px; display: inline-flex; align-items: center; justify-content: center; padding: 2px 6px; color: var(--muted); border: 1px solid currentColor; border-radius: 4px; font: 600 .5625rem/1 var(--font-mono); }
 .agenda-row__badge.is-demo, .mail-row__demo { color: var(--warning); }
-.mail-row { grid-template-columns: 30px minmax(0, 1fr); align-items: center; }
+.mail-row { grid-template-columns: 30px minmax(0, 1fr) 154px; align-items: center; }
 .mail-row__select { width: 24px; height: 24px; position: relative; display: inline-grid; place-items: center; align-self: center; color: var(--signal); cursor: pointer; }
 .mail-row__select input { position: absolute; inset: 0; width: 100%; height: 100%; margin: 0; appearance: none; background: var(--panel); border: 1px solid var(--line); border-radius: 3px; cursor: pointer; }
 .mail-row__select input:checked { border-color: var(--signal); background: color-mix(in srgb, var(--signal) 10%, var(--panel)); }
@@ -113,10 +113,12 @@ a { color: inherit; }
 .mail-row__select input:focus-visible { outline: 2px solid var(--signal); outline-offset: 3px; }
 .mail-row__select-placeholder { width: 24px; height: 24px; align-self: center; }
 .mail-row__content { min-width: 0; display: grid; gap: 5px; }
-.mail-row__top { min-width: 0; display: flex; align-items: flex-start; gap: 10px; }
-.mail-row__top strong { min-width: 0; flex: 1; padding-top: 1px; }
-.mail-row__badges { flex: none; justify-content: flex-start; flex-wrap: nowrap; }
-.mail-row__class { width: max-content; min-height: 22px; display: inline-flex; align-items: center; justify-content: center; padding: 2px 6px; color: var(--muted); border: 1px solid currentColor; border-radius: 4px; font: 600 .5625rem/1 var(--font-mono); }
+.mail-row__top { min-width: 0; }
+.mail-row__top strong { display: block; min-width: 0; padding-top: 1px; }
+.mail-row__badges { width: 154px; display: grid; grid-template-columns: repeat(2, 72px); align-self: center; justify-content: end; gap: 6px; }
+.mail-row__badges > :only-child { grid-column: 2; }
+.mail-row__class { width: 72px; min-height: 22px; display: inline-flex; align-items: center; justify-content: center; padding: 2px 6px; color: var(--muted); border: 1px solid currentColor; border-radius: 4px; font: 600 .5625rem/1 var(--font-mono); }
+.mail-row__demo { width: 72px; }
 .mail-row[data-mail-class="action"] .mail-row__class { color: var(--signal); }
 .mail-row[data-mail-class="important"] .mail-row__class { color: var(--warning); }
 .mail-row__copy strong a { text-decoration-thickness: 1px; text-underline-offset: 3px; }
@@ -244,8 +246,9 @@ a { color: inherit; }
   .agenda-row { grid-template-columns: 52px minmax(0, 1fr); }
   .agenda-row__badges { grid-column: 2; justify-content: flex-start; }
   .mail-row { grid-template-columns: 28px 1fr; gap: 8px; }
-  .mail-row__top { display: grid; gap: 7px; }
-  .mail-row__badges, .mail-row__copy { grid-column: auto; }
+  .mail-row__content, .mail-row__badges { grid-column: 2; }
+  .mail-row__badges { width: 150px; grid-template-columns: repeat(2, 72px); justify-content: start; }
+  .mail-row__badges > :only-child { grid-column: 1; }
   .mail-actions { grid-template-columns: 1fr auto; }
   .mail-actions label { grid-column: 1; }
   .mail-actions .action-button { grid-column: 2; grid-row: 1 / span 2; }
