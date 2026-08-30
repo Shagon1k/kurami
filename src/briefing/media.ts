@@ -160,6 +160,34 @@ export async function importEditionMedia(
     story.media = media;
   }
 
+  const previousMediaSummary = typeof payload.dataQuality.mediaSummary === "string"
+    ? payload.dataQuality.mediaSummary.trim()
+    : "";
+  const priorCollection = typeof payload.dataQuality.telegramCollection === "object"
+      && payload.dataQuality.telegramCollection !== null
+      && !Array.isArray(payload.dataQuality.telegramCollection)
+    ? payload.dataQuality.telegramCollection as Record<string, unknown>
+    : {};
+  payload.dataQuality.telegramCollection = {
+    ...priorCollection,
+    downloaded: imported,
+    imported,
+    storiesWithMedia: manifest.stories.length,
+  };
+  const mediaSummary = imported > 0
+    ? `${imported} медиафайлов сохранено для ${manifest.stories.length} сюжетов.`
+    : "В этом выпуске медиафайлов нет.";
+  payload.dataQuality.mediaSummary = mediaSummary;
+  let qualitySummary = typeof payload.dataQuality.summary === "string"
+    ? payload.dataQuality.summary.trim()
+    : "";
+  if (previousMediaSummary && qualitySummary.endsWith(previousMediaSummary)) {
+    qualitySummary = qualitySummary.slice(0, -previousMediaSummary.length).trim();
+  }
+  payload.dataQuality.summary = qualitySummary
+    ? `${qualitySummary.replace(/\s+$/u, "")} ${mediaSummary}`
+    : mediaSummary;
+
   const parsed = parseBriefingPayload(payload);
   const prepared = await preparePreview(parsed, renderBriefingPage(parsed), paths);
   for (const stagedFile of stagedFiles) {

@@ -12,6 +12,7 @@ import { validateTelegramBatch } from "../../src/briefing/telegram-batch.ts";
 import {
   briefingPaths,
   cleanupExpired,
+  finalizeEdition,
   initializeBriefingStore,
   loadEdition,
   openBriefingDatabase,
@@ -90,6 +91,8 @@ const payload = {
     state: "ready",
     items: [{
       id: "mail-1",
+      provider: "gmail",
+      providerItemId: "gmail-message-1",
       subject: "Проверка",
       sender: "Kurami",
       class: "ACTION",
@@ -120,6 +123,14 @@ const payload = {
     })),
   },
   dataQuality: { state: "ready" },
+  sourceBatches: [{
+    sourceKey: "telegram:test",
+    provider: "telegram",
+    providerSourceId: "-1001234567890",
+    minItemId: "100",
+    maxItemId: "110",
+    itemIds: ["100", "105", "110"],
+  }],
 };
 
 const parsedPayload = parseBriefingPayload(payload);
@@ -295,7 +306,7 @@ await assert.rejects(
 
 const initialized = await initializeBriefingStore(paths);
 assert.equal(initialized.integrity, "ok");
-assert.deepEqual(initialized.applied, ["001_initial.sql"]);
+assert.deepEqual(initialized.applied, ["001_initial.sql", "002_source_provider_ids.sql"]);
 
 const prepared = await preparePreview(payload, html, paths);
 assert.equal(prepared.editionId, "daily:2026-08-28");
@@ -328,6 +339,8 @@ try {
   ]);
   const storedPayload = parseBriefingPayload(JSON.parse(edition.payload_json) as unknown);
   assert.equal(storedPayload.news.items[0]?.media?.[0]?.src, "/media/daily/2026-08-28/story-1/01.jpg");
+  assert.equal((storedPayload.dataQuality.telegramCollection as { imported: number }).imported, 1);
+  assert.match(String(storedPayload.dataQuality.summary), /1 медиафайлов сохранено/);
 } finally {
   database.close();
 }
@@ -349,7 +362,13 @@ await assert.rejects(
   /missing feed item story-1/,
 );
 
-const server = await createBriefingServer(paths);
+const mailActions: Array<{ actionId: string; messageIds: string[] }> = [];
+const server = await createBriefingServer(paths, {
+  mailActionExecutor: async (input) => {
+    mailActions.push(input);
+    return { receipt: { provider: "test", count: input.messageIds.length } };
+  },
+});
 await new Promise<void>((resolvePromise, reject) => {
   server.once("error", reject);
   server.listen(0, "127.0.0.1", resolvePromise);
@@ -364,7 +383,7 @@ try {
     ok: true,
     database: "ok",
     editions: 1,
-    externalMutations: false,
+    externalMutations: true,
   });
 
   const preview = await fetch(`${base}${prepared.previewPath}`);
@@ -391,6 +410,23 @@ try {
   assert.match(clientScript, /\/api\/items\/read|data-reaction/);
   assert.match(clientScript, /data-page-next|URLSearchParams|data-story-details|is-scrolled/);
   assert.match(clientScript, /data-overflow|PageDown|region\.scrollBy/);
+  assert.match(clientScript, /api\/mail\/read-and-archive|data-mail-select-all/);
+
+  const archiveMail = await fetch(`${base}/api/mail/read-and-archive`, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ editionId: "daily:2026-08-28", itemIds: ["mail-1"] }),
+  });
+  assert.equal(archiveMail.status, 200);
+  assert.deepEqual(mailActions.map((action) => action.messageIds), [["gmail-message-1"]]);
+  const archiveMailRetry = await fetch(`${base}/api/mail/read-and-archive`, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ editionId: "daily:2026-08-28", itemIds: ["mail-1"] }),
+  });
+  assert.equal(archiveMailRetry.status, 200);
+  assert.equal((await archiveMailRetry.json() as { alreadyComplete: boolean }).alreadyComplete, true);
+  assert.equal(mailActions.length, 1);
 
   const read = await fetch(`${base}/api/items/read`, {
     method: "POST",
@@ -445,6 +481,15 @@ try {
     { topicId: "ai", label: "AI", likes: 1, dislikes: 0 },
     { topicId: "technology", label: "Technology", likes: 1, dislikes: 0 },
   ]);
+  const finalized = finalizeEdition(persisted, "daily:2026-08-28", [
+    { sourceKey: "telegram:test", status: "committed" },
+  ]);
+  assert.deepEqual(finalized, {
+    editionId: "daily:2026-08-28",
+    state: "complete",
+    publicationPath: "/daily/2026-08-28",
+  });
+  assert.equal(loadEdition(persisted, { type: "daily", current: true })?.id, "daily:2026-08-28");
 } finally {
   persisted.close();
 }

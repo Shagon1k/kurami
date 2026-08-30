@@ -104,12 +104,37 @@ Every unread message belongs to exactly one editorial class:
 
 Each mail item needs a stable internal item ID, sender, subject, received time,
 short summary, class, source state, selected state, and a server-side action
-reference. Provider message IDs may be stored server-side but must not become
-arbitrary browser-supplied tool parameters.
+reference. For Gmail, store `provider: "gmail"` and the provider message ID as
+`providerItemId` in the payload persisted by the runtime. The renderer must not
+print `providerItemId`, and the browser submits only the internal item ID.
 
 The only initial bulk mutation is `read_and_archive`: remove `UNREAD` and
 `INBOX` from the explicitly selected messages. Generation itself never invokes
 this action.
+
+## Prepared source batches
+
+A production daily payload includes one `sourceBatches` entry per successfully
+captured Telegram channel:
+
+```json
+{
+  "sourceKey": "telegram:channel-key",
+  "provider": "telegram",
+  "providerSourceId": "-1001234567890",
+  "minItemId": "101",
+  "maxItemId": "145",
+  "itemIds": ["101", "102", "145"]
+}
+```
+
+The runtime persists this exact snapshot during preparation. After the bounded
+provider commit, write a small receipt artifact containing the edition ID and
+one `{sourceKey, status}` result per batch, then call:
+
+```text
+$BRIEFING_NODE $BRIEFING_CLI finalize --id <edition-id> --receipts <receipts.json>
+```
 
 ## News story
 

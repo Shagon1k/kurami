@@ -132,6 +132,8 @@ first version.
 ## Acknowledge
 
 Collection never marks a channel read. Production acknowledgement requires the
-Kurami-owned bounded operation `mark_read_through(chat_id, max_id)` and uses the
-captured upper boundary. The upstream unbounded `mark_as_read(chat_id)` is not
-an acceptable fallback.
+Kurami-owned bounded operation `mark_read_through_batch(items)` in the same
+stdio process. Pass one exact `{"chat_id": ..., "max_id": ...}` entry per
+successfully prepared configured channel, at most 64 entries. Persist its
+per-channel results as commit receipts. The upstream unbounded
+`mark_as_read(chat_id)` is not an acceptable fallback.

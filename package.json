@@ -82,6 +82,7 @@
   "type": "module",
   "private": true,
   "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.30.0",
     "yaml": "^2.9.0"
   },
   "devDependencies": {

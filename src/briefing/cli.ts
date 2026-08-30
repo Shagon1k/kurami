@@ -3,6 +3,7 @@ import { resolve } from "node:path";
 import {
   briefingPaths,
   cleanupExpired,
+  finalizeEdition,
   initializeBriefingStore,
   loadEdition,
   openBriefingDatabase,
@@ -14,7 +15,7 @@ import { renderBriefingPage } from "./ui/render-page.ts";
 import { importEditionMedia, readMediaManifest } from "./media.ts";
 import { validateTelegramBatch } from "./telegram-batch.ts";
 
-type Command = "init" | "prepare-preview" | "render-preview" | "rerender-preview" | "import-media" | "validate-telegram-batch" | "inspect" | "cleanup";
+type Command = "init" | "prepare-preview" | "render-preview" | "rerender-preview" | "import-media" | "validate-telegram-batch" | "finalize" | "inspect" | "cleanup";
 
 type Arguments = {
   command: Command;
@@ -25,6 +26,7 @@ type Arguments = {
   configPath?: string;
   rawPath?: string;
   normalizedPath?: string;
+  receiptsPath?: string;
   at?: string;
 };
 
@@ -34,8 +36,8 @@ function fail(message: string): never {
 
 function parseArguments(argv = process.argv.slice(2)): Arguments {
   const command = argv.shift() as Command | undefined;
-  if (!command || !["init", "prepare-preview", "render-preview", "rerender-preview", "import-media", "validate-telegram-batch", "inspect", "cleanup"].includes(command)) {
-    fail("Usage: briefing <init|prepare-preview|render-preview|rerender-preview|import-media|validate-telegram-batch|inspect|cleanup> [options]");
+  if (!command || !["init", "prepare-preview", "render-preview", "rerender-preview", "import-media", "validate-telegram-batch", "finalize", "inspect", "cleanup"].includes(command)) {
+    fail("Usage: briefing <init|prepare-preview|render-preview|rerender-preview|import-media|validate-telegram-batch|finalize|inspect|cleanup> [options]");
   }
   const result: Arguments = { command };
   while (argv.length > 0) {
@@ -49,6 +51,7 @@ function parseArguments(argv = process.argv.slice(2)): Arguments {
     else if (option === "--config") result.configPath = resolve(value);
     else if (option === "--raw") result.rawPath = resolve(value);
     else if (option === "--normalized") result.normalizedPath = resolve(value);
+    else if (option === "--receipts") result.receiptsPath = resolve(value);
     else if (option === "--at") result.at = value;
     else fail(`Unknown option ${option}`);
   }
@@ -66,6 +69,9 @@ function parseArguments(argv = process.argv.slice(2)): Arguments {
   }
   if (command === "validate-telegram-batch" && (!result.configPath || !result.rawPath || !result.normalizedPath)) {
     fail("validate-telegram-batch requires --config, --raw, and --normalized");
+  }
+  if (command === "finalize" && (!result.editionId || !result.receiptsPath)) {
+    fail("finalize requires --id and --receipts");
   }
   if (command !== "cleanup" && result.at) fail("--at is valid only for cleanup");
   return result;
@@ -155,6 +161,48 @@ export async function runBriefingCli(argv = process.argv.slice(2)): Promise<unkn
       externalMutations: false,
       ...(await validateTelegramBatch(args.configPath!, args.rawPath!, args.normalizedPath!)),
     };
+  }
+  if (args.command === "finalize") {
+    const receipt = await readPayload(args.receiptsPath!);
+    if (typeof receipt !== "object" || receipt === null || Array.isArray(receipt)) {
+      fail("Finalize receipt must be an object");
+    }
+    const root = receipt as Record<string, unknown>;
+    if (root.editionId !== args.editionId || !Array.isArray(root.results)) {
+      fail("Finalize receipt edition or results are invalid");
+    }
+    const results = root.results.map((raw, index) => {
+      if (typeof raw !== "object" || raw === null || Array.isArray(raw)) {
+        fail(`Finalize result ${index} is invalid`);
+      }
+      const item = raw as Record<string, unknown>;
+      if (typeof item.sourceKey !== "string" || !/^[A-Za-z0-9][A-Za-z0-9._:-]{0,159}$/.test(item.sourceKey)) {
+        fail(`Finalize result ${index} sourceKey is invalid`);
+      }
+      if (item.status !== "committed" && item.status !== "failed") {
+        fail(`Finalize result ${index} status is invalid`);
+      }
+      if (item.errorCode !== undefined && typeof item.errorCode !== "string") {
+        fail(`Finalize result ${index} errorCode is invalid`);
+      }
+      return {
+        sourceKey: item.sourceKey,
+        status: item.status as "committed" | "failed",
+        ...(typeof item.errorCode === "string" ? { errorCode: item.errorCode } : {}),
+      };
+    });
+    await initializeBriefingStore(paths);
+    const database = openBriefingDatabase(paths);
+    try {
+      return {
+        ok: true,
+        action: "finalize",
+        externalMutations: true,
+        ...finalizeEdition(database, args.editionId!, results),
+      };
+    } finally {
+      database.close();
+    }
   }
   if (args.command === "cleanup") {
     const at = args.at ?? new Date().toISOString();

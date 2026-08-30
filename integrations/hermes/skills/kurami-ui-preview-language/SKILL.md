@@ -189,9 +189,11 @@ Use Hermes file tools to inspect and edit the target project. Use the target pro
   `data-theme-toggle` and may contain `data-theme-icon` and
   `data-theme-label`; never rely only on the browser color preference.
 - Provide visible hover, focus-visible, active, disabled, and selected states.
-- Make briefing read state explicit but quiet (for example `✓ прочитано` in
-  metadata). Expanding the canonical story disclosure may set this state; it
-  must remain possible to reopen and reread the story.
+- Make briefing read state explicit but quiet: use a subtle whole-row tint and
+  a small red Caveat check mark, plus the screen-reader label `Прочитано`.
+  Do not add a metadata pill, reduce text contrast, or grayscale media.
+  Expanding the canonical story disclosure may set this state; it must remain
+  possible to reopen and reread the story.
 - Keep the utility header full-width with a padded page-shell inner container;
   its controls must never touch the structural border. Add the stronger border
   and small shadow only after scroll.

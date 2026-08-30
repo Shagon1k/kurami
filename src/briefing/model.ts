@@ -40,7 +40,18 @@ export type NewsItem = {
 
 export type MailItem = {
   id: string;
+  provider?: "gmail";
+  providerItemId?: string;
   [key: string]: unknown;
+};
+
+export type SourceBatch = {
+  sourceKey: string;
+  provider: "telegram";
+  providerSourceId: string;
+  minItemId: string;
+  maxItemId: string;
+  itemIds: string[];
 };
 
 export type BriefingPayload = {
@@ -65,6 +76,7 @@ export type BriefingPayload = {
     pageSize?: number;
   };
   dataQuality: Record<string, unknown> & { state: SectionState };
+  sourceBatches?: SourceBatch[];
   [key: string]: unknown;
 };
 
@@ -242,6 +254,45 @@ function notes(value: unknown): KuramiNote[] | undefined {
   });
 }
 
+function sourceBatches(value: unknown): SourceBatch[] | undefined {
+  if (value === undefined) return undefined;
+  if (!Array.isArray(value) || value.length < 1 || value.length > 64) {
+    fail("sourceBatches must contain one to 64 entries");
+  }
+  const seen = new Set<string>();
+  return value.map((raw, index) => {
+    const batch = record(raw, `sourceBatches[${index}]`);
+    const sourceKey = safeId(batch.sourceKey, `sourceBatches[${index}].sourceKey`);
+    if (seen.has(sourceKey)) fail(`sourceBatches contains duplicate source ${sourceKey}`);
+    seen.add(sourceKey);
+    if (string(batch.provider, `sourceBatches[${index}].provider`) !== "telegram") {
+      fail(`sourceBatches[${index}].provider is unsupported`);
+    }
+    const providerSourceId = string(
+      batch.providerSourceId,
+      `sourceBatches[${index}].providerSourceId`,
+    );
+    if (!/^-?[1-9]\d{0,19}$/u.test(providerSourceId)) {
+      fail(`sourceBatches[${index}].providerSourceId must be a Telegram numeric ID`);
+    }
+    const minItemId = safeId(batch.minItemId, `sourceBatches[${index}].minItemId`);
+    const maxItemId = safeId(batch.maxItemId, `sourceBatches[${index}].maxItemId`);
+    if (!Array.isArray(batch.itemIds) || batch.itemIds.length < 1 || batch.itemIds.length > 5000) {
+      fail(`sourceBatches[${index}].itemIds is invalid`);
+    }
+    const itemIds = batch.itemIds.map((itemId, itemIndex) =>
+      safeId(itemId, `sourceBatches[${index}].itemIds[${itemIndex}]`)
+    );
+    if (new Set(itemIds).size !== itemIds.length) {
+      fail(`sourceBatches[${index}].itemIds contains duplicates`);
+    }
+    if (!itemIds.includes(minItemId) || !itemIds.includes(maxItemId)) {
+      fail(`sourceBatches[${index}] boundaries must belong to itemIds`);
+    }
+    return { sourceKey, provider: "telegram", providerSourceId, minItemId, maxItemId, itemIds };
+  });
+}
+
 export function parseBriefingPayload(value: unknown): BriefingPayload {
   const root = record(value, "root");
   if (root.schemaVersion !== 1) fail("schemaVersion must equal 1");
@@ -260,6 +311,7 @@ export function parseBriefingPayload(value: unknown): BriefingPayload {
 
   const hero = record(root.hero, "hero");
   const parsedNotes = notes(root.notes);
+  const parsedSourceBatches = sourceBatches(root.sourceBatches);
   const calendar = record(root.calendar, "calendar");
   calendar.state = sectionState(calendar.state, "calendar.state");
   const mail = record(root.mail, "mail");
@@ -267,7 +319,20 @@ export function parseBriefingPayload(value: unknown): BriefingPayload {
   if (!Array.isArray(mail.items)) fail("mail.items must be an array");
   const mailItems = mail.items.map((raw, index) => {
     const item = record(raw, `mail.items[${index}]`);
-    return { ...item, id: safeId(item.id, `mail.items[${index}].id`) };
+    let provider: "gmail" | undefined;
+    let providerItemId: string | undefined;
+    if (item.provider !== undefined || item.providerItemId !== undefined) {
+      if (string(item.provider, `mail.items[${index}].provider`) !== "gmail") {
+        fail(`mail.items[${index}].provider is unsupported`);
+      }
+      provider = "gmail";
+      providerItemId = safeId(item.providerItemId, `mail.items[${index}].providerItemId`);
+    }
+    return {
+      ...item,
+      id: safeId(item.id, `mail.items[${index}].id`),
+      ...(provider && providerItemId ? { provider, providerItemId } : {}),
+    };
   });
 
   const news = record(root.news, "news");
@@ -318,6 +383,7 @@ export function parseBriefingPayload(value: unknown): BriefingPayload {
     },
     hero,
     ...(parsedNotes ? { notes: parsedNotes } : {}),
+    ...(parsedSourceBatches ? { sourceBatches: parsedSourceBatches } : {}),
     calendar: calendar as BriefingPayload["calendar"],
     mail: { ...mail, items: mailItems } as BriefingPayload["mail"],
     news: { ...news, items: newsItems } as BriefingPayload["news"],

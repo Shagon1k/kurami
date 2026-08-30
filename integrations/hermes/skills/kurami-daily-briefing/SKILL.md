@@ -83,7 +83,8 @@ Default manual experiments to `dry-run`. Generation never archives Gmail;
 6. For every enabled Telegram news channel, record its unread count and a stable
    upper message ID before fetching the corresponding newest unread messages.
    Preserve the per-channel cutoff, exact fetched message IDs, and collection
-   state in the source batch. Before editorial merging, write both the raw and
+   state in the payload `sourceBatches`, including the configured source key and
+   numeric Telegram channel ID. Before editorial merging, write both the raw and
    normalized Telegram batches to run artifacts and run:
 
    ```text
@@ -160,10 +161,13 @@ For a production run:
    page before any external mutation.
 2. If preparation fails, keep the previous latest edition and do not mutate
    Telegram or Gmail.
-3. Mark each successfully captured Telegram channel read only through its
-   recorded upper message ID. If the provider cannot accept that cutoff, leave
-   the channel unread and mark it partial; never use an unbounded fallback.
-4. Record every commit result and finalize the same prepared edition. A crash
+3. Submit every successfully captured Telegram channel and its recorded upper
+   message ID in one `mark_read_through_batch` call. If one channel fails, keep
+   its failed receipt and mark only that source partial; never use an unbounded
+   fallback.
+4. Write the exact per-source results to a small receipts JSON artifact and run
+   `$BRIEFING_NODE $BRIEFING_CLI finalize --id <edition-id> --receipts <receipts.json>`.
+   Record every commit result and finalize the same prepared edition. A crash
    between prepare and finalize must be recoverable without refetching or
    reprocessing committed items.
 5. Make a meaningful partial edition latest with a visible quality warning.

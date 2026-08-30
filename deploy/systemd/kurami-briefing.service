@@ -16,6 +16,7 @@ Environment=KURAMI_HOME=/home/shagon1k/_hermes/_kurami
 Environment=BRIEFING_HOST=127.0.0.1
 Environment=BRIEFING_PORT=8787
 Environment=PATH=/home/shagon1k/_hermes/_kurami/runtime/node/bin:/usr/local/bin:/usr/bin:/bin
+EnvironmentFile=-/home/shagon1k/_hermes/_kurami/connectors/external/composio-automation-session/.env
 
 UMask=0077
 NoNewPrivileges=true

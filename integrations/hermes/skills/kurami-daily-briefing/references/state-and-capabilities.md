@@ -19,7 +19,7 @@ Kurami-owned adapter exposing a stable MCP schema.
 | --- | --- | --- |
 | `news.unread_count` | Read unread count for one configured source | no |
 | `news.fetch_recent` | Fetch newest messages sufficient for the captured count | no |
-| `news.mark_read_through` | Mark one source read through an exact upper item ID | yes |
+| `news.mark_read_through` | Mark prepared sources read through exact upper item IDs in one bounded batch | yes |
 | `mail.list_unread` | Fetch all unread Gmail messages with pagination | no |
 | `mail.read_and_archive` | Remove `UNREAD` and `INBOX` from selected messages | yes |
 | `calendar.list_events` | Fetch one configured calendar for the briefing window | no |
@@ -39,7 +39,8 @@ For each configured channel:
 2. Fetch enough newest messages to cover that count.
 3. Store the fetched item IDs plus `min_id` and `max_id` in the prepared source
    batch.
-4. After durable preparation, call `mark_read_through(chat_id, max_id)`.
+4. After durable preparation, call `mark_read_through_batch(items)` once with
+   the exact per-channel cutoffs.
 5. Store the provider result before finalizing.
 
 Never call an unbounded `mark_as_read(chat_id)` as a substitute. If the current
@@ -47,19 +48,24 @@ Telegram connector lacks `max_id`, production mutation remains disabled until
 a Kurami-owned bounded adapter is installed and tested. Keep the external
 connector checkout pinned and unmodified.
 
-## Runtime MVP boundary
+## Runtime boundary
 
-The initial runtime provides only local, reversible operations:
+The runtime provides local interaction state plus two narrow external mutation
+surfaces:
 
 - migrate and inspect the dedicated briefing SQLite database;
 - validate and stage a versioned payload plus inert rendered HTML;
 - serve prepared previews on loopback;
 - record briefing-local read state and explicit story reactions;
-- delete expired daily editions while retaining compact preference events.
+- delete expired daily editions while retaining compact preference events;
+- resolve selected internal mail IDs server-side and invoke only Gmail
+  `read_and_archive` through the restricted automation contour;
+- persist idempotent action receipts;
+- let the production skill acknowledge prepared Telegram source batches only
+  through the bounded same-process batch adapter.
 
-It does not finalize editions, make a prepared edition current, mutate Telegram
-or Gmail, send notifications, or expose a public listener. Those capabilities
-remain gated until their bounded adapters and commit receipts are implemented.
+The runtime still does not permit browser-selected provider tool names, raw
+provider arguments, or unbounded Telegram acknowledgement.
 
 One failed channel does not block successful channels. Its messages remain
 unread and the edition records a partial source. Retries fetch only failed

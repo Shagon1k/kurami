@@ -3,18 +3,62 @@ import { createReadStream } from "node:fs";
 import { stat } from "node:fs/promises";
 import { extname, relative, resolve } from "node:path";
 import type { DatabaseSync } from "node:sqlite";
+import { Client } from "@modelcontextprotocol/sdk/client/index.js";
+import { StreamableHTTPClientTransport } from "@modelcontextprotocol/sdk/client/streamableHttp.js";
 import {
   briefingPaths,
+  finishMailReadAndArchive,
   initializeBriefingStore,
   loadEdition,
   markItemRead,
   openBriefingDatabase,
+  prepareMailReadAndArchive,
   readEditionHtml,
   setReaction,
   topicProfile,
   type BriefingPaths,
   type EditionRow,
 } from "./store.ts";
+
+export type MailActionExecutor = (input: {
+  actionId: string;
+  messageIds: string[];
+}) => Promise<{ receipt: unknown }>;
+
+function composioMailActionExecutor(environment: NodeJS.ProcessEnv): MailActionExecutor | null {
+  const url = environment.COMPOSIO_AUTOMATION_MCP_URL?.trim();
+  const apiKey = environment.COMPOSIO_AUTOMATION_API_KEY?.trim();
+  if (!url || !apiKey) return null;
+  return async ({ actionId, messageIds }) => {
+    const client = new Client({ name: "kurami-briefing", version: "1.0.0" });
+    const transport = new StreamableHTTPClientTransport(new URL(url), {
+      requestInit: { headers: { "x-api-key": apiKey } },
+    });
+    try {
+      await client.connect(transport);
+      const response = await client.callTool({
+        name: "GMAIL_BATCH_MODIFY_MESSAGES",
+        arguments: {
+          userId: "me",
+          messageIds,
+          addLabelIds: [],
+          removeLabelIds: ["INBOX", "UNREAD"],
+        },
+      });
+      if (response.isError) throw new Error("Gmail provider rejected the batch action");
+      return {
+        receipt: {
+          actionId,
+          provider: "composio-gmail",
+          messageCount: messageIds.length,
+          completedAt: new Date().toISOString(),
+        },
+      };
+    } finally {
+      await client.close().catch(() => undefined);
+    }
+  };
+}
 
 const CSP = [
   "default-src 'self'",
@@ -177,9 +221,59 @@ const CLIENT_SCRIPT = `(() => {
     });
   });
 
+  const refreshMailSelection = (section) => {
+    const choices = Array.from(section.querySelectorAll('[data-mail-select]:not(:disabled)'));
+    const selected = choices.filter((input) => input.checked);
+    const selectAll = section.querySelector('[data-mail-select-all]');
+    if (selectAll) {
+      selectAll.checked = choices.length > 0 && selected.length === choices.length;
+      selectAll.indeterminate = selected.length > 0 && selected.length < choices.length;
+    }
+    const count = section.querySelector('[data-mail-selection]');
+    if (count) count.textContent = selected.length + ' выбрано';
+    const action = section.querySelector('[data-mail-archive]');
+    if (action) action.disabled = selected.length === 0;
+  };
+  document.querySelectorAll('[data-mail-section]').forEach((section) => {
+    section.addEventListener('change', (event) => {
+      const target = event.target;
+      if (!(target instanceof HTMLInputElement)) return;
+      if (target.hasAttribute('data-mail-select-all')) {
+        section.querySelectorAll('[data-mail-select]:not(:disabled)').forEach((choice) => {
+          choice.checked = target.checked;
+        });
+      }
+      refreshMailSelection(section);
+    });
+    refreshMailSelection(section);
+  });
+
   document.addEventListener('click', async (event) => {
-    const target = event.target instanceof Element ? event.target.closest('[data-theme-toggle], [data-story-toggle], [data-reaction], [data-media-lightbox], [data-media-close]') : null;
+    const target = event.target instanceof Element ? event.target.closest('[data-theme-toggle], [data-story-toggle], [data-reaction], [data-media-lightbox], [data-media-close], [data-mail-archive]') : null;
     if (!target) return;
+    if (target.hasAttribute('data-mail-archive')) {
+      const section = target.closest('[data-mail-section]');
+      if (!section) return;
+      const editionId = section.getAttribute('data-edition-id');
+      const itemIds = Array.from(section.querySelectorAll('[data-mail-select]:checked')).map((input) => input.value);
+      if (!editionId || itemIds.length === 0) return;
+      const status = section.querySelector('[data-mail-status]');
+      target.disabled = true;
+      target.setAttribute('aria-busy', 'true');
+      if (status) status.textContent = 'Обрабатываю…';
+      try {
+        const result = await request('/api/mail/read-and-archive', { editionId, itemIds });
+        itemIds.forEach((itemId) => section.querySelector('[data-mail-item="' + CSS.escape(itemId) + '"]')?.classList.add('is-archived'));
+        if (status) status.textContent = result.alreadyComplete ? 'Уже обработано' : 'Прочитано и отправлено в архив';
+        refreshMailSelection(section);
+      } catch {
+        if (status) status.textContent = 'Не удалось обработать. Письма оставлены без изменений.';
+        target.disabled = false;
+      } finally {
+        target.removeAttribute('aria-busy');
+      }
+      return;
+    }
     if (target.hasAttribute('data-media-lightbox')) {
       event.preventDefault();
       const dialog = document.querySelector('[data-media-dialog]');
@@ -493,9 +587,13 @@ async function serveEdition(
 
 export async function createBriefingServer(
   paths: BriefingPaths = briefingPaths(),
+  options: { mailActionExecutor?: MailActionExecutor | null } = {},
 ): Promise<Server> {
   await initializeBriefingStore(paths);
   const database = openBriefingDatabase(paths);
+  const mailActionExecutor = options.mailActionExecutor === undefined
+    ? composioMailActionExecutor(process.env)
+    : options.mailActionExecutor;
   const server = createServer(async (request, response) => {
     try {
       const url = new URL(request.url ?? "/", "http://127.0.0.1");
@@ -510,7 +608,7 @@ export async function createBriefingServer(
           ok: integrity.integrity_check === "ok",
           database: integrity.integrity_check,
           editions: Number(editions.count),
-          externalMutations: false,
+          externalMutations: mailActionExecutor !== null,
         });
         return;
       }
@@ -544,6 +642,33 @@ export async function createBriefingServer(
         }
         setReaction(database, editionId, itemId, input.reaction);
         json(response, 200, { ok: true, reaction: input.reaction });
+        return;
+      }
+      if (request.method === "POST" && url.pathname === "/api/mail/read-and-archive") {
+        if (!mailActionExecutor) throw new Error("Gmail automation is not configured");
+        const input = await body(request);
+        const editionId = requiredString(input.editionId, "editionId");
+        if (!Array.isArray(input.itemIds)) throw new Error("Invalid itemIds");
+        const itemIds = input.itemIds.map((itemId, index) => requiredString(itemId, `itemIds[${index}]`));
+        const action = prepareMailReadAndArchive(database, editionId, itemIds);
+        if (action.alreadyComplete) {
+          json(response, 200, { ok: true, alreadyComplete: true, itemIds: action.itemIds });
+          return;
+        }
+        try {
+          const executed = await mailActionExecutor({
+            actionId: action.actionId,
+            messageIds: action.providerMessageIds,
+          });
+          finishMailReadAndArchive(database, action, { ok: true, receipt: executed.receipt });
+          json(response, 200, { ok: true, alreadyComplete: false, itemIds: action.itemIds });
+        } catch (error) {
+          finishMailReadAndArchive(database, action, {
+            ok: false,
+            receipt: { error: error instanceof Error ? error.message : "Gmail automation failed" },
+          });
+          throw error;
+        }
         return;
       }
       if (request.method === "GET") {

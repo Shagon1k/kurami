@@ -47,6 +47,20 @@ export type TopicProfileRow = {
   dislikes: number;
 };
 
+export type PreparedMailAction = {
+  actionId: string;
+  editionId: string;
+  itemIds: string[];
+  providerMessageIds: string[];
+  alreadyComplete: boolean;
+};
+
+export type SourceCommitResult = {
+  sourceKey: string;
+  status: "committed" | "failed";
+  errorCode?: string;
+};
+
 export function briefingPaths(environment: NodeJS.ProcessEnv = process.env): BriefingPaths {
   const home = resolveKuramiHome(resolve(import.meta.dirname, "../../.."), environment);
   const stateDirectory = resolve(home, "state/briefing");
@@ -267,6 +281,17 @@ export async function preparePreview(
       reaction: Reaction | null;
     }>;
     const priorState = new Map(previous.map((item) => [item.item_id, item]));
+    const previousBatches = database.prepare(`
+      SELECT source_key, max_item_id, state, committed_at, error_code
+      FROM source_batches WHERE edition_id = ?
+    `).all(payload.edition.id) as Array<{
+      source_key: string;
+      max_item_id: string | null;
+      state: "prepared" | "committed" | "failed" | "skipped";
+      committed_at: string | null;
+      error_code: string | null;
+    }>;
+    const priorBatches = new Map(previousBatches.map((batch) => [batch.source_key, batch]));
     const items = persistedItems(payload);
 
     database.exec("BEGIN IMMEDIATE");
@@ -334,6 +359,30 @@ export async function preparePreview(
           upsertTopic.run(topic.id, topic.label, timestamp, timestamp);
         }
       }
+      database.prepare("DELETE FROM source_batches WHERE edition_id = ?").run(payload.edition.id);
+      const insertBatch = database.prepare(`
+        INSERT INTO source_batches (
+          edition_id, source_key, source_provider, provider_source_id,
+          min_item_id, max_item_id, item_ids_json, state,
+          committed_at, error_code
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      `);
+      for (const batch of payload.sourceBatches ?? []) {
+        const prior = priorBatches.get(batch.sourceKey);
+        const preserveCommit = prior?.state === "committed" && prior.max_item_id === batch.maxItemId;
+        insertBatch.run(
+          payload.edition.id,
+          batch.sourceKey,
+          batch.provider,
+          batch.providerSourceId,
+          batch.minItemId,
+          batch.maxItemId,
+          JSON.stringify(batch.itemIds),
+          preserveCommit ? "committed" : "prepared",
+          preserveCommit ? prior.committed_at : null,
+          preserveCommit ? null : prior?.error_code ?? null,
+        );
+      }
       database.exec("COMMIT");
     } catch (error) {
       database.exec("ROLLBACK");
@@ -391,6 +440,190 @@ export function markItemRead(database: DatabaseSync, editionId: string, itemId: 
     .run(timestamp, timestamp, editionId, itemId);
   if (result.changes !== 1) fail("Unknown briefing item");
   return timestamp;
+}
+
+export function prepareMailReadAndArchive(
+  database: DatabaseSync,
+  editionId: string,
+  requestedItemIds: string[],
+): PreparedMailAction {
+  const itemIds = [...new Set(requestedItemIds)].sort();
+  if (itemIds.length < 1 || itemIds.length > 1000) {
+    fail("Mail action must contain one to 1000 unique items");
+  }
+  const edition = loadEdition(database, { id: editionId });
+  if (!edition) fail("Unknown briefing edition");
+  const payload = parseBriefingPayload(JSON.parse(edition.payload_json) as unknown);
+  const mailById = new Map(payload.mail.items.map((item) => [item.id, item]));
+  const providerMessageIds = itemIds.map((itemId) => {
+    const item = mailById.get(itemId);
+    if (!item || item.provider !== "gmail" || typeof item.providerItemId !== "string") {
+      fail(`Mail item ${itemId} is not eligible for Gmail automation`);
+    }
+    return item.providerItemId;
+  });
+  const rows = database.prepare(`
+    SELECT item_id FROM edition_items
+    WHERE edition_id = ? AND item_type = 'mail'
+  `).all(editionId) as Array<{ item_id: string }>;
+  const persisted = new Set(rows.map((row) => row.item_id));
+  if (itemIds.some((itemId) => !persisted.has(itemId))) fail("Unknown briefing mail item");
+
+  const actionId = `mail:${createHash("sha256")
+    .update(editionId)
+    .update("\0")
+    .update(itemIds.join("\0"))
+    .digest("hex")
+    .slice(0, 32)}`;
+  const existing = database.prepare(`
+    SELECT state FROM action_receipts WHERE action_id = ?
+  `).get(actionId) as { state: "prepared" | "complete" | "partial" | "failed" } | undefined;
+  if (existing?.state === "complete") {
+    return { actionId, editionId, itemIds, providerMessageIds, alreadyComplete: true };
+  }
+  const timestamp = now();
+  database.prepare(`
+    INSERT INTO action_receipts (
+      action_id, edition_id, action_type, item_ids_json, state,
+      provider_receipt_json, created_at, updated_at
+    ) VALUES (?, ?, 'mail.read_and_archive', ?, 'prepared', NULL, ?, ?)
+    ON CONFLICT(action_id) DO UPDATE SET
+      state = 'prepared', provider_receipt_json = NULL, updated_at = excluded.updated_at
+  `).run(actionId, editionId, JSON.stringify(itemIds), timestamp, timestamp);
+  return { actionId, editionId, itemIds, providerMessageIds, alreadyComplete: false };
+}
+
+export function finishMailReadAndArchive(
+  database: DatabaseSync,
+  action: PreparedMailAction,
+  result: { ok: boolean; receipt: unknown },
+): string | null {
+  const timestamp = now();
+  database.exec("BEGIN IMMEDIATE");
+  try {
+    database.prepare(`
+      UPDATE action_receipts
+      SET state = ?, provider_receipt_json = ?, updated_at = ?
+      WHERE action_id = ?
+    `).run(
+      result.ok ? "complete" : "failed",
+      JSON.stringify(result.receipt),
+      timestamp,
+      action.actionId,
+    );
+    if (result.ok) {
+      const mark = database.prepare(`
+        UPDATE edition_items
+        SET read_at = COALESCE(read_at, ?), updated_at = ?
+        WHERE edition_id = ? AND item_id = ? AND item_type = 'mail'
+      `);
+      for (const itemId of action.itemIds) mark.run(timestamp, timestamp, action.editionId, itemId);
+    }
+    database.exec("COMMIT");
+  } catch (error) {
+    database.exec("ROLLBACK");
+    throw error;
+  }
+  return result.ok ? timestamp : null;
+}
+
+export function finalizeEdition(
+  database: DatabaseSync,
+  editionId: string,
+  results: SourceCommitResult[],
+): { editionId: string; state: "complete" | "partial"; publicationPath: string } {
+  const edition = loadEdition(database, { id: editionId });
+  if (!edition) fail("Unknown briefing edition");
+  if (edition.state === "complete" || edition.state === "partial") {
+    return {
+      editionId,
+      state: edition.state,
+      publicationPath: edition.edition_type === "daily" ? `/daily/${edition.local_date}` : "/cinema",
+    };
+  }
+  if (edition.state !== "prepared") fail("Briefing edition is not prepared");
+  const batches = database.prepare(`
+    SELECT source_key, source_provider, max_item_id, state
+    FROM source_batches WHERE edition_id = ? ORDER BY source_key
+  `).all(editionId) as Array<{
+    source_key: string;
+    source_provider: string;
+    max_item_id: string | null;
+    state: "prepared" | "committed" | "failed" | "skipped";
+  }>;
+  if (edition.edition_type === "daily" && batches.length < 1) {
+    fail("Daily production edition has no prepared source batches");
+  }
+  const resultBySource = new Map(results.map((result) => [result.sourceKey, result]));
+  if (resultBySource.size !== results.length) fail("Duplicate source commit result");
+  for (const batch of batches) {
+    if (batch.state === "committed") continue;
+    if (!resultBySource.has(batch.source_key)) fail(`Missing commit result for ${batch.source_key}`);
+  }
+  const payload = parseBriefingPayload(JSON.parse(edition.payload_json) as unknown);
+  const timestamp = now();
+  let failed = payload.edition.status === "partial";
+  database.exec("BEGIN IMMEDIATE");
+  try {
+    const updateBatch = database.prepare(`
+      UPDATE source_batches
+      SET state = ?, committed_at = ?, error_code = ?
+      WHERE edition_id = ? AND source_key = ?
+    `);
+    const upsertCheckpoint = database.prepare(`
+      INSERT INTO source_checkpoints (
+        source_key, source_provider, last_successful_item_id,
+        last_successful_at, updated_at
+      ) VALUES (?, ?, ?, ?, ?)
+      ON CONFLICT(source_key) DO UPDATE SET
+        source_provider = excluded.source_provider,
+        last_successful_item_id = excluded.last_successful_item_id,
+        last_successful_at = excluded.last_successful_at,
+        updated_at = excluded.updated_at
+    `);
+    for (const batch of batches) {
+      if (batch.state === "committed") continue;
+      const result = resultBySource.get(batch.source_key)!;
+      if (result.status === "committed") {
+        updateBatch.run("committed", timestamp, null, editionId, batch.source_key);
+        upsertCheckpoint.run(
+          batch.source_key,
+          batch.source_provider,
+          batch.max_item_id,
+          timestamp,
+          timestamp,
+        );
+      } else {
+        failed = true;
+        updateBatch.run(
+          "failed",
+          null,
+          (result.errorCode ?? "provider_error").slice(0, 160),
+          editionId,
+          batch.source_key,
+        );
+      }
+    }
+    const state = failed ? "partial" : "complete";
+    database.prepare(`
+      UPDATE editions SET is_current = 0, updated_at = ?
+      WHERE edition_type = ? AND is_current = 1
+    `).run(timestamp, edition.edition_type);
+    database.prepare(`
+      UPDATE editions
+      SET state = ?, is_current = 1, published_at = ?, updated_at = ?
+      WHERE id = ? AND state = 'prepared'
+    `).run(state, timestamp, timestamp, editionId);
+    database.exec("COMMIT");
+    return {
+      editionId,
+      state,
+      publicationPath: edition.edition_type === "daily" ? `/daily/${edition.local_date}` : "/cinema",
+    };
+  } catch (error) {
+    database.exec("ROLLBACK");
+    throw error;
+  }
 }
 
 export function setReaction(
