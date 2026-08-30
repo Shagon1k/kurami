@@ -173,6 +173,9 @@ For a production run:
 5. Make a meaningful partial edition latest with a visible quality warning.
    On total failure, retain the previous latest edition.
 6. Send the configured Discord release notification only after finalization.
+   When the scheduled Hermes job itself uses `deliver: discord`, its concise
+   final response is the release notification; do not send a duplicate message
+   through another Discord tool.
 
 Do not create public revisions. The daily route shows one current edition per
 date. A retry updates that edition only with missing-source results and never
