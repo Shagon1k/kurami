@@ -79,10 +79,34 @@ function text(value: unknown): string {
 }
 
 function boundedPlainText(value: unknown, maximum: number): string {
-  const plain = text(value).replace(/<[^>]+>/gu, " ").replace(/\s+/gu, " ").trim();
+  const plain = text(value)
+    .replace(/<[^>]+>/gu, " ")
+    .replace(/&(?:nbsp|#160|#x0*a0);/giu, " ")
+    .replace(/&amp;/giu, "&")
+    .replace(/&lt;/giu, "<")
+    .replace(/&gt;/giu, ">")
+    .replace(/&quot;/giu, '"')
+    .replace(/&#(?:39|x0*27);/giu, "'")
+    .replace(/\s+/gu, " ")
+    .trim();
   return plain.length <= maximum
     ? plain
     : `${plain.slice(0, Math.max(1, maximum - 1)).trimEnd()}…`;
+}
+
+function calendarDescription(value: unknown): string {
+  const plain = boundedPlainText(value, 2_000);
+  const markers = [
+    /_{8,}/u,
+    /\bMicrosoft Teams meeting\b/iu,
+    /\bJoin:\s*https?:\/\/teams\.microsoft\.com\//iu,
+    /\bMeeting ID:\s*[0-9 ]{6,}/iu,
+  ];
+  const firstMarker = markers
+    .map((marker) => marker.exec(plain)?.index ?? -1)
+    .filter((index) => index >= 0)
+    .sort((left, right) => left - right)[0];
+  return boundedPlainText(firstMarker === undefined ? plain : plain.slice(0, firstMarker), 320);
 }
 
 function datePartsInZone(instant: Date, timeZone: string): Record<string, number> {
@@ -254,7 +278,7 @@ function normalizeEvent(
     sourceLabel: source.label,
     sourceRole: source.role,
     title: boundedPlainText(value.summary, 220) || "Без названия",
-    description: boundedPlainText(value.description, 500),
+    description: calendarDescription(value.description),
     location: boundedPlainText(value.location, 240),
     start: start.value,
     end: end.value,

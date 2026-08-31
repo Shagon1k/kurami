@@ -21,6 +21,9 @@ function mapsUrl(event: Record<string, unknown>, location: string): string | nul
   const provided = externalUrl(event.locationUrl);
   if (provided) return provided;
   if (!location) return null;
+  if (/\b(?:microsoft\s+teams|zoom|google\s+meet|webex|online)\b|https?:\/\//iu.test(location)) {
+    return null;
+  }
   const url = new URL("https://www.google.com/maps/search/");
   url.searchParams.set("api", "1");
   url.searchParams.set("query", location);
@@ -61,9 +64,14 @@ export function renderCalendarSection(payload: BriefingPayload): string {
       const locationUrl = mapsUrl(event, location);
       const meta = [displayString(event.calendarLabel), displayString(event.duration)].filter(Boolean).join(" · ");
       const description = displayString(event.description);
+      const renderedLocation = location
+        ? locationUrl
+          ? `<a class="agenda-row__location" href="${escapeHtml(locationUrl)}" target="_blank" rel="noopener noreferrer">${escapeHtml(location)} ↗</a>`
+          : `<span class="agenda-row__location">${escapeHtml(location)}</span>`
+        : "";
       return `<article class="agenda-row${demo ? " is-demo" : ""}">
         <time class="agenda-row__time">${escapeHtml(eventTime(event))}</time>
-        <div class="agenda-row__copy"><strong>${escapeHtml(displayString(event.title, "Без названия"))}</strong>${meta ? `<span>${escapeHtml(meta)}</span>` : ""}${location ? `<a class="agenda-row__location" href="${escapeHtml(locationUrl)}" target="_blank" rel="noopener noreferrer">${escapeHtml(location)} ↗</a>` : ""}${description ? `<p>${escapeHtml(description)}</p>` : ""}${renderKuramiNote(eventNote, "agenda-row__note")}</div>
+        <div class="agenda-row__copy"><strong>${escapeHtml(displayString(event.title, "Без названия"))}</strong>${meta ? `<span>${escapeHtml(meta)}</span>` : ""}${renderedLocation}${description ? `<p>${escapeHtml(description)}</p>` : ""}${renderKuramiNote(eventNote, "agenda-row__note")}</div>
         <div class="agenda-row__badges">${tentative ? '<span class="agenda-row__badge">TENTATIVE</span>' : ""}${demo ? '<span class="agenda-row__badge is-demo">DEMO</span>' : ""}</div>
       </article>`;
     }).join("")

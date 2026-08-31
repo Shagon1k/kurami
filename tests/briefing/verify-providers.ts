@@ -166,6 +166,8 @@ async function verifyCalendar(): Promise<void> {
           items: [{
             id: "event-1",
             summary: "Morning sync",
+            description: "Bring notes.<br>&nbsp; __________________________________ Microsoft Teams meeting Join: https://teams.microsoft.com/example",
+            location: "Microsoft Teams Meeting",
             start: { dateTime: "2026-03-29T09:00:00+03:00", timeZone: "Europe/Vilnius" },
             end: { dateTime: "2026-03-29T09:30:00+03:00", timeZone: "Europe/Vilnius" },
             status: "confirmed",
@@ -225,6 +227,9 @@ async function verifyCalendar(): Promise<void> {
   });
   assert.equal(response.state, "ready");
   assert.equal(response.value?.items.length, 2);
+  const meeting = response.value?.items.find((item) => item.providerItemId.includes("event-1"));
+  assert.equal(meeting?.description, "Bring notes.");
+  assert.equal(meeting?.location, "Microsoft Teams Meeting");
   const allDay = response.value?.items.find((item) => item.providerItemId.includes("all-day"));
   assert.equal(allDay?.allDay, true);
   assert.equal(allDay?.tentative, true);
