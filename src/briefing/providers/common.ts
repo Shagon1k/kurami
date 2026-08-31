@@ -1,3 +1,5 @@
+import { nodeHttpFetch } from "./node-http-fetch.ts";
+
 export type ProviderState = "ready" | "empty" | "partial" | "stale" | "failed";
 
 export type ProviderIssue = {
@@ -174,7 +176,7 @@ export async function fetchJson(
     headers?: Record<string, string>;
   } = {},
 ): Promise<OperationOutcome<unknown>> {
-  const fetchImpl = options.fetchImpl ?? fetch;
+  const fetchImpl = options.fetchImpl ?? nodeHttpFetch;
   const maximumBytes = Math.min(
     8 * 1024 * 1024,
     Math.max(1_024, options.maximumBytes ?? 2 * 1024 * 1024),

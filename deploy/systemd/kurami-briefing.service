@@ -4,11 +4,8 @@ After=default.target
 
 [Service]
 Type=simple
-# Node 24's --jitless also removes WebAssembly. Undici/Composio then fail every
-# HTTPS request with `ReferenceError: WebAssembly is not defined`, so this
-# network-facing runtime must use the normal pinned Node engine.
-ExecStartPre=/home/shagon1k/_hermes/_kurami/runtime/node/bin/node /home/shagon1k/_hermes/_kurami/app/dist/briefing/cli.js init
-ExecStart=/home/shagon1k/_hermes/_kurami/runtime/node/bin/node /home/shagon1k/_hermes/_kurami/app/dist/briefing/server.js
+ExecStartPre=/home/shagon1k/_hermes/_kurami/runtime/node/bin/node --jitless /home/shagon1k/_hermes/_kurami/app/dist/briefing/cli.js init
+ExecStart=/home/shagon1k/_hermes/_kurami/runtime/node/bin/node --jitless /home/shagon1k/_hermes/_kurami/app/dist/briefing/server.js
 Restart=on-failure
 RestartSec=3s
 TimeoutStopSec=20s
@@ -31,6 +28,7 @@ RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6
 RestrictNamespaces=true
 RestrictSUIDSGID=true
 LockPersonality=true
+MemoryDenyWriteExecute=true
 SystemCallArchitectures=native
 
 [Install]

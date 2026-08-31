@@ -5,6 +5,7 @@ import { extname, relative, resolve } from "node:path";
 import type { DatabaseSync } from "node:sqlite";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { StreamableHTTPClientTransport } from "@modelcontextprotocol/sdk/client/streamableHttp.js";
+import { nodeHttpFetch } from "./providers/node-http-fetch.ts";
 import {
   briefingPaths,
   finishMailReadAndArchive,
@@ -171,7 +172,13 @@ function composioMailActionExecutor(environment: NodeJS.ProcessEnv): MailActionE
   const apiKey = environment.COMPOSIO_AUTOMATION_API_KEY?.trim();
   if (!url || !apiKey) return null;
   const endpoint = new URL(url);
+  if (endpoint.protocol !== "https:" || endpoint.username || endpoint.password) return null;
   const timeoutMs = mailAutomationTimeout(environment);
+  const restrictedFetch: typeof fetch = async (input, init) => {
+    const target = new URL(input instanceof Request ? input.url : String(input));
+    if (target.origin !== endpoint.origin) throw new Error("Composio automation cross-origin request denied");
+    return nodeHttpFetch(input, { ...init, redirect: "error" });
+  };
   return async ({ actionId, messageIds }) => {
     let lastError: unknown = new Error("Gmail automation failed before execution");
     for (let attempt = 1; attempt <= MAIL_AUTOMATION_MAX_ATTEMPTS; attempt += 1) {
@@ -183,6 +190,7 @@ function composioMailActionExecutor(environment: NodeJS.ProcessEnv): MailActionE
           headers: { "x-api-key": apiKey },
           signal: controller.signal,
         },
+        fetch: restrictedFetch,
       });
       let phase: "connect" | "callTool" = "connect";
       try {

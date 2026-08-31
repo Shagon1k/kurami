@@ -32,6 +32,7 @@ import {
 import { fetchOpenMeteo, type WeatherSnapshot } from "./providers/open-meteo.ts";
 import {
   providerIssue,
+  type FetchLike,
   type ProviderResult,
   type ProviderState,
 } from "./providers/common.ts";
@@ -42,6 +43,10 @@ type PollerResult = {
   editions: Array<{ id: string; state: "updated" | "skipped"; reason?: string }>;
   providers: { gmail: ProviderState; calendar: ProviderState; weather: ProviderState };
   deleted: string[];
+};
+
+export type DigestCentralPollerDependencies = {
+  weatherFetch?: FetchLike;
 };
 
 function nextLocalDate(localDate: string): string {
@@ -209,6 +214,7 @@ function updatePayload(
 
 export async function runDigestCentralPoller(
   environment: NodeJS.ProcessEnv = process.env,
+  dependencies: DigestCentralPollerDependencies = {},
 ): Promise<PollerResult> {
   const paths = briefingPaths(environment);
   await initializeBriefingStore(paths);
@@ -233,6 +239,7 @@ export async function runDigestCentralPoller(
   const retry = { attempts: 3, timeoutMs: 12_000, initialDelayMs: 300, maximumDelayMs: 2_000 };
   const weatherPromise = fetchOpenMeteo({
     location: config.weatherLocation,
+    fetchImpl: dependencies.weatherFetch,
     retry,
   });
   const oldest = retained[0]!.local_date;

@@ -36,9 +36,8 @@ const serviceUnit = await readFile(
   resolve(root, "deploy/systemd/kurami-briefing.service"),
   "utf8",
 );
-assert.doesNotMatch(serviceUnit, /MemoryDenyWriteExecute=true/);
-assert.match(serviceUnit, /node \/home\/shagon1k\/_hermes\/_kurami\/app\/dist\/briefing\/server\.js/);
-assert.doesNotMatch(serviceUnit, /node --jitless/);
+assert.match(serviceUnit, /MemoryDenyWriteExecute=true/);
+assert.match(serviceUnit, /node --jitless .*\/dist\/briefing\/server\.js/);
 assert.doesNotMatch(serviceUnit, /\/src\/briefing\/server\.ts/);
 const home = await mkdtemp(resolve(tmpdir(), "kurami-briefing-runtime-"));
 const paths = briefingPaths({
@@ -1075,6 +1074,6 @@ process.stdout.write(
     reactions: true,
     topicProfileSurvivesRetention: true,
     externalMutations: false,
-    hardenedNetworkService: true,
+    hardenedJitlessService: true,
   })}\n`,
 );

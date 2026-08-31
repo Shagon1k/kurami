@@ -268,7 +268,6 @@ async function verifyRetainedPollerFailSoft(
   }
 
   let weatherCalls = 0;
-  const originalFetch = globalThis.fetch;
   const weatherFetch: typeof fetch = async (input) => {
     const target = new URL(input instanceof Request ? input.url : String(input));
     assert.equal(target.hostname, "api.open-meteo.com");
@@ -297,9 +296,8 @@ async function verifyRetainedPollerFailSoft(
       },
     }), { status: 200, headers: { "content-type": "application/json" } });
   };
-  globalThis.fetch = weatherFetch;
   try {
-    const result = await runDigestCentralPoller(caseEnvironment);
+    const result = await runDigestCentralPoller(caseEnvironment, { weatherFetch });
     assert.deepEqual(result.providers, {
       gmail: "failed",
       calendar: "failed",
@@ -331,7 +329,7 @@ async function verifyRetainedPollerFailSoft(
       persisted.close();
     }
   } finally {
-    globalThis.fetch = originalFetch;
+    // The injected provider transport is scoped to this poll only.
   }
 }
 

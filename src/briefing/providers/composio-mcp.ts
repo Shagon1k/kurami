@@ -1,6 +1,7 @@
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { StreamableHTTPClientTransport } from "@modelcontextprotocol/sdk/client/streamableHttp.js";
 import { ProviderError } from "./common.ts";
+import { nodeHttpFetch } from "./node-http-fetch.ts";
 
 export const COMPOSIO_READ_TOOLS = [
   "GMAIL_FETCH_EMAILS",
@@ -106,7 +107,7 @@ export function createComposioReadToolCaller(
         "Composio transport attempted a cross-origin request",
       );
     }
-    return fetch(input, { ...init, redirect: "error" });
+    return nodeHttpFetch(input, { ...init, redirect: "error" });
   };
   return async (name, arguments_, signal) => {
     if (!allowed.has(name)) {
