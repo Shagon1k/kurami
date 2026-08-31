@@ -111,7 +111,9 @@ Default manual experiments to `dry-run`. Generation never archives Gmail;
    read-only `get_messages_exact_batch` operation and preserve its request
    order plus explicit `missing` or `error` results. It must not rediscover
    those known posts from unread state or use one model-mediated context call
-   per message.
+   per message. Preserve each returned canonical `externalUrl` through the
+   normalized item and into the owning story source `url`; do not discard a
+   usable public or authenticated Telegram source link during recovery.
 7. Fetch weather when the configured capability is available. Weather failure
    makes only that section partial.
 8. Normalize, cluster, merge, summarize, assign topics, and rank content using
@@ -144,12 +146,17 @@ Default manual experiments to `dry-run`. Generation never archives Gmail;
     The renderer must not rewrite facts, ordering, topics, reactions, read
     state, or action semantics.
 12. After the runtime accepts the base edition, download retained Telegram
-    media by path only with the Kurami-owned bounded batch capability. The
-    manifest must contain every retained attachment in provider order, up to
-    the twelve-asset per-story limit, rather than a fixed sample of one or two
-    files. Every manifest asset must carry the canonical `sourceKey` and its
-    exact Telegram `providerItemId`; the importer persists that provenance on
-    the story asset. A story that would exceed the limit must be split at a
+    media by path only with the Kurami-owned resumable batch capability. Build
+    one stable expected pair list, split it into deterministic chunks of at
+    most 12, merge per-pair receipts in provider order, and retry only failed or
+    missing pairs. Treat both `downloaded` and `reused` as successful only when
+    they carry a non-empty canonical path. Do not import media or continue to a
+    Telegram commit plan until every expected pair is accounted exactly once.
+    The manifest must contain every retained attachment in provider order, up
+    to the twelve-asset per-story limit, rather than a fixed sample of one or
+    two files. Every manifest asset must carry the canonical `sourceKey` and
+    its exact Telegram `providerItemId`; the importer persists that provenance
+    on the story asset. A story that would exceed the limit must be split at a
     real content boundary, not silently truncate an album. Run the canonical
     `import-media` command described by the Telegram provider reference. Do not
     ask the model to inspect images or video unless an explicit later task
@@ -181,9 +188,12 @@ For a production run:
    exclusion.
 2. If preparation fails, keep the previous latest edition and do not mutate
    Telegram or Gmail.
-3. Import the complete retained Telegram media set. Each imported asset must
+3. Reconcile all resumable media chunk receipts, then import the complete
+   retained Telegram media set. Each expected pair must have exactly one
+   `downloaded` or `reused` path before import, and each imported asset must
    match one story source `mediaMessageIds` entry by `sourceKey` plus
-   `providerItemId`. Media is content transport, not an invitation for the
+   `providerItemId`. Any failed, missing, or duplicate pair stops import and
+   commit-plan creation. Media is content transport, not an invitation for the
    model to inspect the bytes.
 4. Persist validation against the final prepared edition using the unchanged
    raw and normalized artifacts:

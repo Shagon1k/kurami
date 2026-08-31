@@ -37,13 +37,17 @@ unread query or call `get_message_context` once per item. The operation accepts
 one to 256 unique pairs, groups them by chat on the existing single Telethon
 client, and returns `results` in the original request order.
 
-Each `found` result includes `chatId`, `id`, `date`, `text`, structured
-`sender`, structured `media`, `grouped_id`, `reply`, and `engagement`. A
-deleted or unavailable exact ID is an explicit `missing` result; a chat-level
-provider failure is an explicit `error` result for every affected requested
-ID. Treat either status as partial and preserve it in diagnostics. Never omit,
-replace, or infer a requested ID, and never interpret this read-only operation
-as permission to download attachments or advance Telegram read state.
+Each `found` result includes `chatId`, `id`, `date`, `text`, structured `chat`,
+structured `sender`, structured `media`, `grouped_id`, `reply`, `engagement`,
+and a canonical `externalUrl` when a public username or authenticated
+`t.me/c/` route is derivable. Preserve that URL as the normalized
+`externalUrl` and the owning story source `url`; never erase a usable source
+link during editorial merging. A deleted or unavailable exact ID is an
+explicit `missing` result; a chat-level provider failure is an explicit
+`error` result for every affected requested ID. Treat either status as partial
+and preserve it in diagnostics. Never omit, replace, or infer a requested ID,
+and never interpret this read-only operation as permission to download
+attachments or advance Telegram read state.
 
 Use these exact results as the recovery raw artifact, then map them to the
 normal item contract and run the same album normalization and coverage gates
@@ -152,14 +156,28 @@ media as partial, and never invent or hotlink an attachment.
 For each retained story, take the complete ordered `mediaMessageIds` up to the
 limit of 12. If one content unit could exceed the limit, split at a real
 content boundary rather than sampling or truncating an album. Combine all
-resulting `{chat_id, message_id}` pairs for the
-edition and invoke `download_media_batch` once (at most 256 unique entries).
-The tool calls the upstream path-safe downloader internally and returns one
-result per ID. Do not replace this with dozens of model-mediated
-`download_media` calls. Record an individual safe diagnostic for a failed
-asset, continue the remaining members, and write every successful path to the
-manifest in the same provider order. Every manifest asset must include its
-canonical `sourceKey` and the exact owning Telegram message ID string as
+resulting `{chat_id, message_id}` pairs for the edition into one stable ordered
+expected list, then partition that list into consecutive deterministic chunks
+of at most 12. Invoke `download_media_batch` once per chunk, sequentially. The
+tool reuses a non-empty canonical file for the exact pair when an earlier
+timed-out call already completed the transfer; otherwise it calls the upstream
+path-safe downloader. A successful result is `downloaded` or `reused`, both
+with a path. Do not replace these bounded chunks with dozens of
+model-mediated `download_media` calls.
+
+Persist and merge chunk receipts by exact `(chatId, messageId)` identity in the
+original expected order. A timeout leaves every pair without a success receipt
+as `missing`; retry only `failed` and `missing` pairs, again in deterministic
+chunks of at most 12. Never redownload a pair already recorded as `downloaded`
+or `reused`. After retries, require exactly one successful receipt and one
+non-empty path for every expected pair. Do not construct or import a partial
+manifest, do not create a Telegram commit plan, and do not acknowledge read
+state while any expected pair remains failed, missing, duplicated, or otherwise
+unaccounted. Record individual safe diagnostics without removing provenance.
+
+Only after complete receipt reconciliation, write every path to the manifest
+in the same provider order. Every manifest asset must include its canonical
+`sourceKey` and the exact owning Telegram message ID string as
 `providerItemId`:
 
 ```json
@@ -170,9 +188,10 @@ canonical `sourceKey` and the exact owning Telegram message ID string as
 }
 ```
 
-A failed retained asset remains a visible diagnostic and blocks creation of a
-production Telegram commit plan until recovery; never hide the failure by
-removing the corresponding provenance from the story.
+A failed or missing retained asset remains a visible diagnostic and blocks
+media import and creation of a production Telegram commit plan until recovery;
+never hide the failure by removing the corresponding provenance from the
+story.
 
 Then run:
 

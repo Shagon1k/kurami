@@ -31,10 +31,14 @@ from telegram_mcp.runtime import (  # type: ignore[import-not-found]  # noqa: E4
 from telegram_mcp.tools import *  # type: ignore[import-not-found]  # noqa: E402,F403
 from telegram_mcp.tools.media import download_media  # type: ignore[import-not-found]  # noqa: E402
 
-MAX_BATCH_MEDIA = 256
+MAX_BATCH_MEDIA = 12
 MAX_BATCH_EXACT_MESSAGES = 256
 MAX_BATCH_MARK_READ = 64
 PLAN_DIGEST = re.compile(r"^[a-f0-9]{64}$")
+TELEGRAM_USERNAME = re.compile(r"^[A-Za-z0-9_]{5,32}$")
+CANONICAL_MEDIA_FILE = re.compile(
+    r"^telegram_(?P<chat>-?[1-9]\d*)_(?P<message>[1-9]\d*)_(?P<timestamp>\d+)(?:\.[A-Za-z0-9]{1,16})?$"
+)
 
 
 def _safe_error(value: str) -> str:
@@ -45,6 +49,81 @@ def _safe_error(value: str) -> str:
 def _briefing_database_path() -> Path:
     home = Path(os.environ.get("KURAMI_HOME", "/home/shagon1k/_hermes/_kurami"))
     return home / "state" / "briefing" / "briefing.db"
+
+
+def _briefing_media_inbox_path() -> Path:
+    home = Path(os.environ.get("KURAMI_HOME", "/home/shagon1k/_hermes/_kurami"))
+    return home / "state" / "briefing" / "media-inbox"
+
+
+def _is_within(path: Path, root: Path) -> bool:
+    try:
+        path.relative_to(root)
+        return True
+    except ValueError:
+        return False
+
+
+def _canonical_media_identity(path: Path) -> Optional[tuple[int, int, int]]:
+    match = CANONICAL_MEDIA_FILE.fullmatch(path.name)
+    if not match:
+        return None
+    return (
+        int(match.group("chat")),
+        int(match.group("message")),
+        int(match.group("timestamp")),
+    )
+
+
+def _validated_inbox_media_path(
+    path: Path,
+    chat_id: int,
+    message_id: int,
+) -> Optional[Path]:
+    inbox = _briefing_media_inbox_path().resolve()
+    try:
+        if path.is_symlink():
+            return None
+        resolved = path.resolve(strict=True)
+        identity = _canonical_media_identity(resolved)
+        if (
+            identity is None
+            or identity[:2] != (chat_id, message_id)
+            or not _is_within(resolved, inbox)
+        ):
+            return None
+        stat = resolved.stat()
+        if not resolved.is_file() or stat.st_size < 1:
+            return None
+        return resolved
+    except OSError:
+        return None
+
+
+def _find_reusable_media(chat_id: int, message_id: int) -> Optional[Path]:
+    inbox = _briefing_media_inbox_path()
+    matches: list[tuple[int, int, str, Path]] = []
+    for directory, child_directories, file_names in os.walk(inbox, followlinks=False):
+        root = Path(directory)
+        child_directories[:] = sorted(
+            name for name in child_directories if not (root / name).is_symlink()
+        )
+        for file_name in sorted(file_names):
+            candidate = root / file_name
+            identity = _canonical_media_identity(candidate)
+            if identity is None or identity[:2] != (chat_id, message_id):
+                continue
+            validated = _validated_inbox_media_path(candidate, chat_id, message_id)
+            if validated is not None:
+                try:
+                    modified = validated.stat().st_mtime_ns
+                except OSError:
+                    continue
+                matches.append((modified, identity[2], str(validated), validated))
+    if not matches:
+        return None
+    matches.sort(key=lambda match: (match[0], match[1], match[2]), reverse=True)
+    return matches[0][3]
 
 
 def _integer_or_none(value: Any) -> Optional[int]:
@@ -84,6 +163,27 @@ def _sender_payload(message: Any) -> dict[str, Any]:
     if isinstance(post_author, str) and post_author.strip():
         payload["postAuthor"] = sanitize_name(post_author)
     return payload
+
+
+def _chat_payload(entity: Any, chat_id: int) -> dict[str, Any]:
+    payload: dict[str, Any] = {"id": chat_id}
+    title = getattr(entity, "title", None)
+    if isinstance(title, str) and title.strip():
+        payload["title"] = sanitize_name(title)
+    username = getattr(entity, "username", None)
+    if isinstance(username, str) and TELEGRAM_USERNAME.fullmatch(username.strip()):
+        payload["username"] = username.strip()
+    return payload
+
+
+def _telegram_message_url(entity: Any, chat_id: int, message_id: int) -> Optional[str]:
+    username = getattr(entity, "username", None)
+    if isinstance(username, str) and TELEGRAM_USERNAME.fullmatch(username.strip()):
+        return f"https://t.me/{username.strip()}/{message_id}"
+    internal_chat_id = str(abs(chat_id))
+    if internal_chat_id.startswith("100") and len(internal_chat_id) > 3:
+        return f"https://t.me/c/{internal_chat_id[3:]}/{message_id}"
+    return None
 
 
 def _media_type(message: Any, media: Any) -> str:
@@ -193,19 +293,25 @@ def _engagement_payload(message: Any) -> dict[str, Any]:
     }
 
 
-def _exact_message_payload(chat_id: int, message: Any) -> dict[str, Any]:
-    return {
+def _exact_message_payload(chat_id: int, message: Any, entity: Any) -> dict[str, Any]:
+    message_id = int(getattr(message, "id"))
+    payload: dict[str, Any] = {
         "status": "found",
         "chatId": chat_id,
-        "id": int(getattr(message, "id")),
+        "id": message_id,
         "date": _iso_datetime(getattr(message, "date", None)),
         "text": sanitize_user_content(getattr(message, "message", None), max_length=4096),
+        "chat": _chat_payload(entity, chat_id),
         "sender": _sender_payload(message),
         "media": _media_payload(message),
         "grouped_id": _integer_or_none(getattr(message, "grouped_id", None)),
         "reply": _reply_payload(message),
         "engagement": _engagement_payload(message),
     }
+    external_url = _telegram_message_url(entity, chat_id, message_id)
+    if external_url is not None:
+        payload["externalUrl"] = external_url
+    return payload
 
 
 def _validate_commit_plan(
@@ -363,7 +469,7 @@ async def get_messages_exact_batch(
                             "id": message_id,
                         }
                     else:
-                        results[index] = _exact_message_payload(chat_id, message)
+                        results[index] = _exact_message_payload(chat_id, message, entity)
             except Exception as error:
                 safe_error = _safe_error(str(error))
                 for index, message_id in indexed_ids:
@@ -413,11 +519,13 @@ async def download_media_batch(
     ctx: Optional[Context] = None,
     account: str = None,
 ) -> str:
-    """Download a bounded list of Telegram message attachments to the first allowed root.
+    """Download or reuse a small bounded list of Telegram message attachments.
 
     Each item must contain only ``chat_id`` and ``message_id``. The existing
     upstream ``download_media`` implementation owns entity resolution, allowed
-    root enforcement, type detection, and the actual Telegram download.
+    root enforcement, type detection, and the actual Telegram download. A
+    non-empty canonical file for the exact pair already in the briefing media
+    inbox is returned as ``reused`` before contacting Telegram.
     """
 
     if not isinstance(items, list) or not 1 <= len(items) <= MAX_BATCH_MEDIA:
@@ -425,64 +533,105 @@ async def download_media_batch(
             {
                 "ok": False,
                 "error": f"items must contain one to {MAX_BATCH_MEDIA} entries",
+                "requested": len(items) if isinstance(items, list) else 0,
+                "downloaded": 0,
+                "reused": 0,
+                "failed": 0,
                 "results": [],
             }
         )
 
+    validated: list[tuple[int, int]] = []
     seen: set[tuple[int, int]] = set()
-    results: list[dict[str, Any]] = []
     for index, item in enumerate(items):
         if not isinstance(item, dict) or set(item) != {"chat_id", "message_id"}:
-            results.append(
+            return json.dumps(
                 {
-                    "index": index,
-                    "status": "failed",
-                    "error": "item must contain exactly chat_id and message_id",
+                    "ok": False,
+                    "error": f"item {index} must contain exactly chat_id and message_id",
+                    "requested": len(items),
+                    "downloaded": 0,
+                    "reused": 0,
+                    "failed": 0,
+                    "results": [],
                 }
             )
-            continue
         chat_id = item.get("chat_id")
         message_id = item.get("message_id")
         if (
             not isinstance(chat_id, int)
             or isinstance(chat_id, bool)
+            or chat_id == 0
             or not isinstance(message_id, int)
             or isinstance(message_id, bool)
+            or message_id < 1
         ):
-            results.append(
+            return json.dumps(
                 {
-                    "index": index,
-                    "status": "failed",
-                    "error": "chat_id and message_id must be integers",
+                    "ok": False,
+                    "error": f"item {index} requires a non-zero integer chat_id and positive integer message_id",
+                    "requested": len(items),
+                    "downloaded": 0,
+                    "reused": 0,
+                    "failed": 0,
+                    "results": [],
                 }
             )
-            continue
         identity = (chat_id, message_id)
         if identity in seen:
+            return json.dumps(
+                {
+                    "ok": False,
+                    "error": f"duplicate item for chat_id {chat_id} and message_id {message_id}",
+                    "requested": len(items),
+                    "downloaded": 0,
+                    "reused": 0,
+                    "failed": 0,
+                    "results": [],
+                }
+            )
+        seen.add(identity)
+        validated.append(identity)
+
+    results: list[dict[str, Any]] = []
+    for chat_id, message_id in validated:
+        reusable = _find_reusable_media(chat_id, message_id)
+        if reusable is not None:
             results.append(
                 {
                     "chatId": chat_id,
                     "messageId": message_id,
-                    "status": "duplicate",
+                    "status": "reused",
+                    "path": str(reusable),
                 }
             )
             continue
-        seen.add(identity)
-        response = await download_media(
-            chat_id=chat_id,
-            message_id=message_id,
-            file_path=None,
-            ctx=ctx,
-            account=account,
-        )
+
+        try:
+            response = await download_media(
+                chat_id=chat_id,
+                message_id=message_id,
+                file_path=None,
+                ctx=ctx,
+                account=account,
+            )
+        except Exception as error:
+            response = f"Download failed: {_safe_error(str(error))}"
         prefix = "Media downloaded to "
+        path: Optional[Path] = None
         if isinstance(response, str) and response.startswith(prefix) and response.endswith("."):
+            path = _validated_inbox_media_path(
+                Path(response[len(prefix) : -1]),
+                chat_id,
+                message_id,
+            )
+        if path is not None:
             results.append(
                 {
                     "chatId": chat_id,
                     "messageId": message_id,
                     "status": "downloaded",
-                    "path": response[len(prefix) : -1],
+                    "path": str(path),
                 }
             )
         else:
@@ -496,12 +645,14 @@ async def download_media_batch(
             )
 
     downloaded = sum(result.get("status") == "downloaded" for result in results)
+    reused = sum(result.get("status") == "reused" for result in results)
     failed = sum(result.get("status") == "failed" for result in results)
     return json.dumps(
         {
-            "ok": failed == 0,
-            "requested": len(items),
+            "ok": failed == 0 and downloaded + reused == len(validated),
+            "requested": len(validated),
             "downloaded": downloaded,
+            "reused": reused,
             "failed": failed,
             "results": results,
         },
