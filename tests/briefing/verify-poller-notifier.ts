@@ -366,7 +366,6 @@ async function seedPublishedEdition(): Promise<void> {
 
 async function verifyReleaseNotifier(): Promise<void> {
   await seedPublishedEdition();
-  const originalFetch = globalThis.fetch;
   const requests: Array<{ url: string; init: RequestInit | undefined }> = [];
   const mockedFetch: typeof fetch = async (input, init) => {
     requests.push({
@@ -378,9 +377,10 @@ async function verifyReleaseNotifier(): Promise<void> {
       headers: { "content-type": "application/json" },
     });
   };
-  globalThis.fetch = mockedFetch;
   try {
-    const first = await notifyBriefingRelease("daily:2026-08-31", environment);
+    const first = await notifyBriefingRelease("daily:2026-08-31", environment, {
+      fetchImpl: mockedFetch,
+    });
     assert.deepEqual(first, {
       editionId: "daily:2026-08-31",
       destination: "1543918214835216584",
@@ -410,7 +410,9 @@ async function verifyReleaseNotifier(): Promise<void> {
     assert.match(body.nonce, /^briefing-[a-f0-9]{20}$/u);
     assert.equal(body.enforce_nonce, true);
 
-    const second = await notifyBriefingRelease("daily:2026-08-31", environment);
+    const second = await notifyBriefingRelease("daily:2026-08-31", environment, {
+      fetchImpl: mockedFetch,
+    });
     assert.equal(second.alreadyComplete, true);
     assert.equal(second.messageId, first.messageId);
     assert.equal(second.publicationUrl, first.publicationUrl);
@@ -445,7 +447,7 @@ async function verifyReleaseNotifier(): Promise<void> {
       database.close();
     }
   } finally {
-    globalThis.fetch = originalFetch;
+    // All notifier network I/O is injected and scoped to this verification.
   }
 }
 

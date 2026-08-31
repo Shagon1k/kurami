@@ -7,6 +7,8 @@ import {
   loadEdition,
   openBriefingDatabase,
 } from "./store.ts";
+import { nodeHttpFetch } from "./providers/node-http-fetch.ts";
+import type { FetchLike } from "./providers/common.ts";
 import { loadBriefingRuntimeConfig } from "./runtime-config.ts";
 
 type JsonRecord = Record<string, unknown>;
@@ -58,13 +60,14 @@ async function discordPost(
   channelId: string,
   content: string,
   nonce: string,
+  fetchImpl: FetchLike,
 ): Promise<JsonRecord> {
   let lastError = "Discord delivery failed";
   for (let attempt = 1; attempt <= 3; attempt += 1) {
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), 10_000);
     try {
-      const response = await fetch(`https://discord.com/api/v10/channels/${channelId}/messages`, {
+      const response = await fetchImpl(`https://discord.com/api/v10/channels/${channelId}/messages`, {
         method: "POST",
         headers: { authorization: `Bot ${token}`, "content-type": "application/json" },
         body: JSON.stringify({ content, nonce, enforce_nonce: true }),
@@ -107,6 +110,7 @@ async function discordPost(
 export async function notifyBriefingRelease(
   editionId: string,
   environment: NodeJS.ProcessEnv = process.env,
+  options: { fetchImpl?: FetchLike } = {},
 ): Promise<NotificationResult> {
   const paths = briefingPaths(environment);
   await initializeBriefingStore(paths);
@@ -145,7 +149,13 @@ export async function notifyBriefingRelease(
     const nonce = `briefing-${createHash("sha256").update(editionId).digest("hex").slice(0, 20)}`;
     const token = await discordToken(paths.home, environment);
     try {
-      const receipt = await discordPost(token, config.discordChannelId, content, nonce);
+      const receipt = await discordPost(
+        token,
+        config.discordChannelId,
+        content,
+        nonce,
+        options.fetchImpl ?? nodeHttpFetch,
+      );
       const messageId = receipt.id as string;
       database.prepare(`
         UPDATE release_notification_receipts
