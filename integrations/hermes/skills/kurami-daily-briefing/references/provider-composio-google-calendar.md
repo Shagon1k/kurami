@@ -14,11 +14,25 @@ does not expose Composio search or multi-execute meta tools.
 Validate that the leaf operation is read-only, accepts a calendar identifier
 and RFC3339 time bounds, and can return all events in the requested window.
 
+Call `GOOGLECALENDAR_EVENTS_LIST` with its exact Composio leaf parameter names:
+
+- `calendarId`: the configured calendar `id`, including the literal `primary`;
+- `timeMin` and `timeMax`: the local-day RFC3339 bounds with the Vilnius offset;
+- `singleEvents: true` and `orderBy: "startTime"`;
+- a bounded `maxResults`, followed by `pageToken` only when the response
+  actually supplies a next-page token.
+
+Do not pass `calendar_id`, the configured calendar key or label, an encoded
+calendar ID, or the internal `composio_replaced_calendar_id` field. A successful
+Composio response is wrapped as `{ successful, data, error }`; read events from
+`data.items`. A missing or empty `data.items` array is a successful empty batch,
+not `calendar_not_found`.
+
 ## Collect
 
 For `window: local_day`, compute the start and end of the briefing date in the
 edition timezone. Query every enabled entry in `settings.calendars` using its
-configured opaque `id` and those same bounds. Expand recurring events when
+configured provider `id` and those same bounds. Expand recurring events when
 supported and paginate each calendar independently until exhausted. Do not
 decode, rewrite, or replace configured calendar IDs with a guessed `primary`.
 
