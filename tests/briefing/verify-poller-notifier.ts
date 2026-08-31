@@ -407,7 +407,8 @@ async function verifyReleaseNotifier(): Promise<void> {
     );
     assert.equal(body.content.includes("\n"), false);
     assert.doesNotMatch(body.content, /Cronjob Response|To stop|manage this job|job_id/iu);
-    assert.match(body.nonce, /^briefing-[a-f0-9]{20}$/u);
+    assert.match(body.nonce, /^\d{1,20}$/u);
+    assert.ok(body.nonce.length <= 25);
     assert.equal(body.enforce_nonce, true);
 
     const second = await notifyBriefingRelease("daily:2026-08-31", environment, {

@@ -146,7 +146,9 @@ export async function notifyBriefingRelease(
         state = 'prepared', provider_receipt_json = NULL, updated_at = excluded.updated_at
     `).run(editionId, config.discordChannelId, timestamp, timestamp);
     const content = `☀️ Брифинг за ${displayDate(edition.local_date, edition.timezone)} готов — ${publicationUrl}`;
-    const nonce = `briefing-${createHash("sha256").update(editionId).digest("hex").slice(0, 20)}`;
+    const nonce = BigInt(
+      `0x${createHash("sha256").update(editionId).digest("hex").slice(0, 16)}`,
+    ).toString(10);
     const token = await discordToken(paths.home, environment);
     try {
       const receipt = await discordPost(
