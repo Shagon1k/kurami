@@ -201,6 +201,14 @@ assert.equal(
   new Set(config.sources.calendar.settings.calendars.map((calendar) => calendar.id)).size,
   3,
 );
+assert.deepEqual(
+  config.sources.calendar.settings.calendars.map((calendar) => calendar.id),
+  [
+    "primary",
+    "954007fa64fb9a02627a19d787497f572f1ec09ef157e7b8d1d2738429bbd551@group.calendar.google.com",
+    "dee135e87590c186018b48cc9152602759be9696126fcf24b27c977e80a7cd87@group.calendar.google.com",
+  ],
+);
 assert(config.sources.calendar.settings.calendars.every((calendar) => calendar.enabled));
 assert.equal(config.sources.mail.profile, "composio-gmail");
 assert.equal(config.sources.mail.settings.query, "in:inbox is:unread category:primary");

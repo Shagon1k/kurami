@@ -39,7 +39,7 @@ sources:
       window: local_day
       calendars:
       - key: personal
-        id: shagon1k@gmail.com
+        id: primary
         label: Aliaksei Hurynovich
         role: personal
         enabled: true
