@@ -180,6 +180,11 @@ in the same provider order. Every manifest asset must include its canonical
 `sourceKey` and the exact owning Telegram message ID string as
 `providerItemId`:
 
+The runtime accepts images up to 25 MiB, individual videos up to 768 MiB, and
+at most 1 GiB for the complete retained edition. These are transport/storage
+ceilings, not editorial sampling rules: exceeding any ceiling stops media
+import and Telegram commit rather than silently dropping the attachment.
+
 ```json
 {
   "sourcePath": "/bounded/media-inbox/file.jpg",

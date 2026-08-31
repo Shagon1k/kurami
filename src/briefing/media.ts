@@ -22,7 +22,7 @@ import {
 import { renderBriefingPage } from "./ui/render-page.ts";
 
 const MAX_IMAGE_BYTES = 25 * 1024 * 1024;
-const MAX_VIDEO_BYTES = 256 * 1024 * 1024;
+const MAX_VIDEO_BYTES = 768 * 1024 * 1024;
 const MAX_EDITION_MEDIA_BYTES = 1024 * 1024 * 1024;
 
 const TYPES = new Map<string, { kind: StoryMedia["kind"]; mimeType: string }>([
