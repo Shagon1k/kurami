@@ -28,6 +28,28 @@ provider has no chat-list cursor: request `chat_type: channel`,
 default is only 20 dialogs, so never report a configured channel as missing
 from a default-sized response.
 
+## Exact-ID recovery
+
+When a trusted run artifact or an explicitly authorized recovery already owns
+the exact `{chat_id, message_id}` pairs, use the Kurami-owned read-only
+`get_messages_exact_batch` operation. Do not rediscover those posts through an
+unread query or call `get_message_context` once per item. The operation accepts
+one to 256 unique pairs, groups them by chat on the existing single Telethon
+client, and returns `results` in the original request order.
+
+Each `found` result includes `chatId`, `id`, `date`, `text`, structured
+`sender`, structured `media`, `grouped_id`, `reply`, and `engagement`. A
+deleted or unavailable exact ID is an explicit `missing` result; a chat-level
+provider failure is an explicit `error` result for every affected requested
+ID. Treat either status as partial and preserve it in diagnostics. Never omit,
+replace, or infer a requested ID, and never interpret this read-only operation
+as permission to download attachments or advance Telegram read state.
+
+Use these exact results as the recovery raw artifact, then map them to the
+normal item contract and run the same album normalization and coverage gates
+as a normal collection. This capability is for known exact IDs only; it does
+not replace `list_messages` for a new unread snapshot.
+
 ## Collect
 
 For every enabled configured channel:

@@ -106,6 +106,12 @@ Default manual experiments to `dry-run`. Generation never archives Gmail;
    normalized output only after validation. This deterministically expands
    every Telegram `grouped_id` present in the captured batch into ordered
    `mediaMessageIds`; do not hand-pick only one or two album members.
+   An explicitly authorized recovery that already has exact Telegram
+   `{chat_id, message_id}` pairs must retrieve them with the provider's bounded
+   read-only `get_messages_exact_batch` operation and preserve its request
+   order plus explicit `missing` or `error` results. It must not rediscover
+   those known posts from unread state or use one model-mediated context call
+   per message.
 7. Fetch weather when the configured capability is available. Weather failure
    makes only that section partial.
 8. Normalize, cluster, merge, summarize, assign topics, and rank content using

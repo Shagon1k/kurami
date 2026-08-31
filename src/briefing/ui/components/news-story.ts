@@ -56,7 +56,7 @@ export function renderNewsStory(input: {
     <span class="news-story__index" aria-hidden="true">${String(input.index + 1).padStart(2, "0")}</span>
     ${cover}
     <div class="news-story__copy">
-      <div class="news-story__meta"><span class="news-story__provider">${escapeHtml(source.provider)}</span><span class="news-story__channel">${escapeHtml(source.label)}</span>${source.time ? `<time class="news-story__time">${escapeHtml(source.time)}</time>` : ""}<span class="sr-only" data-read-state>Прочитано</span></div>
+      <div class="news-story__meta"><span class="news-story__provider">${escapeHtml(source.provider)}</span><span class="news-story__channel">${escapeHtml(source.label)}</span>${source.time ? `<time class="news-story__time">${escapeHtml(source.time)}</time>` : ""}${read ? '<span class="sr-only" data-read-state>Прочитано</span>' : ""}</div>
       <h3>${escapeHtml(story.headline)}</h3>
       <p class="news-story__summary">${escapeHtml(story.summary)}</p>
       ${renderTopicSet(story.topics)}

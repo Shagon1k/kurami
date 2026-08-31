@@ -322,6 +322,9 @@ async function verifyRetainedPollerFailSoft(
       assert.equal(refreshed.weather?.state, "ready");
       assert.equal(refreshed.weather?.provider, "open-meteo");
       assert.equal(refreshed.weather?.temperatureC, 18.4);
+      assert.equal(refreshed.dataQuality.state, "partial");
+      assert.match(String(refreshed.dataQuality.summary), /почта, расписание/u);
+      assert.doesNotMatch(String(refreshed.dataQuality.summary), /погода/u);
       assert.equal(refreshed.live?.state, "partial");
       assert.equal(refreshed.live?.lastSuccessAt, original.live?.lastSuccessAt);
       assert.equal(loadEdition(persisted, { id: "daily:2026-08-20" }), null);

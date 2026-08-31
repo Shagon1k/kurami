@@ -150,6 +150,35 @@ function providerComplete<T>(result: ProviderResult<T>): result is ProviderResul
   return result.value !== null && (result.state === "ready" || result.state === "empty");
 }
 
+function refreshDataQuality(payload: BriefingPayload, refreshedAt: string): void {
+  const sections: Array<[string, SectionState]> = [
+    ["новости", payload.news.state],
+    ["почта", payload.mail.state],
+    ["расписание", payload.calendar.state],
+    ["погода", payload.weather?.state ?? "failed"],
+  ];
+  const issues = sections
+    .filter(([, state]) => state === "partial" || state === "stale" || state === "failed")
+    .map(([label]) => label);
+  const retainedMorningCaveat = payload.edition.status === "partial"
+    && payload.dataQuality.state !== "ready"
+    && issues.length === 0;
+  const time = new Intl.DateTimeFormat("ru-RU", {
+    hour: "2-digit",
+    minute: "2-digit",
+    timeZone: payload.edition.timezone,
+  }).format(new Date(refreshedAt));
+  payload.dataQuality = {
+    ...payload.dataQuality,
+    state: issues.length || retainedMorningCaveat ? "partial" : "ready",
+    summary: issues.length
+      ? `Требуют внимания: ${issues.join(", ")}. Live-данные обновлены в ${time}.`
+      : retainedMorningCaveat
+        ? `У утреннего среза есть оговорки; live-данные обновлены в ${time}.`
+        : `Утренний срез зафиксирован; live-данные обновлены в ${time}.`,
+  };
+}
+
 function failedProviderResult<T>(
   error: unknown,
   fetchedAt: string,
@@ -209,6 +238,7 @@ function updatePayload(
   if (providerComplete(weather)) next.weather = weatherValue(weather.value, sectionState(weather.state));
   else if (next.weather) next.weather = { ...next.weather, state: "stale", staleAt: refreshedAt };
   else next.weather = { state: "failed", location: "Vilnius", summary: "Прогноз временно недоступен" };
+  refreshDataQuality(next, refreshedAt);
   return parseBriefingPayload(next);
 }
 

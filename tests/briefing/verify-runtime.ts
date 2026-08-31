@@ -173,7 +173,18 @@ assert.match(html, /data-mail-archive disabled>Прочитать и архив�
 assert.match(html, /data-utility-header/);
 assert.match(html, /utility-header__inner/);
 assert.match(html, /data-media-dialog/);
-assert.match(html, /data-read-state/);
+assert.doesNotMatch(html, /data-read-state/);
+const readStateHtml = renderBriefingPage(parseBriefingPayload({
+  ...payload,
+  news: {
+    ...payload.news,
+    items: payload.news.items.map((story, index) => index === 0
+      ? { ...story, readState: "read" as const }
+      : story),
+  },
+}));
+assert.match(readStateHtml, /data-item-id="story-1"[\s\S]*?data-read-state>Прочитано/);
+assert.equal((readStateHtml.match(/data-read-state/g) ?? []).length, 1);
 assert.match(html, /family=Caveat/);
 assert.match(html, /data-feed-pagination/);
 assert.match(html, /data-page-range/);

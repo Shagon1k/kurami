@@ -116,6 +116,7 @@ assert.match(telegramProfile, /validate-telegram-batch/);
 assert.match(telegramProfile, /capturedUnreadCount/);
 assert.match(telegramProfile, /download_media/);
 assert.match(telegramProfile, /download_media_batch/);
+assert.match(telegramProfile, /get_messages_exact_batch/);
 
 const telegramWrapperPath = path.resolve(
   root,
@@ -126,6 +127,9 @@ const telegramWrapperPath = path.resolve(
 );
 const telegramWrapper = fs.readFileSync(telegramWrapperPath, "utf8");
 assert.match(telegramWrapper, /MAX_BATCH_MEDIA = 256/);
+assert.match(telegramWrapper, /MAX_BATCH_EXACT_MESSAGES = 256/);
+assert.match(telegramWrapper, /async def get_messages_exact_batch/);
+assert.match(telegramWrapper, /readOnlyHint=True/);
 assert.match(telegramWrapper, /await download_media\(/);
 assert.match(telegramWrapper, /set\(item\) != \{"chat_id", "message_id"\}/);
 const compiledWrapper = spawnSync(

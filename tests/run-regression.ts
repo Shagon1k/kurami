@@ -2,6 +2,7 @@ import { spawnSync } from "node:child_process";
 
 const suites = [
   "test:skills",
+  "test:telegram-wrapper",
   "test:briefing-runtime",
   "test:briefing-http",
   "test:briefing-mail-ui",
