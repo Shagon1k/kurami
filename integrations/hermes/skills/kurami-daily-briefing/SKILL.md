@@ -105,7 +105,8 @@ Default manual experiments to `dry-run`. Generation never archives Gmail;
    processing instead of permitting a smaller hand-selected list. Use the
    normalized output only after validation. This deterministically expands
    every Telegram `grouped_id` present in the captured batch into ordered
-   `mediaMessageIds`; do not hand-pick only one or two album members.
+   `allMediaMessageIds`, image-only `mediaMessageIds`, and diagnostic
+   `nonImageMediaMessageIds`. Do not hand-pick only one or two album images.
    An explicitly authorized recovery that already has exact Telegram
    `{chat_id, message_id}` pairs must retrieve them with the provider's bounded
    read-only `get_messages_exact_batch` operation and preserve its request
@@ -151,15 +152,15 @@ Default manual experiments to `dry-run`. Generation never archives Gmail;
     most 12, merge per-pair receipts in provider order, and retry only failed or
     missing pairs. Treat both `downloaded` and `reused` as successful only when
     they carry a non-empty canonical path. Do not import media or continue to a
-    Telegram commit plan until every expected pair is accounted exactly once.
-    The manifest must contain every retained attachment in provider order, up
+    Telegram commit plan until every expected image pair is accounted exactly once.
+    The manifest must contain every retained image in provider order, up
     to the twelve-asset per-story limit, rather than a fixed sample of one or
     two files. Every manifest asset must carry the canonical `sourceKey` and
     its exact Telegram `providerItemId`; the importer persists that provenance
     on the story asset. A story that would exceed the limit must be split at a
     real content boundary, not silently truncate an album. Run the canonical
     `import-media` command described by the Telegram provider reference. Do not
-    ask the model to inspect images or video unless an explicit later task
+    ask the model to inspect images unless an explicit later task
     requires visual analysis.
 13. In `dry-run`, create the run-specific artifact directory and write only the
     completed payload with the Hermes `write_file` tool. Do not generate the
@@ -189,11 +190,14 @@ For a production run:
 2. If preparation fails, keep the previous latest edition and do not mutate
    Telegram or Gmail.
 3. Reconcile all resumable media chunk receipts, then import the complete
-   retained Telegram media set. Each expected pair must have exactly one
+   retained Telegram image set. Each expected image pair must have exactly one
    `downloaded` or `reused` path before import, and each imported asset must
    match one story source `mediaMessageIds` entry by `sourceKey` plus
-   `providerItemId`. Any failed, missing, or duplicate pair stops import and
-   commit-plan creation. Media is content transport, not an invitation for the
+   `providerItemId`. Video and other non-image identities remain diagnostic
+   metadata and are available through the story's Telegram source link; they
+   are never downloaded, imported, or counted by this gate. Any failed,
+   missing, or duplicate expected image pair stops import and commit-plan
+   creation. Media is content transport, not an invitation for the
    model to inspect the bytes.
 4. Persist validation against the final prepared edition using the unchanged
    raw and normalized artifacts:

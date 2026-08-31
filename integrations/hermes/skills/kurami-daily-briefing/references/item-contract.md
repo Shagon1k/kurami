@@ -34,11 +34,14 @@ Every item in `items` uses this common envelope:
   "metadata": {
     "hasMedia": true,
     "mediaType": "photo",
+    "mediaMimeType": "image/jpeg",
     "telegramChatId": -1001260471035,
     "telegramMessageId": 12345,
     "telegramGroupId": 987654321,
     "primaryImageMessageId": 12345,
-    "mediaMessageIds": [12345, 12346]
+    "allMediaMessageIds": [12345, 12346],
+    "mediaMessageIds": [12345],
+    "nonImageMediaMessageIds": [12346]
   }
 }
 ```
@@ -63,11 +66,19 @@ channel ID in place of the message ID. This exact pair is how the runtime proves
 that every normalized input has one and only one story or exclusion owner.
 
 For `telegram-user`, the three canonical provider fields are
-`telegramChatId`, `telegramMessageId`, and `telegramGroupId`. Run the bundled
+`telegramChatId`, `telegramMessageId`, `telegramGroupId`, `mediaType`, and
+`mediaMimeType` when the provider supplies a MIME.
+`mediaType` must be derived from the exact provider message (`photo`, `image`,
+an `image/*` MIME, `video`, `audio`, or another stable non-empty type); it may
+not be guessed from a filename. A stable `image/*` `mediaMimeType` also makes a
+Telegram document image-eligible. Run the bundled
 album normalizer before editorial processing. When several normalized items
 share `telegramChatId` plus `telegramGroupId`, every retained story assembled
-from them must carry the complete ordered `mediaMessageIds`; selecting only the
-caption-bearing member is invalid.
+from them must preserve the complete ordered `allMediaMessageIds`. Only
+image-eligible members appear in `mediaMessageIds` and the remaining members
+appear in `nonImageMediaMessageIds`. Selecting only the caption-bearing image
+is invalid. Non-image members retain normal item provenance and their Telegram
+source link, but are never asset-import expectations.
 
 The raw artifact, normalized artifact, capture ledger, schema-version-2
 payload, media manifest, and commit plan are one provenance chain. Keep the raw

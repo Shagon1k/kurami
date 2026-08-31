@@ -39,6 +39,7 @@ TELEGRAM_USERNAME = re.compile(r"^[A-Za-z0-9_]{5,32}$")
 CANONICAL_MEDIA_FILE = re.compile(
     r"^telegram_(?P<chat>-?[1-9]\d*)_(?P<message>[1-9]\d*)_(?P<timestamp>\d+)(?:\.[A-Za-z0-9]{1,16})?$"
 )
+IMAGE_MEDIA_EXTENSIONS = frozenset({".avif", ".gif", ".jpeg", ".jpg", ".png", ".webp"})
 
 
 def _safe_error(value: str) -> str:
@@ -90,6 +91,7 @@ def _validated_inbox_media_path(
             identity is None
             or identity[:2] != (chat_id, message_id)
             or not _is_within(resolved, inbox)
+            or resolved.suffix.lower() not in IMAGE_MEDIA_EXTENSIONS
         ):
             return None
         stat = resolved.stat()
@@ -187,8 +189,9 @@ def _telegram_message_url(entity: Any, chat_id: int, message_id: int) -> Optiona
 
 
 def _media_type(message: Any, media: Any) -> str:
-    if getattr(message, "photo", None) is not None:
-        return "photo"
+    video = getattr(message, "video", None)
+    if video is not None:
+        return "video"
     document = getattr(message, "document", None)
     mime_type = getattr(document, "mime_type", None)
     if isinstance(mime_type, str):
@@ -200,6 +203,11 @@ def _media_type(message: Any, media: Any) -> str:
             return "audio"
         if mime_type:
             return "document"
+    # Telethon may expose a video thumbnail through ``message.photo`` while
+    # the owning attachment is still a video document. Document MIME therefore
+    # has priority over the convenience photo attribute.
+    if getattr(message, "photo", None) is not None:
+        return "photo"
     class_name = type(media).__name__
     if class_name.startswith("MessageMedia"):
         class_name = class_name[len("MessageMedia") :]
@@ -214,10 +222,12 @@ def _media_payload(message: Any) -> Optional[dict[str, Any]]:
 
     payload: dict[str, Any] = {"type": _media_type(message, media)}
     photo = getattr(message, "photo", None)
-    document = getattr(message, "document", None)
-    media_id = _integer_or_none(getattr(photo, "id", None))
+    video = getattr(message, "video", None)
+    document = video if video is not None else getattr(message, "document", None)
+    # Owning video/document identity takes priority over a thumbnail photo.
+    media_id = _integer_or_none(getattr(document, "id", None))
     if media_id is None:
-        media_id = _integer_or_none(getattr(document, "id", None))
+        media_id = _integer_or_none(getattr(photo, "id", None))
     if media_id is not None:
         payload["id"] = media_id
 
@@ -225,18 +235,37 @@ def _media_payload(message: Any) -> Optional[dict[str, Any]]:
     file_name = getattr(file, "name", None)
     if isinstance(file_name, str) and file_name.strip():
         payload["fileName"] = sanitize_name(file_name)
-    mime_type = getattr(file, "mime_type", None) or getattr(document, "mime_type", None)
+    mime_type = getattr(document, "mime_type", None) or getattr(file, "mime_type", None)
     if isinstance(mime_type, str) and mime_type.strip():
         payload["mimeType"] = mime_type.strip()
-    size = _integer_or_none(getattr(file, "size", None))
+    size = _integer_or_none(getattr(document, "size", None))
     if size is None:
-        size = _integer_or_none(getattr(document, "size", None))
+        size = _integer_or_none(getattr(file, "size", None))
     if size is not None:
         payload["size"] = size
     duration = _integer_or_none(getattr(file, "duration", None))
     if duration is not None:
         payload["duration"] = duration
     return payload
+
+
+def _image_media_type(message: Any) -> Optional[str]:
+    media = getattr(message, "media", None)
+    if media is None:
+        return None
+    media_type = _media_type(message, media)
+    if media_type in {"photo", "image"}:
+        return media_type
+    if media_type in {"video", "audio", "document"}:
+        return None
+    video = getattr(message, "video", None)
+    document = video if video is not None else getattr(message, "document", None)
+    mime_type = getattr(document, "mime_type", None)
+    if not isinstance(mime_type, str):
+        mime_type = getattr(getattr(message, "file", None), "mime_type", None)
+    if isinstance(mime_type, str) and mime_type.lower().startswith("image/"):
+        return "image"
+    return None
 
 
 def _reply_payload(message: Any) -> Optional[dict[str, Any]]:
@@ -524,8 +553,10 @@ async def download_media_batch(
     Each item must contain only ``chat_id`` and ``message_id``. The existing
     upstream ``download_media`` implementation owns entity resolution, allowed
     root enforcement, type detection, and the actual Telegram download. A
-    non-empty canonical file for the exact pair already in the briefing media
-    inbox is returned as ``reused`` before contacting Telegram.
+    non-empty canonical image file for the exact pair already in the briefing
+    media inbox is returned as ``reused`` only after Telegram confirms that the
+    message attachment is an image. Video and other media are reported as
+    ``skipped`` without download or reuse.
     """
 
     if not isinstance(items, list) or not 1 <= len(items) <= MAX_BATCH_MEDIA:
@@ -536,6 +567,7 @@ async def download_media_batch(
                 "requested": len(items) if isinstance(items, list) else 0,
                 "downloaded": 0,
                 "reused": 0,
+                "skipped": 0,
                 "failed": 0,
                 "results": [],
             }
@@ -552,6 +584,7 @@ async def download_media_batch(
                     "requested": len(items),
                     "downloaded": 0,
                     "reused": 0,
+                    "skipped": 0,
                     "failed": 0,
                     "results": [],
                 }
@@ -573,6 +606,7 @@ async def download_media_batch(
                     "requested": len(items),
                     "downloaded": 0,
                     "reused": 0,
+                    "skipped": 0,
                     "failed": 0,
                     "results": [],
                 }
@@ -586,6 +620,7 @@ async def download_media_batch(
                     "requested": len(items),
                     "downloaded": 0,
                     "reused": 0,
+                    "skipped": 0,
                     "failed": 0,
                     "results": [],
                 }
@@ -593,8 +628,78 @@ async def download_media_batch(
         seen.add(identity)
         validated.append(identity)
 
+    grouped: dict[int, list[int]] = defaultdict(list)
+    for chat_id, message_id in validated:
+        grouped[chat_id].append(message_id)
+    preflight: dict[tuple[int, int], dict[str, Any]] = {}
+    client = get_client(account)
+    try:
+        await ensure_connected(client)
+    except Exception as error:
+        safe_error = _safe_error(str(error))
+        for chat_id, message_id in validated:
+            preflight[(chat_id, message_id)] = {
+                "status": "failed",
+                "error": safe_error,
+            }
+    else:
+        for chat_id, message_ids in grouped.items():
+            try:
+                entity = await resolve_entity(chat_id, client)
+                fetched = await client.get_messages(entity, ids=message_ids)
+                if fetched is None:
+                    messages: list[Any] = []
+                elif isinstance(fetched, (list, tuple)):
+                    messages = list(fetched)
+                else:
+                    messages = [fetched]
+                by_id = {
+                    message_id: message
+                    for message in messages
+                    if message is not None
+                    and (message_id := _integer_or_none(getattr(message, "id", None))) is not None
+                    and message_id in message_ids
+                }
+                for message_id in message_ids:
+                    message = by_id.get(message_id)
+                    if message is None:
+                        preflight[(chat_id, message_id)] = {
+                            "status": "failed",
+                            "error": "Telegram message is unavailable",
+                        }
+                        continue
+                    image_type = _image_media_type(message)
+                    if image_type is None:
+                        media = getattr(message, "media", None)
+                        media_type = _media_type(message, media) if media is not None else "none"
+                        preflight[(chat_id, message_id)] = {
+                            "status": "skipped",
+                            "reason": "non-image-media",
+                            "mediaType": media_type,
+                        }
+                    else:
+                        preflight[(chat_id, message_id)] = {
+                            "status": "eligible",
+                            "mediaType": image_type,
+                        }
+            except Exception as error:
+                safe_error = _safe_error(str(error))
+                for message_id in message_ids:
+                    preflight[(chat_id, message_id)] = {
+                        "status": "failed",
+                        "error": safe_error,
+                    }
+
     results: list[dict[str, Any]] = []
     for chat_id, message_id in validated:
+        eligibility = preflight[(chat_id, message_id)]
+        if eligibility["status"] != "eligible":
+            results.append({
+                "chatId": chat_id,
+                "messageId": message_id,
+                **eligibility,
+            })
+            continue
         reusable = _find_reusable_media(chat_id, message_id)
         if reusable is not None:
             results.append(
@@ -646,13 +751,15 @@ async def download_media_batch(
 
     downloaded = sum(result.get("status") == "downloaded" for result in results)
     reused = sum(result.get("status") == "reused" for result in results)
+    skipped = sum(result.get("status") == "skipped" for result in results)
     failed = sum(result.get("status") == "failed" for result in results)
     return json.dumps(
         {
-            "ok": failed == 0 and downloaded + reused == len(validated),
+            "ok": failed == 0 and downloaded + reused + skipped == len(validated),
             "requested": len(validated),
             "downloaded": downloaded,
             "reused": reused,
+            "skipped": skipped,
             "failed": failed,
             "results": results,
         },

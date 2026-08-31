@@ -269,6 +269,81 @@ export async function runBriefingCli(argv = process.argv.slice(2)): Promise<unkn
   await initializeBriefingStore(paths);
   const database = openBriefingDatabase(paths);
   try {
+    if (args.editionId) {
+      const edition = loadEdition(database, { id: args.editionId });
+      if (!edition) fail(`Edition ${args.editionId} not found`);
+      const payload = parseBriefingPayload(JSON.parse(edition.payload_json) as unknown);
+      const sourceItems = new Set((payload.sourceBatches ?? []).flatMap((batch) => batch.itemIds));
+      const ownedItems = new Set<string>();
+      for (const story of payload.news.items) {
+        for (const sourceValue of Array.isArray(story.sources) ? story.sources : []) {
+          if (typeof sourceValue !== "object" || sourceValue === null || Array.isArray(sourceValue)) continue;
+          const source = sourceValue as Record<string, unknown>;
+          for (const itemId of Array.isArray(source.itemIds) ? source.itemIds : []) {
+            if (typeof itemId === "string") ownedItems.add(itemId);
+          }
+        }
+      }
+      for (const exclusion of payload.news.exclusions ?? []) ownedItems.add(exclusion.itemId);
+      const media = payload.news.items.flatMap((story) => story.media ?? []);
+      const validation = database.prepare(`
+        SELECT report_json, commit_plan_digest FROM telegram_validation_receipts WHERE edition_id = ?
+      `).get(edition.id) as { report_json: string; commit_plan_digest: string | null } | undefined;
+      let validationSummary: Record<string, unknown> | null = null;
+      if (validation) {
+        const report = JSON.parse(validation.report_json) as Record<string, unknown>;
+        validationSummary = {
+          complete: report.complete === true,
+          configuredChannels: Number(report.configuredChannels ?? 0),
+          capturedUnread: Number(report.capturedUnread ?? 0),
+          fetched: Number(report.fetched ?? 0),
+          normalized: Number(report.normalized ?? 0),
+          mediaMessages: Number(report.mediaMessages ?? 0),
+          planPresent: Boolean(validation.commit_plan_digest),
+        };
+      }
+      const batches = database.prepare(`
+        SELECT state, COUNT(*) AS count FROM source_batches WHERE edition_id = ? GROUP BY state
+      `).all(edition.id) as Array<{ state: string; count: number }>;
+      const notification = database.prepare(`
+        SELECT destination, state FROM release_notification_receipts WHERE edition_id = ?
+      `).get(edition.id) as { destination: string; state: string } | undefined;
+      return {
+        ok: true,
+        action: "inspect-summary",
+        externalMutations: false,
+        edition: {
+          id: edition.id,
+          type: edition.edition_type,
+          localDate: edition.local_date,
+          state: edition.state,
+          schemaVersion: payload.schemaVersion,
+          current: edition.is_current === 1,
+          retentionUntil: edition.retention_until,
+        },
+        counts: {
+          stories: payload.news.items.length,
+          exclusions: payload.news.exclusions?.length ?? 0,
+          sourceBatches: payload.sourceBatches?.length ?? 0,
+          sourceItems: sourceItems.size,
+          ownedItems: ownedItems.size,
+          sourceLinks: payload.news.items.filter((story) =>
+            Array.isArray(story.sources) && story.sources.some((source) =>
+              typeof source === "object" && source !== null && !Array.isArray(source)
+              && typeof (source as Record<string, unknown>).url === "string"
+            )
+          ).length,
+          images: media.filter((asset) => asset.kind === "image").length,
+          legacyVideos: media.filter((asset) => asset.kind === "video").length,
+          mail: payload.mail.items.length,
+          calendar: (Array.isArray(payload.calendar.events) ? payload.calendar.events.length : 0)
+            + (Array.isArray(payload.calendar.allDayEvents) ? payload.calendar.allDayEvents.length : 0),
+        },
+        sourceBatchStates: Object.fromEntries(batches.map((batch) => [batch.state, Number(batch.count)])),
+        telegramValidation: validationSummary,
+        notification: notification ?? null,
+      };
+    }
     const editions = database
       .prepare(`
         SELECT id, edition_type AS type, local_date AS localDate, state,

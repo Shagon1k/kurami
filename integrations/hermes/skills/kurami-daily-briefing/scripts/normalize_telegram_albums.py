@@ -19,6 +19,20 @@ def integer(metadata: dict[str, Any], *keys: str) -> int | None:
     return None
 
 
+def media_type(metadata: dict[str, Any]) -> str | None:
+    value = metadata.get("mediaType")
+    if not isinstance(value, str) or not value.strip():
+        return None
+    return value.strip().lower()
+
+
+def is_image_media(metadata: dict[str, Any]) -> bool:
+    value = media_type(metadata)
+    mime_type = metadata.get("mediaMimeType")
+    image_mime = isinstance(mime_type, str) and mime_type.strip().lower().startswith("image/")
+    return value in {"photo", "image"} or bool(value and value.startswith("image/")) or image_mime
+
+
 def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("--input", required=True, type=Path)
@@ -30,7 +44,7 @@ def main() -> None:
     if not isinstance(items, list):
         raise SystemExit("input must be a normalized source batch with an items array")
 
-    groups: dict[tuple[int, int], list[int]] = {}
+    groups: dict[tuple[int, int], list[tuple[int, bool]]] = {}
     normalized: list[tuple[dict[str, Any], dict[str, Any], int | None, int | None, int | None]] = []
     for item in items:
         if not isinstance(item, dict):
@@ -43,21 +57,35 @@ def main() -> None:
         message_id = integer(metadata, "telegramMessageId", "messageId", "message_id")
         group_id = integer(metadata, "telegramGroupId", "groupedId", "grouped_id")
         normalized.append((item, metadata, chat_id, message_id, group_id))
-        if chat_id is not None and message_id is not None and group_id is not None:
-            groups.setdefault((chat_id, group_id), []).append(message_id)
+        if (
+            chat_id is not None
+            and message_id is not None
+            and group_id is not None
+            and metadata.get("hasMedia") is True
+        ):
+            groups.setdefault((chat_id, group_id), []).append(
+                (message_id, is_image_media(metadata))
+            )
 
     for _, metadata, chat_id, message_id, group_id in normalized:
         if message_id is None or not metadata.get("hasMedia"):
             continue
         if chat_id is not None and group_id is not None:
-            media_ids = sorted(set(groups.get((chat_id, group_id), [message_id])))
+            members = groups.get((chat_id, group_id), [(message_id, is_image_media(metadata))])
             metadata["telegramGroupId"] = group_id
         else:
-            media_ids = [message_id]
+            members = [(message_id, is_image_media(metadata))]
+        all_media_ids = sorted({member_id for member_id, _ in members})
+        image_media_ids = sorted({member_id for member_id, eligible in members if eligible})
+        non_image_media_ids = sorted({member_id for member_id, eligible in members if not eligible})
         metadata["telegramMessageId"] = message_id
         if chat_id is not None:
             metadata["telegramChatId"] = chat_id
-        metadata["mediaMessageIds"] = media_ids
+        # New editions import only images. Keep non-image identities explicitly
+        # for diagnostics and source-link fallback without making them assets.
+        metadata["allMediaMessageIds"] = all_media_ids
+        metadata["mediaMessageIds"] = image_media_ids
+        metadata["nonImageMediaMessageIds"] = non_image_media_ids
 
     args.output.parent.mkdir(parents=True, exist_ok=True)
     args.output.write_text(

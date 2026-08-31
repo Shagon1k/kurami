@@ -174,6 +174,25 @@ assert.match(html, /data-utility-header/);
 assert.match(html, /utility-header__inner/);
 assert.match(html, /data-media-dialog/);
 assert.doesNotMatch(html, /data-read-state/);
+const legacyVideoPayload = parseBriefingPayload({
+  ...payload,
+  news: {
+    ...payload.news,
+    items: payload.news.items.map((story, index) => index === 0 ? {
+      ...story,
+      media: [{
+        id: "legacy-video",
+        kind: "video",
+        src: "/media/daily/2026-08-28/story-1/legacy.mp4",
+        alt: "Legacy Telegram video",
+        mimeType: "video/mp4",
+        sourceKey: "telegram:test",
+        providerItemId: "100",
+      }],
+    } : story),
+  },
+});
+assert.match(renderBriefingPage(legacyVideoPayload), /<video controls/);
 const readStateHtml = renderBriefingPage(parseBriefingPayload({
   ...payload,
   news: {
@@ -236,9 +255,11 @@ assert.throws(
 const albumInput = resolve(home, "telegram-batch.json");
 const albumOutput = resolve(home, "telegram-batch-normalized.json");
 await writeFile(albumInput, JSON.stringify({
-  items: [7915, 7907, 7912].map((messageId) => ({
+  items: [7915, 7907, 7912].map((messageId, index) => ({
     metadata: {
       hasMedia: true,
+      mediaType: index === 1 ? "video" : index === 2 ? "document" : "photo",
+      ...(index === 2 ? { mediaMimeType: "image/gif" } : {}),
       telegramChatId: -1001033871555,
       telegramMessageId: messageId,
       telegramGroupId: 444,
@@ -254,9 +275,15 @@ const normalizedAlbum = spawnSync("python3", [
 ], { encoding: "utf8" });
 assert.equal(normalizedAlbum.status, 0, normalizedAlbum.stderr);
 const albumBatch = JSON.parse(await readFile(albumOutput, "utf8")) as {
-  items: Array<{ metadata: { mediaMessageIds: number[] } }>;
+  items: Array<{ metadata: {
+    allMediaMessageIds: number[];
+    mediaMessageIds: number[];
+    nonImageMediaMessageIds: number[];
+  } }>;
 };
-assert.deepEqual(albumBatch.items[0]?.metadata.mediaMessageIds, [7907, 7912, 7915]);
+assert.deepEqual(albumBatch.items[0]?.metadata.allMediaMessageIds, [7907, 7912, 7915]);
+assert.deepEqual(albumBatch.items[0]?.metadata.mediaMessageIds, [7912, 7915]);
+assert.deepEqual(albumBatch.items[0]?.metadata.nonImageMediaMessageIds, [7907]);
 
 const telegramConfig = resolve(home, "briefing.yaml");
 await writeFile(telegramConfig, `
@@ -274,9 +301,11 @@ sources:
         enabled: true
 `);
 const telegramRaw = resolve(home, "telegram-raw.json");
-const rawItems = [7915, 7907, 7912].map((messageId) => ({
+const rawItems = [7915, 7907, 7912].map((messageId, index) => ({
   metadata: {
     hasMedia: true,
+    mediaType: index === 1 ? "video" : index === 2 ? "document" : "photo",
+    ...(index === 2 ? { mediaMimeType: "image/gif" } : {}),
     telegramChatId: -1001033871555,
     telegramMessageId: messageId,
     telegramGroupId: 444,
@@ -313,7 +342,12 @@ await writeFile(telegramRaw, JSON.stringify({
 const telegramNormalized = resolve(home, "telegram-normalized.json");
 await writeFile(telegramNormalized, JSON.stringify({
   items: rawItems.map((item) => ({
-    metadata: { ...item.metadata, mediaMessageIds: [7907, 7912, 7915] },
+    metadata: {
+      ...item.metadata,
+      allMediaMessageIds: [7907, 7912, 7915],
+      mediaMessageIds: [7912, 7915],
+      nonImageMediaMessageIds: [7907],
+    },
   })),
 }));
 const telegramReport = await validateTelegramBatch(telegramConfig, telegramRaw, telegramNormalized);
@@ -324,6 +358,7 @@ assert.deepEqual({
   fetched: telegramReport.fetched,
   normalized: telegramReport.normalized,
   mediaMessages: telegramReport.mediaMessages,
+  skippedNonImageMessages: telegramReport.skippedNonImageMessages,
   albumGroups: telegramReport.albumGroups,
 }, {
   complete: true,
@@ -331,9 +366,12 @@ assert.deepEqual({
   capturedUnread: 3,
   fetched: 3,
   normalized: 3,
-  mediaMessages: 3,
+  mediaMessages: 2,
+  skippedNonImageMessages: 1,
   albumGroups: 1,
 });
+assert.deepEqual(telegramReport.channels[0]?.mediaItemIds, [7912, 7915]);
+assert.deepEqual(telegramReport.channels[0]?.nonImageMediaItemIds, [7907]);
 await writeFile(telegramRaw, JSON.stringify({
   sourceKey: "news",
   profile: "telegram-user",
@@ -366,6 +404,59 @@ await assert.rejects(
   validateTelegramBatch(telegramConfig, telegramRaw, telegramNormalized),
   /claims ready but fetched 3 of 4/,
 );
+
+const onlyVideoItem = {
+  metadata: {
+    hasMedia: true,
+    mediaType: "video",
+    telegramChatId: -1001033871555,
+    telegramMessageId: 8000,
+    telegramGroupId: null,
+  },
+};
+await writeFile(telegramRaw, JSON.stringify({
+  sourceKey: "news",
+  profile: "telegram-user",
+  status: "ready",
+  capture: {
+    channels: [
+      {
+        sourceKey: "tea-workshop",
+        channelId: -1001033871555,
+        label: "Tea Workshop",
+        status: "ready",
+        capturedUnreadCount: 1,
+        upperMessageId: 8000,
+        fetchedMessageIds: [8000],
+      },
+      {
+        sourceKey: "empty-channel",
+        channelId: -1001000000001,
+        label: "Empty Channel",
+        status: "empty",
+        capturedUnreadCount: 0,
+        upperMessageId: null,
+        fetchedMessageIds: [],
+      },
+    ],
+  },
+  items: [onlyVideoItem],
+}));
+await writeFile(telegramNormalized, JSON.stringify({
+  items: [{
+    metadata: {
+      ...onlyVideoItem.metadata,
+      allMediaMessageIds: [8000],
+      mediaMessageIds: [],
+      nonImageMediaMessageIds: [8000],
+    },
+  }],
+}));
+const onlyVideoReport = await validateTelegramBatch(telegramConfig, telegramRaw, telegramNormalized);
+assert.equal(onlyVideoReport.mediaMessages, 0);
+assert.equal(onlyVideoReport.skippedNonImageMessages, 1);
+assert.deepEqual(onlyVideoReport.channels[0]?.mediaItemIds, []);
+assert.deepEqual(onlyVideoReport.channels[0]?.nonImageMediaItemIds, [8000]);
 
 const capturedIds = Array.from({ length: 58 }, (_, index) => String(1_001 + index));
 const makeSchemaV2Payload = (claimedItemIds: string[]) => ({
@@ -500,6 +591,7 @@ const exactReport: TelegramBatchReport = {
   fetched: capturedIds.length,
   normalized: capturedIds.length,
   mediaMessages: 1,
+  skippedNonImageMessages: 1,
   albumGroups: 1,
   channels: [{
     sourceKey: "test",
@@ -511,14 +603,85 @@ const exactReport: TelegramBatchReport = {
     normalized: capturedIds.length,
     upperMessageId: Number(capturedIds.at(-1)),
     mediaMessages: 1,
+    skippedNonImageMessages: 1,
     albumGroups: 1,
     itemIds: capturedIds.map(Number),
     mediaItemIds: [Number(capturedIds[0])],
+    nonImageMediaItemIds: [Number(capturedIds[1])],
+  }],
+};
+
+const onlyVideoStoryPayload = parseBriefingPayload({
+  ...makeSchemaV2Payload(["8000"]),
+  edition: {
+    ...makeSchemaV2Payload(["8000"]).edition,
+    id: "daily:2026-08-30",
+    localDate: "2026-08-30",
+    generatedAt: "2026-08-30T09:00:00+03:00",
+    retentionUntil: "2026-09-04T09:00:00+03:00",
+  },
+  news: {
+    ...makeSchemaV2Payload(["8000"]).news,
+    items: [{
+      ...makeSchemaV2Payload(["8000"]).news.items[0],
+      id: "story-video-only",
+      fingerprint: "fp-story-video-only",
+      headline: "Видео остаётся доступно через Telegram",
+      sources: [{ sourceKey: "telegram:test", itemIds: ["8000"], url: "https://t.me/c/123/8000" }],
+    }],
+    mainStoryIds: ["story-video-only"],
+  },
+  sourceBatches: [{
+    sourceKey: "telegram:test",
+    provider: "telegram",
+    providerSourceId: "-1001234567890",
+    minItemId: "8000",
+    maxItemId: "8000",
+    itemIds: ["8000"],
+  }],
+});
+await preparePreview(
+  onlyVideoStoryPayload,
+  renderBriefingPage(onlyVideoStoryPayload),
+  gatePaths,
+);
+const onlyVideoStoryReport: TelegramBatchReport = {
+  complete: true,
+  configuredChannels: 1,
+  capturedUnread: 1,
+  fetched: 1,
+  normalized: 1,
+  mediaMessages: 0,
+  skippedNonImageMessages: 1,
+  albumGroups: 1,
+  channels: [{
+    sourceKey: "test",
+    channelId: -1001234567890,
+    label: "Test",
+    state: "ready",
+    capturedUnread: 1,
+    fetched: 1,
+    normalized: 1,
+    upperMessageId: 8000,
+    mediaMessages: 0,
+    skippedNonImageMessages: 1,
+    albumGroups: 1,
+    itemIds: [8000],
+    mediaItemIds: [],
+    nonImageMediaItemIds: [8000],
   }],
 };
 
 let gateDatabase = openBriefingDatabase(gatePaths);
 try {
+  recordTelegramValidation(
+    gateDatabase,
+    onlyVideoStoryPayload.edition.id,
+    onlyVideoStoryReport,
+    { raw: "only-video-raw", normalized: "only-video-normalized" },
+  );
+  const onlyVideoPlan = createTelegramCommitPlan(gateDatabase, onlyVideoStoryPayload.edition.id);
+  assert.equal(onlyVideoPlan.sources.length, 1);
   assert.throws(
     () => createTelegramCommitPlan(gateDatabase, exactCoveragePayload.edition.id),
     /persisted raw\/normalized validation receipt/,
@@ -687,6 +850,18 @@ assert.equal(prepared.state, "prepared");
 const inboxAsset = resolve(paths.mediaInboxDirectory, "story-1.jpg");
 await mkdir(paths.mediaInboxDirectory, { recursive: true });
 await writeFile(inboxAsset, Buffer.from([0xff, 0xd8, 0xff, 0xd9]));
+const rejectedVideoAsset = resolve(paths.mediaInboxDirectory, "story-1.mp4");
+await writeFile(rejectedVideoAsset, Buffer.from("legacy video must not be imported"));
+await assert.rejects(
+  importEditionMedia({
+    editionId: "daily:2026-08-28",
+    stories: [{
+      itemId: "story-1",
+      assets: [{ sourcePath: rejectedVideoAsset }],
+    }],
+  }, paths),
+  /unsupported media extension \.mp4/,
+);
 const importedMedia = await importEditionMedia({
   editionId: "daily:2026-08-28",
   stories: [{
@@ -709,6 +884,7 @@ const runtimeTelegramReport: TelegramBatchReport = {
   fetched: 3,
   normalized: 3,
   mediaMessages: 1,
+  skippedNonImageMessages: 0,
   albumGroups: 1,
   channels: [{
     sourceKey: "test",
@@ -720,9 +896,11 @@ const runtimeTelegramReport: TelegramBatchReport = {
     normalized: 3,
     upperMessageId: 110,
     mediaMessages: 1,
+    skippedNonImageMessages: 0,
     albumGroups: 1,
     itemIds: [100, 105, 110],
     mediaItemIds: [100],
+    nonImageMediaItemIds: [],
   }],
 };
 let preparedPayloadWithMedia = parsedPayload;

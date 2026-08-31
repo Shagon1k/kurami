@@ -87,6 +87,10 @@ class MessageMediaPhoto:
     pass
 
 
+class MessageMediaDocument:
+    pass
+
+
 class ReactionEmoji:
     def __init__(self, emoticon: str) -> None:
         self.emoticon = emoticon
@@ -96,7 +100,7 @@ def message(message_id: int, *, with_media: bool = False):
     media = MessageMediaPhoto() if with_media else None
     return SimpleNamespace(
         id=message_id,
-        date=datetime(2026, 8, 31, 9, message_id, tzinfo=timezone.utc),
+        date=datetime(2026, 8, 31, 9, message_id % 60, tzinfo=timezone.utc),
         message=f"message-{message_id}",
         sender_id=700 + message_id,
         sender=SimpleNamespace(
@@ -109,6 +113,7 @@ def message(message_id: int, *, with_media: bool = False):
         post_author="Editor",
         media=media,
         photo=SimpleNamespace(id=900 + message_id) if with_media else None,
+        video=None,
         document=None,
         file=(
             SimpleNamespace(name="cover.jpg", mime_type="image/jpeg", size=1234, duration=None)
@@ -131,6 +136,33 @@ def message(message_id: int, *, with_media: bool = False):
         views=120,
         forwards=3,
     )
+
+
+def media_message(message_id: int, kind: str):
+    if kind == "image":
+        return message(message_id, with_media=True)
+    if kind in {"video", "video-with-thumbnail"}:
+        document = SimpleNamespace(id=1_000 + message_id, mime_type="video/mp4", size=42)
+        return SimpleNamespace(
+            **{
+                **message(message_id).__dict__,
+                "media": MessageMediaDocument(),
+                "photo": (
+                    SimpleNamespace(id=2_000 + message_id)
+                    if kind == "video-with-thumbnail"
+                    else None
+                ),
+                "video": document,
+                "document": document,
+                "file": SimpleNamespace(
+                    name="clip.mp4",
+                    mime_type=("image/jpeg" if kind == "video-with-thumbnail" else "video/mp4"),
+                    size=42,
+                    duration=3,
+                ),
+            }
+        )
+    raise AssertionError(f"unsupported fake media kind {kind}")
 
 
 class FakeClient:
@@ -199,6 +231,10 @@ assert found["media"] == {
     "mimeType": "image/jpeg",
     "size": 1234,
 }
+thumbnail_video_payload = wrapper._media_payload(media_message(104, "video-with-thumbnail"))
+assert thumbnail_video_payload["type"] == "video"
+assert thumbnail_video_payload["id"] == 1104
+assert thumbnail_video_payload["mimeType"] == "video/mp4"
 assert found["grouped_id"] == 8800
 assert found["reply"] == {"messageId": 2, "topMessageId": 1, "forumTopic": False}
 assert found["engagement"] == {
@@ -253,6 +289,30 @@ with tempfile.TemporaryDirectory() as temporary_home:
 
     media_calls: list[tuple[int, int]] = []
 
+    class MediaClient:
+        async def get_messages(self, entity: SimpleNamespace, *, ids: list[int]):
+            available = {
+                100: media_message(100, "image"),
+                101: media_message(101, "image"),
+                102: media_message(102, "video"),
+                103: media_message(103, "image"),
+                104: media_message(104, "video-with-thumbnail"),
+            }
+            return [available.get(message_id) for message_id in ids]
+
+    media_client = MediaClient()
+
+    async def ensure_media_connected(value: MediaClient) -> None:
+        assert value is media_client
+
+    async def resolve_media_entity(chat_id: int, value: MediaClient) -> SimpleNamespace:
+        assert value is media_client
+        return SimpleNamespace(id=chat_id)
+
+    wrapper.get_client = lambda account: media_client
+    wrapper.ensure_connected = ensure_media_connected
+    wrapper.resolve_entity = resolve_media_entity
+
     async def fake_download_media(**kwargs):
         chat_id = kwargs["chat_id"]
         message_id = kwargs["message_id"]
@@ -279,14 +339,49 @@ with tempfile.TemporaryDirectory() as temporary_home:
     assert [item["status"] for item in media_response["results"]] == [
         "reused",
         "downloaded",
-        "failed",
+        "skipped",
     ]
     assert media_response["results"][0]["path"] == str(newer.resolve())
     assert media_response["downloaded"] == 1
     assert media_response["reused"] == 1
-    assert media_response["failed"] == 1
-    assert media_response["ok"] is False
-    assert media_calls == [(11, 101), (12, 102)]
+    assert media_response["skipped"] == 1
+    assert media_response["failed"] == 0
+    assert media_response["ok"] is True
+    assert media_response["results"][2]["reason"] == "non-image-media"
+    assert media_calls == [(11, 101)]
+
+    thumbnail_video = json.loads(
+        asyncio.run(
+            wrapper.download_media_batch([{"chat_id": 14, "message_id": 104}])
+        )
+    )
+    assert thumbnail_video["ok"] is True
+    assert thumbnail_video["results"][0]["status"] == "skipped"
+    assert thumbnail_video["results"][0]["mediaType"] == "video"
+    assert media_calls == [(11, 101)]
+
+    # Even a pre-existing canonical video must never be reused or downloaded.
+    canonical_video = nested / "telegram_12_102_5000.mp4"
+    canonical_video.write_bytes(b"legacy-video")
+    only_video = json.loads(
+        asyncio.run(
+            wrapper.download_media_batch([{"chat_id": 12, "message_id": 102}])
+        )
+    )
+    assert only_video["ok"] is True
+    assert only_video["downloaded"] == 0 and only_video["reused"] == 0
+    assert only_video["skipped"] == 1 and only_video["failed"] == 0
+    assert only_video["results"][0]["status"] == "skipped"
+    assert media_calls == [(11, 101)]
+
+    failed_image = json.loads(
+        asyncio.run(
+            wrapper.download_media_batch([{"chat_id": 13, "message_id": 103}])
+        )
+    )
+    assert failed_image["ok"] is False
+    assert failed_image["failed"] == 1 and failed_image["skipped"] == 0
+    assert media_calls == [(11, 101), (13, 103)]
 
     calls_before_media_rejection = list(media_calls)
     too_large = json.loads(

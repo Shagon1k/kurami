@@ -12,10 +12,15 @@ export type ChannelReport = {
   fetched: number;
   normalized: number;
   upperMessageId: number | null;
+  /** Eligible image messages only. */
   mediaMessages: number;
+  skippedNonImageMessages: number;
   albumGroups: number;
   itemIds: number[];
+  /** Eligible image message IDs only; this is the commit-gate inventory. */
   mediaItemIds: number[];
+  /** Diagnostic-only IDs; these stay available through the Telegram source URL. */
+  nonImageMediaItemIds: number[];
 };
 
 export type TelegramBatchReport = {
@@ -24,7 +29,9 @@ export type TelegramBatchReport = {
   capturedUnread: number;
   fetched: number;
   normalized: number;
+  /** Eligible image messages only. */
   mediaMessages: number;
+  skippedNonImageMessages: number;
   albumGroups: number;
   channels: ChannelReport[];
 };
@@ -134,6 +141,18 @@ function sameIds(actual: number[], expected: number[], label: string): void {
   }
 }
 
+function mediaType(metadata: Record<string, unknown>, label: string): string {
+  return nonEmptyString(metadata.mediaType, `${label}.mediaType`).toLowerCase();
+}
+
+function isImageMedia(metadata: Record<string, unknown>, label: string): boolean {
+  const value = mediaType(metadata, label);
+  const mime = typeof metadata.mediaMimeType === "string"
+    ? metadata.mediaMimeType.trim().toLowerCase()
+    : "";
+  return value === "photo" || value === "image" || value.startsWith("image/") || mime.startsWith("image/");
+}
+
 export async function validateTelegramBatch(
   configPath: string,
   rawPath: string,
@@ -198,28 +217,62 @@ export async function validateTelegramBatch(
       if (channelState === "empty") fail(`${expected.sourceKey} cannot be empty with unread messages`);
     }
 
-    const groups = new Map<number, number[]>();
+    const groups = new Map<number, Array<{ messageId: number; image: boolean }>>();
     let mediaMessages = 0;
+    let skippedNonImageMessages = 0;
+    for (const [messageId, metadata] of normalizedMessages) {
+      const rawMetadata = rawMessages.get(messageId);
+      if (!rawMetadata) fail(`${expected.sourceKey}:${messageId} is missing its raw item`);
+      if ((metadata.hasMedia === true) !== (rawMetadata.hasMedia === true)) {
+        fail(`${expected.sourceKey}:${messageId}.hasMedia changed during normalization`);
+      }
+    }
     for (const [messageId, metadata] of rawMessages) {
       if (metadata.hasMedia !== true) continue;
-      mediaMessages += 1;
+      const image = isImageMedia(metadata, `${expected.sourceKey}:${messageId}`);
+      if (image) mediaMessages += 1;
+      else skippedNonImageMessages += 1;
       const groupValue = metadata.telegramGroupId;
       const groupId = groupValue === null || groupValue === undefined
         ? messageId
         : integer(groupValue, `${expected.sourceKey}:${messageId}.telegramGroupId`);
       const members = groups.get(groupId) ?? [];
-      members.push(messageId);
+      members.push({ messageId, image });
       groups.set(groupId, members);
     }
     for (const [messageId, metadata] of normalizedMessages) {
       if (metadata.hasMedia !== true) continue;
+      const rawMetadata = rawMessages.get(messageId);
+      if (!rawMetadata) fail(`${expected.sourceKey}:${messageId} is missing its raw item`);
+      if (mediaType(metadata, `${expected.sourceKey}:${messageId}`)
+        !== mediaType(rawMetadata, `${expected.sourceKey}:${messageId} raw`)) {
+        fail(`${expected.sourceKey}:${messageId}.mediaType changed during normalization`);
+      }
+      const normalizedMime = typeof metadata.mediaMimeType === "string" ? metadata.mediaMimeType.trim().toLowerCase() : "";
+      const rawMime = typeof rawMetadata.mediaMimeType === "string" ? rawMetadata.mediaMimeType.trim().toLowerCase() : "";
+      if (normalizedMime !== rawMime) {
+        fail(`${expected.sourceKey}:${messageId}.mediaMimeType changed during normalization`);
+      }
       const groupValue = metadata.telegramGroupId;
       const groupId = groupValue === null || groupValue === undefined
         ? messageId
         : integer(groupValue, `${expected.sourceKey}:${messageId}.telegramGroupId`);
-      const expectedMedia = groups.get(groupId) ?? [messageId];
+      const expectedMembers = groups.get(groupId) ?? [{
+        messageId,
+        image: isImageMedia(rawMetadata, `${expected.sourceKey}:${messageId}`),
+      }];
+      const expectedAllMedia = expectedMembers.map((member) => member.messageId);
+      const expectedMedia = expectedMembers.filter((member) => member.image).map((member) => member.messageId);
+      const expectedNonImageMedia = expectedMembers.filter((member) => !member.image).map((member) => member.messageId);
+      const actualAllMedia = integerArray(metadata.allMediaMessageIds, `${expected.sourceKey}:${messageId}.allMediaMessageIds`);
       const actualMedia = integerArray(metadata.mediaMessageIds, `${expected.sourceKey}:${messageId}.mediaMessageIds`);
+      const actualNonImageMedia = integerArray(
+        metadata.nonImageMediaMessageIds,
+        `${expected.sourceKey}:${messageId}.nonImageMediaMessageIds`,
+      );
+      sameIds(actualAllMedia, expectedAllMedia, `${expected.sourceKey}:${messageId}.allMediaMessageIds`);
       sameIds(actualMedia, expectedMedia, `${expected.sourceKey}:${messageId}.mediaMessageIds`);
+      sameIds(actualNonImageMedia, expectedNonImageMedia, `${expected.sourceKey}:${messageId}.nonImageMediaMessageIds`);
     }
     reports.push({
       sourceKey: expected.sourceKey,
@@ -231,10 +284,17 @@ export async function validateTelegramBatch(
       normalized: normalizedMessages.size,
       upperMessageId,
       mediaMessages,
+      skippedNonImageMessages,
       albumGroups: groups.size,
       itemIds: fetchedMessageIds,
       mediaItemIds: [...rawMessages]
-        .filter(([, metadata]) => metadata.hasMedia === true)
+        .filter(([messageId, metadata]) => metadata.hasMedia === true
+          && isImageMedia(metadata, `${expected.sourceKey}:${messageId}`))
+        .map(([messageId]) => messageId)
+        .sort((left, right) => left - right),
+      nonImageMediaItemIds: [...rawMessages]
+        .filter(([messageId, metadata]) => metadata.hasMedia === true
+          && !isImageMedia(metadata, `${expected.sourceKey}:${messageId}`))
         .map(([messageId]) => messageId)
         .sort((left, right) => left - right),
     });
@@ -253,7 +313,7 @@ export async function validateTelegramBatch(
   if (!complete && ["ready", "empty"].includes(rootState)) {
     fail(`raw batch.status ${rootState} hides an incomplete channel`);
   }
-  const sum = (key: keyof Pick<ChannelReport, "capturedUnread" | "fetched" | "normalized" | "mediaMessages" | "albumGroups">) =>
+  const sum = (key: keyof Pick<ChannelReport, "capturedUnread" | "fetched" | "normalized" | "mediaMessages" | "skippedNonImageMessages" | "albumGroups">) =>
     reports.reduce((total, channel) => total + channel[key], 0);
   return {
     complete,
@@ -262,6 +322,7 @@ export async function validateTelegramBatch(
     fetched: sum("fetched"),
     normalized: sum("normalized"),
     mediaMessages: sum("mediaMessages"),
+    skippedNonImageMessages: sum("skippedNonImageMessages"),
     albumGroups: sum("albumGroups"),
     channels: reports,
   };

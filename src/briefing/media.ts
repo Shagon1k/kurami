@@ -22,8 +22,7 @@ import {
 import { renderBriefingPage } from "./ui/render-page.ts";
 
 const MAX_IMAGE_BYTES = 25 * 1024 * 1024;
-const MAX_VIDEO_BYTES = 768 * 1024 * 1024;
-const MAX_EDITION_MEDIA_BYTES = 1024 * 1024 * 1024;
+const MAX_EDITION_MEDIA_BYTES = 256 * 1024 * 1024;
 
 const TYPES = new Map<string, { kind: StoryMedia["kind"]; mimeType: string }>([
   [".avif", { kind: "image", mimeType: "image/avif" }],
@@ -32,9 +31,6 @@ const TYPES = new Map<string, { kind: StoryMedia["kind"]; mimeType: string }>([
   [".jpg", { kind: "image", mimeType: "image/jpeg" }],
   [".png", { kind: "image", mimeType: "image/png" }],
   [".webp", { kind: "image", mimeType: "image/webp" }],
-  [".mov", { kind: "video", mimeType: "video/quicktime" }],
-  [".mp4", { kind: "video", mimeType: "video/mp4" }],
-  [".webm", { kind: "video", mimeType: "video/webm" }],
 ]);
 
 type ManifestAsset = {
@@ -209,10 +205,9 @@ export async function importEditionMedia(
         if (!type) fail(`unsupported media extension ${extension || "(none)"}`);
         const sourceStat = await stat(sourcePath);
         if (!sourceStat.isFile()) fail(`${sourcePath} is not a file`);
-        const limit = type.kind === "image" ? MAX_IMAGE_BYTES : MAX_VIDEO_BYTES;
-        if (sourceStat.size > limit) fail(`${sourcePath} exceeds the ${type.kind} size limit`);
+        if (sourceStat.size > MAX_IMAGE_BYTES) fail(`${sourcePath} exceeds the image size limit`);
         bytes += sourceStat.size;
-        if (bytes > MAX_EDITION_MEDIA_BYTES) fail("edition media exceeds 1 GiB");
+        if (bytes > MAX_EDITION_MEDIA_BYTES) fail("edition image media exceeds 256 MiB");
         const name = `${String(index + 1).padStart(2, "0")}${extension}`;
         const stagedDestination = resolve(stagingDirectory, name);
         const finalDestination = resolve(storyDirectory, name);

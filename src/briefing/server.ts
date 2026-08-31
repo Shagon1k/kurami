@@ -684,6 +684,7 @@ const MEDIA_TYPES = new Map<string, string>([
   [".jpg", "image/jpeg"],
   [".png", "image/png"],
   [".webp", "image/webp"],
+  // Legacy read path only. The importer rejects new video assets.
   [".mov", "video/quicktime"],
   [".mp4", "video/mp4"],
   [".webm", "video/webm"],

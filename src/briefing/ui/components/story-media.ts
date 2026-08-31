@@ -21,6 +21,7 @@ export function renderStoryMediaGallery(media: StoryMedia[] | undefined): string
     if (asset.kind === "image") {
       return `<a class="story-media__item story-media__item--image" href="${escapeHtml(asset.src)}" target="_blank" rel="noopener noreferrer" data-media-lightbox data-media-src="${escapeHtml(asset.src)}" data-media-alt="${escapeHtml(asset.alt)}"><img src="${escapeHtml(asset.src)}" alt="${escapeHtml(asset.alt)}" loading="lazy" decoding="async"></a>`;
     }
+    // Legacy read path only; newly generated editions never import videos.
     return `<figure class="story-media__item story-media__item--video"><video controls preload="metadata" playsinline${asset.posterSrc ? ` poster="${escapeHtml(asset.posterSrc)}"` : ""}><source src="${escapeHtml(asset.src)}" type="${escapeHtml(asset.mimeType)}">Ваш браузер не поддерживает встроенное видео.</video><figcaption>${escapeHtml(asset.alt)}</figcaption></figure>`;
   }).join("");
   return `<section class="story-media" aria-label="Медиа к новости"><div class="story-media__heading"><strong>Медиа</strong><span>${media.length}</span></div><div class="story-media__grid">${assets}</div></section>`;

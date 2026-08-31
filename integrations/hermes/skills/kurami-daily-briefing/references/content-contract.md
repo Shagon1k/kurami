@@ -234,7 +234,7 @@ Use a flexible story rather than a mandatory prose template:
       "url": "original destination",
       "publishedAt": "RFC3339 timestamp",
       "itemIds": ["provider item ids retained server-side"],
-      "mediaMessageIds": ["provider item IDs with retained media"]
+      "mediaMessageIds": ["provider item IDs with retained images"]
     }
   ],
   "duplicateCount": 1,
@@ -243,8 +243,8 @@ Use a flexible story rather than a mandatory prose template:
 }
 ```
 
-`media` is optional and may contain one to twelve edition-cached images or
-videos in provider order. Every Telegram-backed asset carries the same
+`media` is optional and may contain one to twelve edition-cached images in
+provider order. Every Telegram-backed asset carries the same
 canonical `sourceKey` as its story source and the exact Telegram message ID as
 `providerItemId`. The pair must match one entry from that source's
 `mediaMessageIds`. The first image becomes the compact feed cover; the full set
@@ -289,7 +289,7 @@ configured capability permits it; preserve that provenance in `sources`. Do
 not add `whyItMatters` merely to fill a card.
 
 `media` is optional. Include the complete ordered retained set of one to twelve
-edition-cached images or videos when safe media is available; omit the entire
+edition-cached images when safe media is available; omit the entire
 field otherwise. Do not sample only the first one or two attachments. Preserve
 the album's provider order. If a real content unit would exceed twelve assets,
 split it at a genuine content boundary rather than silently truncating it. The
@@ -298,6 +298,12 @@ reading layer. `src`
 must be a runtime-local media path, never an authenticated Telegram URL or an
 arbitrary filesystem path. Preserve intrinsic dimensions and write factual alt
 text. The renderer must not invent a placeholder.
+
+Telegram videos and other non-image attachments are not transported into an
+edition. Preserve their provider identities in normalized diagnostic metadata
+and keep the story source link so the user can open them in Telegram. They must
+not appear in `mediaMessageIds`, a media manifest, or the commit-gate expected
+asset count.
 
 ## Feed controls
 

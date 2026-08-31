@@ -123,16 +123,20 @@ Normalize every post to `item-contract.md` with:
 - `externalUrl`: public or authenticated post URL when derivable;
 - `metadata`: numeric channel ID, numeric message ID, album/group identity,
   reply/thread identity when relevant, captured upper boundary, `hasMedia`,
-  media type, and the message ID that owns the first usable image.
+  exact `mediaType`, provider `mediaMimeType` when present, and the message ID
+  that owns the first usable image. A document MIME takes precedence over a
+  thumbnail-like photo attribute when classifying an attachment.
 
 Use the canonical metadata names `telegramChatId`, `telegramMessageId`, and
 `telegramGroupId`. Every message in one Telegram album shares the same
 `telegramGroupId`. After collection, run the skill's deterministic
 `scripts/normalize_telegram_albums.py` over the complete normalized batch.
 For an album or a clearly merged continuation, preserve its resulting ordered
-`mediaMessageIds` for every included attachment. Deduplication may merge album
-captions into one story, but it must carry forward the union of all member IDs
-in provider order. Do not add unrelated media from neighboring posts.
+`allMediaMessageIds`. Put only provider-confirmed photos/images in
+`mediaMessageIds`; put video and other non-image identities in
+`nonImageMediaMessageIds`. Deduplication may merge album captions into one
+story, but it must carry forward all member IDs in provider order. Do not add
+unrelated media from neighboring posts.
 
 In the presentation payload use canonical
 `sourceKey: "telegram:<configured-key>"`. Every normalized Telegram message ID
@@ -153,15 +157,16 @@ operation over `open_photo`: copying bytes does not require the model to inspect
 the image. If either capability or root is missing, keep the story, report its
 media as partial, and never invent or hotlink an attachment.
 
-For each retained story, take the complete ordered `mediaMessageIds` up to the
-limit of 12. If one content unit could exceed the limit, split at a real
+For each retained story, take the complete ordered image-only
+`mediaMessageIds` up to the limit of 12. Do not send video or other non-image
+IDs to the downloader. If one content unit could exceed the image limit, split at a real
 content boundary rather than sampling or truncating an album. Combine all
 resulting `{chat_id, message_id}` pairs for the edition into one stable ordered
 expected list, then partition that list into consecutive deterministic chunks
 of at most 12. Invoke `download_media_batch` once per chunk, sequentially. The
 tool reuses a non-empty canonical file for the exact pair when an earlier
 timed-out call already completed the transfer; otherwise it calls the upstream
-path-safe downloader. A successful result is `downloaded` or `reused`, both
+path-safe downloader. A successful image result is `downloaded` or `reused`, both
 with a path. Do not replace these bounded chunks with dozens of
 model-mediated `download_media` calls.
 
@@ -170,7 +175,7 @@ original expected order. A timeout leaves every pair without a success receipt
 as `missing`; retry only `failed` and `missing` pairs, again in deterministic
 chunks of at most 12. Never redownload a pair already recorded as `downloaded`
 or `reused`. After retries, require exactly one successful receipt and one
-non-empty path for every expected pair. Do not construct or import a partial
+non-empty path for every expected image pair. Do not construct or import a partial
 manifest, do not create a Telegram commit plan, and do not acknowledge read
 state while any expected pair remains failed, missing, duplicated, or otherwise
 unaccounted. Record individual safe diagnostics without removing provenance.
@@ -180,10 +185,12 @@ in the same provider order. Every manifest asset must include its canonical
 `sourceKey` and the exact owning Telegram message ID string as
 `providerItemId`:
 
-The runtime accepts images up to 25 MiB, individual videos up to 768 MiB, and
-at most 1 GiB for the complete retained edition. These are transport/storage
-ceilings, not editorial sampling rules: exceeding any ceiling stops media
-import and Telegram commit rather than silently dropping the attachment.
+The runtime accepts only images up to 25 MiB each and at most 256 MiB for the
+complete retained edition. Video and other non-image attachments are skipped
+before download/reuse, retained only as diagnostic IDs, and remain reachable
+through the story's Telegram source link. Image ceilings are transport/storage
+guards, not editorial sampling rules: exceeding one stops image import and
+Telegram commit rather than silently dropping an expected image.
 
 ```json
 {
@@ -193,7 +200,7 @@ import and Telegram commit rather than silently dropping the attachment.
 }
 ```
 
-A failed or missing retained asset remains a visible diagnostic and blocks
+A failed or missing retained image remains a visible diagnostic and blocks
 media import and creation of a production Telegram commit plan until recovery;
 never hide the failure by removing the corresponding provenance from the
 story.
@@ -206,7 +213,7 @@ $BRIEFING_NODE $BRIEFING_CLI import-media --manifest <media-manifest.json>
 
 The deterministic importer validates type, size, and provenance, moves
 accepted assets into the edition-owned five-day cache, updates the payload, and
-rerenders the preview. The commit-plan gate checks that every retained
+rerenders the preview. The commit-plan gate checks that every retained image-only
 `mediaMessageIds` member has exactly one imported asset carrying the matching
 `sourceKey` plus `providerItemId`. Never modify the upstream connector for
 this.

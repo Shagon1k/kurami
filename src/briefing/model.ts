@@ -35,6 +35,8 @@ export type Topic = {
 
 export type StoryMedia = {
   id: string;
+  // Video remains readable only so already-published editions can be migrated
+  // without making their stored payloads unparsable. New imports are image-only.
   kind: "image" | "video";
   src: string;
   alt: string;
