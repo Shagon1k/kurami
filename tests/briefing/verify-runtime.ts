@@ -481,7 +481,7 @@ try {
   });
 }
 
-const persisted = openBriefingDatabase(paths);
+let persisted = openBriefingDatabase(paths);
 try {
   const item = persisted
     .prepare("SELECT read_at, reaction FROM edition_items WHERE edition_id = ? AND item_id = ?")
@@ -495,6 +495,38 @@ try {
     { topicId: "ai", label: "AI", likes: 1, dislikes: 0 },
     { topicId: "technology", label: "Technology", likes: 1, dislikes: 0 },
   ]);
+  const partial = finalizeEdition(persisted, "daily:2026-08-28", [
+    { sourceKey: "telegram:test", status: "failed", errorCode: "calendar_gate_blocked" },
+  ]);
+  assert.deepEqual(partial, {
+    editionId: "daily:2026-08-28",
+    state: "partial",
+    publicationPath: "/daily/2026-08-28",
+  });
+} finally {
+  persisted.close();
+}
+
+const retried = await preparePreview(payload, html, paths);
+assert.equal(retried.state, "prepared");
+persisted = openBriefingDatabase(paths);
+try {
+  const retriedItem = persisted
+    .prepare("SELECT read_at, reaction FROM edition_items WHERE edition_id = ? AND item_id = ?")
+    .get("daily:2026-08-28", "story-1") as {
+    read_at: string | null;
+    reaction: string | null;
+  };
+  assert(retriedItem.read_at);
+  assert.equal(retriedItem.reaction, "like");
+  const retriedBatch = persisted
+    .prepare("SELECT state, error_code FROM source_batches WHERE edition_id = ? AND source_key = ?")
+    .get("daily:2026-08-28", "telegram:test") as {
+    state: string;
+    error_code: string | null;
+  };
+  assert.equal(retriedBatch.state, "prepared");
+  assert.equal(retriedBatch.error_code, "calendar_gate_blocked");
   const finalized = finalizeEdition(persisted, "daily:2026-08-28", [
     { sourceKey: "telegram:test", status: "committed" },
   ]);
@@ -504,6 +536,10 @@ try {
     publicationPath: "/daily/2026-08-28",
   });
   assert.equal(loadEdition(persisted, { type: "daily", current: true })?.id, "daily:2026-08-28");
+  await assert.rejects(
+    preparePreview(payload, html, paths),
+    /already published/,
+  );
 } finally {
   persisted.close();
 }

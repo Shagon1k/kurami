@@ -255,7 +255,7 @@ export async function preparePreview(
     const existing = currentDatabase.prepare("SELECT state FROM editions WHERE id = ?").get(
       payload.edition.id,
     ) as { state: EditionRow["state"] } | undefined;
-    if (existing && (existing.state === "complete" || existing.state === "partial")) {
+    if (existing?.state === "complete") {
       fail(`Edition ${payload.edition.id} is already published`);
     }
   } finally {
