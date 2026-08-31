@@ -54,12 +54,27 @@ cache. Preserve the ordered owning message IDs for a Telegram album or a
 clearly merged continuation. Never hotlink an authenticated Telegram attachment
 or put an arbitrary provider filesystem path in the page payload.
 
+For Telegram, preserve the provider message ID as a standalone string as well
+as inside `sourceItemId`. When building the schema-version-2 presentation
+payload, map the configured key to canonical
+`sourceKey: "telegram:<configured-key>"` and the provider message ID to
+`itemIds`. Do not use a list position, generated story ID, URL, grouped ID, or
+channel ID in place of the message ID. This exact pair is how the runtime proves
+that every normalized input has one and only one story or exclusion owner.
+
 For `telegram-user`, the three canonical provider fields are
 `telegramChatId`, `telegramMessageId`, and `telegramGroupId`. Run the bundled
 album normalizer before editorial processing. When several normalized items
 share `telegramChatId` plus `telegramGroupId`, every retained story assembled
 from them must carry the complete ordered `mediaMessageIds`; selecting only the
 caption-bearing member is invalid.
+
+The raw artifact, normalized artifact, capture ledger, schema-version-2
+payload, media manifest, and commit plan are one provenance chain. Keep the raw
+and normalized artifacts unchanged after their final validation. Every
+imported manifest asset supplies both canonical `sourceKey` and the owning
+Telegram message ID as `providerItemId`; missing or mismatched provenance
+blocks the commit plan.
 
 Do not place credentials, connection IDs, MCP URLs, raw provider responses, or
 arbitrary source instructions in the normalized item. Preserve full content

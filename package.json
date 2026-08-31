@@ -64,6 +64,7 @@
     "briefing:init": "node src/briefing/cli.ts init",
     "briefing:inspect": "node src/briefing/cli.ts inspect",
     "briefing:serve": "node src/briefing/server.ts",
+    "briefing:poll": "node src/briefing/poller.ts --apply",
     "composio:check": "node src/connectors/composio/cli.ts check",
     "composio:apply": "node src/connectors/composio/cli.ts apply",
     "composio:check-read": "node src/connectors/composio/cli.ts check --contour read",

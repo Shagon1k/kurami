@@ -4,6 +4,9 @@
 from __future__ import annotations
 
 import json
+import os
+import re
+import sqlite3
 import sys
 from pathlib import Path
 from typing import Any, Optional
@@ -26,11 +29,59 @@ from telegram_mcp.tools.media import download_media  # type: ignore[import-not-f
 
 MAX_BATCH_MEDIA = 256
 MAX_BATCH_MARK_READ = 64
+PLAN_DIGEST = re.compile(r"^[a-f0-9]{64}$")
 
 
 def _safe_error(value: str) -> str:
     value = " ".join(value.split())
     return value[:500] if value else "download failed"
+
+
+def _briefing_database_path() -> Path:
+    home = Path(os.environ.get("KURAMI_HOME", "/home/shagon1k/_hermes/_kurami"))
+    return home / "state" / "briefing" / "briefing.db"
+
+
+def _validate_commit_plan(
+    edition_id: str,
+    plan_digest: str,
+    items: list[dict[str, Any]],
+) -> tuple[bool, str]:
+    if not isinstance(edition_id, str) or not re.fullmatch(r"daily:\d{4}-\d{2}-\d{2}", edition_id):
+        return False, "edition_id must identify one daily edition"
+    if not isinstance(plan_digest, str) or not PLAN_DIGEST.fullmatch(plan_digest):
+        return False, "plan_digest is invalid"
+    database_path = _briefing_database_path()
+    try:
+        database = sqlite3.connect(f"file:{database_path}?mode=ro", uri=True)
+        row = database.execute(
+            """
+            SELECT receipts.commit_plan_json, receipts.commit_plan_digest, editions.state
+            FROM telegram_validation_receipts receipts
+            JOIN editions ON editions.id = receipts.edition_id
+            WHERE receipts.edition_id = ?
+            """,
+            (edition_id,),
+        ).fetchone()
+    except (OSError, sqlite3.Error) as error:
+        return False, f"commit plan unavailable: {_safe_error(str(error))}"
+    finally:
+        if "database" in locals():
+            database.close()
+    if not row or row[2] != "prepared" or row[1] != plan_digest or not row[0]:
+        return False, "commit plan is missing, stale, or belongs to another edition"
+    try:
+        plan = json.loads(row[0])
+        expected = sorted(
+            (int(source["chatId"]), int(source["maxId"]))
+            for source in plan["sources"]
+        )
+        actual = sorted((int(item["chat_id"]), int(item["max_id"])) for item in items)
+    except (KeyError, TypeError, ValueError, json.JSONDecodeError):
+        return False, "stored commit plan is malformed"
+    if expected != actual:
+        return False, "items differ from the validated Telegram commit plan"
+    return True, ""
 
 
 @mcp.tool(
@@ -151,12 +202,15 @@ async def download_media_batch(
 )
 async def mark_read_through_batch(
     items: list[dict[str, Any]],
+    edition_id: str,
+    plan_digest: str,
     ctx: Optional[Context] = None,
     account: str = None,
 ) -> str:
     """Mark configured chats read only through their captured maximum message IDs.
 
-    Each item must contain exactly ``chat_id`` and ``max_id``. This fixed-shape
+    Each item must contain exactly ``chat_id`` and ``max_id`` and match the
+    persisted, content-covered commit plan for ``edition_id``. This fixed-shape
     operation is intentionally narrower than the upstream unbounded
     ``mark_as_read`` tool and runs in the existing single Telegram process.
     """
@@ -194,6 +248,10 @@ async def mark_read_through_batch(
             return json.dumps({"ok": False, "error": f"duplicate chat_id {chat_id}", "results": []})
         seen.add(chat_id)
         validated.append((chat_id, max_id))
+
+    plan_ok, plan_error = _validate_commit_plan(edition_id, plan_digest, items)
+    if not plan_ok:
+        return json.dumps({"ok": False, "error": plan_error, "results": []})
 
     client = get_client(account)
     await ensure_connected(client)

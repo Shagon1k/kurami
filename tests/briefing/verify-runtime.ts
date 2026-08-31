@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
-import { mkdir, mkdtemp, readFile, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, readFile, readdir, writeFile } from "node:fs/promises";
 import type { AddressInfo } from "node:net";
 import { tmpdir } from "node:os";
 import { resolve } from "node:path";
@@ -8,15 +8,25 @@ import { createBriefingServer } from "../../src/briefing/server.ts";
 import { parseBriefingPayload } from "../../src/briefing/model.ts";
 import { renderBriefingPage } from "../../src/briefing/ui/render-page.ts";
 import { importEditionMedia } from "../../src/briefing/media.ts";
-import { validateTelegramBatch } from "../../src/briefing/telegram-batch.ts";
+import {
+  assertTelegramStoryCoverage,
+  telegramStoryCoverage,
+} from "../../src/briefing/coverage.ts";
+import {
+  validateTelegramBatch,
+  type TelegramBatchReport,
+} from "../../src/briefing/telegram-batch.ts";
 import {
   briefingPaths,
   cleanupExpired,
+  createTelegramCommitPlan,
   finalizeEdition,
   initializeBriefingStore,
   loadEdition,
   openBriefingDatabase,
   preparePreview,
+  recordTelegramValidation,
+  retainedDailyEditions,
   topicProfile,
   validateRenderedHtml,
 } from "../../src/briefing/store.ts";
@@ -36,7 +46,7 @@ const paths = briefingPaths({
 } as NodeJS.ProcessEnv);
 
 const payload = {
-  schemaVersion: 1,
+  schemaVersion: 2,
   edition: {
     id: "daily:2026-08-28",
     type: "daily",
@@ -120,6 +130,13 @@ const payload = {
         { id: "ai", label: "AI" },
         { id: "technology", label: "Technology" },
       ],
+      ...(index === 0 ? {
+        sources: [{
+          sourceKey: "telegram:test",
+          itemIds: ["100", "105", "110"],
+          mediaMessageIds: ["100"],
+        }],
+      } : {}),
     })),
   },
   dataQuality: { state: "ready" },
@@ -141,7 +158,7 @@ assert.match(html, /class="story-disclosure__body"/);
 assert.match(html, /data-story-toggle/);
 assert.match(html, /class="metric-strip"/);
 assert.match(html, /class="briefing-overview"/);
-assert.match(html, /id="calendar-heading">Сегодня/);
+assert.match(html, /id="calendar-heading">Расписание/);
 assert.match(html, /class="agenda-row__badge is-demo">DEMO/);
 assert.match(html, /href="https:\/\/www\.google\.com\/maps\/search\//);
 assert.match(html, /aria-label="Все события на сегодня"/);
@@ -168,12 +185,25 @@ assert.match(html, /data-note-id="note:news"[^>]*>главное в одной �
 assert.doesNotMatch(html, /спокойно, всё собрано|главное — рядом/);
 assert.doesNotMatch(html, /<script\b/i);
 
+await assert.rejects(
+  preparePreview(
+    { ...payload, schemaVersion: 1 },
+    html,
+    paths,
+  ),
+  /new daily production editions require schemaVersion 2/,
+);
+
 assert.throws(
   () => parseBriefingPayload({
     ...payload,
     mail: {
       ...payload.mail,
-      items: [{ id: "mail-without-provider", subject: "Real mail without provider ID" }],
+      items: [{
+        id: "mail-without-provider",
+        class: "GENERAL",
+        subject: "Real mail without provider ID",
+      }],
     },
   }),
   /requires provider and providerItemId unless demo is true/,
@@ -182,6 +212,14 @@ assert.throws(
 assert.throws(
   () => parseBriefingPayload({ ...payload, notes: [{ ...payload.notes[0], text: "раз два три четыре пять" }] }),
   /one to four words/,
+);
+
+assert.throws(
+  () => parseBriefingPayload({
+    ...payload,
+    notes: [{ ...payload.notes[0], role: "personality", text: "кофе всё видел" }],
+  }),
+  /at least one informative note/,
 );
 
 const albumInput = resolve(home, "telegram-batch.json");
@@ -318,9 +356,317 @@ await assert.rejects(
   /claims ready but fetched 3 of 4/,
 );
 
+const capturedIds = Array.from({ length: 58 }, (_, index) => String(1_001 + index));
+const makeSchemaV2Payload = (claimedItemIds: string[]) => ({
+  schemaVersion: 2 as const,
+  edition: {
+    id: "daily:2026-08-29",
+    type: "daily" as const,
+    localDate: "2026-08-29",
+    timezone: "Europe/Vilnius",
+    generatedAt: "2026-08-29T09:00:00+03:00",
+    status: "complete" as const,
+    retentionUntil: "2026-09-03T09:00:00+03:00",
+  },
+  hero: { title: "Доброе утро, Alex." },
+  calendar: { state: "empty" as const, events: [] },
+  mail: { state: "empty" as const, items: [] },
+  news: {
+    state: "ready" as const,
+    pageSize: 10,
+    mainStoryIds: ["story-v2"],
+    items: [{
+      id: "story-v2",
+      fingerprint: "fp-story-v2",
+      headline: "Пятьдесят восемь сообщений объединены в один сюжет",
+      summary: "Один сюжет может корректно ссылаться на множество исходных сообщений.",
+      details: ["Все исходные сообщения остаются явно учтёнными в источниках сюжета."],
+      topics: [
+        { id: "technology", label: "Technology" },
+        { id: "media", label: "Media" },
+      ],
+      sources: [{
+        sourceKey: "telegram:test",
+        itemIds: claimedItemIds,
+        mediaMessageIds: [capturedIds[0]],
+      }],
+    }],
+  },
+  dataQuality: { state: "ready" as const },
+  sourceBatches: [{
+    sourceKey: "telegram:test",
+    provider: "telegram" as const,
+    providerSourceId: "-1001234567890",
+    minItemId: capturedIds[0],
+    maxItemId: capturedIds.at(-1)!,
+    itemIds: capturedIds,
+  }],
+});
+
+const missingCoveragePayload = parseBriefingPayload(makeSchemaV2Payload(capturedIds.slice(0, 14)));
+const missingCoverage = telegramStoryCoverage(missingCoveragePayload);
+assert.deepEqual({
+  complete: missingCoverage.complete,
+  capturedItems: missingCoverage.capturedItems,
+  storyItems: missingCoverage.storyItems,
+  excludedItems: missingCoverage.excludedItems,
+  missing: missingCoverage.issues.filter((issue) => issue.reason === "missing").length,
+}, {
+  complete: false,
+  capturedItems: 58,
+  storyItems: 14,
+  excludedItems: 0,
+  missing: 44,
+});
+assert.throws(
+  () => assertTelegramStoryCoverage(missingCoveragePayload),
+  /58 captured, 14 in stories, 0 excluded; 44 issue\(s\)/,
+);
+
+const duplicateAndUnknownPayload = parseBriefingPayload({
+  ...makeSchemaV2Payload(capturedIds),
+  news: {
+    ...makeSchemaV2Payload(capturedIds).news,
+    items: [
+      makeSchemaV2Payload(capturedIds).news.items[0],
+      {
+        id: "story-v2-duplicate",
+        fingerprint: "fp-story-v2-duplicate",
+        headline: "Некорректная повторная ссылка",
+        summary: "Проверка двойного владения одним исходным сообщением.",
+        details: ["Тест также заявляет сообщение, отсутствующее в capture ledger."],
+        topics: [
+          { id: "technology", label: "Technology" },
+          { id: "media", label: "Media" },
+        ],
+        sources: [{ sourceKey: "telegram:test", itemIds: [capturedIds[0], "9999"] }],
+      },
+    ],
+  },
+});
+const duplicateAndUnknown = telegramStoryCoverage(duplicateAndUnknownPayload);
+assert.equal(duplicateAndUnknown.complete, false);
+assert.deepEqual(
+  duplicateAndUnknown.issues.map((issue) => ({ key: issue.key, reason: issue.reason })),
+  [
+    { key: `telegram:test:${capturedIds[0]}`, reason: "duplicate" },
+    { key: "telegram:test:9999", reason: "unknown" },
+  ],
+);
+
+const exactCoveragePayload = parseBriefingPayload(makeSchemaV2Payload(capturedIds));
+assert.deepEqual(telegramStoryCoverage(exactCoveragePayload), {
+  complete: true,
+  capturedItems: 58,
+  storyItems: 58,
+  excludedItems: 0,
+  issues: [],
+});
+
+const gateHome = await mkdtemp(resolve(tmpdir(), "kurami-briefing-ingestion-gates-"));
+const gatePaths = briefingPaths({
+  KURAMI_HOME: gateHome,
+  BRIEFING_MIGRATIONS_DIR: resolve(root, "migrations/briefing"),
+} as NodeJS.ProcessEnv);
+await assert.rejects(
+  preparePreview(
+    missingCoveragePayload,
+    renderBriefingPage(missingCoveragePayload),
+    gatePaths,
+  ),
+  /Telegram source coverage is incomplete/,
+);
+await preparePreview(
+  exactCoveragePayload,
+  renderBriefingPage(exactCoveragePayload),
+  gatePaths,
+);
+
+const exactReport: TelegramBatchReport = {
+  complete: true,
+  configuredChannels: 1,
+  capturedUnread: capturedIds.length,
+  fetched: capturedIds.length,
+  normalized: capturedIds.length,
+  mediaMessages: 1,
+  albumGroups: 1,
+  channels: [{
+    sourceKey: "test",
+    channelId: -1001234567890,
+    label: "Test",
+    state: "ready",
+    capturedUnread: capturedIds.length,
+    fetched: capturedIds.length,
+    normalized: capturedIds.length,
+    upperMessageId: Number(capturedIds.at(-1)),
+    mediaMessages: 1,
+    albumGroups: 1,
+    itemIds: capturedIds.map(Number),
+    mediaItemIds: [Number(capturedIds[0])],
+  }],
+};
+
+let gateDatabase = openBriefingDatabase(gatePaths);
+try {
+  assert.throws(
+    () => createTelegramCommitPlan(gateDatabase, exactCoveragePayload.edition.id),
+    /persisted raw\/normalized validation receipt/,
+  );
+  const mismatchedBoundaryReport: TelegramBatchReport = {
+    ...exactReport,
+    channels: exactReport.channels.map((channel) => ({
+      ...channel,
+      upperMessageId: channel.upperMessageId! + 1,
+    })),
+  };
+  assert.throws(
+    () => recordTelegramValidation(
+      gateDatabase,
+      exactCoveragePayload.edition.id,
+      mismatchedBoundaryReport,
+      { raw: "boundary-raw-digest", normalized: "boundary-normalized-digest" },
+    ),
+    /upper boundary differs for telegram:test/,
+  );
+  const incompleteReport: TelegramBatchReport = {
+    ...exactReport,
+    complete: false,
+    capturedUnread: exactReport.capturedUnread + 1,
+    channels: exactReport.channels.map((channel) => ({
+      ...channel,
+      state: "partial",
+      capturedUnread: channel.capturedUnread + 1,
+    })),
+  };
+  recordTelegramValidation(
+    gateDatabase,
+    exactCoveragePayload.edition.id,
+    incompleteReport,
+    { raw: "incomplete-raw-digest", normalized: "incomplete-normalized-digest" },
+  );
+  assert.throws(
+    () => createTelegramCommitPlan(gateDatabase, exactCoveragePayload.edition.id),
+    /requires a complete raw\/normalized capture/,
+  );
+  recordTelegramValidation(
+    gateDatabase,
+    exactCoveragePayload.edition.id,
+    exactReport,
+    { raw: "raw-digest", normalized: "normalized-digest" },
+  );
+  assert.throws(
+    () => createTelegramCommitPlan(gateDatabase, exactCoveragePayload.edition.id),
+    /imported 0 of 1 expected media assets/,
+  );
+} finally {
+  gateDatabase.close();
+}
+
+await mkdir(gatePaths.mediaInboxDirectory, { recursive: true });
+const gateMediaAsset = resolve(gatePaths.mediaInboxDirectory, "story-v2.jpg");
+const originalGateMediaBytes = Buffer.from([0xff, 0xd8, 0xff, 0xd9]);
+await writeFile(gateMediaAsset, originalGateMediaBytes);
+await importEditionMedia({
+  editionId: exactCoveragePayload.edition.id,
+  stories: [{
+    itemId: "story-v2",
+    assets: [{
+      sourcePath: gateMediaAsset,
+      alt: "Тестовая Telegram-иллюстрация",
+      sourceKey: "telegram:test",
+      providerItemId: capturedIds[0],
+    }],
+  }],
+}, gatePaths);
+
+let issuedPlanDigest = "";
+gateDatabase = openBriefingDatabase(gatePaths);
+try {
+  assert.throws(
+    () => createTelegramCommitPlan(gateDatabase, exactCoveragePayload.edition.id),
+    /persisted raw\/normalized validation receipt/,
+  );
+  recordTelegramValidation(
+    gateDatabase,
+    exactCoveragePayload.edition.id,
+    exactReport,
+    { raw: "raw-digest-after-media", normalized: "normalized-digest-after-media" },
+  );
+  const commitPlan = createTelegramCommitPlan(gateDatabase, exactCoveragePayload.edition.id);
+  issuedPlanDigest = commitPlan.planDigest;
+  assert.deepEqual(commitPlan.sources, [{
+    sourceKey: "telegram:test",
+    chatId: -1001234567890,
+    maxId: 1058,
+  }]);
+  assert.match(commitPlan.planDigest, /^[a-f0-9]{64}$/);
+} finally {
+  gateDatabase.close();
+}
+
+const replacementAsset = resolve(gatePaths.mediaInboxDirectory, "story-v2-replacement.jpg");
+const rejectedAsset = resolve(gatePaths.mediaInboxDirectory, "story-v2-rejected.txt");
+const replacementBytes = Buffer.from([0xff, 0xd8, 0x44, 0x55, 0xff, 0xd9]);
+await writeFile(replacementAsset, replacementBytes);
+await writeFile(rejectedAsset, "not supported media");
+await assert.rejects(
+  importEditionMedia({
+    editionId: exactCoveragePayload.edition.id,
+    stories: [{
+      itemId: "story-v2",
+      assets: [
+        {
+          sourcePath: replacementAsset,
+          alt: "Замена успела попасть в частичную копию",
+          sourceKey: "telegram:test",
+          providerItemId: capturedIds[0],
+        },
+        {
+          sourcePath: rejectedAsset,
+          alt: "Неподдерживаемый второй файл",
+          sourceKey: "telegram:test",
+          providerItemId: capturedIds[0],
+        },
+      ],
+    }],
+  }, gatePaths),
+  /unsupported media extension \.txt/,
+);
+assert.deepEqual(
+  await readFile(resolve(gatePaths.mediaDirectory, "daily/2026-08-29/story-v2/01.jpg")),
+  originalGateMediaBytes,
+);
+assert.deepEqual(
+  await readdir(resolve(gatePaths.mediaDirectory, "daily/2026-08-29")),
+  ["story-v2"],
+);
+assert.equal(
+  (await readdir(gatePaths.mediaInboxDirectory)).some((entry) => entry.startsWith(".media-import-")),
+  false,
+);
+gateDatabase = openBriefingDatabase(gatePaths);
+try {
+  const stalePlan = gateDatabase.prepare(`
+    SELECT commit_plan_digest AS planDigest
+    FROM telegram_validation_receipts WHERE edition_id = ?
+  `).get(exactCoveragePayload.edition.id) as { planDigest: string } | undefined;
+  assert.equal(stalePlan, undefined);
+  assert.notEqual(issuedPlanDigest, "");
+  assert.throws(
+    () => createTelegramCommitPlan(gateDatabase, exactCoveragePayload.edition.id),
+    /persisted raw\/normalized validation receipt/,
+  );
+} finally {
+  gateDatabase.close();
+}
+
 const initialized = await initializeBriefingStore(paths);
 assert.equal(initialized.integrity, "ok");
-assert.deepEqual(initialized.applied, ["001_initial.sql", "002_source_provider_ids.sql"]);
+assert.deepEqual(initialized.applied, [
+  "001_initial.sql",
+  "002_source_provider_ids.sql",
+  "003_ingestion_gates.sql",
+]);
 
 const prepared = await preparePreview(payload, html, paths);
 assert.equal(prepared.editionId, "daily:2026-08-28");
@@ -332,10 +678,43 @@ await mkdir(paths.mediaInboxDirectory, { recursive: true });
 await writeFile(inboxAsset, Buffer.from([0xff, 0xd8, 0xff, 0xd9]));
 const importedMedia = await importEditionMedia({
   editionId: "daily:2026-08-28",
-  stories: [{ itemId: "story-1", assets: [{ sourcePath: inboxAsset, alt: "Тестовая иллюстрация" }] }],
+  stories: [{
+    itemId: "story-1",
+    assets: [{
+      sourcePath: inboxAsset,
+      alt: "Тестовая иллюстрация",
+      sourceKey: "telegram:test",
+      providerItemId: "100",
+    }],
+  }],
 }, paths);
 assert.equal(importedMedia.imported, 1);
 assert.equal(importedMedia.previewPath, prepared.previewPath);
+
+const runtimeTelegramReport: TelegramBatchReport = {
+  complete: true,
+  configuredChannels: 1,
+  capturedUnread: 3,
+  fetched: 3,
+  normalized: 3,
+  mediaMessages: 1,
+  albumGroups: 1,
+  channels: [{
+    sourceKey: "test",
+    channelId: -1001234567890,
+    label: "Test",
+    state: "ready",
+    capturedUnread: 3,
+    fetched: 3,
+    normalized: 3,
+    upperMessageId: 110,
+    mediaMessages: 1,
+    albumGroups: 1,
+    itemIds: [100, 105, 110],
+    mediaItemIds: [100],
+  }],
+};
+let preparedPayloadWithMedia = parsedPayload;
 
 const database = openBriefingDatabase(paths);
 try {
@@ -343,6 +722,7 @@ try {
   assert(edition);
   assert.equal(edition.state, "prepared");
   assert.equal(edition.is_current, 0);
+  assert.equal(edition.retention_until, "2026-09-02T00:00:00.000Z");
   const itemCounts = database
     .prepare("SELECT item_type, COUNT(*) AS count FROM edition_items GROUP BY item_type ORDER BY item_type")
     .all()
@@ -352,6 +732,8 @@ try {
     { item_type: "story", count: 11 },
   ]);
   const storedPayload = parseBriefingPayload(JSON.parse(edition.payload_json) as unknown);
+  preparedPayloadWithMedia = storedPayload;
+  assert.equal(storedPayload.edition.retentionUntil, "2026-09-02T00:00:00.000Z");
   assert.equal(storedPayload.news.items[0]?.media?.[0]?.src, "/media/daily/2026-08-28/story-1/01.jpg");
   assert.equal((storedPayload.dataQuality.telegramCollection as { imported: number }).imported, 1);
   assert.match(String(storedPayload.dataQuality.summary), /1 медиафайлов сохранено/);
@@ -495,9 +877,16 @@ try {
     { topicId: "ai", label: "AI", likes: 1, dislikes: 0 },
     { topicId: "technology", label: "Technology", likes: 1, dislikes: 0 },
   ]);
+  recordTelegramValidation(
+    persisted,
+    "daily:2026-08-28",
+    runtimeTelegramReport,
+    { raw: "runtime-raw-digest", normalized: "runtime-normalized-digest" },
+  );
+  const partialPlan = createTelegramCommitPlan(persisted, "daily:2026-08-28");
   const partial = finalizeEdition(persisted, "daily:2026-08-28", [
     { sourceKey: "telegram:test", status: "failed", errorCode: "calendar_gate_blocked" },
-  ]);
+  ], partialPlan.planDigest);
   assert.deepEqual(partial, {
     editionId: "daily:2026-08-28",
     state: "partial",
@@ -507,7 +896,11 @@ try {
   persisted.close();
 }
 
-const retried = await preparePreview(payload, html, paths);
+const retried = await preparePreview(
+  preparedPayloadWithMedia,
+  renderBriefingPage(preparedPayloadWithMedia),
+  paths,
+);
 assert.equal(retried.state, "prepared");
 persisted = openBriefingDatabase(paths);
 try {
@@ -527,9 +920,16 @@ try {
   };
   assert.equal(retriedBatch.state, "prepared");
   assert.equal(retriedBatch.error_code, "calendar_gate_blocked");
+  recordTelegramValidation(
+    persisted,
+    "daily:2026-08-28",
+    runtimeTelegramReport,
+    { raw: "retry-raw-digest", normalized: "retry-normalized-digest" },
+  );
+  const retryPlan = createTelegramCommitPlan(persisted, "daily:2026-08-28");
   const finalized = finalizeEdition(persisted, "daily:2026-08-28", [
     { sourceKey: "telegram:test", status: "committed" },
-  ]);
+  ], retryPlan.planDigest);
   assert.deepEqual(finalized, {
     editionId: "daily:2026-08-28",
     state: "complete",
@@ -546,6 +946,104 @@ try {
 
 const cleanup = await cleanupExpired("2030-01-01T00:00:00.000Z", paths);
 assert.deepEqual(cleanup.deleted, ["daily:2026-08-28"]);
+
+const retentionHome = await mkdtemp(resolve(tmpdir(), "kurami-briefing-retention-"));
+const retentionPaths = briefingPaths({
+  KURAMI_HOME: retentionHome,
+  BRIEFING_MIGRATIONS_DIR: resolve(root, "migrations/briefing"),
+} as NodeJS.ProcessEnv);
+await initializeBriefingStore(retentionPaths);
+let retentionDatabase = openBriefingDatabase(retentionPaths);
+try {
+  const insert = retentionDatabase.prepare(`
+    INSERT INTO editions (
+      id, edition_type, local_date, timezone, state, payload_json,
+      html_path, content_digest, preview_enabled, is_current,
+      prepared_at, published_at, retention_until, updated_at
+    ) VALUES (?, 'daily', ?, 'Europe/Vilnius', 'complete', '{}', ?, ?, 1, 0, ?, ?, ?, ?)
+  `);
+  for (const localDate of [
+    "2026-08-25",
+    "2026-08-26",
+    "2026-08-27",
+    "2026-08-28",
+    "2026-08-29",
+    "2026-08-30",
+  ]) {
+    const timestamp = `${localDate}T06:00:00.000Z`;
+    insert.run(
+      `daily:${localDate}`,
+      localDate,
+      `pages/preview/daily-${localDate}.html`,
+      `digest-${localDate}`,
+      timestamp,
+      timestamp,
+      "2099-01-01T00:00:00.000Z",
+      timestamp,
+    );
+  }
+  assert.deepEqual(
+    retainedDailyEditions(retentionDatabase, "2026-08-31T00:00:00.000Z")
+      .map((edition) => edition.local_date),
+    ["2026-08-26", "2026-08-27", "2026-08-28", "2026-08-29", "2026-08-30"],
+  );
+} finally {
+  retentionDatabase.close();
+}
+const boundedCleanup = await cleanupExpired("2026-08-31T00:00:00.000Z", retentionPaths);
+assert.deepEqual(boundedCleanup.deleted, ["daily:2026-08-25"]);
+retentionDatabase = openBriefingDatabase(retentionPaths);
+try {
+  assert.equal(
+    (retentionDatabase.prepare("SELECT COUNT(*) AS count FROM editions").get() as { count: number }).count,
+    5,
+  );
+
+  const legacyPayload = parseBriefingPayload({
+    ...payload,
+    schemaVersion: 1,
+    edition: {
+      ...payload.edition,
+      id: "daily:2026-09-01",
+      localDate: "2026-09-01",
+      generatedAt: "2026-09-01T09:00:00+03:00",
+      retentionUntil: "2026-09-06T09:00:00+03:00",
+    },
+  });
+  const timestamp = "2026-09-01T06:00:00.000Z";
+  retentionDatabase.prepare(`
+    INSERT INTO editions (
+      id, edition_type, local_date, timezone, state, payload_json,
+      html_path, content_digest, preview_enabled, is_current,
+      prepared_at, published_at, retention_until, updated_at
+    ) VALUES (?, 'daily', ?, ?, 'prepared', ?, ?, 'legacy-digest', 1, 0, ?, NULL, ?, ?)
+  `).run(
+    legacyPayload.edition.id,
+    legacyPayload.edition.localDate,
+    legacyPayload.edition.timezone,
+    JSON.stringify(legacyPayload),
+    "pages/preview/daily-2026-09-01.html",
+    timestamp,
+    legacyPayload.edition.retentionUntil,
+    timestamp,
+  );
+  retentionDatabase.prepare(`
+    INSERT INTO source_batches (
+      edition_id, source_key, source_provider, provider_source_id,
+      min_item_id, max_item_id, item_ids_json, state, committed_at, error_code
+    ) VALUES (?, 'telegram:test', 'telegram', '-1001234567890', '100', '110', '["100","105","110"]', 'prepared', NULL, NULL)
+  `).run(legacyPayload.edition.id);
+  assert.throws(
+    () => finalizeEdition(
+      retentionDatabase,
+      legacyPayload.edition.id,
+      [{ sourceKey: "telegram:test", status: "committed" }],
+    ),
+    /new daily production editions require schemaVersion 2/,
+  );
+} finally {
+  retentionDatabase.close();
+}
 const afterCleanup = openBriefingDatabase(paths);
 try {
   assert.equal(loadEdition(afterCleanup, { id: "daily:2026-08-28" }), null);
@@ -563,6 +1061,11 @@ process.stdout.write(
     themeToggleRequired: true,
     storyDetailsRequired: true,
     paginationRuntime: true,
+    schemaV2ExactCoverageRequired: true,
+    telegramCommitPlanRequiresValidation: true,
+    telegramCommitPlanRequiresMedia: true,
+    mediaImportInvalidatesCommitPlanBeforeCopy: true,
+    mediaStoryDirectorySwapIsAtomic: true,
     deterministicComponents: true,
     hiddenItemsCannotOverrideLayout: true,
     csp: true,

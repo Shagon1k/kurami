@@ -5,20 +5,8 @@ import { renderCalendarSection } from "./components/calendar-section.ts";
 import { renderMailSection } from "./components/mail-section.ts";
 import { renderPaginatedFeed } from "./components/paginated-feed.ts";
 import { renderThemeToggle } from "./components/theme-toggle.ts";
+import { renderMetricStrip } from "./components/metric-strip.ts";
 import { BRIEFING_STYLES } from "./styles.ts";
-
-function plural(value: number, one: string, few: string, many: string): string {
-  const mod10 = value % 10;
-  const mod100 = value % 100;
-  if (mod10 === 1 && mod100 !== 11) return one;
-  if (mod10 >= 2 && mod10 <= 4 && (mod100 < 12 || mod100 > 14)) return few;
-  return many;
-}
-
-function numberValue(record: Record<string, unknown>, key: string): number {
-  const value = record[key];
-  return typeof value === "number" && Number.isFinite(value) ? value : 0;
-}
 
 function formatDate(payload: BriefingPayload): string {
   const value = new Date(`${payload.edition.localDate}T12:00:00`);
@@ -37,23 +25,6 @@ function renderQuality(payload: BriefingPayload): string {
   if (!summary) return "";
   const ready = payload.dataQuality.state === "ready";
   return `<aside class="quality-strip" data-state="${escapeHtml(payload.dataQuality.state)}" aria-label="Качество данных"><div class="quality-strip__heading"><span>${ready ? "READY" : "CHECK"}</span><strong>${ready ? "Источники обновлены" : "Есть оговорки по данным"}</strong></div><p>${escapeHtml(summary)}</p></aside>`;
-}
-
-function renderMetrics(payload: BriefingPayload): string {
-  const batches = Array.isArray(payload.news.sourceBatches)
-    ? payload.news.sourceBatches.filter((value): value is Record<string, unknown> => typeof value === "object" && value !== null)
-    : [];
-  const unread = batches.reduce((total, batch) => total + numberValue(batch, "capturedUnreadCount"), 0);
-  const active = batches.filter((batch) => numberValue(batch, "capturedUnreadCount") > 0).length;
-  const stories = payload.news.items.length;
-  const pages = Math.max(1, Math.ceil(stories / (payload.news.pageSize ?? 10)));
-  const cards = [
-    { label: "Сюжеты", value: String(stories), chip: `${pages} ${plural(pages, "страница", "страницы", "страниц")}`, context: "после объединения повторов" },
-    { label: "Непрочитанное", value: String(unread || stories), chip: "собрано", context: unread ? "сообщений во входной пачке" : "материалов в выпуске" },
-    { label: "Каналы", value: String(batches.length || active || 1), chip: active ? `${active} с новостями` : "готово", context: batches.length ? "проверены в этом запуске" : "источники обработаны" },
-    { label: "Ритм", value: "09:00", chip: payload.edition.status === "complete" ? "по плану" : "частично", context: "Europe / Vilnius", warning: payload.edition.status !== "complete" },
-  ];
-  return `<section class="metric-strip" aria-label="Коротко о выпуске">${cards.map((card) => `<article class="metric-card"><span class="metric-card__label">${escapeHtml(card.label)}</span><strong class="metric-card__value">${escapeHtml(card.value)}</strong><span class="metric-card__chip${card.warning ? " warning" : ""}">${escapeHtml(card.chip)}</span><p class="metric-card__context">${escapeHtml(card.context)}</p></article>`).join("")}</section>`;
 }
 
 export function renderBriefingPage(payload: BriefingPayload): string {
@@ -94,7 +65,7 @@ export function renderBriefingPage(payload: BriefingPayload): string {
         <p class="hero__subtitle">${escapeHtml(subtitle)}</p></div>
       ${renderKuramiNote(heroNote, "hero__note")}
     </section>
-    ${renderMetrics(payload)}
+    ${renderMetricStrip(payload)}
     <div class="briefing-overview">
       ${renderCalendarSection(payload)}
       ${renderMailSection(payload)}

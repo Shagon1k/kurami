@@ -4,6 +4,7 @@ import { renderReactionGroup } from "./reaction-group.ts";
 import { renderStoryPanel, renderStoryToggle } from "./story-disclosure.ts";
 import { renderStoryCover } from "./story-media.ts";
 import { renderTopicSet } from "./topic-set.ts";
+import { renderKuramiNote } from "./kurami-note.ts";
 
 function sourceMetadata(story: NewsItem): {
   provider: string;
@@ -35,6 +36,7 @@ export function renderNewsStory(input: {
   edition: BriefingPayload["edition"];
   story: NewsItem;
   index: number;
+  notes?: BriefingPayload["notes"];
 }): string {
   const { story, edition } = input;
   const source = sourceMetadata(story);
@@ -49,6 +51,7 @@ export function renderNewsStory(input: {
   const depth = displayString(story.depth, "standard");
   const safeDepth = ["featured", "standard", "compact"].includes(depth) ? depth : "standard";
   const cover = renderStoryCover(story.media);
+  const storyNote = input.notes?.find((note) => note.target === `story:${story.id}`);
   return `<article class="news-story news-story--${safeDepth}${read ? " is-read" : ""}${cover ? " has-media" : ""}" data-feed-item data-item-id="${escapeHtml(story.id)}">
     <span class="news-story__index" aria-hidden="true">${String(input.index + 1).padStart(2, "0")}</span>
     ${cover}
@@ -57,6 +60,7 @@ export function renderNewsStory(input: {
       <h3>${escapeHtml(story.headline)}</h3>
       <p class="news-story__summary">${escapeHtml(story.summary)}</p>
       ${renderTopicSet(story.topics)}
+      ${renderKuramiNote(storyNote, "news-story__note")}
     </div>
     <div class="news-story__actions">${renderStoryToggle(story.id)}${sourceLink}${renderReactionGroup({ editionId: edition.id, itemId: story.id, reaction })}</div>
     ${renderStoryPanel({ editionId: edition.id, itemId: story.id, details: story.details, sourceUrl: source.url, read, media: story.media })}

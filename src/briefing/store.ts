@@ -4,11 +4,15 @@ import { isAbsolute, relative, resolve } from "node:path";
 import { DatabaseSync } from "node:sqlite";
 import { resolveKuramiHome } from "../core/kurami-home.ts";
 import {
+  assertProductionBriefingPayload,
   parseBriefingPayload,
   persistedItems,
   type BriefingPayload,
   type Reaction,
 } from "./model.ts";
+import { assertTelegramStoryCoverage } from "./coverage.ts";
+import type { TelegramBatchReport } from "./telegram-batch.ts";
+import { DAILY_RETENTION_DAYS } from "./runtime-config.ts";
 
 process.umask(0o077);
 
@@ -21,6 +25,10 @@ export type BriefingPaths = {
   mediaInboxDirectory: string;
   databasePath: string;
   migrationsDirectory: string;
+  runsDirectory: string;
+  recoveryDirectory: string;
+  artifactsDirectory: string;
+  stateArtifactsDirectory: string;
 };
 
 export type EditionRow = {
@@ -61,6 +69,16 @@ export type SourceCommitResult = {
   errorCode?: string;
 };
 
+export type TelegramCommitPlan = {
+  editionId: string;
+  planDigest: string;
+  sources: Array<{
+    sourceKey: string;
+    chatId: number;
+    maxId: number;
+  }>;
+};
+
 export function briefingPaths(environment: NodeJS.ProcessEnv = process.env): BriefingPaths {
   const home = resolveKuramiHome(resolve(import.meta.dirname, "../../.."), environment);
   const stateDirectory = resolve(home, "state/briefing");
@@ -75,11 +93,25 @@ export function briefingPaths(environment: NodeJS.ProcessEnv = process.env): Bri
     migrationsDirectory: resolve(
       environment.BRIEFING_MIGRATIONS_DIR ?? resolve(import.meta.dirname, "../../migrations/briefing"),
     ),
+    runsDirectory: resolve(stateDirectory, "runs"),
+    recoveryDirectory: resolve(stateDirectory, "recovery"),
+    artifactsDirectory: resolve(home, "artifacts/briefing"),
+    stateArtifactsDirectory: resolve(stateDirectory, "artifacts"),
   };
 }
 
 function now(): string {
   return new Date().toISOString();
+}
+
+function dailyRetentionUntil(localDate: string): string {
+  const [year, month, day] = localDate.split("-").map(Number);
+  const instant = new Date(Date.UTC(year!, month! - 1, day!));
+  if (!Number.isFinite(instant.getTime()) || instant.toISOString().slice(0, 10) !== localDate) {
+    fail(`Invalid daily edition local date ${localDate}`);
+  }
+  instant.setUTCDate(instant.getUTCDate() + DAILY_RETENTION_DAYS);
+  return instant.toISOString();
 }
 
 function fail(message: string): never {
@@ -247,6 +279,13 @@ export async function preparePreview(
   paths: BriefingPaths = briefingPaths(),
 ): Promise<{ editionId: string; previewPath: string; digest: string; state: "prepared" }> {
   const payload = parseBriefingPayload(payloadValue);
+  assertProductionBriefingPayload(payload);
+  if (payload.edition.type === "daily") {
+    payload.edition.retentionUntil = dailyRetentionUntil(payload.edition.localDate);
+  }
+  if (payload.schemaVersion === 2 && payload.edition.type === "daily" && payload.sourceBatches?.length) {
+    assertTelegramStoryCoverage(payload);
+  }
   validateRenderedHtml(html, payload);
   await initializeBriefingStore(paths);
 
@@ -360,6 +399,9 @@ export async function preparePreview(
         }
       }
       database.prepare("DELETE FROM source_batches WHERE edition_id = ?").run(payload.edition.id);
+      database.prepare("DELETE FROM telegram_validation_receipts WHERE edition_id = ?").run(
+        payload.edition.id,
+      );
       const insertBatch = database.prepare(`
         INSERT INTO source_batches (
           edition_id, source_key, source_provider, provider_source_id,
@@ -400,6 +442,172 @@ export async function preparePreview(
   };
 }
 
+function telegramBatchMap(payload: BriefingPayload): Map<string, {
+  providerSourceId: string;
+  itemIds: string[];
+  maxItemId: string;
+}> {
+  return new Map((payload.sourceBatches ?? []).map((batch) => [batch.sourceKey, {
+    providerSourceId: batch.providerSourceId,
+    itemIds: [...batch.itemIds].sort(),
+    maxItemId: batch.maxItemId,
+  }]));
+}
+
+function assertValidationMatchesPayload(payload: BriefingPayload, report: TelegramBatchReport): void {
+  const batches = telegramBatchMap(payload);
+  const reports = new Map(report.channels
+    .filter((channel) => channel.itemIds.length > 0)
+    .map((channel) => [`telegram:${channel.sourceKey}`, channel]));
+  if (batches.size !== reports.size) {
+    fail(`Telegram validation covers ${reports.size} non-empty sources; payload contains ${batches.size}`);
+  }
+  for (const [sourceKey, batch] of batches) {
+    const channel = reports.get(sourceKey);
+    if (!channel) fail(`Telegram validation is missing ${sourceKey}`);
+    if (String(channel.channelId) !== batch.providerSourceId) {
+      fail(`Telegram validation channel ID differs for ${sourceKey}`);
+    }
+    const itemIds = channel.itemIds.map(String).sort();
+    if (itemIds.length !== batch.itemIds.length
+      || itemIds.some((itemId, index) => itemId !== batch.itemIds[index])) {
+      fail(`Telegram validation item IDs differ for ${sourceKey}`);
+    }
+    if (channel.upperMessageId === null || String(channel.upperMessageId) !== batch.maxItemId) {
+      fail(`Telegram validation upper boundary differs for ${sourceKey}`);
+    }
+  }
+}
+
+export function recordTelegramValidation(
+  database: DatabaseSync,
+  editionId: string,
+  report: TelegramBatchReport,
+  digests: { raw: string; normalized: string },
+): void {
+  const edition = loadEdition(database, { id: editionId });
+  if (!edition || edition.state !== "prepared") fail("Telegram validation requires a prepared edition");
+  const payload = parseBriefingPayload(JSON.parse(edition.payload_json) as unknown);
+  if (payload.schemaVersion !== 2) fail("Telegram validation requires schemaVersion 2");
+  assertTelegramStoryCoverage(payload);
+  assertValidationMatchesPayload(payload, report);
+  const timestamp = now();
+  database.prepare(`
+    INSERT INTO telegram_validation_receipts (
+      edition_id, raw_digest, normalized_digest, report_json,
+      commit_plan_json, commit_plan_digest, validated_at, planned_at
+    ) VALUES (?, ?, ?, ?, NULL, NULL, ?, NULL)
+    ON CONFLICT(edition_id) DO UPDATE SET
+      raw_digest = excluded.raw_digest,
+      normalized_digest = excluded.normalized_digest,
+      report_json = excluded.report_json,
+      commit_plan_json = NULL,
+      commit_plan_digest = NULL,
+      validated_at = excluded.validated_at,
+      planned_at = NULL
+  `).run(
+    editionId,
+    digests.raw,
+    digests.normalized,
+    JSON.stringify(report),
+    timestamp,
+  );
+}
+
+function storyMediaExpectations(
+  payload: BriefingPayload,
+  report: TelegramBatchReport,
+): Map<string, Set<string>> {
+  const availableMedia = new Set(report.channels.flatMap((channel) =>
+    channel.mediaItemIds.map((itemId) => `telegram:${channel.sourceKey}:${itemId}`)
+  ));
+  const result = new Map<string, Set<string>>();
+  for (const story of payload.news.items) {
+    const expected = new Set<string>();
+    const sources = Array.isArray(story.sources) ? story.sources : [];
+    for (const sourceValue of sources) {
+      if (typeof sourceValue !== "object" || sourceValue === null || Array.isArray(sourceValue)) continue;
+      const source = sourceValue as Record<string, unknown>;
+      const sourceKey = typeof source.sourceKey === "string"
+        ? source.sourceKey
+        : typeof source.sourceId === "string" ? `telegram:${source.sourceId}` : "";
+      const canonicalSourceKey = sourceKey.startsWith("telegram:") ? sourceKey : `telegram:${sourceKey}`;
+      const itemIds = new Set(Array.isArray(source.itemIds)
+        ? source.itemIds.filter((itemId): itemId is string => typeof itemId === "string")
+        : []);
+      const mediaItemIds = Array.isArray(source.mediaMessageIds)
+        ? source.mediaMessageIds.filter((itemId): itemId is string => typeof itemId === "string")
+        : [];
+      for (const itemId of mediaItemIds) {
+        if (!itemIds.has(itemId)) fail(`Story ${story.id} media item ${itemId} is not a source item`);
+        const key = `${canonicalSourceKey}:${itemId}`;
+        if (!availableMedia.has(key)) fail(`Story ${story.id} claims unknown Telegram media ${key}`);
+        expected.add(key);
+      }
+      for (const itemId of itemIds) {
+        const key = `${canonicalSourceKey}:${itemId}`;
+        if (availableMedia.has(key) && !expected.has(key)) {
+          fail(`Story ${story.id} omitted retained Telegram media ${key}`);
+        }
+      }
+    }
+    if (expected.size > 12) fail(`Story ${story.id} exceeds the twelve-asset media limit`);
+    const imported = new Set((story.media ?? []).map((asset) =>
+      asset.sourceKey && asset.providerItemId ? `${asset.sourceKey}:${asset.providerItemId}` : ""
+    ));
+    imported.delete("");
+    if (expected.size !== (story.media?.length ?? 0) || imported.size !== expected.size
+      || [...expected].some((key) => !imported.has(key))) {
+      fail(`Story ${story.id} imported ${(story.media?.length ?? 0)} of ${expected.size} expected media assets`);
+    }
+    result.set(story.id, expected);
+  }
+  return result;
+}
+
+export function createTelegramCommitPlan(
+  database: DatabaseSync,
+  editionId: string,
+): TelegramCommitPlan {
+  const edition = loadEdition(database, { id: editionId });
+  if (!edition || edition.state !== "prepared") fail("Telegram commit plan requires a prepared edition");
+  const payload = parseBriefingPayload(JSON.parse(edition.payload_json) as unknown);
+  if (payload.schemaVersion !== 2) fail("Telegram commit plan requires schemaVersion 2");
+  assertTelegramStoryCoverage(payload);
+  const receipt = database.prepare(`
+    SELECT report_json FROM telegram_validation_receipts WHERE edition_id = ?
+  `).get(editionId) as { report_json: string } | undefined;
+  if (!receipt) fail("Telegram commit plan requires a persisted raw/normalized validation receipt");
+  const report = JSON.parse(receipt.report_json) as TelegramBatchReport;
+  if (report.complete !== true) {
+    fail("Telegram commit plan requires a complete raw/normalized capture");
+  }
+  assertValidationMatchesPayload(payload, report);
+  storyMediaExpectations(payload, report);
+  const sources = report.channels
+    .filter((channel) => channel.itemIds.length > 0)
+    .map((channel) => ({
+      sourceKey: `telegram:${channel.sourceKey}`,
+      chatId: channel.channelId,
+      maxId: channel.upperMessageId!,
+    }))
+    .sort((left, right) => left.sourceKey.localeCompare(right.sourceKey));
+  if (sources.some((source) => !Number.isSafeInteger(source.chatId)
+    || !Number.isSafeInteger(source.maxId) || source.maxId < 1)) {
+    fail("Telegram commit plan contains an unsafe provider identifier");
+  }
+  const planBody = { editionId, sources };
+  const planDigest = createHash("sha256").update(JSON.stringify(planBody)).digest("hex");
+  const plan = { ...planBody, planDigest };
+  const timestamp = now();
+  database.prepare(`
+    UPDATE telegram_validation_receipts
+    SET commit_plan_json = ?, commit_plan_digest = ?, planned_at = ?
+    WHERE edition_id = ?
+  `).run(JSON.stringify(plan), planDigest, timestamp, editionId);
+  return plan;
+}
+
 export function loadEdition(
   database: DatabaseSync,
   selector: { id?: string; type?: "daily" | "cinema"; date?: string; current?: boolean },
@@ -427,6 +635,112 @@ export async function readEditionHtml(
   paths: BriefingPaths = briefingPaths(),
 ): Promise<string> {
   return readFile(resolvedHtmlPath(paths, edition.html_path), "utf8");
+}
+
+function immutableNewsDigest(payload: BriefingPayload): string {
+  return createHash("sha256")
+    .update(JSON.stringify({ news: payload.news, sourceBatches: payload.sourceBatches ?? [] }))
+    .digest("hex");
+}
+
+export function retainedDailyEditions(
+  database: DatabaseSync,
+  currentTime = now(),
+): EditionRow[] {
+  return database.prepare(`
+    SELECT * FROM (
+      SELECT * FROM editions
+      WHERE edition_type = 'daily'
+        AND state IN ('complete', 'partial')
+        AND retention_until > ?
+      ORDER BY local_date DESC, updated_at DESC
+      LIMIT ?
+    ) retained
+    ORDER BY local_date ASC
+  `).all(currentTime, DAILY_RETENTION_DAYS) as EditionRow[];
+}
+
+export async function refreshPublishedEdition(
+  payloadValue: unknown,
+  html: string,
+  expectedContentDigest: string,
+  paths: BriefingPaths = briefingPaths(),
+): Promise<{ editionId: string; digest: string }> {
+  const payload = parseBriefingPayload(payloadValue);
+  validateRenderedHtml(html, payload);
+  const database = openBriefingDatabase(paths);
+  let edition: EditionRow;
+  let previousPayload: BriefingPayload;
+  try {
+    const loaded = loadEdition(database, { id: payload.edition.id });
+    if (!loaded || (loaded.state !== "complete" && loaded.state !== "partial")) {
+      fail("Dynamic refresh requires a published edition");
+    }
+    if (loaded.content_digest !== expectedContentDigest) {
+      fail("Dynamic refresh lost its optimistic edition lock");
+    }
+    edition = loaded;
+    previousPayload = parseBriefingPayload(JSON.parse(loaded.payload_json) as unknown);
+    if (immutableNewsDigest(previousPayload) !== immutableNewsDigest(payload)) {
+      fail("Dynamic refresh attempted to change frozen news or source batches");
+    }
+    if (previousPayload.edition.id !== payload.edition.id
+      || previousPayload.edition.generatedAt !== payload.edition.generatedAt
+      || previousPayload.edition.retentionUntil !== payload.edition.retentionUntil) {
+      fail("Dynamic refresh attempted to change the immutable edition envelope");
+    }
+  } finally {
+    database.close();
+  }
+
+  const payloadJson = JSON.stringify(payload);
+  const digest = createHash("sha256").update(payloadJson).update("\0").update(html).digest("hex");
+  const htmlPath = resolvedHtmlPath(paths, edition.html_path);
+  const previousHtml = await readFile(htmlPath, "utf8");
+
+  const writable = openBriefingDatabase(paths);
+  let wroteHtml = false;
+  try {
+    const timestamp = now();
+    writable.exec("BEGIN IMMEDIATE");
+    try {
+      const current = loadEdition(writable, { id: payload.edition.id });
+      if (!current || current.content_digest !== expectedContentDigest) {
+        fail("Dynamic refresh lost its optimistic edition lock");
+      }
+      await atomicWrite(htmlPath, html);
+      wroteHtml = true;
+      const priorMail = writable.prepare(`
+        SELECT item_id, read_at FROM edition_items
+        WHERE edition_id = ? AND item_type = 'mail'
+      `).all(payload.edition.id) as Array<{ item_id: string; read_at: string | null }>;
+      const priorRead = new Map(priorMail.map((item) => [item.item_id, item.read_at]));
+      writable.prepare(`DELETE FROM edition_items WHERE edition_id = ? AND item_type = 'mail'`)
+        .run(payload.edition.id);
+      const insert = writable.prepare(`
+        INSERT INTO edition_items (
+          edition_id, item_id, item_type, story_fingerprint,
+          topic_ids_json, read_at, reaction, updated_at
+        ) VALUES (?, ?, 'mail', NULL, '[]', ?, NULL, ?)
+      `);
+      for (const item of payload.mail.items) {
+        insert.run(payload.edition.id, item.id, priorRead.get(item.id) ?? null, timestamp);
+      }
+      writable.prepare(`
+        UPDATE editions
+        SET payload_json = ?, content_digest = ?, updated_at = ?
+        WHERE id = ? AND content_digest = ?
+      `).run(payloadJson, digest, timestamp, payload.edition.id, expectedContentDigest);
+      writable.exec("COMMIT");
+    } catch (error) {
+      writable.exec("ROLLBACK");
+      if (wroteHtml) await atomicWrite(htmlPath, previousHtml);
+      throw error;
+    }
+  } finally {
+    writable.close();
+  }
+  return { editionId: payload.edition.id, digest };
 }
 
 export function markItemRead(database: DatabaseSync, editionId: string, itemId: string): string {
@@ -531,6 +845,7 @@ export function finalizeEdition(
   database: DatabaseSync,
   editionId: string,
   results: SourceCommitResult[],
+  planDigest?: string,
 ): { editionId: string; state: "complete" | "partial"; publicationPath: string } {
   const edition = loadEdition(database, { id: editionId });
   if (!edition) fail("Unknown briefing edition");
@@ -542,6 +857,8 @@ export function finalizeEdition(
     };
   }
   if (edition.state !== "prepared") fail("Briefing edition is not prepared");
+  const payload = parseBriefingPayload(JSON.parse(edition.payload_json) as unknown);
+  assertProductionBriefingPayload(payload);
   const batches = database.prepare(`
     SELECT source_key, source_provider, max_item_id, state
     FROM source_batches WHERE edition_id = ? ORDER BY source_key
@@ -560,7 +877,21 @@ export function finalizeEdition(
     if (batch.state === "committed") continue;
     if (!resultBySource.has(batch.source_key)) fail(`Missing commit result for ${batch.source_key}`);
   }
-  const payload = parseBriefingPayload(JSON.parse(edition.payload_json) as unknown);
+  if (payload.schemaVersion === 2 && edition.edition_type === "daily") {
+    if (!planDigest) fail("SchemaVersion 2 finalization requires a Telegram commit plan digest");
+    const planned = database.prepare(`
+      SELECT commit_plan_digest, report_json
+      FROM telegram_validation_receipts WHERE edition_id = ?
+    `).get(editionId) as { commit_plan_digest: string | null; report_json: string } | undefined;
+    if (!planned?.commit_plan_digest || planned.commit_plan_digest !== planDigest) {
+      fail("Telegram commit plan digest does not match the prepared edition");
+    }
+    const report = JSON.parse(planned.report_json) as TelegramBatchReport;
+    if (report.complete !== true) {
+      fail("Telegram finalization requires a complete raw/normalized capture");
+    }
+    assertTelegramStoryCoverage(payload);
+  }
   const timestamp = now();
   let failed = payload.edition.status === "partial";
   database.exec("BEGIN IMMEDIATE");
@@ -705,16 +1036,47 @@ export async function cleanupExpired(
   const database = openBriefingDatabase(paths);
   const expired = database
     .prepare(`
+      WITH retained AS (
+        SELECT id FROM editions
+        WHERE edition_type = 'daily' AND retention_until > ?
+        ORDER BY local_date DESC, updated_at DESC
+        LIMIT ?
+      )
       SELECT id, edition_type, local_date, html_path
       FROM editions
-      WHERE edition_type = 'daily' AND retention_until <= ?
+      WHERE edition_type = 'daily'
+        AND (retention_until <= ? OR id NOT IN (SELECT id FROM retained))
     `)
-    .all(currentTime) as Array<{
+    .all(currentTime, DAILY_RETENTION_DAYS, currentTime) as Array<{
     id: string;
     edition_type: "daily" | "cinema";
     local_date: string;
     html_path: string;
   }>;
+  for (const edition of expired) {
+    await unlink(resolvedHtmlPath(paths, edition.html_path)).catch((error: NodeJS.ErrnoException) => {
+      if (error.code !== "ENOENT") throw error;
+    });
+    await rm(resolve(paths.mediaDirectory, edition.edition_type, edition.local_date), {
+      recursive: true,
+      force: true,
+    });
+    for (const root of [
+      paths.runsDirectory,
+      paths.recoveryDirectory,
+      paths.artifactsDirectory,
+      paths.stateArtifactsDirectory,
+    ]) {
+      const children = await readdir(root, { withFileTypes: true }).catch((error: NodeJS.ErrnoException) => {
+        if (error.code === "ENOENT") return [];
+        throw error;
+      });
+      for (const child of children) {
+        if (!child.isDirectory() || !child.name.includes(edition.local_date)) continue;
+        await rm(resolve(root, child.name), { recursive: true, force: true });
+      }
+    }
+  }
   try {
     database.exec("BEGIN IMMEDIATE");
     try {
@@ -727,15 +1089,6 @@ export async function cleanupExpired(
     }
   } finally {
     database.close();
-  }
-  for (const edition of expired) {
-    await unlink(resolvedHtmlPath(paths, edition.html_path)).catch((error: NodeJS.ErrnoException) => {
-      if (error.code !== "ENOENT") throw error;
-    });
-    await rm(resolve(paths.mediaDirectory, edition.edition_type, edition.local_date), {
-      recursive: true,
-      force: true,
-    });
   }
   return { deleted: expired.map((edition) => edition.id) };
 }

@@ -1,13 +1,24 @@
 import { escapeHtml } from "../html.ts";
 import type { StoryMedia } from "../../model.ts";
 import { renderStoryMediaGallery } from "./story-media.ts";
+import { renderButton } from "./button.ts";
 
 function panelId(itemId: string): string {
   return `story-details-${itemId.replaceAll(/[^A-Za-z0-9_-]/g, "-")}`;
 }
 
 export function renderStoryToggle(itemId: string): string {
-  return `<button class="story-toggle" type="button" aria-expanded="false" aria-controls="${escapeHtml(panelId(itemId))}" data-story-toggle><span data-disclosure-label>Читать</span></button>`;
+  return renderButton({
+    label: "Читать",
+    variant: "secondary",
+    className: "story-toggle",
+    attributes: {
+      "aria-expanded": "false",
+      "aria-controls": panelId(itemId),
+      "data-story-toggle": true,
+    },
+    labelAttributes: { "data-disclosure-label": true },
+  });
 }
 
 export function renderStoryPanel(input: {

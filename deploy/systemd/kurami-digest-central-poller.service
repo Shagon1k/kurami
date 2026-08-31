@@ -1,0 +1,27 @@
+[Unit]
+Description=Kurami Digest Central Poller
+After=network-online.target kurami-briefing.service
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+ExecStart=/home/shagon1k/_hermes/_core/scripts/kurami-digest-central-poller.sh
+TimeoutStartSec=4min
+
+Environment=HOME=/home/shagon1k
+Environment=KURAMI_HOME=/home/shagon1k/_hermes/_kurami
+Environment=PATH=/home/shagon1k/_hermes/_kurami/runtime/node/bin:/usr/local/bin:/usr/bin:/bin
+EnvironmentFile=/home/shagon1k/_hermes/_kurami/connectors/external/composio-read-session/.env
+
+UMask=0077
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=read-only
+ReadWritePaths=/home/shagon1k/_hermes/_kurami/state/briefing /home/shagon1k/_hermes/_kurami/artifacts/briefing
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6
+RestrictNamespaces=true
+RestrictSUIDSGID=true
+LockPersonality=true
+MemoryDenyWriteExecute=true
+SystemCallArchitectures=native

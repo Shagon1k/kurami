@@ -1,3 +1,13 @@
+import { renderButton } from "./button.ts";
+
 export function renderThemeToggle(): string {
-  return `<button class="theme-toggle" type="button" data-theme-toggle aria-label="Включить тёмную тему" aria-pressed="false"><span data-theme-icon aria-hidden="true">◐</span><span class="sr-only" data-theme-label>Тёмная тема</span></button>`;
+  return renderButton({
+    label: "Тёмная тема",
+    variant: "icon",
+    className: "theme-toggle",
+    icon: "◐",
+    ariaLabel: "Включить тёмную тему",
+    attributes: { "data-theme-toggle": true, "aria-pressed": "false" },
+    labelAttributes: { "data-theme-label": true },
+  }).replace('class="button__icon"', 'class="button__icon" data-theme-icon');
 }

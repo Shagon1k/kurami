@@ -3,7 +3,7 @@ import { parse as parseYaml } from "yaml";
 
 type BatchState = "ready" | "empty" | "partial" | "failed";
 
-type ChannelReport = {
+export type ChannelReport = {
   sourceKey: string;
   channelId: number;
   label: string;
@@ -14,6 +14,8 @@ type ChannelReport = {
   upperMessageId: number | null;
   mediaMessages: number;
   albumGroups: number;
+  itemIds: number[];
+  mediaItemIds: number[];
 };
 
 export type TelegramBatchReport = {
@@ -230,6 +232,11 @@ export async function validateTelegramBatch(
       upperMessageId,
       mediaMessages,
       albumGroups: groups.size,
+      itemIds: fetchedMessageIds,
+      mediaItemIds: [...rawMessages]
+        .filter(([, metadata]) => metadata.hasMedia === true)
+        .map(([messageId]) => messageId)
+        .sort((left, right) => left - right),
     });
   }
 

@@ -1,21 +1,25 @@
 import { readFile } from "node:fs/promises";
+import { createHash } from "node:crypto";
 import { resolve } from "node:path";
 import {
   briefingPaths,
   cleanupExpired,
+  createTelegramCommitPlan,
   finalizeEdition,
   initializeBriefingStore,
   loadEdition,
   openBriefingDatabase,
   preparePreview,
+  recordTelegramValidation,
   topicProfile,
 } from "./store.ts";
 import { parseBriefingPayload } from "./model.ts";
 import { renderBriefingPage } from "./ui/render-page.ts";
 import { importEditionMedia, readMediaManifest } from "./media.ts";
 import { validateTelegramBatch } from "./telegram-batch.ts";
+import { notifyBriefingRelease } from "./release-notifier.ts";
 
-type Command = "init" | "prepare-preview" | "render-preview" | "rerender-preview" | "import-media" | "validate-telegram-batch" | "finalize" | "inspect" | "cleanup";
+type Command = "init" | "prepare-preview" | "render-preview" | "rerender-preview" | "import-media" | "validate-telegram-batch" | "telegram-commit-plan" | "finalize" | "notify-release" | "inspect" | "cleanup";
 
 type Arguments = {
   command: Command;
@@ -36,8 +40,8 @@ function fail(message: string): never {
 
 function parseArguments(argv = process.argv.slice(2)): Arguments {
   const command = argv.shift() as Command | undefined;
-  if (!command || !["init", "prepare-preview", "render-preview", "rerender-preview", "import-media", "validate-telegram-batch", "finalize", "inspect", "cleanup"].includes(command)) {
-    fail("Usage: briefing <init|prepare-preview|render-preview|rerender-preview|import-media|validate-telegram-batch|finalize|inspect|cleanup> [options]");
+  if (!command || !["init", "prepare-preview", "render-preview", "rerender-preview", "import-media", "validate-telegram-batch", "telegram-commit-plan", "finalize", "notify-release", "inspect", "cleanup"].includes(command)) {
+    fail("Usage: briefing <init|prepare-preview|render-preview|rerender-preview|import-media|validate-telegram-batch|telegram-commit-plan|finalize|notify-release|inspect|cleanup> [options]");
   }
   const result: Arguments = { command };
   while (argv.length > 0) {
@@ -70,8 +74,14 @@ function parseArguments(argv = process.argv.slice(2)): Arguments {
   if (command === "validate-telegram-batch" && (!result.configPath || !result.rawPath || !result.normalizedPath)) {
     fail("validate-telegram-batch requires --config, --raw, and --normalized");
   }
+  if (command === "telegram-commit-plan" && !result.editionId) {
+    fail("telegram-commit-plan requires --id");
+  }
   if (command === "finalize" && (!result.editionId || !result.receiptsPath)) {
     fail("finalize requires --id and --receipts");
+  }
+  if (command === "notify-release" && !result.editionId) {
+    fail("notify-release requires --id");
   }
   if (command !== "cleanup" && result.at) fail("--at is valid only for cleanup");
   return result;
@@ -155,12 +165,41 @@ export async function runBriefingCli(argv = process.argv.slice(2)): Promise<unkn
     };
   }
   if (args.command === "validate-telegram-batch") {
+    const report = await validateTelegramBatch(args.configPath!, args.rawPath!, args.normalizedPath!);
+    if (args.editionId) {
+      await initializeBriefingStore(paths);
+      const database = openBriefingDatabase(paths);
+      try {
+        const digest = async (path: string) => createHash("sha256").update(await readFile(path)).digest("hex");
+        recordTelegramValidation(database, args.editionId, report, {
+          raw: await digest(args.rawPath!),
+          normalized: await digest(args.normalizedPath!),
+        });
+      } finally {
+        database.close();
+      }
+    }
     return {
       ok: true,
       action: "validate-telegram-batch",
       externalMutations: false,
-      ...(await validateTelegramBatch(args.configPath!, args.rawPath!, args.normalizedPath!)),
+      persisted: Boolean(args.editionId),
+      ...report,
     };
+  }
+  if (args.command === "telegram-commit-plan") {
+    await initializeBriefingStore(paths);
+    const database = openBriefingDatabase(paths);
+    try {
+      return {
+        ok: true,
+        action: "telegram-commit-plan",
+        externalMutations: false,
+        ...createTelegramCommitPlan(database, args.editionId!),
+      };
+    } finally {
+      database.close();
+    }
   }
   if (args.command === "finalize") {
     const receipt = await readPayload(args.receiptsPath!);
@@ -198,7 +237,12 @@ export async function runBriefingCli(argv = process.argv.slice(2)): Promise<unkn
         ok: true,
         action: "finalize",
         externalMutations: true,
-        ...finalizeEdition(database, args.editionId!, results),
+        ...finalizeEdition(
+          database,
+          args.editionId!,
+          results,
+          typeof root.planDigest === "string" ? root.planDigest : undefined,
+        ),
       };
     } finally {
       database.close();
@@ -211,6 +255,14 @@ export async function runBriefingCli(argv = process.argv.slice(2)): Promise<unkn
       ok: true,
       action: "cleanup",
       ...(await cleanupExpired(new Date(at).toISOString(), paths)),
+    };
+  }
+  if (args.command === "notify-release") {
+    return {
+      ok: true,
+      action: "notify-release",
+      externalMutations: true,
+      ...(await notifyBriefingRelease(args.editionId!)),
     };
   }
 

@@ -10,7 +10,7 @@ Every payload uses a versioned envelope with these roles:
 
 ```json
 {
-  "schemaVersion": 1,
+  "schemaVersion": 2,
   "edition": {
     "id": "daily:2026-08-28",
     "type": "daily",
@@ -22,6 +22,11 @@ Every payload uses a versioned envelope with these roles:
   },
   "hero": {},
   "notes": [],
+  "live": {
+    "refreshedAt": "RFC3339 timestamp",
+    "state": "ready | empty | partial | stale | failed",
+    "lastSuccessAt": "RFC3339 timestamp"
+  },
   "weather": {},
   "calendar": {},
   "priorities": [],
@@ -30,7 +35,8 @@ Every payload uses a versioned envelope with these roles:
     "state": "ready",
     "pageSize": 10,
     "mainStoryIds": ["story:example"],
-    "items": []
+    "items": [],
+    "exclusions": []
   },
   "cinemaPreview": null,
   "dataQuality": {},
@@ -60,20 +66,27 @@ from the finished visible payload after inspecting `recentNotes` from
 }
 ```
 
-Supply one or two notes, each one to four words. Supported targets are `hero`
-and `news`; supported roles are `focus`, `context`, `action`, `reassurance`,
-and `personality`; supported tones are `signal` and `ink`; supported rotations
-are `none`, `negative`, and `positive`. `mark` may be `arrow-down`,
-`arrow-down-right`, or `arrow-right`.
+Supply one or two notes, each one to four words. Supported section targets are
+`hero`, `news`, `calendar`, `mail`, `metric:mail`, `metric:stories`,
+`metric:time`, and `metric:weather`. A note may instead target one concrete
+visible item with `calendar-event:<item-id>`, `mail-item:<item-id>`, or
+`story:<item-id>`. Supported roles are `focus`, `context`, `action`,
+`reassurance`, and `personality`; supported tones are `signal` and `ink`;
+supported rotations are `none`, `negative`, and `positive`. `mark` may be
+`arrow-down`, `arrow-down-right`, or `arrow-right`.
 
-Write fresh copy for the edition rather than choosing from a phrase pool. Every
-note must point to visible content, use a different role or treatment when two
-are present, and avoid exact or conspicuously near repeats from the retained
-five-day history. Omit a slot when no grounded note is useful. The renderer
-validates and positions supplied notes; it never supplies generic fallback
-phrases.
+Write fresh copy for the edition rather than choosing from a phrase pool. The
+first note carries an informative signal grounded in its exact target. A second
+note is optional and may use `role: "personality"` for gentle humor that follows
+from a visible fact. Never force a joke, joke about sensitive news or private
+mail, or write vague commentary that could fit any day. At most one note may be
+`personality`. Every note must point to visible content, use a different target
+and treatment when two are present, and avoid exact or conspicuously near
+repeats from the retained five-day history. Omit a slot when no grounded note
+is useful. The renderer validates and positions supplied notes; it never
+supplies generic fallback phrases.
 
-`weather`, `priorities`, and `cinemaPreview` may be absent when no trustworthy
+`weather`, `priorities`, `live`, and `cinemaPreview` may be absent when no trustworthy
 input exists. `calendar`, `mail`, `news`, and `dataQuality` must always disclose
 whether they are ready, empty, partial, stale, or failed. Empty is a valid fact;
 it is not a rendering error.
@@ -128,13 +141,60 @@ captured Telegram channel:
 }
 ```
 
-The runtime persists this exact snapshot during preparation. After the bounded
-provider commit, write a small receipt artifact containing the edition ID and
-one `{sourceKey, status}` result per batch, then call:
+`sourceKey` is canonical and starts with `telegram:`. Include a source batch
+only for a non-empty captured Telegram batch. Empty, partial, and failed
+configured channels still remain visible in the raw capture ledger and data
+quality diagnostics.
+
+The runtime persists this exact snapshot during preparation. In schema version
+2, the union of all `sourceBatches[].itemIds` is an exact accounting set. Every
+member must have exactly one owner: either one story source or one bounded
+`news.exclusions` entry. Unknown IDs, missing IDs, and IDs claimed twice are
+validation errors.
+
+After final preparation and media import, bind the raw and normalized artifact
+digests to the edition, create a commit plan, and pass that exact plan to the
+bounded Telegram wrapper. The resulting receipt carries the edition ID, the
+plan digest, and one `{sourceKey, status}` result per batch:
+
+```json
+{
+  "editionId": "daily:2026-08-28",
+  "planDigest": "2f3f...64 hexadecimal characters",
+  "results": [
+    {"sourceKey": "telegram:channel-key", "status": "committed"}
+  ]
+}
+```
+
+Then call:
 
 ```text
 $BRIEFING_NODE $BRIEFING_CLI finalize --id <edition-id> --receipts <receipts.json>
 ```
+
+Finalization rejects a missing or different `planDigest`.
+
+## Bounded news exclusions
+
+An exclusion is an explicit terminal owner for one captured Telegram input:
+
+```json
+{
+  "sourceKey": "telegram:channel-key",
+  "itemId": "145",
+  "reason": "non-content | exact-duplicate | unsafe | unreadable",
+  "note": "optional short non-secret diagnostic"
+}
+```
+
+Use `non-content` only for material with no news substance, such as an isolated
+navigation post or empty service update. Use `exact-duplicate` only when the
+same captured fact is already owned by a story and this provider item itself is
+not also listed in that story. Use `unsafe` for content that cannot safely be
+carried into the briefing, and `unreadable` for an input whose meaningful text
+cannot be recovered. Low interest, low rank, inconvenient length, and page
+volume are not exclusion reasons. Pagination handles volume.
 
 ## News story
 
@@ -160,18 +220,21 @@ Use a flexible story rather than a mandatory prose template:
       "kind": "image",
       "src": "/media/daily/2026-08-28/story-example/01.jpg",
       "mimeType": "image/jpeg",
-      "alt": "Contextual image description"
+      "alt": "Contextual image description",
+      "sourceKey": "telegram:channel-key",
+      "providerItemId": "145"
     }
   ],
   "sources": [
     {
       "provider": "Telegram",
       "profile": "telegram-user",
-      "sourceId": "configured source key",
+      "sourceKey": "telegram:channel-key",
       "sourceLabel": "channel display name",
       "url": "original destination",
       "publishedAt": "RFC3339 timestamp",
-      "itemIds": ["provider item ids retained server-side"]
+      "itemIds": ["provider item ids retained server-side"],
+      "mediaMessageIds": ["provider item IDs with retained media"]
     }
   ],
   "duplicateCount": 1,
@@ -181,11 +244,21 @@ Use a flexible story rather than a mandatory prose template:
 ```
 
 `media` is optional and may contain one to twelve edition-cached images or
-videos in provider order. The first image becomes the compact feed cover; the
-full set appears only inside the expanded story. Do not put provider-local
-paths, Telegram-authenticated URLs, or base64 payloads into this contract.
+videos in provider order. Every Telegram-backed asset carries the same
+canonical `sourceKey` as its story source and the exact Telegram message ID as
+`providerItemId`. The pair must match one entry from that source's
+`mediaMessageIds`. The first image becomes the compact feed cover; the full set
+appears only inside the expanded story. Do not put provider-local paths,
+Telegram-authenticated URLs, or base64 payloads into this contract.
 
-`news.items` is the complete normalized collection for the edition.
+`news.items` plus `news.exclusions` is the complete normalized Telegram
+collection for the edition. Every `sourceBatches[].itemIds` member occurs
+exactly once across `news.items[].sources[].itemIds` and
+`news.exclusions`; a merged story claims all contributing input IDs. An item
+cannot be both a story source and an exclusion, and it cannot be claimed by two
+stories.
+
+`news.items` is the complete visible story collection for the edition.
 `news.mainStoryIds` references zero or more IDs from that collection and
 `news.pageSize` is an integer from 10 through 12. The renderer may paginate but
 must not drop items. Story IDs identify one edition item; fingerprints identify
@@ -215,8 +288,11 @@ deep stories, follow the linked primary article when it is available and the
 configured capability permits it; preserve that provenance in `sources`. Do
 not add `whyItMatters` merely to fill a card.
 
-`media` is optional. Include one to twelve ordered edition-cached images or
-videos when safe media is available; omit the entire field otherwise. The
+`media` is optional. Include the complete ordered retained set of one to twelve
+edition-cached images or videos when safe media is available; omit the entire
+field otherwise. Do not sample only the first one or two attachments. Preserve
+the album's provider order. If a real content unit would exceed twelve assets,
+split it at a genuine content boundary rather than silently truncating it. The
 first image is the compact cover and the complete set belongs to the expanded
 reading layer. `src`
 must be a runtime-local media path, never an authenticated Telegram URL or an
@@ -263,3 +339,14 @@ non-secret operational facts:
 
 Never expose credentials, MCP URLs, raw email bodies, environment values, or
 stack traces in the page payload.
+
+## Hourly live refresh
+
+The production edition freezes `edition`, `news`, `sourceBatches`, topics,
+media, reactions, and story read state at the morning publication boundary.
+The deterministic external `Digest-Central-Poller` may refresh only live
+surfaces for the retained five-day window: `mail`, `weather`, relevant
+`calendar` state, and `live` timestamps. It uses the `open-meteo` provider for
+weather, runs hourly without an agent or model, and preserves the last
+successful value when one provider fails. A poller update must not mutate,
+acknowledge, rerank, or rewrite Telegram news.

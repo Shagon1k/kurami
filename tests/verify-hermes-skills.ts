@@ -213,7 +213,7 @@ assert(config.sources.calendar.settings.calendars.every((calendar) => calendar.e
 assert.equal(config.sources.mail.profile, "composio-gmail");
 assert.equal(config.sources.mail.settings.query, "in:inbox is:unread category:primary");
 assert.equal(config.sources.mail.settings.page_size, 100);
-assert.equal(config.sources.weather.profile, "hermes-weather");
+assert.equal(config.sources.weather.profile, "open-meteo");
 assert.equal(config.sources.news.profile, "telegram-user");
 assert.equal(config.sources.news.settings.unread_only, true);
 assert.equal(config.sources.news.settings.discovery_limit, 200);

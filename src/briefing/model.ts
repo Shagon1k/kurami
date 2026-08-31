@@ -3,9 +3,24 @@ export type PayloadStatus = "complete" | "partial";
 export type SectionState = "ready" | "empty" | "partial" | "stale" | "failed";
 export type Reaction = "like" | "dislike";
 
+export type MailClass = "ACTION" | "IMPORTANT" | "GENERAL";
+
+export type KuramiNoteTarget =
+  | "hero"
+  | "news"
+  | "calendar"
+  | "mail"
+  | "metric:mail"
+  | "metric:stories"
+  | "metric:time"
+  | "metric:weather"
+  | `calendar-event:${string}`
+  | `mail-item:${string}`
+  | `story:${string}`;
+
 export type KuramiNote = {
   id: string;
-  target: "hero" | "news";
+  target: KuramiNoteTarget;
   text: string;
   role: "focus" | "context" | "action" | "reassurance" | "personality";
   tone: "signal" | "ink";
@@ -25,6 +40,14 @@ export type StoryMedia = {
   alt: string;
   mimeType: string;
   posterSrc?: string;
+  sourceKey?: string;
+  providerItemId?: string;
+};
+
+export type StorySource = Record<string, unknown> & {
+  sourceKey: string;
+  itemIds: string[];
+  mediaMessageIds?: string[];
 };
 
 export type NewsItem = {
@@ -35,6 +58,7 @@ export type NewsItem = {
   details: string[];
   topics: Topic[];
   media?: StoryMedia[];
+  sources?: StorySource[] | Array<Record<string, unknown>>;
   [key: string]: unknown;
 };
 
@@ -42,7 +66,21 @@ export type MailItem = {
   id: string;
   provider?: "gmail";
   providerItemId?: string;
+  class: MailClass;
   [key: string]: unknown;
+};
+
+export type NewsExclusion = {
+  sourceKey: string;
+  itemId: string;
+  reason: "non-content" | "exact-duplicate" | "unsafe" | "unreadable";
+  note?: string;
+};
+
+export type LiveSnapshot = {
+  refreshedAt: string;
+  state: SectionState;
+  lastSuccessAt?: string;
 };
 
 export type SourceBatch = {
@@ -55,7 +93,7 @@ export type SourceBatch = {
 };
 
 export type BriefingPayload = {
-  schemaVersion: 1;
+  schemaVersion: 1 | 2;
   edition: {
     id: string;
     type: EditionType;
@@ -67,6 +105,8 @@ export type BriefingPayload = {
   };
   hero: Record<string, unknown>;
   notes?: KuramiNote[];
+  live?: LiveSnapshot;
+  weather?: Record<string, unknown> & { state: SectionState };
   calendar: Record<string, unknown> & { state: SectionState };
   mail: Record<string, unknown> & { state: SectionState; items: MailItem[] };
   news: Record<string, unknown> & {
@@ -74,6 +114,7 @@ export type BriefingPayload = {
     items: NewsItem[];
     mainStoryIds?: string[];
     pageSize?: number;
+    exclusions?: NewsExclusion[];
   };
   dataQuality: Record<string, unknown> & { state: SectionState };
   sourceBatches?: SourceBatch[];
@@ -108,7 +149,17 @@ const MEDIA_MIME_TYPES = new Set([
   "video/quicktime",
   "video/webm",
 ]);
-const NOTE_TARGETS = new Set<KuramiNote["target"]>(["hero", "news"]);
+const STATIC_NOTE_TARGETS = new Set<KuramiNoteTarget>([
+  "hero",
+  "news",
+  "calendar",
+  "mail",
+  "metric:mail",
+  "metric:stories",
+  "metric:time",
+  "metric:weather",
+]);
+const SCOPED_NOTE_TARGET = /^(?:calendar-event|mail-item|story):[A-Za-z0-9][A-Za-z0-9._:-]{0,159}$/;
 const NOTE_ROLES = new Set<KuramiNote["role"]>([
   "focus",
   "context",
@@ -160,12 +211,20 @@ function sectionState(value: unknown, label: string): SectionState {
   return result;
 }
 
+function mailClass(value: unknown, label: string): MailClass {
+  const result = string(value, label).toUpperCase() as MailClass;
+  if (result !== "ACTION" && result !== "IMPORTANT" && result !== "GENERAL") {
+    fail(`${label} is unsupported`);
+  }
+  return result;
+}
+
 function topics(value: unknown, label: string): Topic[] {
   if (!Array.isArray(value) || value.length < 2 || value.length > 4) {
     fail(`${label} must contain two to four topics`);
   }
   const seen = new Set<string>();
-  return value.map((raw, index) => {
+  const parsed = value.map((raw, index) => {
     const topic = record(raw, `${label}[${index}]`);
     const id = string(topic.id, `${label}[${index}].id`);
     const display = string(topic.label, `${label}[${index}].label`);
@@ -174,6 +233,7 @@ function topics(value: unknown, label: string): Topic[] {
     seen.add(id);
     return { id, label: display };
   });
+  return parsed;
 }
 
 function details(value: unknown, label: string): string[] {
@@ -214,24 +274,43 @@ function media(value: unknown, label: string): StoryMedia[] | undefined {
         fail(`${label}[${index}].posterSrc is unsafe`);
       }
     }
-    return { id, kind, src, alt, mimeType, ...(posterSrc ? { posterSrc } : {}) };
+    let sourceKey: string | undefined;
+    let providerItemId: string | undefined;
+    if (asset.sourceKey !== undefined || asset.providerItemId !== undefined) {
+      sourceKey = safeId(asset.sourceKey, `${label}[${index}].sourceKey`);
+      providerItemId = safeId(asset.providerItemId, `${label}[${index}].providerItemId`);
+      if (!sourceKey.startsWith("telegram:")) {
+        fail(`${label}[${index}].sourceKey must be a Telegram source key`);
+      }
+    }
+    return {
+      id,
+      kind,
+      src,
+      alt,
+      mimeType,
+      ...(posterSrc ? { posterSrc } : {}),
+      ...(sourceKey && providerItemId ? { sourceKey, providerItemId } : {}),
+    };
   });
 }
 
 function notes(value: unknown): KuramiNote[] | undefined {
   if (value === undefined) return undefined;
-  if (!Array.isArray(value) || value.length < 1 || value.length > 3) {
-    fail("notes must contain one to three notes");
+  if (!Array.isArray(value) || value.length < 1 || value.length > 2) {
+    fail("notes must contain one or two notes");
   }
   const seenIds = new Set<string>();
   const seenTargets = new Set<KuramiNote["target"]>();
-  return value.map((raw, index) => {
+  const parsed = value.map((raw, index) => {
     const note = record(raw, `notes[${index}]`);
     const id = safeId(note.id, `notes[${index}].id`);
     if (seenIds.has(id)) fail(`notes contains duplicate ID ${id}`);
     seenIds.add(id);
-    const target = string(note.target, `notes[${index}].target`) as KuramiNote["target"];
-    if (!NOTE_TARGETS.has(target)) fail(`notes[${index}].target is unsupported`);
+    const target = string(note.target, `notes[${index}].target`) as KuramiNoteTarget;
+    if (!STATIC_NOTE_TARGETS.has(target) && !SCOPED_NOTE_TARGET.test(target)) {
+      fail(`notes[${index}].target is unsupported`);
+    }
     if (seenTargets.has(target)) fail(`notes contains duplicate target ${target}`);
     seenTargets.add(target);
     const text = string(note.text, `notes[${index}].text`).trim();
@@ -252,6 +331,13 @@ function notes(value: unknown): KuramiNote[] | undefined {
     }
     return { id, target, text, role, tone, rotation, ...(mark ? { mark } : {}) };
   });
+  if (parsed.filter((note) => note.role === "personality").length > 1) {
+    fail("notes may contain at most one personality note");
+  }
+  if (parsed.every((note) => note.role === "personality")) {
+    fail("notes require at least one informative note");
+  }
+  return parsed;
 }
 
 function sourceBatches(value: unknown): SourceBatch[] | undefined {
@@ -293,9 +379,102 @@ function sourceBatches(value: unknown): SourceBatch[] | undefined {
   });
 }
 
+function newsExclusions(value: unknown): NewsExclusion[] | undefined {
+  if (value === undefined) return undefined;
+  if (!Array.isArray(value) || value.length > 5_000) {
+    fail("news.exclusions must be an array with at most 5000 entries");
+  }
+  const reasons = new Set<NewsExclusion["reason"]>([
+    "non-content",
+    "exact-duplicate",
+    "unsafe",
+    "unreadable",
+  ]);
+  const seen = new Set<string>();
+  return value.map((raw, index) => {
+    const exclusion = record(raw, `news.exclusions[${index}]`);
+    const sourceKey = safeId(exclusion.sourceKey, `news.exclusions[${index}].sourceKey`);
+    if (!sourceKey.startsWith("telegram:")) {
+      fail(`news.exclusions[${index}].sourceKey must be a Telegram source key`);
+    }
+    const itemId = safeId(exclusion.itemId, `news.exclusions[${index}].itemId`);
+    const key = `${sourceKey}:${itemId}`;
+    if (seen.has(key)) fail(`news.exclusions contains duplicate ${key}`);
+    seen.add(key);
+    const reason = string(exclusion.reason, `news.exclusions[${index}].reason`) as NewsExclusion["reason"];
+    if (!reasons.has(reason)) fail(`news.exclusions[${index}].reason is unsupported`);
+    let note: string | undefined;
+    if (exclusion.note !== undefined) {
+      note = string(exclusion.note, `news.exclusions[${index}].note`).trim();
+      if (note.length > 240) fail(`news.exclusions[${index}].note exceeds 240 characters`);
+    }
+    return { sourceKey, itemId, reason, ...(note ? { note } : {}) };
+  });
+}
+
+function storySources(
+  value: unknown,
+  label: string,
+  schemaVersion: 1 | 2,
+): Array<Record<string, unknown>> | undefined {
+  if (value === undefined) return undefined;
+  if (!Array.isArray(value) || value.length < 1 || value.length > 64) {
+    fail(`${label} must contain one to 64 sources`);
+  }
+  if (schemaVersion === 1) {
+    return value.map((raw, index) => record(raw, `${label}[${index}]`));
+  }
+  const seen = new Set<string>();
+  return value.map((raw, index) => {
+    const source = record(raw, `${label}[${index}]`);
+    const sourceKey = safeId(source.sourceKey, `${label}[${index}].sourceKey`);
+    if (!sourceKey.startsWith("telegram:")) {
+      fail(`${label}[${index}].sourceKey must be a Telegram source key`);
+    }
+    if (source.provider !== undefined && source.provider !== "telegram") {
+      fail(`${label}[${index}].provider must be telegram`);
+    }
+    if (!Array.isArray(source.itemIds) || source.itemIds.length < 1 || source.itemIds.length > 5_000) {
+      fail(`${label}[${index}].itemIds is invalid`);
+    }
+    const itemIds = source.itemIds.map((itemId, itemIndex) =>
+      safeId(itemId, `${label}[${index}].itemIds[${itemIndex}]`)
+    );
+    if (new Set(itemIds).size !== itemIds.length) {
+      fail(`${label}[${index}].itemIds contains duplicates`);
+    }
+    const ownerKey = `${sourceKey}:${itemIds.join(",")}`;
+    if (seen.has(ownerKey)) fail(`${label} contains a duplicate source claim`);
+    seen.add(ownerKey);
+    let mediaMessageIds: string[] | undefined;
+    if (source.mediaMessageIds !== undefined) {
+      if (!Array.isArray(source.mediaMessageIds) || source.mediaMessageIds.length > 12) {
+        fail(`${label}[${index}].mediaMessageIds is invalid`);
+      }
+      mediaMessageIds = source.mediaMessageIds.map((itemId, itemIndex) =>
+        safeId(itemId, `${label}[${index}].mediaMessageIds[${itemIndex}]`)
+      );
+      if (new Set(mediaMessageIds).size !== mediaMessageIds.length
+        || mediaMessageIds.some((itemId) => !itemIds.includes(itemId))) {
+        fail(`${label}[${index}].mediaMessageIds must be unique source item IDs`);
+      }
+    }
+    return {
+      ...source,
+      sourceKey,
+      provider: "telegram",
+      itemIds,
+      ...(mediaMessageIds ? { mediaMessageIds } : {}),
+    };
+  });
+}
+
 export function parseBriefingPayload(value: unknown): BriefingPayload {
   const root = record(value, "root");
-  if (root.schemaVersion !== 1) fail("schemaVersion must equal 1");
+  if (root.schemaVersion !== 1 && root.schemaVersion !== 2) {
+    fail("schemaVersion must equal 1 or 2");
+  }
+  const schemaVersion = root.schemaVersion;
 
   const edition = record(root.edition, "edition");
   const type = string(edition.type, "edition.type") as EditionType;
@@ -312,6 +491,23 @@ export function parseBriefingPayload(value: unknown): BriefingPayload {
   const hero = record(root.hero, "hero");
   const parsedNotes = notes(root.notes);
   const parsedSourceBatches = sourceBatches(root.sourceBatches);
+  let live: LiveSnapshot | undefined;
+  if (root.live !== undefined) {
+    const value = record(root.live, "live");
+    live = {
+      refreshedAt: timestamp(value.refreshedAt, "live.refreshedAt"),
+      state: sectionState(value.state, "live.state"),
+      ...(value.lastSuccessAt !== undefined
+        ? { lastSuccessAt: timestamp(value.lastSuccessAt, "live.lastSuccessAt") }
+        : {}),
+    };
+  }
+  let weather: BriefingPayload["weather"];
+  if (root.weather !== undefined) {
+    const value = record(root.weather, "weather");
+    value.state = sectionState(value.state, "weather.state");
+    weather = value as BriefingPayload["weather"];
+  }
   const calendar = record(root.calendar, "calendar");
   calendar.state = sectionState(calendar.state, "calendar.state");
   const mail = record(root.mail, "mail");
@@ -319,6 +515,11 @@ export function parseBriefingPayload(value: unknown): BriefingPayload {
   if (!Array.isArray(mail.items)) fail("mail.items must be an array");
   const mailItems = mail.items.map((raw, index) => {
     const item = record(raw, `mail.items[${index}]`);
+    if (schemaVersion === 2 && item.class === undefined) {
+      fail(`mail.items[${index}].class is required in schemaVersion 2`);
+    }
+    const classification = item.class ?? item.classification ?? "GENERAL";
+    const normalizedClass = mailClass(classification, `mail.items[${index}].class`);
     let provider: "gmail" | undefined;
     let providerItemId: string | undefined;
     if (item.provider !== undefined || item.providerItemId !== undefined) {
@@ -331,9 +532,11 @@ export function parseBriefingPayload(value: unknown): BriefingPayload {
     if (item.demo !== true && (!provider || !providerItemId)) {
       fail(`mail.items[${index}] requires provider and providerItemId unless demo is true`);
     }
+    const { classification: _legacyClassification, ...canonicalItem } = item;
     return {
-      ...item,
+      ...canonicalItem,
       id: safeId(item.id, `mail.items[${index}].id`),
+      class: normalizedClass,
       ...(provider && providerItemId ? { provider, providerItemId } : {}),
     };
   });
@@ -343,6 +546,7 @@ export function parseBriefingPayload(value: unknown): BriefingPayload {
   if (!Array.isArray(news.items)) fail("news.items must be an array");
   const newsItems = news.items.map((raw, index) => {
     const item = record(raw, `news.items[${index}]`);
+    const sources = storySources(item.sources, `news.items[${index}].sources`, schemaVersion);
     return {
       ...item,
       id: safeId(item.id, `news.items[${index}].id`),
@@ -352,6 +556,7 @@ export function parseBriefingPayload(value: unknown): BriefingPayload {
       details: details(item.details, `news.items[${index}].details`),
       topics: topics(item.topics, `news.items[${index}].topics`),
       media: media(item.media, `news.items[${index}].media`),
+      ...(sources ? { sources } : {}),
     };
   });
   const itemIds = new Set(newsItems.map((item) => item.id));
@@ -369,12 +574,13 @@ export function parseBriefingPayload(value: unknown): BriefingPayload {
       fail("news.pageSize must be an integer from 10 to 12");
     }
   }
+  const exclusions = newsExclusions(news.exclusions);
 
   const dataQuality = record(root.dataQuality, "dataQuality");
   dataQuality.state = sectionState(dataQuality.state, "dataQuality.state");
   const parsed: BriefingPayload = {
     ...root,
-    schemaVersion: 1,
+    schemaVersion,
     edition: {
       id,
       type,
@@ -387,13 +593,26 @@ export function parseBriefingPayload(value: unknown): BriefingPayload {
     hero,
     ...(parsedNotes ? { notes: parsedNotes } : {}),
     ...(parsedSourceBatches ? { sourceBatches: parsedSourceBatches } : {}),
+    ...(live ? { live } : {}),
+    ...(weather ? { weather } : {}),
     calendar: calendar as BriefingPayload["calendar"],
     mail: { ...mail, items: mailItems } as BriefingPayload["mail"],
-    news: { ...news, items: newsItems } as BriefingPayload["news"],
+    news: { ...news, items: newsItems, ...(exclusions ? { exclusions } : {}) } as BriefingPayload["news"],
     dataQuality: dataQuality as BriefingPayload["dataQuality"],
   };
 
   return parsed;
+}
+
+/**
+ * Legacy schemaVersion 1 payloads remain readable so already-published pages
+ * can still be served and refreshed. New daily production writes must use the
+ * ingestion-gated schemaVersion 2 contract.
+ */
+export function assertProductionBriefingPayload(payload: BriefingPayload): void {
+  if (payload.edition.type === "daily" && payload.schemaVersion !== 2) {
+    fail("new daily production editions require schemaVersion 2");
+  }
 }
 
 export function persistedItems(payload: BriefingPayload): PersistedItem[] {

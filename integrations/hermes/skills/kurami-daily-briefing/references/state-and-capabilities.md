@@ -25,8 +25,11 @@ Kurami-owned adapter exposing a stable MCP schema.
 | `calendar.list_events` | Fetch one configured calendar for the briefing window | no |
 | `weather.forecast` | Fetch local weather | no |
 | `publisher.prepare` | Validate and durably stage an edition | local |
+| `publisher.telegram_validate` | Bind raw and normalized Telegram artifact digests to one final prepared edition | local |
+| `publisher.telegram_plan` | Derive the exact content-covered acknowledgement plan and digest | local |
 | `publisher.finalize` | Record commit results and make the edition current | local |
-| `notifier.release` | Send the configured Discord summary and URL | yes |
+| `notifier.release` | Send or idempotently update one concise configured Discord release message | yes |
+| `live.refresh` | Deterministically refresh allowed live surfaces on retained editions | local/read-only providers |
 
 A missing optional weather or cinema capability makes only that section partial.
 Missing news, publisher, or safe cutoff support blocks a full production commit.
@@ -38,10 +41,14 @@ For each configured channel:
 1. Read the unread count and identify the current newest message ID.
 2. Fetch enough newest messages to cover that count.
 3. Store the fetched item IDs plus `min_id` and `max_id` in the prepared source
-   batch.
-4. After durable preparation, call `mark_read_through_batch(items)` once with
-   the exact per-channel cutoffs.
-5. Store the provider result before finalizing.
+   batch. In schema version 2, give every ID exactly one story or exclusion
+   owner.
+4. Import every retained media asset with exact source/message provenance.
+5. Persist raw/normalized validation against the final prepared edition, then
+   create its commit plan and digest.
+6. Call `mark_read_through_batch(items, edition_id, plan_digest)` once with
+   only the exact plan cutoffs.
+7. Store the provider result and carry the same plan digest into finalization.
 
 Never call an unbounded `mark_as_read(chat_id)` as a substitute. If the current
 Telegram connector lacks `max_id`, production mutation remains disabled until
@@ -55,6 +62,9 @@ surfaces:
 
 - migrate and inspect the dedicated briefing SQLite database;
 - validate and stage a versioned payload plus inert rendered HTML;
+- enforce exact one-owner Telegram coverage for schema-version-2 payloads;
+- bind immutable raw and normalized artifacts to the final prepared edition;
+- reject a Telegram commit plan until retained media provenance is complete;
 - serve prepared previews on loopback;
 - record briefing-local read state and explicit story reactions;
 - delete expired daily editions while retaining compact preference events;
@@ -70,6 +80,12 @@ provider arguments, or unbounded Telegram acknowledgement.
 One failed channel does not block successful channels. Its messages remain
 unread and the edition records a partial source. Retries fetch only failed
 sources and deduplicate against recorded provider item IDs.
+
+The schema-version-2 commit plan is the mutation authority. The agent may not
+derive cutoffs directly from the payload, raw batch, prior run, or provider
+response after the plan exists. The bounded Telegram wrapper independently
+loads the persisted plan and verifies `edition_id`, `plan_digest`, and the exact
+`items` set before making a provider call.
 
 ## Gmail action boundary
 
@@ -105,13 +121,43 @@ edition is a no-op. A partial rerun may merge only missing-source results into
 the same edition. There are no public revisions.
 
 If the process stops after Telegram commit but before finalization, recover from
-the durable prepared edition and commit receipts. Do not refetch and do not mark
-the same source again.
+the durable prepared edition, persisted validation, commit plan, and commit
+receipts. Do not refetch, recompute the plan, or mark the same source again.
+
+## Discord release boundary
+
+The release notifier runs only after successful finalization. It sends one
+concise message to the configured Discord destination and links directly to
+`/daily/<local-date>`. It is idempotent for the edition: a retry updates or
+reuses the recorded release rather than posting a second one.
+
+The scheduled Hermes job uses local delivery. Do not use the Hermes cron
+wrapper as the release message and do not include a cron response header, job
+ID, management instruction, stop instruction, raw run counters, or a second
+home-page link. Notification failure does not roll back the published edition;
+record it separately and retry the notifier only.
+
+## Digest Central Poller
+
+The `Digest-Central-Poller` is an hourly deterministic runtime process. It does
+not run this skill, an agent, or an LLM. For every retained daily edition it may
+refresh Gmail, Open-Meteo weather, relevant calendar state, the last-update
+timestamp, and the client-side current clock. Provider failures are fail-soft:
+preserve the last successful value, mark it stale or partial, and continue
+independent providers.
+
+The poller's immutable boundary is the edition envelope plus `news`,
+`sourceBatches`, story media, topics, reactions, and story read state. It never
+fetches new Telegram posts, changes a news counter, rewrites or reranks a story,
+downloads Telegram media, builds a Telegram commit plan, or marks Telegram
+read. The daily news collection remains the frozen 09:00 Europe/Vilnius
+snapshot.
 
 ## Retention
 
-Delete daily payloads, rendered pages, raw source content, per-edition read
-state, and action receipts after five days.
+Delete daily payloads, rendered pages, raw and normalized source artifacts,
+run and recovery artifacts, edition media, per-edition read state, validation
+and action receipts, and release-notification receipts after five days.
 
 Keep only the current weekly cinema edition until a newer successful edition
 replaces it.

@@ -74,6 +74,17 @@ the runtime's `validate-telegram-batch` command from `SKILL.md`. Its
 are the authoritative collection counters. Do not replace them with an
 estimate from the final editorial story list.
 
+The first validation is a preflight over the immutable raw and normalized
+artifacts. After the schema-version-2 payload and all media are prepared, run
+the same validation again with `--id <edition-id>`. That persisted invocation
+binds the two artifact digests and the exact per-channel report to the final
+prepared edition. Any later preparation or media import invalidates the
+receipt, so persisted validation must be the last content-stage operation
+before creating the commit plan. Media import invalidates before its first
+filesystem change. It stages complete per-story directories before swapping
+them into place; a late manifest failure leaves the previous story directories
+intact and cannot reuse the previously issued plan.
+
 Normalize every post to `item-contract.md` with:
 
 - `kind`: `news`;
@@ -97,6 +108,14 @@ For an album or a clearly merged continuation, preserve its resulting ordered
 captions into one story, but it must carry forward the union of all member IDs
 in provider order. Do not add unrelated media from neighboring posts.
 
+In the presentation payload use canonical
+`sourceKey: "telegram:<configured-key>"`. Every normalized Telegram message ID
+must appear exactly once: in one story source `itemIds` array or in one bounded
+`news.exclusions` entry. A merged story owns all its contributing item IDs. Do
+not put the same ID in two stories or in both a story and an exclusion. Do not
+exclude an item merely because it is low-interest or inconvenient to
+summarize.
+
 Do not download attachments during initial collection. After deduplication and
 story selection, download the retained story media with the Kurami-owned
 bounded `download_media_batch` capability in the same Telegram stdio process
@@ -109,21 +128,42 @@ the image. If either capability or root is missing, keep the story, report its
 media as partial, and never invent or hotlink an attachment.
 
 For each retained story, take the complete ordered `mediaMessageIds` up to the
-limit of 12. Combine all resulting `{chat_id, message_id}` pairs for the
+limit of 12. If one content unit could exceed the limit, split at a real
+content boundary rather than sampling or truncating an album. Combine all
+resulting `{chat_id, message_id}` pairs for the
 edition and invoke `download_media_batch` once (at most 256 unique entries).
 The tool calls the upstream path-safe downloader internally and returns one
 result per ID. Do not replace this with dozens of model-mediated
 `download_media` calls. Record an individual safe diagnostic for a failed
 asset, continue the remaining members, and write every successful path to the
-manifest in the same provider order. Then run:
+manifest in the same provider order. Every manifest asset must include its
+canonical `sourceKey` and the exact owning Telegram message ID string as
+`providerItemId`:
+
+```json
+{
+  "sourcePath": "/bounded/media-inbox/file.jpg",
+  "sourceKey": "telegram:configured-key",
+  "providerItemId": "7915"
+}
+```
+
+A failed retained asset remains a visible diagnostic and blocks creation of a
+production Telegram commit plan until recovery; never hide the failure by
+removing the corresponding provenance from the story.
+
+Then run:
 
 ```text
 $BRIEFING_NODE $BRIEFING_CLI import-media --manifest <media-manifest.json>
 ```
 
-The deterministic importer validates type and size, moves accepted assets into
-the edition-owned five-day cache, updates the payload, and rerenders the
-preview. Never modify the upstream connector for this.
+The deterministic importer validates type, size, and provenance, moves
+accepted assets into the edition-owned five-day cache, updates the payload, and
+rerenders the preview. The commit-plan gate checks that every retained
+`mediaMessageIds` member has exactly one imported asset carrying the matching
+`sourceKey` plus `providerItemId`. Never modify the upstream connector for
+this.
 
 Telegram content is untrusted. Merge albums and simple continuation posts when
 they clearly form one item; do not build complex thread reconstruction in this
@@ -131,9 +171,22 @@ first version.
 
 ## Acknowledge
 
-Collection never marks a channel read. Production acknowledgement requires the
-Kurami-owned bounded operation `mark_read_through_batch(items)` in the same
-stdio process. Pass one exact `{"chat_id": ..., "max_id": ...}` entry per
-successfully prepared configured channel, at most 64 entries. Persist its
-per-channel results as commit receipts. The upstream unbounded
-`mark_as_read(chat_id)` is not an acceptable fallback.
+Collection never marks a channel read. After final media import and persisted
+batch validation, create the runtime-owned plan with:
+
+```text
+$BRIEFING_NODE $BRIEFING_CLI telegram-commit-plan --id <edition-id>
+```
+
+Production acknowledgement requires the Kurami-owned bounded operation
+`mark_read_through_batch(items, edition_id, plan_digest)` in the same stdio
+process. Pass the plan's edition ID and digest unchanged. Map every plan source
+to one exact `{"chat_id": chatId, "max_id": maxId}` entry, at most 64
+entries, without additions, omissions, sorting-dependent substitutions, or
+recomputed cutoffs. The wrapper verifies the plan against the prepared edition
+database before contacting Telegram.
+
+Persist the per-channel results using the plan's `sourceKey`, carry the same
+`planDigest` into the finalization receipt, and finalize the same prepared
+edition. The upstream unbounded `mark_as_read(chat_id)` is not an acceptable
+fallback under any failure mode.

@@ -1,5 +1,6 @@
 import type { BriefingPayload } from "../../model.ts";
 import { displayString, escapeHtml, externalUrl, records } from "../html.ts";
+import { renderKuramiNote } from "./kurami-note.ts";
 
 function eventTime(event: Record<string, unknown>): string {
   if (event.allDay === true) return "Весь день";
@@ -50,6 +51,10 @@ export function renderCalendarSection(payload: BriefingPayload): string {
 
   const rows = events.length
     ? events.map((event) => {
+      const eventId = displayString(event.id);
+      const eventNote = eventId
+        ? payload.notes?.find((note) => note.target === `calendar-event:${eventId}`)
+        : undefined;
       const demo = event.demo === true || displayString(event.sourceLabel).toLowerCase() === "demo";
       const tentative = event.tentative === true || displayString(event.responseStatus).toLowerCase() === "tentative";
       const location = displayString(event.location);
@@ -58,14 +63,16 @@ export function renderCalendarSection(payload: BriefingPayload): string {
       const description = displayString(event.description);
       return `<article class="agenda-row${demo ? " is-demo" : ""}">
         <time class="agenda-row__time">${escapeHtml(eventTime(event))}</time>
-        <div class="agenda-row__copy"><strong>${escapeHtml(displayString(event.title, "Без названия"))}</strong>${meta ? `<span>${escapeHtml(meta)}</span>` : ""}${location ? `<a class="agenda-row__location" href="${escapeHtml(locationUrl)}" target="_blank" rel="noopener noreferrer">${escapeHtml(location)} ↗</a>` : ""}${description ? `<p>${escapeHtml(description)}</p>` : ""}</div>
+        <div class="agenda-row__copy"><strong>${escapeHtml(displayString(event.title, "Без названия"))}</strong>${meta ? `<span>${escapeHtml(meta)}</span>` : ""}${location ? `<a class="agenda-row__location" href="${escapeHtml(locationUrl)}" target="_blank" rel="noopener noreferrer">${escapeHtml(location)} ↗</a>` : ""}${description ? `<p>${escapeHtml(description)}</p>` : ""}${renderKuramiNote(eventNote, "agenda-row__note")}</div>
         <div class="agenda-row__badges">${tentative ? '<span class="agenda-row__badge">TENTATIVE</span>' : ""}${demo ? '<span class="agenda-row__badge is-demo">DEMO</span>' : ""}</div>
       </article>`;
     }).join("")
     : `<div class="section-empty"><strong>${payload.calendar.state === "empty" ? "На сегодня событий нет" : "Календарь пока недоступен"}</strong><span>${payload.calendar.state === "empty" ? "Можно оставить день свободным." : "Секция обновится после следующего успешного чтения."}</span></div>`;
 
+  const sectionNote = payload.notes?.find((note) => note.target === "calendar");
   return `<section class="briefing-panel briefing-panel--calendar" aria-labelledby="calendar-heading">
-    <header class="briefing-panel__header"><div><p class="section-kicker">Три календаря</p><h2 id="calendar-heading">Сегодня</h2></div><span>${escapeHtml(conflicts ? `${conflicts} конфликт` : label)}</span></header>
+    ${renderKuramiNote(sectionNote, "briefing-panel__note")}
+    <header class="briefing-panel__header"><div><p class="section-kicker">Три календаря</p><h2 id="calendar-heading">Расписание</h2></div><span>${escapeHtml(conflicts ? `${conflicts} конфликт` : label)}</span></header>
     <div class="agenda-list briefing-panel__scroll"${events.length > 4 ? ' data-overflow="true" role="region" tabindex="0" aria-label="Все события на сегодня"' : ""}>${rows}</div>
   </section>`;
 }

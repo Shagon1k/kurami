@@ -1,15 +1,13 @@
 import type { Reaction } from "../../model.ts";
-import { escapeHtml } from "../html.ts";
+import { renderButton } from "./button.ts";
 
 export function renderReactionGroup(input: {
   editionId: string;
   itemId: string;
   reaction?: Reaction | null;
 }): string {
-  const editionId = escapeHtml(input.editionId);
-  const itemId = escapeHtml(input.itemId);
   return `<div class="reaction-group" role="group" aria-label="Оценить новость">
-    <button class="icon-button" type="button" aria-label="Нравится" aria-pressed="${input.reaction === "like"}" data-reaction="like" data-edition-id="${editionId}" data-item-id="${itemId}">👍</button>
-    <button class="icon-button" type="button" aria-label="Не нравится" aria-pressed="${input.reaction === "dislike"}" data-reaction="dislike" data-edition-id="${editionId}" data-item-id="${itemId}">👎</button>
+    ${renderButton({ label: "Нравится", variant: "icon", className: "icon-button", icon: "👍", ariaLabel: "Нравится", attributes: { "aria-pressed": String(input.reaction === "like"), "data-reaction": "like", "data-edition-id": input.editionId, "data-item-id": input.itemId } })}
+    ${renderButton({ label: "Не нравится", variant: "icon", className: "icon-button", icon: "👎", ariaLabel: "Не нравится", attributes: { "aria-pressed": String(input.reaction === "dislike"), "data-reaction": "dislike", "data-edition-id": input.editionId, "data-item-id": input.itemId } })}
   </div>`;
 }

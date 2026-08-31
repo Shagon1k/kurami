@@ -4,6 +4,7 @@ edition:
   timezone: Europe/Vilnius
   daily_schedule: "0 9 * * *"
   cinema_schedule: "0 9 * * 6"
+  live_refresh_schedule: "37 * * * *"
   daily_retention_days: 5
   cinema_retention: until_next_success
 
@@ -21,7 +22,8 @@ publication:
 
 notification:
   provider: discord
-  destination: owner_briefing
+  destination: "1543918214835216584"
+  delivery: direct
   notify_on_release: true
   notify_on_total_failure: true
 
@@ -60,10 +62,13 @@ sources:
       query: "in:inbox is:unread category:primary"
       page_size: 100
   weather:
-    profile: hermes-weather
+    profile: open-meteo
     enabled: true
     settings:
       location: Vilnius, Lithuania
+      latitude: 54.6872
+      longitude: 25.2797
+      timezone: Europe/Vilnius
   news:
     profile: telegram-user
     enabled: true

@@ -6,15 +6,19 @@ labels are English.
 
 ## Process all inputs
 
-Every fetched unread Telegram item must produce one of these recorded results:
+Every normalized unread Telegram item must have exactly one terminal owner in
+the schema-version-2 payload:
 
-- included as its own story;
-- merged into a documented story cluster;
-- represented as a compact low-signal item;
-- rejected as non-content, exact repetition, or unsafe/unreadable input with a
-  recorded reason.
+- one visible story source, whether it is a standalone, compact, or merged
+  story; or
+- one `news.exclusions` record with the bounded reason `non-content`,
+  `exact-duplicate`, `unsafe`, or `unreadable`.
 
-Do not silently drop content to make the page shorter. Pagination solves volume.
+A merged story claims every contributing `{sourceKey, itemId}`. Never also put
+those same inputs in exclusions. Never let one input appear in two stories.
+Low interest, low rank, an inconvenient source, or page length is not an
+exclusion reason. Do not silently drop content to make the page shorter;
+pagination solves volume.
 
 ## Deduplicate economically
 
@@ -31,7 +35,7 @@ Do not compare every item with every other item.
 5. Summarize after clustering so duplicate posts do not each consume a full
    summarization pass.
 
-A merged story cites all contributing sources, preserves unique facts, notes
+A merged story cites all contributing inputs and sources, preserves unique facts, notes
 material disagreement, and uses a neutral common summary. Never let the most
 confident source erase uncertainty in the others.
 
@@ -97,3 +101,17 @@ State uncertainty and disagreement explicitly. A partial source set may still
 produce a useful edition, but its quality notice must name the unavailable
 source or section. Never fill missing data from memory merely to make a card
 look complete.
+
+## Write Kurami Notes from evidence
+
+Kurami Notes are small editorial annotations, not slogans. Write one
+informative note attached to the most useful semantic target in the finished
+payload. An optional second note may add gentle humor only when a concrete
+visible fact makes it natural. Keep each note to one to four words, use at most
+one `personality` role, and never joke about emergencies, death, conflict,
+financial loss, private mail, or another sensitive subject.
+
+Inspect the retained five-day note history and write new copy. Do not choose
+from a fixed pool, rotate stock phrases, paraphrase yesterday's line, or add a
+generic phrase merely to fill a slot. Prefer item-level targets when a calendar
+event, mail item, story, or live metric is the actual subject.

@@ -44,6 +44,8 @@ surface and is not an automatic-ingestion fallback.
 - For every enabled source, read the provider reference whose filename is
   `references/provider-<profile>.md`. A missing profile is a configuration
   error; do not guess a provider or operation.
+- For the production weather surface and Central Poller, read
+  `references/provider-open-meteo.md`.
 
 ## Choose the run mode
 
@@ -107,21 +109,27 @@ Default manual experiments to `dry-run`. Generation never archives Gmail;
 7. Fetch weather when the configured capability is available. Weather failure
    makes only that section partial.
 8. Normalize, cluster, merge, summarize, assign topics, and rank content using
-   the editorial and topic references. Process every fetched unread item; use
-    compact rows for low-signal items instead of silently discarding them. The
-    expanded reading layer must contain the useful substance, not another brief
-    teaser; retrieve linked primary context for standard and deep stories when
-    the configured capability permits it.
+   the editorial and topic references. Account for every normalized Telegram
+   input exactly once: claim it in one story source or put it in
+   `news.exclusions` with one of the bounded contract reasons. A merged input is
+   claimed by the merged story; it is not also recorded as an exclusion. Use a
+   compact story for low-signal content instead of silently dropping it. The
+   expanded reading layer must contain the useful substance, not another brief
+   teaser; retrieve linked primary context for standard and deep stories when
+   the configured capability permits it.
 9. On Saturday, build or refresh the weekly cinema edition from sources that
    can prove release dates and freshness. A cinema failure must not block the
    normal daily edition.
-10. Construct the versioned payload and validate its required identifiers,
-    source provenance, pagination, actions, and data-quality state. Run
+10. Construct a `schemaVersion: 2` payload and validate its required
+    identifiers, one-owner Telegram coverage, source provenance, pagination,
+    actions, and data-quality state. Run
     `$BRIEFING_NODE $BRIEFING_CLI inspect` and use its `recentNotes` from the
     retained five-day window before writing Kurami Notes. Author one or two
-    short content-grounded notes for the payload; do not select them from a
-    static phrase pool, repeat a recent phrase, or let the renderer invent
-    fallback copy.
+    short content-grounded notes for semantic targets from the payload. Make
+    the first note informative; an optional second note may add gentle,
+    grounded humor. Never select copy from a static phrase pool, repeat a recent
+    phrase, joke about sensitive content, or let the renderer invent fallback
+    copy.
 11. Invoke `kurami-ui-preview-language` with the prepared payload. For the
     configured Briefing runtime this selects the canonical deterministic
     component renderer; the agent must not hand-author `PaginatedFeed`,
@@ -131,11 +139,15 @@ Default manual experiments to `dry-run`. Generation never archives Gmail;
     state, or action semantics.
 12. After the runtime accepts the base edition, download retained Telegram
     media by path only with the Kurami-owned bounded batch capability. The
-    manifest must contain every successfully downloaded attachment in provider
-    order, up to the per-story limit, rather than a fixed sample of one or two
-    files. Run the canonical `import-media` command described by the Telegram
-    provider reference. Do not ask the model to inspect images or video unless
-    an explicit later task requires visual analysis.
+    manifest must contain every retained attachment in provider order, up to
+    the twelve-asset per-story limit, rather than a fixed sample of one or two
+    files. Every manifest asset must carry the canonical `sourceKey` and its
+    exact Telegram `providerItemId`; the importer persists that provenance on
+    the story asset. A story that would exceed the limit must be split at a
+    real content boundary, not silently truncate an album. Run the canonical
+    `import-media` command described by the Telegram provider reference. Do not
+    ask the model to inspect images or video unless an explicit later task
+    requires visual analysis.
 13. In `dry-run`, create the run-specific artifact directory and write only the
     completed payload with the Hermes `write_file` tool. Do not generate the
     artifact through a shell heredoc, inline Python/Node program, or a
@@ -157,29 +169,93 @@ inline event handlers, forms, frames, or embedded active content.
 
 For a production run:
 
-1. Ask the configured publisher to durably prepare the payload and rendered
-   page before any external mutation.
+1. Write the final `schemaVersion: 2` payload and durably prepare the rendered
+   page before any external mutation. The payload must account for every
+   captured Telegram input exactly once through story provenance or a bounded
+   exclusion.
 2. If preparation fails, keep the previous latest edition and do not mutate
    Telegram or Gmail.
-3. Submit every successfully captured Telegram channel and its recorded upper
-   message ID in one `mark_read_through_batch` call. If one channel fails, keep
-   its failed receipt and mark only that source partial; never use an unbounded
-   fallback.
-4. Write the exact per-source results to a small receipts JSON artifact and run
-   `$BRIEFING_NODE $BRIEFING_CLI finalize --id <edition-id> --receipts <receipts.json>`.
-   Record every commit result and finalize the same prepared edition. A crash
-   between prepare and finalize must be recoverable without refetching or
-   reprocessing committed items.
-5. Make a meaningful partial edition latest with a visible quality warning.
+3. Import the complete retained Telegram media set. Each imported asset must
+   match one story source `mediaMessageIds` entry by `sourceKey` plus
+   `providerItemId`. Media is content transport, not an invitation for the
+   model to inspect the bytes.
+4. Persist validation against the final prepared edition using the unchanged
+   raw and normalized artifacts:
+
+   ```text
+   $BRIEFING_NODE $BRIEFING_CLI validate-telegram-batch --config $CONFIG --raw <batch.json> --normalized <normalized-batch.json> --id <edition-id>
+   ```
+
+   This binds their digests and coverage report to the edition. Importing or
+   preparing the edition again invalidates this receipt before the first media
+   filesystem change. Media is copied into private story staging directories
+   and swapped into place only after the complete manifest is staged; a late
+   copy failure leaves the prior story directories intact while the old plan
+   remains unusable. Rerun persisted validation after a fully successful import
+   or preparation.
+5. Create the only allowed acknowledgement plan:
+
+   ```text
+   $BRIEFING_NODE $BRIEFING_CLI telegram-commit-plan --id <edition-id>
+   ```
+
+   Use its exact `sources` and `planDigest`. Invoke
+   `mark_read_through_batch` once with `edition_id`, `plan_digest`, and only
+   those sources mapped to `{"chat_id": chatId, "max_id": maxId}`. Do not
+   add, omit, refetch, recompute, or hand-edit a cutoff, and never call the
+   upstream unbounded `mark_as_read` fallback.
+6. Write the exact per-source results to a small receipts JSON artifact with
+   this shape:
+
+   ```json
+   {
+     "editionId": "daily:YYYY-MM-DD",
+     "planDigest": "64-character digest from the commit plan",
+     "results": [
+       {"sourceKey": "telegram:configured-key", "status": "committed"}
+     ]
+   }
+   ```
+
+   Preserve failed results as `status: "failed"` with a safe `errorCode`, then
+   run `$BRIEFING_NODE $BRIEFING_CLI finalize --id <edition-id> --receipts <receipts.json>`.
+   Finalize the same prepared edition with the same `planDigest`. A crash
+   between prepare and finalize must recover from the persisted validation,
+   plan, and commit receipts without refetching or reprocessing committed
+   items.
+7. Make a meaningful partial edition latest with a visible quality warning.
    On total failure, retain the previous latest edition.
-6. Send the configured Discord release notification only after finalization.
-   When the scheduled Hermes job itself uses `deliver: discord`, its concise
-   final response is the release notification; do not send a duplicate message
-   through another Discord tool.
+8. After finalization, invoke the runtime's idempotent direct release notifier:
+
+   ```text
+   $BRIEFING_NODE $BRIEFING_CLI notify-release --id <edition-id>
+   ```
+
+   It sends one concise human line to the configured Discord destination with
+   the exact configured-base-URL plus `/daily/<local-date>`. The scheduled
+   Hermes job uses local delivery and must not also emit a Discord cron wrapper,
+   job ID, stop instructions, raw section details, or a second release message.
 
 Do not create public revisions. The daily route shows one current edition per
 date. A retry updates that edition only with missing-source results and never
 reprocesses an already recorded source item.
+
+## Keep live refresh outside the skill
+
+`Digest-Central-Poller` is a deterministic external runtime process, not a
+second agent run and not a variant of this skill. It runs hourly on its
+configured offset and refreshes the permitted live surfaces of all retained
+daily editions: Gmail, weather from the `open-meteo` profile defined in
+`references/provider-open-meteo.md`, relevant
+calendar state, the last-update timestamp, and the client-side current clock.
+It is fail-soft and preserves the last successful provider value when a refresh
+fails.
+
+The poller must preserve the edition envelope, `news`, `sourceBatches`, story
+read state, reactions, topics, and media byte-for-byte. It never fetches,
+clusters, rewrites, reranks, acknowledges, or otherwise touches Telegram news;
+the news section remains the frozen 09:00 snapshot. Do not invoke the model or
+this skill from the hourly poller.
 
 ## Preserve interaction ownership
 

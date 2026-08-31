@@ -1,0 +1,12 @@
+[Unit]
+Description=Run Kurami Digest Central Poller hourly
+
+[Timer]
+OnCalendar=*-*-* *:37:00
+Persistent=true
+AccuracySec=30s
+RandomizedDelaySec=20s
+Unit=kurami-digest-central-poller.service
+
+[Install]
+WantedBy=timers.target

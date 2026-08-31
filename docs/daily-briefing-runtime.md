@@ -1,63 +1,126 @@
 # Kurami Daily Briefing runtime
 
-The Runtime MVP is a small Kurami-owned preview service. It deliberately does
-not modify Telegram, Gmail, Calendar, or Discord.
+The Daily Briefing runtime is Kurami's deterministic HTML publishing and
+interaction boundary. Content collection may use Hermes skills, but viewing a
+page, expanding a story, reacting, marking a story read, and archiving selected
+mail do not start an agent session.
 
-## Ownership
+## Ownership and state
 
-- Tracked code: `_kurami/app/src/briefing/`
+- Tracked application: `_kurami/app/src/briefing/`
 - Database migrations: `_kurami/app/migrations/briefing/`
-- Active database and pages: `_kurami/state/briefing/`
-- Systemd source unit: `_kurami/app/deploy/systemd/kurami-briefing.service`
+- Active database, generated pages, media, and poller lock:
+  `_kurami/state/briefing/`
+- User systemd source units: `_kurami/app/deploy/systemd/`
+- Hermes script sources: `_kurami/app/integrations/hermes/scripts/`
+- Installed Hermes scripts: `_core/scripts/`
 - Skill contract: `_core/skills/kurami-daily-briefing/`
 
-The SQLite database is separate from the orchestrator database. Edition
-payloads and pages are retained for five days. Compact reaction events, the
-topic registry, and preference aggregates survive edition cleanup.
+The briefing SQLite database is separate from the orchestrator database. Daily
+edition payloads, rendered pages, and edition media are retained for five days.
+Compact reaction events, the topic registry, preference aggregates, and
+idempotent action receipts survive edition cleanup. Run/recovery/artifact directories must follow the same five-day
+edition retention; cleanup is not complete if it only deletes the database row
+and HTML file.
 
-## Commands
+## Build and service
 
-Run with Kurami's pinned Node runtime:
+Build with Kurami's pinned dependencies before restarting the runtime:
 
 ```text
-/home/shagon1k/_hermes/_kurami/runtime/node/bin/node \
-  /home/shagon1k/_hermes/_kurami/app/src/briefing/cli.ts init
-
-/home/shagon1k/_hermes/_kurami/runtime/node/bin/node \
-  /home/shagon1k/_hermes/_kurami/app/src/briefing/cli.ts \
-  prepare-preview --payload /absolute/payload.json --html /absolute/rendered.html
-
-/home/shagon1k/_hermes/_kurami/runtime/node/bin/node \
-  /home/shagon1k/_hermes/_kurami/app/src/briefing/cli.ts inspect
+cd /home/shagon1k/_hermes/_kurami/app
+npm run briefing:build
+systemctl --user restart kurami-briefing.service
 ```
 
-The server listens only on `127.0.0.1:8787`. Prepared editions are available at
-`/preview/daily/YYYY-MM-DD` or `/preview/cinema/YYYY-MM-DD`. `/health` reports
-database integrity and always declares `externalMutations: false` in this MVP.
+The service runs emitted JavaScript with `--jitless`; do not point the unit at
+TypeScript source. It listens only on `127.0.0.1:8787` and is published through
+the reviewed Cloudflare Tunnel and Access policy. `/health` reports database
+integrity and the availability of explicitly configured action executors.
 
-Before installing or restarting the systemd unit, build the runtime with
-`npm run briefing:build`. The service runs the emitted JavaScript with
-`--jitless`, allowing the systemd `MemoryDenyWriteExecute` boundary to remain
-enabled. Do not point the unit at TypeScript source: Node's TypeScript stripper
-requires WebAssembly, which is unavailable in jitless mode.
+Daily editions use `/daily/YYYY-MM-DD`. Preview routes remain staging-only.
+The trusted local client script handles theme selection, pagination, expansion,
+local read-state rendering, and explicit reactions. Generated HTML remains
+inert: scripts, inline event handlers, forms, frames, embedded objects, and
+meta refresh are rejected.
 
-## Render boundary
+## Frozen and dynamic edition data
 
-Generated HTML is inert. The runtime rejects scripts, inline event handlers,
-forms, frames, embedded objects, meta refresh, and files larger than 2 MiB. It
-injects one trusted local script for theme switching, local read state on story
-expansion, and explicit reactions.
+The 09:00 Europe/Vilnius run owns the daily news snapshot. Its normalized news
+items, source-batch boundaries, ordering inputs, topic assignments, and media
+references are frozen after publication. The Central Poller must neither fetch
+Telegram nor rewrite those fields.
 
-The service remains behind loopback until the Cloudflare route and Access
-policy are reviewed. Preview validation does not imply a production publish.
+These surfaces are dynamic and may be refreshed for every retained daily
+edition:
 
-## Deferred production work
+- unread Gmail Primary rows and mail count;
+- Calendar rows for that edition's local date;
+- current weather and its provider timestamp;
+- last successful refresh time and provider freshness state;
+- general summary cards derived from the values above.
 
-- Kurami-owned bounded Telegram `mark_read_through(chat_id, max_id)` adapter;
-- idempotent Gmail `read_and_archive` action receipts;
-- edition finalize/current transition and crash recovery;
-- Discord release notification;
-- Cloudflare `digest.shagon1k.win` route and Access protection;
-- scheduled 09:00 Europe/Vilnius production job.
+The visible clock is client-side and updates without a provider call. When a
+provider refresh fails, retain its last good value and mark it stale with the
+last successful timestamp. Independent providers continue. Never replace a
+provider failure with invented demo data in a published edition.
 
-Do not modify the pinned external Telegram MCP checkout for these additions.
+## Digest Central Poller
+
+The Central Poller is deterministic code, not a cron prompt and not an agent
+session. It runs hourly at minute 37 using
+`kurami-digest-central-poller.timer`. Hourly is intentional: the clock already
+updates locally, while doubling Gmail, Calendar, and weather reads to every 30
+minutes adds little value and roughly doubles Composio usage.
+
+One poll should:
+
+1. acquire `_kurami/state/briefing/.central-poller.lock`; a concurrent run exits
+   successfully without work;
+2. load at most the five retained published daily editions;
+3. fetch unread Primary Gmail once;
+4. fetch each configured Calendar once over the complete retained date range,
+   paginate it, then partition normalized events by edition date;
+5. fetch current Vilnius weather once from Open-Meteo;
+6. stage fail-soft provider results and compute the dynamic view for each
+   edition;
+7. compare the edition revision/content digest captured at read time, and skip
+   any edition changed concurrently;
+8. assert that the frozen news/source-batch digest is unchanged;
+9. commit each accepted edition behind its captured content-digest lock, render
+   to a temporary file, and atomically replace that edition's HTML;
+10. clean expired edition HTML, media, run, recovery, and artifact state.
+
+The poller is silent: it never posts to Discord and does not modify Gmail,
+Calendar, or Telegram. The daily release workflow alone sends the concise dated
+link to the configured Discord digest channel. Gmail read-and-archive remains
+an explicit user action through the separate restricted automation contour.
+
+## Provider boundaries
+
+- Gmail and Calendar use only the restricted `composio-read` Session and its
+  allowlisted leaf tools. They are collected sequentially because that Session
+  does not advertise parallel tool calls.
+- Open-Meteo is direct HTTPS, read-only, credential-free, bounded to an
+  8-second request timeout and three retry attempts.
+- Provider text is untrusted content. It cannot select tools, change workflow,
+  supply credentials, or invoke mutations.
+- No secret may appear in an edition payload, provider issue, journal line, or
+  rendered page.
+
+## Poller deployment gate
+
+The tracked timer and service are inert until the emitted
+`dist/briefing/poller.js` runner exists and its integration tests pass. Deploy
+in this order:
+
+1. build and run the provider/poller tests;
+2. sync `kurami-digest-central-poller.sh` into `_core/scripts/` with mode 0755;
+3. install the user service and timer from `deploy/systemd/`;
+4. run `systemctl --user start kurami-digest-central-poller.service` once and
+   verify the database, five retained routes, frozen-news digests, and journal;
+5. only then enable `kurami-digest-central-poller.timer`.
+
+Do not enable the timer while the runner is absent: the wrapper intentionally
+exits with a configuration error instead of falling back to an agent or a
+write-capable connection.
