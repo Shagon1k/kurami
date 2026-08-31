@@ -33,10 +33,13 @@ npm run briefing:build
 systemctl --user restart kurami-briefing.service
 ```
 
-The service runs emitted JavaScript with `--jitless`; do not point the unit at
-TypeScript source. It listens only on `127.0.0.1:8787` and is published through
-the reviewed Cloudflare Tunnel and Access policy. `/health` reports database
-integrity and the availability of explicitly configured action executors.
+The service runs emitted JavaScript with Kurami's pinned Node runtime; do not
+point the unit at TypeScript source. Do not add `--jitless`: on Node 24 it also
+removes WebAssembly and breaks Undici/Composio HTTPS calls. The unit keeps the
+remaining filesystem, namespace, privilege, and loopback restrictions. It
+listens only on `127.0.0.1:8787` and is published through the reviewed
+Cloudflare Tunnel and Access policy. `/health` reports database integrity and
+the availability of explicitly configured action executors.
 
 Daily editions use `/daily/YYYY-MM-DD`. Preview routes remain staging-only.
 The trusted local client script handles theme selection, pagination, expansion,

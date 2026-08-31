@@ -33,4 +33,4 @@ if ! flock -n 9; then
 fi
 
 cd "${KURAMI_HOME}/app"
-exec "${NODE_BIN}" --jitless "${POLLER_JS}" --apply --quiet
+exec "${NODE_BIN}" "${POLLER_JS}" --apply --quiet
