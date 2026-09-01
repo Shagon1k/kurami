@@ -82,15 +82,23 @@ Default manual experiments to `dry-run`. Generation never archives Gmail;
 5. From the normalized mail collection, process all unread Primary Gmail
    messages. Classify every
    message as `ACTION`, `IMPORTANT`, or `GENERAL`; do not change Gmail state.
-6. For a normal scheduled Telegram collection, first call the Kurami-owned
-   read-only `capture_daily_briefing_batch` operation with the current
+6. Telegram MCP operations are lazy-loaded in Hermes. Before the first
+   Telegram call in a fresh session, use `tool_search` with the exact operation
+   name, inspect the matching tool when required, and call that discovered MCP
+   tool. Do not conclude that an operation is unavailable merely because its
+   schema was absent from the session's initial tool list. If discovery does
+   not return the exact operation, abort the run as a failed infrastructure
+   gate; never report a successful no-op.
+
+   For a normal scheduled Telegram collection, first discover and call the
+   Kurami-owned read-only `capture_daily_briefing_batch` operation with the current
    `daily:YYYY-MM-DD` edition ID. It reads the authoritative configured channel
    registry, freezes every unread count and upper message ID, and atomically
    writes the complete raw and normalized ledgers on the server before returning.
    Do not reconstruct either ledger from model context or provider output with
    `write_file`. Require `ok: true`, `report.complete: true`, and preserve the
    returned raw and normalized paths. Read the persisted normalized content for
-   editorial work only through consecutive bounded
+   editorial work only through the separately discovered, consecutive bounded
    `read_daily_briefing_batch_page` calls until `nextOffset` is null; account for
    every returned item. A retry with an already-valid capture reuses the frozen
    artifacts instead of moving the morning cutoff.

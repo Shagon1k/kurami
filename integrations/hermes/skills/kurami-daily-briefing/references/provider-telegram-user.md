@@ -56,6 +56,13 @@ not replace `list_messages` for a new unread snapshot.
 
 ## Collect
 
+Hermes lazy-loads MCP tools. In every fresh scheduled session, resolve the
+exact operation with `tool_search` before calling it (and inspect the matching
+tool schema when Hermes requires that step). Absence from the initial tool list
+does not mean the configured Telegram server lacks the operation. If exact
+discovery fails, persist/return an infrastructure-gate failure and abort; a
+successful no-op is forbidden.
+
 Normal scheduled collection must call
 `capture_daily_briefing_batch(edition_id="daily:YYYY-MM-DD")` once. This
 Kurami-owned read-only operation runs inside the existing pinned Telegram stdio
