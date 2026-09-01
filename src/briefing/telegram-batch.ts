@@ -217,7 +217,12 @@ export async function validateTelegramBatch(
       if (channelState === "empty") fail(`${expected.sourceKey} cannot be empty with unread messages`);
     }
 
-    const groups = new Map<number, Array<{ messageId: number; image: boolean }>>();
+    const groupIdentifier = (value: unknown, label: string): string => {
+      if (typeof value === "string" && /^-?\d+$/.test(value)) return value;
+      if (typeof value === "number" && Number.isSafeInteger(value)) return String(value);
+      fail(`${label} must be an integer identifier`);
+    };
+    const groups = new Map<string, Array<{ messageId: number; image: boolean }>>();
     let mediaMessages = 0;
     let skippedNonImageMessages = 0;
     for (const [messageId, metadata] of normalizedMessages) {
@@ -234,8 +239,8 @@ export async function validateTelegramBatch(
       else skippedNonImageMessages += 1;
       const groupValue = metadata.telegramGroupId;
       const groupId = groupValue === null || groupValue === undefined
-        ? messageId
-        : integer(groupValue, `${expected.sourceKey}:${messageId}.telegramGroupId`);
+        ? String(messageId)
+        : groupIdentifier(groupValue, `${expected.sourceKey}:${messageId}.telegramGroupId`);
       const members = groups.get(groupId) ?? [];
       members.push({ messageId, image });
       groups.set(groupId, members);
@@ -255,8 +260,8 @@ export async function validateTelegramBatch(
       }
       const groupValue = metadata.telegramGroupId;
       const groupId = groupValue === null || groupValue === undefined
-        ? messageId
-        : integer(groupValue, `${expected.sourceKey}:${messageId}.telegramGroupId`);
+        ? String(messageId)
+        : groupIdentifier(groupValue, `${expected.sourceKey}:${messageId}.telegramGroupId`);
       const expectedMembers = groups.get(groupId) ?? [{
         messageId,
         image: isImageMedia(rawMetadata, `${expected.sourceKey}:${messageId}`),

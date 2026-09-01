@@ -262,7 +262,7 @@ await writeFile(albumInput, JSON.stringify({
       ...(index === 2 ? { mediaMimeType: "image/gif" } : {}),
       telegramChatId: -1001033871555,
       telegramMessageId: messageId,
-      telegramGroupId: 444,
+      telegramGroupId: "9223372036854775000",
     },
   })),
 }));
@@ -308,7 +308,7 @@ const rawItems = [7915, 7907, 7912].map((messageId, index) => ({
     ...(index === 2 ? { mediaMimeType: "image/gif" } : {}),
     telegramChatId: -1001033871555,
     telegramMessageId: messageId,
-    telegramGroupId: 444,
+    telegramGroupId: "9223372036854775000",
   },
 }));
 await writeFile(telegramRaw, JSON.stringify({

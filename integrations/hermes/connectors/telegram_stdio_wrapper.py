@@ -471,7 +471,10 @@ def _captured_item(source: dict[str, Any], message: Any, entity: Any) -> dict[st
     }
     group_id = exact.get("grouped_id")
     if isinstance(group_id, int) and not isinstance(group_id, bool):
-        metadata["telegramGroupId"] = group_id
+        # Telegram album/group identifiers are signed 64-bit values and may
+        # exceed JavaScript's safe-integer range. They are opaque identities,
+        # not quantities, so persist them losslessly as decimal strings.
+        metadata["telegramGroupId"] = str(group_id)
     if media is not None:
         media_type = media.get("type")
         metadata["mediaType"] = media_type if isinstance(media_type, str) and media_type else "unknown"

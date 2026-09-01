@@ -19,6 +19,16 @@ def integer(metadata: dict[str, Any], *keys: str) -> int | None:
     return None
 
 
+def opaque_integer_identifier(metadata: dict[str, Any], *keys: str) -> str | None:
+    for key in keys:
+        value = metadata.get(key)
+        if isinstance(value, int) and not isinstance(value, bool):
+            return str(value)
+        if isinstance(value, str) and value.lstrip("-").isdigit():
+            return value
+    return None
+
+
 def media_type(metadata: dict[str, Any]) -> str | None:
     value = metadata.get("mediaType")
     if not isinstance(value, str) or not value.strip():
@@ -44,8 +54,8 @@ def main() -> None:
     if not isinstance(items, list):
         raise SystemExit("input must be a normalized source batch with an items array")
 
-    groups: dict[tuple[int, int], list[tuple[int, bool]]] = {}
-    normalized: list[tuple[dict[str, Any], dict[str, Any], int | None, int | None, int | None]] = []
+    groups: dict[tuple[int, str], list[tuple[int, bool]]] = {}
+    normalized: list[tuple[dict[str, Any], dict[str, Any], int | None, int | None, str | None]] = []
     for item in items:
         if not isinstance(item, dict):
             continue
@@ -55,7 +65,7 @@ def main() -> None:
             item["metadata"] = metadata
         chat_id = integer(metadata, "telegramChatId", "chatId", "chat_id")
         message_id = integer(metadata, "telegramMessageId", "messageId", "message_id")
-        group_id = integer(metadata, "telegramGroupId", "groupedId", "grouped_id")
+        group_id = opaque_integer_identifier(metadata, "telegramGroupId", "groupedId", "grouped_id")
         normalized.append((item, metadata, chat_id, message_id, group_id))
         if (
             chat_id is not None
