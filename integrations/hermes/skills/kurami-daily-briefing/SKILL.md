@@ -73,13 +73,16 @@ Default manual experiments to `dry-run`. Generation never archives Gmail;
 3. Capture the current time in `Europe/Vilnius` and create a stable edition ID
    for the local date. A successful existing edition makes an automatic rerun
    a no-op; a partial edition may retry only failed sources.
-4. Run `$BRIEFING_NODE $BRIEFING_CLI collect-live --id daily:YYYY-MM-DD` for
-   scheduled and production runs. It deterministically uses the restricted
-   Composio-read connection plus Open-Meteo and atomically writes
-   `state/briefing/runs/daily-YYYY-MM-DD/live-snapshot.json`. Read calendar,
-   Primary unread Gmail, and weather only from that normalized artifact. Do
-   not call generic Composio MCP tools from the agent: their missing
-   `readOnlyHint` would require an interactive approval that cron cannot grant.
+4. Reuse the current-day
+   `state/briefing/runs/daily-YYYY-MM-DD/live-snapshot.json` when the scheduled
+   pre-run already produced a valid snapshot for this edition. If it is absent,
+   stale, or invalid, run
+   `$BRIEFING_NODE $BRIEFING_CLI collect-live --id daily:YYYY-MM-DD`. The
+   collector deterministically uses the restricted Composio-read connection
+   plus Open-Meteo and atomically writes the snapshot. Read calendar, Primary
+   unread Gmail, and weather only from that normalized artifact. Do not call
+   generic Composio MCP tools from the agent: their missing `readOnlyHint`
+   would require an interactive approval that cron cannot grant.
    Preserve configured calendar keys, event IDs, timing, location,
    description, conflicts, and Gmail provider message/thread IDs.
 5. From the normalized mail collection in `live-snapshot.json`, process all unread Primary Gmail
