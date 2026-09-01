@@ -31,6 +31,8 @@ export type KuramiNote = {
 export type Topic = {
   id: string;
   label: string;
+  status?: "proposed";
+  aliases?: string[];
 };
 
 export type StoryMedia = {
@@ -233,7 +235,29 @@ function topics(value: unknown, label: string): Topic[] {
     if (!TOPIC_ID.test(id)) fail(`${label}[${index}].id is not canonical`);
     if (seen.has(id)) fail(`${label} contains duplicate topic ${id}`);
     seen.add(id);
-    return { id, label: display };
+    let status: "proposed" | undefined;
+    if (topic.status !== undefined) {
+      if (string(topic.status, `${label}[${index}].status`) !== "proposed") {
+        fail(`${label}[${index}].status is unsupported`);
+      }
+      status = "proposed";
+    }
+    let aliases: string[] | undefined;
+    if (topic.aliases !== undefined) {
+      if (!Array.isArray(topic.aliases) || topic.aliases.length < 1 || topic.aliases.length > 8) {
+        fail(`${label}[${index}].aliases must contain one to eight values`);
+      }
+      aliases = topic.aliases.map((alias, aliasIndex) =>
+        string(alias, `${label}[${index}].aliases[${aliasIndex}]`)
+      );
+    }
+    if (status === "proposed" && !aliases) {
+      fail(`${label}[${index}] proposed topic requires aliases`);
+    }
+    if (!status && aliases) {
+      fail(`${label}[${index}] aliases are allowed only for proposed topics`);
+    }
+    return { id, label: display, ...(status ? { status } : {}), ...(aliases ? { aliases } : {}) };
   });
   return parsed;
 }

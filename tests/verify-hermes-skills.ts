@@ -162,8 +162,8 @@ const topicsProfile = fs.readFileSync(
   ),
   "utf8",
 );
-assert.match(topicsProfile, /exact `id` and exact `label`/);
-assert.match(topicsProfile, /Never let one unknown candidate abort the\s+edition/);
+assert.match(topicsProfile, /exact `id` and\s+exact `label`/);
+assert.match(topicsProfile, /create a new\s+topic in the same story and use it immediately/);
 
 const config = readYaml(path.join(root, "deploy", "config", "briefing.yaml")) as {
   version: number;

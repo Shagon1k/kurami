@@ -211,7 +211,13 @@ Use a flexible story rather than a mandatory prose template:
   "whyItMatters": "optional, only when it adds information",
   "depth": "compact | standard | deep",
   "topics": [
-    {"id": "cinema", "label": "Cinema"}
+    {"id": "cinema", "label": "Cinema"},
+    {
+      "id": "food-theft",
+      "label": "Food Theft",
+      "status": "proposed",
+      "aliases": ["stolen food", "кража еды"]
+    }
   ],
   "entities": ["Original entity spelling"],
   "media": [
@@ -267,7 +273,10 @@ and durable preference events.
 
 Target three or four canonical topics. Use two only for a genuinely narrow
 story; never pad with a provider, channel name, arbitrary person, or vague
-synonym. Entities remain separate from topics.
+synonym. Reused topics carry only their registered `id` and `label`. A newly
+created topic additionally carries `status: "proposed"` and one to eight
+multilingual aliases; the runtime adds it to the persistent pool and permits it
+in the same story. Entities remain separate from topics.
 
 `summary` is the scan layer: it says what happened without turning into a
 second headline. `headline` and `summary` are separately authored editorial

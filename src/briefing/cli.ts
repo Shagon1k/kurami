@@ -12,6 +12,7 @@ import {
   preparePreview,
   recordTelegramValidation,
   topicProfile,
+  topicRegistry,
 } from "./store.ts";
 import { parseBriefingPayload } from "./model.ts";
 import { renderBriefingPage } from "./ui/render-page.ts";
@@ -20,8 +21,9 @@ import { validateTelegramBatch } from "./telegram-batch.ts";
 import { notifyBriefingRelease } from "./release-notifier.ts";
 import { loadTelegramCaptureConfig } from "./runtime-config.ts";
 import { collectEditionLiveSnapshot } from "./live-collector.ts";
+import { loadTopicPolicy } from "./editorial-validation.ts";
 
-type Command = "init" | "collect-live" | "prepare-preview" | "render-preview" | "rerender-preview" | "import-media" | "validate-telegram-batch" | "telegram-capture-config" | "telegram-commit-plan" | "finalize" | "notify-release" | "inspect" | "cleanup";
+type Command = "init" | "collect-live" | "topic-pool" | "prepare-preview" | "render-preview" | "rerender-preview" | "import-media" | "validate-telegram-batch" | "telegram-capture-config" | "telegram-commit-plan" | "finalize" | "notify-release" | "inspect" | "cleanup";
 
 type Arguments = {
   command: Command;
@@ -42,8 +44,8 @@ function fail(message: string): never {
 
 function parseArguments(argv = process.argv.slice(2)): Arguments {
   const command = argv.shift() as Command | undefined;
-  if (!command || !["init", "collect-live", "prepare-preview", "render-preview", "rerender-preview", "import-media", "validate-telegram-batch", "telegram-capture-config", "telegram-commit-plan", "finalize", "notify-release", "inspect", "cleanup"].includes(command)) {
-    fail("Usage: briefing <init|collect-live|prepare-preview|render-preview|rerender-preview|import-media|validate-telegram-batch|telegram-capture-config|telegram-commit-plan|finalize|notify-release|inspect|cleanup> [options]");
+  if (!command || !["init", "collect-live", "topic-pool", "prepare-preview", "render-preview", "rerender-preview", "import-media", "validate-telegram-batch", "telegram-capture-config", "telegram-commit-plan", "finalize", "notify-release", "inspect", "cleanup"].includes(command)) {
+    fail("Usage: briefing <init|collect-live|topic-pool|prepare-preview|render-preview|rerender-preview|import-media|validate-telegram-batch|telegram-capture-config|telegram-commit-plan|finalize|notify-release|inspect|cleanup> [options]");
   }
   const result: Arguments = { command };
   while (argv.length > 0) {
@@ -108,6 +110,23 @@ export async function runBriefingCli(argv = process.argv.slice(2)): Promise<unkn
   }
   if (args.command === "collect-live") {
     return collectEditionLiveSnapshot(args.editionId!);
+  }
+  if (args.command === "topic-pool") {
+    await initializeBriefingStore(paths);
+    const database = openBriefingDatabase(paths);
+    let runtimeTopics;
+    try {
+      runtimeTopics = topicRegistry(database);
+    } finally {
+      database.close();
+    }
+    const policy = await loadTopicPolicy(paths.home, process.env, runtimeTopics);
+    return {
+      ok: true,
+      action: "topic-pool",
+      externalMutations: false,
+      topics: [...policy.topics.values()].sort((left, right) => left.id.localeCompare(right.id)),
+    };
   }
   if (args.command === "prepare-preview") {
     const payload = await readPayload(args.payloadPath!);

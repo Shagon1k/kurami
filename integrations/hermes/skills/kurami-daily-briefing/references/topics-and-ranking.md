@@ -19,17 +19,35 @@ status: active
 IDs and labels are English. Aliases may be multilingual. IDs are immutable
 after promotion; labels and aliases may be improved without losing reactions.
 
-Start from the configured seed registry. Match a story to existing topics
-before proposing a new one. Treat close synonyms such as `Cinema`, `Films`, and
-`Movies` as one concept unless a narrower recurring distinction already exists.
+Start from the runtime topic pool returned by
+`$BRIEFING_NODE $BRIEFING_CLI topic-pool`. It combines the configured seed with
+topics proposed in previous editions. Analyze the full normalized story content
+before assigning topics. Match a story to the pool before proposing a new one.
+Treat close synonyms such as `Cinema`, `Films`, and `Movies` as one concept
+unless a narrower recurring distinction already exists.
 
 Build the lookup directly from the registry's `id`, `label`, and `aliases`.
-Every topic placed in a briefing payload must reuse an existing active topic's
-exact `id` and exact `label`. Do not construct a separate label-to-ID map in an
-ad-hoc script, title-case a candidate, or emit a free-form label. If a candidate
-does not resolve by ID, label, or alias, choose a genuinely relevant broader
-active topic or omit the candidate. Never let one unknown candidate abort the
-edition.
+An existing topic placed in a briefing payload must reuse its exact `id` and
+exact `label`; omit proposal metadata when reusing it. Do not construct a
+separate label-to-ID map in an ad-hoc script or title-case candidates blindly.
+
+When no pool entry expresses a durable and useful distinction, create a new
+topic in the same story and use it immediately:
+
+```json
+{
+  "id": "food-theft",
+  "label": "Food Theft",
+  "status": "proposed",
+  "aliases": ["stolen food", "кража еды"]
+}
+```
+
+The runtime persists it in the pool for subsequent editions. Before proposing,
+compare the candidate ID, label, and aliases against every pool entry. Do not
+create a synonym, spelling variant, renamed entity, one-off joke, company,
+person, or source label. If the distinction is not likely to recur, use the
+closest meaningful existing topic instead.
 
 ## Assign topics
 
@@ -58,12 +76,12 @@ edition.
 
 ## Propose and promote
 
-Create a `proposed` topic only when no active topic expresses a durable,
-repeatable distinction. Keep proposals outside the edition payload until they
-are promoted; a proposed topic does not immediately affect the long-term
-profile.
+Create a `proposed` topic only when no registered topic expresses a durable,
+repeatable distinction. A proposal is visible in the edition immediately and
+may collect feedback immediately; `proposed` describes registry maturity, not
+UI visibility.
 
-Promote it after it appears in at least three stories across at least two
+Promote it to `active` after it appears in at least three stories across at least two
 editions or independent sources. Before promotion, check aliases and neighboring
 topics again. Merge synonyms instead of creating parallel IDs.
 

@@ -1,7 +1,11 @@
 import assert from "node:assert/strict";
+import { mkdtemp } from "node:fs/promises";
+import { tmpdir } from "node:os";
 import { resolve } from "node:path";
 import { assertEditorialPayload, loadTopicPolicy } from "../../src/briefing/editorial-validation.ts";
 import { parseBriefingPayload } from "../../src/briefing/model.ts";
+import { briefingPaths, openBriefingDatabase, preparePreview, topicRegistry } from "../../src/briefing/store.ts";
+import { renderBriefingPage } from "../../src/briefing/ui/render-page.ts";
 
 const topicSeed = resolve(import.meta.dirname, "../../deploy/config/briefing-topics.yaml");
 const policy = await loadTopicPolicy("/unused", { TOPIC_SEED: topicSeed } as NodeJS.ProcessEnv);
@@ -92,9 +96,57 @@ assert.throws(
   /summary looks truncated/u,
 );
 
+const proposedPayload = payload({
+  topics: [
+    { id: "united-kingdom", label: "United Kingdom" },
+    { id: "wildlife", label: "Wildlife" },
+    {
+      id: "food-theft",
+      label: "Food Theft",
+      status: "proposed",
+      aliases: ["stolen food", "кража еды"],
+    },
+  ],
+});
+assert.doesNotThrow(() => assertEditorialPayload(proposedPayload, policy));
+assert.throws(
+  () => assertEditorialPayload(payload({
+    topics: [
+      { id: "wildlife", label: "Wildlife" },
+      {
+        id: "britain-news",
+        label: "Britain News",
+        status: "proposed",
+        aliases: ["United Kingdom"],
+      },
+    ],
+  }), policy),
+  /duplicates united-kingdom/u,
+);
+
+const home = await mkdtemp(resolve(tmpdir(), "kurami-editorial-topics-"));
+const paths = briefingPaths({
+  KURAMI_HOME: home,
+  BRIEFING_MIGRATIONS_DIR: resolve(import.meta.dirname, "../../migrations/briefing"),
+} as NodeJS.ProcessEnv);
+await preparePreview(proposedPayload, renderBriefingPage(proposedPayload), paths);
+const database = openBriefingDatabase(paths);
+try {
+  assert.deepEqual(topicRegistry(database).find((topic) => topic.id === "food-theft"), {
+    id: "food-theft",
+    label: "Food Theft",
+    aliases: ["stolen food", "кража еды"],
+    status: "proposed",
+  });
+} finally {
+  database.close();
+}
+
 console.log(JSON.stringify({
   editorialCopyIsIndependent: true,
   clippedCopyIsRejected: true,
   geographyRequiresStoryEvidence: true,
   housingRequiresSpecificSubtype: true,
+  aiMayProposeAndUseNewTopic: true,
+  proposedTopicPersistsInPool: true,
 }));

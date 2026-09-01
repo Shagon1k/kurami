@@ -62,8 +62,10 @@ Default manual experiments to `dry-run`. Generation never archives Gmail;
 
 ## Build the snapshot
 
-1. Load the source registry, topic seed, retention, timezone, publication
-   target, and mutation gates from configuration.
+1. Load the source registry, retention, timezone, publication target, and
+   mutation gates from configuration. Run
+   `$BRIEFING_NODE $BRIEFING_CLI topic-pool` and use its union of seeded and
+   previously proposed topics as the current topic pool.
 2. For each enabled source, load its provider profile, validate the available
    MCP or built-in operation against that profile, collect a bounded page at a
    time, and normalize the result to `references/item-contract.md`. Provider
@@ -146,7 +148,10 @@ Default manual experiments to `dry-run`. Generation never archives Gmail;
    the editorial and topic references. Author a new factual headline and an
    independent scan summary from the complete story; never use two differently
    truncated slices of the source post. Assign topics from story content, not
-   the channel identity or configured source group. Account for every
+   the channel identity or configured source group. Reuse the current pool
+   first; when no existing topic captures a durable distinction, declare one
+   `proposed` topic with English ID, label, and aliases and use it immediately.
+   Account for every
    normalized Telegram input exactly once: claim it in one story source or put it in
    `news.exclusions` with one of the bounded contract reasons. A merged input is
    claimed by the merged story; it is not also recorded as an exclusion. Use a

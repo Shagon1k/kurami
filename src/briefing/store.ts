@@ -12,6 +12,7 @@ import {
 } from "./model.ts";
 import { assertTelegramStoryCoverage } from "./coverage.ts";
 import { assertEditorialPayload, loadTopicPolicy } from "./editorial-validation.ts";
+import type { TopicDefinition } from "./editorial-validation.ts";
 import type { TelegramBatchReport } from "./telegram-batch.ts";
 import { DAILY_RETENTION_DAYS } from "./runtime-config.ts";
 
@@ -55,6 +56,8 @@ export type TopicProfileRow = {
   likes: number;
   dislikes: number;
 };
+
+export type TopicRegistryRow = TopicDefinition;
 
 export type PreparedMailAction = {
   actionId: string;
@@ -281,7 +284,16 @@ export async function preparePreview(
 ): Promise<{ editionId: string; previewPath: string; digest: string; state: "prepared" }> {
   const payload = parseBriefingPayload(payloadValue);
   assertProductionBriefingPayload(payload);
-  assertEditorialPayload(payload, await loadTopicPolicy(paths.home));
+  await initializeBriefingStore(paths);
+  const topicDatabase = openBriefingDatabase(paths);
+  let runtimeTopics: TopicRegistryRow[];
+  try {
+    runtimeTopics = topicRegistry(topicDatabase);
+  } finally {
+    topicDatabase.close();
+  }
+  const topicPolicy = await loadTopicPolicy(paths.home, process.env, runtimeTopics);
+  assertEditorialPayload(payload, topicPolicy);
   if (payload.edition.type === "daily") {
     payload.edition.retentionUntil = dailyRetentionUntil(payload.edition.localDate);
   }
@@ -289,8 +301,6 @@ export async function preparePreview(
     assertTelegramStoryCoverage(payload);
   }
   validateRenderedHtml(html, payload);
-  await initializeBriefingStore(paths);
-
   const currentDatabase = openBriefingDatabase(paths);
   try {
     const existing = currentDatabase.prepare("SELECT state FROM editions WHERE id = ?").get(
@@ -381,8 +391,18 @@ export async function preparePreview(
       `);
       const upsertTopic = database.prepare(`
         INSERT INTO topic_registry (id, label, aliases_json, status, created_at, updated_at)
-        VALUES (?, ?, '[]', 'active', ?, ?)
-        ON CONFLICT(id) DO UPDATE SET label = excluded.label, updated_at = excluded.updated_at
+        VALUES (?, ?, ?, ?, ?, ?)
+        ON CONFLICT(id) DO UPDATE SET
+          label = excluded.label,
+          aliases_json = CASE
+            WHEN excluded.aliases_json = '[]' THEN topic_registry.aliases_json
+            ELSE excluded.aliases_json
+          END,
+          status = CASE
+            WHEN topic_registry.status = 'active' THEN 'active'
+            ELSE excluded.status
+          END,
+          updated_at = excluded.updated_at
       `);
       for (const item of items) {
         const previousItem = priorState.get(item.itemId);
@@ -397,7 +417,15 @@ export async function preparePreview(
           timestamp,
         );
         for (const topic of item.topics) {
-          upsertTopic.run(topic.id, topic.label, timestamp, timestamp);
+          const registered = topicPolicy.topics.get(topic.id);
+          upsertTopic.run(
+            topic.id,
+            topic.label,
+            JSON.stringify(topic.aliases ?? registered?.aliases ?? []),
+            topic.status ?? registered?.status ?? "active",
+            timestamp,
+            timestamp,
+          );
         }
       }
       database.prepare("DELETE FROM source_batches WHERE edition_id = ?").run(payload.edition.id);
@@ -1027,6 +1055,33 @@ export function topicProfile(database: DatabaseSync): TopicProfileRow[] {
         likes: Number(value.likes),
         dislikes: Number(value.dislikes),
       };
+    });
+}
+
+export function topicRegistry(database: DatabaseSync): TopicRegistryRow[] {
+  return database
+    .prepare(`
+      SELECT id, label, aliases_json, status
+      FROM topic_registry
+      WHERE status IN ('active', 'proposed')
+      ORDER BY status ASC, id ASC
+    `)
+    .all()
+    .map((row) => {
+      const value = row as {
+        id: string;
+        label: string;
+        aliases_json: string;
+        status: "active" | "proposed";
+      };
+      let aliases: string[] = [];
+      try {
+        const parsed = JSON.parse(value.aliases_json) as unknown;
+        if (Array.isArray(parsed)) aliases = parsed.filter((item): item is string => typeof item === "string");
+      } catch {
+        aliases = [];
+      }
+      return { id: value.id, label: value.label, aliases, status: value.status };
     });
 }
 
