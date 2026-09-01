@@ -215,6 +215,48 @@ function sectionState(value: unknown, label: string): SectionState {
   return result;
 }
 
+function finiteNumber(value: unknown): number | null {
+  return typeof value === "number" && Number.isFinite(value) ? value : null;
+}
+
+function optionalText(value: unknown): string | null {
+  return typeof value === "string" && value.trim() ? value.trim() : null;
+}
+
+function normalizeWeather(value: Record<string, unknown>): BriefingPayload["weather"] {
+  const state = sectionState(value.state, "weather.state");
+  if (value.temperatureC !== undefined || value.temperatureCelsius === undefined) {
+    return { ...value, state } as BriefingPayload["weather"];
+  }
+
+  const temperatureC = finiteNumber(value.temperatureCelsius);
+  if (temperatureC === null) return { ...value, state } as BriefingPayload["weather"];
+
+  const conditionRecord = value.condition !== undefined
+    ? record(value.condition, "weather.condition")
+    : undefined;
+  const conditionLabel = conditionRecord ? optionalText(conditionRecord.label) : null;
+  const conditionEmoji = conditionRecord ? optionalText(conditionRecord.emoji) : null;
+  const condition = [conditionEmoji, conditionLabel].filter(Boolean).join(" ");
+  const maximumCelsius = finiteNumber(value.maximumCelsius);
+  const precipitationProbability = finiteNumber(value.precipitationProbabilityPercent);
+  const summary = [
+    maximumCelsius === null ? "" : `до ${Math.round(maximumCelsius)}°`,
+    precipitationProbability === null ? "" : `осадки ${Math.round(precipitationProbability)}%`,
+  ].filter(Boolean).join(" · ") || optionalText(value.location) || "";
+
+  return {
+    state,
+    ...(optionalText(value.provider) ? { provider: optionalText(value.provider)! } : {}),
+    ...(optionalText(value.location) ? { location: optionalText(value.location)! } : {}),
+    ...(optionalText(value.observedAt) ? { observedAt: optionalText(value.observedAt)! } : {}),
+    temperatureC,
+    feelsLikeC: finiteNumber(value.apparentTemperatureCelsius),
+    ...(condition ? { condition } : {}),
+    ...(summary ? { summary } : {}),
+  };
+}
+
 function mailClass(value: unknown, label: string): MailClass {
   const result = string(value, label).toUpperCase() as MailClass;
   if (result !== "ACTION" && result !== "IMPORTANT" && result !== "GENERAL") {
@@ -531,8 +573,7 @@ export function parseBriefingPayload(value: unknown): BriefingPayload {
   let weather: BriefingPayload["weather"];
   if (root.weather !== undefined) {
     const value = record(root.weather, "weather");
-    value.state = sectionState(value.state, "weather.state");
-    weather = value as BriefingPayload["weather"];
+    weather = normalizeWeather(value);
   }
   const calendar = record(root.calendar, "calendar");
   calendar.state = sectionState(calendar.state, "calendar.state");

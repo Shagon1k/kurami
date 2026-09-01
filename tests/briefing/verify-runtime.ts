@@ -152,6 +152,25 @@ const payload = {
 
 const parsedPayload = parseBriefingPayload(payload);
 const html = renderBriefingPage(parsedPayload);
+const providerWeatherPayload = parseBriefingPayload({
+  ...payload,
+  weather: {
+    state: "ready",
+    provider: "open-meteo",
+    location: "Vilnius, Lithuania",
+    observedAt: "2026-08-28T09:00",
+    temperatureCelsius: 20.3,
+    apparentTemperatureCelsius: 21,
+    condition: { code: 3, label: "Пасмурно", emoji: "☁️" },
+    maximumCelsius: 22.4,
+    precipitationProbabilityPercent: 100,
+  },
+});
+assert.equal(providerWeatherPayload.weather?.temperatureC, 20.3);
+assert.equal(providerWeatherPayload.weather?.feelsLikeC, 21);
+assert.equal(providerWeatherPayload.weather?.condition, "☁️ Пасмурно");
+assert.equal(providerWeatherPayload.weather?.summary, "до 22° · осадки 100%");
+assert.match(renderBriefingPage(providerWeatherPayload), /metric-card__value">\+20°<\/strong>/);
 assert.match(html, /\[hidden\]\s*\{\s*display:\s*none !important/);
 assert.match(html, /class="topic-chip"/);
 assert.match(html, /class="story-disclosure__body"/);
