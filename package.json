@@ -64,6 +64,7 @@
     "test:briefing-http": "node tests/briefing/verify-node-http-fetch.ts",
     "test:briefing-mail-ui": "node tests/briefing/verify-mail-ui.ts",
     "test:briefing-providers": "node tests/briefing/verify-providers.ts",
+    "test:briefing-editorial": "node tests/briefing/verify-editorial-validation.ts",
     "test:briefing-poller": "node tests/briefing/verify-poller-notifier.ts",
     "briefing:build": "tsc -p tsconfig.briefing-runtime.json",
     "briefing:init": "node src/briefing/cli.ts init",

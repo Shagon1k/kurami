@@ -4,6 +4,11 @@ promotion:
   minimum_story_count: 3
   minimum_edition_or_source_count: 2
 
+validation:
+  geography_topics: [united-states, united-kingdom, lithuania, belarus, europe, japan]
+  required_refinements:
+    housing: [housing-market, housing-policy, construction, demolition, urban-development]
+
 topics:
   - { id: ai, label: AI, aliases: [artificial intelligence, искусственный интеллект, ии] }
   - { id: technology, label: Technology, aliases: [tech, технологии] }
@@ -15,21 +20,29 @@ topics:
   - { id: business, label: Business, aliases: [бизнес] }
   - { id: startups, label: Startups, aliases: [стартапы] }
   - { id: economy, label: Economy, aliases: [экономика] }
+  - { id: consumer-prices, label: Consumer Prices, aliases: [cost of living, inflation, цены, инфляция, подорожание] }
+  - { id: energy, label: Energy, aliases: [fuel, electricity, энергия, энергетика, топливо, электричество] }
   - { id: politics, label: Politics, aliases: [политика] }
-  - { id: united-states, label: United States, aliases: [usa, us, america, сша, америка, соединенные штаты] }
+  - { id: united-states, label: United States, aliases: [usa, united states, american, сша, америка, американск] }
+  - { id: united-kingdom, label: United Kingdom, aliases: [uk, great britain, british, великобрит, британск, англи] }
   - { id: geopolitics, label: Geopolitics, aliases: [international relations, геополитика, международные отношения] }
   - { id: public-administration, label: Public Administration, aliases: [governance, государственное управление, муниципальное управление] }
   - { id: society, label: Society, aliases: [общество] }
   - { id: law, label: Law, aliases: [legal, законодательство, право] }
   - { id: housing, label: Housing, aliases: [real estate, жилье, недвижимость] }
-  - { id: lithuania, label: Lithuania, aliases: [литва, lietuva] }
-  - { id: belarus, label: Belarus, aliases: [беларусь] }
-  - { id: europe, label: Europe, aliases: [европа] }
+  - { id: housing-market, label: Housing Market, aliases: [real estate market, рынок жилья, аренда, ипотека] }
+  - { id: housing-policy, label: Housing Policy, aliases: [housing regulation, жилищная политика, социальное жилье] }
+  - { id: construction, label: Construction, aliases: [building, строительство, стройка] }
+  - { id: demolition, label: Demolition, aliases: [demolish, снос, демонтаж] }
+  - { id: urban-development, label: Urban Development, aliases: [redevelopment, застройка, реконструкция, развитие города] }
+  - { id: lithuania, label: Lithuania, aliases: [lithuania, lithuanian, литв, lietuv] }
+  - { id: belarus, label: Belarus, aliases: [belarus, belarusian, беларус, белорус] }
+  - { id: europe, label: Europe, aliases: [europe, european, европ] }
   - { id: science, label: Science, aliases: [наука] }
   - { id: space, label: Space, aliases: [astronomy, космос, астрономия] }
   - { id: climate, label: Climate, aliases: [экология, климат] }
   - { id: travel, label: Travel, aliases: [туризм, путешествия] }
-  - { id: japan, label: Japan, aliases: [япония] }
+  - { id: japan, label: Japan, aliases: [japan, japanese, япони, японск] }
   - { id: tea, label: Tea, aliases: [чай] }
   - { id: food, label: Food, aliases: [еда, кулинария] }
   - { id: art, label: Art, aliases: [искусство] }
@@ -45,6 +58,7 @@ topics:
   - { id: media, label: Media, aliases: [медиа, сми] }
   - { id: education, label: Education, aliases: [образование] }
   - { id: health, label: Health, aliases: [здоровье] }
+  - { id: wildlife, label: Wildlife, aliases: [animals, birds, дикая природа, животные, птицы] }
   - { id: transport, label: Transport, aliases: [транспорт] }
   - { id: productivity, label: Productivity, aliases: [продуктивность] }
   - { id: personal-finance, label: Personal Finance, aliases: [личные финансы, деньги] }

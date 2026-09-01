@@ -270,8 +270,12 @@ story; never pad with a provider, channel name, arbitrary person, or vague
 synonym. Entities remain separate from topics.
 
 `summary` is the scan layer: it says what happened without turning into a
-second headline. `details` is a self-contained reading layer, not a two-sentence
-teaser. It must preserve enough concrete actors, actions, dates, numbers,
+second headline. `headline` and `summary` are separately authored editorial
+fields, not two character-limited slices of the source post. The headline must
+identify the event in a complete phrase; the summary must add useful facts and
+must not start by repeating the whole headline. Neither may end with an
+ellipsis caused by clipping. `details` is a self-contained reading layer, not
+a two-sentence teaser. It must preserve enough concrete actors, actions, dates, numbers,
 background, uncertainty, and consequences for Alex to understand the useful
 substance without leaving the briefing. Remove channel boilerplate and do not
 merely repeat the summary.

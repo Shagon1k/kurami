@@ -41,6 +41,17 @@ confident source erase uncertainty in the others.
 
 ## Write without filler
 
+- Write every story headline editorially from the complete source content. It
+  must name the actual event and distinguishing fact; never copy the first
+  source sentence, reuse a channel caption, or cut an excerpt at a character
+  limit.
+- Write the scan summary independently after the headline. It should add the
+  actor, action, concrete result, place, date, or number needed to understand
+  the event. Never begin by repeating the complete headline and never use a
+  shorter truncation of the same source sentence.
+- A headline or summary ending in `...` or `…` is a failed editorial field,
+  not an acceptable overflow strategy. Shorten by rewriting the thought as a
+  complete sentence.
 - Lead with what happened.
 - Include concrete actors, changes, dates, places, and consequences.
 - Use one concise summary when it is enough.

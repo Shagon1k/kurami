@@ -11,6 +11,7 @@ import {
   type Reaction,
 } from "./model.ts";
 import { assertTelegramStoryCoverage } from "./coverage.ts";
+import { assertEditorialPayload, loadTopicPolicy } from "./editorial-validation.ts";
 import type { TelegramBatchReport } from "./telegram-batch.ts";
 import { DAILY_RETENTION_DAYS } from "./runtime-config.ts";
 
@@ -280,6 +281,7 @@ export async function preparePreview(
 ): Promise<{ editionId: string; previewPath: string; digest: string; state: "prepared" }> {
   const payload = parseBriefingPayload(payloadValue);
   assertProductionBriefingPayload(payload);
+  assertEditorialPayload(payload, await loadTopicPolicy(paths.home));
   if (payload.edition.type === "daily") {
     payload.edition.retentionUntil = dailyRetentionUntil(payload.edition.localDate);
   }

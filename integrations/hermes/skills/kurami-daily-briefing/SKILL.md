@@ -143,8 +143,11 @@ Default manual experiments to `dry-run`. Generation never archives Gmail;
 7. Fetch weather when the configured capability is available. Weather failure
    makes only that section partial.
 8. Normalize, cluster, merge, summarize, assign topics, and rank content using
-   the editorial and topic references. Account for every normalized Telegram
-   input exactly once: claim it in one story source or put it in
+   the editorial and topic references. Author a new factual headline and an
+   independent scan summary from the complete story; never use two differently
+   truncated slices of the source post. Assign topics from story content, not
+   the channel identity or configured source group. Account for every
+   normalized Telegram input exactly once: claim it in one story source or put it in
    `news.exclusions` with one of the bounded contract reasons. A merged input is
    claimed by the merged story; it is not also recorded as an exclusion. Use a
    compact story for low-signal content instead of silently dropping it. The

@@ -44,6 +44,16 @@ edition.
 - Do not use a person's name, company, product, city, channel, or provider as a
   topic by default; store it as an entity.
 - Do not infer topics from a source group without reading the item.
+- Treat channel identity and editorial origin as zero evidence for geography.
+  An Onliner item is not `Belarus`, a Lithuanian-news-channel item is not
+  `Lithuania`, and a travel-channel item is not `Travel` unless the story text
+  itself supports that topic. Geography must describe where the event happens
+  or the jurisdiction it concerns.
+- Prefer the event mechanism over a generic container. `Housing` alone does
+  not distinguish construction, demolition, housing policy, or the housing
+  market; pair it with the applicable canonical subtype. Apply the same
+  principle to other broad domains whenever the registry contains a durable
+  narrower topic.
 - Preserve topic order from most specific and useful to broader context.
 
 ## Propose and promote
@@ -57,7 +67,7 @@ Promote it after it appears in at least three stories across at least two
 editions or independent sources. Before promotion, check aliases and neighboring
 topics again. Merge synonyms instead of creating parallel IDs.
 
-Keep the initial active registry around 30–50 topics. Growth should reflect
+Keep the active registry around 30–60 topics at this stage. Growth should reflect
 repeated interests, not the number of named entities in the news.
 
 ## Record explicit feedback

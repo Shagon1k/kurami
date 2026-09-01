@@ -138,7 +138,8 @@ Normalize every post to `item-contract.md` with:
 - `source`: `Telegram`;
 - `sourceDetail`: configured channel label;
 - `sourceItemId`: channel ID plus message ID;
-- `title`: a concise factual title prepared from the post;
+- `title`: a concise factual title newly authored from the complete post, not
+  its first sentence or a truncated caption;
 - `content`: readable post text and bounded caption text;
 - `publishedAt`: Telegram message timestamp;
 - `externalUrl`: public or authenticated post URL when derivable;
