@@ -63,7 +63,7 @@ native MCP schema is callable. A missing or failed direct call is an
 infrastructure-gate failure; a successful no-op is forbidden.
 
 Normal scheduled collection must call
-`capture_daily_briefing_batch(edition_id="daily:YYYY-MM-DD")` once. This
+`capture_daily_briefing_batch(edition_id="daily:YYYY-MM-DD", attempt_id="<runtime-attempt-id>")` once. This
 Kurami-owned read-only operation runs inside the existing pinned Telegram stdio
 process and uses its one Telethon client. It loads the authoritative runtime
 source registry, captures all enabled configured channels, atomically persists
@@ -74,7 +74,7 @@ It never downloads media or advances unread state.
 Do not ask the model to copy a large MCP response into these artifacts. That
 loses the durable provenance chain when tool output is truncated or compressed.
 After a successful capture, use consecutive
-`read_daily_briefing_batch_page(edition_id, offset, limit)` calls (maximum 50
+`read_daily_briefing_batch_page(edition_id, attempt_id, offset, limit)` calls (maximum 50
 items per call) to read every normalized item for editorial work. Follow each
 returned `nextOffset` until it is null. The pages are views over the immutable
 persisted artifact, not new Telegram requests.
@@ -230,7 +230,7 @@ story.
 Then run:
 
 ```text
-$BRIEFING_NODE $BRIEFING_CLI import-media --manifest <media-manifest.json>
+$BRIEFING_NODE $BRIEFING_CLI import-media --manifest <media-manifest.json> --attempt <attempt-id>
 ```
 
 The deterministic importer validates type, size, and provenance, moves
@@ -250,11 +250,11 @@ Collection never marks a channel read. After final media import and persisted
 batch validation, create the runtime-owned plan with:
 
 ```text
-$BRIEFING_NODE $BRIEFING_CLI telegram-commit-plan --id <edition-id>
+$BRIEFING_NODE $BRIEFING_CLI telegram-commit-plan --id <edition-id> --attempt <attempt-id>
 ```
 
 Production acknowledgement requires the Kurami-owned bounded operation
-`mark_read_through_batch(items, edition_id, plan_digest)` in the same stdio
+`mark_read_through_batch(items, edition_id, attempt_id, plan_digest)` in the same stdio
 process. Pass the plan's edition ID and digest unchanged. Map every plan source
 to one exact `{"chat_id": chatId, "max_id": maxId}` entry, at most 64
 entries, without additions, omissions, sorting-dependent substitutions, or

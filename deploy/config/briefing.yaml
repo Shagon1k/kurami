@@ -9,8 +9,8 @@ edition:
   cinema_retention: until_next_success
 
 safety:
-  production_mutations_enabled: false
-  initial_channel_cleanup_confirmed: false
+  production_mutations_enabled: true
+  initial_channel_cleanup_confirmed: true
   require_bounded_telegram_commit: true
   gmail_generation_is_read_only: true
 

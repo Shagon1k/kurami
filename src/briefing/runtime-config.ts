@@ -21,6 +21,11 @@ export type BriefingRuntimeConfig = {
   calendars: CalendarSource[];
   weatherLocation: OpenMeteoLocation;
   discordChannelId: string;
+  safety: {
+    productionMutationsEnabled: boolean;
+    initialChannelCleanupConfirmed: boolean;
+    requireBoundedTelegramCommit: true;
+  };
 };
 
 export type TelegramCaptureSource = {
@@ -54,6 +59,13 @@ function string(value: unknown, label: string): string {
 function finiteNumber(value: unknown, label: string): number {
   if (typeof value !== "number" || !Number.isFinite(value)) {
     throw new Error(`Invalid briefing config: ${label} must be a finite number`);
+  }
+  return value;
+}
+
+function boolean(value: unknown, label: string): boolean {
+  if (typeof value !== "boolean") {
+    throw new Error(`Invalid briefing config: ${label} must be boolean`);
   }
   return value;
 }
@@ -101,6 +113,7 @@ export async function loadBriefingRuntimeConfig(
   const weather = record(sources.weather, "sources.weather");
   const weatherSettings = record(weather.settings, "sources.weather.settings");
   const notification = record(root.notification, "notification");
+  const safety = record(root.safety, "safety");
   const timeZone = string(edition.timezone, "edition.timezone");
   try {
     new Intl.DateTimeFormat("en", { timeZone }).format(new Date());
@@ -135,6 +148,13 @@ export async function loadBriefingRuntimeConfig(
   if (!/^\d{10,20}$/u.test(discordChannelId)) {
     throw new Error("Invalid briefing config: Discord destination must be a channel ID");
   }
+  const requireBoundedTelegramCommit = boolean(
+    safety.require_bounded_telegram_commit,
+    "safety.require_bounded_telegram_commit",
+  );
+  if (!requireBoundedTelegramCommit) {
+    throw new Error("Invalid briefing config: bounded Telegram commit is mandatory");
+  }
   return {
     configPath: loaded.path,
     timeZone,
@@ -149,6 +169,17 @@ export async function loadBriefingRuntimeConfig(
       timeZone: string(weatherSettings.timezone ?? timeZone, "weather.timezone"),
     },
     discordChannelId,
+    safety: {
+      productionMutationsEnabled: boolean(
+        safety.production_mutations_enabled,
+        "safety.production_mutations_enabled",
+      ),
+      initialChannelCleanupConfirmed: boolean(
+        safety.initial_channel_cleanup_confirmed,
+        "safety.initial_channel_cleanup_confirmed",
+      ),
+      requireBoundedTelegramCommit: true,
+    },
   };
 }
 

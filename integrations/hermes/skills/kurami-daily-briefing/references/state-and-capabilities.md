@@ -46,7 +46,7 @@ For each configured channel:
 4. Import every retained media asset with exact source/message provenance.
 5. Persist raw/normalized validation against the final prepared edition, then
    create its commit plan and digest.
-6. Call `mark_read_through_batch(items, edition_id, plan_digest)` once with
+6. Call `mark_read_through_batch(items, edition_id, attempt_id, plan_digest)` once with
    only the exact plan cutoffs.
 7. Store the provider result and carry the same plan digest into finalization.
 

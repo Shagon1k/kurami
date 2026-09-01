@@ -57,6 +57,13 @@ export type TopicProfileRow = {
   dislikes: number;
 };
 
+export type TopicPairProfileRow = {
+  topicIds: [string, string];
+  likes: number;
+  dislikes: number;
+  reactions: number;
+};
+
 export type TopicRegistryRow = TopicDefinition;
 
 export type PreparedMailAction = {
@@ -317,9 +324,13 @@ export async function preparePreview(
   const digest = createHash("sha256").update(payloadJson).update("\0").update(html).digest("hex");
   const storedHtmlPath = relativeHtmlPath(paths, payload);
   const htmlPath = resolvedHtmlPath(paths, storedHtmlPath);
-  await atomicWrite(htmlPath, html);
+  const previousHtml = await readFile(htmlPath, "utf8").catch((error: NodeJS.ErrnoException) => {
+    if (error.code === "ENOENT") return null;
+    throw error;
+  });
 
   const database = openBriefingDatabase(paths);
+  let wroteHtml = false;
   try {
     const timestamp = now();
     const previous = database
@@ -333,11 +344,14 @@ export async function preparePreview(
     }>;
     const priorState = new Map(previous.map((item) => [item.item_id, item]));
     const previousBatches = database.prepare(`
-      SELECT source_key, max_item_id, state, committed_at, error_code
+      SELECT source_key, provider_source_id, max_item_id, item_ids_json,
+             state, committed_at, error_code
       FROM source_batches WHERE edition_id = ?
     `).all(payload.edition.id) as Array<{
       source_key: string;
+      provider_source_id: string;
       max_item_id: string | null;
+      item_ids_json: string;
       state: "prepared" | "committed" | "failed" | "skipped";
       committed_at: string | null;
       error_code: string | null;
@@ -441,7 +455,10 @@ export async function preparePreview(
       `);
       for (const batch of payload.sourceBatches ?? []) {
         const prior = priorBatches.get(batch.sourceKey);
-        const preserveCommit = prior?.state === "committed" && prior.max_item_id === batch.maxItemId;
+        const preserveCommit = prior?.state === "committed"
+          && prior.provider_source_id === batch.providerSourceId
+          && prior.max_item_id === batch.maxItemId
+          && prior.item_ids_json === JSON.stringify(batch.itemIds);
         insertBatch.run(
           payload.edition.id,
           batch.sourceKey,
@@ -455,9 +472,55 @@ export async function preparePreview(
           preserveCommit ? null : prior?.error_code ?? null,
         );
       }
+      const insertOccurrence = database.prepare(`
+        INSERT OR IGNORE INTO topic_story_occurrences (
+          topic_id, edition_id, story_fingerprint, source_key, observed_at
+        ) VALUES (?, ?, ?, ?, ?)
+      `);
+      for (const story of payload.news.items) {
+        const sourceKeys = new Set(
+          (Array.isArray(story.sources) ? story.sources : [])
+            .map((source) => source && typeof source === "object" && !Array.isArray(source)
+              ? (source as Record<string, unknown>).sourceKey
+              : null)
+            .filter((value): value is string => typeof value === "string" && value.length > 0),
+        );
+        if (sourceKeys.size === 0) sourceKeys.add(`edition:${payload.edition.id}`);
+        for (const topic of story.topics) {
+          for (const sourceKey of sourceKeys) {
+            insertOccurrence.run(topic.id, payload.edition.id, story.fingerprint, sourceKey, timestamp);
+          }
+        }
+      }
+      database.prepare(`
+        UPDATE topic_registry
+        SET status = 'active', updated_at = ?
+        WHERE status = 'proposed'
+          AND id IN (
+            SELECT topic_id
+            FROM topic_story_occurrences
+            GROUP BY topic_id
+            HAVING COUNT(DISTINCT story_fingerprint) >= ?
+              AND (
+                COUNT(DISTINCT edition_id) >= ?
+                OR COUNT(DISTINCT source_key) >= ?
+              )
+          )
+      `).run(
+        timestamp,
+        topicPolicy.promotion.minimumStoryCount,
+        topicPolicy.promotion.minimumEditionOrSourceCount,
+        topicPolicy.promotion.minimumEditionOrSourceCount,
+      );
+      await atomicWrite(htmlPath, html);
+      wroteHtml = true;
       database.exec("COMMIT");
     } catch (error) {
       database.exec("ROLLBACK");
+      if (wroteHtml) {
+        if (previousHtml === null) await unlink(htmlPath).catch(() => undefined);
+        else await atomicWrite(htmlPath, previousHtml);
+      }
       throw error;
     }
   } finally {
@@ -1058,6 +1121,47 @@ export function topicProfile(database: DatabaseSync): TopicProfileRow[] {
     });
 }
 
+export function topicPairProfile(database: DatabaseSync): TopicPairProfileRow[] {
+  const current = database.prepare(`
+    WITH ranked AS (
+      SELECT story_fingerprint, topic_ids_json, reaction,
+             ROW_NUMBER() OVER (
+               PARTITION BY story_fingerprint ORDER BY event_id DESC
+             ) AS position
+      FROM reaction_events
+    )
+    SELECT topic_ids_json, reaction
+    FROM ranked
+    WHERE position = 1 AND reaction != 'clear'
+  `).all() as Array<{ topic_ids_json: string; reaction: "like" | "dislike" }>;
+  const pairs = new Map<string, { topicIds: [string, string]; likes: number; dislikes: number }>();
+  for (const item of current) {
+    let topics: string[];
+    try {
+      const parsed = JSON.parse(item.topic_ids_json) as unknown;
+      topics = Array.isArray(parsed)
+        ? [...new Set(parsed.filter((value): value is string => typeof value === "string"))].sort()
+        : [];
+    } catch {
+      topics = [];
+    }
+    for (let left = 0; left < topics.length; left += 1) {
+      for (let right = left + 1; right < topics.length; right += 1) {
+        const topicIds: [string, string] = [topics[left]!, topics[right]!];
+        const key = topicIds.join("+");
+        const value = pairs.get(key) ?? { topicIds, likes: 0, dislikes: 0 };
+        if (item.reaction === "like") value.likes += 1;
+        else value.dislikes += 1;
+        pairs.set(key, value);
+      }
+    }
+  }
+  return [...pairs.values()]
+    .map((value) => ({ ...value, reactions: value.likes + value.dislikes }))
+    .filter((value) => value.reactions >= 3)
+    .sort((left, right) => right.reactions - left.reactions || left.topicIds.join("+").localeCompare(right.topicIds.join("+")));
+}
+
 export function topicRegistry(database: DatabaseSync): TopicRegistryRow[] {
   return database
     .prepare(`
@@ -1118,18 +1222,23 @@ export async function cleanupExpired(
       recursive: true,
       force: true,
     });
-    for (const root of [
-      paths.runsDirectory,
-      paths.recoveryDirectory,
-      paths.artifactsDirectory,
-      paths.stateArtifactsDirectory,
-    ]) {
+    const attempts = database.prepare(`
+      SELECT run_directory FROM briefing_run_attempts WHERE edition_id = ?
+    `).all(edition.id) as Array<{ run_directory: string }>;
+    for (const attempt of attempts) {
+      const directory = resolve(attempt.run_directory);
+      if (directory.startsWith(`${resolve(paths.runsDirectory)}/`)) {
+        await rm(directory, { recursive: true, force: true });
+      }
+    }
+    for (const root of [paths.runsDirectory, paths.recoveryDirectory, paths.artifactsDirectory, paths.stateArtifactsDirectory]) {
       const children = await readdir(root, { withFileTypes: true }).catch((error: NodeJS.ErrnoException) => {
         if (error.code === "ENOENT") return [];
         throw error;
       });
       for (const child of children) {
-        if (!child.isDirectory() || !child.name.includes(edition.local_date)) continue;
+        const legacyName = new RegExp(`^(?:daily|cinema)-${edition.local_date}(?:$|-)`, "u");
+        if (!child.isDirectory() || !legacyName.test(child.name)) continue;
         await rm(resolve(root, child.name), { recursive: true, force: true });
       }
     }

@@ -220,6 +220,13 @@ Use a flexible story rather than a mandatory prose template:
     }
   ],
   "entities": ["Original entity spelling"],
+  "editorialSignals": {
+    "importance": "low | medium | high | critical",
+    "urgency": "none | soon | today",
+    "publicInterest": "low | medium | high",
+    "confidence": "low | medium | high",
+    "publishedAt": "optional reliable RFC3339 timestamp"
+  },
   "media": [
     {
       "id": "story-example-media-1",
@@ -270,6 +277,11 @@ stories.
 must not drop items. Story IDs identify one edition item; fingerprints identify
 the same underlying story across editions and are used only for deduplication
 and durable preference events.
+
+The editorial step supplies only bounded `editorialSignals`. The runtime owns
+their versioned weights, stable tie-breaking, diversity pass, final rank,
+`mainStoryIds`, stable story ID and fingerprint. Do not hand-author those
+derived fields in an editorial draft.
 
 Target three or four canonical topics. Use two only for a genuinely narrow
 story; never pad with a provider, channel name, arbitrary person, or vague

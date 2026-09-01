@@ -6,7 +6,6 @@ from __future__ import annotations
 import json
 import os
 import re
-import sqlite3
 import subprocess
 import sys
 import tempfile
@@ -54,11 +53,6 @@ def _safe_error(value: str) -> str:
     return value[:500] if value else "download failed"
 
 
-def _briefing_database_path() -> Path:
-    home = Path(os.environ.get("KURAMI_HOME", "/home/shagon1k/_hermes/_kurami"))
-    return home / "state" / "briefing" / "briefing.db"
-
-
 def _briefing_media_inbox_path() -> Path:
     home = Path(os.environ.get("KURAMI_HOME", "/home/shagon1k/_hermes/_kurami"))
     return home / "state" / "briefing" / "media-inbox"
@@ -68,17 +62,23 @@ def _briefing_home_path() -> Path:
     return Path(os.environ.get("KURAMI_HOME", "/home/shagon1k/_hermes/_kurami")).resolve()
 
 
-def _capture_paths(edition_id: str) -> tuple[Path, Path, Path]:
+def _capture_paths(edition_id: str, attempt_id: str) -> tuple[Path, Path, Path]:
     match = EDITION_ID.fullmatch(edition_id) if isinstance(edition_id, str) else None
     if match is None:
         raise ValueError("edition_id must identify one daily edition")
     local_date = datetime.now(ZoneInfo("Europe/Vilnius")).date().isoformat()
     if match.group("date") != local_date:
         raise ValueError("capture is allowed only for today's Europe/Vilnius edition")
+    status = _briefing_cli(["attempt-status", "--attempt", attempt_id])
+    attempt = status.get("attempt")
+    if not isinstance(attempt, dict) or attempt.get("editionId") != edition_id:
+        raise ValueError("attempt_id does not belong to edition_id")
     home = _briefing_home_path()
     runs = (home / "state" / "briefing" / "runs").resolve()
-    run = runs / edition_id.replace(":", "-")
-    run.mkdir(parents=True, exist_ok=True)
+    run_directory = attempt.get("runDirectory")
+    if not isinstance(run_directory, str):
+        raise ValueError("attempt run directory is unavailable")
+    run = Path(run_directory)
     resolved = run.resolve()
     if run.is_symlink() or not _is_within(resolved, runs):
         raise ValueError("capture run directory is outside the briefing runs root")
@@ -136,7 +136,12 @@ def _telegram_capture_config() -> dict[str, Any]:
     return payload
 
 
-def _normalize_and_validate_capture(config_path: str, raw_path: Path, normalized_path: Path) -> dict[str, Any]:
+def _normalize_and_validate_capture(
+    config_path: str,
+    raw_path: Path,
+    normalized_path: Path,
+    attempt_id: str,
+) -> dict[str, Any]:
     home = _briefing_home_path()
     normalizer = (
         home
@@ -167,6 +172,8 @@ def _normalize_and_validate_capture(config_path: str, raw_path: Path, normalized
             str(raw_path),
             "--normalized",
             str(normalized_path),
+            "--attempt",
+            attempt_id,
         ]
     )
 
@@ -513,6 +520,7 @@ def _captured_item(source: dict[str, Any], message: Any, entity: Any) -> dict[st
 )
 async def capture_daily_briefing_batch(
     edition_id: str,
+    attempt_id: str,
     ctx: Optional[Context] = None,
     account: str = None,
 ) -> str:
@@ -527,10 +535,13 @@ async def capture_daily_briefing_batch(
 
     del ctx
     try:
-        _, raw_path, normalized_path = _capture_paths(edition_id)
+        _, raw_path, normalized_path = _capture_paths(edition_id, attempt_id)
         config = _telegram_capture_config()
         config_path = str(config["configPath"])
         if raw_path.is_file() and normalized_path.is_file():
+            attempt_status = _briefing_cli(["attempt-status", "--attempt", attempt_id]).get("attempt", {})
+            if isinstance(attempt_status, dict) and attempt_status.get("state") == "live-collected":
+                _briefing_cli(["advance-attempt", "--attempt", attempt_id, "--stage", "telegram-captured"])
             report = _briefing_cli(
                 [
                     "validate-telegram-batch",
@@ -540,6 +551,8 @@ async def capture_daily_briefing_batch(
                     str(raw_path),
                     "--normalized",
                     str(normalized_path),
+                    "--attempt",
+                    attempt_id,
                 ]
             )
             return json.dumps(
@@ -647,7 +660,8 @@ async def capture_daily_briefing_batch(
             "diagnostics": [],
         }
         _atomic_json(raw_path, raw)
-        report = _normalize_and_validate_capture(config_path, raw_path, normalized_path)
+        _briefing_cli(["advance-attempt", "--attempt", attempt_id, "--stage", "telegram-captured"])
+        report = _normalize_and_validate_capture(config_path, raw_path, normalized_path, attempt_id)
         return json.dumps(
             {
                 "ok": report.get("complete") is True,
@@ -676,6 +690,7 @@ async def capture_daily_briefing_batch(
 )
 async def read_daily_briefing_batch_page(
     edition_id: str,
+    attempt_id: str,
     offset: int = 0,
     limit: int = 25,
     ctx: Optional[Context] = None,
@@ -694,7 +709,7 @@ async def read_daily_briefing_batch_page(
     ):
         return json.dumps({"ok": False, "error": "offset or limit is invalid"})
     try:
-        _, _, normalized_path = _capture_paths(edition_id)
+        _, _, normalized_path = _capture_paths(edition_id, attempt_id)
         payload = json.loads(normalized_path.read_text(encoding="utf-8"))
         items = payload.get("items") if isinstance(payload, dict) else None
         if not isinstance(items, list):
@@ -717,6 +732,7 @@ async def read_daily_briefing_batch_page(
 
 def _validate_commit_plan(
     edition_id: str,
+    attempt_id: str,
     plan_digest: str,
     items: list[dict[str, Any]],
 ) -> tuple[bool, str]:
@@ -724,33 +740,27 @@ def _validate_commit_plan(
         return False, "edition_id must identify one daily edition"
     if not isinstance(plan_digest, str) or not PLAN_DIGEST.fullmatch(plan_digest):
         return False, "plan_digest is invalid"
-    database_path = _briefing_database_path()
     try:
-        database = sqlite3.connect(f"file:{database_path}?mode=ro", uri=True)
-        row = database.execute(
-            """
-            SELECT receipts.commit_plan_json, receipts.commit_plan_digest, editions.state
-            FROM telegram_validation_receipts receipts
-            JOIN editions ON editions.id = receipts.edition_id
-            WHERE receipts.edition_id = ?
-            """,
-            (edition_id,),
-        ).fetchone()
-    except (OSError, sqlite3.Error) as error:
+        plan = _briefing_cli(
+            [
+                "telegram-commit-plan",
+                "--id",
+                edition_id,
+                "--attempt",
+                attempt_id,
+            ]
+        )
+    except (OSError, RuntimeError, ValueError) as error:
         return False, f"commit plan unavailable: {_safe_error(str(error))}"
-    finally:
-        if "database" in locals():
-            database.close()
-    if not row or row[2] != "prepared" or row[1] != plan_digest or not row[0]:
+    if plan.get("planDigest") != plan_digest or not isinstance(plan.get("sources"), list):
         return False, "commit plan is missing, stale, or belongs to another edition"
     try:
-        plan = json.loads(row[0])
         expected = sorted(
             (int(source["chatId"]), int(source["maxId"]))
             for source in plan["sources"]
         )
         actual = sorted((int(item["chat_id"]), int(item["max_id"])) for item in items)
-    except (KeyError, TypeError, ValueError, json.JSONDecodeError):
+    except (KeyError, TypeError, ValueError):
         return False, "stored commit plan is malformed"
     if expected != actual:
         return False, "items differ from the validated Telegram commit plan"
@@ -1150,6 +1160,7 @@ async def download_media_batch(
 async def mark_read_through_batch(
     items: list[dict[str, Any]],
     edition_id: str,
+    attempt_id: str,
     plan_digest: str,
     ctx: Optional[Context] = None,
     account: str = None,
@@ -1196,7 +1207,7 @@ async def mark_read_through_batch(
         seen.add(chat_id)
         validated.append((chat_id, max_id))
 
-    plan_ok, plan_error = _validate_commit_plan(edition_id, plan_digest, items)
+    plan_ok, plan_error = _validate_commit_plan(edition_id, attempt_id, plan_digest, items)
     if not plan_ok:
         return json.dumps({"ok": False, "error": plan_error, "results": []})
 

@@ -35,6 +35,10 @@ edition:
   daily_retention_days: 5
 notification:
   destination: "1543918214835216584"
+safety:
+  production_mutations_enabled: true
+  initial_channel_cleanup_confirmed: true
+  require_bounded_telegram_commit: true
 sources:
   news:
     profile: telegram-user
@@ -88,6 +92,11 @@ async function verifyRuntimeConfig(): Promise<void> {
   assert.equal(config.retentionDays, 5);
   assert.equal(config.gmailQuery, "in:inbox is:unread category:primary");
   assert.equal(config.gmailPageSize, 75);
+  assert.deepEqual(config.safety, {
+    productionMutationsEnabled: true,
+    initialChannelCleanupConfirmed: true,
+    requireBoundedTelegramCommit: true,
+  });
   assert.deepEqual(config.calendars, [
     { key: "personal", id: "primary", label: "Aliaksei Hurynovich", role: "personal" },
     { key: "family", id: "family-calendar", label: "G-Fam", role: "family" },

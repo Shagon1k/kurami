@@ -50,6 +50,13 @@ type MediaManifest = {
   stories: ManifestStory[];
 };
 
+type DownloadReceipt = {
+  chatId: number;
+  messageId: number;
+  status: "downloaded" | "reused" | "skipped" | "failed";
+  path?: string;
+};
+
 type StagedStory = {
   targetDirectory: string;
   stagingDirectory: string;
@@ -143,6 +150,76 @@ export async function readMediaManifest(path: string): Promise<MediaManifest> {
   const content = await readFile(path, "utf8");
   if (Buffer.byteLength(content, "utf8") > 128 * 1024) fail("manifest exceeds 128 KiB");
   return parseManifest(JSON.parse(content) as unknown);
+}
+
+/** Build the import manifest from immutable story ownership and provider receipts. */
+export function buildEditionMediaManifest(
+  payload: BriefingPayload,
+  receiptValue: unknown,
+): MediaManifest | null {
+  const root = receiptValue && typeof receiptValue === "object" && !Array.isArray(receiptValue)
+    ? receiptValue as Record<string, unknown>
+    : null;
+  if (!root || !Array.isArray(root.results)) fail("download receipts require a results array");
+  const receipts = new Map<string, DownloadReceipt>();
+  for (const [index, raw] of root.results.entries()) {
+    if (!raw || typeof raw !== "object" || Array.isArray(raw)) fail(`download receipt ${index} is invalid`);
+    const item = raw as Record<string, unknown>;
+    if (!Number.isSafeInteger(item.chatId) || !Number.isSafeInteger(item.messageId)) {
+      fail(`download receipt ${index} has an invalid identity`);
+    }
+    if (!new Set(["downloaded", "reused", "skipped", "failed"]).has(String(item.status))) {
+      fail(`download receipt ${index} has an invalid status`);
+    }
+    const receipt: DownloadReceipt = {
+      chatId: item.chatId as number,
+      messageId: item.messageId as number,
+      status: item.status as DownloadReceipt["status"],
+      ...(typeof item.path === "string" ? { path: item.path } : {}),
+    };
+    const key = `${receipt.chatId}:${receipt.messageId}`;
+    if (receipts.has(key)) fail(`download receipts contain duplicate ${key}`);
+    receipts.set(key, receipt);
+  }
+  const stories: ManifestStory[] = [];
+  const expected = new Set<string>();
+  for (const story of payload.news.items) {
+    const assets: ManifestAsset[] = [];
+    for (const source of Array.isArray(story.sources) ? story.sources : []) {
+      if (!source || typeof source !== "object" || Array.isArray(source)) continue;
+      const item = source as Record<string, unknown>;
+      if (typeof item.sourceKey !== "string" || !Array.isArray(item.mediaMessageIds)) continue;
+      const providerSourceId = payload.sourceBatches?.find((batch) => batch.sourceKey === item.sourceKey)?.providerSourceId;
+      const chatId = providerSourceId ? Number(providerSourceId) : NaN;
+      if (!Number.isSafeInteger(chatId)) fail(`story ${story.id} has no provider source identity`);
+      for (const providerItemId of item.mediaMessageIds) {
+        if (typeof providerItemId !== "string" || !/^\d+$/u.test(providerItemId)) {
+          fail(`story ${story.id} has invalid media provider item ID`);
+        }
+        const key = `${chatId}:${providerItemId}`;
+        if (expected.has(key)) fail(`media identity ${key} belongs to more than one story`);
+        expected.add(key);
+        const receipt = receipts.get(key);
+        if (!receipt || !["downloaded", "reused"].includes(receipt.status) || !receipt.path) {
+          fail(`media identity ${key} has no successful download receipt`);
+        }
+        assets.push({
+          sourcePath: receipt.path,
+          alt: `Изображение к сюжету «${story.headline}»`,
+          sourceKey: item.sourceKey,
+          providerItemId,
+        });
+      }
+    }
+    if (assets.length > 12) fail(`story ${story.id} exceeds twelve retained images`);
+    if (assets.length) stories.push({ itemId: story.id, assets });
+  }
+  for (const [key, receipt] of receipts) {
+    if (["downloaded", "reused"].includes(receipt.status) && !expected.has(key)) {
+      fail(`download receipt ${key} is not owned by the edition`);
+    }
+  }
+  return stories.length ? { editionId: payload.edition.id, stories } : null;
 }
 
 export async function importEditionMedia(

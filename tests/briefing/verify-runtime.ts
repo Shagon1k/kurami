@@ -859,6 +859,7 @@ assert.deepEqual(initialized.applied, [
   "001_initial.sql",
   "002_source_provider_ids.sql",
   "003_ingestion_gates.sql",
+  "004_deterministic_runs.sql",
 ]);
 
 const prepared = await preparePreview(payload, html, paths);
@@ -988,6 +989,9 @@ try {
     database: "ok",
     editions: 1,
     externalMutations: true,
+    currentEdition: null,
+    latestAttempt: null,
+    live: null,
   });
 
   const preview = await fetch(`${base}${prepared.previewPath}`);
@@ -1064,6 +1068,7 @@ try {
       { topicId: "ai", label: "AI", likes: 1, dislikes: 0 },
       { topicId: "technology", label: "Technology", likes: 1, dislikes: 0 },
     ],
+    pairs: [],
   });
 } finally {
   await new Promise<void>((resolvePromise, reject) => {

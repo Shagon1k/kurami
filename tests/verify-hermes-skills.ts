@@ -89,7 +89,10 @@ const briefingSkill = fs.readFileSync(
 );
 assert.match(briefingSkill, /\/dist\/briefing\/cli\.js/);
 assert.match(briefingSkill, /Hermes `write_file` tool/);
-assert.match(briefingSkill, /render-preview --payload/);
+assert.match(briefingSkill, /start-attempt --id daily:YYYY-MM-DD --mode scheduled/);
+assert.match(briefingSkill, /compose --attempt <attempt-id>/);
+assert.match(briefingSkill, /render-preview --payload <payload\.json> --attempt <attempt-id>/);
+assert.match(briefingSkill, /`mark_read_through_batch` once with `edition_id`, `attempt_id`, `plan_digest`/);
 assert.doesNotMatch(briefingSkill, /prepare-preview --payload <payload\.json> --html/);
 assert.doesNotMatch(briefingSkill, /app\/src\/briefing\/cli\.ts/);
 
@@ -136,6 +139,8 @@ assert.match(telegramWrapper, /MAX_BATCH_EXACT_MESSAGES = 256/);
 assert.match(telegramWrapper, /async def get_messages_exact_batch/);
 assert.match(telegramWrapper, /async def capture_daily_briefing_batch/);
 assert.match(telegramWrapper, /async def read_daily_briefing_batch_page/);
+assert.match(telegramWrapper, /async def mark_read_through_batch/);
+assert.match(telegramWrapper, /_validate_commit_plan\(edition_id, attempt_id, plan_digest, items\)/);
 assert.match(telegramWrapper, /def _telegram_message_url/);
 assert.match(telegramWrapper, /readOnlyHint=True/);
 assert.match(telegramWrapper, /status": "reused"/);
@@ -196,8 +201,8 @@ const config = readYaml(path.join(root, "deploy", "config", "briefing.yaml")) as
 assert.equal(config.version, 3);
 assert.equal(config.edition.timezone, "Europe/Vilnius");
 assert.equal(config.edition.daily_retention_days, 5);
-assert.equal(config.safety.production_mutations_enabled, false);
-assert.equal(config.safety.initial_channel_cleanup_confirmed, false);
+assert.equal(config.safety.production_mutations_enabled, true);
+assert.equal(config.safety.initial_channel_cleanup_confirmed, true);
 assert.equal(config.safety.require_bounded_telegram_commit, true);
 assert.deepEqual(Object.keys(config.capabilities).sort(), ["publisher", "renderer"]);
 assert.equal(config.sources.calendar.profile, "composio-google-calendar");

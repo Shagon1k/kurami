@@ -14,6 +14,10 @@ export type TopicPolicy = {
   topics: Map<string, TopicDefinition>;
   geographyTopics: Set<string>;
   refinements: Map<string, Set<string>>;
+  promotion: {
+    minimumStoryCount: number;
+    minimumEditionOrSourceCount: number;
+  };
 };
 
 type JsonRecord = Record<string, unknown>;
@@ -35,6 +39,13 @@ function nonEmptyString(value: unknown, label: string): string {
 function stringArray(value: unknown, label: string): string[] {
   if (!Array.isArray(value)) throw new Error(`Invalid topic seed: ${label} must be an array`);
   return value.map((item, index) => nonEmptyString(item, `${label}[${index}]`));
+}
+
+function positiveInteger(value: unknown, label: string): number {
+  if (typeof value !== "number" || !Number.isSafeInteger(value) || value < 1) {
+    throw new Error(`Invalid topic seed: ${label} must be a positive integer`);
+  }
+  return value;
 }
 
 async function topicSeedPath(home: string, environment: NodeJS.ProcessEnv): Promise<string> {
@@ -81,6 +92,7 @@ export async function loadTopicPolicy(
   }
 
   const validation = record(root.validation ?? {}, "validation");
+  const promotion = record(root.promotion ?? {}, "promotion");
   const geographyTopics = new Set(stringArray(
     validation.geography_topics ?? [],
     "validation.geography_topics",
@@ -101,7 +113,21 @@ export async function loadTopicPolicy(
       if (!topics.has(topicId)) throw new Error(`Invalid topic seed: unknown refinement topic ${topicId}`);
     }
   }
-  return { topics, geographyTopics, refinements };
+  return {
+    topics,
+    geographyTopics,
+    refinements,
+    promotion: {
+      minimumStoryCount: positiveInteger(
+        promotion.minimum_story_count,
+        "promotion.minimum_story_count",
+      ),
+      minimumEditionOrSourceCount: positiveInteger(
+        promotion.minimum_edition_or_source_count,
+        "promotion.minimum_edition_or_source_count",
+      ),
+    },
+  };
 }
 
 function normalized(value: string): string {

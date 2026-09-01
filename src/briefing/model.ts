@@ -54,6 +54,14 @@ export type StorySource = Record<string, unknown> & {
   mediaMessageIds?: string[];
 };
 
+export type EditorialSignals = {
+  importance: "low" | "medium" | "high" | "critical";
+  urgency: "none" | "soon" | "today";
+  publicInterest: "low" | "medium" | "high";
+  confidence: "low" | "medium" | "high";
+  publishedAt?: string;
+};
+
 export type NewsItem = {
   id: string;
   fingerprint: string;
@@ -63,8 +71,31 @@ export type NewsItem = {
   topics: Topic[];
   media?: StoryMedia[];
   sources?: StorySource[] | Array<Record<string, unknown>>;
+  editorialSignals?: EditorialSignals;
   [key: string]: unknown;
 };
+
+function editorialSignals(value: unknown, label: string): EditorialSignals | undefined {
+  if (value === undefined) return undefined;
+  const signals = record(value, label);
+  const importance = string(signals.importance, `${label}.importance`) as EditorialSignals["importance"];
+  const urgency = string(signals.urgency, `${label}.urgency`) as EditorialSignals["urgency"];
+  const publicInterest = string(signals.publicInterest, `${label}.publicInterest`) as EditorialSignals["publicInterest"];
+  const confidence = string(signals.confidence, `${label}.confidence`) as EditorialSignals["confidence"];
+  if (!new Set(["low", "medium", "high", "critical"]).has(importance)) fail(`${label}.importance is unsupported`);
+  if (!new Set(["none", "soon", "today"]).has(urgency)) fail(`${label}.urgency is unsupported`);
+  if (!new Set(["low", "medium", "high"]).has(publicInterest)) fail(`${label}.publicInterest is unsupported`);
+  if (!new Set(["low", "medium", "high"]).has(confidence)) fail(`${label}.confidence is unsupported`);
+  return {
+    importance,
+    urgency,
+    publicInterest,
+    confidence,
+    ...(signals.publishedAt !== undefined
+      ? { publishedAt: timestamp(signals.publishedAt, `${label}.publishedAt`) }
+      : {}),
+  };
+}
 
 export type MailItem = {
   id: string;
@@ -623,6 +654,7 @@ export function parseBriefingPayload(value: unknown): BriefingPayload {
       details: details(item.details, `news.items[${index}].details`),
       topics: topics(item.topics, `news.items[${index}].topics`),
       media: media(item.media, `news.items[${index}].media`),
+      editorialSignals: editorialSignals(item.editorialSignals, `news.items[${index}].editorialSignals`),
       ...(sources ? { sources } : {}),
     };
   });
@@ -667,6 +699,32 @@ export function parseBriefingPayload(value: unknown): BriefingPayload {
     news: { ...news, items: newsItems, ...(exclusions ? { exclusions } : {}) } as BriefingPayload["news"],
     dataQuality: dataQuality as BriefingPayload["dataQuality"],
   };
+
+  if (parsed.notes) {
+    const calendarIds = new Set<string>();
+    for (const key of ["events", "allDayEvents", "demoEvents"] as const) {
+      const values = parsed.calendar[key];
+      if (!Array.isArray(values)) continue;
+      for (const value of values) {
+        if (value && typeof value === "object" && !Array.isArray(value) && typeof (value as Record<string, unknown>).id === "string") {
+          calendarIds.add(String((value as Record<string, unknown>).id));
+        }
+      }
+    }
+    const mailIds = new Set(parsed.mail.items.map((item) => item.id));
+    const storyIds = new Set(parsed.news.items.map((item) => item.id));
+    for (const note of parsed.notes) {
+      if (note.target.startsWith("calendar-event:") && !calendarIds.has(note.target.slice(15))) {
+        fail(`note ${note.id} targets an unknown calendar event`);
+      }
+      if (note.target.startsWith("mail-item:") && !mailIds.has(note.target.slice(10))) {
+        fail(`note ${note.id} targets an unknown mail item`);
+      }
+      if (note.target.startsWith("story:") && !storyIds.has(note.target.slice(6))) {
+        fail(`note ${note.id} targets an unknown story`);
+      }
+    }
+  }
 
   return parsed;
 }

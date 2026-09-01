@@ -1,7 +1,9 @@
 import { chmod, mkdir, rename, writeFile } from "node:fs/promises";
-import { randomUUID } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
 import { join, resolve } from "node:path";
 import { briefingPaths } from "./store.ts";
+import { initializeBriefingStore, openBriefingDatabase } from "./store.ts";
+import { loadBriefingAttempt, recordBriefingRunStage } from "./run-attempt.ts";
 import { loadBriefingRuntimeConfig } from "./runtime-config.ts";
 import { collectDynamicBriefingSnapshot } from "./providers/dynamic-snapshot.ts";
 import {
@@ -22,6 +24,7 @@ function currentLocalDate(timeZone: string): string {
 
 export async function collectEditionLiveSnapshot(
   editionId: string,
+  attemptId?: string,
   environment: NodeJS.ProcessEnv = process.env,
 ): Promise<Record<string, unknown>> {
   const match = DAILY_EDITION.exec(editionId);
@@ -43,14 +46,43 @@ export async function collectEditionLiveSnapshot(
     retry: { attempts: 3, timeoutMs: 12_000, initialDelayMs: 300, maximumDelayMs: 2_000 },
   });
   const runsRoot = resolve(paths.home, "state", "briefing", "runs");
-  const runDirectory = resolve(runsRoot, editionId.replace(":", "-"));
+  let runDirectory: string;
+  if (attemptId) {
+    await initializeBriefingStore(paths);
+    const database = openBriefingDatabase(paths);
+    try {
+      const attempt = loadBriefingAttempt(database, attemptId);
+      if (!attempt || attempt.editionId !== editionId || attempt.state !== "created") {
+        throw new Error("collect-live requires the matching created briefing attempt");
+      }
+      runDirectory = attempt.runDirectory;
+    } finally {
+      database.close();
+    }
+  } else {
+    runDirectory = resolve(runsRoot, editionId.replace(":", "-"));
+  }
   if (!runDirectory.startsWith(`${runsRoot}/`)) throw new Error("Invalid live snapshot path");
   await mkdir(runDirectory, { recursive: true, mode: 0o700 });
   const outputPath = join(runDirectory, "live-snapshot.json");
   const temporaryPath = join(runDirectory, `.live-snapshot.${randomUUID()}.tmp`);
-  await writeFile(temporaryPath, `${JSON.stringify(snapshot, null, 2)}\n`, { mode: 0o600 });
+  const encoded = `${JSON.stringify(snapshot, null, 2)}\n`;
+  await writeFile(temporaryPath, encoded, { mode: 0o600 });
   await chmod(temporaryPath, 0o600);
   await rename(temporaryPath, outputPath);
+  if (attemptId) {
+    const database = openBriefingDatabase(paths);
+    try {
+      recordBriefingRunStage(database, {
+        attemptId,
+        stage: "live-collected",
+        outputDigest: createHash("sha256").update(encoded).digest("hex"),
+        metadata: { outputPath, state: snapshot.state },
+      });
+    } finally {
+      database.close();
+    }
+  }
   return {
     ok: true,
     action: "collect-live",

@@ -67,7 +67,7 @@ function durationLabel(event: NormalizedCalendarEvent): string {
   return remainder ? `${hours}ч ${remainder}м` : `${hours}ч`;
 }
 
-function calendarEvent(value: NormalizedCalendarEvent): Record<string, unknown> {
+export function calendarEvent(value: NormalizedCalendarEvent): Record<string, unknown> {
   return {
     id: value.id,
     provider: value.provider,
@@ -88,7 +88,7 @@ function calendarEvent(value: NormalizedCalendarEvent): Record<string, unknown> 
   };
 }
 
-function calendarConflicts(items: NormalizedCalendarEvent[]): Array<Record<string, unknown>> {
+export function calendarConflicts(items: NormalizedCalendarEvent[]): Array<Record<string, unknown>> {
   const timed = items.filter((item) => !item.allDay)
     .map((item) => ({ item, start: Date.parse(item.start), end: Date.parse(item.end) }))
     .filter((item) => Number.isFinite(item.start) && Number.isFinite(item.end))
@@ -102,7 +102,7 @@ function calendarConflicts(items: NormalizedCalendarEvent[]): Array<Record<strin
   return conflicts;
 }
 
-function classifyMail(item: NormalizedGmailMessage): "ACTION" | "IMPORTANT" | "GENERAL" {
+export function classifyMail(item: NormalizedGmailMessage): "ACTION" | "IMPORTANT" | "GENERAL" {
   if (item.classification === "IMPORTANT") return "IMPORTANT";
   const signal = `${item.title} ${item.summary}`.toLocaleLowerCase("ru");
   return /\b(?:action|required|deadline|confirm|approval|approve|respond|reply|payment|invoice|trial)\b|(?:нужно|требуется|подтверд|ответить|оплат|срок|заканчивается)/iu.test(signal)
@@ -110,7 +110,7 @@ function classifyMail(item: NormalizedGmailMessage): "ACTION" | "IMPORTANT" | "G
     : "GENERAL";
 }
 
-function mailItem(item: NormalizedGmailMessage): MailItem {
+export function mailItem(item: NormalizedGmailMessage): MailItem {
   return {
     id: item.id,
     provider: "gmail",
@@ -125,7 +125,7 @@ function mailItem(item: NormalizedGmailMessage): MailItem {
   };
 }
 
-function weatherValue(snapshot: WeatherSnapshot, state: SectionState): BriefingPayload["weather"] {
+export function weatherValue(snapshot: WeatherSnapshot, state: SectionState): BriefingPayload["weather"] {
   const high = snapshot.maximumCelsius === null ? "" : `до ${Math.round(snapshot.maximumCelsius)}°`;
   const precipitation = snapshot.precipitationProbabilityPercent === null
     ? ""
@@ -142,15 +142,15 @@ function weatherValue(snapshot: WeatherSnapshot, state: SectionState): BriefingP
   };
 }
 
-function sectionState(value: ProviderState): SectionState {
+export function sectionState(value: ProviderState): SectionState {
   return value;
 }
 
-function providerComplete<T>(result: ProviderResult<T>): result is ProviderResult<T> & { value: T } {
+export function providerComplete<T>(result: ProviderResult<T>): result is ProviderResult<T> & { value: T } {
   return result.value !== null && (result.state === "ready" || result.state === "empty");
 }
 
-function refreshDataQuality(payload: BriefingPayload, refreshedAt: string): void {
+export function refreshDataQuality(payload: BriefingPayload, refreshedAt: string): void {
   const sections: Array<[string, SectionState]> = [
     ["новости", payload.news.state],
     ["почта", payload.mail.state],
@@ -193,7 +193,7 @@ function failedProviderResult<T>(
   };
 }
 
-function updatePayload(
+export function updatePayload(
   original: BriefingPayload,
   refreshedAt: string,
   gmail: Awaited<ReturnType<typeof fetchGmailSnapshot>>,

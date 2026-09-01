@@ -17,9 +17,13 @@ import {
   readEditionHtml,
   setReaction,
   topicProfile,
+  topicPairProfile,
   type BriefingPaths,
   type EditionRow,
 } from "./store.ts";
+import { loadBriefingRuntimeConfig } from "./runtime-config.ts";
+import { latestBriefingAttempt } from "./run-attempt.ts";
+import { parseBriefingPayload } from "./model.ts";
 
 export type MailActionExecutor = (input: {
   actionId: string;
@@ -677,6 +681,17 @@ function requiredString(value: unknown, label: string): string {
   return value;
 }
 
+function errorResponse(error: unknown): { status: number; message: string } {
+  const raw = error instanceof Error ? error.message : String(error);
+  const lower = raw.toLowerCase();
+  if (/not found|unknown briefing edition|unknown briefing attempt/.test(lower)) return { status: 404, message: raw };
+  if (/transition|already|stale|conflict|not prepared|does not match/.test(lower)) return { status: 409, message: raw };
+  if (/not configured|unavailable|disabled/.test(lower)) return { status: 503, message: raw };
+  if (/provider|fetch|network|timeout|rate.?limit|upstream/.test(lower)) return { status: 502, message: "Upstream provider request failed" };
+  if (/invalid|required|must |exceeds|unsafe|unsupported|request body/.test(lower)) return { status: 400, message: raw };
+  return { status: 500, message: "Internal briefing error" };
+}
+
 const MEDIA_TYPES = new Map<string, string>([
   [".avif", "image/avif"],
   [".gif", "image/gif"],
@@ -807,8 +822,13 @@ export async function createBriefingServer(
 ): Promise<Server> {
   await initializeBriefingStore(paths);
   const database = openBriefingDatabase(paths);
+  const runtimeConfig = options.mailActionExecutor === undefined
+    ? await loadBriefingRuntimeConfig(paths)
+    : null;
   const mailActionExecutor = options.mailActionExecutor === undefined
-    ? composioMailActionExecutor(process.env)
+    ? runtimeConfig!.safety.productionMutationsEnabled
+      ? composioMailActionExecutor(process.env)
+      : null
     : options.mailActionExecutor;
   const server = createServer(async (request, response) => {
     try {
@@ -820,11 +840,36 @@ export async function createBriefingServer(
         const editions = database.prepare("SELECT COUNT(*) AS count FROM editions").get() as {
           count: number;
         };
+        const current = loadEdition(database, { type: "daily", current: true });
+        let live: Record<string, unknown> | null = null;
+        if (current) {
+          try {
+            const payload = parseBriefingPayload(JSON.parse(current.payload_json) as unknown);
+            live = payload.live ? {
+              state: payload.live.state,
+              refreshedAt: payload.live.refreshedAt,
+              lastSuccessAt: payload.live.lastSuccessAt ?? null,
+            } : null;
+          } catch {
+            live = { state: "invalid" };
+          }
+        }
+        const latestAttempt = latestBriefingAttempt(database);
         json(response, integrity.integrity_check === "ok" ? 200 : 503, {
           ok: integrity.integrity_check === "ok",
           database: integrity.integrity_check,
           editions: Number(editions.count),
           externalMutations: mailActionExecutor !== null,
+          currentEdition: current ? { id: current.id, state: current.state, localDate: current.local_date } : null,
+          latestAttempt: latestAttempt ? {
+            id: latestAttempt.attemptId,
+            editionId: latestAttempt.editionId,
+            mode: latestAttempt.mode,
+            state: latestAttempt.state,
+            updatedAt: latestAttempt.updatedAt,
+            errorCode: latestAttempt.errorCode,
+          } : null,
+          live,
         });
         return;
       }
@@ -839,7 +884,7 @@ export async function createBriefingServer(
         return;
       }
       if (request.method === "GET" && url.pathname === "/api/profile/topics") {
-        json(response, 200, { topics: topicProfile(database) });
+        json(response, 200, { topics: topicProfile(database), pairs: topicPairProfile(database) });
         return;
       }
       if (request.method === "POST" && url.pathname === "/api/items/read") {
@@ -894,8 +939,8 @@ export async function createBriefingServer(
       }
       text(response, 404, "Not found\n");
     } catch (error) {
-      const message = error instanceof Error ? error.message : String(error);
-      json(response, 400, { ok: false, error: message });
+      const failure = errorResponse(error);
+      json(response, failure.status, { ok: false, error: failure.message });
     }
   });
   server.on("close", () => database.close());

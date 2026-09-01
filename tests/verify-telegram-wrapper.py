@@ -288,11 +288,49 @@ assert wrapper._telegram_message_url(SimpleNamespace(username=None), -1001234567
     "https://t.me/c/1234567890/55"
 )
 
+# The destructive acknowledgement revalidates the runtime mutation policy and
+# exact attempt-bound plan immediately before Telegram is contacted.
+original_briefing_cli = wrapper._briefing_cli
+plan_calls: list[list[str]] = []
+wrapper._briefing_cli = lambda arguments: (
+    plan_calls.append(arguments)
+    or {
+        "ok": True,
+        "planDigest": "a" * 64,
+        "sources": [{"sourceKey": "telegram:test", "chatId": -1001, "maxId": 55}],
+    }
+)
+plan_ok, plan_error = wrapper._validate_commit_plan(
+    "daily:2026-09-01",
+    "daily-2026-09-01--manual-abcdef",
+    "a" * 64,
+    [{"chat_id": -1001, "max_id": 55}],
+)
+assert plan_ok is True and plan_error == ""
+assert plan_calls == [[
+    "telegram-commit-plan",
+    "--id",
+    "daily:2026-09-01",
+    "--attempt",
+    "daily-2026-09-01--manual-abcdef",
+]]
+plan_ok, _ = wrapper._validate_commit_plan(
+    "daily:2026-09-01",
+    "daily-2026-09-01--manual-abcdef",
+    "a" * 64,
+    [{"chat_id": -1001, "max_id": 56}],
+)
+assert plan_ok is False
+wrapper._briefing_cli = original_briefing_cli
+
 
 with tempfile.TemporaryDirectory() as capture_home:
     os.environ["KURAMI_HOME"] = capture_home
     local_date = datetime.now(wrapper.ZoneInfo("Europe/Vilnius")).date().isoformat()
     capture_edition = f"daily:{local_date}"
+    capture_attempt = f"daily-{local_date}--manual-abcdef"
+    capture_run = Path(capture_home) / "state" / "briefing" / "runs" / capture_attempt
+    capture_run.mkdir(parents=True)
     capture_config = {
         "configPath": str(Path(capture_home) / "config" / "briefing.yaml"),
         "profile": "telegram-user",
@@ -344,8 +382,9 @@ with tempfile.TemporaryDirectory() as capture_home:
             title="Alpha" if chat_id == -1001 else "Empty",
         )
 
-    def fake_normalize_validate(config_path: str, raw_path: Path, normalized_path: Path):
+    def fake_normalize_validate(config_path: str, raw_path: Path, normalized_path: Path, attempt_id: str):
         assert config_path == capture_config["configPath"]
+        assert attempt_id == capture_attempt
         raw = json.loads(raw_path.read_text())
         for item in raw["items"]:
             metadata = item["metadata"]
@@ -393,17 +432,23 @@ with tempfile.TemporaryDirectory() as capture_home:
 
     wrapper._telegram_capture_config = lambda: capture_config
     wrapper._normalize_and_validate_capture = fake_normalize_validate
+    wrapper._capture_paths = lambda edition_id, attempt_id: (
+        capture_run,
+        capture_run / "telegram-raw.json",
+        capture_run / "telegram-normalized.json",
+    )
+    wrapper._briefing_cli = lambda arguments: {"ok": True, "attempt": {"state": "live-collected"}}
     wrapper.get_client = lambda account: capture_client
     wrapper.ensure_connected = ensure_capture_connected
     wrapper.resolve_entity = resolve_capture_entity
 
-    captured = json.loads(asyncio.run(wrapper.capture_daily_briefing_batch(capture_edition)))
+    captured = json.loads(asyncio.run(wrapper.capture_daily_briefing_batch(capture_edition, capture_attempt)))
     assert captured["ok"] is True and captured["reused"] is False
     assert captured["report"]["capturedUnread"] == 2
     assert Path(captured["rawPath"]).is_file()
     assert Path(captured["normalizedPath"]).is_file()
     page = json.loads(
-        asyncio.run(wrapper.read_daily_briefing_batch_page(capture_edition, offset=0, limit=1))
+        asyncio.run(wrapper.read_daily_briefing_batch_page(capture_edition, capture_attempt, offset=0, limit=1))
     )
     assert page["ok"] is True and page["total"] == 2 and page["nextOffset"] == 1
     assert page["items"][0]["sourceItemId"] == "-1001:12"
@@ -414,12 +459,18 @@ with tempfile.TemporaryDirectory() as capture_home:
 
     # A valid capture is immutable for the edition. The retry validates and
     # reuses it instead of moving the unread cutoff.
-    wrapper._briefing_cli = lambda arguments: fake_normalize_validate(
-        capture_config["configPath"],
-        Path(captured["rawPath"]),
-        Path(captured["normalizedPath"]),
-    )
-    reused = json.loads(asyncio.run(wrapper.capture_daily_briefing_batch(capture_edition)))
+    def reused_cli(arguments):
+        if arguments[0] == "attempt-status":
+            return {"ok": True, "attempt": {"state": "capture-validated"}}
+        return fake_normalize_validate(
+            capture_config["configPath"],
+            Path(captured["rawPath"]),
+            Path(captured["normalizedPath"]),
+            capture_attempt,
+        )
+
+    wrapper._briefing_cli = reused_cli
+    reused = json.loads(asyncio.run(wrapper.capture_daily_briefing_batch(capture_edition, capture_attempt)))
     assert reused["ok"] is True and reused["reused"] is True
     assert capture_calls["count"] == 1
 

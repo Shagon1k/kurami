@@ -72,14 +72,23 @@ Default manual experiments to `dry-run`. Generation never archives Gmail;
    profiles own vendor-specific discovery, parameters, pagination, response
    mapping, and acknowledgement constraints. Configuration owns only profile
    selection and safe source settings.
-3. Capture the current time in `Europe/Vilnius` and create a stable edition ID
-   for the local date. A successful existing edition makes an automatic rerun
-   a no-op; a partial edition may retry only failed sources.
-4. Reuse the current-day
-   `state/briefing/runs/daily-YYYY-MM-DD/live-snapshot.json` when the scheduled
-   pre-run already produced a valid snapshot for this edition. If it is absent,
-   stale, or invalid, run
-   `$BRIEFING_NODE $BRIEFING_CLI collect-live --id daily:YYYY-MM-DD`. The
+3. Capture the current time in `Europe/Vilnius`, create a stable edition ID,
+   and start one runtime-owned attempt before any source call:
+
+   ```text
+   $BRIEFING_NODE $BRIEFING_CLI start-attempt --id daily:YYYY-MM-DD --mode scheduled
+   ```
+
+   Preserve the returned `attempt.attemptId` and `attempt.runDirectory`. When
+   `shouldRun` is false, stop successfully without provider calls or delivery.
+   This runtime check is the authoritative local-09:00 and duplicate-run guard.
+   After an attempt exists, any unrecoverable gate failure must be recorded
+   once with `$BRIEFING_NODE $BRIEFING_CLI advance-attempt --attempt <attempt-id> --stage failed`
+   before returning the concise failure; never leave a knowingly failed run
+   looking active.
+4. Reuse the attempt's `live-snapshot.json` only when it is already valid. If
+   it is absent, stale, or invalid, run
+   `$BRIEFING_NODE $BRIEFING_CLI collect-live --id daily:YYYY-MM-DD --attempt <attempt-id>`. The
    collector deterministically uses the restricted Composio-read connection
    plus Open-Meteo and atomically writes the snapshot. Read calendar, Primary
    unread Gmail, and weather only from that normalized artifact. Do not call
@@ -99,14 +108,15 @@ Default manual experiments to `dry-run`. Generation never archives Gmail;
 
    For a normal scheduled Telegram collection, first call the Kurami-owned
    read-only `capture_daily_briefing_batch` operation with the current
-   `daily:YYYY-MM-DD` edition ID. It reads the authoritative configured channel
+   `daily:YYYY-MM-DD` edition ID and the runtime `attempt_id`. It reads the authoritative configured channel
    registry, freezes every unread count and upper message ID, and atomically
    writes the complete raw and normalized ledgers on the server before returning.
    Do not reconstruct either ledger from model context or provider output with
    `write_file`. Require `ok: true`, `report.complete: true`, and preserve the
    returned raw and normalized paths. Read the persisted normalized content for
    editorial work only through consecutive bounded
-   `read_daily_briefing_batch_page` calls until `nextOffset` is null; account for
+   `read_daily_briefing_batch_page` calls with that same edition and attempt
+   until `nextOffset` is null; account for
    every returned item. A retry with an already-valid capture reuses the frozen
    artifacts instead of moving the morning cutoff.
 
@@ -144,8 +154,8 @@ Default manual experiments to `dry-run`. Generation never archives Gmail;
    usable public or authenticated Telegram source link during recovery.
 7. Fetch weather when the configured capability is available. Weather failure
    makes only that section partial.
-8. Normalize, cluster, merge, summarize, assign topics, and rank content using
-   the editorial and topic references. Author a new factual headline and an
+8. Normalize, cluster, merge, summarize, assign topics, and emit bounded
+   semantic ranking signals using the editorial and topic references. Author a new factual headline and an
    independent scan summary from the complete story; never use two differently
    truncated slices of the source post. Assign topics from story content, not
    the channel identity or configured source group. Reuse the current pool
@@ -162,9 +172,23 @@ Default manual experiments to `dry-run`. Generation never archives Gmail;
 9. On Saturday, build or refresh the weekly cinema edition from sources that
    can prove release dates and freshness. A cinema failure must not block the
    normal daily edition.
-10. Construct a `schemaVersion: 2` payload and validate its required
-    identifiers, one-owner Telegram coverage, source provenance, pagination,
-    actions, and data-quality state. Run
+10. Write only `editorial-draft.json` in the attempt directory. It contains
+    `editionId`, `generatedAt`, optional hero/notes, stories with exact
+    `sourceItemIds`, authored headline/summary/details/topics, and bounded
+    `signals` (`importance`, `urgency`, `publicInterest`, `confidence`, and
+    optional `publishedAt`). It may also contain explicit bounded exclusions
+    and mail class overrides. A story-specific Kurami Note targets one owned
+    source as `story-source:<normalized-source-item-id>`; the composer resolves
+    it to the stable story ID. Do not guess derived story IDs. Do not author source batches, provider IDs,
+    fingerprints, stable IDs, live sections, ranks, retention, data quality,
+    or final payload structure. Run the deterministic composer:
+
+    ```text
+    $BRIEFING_NODE $BRIEFING_CLI compose --attempt <attempt-id> --draft <editorial-draft.json> --live <live-snapshot.json> --config $CONFIG --raw <telegram-raw.json> --normalized <telegram-normalized.json> --output <payload.json>
+    ```
+
+    The composer owns `schemaVersion: 2`, exact-one-owner coverage, stable
+    identities, source batches, live sections and versioned ranking. Then run
     `$BRIEFING_NODE $BRIEFING_CLI inspect` and use its `recentNotes` from the
     retained five-day window before writing Kurami Notes. Author one or two
     short content-grounded notes for semantic targets from the payload. Make
@@ -195,15 +219,17 @@ Default manual experiments to `dry-run`. Generation never archives Gmail;
     `import-media` command described by the Telegram provider reference. Do not
     ask the model to inspect images unless an explicit later task
     requires visual analysis.
-13. In `dry-run`, create the run-specific artifact directory and write only the
-    completed payload with the Hermes `write_file` tool. Do not generate the
+13. In `dry-run`, use a `dry-run` attempt and write only the editorial draft
+    with the Hermes `write_file` tool. Do not generate the
     artifact through a shell heredoc, inline Python/Node program, or a
     dynamically assembled terminal command: the gateway lifecycle guard scans
     referenced paths and will correctly fail closed on ambiguous inline code.
     Render and stage it with the single short command
-    `$BRIEFING_NODE $BRIEFING_CLI render-preview --payload <payload.json>`.
+    `$BRIEFING_NODE $BRIEFING_CLI render-preview --payload <payload.json> --attempt <attempt-id>`.
     When the edition has retained media, follow it with
-    `$BRIEFING_NODE $BRIEFING_CLI import-media --manifest <media-manifest.json>`.
+    `$BRIEFING_NODE $BRIEFING_CLI import-media --manifest <media-manifest.json> --attempt <attempt-id>`.
+    If no image is retained, run
+    `$BRIEFING_NODE $BRIEFING_CLI media-ready --attempt <attempt-id>`.
     Return the preview path printed by the runtime. Do not claim a live publish.
 
 ## Publish safely
@@ -222,7 +248,14 @@ For a production run:
    exclusion.
 2. If preparation fails, keep the previous latest edition and do not mutate
    Telegram or Gmail.
-3. Reconcile all resumable media chunk receipts, then import the complete
+3. Reconcile all resumable media chunk receipts, then let the runtime derive
+   the manifest from the prepared payload and exact receipts:
+
+   ```text
+   $BRIEFING_NODE $BRIEFING_CLI build-media-manifest --id <edition-id> --downloads <download-receipts.json> --output <media-manifest.json>
+   ```
+
+   Import the complete
    retained Telegram image set. Each expected image pair must have exactly one
    `downloaded` or `reused` path before import, and each imported asset must
    match one story source `mediaMessageIds` entry by `sourceKey` plus
@@ -236,7 +269,7 @@ For a production run:
    raw and normalized artifacts:
 
    ```text
-   $BRIEFING_NODE $BRIEFING_CLI validate-telegram-batch --config $CONFIG --raw <batch.json> --normalized <normalized-batch.json> --id <edition-id>
+   $BRIEFING_NODE $BRIEFING_CLI validate-telegram-batch --config $CONFIG --raw <batch.json> --normalized <normalized-batch.json> --id <edition-id> --attempt <attempt-id>
    ```
 
    This binds their digests and coverage report to the edition. Importing or
@@ -249,11 +282,11 @@ For a production run:
 5. Create the only allowed acknowledgement plan:
 
    ```text
-   $BRIEFING_NODE $BRIEFING_CLI telegram-commit-plan --id <edition-id>
+   $BRIEFING_NODE $BRIEFING_CLI telegram-commit-plan --id <edition-id> --attempt <attempt-id>
    ```
 
    Use its exact `sources` and `planDigest`. Invoke
-   `mark_read_through_batch` once with `edition_id`, `plan_digest`, and only
+   `mark_read_through_batch` once with `edition_id`, `attempt_id`, `plan_digest`, and only
    those sources mapped to `{"chat_id": chatId, "max_id": maxId}`. Do not
    add, omit, refetch, recompute, or hand-edit a cutoff, and never call the
    upstream unbounded `mark_as_read` fallback.
@@ -271,7 +304,7 @@ For a production run:
    ```
 
    Preserve failed results as `status: "failed"` with a safe `errorCode`, then
-   run `$BRIEFING_NODE $BRIEFING_CLI finalize --id <edition-id> --receipts <receipts.json>`.
+   run `$BRIEFING_NODE $BRIEFING_CLI finalize --id <edition-id> --receipts <receipts.json> --attempt <attempt-id>`.
    Finalize the same prepared edition with the same `planDigest`. A crash
    between prepare and finalize must recover from the persisted validation,
    plan, and commit receipts without refetching or reprocessing committed
@@ -281,7 +314,7 @@ For a production run:
 8. After finalization, invoke the runtime's idempotent direct release notifier:
 
    ```text
-   $BRIEFING_NODE $BRIEFING_CLI notify-release --id <edition-id>
+   $BRIEFING_NODE $BRIEFING_CLI notify-release --id <edition-id> --attempt <attempt-id>
    ```
 
    It sends one concise human line to the configured Discord destination with
