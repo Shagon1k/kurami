@@ -19,8 +19,9 @@ import { importEditionMedia, readMediaManifest } from "./media.ts";
 import { validateTelegramBatch } from "./telegram-batch.ts";
 import { notifyBriefingRelease } from "./release-notifier.ts";
 import { loadTelegramCaptureConfig } from "./runtime-config.ts";
+import { collectEditionLiveSnapshot } from "./live-collector.ts";
 
-type Command = "init" | "prepare-preview" | "render-preview" | "rerender-preview" | "import-media" | "validate-telegram-batch" | "telegram-capture-config" | "telegram-commit-plan" | "finalize" | "notify-release" | "inspect" | "cleanup";
+type Command = "init" | "collect-live" | "prepare-preview" | "render-preview" | "rerender-preview" | "import-media" | "validate-telegram-batch" | "telegram-capture-config" | "telegram-commit-plan" | "finalize" | "notify-release" | "inspect" | "cleanup";
 
 type Arguments = {
   command: Command;
@@ -41,8 +42,8 @@ function fail(message: string): never {
 
 function parseArguments(argv = process.argv.slice(2)): Arguments {
   const command = argv.shift() as Command | undefined;
-  if (!command || !["init", "prepare-preview", "render-preview", "rerender-preview", "import-media", "validate-telegram-batch", "telegram-capture-config", "telegram-commit-plan", "finalize", "notify-release", "inspect", "cleanup"].includes(command)) {
-    fail("Usage: briefing <init|prepare-preview|render-preview|rerender-preview|import-media|validate-telegram-batch|telegram-capture-config|telegram-commit-plan|finalize|notify-release|inspect|cleanup> [options]");
+  if (!command || !["init", "collect-live", "prepare-preview", "render-preview", "rerender-preview", "import-media", "validate-telegram-batch", "telegram-capture-config", "telegram-commit-plan", "finalize", "notify-release", "inspect", "cleanup"].includes(command)) {
+    fail("Usage: briefing <init|collect-live|prepare-preview|render-preview|rerender-preview|import-media|validate-telegram-batch|telegram-capture-config|telegram-commit-plan|finalize|notify-release|inspect|cleanup> [options]");
   }
   const result: Arguments = { command };
   while (argv.length > 0) {
@@ -68,6 +69,9 @@ function parseArguments(argv = process.argv.slice(2)): Arguments {
   }
   if (command === "rerender-preview" && !result.editionId) {
     fail("rerender-preview requires --id");
+  }
+  if (command === "collect-live" && !result.editionId) {
+    fail("collect-live requires --id");
   }
   if (command === "import-media" && !result.manifestPath) {
     fail("import-media requires --manifest");
@@ -101,6 +105,9 @@ export async function runBriefingCli(argv = process.argv.slice(2)): Promise<unkn
   const paths = briefingPaths();
   if (args.command === "init") {
     return { ok: true, action: "init", ...(await initializeBriefingStore(paths)) };
+  }
+  if (args.command === "collect-live") {
+    return collectEditionLiveSnapshot(args.editionId!);
   }
   if (args.command === "prepare-preview") {
     const payload = await readPayload(args.payloadPath!);
