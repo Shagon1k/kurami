@@ -4,7 +4,10 @@ import { tmpdir } from "node:os";
 import { resolve } from "node:path";
 import { runDigestCentralPoller } from "../../src/briefing/poller.ts";
 import { notifyBriefingRelease } from "../../src/briefing/release-notifier.ts";
-import { loadBriefingRuntimeConfig } from "../../src/briefing/runtime-config.ts";
+import {
+  loadBriefingRuntimeConfig,
+  loadTelegramCaptureConfig,
+} from "../../src/briefing/runtime-config.ts";
 import { parseBriefingPayload } from "../../src/briefing/model.ts";
 import { renderBriefingPage } from "../../src/briefing/ui/render-page.ts";
 import {
@@ -33,6 +36,21 @@ edition:
 notification:
   destination: "1543918214835216584"
 sources:
+  news:
+    profile: telegram-user
+    enabled: true
+    settings:
+      page_size: 100
+      discovery_limit: 200
+    channels:
+      - key: test-news
+        id: -1001234567890
+        label: Test News
+        enabled: true
+      - key: ignored-news
+        id: -1001234567891
+        label: Disabled News
+        enabled: false
   mail:
     settings:
       query: "in:inbox is:unread category:primary"
@@ -81,6 +99,14 @@ async function verifyRuntimeConfig(): Promise<void> {
     timeZone: "Europe/Vilnius",
   });
   assert.equal(config.discordChannelId, "1543918214835216584");
+  const telegram = await loadTelegramCaptureConfig(paths, environment);
+  assert.deepEqual(telegram, {
+    configPath,
+    profile: "telegram-user",
+    pageSize: 100,
+    discoveryLimit: 200,
+    channels: [{ key: "test-news", id: -1001234567890, label: "Test News" }],
+  });
 
   await writeFile(configPath, validConfig.replace("daily_retention_days: 5", "daily_retention_days: 15"));
   await assert.rejects(

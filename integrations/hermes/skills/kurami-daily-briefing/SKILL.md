@@ -82,12 +82,24 @@ Default manual experiments to `dry-run`. Generation never archives Gmail;
 5. From the normalized mail collection, process all unread Primary Gmail
    messages. Classify every
    message as `ACTION`, `IMPORTANT`, or `GENERAL`; do not change Gmail state.
-6. For every enabled Telegram news channel, record its unread count and a stable
-   upper message ID before fetching the corresponding newest unread messages.
+6. For a normal scheduled Telegram collection, first call the Kurami-owned
+   read-only `capture_daily_briefing_batch` operation with the current
+   `daily:YYYY-MM-DD` edition ID. It reads the authoritative configured channel
+   registry, freezes every unread count and upper message ID, and atomically
+   writes the complete raw and normalized ledgers on the server before returning.
+   Do not reconstruct either ledger from model context or provider output with
+   `write_file`. Require `ok: true`, `report.complete: true`, and preserve the
+   returned raw and normalized paths. Read the persisted normalized content for
+   editorial work only through consecutive bounded
+   `read_daily_briefing_batch_page` calls until `nextOffset` is null; account for
+   every returned item. A retry with an already-valid capture reuses the frozen
+   artifacts instead of moving the morning cutoff.
+
    Preserve the per-channel cutoff, exact fetched message IDs, and collection
    state in the payload `sourceBatches`, including the configured source key and
-   numeric Telegram channel ID. Before editorial merging, write both the raw and
-   normalized Telegram batches to run artifacts and run:
+   numeric Telegram channel ID. The capture operation already runs album
+   normalization and an unbound validation preflight. If an explicitly
+   authorized exact-ID recovery must construct replacement artifacts, run:
 
    ```text
    python3 /home/shagon1k/_hermes/_core/skills/kurami-daily-briefing/scripts/normalize_telegram_albums.py --input <batch.json> --output <normalized-batch.json>

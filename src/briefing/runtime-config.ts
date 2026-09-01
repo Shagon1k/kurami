@@ -23,6 +23,20 @@ export type BriefingRuntimeConfig = {
   discordChannelId: string;
 };
 
+export type TelegramCaptureSource = {
+  key: string;
+  id: number;
+  label: string;
+};
+
+export type TelegramCaptureConfig = {
+  configPath: string;
+  profile: "telegram-user";
+  pageSize: number;
+  discoveryLimit: number;
+  channels: TelegramCaptureSource[];
+};
+
 function record(value: unknown, label: string): JsonRecord {
   if (!value || typeof value !== "object" || Array.isArray(value)) {
     throw new Error(`Invalid briefing config: ${label} must be an object`);
@@ -42,6 +56,14 @@ function finiteNumber(value: unknown, label: string): number {
     throw new Error(`Invalid briefing config: ${label} must be a finite number`);
   }
   return value;
+}
+
+function safeInteger(value: unknown, label: string): number {
+  const result = finiteNumber(value, label);
+  if (!Number.isSafeInteger(result)) {
+    throw new Error(`Invalid briefing config: ${label} must be a safe integer`);
+  }
+  return result;
 }
 
 async function readConfigFile(paths: BriefingPaths, environment: NodeJS.ProcessEnv): Promise<{
@@ -127,5 +149,57 @@ export async function loadBriefingRuntimeConfig(
       timeZone: string(weatherSettings.timezone ?? timeZone, "weather.timezone"),
     },
     discordChannelId,
+  };
+}
+
+export async function loadTelegramCaptureConfig(
+  paths: BriefingPaths,
+  environment: NodeJS.ProcessEnv = process.env,
+): Promise<TelegramCaptureConfig> {
+  const loaded = await readConfigFile(paths, environment);
+  const root = record(loaded.value, "root");
+  const sources = record(root.sources, "sources");
+  const news = record(sources.news, "sources.news");
+  if (news.enabled !== true) {
+    throw new Error("Invalid briefing config: Telegram news source is disabled");
+  }
+  if (string(news.profile, "sources.news.profile") !== "telegram-user") {
+    throw new Error("Invalid briefing config: Telegram news profile must be telegram-user");
+  }
+  const settings = record(news.settings, "sources.news.settings");
+  const pageSize = safeInteger(settings.page_size ?? 100, "news.page_size");
+  const discoveryLimit = safeInteger(
+    settings.discovery_limit ?? pageSize,
+    "news.discovery_limit",
+  );
+  if (pageSize < 1 || pageSize > 200 || discoveryLimit < pageSize || discoveryLimit > 500) {
+    throw new Error(
+      "Invalid briefing config: Telegram page size must be 1..200 and discovery limit must be page size..500",
+    );
+  }
+  if (!Array.isArray(news.channels)) {
+    throw new Error("Invalid briefing config: sources.news.channels must be an array");
+  }
+  const channels = news.channels
+    .map((value, index) => ({ value: record(value, `news.channels[${index}]`), index }))
+    .filter(({ value }) => value.enabled !== false)
+    .map(({ value, index }) => ({
+      key: string(value.key, `news.channels[${index}].key`),
+      id: safeInteger(value.id, `news.channels[${index}].id`),
+      label: string(value.label, `news.channels[${index}].label`),
+    }));
+  if (
+    channels.length === 0
+    || new Set(channels.map((channel) => channel.key)).size !== channels.length
+    || new Set(channels.map((channel) => channel.id)).size !== channels.length
+  ) {
+    throw new Error("Invalid briefing config: enabled Telegram channel keys and IDs must be unique");
+  }
+  return {
+    configPath: loaded.path,
+    profile: "telegram-user",
+    pageSize,
+    discoveryLimit,
+    channels,
   };
 }

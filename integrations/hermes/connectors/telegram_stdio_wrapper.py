@@ -7,17 +7,22 @@ import json
 import os
 import re
 import sqlite3
+import subprocess
 import sys
+import tempfile
 from collections import defaultdict
 from datetime import date, datetime
 from pathlib import Path
 from typing import Any, Optional
+from zoneinfo import ZoneInfo
 
 # Hermes starts this file with cwd set to the pinned external connector. Keep
 # the checkout unmodified while importing its installed package and venv.
 sys.path.insert(0, str(Path.cwd()))
 
 from mcp.types import ToolAnnotations  # type: ignore[import-not-found]  # noqa: E402
+from telethon import functions as telethon_functions  # type: ignore[import-not-found]  # noqa: E402
+from telethon import types as telethon_types  # type: ignore[import-not-found]  # noqa: E402
 from telegram_mcp.runner import main  # type: ignore[import-not-found]  # noqa: E402
 from telegram_mcp.runtime import (  # type: ignore[import-not-found]  # noqa: E402
     Context,
@@ -34,7 +39,9 @@ from telegram_mcp.tools.media import download_media  # type: ignore[import-not-f
 MAX_BATCH_MEDIA = 12
 MAX_BATCH_EXACT_MESSAGES = 256
 MAX_BATCH_MARK_READ = 64
+MAX_CAPTURE_PAGE = 50
 PLAN_DIGEST = re.compile(r"^[a-f0-9]{64}$")
+EDITION_ID = re.compile(r"^daily:(?P<date>\d{4}-\d{2}-\d{2})$")
 TELEGRAM_USERNAME = re.compile(r"^[A-Za-z0-9_]{5,32}$")
 CANONICAL_MEDIA_FILE = re.compile(
     r"^telegram_(?P<chat>-?[1-9]\d*)_(?P<message>[1-9]\d*)_(?P<timestamp>\d+)(?:\.[A-Za-z0-9]{1,16})?$"
@@ -55,6 +62,113 @@ def _briefing_database_path() -> Path:
 def _briefing_media_inbox_path() -> Path:
     home = Path(os.environ.get("KURAMI_HOME", "/home/shagon1k/_hermes/_kurami"))
     return home / "state" / "briefing" / "media-inbox"
+
+
+def _briefing_home_path() -> Path:
+    return Path(os.environ.get("KURAMI_HOME", "/home/shagon1k/_hermes/_kurami")).resolve()
+
+
+def _capture_paths(edition_id: str) -> tuple[Path, Path, Path]:
+    match = EDITION_ID.fullmatch(edition_id) if isinstance(edition_id, str) else None
+    if match is None:
+        raise ValueError("edition_id must identify one daily edition")
+    local_date = datetime.now(ZoneInfo("Europe/Vilnius")).date().isoformat()
+    if match.group("date") != local_date:
+        raise ValueError("capture is allowed only for today's Europe/Vilnius edition")
+    home = _briefing_home_path()
+    runs = (home / "state" / "briefing" / "runs").resolve()
+    run = runs / edition_id.replace(":", "-")
+    run.mkdir(parents=True, exist_ok=True)
+    resolved = run.resolve()
+    if run.is_symlink() or not _is_within(resolved, runs):
+        raise ValueError("capture run directory is outside the briefing runs root")
+    return resolved, resolved / "telegram-raw.json", resolved / "telegram-normalized.json"
+
+
+def _atomic_json(path: Path, payload: dict[str, Any]) -> None:
+    encoded = (json.dumps(payload, ensure_ascii=False, indent=2) + "\n").encode("utf-8")
+    if len(encoded) > 8 * 1024 * 1024:
+        raise ValueError("captured Telegram batch exceeds 8 MiB")
+    with tempfile.NamedTemporaryFile(
+        mode="wb",
+        dir=path.parent,
+        prefix=f".{path.name}.",
+        delete=False,
+    ) as temporary:
+        temporary.write(encoded)
+        temporary.flush()
+        os.fsync(temporary.fileno())
+        temporary_path = Path(temporary.name)
+    try:
+        os.chmod(temporary_path, 0o600)
+        os.replace(temporary_path, path)
+    finally:
+        temporary_path.unlink(missing_ok=True)
+
+
+def _briefing_cli(arguments: list[str]) -> dict[str, Any]:
+    home = _briefing_home_path()
+    node = home / "runtime" / "node" / "bin" / "node"
+    cli = home / "app" / "dist" / "briefing" / "cli.js"
+    result = subprocess.run(
+        [str(node), str(cli), *arguments],
+        check=False,
+        capture_output=True,
+        text=True,
+        timeout=30,
+    )
+    if result.returncode != 0:
+        raise RuntimeError("briefing runtime command failed")
+    try:
+        payload = json.loads(result.stdout)
+    except json.JSONDecodeError as error:
+        raise RuntimeError("briefing runtime returned invalid JSON") from error
+    if not isinstance(payload, dict) or payload.get("ok") is not True:
+        raise RuntimeError("briefing runtime rejected the command")
+    return payload
+
+
+def _telegram_capture_config() -> dict[str, Any]:
+    payload = _briefing_cli(["telegram-capture-config"])
+    channels = payload.get("channels")
+    if not isinstance(channels, list) or not channels:
+        raise RuntimeError("Telegram capture config has no enabled channels")
+    return payload
+
+
+def _normalize_and_validate_capture(config_path: str, raw_path: Path, normalized_path: Path) -> dict[str, Any]:
+    home = _briefing_home_path()
+    normalizer = (
+        home
+        / "../_core/skills/kurami-daily-briefing/scripts/normalize_telegram_albums.py"
+    ).resolve()
+    temporary = normalized_path.parent / f".{normalized_path.name}.{os.getpid()}.tmp"
+    temporary.unlink(missing_ok=True)
+    try:
+        result = subprocess.run(
+            [sys.executable, str(normalizer), "--input", str(raw_path), "--output", str(temporary)],
+            check=False,
+            capture_output=True,
+            text=True,
+            timeout=30,
+        )
+        if result.returncode != 0 or not temporary.is_file():
+            raise RuntimeError("Telegram album normalization failed")
+        os.chmod(temporary, 0o600)
+        os.replace(temporary, normalized_path)
+    finally:
+        temporary.unlink(missing_ok=True)
+    return _briefing_cli(
+        [
+            "validate-telegram-batch",
+            "--config",
+            config_path,
+            "--raw",
+            str(raw_path),
+            "--normalized",
+            str(normalized_path),
+        ]
+    )
 
 
 def _is_within(path: Path, root: Path) -> bool:
@@ -341,6 +455,261 @@ def _exact_message_payload(chat_id: int, message: Any, entity: Any) -> dict[str,
     if external_url is not None:
         payload["externalUrl"] = external_url
     return payload
+
+
+def _captured_item(source: dict[str, Any], message: Any, entity: Any) -> dict[str, Any]:
+    chat_id = int(source["id"])
+    exact = _exact_message_payload(chat_id, message, entity)
+    message_id = int(exact["id"])
+    content = exact.get("text") if isinstance(exact.get("text"), str) else ""
+    first_line = next((line.strip() for line in content.splitlines() if line.strip()), "Telegram post")
+    media = exact.get("media") if isinstance(exact.get("media"), dict) else None
+    metadata: dict[str, Any] = {
+        "hasMedia": media is not None,
+        "telegramChatId": chat_id,
+        "telegramMessageId": message_id,
+    }
+    group_id = exact.get("grouped_id")
+    if isinstance(group_id, int) and not isinstance(group_id, bool):
+        metadata["telegramGroupId"] = group_id
+    if media is not None:
+        media_type = media.get("type")
+        metadata["mediaType"] = media_type if isinstance(media_type, str) and media_type else "unknown"
+        mime_type = media.get("mimeType")
+        if isinstance(mime_type, str) and mime_type:
+            metadata["mediaMimeType"] = mime_type
+    engagement = exact.get("engagement")
+    if isinstance(engagement, dict):
+        metadata["engagement"] = engagement
+    sender = exact.get("sender")
+    if isinstance(sender, dict):
+        metadata["sender"] = sender
+    return {
+        "id": f"telegram:{source['key']}:{message_id}",
+        "kind": "news",
+        "source": "Telegram",
+        "sourceProfile": "telegram-user",
+        "sourceDetail": source["label"],
+        "sourceItemId": f"{chat_id}:{message_id}",
+        "title": first_line[:240],
+        "content": content,
+        "publishedAt": exact.get("date"),
+        "externalUrl": exact.get("externalUrl"),
+        "metadata": metadata,
+    }
+
+
+@mcp.tool(
+    annotations=ToolAnnotations(
+        title="Capture Daily Briefing Telegram Batch",
+        readOnlyHint=True,
+        openWorldHint=False,
+        destructiveHint=False,
+        idempotentHint=True,
+    )
+)
+async def capture_daily_briefing_batch(
+    edition_id: str,
+    ctx: Optional[Context] = None,
+    account: str = None,
+) -> str:
+    """Persist today's complete configured unread Telegram ledger.
+
+    The tool reads the authoritative Kurami briefing source registry, captures
+    each configured channel through the existing single Telethon client, writes
+    the bounded raw and normalized artifacts atomically, and validates them.
+    It never advances unread state or downloads media. Existing valid artifacts
+    are reused so an automatic retry cannot silently move the 09:00 cutoff.
+    """
+
+    del ctx
+    try:
+        _, raw_path, normalized_path = _capture_paths(edition_id)
+        config = _telegram_capture_config()
+        config_path = str(config["configPath"])
+        if raw_path.is_file() and normalized_path.is_file():
+            report = _briefing_cli(
+                [
+                    "validate-telegram-batch",
+                    "--config",
+                    config_path,
+                    "--raw",
+                    str(raw_path),
+                    "--normalized",
+                    str(normalized_path),
+                ]
+            )
+            return json.dumps(
+                {
+                    "ok": report.get("complete") is True,
+                    "reused": True,
+                    "rawPath": str(raw_path),
+                    "normalizedPath": str(normalized_path),
+                    "report": report,
+                },
+                ensure_ascii=False,
+            )
+
+        client = get_client(account)
+        await ensure_connected(client)
+        discovery_limit = int(config["discoveryLimit"])
+        capture_channels: list[dict[str, Any]] = []
+        items: list[dict[str, Any]] = []
+        failed = False
+        partial = False
+
+        for source in config["channels"]:
+            chat_id = int(source["id"])
+            try:
+                entity = await resolve_entity(chat_id, client)
+                input_peer = await client.get_input_entity(entity)
+                peer_dialogs = await client(
+                    telethon_functions.messages.GetPeerDialogsRequest(
+                        peers=[telethon_types.InputDialogPeer(peer=input_peer)]
+                    )
+                )
+                dialogs = getattr(peer_dialogs, "dialogs", None)
+                if not dialogs:
+                    raise RuntimeError("configured channel dialog is unavailable")
+                dialog = dialogs[0]
+            except Exception:
+                failed = True
+                capture_channels.append(
+                    {
+                        "sourceKey": source["key"],
+                        "channelId": chat_id,
+                        "label": source["label"],
+                        "status": "failed",
+                        "capturedUnreadCount": 0,
+                        "upperMessageId": None,
+                        "fetchedMessageIds": [],
+                    }
+                )
+                continue
+
+            unread_count = int(getattr(dialog, "unread_count", 0) or 0)
+            if unread_count < 1:
+                capture_channels.append(
+                    {
+                        "sourceKey": source["key"],
+                        "channelId": chat_id,
+                        "label": source["label"],
+                        "status": "empty",
+                        "capturedUnreadCount": 0,
+                        "upperMessageId": None,
+                        "fetchedMessageIds": [],
+                    }
+                )
+                continue
+
+            upper_message_id = _integer_or_none(getattr(dialog, "top_message", None))
+            read_max = _integer_or_none(getattr(dialog, "read_inbox_max_id", None)) or 0
+            requested = min(unread_count, discovery_limit)
+            fetched: list[Any] = []
+            async for message in client.iter_messages(entity, min_id=read_max):
+                message_id = _integer_or_none(getattr(message, "id", None))
+                if message_id is None:
+                    continue
+                if upper_message_id is not None and message_id > upper_message_id:
+                    continue
+                fetched.append(message)
+                if len(fetched) >= requested:
+                    break
+            fetched.sort(key=lambda message: int(getattr(message, "id")), reverse=True)
+            fetched_ids = [int(getattr(message, "id")) for message in fetched]
+            channel_status = "ready" if len(fetched_ids) == unread_count else "partial"
+            if channel_status == "partial":
+                partial = True
+            capture_channels.append(
+                {
+                    "sourceKey": source["key"],
+                    "channelId": chat_id,
+                    "label": source["label"],
+                    "status": channel_status,
+                    "capturedUnreadCount": unread_count,
+                    "upperMessageId": upper_message_id,
+                    "fetchedMessageIds": fetched_ids,
+                }
+            )
+            items.extend(_captured_item(source, message, entity) for message in fetched)
+
+        root_status = "failed" if failed else "partial" if partial else "ready"
+        raw = {
+            "sourceKey": "news",
+            "profile": "telegram-user",
+            "status": root_status,
+            "fetchedAt": datetime.now().astimezone().isoformat(),
+            "capture": {"channels": capture_channels},
+            "items": items,
+            "diagnostics": [],
+        }
+        _atomic_json(raw_path, raw)
+        report = _normalize_and_validate_capture(config_path, raw_path, normalized_path)
+        return json.dumps(
+            {
+                "ok": report.get("complete") is True,
+                "reused": False,
+                "rawPath": str(raw_path),
+                "normalizedPath": str(normalized_path),
+                "report": report,
+            },
+            ensure_ascii=False,
+        )
+    except Exception as error:
+        return json.dumps(
+            {"ok": False, "error": _safe_error(str(error))},
+            ensure_ascii=False,
+        )
+
+
+@mcp.tool(
+    annotations=ToolAnnotations(
+        title="Read Captured Daily Briefing Telegram Page",
+        readOnlyHint=True,
+        openWorldHint=False,
+        destructiveHint=False,
+        idempotentHint=True,
+    )
+)
+async def read_daily_briefing_batch_page(
+    edition_id: str,
+    offset: int = 0,
+    limit: int = 25,
+    ctx: Optional[Context] = None,
+    account: str = None,
+) -> str:
+    """Read one bounded page from the persisted normalized Telegram ledger."""
+
+    del ctx, account
+    if (
+        not isinstance(offset, int)
+        or isinstance(offset, bool)
+        or offset < 0
+        or not isinstance(limit, int)
+        or isinstance(limit, bool)
+        or not 1 <= limit <= MAX_CAPTURE_PAGE
+    ):
+        return json.dumps({"ok": False, "error": "offset or limit is invalid"})
+    try:
+        _, _, normalized_path = _capture_paths(edition_id)
+        payload = json.loads(normalized_path.read_text(encoding="utf-8"))
+        items = payload.get("items") if isinstance(payload, dict) else None
+        if not isinstance(items, list):
+            raise ValueError("normalized Telegram capture is unavailable")
+        page = items[offset : offset + limit]
+        return json.dumps(
+            {
+                "ok": True,
+                "offset": offset,
+                "limit": limit,
+                "total": len(items),
+                "nextOffset": offset + len(page) if offset + len(page) < len(items) else None,
+                "items": page,
+            },
+            ensure_ascii=False,
+        )
+    except Exception as error:
+        return json.dumps({"ok": False, "error": _safe_error(str(error))}, ensure_ascii=False)
 
 
 def _validate_commit_plan(

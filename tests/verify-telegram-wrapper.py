@@ -56,6 +56,23 @@ telegram_tools = types.ModuleType("telegram_mcp.tools")
 telegram_tools.__path__ = []
 telegram_tools.__all__ = []
 telegram_media = types.ModuleType("telegram_mcp.tools.media")
+telethon_package = types.ModuleType("telethon")
+
+
+class FakeGetPeerDialogsRequest:
+    def __init__(self, *, peers):
+        self.peers = peers
+
+
+class FakeInputDialogPeer:
+    def __init__(self, *, peer):
+        self.peer = peer
+
+
+telethon_package.functions = SimpleNamespace(
+    messages=SimpleNamespace(GetPeerDialogsRequest=FakeGetPeerDialogsRequest)
+)
+telethon_package.types = SimpleNamespace(InputDialogPeer=FakeInputDialogPeer)
 
 
 async def unused_download_media(**_kwargs):
@@ -72,6 +89,7 @@ sys.modules.update(
         "telegram_mcp.runtime": telegram_runtime,
         "telegram_mcp.tools": telegram_tools,
         "telegram_mcp.tools.media": telegram_media,
+        "telethon": telethon_package,
     }
 )
 
@@ -269,6 +287,141 @@ assert annotations["destructiveHint"] is False
 assert wrapper._telegram_message_url(SimpleNamespace(username=None), -1001234567890, 55) == (
     "https://t.me/c/1234567890/55"
 )
+
+
+with tempfile.TemporaryDirectory() as capture_home:
+    os.environ["KURAMI_HOME"] = capture_home
+    local_date = datetime.now(wrapper.ZoneInfo("Europe/Vilnius")).date().isoformat()
+    capture_edition = f"daily:{local_date}"
+    capture_config = {
+        "configPath": str(Path(capture_home) / "config" / "briefing.yaml"),
+        "profile": "telegram-user",
+        "pageSize": 100,
+        "discoveryLimit": 200,
+        "channels": [
+            {"key": "alpha", "id": -1001, "label": "Alpha"},
+            {"key": "empty", "id": -1002, "label": "Empty"},
+        ],
+    }
+    capture_calls = {"count": 0}
+
+    class CaptureClient:
+        async def get_input_entity(self, entity: SimpleNamespace):
+            return entity
+
+        async def __call__(self, request: FakeGetPeerDialogsRequest):
+            chat_id = request.peers[0].peer.id
+            if chat_id == -1001:
+                dialog = SimpleNamespace(
+                    unread_count=2,
+                    top_message=12,
+                    read_inbox_max_id=10,
+                )
+            else:
+                dialog = SimpleNamespace(
+                    unread_count=0,
+                    top_message=20,
+                    read_inbox_max_id=20,
+                )
+            return SimpleNamespace(dialogs=[dialog])
+
+        async def iter_messages(self, entity: SimpleNamespace, *, min_id: int):
+            capture_calls["count"] += 1
+            assert entity.id == -1001 and min_id == 10
+            for item in (message(12, with_media=True), message(11)):
+                yield item
+
+    capture_client = CaptureClient()
+
+    async def ensure_capture_connected(value: CaptureClient) -> None:
+        assert value is capture_client
+
+    async def resolve_capture_entity(chat_id: int, value: CaptureClient) -> SimpleNamespace:
+        assert value is capture_client
+        return SimpleNamespace(
+            id=chat_id,
+            username="alpha_channel" if chat_id == -1001 else "empty_channel",
+            title="Alpha" if chat_id == -1001 else "Empty",
+        )
+
+    def fake_normalize_validate(config_path: str, raw_path: Path, normalized_path: Path):
+        assert config_path == capture_config["configPath"]
+        raw = json.loads(raw_path.read_text())
+        for item in raw["items"]:
+            metadata = item["metadata"]
+            if metadata["hasMedia"]:
+                message_id = metadata["telegramMessageId"]
+                metadata["allMediaMessageIds"] = [message_id]
+                metadata["mediaMessageIds"] = [message_id]
+                metadata["nonImageMediaMessageIds"] = []
+        normalized_path.write_text(json.dumps(raw))
+        return {
+            "ok": True,
+            "complete": True,
+            "configuredChannels": 2,
+            "capturedUnread": 2,
+            "fetched": 2,
+            "normalized": 2,
+            "mediaMessages": 1,
+            "channels": [
+                {
+                    "sourceKey": "alpha",
+                    "channelId": -1001,
+                    "state": "ready",
+                    "capturedUnread": 2,
+                    "fetched": 2,
+                    "normalized": 2,
+                    "upperMessageId": 12,
+                    "itemIds": [12, 11],
+                    "mediaItemIds": [12],
+                    "nonImageMediaItemIds": [],
+                },
+                {
+                    "sourceKey": "empty",
+                    "channelId": -1002,
+                    "state": "empty",
+                    "capturedUnread": 0,
+                    "fetched": 0,
+                    "normalized": 0,
+                    "upperMessageId": None,
+                    "itemIds": [],
+                    "mediaItemIds": [],
+                    "nonImageMediaItemIds": [],
+                },
+            ],
+        }
+
+    wrapper._telegram_capture_config = lambda: capture_config
+    wrapper._normalize_and_validate_capture = fake_normalize_validate
+    wrapper.get_client = lambda account: capture_client
+    wrapper.ensure_connected = ensure_capture_connected
+    wrapper.resolve_entity = resolve_capture_entity
+
+    captured = json.loads(asyncio.run(wrapper.capture_daily_briefing_batch(capture_edition)))
+    assert captured["ok"] is True and captured["reused"] is False
+    assert captured["report"]["capturedUnread"] == 2
+    assert Path(captured["rawPath"]).is_file()
+    assert Path(captured["normalizedPath"]).is_file()
+    page = json.loads(
+        asyncio.run(wrapper.read_daily_briefing_batch_page(capture_edition, offset=0, limit=1))
+    )
+    assert page["ok"] is True and page["total"] == 2 and page["nextOffset"] == 1
+    assert page["items"][0]["sourceItemId"] == "-1001:12"
+    assert capture_calls["count"] == 1
+    capture_annotations = fake_mcp.registered["capture_daily_briefing_batch"].values
+    assert capture_annotations["readOnlyHint"] is True
+    assert capture_annotations["destructiveHint"] is False
+
+    # A valid capture is immutable for the edition. The retry validates and
+    # reuses it instead of moving the unread cutoff.
+    wrapper._briefing_cli = lambda arguments: fake_normalize_validate(
+        capture_config["configPath"],
+        Path(captured["rawPath"]),
+        Path(captured["normalizedPath"]),
+    )
+    reused = json.loads(asyncio.run(wrapper.capture_daily_briefing_batch(capture_edition)))
+    assert reused["ok"] is True and reused["reused"] is True
+    assert capture_calls["count"] == 1
 
 
 with tempfile.TemporaryDirectory() as temporary_home:

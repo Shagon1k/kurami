@@ -56,23 +56,38 @@ not replace `list_messages` for a new unread snapshot.
 
 ## Collect
 
-For every enabled configured channel:
+Normal scheduled collection must call
+`capture_daily_briefing_batch(edition_id="daily:YYYY-MM-DD")` once. This
+Kurami-owned read-only operation runs inside the existing pinned Telegram stdio
+process and uses its one Telethon client. It loads the authoritative runtime
+source registry, captures all enabled configured channels, atomically persists
+`telegram-raw.json` and `telegram-normalized.json` under the bounded edition run
+directory, runs album normalization, and validates the result before returning.
+It never downloads media or advances unread state.
+
+Do not ask the model to copy a large MCP response into these artifacts. That
+loses the durable provenance chain when tool output is truncated or compressed.
+After a successful capture, use consecutive
+`read_daily_briefing_batch_page(edition_id, offset, limit)` calls (maximum 50
+items per call) to read every normalized item for editorial work. Follow each
+returned `nextOffset` until it is null. The pages are views over the immutable
+persisted artifact, not new Telegram requests.
+
+Internally the capture performs the following for every enabled configured
+channel:
 
 1. Read its unread count and capture the newest visible message ID as the
    batch's upper boundary.
-2. If the unread count is zero, do not call `list_messages`. Otherwise call
-   `list_messages` once for that channel with `limit` equal to the captured
-   unread count. This is a bounded snapshot request, not an arbitrary history
-   query. Parse its JSON `results` array and discard any returned entries beyond
-   the captured count. Never substitute a visually sampled subset or the
-   human-readable `get_messages` output. If the structured operation cannot
-   return the captured count, leave that channel partial rather than silently
-   falling back to lossy parsing.
+2. If the unread count is zero, record an empty channel. Otherwise fetch the
+   exact bounded unread interval through the captured upper boundary. If the
+   configured discovery ceiling cannot cover the captured count, leave that
+   channel partial rather than silently sampling it.
 3. Preserve the exact channel ID, message ID, and upper boundary.
 4. If the connector cannot cover the captured count, return that channel as
    partial rather than silently dropping older unread posts.
 
-The raw batch must include a deterministic capture ledger alongside `items`:
+The persisted raw batch includes a deterministic capture ledger alongside
+`items`:
 
 ```json
 {

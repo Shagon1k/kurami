@@ -18,8 +18,9 @@ import { renderBriefingPage } from "./ui/render-page.ts";
 import { importEditionMedia, readMediaManifest } from "./media.ts";
 import { validateTelegramBatch } from "./telegram-batch.ts";
 import { notifyBriefingRelease } from "./release-notifier.ts";
+import { loadTelegramCaptureConfig } from "./runtime-config.ts";
 
-type Command = "init" | "prepare-preview" | "render-preview" | "rerender-preview" | "import-media" | "validate-telegram-batch" | "telegram-commit-plan" | "finalize" | "notify-release" | "inspect" | "cleanup";
+type Command = "init" | "prepare-preview" | "render-preview" | "rerender-preview" | "import-media" | "validate-telegram-batch" | "telegram-capture-config" | "telegram-commit-plan" | "finalize" | "notify-release" | "inspect" | "cleanup";
 
 type Arguments = {
   command: Command;
@@ -40,8 +41,8 @@ function fail(message: string): never {
 
 function parseArguments(argv = process.argv.slice(2)): Arguments {
   const command = argv.shift() as Command | undefined;
-  if (!command || !["init", "prepare-preview", "render-preview", "rerender-preview", "import-media", "validate-telegram-batch", "telegram-commit-plan", "finalize", "notify-release", "inspect", "cleanup"].includes(command)) {
-    fail("Usage: briefing <init|prepare-preview|render-preview|rerender-preview|import-media|validate-telegram-batch|telegram-commit-plan|finalize|notify-release|inspect|cleanup> [options]");
+  if (!command || !["init", "prepare-preview", "render-preview", "rerender-preview", "import-media", "validate-telegram-batch", "telegram-capture-config", "telegram-commit-plan", "finalize", "notify-release", "inspect", "cleanup"].includes(command)) {
+    fail("Usage: briefing <init|prepare-preview|render-preview|rerender-preview|import-media|validate-telegram-batch|telegram-capture-config|telegram-commit-plan|finalize|notify-release|inspect|cleanup> [options]");
   }
   const result: Arguments = { command };
   while (argv.length > 0) {
@@ -185,6 +186,14 @@ export async function runBriefingCli(argv = process.argv.slice(2)): Promise<unkn
       externalMutations: false,
       persisted: Boolean(args.editionId),
       ...report,
+    };
+  }
+  if (args.command === "telegram-capture-config") {
+    return {
+      ok: true,
+      action: "telegram-capture-config",
+      externalMutations: false,
+      ...(await loadTelegramCaptureConfig(paths)),
     };
   }
   if (args.command === "telegram-commit-plan") {

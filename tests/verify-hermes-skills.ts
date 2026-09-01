@@ -110,7 +110,9 @@ const telegramProfile = fs.readFileSync(
   "utf8",
 );
 assert.match(telegramProfile, /`list_messages` returns a JSON object/);
-assert.match(telegramProfile, /limit` equal to the captured\s+unread count/);
+assert.match(telegramProfile, /capture_daily_briefing_batch/);
+assert.match(telegramProfile, /read_daily_briefing_batch_page/);
+assert.match(telegramProfile, /atomically persists/);
 assert.match(telegramProfile, /Do not\s+parse the human-readable line stream from `get_messages`/);
 assert.match(telegramProfile, /validate-telegram-batch/);
 assert.match(telegramProfile, /capturedUnreadCount/);
@@ -132,6 +134,8 @@ const telegramWrapper = fs.readFileSync(telegramWrapperPath, "utf8");
 assert.match(telegramWrapper, /MAX_BATCH_MEDIA = 12/);
 assert.match(telegramWrapper, /MAX_BATCH_EXACT_MESSAGES = 256/);
 assert.match(telegramWrapper, /async def get_messages_exact_batch/);
+assert.match(telegramWrapper, /async def capture_daily_briefing_batch/);
+assert.match(telegramWrapper, /async def read_daily_briefing_batch_page/);
 assert.match(telegramWrapper, /def _telegram_message_url/);
 assert.match(telegramWrapper, /readOnlyHint=True/);
 assert.match(telegramWrapper, /status": "reused"/);
