@@ -1,11 +1,9 @@
 import type { BriefingPayload } from "../model.ts";
+import { collectAddonMetrics, renderAddonSlot } from "../addons/registry.ts";
 import { displayString, escapeHtml } from "./html.ts";
 import { renderKuramiNote } from "./components/kurami-note.ts";
-import { renderCalendarSection } from "./components/calendar-section.ts";
-import { renderMailSection } from "./components/mail-section.ts";
-import { renderPaginatedFeed } from "./components/paginated-feed.ts";
 import { renderThemeToggle } from "./components/theme-toggle.ts";
-import { renderMetricStrip } from "./components/metric-strip.ts";
+import { renderMetricStrip, timeMetricCard } from "./components/metric-strip.ts";
 import { BRIEFING_STYLES } from "./styles.ts";
 
 function formatDate(payload: BriefingPayload): string {
@@ -37,6 +35,14 @@ export function renderBriefingPage(payload: BriefingPayload): string {
     timeZone: payload.edition.timezone,
   }).format(new Date(payload.edition.generatedAt));
   const heroNote = payload.notes?.find((note) => note.target === "hero");
+  const metricCards = [
+    ...collectAddonMetrics(payload),
+    { addonId: "core", order: 30, card: timeMetricCard(payload) },
+  ].sort((left, right) => left.order - right.order || left.addonId.localeCompare(right.addonId))
+    .map((value) => value.card);
+  const overview = renderAddonSlot(payload, "overview");
+  const main = renderAddonSlot(payload, "main");
+  const afterMain = renderAddonSlot(payload, "after-main");
   return `<!doctype html>
 <html lang="ru" data-theme="light">
 <head>
@@ -65,13 +71,12 @@ export function renderBriefingPage(payload: BriefingPayload): string {
         <p class="hero__subtitle">${escapeHtml(subtitle)}</p></div>
       ${renderKuramiNote(heroNote, "hero__note")}
     </section>
-    ${renderMetricStrip(payload)}
-    <div class="briefing-overview">
-      ${renderCalendarSection(payload)}
-      ${renderMailSection(payload)}
-    </div>
-    ${renderPaginatedFeed(payload)}
-    ${renderQuality(payload)}
+    ${renderMetricStrip(payload, metricCards)}
+    ${overview ? `<div class="briefing-overview">
+      ${overview}
+    </div>` : ""}
+    ${main}
+    ${afterMain ? `${afterMain}\n    ` : ""}${renderQuality(payload)}
   </main>
   <footer class="page-footer page-shell"><span>Kurami · ${escapeHtml(payload.edition.localDate)}</span><span>Собрано в ${escapeHtml(generated)} · ${escapeHtml(payload.edition.timezone)}</span></footer>
   <dialog class="media-lightbox" data-media-dialog aria-label="Просмотр изображения"><button class="media-lightbox__close" type="button" data-media-close aria-label="Закрыть">×</button><img data-media-dialog-image alt=""></dialog>

@@ -10,6 +10,11 @@ import {
 } from "../../src/briefing/server.ts";
 import { parseBriefingPayload } from "../../src/briefing/model.ts";
 import { renderBriefingPage } from "../../src/briefing/ui/render-page.ts";
+import {
+  collectAddonMetrics,
+  renderAddonSlot,
+} from "../../src/briefing/addons/registry.ts";
+import type { BriefingAddon } from "../../src/briefing/addons/types.ts";
 import { importEditionMedia } from "../../src/briefing/media.ts";
 import {
   assertTelegramStoryCoverage,
@@ -156,6 +161,114 @@ const payload = {
 };
 
 const parsedPayload = parseBriefingPayload(payload);
+const addonCalls: string[] = [];
+const testAddons: BriefingAddon[] = [
+  {
+    id: "later",
+    failurePolicy: "isolate",
+    enabled: () => true,
+    sections: [{
+      slot: "main",
+      order: 20,
+      render: () => {
+        addonCalls.push("later");
+        return "<section>later</section>";
+      },
+    }],
+    metrics: [{
+      order: 20,
+      build: () => ({ key: "later", label: "Later", value: "2", chip: "ok", context: "test" }),
+    }],
+  },
+  {
+    id: "disabled",
+    failurePolicy: "isolate",
+    enabled: () => false,
+    sections: [{
+      slot: "main",
+      order: 1,
+      render: () => {
+        addonCalls.push("disabled");
+        return "<section>disabled</section>";
+      },
+    }],
+  },
+  {
+    id: "earlier",
+    failurePolicy: "isolate",
+    enabled: () => true,
+    sections: [{
+      slot: "main",
+      order: 10,
+      render: () => {
+        addonCalls.push("earlier");
+        return "<section>earlier</section>";
+      },
+    }],
+    metrics: [{
+      order: 10,
+      build: () => ({ key: "earlier", label: "Earlier", value: "1", chip: "ok", context: "test" }),
+    }],
+  },
+];
+assert.equal(
+  renderAddonSlot(parsedPayload, "main", testAddons),
+  "<section>earlier</section>\n      <section>later</section>",
+);
+assert.deepEqual(addonCalls, ["earlier", "later"]);
+assert.deepEqual(
+  collectAddonMetrics(parsedPayload, testAddons).map((value) => value.card.key),
+  ["earlier", "later"],
+);
+const isolatedFailure: BriefingAddon = {
+  id: "optional-failure",
+  failurePolicy: "isolate",
+  enabled: () => true,
+  sections: [{ slot: "after-main", order: 10, render: () => { throw new Error("optional boom"); } }],
+  renderFailure: (error) => `<aside>${error instanceof Error ? error.message : "failed"}</aside>`,
+};
+assert.equal(
+  renderAddonSlot(parsedPayload, "after-main", [isolatedFailure]),
+  "<aside>optional boom</aside>",
+);
+const requiredFailure: BriefingAddon = {
+  ...isolatedFailure,
+  id: "required-failure",
+  failurePolicy: "propagate",
+};
+assert.throws(
+  () => renderAddonSlot(parsedPayload, "after-main", [requiredFailure]),
+  /optional boom/,
+);
+assert.throws(
+  () => renderAddonSlot(parsedPayload, "main", [testAddons[0]!, { ...testAddons[0]! }]),
+  /duplicate briefing add-on ID/,
+);
+assert.equal(
+  renderAddonSlot(parsedPayload, "main", [{
+    id: "optional-enabled-failure",
+    failurePolicy: "isolate",
+    enabled: () => { throw new Error("toggle unavailable"); },
+    sections: [{ slot: "main", order: 1, render: () => "must not render" }],
+  }]),
+  "",
+);
+assert.throws(
+  () => renderAddonSlot(parsedPayload, "main", [{
+    id: "required-enabled-failure",
+    failurePolicy: "propagate",
+    enabled: () => { throw new Error("required toggle unavailable"); },
+  }]),
+  /required toggle unavailable/,
+);
+assert.throws(
+  () => renderAddonSlot(parsedPayload, "main", [{
+    id: "invalid_addon",
+    failurePolicy: "isolate",
+    enabled: () => false,
+  }]),
+  /Invalid or duplicate briefing add-on ID/,
+);
 const html = renderBriefingPage(parsedPayload);
 const providerWeatherPayload = parseBriefingPayload({
   ...payload,
