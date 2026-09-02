@@ -535,6 +535,33 @@ export async function preparePreview(
   };
 }
 
+export async function rerenderPublishedPreview(
+  payloadValue: unknown,
+  html: string,
+  paths: BriefingPaths = briefingPaths(),
+): Promise<{ editionId: string; previewPath: string; digest: string; state: "complete" }> {
+  const payload = parseBriefingPayload(payloadValue);
+  validateRenderedHtml(html, payload);
+  await initializeBriefingStore(paths);
+  const database = openBriefingDatabase(paths);
+  try {
+    const existing = database.prepare("SELECT state FROM editions WHERE id = ?").get(
+      payload.edition.id,
+    ) as { state: EditionRow["state"] } | undefined;
+    if (existing?.state !== "complete") fail(`Edition ${payload.edition.id} is not published`);
+  } finally {
+    database.close();
+  }
+  const digest = createHash("sha256").update(JSON.stringify(payload)).update("\0").update(html).digest("hex");
+  await atomicWrite(resolvedHtmlPath(paths, relativeHtmlPath(paths, payload)), html);
+  return {
+    editionId: payload.edition.id,
+    previewPath: `/preview/${payload.edition.type}/${payload.edition.localDate}`,
+    digest,
+    state: "complete",
+  };
+}
+
 function telegramBatchMap(payload: BriefingPayload): Map<string, {
   providerSourceId: string;
   itemIds: string[];

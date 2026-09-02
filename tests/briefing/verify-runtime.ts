@@ -26,6 +26,7 @@ import {
   openBriefingDatabase,
   preparePreview,
   recordTelegramValidation,
+  rerenderPublishedPreview,
   retainedDailyEditions,
   topicProfile,
   validateRenderedHtml,
@@ -1003,6 +1004,9 @@ try {
   assert.match(previewHtml, /class="story-media"/);
   assert.match(previewHtml, /\.news-story \{[^}]*grid-template-columns: 36px 176px minmax\(0, 1fr\) auto/);
   assert.match(previewHtml, /\.story-media__grid \{[^}]*grid-template-columns: repeat\(4, minmax\(0, 1fr\)\)/);
+  assert.match(previewHtml, /@media \(max-width: 620px\) \{[\s\S]*?\.news-story__actions \{ display: grid; grid-template-columns: repeat\(3, minmax\(0, 1fr\)\); gap: 6px; \}/);
+  assert.match(previewHtml, /\.story-toggle \{ grid-column: 1 \/ -1; width: 100%; \}/);
+  assert.match(previewHtml, /\.news-story__source, \.news-story__actions \.icon-button \{ width: 100%; min-width: 0; padding-inline: 0; \}/);
 
   const mediaResponse = await fetch(`${base}/media/daily/2026-08-28/story-1/01.jpg`, {
     headers: { range: "bytes=0-1" },
@@ -1153,6 +1157,10 @@ try {
     preparePreview(payload, html, paths),
     /already published/,
   );
+  const rerendered = await rerenderPublishedPreview(payload, html, paths);
+  assert.equal(rerendered.state, "complete");
+  assert.equal(rerendered.previewPath, "/preview/daily/2026-08-28");
+  assert.equal(loadEdition(persisted, { id: "daily:2026-08-28" })?.state, "complete");
 } finally {
   persisted.close();
 }
