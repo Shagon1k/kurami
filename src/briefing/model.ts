@@ -127,6 +127,13 @@ export type SourceBatch = {
   itemIds: string[];
 };
 
+export type BriefingAddonEnvelope = {
+  version: number;
+  state: SectionState;
+  capturedAt: string;
+  data: Record<string, unknown>;
+};
+
 export type BriefingPayload = {
   schemaVersion: 1 | 2;
   edition: {
@@ -153,6 +160,7 @@ export type BriefingPayload = {
   };
   dataQuality: Record<string, unknown> & { state: SectionState };
   sourceBatches?: SourceBatch[];
+  addons?: Record<string, BriefingAddonEnvelope>;
   [key: string]: unknown;
 };
 
@@ -165,6 +173,7 @@ export type PersistedItem = {
 
 const SAFE_ID = /^[A-Za-z0-9][A-Za-z0-9._:-]{0,159}$/;
 const TOPIC_ID = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
+const ADDON_ID = /^[a-z][a-z0-9-]{0,63}$/;
 const LOCAL_DATE = /^\d{4}-\d{2}-\d{2}$/;
 const SECTION_STATES = new Set<SectionState>([
   "ready",
@@ -244,6 +253,44 @@ function sectionState(value: unknown, label: string): SectionState {
   const result = string(value, label) as SectionState;
   if (!SECTION_STATES.has(result)) fail(`${label} is unsupported`);
   return result;
+}
+
+export function parseBriefingAddonEnvelope(
+  value: unknown,
+  label = "addon",
+): BriefingAddonEnvelope {
+  const envelope = record(value, label);
+  if (!Number.isSafeInteger(envelope.version) || Number(envelope.version) < 1) {
+    fail(`${label}.version must be a positive safe integer`);
+  }
+  return {
+    version: Number(envelope.version),
+    state: sectionState(envelope.state, `${label}.state`),
+    capturedAt: timestamp(envelope.capturedAt, `${label}.capturedAt`),
+    data: record(envelope.data, `${label}.data`),
+  };
+}
+
+function addonEnvelopes(value: unknown): Record<string, BriefingAddonEnvelope> | undefined {
+  if (value === undefined) return undefined;
+  const raw = record(value, "addons");
+  const entries = Object.entries(raw);
+  if (entries.length > 32) fail("addons must contain no more than 32 entries");
+  return Object.fromEntries(entries.map(([id, envelope]) => {
+    if (!ADDON_ID.test(id)) fail(`addons.${id || "<empty>"} has an invalid ID`);
+    return [id, parseBriefingAddonEnvelope(envelope, `addons.${id}`)];
+  }));
+}
+
+/**
+ * Payloads published before the add-on manifest existed keep the legacy full
+ * briefing composition. Once a manifest exists, omission is an explicit
+ * per-edition disable and remains fixed for that edition.
+ */
+export function briefingAddonEnabled(payload: BriefingPayload, addonId: string): boolean {
+  return payload.addons === undefined
+    ? true
+    : Object.prototype.hasOwnProperty.call(payload.addons, addonId);
 }
 
 function finiteNumber(value: unknown): number | null {
@@ -590,6 +637,7 @@ export function parseBriefingPayload(value: unknown): BriefingPayload {
   const hero = record(root.hero, "hero");
   const parsedNotes = notes(root.notes);
   const parsedSourceBatches = sourceBatches(root.sourceBatches);
+  const parsedAddons = addonEnvelopes(root.addons);
   let live: LiveSnapshot | undefined;
   if (root.live !== undefined) {
     const value = record(root.live, "live");
@@ -692,6 +740,7 @@ export function parseBriefingPayload(value: unknown): BriefingPayload {
     hero,
     ...(parsedNotes ? { notes: parsedNotes } : {}),
     ...(parsedSourceBatches ? { sourceBatches: parsedSourceBatches } : {}),
+    ...(parsedAddons ? { addons: parsedAddons } : {}),
     ...(live ? { live } : {}),
     ...(weather ? { weather } : {}),
     calendar: calendar as BriefingPayload["calendar"],
@@ -748,14 +797,16 @@ export function assertProductionBriefingPayload(payload: BriefingPayload): void 
 }
 
 export function persistedItems(payload: BriefingPayload): PersistedItem[] {
-  const items: PersistedItem[] = payload.news.items.map((story) => ({
+  const items: PersistedItem[] = briefingAddonEnabled(payload, "news")
+    ? payload.news.items.map((story) => ({
     itemId: story.id,
     itemType: "story",
     storyFingerprint: story.fingerprint,
     topics: story.topics,
-  }));
+    }))
+    : [];
   const seen = new Set(items.map((item) => item.itemId));
-  for (const message of payload.mail.items) {
+  for (const message of briefingAddonEnabled(payload, "mail") ? payload.mail.items : []) {
     if (seen.has(message.id)) fail(`duplicate cross-section item ID ${message.id}`);
     seen.add(message.id);
     items.push({

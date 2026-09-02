@@ -194,6 +194,14 @@ assert.equal(composedSource.itemIds[0], "10");
 assert.equal(composed.payload.sourceBatches?.[0]!.maxItemId, "10");
 assert.equal(composed.payload.news.items[0]!.rankingPolicy, "deterministic-v1");
 assert.equal(composed.payload.weather?.temperatureC, 18);
+assert.deepEqual(Object.keys(composed.payload.addons ?? {}).sort(), [
+  "calendar",
+  "mail",
+  "news",
+  "weather",
+]);
+assert.equal(composed.payload.addons?.news?.capturedAt, composed.payload.edition.generatedAt);
+assert.equal(composed.payload.addons?.mail?.state, composed.payload.mail.state);
 assert.equal(await readFile(outputPath, "utf8"), `${JSON.stringify(composed.payload, null, 2)}\n`);
 
 const copiedDraft = JSON.parse(await readFile(draftPath, "utf8"));

@@ -1,4 +1,4 @@
-import type { BriefingPayload } from "../model.ts";
+import type { BriefingAddonEnvelope, BriefingPayload } from "../model.ts";
 import type { MetricCard } from "../ui/components/metric-strip.ts";
 
 export type BriefingAddonSlot = "overview" | "main" | "after-main";
@@ -23,6 +23,7 @@ export type BriefingAddon = {
   id: string;
   failurePolicy: "propagate" | "isolate";
   enabled: (payload: BriefingPayload) => boolean;
+  capture?: (payload: BriefingPayload) => BriefingAddonEnvelope;
   sections?: BriefingAddonSection[];
   metrics?: BriefingAddonMetric[];
   renderFailure?: (error: unknown, slot: BriefingAddonSlot) => string;

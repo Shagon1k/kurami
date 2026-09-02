@@ -1,4 +1,4 @@
-import type { BriefingPayload } from "../model.ts";
+import type { BriefingAddonEnvelope, BriefingPayload } from "../model.ts";
 import { calendarAddon } from "./calendar.ts";
 import { mailAddon } from "./mail.ts";
 import { newsAddon } from "./news.ts";
@@ -97,4 +97,17 @@ export function collectAddonMetrics(
     ))
     .filter((value): value is OrderedMetricCard => value !== null)
     .sort((left, right) => left.order - right.order || left.addonId.localeCompare(right.addonId));
+}
+
+export function captureAddonManifest(
+  payload: BriefingPayload,
+  addons: readonly BriefingAddon[] = BRIEFING_ADDONS,
+): Record<string, BriefingAddonEnvelope> {
+  return Object.fromEntries(enabledAddons(payload, addons)
+    .map((addon) => {
+      if (!addon.capture) return null;
+      const envelope = isolated(addon, () => addon.capture!(payload), () => null);
+      return envelope ? [addon.id, envelope] as const : null;
+    })
+    .filter((entry): entry is readonly [string, BriefingAddonEnvelope] => entry !== null));
 }

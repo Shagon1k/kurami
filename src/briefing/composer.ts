@@ -14,6 +14,7 @@ import {
   weatherValue,
 } from "./poller.ts";
 import { applyDeterministicRanking } from "./ranking.ts";
+import { captureAddonManifest } from "./addons/registry.ts";
 import { validateTelegramBatch, type TelegramBatchReport } from "./telegram-batch.ts";
 
 type JsonRecord = Record<string, unknown>;
@@ -388,7 +389,11 @@ export async function composeBriefingPayload(input: {
     sourceBatches: sourceBatches(report),
   });
   refreshDataQuality(base, snapshot.refreshedAt);
-  const payload = parseBriefingPayload(applyDeterministicRanking(base));
+  const ranked = parseBriefingPayload(applyDeterministicRanking(base));
+  const payload = parseBriefingPayload({
+    ...ranked,
+    addons: captureAddonManifest(ranked),
+  });
   if (input.outputPath) {
     const outputPath = resolve(input.outputPath);
     const temporary = resolve(dirname(outputPath), `.${randomUUID()}.tmp`);

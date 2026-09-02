@@ -259,6 +259,12 @@ async function verifyRetainedPollerFailSoft(
       }],
     },
     dataQuality: { state: "ready" },
+    addons: {
+      calendar: { version: 1, state: "ready", capturedAt: "2026-08-31T09:00:00.000Z", data: {} },
+      mail: { version: 1, state: "ready", capturedAt: "2026-08-31T09:00:00.000Z", data: {} },
+      news: { version: 1, state: "ready", capturedAt: "2026-08-31T09:00:00.000Z", data: {} },
+      weather: { version: 1, state: "ready", capturedAt: "2026-08-31T09:00:00.000Z", data: {} },
+    },
   });
   const initialHtml = renderBriefingPage(original);
   const retainedHtmlPath = "pages/preview/daily-2026-08-31.html";
@@ -362,6 +368,12 @@ async function verifyRetainedPollerFailSoft(
       assert.doesNotMatch(String(refreshed.dataQuality.summary), /погода/u);
       assert.equal(refreshed.live?.state, "partial");
       assert.equal(refreshed.live?.lastSuccessAt, original.live?.lastSuccessAt);
+      assert.equal(refreshed.addons?.mail?.state, "stale");
+      assert.equal(refreshed.addons?.mail?.capturedAt, result.refreshedAt);
+      assert.equal(refreshed.addons?.calendar?.state, "stale");
+      assert.equal(refreshed.addons?.weather?.state, "ready");
+      assert.equal(refreshed.addons?.news?.capturedAt, original.addons?.news?.capturedAt);
+      assert.deepEqual(refreshed.addons?.news?.data, original.addons?.news?.data);
       assert.equal(loadEdition(persisted, { id: "daily:2026-08-20" }), null);
     } finally {
       persisted.close();

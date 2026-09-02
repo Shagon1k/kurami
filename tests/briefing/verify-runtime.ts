@@ -30,6 +30,8 @@ import {
   createTelegramCommitPlan,
   finalizeEdition,
   initializeBriefingStore,
+  listAddonSnapshots,
+  loadAddonSnapshot,
   loadEdition,
   openBriefingDatabase,
   preparePreview,
@@ -38,6 +40,7 @@ import {
   rerenderPublishedPreview,
   retainedDailyEditions,
   topicProfile,
+  upsertAddonSnapshot,
   validateRenderedHtml,
 } from "../../src/briefing/store.ts";
 
@@ -161,6 +164,44 @@ const payload = {
 };
 
 const parsedPayload = parseBriefingPayload(payload);
+const explicitCompositionPayload = parseBriefingPayload({
+  ...payload,
+  addons: {
+    calendar: { version: 1, state: "ready", capturedAt: payload.edition.generatedAt, data: {} },
+    news: { version: 1, state: "ready", capturedAt: payload.edition.generatedAt, data: {} },
+    weather: { version: 1, state: "ready", capturedAt: payload.edition.generatedAt, data: {} },
+  },
+});
+const explicitFullCompositionPayload = parseBriefingPayload({
+  ...payload,
+  addons: {
+    calendar: { version: 1, state: "ready", capturedAt: payload.edition.generatedAt, data: {} },
+    mail: { version: 1, state: "ready", capturedAt: payload.edition.generatedAt, data: {} },
+    news: { version: 1, state: "ready", capturedAt: payload.edition.generatedAt, data: {} },
+    weather: { version: 1, state: "ready", capturedAt: payload.edition.generatedAt, data: {} },
+  },
+});
+assert.equal(renderBriefingPage(explicitFullCompositionPayload), renderBriefingPage(parsedPayload));
+const explicitCompositionHtml = renderBriefingPage(explicitCompositionPayload);
+assert.doesNotMatch(explicitCompositionHtml, /id="mail-heading"/);
+assert.doesNotMatch(explicitCompositionHtml, /data-metric="mail"/);
+assert.match(explicitCompositionHtml, /id="calendar-heading">Расписание/);
+assert.match(explicitCompositionHtml, /data-paginated-feed/);
+validateRenderedHtml(explicitCompositionHtml, explicitCompositionPayload);
+assert.throws(
+  () => parseBriefingPayload({
+    ...payload,
+    addons: { invalid_addon: { version: 1, state: "ready", capturedAt: payload.edition.generatedAt, data: {} } },
+  }),
+  /invalid ID/,
+);
+assert.throws(
+  () => parseBriefingPayload({
+    ...payload,
+    addons: { news: { version: 0, state: "ready", capturedAt: payload.edition.generatedAt, data: {} } },
+  }),
+  /positive safe integer/,
+);
 const addonCalls: string[] = [];
 const testAddons: BriefingAddon[] = [
   {
@@ -983,7 +1024,37 @@ assert.deepEqual(initialized.applied, [
   "002_source_provider_ids.sql",
   "003_ingestion_gates.sql",
   "004_deterministic_runs.sql",
+  "005_addon_snapshots.sql",
 ]);
+const snapshotDatabase = openBriefingDatabase(paths);
+try {
+  const storedSnapshot = upsertAddonSnapshot(snapshotDatabase, "cinema", {
+    version: 1,
+    state: "ready",
+    capturedAt: "2026-08-28T06:00:00.000Z",
+    data: { title: "Cinema weekly", items: [{ id: "film-1" }] },
+  });
+  assert.equal(storedSnapshot.addonId, "cinema");
+  assert.equal(storedSnapshot.contentDigest.length, 64);
+  assert.deepEqual(loadAddonSnapshot(snapshotDatabase, "cinema")?.envelope.data, {
+    title: "Cinema weekly",
+    items: [{ id: "film-1" }],
+  });
+  const reorderedSnapshot = upsertAddonSnapshot(snapshotDatabase, "cinema", {
+    version: 1,
+    state: "ready",
+    capturedAt: "2026-08-28T06:00:00.000Z",
+    data: { items: [{ id: "film-1" }], title: "Cinema weekly" },
+  });
+  assert.equal(reorderedSnapshot.contentDigest, storedSnapshot.contentDigest);
+  assert.deepEqual(listAddonSnapshots(snapshotDatabase).map((snapshot) => snapshot.addonId), ["cinema"]);
+  assert.throws(
+    () => upsertAddonSnapshot(snapshotDatabase, "invalid_addon", storedSnapshot.envelope),
+    /Invalid briefing add-on ID/,
+  );
+} finally {
+  snapshotDatabase.close();
+}
 
 const prepared = await preparePreview(payload, html, paths);
 assert.equal(prepared.editionId, "daily:2026-08-28");

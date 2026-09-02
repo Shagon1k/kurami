@@ -8,6 +8,7 @@ import {
   type EditionRow,
 } from "./store.ts";
 import {
+  briefingAddonEnabled,
   parseBriefingPayload,
   type BriefingPayload,
   type MailItem,
@@ -151,12 +152,14 @@ export function providerComplete<T>(result: ProviderResult<T>): result is Provid
 }
 
 export function refreshDataQuality(payload: BriefingPayload, refreshedAt: string): void {
-  const sections: Array<[string, SectionState]> = [
-    ["новости", payload.news.state],
-    ["почта", payload.mail.state],
-    ["расписание", payload.calendar.state],
-    ["погода", payload.weather?.state ?? "failed"],
-  ];
+  const sections = ([
+    ["news", "новости", payload.news.state],
+    ["mail", "почта", payload.mail.state],
+    ["calendar", "расписание", payload.calendar.state],
+    ["weather", "погода", payload.weather?.state ?? "failed"],
+  ] as const)
+    .filter(([addonId]) => briefingAddonEnabled(payload, addonId))
+    .map(([, label, state]): [string, SectionState] => [label, state]);
   const issues = sections
     .filter(([, state]) => state === "partial" || state === "stale" || state === "failed")
     .map(([label]) => label);
@@ -211,7 +214,7 @@ export function updatePayload(
       ? { lastSuccessAt: original.live.lastSuccessAt }
       : { lastSuccessAt: refreshedAt }),
   };
-  if (providerComplete(gmail)) {
+  if (briefingAddonEnabled(next, "mail") && providerComplete(gmail)) {
     next.mail = {
       ...next.mail,
       state: sectionState(gmail.state),
@@ -219,10 +222,10 @@ export function updatePayload(
       fetchedAt: gmail.fetchedAt,
       items: gmail.value.items.map(mailItem),
     } as BriefingPayload["mail"];
-  } else {
+  } else if (briefingAddonEnabled(next, "mail")) {
     next.mail = { ...next.mail, state: "stale", staleAt: refreshedAt };
   }
-  if (providerComplete(calendar) && calendarItems !== null) {
+  if (briefingAddonEnabled(next, "calendar") && providerComplete(calendar) && calendarItems !== null) {
     next.calendar = {
       ...next.calendar,
       state: calendar.state === "partial" ? "partial" : calendarItems.length ? "ready" : "empty",
@@ -232,12 +235,26 @@ export function updatePayload(
       conflicts: calendarConflicts(calendarItems),
       sources: calendar.value.sources,
     } as BriefingPayload["calendar"];
-  } else if (!providerComplete(calendar)) {
+  } else if (briefingAddonEnabled(next, "calendar") && !providerComplete(calendar)) {
     next.calendar = { ...next.calendar, state: "stale", staleAt: refreshedAt };
   }
-  if (providerComplete(weather)) next.weather = weatherValue(weather.value, sectionState(weather.state));
-  else if (next.weather) next.weather = { ...next.weather, state: "stale", staleAt: refreshedAt };
-  else next.weather = { state: "failed", location: "Vilnius", summary: "Прогноз временно недоступен" };
+  if (briefingAddonEnabled(next, "weather") && providerComplete(weather)) {
+    next.weather = weatherValue(weather.value, sectionState(weather.state));
+  } else if (briefingAddonEnabled(next, "weather") && next.weather) {
+    next.weather = { ...next.weather, state: "stale", staleAt: refreshedAt };
+  } else if (briefingAddonEnabled(next, "weather")) {
+    next.weather = { state: "failed", location: "Vilnius", summary: "Прогноз временно недоступен" };
+  }
+  if (next.addons) {
+    for (const [id, state] of [
+      ["mail", next.mail.state],
+      ["calendar", next.calendar.state],
+      ["weather", next.weather?.state ?? "failed"],
+    ] as const) {
+      const envelope = next.addons[id];
+      if (envelope) next.addons[id] = { ...envelope, state, capturedAt: refreshedAt };
+    }
+  }
   refreshDataQuality(next, refreshedAt);
   return parseBriefingPayload(next);
 }
