@@ -152,7 +152,9 @@ Use Hermes file tools to inspect and edit the target project. Use the target pro
 - Use trend charts for meaningful time series, with small interactive nodes.
 - Use media collections for trailers, premieres, and currently playing titles.
 - Represent loading, empty, stale, partial, and error states explicitly.
-- Use familiar emoji such as `👍` and `👎` when they communicate an action more clearly than abstract arrows; always provide an accessible label and selected state.
+- For preference calibration, use the canonical `➕` / `➖` pair with
+  accessible labels `Больше такого` / `Меньше такого`. It describes future
+  feed preference rather than approval of the individual story.
 
 ### 4. Apply the visual language
 

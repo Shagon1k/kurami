@@ -180,8 +180,8 @@ export function ReferenceBriefing() {
                   <div className="ref-news-actions">
                     <button type="button" aria-expanded={expanded} onClick={() => setExpandedId(expanded ? null : item.id)}>{expanded ? "Свернуть" : "Читать"}</button>
                     <a href="https://t.me" target="_blank" rel="noreferrer" aria-label={`Перейти к источнику: ${item.title}`}>↗</a>
-                    <button type="button" className={reaction === "like" ? "active" : ""} aria-label={`Нравится: ${item.title}`} aria-pressed={reaction === "like"} onClick={() => react(item.id, "like")}>👍</button>
-                    <button type="button" className={reaction === "dislike" ? "active" : ""} aria-label={`Не нравится: ${item.title}`} aria-pressed={reaction === "dislike"} onClick={() => react(item.id, "dislike")}>👎</button>
+                    <button type="button" className={reaction === "like" ? "active" : ""} aria-label={`Больше такого: ${item.title}`} title="Больше такого" aria-pressed={reaction === "like"} onClick={() => react(item.id, "like")}>➕</button>
+                    <button type="button" className={reaction === "dislike" ? "active" : ""} aria-label={`Меньше такого: ${item.title}`} title="Меньше такого" aria-pressed={reaction === "dislike"} onClick={() => react(item.id, "dislike")}>➖</button>
                   </div>
                 </article>
               );
@@ -190,7 +190,7 @@ export function ReferenceBriefing() {
 
           <nav className="ref-pagination" aria-label="Страницы новостей">
             <span>{(page - 1) * pageSize + 1}–{Math.min(page * pageSize, news.length)} из {news.length}</span>
-            <div><button type="button" disabled={page === 1} onClick={() => changePage(page - 1)}>← Новее</button>{Array.from({ length: pageCount }, (_, index) => index + 1).map((number) => <button type="button" key={number} aria-current={page === number ? "page" : undefined} onClick={() => changePage(number)}>{number}</button>)}<button type="button" disabled={page === pageCount} onClick={() => changePage(page + 1)}>Старее →</button></div>
+            <div><button type="button" disabled={page === 1} onClick={() => changePage(page - 1)} aria-label="Предыдущая страница">←</button>{Array.from({ length: pageCount }, (_, index) => index + 1).map((number) => <button type="button" className="ref-pagination-page" key={number} aria-current={page === number ? "page" : undefined} onClick={() => changePage(number)}>{number}</button>)}<label className="ref-pagination-mobile"><span className="sr-only">Перейти к странице</span><input type="number" inputMode="numeric" min={1} max={pageCount} value={page} aria-label={`Номер страницы ${page} из ${pageCount}`} onChange={(event) => changePage(Math.min(pageCount, Math.max(1, Number(event.currentTarget.value) || 1)))} /><span aria-hidden="true">/ {pageCount}</span></label><button type="button" disabled={page === pageCount} onClick={() => changePage(page + 1)} aria-label="Следующая страница">→</button></div>
           </nav>
 
           <section className={`ref-bulk-action ${batchState}`} aria-live="polite">

@@ -668,6 +668,8 @@ h1 {
 .kit-pagination button:hover:not(:disabled) { border-color: var(--section-line); background: var(--panel); }
 .kit-pagination button[aria-current="page"] { color: #fff; background: var(--signal); border-color: var(--signal); }
 .kit-pagination button:disabled { color: var(--muted); cursor: default; opacity: .45; }
+.kit-pagination-mobile { display: none; align-items: center; gap: 7px; color: var(--muted); font-size: 11px; }
+.kit-pagination-mobile input { width: 42px; height: 42px; padding: 0; color: #fff; background: var(--signal); border: 1px solid var(--signal); border-radius: 3px; font: 600 11px/1 var(--font-sans); text-align: center; appearance: textfield; }
 .kit-bulk-action { min-height: 150px; display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 16px 28px; align-items: center; margin: 12px 8px 4px; padding: 24px; background: var(--panel); border: 1px solid var(--section-line); border-top: 4px solid var(--ink); border-radius: 3px; }
 .kit-bulk-action > div:first-child { display: grid; gap: 5px; }
 .kit-bulk-action > div:first-child > span { color: var(--signal); font-size: 9px; font-weight: 700; letter-spacing: .08em; }
@@ -731,7 +733,8 @@ h1 {
   .kit-digest-expanded { margin-left: -34px; padding: 16px; }
   .kit-pagination { align-items: start; flex-direction: column; padding-inline: 4px; }
   .kit-pagination > div { width: 100%; justify-content: space-between; }
-  .kit-pagination > div button:nth-of-type(2), .kit-pagination > div button:nth-of-type(3), .kit-pagination > div > span, .kit-pagination > div button:nth-last-of-type(2) { display: none; }
+  .kit-pagination-page, .kit-pagination > div > span { display: none !important; }
+  .kit-pagination-mobile { display: inline-flex; }
   .kit-pagination > div button:first-child, .kit-pagination > div button:last-child { flex: 1; }
   .kit-bulk-action { margin-inline: 4px; padding: 20px; }
   .kit-bulk-action .primary-button { width: 100%; }
@@ -820,6 +823,8 @@ h1 {
 .ref-pagination button:hover:not(:disabled) { background: var(--panel); border-color: var(--section-line); }
 .ref-pagination button[aria-current="page"] { color: #fff; background: var(--signal); border-color: var(--signal); }
 .ref-pagination button:disabled { color: var(--muted); cursor: default; opacity: .45; }
+.ref-pagination-mobile { display: none; align-items: center; gap: 7px; color: var(--muted); font-size: 11px; }
+.ref-pagination-mobile input { width: 42px; height: 42px; padding: 0; color: #fff; background: var(--signal); border: 1px solid var(--signal); border-radius: 3px; font: 600 11px/1 var(--font-sans); text-align: center; appearance: textfield; }
 .ref-bulk-action { position: relative; min-height: 156px; display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 14px 30px; align-items: center; margin-top: 12px; padding: 26px; background: var(--section); border: 1px solid var(--section-line); border-top: 4px solid var(--ink); border-radius: 3px; box-shadow: 4px 4px 0 var(--section-shadow); }
 .ref-bulk-action > div:first-child { display: grid; gap: 5px; }
 .ref-bulk-action > div:first-child > span { color: var(--signal); font-family: var(--font-fragment-mono), monospace; font-size: 9px; letter-spacing: .08em; }
@@ -882,7 +887,8 @@ h1 {
   .ref-pagination > div { width: 100%; }
   .ref-pagination > div button { flex: 0 0 42px; }
   .ref-pagination > div button:first-child, .ref-pagination > div button:last-child { flex: 1; }
-  .ref-pagination > div button:nth-child(3) { display: none; }
+  .ref-pagination-page { display: none !important; }
+  .ref-pagination-mobile { display: inline-flex; }
   .ref-bulk-action { margin-top: 8px; padding: 21px 18px 28px; }
   .ref-bulk-action > button { width: 100%; }
   .ref-bulk-buttons { display: grid; grid-template-columns: 1fr 1fr; }

@@ -184,8 +184,8 @@ export function ComponentLibrary() {
                       <div className="kit-digest-actions">
                         <button type="button" aria-expanded={expanded} onClick={() => setExpandedDigestId(expanded ? null : item.id)}>{expanded ? "Свернуть" : "Развернуть"}</button>
                         <button type="button" aria-label={`Открыть оригинал: ${item.title}`}>↗</button>
-                        <button type="button" className={reaction === "like" ? "active" : ""} aria-label={`Нравится: ${item.title}`} aria-pressed={reaction === "like"} onClick={() => setDigestReactions((current) => ({ ...current, [item.id]: current[item.id] === "like" ? undefined : "like" }))}>👍</button>
-                        <button type="button" className={reaction === "dislike" ? "active" : ""} aria-label={`Не нравится: ${item.title}`} aria-pressed={reaction === "dislike"} onClick={() => setDigestReactions((current) => ({ ...current, [item.id]: current[item.id] === "dislike" ? undefined : "dislike" }))}>👎</button>
+                        <button type="button" className={reaction === "like" ? "active" : ""} aria-label={`Больше такого: ${item.title}`} title="Больше такого" aria-pressed={reaction === "like"} onClick={() => setDigestReactions((current) => ({ ...current, [item.id]: current[item.id] === "like" ? undefined : "like" }))}>➕</button>
+                        <button type="button" className={reaction === "dislike" ? "active" : ""} aria-label={`Меньше такого: ${item.title}`} title="Меньше такого" aria-pressed={reaction === "dislike"} onClick={() => setDigestReactions((current) => ({ ...current, [item.id]: current[item.id] === "dislike" ? undefined : "dislike" }))}>➖</button>
                       </div>
                     </article>
                   );
@@ -195,11 +195,12 @@ export function ComponentLibrary() {
               <nav className="kit-pagination" aria-label="Страницы материалов">
                 <span>1–12 из 126</span>
                 <div>
-                  <button type="button" disabled={digestPage === 1} onClick={() => setDigestPage((page) => Math.max(1, page - 1))}>← Новее</button>
-                  {[1, 2, 3].map((page) => <button type="button" key={page} aria-current={digestPage === page ? "page" : undefined} onClick={() => setDigestPage(page)}>{page}</button>)}
+                  <button type="button" disabled={digestPage === 1} aria-label="Предыдущая страница" onClick={() => setDigestPage((page) => Math.max(1, page - 1))}>←</button>
+                  {[1, 2, 3].map((page) => <button type="button" className="kit-pagination-page" key={page} aria-current={digestPage === page ? "page" : undefined} onClick={() => setDigestPage(page)}>{page}</button>)}
                   <span>…</span>
-                  <button type="button" onClick={() => setDigestPage(11)} aria-current={digestPage === 11 ? "page" : undefined}>11</button>
-                  <button type="button" disabled={digestPage === 11} onClick={() => setDigestPage((page) => Math.min(11, page + 1))}>Старее →</button>
+                  <button type="button" className="kit-pagination-page" onClick={() => setDigestPage(11)} aria-current={digestPage === 11 ? "page" : undefined}>11</button>
+                  <label className="kit-pagination-mobile"><span className="sr-only">Перейти к странице</span><input type="number" inputMode="numeric" min={1} max={11} value={digestPage} aria-label={`Номер страницы ${digestPage} из 11`} onChange={(event) => setDigestPage(Math.min(11, Math.max(1, Number(event.currentTarget.value) || 1)))} /><span aria-hidden="true">/ 11</span></label>
+                  <button type="button" disabled={digestPage === 11} aria-label="Следующая страница" onClick={() => setDigestPage((page) => Math.min(11, page + 1))}>→</button>
                 </div>
               </nav>
 

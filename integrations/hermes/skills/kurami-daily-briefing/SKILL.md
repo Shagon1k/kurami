@@ -349,7 +349,9 @@ this skill from the hourly poller.
 
 - Expanding a story may mark it read inside the briefing only when the payload
   supplies that exact handler. It must not alter the source provider.
-- Store explicit `👍` or `👎` events immediately. Reading, expanding, opening a
+- Store explicit `like` or `dislike` preference events immediately. The UI
+  presents these as `Больше такого` / `Меньше такого`, not as a verdict on the
+  individual article. Reading, expanding, opening a
   link, or time on page is not a preference signal.
 - Personalization changes ordering, never access to stories. Keep critical
   public-interest news eligible for the top of every mode.
