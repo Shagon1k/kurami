@@ -396,8 +396,8 @@ function media(value: unknown, label: string): StoryMedia[] | undefined {
 
 function notes(value: unknown): KuramiNote[] | undefined {
   if (value === undefined) return undefined;
-  if (!Array.isArray(value) || value.length < 1 || value.length > 2) {
-    fail("notes must contain one or two notes");
+  if (!Array.isArray(value) || value.length < 1 || value.length > 6) {
+    fail("notes must contain one to six notes");
   }
   const seenIds = new Set<string>();
   const seenTargets = new Set<KuramiNote["target"]>();
@@ -430,8 +430,8 @@ function notes(value: unknown): KuramiNote[] | undefined {
     }
     return { id, target, text, role, tone, rotation, ...(mark ? { mark } : {}) };
   });
-  if (parsed.filter((note) => note.role === "personality").length > 1) {
-    fail("notes may contain at most one personality note");
+  if (parsed.filter((note) => note.role === "personality").length > 2) {
+    fail("notes may contain at most two personality notes");
   }
   if (parsed.every((note) => note.role === "personality")) {
     fail("notes require at least one informative note");
@@ -699,6 +699,13 @@ export function parseBriefingPayload(value: unknown): BriefingPayload {
     news: { ...news, items: newsItems, ...(exclusions ? { exclusions } : {}) } as BriefingPayload["news"],
     dataQuality: dataQuality as BriefingPayload["dataQuality"],
   };
+
+  if (parsed.notes) {
+    const noteBudget = Math.min(6, Math.max(2, Math.ceil(parsed.news.items.length / 8)));
+    if (parsed.notes.length > noteBudget) {
+      fail(`notes exceeds the ${noteBudget}-note budget for ${parsed.news.items.length} stories`);
+    }
+  }
 
   if (parsed.notes) {
     const calendarIds = new Set<string>();

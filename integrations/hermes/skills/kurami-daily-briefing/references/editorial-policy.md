@@ -115,11 +115,13 @@ look complete.
 
 ## Write Kurami Notes from evidence
 
-Kurami Notes are small editorial annotations, not slogans. Write one
-informative note attached to the most useful semantic target in the finished
-payload. An optional second note may add gentle humor only when a concrete
-visible fact makes it natural. Keep each note to one to four words, use at most
-one `personality` role, and never joke about emergencies, death, conflict,
+Kurami Notes are small editorial annotations, not slogans. Target
+`min(6, max(1, ceil(story_count / 8)))` notes for the finished payload. Ground
+at least two thirds in concrete visible items, primarily individual stories;
+use section or metric targets only when the comment genuinely belongs to the
+whole section. Keep each note to one to four words. Use no more than two
+`personality` roles and keep the remainder informative. Humor must follow from
+a concrete visible fact; never joke about emergencies, death, conflict,
 financial loss, private mail, or another sensitive subject.
 
 Inspect the retained five-day note history and write new copy. Do not choose

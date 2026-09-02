@@ -190,12 +190,14 @@ Default manual experiments to `dry-run`. Generation never archives Gmail;
     The composer owns `schemaVersion: 2`, exact-one-owner coverage, stable
     identities, source batches, live sections and versioned ranking. Then run
     `$BRIEFING_NODE $BRIEFING_CLI inspect` and use its `recentNotes` from the
-    retained five-day window before writing Kurami Notes. Author one or two
-    short content-grounded notes for semantic targets from the payload. Make
-    the first note informative; an optional second note may add gentle,
-    grounded humor. Never select copy from a static phrase pool, repeat a recent
-    phrase, joke about sensitive content, or let the renderer invent fallback
-    copy.
+    retained five-day window before writing Kurami Notes. Set the target note
+    count to `min(6, max(1, ceil(story_count / 8)))`: this keeps a long news
+    edition lively without turning it into a doodle wall. Ground at least two
+    thirds of the notes in concrete visible items, primarily stories, and use
+    no more than two `personality` notes. Balance useful signals with gentle
+    content-specific humor. Never select copy from a static phrase pool, repeat
+    a recent phrase, joke about sensitive content, or let the renderer invent
+    fallback copy.
 11. Invoke `kurami-ui-preview-language` with the prepared payload. For the
     configured Briefing runtime this selects the canonical deterministic
     component renderer; the agent must not hand-author `PaginatedFeed`,

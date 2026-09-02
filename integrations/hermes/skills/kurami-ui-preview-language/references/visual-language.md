@@ -105,7 +105,8 @@ Do not lower semantic alert text to decorative opacity. Backgrounds may be subtl
 - Length: 1–4 words on every viewport.
 - Purpose: focus, context, action, reassurance, or restrained humor.
 - Frequency: render the caller-supplied set, normally 1–2 in a compact daily
-  page and never more than 3, with at most one joke.
+  and up to 6 on a long feed when the producer derives the budget from item
+  count, with no more than two jokes on a long page.
 - Appearance: Caveat 600, ink or signal color. Rotation is optional, not the default for every note.
 - Voice: Kurami is `она`; Russian grammar must use the feminine form where applicable.
 

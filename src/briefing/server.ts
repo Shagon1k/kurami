@@ -15,6 +15,8 @@ import {
   openBriefingDatabase,
   prepareMailReadAndArchive,
   readEditionHtml,
+  refreshPublishedEdition,
+  retainedDailyEditions,
   setReaction,
   topicProfile,
   topicPairProfile,
@@ -24,11 +26,56 @@ import {
 import { loadBriefingRuntimeConfig } from "./runtime-config.ts";
 import { latestBriefingAttempt } from "./run-attempt.ts";
 import { parseBriefingPayload } from "./model.ts";
+import { renderBriefingPage } from "./ui/render-page.ts";
 
 export type MailActionExecutor = (input: {
   actionId: string;
   messageIds: string[];
 }) => Promise<{ receipt: unknown }>;
+
+export async function removeArchivedMailFromRetainedEditions(
+  database: DatabaseSync,
+  paths: BriefingPaths,
+  providerMessageIds: string[],
+  currentTime?: string,
+): Promise<string[]> {
+  const archived = new Set(providerMessageIds);
+  const refreshed: string[] = [];
+  for (const retained of retainedDailyEditions(database, currentTime)) {
+    for (let attempt = 0; attempt < 2; attempt += 1) {
+      const current = loadEdition(database, { id: retained.id });
+      if (!current || (current.state !== "complete" && current.state !== "partial")) break;
+      const payload = parseBriefingPayload(JSON.parse(current.payload_json) as unknown);
+      const items = payload.mail.items.filter((item) => (
+        typeof item.providerItemId !== "string" || !archived.has(item.providerItemId)
+      ));
+      const removed = payload.mail.items.length - items.length;
+      if (removed === 0) break;
+      const priorCount = typeof payload.mail.count === "number"
+        ? payload.mail.count
+        : payload.mail.items.length;
+      payload.mail = {
+        ...payload.mail,
+        items,
+        count: Math.max(0, priorCount - removed),
+        ...(items.length === 0 && priorCount <= removed ? { state: "empty" as const } : {}),
+      };
+      try {
+        await refreshPublishedEdition(
+          payload,
+          renderBriefingPage(payload),
+          current.content_digest,
+          paths,
+        );
+        refreshed.push(current.id);
+        break;
+      } catch (error) {
+        if (attempt === 1 || !String(error).includes("optimistic edition lock")) throw error;
+      }
+    }
+  }
+  return refreshed;
+}
 
 export const MAIL_AUTOMATION_MAX_ATTEMPTS = 3;
 const MAIL_AUTOMATION_RETRY_DELAYS_MS = [300, 900] as const;
@@ -385,6 +432,10 @@ const CLIENT_SCRIPT = `(() => {
           const selected = Number.parseInt(button.getAttribute('data-page') || '', 10) === page;
           button.setAttribute('aria-current', selected ? 'page' : 'false');
         });
+        feed.querySelectorAll('[data-page-input]').forEach((input) => {
+          input.value = String(page);
+          input.setAttribute('aria-label', 'Номер страницы ' + page + ' из ' + totalPages);
+        });
         const nextQuery = new URLSearchParams(location.search);
         if (page === 1) nextQuery.delete(parameter);
         else nextQuery.set(parameter, String(page));
@@ -405,6 +456,24 @@ const CLIENT_SCRIPT = `(() => {
         else if (target.hasAttribute('data-page-next')) page = Math.min(totalPages, page + 1);
         else page = Math.min(totalPages, Math.max(1, Number.parseInt(target.getAttribute('data-page') || '1', 10) || 1));
         renderPage(true);
+      });
+
+      const commitPageInput = (input) => {
+        const requested = Number.parseInt(input.value || '', 10);
+        if (!Number.isInteger(requested)) {
+          input.value = String(page);
+          return;
+        }
+        page = Math.min(totalPages, Math.max(1, requested));
+        renderPage(true);
+      };
+      feed.querySelectorAll('[data-page-input]').forEach((input) => {
+        input.addEventListener('change', () => commitPageInput(input));
+        input.addEventListener('keydown', (event) => {
+          if (event.key !== 'Enter') return;
+          event.preventDefault();
+          commitPageInput(input);
+        });
       });
 
       renderPage(false);
@@ -913,7 +982,24 @@ export async function createBriefingServer(
         const itemIds = input.itemIds.map((itemId, index) => requiredString(itemId, `itemIds[${index}]`));
         const action = prepareMailReadAndArchive(database, editionId, itemIds);
         if (action.alreadyComplete) {
-          json(response, 200, { ok: true, alreadyComplete: true, itemIds: action.itemIds });
+          let refreshedEditions: string[] = [];
+          let refreshWarning: string | undefined;
+          try {
+            refreshedEditions = await removeArchivedMailFromRetainedEditions(
+              database,
+              paths,
+              action.providerMessageIds,
+            );
+          } catch (error) {
+            refreshWarning = error instanceof Error ? error.message : "Published mail refresh failed";
+          }
+          json(response, 200, {
+            ok: true,
+            alreadyComplete: true,
+            itemIds: action.itemIds,
+            refreshedEditions,
+            ...(refreshWarning ? { refreshWarning } : {}),
+          });
           return;
         }
         try {
@@ -922,7 +1008,24 @@ export async function createBriefingServer(
             messageIds: action.providerMessageIds,
           });
           finishMailReadAndArchive(database, action, { ok: true, receipt: executed.receipt });
-          json(response, 200, { ok: true, alreadyComplete: false, itemIds: action.itemIds });
+          let refreshedEditions: string[] = [];
+          let refreshWarning: string | undefined;
+          try {
+            refreshedEditions = await removeArchivedMailFromRetainedEditions(
+              database,
+              paths,
+              action.providerMessageIds,
+            );
+          } catch (error) {
+            refreshWarning = error instanceof Error ? error.message : "Published mail refresh failed";
+          }
+          json(response, 200, {
+            ok: true,
+            alreadyComplete: false,
+            itemIds: action.itemIds,
+            refreshedEditions,
+            ...(refreshWarning ? { refreshWarning } : {}),
+          });
         } catch (error) {
           finishMailReadAndArchive(database, action, {
             ok: false,

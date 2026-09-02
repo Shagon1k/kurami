@@ -4,10 +4,12 @@ Kurami Notes add a small daily human layer without becoming decorative noise. Th
 
 ## Hard limits
 
-- Render only caller-supplied notes: normally 1–2 and never more than 3.
+- Render only caller-supplied notes. Compact pages normally contain 1–2;
+  long feeds may contain up to 6 when the producing workflow explicitly
+  budgets them from item count.
 - Keep each note to 1–4 words.
 - Use Caveat 600.
-- Use at most one joke.
+- Use at most two jokes on a long page and never on adjacent feed items.
 - Use at least two placement variants on a page.
 - Do not repeat the same rotation, color, alignment, and placement for all notes.
 - Keep the same limits on mobile and desktop.
@@ -96,6 +98,6 @@ Weak patterns:
 
 1. Validate that each supplied target exists after the layout is stable.
 2. Preserve its supplied semantic role and treatment.
-3. When two notes exist, use their distinct placement or style variants.
+3. When multiple notes exist, vary placement or style and do not cluster them.
 4. Omit invalid or unsafe notes instead of replacing them with generic copy.
 5. Re-check overlaps and target clarity at mobile width.

@@ -100,7 +100,7 @@ the unused track when the layout collapses for mobile. Never infer media from
 an authenticated provider URL. Media must already be in the edition-owned
 cache and represented in the payload.
 
-Paginate long feeds with 10–12 items per page. Do not use `Show all`, infinite document growth, or a nested scroll container for the primary reading feed. For a live dataset, the caller may use cursor pagination internally while the UI exposes `Newer` and `Older`. For a frozen report, numbered pages are acceptable.
+Paginate long feeds with 10–12 items per page. Do not use `Show all`, infinite document growth, or a nested scroll container for the primary reading feed. For a live dataset, the caller may use cursor pagination internally. For a frozen report, use numbered desktop pages. On mobile, replace the numbered strip with the canonical 42px numeric page input between previous and next arrows; it must share the same page state and URL parameter as desktop.
 
 Open extended content inline beneath the selected item. Keep only one item expanded by default, preserve reactions across page changes, and never turn expanding an item into an implicit external side effect unless the payload explicitly defines that behavior.
 

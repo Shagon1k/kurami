@@ -178,7 +178,7 @@ Use Hermes file tools to inspect and edit the target project. Use the target pro
 - When multiple supplied notes exist, preserve at least two placement or style
   variants. Do not collapse them into the same color, rotation, alignment, or
   position beside a heading.
-- Use no more than one joke on a page unless the user explicitly requests otherwise.
+- Use no more than two jokes on a long page and never place them on adjacent feed items.
 - In Russian, refer to Kurami as `она` and write in a feminine voice where grammar exposes gender.
 - Never joke about serious failures, safety, loss, emergencies, or personal distress.
 - Never repeat the section heading or invent a fact.
@@ -205,8 +205,11 @@ Use Hermes file tools to inspect and edit the target project. Use the target pro
   remains semantically separate from the inline reading action.
 - For a collection larger than its page size, include the runtime hooks
   `data-paginated-feed`, `data-feed-pagination`, `data-page-prev`,
-  `data-page-next`, and `data-page-status`. A printed `1 / 2` without working
-  controls is invalid.
+  `data-page-next`, `data-page-status`, and the canonical mobile numeric jump
+  `input[data-page-input]`. Keep the mobile input exactly the same 42px square
+  as a numbered page button, clamp it to the available page range, and update
+  it whenever arrows, desktop buttons, or URL state change. A printed `1 / 2`
+  without working controls is invalid.
 - Preserve pagination position in the URL or caller state when the target application supports it. After a page change, return focus or scroll position to the feed heading rather than the top of the full page.
 - Keep long feeds page-bounded. Do not add `Show all`; do not place the primary reading feed inside an independently scrolling window.
 - Give an expanded story the full available feed width. Use a neutral ink
@@ -264,6 +267,6 @@ Before handoff, confirm all of the following:
   page without a full reload.
 - Topic labels preserve the caller's strings and order, remain secondary to the headline, and are not styled as primary red signals.
 - Bulk actions show their exact scope and consequences, require confirmation when consequential, and have loading, success, and error states supplied by the caller.
-- There are 2–3 Kurami Notes, attached to clear targets and using at least two placement variants.
+- Kurami Notes respect the caller-supplied deterministic budget, attach to clear targets, and use multiple placement variants when more than one is present.
 - The content payload is unchanged in fact and meaning.
 - The target project builds successfully and representative viewports were visually checked.

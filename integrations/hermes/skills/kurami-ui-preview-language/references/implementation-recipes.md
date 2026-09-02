@@ -120,8 +120,8 @@ Use one icon family per page. Normalize icons through one wrapper rather than co
 For familiar feedback actions, emoji are allowed:
 
 ```html
-<button class="icon-button reaction" type="button" aria-label="Нравится" aria-pressed="false">👍</button>
-<button class="icon-button reaction" type="button" aria-label="Не нравится" aria-pressed="false">👎</button>
+<button class="icon-button reaction" type="button" aria-label="Больше такого" title="Больше такого" aria-pressed="false">➕</button>
+<button class="icon-button reaction" type="button" aria-label="Меньше такого" title="Меньше такого" aria-pressed="false">➖</button>
 ```
 
 ```css
@@ -226,6 +226,7 @@ Keep provider names in data attributes or rendered values, not in component or c
   <nav class="pagination" aria-label="Prepared pagination label" data-feed-pagination>
     <button class="button button--secondary" type="button" data-page-prev>← Назад</button>
     <span aria-live="polite" data-page-status>1 / prepared total</span>
+    <label class="pagination__mobile-jump"><span class="sr-only">Перейти к странице</span><input type="number" min="1" max="prepared total" value="1" data-page-input><span aria-hidden="true">/ prepared total</span></label>
     <button class="button button--secondary" type="button" data-page-next>Дальше →</button>
   </nav>
 </section>
@@ -272,7 +273,7 @@ Keep provider names in data attributes or rendered values, not in component or c
 }
 ```
 
-Use 10–12 items per page for long primary feeds. Do not add `Show all`, infinite document growth, or an independently scrolling feed window. Expand content inline and keep only one item open by default. Render one to four caller-supplied topics without changing their strings or order. On small screens, reduce numeric controls to newer/current/older while preserving the current range.
+Use 10–12 items per page for long primary feeds. Do not add `Show all`, infinite document growth, or an independently scrolling feed window. Expand content inline and keep only one item open by default. Render one to four caller-supplied topics without changing their strings or order. On small screens, hide the numbered strip and show the canonical 42px numeric `data-page-input` between previous and next arrows. Clamp it, synchronize it with the URL and desktop page buttons, and preserve the current range.
 
 The runtime owns pagination, theme persistence, reactions, and read-state. The
 generated HTML stays inert but must expose the exact `data-*` hooks shown above.

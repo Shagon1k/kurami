@@ -4,7 +4,10 @@ import { mkdir, mkdtemp, readFile, readdir, writeFile } from "node:fs/promises";
 import type { AddressInfo } from "node:net";
 import { tmpdir } from "node:os";
 import { resolve } from "node:path";
-import { createBriefingServer } from "../../src/briefing/server.ts";
+import {
+  createBriefingServer,
+  removeArchivedMailFromRetainedEditions,
+} from "../../src/briefing/server.ts";
 import { parseBriefingPayload } from "../../src/briefing/model.ts";
 import { renderBriefingPage } from "../../src/briefing/ui/render-page.ts";
 import { importEditionMedia } from "../../src/briefing/media.ts";
@@ -25,6 +28,7 @@ import {
   loadEdition,
   openBriefingDatabase,
   preparePreview,
+  readEditionHtml,
   recordTelegramValidation,
   retainedDailyEditions,
   topicProfile,
@@ -229,6 +233,9 @@ assert.match(html, /data-page-range/);
 assert.match(html, /data-page="2"/);
 assert.match(html, /data-page-prev/);
 assert.match(html, /data-page-next/);
+assert.match(html, /input[^>]+data-page-input/);
+assert.match(html, /aria-label="Больше такого"[^>]+data-reaction="like"/);
+assert.match(html, /aria-label="Меньше такого"[^>]+data-reaction="dislike"/);
 assert.match(html, /data-note-id="note:hero"[^>]*>утро без суеты/);
 assert.match(html, /data-note-id="note:news"[^>]*>главное в одной пачке/);
 assert.doesNotMatch(html, /спокойно, всё собрано|главное — рядом/);
@@ -1149,6 +1156,20 @@ try {
     publicationPath: "/daily/2026-08-28",
   });
   assert.equal(loadEdition(persisted, { type: "daily", current: true })?.id, "daily:2026-08-28");
+  assert.deepEqual(
+    await removeArchivedMailFromRetainedEditions(
+      persisted,
+      paths,
+      ["gmail-message-1"],
+      "2026-08-30T00:00:00.000Z",
+    ),
+    ["daily:2026-08-28"],
+  );
+  const refreshedEdition = loadEdition(persisted, { id: "daily:2026-08-28" });
+  assert(refreshedEdition);
+  const refreshedPayload = parseBriefingPayload(JSON.parse(refreshedEdition.payload_json) as unknown);
+  assert.equal(refreshedPayload.mail.items.some((item) => item.providerItemId === "gmail-message-1"), false);
+  assert.doesNotMatch(await readEditionHtml(refreshedEdition, paths), /gmail-message-1/);
   await assert.rejects(
     preparePreview(payload, html, paths),
     /already published/,

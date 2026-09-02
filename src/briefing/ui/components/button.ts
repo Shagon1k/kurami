@@ -17,7 +17,7 @@ export type ButtonInput = {
   labelAttributes?: Record<string, AttributeValue>;
 };
 
-const SAFE_ATTRIBUTE = /^(?:aria-[a-z][a-z0-9-]*|data-[a-z][a-z0-9-]*|id|name|value)$/;
+const SAFE_ATTRIBUTE = /^(?:aria-[a-z][a-z0-9-]*|data-[a-z][a-z0-9-]*|id|name|value|title)$/;
 const SAFE_CLASS_LIST = /^[A-Za-z0-9_-]+(?:\s+[A-Za-z0-9_-]+)*$/;
 
 function renderAttributes(attributes: Record<string, AttributeValue> | undefined): string {

@@ -66,7 +66,9 @@ from the finished visible payload after inspecting `recentNotes` from
 }
 ```
 
-Supply one or two notes, each one to four words. Supported section targets are
+Supply up to the deterministic edition budget
+`min(6, max(1, ceil(story_count / 8)))`, each one to four words. Supported
+section targets are
 `hero`, `news`, `calendar`, `mail`, `metric:mail`, `metric:stories`,
 `metric:time`, and `metric:weather`. A note may instead target one concrete
 visible item with `calendar-event:<item-id>`, `mail-item:<item-id>`, or
@@ -75,13 +77,14 @@ visible item with `calendar-event:<item-id>`, `mail-item:<item-id>`, or
 supported rotations are `none`, `negative`, and `positive`. `mark` may be
 `arrow-down`, `arrow-down-right`, or `arrow-right`.
 
-Write fresh copy for the edition rather than choosing from a phrase pool. The
-first note carries an informative signal grounded in its exact target. A second
-note is optional and may use `role: "personality"` for gentle humor that follows
-from a visible fact. Never force a joke, joke about sensitive news or private
-mail, or write vague commentary that could fit any day. At most one note may be
-`personality`. Every note must point to visible content, use a different target
-and treatment when two are present, and avoid exact or conspicuously near
+Write fresh copy for the edition rather than choosing from a phrase pool. At
+least two thirds of the notes target concrete visible items, primarily stories.
+The remaining notes may annotate a section or live metric. At most two notes
+may use `role: "personality"` for gentle humor that follows from a visible fact;
+the rest carry an informative signal. Never force a joke, joke about sensitive
+news or private mail, or write vague commentary that could fit any day. Every
+note must point to visible content, use a different target and treatment, and
+avoid exact or conspicuously near
 repeats from the retained five-day history. Omit a slot when no grounded note
 is useful. The renderer validates and positions supplied notes; it never
 supplies generic fallback phrases.
