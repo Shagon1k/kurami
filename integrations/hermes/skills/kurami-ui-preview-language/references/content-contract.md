@@ -145,7 +145,7 @@ Source health, ingestion freshness, and channel preference tables are diagnostic
 
 ## Preference controls
 
-Preference controls are display and interaction surfaces only. The caller must provide the action handler or endpoint, initial state, and persistence behavior. Render the canonical `➕` and `➖` buttons with accessible labels `Больше такого` and `Меньше такого`; do not frame them as approval of the individual story or claim that a preference model has already been trained.
+Preference controls are display and interaction surfaces only. The caller must provide the action handler or endpoint, initial state, and persistence behavior. Render the canonical `🔔` and `🔕` buttons with accessible labels `Больше такого` and `Меньше такого`; do not frame them as approval of the individual story or claim that a preference model has already been trained.
 
 ## Bulk actions
 

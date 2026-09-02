@@ -19,7 +19,7 @@ Sections share one token system but not one container. Alternate open editorial 
 - Secondary button: transparent or surface fill with ink border.
 - Text link: ink or signal color with a deliberate underline or arrow cue.
 - Icon button: 44×44px minimum, 18–20px centered icon.
-- Preference calibration uses the canonical `➕` and `➖` glyphs with explicit
+- Preference calibration uses the canonical `🔔` and `🔕` glyphs with explicit
   `Больше такого` and `Меньше такого` accessible labels; keep the same geometry
   and selected-state treatment.
 - Button group: one object with equal heights and a clearly selected segment.
@@ -65,7 +65,7 @@ When the payload includes priority, support three variants:
 - `standard`: normal story row with summary and actions;
 - `compact`: secondary item with shorter metadata and reduced vertical space.
 
-Use `➕` and `➖` for future-feed preference. Do not use `👍` and `👎` here: they read as approval of the current story. Do not use `↑` and `↓` unless the action genuinely means move or rank.
+Use `🔔` and `🔕` for future-feed preference: the metaphor is “show me more like this” versus “mute this kind of story”. Do not use `👍` and `👎` here: they read as approval of the current story. Do not use `↑` and `↓` unless the action genuinely means move or rank.
 
 ## Paginated Digest Feed
 

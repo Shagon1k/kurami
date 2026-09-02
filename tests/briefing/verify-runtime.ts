@@ -237,6 +237,8 @@ assert.match(html, /data-page-next/);
 assert.match(html, /input[^>]+data-page-input/);
 assert.match(html, /aria-label="Больше такого"[^>]+data-reaction="like"/);
 assert.match(html, /aria-label="Меньше такого"[^>]+data-reaction="dislike"/);
+assert.match(html, /button__icon" aria-hidden="true">🔔<\/span>/);
+assert.match(html, /button__icon" aria-hidden="true">🔕<\/span>/);
 assert.match(html, /data-note-id="note:hero"[^>]*>утро без суеты/);
 assert.match(html, /data-note-id="note:news"[^>]*>главное в одной пачке/);
 assert.doesNotMatch(html, /спокойно, всё собрано|главное — рядом/);

@@ -152,7 +152,7 @@ Use Hermes file tools to inspect and edit the target project. Use the target pro
 - Use trend charts for meaningful time series, with small interactive nodes.
 - Use media collections for trailers, premieres, and currently playing titles.
 - Represent loading, empty, stale, partial, and error states explicitly.
-- For preference calibration, use the canonical `➕` / `➖` pair with
+- For preference calibration, use the canonical `🔔` / `🔕` pair with
   accessible labels `Больше такого` / `Меньше такого`. It describes future
   feed preference rather than approval of the individual story.
 

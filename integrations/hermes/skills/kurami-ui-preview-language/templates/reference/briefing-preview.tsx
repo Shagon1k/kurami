@@ -180,8 +180,8 @@ export function ReferenceBriefing() {
                   <div className="ref-news-actions">
                     <button type="button" aria-expanded={expanded} onClick={() => setExpandedId(expanded ? null : item.id)}>{expanded ? "Свернуть" : "Читать"}</button>
                     <a href="https://t.me" target="_blank" rel="noreferrer" aria-label={`Перейти к источнику: ${item.title}`}>↗</a>
-                    <button type="button" className={reaction === "like" ? "active" : ""} aria-label={`Больше такого: ${item.title}`} title="Больше такого" aria-pressed={reaction === "like"} onClick={() => react(item.id, "like")}>➕</button>
-                    <button type="button" className={reaction === "dislike" ? "active" : ""} aria-label={`Меньше такого: ${item.title}`} title="Меньше такого" aria-pressed={reaction === "dislike"} onClick={() => react(item.id, "dislike")}>➖</button>
+                    <button type="button" className={reaction === "like" ? "active" : ""} aria-label={`Больше такого: ${item.title}`} title="Больше такого" aria-pressed={reaction === "like"} onClick={() => react(item.id, "like")}>🔔</button>
+                    <button type="button" className={reaction === "dislike" ? "active" : ""} aria-label={`Меньше такого: ${item.title}`} title="Меньше такого" aria-pressed={reaction === "dislike"} onClick={() => react(item.id, "dislike")}>🔕</button>
                   </div>
                 </article>
               );

@@ -184,8 +184,8 @@ export function ComponentLibrary() {
                       <div className="kit-digest-actions">
                         <button type="button" aria-expanded={expanded} onClick={() => setExpandedDigestId(expanded ? null : item.id)}>{expanded ? "Свернуть" : "Развернуть"}</button>
                         <button type="button" aria-label={`Открыть оригинал: ${item.title}`}>↗</button>
-                        <button type="button" className={reaction === "like" ? "active" : ""} aria-label={`Больше такого: ${item.title}`} title="Больше такого" aria-pressed={reaction === "like"} onClick={() => setDigestReactions((current) => ({ ...current, [item.id]: current[item.id] === "like" ? undefined : "like" }))}>➕</button>
-                        <button type="button" className={reaction === "dislike" ? "active" : ""} aria-label={`Меньше такого: ${item.title}`} title="Меньше такого" aria-pressed={reaction === "dislike"} onClick={() => setDigestReactions((current) => ({ ...current, [item.id]: current[item.id] === "dislike" ? undefined : "dislike" }))}>➖</button>
+                        <button type="button" className={reaction === "like" ? "active" : ""} aria-label={`Больше такого: ${item.title}`} title="Больше такого" aria-pressed={reaction === "like"} onClick={() => setDigestReactions((current) => ({ ...current, [item.id]: current[item.id] === "like" ? undefined : "like" }))}>🔔</button>
+                        <button type="button" className={reaction === "dislike" ? "active" : ""} aria-label={`Меньше такого: ${item.title}`} title="Меньше такого" aria-pressed={reaction === "dislike"} onClick={() => setDigestReactions((current) => ({ ...current, [item.id]: current[item.id] === "dislike" ? undefined : "dislike" }))}>🔕</button>
                       </div>
                     </article>
                   );

@@ -120,8 +120,8 @@ Use one icon family per page. Normalize icons through one wrapper rather than co
 For familiar feedback actions, emoji are allowed:
 
 ```html
-<button class="icon-button reaction" type="button" aria-label="Больше такого" title="Больше такого" aria-pressed="false">➕</button>
-<button class="icon-button reaction" type="button" aria-label="Меньше такого" title="Меньше такого" aria-pressed="false">➖</button>
+<button class="icon-button reaction" type="button" aria-label="Больше такого" title="Больше такого" aria-pressed="false">🔔</button>
+<button class="icon-button reaction" type="button" aria-label="Меньше такого" title="Меньше такого" aria-pressed="false">🔕</button>
 ```
 
 ```css
