@@ -287,8 +287,9 @@ a { color: inherit; }
   .news-story { grid-template-columns: 24px minmax(0, 1fr); gap: 10px; padding: 22px 12px; }
   .story-cover, .news-story__copy, .news-story__actions { grid-column: 2; }
   .story-cover { aspect-ratio: 16 / 9; margin-bottom: 4px; }
-  .news-story__actions { flex-wrap: wrap; }
-  .story-toggle { flex: 1; }
+  .news-story__actions { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px; }
+  .story-toggle { grid-column: 1 / -1; width: 100%; }
+  .news-story__source, .news-story__actions .icon-button { width: 100%; min-width: 0; padding-inline: 0; }
   .story-disclosure__body { grid-column: 1 / -1; padding: 18px; }
   .story-media__grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .pagination { align-items: flex-start; flex-direction: column; padding: 18px 0; }

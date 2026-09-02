@@ -10,6 +10,7 @@ import {
   loadEdition,
   openBriefingDatabase,
   preparePreview,
+  rerenderPublishedPreview,
   recordTelegramValidation,
   topicProfile,
   topicRegistry,
@@ -338,7 +339,7 @@ export async function runBriefingCli(argv = process.argv.slice(2)): Promise<unkn
       action: "rerender-preview",
       renderer: "kurami-ui-components-v1",
       externalMutations: false,
-      ...(await preparePreview(payload, renderBriefingPage(payload), paths)),
+      ...(await rerenderPublishedPreview(payload, renderBriefingPage(payload), paths)),
     };
   }
   if (args.command === "import-media") {
