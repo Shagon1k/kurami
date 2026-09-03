@@ -635,6 +635,24 @@ for (const marker of [
   "Kurami Cinema",
 ]) assert.match(cinemaHtml, new RegExp(marker));
 assert.doesNotMatch(cinemaHtml, /Kurami Daily Briefing/u);
+const prolificEnvelope = parseCinemaEnvelope({
+  ...rawEnvelope,
+  data: {
+    ...rawEnvelope.data,
+    trailers: {
+      ...rawEnvelope.data.trailers,
+      items: prolificPublisher.map((item) => ({
+        ...item,
+        trailerType: "main",
+        sourceId: "source:youtube",
+      })),
+    },
+  },
+});
+const prolificHtml = renderBriefingPage(cinemaEnvelopeToBriefingPayload(prolificEnvelope));
+assert.match(prolificHtml, /Atlas Rising/u);
+assert.match(prolificHtml, /Distant Harbor/u);
+assert.doesNotMatch(prolificHtml, /Emerald City|Frozen Valley/u);
 if (process.env.CINEMA_FIXTURE_OUTPUT) {
   await writeFile(resolve(process.env.CINEMA_FIXTURE_OUTPUT), cinemaHtml, "utf8");
 }

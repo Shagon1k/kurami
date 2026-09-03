@@ -145,8 +145,20 @@ function boxOffice(envelope: CinemaEnvelope): string {
   </section>`;
 }
 
+type CinemaTrailer = CinemaEnvelope["data"]["trailers"]["items"][number];
+
+function displayedTrailers(items: CinemaTrailer[], publisherLimit = 3): CinemaTrailer[] {
+  const publisherCounts = new Map<string, number>();
+  return items.filter((item) => {
+    const count = publisherCounts.get(item.publisherChannelId) ?? 0;
+    if (count >= publisherLimit) return false;
+    publisherCounts.set(item.publisherChannelId, count + 1);
+    return true;
+  });
+}
+
 function trailers(envelope: CinemaEnvelope): string {
-  const items = envelope.data.trailers.items;
+  const items = displayedTrailers(envelope.data.trailers.items);
   if (!items.length) return "";
   return `<section class="cinema-block" id="trailers"><header class="cinema-heading"><div><p class="section-kicker">Свежие · ${items.length}</p><h2>Трейлеры недели</h2></div>${note(envelope, "trailers")}</header><div class="cinema-trailer-grid">${items.map((item) => `<a class="cinema-trailer" href="${escapeHtml(item.sourceUrl)}" target="_blank" rel="noopener noreferrer"><span class="cinema-art${item.thumbnailSrc ? " has-image" : ""}">${item.thumbnailSrc ? `<img src="${escapeHtml(item.thumbnailSrc)}" alt="">` : ""}<b aria-hidden="true">▶</b>${duration(item.durationSeconds) ? `<i>${duration(item.durationSeconds)}</i>` : ""}</span><span class="cinema-card__copy"><small>${escapeHtml(item.publisher)} · ${escapeHtml(item.trailerType)}</small><strong>${escapeHtml(item.title)}</strong><em>${new Intl.DateTimeFormat("ru-RU", { day: "numeric", month: "short" }).format(new Date(item.publishedAt))}</em></span></a>`).join("")}</div></section>`;
 }
