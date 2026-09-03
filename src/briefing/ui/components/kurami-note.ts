@@ -3,6 +3,7 @@ import { escapeHtml } from "../html.ts";
 
 function noteMark(mark: KuramiNote["mark"]): string {
   if (mark === "arrow-down") return "↓";
+  if (mark === "arrow-down-left") return "↙";
   if (mark === "arrow-down-right") return "↘";
   if (mark === "arrow-right") return "→";
   return "";

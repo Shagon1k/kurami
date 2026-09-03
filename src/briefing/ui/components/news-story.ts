@@ -57,10 +57,10 @@ export function renderNewsStory(input: {
     ${cover}
     <div class="news-story__copy">
       <div class="news-story__meta"><span class="news-story__provider">${escapeHtml(source.provider)}</span><span class="news-story__channel">${escapeHtml(source.label)}</span>${source.time ? `<time class="news-story__time">${escapeHtml(source.time)}</time>` : ""}${read ? '<span class="sr-only" data-read-state>Прочитано</span>' : ""}</div>
+      ${renderKuramiNote(storyNote, "news-story__note")}
       <h3>${escapeHtml(story.headline)}</h3>
       <p class="news-story__summary">${escapeHtml(story.summary)}</p>
       ${renderTopicSet(story.topics)}
-      ${renderKuramiNote(storyNote, "news-story__note")}
     </div>
     <div class="news-story__actions">${renderStoryToggle(story.id)}${sourceLink}${renderReactionGroup({ editionId: edition.id, itemId: story.id, reaction })}</div>
     ${renderStoryPanel({ editionId: edition.id, itemId: story.id, details: story.details, sourceUrl: source.url, read, media: story.media })}

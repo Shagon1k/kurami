@@ -73,6 +73,14 @@ closest meaningful existing topic instead.
   principle to other broad domains whenever the registry contains a durable
   narrower topic.
 - Preserve topic order from most specific and useful to broader context.
+- Every story must contain at least one contextual subtype beyond broad
+  containers and geography. `Society + Media`, `AI + Technology`, and
+  `Cinema + Culture` are incomplete assignments by themselves: add or propose
+  the durable mechanism actually present in that story.
+- Do not stamp one topic pair across a channel. The runtime rejects excessive
+  reuse of an exact topic set globally and more than three uses of that set for
+  one source in an edition. This is a shortcut detector, not a quota: topics
+  still have to be supported by each story's complete content.
 
 ## Propose and promote
 
@@ -85,7 +93,7 @@ Promote it to `active` after it appears in at least three stories across at leas
 editions or independent sources. Before promotion, check aliases and neighboring
 topics again. Merge synonyms instead of creating parallel IDs.
 
-Keep the active registry around 30–60 topics at this stage. Growth should reflect
+Keep the active registry around 30–80 topics at this stage. Growth should reflect
 repeated interests, not the number of named entities in the news.
 
 ## Record explicit feedback

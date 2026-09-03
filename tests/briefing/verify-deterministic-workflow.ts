@@ -162,6 +162,15 @@ await writeFile(livePath, JSON.stringify({
 await writeFile(draftPath, JSON.stringify({
   editionId: "daily:2026-09-01",
   generatedAt: "2026-09-01T06:01:00Z",
+  notes: [{
+    id: "note:story",
+    target: "story-source:telegram:test:10",
+    text: "точно в цель",
+    role: "context",
+    tone: "signal",
+    rotation: "negative",
+    mark: "arrow-down-right",
+  }],
   stories: [{
     sourceItemIds: ["telegram:test:10"],
     headline: "Новый факт без копирования provider title",
@@ -193,6 +202,8 @@ const composedSource = (composed.payload.news.items[0]!.sources as Array<{ itemI
 assert.equal(composedSource.itemIds[0], "10");
 assert.equal(composed.payload.sourceBatches?.[0]!.maxItemId, "10");
 assert.equal(composed.payload.news.items[0]!.rankingPolicy, "deterministic-v1");
+assert.equal(composed.payload.notes?.[0]?.target, `story:${composed.payload.news.items[0]!.id}`);
+assert.equal(composed.payload.notes?.[0]?.mark, "arrow-down-left");
 assert.equal(composed.payload.weather?.temperatureC, 18);
 assert.deepEqual(Object.keys(composed.payload.addons ?? {}).sort(), [
   "calendar",
@@ -209,7 +220,7 @@ copiedDraft.stories[0].headline = telegramItem.title;
 await writeFile(draftPath, JSON.stringify(copiedDraft));
 await assert.rejects(
   composeBriefingPayload({ draftPath, livePath, configPath, rawPath, normalizedPath }),
-  /must not copy the provider title verbatim/,
+  /headline copies or clips source/u,
 );
 
 const unsignalled = [

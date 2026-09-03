@@ -157,10 +157,16 @@ Default manual experiments to `dry-run`. Generation never archives Gmail;
 8. Normalize, cluster, merge, summarize, assign topics, and emit bounded
    semantic ranking signals using the editorial and topic references. Author a new factual headline and an
    independent scan summary from the complete story; never use two differently
-   truncated slices of the source post. Assign topics from story content, not
+   truncated slices of the source post. Headlines are complete Russian phrases
+   of at most 120 characters and normally at most 18 words; never prefix every
+   item with `Что произошло:` or another stock label. The scan summary is a
+   factual one-sentence retelling, never UI filler such as `подробности сохранены
+   в раскрытии`. Assign topics from story content, not
    the channel identity or configured source group. Reuse the current pool
    first; when no existing topic captures a durable distinction, declare one
    `proposed` topic with English ID, label, and aliases and use it immediately.
+   Every story needs at least one contextual subtype beyond broad containers
+   and geography; do not stamp one topic pair across a channel.
    Account for every
    normalized Telegram input exactly once: claim it in one story source or put it in
    `news.exclusions` with one of the bounded contract reasons. A merged input is
@@ -324,9 +330,15 @@ For a production run:
    Hermes job uses local delivery and must not also emit a Discord cron wrapper,
    job ID, stop instructions, raw section details, or a second release message.
 
-Do not create public revisions. The daily route shows one current edition per
-date. A retry updates that edition only with missing-source results and never
-reprocesses an already recorded source item.
+Do not create separately addressable public revisions. The daily route shows
+one current edition per date. A retry updates that edition only with
+missing-source results and never reprocesses an already recorded source item.
+For an explicitly requested correction of already published editorial copy,
+compose against the frozen capture and run
+`$BRIEFING_NODE $BRIEFING_CLI revise-published --id <edition-id> --payload <payload.json>`.
+This guarded command accepts only the same source batches, exclusions, story
+IDs, and story-to-source ownership; it preserves media, read state, and
+reactions and performs no provider mutation or release notification.
 
 ## Keep live refresh outside the skill
 

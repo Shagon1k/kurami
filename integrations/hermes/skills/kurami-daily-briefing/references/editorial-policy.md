@@ -45,10 +45,17 @@ confident source erase uncertainty in the others.
   must name the actual event and distinguishing fact; never copy the first
   source sentence, reuse a channel caption, or cut an excerpt at a character
   limit.
+- Keep the headline within 120 characters and normally within 18 words. Do not
+  prefix it with labels such as `Что произошло:`, `Главное:`, or `Новость:`.
+  These labels waste scan space and turn every card into the same template.
 - Write the scan summary independently after the headline. It should add the
   actor, action, concrete result, place, date, or number needed to understand
   the event. Never begin by repeating the complete headline and never use a
   shorter truncation of the same source sentence.
+- The scan summary is visible content, not navigation chrome. Never put
+  `подробности сохранены в раскрытии`, `читайте в источнике`, or any equivalent
+  placeholder in it. Normally use one complete sentence of roughly 55–360
+  characters; shorten by rewriting, never by clipping.
 - A headline or summary ending in `...` or `…` is a failed editorial field,
   not an acceptable overflow strategy. Shorten by rewriting the thought as a
   complete sentence.
@@ -128,3 +135,8 @@ Inspect the retained five-day note history and write new copy. Do not choose
 from a fixed pool, rotate stock phrases, paraphrase yesterday's line, or add a
 generic phrase merely to fill a slot. Prefer item-level targets when a calendar
 event, mail item, story, or live metric is the actual subject.
+
+For a note attached to an individual news story, target the story itself and
+use `arrow-down-left`. The runtime normalizes story-note marks to this value and
+places the note above the headline, toward its right edge, so the arrow points
+back to the title. Do not place a story note below its topic chips.

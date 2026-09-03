@@ -191,6 +191,48 @@ function assertExactDuplicatesCoowned(
   }
 }
 
+function editorialSourceIssues(
+  drafts: EditorialStoryDraft[],
+  lookup: Map<string, NormalizedTelegramItem>,
+): string[] {
+  const plain = (value: string) => value
+    .normalize("NFKC")
+    .toLocaleLowerCase("ru")
+    .replaceAll(/[^\p{L}\p{N}]+/gu, " ")
+    .trim();
+  const issues: string[] = [];
+  drafts.forEach((draft, index) => {
+    const headline = plain(draft.headline);
+    const summary = plain(draft.summary);
+    for (const sourceItemId of draft.sourceItemIds) {
+      const item = lookup.get(sourceItemId);
+      if (!item) continue;
+      const providerTitle = plain(item.title);
+      const sourceContent = plain(item.content);
+      if (
+        headline.length >= 18
+        && (
+          providerTitle === headline
+          || providerTitle.startsWith(`${headline} `)
+          || sourceContent === headline
+          || sourceContent.startsWith(`${headline} `)
+        )
+      ) {
+        issues.push(`Editorial story ${index + 1} headline copies or clips source ${sourceItemId}`);
+        break;
+      }
+      if (
+        summary.length >= 36
+        && (sourceContent === summary || sourceContent.startsWith(`${summary} `))
+      ) {
+        issues.push(`Editorial story ${index + 1} summary copies or clips source ${sourceItemId}`);
+        break;
+      }
+    }
+  });
+  return issues;
+}
+
 function storyFromDraft(draft: EditorialStoryDraft, lookup: Map<string, NormalizedTelegramItem>): NewsItem {
   const owned = draft.sourceItemIds.map((id) => {
     const item = lookup.get(id);
@@ -288,11 +330,15 @@ function resolvedNotes(
 ): KuramiNote[] | undefined {
   if (!notes?.length) return undefined;
   return notes.map((note) => {
-    if (!note.target.startsWith("story-source:")) return note as KuramiNote;
+    if (!note.target.startsWith("story-source:")) {
+      return note.target.startsWith("story:")
+        ? { ...note, mark: "arrow-down-left" } as KuramiNote
+        : note as KuramiNote;
+    }
     const sourceItemId = note.target.slice("story-source:".length);
     const index = drafts.findIndex((draft) => draft.sourceItemIds.includes(sourceItemId));
     if (index < 0 || !stories[index]) throw new Error(`Kurami Note targets unknown source item ${sourceItemId}`);
-    return { ...note, target: `story:${stories[index]!.id}` } as KuramiNote;
+    return { ...note, target: `story:${stories[index]!.id}`, mark: "arrow-down-left" } as KuramiNote;
   });
 }
 
@@ -357,6 +403,10 @@ export async function composeBriefingPayload(input: {
   const items = normalizedItems(normalizedValue);
   const lookup = new Map(items.map((item) => [item.id, item]));
   if (lookup.size !== items.length) throw new Error("Normalized Telegram batch contains duplicate item IDs");
+  const sourceIssues = editorialSourceIssues(draft.stories, lookup);
+  if (sourceIssues.length) {
+    throw new Error(["Editorial source validation failed:", ...sourceIssues.map((issue) => `- ${issue}`)].join("\n"));
+  }
   const builtSections = sections(snapshot, draft.mailClassifications);
   const localDate = draft.editionId.slice(6);
   assertExactDuplicatesCoowned(draft.stories, lookup);

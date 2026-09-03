@@ -173,6 +173,11 @@ Use the roles and placement matrix from `references/kurami-notes.md`. A note
 must be supplied by the caller with a semantic target and cannot be added or
 replaced merely to fill empty space.
 
+In the canonical paginated news feed, a story-targeted note is a defined
+variant: render it above that story's headline, toward the right side of the
+copy column, with a down-left arrow pointing back to the title. Do not append
+it below the topic chips, where the arrow appears to point at the next row.
+
 ## Responsive rules
 
 - Desktop and mobile have the same information and the same Kurami Note limits.

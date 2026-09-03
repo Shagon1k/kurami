@@ -52,6 +52,11 @@ Place in a narrow transition between related sections. Use only when the note he
 
 Attach to a specific card corner or visual. Do not repeat this placement on several cards in the same page.
 
+For the canonical news-story component, use its dedicated card-corner
+placement above the headline, right-aligned within the copy column, with `↙`
+pointing to the title. This is deterministic component geometry rather than a
+new editorial choice; other note targets continue to use the placement matrix.
+
 ## Style variants
 
 Vary restrained properties, never all at once:

@@ -25,7 +25,7 @@ export type KuramiNote = {
   role: "focus" | "context" | "action" | "reassurance" | "personality";
   tone: "signal" | "ink";
   rotation: "none" | "negative" | "positive";
-  mark?: "arrow-down" | "arrow-down-right" | "arrow-right";
+  mark?: "arrow-down" | "arrow-down-left" | "arrow-down-right" | "arrow-right";
 };
 
 export type Topic = {
@@ -215,6 +215,7 @@ const NOTE_TONES = new Set<KuramiNote["tone"]>(["signal", "ink"]);
 const NOTE_ROTATIONS = new Set<KuramiNote["rotation"]>(["none", "negative", "positive"]);
 const NOTE_MARKS = new Set<NonNullable<KuramiNote["mark"]>>([
   "arrow-down",
+  "arrow-down-left",
   "arrow-down-right",
   "arrow-right",
 ]);

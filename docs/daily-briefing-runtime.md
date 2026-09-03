@@ -57,9 +57,14 @@ meta refresh are rejected.
 ## Frozen and dynamic edition data
 
 The 09:00 Europe/Vilnius run owns the daily news snapshot. Its normalized news
-items, source-batch boundaries, ordering inputs, topic assignments, and media
-references are frozen after publication. The Central Poller must neither fetch
-Telegram nor rewrite those fields.
+items, source-batch boundaries, story ownership, and media references are
+frozen after publication. The Central Poller must neither fetch Telegram nor
+rewrite any news field. An operator-requested editorial repair is the only
+exception: `revise-published` may replace authored copy, topics, derived
+ranking, and Kurami Notes in the same route after validating the new payload.
+It rejects any changed source batch, exclusion, story ID, or story ownership,
+preserves media/read/reaction state, and performs no provider mutation or
+release notification.
 
 These surfaces are dynamic and may be refreshed for every retained daily
 edition:

@@ -35,6 +35,7 @@ import {
   loadEdition,
   openBriefingDatabase,
   preparePreview,
+  revisePublishedEdition,
   readEditionHtml,
   recordTelegramValidation,
   rerenderPublishedPreview,
@@ -81,13 +82,13 @@ const payload = {
       mark: "arrow-down-right",
     },
     {
-      id: "note:news",
-      target: "news",
-      text: "главное в одной пачке",
-      role: "focus",
-      tone: "ink",
-      rotation: "none",
-      mark: "arrow-down",
+      id: "note:story",
+      target: "story:story-1",
+      text: "сюда стоит смотреть",
+      role: "context",
+      tone: "signal",
+      rotation: "negative",
+      mark: "arrow-down-left",
     },
   ],
   calendar: {
@@ -137,11 +138,14 @@ const payload = {
       id: `story-${index + 1}`,
       fingerprint: `fp-story-${index + 1}`,
       headline: index === 0 ? "Тестовая новость" : `Тестовая новость ${index + 1}`,
-      summary: "Короткое проверяемое описание.",
+      summary: `Короткое проверяемое описание для демонстрационной новости ${index + 1}.`,
       details: ["Расширенный проверяемый абзац с фактическими деталями новости."],
       topics: [
         { id: "ai", label: "AI" },
-        { id: "technology", label: "Technology" },
+        {
+          id: ["privacy", "security", "design", "software-development"][index % 4],
+          label: ["Privacy", "Security", "Design", "Software Development"][index % 4],
+        },
       ],
       ...(index === 0 ? {
         sources: [{
@@ -332,6 +336,11 @@ assert.equal(providerWeatherPayload.weather?.summary, "до 22° · осадки
 assert.match(renderBriefingPage(providerWeatherPayload), /metric-card__value">\+20°<\/strong>/);
 assert.match(html, /\[hidden\]\s*\{\s*display:\s*none !important/);
 assert.match(html, /class="topic-chip"/);
+assert.match(html, /сюда стоит смотреть <span aria-hidden="true">↙<\/span>/);
+assert(
+  html.indexOf("сюда стоит смотреть") < html.indexOf("<h3>Тестовая новость</h3>"),
+  "Story note must render above the story headline",
+);
 assert.match(html, /class="story-disclosure__body"/);
 assert.match(html, /data-story-toggle/);
 assert.match(html, /class="metric-strip"/);
@@ -394,7 +403,7 @@ assert.match(html, /aria-label="Меньше такого"[^>]+data-reaction="di
 assert.match(html, /button__icon" aria-hidden="true">🔔<\/span>/);
 assert.match(html, /button__icon" aria-hidden="true">🔕<\/span>/);
 assert.match(html, /data-note-id="note:hero"[^>]*>утро без суеты/);
-assert.match(html, /data-note-id="note:news"[^>]*>главное в одной пачке/);
+assert.match(html, /data-note-id="note:story"[^>]*>сюда стоит смотреть/);
 assert.doesNotMatch(html, /спокойно, всё собрано|главное — рядом/);
 assert.doesNotMatch(html, /<script\b/i);
 
@@ -668,7 +677,7 @@ const makeSchemaV2Payload = (claimedItemIds: string[]) => ({
       details: ["Все исходные сообщения остаются явно учтёнными в источниках сюжета."],
       topics: [
         { id: "technology", label: "Technology" },
-        { id: "media", label: "Media" },
+        { id: "software-development", label: "Software Development" },
       ],
       sources: [{
         sourceKey: "telegram:test",
@@ -722,7 +731,7 @@ const duplicateAndUnknownPayload = parseBriefingPayload({
         details: ["Тест также заявляет сообщение, отсутствующее в capture ledger."],
         topics: [
           { id: "technology", label: "Technology" },
-          { id: "media", label: "Media" },
+          { id: "security", label: "Security" },
         ],
         sources: [{ sourceKey: "telegram:test", itemIds: [capturedIds[0], "9999"] }],
       },
@@ -1263,7 +1272,7 @@ try {
   assert.deepEqual(await profileResponse.json(), {
     topics: [
       { topicId: "ai", label: "AI", likes: 1, dislikes: 0 },
-      { topicId: "technology", label: "Technology", likes: 1, dislikes: 0 },
+      { topicId: "privacy", label: "Privacy", likes: 1, dislikes: 0 },
     ],
     pairs: [],
   });
@@ -1285,7 +1294,7 @@ try {
   assert.equal(item.reaction, "like");
   assert.deepEqual(topicProfile(persisted), [
     { topicId: "ai", label: "AI", likes: 1, dislikes: 0 },
-    { topicId: "technology", label: "Technology", likes: 1, dislikes: 0 },
+    { topicId: "privacy", label: "Privacy", likes: 1, dislikes: 0 },
   ]);
   recordTelegramValidation(
     persisted,
@@ -1368,6 +1377,45 @@ try {
   assert.equal(rerendered.state, "complete");
   assert.equal(rerendered.previewPath, "/preview/daily/2026-08-28");
   assert.equal(loadEdition(persisted, { id: "daily:2026-08-28" })?.state, "complete");
+} finally {
+  persisted.close();
+}
+
+const revisionPayload = parseBriefingPayload({
+  ...preparedPayloadWithMedia,
+  notes: [{
+    id: "note:revised-story",
+    target: "story:story-1",
+    text: "обновлённый контекст",
+    role: "context",
+    tone: "signal",
+    rotation: "negative",
+    mark: "arrow-down-right",
+  }],
+  news: {
+    ...preparedPayloadWithMedia.news,
+    items: preparedPayloadWithMedia.news.items.map((story) => story.id === "story-1" ? {
+      ...story,
+      headline: "Редакционный заголовок обновлён без повторного сбора",
+      summary: "Краткий пересказ теперь сообщает конкретный факт и остаётся независимым от полного текста.",
+      details: ["Подробный пересказ также обновлён, но исходные сообщения, медиа и пользовательское состояние не меняются."],
+    } : story),
+  },
+});
+const revised = await revisePublishedEdition(revisionPayload, renderBriefingPage, paths);
+assert.equal(revised.state, "complete");
+persisted = openBriefingDatabase(paths);
+try {
+  const edition = loadEdition(persisted, { id: "daily:2026-08-28" });
+  assert(edition);
+  const revisedStored = parseBriefingPayload(JSON.parse(edition.payload_json) as unknown);
+  const revisedStory = revisedStored.news.items.find((story) => story.id === "story-1");
+  assert.equal(revisedStory?.headline, "Редакционный заголовок обновлён без повторного сбора");
+  assert.equal(revisedStory?.media?.[0]?.src, "/media/daily/2026-08-28/story-1/01.jpg");
+  assert.equal(revisedStory?.readState, "read");
+  assert.equal(revisedStory?.reaction, "like");
+  assert.equal(revisedStored.notes?.[0]?.mark, "arrow-down-left");
+  assert.match(await readEditionHtml(edition, paths), /обновлённый контекст <span aria-hidden="true">↙<\/span>/u);
 } finally {
   persisted.close();
 }

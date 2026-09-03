@@ -118,7 +118,11 @@ collecting -> prepared -> committing -> complete | partial
 
 Publishing uses one edition ID per local date. An automatic rerun of a complete
 edition is a no-op. A partial rerun may merge only missing-source results into
-the same edition. There are no public revisions.
+the same edition. There are no separately addressable public revisions. An
+explicit editorial repair may replace copy, topics, ranking fields, and notes
+in the same published edition through `revise-published`; it must preserve the
+exact source batches, exclusions, story IDs, story-to-source ownership, media,
+read state, and reactions, and it never repeats Telegram mutations.
 
 If the process stops after Telegram commit but before finalization, recover from
 the durable prepared edition, persisted validation, commit plan, and commit

@@ -96,6 +96,30 @@ assert.throws(
   /summary looks truncated/u,
 );
 
+assert.throws(
+  () => assertEditorialPayload(payload({
+    headline: "Что произошло: чайки научились красть еду у британцев",
+  }), policy),
+  /headline uses a generic template prefix/u,
+);
+
+assert.throws(
+  () => assertEditorialPayload(payload({
+    summary: "Подробности и первоисточник сохранены в раскрытии.",
+  }), policy),
+  /summary contains UI or source-navigation filler/u,
+);
+
+assert.throws(
+  () => assertEditorialPayload(payload({
+    topics: [
+      { id: "society", label: "Society" },
+      { id: "media", label: "Media" },
+    ],
+  }), policy),
+  /topics are only broad containers or geography/u,
+);
+
 const proposedPayload = payload({
   topics: [
     { id: "united-kingdom", label: "United Kingdom" },

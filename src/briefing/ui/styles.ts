@@ -184,7 +184,7 @@ a { color: inherit; }
 .news-story__summary { max-width: 800px; margin: 0; color: var(--muted); font-size: .8125rem; line-height: 1.5; }
 .topic-set { display: flex; flex-wrap: wrap; gap: 5px; margin-top: 12px; }
 .topic-chip { min-height: 22px; display: inline-flex; align-items: center; justify-content: center; padding: 2px 7px; color: var(--muted); background: color-mix(in srgb, var(--panel) 72%, transparent); border: 1px solid var(--line); border-radius: 4px; font-size: .625rem; font-weight: 500; line-height: 1; }
-.news-story__note { width: max-content; max-width: 100%; display: inline-block; margin-top: 12px; font-size: 19px; }
+.news-story__note { width: max-content; max-width: min(100%, 260px); display: block; margin: 5px 7% -2px auto; font-size: 19px; text-align: right; }
 .news-story__actions { grid-column: 4; display: flex; gap: 6px; }
 .news-story__actions .reaction-group { display: contents; }
 .story-toggle, .news-story__source { min-width: 44px; min-height: 44px; display: inline-flex; align-items: center; justify-content: center; padding: 0 12px; color: var(--ink); background: var(--panel); border: 1px solid var(--line); border-radius: 3px; cursor: pointer; font-size: .75rem; font-weight: 600; line-height: 1; text-decoration: none; transition: color 150ms, background 150ms, border-color 150ms, transform 150ms; }
@@ -288,6 +288,7 @@ a { color: inherit; }
   .story-cover, .news-story__copy, .news-story__actions { grid-column: 2; }
   .story-cover { aspect-ratio: 16 / 9; margin-bottom: 4px; }
   .news-story__actions { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px; }
+  .news-story__note { margin-right: 2%; font-size: 18px; }
   .story-toggle { grid-column: 1 / -1; width: 100%; }
   .news-story__source, .news-story__actions .icon-button { width: 100%; min-width: 0; padding-inline: 0; }
   .story-disclosure__body { grid-column: 1 / -1; padding: 18px; }

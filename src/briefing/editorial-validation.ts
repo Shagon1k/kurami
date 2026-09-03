@@ -13,6 +13,7 @@ export type TopicDefinition = {
 export type TopicPolicy = {
   topics: Map<string, TopicDefinition>;
   geographyTopics: Set<string>;
+  genericTopics: Set<string>;
   refinements: Map<string, Set<string>>;
   promotion: {
     minimumStoryCount: number;
@@ -97,6 +98,10 @@ export async function loadTopicPolicy(
     validation.geography_topics ?? [],
     "validation.geography_topics",
   ));
+  const genericTopics = new Set(stringArray(
+    validation.generic_topics ?? [],
+    "validation.generic_topics",
+  ));
   const rawRefinements = record(validation.required_refinements ?? {}, "validation.required_refinements");
   const refinements = new Map<string, Set<string>>();
   for (const [broadTopic, rawSpecificTopics] of Object.entries(rawRefinements)) {
@@ -105,7 +110,7 @@ export async function loadTopicPolicy(
       `validation.required_refinements.${broadTopic}`,
     )));
   }
-  for (const topicId of [...geographyTopics, ...refinements.keys()]) {
+  for (const topicId of [...geographyTopics, ...genericTopics, ...refinements.keys()]) {
     if (!topics.has(topicId)) throw new Error(`Invalid topic seed: unknown validation topic ${topicId}`);
   }
   for (const specificTopics of refinements.values()) {
@@ -116,6 +121,7 @@ export async function loadTopicPolicy(
   return {
     topics,
     geographyTopics,
+    genericTopics,
     refinements,
     promotion: {
       minimumStoryCount: positiveInteger(
@@ -152,67 +158,101 @@ function endsLikeClippedExcerpt(value: string): boolean {
   return /(?:\.{3,}|…|\[\.\.\.\])\s*$/u.test(value.trim());
 }
 
-function assertEditorialCopy(story: NewsItem): void {
+function wordCount(value: string): number {
+  return normalized(value).split(/\s+/u).filter(Boolean).length;
+}
+
+const FORBIDDEN_HEADLINE_PREFIX = /^(?:что произошло|главное|новость|исходная публикация)\s*[:—-]/iu;
+const META_SUMMARY = /(?:подробност(?:и|ей)|первоисточник|источник)\s+(?:и\s+)?(?:сохран(?:ен|ён|ены|ённые)|доступ(?:ен|ны)|наход(?:ится|ятся))|(?:сохран(?:ен|ён|ены)|доступ(?:ен|ны))\s+в\s+раскрыти|нажмите\s+(?:читать|подробнее)|читайте\s+(?:далее|в\s+источнике)/iu;
+const SOURCE_WRAPPER = /^(?:исходная публикация|текст источника|оригинал|источник)\s*:/iu;
+
+function editorialCopyIssues(story: NewsItem): string[] {
+  const issues: string[] = [];
   const headline = story.headline.trim();
   const summary = story.summary.trim();
   const normalizedHeadline = normalized(headline);
   const normalizedSummary = normalized(summary);
   const normalizedDetails = normalized(story.details[0] ?? "");
 
-  if (headline.length > 170) throw new Error(`Story ${story.id} headline is not concise`);
-  if (summary.length > 420) throw new Error(`Story ${story.id} summary is not short`);
-  if (endsLikeClippedExcerpt(headline)) throw new Error(`Story ${story.id} headline looks truncated`);
-  if (endsLikeClippedExcerpt(summary)) throw new Error(`Story ${story.id} summary looks truncated`);
+  if (headline.length > 120 || wordCount(headline) > 18) issues.push(`Story ${story.id} headline is not concise`);
+  if (FORBIDDEN_HEADLINE_PREFIX.test(headline)) issues.push(`Story ${story.id} headline uses a generic template prefix`);
+  if (summary.length > 360 || wordCount(summary) > 55) issues.push(`Story ${story.id} summary is not short`);
+  if (META_SUMMARY.test(summary)) issues.push(`Story ${story.id} summary contains UI or source-navigation filler`);
+  if (SOURCE_WRAPPER.test(story.details[0] ?? "")) issues.push(`Story ${story.id} details wrap source text instead of retelling it`);
+  if (endsLikeClippedExcerpt(headline)) issues.push(`Story ${story.id} headline looks truncated`);
+  if (endsLikeClippedExcerpt(summary)) issues.push(`Story ${story.id} summary looks truncated`);
   if (
     normalizedHeadline.length >= 18
     && (normalizedSummary === normalizedHeadline || normalizedSummary.startsWith(`${normalizedHeadline} `))
   ) {
-    throw new Error(`Story ${story.id} summary repeats its headline`);
+    issues.push(`Story ${story.id} summary repeats its headline`);
   }
   if (
     normalizedSummary.length >= 36
     && (normalizedDetails === normalizedSummary || normalizedDetails.startsWith(`${normalizedSummary} `))
   ) {
-    throw new Error(`Story ${story.id} details repeat its short summary`);
+    issues.push(`Story ${story.id} details repeat its short summary`);
   }
+  return issues;
 }
 
 export function assertEditorialPayload(payload: BriefingPayload, policy: TopicPolicy): void {
+  const issues: string[] = [];
+  const summaryOwners = new Map<string, string>();
+  const globalTopicSets = new Map<string, number>();
+  const sourceTopicSets = new Map<string, number>();
   for (const story of payload.news.items) {
-    assertEditorialCopy(story);
+    issues.push(...editorialCopyIssues(story));
+    const summaryKey = normalized(story.summary);
+    const summaryOwner = summaryOwners.get(summaryKey);
+    if (summaryOwner) {
+      issues.push(`Stories ${summaryOwner} and ${story.id} reuse the same summary`);
+    } else {
+      summaryOwners.set(summaryKey, story.id);
+    }
     const assigned = new Set(story.topics.map((topic) => topic.id));
     const proposed = story.topics.filter((topic) => topic.status === "proposed");
     const text = storyText(story);
+    const topicSet = [...assigned].sort().join(",");
+    globalTopicSets.set(topicSet, (globalTopicSets.get(topicSet) ?? 0) + 1);
+    const sourceKeys = (Array.isArray(story.sources) ? story.sources : [])
+      .map((source) => typeof source.sourceKey === "string" ? source.sourceKey : "")
+      .filter(Boolean);
+    for (const sourceKey of sourceKeys) {
+      const key = `${sourceKey}\n${topicSet}`;
+      sourceTopicSets.set(key, (sourceTopicSets.get(key) ?? 0) + 1);
+    }
     for (const topic of story.topics) {
       const definition = policy.topics.get(topic.id);
       if (!definition) {
         if (topic.status !== "proposed" || !topic.aliases?.length) {
-          throw new Error(`Story ${story.id} unknown topic ${topic.id} must be proposed explicitly`);
+          issues.push(`Story ${story.id} unknown topic ${topic.id} must be proposed explicitly`);
+          continue;
         }
         if (/\p{Script=Cyrillic}/u.test(topic.label) || topic.label.length > 48) {
-          throw new Error(`Story ${story.id} proposed topic ${topic.id} requires a concise English label`);
+          issues.push(`Story ${story.id} proposed topic ${topic.id} requires a concise English label`);
         }
         const candidateTerms = [topic.id, topic.label, ...topic.aliases].map(normalized);
         for (const existing of policy.topics.values()) {
           const existingTerms = [existing.id, existing.label, ...existing.aliases].map(normalized);
           if (candidateTerms.some((candidate) => existingTerms.includes(candidate))) {
-            throw new Error(`Story ${story.id} proposed topic ${topic.id} duplicates ${existing.id}`);
+            issues.push(`Story ${story.id} proposed topic ${topic.id} duplicates ${existing.id}`);
           }
         }
         continue;
       }
       if (topic.status === "proposed" || topic.aliases) {
-        throw new Error(`Story ${story.id} must reuse registered topic ${topic.id} without proposal fields`);
+        issues.push(`Story ${story.id} must reuse registered topic ${topic.id} without proposal fields`);
       }
       if (topic.label !== definition.label) {
-        throw new Error(`Story ${story.id} must use canonical label ${definition.label}`);
+        issues.push(`Story ${story.id} must use canonical label ${definition.label}`);
       }
       if (policy.geographyTopics.has(topic.id)) {
         const evidence = [definition.id, definition.label, ...definition.aliases]
           .map(normalized)
           .filter((value) => value.length >= 3);
         if (!evidence.some((value) => text.includes(value))) {
-          throw new Error(`Story ${story.id} assigns geography ${topic.id} without textual evidence`);
+          issues.push(`Story ${story.id} assigns geography ${topic.id} without textual evidence`);
         }
       }
     }
@@ -222,8 +262,36 @@ export function assertEditorialPayload(payload: BriefingPayload, policy: TopicPo
         && ![...required].some((topicId) => assigned.has(topicId))
         && proposed.length === 0
       ) {
-        throw new Error(`Story ${story.id} must refine broad topic ${broadTopic}`);
+        issues.push(`Story ${story.id} must refine broad topic ${broadTopic}`);
       }
     }
+    const hasSpecificTopic = story.topics.some((topic) =>
+      topic.status === "proposed"
+      || (!policy.genericTopics.has(topic.id) && !policy.geographyTopics.has(topic.id))
+    );
+    if (!hasSpecificTopic) {
+      issues.push(`Story ${story.id} topics are only broad containers or geography; add a contextual subtype`);
+    }
+  }
+  const globalLimit = Math.max(3, Math.ceil(payload.news.items.length / 10));
+  for (const [topicSet, count] of globalTopicSets) {
+    if (count > globalLimit) {
+      issues.push(`Topic set ${topicSet} is reused by ${count} stories; maximum is ${globalLimit}`);
+    }
+  }
+  for (const [key, count] of sourceTopicSets) {
+    if (count > 3) {
+      const [sourceKey, topicSet] = key.split("\n");
+      issues.push(`Source ${sourceKey} reuses topic set ${topicSet} for ${count} stories; maximum is 3`);
+    }
+  }
+  if (issues.length) {
+    const visible = issues.slice(0, 40);
+    const remainder = issues.length - visible.length;
+    throw new Error([
+      "Editorial validation failed:",
+      ...visible.map((issue) => `- ${issue}`),
+      ...(remainder ? [`- …and ${remainder} more issue(s)`] : []),
+    ].join("\n"));
   }
 }

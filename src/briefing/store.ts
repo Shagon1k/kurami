@@ -689,6 +689,200 @@ export async function rerenderPublishedPreview(
   };
 }
 
+function stableSourceOwnership(payload: BriefingPayload): string {
+  return JSON.stringify(payload.news.items.map((story) => ({
+    id: story.id,
+    fingerprint: story.fingerprint,
+    sources: (Array.isArray(story.sources) ? story.sources : [])
+      .map((source) => ({
+        sourceKey: typeof source.sourceKey === "string" ? source.sourceKey : "",
+        itemIds: Array.isArray(source.itemIds)
+          ? source.itemIds.filter((value): value is string => typeof value === "string").sort()
+          : [],
+      }))
+      .sort((left, right) => left.sourceKey.localeCompare(right.sourceKey)),
+  })).sort((left, right) => left.id.localeCompare(right.id)));
+}
+
+function stableSourceBatches(payload: BriefingPayload): string {
+  return JSON.stringify((payload.sourceBatches ?? []).map((batch) => ({
+    sourceKey: batch.sourceKey,
+    providerSourceId: batch.providerSourceId,
+    minItemId: batch.minItemId,
+    maxItemId: batch.maxItemId,
+    itemIds: [...batch.itemIds].sort(),
+  })).sort((left, right) => left.sourceKey.localeCompare(right.sourceKey)));
+}
+
+function stableExclusions(payload: BriefingPayload): string {
+  return JSON.stringify([...(payload.news.exclusions ?? [])].sort((left, right) =>
+    `${left.sourceKey}:${left.itemId}`.localeCompare(`${right.sourceKey}:${right.itemId}`)
+  ));
+}
+
+export async function revisePublishedEdition(
+  payloadValue: unknown,
+  renderer: (payload: BriefingPayload) => string,
+  paths: BriefingPaths = briefingPaths(),
+): Promise<{ editionId: string; publicationPath: string; digest: string; state: "complete" | "partial" }> {
+  const revision = parseBriefingPayload(payloadValue);
+  assertProductionBriefingPayload(revision);
+  await initializeBriefingStore(paths);
+  const database = openBriefingDatabase(paths);
+  let previousHtml: string | null = null;
+  let htmlPath = "";
+  let wroteHtml = false;
+  try {
+    const edition = loadEdition(database, { id: revision.edition.id });
+    if (!edition || (edition.state !== "complete" && edition.state !== "partial")) {
+      fail(`Edition ${revision.edition.id} is not published`);
+    }
+    const existing = parseBriefingPayload(JSON.parse(edition.payload_json) as unknown);
+    if (
+      revision.edition.type !== existing.edition.type
+      || revision.edition.localDate !== existing.edition.localDate
+      || revision.edition.timezone !== existing.edition.timezone
+    ) {
+      fail("Published revision cannot change edition identity");
+    }
+    if (stableSourceBatches(revision) !== stableSourceBatches(existing)) {
+      fail("Published revision cannot change source batches");
+    }
+    if (stableSourceOwnership(revision) !== stableSourceOwnership(existing)) {
+      fail("Published revision cannot regroup, add, or remove stories");
+    }
+    if (stableExclusions(revision) !== stableExclusions(existing)) {
+      fail("Published revision cannot change exclusions");
+    }
+
+    const states = database
+      .prepare("SELECT item_id, read_at, reaction FROM edition_items WHERE edition_id = ?")
+      .all(edition.id) as Array<{
+      item_id: string;
+      read_at: string | null;
+      reaction: Reaction | null;
+    }>;
+    const stateById = new Map(states.map((state) => [state.item_id, state]));
+    const existingById = new Map(existing.news.items.map((story) => [story.id, story]));
+    const { notes: _existingNotes, news: _existingNews, ...stableExisting } = existing;
+    const revisedStories = revision.news.items.map((story) => {
+      const prior = existingById.get(story.id)!;
+      const state = stateById.get(story.id);
+      const { media: _revisionMedia, readState: _revisionReadState, reaction: _revisionReaction, ...editorial } = story;
+      return {
+        ...editorial,
+        ...(prior.media ? { media: prior.media } : {}),
+        ...(state?.read_at ? { readState: "read" } : {}),
+        ...(state?.reaction ? { reaction: state.reaction } : {}),
+      };
+    });
+    const revisedNotes = revision.notes?.map((note) =>
+      note.target.startsWith("story:") ? { ...note, mark: "arrow-down-left" as const } : note
+    );
+    const candidate = parseBriefingPayload({
+      ...stableExisting,
+      ...(revisedNotes ? { notes: revisedNotes } : {}),
+      news: { ...revision.news, items: revisedStories },
+    });
+    const topicPolicy = await loadTopicPolicy(paths.home, process.env, topicRegistry(database));
+    assertEditorialPayload(candidate, topicPolicy);
+    if (candidate.schemaVersion === 2 && candidate.edition.type === "daily" && candidate.sourceBatches?.length) {
+      assertTelegramStoryCoverage(candidate);
+    }
+    const html = renderer(candidate);
+    validateRenderedHtml(html, candidate);
+    const payloadJson = JSON.stringify(candidate);
+    const digest = createHash("sha256").update(payloadJson).update("\0").update(html).digest("hex");
+    htmlPath = resolvedHtmlPath(paths, edition.html_path);
+    previousHtml = await readFile(htmlPath, "utf8").catch((error: NodeJS.ErrnoException) => {
+      if (error.code === "ENOENT") return null;
+      throw error;
+    });
+    const timestamp = now();
+
+    database.exec("BEGIN IMMEDIATE");
+    try {
+      database.prepare(`
+        UPDATE editions
+        SET payload_json = ?, content_digest = ?, updated_at = ?
+        WHERE id = ?
+      `).run(payloadJson, digest, timestamp, edition.id);
+      const updateItem = database.prepare(`
+        UPDATE edition_items
+        SET story_fingerprint = ?, topic_ids_json = ?, updated_at = ?
+        WHERE edition_id = ? AND item_id = ? AND item_type = 'story'
+      `);
+      const upsertTopic = database.prepare(`
+        INSERT INTO topic_registry (id, label, aliases_json, status, created_at, updated_at)
+        VALUES (?, ?, ?, ?, ?, ?)
+        ON CONFLICT(id) DO UPDATE SET
+          label = excluded.label,
+          aliases_json = CASE
+            WHEN excluded.aliases_json = '[]' THEN topic_registry.aliases_json
+            ELSE excluded.aliases_json
+          END,
+          status = CASE
+            WHEN topic_registry.status = 'active' THEN 'active'
+            ELSE excluded.status
+          END,
+          updated_at = excluded.updated_at
+      `);
+      database.prepare("DELETE FROM topic_story_occurrences WHERE edition_id = ?").run(edition.id);
+      const insertOccurrence = database.prepare(`
+        INSERT OR IGNORE INTO topic_story_occurrences (
+          topic_id, edition_id, story_fingerprint, source_key, observed_at
+        ) VALUES (?, ?, ?, ?, ?)
+      `);
+      for (const story of candidate.news.items) {
+        const update = updateItem.run(
+          story.fingerprint,
+          JSON.stringify(story.topics.map((topic) => topic.id)),
+          timestamp,
+          edition.id,
+          story.id,
+        );
+        if (update.changes !== 1) fail(`Published revision is missing item state for ${story.id}`);
+        const sourceKeys = new Set((Array.isArray(story.sources) ? story.sources : [])
+          .map((source) => typeof source.sourceKey === "string" ? source.sourceKey : "")
+          .filter(Boolean));
+        if (!sourceKeys.size) sourceKeys.add(`edition:${edition.id}`);
+        for (const topic of story.topics) {
+          const registered = topicPolicy.topics.get(topic.id);
+          upsertTopic.run(
+            topic.id,
+            topic.label,
+            JSON.stringify(topic.aliases ?? registered?.aliases ?? []),
+            topic.status ?? registered?.status ?? "active",
+            timestamp,
+            timestamp,
+          );
+          for (const sourceKey of sourceKeys) {
+            insertOccurrence.run(topic.id, edition.id, story.fingerprint, sourceKey, timestamp);
+          }
+        }
+      }
+      await atomicWrite(htmlPath, html);
+      wroteHtml = true;
+      database.exec("COMMIT");
+    } catch (error) {
+      database.exec("ROLLBACK");
+      if (wroteHtml) {
+        if (previousHtml === null) await unlink(htmlPath).catch(() => undefined);
+        else await atomicWrite(htmlPath, previousHtml);
+      }
+      throw error;
+    }
+    return {
+      editionId: edition.id,
+      publicationPath: `/${candidate.edition.type}/${candidate.edition.localDate}`,
+      digest,
+      state: edition.state,
+    };
+  } finally {
+    database.close();
+  }
+}
+
 function telegramBatchMap(payload: BriefingPayload): Map<string, {
   providerSourceId: string;
   itemIds: string[];

@@ -247,7 +247,7 @@ assert(!serializedConfig.includes("get_messages"));
 const topicSeed = readYaml(path.join(root, "deploy", "config", "briefing-topics.yaml")) as {
   topics: Array<{ id: string; label: string }>;
 };
-assert(topicSeed.topics.length >= 30 && topicSeed.topics.length <= 60);
+assert(topicSeed.topics.length >= 30 && topicSeed.topics.length <= 80);
 assert.equal(new Set(topicSeed.topics.map((topic) => topic.id)).size, topicSeed.topics.length);
 for (const topic of topicSeed.topics) {
   assert.match(topic.id, /^[a-z0-9]+(?:-[a-z0-9]+)*$/);

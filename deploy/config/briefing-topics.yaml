@@ -6,6 +6,7 @@ promotion:
 
 validation:
   geography_topics: [united-states, united-kingdom, lithuania, belarus, europe, japan]
+  generic_topics: [ai, technology, business, economy, politics, society, law, housing, science, travel, food, art, culture, cinema, media, health, transport]
   required_refinements:
     housing: [housing-market, housing-policy, construction, demolition, urban-development]
 
@@ -62,3 +63,15 @@ topics:
   - { id: transport, label: Transport, aliases: [транспорт] }
   - { id: productivity, label: Productivity, aliases: [продуктивность] }
   - { id: personal-finance, label: Personal Finance, aliases: [личные финансы, деньги] }
+  - { id: weather, label: Weather, aliases: [weather, forecast, погода, прогноз, циклон, осадки, гроза] }
+  - { id: public-health, label: Public Health, aliases: [public health, общественное здоровье, эпидемиология] }
+  - { id: consumer-safety, label: Consumer Safety, aliases: [product safety, безопасность товаров, отзыв продукции] }
+  - { id: road-safety, label: Road Safety, aliases: [traffic safety, безопасность движения, дтп] }
+  - { id: public-transport, label: Public Transport, aliases: [transit, общественный транспорт, маршруты, перевозчики] }
+  - { id: aviation, label: Aviation, aliases: [airlines, flights, авиация, авиакомпании, рейсы] }
+  - { id: migration, label: Migration, aliases: [immigration, эмиграция, иммиграция, миграция] }
+  - { id: defense, label: Defense, aliases: [military, defence, оборона, военн] }
+  - { id: family-policy, label: Family Policy, aliases: [family benefits, семейная политика, пособия семьям] }
+  - { id: crime, label: Crime, aliases: [criminal, преступность, преступление] }
+  - { id: sports, label: Sports, aliases: [sport, спорт] }
+  - { id: currency, label: Currency, aliases: [exchange rate, валюта, курс валют] }

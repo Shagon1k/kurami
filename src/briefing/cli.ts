@@ -10,6 +10,7 @@ import {
   loadEdition,
   openBriefingDatabase,
   preparePreview,
+  revisePublishedEdition,
   rerenderPublishedPreview,
   recordTelegramValidation,
   topicProfile,
@@ -34,7 +35,7 @@ import {
   type BriefingRunState,
 } from "./run-attempt.ts";
 
-type Command = "init" | "start-attempt" | "attempt-status" | "advance-attempt" | "collect-live" | "compose" | "topic-pool" | "prepare-preview" | "render-preview" | "rerender-preview" | "build-media-manifest" | "media-ready" | "import-media" | "validate-telegram-batch" | "telegram-capture-config" | "telegram-commit-plan" | "finalize" | "notify-release" | "inspect" | "cleanup";
+type Command = "init" | "start-attempt" | "attempt-status" | "advance-attempt" | "collect-live" | "compose" | "topic-pool" | "prepare-preview" | "render-preview" | "rerender-preview" | "revise-published" | "build-media-manifest" | "media-ready" | "import-media" | "validate-telegram-batch" | "telegram-capture-config" | "telegram-commit-plan" | "finalize" | "notify-release" | "inspect" | "cleanup";
 
 type Arguments = {
   command: Command;
@@ -62,7 +63,7 @@ function fail(message: string): never {
 
 function parseArguments(argv = process.argv.slice(2)): Arguments {
   const command = argv.shift() as Command | undefined;
-  if (!command || !["init", "start-attempt", "attempt-status", "advance-attempt", "collect-live", "compose", "topic-pool", "prepare-preview", "render-preview", "rerender-preview", "build-media-manifest", "media-ready", "import-media", "validate-telegram-batch", "telegram-capture-config", "telegram-commit-plan", "finalize", "notify-release", "inspect", "cleanup"].includes(command)) {
+  if (!command || !["init", "start-attempt", "attempt-status", "advance-attempt", "collect-live", "compose", "topic-pool", "prepare-preview", "render-preview", "rerender-preview", "revise-published", "build-media-manifest", "media-ready", "import-media", "validate-telegram-batch", "telegram-capture-config", "telegram-commit-plan", "finalize", "notify-release", "inspect", "cleanup"].includes(command)) {
     fail("Unknown briefing command");
   }
   const result: Arguments = { command };
@@ -96,6 +97,9 @@ function parseArguments(argv = process.argv.slice(2)): Arguments {
   }
   if (command === "rerender-preview" && !result.editionId) {
     fail("rerender-preview requires --id");
+  }
+  if (command === "revise-published" && (!result.editionId || !result.payloadPath)) {
+    fail("revise-published requires --id and --payload");
   }
   if (command === "collect-live" && (!result.editionId || !result.attemptId)) {
     fail("collect-live requires --id and --attempt");
@@ -340,6 +344,19 @@ export async function runBriefingCli(argv = process.argv.slice(2)): Promise<unkn
       renderer: "kurami-ui-components-v1",
       externalMutations: false,
       ...(await rerenderPublishedPreview(payload, renderBriefingPage(payload), paths)),
+    };
+  }
+  if (args.command === "revise-published") {
+    const payload = await readPayload(args.payloadPath!);
+    if ((payload as { edition?: { id?: unknown } }).edition?.id !== args.editionId) {
+      fail("revise-published edition ID differs from payload");
+    }
+    return {
+      ok: true,
+      action: "revise-published",
+      renderer: "kurami-ui-components-v1",
+      externalMutations: false,
+      ...(await revisePublishedEdition(payload, renderBriefingPage, paths)),
     };
   }
   if (args.command === "import-media") {

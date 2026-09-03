@@ -75,7 +75,8 @@ visible item with `calendar-event:<item-id>`, `mail-item:<item-id>`, or
 `story:<item-id>`. Supported roles are `focus`, `context`, `action`,
 `reassurance`, and `personality`; supported tones are `signal` and `ink`;
 supported rotations are `none`, `negative`, and `positive`. `mark` may be
-`arrow-down`, `arrow-down-right`, or `arrow-right`.
+`arrow-down`, `arrow-down-left`, `arrow-down-right`, or `arrow-right`. Story
+notes use `arrow-down-left`; the composer normalizes their mark accordingly.
 
 Write fresh copy for the edition rather than choosing from a phrase pool. At
 least two thirds of the notes target concrete visible items, primarily stories.
@@ -303,6 +304,14 @@ a two-sentence teaser. It must preserve enough concrete actors, actions, dates, 
 background, uncertainty, and consequences for Alex to understand the useful
 substance without leaving the briefing. Remove channel boilerplate and do not
 merely repeat the summary.
+
+The production validator rejects generic headline prefixes such as
+`Что произошло:`, headlines above 120 characters or 18 words, identical scan
+summaries, navigation placeholders in `summary`, and source wrappers in
+`details`. It also rejects topic assignments made only of broad containers and
+geography, plus suspicious edition-wide or per-source reuse of one exact topic
+set. A failed validation is a request to repair the editorial draft; never work
+around it with another stock phrase.
 
 Use length as a diagnostic, never as a reason to pad or invent:
 
