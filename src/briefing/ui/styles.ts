@@ -82,7 +82,6 @@ a { color: inherit; }
 .hero h1 { max-width: 850px; margin: 0; font-size: clamp(44px, 6vw, 76px); font-weight: 600; line-height: 1.02; letter-spacing: -.055em; }
 .hero__subtitle { max-width: 760px; margin: 14px 0 0; color: var(--muted); font-size: clamp(17px, 2vw, 21px); line-height: 1.45; }
 .kurami-note { color: var(--signal); font: 600 24px/1 var(--font-note); }
-.kurami-note--ink { color: var(--ink); }
 .kurami-note--none { transform: none; }
 .kurami-note--negative { transform: rotate(-3deg); }
 .kurami-note--positive { transform: rotate(2deg); }

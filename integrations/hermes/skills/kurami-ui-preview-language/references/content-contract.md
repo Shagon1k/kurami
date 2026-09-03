@@ -19,8 +19,9 @@ The caller supplies:
 - preference state, if already known;
 - featured flags, if editorial featuring is intended;
 - whether source diagnostics should be visible or only summarized as data quality;
-- optional display-ready Kurami Notes with target, semantic role, tone,
-  rotation, and optional mark.
+- optional display-ready Kurami Notes with target, semantic role, rotation, and
+  optional mark. A legacy `tone` field may be present but does not alter the
+  canonical signal-red rendering.
 
 This skill may decide:
 
@@ -156,8 +157,9 @@ A Bulk Source Action is a representation of caller-owned behavior. Require the c
 The caller supplies exact note text and its semantic target. Preserve it unless
 it violates the 1–4 word or safety rule; in that case omit it or ask for
 revision. The renderer never writes generic fallback copy or selects a phrase
-from a pool. Freshness and recent-repeat checks belong to the producing
-workflow because they require edition history.
+from a pool. It always uses signal red regardless of a legacy payload `tone`.
+Freshness and recent-repeat checks belong to the producing workflow because
+they require edition history.
 
 ## Cron composition
 

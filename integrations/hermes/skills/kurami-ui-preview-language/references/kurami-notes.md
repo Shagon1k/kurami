@@ -11,7 +11,8 @@ Kurami Notes add a small daily human layer without becoming decorative noise. Th
 - Use Caveat 600.
 - Use at most two jokes on a long page and never on adjacent feed items.
 - Use at least two placement variants on a page.
-- Do not repeat the same rotation, color, alignment, and placement for all notes.
+- Do not repeat the same rotation, alignment, mark, and placement for all notes.
+- Always render handwritten note text and marks in signal red in both themes.
 - Keep the same limits on mobile and desktop.
 
 ## Semantic roles
@@ -38,7 +39,7 @@ Place near one specific value or delta, not above an entire metric grid. A note 
 
 ### Inline aside
 
-Place after a compact heading, metadata phrase, or action without rotation. Use ink color when red would compete with nearby signals.
+Place after a compact heading, metadata phrase, or action without rotation. If signal red would compete with nearby state, move or omit the note instead of recoloring it.
 
 ### Underline or circle
 
@@ -61,7 +62,7 @@ new editorial choice; other note targets continue to use the placement matrix.
 
 Vary restrained properties, never all at once:
 
-- signal red or normal ink;
+- signal red only;
 - no rotation, slight negative rotation, or slight positive rotation;
 - 18–28px size depending on context;
 - text, text + arrow, underline, bracket, circle, or mark-only doodle;

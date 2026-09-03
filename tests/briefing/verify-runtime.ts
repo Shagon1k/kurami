@@ -77,7 +77,7 @@ const payload = {
       target: "hero",
       text: "утро без суеты",
       role: "reassurance",
-      tone: "signal",
+      tone: "ink",
       rotation: "positive",
       mark: "arrow-down-right",
     },
@@ -404,6 +404,8 @@ assert.match(html, /button__icon" aria-hidden="true">🔔<\/span>/);
 assert.match(html, /button__icon" aria-hidden="true">🔕<\/span>/);
 assert.match(html, /data-note-id="note:hero"[^>]*>утро без суеты/);
 assert.match(html, /data-note-id="note:story"[^>]*>сюда стоит смотреть/);
+assert.doesNotMatch(html, /kurami-note--ink/);
+assert.match(html, /\.kurami-note \{ color: var\(--signal\);/);
 assert.doesNotMatch(html, /спокойно, всё собрано|главное — рядом/);
 assert.doesNotMatch(html, /<script\b/i);
 

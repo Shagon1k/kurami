@@ -12,5 +12,5 @@ function noteMark(mark: KuramiNote["mark"]): string {
 export function renderKuramiNote(note: KuramiNote | undefined, placementClass: string): string {
   if (!note) return "";
   const mark = noteMark(note.mark);
-  return `<span class="kurami-note ${placementClass} kurami-note--${escapeHtml(note.tone)} kurami-note--${escapeHtml(note.rotation)}" data-note-id="${escapeHtml(note.id)}">${escapeHtml(note.text)}${mark ? ` <span aria-hidden="true">${mark}</span>` : ""}</span>`;
+  return `<span class="kurami-note ${placementClass} kurami-note--${escapeHtml(note.rotation)}" data-note-id="${escapeHtml(note.id)}">${escapeHtml(note.text)}${mark ? ` <span aria-hidden="true">${mark}</span>` : ""}</span>`;
 }

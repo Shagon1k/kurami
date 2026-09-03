@@ -107,7 +107,7 @@ Do not lower semantic alert text to decorative opacity. Backgrounds may be subtl
 - Frequency: render the caller-supplied set, normally 1–2 in a compact daily
   and up to 6 on a long feed when the producer derives the budget from item
   count, with no more than two jokes on a long page.
-- Appearance: Caveat 600, ink or signal color. Rotation is optional, not the default for every note.
+- Appearance: Caveat 600 in signal red. Rotation is optional, not the default for every note; vary geometry rather than color.
 - Voice: Kurami is `она`; Russian grammar must use the feminine form where applicable.
 
 Examples below illustrate brevity only and are not a reusable phrase pool:

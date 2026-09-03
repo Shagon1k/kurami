@@ -177,6 +177,8 @@ In the canonical paginated news feed, a story-targeted note is a defined
 variant: render it above that story's headline, toward the right side of the
 copy column, with a down-left arrow pointing back to the title. Do not append
 it below the topic chips, where the arrow appears to point at the next row.
+All Kurami Notes use signal red; placement, rotation, and marks provide visual
+variation without switching handwritten notes to normal ink.
 
 ## Responsive rules
 

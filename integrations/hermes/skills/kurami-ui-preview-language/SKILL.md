@@ -3,7 +3,7 @@ name: kurami-ui-preview-language
 description: Render pages in Kurami's fixed visual language.
 license: private
 metadata:
-  version: 0.9.0
+  version: 0.9.1
   author: Aliaksei Hurynovich with Hermes Agent
   hermes:
     tags:
@@ -168,6 +168,8 @@ Use Hermes file tools to inspect and edit the target project. Use the target pro
   shadow; keep story rows on the quieter surface inside the feed. Apply the
   shadow only to selected structural blocks, never to every row or section.
 - Use red as a deliberate signal; do not turn the full page into a red interface.
+- Kurami Notes are the deliberate exception: their handwritten text and marks
+  always use the signal-red token in both themes.
 
 ### 5. Render supplied Kurami Notes sparingly
 
@@ -175,11 +177,11 @@ Use Hermes file tools to inspect and edit the target project. Use the target pro
   content producer. The renderer does not select copy from a built-in pool and
   does not add fallback phrases.
 - Omit a supplied note if it violates the safety or length contract; otherwise
-  preserve its text, target, semantic role, tone, rotation, and mark.
+  preserve its text, target, semantic role, rotation, and mark. Render every
+  Kurami Note in signal red; legacy payload `tone` values do not alter color.
 - Keep each note to 1–4 words in Caveat 600.
 - When multiple supplied notes exist, preserve at least two placement or style
-  variants. Do not collapse them into the same color, rotation, alignment, or
-  position beside a heading.
+  variants. Vary rotation, alignment, mark, or position rather than color.
 - Use no more than two jokes on a long page and never place them on adjacent feed items.
 - In Russian, refer to Kurami as `она` and write in a feminine voice where grammar exposes gender.
 - Never joke about serious failures, safety, loss, emergencies, or personal distress.
@@ -269,6 +271,6 @@ Before handoff, confirm all of the following:
   page without a full reload.
 - Topic labels preserve the caller's strings and order, remain secondary to the headline, and are not styled as primary red signals.
 - Bulk actions show their exact scope and consequences, require confirmation when consequential, and have loading, success, and error states supplied by the caller.
-- Kurami Notes respect the caller-supplied deterministic budget, attach to clear targets, and use multiple placement variants when more than one is present.
+- Kurami Notes respect the caller-supplied deterministic budget, attach to clear targets, always use signal red, and use multiple non-color placement variants when more than one is present.
 - The content payload is unchanged in fact and meaning.
 - The target project builds successfully and representative viewports were visually checked.

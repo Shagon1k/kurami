@@ -28,7 +28,7 @@ Use these stacks:
 
 body { font-family: var(--font-sans); }
 .technical-label { font-family: var(--font-mono); }
-.kurami-note { font-family: var(--font-note); font-weight: 600; }
+.kurami-note { color: var(--signal); font-family: var(--font-note); font-weight: 600; }
 .page-title { font-size: clamp(2.5rem, 5.5vw, 4.75rem); font-weight: 600; line-height: 1.02; }
 .section-title { font-size: clamp(1.65rem, 3vw, 3rem); font-weight: 600; line-height: 1.08; }
 ```
