@@ -597,7 +597,7 @@ const cinemaPayload = cinemaEnvelopeToBriefingPayload(envelope);
 const cinemaHtml = renderBriefingPage(cinemaPayload);
 validateRenderedHtml(cinemaHtml, cinemaPayload);
 for (const marker of [
-  "Box-office pulse",
+  "Пульс проката",
   "Трейлеры недели",
   "Премьеры",
   "Коротко о важном",

@@ -159,7 +159,7 @@ translations.
 
 The v1 page contains four independent sections in this order:
 
-1. Box-office pulse.
+1. «Пульс проката».
 2. Fresh trailers.
 3. Lithuanian premieres for the next calendar week.
 4. Up to fifteen selected cinema-news stories from the previous seven days.
@@ -174,7 +174,7 @@ only bounded highlights plus a clear link to `/cinema`; it does not duplicate
 the entire weekly page inside Daily. Exact highlight density may be visually
 iterated, but the preview cannot introduce data absent from the full snapshot.
 
-## Box-office pulse
+## Пульс проката
 
 ### Sources
 

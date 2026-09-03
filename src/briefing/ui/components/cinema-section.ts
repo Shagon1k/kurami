@@ -93,7 +93,7 @@ function boxOffice(envelope: CinemaEnvelope): string {
   if (section.state === "failed" || (!section.charts.length && !section.globalPulse.length)) return "";
   const featured = section.charts.flatMap((chart) => chart.entries)
     .find((entry) => entry.id === section.featuredId);
-  return `<section class="cinema-block cinema-box-office" id="box-office"><header class="cinema-heading"><div><p class="section-kicker">Прокат · цифры</p><h2>Box-office pulse</h2></div>${note(envelope, "box-office")}</header>
+  return `<section class="cinema-block cinema-box-office" id="box-office"><header class="cinema-heading"><div><p class="section-kicker">Прокат · цифры</p><h2>Пульс проката</h2></div>${note(envelope, "box-office")}</header>
     ${featured ? `<article class="cinema-winner"><span>Лидер последнего уикенда</span><strong>${escapeHtml(featured.title)}</strong><b>${money(featured.gross.amount, featured.gross.currency)}</b></article>` : ""}
     ${section.signals.length ? `<div class="cinema-signals">${section.signals.map((signal) => `<article><span>${escapeHtml(signal.label)}</span><strong>${escapeHtml(signal.filmTitle ?? section.charts.flatMap((chart) => chart.entries).find((entry) => entry.id === signal.filmId)?.title ?? signal.filmId)}</strong><b>${signal.value === undefined ? "" : `${signal.value > 0 ? "+" : ""}${signal.unit === "USD" ? money(signal.value, "USD") : `${Math.round(signal.value)}${signal.unit ?? ""}`}`}</b></article>`).join("")}</div>` : ""}
     ${trend(envelope)}
