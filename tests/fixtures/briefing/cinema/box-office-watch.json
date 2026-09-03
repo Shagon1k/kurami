@@ -1,0 +1,70 @@
+{
+  "weekend": {
+    "current": {
+      "dates": "August 21–23, 2026",
+      "actuals": [
+        { "movie": "Spider-Man: Brand New Day", "gross": 39000155, "change": -45, "vsPrediction": null, "total": 854901181, "weeks": 4, "prevRank": 1 },
+        { "movie": "Insidious: Out of the Further", "gross": 25304111, "change": null, "vsPrediction": 8, "total": 25304111, "weeks": 1, "prevRank": null },
+        { "movie": "The Odyssey", "gross": 19502033, "change": -16, "vsPrediction": null, "total": 539101220, "weeks": 6, "prevRank": 2 },
+        { "movie": "PAW Patrol: The Dino Movie", "gross": 9100122, "change": -56, "vsPrediction": null, "total": 40301199, "weeks": 2, "prevRank": 4 },
+        { "movie": "The End of Oak Street", "gross": 9000100, "change": -57, "vsPrediction": null, "total": 39700500, "weeks": 2, "prevRank": 3 },
+        { "movie": "Mutiny", "gross": 7500200, "change": null, "vsPrediction": -4, "total": 7500200, "weeks": 1, "prevRank": null }
+      ]
+    },
+    "archive": [
+      {
+        "dates": "August 14–16, 2026",
+        "actuals": [
+          { "movie": "Spider-Man: Brand New Day", "gross": 70711990, "change": -51, "vsPrediction": null, "total": 786543660, "weeks": 3, "prevRank": 1 },
+          { "movie": "The Odyssey", "gross": 23200000, "change": -32, "vsPrediction": null, "total": 504700000, "weeks": 5, "prevRank": 2 },
+          { "movie": "The End of Oak Street", "gross": 21000000, "change": null, "vsPrediction": null, "total": 21000000, "weeks": 1, "prevRank": null },
+          { "movie": "PAW Patrol: The Dino Movie", "gross": 20500000, "change": null, "vsPrediction": null, "total": 20500000, "weeks": 1, "prevRank": null }
+        ]
+      },
+      {
+        "dates": "August 7–9, 2026",
+        "actuals": [
+          { "movie": "Spider-Man: Brand New Day", "gross": 144310000, "change": -60, "vsPrediction": null, "total": 682000000, "weeks": 2, "prevRank": 1 },
+          { "movie": "The Odyssey", "gross": 34100000, "change": -38, "vsPrediction": null, "total": 451000000, "weeks": 4, "prevRank": 2 }
+        ]
+      },
+      {
+        "dates": "July 31–August 2, 2026",
+        "actuals": [
+          { "movie": "Spider-Man: Brand New Day", "gross": 360091572, "change": null, "vsPrediction": null, "total": 360091572, "weeks": 1, "prevRank": null },
+          { "movie": "The Odyssey", "gross": 55000000, "change": -41, "vsPrediction": null, "total": 389000000, "weeks": 3, "prevRank": 1 }
+        ]
+      },
+      {
+        "dates": "July 24–26, 2026",
+        "actuals": [
+          { "movie": "The Odyssey", "gross": 93000000, "change": -25, "vsPrediction": null, "total": 284000000, "weeks": 2, "prevRank": 1 }
+        ]
+      },
+      {
+        "dates": "July 17–19, 2026",
+        "actuals": [
+          { "movie": "The Odyssey", "gross": 123502900, "change": null, "vsPrediction": null, "total": 123502900, "weeks": 1, "prevRank": null }
+        ]
+      }
+    ]
+  },
+  "yearly": {
+    "2026": {
+      "domestic": [
+        { "movie": "Spider-Man: Brand New Day", "totalGross": 896395379, "studio": "Sony Pictures", "rank": 1 },
+        { "movie": "The Odyssey", "totalGross": 568063940, "studio": "Universal", "rank": 2 },
+        { "movie": "Toy Story 5", "totalGross": 478922726, "studio": "Disney", "rank": 3 },
+        { "movie": "The Super Mario Galaxy Movie", "totalGross": 429814610, "studio": "Universal", "rank": 4 },
+        { "movie": "Michael", "totalGross": 372303388, "studio": "Lionsgate", "rank": 5 }
+      ],
+      "worldwide": [
+        { "movie": "Spider-Man: Brand New Day", "totalGross": 2330000000, "studio": "Sony Pictures", "rank": 1 },
+        { "movie": "The Odyssey", "totalGross": 1400000000, "studio": "Universal", "rank": 2 },
+        { "movie": "Toy Story 5", "totalGross": 910000000, "studio": "Disney", "rank": 3 },
+        { "movie": "The Super Mario Galaxy Movie", "totalGross": 880000000, "studio": "Universal", "rank": 4 },
+        { "movie": "Michael", "totalGross": 640000000, "studio": "Lionsgate", "rank": 5 }
+      ]
+    }
+  }
+}

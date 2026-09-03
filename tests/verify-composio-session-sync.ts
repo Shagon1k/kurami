@@ -102,6 +102,21 @@ assert.deepEqual(trackedAutomationDesired.disableTags, ["destructiveHint"]);
 assert.equal(trackedAutomationDesired.manageConnections, false);
 assert.equal(trackedAutomationDesired.workbench, false);
 assert.equal(trackedAutomationDesired.multiAccount, false);
+const trackedReadDesired = parseDesiredState(await readFile(
+  resolve(
+    import.meta.dirname,
+    "../deploy/config/connectors/composio-read-session.yaml",
+  ),
+  "utf8",
+));
+assert.deepEqual(trackedReadDesired.toolkits, ["gmail", "googlecalendar", "youtube"]);
+assert.deepEqual(trackedReadDesired.tools.youtube, [
+  "YOUTUBE_GET_VIDEO_DETAILS_BATCH",
+  "YOUTUBE_LIST_CHANNELS",
+  "YOUTUBE_LIST_CHANNEL_VIDEOS",
+  "YOUTUBE_SEARCH_YOU_TUBE",
+]);
+assert.equal(trackedReadDesired.directTools, true);
 const forbiddenAutomationTools = [
   "DELETE",
   "SEND",

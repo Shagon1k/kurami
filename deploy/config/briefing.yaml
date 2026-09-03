@@ -33,6 +33,98 @@ capabilities:
   publisher:
     provider: kurami_briefing_runtime
 
+# Native weekly add-on. It remains inert until the provider fixtures,
+# promotion path, and live credential preflight all pass.
+cinema:
+  enabled: false
+  market: LT
+  timezone: Europe/Vilnius
+  language: ru
+  limits:
+    trailers: 8
+    premieres: 12
+    news: 15
+    provider_candidates: 100
+  sources:
+    box_office_watch:
+      weekend_url: https://boxofficewatch.com/data/weekend.json
+      yearly_url: https://boxofficewatch.com/data/yearly.json
+    ap_movies:
+      discovery_url: https://apnews.com/hub/movies
+    lkc:
+      reports_url: https://www.lkc.lt/registras-ir-statistika/faktai-ir-statistika/naujausios-ataskaitos
+    cinema_lt:
+      repertoire_url: https://www.cinema.lt/repertuaras
+    tmdb:
+      api_base_url: https://api.themoviedb.org/3
+    youtube:
+      channels:
+      - key: warner-bros
+        id: UCjmJDM5pRKbUlVIzDYYWb6g
+        label: Warner Bros.
+        role: official
+      - key: universal-pictures
+        id: UCq0OueAsdxH6b8nyAspwViw
+        label: Universal Pictures
+        role: official
+      - key: paramount-pictures
+        id: UCF9imwPMSGz4Vq1NiTWCC7g
+        label: Paramount Pictures
+        role: official
+      - key: sony-pictures
+        id: UCz97F7dMxBNOfGYu3rx8aCw
+        label: Sony Pictures Entertainment
+        role: official
+      - key: disney
+        id: UC_5niPa-d35gg88HaS7RrIw
+        label: Disney
+        role: official
+      - key: marvel
+        id: UCvC4D8onUfXzvjTOM-dBfEA
+        label: Marvel Entertainment
+        role: official
+      - key: 20th-century
+        id: UC2-BeLxzUBSs0uSrmzWhJuQ
+        label: 20th Century Studios
+        role: official
+      - key: searchlight
+        id: UCor9rW6PgxSQ9vUPWQdnaYQ
+        label: Searchlight Pictures
+        role: official
+      - key: lionsgate
+        id: UCJ6nMHaJPZvsJ-HmUmj1SeA
+        label: Lionsgate Movies
+        role: official
+      - key: a24
+        id: UCuPivVjnfNo4mb3Oog_frZg
+        label: A24
+        role: official
+      - key: neon
+        id: UCpy5dRhZd-JbZP4NsrnLt1w
+        label: NEON
+        role: official
+      - key: netflix
+        id: UCWOA1ZGywLbqmigxE4Qlvuw
+        label: Netflix
+        role: official
+      - key: amazon-mgm
+        id: UCf5CjDJvsFvtVIhkfmKAwAA
+        label: Amazon MGM Studios
+        role: official
+      - key: apple-tv
+        id: UC1Myj674wRVXB9I4c6Hm5zA
+        label: Apple TV
+        role: official
+      - key: rotten-tomatoes-trailers
+        id: UCi8e0iOVk1fEOogdfu4YgfA
+        label: Rotten Tomatoes Trailers
+        role: discovery
+    weekly_news:
+      variety: https://variety.com/feed/
+      deadline: https://deadline.com/feed/
+      hollywood_reporter: https://www.hollywoodreporter.com/feed/
+      indiewire: https://www.indiewire.com/feed/
+
 sources:
   calendar:
     profile: composio-google-calendar

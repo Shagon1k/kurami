@@ -1,0 +1,17 @@
+{
+  "page": 1,
+  "results": [
+    {
+      "id": 123456,
+      "title": "Future Film",
+      "original_title": "Future Film",
+      "original_language": "en",
+      "release_date": "2026-09-04",
+      "poster_path": "/future-film.jpg",
+      "genre_ids": [18, 878],
+      "popularity": 42.5
+    }
+  ],
+  "total_pages": 1,
+  "total_results": 1
+}

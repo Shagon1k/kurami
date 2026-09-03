@@ -1,0 +1,31 @@
+{
+  "items": [
+    {
+      "id": { "videoId": "AbCdEfGhI12" },
+      "snippet": {
+        "channelId": "UCjmJDM5pRKbUlVIzDYYWb6g",
+        "title": "Example Movie — Official Trailer",
+        "description": "In cinemas soon.",
+        "publishedAt": "2026-08-27T15:00:00Z",
+        "thumbnails": { "high": { "url": "https://i.ytimg.com/vi/AbCdEfGhI12/hqdefault.jpg" } }
+      },
+      "contentDetails": { "duration": "PT2M31S" }
+    },
+    {
+      "id": { "videoId": "OutsideW123" },
+      "snippet": {
+        "channelId": "UCjmJDM5pRKbUlVIzDYYWb6g",
+        "title": "Old Trailer",
+        "publishedAt": "2026-08-20T15:00:00Z"
+      }
+    },
+    {
+      "id": { "videoId": "UnknownC123" },
+      "snippet": {
+        "channelId": "UC0000000000000000000000",
+        "title": "Untrusted upload",
+        "publishedAt": "2026-08-27T15:00:00Z"
+      }
+    }
+  ]
+}

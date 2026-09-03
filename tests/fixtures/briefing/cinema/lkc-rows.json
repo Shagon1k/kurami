@@ -1,0 +1,6 @@
+[
+  ["Rugpjūčio 21–23 d. Lietuvos kino teatruose rodytų filmų topas"],
+  [" ", "Column1", "Filmas \n(Movie)", "Pajamos \n(GBO)", "Pajamos \npraeita sav.\n(GBO LW)", "Pakitimas\n(Change)", "Žiūrovų sk. \n(ADM)", "Seansų sk. \n(Show count)", "Lankomumo vid.\n(Average ADM)", "Kopijų sk. \n(DCO count)", "Rodymo savaitė\n(Week on screen)", "Bendros pajamos \n(Total GBO)", "Bendras žiūrovų sk.\n(Total ADM)", "Premjeros data \n(Release date)", "Platintojas \n(Distributor)"],
+  [1, 2, "Odisėja (The Odyssey)", 85903.89, 57097.55, 0.504510964130685, 9074, 100, 90.74, 17, 6, 1350277, 149825, 46220, "Dukine Film Distribution"],
+  [2, 1, "Žmogus-voras: Nauja diena (Spider-Man: Brand New Day)", 84320.55, 82158.89, 0.02631072547353, 9457, 144, 65.67, 17, 4, 1033978.72, 127190, 46233, "ACME Film"]
+]

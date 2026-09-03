@@ -43,6 +43,7 @@ export function renderBriefingPage(payload: BriefingPayload): string {
   const overview = renderAddonSlot(payload, "overview");
   const main = renderAddonSlot(payload, "main");
   const afterMain = renderAddonSlot(payload, "after-main");
+  const utilityTitle = payload.edition.type === "cinema" ? "Kurami Cinema" : "Kurami Daily Briefing";
   return `<!doctype html>
 <html lang="ru" data-theme="light">
 <head>
@@ -59,7 +60,7 @@ export function renderBriefingPage(payload: BriefingPayload): string {
   <a class="skip-link" href="#main">К содержанию</a>
   <header class="utility-header" data-utility-header>
     <div class="utility-header__inner page-shell">
-      <div class="utility-brand"><span class="utility-brand__mark" aria-hidden="true">K</span><span>Kurami Daily Briefing</span></div>
+      <div class="utility-brand"><span class="utility-brand__mark" aria-hidden="true">K</span><span>${utilityTitle}</span></div>
       <time class="utility-meta" datetime="${escapeHtml(payload.edition.localDate)}">${escapeHtml(formatDate(payload))}</time>
       <div class="utility-actions">${renderThemeToggle()}</div>
     </div>
@@ -71,7 +72,7 @@ export function renderBriefingPage(payload: BriefingPayload): string {
         <p class="hero__subtitle">${escapeHtml(subtitle)}</p></div>
       ${renderKuramiNote(heroNote, "hero__note")}
     </section>
-    ${renderMetricStrip(payload, metricCards)}
+    ${payload.edition.type === "cinema" ? "" : renderMetricStrip(payload, metricCards)}
     ${overview ? `<div class="briefing-overview">
       ${overview}
     </div>` : ""}

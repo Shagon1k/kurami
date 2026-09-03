@@ -100,6 +100,11 @@ export type TelegramCommitPlan = {
   }>;
 };
 
+export type AddonEditionPromotion = {
+  addonId: string;
+  envelope: BriefingAddonEnvelope;
+};
+
 export function briefingPaths(environment: NodeJS.ProcessEnv = process.env): BriefingPaths {
   const home = resolveKuramiHome(resolve(import.meta.dirname, "../../.."), environment);
   const stateDirectory = resolve(home, "state/briefing");
@@ -236,6 +241,11 @@ function canonicalJson(value: unknown): string {
   return JSON.stringify(normalize(value, "add-on snapshot"));
 }
 
+export function addonEnvelopeDigest(envelopeValue: BriefingAddonEnvelope): string {
+  const envelope = parseBriefingAddonEnvelope(envelopeValue, "add-on digest");
+  return createHash("sha256").update(canonicalJson(envelope)).digest("hex");
+}
+
 export function upsertAddonSnapshot(
   database: DatabaseSync,
   addonIdValue: string,
@@ -244,9 +254,7 @@ export function upsertAddonSnapshot(
   const addonId = checkedAddonId(addonIdValue);
   const envelope = parseBriefingAddonEnvelope(envelopeValue, `snapshot.${addonId}`);
   const payloadJson = canonicalJson(envelope.data);
-  const contentDigest = createHash("sha256")
-    .update(canonicalJson(envelope))
-    .digest("hex");
+  const contentDigest = addonEnvelopeDigest(envelope);
   const updatedAt = now();
   database.prepare(`
     INSERT INTO addon_snapshots (
@@ -1287,10 +1295,29 @@ export function finalizeEdition(
   editionId: string,
   results: SourceCommitResult[],
   planDigest?: string,
+  addonPromotion?: AddonEditionPromotion,
 ): { editionId: string; state: "complete" | "partial"; publicationPath: string } {
   const edition = loadEdition(database, { id: editionId });
   if (!edition) fail("Unknown briefing edition");
+  const payload = parseBriefingPayload(JSON.parse(edition.payload_json) as unknown);
+  assertProductionBriefingPayload(payload);
+  let checkedPromotion: AddonEditionPromotion | undefined;
+  if (addonPromotion) {
+    const addonId = checkedAddonId(addonPromotion.addonId);
+    const envelope = parseBriefingAddonEnvelope(addonPromotion.envelope, `promotion.${addonId}`);
+    const embedded = payload.addons?.[addonId];
+    if (!embedded || addonEnvelopeDigest(embedded) !== addonEnvelopeDigest(envelope)) {
+      fail(`Edition ${editionId} does not embed the exact ${addonId} snapshot`);
+    }
+    checkedPromotion = { addonId, envelope };
+  }
   if (edition.state === "complete" || edition.state === "partial") {
+    if (checkedPromotion) {
+      const stored = loadAddonSnapshot(database, checkedPromotion.addonId);
+      if (!stored || stored.contentDigest !== addonEnvelopeDigest(checkedPromotion.envelope)) {
+        fail(`Published edition ${editionId} does not own the current ${checkedPromotion.addonId} snapshot`);
+      }
+    }
     return {
       editionId,
       state: edition.state,
@@ -1298,8 +1325,6 @@ export function finalizeEdition(
     };
   }
   if (edition.state !== "prepared") fail("Briefing edition is not prepared");
-  const payload = parseBriefingPayload(JSON.parse(edition.payload_json) as unknown);
-  assertProductionBriefingPayload(payload);
   const batches = database.prepare(`
     SELECT source_key, source_provider, max_item_id, state
     FROM source_batches WHERE edition_id = ? ORDER BY source_key
@@ -1386,6 +1411,13 @@ export function finalizeEdition(
       SET state = ?, is_current = 1, published_at = ?, updated_at = ?
       WHERE id = ? AND state = 'prepared'
     `).run(state, timestamp, timestamp, editionId);
+    if (checkedPromotion) {
+      upsertAddonSnapshot(
+        database,
+        checkedPromotion.addonId,
+        checkedPromotion.envelope,
+      );
+    }
     database.exec("COMMIT");
     return {
       editionId,

@@ -67,6 +67,10 @@ assert.deepEqual((readServer.tools as Record<string, unknown>).include, [
   "GMAIL_FETCH_EMAILS",
   "GMAIL_FETCH_MESSAGE_BY_MESSAGE_ID",
   "GOOGLECALENDAR_EVENTS_LIST",
+  "YOUTUBE_GET_VIDEO_DETAILS_BATCH",
+  "YOUTUBE_LIST_CHANNELS",
+  "YOUTUBE_LIST_CHANNEL_VIDEOS",
+  "YOUTUBE_SEARCH_YOU_TUBE",
 ]);
 assert(!installedText.includes("must-not-enter-hermes-config"));
 assert(installedText.includes("# preserve this comment"));

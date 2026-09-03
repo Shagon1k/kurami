@@ -10,6 +10,7 @@ const suites = [
   "test:briefing-editorial",
   "test:briefing-poller",
   "test:briefing-workflow",
+  "test:briefing-cinema",
   "test:admission",
   "test:provision",
   "test:release",

@@ -1,5 +1,6 @@
 import type { BriefingAddonEnvelope, BriefingPayload } from "../model.ts";
 import { calendarAddon } from "./calendar.ts";
+import { cinemaAddon } from "./cinema.ts";
 import { mailAddon } from "./mail.ts";
 import { newsAddon } from "./news.ts";
 import type {
@@ -14,6 +15,7 @@ export const BRIEFING_ADDONS: readonly BriefingAddon[] = Object.freeze([
   mailAddon,
   newsAddon,
   weatherAddon,
+  cinemaAddon,
 ]);
 
 const ADDON_ID = /^[a-z][a-z0-9-]{0,63}$/u;

@@ -28,6 +28,36 @@ export type BriefingRuntimeConfig = {
   };
 };
 
+export type CinemaChannelSeed = {
+  key: string;
+  id: string;
+  label: string;
+  role: "official" | "discovery";
+};
+
+export type CinemaRuntimeConfig = {
+  configPath: string;
+  enabled: boolean;
+  market: string;
+  timeZone: string;
+  language: string;
+  limits: {
+    trailers: number;
+    premieres: number;
+    news: number;
+    providerCandidates: number;
+  };
+  sources: {
+    boxOfficeWatch: { weekendUrl: string; yearlyUrl: string };
+    apMovies: { discoveryUrl: string };
+    lkc: { reportsUrl: string };
+    cinemaLt: { repertoireUrl: string };
+    tmdb: { apiBaseUrl: string };
+    youtube: { channels: CinemaChannelSeed[] };
+    weeklyNews: Record<"variety" | "deadline" | "hollywoodReporter" | "indiewire", string>;
+  };
+};
+
 export type TelegramCaptureSource = {
   key: string;
   id: number;
@@ -76,6 +106,33 @@ function safeInteger(value: unknown, label: string): number {
     throw new Error(`Invalid briefing config: ${label} must be a safe integer`);
   }
   return result;
+}
+
+function boundedInteger(value: unknown, label: string, minimum: number, maximum: number): number {
+  const result = safeInteger(value, label);
+  if (result < minimum || result > maximum) {
+    throw new Error(`Invalid briefing config: ${label} must be ${minimum}..${maximum}`);
+  }
+  return result;
+}
+
+function httpsUrl(value: unknown, label: string, expectedHost: string): string {
+  const result = string(value, label);
+  let parsed: URL;
+  try {
+    parsed = new URL(result);
+  } catch {
+    throw new Error(`Invalid briefing config: ${label} must be an HTTPS URL`);
+  }
+  if (
+    parsed.protocol !== "https:"
+    || parsed.username
+    || parsed.password
+    || parsed.hostname !== expectedHost
+  ) {
+    throw new Error(`Invalid briefing config: ${label} must use ${expectedHost} over HTTPS`);
+  }
+  return parsed.toString();
 }
 
 async function readConfigFile(paths: BriefingPaths, environment: NodeJS.ProcessEnv): Promise<{
@@ -232,5 +289,135 @@ export async function loadTelegramCaptureConfig(
     pageSize,
     discoveryLimit,
     channels,
+  };
+}
+
+export async function loadCinemaRuntimeConfig(
+  paths: BriefingPaths,
+  environment: NodeJS.ProcessEnv = process.env,
+): Promise<CinemaRuntimeConfig> {
+  const loaded = await readConfigFile(paths, environment);
+  const root = record(loaded.value, "root");
+  const cinema = record(root.cinema, "cinema");
+  const limits = record(cinema.limits, "cinema.limits");
+  const sources = record(cinema.sources, "cinema.sources");
+  const boxOfficeWatch = record(sources.box_office_watch, "cinema.sources.box_office_watch");
+  const apMovies = record(sources.ap_movies, "cinema.sources.ap_movies");
+  const lkc = record(sources.lkc, "cinema.sources.lkc");
+  const cinemaLt = record(sources.cinema_lt, "cinema.sources.cinema_lt");
+  const tmdb = record(sources.tmdb, "cinema.sources.tmdb");
+  const youtube = record(sources.youtube, "cinema.sources.youtube");
+  const weeklyNews = record(sources.weekly_news, "cinema.sources.weekly_news");
+  const timeZone = string(cinema.timezone, "cinema.timezone");
+  try {
+    new Intl.DateTimeFormat("en", { timeZone }).format(new Date());
+  } catch {
+    throw new Error("Invalid briefing config: cinema.timezone is invalid");
+  }
+  const market = string(cinema.market, "cinema.market");
+  if (!/^[A-Z]{2}$/u.test(market)) {
+    throw new Error("Invalid briefing config: cinema.market must be an ISO alpha-2 code");
+  }
+  if (!Array.isArray(youtube.channels)) {
+    throw new Error("Invalid briefing config: cinema.sources.youtube.channels must be an array");
+  }
+  const channels = youtube.channels.map((entry, index) => {
+    const channel = record(entry, `cinema.youtube.channels[${index}]`);
+    const role = string(channel.role, `cinema.youtube.channels[${index}].role`);
+    if (role !== "official" && role !== "discovery") {
+      throw new Error(`Invalid briefing config: cinema.youtube.channels[${index}].role is unsupported`);
+    }
+    const id = string(channel.id, `cinema.youtube.channels[${index}].id`);
+    if (!/^UC[A-Za-z0-9_-]{22}$/u.test(id)) {
+      throw new Error(`Invalid briefing config: cinema.youtube.channels[${index}].id is invalid`);
+    }
+    return {
+      key: string(channel.key, `cinema.youtube.channels[${index}].key`),
+      id,
+      label: string(channel.label, `cinema.youtube.channels[${index}].label`),
+      role,
+    } satisfies CinemaChannelSeed;
+  });
+  if (
+    channels.length === 0
+    || new Set(channels.map((channel) => channel.key)).size !== channels.length
+    || new Set(channels.map((channel) => channel.id)).size !== channels.length
+  ) {
+    throw new Error("Invalid briefing config: Cinema YouTube channel keys and IDs must be unique");
+  }
+  return {
+    configPath: loaded.path,
+    enabled: boolean(cinema.enabled, "cinema.enabled"),
+    market,
+    timeZone,
+    language: string(cinema.language, "cinema.language"),
+    limits: {
+      trailers: boundedInteger(limits.trailers, "cinema.limits.trailers", 1, 12),
+      premieres: boundedInteger(limits.premieres, "cinema.limits.premieres", 1, 20),
+      news: boundedInteger(limits.news, "cinema.limits.news", 1, 20),
+      providerCandidates: boundedInteger(
+        limits.provider_candidates,
+        "cinema.limits.provider_candidates",
+        20,
+        500,
+      ),
+    },
+    sources: {
+      boxOfficeWatch: {
+        weekendUrl: httpsUrl(
+          boxOfficeWatch.weekend_url,
+          "cinema.sources.box_office_watch.weekend_url",
+          "boxofficewatch.com",
+        ),
+        yearlyUrl: httpsUrl(
+          boxOfficeWatch.yearly_url,
+          "cinema.sources.box_office_watch.yearly_url",
+          "boxofficewatch.com",
+        ),
+      },
+      apMovies: {
+        discoveryUrl: httpsUrl(
+          apMovies.discovery_url,
+          "cinema.sources.ap_movies.discovery_url",
+          "apnews.com",
+        ),
+      },
+      lkc: {
+        reportsUrl: httpsUrl(
+          lkc.reports_url,
+          "cinema.sources.lkc.reports_url",
+          "www.lkc.lt",
+        ),
+      },
+      cinemaLt: {
+        repertoireUrl: httpsUrl(
+          cinemaLt.repertoire_url,
+          "cinema.sources.cinema_lt.repertoire_url",
+          "www.cinema.lt",
+        ),
+      },
+      tmdb: {
+        apiBaseUrl: httpsUrl(
+          tmdb.api_base_url,
+          "cinema.sources.tmdb.api_base_url",
+          "api.themoviedb.org",
+        ).replace(/\/$/u, ""),
+      },
+      youtube: { channels },
+      weeklyNews: {
+        variety: httpsUrl(weeklyNews.variety, "cinema.sources.weekly_news.variety", "variety.com"),
+        deadline: httpsUrl(weeklyNews.deadline, "cinema.sources.weekly_news.deadline", "deadline.com"),
+        hollywoodReporter: httpsUrl(
+          weeklyNews.hollywood_reporter,
+          "cinema.sources.weekly_news.hollywood_reporter",
+          "www.hollywoodreporter.com",
+        ),
+        indiewire: httpsUrl(
+          weeklyNews.indiewire,
+          "cinema.sources.weekly_news.indiewire",
+          "www.indiewire.com",
+        ),
+      },
+    },
   };
 }
