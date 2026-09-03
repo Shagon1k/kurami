@@ -8,8 +8,8 @@ mail do not start an agent session.
 The implemented Cinema add-on product, data, lifecycle, and acceptance
 contract is documented separately in
 [`docs/cinema-addon-v1.md`](cinema-addon-v1.md). Cinema extends the isolated
-add-on boundary without changing existing Daily behavior and remains behind
-its production flag until the first prepared edition is visually approved.
+add-on boundary without changing existing Daily behavior. Its visually
+approved weekly snapshot is production-enabled at `/cinema`.
 
 ## Ownership and state
 
