@@ -6,6 +6,7 @@ import {
   type CinemaNote,
   type CinemaTrendSeries,
 } from "../../cinema/model.ts";
+import { originalTitleFromBilingual } from "../../cinema/titles.ts";
 import { escapeHtml } from "../html.ts";
 
 function money(amount: number, currency: string): string {
@@ -40,7 +41,7 @@ function note(envelope: CinemaEnvelope, target: string, className = "cinema-head
 
 function chartRows(chart: CinemaChart, visible = 5): string {
   return chart.entries.map((entry) => `<tr${entry.rank > visible ? " class=\"cinema-rank__extra\"" : ""}>
-    <td>${entry.rank}</td><th scope="row">${escapeHtml(entry.title)}</th>
+    <td>${entry.rank}</td><th scope="row">${escapeHtml(chart.region === "LT" ? originalTitleFromBilingual(entry.title) : entry.title)}</th>
     <td>${money(entry.gross.amount, entry.gross.currency)}</td>
     <td>${entry.changePercent === undefined ? "—" : `${entry.changePercent > 0 ? "+" : ""}${Math.round(entry.changePercent)}%`}</td>
   </tr>`).join("");

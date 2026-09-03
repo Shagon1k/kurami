@@ -6,7 +6,8 @@ import { DatabaseSync } from "node:sqlite";
 import { apArticlePublishedAt, parseApTopTen } from "../../src/briefing/cinema/providers/ap.ts";
 import { normalizeBoxOfficeWatch } from "../../src/briefing/cinema/providers/box-office-watch.ts";
 import { parseCinemaLtMovieDetails, parseCinemaLtPremieres } from "../../src/briefing/cinema/providers/cinema-lt.ts";
-import { normalizeLkcSheetRows, originalLkcTitle } from "../../src/briefing/cinema/providers/lkc.ts";
+import { normalizeLkcSheetRows } from "../../src/briefing/cinema/providers/lkc.ts";
+import { originalTitleFromBilingual } from "../../src/briefing/cinema/titles.ts";
 import { kinopoiskReaderUrl, parseKinopoiskWeekend } from "../../src/briefing/cinema/providers/kinopoisk.ts";
 import { parseCinemaRss } from "../../src/briefing/cinema/providers/rss.ts";
 import { normalizeTmdbMovieResults } from "../../src/briefing/cinema/providers/tmdb.ts";
@@ -173,8 +174,8 @@ assert.equal(lkc[0]?.title, "The Odyssey");
 assert.equal(lkc[1]?.title, "Spider-Man: Brand New Day");
 assert.equal(lkc[0]?.changePercent, 50.4510964130685);
 assert.equal(lkc[0]?.releaseDate, "2026-07-17");
-assert.equal(originalLkcTitle("Vietinis pavadinimas (Original Title (IMAX))"), "Original Title (IMAX)");
-assert.equal(originalLkcTitle("Only Available Title"), "Only Available Title");
+assert.equal(originalTitleFromBilingual("Vietinis pavadinimas (Original Title (IMAX))"), "Original Title (IMAX)");
+assert.equal(originalTitleFromBilingual("Only Available Title"), "Only Available Title");
 assert.throws(
   () => normalizeLkcSheetRows([lkcRows[0]!, lkcRows[1]!.slice(0, 4), lkcRows[2]!]),
   /missing header/u,
@@ -722,6 +723,24 @@ for (const marker of [
 assert.match(cinemaHtml, /\.cinema-trend__series circle \{ fill: var\(--trend-color\)/u);
 assert.doesNotMatch(cinemaHtml, /<b>Бюджет<\/b>/u);
 assert.doesNotMatch(cinemaHtml, /Kurami Daily Briefing/u);
+const legacyBilingualEnvelope = parseCinemaEnvelope({
+  ...rawEnvelope,
+  data: {
+    ...rawEnvelope.data,
+    boxOffice: {
+      ...rawEnvelope.data.boxOffice,
+      charts: rawEnvelope.data.boxOffice.charts.map((chart) => chart.id === "lt-weekend" ? {
+        ...chart,
+        entries: chart.entries.map((entry, index) => index === 0
+          ? { ...entry, title: "Odisėja (The Odyssey)" }
+          : entry),
+      } : chart),
+    },
+  },
+});
+const legacyBilingualHtml = renderBriefingPage(cinemaEnvelopeToBriefingPayload(legacyBilingualEnvelope));
+assert.match(legacyBilingualHtml, /<th scope="row">The Odyssey<\/th>/u);
+assert.doesNotMatch(legacyBilingualHtml, /Odisėja \(The Odyssey\)/u);
 const prolificEnvelope = parseCinemaEnvelope({
   ...rawEnvelope,
   data: {
