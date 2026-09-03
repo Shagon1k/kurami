@@ -6,6 +6,7 @@ import { tmpdir } from "node:os";
 import { resolve } from "node:path";
 import {
   createBriefingServer,
+  injectRuntime,
   removeArchivedMailFromRetainedEditions,
 } from "../../src/briefing/server.ts";
 import { parseBriefingPayload } from "../../src/briefing/model.ts";
@@ -316,6 +317,9 @@ assert.throws(
 );
 const html = renderBriefingPage(parsedPayload);
 assert.match(html, /<link rel="icon" type="image\/svg\+xml" href="\/favicon\.svg">/);
+const legacyHtml = injectRuntime("<!doctype html><html><head><title>Legacy</title></head><body></body></html>");
+assert.match(legacyHtml, /<meta name="theme-color" content="#fbfbf8"><link rel="icon" type="image\/svg\+xml" href="\/favicon\.svg"><\/head>/);
+assert.equal(injectRuntime(html).match(/href="\/favicon\.svg"/g)?.length, 1);
 const providerWeatherPayload = parseBriefingPayload({
   ...payload,
   weather: {

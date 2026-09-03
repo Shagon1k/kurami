@@ -852,9 +852,14 @@ function stateTag(items: ClientItemState[]): string {
   return `<script id="briefing-state" type="application/json">${json}</script>`;
 }
 
-function injectRuntime(html: string, items: ClientItemState[] = []): string {
+export function injectRuntime(html: string, items: ClientItemState[] = []): string {
+  const favicon = '<link rel="icon" type="image/svg+xml" href="/favicon.svg">';
+  const themeColor = '<meta name="theme-color" content="#fbfbf8">';
+  const branded = html.includes('href="/favicon.svg"')
+    ? html
+    : html.replace(/<\/head>/i, `${themeColor}${favicon}</head>`);
   const tag = '<script src="/assets/briefing.js" defer></script>';
-  return html.replace(/<\/body>/i, `${stateTag(items)}${tag}</body>`);
+  return branded.replace(/<\/body>/i, `${stateTag(items)}${tag}</body>`);
 }
 
 async function body(request: IncomingMessage): Promise<Record<string, unknown>> {
