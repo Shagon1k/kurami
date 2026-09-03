@@ -13,6 +13,7 @@ export type SelectedNewsCandidate = CinemaNewsCandidate & {
 
 const TRAILER_REJECT = /\b(?:clip|interview|reaction|recap|featurette|behind[ -]the[ -]scenes|fan[ -]made|review|breakdown|ending explained|soundtrack|music video|podcast)\b/iu;
 const TRAILER_ACCEPT = /\b(?:official\s+)?(?:trailer|teaser)\b/iu;
+const TRAILER_PROMO_COPY = /\b(?:trailer just dropped|watch the (?:brand )?new trailer|tickets? (?:are )?on sale|hitting theaters? everywhere)\b/iu;
 const CINEMA_NEWS = /\b(?:film|movie|cinema|theatrical|box[ -]office|filmmaker|director|actor|actress|stars?|starring|cast|casting|studio|production|distribution|distributor|festival|oscar|release|sequel|franchise|screenplay|screenwriter|cinematograph|animation|documentary)\b/iu;
 const EXPLICIT_FILM_TITLE = /\b(?:film|movie|cinema|theatrical|box[ -]office|filmmaker|director|actor|actress|stars?|starring|cast|casting|studio|production|distribution|festival|oscar|release|sequel|franchise|screenplay|animation|documentary)\b/iu;
 const ADJACENT_NON_FILM_TITLE = /\b(?:hotel|resort|restaurant|fashion|beauty|property|real estate|season\s+\d+|tv series|television series|showrunner)\b/iu;
@@ -50,7 +51,12 @@ function sameNewsSubject(left: string, right: string): boolean {
 }
 
 function filmKey(title: string): string {
-  const cleaned = title
+  const trailerMarker = title.search(TRAILER_ACCEPT);
+  const beforeMarker = trailerMarker > 0 ? title.slice(0, trailerMarker) : title;
+  const segments = title.split(/[|—–]/u).map((part) => part.trim()).filter(Boolean);
+  const trailerSegment = segments.findIndex((part) => TRAILER_ACCEPT.test(part));
+  const adjacentTitle = trailerSegment > 0 ? segments[trailerSegment - 1]! : beforeMarker;
+  const cleaned = adjacentTitle
     .replace(/\b(?:official|final|main|new|first|second|international|red band|teaser|trailer)\b/giu, " ")
     .replace(/\b(?:hd|4k|imax)\b/giu, " ")
     .replace(/\([^)]*\)|\[[^\]]*\]/gu, " ")
@@ -59,6 +65,13 @@ function filmKey(title: string): string {
     .trim()
     .toLocaleLowerCase("en-US");
   return cleaned || title.toLocaleLowerCase("en-US");
+}
+
+function archivalTrailer(title: string, publishedAt: string): boolean {
+  const explicitYear = /\((19\d{2}|20\d{2})(?:\s+movie)?\)/iu.exec(title);
+  if (!explicitYear) return false;
+  const publicationYear = new Date(publishedAt).getUTCFullYear();
+  return Number(explicitYear[1]) <= publicationYear - 2;
 }
 
 function trailerType(title: string): SelectedTrailerCandidate["trailerType"] {
@@ -74,7 +87,10 @@ export function selectTrailerCandidates(
 ): SelectedTrailerCandidate[] {
   const qualified = candidates.flatMap((candidate) => {
     const combined = `${candidate.title} ${candidate.description}`;
-    if (!TRAILER_ACCEPT.test(candidate.title) || TRAILER_REJECT.test(combined)) return [];
+    if (!TRAILER_ACCEPT.test(candidate.title)
+      || TRAILER_REJECT.test(combined)
+      || TRAILER_PROMO_COPY.test(candidate.title)
+      || archivalTrailer(candidate.title, candidate.publishedAt)) return [];
     const type = trailerType(candidate.title);
     const key = filmKey(candidate.title);
     const score = (candidate.publisherRole === "official" ? 1_000 : 500)

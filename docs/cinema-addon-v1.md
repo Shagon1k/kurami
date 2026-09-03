@@ -1,7 +1,8 @@
 # Cinema add-on v1 contract
 
-Status: approved product and architecture contract; implementation is complete
-behind a disabled production flag while live provider verification is pending.
+Status: approved product and architecture contract; implementation and live
+provider verification are complete behind a disabled production flag while
+the first prepared edition awaits visual approval.
 This document is the source of truth for the first Cinema add-on
 iteration. Provider references, payload schemas, components, tests, and
 deployment work must conform to it rather than silently choosing new product

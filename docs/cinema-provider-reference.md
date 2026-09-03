@@ -1,7 +1,8 @@
 # Cinema provider reference
 
-Status: source feasibility verified on 2026-09-03; Cinema remains disabled by
-default. This document records provider mechanics for the approved
+Status: source feasibility and a live end-to-end provider preflight were
+verified on 2026-09-03; Cinema remains disabled until its prepared edition is
+visually approved. This document records provider mechanics for the approved
 [`cinema-addon-v1.md`](cinema-addon-v1.md) contract. Product semantics remain
 owned by that contract.
 
@@ -168,6 +169,6 @@ candidates. It does not store full copyrighted article bodies.
 Every required v1 section has a credential-free deterministic primary source
 except YouTube and optional TMDB enrichment, which use the already chosen
 restricted secret boundaries. No paid search dependency or new service is
-required. The remaining implementation work is parser fixtures, strict Cinema
-schemas, isolated promotion, shared UI components, and live secret preflight
-before `cinema.enabled` can change to `true`.
+required. Parser fixtures, strict Cinema schemas, isolated promotion, shared
+UI components, and the live secret preflight are complete. The production
+flag changes only after visual approval of the first prepared edition.

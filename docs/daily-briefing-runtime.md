@@ -5,10 +5,11 @@ interaction boundary. Content collection may use Hermes skills, but viewing a
 page, expanding a story, reacting, marking a story read, and archiving selected
 mail do not start an agent session.
 
-The approved but not yet implemented Cinema add-on product, data, lifecycle,
-and acceptance contract is documented separately in
-[`docs/cinema-addon-v1.md`](cinema-addon-v1.md). Cinema must extend the add-on
-boundary described there without changing existing Daily behavior.
+The implemented Cinema add-on product, data, lifecycle, and acceptance
+contract is documented separately in
+[`docs/cinema-addon-v1.md`](cinema-addon-v1.md). Cinema extends the isolated
+add-on boundary without changing existing Daily behavior and remains behind
+its production flag until the first prepared edition is visually approved.
 
 ## Ownership and state
 

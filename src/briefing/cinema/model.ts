@@ -43,6 +43,7 @@ export type CinemaSignal = {
   id: string;
   kind: "largest-debut" | "best-hold" | "sharpest-drop" | "rank-movement" | "estimate-surprise";
   filmId: string;
+  filmTitle?: string;
   label: string;
   value?: number;
   unit?: string;
@@ -360,6 +361,7 @@ function signal(value: unknown, label: string): CinemaSignal {
       "estimate-surprise",
     ] as const),
     filmId: safeId(raw.filmId, `${label}.filmId`),
+    ...(raw.filmTitle === undefined ? {} : { filmTitle: text(raw.filmTitle, `${label}.filmTitle`, 240) }),
     label: text(raw.label, `${label}.label`, 160),
     ...(raw.value === undefined ? {} : { value: finite(raw.value, `${label}.value`) }),
     ...(raw.unit === undefined ? {} : { unit: text(raw.unit, `${label}.unit`, 20) }),

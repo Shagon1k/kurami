@@ -12,7 +12,7 @@ import { normalizeTmdbMovieResults } from "../../src/briefing/cinema/providers/t
 import { normalizeYouTubeCandidates } from "../../src/briefing/cinema/providers/youtube.ts";
 import { collectCinemaCandidate } from "../../src/briefing/cinema/collector.ts";
 import { runCinemaCli } from "../../src/briefing/cinema/cli.ts";
-import { selectNewsCandidates } from "../../src/briefing/cinema/selection.ts";
+import { selectNewsCandidates, selectTrailerCandidates } from "../../src/briefing/cinema/selection.ts";
 import { composeCinemaEnvelope, composeCinemaFallbackEnvelope } from "../../src/briefing/cinema/composer.ts";
 import { cacheCinemaMedia } from "../../src/briefing/cinema/media-cache.ts";
 import {
@@ -148,6 +148,7 @@ assert.equal(boxOffice.weekendEnd, "2026-08-23");
 assert.equal(boxOffice.charts[0]?.entries.length, 6);
 assert.equal(boxOffice.charts[2]?.entries.length, 5);
 assert.equal(boxOffice.signals.find((signal) => signal.kind === "largest-debut")?.filmId, "bow:insidious-out-of-the-further");
+assert.equal(boxOffice.signals.find((signal) => signal.kind === "largest-debut")?.filmTitle, "Insidious: Out of the Further");
 assert.equal(boxOffice.signals.find((signal) => signal.kind === "best-hold")?.filmId, "bow:the-odyssey");
 const debutTrend = boxOffice.trend.find((series) => series.id === "bow:insidious-out-of-the-further");
 assert.deepEqual(debutTrend?.points.map((point) => point.gross), [null, null, null, null, null, 25304111]);
@@ -224,6 +225,41 @@ const composioPlaylistItem = normalizeYouTubeCandidates({
 assert.equal(composioPlaylistItem.length, 1);
 assert.equal(composioPlaylistItem[0]?.videoId, "08M1NTemKSU");
 assert.equal(composioPlaylistItem[0]?.sourceUrl, "https://www.youtube.com/watch?v=08M1NTemKSU");
+
+const selectedTrailers = selectTrailerCandidates([
+  ...youtube,
+  {
+    ...youtube[0]!,
+    id: "youtube:StreetFi001",
+    videoId: "StreetFi001",
+    title: "Street Fighter | New Trailer (2026 Movie)",
+    sourceUrl: "https://www.youtube.com/watch?v=StreetFi001",
+  },
+  {
+    ...youtube[0]!,
+    id: "youtube:StreetFi002",
+    videoId: "StreetFi002",
+    title: "Street Fighter | Playable Trailer (2026 Movie)",
+    sourceUrl: "https://www.youtube.com/watch?v=StreetFi002",
+  },
+  {
+    ...youtube[0]!,
+    id: "youtube:PromoCopy01",
+    videoId: "PromoCopy01",
+    title: "The new Street Fighter trailer just dropped. Watch the new trailer now",
+    sourceUrl: "https://www.youtube.com/watch?v=PromoCopy01",
+  },
+  {
+    ...youtube[0]!,
+    id: "youtube:Archive1993",
+    videoId: "Archive1993",
+    title: "UNDERCOVER BLUES (1993) | Official Trailer",
+    sourceUrl: "https://www.youtube.com/watch?v=Archive1993",
+  },
+], 8);
+assert.equal(selectedTrailers.filter((item) => item.filmKey === "street fighter").length, 1);
+assert.equal(selectedTrailers.some((item) => item.videoId === "PromoCopy01"), false);
+assert.equal(selectedTrailers.some((item) => item.videoId === "Archive1993"), false);
 
 const rssSpecs = [
   ["rss-variety.xml", "Variety", "variety.com"],
