@@ -103,6 +103,10 @@ export function promoteCinemaEdition(
       if (envelope.data.localDate < current.data.localDate) {
         throw new Error("Cinema snapshot is older than the current successful snapshot");
       }
+      if (envelope.data.localDate === current.data.localDate
+        && Date.parse(envelope.capturedAt) < Date.parse(current.capturedAt)) {
+        throw new Error("Cinema rerun is older than the current same-day snapshot");
+      }
     }
     const finalized = finalizeEdition(database, editionId, [], undefined, {
       addonId: "cinema",

@@ -697,6 +697,77 @@ export async function rerenderPublishedPreview(
   };
 }
 
+/**
+ * Replace an already-published non-Daily add-on edition in place. The new
+ * payload and HTML are fully validated before the current edition and its
+ * latest-snapshot pointer move together. Daily editions deliberately use their
+ * stricter editorial revision and Telegram ownership workflow instead.
+ */
+export async function replacePublishedAddonEdition(
+  payloadValue: unknown,
+  html: string,
+  addonIdValue: string,
+  paths: BriefingPaths = briefingPaths(),
+): Promise<{ editionId: string; publicationPath: string; digest: string; state: "complete" | "partial" }> {
+  const payload = parseBriefingPayload(payloadValue);
+  assertProductionBriefingPayload(payload);
+  if (payload.edition.type === "daily") fail("Daily editions cannot use add-on replacement");
+  const addonId = checkedAddonId(addonIdValue);
+  const envelope = payload.addons?.[addonId];
+  if (!envelope) fail(`Replacement payload does not embed ${addonId}`);
+  validateRenderedHtml(html, payload);
+  await initializeBriefingStore(paths);
+
+  const database = openBriefingDatabase(paths);
+  let previousHtml: string | null = null;
+  let htmlPath = "";
+  let wroteHtml = false;
+  try {
+    const edition = loadEdition(database, { id: payload.edition.id });
+    if (!edition || (edition.state !== "complete" && edition.state !== "partial") || edition.is_current !== 1) {
+      fail(`Add-on edition ${payload.edition.id} is not the current published edition`);
+    }
+    const existing = parseBriefingPayload(JSON.parse(edition.payload_json) as unknown);
+    if (existing.edition.type !== payload.edition.type
+      || existing.edition.localDate !== payload.edition.localDate
+      || existing.edition.timezone !== payload.edition.timezone) {
+      fail("Add-on replacement cannot change edition identity");
+    }
+    const currentSnapshot = loadAddonSnapshot(database, addonId);
+    if (currentSnapshot && Date.parse(envelope.capturedAt) < Date.parse(currentSnapshot.envelope.capturedAt)) {
+      fail(`Replacement ${addonId} snapshot is older than the current snapshot`);
+    }
+
+    const payloadJson = JSON.stringify(payload);
+    const digest = createHash("sha256").update(payloadJson).update("\0").update(html).digest("hex");
+    htmlPath = resolvedHtmlPath(paths, edition.html_path);
+    previousHtml = await readFile(htmlPath, "utf8");
+    const timestamp = now();
+    const state = payload.edition.status;
+
+    database.exec("BEGIN IMMEDIATE");
+    try {
+      await atomicWrite(htmlPath, html);
+      wroteHtml = true;
+      const update = database.prepare(`
+        UPDATE editions
+        SET state = ?, payload_json = ?, content_digest = ?, updated_at = ?
+        WHERE id = ? AND is_current = 1
+      `).run(state, payloadJson, digest, timestamp, edition.id);
+      if (update.changes !== 1) fail("Current add-on edition changed during replacement");
+      upsertAddonSnapshot(database, addonId, envelope);
+      database.exec("COMMIT");
+    } catch (error) {
+      database.exec("ROLLBACK");
+      if (wroteHtml && previousHtml !== null) await atomicWrite(htmlPath, previousHtml);
+      throw error;
+    }
+    return { editionId: edition.id, publicationPath: "/cinema", digest, state };
+  } finally {
+    database.close();
+  }
+}
+
 function stableSourceOwnership(payload: BriefingPayload): string {
   return JSON.stringify(payload.news.items.map((story) => ({
     id: story.id,

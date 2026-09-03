@@ -69,7 +69,9 @@ An implementer can verify the existing boundary in:
    ranks, or provenance.
 6. The runtime prepares the full `cinema:<local-date>` edition without changing
    the current Cinema pointer. If validation succeeds, it atomically promotes
-   that edition and its add-on snapshot before final Daily composition.
+   that edition and its add-on snapshot before final Daily composition. A
+   same-Saturday rerun replaces that internal edition atomically only after its
+   complete new payload and HTML pass the same validation gates.
 7. Daily composition reads the exact promoted snapshot digest. If Cinema was
    not promoted for this local date, Daily continues without a Cinema preview.
    If Cinema is promoted and Daily later fails independently, `/cinema` remains
@@ -81,7 +83,10 @@ An implementer can verify the existing boundary in:
 9. The Saturday Daily preview appears only when a new Cinema iteration was
    promoted for that date. Other Daily editions do not show it.
 10. `/cinema` keeps the current successful snapshot until a later Saturday is
-   successfully promoted. Historical Cinema routes are out of scope for v1.
+    successfully promoted. Historical Cinema routes are out of scope for v1.
+    A same-Saturday rerun uses the same internal edition identity: validation
+    leaves the current page untouched, then promotion replaces its payload,
+    HTML, and latest-snapshot pointer in one guarded operation.
 
 Cinema does not participate in the hourly Digest Central Poller. Its snapshot
 is frozen until the next scheduled Cinema iteration.

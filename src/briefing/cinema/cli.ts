@@ -6,15 +6,19 @@ import type { CinemaCollectionCandidate } from "./collector.ts";
 import { composeCinemaEnvelope, composeCinemaFallbackEnvelope, type CinemaMediaMap } from "./composer.ts";
 import { cacheCinemaMedia } from "./media-cache.ts";
 import {
+  addonEnvelopeDigest,
   briefingPaths,
   initializeBriefingStore,
+  loadEdition,
   openBriefingDatabase,
   preparePreview,
+  replacePublishedAddonEdition,
+  validateRenderedHtml,
 } from "../store.ts";
 import { loadCinemaRuntimeConfig } from "../runtime-config.ts";
 import { parseCinemaEnvelope } from "./model.ts";
 import { cinemaEnvelopeToBriefingPayload } from "./payload.ts";
-import { promoteCinemaEdition } from "./promotion.ts";
+import { loadCinemaSnapshot, promoteCinemaEdition } from "./promotion.ts";
 import { renderBriefingPage } from "../ui/render-page.ts";
 import {
   composioReadConnectionFromEnvironment,
@@ -113,9 +117,33 @@ export async function runCinemaCli(argv = process.argv.slice(2), environment = p
   if (args.command === "prepare" || args.command === "promote") {
     const envelope = parseCinemaEnvelope(JSON.parse(await readFile(args.envelope!, "utf8")) as unknown);
     const payload = cinemaEnvelopeToBriefingPayload(envelope);
+    const html = renderBriefingPage(payload);
     await initializeBriefingStore(paths);
     if (args.command === "prepare") {
-      const prepared = await preparePreview(payload, renderBriefingPage(payload), paths);
+      const database = openBriefingDatabase(paths);
+      let alreadyPublished = false;
+      try {
+        const edition = loadEdition(database, { id: payload.edition.id });
+        alreadyPublished = edition?.state === "complete" || edition?.state === "partial";
+      } finally {
+        database.close();
+      }
+      if (alreadyPublished) {
+        validateRenderedHtml(html, payload);
+        const digest = createHash("sha256").update(JSON.stringify(payload)).update("\0").update(html).digest("hex");
+        return {
+          ok: true,
+          action: "cinema-prepare",
+          renderer: "kurami-ui-components-v1",
+          externalMutations: false,
+          editionId: payload.edition.id,
+          previewPath: "/cinema",
+          digest,
+          state: "prepared",
+          publishedRevision: true,
+        };
+      }
+      const prepared = await preparePreview(payload, html, paths);
       return {
         ok: true,
         action: "cinema-prepare",
@@ -125,7 +153,31 @@ export async function runCinemaCli(argv = process.argv.slice(2), environment = p
       };
     }
     const database = openBriefingDatabase(paths);
+    let alreadyPublished = false;
     try {
+      const edition = loadEdition(database, { id: payload.edition.id });
+      alreadyPublished = edition?.state === "complete" || edition?.state === "partial";
+      if (alreadyPublished) {
+        const current = loadCinemaSnapshot(database);
+        if (current && Date.parse(envelope.capturedAt) < Date.parse(current.capturedAt)) {
+          fail("Cinema rerun is older than the current same-day snapshot");
+        }
+      }
+      if (alreadyPublished) {
+        database.close();
+        const replaced = await replacePublishedAddonEdition(payload, html, "cinema", paths);
+        return {
+          ok: true,
+          action: "cinema-promote",
+          externalMutations: false,
+          editionId: payload.edition.id,
+          status: "promoted",
+          localDate: envelope.data.localDate,
+          contentDigest: addonEnvelopeDigest(envelope),
+          publicationPath: replaced.publicationPath,
+          publishedRevision: true,
+        };
+      }
       const promoted = promoteCinemaEdition(database, payload.edition.id, envelope);
       if (promoted.status === "rejected") fail(promoted.reason);
       return {
@@ -136,7 +188,7 @@ export async function runCinemaCli(argv = process.argv.slice(2), environment = p
         ...promoted,
       };
     } finally {
-      database.close();
+      if (database.isOpen) database.close();
     }
   }
   if (args.command === "cache-media") {

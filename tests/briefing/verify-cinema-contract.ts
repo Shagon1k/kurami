@@ -840,6 +840,7 @@ try {
   } finally {
     atomicDatabase.close();
   }
+
 } finally {
   await rm(atomicRoot, { recursive: true, force: true });
 }
@@ -859,9 +860,30 @@ try {
   const promotedByCli = await runCinemaCli(["promote", "--envelope", envelopePath], cliEnvironment);
   assert.equal(promotedByCli.action, "cinema-promote");
   assert.equal(promotedByCli.publicationPath, "/cinema");
+  const sameSaturdayEnvelope = parseCinemaEnvelope({
+    ...rawEnvelope,
+    capturedAt: "2026-08-29T06:30:00Z",
+    data: {
+      ...rawEnvelope.data,
+      quality: { summary: "Fresh same-Saturday revision", diagnostics: [] },
+    },
+  });
+  await writeFile(envelopePath, `${JSON.stringify(sameSaturdayEnvelope, null, 2)}\n`, "utf8");
+  const beforeRevisionDatabase = openBriefingDatabase(briefingPaths(cliEnvironment));
+  const beforeRevisionDigest = loadEdition(beforeRevisionDatabase, { id: "cinema:2026-08-29" })?.content_digest;
+  beforeRevisionDatabase.close();
+  const preparedRevision = await runCinemaCli(["prepare", "--envelope", envelopePath], cliEnvironment);
+  assert.equal(preparedRevision.publishedRevision, true);
+  const stagedRevisionDatabase = openBriefingDatabase(briefingPaths(cliEnvironment));
+  assert.equal(loadEdition(stagedRevisionDatabase, { id: "cinema:2026-08-29" })?.content_digest, beforeRevisionDigest);
+  stagedRevisionDatabase.close();
+  const promotedRevision = await runCinemaCli(["promote", "--envelope", envelopePath], cliEnvironment);
+  assert.equal(promotedRevision.publishedRevision, true);
   const cliDatabase = openBriefingDatabase(briefingPaths(cliEnvironment));
   try {
     assert.equal(loadCinemaSnapshot(cliDatabase)?.data.localDate, "2026-08-29");
+    assert.equal(loadCinemaSnapshot(cliDatabase)?.data.quality.summary, "Fresh same-Saturday revision");
+    assert.equal(loadEdition(cliDatabase, { id: "cinema:2026-08-29" })?.state, "complete");
   } finally {
     cliDatabase.close();
   }
