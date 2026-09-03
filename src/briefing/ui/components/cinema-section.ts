@@ -59,7 +59,7 @@ function linePaths(series: CinemaTrendSeries[], width: number, height: number): 
   const maximum = Math.max(...values, 1);
   return series.map((item, seriesIndex) => {
     const points = item.points.map((point, index) => point.gross === null ? null : {
-      x: 38 + index * ((width - 62) / Math.max(1, item.points.length - 1)),
+      x: 56 + index * ((width - 80) / Math.max(1, item.points.length - 1)),
       y: 18 + (1 - point.gross / maximum) * (height - 54),
       point,
     });
@@ -75,17 +75,46 @@ function linePaths(series: CinemaTrendSeries[], width: number, height: number): 
       .map((segment) => `<polyline points="${segment.join(" ")}"/>`).join("");
     const dots = points.filter((point): point is NonNullable<typeof point> => point !== null)
       .map(({ x, y, point }) => `<circle cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="3" tabindex="0"><title>${escapeHtml(item.label)} · ${escapeHtml(point.label)} · ${money(point.gross!, item.currency)}</title></circle>`).join("");
-    return `<g class="cinema-trend__series cinema-trend__series--${seriesIndex}">${lines}${dots}</g>`;
+    return `<g class="cinema-trend__series cinema-trend__series--${seriesIndex}" data-trend-series="${seriesIndex}">${lines}${dots}</g>`;
+  }).join("");
+}
+
+function trendJson(series: CinemaTrendSeries[]): string {
+  return Buffer.from(JSON.stringify(series), "utf8").toString("base64url");
+}
+
+function trendAxis(series: CinemaTrendSeries[]): string {
+  const values = series.flatMap((item) => item.points.map((point) => point.gross)).filter((value): value is number => value !== null);
+  const maximum = Math.max(...values, 1);
+  return [1, .67, .33, 0].map((ratio, index) => {
+    const y = [42, 106, 170, 224][index]!;
+    return `<text x="48" y="${y + 3}" text-anchor="end">${escapeHtml(money(maximum * ratio, series[0]?.currency ?? "USD"))}</text>`;
   }).join("");
 }
 
 function trend(envelope: CinemaEnvelope): string {
   const series = envelope.data.boxOffice.trend;
   if (!series.length) return "";
-  const labels = series[0]!.points.map((point, index, all) => `<text x="${38 + index * (658 / Math.max(1, all.length - 1))}" y="244" text-anchor="middle">${escapeHtml(point.label)}</text>`).join("");
-  return `<article class="cinema-trend"><header><div><span>6 уикендов</span><h3>Динамика текущего топа</h3></div><div class="cinema-trend__legend">${series.map((item, index) => `<span class="cinema-trend__key cinema-trend__key--${index}">${escapeHtml(item.label)}</span>`).join("")}</div></header>
-    <svg viewBox="0 0 720 260" role="img" aria-label="Динамика кассовых сборов пяти фильмов"><g class="cinema-trend__grid"><line x1="38" y1="42" x2="696" y2="42"/><line x1="38" y1="106" x2="696" y2="106"/><line x1="38" y1="170" x2="696" y2="170"/><line x1="38" y1="224" x2="696" y2="224"/></g>${linePaths(series, 720, 230)}<g class="cinema-trend__labels">${labels}</g></svg>
+  const points = series[0]!.points;
+  const labels = points.map((point, index, all) => `<text x="${56 + index * (640 / Math.max(1, all.length - 1))}" y="246" text-anchor="middle">${escapeHtml(point.label)}</text>`).join("");
+  return `<article class="cinema-trend" data-cinema-trend data-cinema-trend-data="${trendJson(series)}"><header><div><span>${points.length} уикендов</span><h3>Динамика текущего топа</h3></div><div class="cinema-trend__legend" aria-label="Линии графика">${series.map((item, index) => `<button type="button" class="cinema-trend__key cinema-trend__key--${index}" data-trend-key="${index}" aria-pressed="true">${escapeHtml(item.label)}</button>`).join("")}</div></header>
+    <div class="cinema-trend__toolbar"><span>Масштаб по времени</span><div class="cinema-trend__zoom"><button type="button" data-trend-zoom-out aria-label="Показать больше уикендов">−</button><output data-trend-window>${points.length} / ${points.length}</output><button type="button" data-trend-zoom-in aria-label="Показать меньше уикендов">+</button></div></div>
+    <svg viewBox="0 0 720 260" role="img" aria-label="Динамика кассовых сборов пяти фильмов"><g class="cinema-trend__grid"><line x1="56" y1="42" x2="696" y2="42"/><line x1="56" y1="106" x2="696" y2="106"/><line x1="56" y1="170" x2="696" y2="170"/><line x1="56" y1="224" x2="696" y2="224"/></g>${linePaths(series, 720, 230)}<g class="cinema-trend__labels cinema-trend__labels--y" data-trend-y-labels>${trendAxis(series)}</g><g class="cinema-trend__labels cinema-trend__labels--x" data-trend-x-labels>${labels}</g></svg>
   </article>`;
+}
+
+function regionOrder(chart: CinemaChart): number {
+  if (chart.region === "WORLD") return 0;
+  if (chart.region === "US/CA") return 1;
+  if (chart.region === "LT") return 2;
+  return 3;
+}
+
+function rankGroup(charts: CinemaChart[], period: CinemaChart["period"]): string {
+  const selected = charts.filter((chart) => chart.period === period).sort((left, right) => regionOrder(left) - regionOrder(right));
+  if (!selected.length) return "";
+  const title = period === "weekend" ? "Последний уикенд" : "С начала года";
+  return `<section class="cinema-rank-group" data-rank-period="${period}"><header><h3>${title}</h3><span>${selected.length} ${selected.length === 1 ? "рынок" : "рынка"}</span></header><div class="cinema-ranks">${selected.map(rankTable).join("")}</div></section>`;
 }
 
 function boxOffice(envelope: CinemaEnvelope): string {
@@ -97,7 +126,7 @@ function boxOffice(envelope: CinemaEnvelope): string {
     ${featured ? `<article class="cinema-winner"><span>Лидер последнего уикенда</span><strong>${escapeHtml(featured.title)}</strong><b>${money(featured.gross.amount, featured.gross.currency)}</b></article>` : ""}
     ${section.signals.length ? `<div class="cinema-signals">${section.signals.map((signal) => `<article><span>${escapeHtml(signal.label)}</span><strong>${escapeHtml(signal.filmTitle ?? section.charts.flatMap((chart) => chart.entries).find((entry) => entry.id === signal.filmId)?.title ?? signal.filmId)}</strong><b>${signal.value === undefined ? "" : `${signal.value > 0 ? "+" : ""}${signal.unit === "USD" ? money(signal.value, "USD") : `${Math.round(signal.value)}${signal.unit ?? ""}`}`}</b></article>`).join("")}</div>` : ""}
     ${trend(envelope)}
-    <div class="cinema-ranks">${section.charts.map(rankTable).join("")}</div>
+    <div class="cinema-rank-groups">${rankGroup(section.charts, "weekend")}${rankGroup(section.charts, "ytd")}</div>
     ${section.globalPulse.length ? `<div class="cinema-pulse">${section.globalPulse.map((item) => `<article><span>${escapeHtml(item.territory)} · ${escapeHtml(item.period)}</span><strong>${escapeHtml(item.headline)}</strong><p>${escapeHtml(item.summary)}</p><b>${escapeHtml(String(item.value))} ${escapeHtml(item.unit)}</b></article>`).join("")}</div>` : ""}
   </section>`;
 }
@@ -108,16 +137,26 @@ function trailers(envelope: CinemaEnvelope): string {
   return `<section class="cinema-block" id="trailers"><header class="cinema-heading"><div><p class="section-kicker">Свежие · ${items.length}</p><h2>Трейлеры недели</h2></div>${note(envelope, "trailers")}</header><div class="cinema-trailer-grid">${items.map((item) => `<a class="cinema-trailer" href="${escapeHtml(item.sourceUrl)}" target="_blank" rel="noopener noreferrer"><span class="cinema-art${item.thumbnailSrc ? " has-image" : ""}">${item.thumbnailSrc ? `<img src="${escapeHtml(item.thumbnailSrc)}" alt="">` : ""}<b aria-hidden="true">▶</b>${duration(item.durationSeconds) ? `<i>${duration(item.durationSeconds)}</i>` : ""}</span><span class="cinema-card__copy"><small>${escapeHtml(item.publisher)} · ${escapeHtml(item.trailerType)}</small><strong>${escapeHtml(item.title)}</strong><em>${new Intl.DateTimeFormat("ru-RU", { day: "numeric", month: "short" }).format(new Date(item.publishedAt))}</em></span></a>`).join("")}</div></section>`;
 }
 
+function premiereFacts(item: CinemaEnvelope["data"]["premieres"]["items"][number]): string {
+  const facts = [
+    item.directors?.length ? `<span><b>Режиссёр</b>${escapeHtml(item.directors.join(", "))}</span>` : "",
+    item.cast?.length ? `<span><b>В ролях</b>${escapeHtml(item.cast.join(", "))}</span>` : "",
+    item.runtimeMinutes ? `<span><b>Хронометраж</b>${Math.floor(item.runtimeMinutes / 60)} ч ${item.runtimeMinutes % 60} мин</span>` : "",
+    item.budget ? `<span><b>Бюджет</b>${money(item.budget.amount, item.budget.currency)}</span>` : "",
+  ].filter(Boolean);
+  return facts.length ? `<span class="cinema-premiere__facts">${facts.join("")}</span>` : "";
+}
+
 function premieres(envelope: CinemaEnvelope): string {
   const items = envelope.data.premieres.items;
   if (!items.length) return "";
-  return `<section class="cinema-block" id="premieres"><header class="cinema-heading"><div><p class="section-kicker">Литва · следующая неделя</p><h2>Премьеры</h2></div>${note(envelope, "premieres")}</header><div class="cinema-premiere-grid">${items.map((item) => `<a class="cinema-premiere" href="${escapeHtml(item.sourceUrl)}" target="_blank" rel="noopener noreferrer"><span class="cinema-poster${item.posterSrc ? " has-image" : ""}">${item.posterSrc ? `<img src="${escapeHtml(item.posterSrc)}" alt="">` : `<b>${escapeHtml((item.originalTitle ?? item.localTitle).slice(0, 1))}</b>`}</span><span class="cinema-card__copy"><small>${shortDate(item.releaseDate)}${item.ageRating ? ` · ${escapeHtml(item.ageRating)}` : ""}</small><strong>${escapeHtml(item.originalTitle ?? item.localTitle)}</strong>${item.originalTitle ? `<em>${escapeHtml(item.localTitle)}</em>` : ""}${item.genres?.length ? `<span>${item.genres.map((genre) => `<i>${escapeHtml(genre)}</i>`).join("")}</span>` : ""}</span></a>`).join("")}</div></section>`;
+  return `<section class="cinema-block" id="premieres"><header class="cinema-heading"><div><p class="section-kicker">Литва · следующая неделя</p><h2>Премьеры</h2></div>${note(envelope, "premieres")}</header><div class="cinema-premiere-grid">${items.map((item) => `<a class="cinema-premiere" href="${escapeHtml(item.sourceUrl)}" target="_blank" rel="noopener noreferrer"><span class="cinema-poster${item.posterSrc ? " has-image" : ""}">${item.posterSrc ? `<img src="${escapeHtml(item.posterSrc)}" alt="">` : `<b>${escapeHtml((item.originalTitle ?? item.localTitle).slice(0, 1))}</b>`}</span><span class="cinema-card__copy"><small>${shortDate(item.releaseDate)}${item.ageRating ? ` · ${escapeHtml(item.ageRating)}` : ""}</small><strong>${escapeHtml(item.originalTitle ?? item.localTitle)}</strong>${item.originalTitle ? `<em>${escapeHtml(item.localTitle)}</em>` : ""}${item.genres?.length ? `<span class="cinema-card__genres">${item.genres.map((genre) => `<i>${escapeHtml(genre)}</i>`).join("")}</span>` : ""}${premiereFacts(item)}</span></a>`).join("")}</div></section>`;
 }
 
 function news(envelope: CinemaEnvelope): string {
   const items = envelope.data.news.items;
   if (!items.length) return "";
-  return `<section class="cinema-block" id="cinema-news"><header class="cinema-heading"><div><p class="section-kicker">За 7 дней · ${items.length}</p><h2>Коротко о важном</h2></div>${note(envelope, "news")}</header><div class="cinema-news-list">${items.map((item, index) => `<article class="cinema-news"><span>${String(index + 1).padStart(2, "0")}</span><span class="cinema-news__image${item.imageSrc ? " has-image" : ""}" aria-hidden="true">${item.imageSrc ? `<img src="${escapeHtml(item.imageSrc)}" alt="">` : ""}</span><div class="cinema-news__copy"><small>${escapeHtml(item.publisher)} · ${new Intl.DateTimeFormat("ru-RU", { day: "numeric", month: "short" }).format(new Date(item.publishedAt))}</small>${note(envelope, `news:${item.id}`, "cinema-news__note")}<h3>${escapeHtml(item.headline)}</h3><p>${escapeHtml(item.summary)}</p></div><a href="${escapeHtml(item.sourceUrl)}" target="_blank" rel="noopener noreferrer" aria-label="Открыть источник: ${escapeHtml(item.headline)}">↗</a></article>`).join("")}</div></section>`;
+  return `<section class="cinema-block" id="cinema-news"><header class="cinema-heading"><div><p class="section-kicker">За 7 дней · ${items.length}</p><h2>Новости</h2></div>${note(envelope, "news")}</header><div class="cinema-news-list">${items.map((item, index) => `<article class="cinema-news"><span>${String(index + 1).padStart(2, "0")}</span><span class="cinema-news__image${item.imageSrc ? " has-image" : ""}" aria-hidden="true">${item.imageSrc ? `<img src="${escapeHtml(item.imageSrc)}" alt="">` : ""}</span><div class="cinema-news__copy"><small>${escapeHtml(item.publisher)} · ${new Intl.DateTimeFormat("ru-RU", { day: "numeric", month: "short" }).format(new Date(item.publishedAt))}</small>${note(envelope, `news:${item.id}`, "cinema-news__note")}<h3>${escapeHtml(item.headline)}</h3><p>${escapeHtml(item.summary)}</p></div><a href="${escapeHtml(item.sourceUrl)}" target="_blank" rel="noopener noreferrer" aria-label="Открыть источник: ${escapeHtml(item.headline)}">↗</a></article>`).join("")}</div></section>`;
 }
 
 function full(envelope: CinemaEnvelope): string {

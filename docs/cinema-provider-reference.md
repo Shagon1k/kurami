@@ -89,6 +89,13 @@ date falls inside `[next Monday 00:00, following Monday 00:00)` in the configure
 market timezone. Current and older repertoire cards are ignored. A date or
 title cannot be inferred from surrounding copy.
 
+For those already selected cards only, the collector reads the matching
+cinema.lt detail page and parses its Schema.org `Movie` JSON-LD. It may preserve
+genre, runtime, age rating, up to three directors, and up to four principal
+cast names. Failure of one detail read leaves the verified premiere intact and
+makes the section partial; it never triggers a search fallback. Production
+budget is not published by this source and is therefore omitted.
+
 `cinema.lt` remains authoritative for the Lithuanian theatrical date. TMDB may
 enrich a confident match but cannot replace that date or source title.
 
@@ -147,7 +154,8 @@ Netflix's verified main channel is used because a separate currently verified
 `Netflix Film` channel could not be established. Only film trailer uploads
 qualify. Seed IDs are configuration data, not a license to accept every upload;
 the trailer classifier, exact publication window, and duplicate rules still
-apply.
+apply. Final selection has a hard three-item cap per channel, even when that
+means publishing fewer than eight trailers.
 
 ## Weekly cinema-news feeds
 

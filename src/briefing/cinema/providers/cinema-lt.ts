@@ -7,7 +7,15 @@ export type CinemaLtPremiereCandidate = {
   releaseDate: string;
   sourceUrl: string;
   posterUrl?: string;
+  genres?: string[];
+  runtimeMinutes?: number;
+  ageRating?: string;
+  directors?: string[];
+  cast?: string[];
 };
+
+export type CinemaLtMovieDetails = Pick<CinemaLtPremiereCandidate,
+  "genres" | "runtimeMinutes" | "ageRating" | "directors" | "cast">;
 
 const CARD = /<a\s+href="(https:\/\/cinema\.lt\/filmai\/[^"]+)"[^>]*class="[^"]*movie-card-vertical[^>]*>([\s\S]*?)<\/a>/gu;
 const PREMIERE = /Premjera\s+(\d{4}-\d{2}-\d{2})/u;
@@ -44,6 +52,55 @@ function stableId(url: string): string {
   const slug = new URL(url).pathname.split("/").filter(Boolean).at(-1);
   if (!slug || !/^[a-z0-9-]{1,140}$/u.test(slug)) throw new Error("Invalid cinema.lt movie URL");
   return `cinema-lt:${slug}`;
+}
+
+function stringList(value: unknown, maximum: number): string[] | undefined {
+  const raw = Array.isArray(value) ? value : value === undefined ? [] : [value];
+  const result = raw.flatMap((item) => {
+    if (typeof item === "string") return [item];
+    if (!item || typeof item !== "object" || Array.isArray(item)) return [];
+    const name = (item as Record<string, unknown>).name;
+    return typeof name === "string" ? [name] : [];
+  }).map((item) => decodeHtml(item).slice(0, 120)).filter(Boolean).slice(0, maximum);
+  return result.length ? [...new Set(result)] : undefined;
+}
+
+/** Extracts the stable Schema.org Movie payload already published by cinema.lt. */
+export function parseCinemaLtMovieDetails(html: string): CinemaLtMovieDetails {
+  if (Buffer.byteLength(html, "utf8") > 2 * 1_024 * 1_024) throw new Error("cinema.lt detail response exceeds 2 MiB");
+  const scripts = [...html.matchAll(/<script[^>]+type=["']application\/ld\+json["'][^>]*>([\s\S]*?)<\/script>/giu)];
+  for (const match of scripts) {
+    let value: unknown;
+    try {
+      value = JSON.parse(match[1]!.trim());
+    } catch {
+      continue;
+    }
+    if (!value || typeof value !== "object" || Array.isArray(value)) continue;
+    const raw = value as Record<string, unknown>;
+    if (raw["@type"] !== "Movie") continue;
+    const duration = typeof raw.duration === "object" && raw.duration && !Array.isArray(raw.duration)
+      ? (raw.duration as Record<string, unknown>).name
+      : raw.duration;
+    const durationMatch = typeof duration === "string" ? /^PT(?:(\d+)H)?(?:(\d+)M)?$/u.exec(duration) : null;
+    const runtimeMinutes = durationMatch
+      ? Number(durationMatch[1] ?? 0) * 60 + Number(durationMatch[2] ?? 0)
+      : 0;
+    const genres = stringList(raw.genre, 5);
+    const directors = stringList(raw.director, 3);
+    const cast = stringList(raw.actor, 4);
+    const ageRating = typeof raw.contentRating === "string" && raw.contentRating.trim()
+      ? decodeHtml(raw.contentRating).slice(0, 20)
+      : undefined;
+    return {
+      ...(genres ? { genres } : {}),
+      ...(runtimeMinutes > 0 ? { runtimeMinutes } : {}),
+      ...(ageRating ? { ageRating } : {}),
+      ...(directors ? { directors } : {}),
+      ...(cast ? { cast } : {}),
+    };
+  }
+  throw new Error("cinema.lt detail page has no Schema.org Movie payload");
 }
 
 export function parseCinemaLtPremieres(input: {

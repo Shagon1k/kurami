@@ -1227,6 +1227,7 @@ try {
   assert.match(clientScript, /data-page-next|URLSearchParams|data-story-details|is-scrolled/);
   assert.match(clientScript, /data-overflow|PageDown|region\.scrollBy/);
   assert.match(clientScript, /api\/mail\/read-and-archive|data-mail-select-all/);
+  assert.match(clientScript, /data-cinema-trend|data-trend-key|data-trend-zoom-in|compactMoney/);
 
   const archiveMail = await fetch(`${base}/api/mail/read-and-archive`, {
     method: "POST",

@@ -19,7 +19,7 @@ import type {
 } from "./model.ts";
 import { normalizeBoxOfficeWatch } from "./providers/box-office-watch.ts";
 import { apArticlePublishedAt, discoverApBoxOfficeLinks, parseApTopTen } from "./providers/ap.ts";
-import { parseCinemaLtPremieres, type CinemaLtPremiereCandidate } from "./providers/cinema-lt.ts";
+import { parseCinemaLtMovieDetails, parseCinemaLtPremieres, type CinemaLtPremiereCandidate } from "./providers/cinema-lt.ts";
 import { parseCinemaRss, type CinemaNewsCandidate } from "./providers/rss.ts";
 import { normalizeLkcSheetRows } from "./providers/lkc.ts";
 import { discoverLkcWeekendWorkbook, parseLkcWorkbook } from "./providers/lkc-xlsx.ts";
@@ -319,15 +319,36 @@ async function collectPremieres(options: CinemaCollectorOptions, coverage: Cinem
     sources: [],
   };
   try {
-    const candidates = parseCinemaLtPremieres({
+    const baseCandidates = parseCinemaLtPremieres({
       html: response.value,
       coverage,
       timeZone: options.config.timeZone,
       limit: options.config.limits.premieres,
     });
+    const detailDiagnostics: string[] = [];
+    const candidates = await Promise.all(baseCandidates.map(async (candidate) => {
+      const detailUrl = new URL(candidate.sourceUrl);
+      detailUrl.hash = "";
+      const detail = await fetchText(detailUrl, { fetchImpl: options.fetchImpl, retry: options.retry });
+      if (!detail.ok) {
+        detailDiagnostics.push(issueText("cinema-lt-detail", detail.issue));
+        return candidate;
+      }
+      try {
+        return { ...candidate, ...parseCinemaLtMovieDetails(detail.value) };
+      } catch (error) {
+        detailDiagnostics.push(issueText("cinema-lt-detail", providerIssue(error, "cinema_lt_detail_schema")));
+        return candidate;
+      }
+    }));
     const id = sourceId("cinema-lt", url.toString());
     return {
-      section: { state: candidates.length ? "ready" : "empty", candidates, provenance: [id], diagnostics: [] },
+      section: {
+        state: candidates.length ? (detailDiagnostics.length ? "partial" : "ready") : "empty",
+        candidates,
+        provenance: [id],
+        diagnostics: detailDiagnostics,
+      },
       sources: [{ id, provider: "cinema.lt", url: url.toString(), fetchedAt: capturedAt, region: options.config.market }],
     };
   } catch (error) {

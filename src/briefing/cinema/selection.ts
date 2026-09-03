@@ -102,10 +102,17 @@ export function selectTrailerCandidates(
     || left.sourceUrl.localeCompare(right.sourceUrl));
 
   const selected: SelectedTrailerCandidate[] = [];
+  const publisherCounts = new Map<string, number>();
   for (const candidate of qualified) {
     if (selected.some((existing) => existing.filmKey === candidate.filmKey
       || similarity(existing.title, candidate.title) >= 0.72)) continue;
+    const publisherCount = publisherCounts.get(candidate.publisherChannelId) ?? 0;
+    // A prolific studio or streamer must not turn the weekly selection into
+    // its private playlist. This is a hard cap: returning fewer trailers is
+    // preferable to silently relaxing the editorial contract.
+    if (publisherCount >= 3) continue;
     selected.push(candidate);
+    publisherCounts.set(candidate.publisherChannelId, publisherCount + 1);
     if (selected.length >= limit) break;
   }
   return selected;

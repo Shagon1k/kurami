@@ -114,6 +114,9 @@ export type CinemaPremiere = {
   genres?: string[];
   runtimeMinutes?: number;
   ageRating?: string;
+  directors?: string[];
+  cast?: string[];
+  budget?: CinemaMoney;
   tmdbId?: number;
   sourceId: string;
 };
@@ -466,6 +469,9 @@ function premiere(value: unknown, label: string): CinemaPremiere {
     ...(raw.genres === undefined ? {} : { genres: strings(raw.genres, `${label}.genres`, 8) }),
     ...(raw.runtimeMinutes === undefined ? {} : { runtimeMinutes: positiveInteger(raw.runtimeMinutes, `${label}.runtimeMinutes`, 1_000) }),
     ...(raw.ageRating === undefined ? {} : { ageRating: text(raw.ageRating, `${label}.ageRating`, 20) }),
+    ...(raw.directors === undefined ? {} : { directors: strings(raw.directors, `${label}.directors`, 3) }),
+    ...(raw.cast === undefined ? {} : { cast: strings(raw.cast, `${label}.cast`, 4) }),
+    ...(raw.budget === undefined ? {} : { budget: money(raw.budget, `${label}.budget`) }),
     ...(raw.tmdbId === undefined ? {} : { tmdbId: positiveInteger(raw.tmdbId, `${label}.tmdbId`) }),
     sourceId: safeId(raw.sourceId, `${label}.sourceId`),
   };

@@ -111,6 +111,11 @@ export function composeCinemaEnvelope(input: {
     releaseDate: item.releaseDate,
     sourceUrl: item.sourceUrl,
     ...(media[item.id] ? { posterSrc: media[item.id] } : {}),
+    ...(item.genres?.length ? { genres: item.genres } : {}),
+    ...(item.runtimeMinutes ? { runtimeMinutes: item.runtimeMinutes } : {}),
+    ...(item.ageRating ? { ageRating: item.ageRating } : {}),
+    ...(item.directors?.length ? { directors: item.directors } : {}),
+    ...(item.cast?.length ? { cast: item.cast } : {}),
     sourceId: sourceIdFor(candidate.provenance, "cinema.lt"),
   }));
   const news = chosenNews.map(({ source, editorial }) => ({

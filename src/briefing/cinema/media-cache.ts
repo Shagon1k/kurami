@@ -2,7 +2,7 @@ import { createHash } from "node:crypto";
 import { chmod, mkdir, rename, writeFile } from "node:fs/promises";
 import { relative, resolve } from "node:path";
 import type { CinemaRuntimeConfig } from "../runtime-config.ts";
-import { fetchBuffer, type FetchLike, type RetryPolicy } from "../providers/common.ts";
+import { fetchBuffer, fetchText, type FetchLike, type RetryPolicy } from "../providers/common.ts";
 import type { CinemaCollectionCandidate } from "./collector.ts";
 import { parseCinemaEditorialDraft } from "./editorial.ts";
 import type { CinemaMediaMap } from "./composer.ts";
@@ -45,10 +45,19 @@ function publisherHosts(publisher: string): string[] {
   return [];
 }
 
-function assets(candidate: CinemaCollectionCandidate, draftValue: unknown, config: CinemaRuntimeConfig): Asset[] {
+function selectedNews(candidate: CinemaCollectionCandidate, draftValue: unknown): CinemaCollectionCandidate["news"]["candidates"] {
   const draft = parseCinemaEditorialDraft(draftValue);
   if (draft.localDate !== candidate.localDate) throw new Error("Cinema media draft and candidate dates differ");
   const news = new Map(candidate.news.candidates.map((item) => [item.id, item]));
+  return draft.news.map((item) => {
+    const candidateItem = news.get(item.candidateId);
+    if (!candidateItem) throw new Error(`Cinema media draft selected unknown candidate ${item.candidateId}`);
+    return candidateItem;
+  });
+}
+
+function directAssets(candidate: CinemaCollectionCandidate, draftValue: unknown, config: CinemaRuntimeConfig): Asset[] {
+  const news = selectedNews(candidate, draftValue);
   const result: Asset[] = [];
   for (const item of candidate.trailers.candidates.slice(0, config.limits.trailers)) {
     if (item.thumbnailUrl) result.push({ id: item.id, url: item.thumbnailUrl, allowedHosts: ["ytimg.com"] });
@@ -56,9 +65,7 @@ function assets(candidate: CinemaCollectionCandidate, draftValue: unknown, confi
   for (const item of candidate.premieres.candidates.slice(0, config.limits.premieres)) {
     if (item.posterUrl) result.push({ id: item.id, url: item.posterUrl, allowedHosts: ["s3.eu-central-1.amazonaws.com"] });
   }
-  for (const selected of draft.news) {
-    const item = news.get(selected.candidateId);
-    if (!item) throw new Error(`Cinema media draft selected unknown candidate ${selected.candidateId}`);
+  for (const item of news) {
     const hosts = publisherHosts(item.publisher);
     if (item.imageUrl && hosts.length) result.push({ id: item.id, url: item.imageUrl, allowedHosts: hosts });
   }
@@ -68,6 +75,54 @@ function assets(candidate: CinemaCollectionCandidate, draftValue: unknown, confi
     seen.add(item.id);
     return true;
   });
+}
+
+function metaContent(html: string, property: string): string | undefined {
+  for (const match of html.matchAll(/<meta\s+([^>]+)>/giu)) {
+    const attributes = match[1]!;
+    const propertyValue = /(?:property|name)\s*=\s*["']([^"']+)["']/iu.exec(attributes)?.[1]?.toLocaleLowerCase("en-US");
+    if (propertyValue !== property.toLocaleLowerCase("en-US")) continue;
+    return /content\s*=\s*["']([^"']+)["']/iu.exec(attributes)?.[1]?.replace(/&amp;/gu, "&");
+  }
+  return undefined;
+}
+
+async function discoverNewsAssets(input: {
+  candidate: CinemaCollectionCandidate;
+  draft: unknown;
+  fetchImpl?: FetchLike;
+  retry?: Partial<RetryPolicy>;
+}): Promise<{ assets: Asset[]; diagnostics: string[] }> {
+  const missing = selectedNews(input.candidate, input.draft).filter((item) => !item.imageUrl);
+  const result: Asset[] = [];
+  const diagnostics: string[] = [];
+  // Four at a time keeps the weekly run bounded without serially waiting on
+  // every publisher page. Only the final editorial selection is inspected.
+  for (let offset = 0; offset < missing.length; offset += 4) {
+    await Promise.all(missing.slice(offset, offset + 4).map(async (item) => {
+      const hosts = publisherHosts(item.publisher);
+      if (!hosts.length) return;
+      try {
+        const page = allowed(item.sourceUrl, hosts);
+        const response = await fetchText(page, {
+          fetchImpl: input.fetchImpl,
+          retry: input.retry,
+          maximumBytes: 2 * 1_024 * 1_024,
+          accept: "text/html",
+        });
+        if (!response.ok) throw new Error(`${response.issue.code}:${response.issue.message}`);
+        const image = metaContent(response.value, "og:image") || metaContent(response.value, "twitter:image");
+        if (!image) throw new Error("article_image_not_found");
+        // Publisher-owned media only: this intentionally rejects unrelated
+        // ad/tracker/CDN hosts instead of broadening the SSRF allowlist.
+        allowed(new URL(image, page).toString(), hosts);
+        result.push({ id: item.id, url: new URL(image, page).toString(), allowedHosts: hosts });
+      } catch (error) {
+        diagnostics.push(`${item.id}:image_discovery:${error instanceof Error ? error.message : String(error)}`.slice(0, 360));
+      }
+    }));
+  }
+  return { assets: result, diagnostics };
 }
 
 export async function cacheCinemaMedia(input: {
@@ -85,7 +140,11 @@ export async function cacheCinemaMedia(input: {
   const media: CinemaMediaMap = {};
   const diagnostics: string[] = [];
   let bytes = 0;
-  for (const asset of assets(input.candidate, input.draft, input.config)) {
+  const direct = directAssets(input.candidate, input.draft, input.config);
+  const discovered = await discoverNewsAssets(input);
+  diagnostics.push(...discovered.diagnostics);
+  const assets = [...direct, ...discovered.assets].filter((asset, index, all) => all.findIndex((item) => item.id === asset.id) === index);
+  for (const asset of assets) {
     try {
       const url = allowed(asset.url, asset.allowedHosts);
       const response = await fetchBuffer(url, {

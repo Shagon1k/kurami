@@ -5,7 +5,7 @@ import { resolve } from "node:path";
 import { DatabaseSync } from "node:sqlite";
 import { apArticlePublishedAt, parseApTopTen } from "../../src/briefing/cinema/providers/ap.ts";
 import { normalizeBoxOfficeWatch } from "../../src/briefing/cinema/providers/box-office-watch.ts";
-import { parseCinemaLtPremieres } from "../../src/briefing/cinema/providers/cinema-lt.ts";
+import { parseCinemaLtMovieDetails, parseCinemaLtPremieres } from "../../src/briefing/cinema/providers/cinema-lt.ts";
 import { normalizeLkcSheetRows } from "../../src/briefing/cinema/providers/lkc.ts";
 import { parseCinemaRss } from "../../src/briefing/cinema/providers/rss.ts";
 import { normalizeTmdbMovieResults } from "../../src/briefing/cinema/providers/tmdb.ts";
@@ -189,6 +189,11 @@ const cinemaLt = parseCinemaLtPremieres({
 assert.equal(cinemaLt.length, 1);
 assert.equal(cinemaLt[0]?.originalTitle, "Future Film");
 assert.equal(cinemaLt[0]?.releaseDate, "2026-09-04");
+const cinemaLtDetails = parseCinemaLtMovieDetails(await fixture("cinema-lt-detail.html"));
+assert.deepEqual(cinemaLtDetails.directors, ["Greta Example"]);
+assert.deepEqual(cinemaLtDetails.cast, ["Alex Actor", "Mira Star", "Jonas Player", "Lina Hero"]);
+assert.equal(cinemaLtDetails.runtimeMinutes, 127);
+assert.equal(cinemaLtDetails.ageRating, "N-13");
 
 const youtube = normalizeYouTubeCandidates({
   response: JSON.parse(await fixture("youtube.json")),
@@ -260,6 +265,15 @@ const selectedTrailers = selectTrailerCandidates([
 assert.equal(selectedTrailers.filter((item) => item.filmKey === "street fighter").length, 1);
 assert.equal(selectedTrailers.some((item) => item.videoId === "PromoCopy01"), false);
 assert.equal(selectedTrailers.some((item) => item.videoId === "Archive1993"), false);
+const prolificTitles = ["Atlas Rising", "Copper Lake", "Distant Harbor", "Emerald City", "Frozen Valley"];
+const prolificPublisher = prolificTitles.map((title, index) => ({
+  ...youtube[0]!,
+  id: `youtube:prolific${index}`,
+  videoId: `Prolific${String(index).padStart(3, "0")}`,
+  title: `${title} — Official Trailer`,
+  sourceUrl: `https://www.youtube.com/watch?v=Prolific${String(index).padStart(3, "0")}`,
+}));
+assert.equal(selectTrailerCandidates(prolificPublisher, 8).length, 3);
 
 const rssSpecs = [
   ["rss-variety.xml", "Variety", "variety.com"],
@@ -326,6 +340,9 @@ const collectorFetch: typeof fetch = async (input) => {
   if (url === config.sources.cinemaLt.repertoireUrl) {
     return new Response(await fixture("cinema-lt.html"), { status: 200 });
   }
+  if (url === "https://cinema.lt/filmai/ateities-filmas") {
+    return new Response(await fixture("cinema-lt-detail.html"), { status: 200 });
+  }
   if (url === config.sources.lkc.reportsUrl) {
     return new Response('<a href="/docs/Filmu rodymo ataskaitos/Savaitgalio (Weekend) TOP 2026.08.21-08.23.xlsx">LKC</a>', { status: 200 });
   }
@@ -356,6 +373,7 @@ assert.equal(collected.boxOffice.charts.find((chart) => chart.id === "lt-weekend
 assert.equal(collected.trailers.state, "ready");
 assert.equal(collected.trailers.candidates.length, 1);
 assert.equal(collected.premieres.state, "ready");
+assert.deepEqual(collected.premieres.candidates[0]?.directors, ["Greta Example"]);
 assert.equal(collected.news.state, "ready");
 assert.equal(collected.news.candidates.length, 4);
 assert.equal(collected.diagnostics.length, 0);
@@ -395,15 +413,20 @@ const editorialDraft = {
   notes: [{ id: "note:test", target: `news:${collected.news.candidates[0]!.id}`, text: "вот это поворот", mark: "arrow-down-left" }],
 };
 const mediaRoot = await mkdtemp(resolve(tmpdir(), "kurami-cinema-media-"));
+const missingNewsImage = collected.news.candidates.find((item) => !item.imageUrl);
+const fallbackImageUrl = missingNewsImage ? new URL("/fallback-cinema.jpg", missingNewsImage.sourceUrl).toString() : "";
 const cachedMedia = await cacheCinemaMedia({
   candidate: collected,
   draft: editorialDraft,
   config,
   mediaRoot,
-  fetchImpl: async () => new Response(Uint8Array.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]), { status: 200 }),
+  fetchImpl: async (input) => String(input) === missingNewsImage?.sourceUrl
+    ? new Response(`<html><head><meta property="og:image" content="${fallbackImageUrl}"></head></html>`, { status: 200 })
+    : new Response(Uint8Array.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]), { status: 200 }),
   retry: { attempts: 1, timeoutMs: 1_000 },
 });
 assert.equal(cachedMedia.cached > 0, true);
+if (missingNewsImage) assert.equal(typeof cachedMedia.media[missingNewsImage.id], "string");
 assert.equal(Object.values(cachedMedia.media).every((path) => path.startsWith("/media/cinema/2026-08-29/")), true);
 await rm(mediaRoot, { recursive: true, force: true });
 const composed = composeCinemaEnvelope({ candidate: collected, config, draft: editorialDraft, media: cachedMedia.media });
@@ -600,7 +623,11 @@ for (const marker of [
   "Пульс проката",
   "Трейлеры недели",
   "Премьеры",
-  "Коротко о важном",
+  "Новости",
+  "data-cinema-trend",
+  "data-trend-key",
+  "Последний уикенд",
+  "С начала года",
   "data-cinema-edition=\"2026-08-29\"",
   "Kurami Cinema",
 ]) assert.match(cinemaHtml, new RegExp(marker));

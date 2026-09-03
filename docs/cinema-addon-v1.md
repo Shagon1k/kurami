@@ -210,10 +210,14 @@ The adapter preserves weekend dates, gross, admissions, show count, week in
 release, cumulative gross, release date, and distributor when present.
 
 Worldwide weekend reporting is not represented as a fabricated complete
-global chart. Select three to five verified global movements or milestones
-from fresh Deadline/Variety international box-office reporting. Every numeric
-claim stores its source URL, source date, territory, period, and evidence text.
-AI may write the short Russian explanation but cannot author the number.
+global chart. Box Office Watch exposes worldwide YTD, but its weekend dataset
+is domestic; LKC supplies Lithuania. Keep an optional `world-weekend` provider
+slot and omit that card until a stable source can prove comparable global
+weekend totals. Select three to five verified global movements or milestones
+from fresh Deadline/Variety international box-office reporting when available.
+Every numeric claim stores its source URL, source date, territory, period, and
+evidence text. AI may write the short Russian explanation but cannot author
+the number.
 
 ### Deterministic views
 
@@ -222,9 +226,10 @@ The section contains:
 - one featured winner of the latest completed US weekend;
 - four computed signals: largest debut, best hold, sharpest drop, and largest
   rank movement or material estimate-to-actual surprise;
-- US Top 5 with an explicit expansion to Top 10;
-- Worldwide YTD Top 5 as a secondary "year race", not the primary story;
-- Lithuania Top 5 from LKC;
+- a separate latest-weekend row ordered World, US, Lithuania (only markets with
+  proved charts render; v1 therefore renders US and Lithuania);
+- a separate YTD row ordered World, US, Lithuania (v1 renders World and US);
+- Top 5 with an explicit expansion to Top 10 in every available chart;
 - three to five verified global pulse items when available;
 - one multi-series trend chart.
 
@@ -256,9 +261,14 @@ archive collection means unknown/not reported, not zero gross.
 - Hover or keyboard focus emphasizes one series and dims the others.
 - Nodes are 3px at rest and 6px on hover/focus, following the visual-language
   chart contract.
-- A keyboard-accessible legend can hide/show a series.
-- Mobile preserves all data but may present one selected series at a time to
-  avoid an unreadable five-line chart.
+- A keyboard-accessible legend can hide/show a series. The visible-series
+  domain is recalculated, so one outlier does not permanently compress every
+  other line.
+- `+` and `−` select a bounded three-to-six-week trailing window; they never
+  interpolate or invent points.
+- Both date and compact money axes are visible.
+- Mobile preserves the same legend and scale controls and keeps the plot
+  horizontally scrollable rather than deleting data.
 - A compact accessible table or equivalent textual representation exposes the
   same exact values without relying on color or pointer interaction.
 - AP fallback does not render this chart because it cannot prove the required
@@ -299,7 +309,8 @@ DST transition does not change the intended local boundary.
 5. use TMDB film identity and metadata when confidently matched;
 6. rank the remaining candidates by official provenance, freshness, material
    release significance, novelty, and bounded diversity;
-7. do not pad the section when fewer than eight qualified items exist.
+7. apply a hard maximum of three selected trailers per publisher channel;
+8. do not pad the section when fewer than eight qualified items exist.
 
 The page never downloads or embeds full video files. It displays cached safe
 thumbnails and opens the supplied YouTube destination through a clear external
@@ -329,6 +340,10 @@ Show every relevant verified premiere up to twelve items. Preserve:
 - genre;
 - runtime;
 - age rating when available;
+- director and up to four principal cast names from cinema.lt's Schema.org
+  Movie payload;
+- verified production budget when a future enrichment provider supplies a
+  non-zero sourced value; omit the field otherwise;
 - source destination;
 - TMDB identity and metadata provenance when matched.
 
@@ -345,9 +360,12 @@ but preserves a locally verified premiere.
 
 Collect the same half-open seven-day interval used for trailers from the
 verified feeds for Variety, Deadline, The Hollywood Reporter, and IndieWire.
-The deterministic layer owns feed
-pagination, URL canonicalization, publication-window validation, exact and
-near-duplicate candidate clustering, source provenance, and image acquisition.
+The deterministic layer owns feed pagination, URL canonicalization,
+publication-window validation, exact and near-duplicate candidate clustering,
+source provenance, and image acquisition. For a selected story whose feed has
+no image, it performs one bounded article-page read and accepts only an
+allowlisted publisher-owned `og:image`/`twitter:image`; failure leaves the
+fixed visual placeholder intact.
 
 Select up to fifteen stories. The editorial score should consider:
 

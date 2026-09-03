@@ -481,6 +481,131 @@ const CLIENT_SCRIPT = `(() => {
   };
   initializePaginatedFeeds();
 
+  const initializeCinemaTrends = () => {
+    const svgNamespace = 'http://www.w3.org/2000/svg';
+    const svgNode = (name, attributes = {}) => {
+      const node = document.createElementNS(svgNamespace, name);
+      Object.entries(attributes).forEach(([key, value]) => node.setAttribute(key, String(value)));
+      return node;
+    };
+    const compactMoney = (value, currency) => {
+      try {
+        return new Intl.NumberFormat('ru-RU', {
+          style: 'currency', currency, notation: 'compact', maximumFractionDigits: 1,
+        }).format(value);
+      } catch {
+        return String(Math.round(value));
+      }
+    };
+    document.querySelectorAll('[data-cinema-trend]').forEach((chart) => {
+      const svg = chart.querySelector('svg');
+      if (!(svg instanceof SVGElement)) return;
+      let series;
+      try {
+        const encoded = chart.getAttribute('data-cinema-trend-data') || '';
+        const normalized = encoded.replace(/-/g, '+').replace(/_/g, '/');
+        const binary = atob(normalized);
+        const bytes = Uint8Array.from(binary, (character) => character.charCodeAt(0));
+        series = JSON.parse(new TextDecoder().decode(bytes));
+      } catch {
+        return;
+      }
+      if (!Array.isArray(series) || !series.length || !Array.isArray(series[0]?.points)) return;
+      const totalWindows = series[0].points.length;
+      const minimumWindows = Math.min(3, totalWindows);
+      let windowSize = totalWindows;
+      const visible = new Set(series.map((_item, index) => index));
+      const plot = { left: 56, right: 696, top: 18, bottom: 224 };
+
+      const draw = () => {
+        chart.querySelectorAll('[data-trend-series]').forEach((node) => node.remove());
+        const yLabels = chart.querySelector('[data-trend-y-labels]');
+        const xLabels = chart.querySelector('[data-trend-x-labels]');
+        if (yLabels) yLabels.replaceChildren();
+        if (xLabels) xLabels.replaceChildren();
+        const sliced = series.map((item) => ({ ...item, points: item.points.slice(-windowSize) }));
+        const values = sliced.flatMap((item, index) => visible.has(index)
+          ? item.points.map((point) => point.gross).filter((value) => typeof value === 'number')
+          : []);
+        const rawMaximum = Math.max(...values, 1);
+        const magnitude = Math.pow(10, Math.floor(Math.log10(rawMaximum)));
+        const maximum = Math.ceil(rawMaximum / magnitude) * magnitude;
+        [1, .67, .33, 0].forEach((ratio, index) => {
+          const label = svgNode('text', { x: 48, y: [45, 109, 173, 227][index], 'text-anchor': 'end' });
+          label.textContent = compactMoney(maximum * ratio, sliced.find((_item, itemIndex) => visible.has(itemIndex))?.currency || 'USD');
+          yLabels?.append(label);
+        });
+        sliced[0].points.forEach((point, index, all) => {
+          const label = svgNode('text', {
+            x: plot.left + index * ((plot.right - plot.left) / Math.max(1, all.length - 1)),
+            y: 246,
+            'text-anchor': 'middle',
+          });
+          label.textContent = point.label;
+          xLabels?.append(label);
+        });
+        sliced.forEach((item, seriesIndex) => {
+          if (!visible.has(seriesIndex)) return;
+          const group = svgNode('g', {
+            class: 'cinema-trend__series cinema-trend__series--' + seriesIndex,
+            'data-trend-series': seriesIndex,
+          });
+          let segment = [];
+          const flush = () => {
+            if (!segment.length) return;
+            group.append(svgNode('polyline', { points: segment.join(' ') }));
+            segment = [];
+          };
+          item.points.forEach((point, index, all) => {
+            if (typeof point.gross !== 'number') {
+              flush();
+              return;
+            }
+            const x = plot.left + index * ((plot.right - plot.left) / Math.max(1, all.length - 1));
+            const y = plot.top + (1 - point.gross / maximum) * (plot.bottom - plot.top);
+            segment.push(x.toFixed(1) + ',' + y.toFixed(1));
+            const circle = svgNode('circle', { cx: x.toFixed(1), cy: y.toFixed(1), r: 3, tabindex: 0 });
+            const title = svgNode('title');
+            title.textContent = item.label + ' · ' + point.label + ' · ' + compactMoney(point.gross, item.currency);
+            circle.append(title);
+            group.append(circle);
+          });
+          flush();
+          svg.insertBefore(group, xLabels || null);
+        });
+        const output = chart.querySelector('[data-trend-window]');
+        if (output) output.textContent = windowSize + ' / ' + totalWindows;
+        const zoomOut = chart.querySelector('[data-trend-zoom-out]');
+        const zoomIn = chart.querySelector('[data-trend-zoom-in]');
+        if (zoomOut) zoomOut.disabled = windowSize >= totalWindows;
+        if (zoomIn) zoomIn.disabled = windowSize <= minimumWindows;
+      };
+
+      chart.querySelectorAll('[data-trend-key]').forEach((button) => {
+        button.addEventListener('click', () => {
+          const index = Number.parseInt(button.getAttribute('data-trend-key') || '', 10);
+          if (!Number.isInteger(index)) return;
+          if (visible.has(index)) {
+            if (visible.size === 1) return;
+            visible.delete(index);
+          } else visible.add(index);
+          button.setAttribute('aria-pressed', String(visible.has(index)));
+          draw();
+        });
+      });
+      chart.querySelector('[data-trend-zoom-in]')?.addEventListener('click', () => {
+        windowSize = Math.max(minimumWindows, windowSize - 1);
+        draw();
+      });
+      chart.querySelector('[data-trend-zoom-out]')?.addEventListener('click', () => {
+        windowSize = Math.min(totalWindows, windowSize + 1);
+        draw();
+      });
+      draw();
+    });
+  };
+  initializeCinemaTrends();
+
   document.querySelectorAll('[data-overflow="true"]').forEach((region) => {
     region.addEventListener('keydown', (event) => {
       if (event.target !== region) return;

@@ -260,13 +260,22 @@ a { color: inherit; }
 .cinema-trend header, .cinema-rank header { display: flex; justify-content: space-between; gap: 20px; }
 .cinema-trend header span, .cinema-rank header span { color: var(--muted); font: 400 .5625rem/1.3 var(--font-mono); text-transform: uppercase; }
 .cinema-trend h3, .cinema-rank h3 { margin: 5px 0 0; font-size: 1rem; line-height: 1.2; }
-.cinema-trend__legend { max-width: 58%; display: flex; align-items: flex-start; justify-content: end; flex-wrap: wrap; gap: 5px 12px; }
-.cinema-trend__key { display: inline-flex; align-items: center; gap: 5px; font-size: .5625rem !important; text-transform: none !important; }
+.cinema-trend__legend { max-width: 62%; display: flex; align-items: flex-start; justify-content: end; flex-wrap: wrap; gap: 5px 7px; }
+.cinema-trend__key { min-height: 28px; display: inline-flex; align-items: center; gap: 5px; padding: 4px 6px; color: var(--ink) !important; background: transparent; border: 1px solid transparent; border-radius: 3px; cursor: pointer; font: 400 .5625rem/1.25 var(--font-mono) !important; text-align: left; text-transform: none !important; }
+.cinema-trend__key:hover, .cinema-trend__key:focus-visible { border-color: var(--line); outline: none; }
+.cinema-trend__key[aria-pressed="false"] { color: var(--muted) !important; opacity: .48; text-decoration: line-through; }
 .cinema-trend__key::before { content: ""; inline-size: 15px; block-size: 2px; background: var(--ink); }
 .cinema-trend__key--1::before { background: var(--signal); }
 .cinema-trend__key--2::before { background: var(--positive); }
 .cinema-trend__key--3::before { background: var(--warning); }
 .cinema-trend__key--4::before { background: var(--muted); }
+.cinema-trend__toolbar { min-height: 34px; display: flex; align-items: center; justify-content: flex-end; gap: 9px; margin-top: 8px; color: var(--muted); font: 400 .5625rem/1 var(--font-mono); text-transform: uppercase; }
+.cinema-trend__zoom { display: inline-grid; grid-template-columns: 30px 54px 30px; align-items: stretch; border: 1px solid var(--line); border-radius: 3px; overflow: hidden; }
+.cinema-trend__zoom button, .cinema-trend__zoom output { min-height: 28px; display: grid; place-items: center; padding: 0; color: var(--ink); background: var(--panel); border: 0; font: 500 .625rem/1 var(--font-mono); }
+.cinema-trend__zoom button { cursor: pointer; }
+.cinema-trend__zoom button + output, .cinema-trend__zoom output + button { border-left: 1px solid var(--line); }
+.cinema-trend__zoom button:hover:not(:disabled) { color: #fff; background: var(--signal); }
+.cinema-trend__zoom button:disabled { color: var(--muted); cursor: not-allowed; opacity: .45; }
 .cinema-trend svg { width: 100%; height: auto; display: block; margin-top: 12px; overflow: visible; }
 .cinema-trend__grid line { stroke: var(--grid); stroke-width: 1; }
 .cinema-trend__series { fill: none; stroke: var(--ink); stroke-width: 2.5; stroke-linecap: round; stroke-linejoin: round; }
@@ -277,6 +286,11 @@ a { color: inherit; }
 .cinema-trend__series circle { fill: var(--surface); stroke: inherit; stroke-width: 2; transition: r 140ms ease, fill 140ms ease; }
 .cinema-trend__series circle:hover, .cinema-trend__series circle:focus { r: 5; fill: var(--surface); outline: none; }
 .cinema-trend__labels text { fill: var(--muted); font: 400 10px/1 var(--font-mono); }
+.cinema-rank-groups { display: grid; gap: 16px; }
+.cinema-rank-group { display: grid; gap: 8px; }
+.cinema-rank-group > header { display: flex; align-items: baseline; justify-content: space-between; gap: 16px; padding: 0 2px; }
+.cinema-rank-group > header h3 { margin: 0; font-size: 1rem; }
+.cinema-rank-group > header span { color: var(--muted); font: 400 .5625rem/1 var(--font-mono); text-transform: uppercase; }
 .cinema-ranks { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }
 .cinema-rank { min-width: 0; padding: 18px; background: var(--surface); border: 1px solid var(--line); border-radius: 2px; }
 .cinema-rank table { width: 100%; margin-top: 14px; border-collapse: collapse; font-size: .6875rem; }
@@ -306,13 +320,16 @@ a { color: inherit; }
 .cinema-card__copy small { color: var(--muted); font: 400 .5625rem/1.3 var(--font-mono); text-transform: uppercase; }
 .cinema-card__copy strong { font-size: .875rem; line-height: 1.3; }
 .cinema-card__copy em { color: var(--muted); font-size: .625rem; font-style: normal; }
-.cinema-premiere-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; }
+.cinema-premiere-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; }
 .cinema-premiere { display: grid; grid-template-columns: 98px 1fr; }
 .cinema-poster { min-height: 156px; position: relative; display: grid; place-items: center; overflow: hidden; color: #fff; background: linear-gradient(160deg, #171713 0 55%, #6f1814 55%); }
 .cinema-poster b { font-size: 2.4rem; }
-.cinema-premiere .cinema-card__copy { min-height: 156px; }
-.cinema-card__copy > span { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 4px; }
-.cinema-card__copy > span i { padding: 3px 5px; color: var(--muted); border: 1px solid var(--line); border-radius: 3px; font-size: .5625rem; font-style: normal; }
+.cinema-premiere .cinema-card__copy { min-height: 180px; }
+.cinema-card__genres { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 4px; }
+.cinema-card__genres i { padding: 3px 5px; color: var(--muted); border: 1px solid var(--line); border-radius: 3px; font-size: .5625rem; font-style: normal; }
+.cinema-premiere__facts { display: grid; gap: 5px; margin-top: 7px; padding-top: 7px; border-top: 1px solid var(--grid); }
+.cinema-premiere__facts span { display: grid; grid-template-columns: 72px minmax(0, 1fr); gap: 7px; color: var(--muted); font-size: .5625rem; line-height: 1.35; }
+.cinema-premiere__facts b { color: var(--ink); font-weight: 600; }
 .cinema-news-list { overflow: hidden; background: var(--surface); border: 1px solid var(--line); border-radius: 2px; }
 .cinema-news { display: grid; grid-template-columns: 30px 150px minmax(0, 1fr) 44px; gap: 16px; align-items: start; padding: 20px; border-bottom: 1px solid var(--line); }
 .cinema-news:last-child { border-bottom: 0; }
@@ -405,7 +422,9 @@ a { color: inherit; }
   .cinema-signals { grid-template-columns: 1fr 1fr; }
   .cinema-trend { padding: 14px 8px; overflow-x: auto; }
   .cinema-trend header { padding-inline: 6px; }
-  .cinema-trend__legend { display: none; }
+  .cinema-trend header { flex-direction: column; }
+  .cinema-trend__legend { max-width: none; justify-content: flex-start; }
+  .cinema-trend__toolbar { justify-content: space-between; padding-inline: 6px; }
   .cinema-trend svg { min-width: 590px; }
   .cinema-ranks, .cinema-trailer-grid, .cinema-premiere-grid { grid-template-columns: 1fr; }
   .cinema-rank:last-child:nth-child(odd) { grid-column: auto; }
