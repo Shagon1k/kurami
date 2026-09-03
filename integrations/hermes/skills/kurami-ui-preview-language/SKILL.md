@@ -3,7 +3,7 @@ name: kurami-ui-preview-language
 description: Render pages in Kurami's fixed visual language.
 license: private
 metadata:
-  version: 0.9.1
+  version: 0.9.2
   author: Aliaksei Hurynovich with Hermes Agent
   hermes:
     tags:
@@ -82,6 +82,7 @@ Use Hermes file tools to inspect and edit the target project. Use the target pro
 | Concern | Rule |
 |---|---|
 | Overall character | Editorial, precise, warm paper, black ink, red signal |
+| Brand asset | Always use `assets/kurami-favicon.svg` as the site favicon |
 | Body and headings | Onest |
 | Technical Latin labels | Fragment Mono |
 | Handwritten notes | Caveat 600 |
@@ -159,6 +160,9 @@ Use Hermes file tools to inspect and edit the target project. Use the target pro
 ### 4. Apply the visual language
 
 - Use the exact token roles from `references/visual-language.md`.
+- Link every rendered Kurami page to the canonical
+  `assets/kurami-favicon.svg`. Do not generate edition-specific favicons or
+  redraw the fox inside individual renderers.
 - Start from the font imports and framework-neutral recipes in `references/implementation-recipes.md`; translate them into the target stack without changing token roles.
 - Keep briefing headings compact enough for scan-first reading: section titles use Onest 600 and the page title must not exceed the approved fluid maximum.
 - Set controls and links to Onest 600 and optically center their labels.

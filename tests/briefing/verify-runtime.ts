@@ -315,6 +315,7 @@ assert.throws(
   /Invalid or duplicate briefing add-on ID/,
 );
 const html = renderBriefingPage(parsedPayload);
+assert.match(html, /<link rel="icon" type="image\/svg\+xml" href="\/favicon\.svg">/);
 const providerWeatherPayload = parseBriefingPayload({
   ...payload,
   weather: {
@@ -1204,6 +1205,7 @@ try {
   assert.match(preview.headers.get("content-security-policy") ?? "", /default-src 'self'/);
   const previewHtml = await preview.text();
   assert.match(previewHtml, /\/assets\/briefing\.js/);
+  assert.match(previewHtml, /href="\/favicon\.svg"/);
   assert.match(previewHtml, /class="story-cover"/);
   assert.match(previewHtml, /class="story-media"/);
   assert.match(previewHtml, /\.news-story \{[^}]*grid-template-columns: 36px 176px minmax\(0, 1fr\) auto/);
@@ -1228,6 +1230,19 @@ try {
   assert.match(clientScript, /data-overflow|PageDown|region\.scrollBy/);
   assert.match(clientScript, /api\/mail\/read-and-archive|data-mail-select-all/);
   assert.match(clientScript, /data-cinema-trend|data-trend-key|data-trend-zoom-in|compactMoney/);
+
+  const favicon = await fetch(`${base}/favicon.svg`);
+  assert.equal(favicon.status, 200);
+  assert.equal(favicon.headers.get("content-type"), "image/svg+xml; charset=utf-8");
+  assert.equal(favicon.headers.get("x-content-type-options"), "nosniff");
+  const faviconSvg = await favicon.text();
+  assert.match(faviconSvg, /<title id="title">Kurami fox<\/title>/);
+  assert.match(faviconSvg, /fill="#f05a28"/);
+  assert.doesNotMatch(faviconSvg, /<script|(?:href|src)="https?:\/\//);
+
+  const faviconHead = await fetch(`${base}/favicon.svg`, { method: "HEAD" });
+  assert.equal(faviconHead.status, 200);
+  assert.equal(await faviconHead.text(), "");
 
   const archiveMail = await fetch(`${base}/api/mail/read-and-archive`, {
     method: "POST",

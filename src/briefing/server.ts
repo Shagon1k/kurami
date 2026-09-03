@@ -1,6 +1,6 @@
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from "node:http";
 import { createReadStream } from "node:fs";
-import { stat } from "node:fs/promises";
+import { readFile, stat } from "node:fs/promises";
 import { extname, relative, resolve } from "node:path";
 import type { DatabaseSync } from "node:sqlite";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
@@ -27,6 +27,11 @@ import { loadBriefingRuntimeConfig } from "./runtime-config.ts";
 import { latestBriefingAttempt } from "./run-attempt.ts";
 import { parseBriefingPayload } from "./model.ts";
 import { renderBriefingPage } from "./ui/render-page.ts";
+
+const FAVICON_PATH = new URL(
+  "../../integrations/hermes/skills/kurami-ui-preview-language/assets/kurami-favicon.svg",
+  import.meta.url,
+);
 
 export type MailActionExecutor = (input: {
   actionId: string;
@@ -984,7 +989,7 @@ function routeEdition(database: DatabaseSync, pathname: string): EditionRow | nu
 }
 
 function emptyPage(): string {
-  return `<!doctype html><html lang="ru"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Kurami Briefing</title><style>:root{color-scheme:light dark}body{margin:0;padding:48px;font:16px/1.5 system-ui;background:#faf9f6;color:#111}html[data-theme=dark] body{background:#0a0a0a;color:#f7f4ec}main{max-width:760px;margin:auto;border:1px solid #888;padding:32px}h1{font-size:32px;margin:0 0 12px}button{min-height:44px;padding:8px 14px;float:right}</style></head><body><button type="button" data-theme-toggle><span data-theme-icon aria-hidden="true">◐</span> <span data-theme-label>Тёмная тема</span></button><main><h1>Briefing ещё не опубликован</h1><p>Runtime работает. Подготовленный preview будет доступен по своему адресу.</p></main></body></html>`;
+  return `<!doctype html><html lang="ru"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="theme-color" content="#fbfbf8"><title>Kurami Briefing</title><link rel="icon" type="image/svg+xml" href="/favicon.svg"><style>:root{color-scheme:light dark}body{margin:0;padding:48px;font:16px/1.5 system-ui;background:#faf9f6;color:#111}html[data-theme=dark] body{background:#0a0a0a;color:#f7f4ec}main{max-width:760px;margin:auto;border:1px solid #888;padding:32px}h1{font-size:32px;margin:0 0 12px}button{min-height:44px;padding:8px 14px;float:right}</style></head><body><button type="button" data-theme-toggle><span data-theme-icon aria-hidden="true">◐</span> <span data-theme-label>Тёмная тема</span></button><main><h1>Briefing ещё не опубликован</h1><p>Runtime работает. Подготовленный preview будет доступен по своему адресу.</p></main></body></html>`;
 }
 
 async function serveEdition(
@@ -1015,6 +1020,7 @@ export async function createBriefingServer(
   options: { mailActionExecutor?: MailActionExecutor | null } = {},
 ): Promise<Server> {
   await initializeBriefingStore(paths);
+  const favicon = await readFile(FAVICON_PATH, "utf8");
   const database = openBriefingDatabase(paths);
   const runtimeConfig = options.mailActionExecutor === undefined
     ? await loadBriefingRuntimeConfig(paths)
@@ -1071,6 +1077,15 @@ export async function createBriefingServer(
         sendHeaders(response, "text/javascript; charset=utf-8");
         response.statusCode = 200;
         response.end(CLIENT_SCRIPT);
+        return;
+      }
+      if ((request.method === "GET" || request.method === "HEAD") && url.pathname === "/favicon.svg") {
+        response.statusCode = 200;
+        response.setHeader("content-type", "image/svg+xml; charset=utf-8");
+        response.setHeader("cache-control", "public, max-age=3600");
+        response.setHeader("x-content-type-options", "nosniff");
+        response.setHeader("content-length", String(Buffer.byteLength(favicon)));
+        response.end(request.method === "HEAD" ? undefined : favicon);
         return;
       }
       if ((request.method === "GET" || request.method === "HEAD") && url.pathname.startsWith("/media/")) {

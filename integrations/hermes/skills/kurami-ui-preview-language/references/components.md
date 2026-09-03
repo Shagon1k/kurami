@@ -13,6 +13,10 @@ Use this order as a grammar, not a mandatory template:
 
 Sections share one token system but not one container. Alternate open editorial sections, compact strips, split panels, structured lists, selective warm blocks, and visual media collections. Read `references/layout-archetypes.md` before composing the page.
 
+The document head is also shared UI. It must link to
+`assets/kurami-favicon.svg`; this is a global brand primitive, not content owned
+by an edition or add-on.
+
 ## Actions and navigation
 
 - Primary button: red fill, high-contrast label, Onest 600.

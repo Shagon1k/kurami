@@ -4,6 +4,21 @@
 
 Kurami UI combines a calm editorial page with utilitarian product controls and a small handwritten human layer. The visual ratio is approximately 70% disciplined editorial structure and 30% restrained fancy detail. A briefing is scan-first: it should expose useful information early, avoid ceremonial whitespace, and feel distinct without becoming noisy.
 
+## Brand mark
+
+The canonical browser mark is `../assets/kurami-favicon.svg`: a broad digital
+fox head in black, fox orange, and white on the warm paper surface. It is one
+shared asset for Daily, Cinema, previews, and empty runtime states.
+
+- Keep the supplied geometry and colors intact; do not recolor it for a page,
+  theme, edition, or add-on.
+- Link to the asset from the shared page renderer so new page types inherit it
+  automatically.
+- Do not replace it with a letter, emoji, generated illustration, or
+  edition-specific icon.
+- The thin square frame is part of the favicon asset and its silhouette fills
+  the canvas deliberately so the fox stays legible at 16px.
+
 ## Typography
 
 - Use **Onest** for display headings, body copy, controls, Cyrillic metadata, values, and mixed-language phrases.

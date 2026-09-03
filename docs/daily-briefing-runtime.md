@@ -1,5 +1,11 @@
 # Kurami Daily Briefing runtime
 
+The shared renderer serves the canonical fox favicon from
+`integrations/hermes/skills/kurami-ui-preview-language/assets/kurami-favicon.svg`
+at `/favicon.svg`. Daily, Cinema, staging previews, and the empty home state all
+reference this one asset, so add-ons must not ship their own page-specific
+favicon.
+
 The Daily Briefing runtime is Kurami's deterministic HTML publishing and
 interaction boundary. Content collection may use Hermes skills, but viewing a
 page, expanding a story, reacting, marking a story read, and archiving selected
