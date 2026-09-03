@@ -628,6 +628,9 @@ for (const marker of [
   "data-trend-key",
   "Последний уикенд",
   "С начала года",
+  "Мировой прокат — уикенд",
+  "Литва — с начала года",
+  "Нет надёжных данных",
   "data-cinema-edition=\"2026-08-29\"",
   "Kurami Cinema",
 ]) assert.match(cinemaHtml, new RegExp(marker));

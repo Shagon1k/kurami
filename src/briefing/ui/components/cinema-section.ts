@@ -110,11 +110,25 @@ function regionOrder(chart: CinemaChart): number {
   return 3;
 }
 
+const RANK_REGIONS = [
+  { id: "WORLD", label: "Мировой прокат" },
+  { id: "US/CA", label: "США" },
+  { id: "LT", label: "Литва" },
+] as const;
+
+function emptyRankTable(region: typeof RANK_REGIONS[number], period: CinemaChart["period"]): string {
+  const suffix = period === "weekend" ? "уикенд" : "с начала года";
+  return `<article class="cinema-rank cinema-rank--empty"><header><div><span>${escapeHtml(region.id)}</span><h3>${escapeHtml(region.label)} — ${suffix}</h3></div><span>${period === "ytd" ? "год" : "уикенд"}</span></header><div class="cinema-rank__empty"><strong>Нет надёжных данных</strong><p>Появятся автоматически, когда будет подключён проверенный источник.</p></div></article>`;
+}
+
 function rankGroup(charts: CinemaChart[], period: CinemaChart["period"]): string {
   const selected = charts.filter((chart) => chart.period === period).sort((left, right) => regionOrder(left) - regionOrder(right));
-  if (!selected.length) return "";
   const title = period === "weekend" ? "Последний уикенд" : "С начала года";
-  return `<section class="cinema-rank-group" data-rank-period="${period}"><header><h3>${title}</h3><span>${selected.length} ${selected.length === 1 ? "рынок" : "рынка"}</span></header><div class="cinema-ranks">${selected.map(rankTable).join("")}</div></section>`;
+  const cards = RANK_REGIONS.map((region) => {
+    const chart = selected.find((candidate) => candidate.region === region.id);
+    return chart ? rankTable(chart) : emptyRankTable(region, period);
+  });
+  return `<section class="cinema-rank-group" data-rank-period="${period}"><header><h3>${title}</h3><span>${selected.length} из ${RANK_REGIONS.length} рынков</span></header><div class="cinema-ranks">${cards.join("")}</div></section>`;
 }
 
 function boxOffice(envelope: CinemaEnvelope): string {

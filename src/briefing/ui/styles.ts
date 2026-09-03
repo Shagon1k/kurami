@@ -293,6 +293,10 @@ a { color: inherit; }
 .cinema-rank-group > header span { color: var(--muted); font: 400 .5625rem/1 var(--font-mono); text-transform: uppercase; }
 .cinema-ranks { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }
 .cinema-rank { min-width: 0; padding: 18px; background: var(--surface); border: 1px solid var(--line); border-radius: 2px; }
+.cinema-rank--empty { background: transparent; border-style: dashed; }
+.cinema-rank__empty { min-height: 128px; display: grid; align-content: center; gap: 7px; color: var(--muted); }
+.cinema-rank__empty strong { color: var(--ink); font-size: .75rem; }
+.cinema-rank__empty p { max-width: 28ch; margin: 0; font-size: .6875rem; line-height: 1.45; }
 .cinema-rank table { width: 100%; margin-top: 14px; border-collapse: collapse; font-size: .6875rem; }
 .cinema-rank th, .cinema-rank td { padding: 10px 5px; border-top: 1px solid var(--line); text-align: right; vertical-align: top; }
 .cinema-rank th:nth-child(2), .cinema-rank td:nth-child(2) { text-align: left; }
