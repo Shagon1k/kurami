@@ -198,6 +198,33 @@ assert.equal(youtube.length, 1);
 assert.equal(youtube[0]?.publisher, "Warner Bros.");
 assert.equal(youtube[0]?.durationSeconds, 151);
 
+// Composio's channel-list tool returns playlist items: the top-level `id` is
+// the playlist item, while the stable video ID lives in snippet.resourceId.
+const composioPlaylistItem = normalizeYouTubeCandidates({
+  response: {
+    data: {
+      items: [{
+        id: "VVVqbUpETTVwUktiVWxWSXpEWVlXYjZnLjA4TTFOVGVtS1NV",
+        kind: "youtube#playlistItem",
+        snippet: {
+          channelId: "UCjmJDM5pRKbUlVIzDYYWb6g",
+          title: "Practical Magic 2 — Official Trailer",
+          description: "Official trailer.",
+          publishedAt: "2026-08-28T20:00:15Z",
+          resourceId: { kind: "youtube#video", videoId: "08M1NTemKSU" },
+          thumbnails: { high: { url: "https://i.ytimg.com/vi/08M1NTemKSU/hqdefault.jpg" } },
+        },
+      }],
+    },
+    successful: true,
+  },
+  channels: config.sources.youtube.channels,
+  coverage: weekly,
+});
+assert.equal(composioPlaylistItem.length, 1);
+assert.equal(composioPlaylistItem[0]?.videoId, "08M1NTemKSU");
+assert.equal(composioPlaylistItem[0]?.sourceUrl, "https://www.youtube.com/watch?v=08M1NTemKSU");
+
 const rssSpecs = [
   ["rss-variety.xml", "Variety", "variety.com"],
   ["rss-deadline.xml", "Deadline", "deadline.com"],

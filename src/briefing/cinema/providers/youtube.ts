@@ -31,6 +31,14 @@ function videoId(value: unknown): string | null {
   return raw ? videoId(raw.videoId ?? raw.video_id ?? raw.id) : null;
 }
 
+function recordVideoId(raw: JsonRecord): string | null {
+  const details = snippet(raw);
+  return videoId(raw.videoId)
+    ?? videoId(raw.video_id)
+    ?? videoId(details.resourceId)
+    ?? videoId(raw.id);
+}
+
 function durationSeconds(value: unknown): number | undefined {
   if (typeof value === "number" && Number.isSafeInteger(value) && value > 0 && value <= 7_200) return value;
   const raw = text(value);
@@ -46,7 +54,7 @@ function candidateRecords(value: unknown, depth = 0): JsonRecord[] {
   if (Array.isArray(value)) return value.flatMap((entry) => candidateRecords(entry, depth + 1));
   const raw = record(value);
   if (!raw) return [];
-  if (videoId(raw.id ?? raw.videoId ?? raw.video_id)) return [raw];
+  if (recordVideoId(raw)) return [raw];
   return ["items", "results", "videos", "data", "response_data", "result"]
     .flatMap((key) => candidateRecords(raw[key], depth + 1));
 }
@@ -81,7 +89,7 @@ export function normalizeYouTubeCandidates(input: {
   const result: YouTubeTrailerCandidate[] = [];
   const seen = new Set<string>();
   for (const raw of candidateRecords(input.response)) {
-    const id = videoId(raw.id ?? raw.videoId ?? raw.video_id);
+    const id = recordVideoId(raw);
     const details = snippet(raw);
     const channelId = text(details.channelId ?? raw.channelId ?? raw.channel_id);
     const seed = channelId ? allowed.get(channelId) : undefined;
