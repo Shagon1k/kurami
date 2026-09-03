@@ -43,6 +43,26 @@ Source attribution links to `https://boxofficewatch.com/`. It is an independent
 aggregator whose about page identifies public industry sources; Kurami does not
 copy its prose, forecasts, graphics, or page design.
 
+## Kinopoisk weekend adapter
+
+| Purpose | Source |
+| --- | --- |
+| Worldwide weekend | `https://www.kinopoisk.ru/box/type/world/` |
+| US weekend fallback | `https://www.kinopoisk.ru/box/type/usa/` |
+
+Plain server requests are redirected to Yandex SSO. The collector therefore
+uses the configured `r.jina.ai` HTTPS reader only as a read-only transport. The
+adapter requires the reader payload to prove the original Kinopoisk URL, the
+market, the completed weekend, at least five ranked rows, stable Kinopoisk film
+IDs, USD gross, and the page's Box Office Mojo attribution. Responses are capped
+at 1 MiB and the weekend may be no more than fourteen days old.
+
+The adapter outputs the provider-agnostic `CinemaChart` model. The renderer,
+composer, and stored Cinema snapshot never parse Kinopoisk markup or depend on
+the reader transport. Replacing either source later therefore changes only the
+collector configuration and provider adapter. The US page is fetched only if
+the Box Office Watch → AP chain cannot supply a US weekend.
+
 ## AP US Top 10 fallback
 
 Discovery starts at `https://apnews.com/hub/movies`. The collector considers a
@@ -91,8 +111,9 @@ title cannot be inferred from surrounding copy.
 
 For those already selected cards only, the collector reads the matching
 cinema.lt detail page and parses its Schema.org `Movie` JSON-LD. It may preserve
-genre, runtime, age rating, up to three directors, and up to four principal
-cast names. Failure of one detail read leaves the verified premiere intact and
+English-normalized genre, runtime, age rating, up to three directors, and up to
+four principal cast names. Unknown localized genre labels are omitted rather
+than leaking a mixed-language UI. Failure of one detail read leaves the verified premiere intact and
 makes the section partial; it never triggers a search fallback. Production
 budget is not published by this source and is therefore omitted.
 
@@ -155,7 +176,7 @@ Netflix's verified main channel is used because a separate currently verified
 qualify. Seed IDs are configuration data, not a license to accept every upload;
 the trailer classifier, exact publication window, and duplicate rules still
 apply. Final selection has a hard three-item cap per channel, even when that
-means publishing fewer than eight trailers.
+means publishing fewer than nine trailers.
 
 ## Weekly cinema-news feeds
 

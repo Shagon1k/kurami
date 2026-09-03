@@ -23,6 +23,11 @@ import { parseCinemaLtMovieDetails, parseCinemaLtPremieres, type CinemaLtPremier
 import { parseCinemaRss, type CinemaNewsCandidate } from "./providers/rss.ts";
 import { normalizeLkcSheetRows } from "./providers/lkc.ts";
 import { discoverLkcWeekendWorkbook, parseLkcWorkbook } from "./providers/lkc-xlsx.ts";
+import {
+  kinopoiskReaderUrl,
+  parseKinopoiskWeekend,
+  type KinopoiskWeekendMarket,
+} from "./providers/kinopoisk.ts";
 import { normalizeYouTubeCandidates, type YouTubeTrailerCandidate } from "./providers/youtube.ts";
 import { selectNewsCandidates, selectTrailerCandidates, type SelectedNewsCandidate, type SelectedTrailerCandidate } from "./selection.ts";
 import { cinemaPremiereCoverage, cinemaWeeklyCoverage } from "./time-windows.ts";
@@ -239,6 +244,54 @@ async function collectBoxOffice(options: CinemaCollectorOptions, capturedAt: str
   }
 }
 
+async function collectKinopoiskWeekend(
+  options: CinemaCollectorOptions,
+  capturedAt: string,
+  market: KinopoiskWeekendMarket,
+): Promise<{
+  section: Pick<CinemaBoxOfficeSection, "state" | "charts" | "provenance" | "diagnostics">;
+  sources: CinemaSourceReference[];
+}> {
+  const sourceUrl = market === "world"
+    ? options.config.sources.kinopoisk.worldWeekendUrl
+    : options.config.sources.kinopoisk.usaWeekendUrl;
+  const transportUrl = kinopoiskReaderUrl(sourceUrl, options.config.sources.kinopoisk.readerBaseUrl);
+  const response = await fetchText(transportUrl, {
+    fetchImpl: options.fetchImpl,
+    retry: options.retry,
+    maximumBytes: 1_024 * 1_024,
+    accept: "text/plain, text/markdown;q=0.9",
+  });
+  if (!response.ok) return {
+    section: { state: "failed", charts: [], provenance: [], diagnostics: [issueText(`kinopoisk-${market}`, response.issue)] },
+    sources: [],
+  };
+  try {
+    const id = sourceId(`kinopoisk-${market}`, sourceUrl);
+    const normalized = parseKinopoiskWeekend({ markdown: response.value, sourceUrl, sourceId: id, market });
+    const ageDays = (Date.parse(`${options.localDate}T12:00:00Z`) - Date.parse(`${normalized.weekendEnd}T12:00:00Z`)) / 86_400_000;
+    if (ageDays < 0 || ageDays > 14) throw new Error(`Kinopoisk ${market} weekend is stale or future-dated`);
+    return {
+      section: { state: "ready", charts: [normalized.chart], provenance: [id], diagnostics: [] },
+      sources: [{
+        id,
+        provider: "Kinopoisk",
+        url: sourceUrl,
+        fetchedAt: capturedAt,
+        region: market === "world" ? "WORLD" : "US/CA",
+        period: normalized.weekendEnd,
+        evidence: "Public Kinopoisk weekend chart via bounded reader transport; upstream data credited to Box Office Mojo",
+      }],
+    };
+  } catch (error) {
+    const issue = providerIssue(error, "kinopoisk_box_office_schema");
+    return {
+      section: { state: "failed", charts: [], provenance: [], diagnostics: [issueText(`kinopoisk-${market}`, issue)] },
+      sources: [],
+    };
+  }
+}
+
 async function collectLithuanianBoxOffice(options: CinemaCollectorOptions, capturedAt: string): Promise<{
   section: Pick<CinemaBoxOfficeSection, "state" | "charts" | "provenance" | "diagnostics">;
   sources: CinemaSourceReference[];
@@ -450,23 +503,54 @@ export async function collectCinemaCandidate(options: CinemaCollectorOptions): P
   const capturedAt = (options.now ?? (() => new Date()))().toISOString();
   const weekly = cinemaWeeklyCoverage(options.localDate, options.config.timeZone);
   const premieresCoverage = cinemaPremiereCoverage(options.localDate, options.config.timeZone);
-  const [boxOffice, lithuanianBoxOffice, premieres, news, trailers] = await Promise.all([
+  const [boxOffice, worldBoxOffice, lithuanianBoxOffice, premieres, news, trailers] = await Promise.all([
     collectBoxOffice(options, capturedAt),
+    collectKinopoiskWeekend(options, capturedAt, "world"),
     collectLithuanianBoxOffice(options, capturedAt),
     collectPremieres(options, premieresCoverage, capturedAt),
     collectNews(options, weekly, capturedAt),
     collectTrailers(options, weekly, capturedAt),
   ]);
+  const hasUsWeekend = boxOffice.section.charts.some((chart) => chart.region === "US/CA" && chart.period === "weekend");
+  const usaFallback = hasUsWeekend ? null : await collectKinopoiskWeekend(options, capturedAt, "usa");
+  const supplementalCharts = [
+    ...worldBoxOffice.section.charts,
+    ...(usaFallback?.section.charts ?? []),
+    ...lithuanianBoxOffice.section.charts,
+  ];
+  const mergedCharts = [...boxOffice.section.charts, ...supplementalCharts].filter((chart, index, charts) => (
+    charts.findIndex((candidate) => candidate.region === chart.region && candidate.period === chart.period) === index
+  ));
+  const baseState = boxOffice.section.state === "failed" && usaFallback?.section.charts.length ? "partial" : boxOffice.section.state;
+  const boxOfficeStates = [baseState, worldBoxOffice.section.state, lithuanianBoxOffice.section.state];
   const mergedBoxOffice: CinemaBoxOfficeSection = {
     ...boxOffice.section,
-    state: boxOffice.section.state === "ready" && lithuanianBoxOffice.section.state === "ready"
+    state: boxOfficeStates.every((state) => state === "ready")
       ? "ready"
-      : (boxOffice.section.charts.length || lithuanianBoxOffice.section.charts.length) ? "partial" : "failed",
-    charts: [...boxOffice.section.charts, ...lithuanianBoxOffice.section.charts],
-    provenance: [...boxOffice.section.provenance, ...lithuanianBoxOffice.section.provenance],
-    diagnostics: [...(boxOffice.section.diagnostics ?? []), ...(lithuanianBoxOffice.section.diagnostics ?? [])],
+      : mergedCharts.length ? "partial" : "failed",
+    charts: mergedCharts,
+    provenance: [
+      ...boxOffice.section.provenance,
+      ...worldBoxOffice.section.provenance,
+      ...(usaFallback?.section.provenance ?? []),
+      ...lithuanianBoxOffice.section.provenance,
+    ],
+    diagnostics: [
+      ...(boxOffice.section.diagnostics ?? []),
+      ...(worldBoxOffice.section.diagnostics ?? []),
+      ...(usaFallback?.section.diagnostics ?? []),
+      ...(lithuanianBoxOffice.section.diagnostics ?? []),
+    ],
   };
-  const provenance = [...boxOffice.sources, ...lithuanianBoxOffice.sources, ...premieres.sources, ...news.sources, ...trailers.sources];
+  const provenance = [
+    ...boxOffice.sources,
+    ...worldBoxOffice.sources,
+    ...(usaFallback?.sources ?? []),
+    ...lithuanianBoxOffice.sources,
+    ...premieres.sources,
+    ...news.sources,
+    ...trailers.sources,
+  ];
   const diagnostics = [
     ...(mergedBoxOffice.diagnostics ?? []),
     ...premieres.section.diagnostics,

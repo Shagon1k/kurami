@@ -413,7 +413,8 @@ function globalPulse(value: unknown, label: string): CinemaGlobalPulse {
 
 function boxOffice(value: unknown): CinemaBoxOfficeSection {
   const raw = object(value, "data.boxOffice");
-  const charts = list(raw.charts, "data.boxOffice.charts", 4, chart);
+  // Two periods across WORLD, US/CA and LT are the complete deterministic UI grid.
+  const charts = list(raw.charts, "data.boxOffice.charts", 6, chart);
   const signals = list(raw.signals, "data.boxOffice.signals", 4, signal);
   const trend = list(raw.trend, "data.boxOffice.trend", 5, trendSeries);
   const pulse = list(raw.globalPulse, "data.boxOffice.globalPulse", 5, globalPulse);
@@ -555,7 +556,7 @@ export function parseCinemaEnvelope(value: unknown): CinemaEnvelope {
         news: coverage(rawCoverage.news, "data.coverage.news"),
       },
       boxOffice: boxOffice(data.boxOffice),
-      trailers: itemSection(data.trailers, "data.trailers", 8, trailer),
+      trailers: itemSection(data.trailers, "data.trailers", 9, trailer),
       premieres: itemSection(data.premieres, "data.premieres", 12, premiere),
       news: itemSection(data.news, "data.news", 15, newsStory),
       notes: list(data.notes, "data.notes", 12, note),

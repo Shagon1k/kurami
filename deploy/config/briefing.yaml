@@ -41,7 +41,7 @@ cinema:
   timezone: Europe/Vilnius
   language: ru
   limits:
-    trailers: 8
+    trailers: 9
     premieres: 12
     news: 15
     provider_candidates: 100
@@ -49,6 +49,10 @@ cinema:
     box_office_watch:
       weekend_url: https://boxofficewatch.com/data/weekend.json
       yearly_url: https://boxofficewatch.com/data/yearly.json
+    kinopoisk:
+      world_weekend_url: https://www.kinopoisk.ru/box/type/world/
+      usa_weekend_url: https://www.kinopoisk.ru/box/type/usa/
+      reader_base_url: https://r.jina.ai/https://www.kinopoisk.ru
     ap_movies:
       discovery_url: https://apnews.com/hub/movies
     lkc:

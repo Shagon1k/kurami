@@ -49,6 +49,7 @@ export type CinemaRuntimeConfig = {
   };
   sources: {
     boxOfficeWatch: { weekendUrl: string; yearlyUrl: string };
+    kinopoisk: { worldWeekendUrl: string; usaWeekendUrl: string; readerBaseUrl: string };
     apMovies: { discoveryUrl: string };
     lkc: { reportsUrl: string };
     cinemaLt: { repertoireUrl: string };
@@ -302,6 +303,7 @@ export async function loadCinemaRuntimeConfig(
   const limits = record(cinema.limits, "cinema.limits");
   const sources = record(cinema.sources, "cinema.sources");
   const boxOfficeWatch = record(sources.box_office_watch, "cinema.sources.box_office_watch");
+  const kinopoisk = record(sources.kinopoisk, "cinema.sources.kinopoisk");
   const apMovies = record(sources.ap_movies, "cinema.sources.ap_movies");
   const lkc = record(sources.lkc, "cinema.sources.lkc");
   const cinemaLt = record(sources.cinema_lt, "cinema.sources.cinema_lt");
@@ -374,6 +376,29 @@ export async function loadCinemaRuntimeConfig(
           "cinema.sources.box_office_watch.yearly_url",
           "boxofficewatch.com",
         ),
+      },
+      kinopoisk: {
+        worldWeekendUrl: httpsUrl(
+          kinopoisk.world_weekend_url,
+          "cinema.sources.kinopoisk.world_weekend_url",
+          "www.kinopoisk.ru",
+        ),
+        usaWeekendUrl: httpsUrl(
+          kinopoisk.usa_weekend_url,
+          "cinema.sources.kinopoisk.usa_weekend_url",
+          "www.kinopoisk.ru",
+        ),
+        readerBaseUrl: (() => {
+          const value = httpsUrl(
+            kinopoisk.reader_base_url,
+            "cinema.sources.kinopoisk.reader_base_url",
+            "r.jina.ai",
+          ).replace(/\/$/u, "");
+          if (!new URL(value).pathname.startsWith("/https://www.kinopoisk.ru")) {
+            throw new Error("Invalid briefing config: cinema.sources.kinopoisk.reader_base_url must target www.kinopoisk.ru");
+          }
+          return value;
+        })(),
       },
       apMovies: {
         discoveryUrl: httpsUrl(

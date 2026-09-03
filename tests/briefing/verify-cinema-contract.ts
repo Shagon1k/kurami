@@ -7,6 +7,7 @@ import { apArticlePublishedAt, parseApTopTen } from "../../src/briefing/cinema/p
 import { normalizeBoxOfficeWatch } from "../../src/briefing/cinema/providers/box-office-watch.ts";
 import { parseCinemaLtMovieDetails, parseCinemaLtPremieres } from "../../src/briefing/cinema/providers/cinema-lt.ts";
 import { normalizeLkcSheetRows } from "../../src/briefing/cinema/providers/lkc.ts";
+import { kinopoiskReaderUrl, parseKinopoiskWeekend } from "../../src/briefing/cinema/providers/kinopoisk.ts";
 import { parseCinemaRss } from "../../src/briefing/cinema/providers/rss.ts";
 import { normalizeTmdbMovieResults } from "../../src/briefing/cinema/providers/tmdb.ts";
 import { normalizeYouTubeCandidates } from "../../src/briefing/cinema/providers/youtube.ts";
@@ -117,11 +118,12 @@ const config = await loadCinemaRuntimeConfig(
 assert.equal(config.enabled, false);
 assert.equal(config.market, "LT");
 assert.equal(config.timeZone, "Europe/Vilnius");
-assert.equal(config.limits.trailers, 8);
+assert.equal(config.limits.trailers, 9);
 assert.equal(config.limits.news, 15);
 assert.equal(config.sources.youtube.channels.length, 15);
 assert.equal(config.sources.youtube.channels.filter((channel) => channel.role === "discovery").length, 1);
 assert.equal(config.sources.youtube.channels.find((channel) => channel.key === "warner-bros")?.id, "UCjmJDM5pRKbUlVIzDYYWb6g");
+assert.equal(kinopoiskReaderUrl(config.sources.kinopoisk.worldWeekendUrl, config.sources.kinopoisk.readerBaseUrl).toString(), "https://r.jina.ai/https://www.kinopoisk.ru/box/type/world/");
 
 const weekly = cinemaWeeklyCoverage("2026-08-29", config.timeZone);
 assert.deepEqual(weekly, {
@@ -190,10 +192,33 @@ assert.equal(cinemaLt.length, 1);
 assert.equal(cinemaLt[0]?.originalTitle, "Future Film");
 assert.equal(cinemaLt[0]?.releaseDate, "2026-09-04");
 const cinemaLtDetails = parseCinemaLtMovieDetails(await fixture("cinema-lt-detail.html"));
+assert.deepEqual(cinemaLtDetails.genres, ["Drama", "Adventure"]);
 assert.deepEqual(cinemaLtDetails.directors, ["Greta Example"]);
 assert.deepEqual(cinemaLtDetails.cast, ["Alex Actor", "Mira Star", "Jonas Player", "Lina Hero"]);
 assert.equal(cinemaLtDetails.runtimeMinutes, 127);
 assert.equal(cinemaLtDetails.ageRating, "N-13");
+
+const kinopoiskWorld = parseKinopoiskWeekend({
+  markdown: await fixture("kinopoisk-world.md"),
+  sourceUrl: config.sources.kinopoisk.worldWeekendUrl,
+  sourceId: "source:kinopoisk-world",
+  market: "world",
+});
+assert.equal(kinopoiskWorld.weekendEnd, "2026-08-23");
+assert.equal(kinopoiskWorld.chart.id, "world-weekend");
+assert.equal(kinopoiskWorld.chart.entries.length, 8);
+assert.equal(kinopoiskWorld.chart.entries[0]?.title, "The Odyssey");
+assert.equal(kinopoiskWorld.chart.entries[0]?.gross.amount, 48_698_000);
+assert.equal(kinopoiskWorld.chart.entries[0]?.changePercent, -28);
+const kinopoiskUsa = parseKinopoiskWeekend({
+  markdown: await fixture("kinopoisk-usa.md"),
+  sourceUrl: config.sources.kinopoisk.usaWeekendUrl,
+  sourceId: "source:kinopoisk-usa",
+  market: "usa",
+});
+assert.equal(kinopoiskUsa.chart.entries.length, 5);
+assert.equal(kinopoiskUsa.chart.entries[0]?.title, "Spider-Man: Brand New Day");
+assert.equal(kinopoiskUsa.chart.entries[0]?.gross.amount, 22_513_101);
 
 const youtube = normalizeYouTubeCandidates({
   response: JSON.parse(await fixture("youtube.json")),
@@ -261,7 +286,7 @@ const selectedTrailers = selectTrailerCandidates([
     title: "UNDERCOVER BLUES (1993) | Official Trailer",
     sourceUrl: "https://www.youtube.com/watch?v=Archive1993",
   },
-], 8);
+], 9);
 assert.equal(selectedTrailers.filter((item) => item.filmKey === "street fighter").length, 1);
 assert.equal(selectedTrailers.some((item) => item.videoId === "PromoCopy01"), false);
 assert.equal(selectedTrailers.some((item) => item.videoId === "Archive1993"), false);
@@ -273,9 +298,9 @@ const prolificPublisher = prolificTitles.map((title, index) => ({
   title: `${title} — Official Trailer`,
   sourceUrl: `https://www.youtube.com/watch?v=Prolific${String(index).padStart(3, "0")}`,
 }));
-assert.equal(selectTrailerCandidates(prolificPublisher, 8).length, 3);
+assert.equal(selectTrailerCandidates(prolificPublisher, 9).length, 3);
 const mixedPublishers = prolificPublisher.concat(
-  ["North Star", "Open Water", "Stone House", "Night Train", "Bright Field"].map((title, index) => ({
+  ["North Star", "Open Water", "Stone House", "Night Train", "Bright Field", "Quiet River"].map((title, index) => ({
     ...youtube[0]!,
     id: `youtube:mixed${index}`,
     videoId: `Mixed${String(index).padStart(6, "0")}`,
@@ -285,8 +310,8 @@ const mixedPublishers = prolificPublisher.concat(
     sourceUrl: `https://www.youtube.com/watch?v=Mixed${String(index).padStart(6, "0")}`,
   })),
 );
-const mixedSelection = selectTrailerCandidates(mixedPublishers, 8);
-assert.equal(mixedSelection.length, 8);
+const mixedSelection = selectTrailerCandidates(mixedPublishers, 9);
+assert.equal(mixedSelection.length, 9);
 assert.equal(Math.max(...[...new Set(mixedSelection.map((item) => item.publisherChannelId))].map(
   (publisher) => mixedSelection.filter((item) => item.publisherChannelId === publisher).length,
 )), 3);
@@ -349,6 +374,14 @@ const rssByUrl = new Map<string, string>([
   [config.sources.weeklyNews.hollywoodReporter, await fixture("rss-thr.xml")],
   [config.sources.weeklyNews.indiewire, await fixture("rss-indiewire.xml")],
 ]);
+const kinopoiskWorldTransport = kinopoiskReaderUrl(
+  config.sources.kinopoisk.worldWeekendUrl,
+  config.sources.kinopoisk.readerBaseUrl,
+).toString();
+const kinopoiskUsaTransport = kinopoiskReaderUrl(
+  config.sources.kinopoisk.usaWeekendUrl,
+  config.sources.kinopoisk.readerBaseUrl,
+).toString();
 const collectorFetch: typeof fetch = async (input) => {
   const url = String(input);
   if (url === config.sources.boxOfficeWatch.weekendUrl) {
@@ -357,6 +390,8 @@ const collectorFetch: typeof fetch = async (input) => {
   if (url === config.sources.boxOfficeWatch.yearlyUrl) {
     return new Response(JSON.stringify(boxOfficeFixture.yearly), { status: 200 });
   }
+  if (url === kinopoiskWorldTransport) return new Response(await fixture("kinopoisk-world.md"), { status: 200 });
+  if (url === kinopoiskUsaTransport) return new Response(await fixture("kinopoisk-usa.md"), { status: 200 });
   if (url === config.sources.cinemaLt.repertoireUrl) {
     return new Response(await fixture("cinema-lt.html"), { status: 200 });
   }
@@ -389,6 +424,7 @@ const collected = await collectCinemaCandidate({
   now: () => new Date("2026-08-29T06:05:00Z"),
 });
 assert.equal(collected.boxOffice.state, "ready");
+assert.equal(collected.boxOffice.charts.find((chart) => chart.id === "world-weekend")?.entries.length, 8);
 assert.equal(collected.boxOffice.charts.find((chart) => chart.id === "lt-weekend")?.entries.length, 2);
 assert.equal(collected.trailers.state, "ready");
 assert.equal(collected.trailers.candidates.length, 1);
@@ -421,6 +457,31 @@ assert.equal(fallbackCollected.boxOffice.state, "partial");
 assert.equal(fallbackCollected.boxOffice.charts.find((chart) => chart.id === "us-weekend")?.entries.length, 10);
 assert.equal(fallbackCollected.provenance.some((source) => source.provider === "Associated Press"), true);
 assert.equal(fallbackCollected.boxOffice.trend.length, 0);
+
+const kinopoiskFallbackCollected = await collectCinemaCandidate({
+  localDate: "2026-09-05",
+  config,
+  fetchImpl: async (input) => {
+    const url = String(input);
+    if (url === config.sources.boxOfficeWatch.weekendUrl || url === config.sources.boxOfficeWatch.yearlyUrl
+      || url === config.sources.apMovies.discoveryUrl) {
+      return new Response("unavailable", { status: 503 });
+    }
+    if (url === kinopoiskWorldTransport) {
+      const currentWorld = (await fixture("kinopoisk-world.md")).replace("№34, 21—23 августа", "№35, 28—30 августа");
+      return new Response(currentWorld, { status: 200 });
+    }
+    if (url === kinopoiskUsaTransport) return new Response(await fixture("kinopoisk-usa.md"), { status: 200 });
+    return collectorFetch(input);
+  },
+  caller: async () => JSON.parse(await fixture("youtube.json")),
+  retry: { attempts: 1, timeoutMs: 1_000 },
+  now: () => new Date("2026-09-05T06:05:00Z"),
+});
+assert.equal(kinopoiskFallbackCollected.boxOffice.state, "partial");
+assert.equal(kinopoiskFallbackCollected.boxOffice.charts.find((chart) => chart.id === "us-weekend")?.entries[0]?.title, "Spider-Man: Brand New Day");
+assert.equal(kinopoiskFallbackCollected.provenance.filter((source) => source.provider === "Kinopoisk").length, 2);
+assert.equal(kinopoiskFallbackCollected.boxOffice.trend.length, 0);
 
 const editorialDraft = {
   version: 1,
@@ -655,7 +716,7 @@ for (const marker of [
   "Kurami Cinema",
 ]) assert.match(cinemaHtml, new RegExp(marker));
 assert.match(cinemaHtml, /\.cinema-trend__series circle \{ fill: var\(--trend-color\)/u);
-assert.match(cinemaHtml, /<b>Бюджет<\/b>/u);
+assert.doesNotMatch(cinemaHtml, /<b>Бюджет<\/b>/u);
 assert.doesNotMatch(cinemaHtml, /Kurami Daily Briefing/u);
 const prolificEnvelope = parseCinemaEnvelope({
   ...rawEnvelope,
@@ -690,7 +751,7 @@ const mixedEnvelope = parseCinemaEnvelope({
   },
 });
 const mixedHtml = renderBriefingPage(cinemaEnvelopeToBriefingPayload(mixedEnvelope));
-assert.equal((mixedHtml.match(/<a class="cinema-trailer"/gu) ?? []).length, 8);
+assert.equal((mixedHtml.match(/<a class="cinema-trailer"/gu) ?? []).length, 9);
 if (process.env.CINEMA_FIXTURE_OUTPUT) {
   await writeFile(resolve(process.env.CINEMA_FIXTURE_OUTPUT), cinemaHtml, "utf8");
 }
@@ -783,7 +844,7 @@ process.stdout.write(`${JSON.stringify({
   ok: true,
   cinemaDisabledByDefault: true,
   verifiedYouTubeSeeds: config.sources.youtube.channels.length,
-  deterministicProviders: 9,
+  deterministicProviders: 10,
   dstWindowHours: 169,
   promotionThresholdCovered: true,
   failedPromotionPreservesCurrent: true,
@@ -791,5 +852,6 @@ process.stdout.write(`${JSON.stringify({
   rendererFailureIsolated: true,
   editionAndSnapshotPromoteAtomically: true,
   apFallbackCovered: true,
+  kinopoiskFallbackCovered: true,
   operationalCliCovered: true,
 })}\n`);

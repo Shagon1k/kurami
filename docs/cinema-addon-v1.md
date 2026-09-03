@@ -209,12 +209,13 @@ discovered from
 The adapter preserves weekend dates, gross, admissions, show count, week in
 release, cumulative gross, release date, and distributor when present.
 
-Worldwide weekend reporting is not represented as a fabricated complete
-global chart. Box Office Watch exposes worldwide YTD, but its weekend dataset
-is domestic; LKC supplies Lithuania. Keep an optional `world-weekend` provider
-slot and omit that card until a stable source can prove comparable global
-weekend totals. Select three to five verified global movements or milestones
-from fresh Deadline/Variety international box-office reporting when available.
+Worldwide weekend reporting uses Kinopoisk's public worldwide chart, whose page
+credits Box Office Mojo as the upstream data source. Direct server requests are
+blocked by Yandex SSO, so collection uses a bounded replaceable reader transport;
+the original Kinopoisk URL remains the source identity. A strict adapter emits
+the same canonical `CinemaChart` contract as every other box-office provider.
+The Kinopoisk USA chart is a fallback only when both Box Office Watch and AP
+cannot produce the US weekend; it never overrides a healthy primary result.
 Every numeric claim stores its source URL, source date, territory, period, and
 evidence text. AI may write the short Russian explanation but cannot author
 the number.
@@ -226,8 +227,7 @@ The section contains:
 - one featured winner of the latest completed US weekend;
 - four computed signals: largest debut, best hold, sharpest drop, and largest
   rank movement or material estimate-to-actual surprise;
-- a separate latest-weekend row ordered World, US, Lithuania (only markets with
-  proved charts render; v1 therefore renders US and Lithuania);
+- a separate latest-weekend row ordered World, US, Lithuania;
 - a separate YTD row ordered World, US, Lithuania (v1 renders World and US);
 - Top 5 with an explicit expansion to Top 10 in every available chart;
 - three to five verified global pulse items when available;
@@ -296,7 +296,7 @@ other explicitly verified trailer aggregators, may find omissions but never
 out-rank a matching official upload. The previously proposed Movieclips source
 must not be configured without first resolving and verifying the exact channel.
 
-Select at most eight fresh trailers published inside the seven-day coverage
+Select at most nine fresh trailers published inside the seven-day coverage
 window. The half-open window is `[previous Saturday 09:00, current Saturday
 09:00)` in Europe/Vilnius; compare instants after resolving that timezone so a
 DST transition does not change the intended local boundary.
@@ -310,7 +310,7 @@ DST transition does not change the intended local boundary.
 6. rank the remaining candidates by official provenance, freshness, material
    release significance, novelty, and bounded diversity;
 7. apply a hard maximum of three selected trailers per publisher channel;
-8. do not pad the section when fewer than eight qualified items exist.
+8. do not pad the section when fewer than nine qualified items exist.
 
 The page never downloads or embeds full video files. It displays cached safe
 thumbnails and opens the supplied YouTube destination through a clear external
@@ -342,8 +342,8 @@ Show every relevant verified premiere up to twelve items. Preserve:
 - age rating when available;
 - director and up to four principal cast names from cinema.lt's Schema.org
   Movie payload;
-- verified production budget when a future enrichment provider supplies a
-  non-zero sourced value; omit the field otherwise;
+- no production-budget row in v1; the current providers cannot fill it
+  consistently enough to justify a mostly-empty UI field;
 - source destination;
 - TMDB identity and metadata provenance when matched.
 
@@ -488,7 +488,8 @@ the stored payload.
   for that date.
 - A Box Office Watch network, HTTP, schema, or freshness failure automatically
   attempts the explicit AP fallback for US Top 10; provenance identifies the
-  fallback. If AP also fails, the US subsection is `failed` and the remaining
+  fallback. If AP also fails, the Kinopoisk USA adapter is the final bounded
+  fallback. If all three fail, the US subsection is `failed` and the remaining
   box-office subsections continue independently.
 - Missing global pulse stories do not invalidate US or Lithuanian charts.
 - Missing TMDB enrichment does not invalidate a verified local premiere; it
@@ -527,8 +528,8 @@ Watch, LKC, cinema.lt, and the RSS sources require no credential in v1. The
 token must never enter tracked configuration, logs, fixtures, generated HTML,
 or model-authored artifacts.
 
-Box Office Watch, AP, LKC, cinema.lt, RSS publishers, YouTube, and TMDB are
-external dependencies. Every adapter uses bounded timeouts, response-size
+Box Office Watch, Kinopoisk through its reader transport, AP, LKC, cinema.lt,
+RSS publishers, YouTube, and TMDB are external dependencies. Every adapter uses bounded timeouts, response-size
 limits, retries appropriate to idempotent reads, descriptive user-agent
 identification where applicable, and stored fixtures for deterministic tests.
 Do not add a paid web-search dependency for v1.
@@ -546,9 +547,10 @@ Cinema v1 is ready for production only when all of the following pass:
    publishes and unrelated Cinema sections retain truthful state.
 4. A total Cinema failure leaves the previous `/cinema` content digest and
    coverage date unchanged and omits the new Saturday Daily preview.
-5. Fixture tests cover Box Office Watch estimates/actuals/archive, AP fallback,
-   LKC XLSX, cinema.lt dates, YouTube duplicate trailers, RSS duplicate news,
-   missing TMDB enrichment, and schema drift.
+5. Fixture tests cover Box Office Watch estimates/actuals/archive, AP and
+   Kinopoisk fallbacks, Kinopoisk worldwide weekend, LKC XLSX, cinema.lt dates,
+   YouTube duplicate trailers, RSS duplicate news, missing TMDB enrichment,
+   and schema drift.
 6. The box-office signals and six-week Top 5 chart are reproducible from the
    same fixture input, including a one-point debut and a missing pre-release
    history.

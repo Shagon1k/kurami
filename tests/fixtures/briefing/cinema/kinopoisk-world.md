@@ -1,0 +1,6 @@
+Title: Кассовые сборы уик-энда: Мир
+
+URL Source: https://www.kinopoisk.ru/box/type/world/
+
+Markdown Content:
+# Cборы уик-энда: Мир /[2026 год](https://www.kinopoisk.ru/box/year/2026/type/world/cur/USD/) уик-энд №34, 21—23 августа← [14.08 – 16.08](https://www.kinopoisk.ru/box/weekend/2026-08-14/type/world/cur/USD/) **недели****сборы,$****все сборы****территории** 1.[Одиссея](https://www.kinopoisk.ru/film/6385370/) The Odyssey 7 48 698 000 ↓28%988 783 000**84** 2.[На краю Оук-стрит](https://www.kinopoisk.ru/film/5287148/) The End of Oak Street 3 6 000 000 ↓46%59 000 000**81** +3 3.[Человек-паук: Новый день](https://www.kinopoisk.ru/film/5494049/) Spider-Man: Brand New Day 5 44 000 000 ↓37%1 441 000 000**68** 4.[Астрал 6: Они уже здесь](https://www.kinopoisk.ru/film/7104903/) Insidious: Out of the Further 2 18 700 000 ↓46%66 600 000**67** +2 5.[Щенячий патруль: Динофильм](https://www.kinopoisk.ru/film/5610120/) PAW Patrol: The Dino Movie 4 7 900 000 ↓31%81 300 000**60** 6.[Собачьи звёзды](https://www.kinopoisk.ru/film/6548088/) The Dog Stars 1 11 300 000 11 300 000**50** 7.[Хитрый койот](https://www.kinopoisk.ru/film/572477/) Coyote vs. Acme 1 8 420 300 8 446 300**31** 8.[Яд: Сказка для взрослых](https://www.kinopoisk.ru/film/11651299/) Toxic: A Fairytale for Grown-Ups 1 11 040 000 29 200 000**19** © boxofficemojo.com

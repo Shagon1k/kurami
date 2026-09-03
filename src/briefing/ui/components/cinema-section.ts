@@ -168,7 +168,6 @@ function premiereFacts(item: CinemaEnvelope["data"]["premieres"]["items"][number
     item.directors?.length ? `<span><b>Режиссёр</b>${escapeHtml(item.directors.join(", "))}</span>` : "",
     item.cast?.length ? `<span><b>В ролях</b>${escapeHtml(item.cast.join(", "))}</span>` : "",
     item.runtimeMinutes ? `<span><b>Хронометраж</b>${Math.floor(item.runtimeMinutes / 60)} ч ${item.runtimeMinutes % 60} мин</span>` : "",
-    `<span><b>Бюджет</b>${item.budget ? money(item.budget.amount, item.budget.currency) : "не опубликован"}</span>`,
   ].filter(Boolean);
   return facts.length ? `<span class="cinema-premiere__facts">${facts.join("")}</span>` : "";
 }

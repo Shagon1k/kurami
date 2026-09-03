@@ -65,6 +65,64 @@ function stringList(value: unknown, maximum: number): string[] | undefined {
   return result.length ? [...new Set(result)] : undefined;
 }
 
+const ENGLISH_GENRES: ReadonlyMap<string, string> = new Map([
+  ["action", "Action"],
+  ["adventure", "Adventure"],
+  ["animation", "Animation"],
+  ["biography", "Biography"],
+  ["comedy", "Comedy"],
+  ["crime", "Crime"],
+  ["documentary", "Documentary"],
+  ["drama", "Drama"],
+  ["family", "Family"],
+  ["fantasy", "Fantasy"],
+  ["history", "History"],
+  ["horror", "Horror"],
+  ["music", "Music"],
+  ["musical", "Musical"],
+  ["mystery", "Mystery"],
+  ["romance", "Romance"],
+  ["science fiction", "Science Fiction"],
+  ["thriller", "Thriller"],
+  ["war", "War"],
+] as const);
+
+const LITHUANIAN_GENRES: ReadonlyMap<string, string> = new Map([
+  ["animaciniai", "Animation"],
+  ["biografiniai", "Biography"],
+  ["dokumentiniai", "Documentary"],
+  ["dramos", "Drama"],
+  ["fantastiniai", "Fantasy"],
+  ["istoriniai", "History"],
+  ["kariniai", "War"],
+  ["komedijos", "Comedy"],
+  ["kriminaliniai", "Crime"],
+  ["maginė fantastika", "Fantasy"],
+  ["mokslinė fantastika", "Science Fiction"],
+  ["muzikiniai", "Music"],
+  ["mistiniai", "Mystery"],
+  ["nuotykių", "Adventure"],
+  ["romantiniai", "Romance"],
+  ["siaubo", "Horror"],
+  ["šeimai", "Family"],
+  ["trileriai", "Thriller"],
+  ["veiksmo", "Action"],
+] as const);
+
+/**
+ * cinema.lt publishes localized genre labels. The UI contract is English-only,
+ * so unknown localized values are omitted instead of leaking mixed-language UI.
+ */
+export function normalizeCinemaLtGenres(value: unknown): string[] | undefined {
+  const raw = stringList(value, 8) ?? [];
+  const normalized = raw.flatMap((genre) => {
+    const key = genre.normalize("NFKC").trim().toLocaleLowerCase("lt-LT");
+    const mapped = LITHUANIAN_GENRES.get(key) ?? ENGLISH_GENRES.get(key);
+    return mapped ? [mapped] : [];
+  }).slice(0, 5);
+  return normalized.length ? [...new Set(normalized)] : undefined;
+}
+
 /** Extracts the stable Schema.org Movie payload already published by cinema.lt. */
 export function parseCinemaLtMovieDetails(html: string): CinemaLtMovieDetails {
   if (Buffer.byteLength(html, "utf8") > 2 * 1_024 * 1_024) throw new Error("cinema.lt detail response exceeds 2 MiB");
@@ -86,7 +144,7 @@ export function parseCinemaLtMovieDetails(html: string): CinemaLtMovieDetails {
     const runtimeMinutes = durationMatch
       ? Number(durationMatch[1] ?? 0) * 60 + Number(durationMatch[2] ?? 0)
       : 0;
-    const genres = stringList(raw.genre, 5);
+    const genres = normalizeCinemaLtGenres(raw.genre);
     const directors = stringList(raw.director, 3);
     const cast = stringList(raw.actor, 4);
     const ageRating = typeof raw.contentRating === "string" && raw.contentRating.trim()
