@@ -1,8 +1,8 @@
 # Cinema add-on v1 contract
 
-Status: approved product and architecture contract; implementation and live
-provider verification are complete behind a disabled production flag while
-the first prepared edition awaits visual approval.
+Status: production-enabled after live provider verification and visual
+approval. The current successful edition is served only at `/cinema` and is
+replaced atomically by the next successful Saturday edition.
 This document is the source of truth for the first Cinema add-on
 iteration. Provider references, payload schemas, components, tests, and
 deployment work must conform to it rather than silently choosing new product
@@ -36,8 +36,8 @@ The repository already provides these foundations:
 - deterministic HTML validation and the shared Kurami UI visual language.
 
 Those primitives and the Cinema pipeline are implemented. The tracked schedule
-value is configuration, not a separately enabled scheduler. Production remains
-disabled until live provider and credential checks pass. Cinema extends the
+value is configuration, not a separately enabled scheduler. Production is
+enabled after the live provider and credential checks passed. Cinema extends the
 existing boundaries; it does not create another database, web server, cron
 prompt, source gateway, or provider-specific rendering path.
 
@@ -146,7 +146,9 @@ cinema:
 
 `market: LT` controls local theatrical dates and Lithuanian box-office data.
 The full page remains globally oriented: only local premieres and the local
-chart are Lithuanian-specific. A future country change should require a new
+chart are Lithuanian-specific. The Lithuanian chart displays the original film
+title extracted from the parenthesized bilingual LKC value and does not repeat
+its local translation. A future country change should require a new
 market adapter or configuration value, not changes to generic Cinema models or
 UI components.
 
@@ -540,7 +542,8 @@ Cinema v1 is ready for production only when all of the following pass:
 
 1. Existing Daily regression tests and a production-like Daily dry run using
    the normal runtime/composer/renderer with a temporary database and provider
-   fixtures are unchanged with Cinema disabled and on non-Saturdays.
+   fixtures are unchanged when Cinema is explicitly disabled and on
+   non-Saturdays.
 2. A Saturday run can produce both Daily and `/cinema` from one accepted
    snapshot without duplicate collection.
 3. A forced failure in every individual Cinema provider proves Daily still
@@ -601,7 +604,8 @@ adding UI:
 
 1. verify and record exact read-only Composio YouTube leaf operations and exact
    official/discovery channel IDs;
-2. add non-secret Cinema configuration with `enabled: false` by default;
+2. add non-secret Cinema configuration, initially disabled for the feasibility
+   spike and enabled only after live verification;
 3. define strict TypeScript schemas for the versioned Cinema envelope and each
    section;
 4. capture bounded redacted fixtures for Box Office Watch, AP fallback, LKC,

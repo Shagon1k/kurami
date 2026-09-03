@@ -33,10 +33,10 @@ capabilities:
   publisher:
     provider: kurami_briefing_runtime
 
-# Native weekly add-on. Its implementation and fixture gates are complete; it
-# remains inert until the live provider and credential preflight passes.
+# Native weekly add-on. The last successful snapshot stays at /cinema until
+# the next successful Saturday refresh; no dated production routes are used.
 cinema:
-  enabled: false
+  enabled: true
   market: LT
   timezone: Europe/Vilnius
   language: ru

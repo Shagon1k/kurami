@@ -33,6 +33,29 @@ function normalizedCell(value: unknown): string {
   return String(value ?? "").replace(/\s+/gu, " ").trim();
 }
 
+/**
+ * LKC publishes the localized title followed by the original title in one
+ * cell, for example `Odisėja (The Odyssey)`. Walking backwards from the final
+ * parenthesis also preserves an original title with its own parentheses.
+ */
+export function originalLkcTitle(value: unknown): string {
+  const title = normalizedCell(value);
+  if (!title.endsWith(")")) return title;
+  let depth = 0;
+  for (let index = title.length - 1; index >= 0; index -= 1) {
+    if (title[index] === ")") depth += 1;
+    else if (title[index] === "(") {
+      depth -= 1;
+      if (depth === 0) {
+        const original = title.slice(index + 1, -1).trim();
+        const localized = title.slice(0, index).trim();
+        return original && localized ? original : title;
+      }
+    }
+  }
+  return title;
+}
+
 function finite(value: unknown, label: string): number {
   if (typeof value !== "number" || !Number.isFinite(value) || value < 0) {
     throw new Error(`Invalid LKC workbook: ${label} must be a non-negative number`);
@@ -81,11 +104,12 @@ export function normalizeLkcSheetRows(rows: unknown[][]): LkcWeekendEntry[] {
   const result: LkcWeekendEntry[] = [];
   for (const [index, row] of rows.slice(2).entries()) {
     const rankValue = row[0];
-    const title = normalizedCell(row[column("Filmas (Movie)")]);
-    if (!title || typeof rankValue !== "number") continue;
+    const sourceTitle = normalizedCell(row[column("Filmas (Movie)")]);
+    if (!sourceTitle || typeof rankValue !== "number") continue;
     // The workbook's footer formula can leak a numeric style/value into the
     // first cell. It is an aggregate row, not another ranked film.
-    if (/^total(?:\s|\()/iu.test(title)) continue;
+    if (/^total(?:\s|\()/iu.test(sourceTitle)) continue;
+    const title = originalLkcTitle(sourceTitle);
     const change = optionalFinite(row[column("Pakitimas (Change)")]);
     result.push({
       id: id(title),

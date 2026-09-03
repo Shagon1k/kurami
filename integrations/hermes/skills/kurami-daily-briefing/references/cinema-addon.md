@@ -101,6 +101,8 @@ CINEMA_CLI=/home/shagon1k/_hermes/_kurami/app/dist/briefing/cinema/cli.js
    `prepare` cannot move `/cinema`. `promote` atomically finalizes the prepared
    `cinema:YYYY-MM-DD` edition and updates the current Cinema snapshot. A
    rejected promotion leaves the previous snapshot and route unchanged.
+   `/cinema` is the only production Cinema route: do not publish or announce a
+   dated Cinema URL. Dated `/preview/cinema/YYYY-MM-DD` routes are staging-only.
 9. Continue the normal Daily composition. The Daily runtime attaches Cinema
    only when the promoted snapshot has this exact local date. The shared UI
    renderer then shows only the compact Saturday preview in Daily and the full

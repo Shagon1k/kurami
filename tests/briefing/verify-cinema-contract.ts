@@ -6,7 +6,7 @@ import { DatabaseSync } from "node:sqlite";
 import { apArticlePublishedAt, parseApTopTen } from "../../src/briefing/cinema/providers/ap.ts";
 import { normalizeBoxOfficeWatch } from "../../src/briefing/cinema/providers/box-office-watch.ts";
 import { parseCinemaLtMovieDetails, parseCinemaLtPremieres } from "../../src/briefing/cinema/providers/cinema-lt.ts";
-import { normalizeLkcSheetRows } from "../../src/briefing/cinema/providers/lkc.ts";
+import { normalizeLkcSheetRows, originalLkcTitle } from "../../src/briefing/cinema/providers/lkc.ts";
 import { kinopoiskReaderUrl, parseKinopoiskWeekend } from "../../src/briefing/cinema/providers/kinopoisk.ts";
 import { parseCinemaRss } from "../../src/briefing/cinema/providers/rss.ts";
 import { normalizeTmdbMovieResults } from "../../src/briefing/cinema/providers/tmdb.ts";
@@ -115,7 +115,7 @@ const config = await loadCinemaRuntimeConfig(
   { home: root } as never,
   { BRIEFING_CONFIG_PATH: resolve(root, "deploy/config/briefing.yaml") } as NodeJS.ProcessEnv,
 );
-assert.equal(config.enabled, false);
+assert.equal(config.enabled, true);
 assert.equal(config.market, "LT");
 assert.equal(config.timeZone, "Europe/Vilnius");
 assert.equal(config.limits.trailers, 9);
@@ -169,8 +169,12 @@ assert.equal(apArticlePublishedAt('<meta property="article:published_time" conte
 const lkcRows = JSON.parse(await fixture("lkc-rows.json")) as unknown[][];
 const lkc = normalizeLkcSheetRows(lkcRows);
 assert.equal(lkc.length, 2);
+assert.equal(lkc[0]?.title, "The Odyssey");
+assert.equal(lkc[1]?.title, "Spider-Man: Brand New Day");
 assert.equal(lkc[0]?.changePercent, 50.4510964130685);
 assert.equal(lkc[0]?.releaseDate, "2026-07-17");
+assert.equal(originalLkcTitle("Vietinis pavadinimas (Original Title (IMAX))"), "Original Title (IMAX)");
+assert.equal(originalLkcTitle("Only Available Title"), "Only Available Title");
 assert.throws(
   () => normalizeLkcSheetRows([lkcRows[0]!, lkcRows[1]!.slice(0, 4), lkcRows[2]!]),
   /missing header/u,
@@ -770,6 +774,12 @@ assert.match(dailyHtml, /Субботний add-on/u);
 assert.match(dailyHtml, /href="\/cinema"/u);
 assert.doesNotMatch(dailyHtml, /Box-office pulse/u);
 
+const manualPreviewHtml = renderBriefingPage({
+  ...saturdayDaily,
+  edition: { ...saturdayDaily.edition, id: "daily:2026-08-28", localDate: "2026-08-28" },
+});
+assert.match(manualPreviewHtml, /Субботний add-on/u);
+
 const isolatedFailureHtml = renderBriefingPage({
   ...saturdayDaily,
   addons: {
@@ -842,7 +852,7 @@ try {
 
 process.stdout.write(`${JSON.stringify({
   ok: true,
-  cinemaDisabledByDefault: true,
+  cinemaProductionEnabled: config.enabled,
   verifiedYouTubeSeeds: config.sources.youtube.channels.length,
   deterministicProviders: 10,
   dstWindowHours: 169,

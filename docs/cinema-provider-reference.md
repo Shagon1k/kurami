@@ -1,8 +1,8 @@
 # Cinema provider reference
 
 Status: source feasibility and a live end-to-end provider preflight were
-verified on 2026-09-03; Cinema remains disabled until its prepared edition is
-visually approved. This document records provider mechanics for the approved
+verified on 2026-09-03; the visually approved Cinema add-on is production
+enabled. This document records provider mechanics for the approved
 [`cinema-addon-v1.md`](cinema-addon-v1.md) contract. Product semantics remain
 owned by that contract.
 

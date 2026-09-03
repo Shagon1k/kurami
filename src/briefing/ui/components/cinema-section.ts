@@ -199,7 +199,10 @@ export function renderCinemaSection(payload: BriefingPayload): string {
   if (!raw) return "";
   const envelope = parseCinemaEnvelope(raw);
   if (payload.edition.type === "daily") {
-    return payload.edition.localDate === envelope.data.localDate ? preview(envelope) : "";
+    // Scheduled composition attaches only a promoted same-date snapshot.
+    // Rendering trusts that explicit attachment so the exact component can
+    // also be shown in a bounded operator preview without duplicating markup.
+    return preview(envelope);
   }
   return full(envelope);
 }
