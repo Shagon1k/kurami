@@ -1,7 +1,8 @@
 # Cinema add-on v1 contract
 
-Status: approved product and architecture contract; implementation has not
-started. This document is the source of truth for the first Cinema add-on
+Status: approved product and architecture contract; implementation is complete
+behind a disabled production flag while live provider verification is pending.
+This document is the source of truth for the first Cinema add-on
 iteration. Provider references, payload schemas, components, tests, and
 deployment work must conform to it rather than silently choosing new product
 semantics during implementation.
@@ -33,12 +34,11 @@ The repository already provides these foundations:
   `cinema_retention: until_next_success` configuration;
 - deterministic HTML validation and the shared Kurami UI visual language.
 
-Those primitives are implemented. The tracked schedule value is configuration,
-not a separately enabled scheduler. Cinema collectors, schemas, provider
-adapters, editorial selection, components, tests, and the scheduled invocation
-are not implemented. The first Cinema change must extend the existing
-boundaries; it must not create another database, web server, cron prompt,
-source gateway, or provider-specific rendering path.
+Those primitives and the Cinema pipeline are implemented. The tracked schedule
+value is configuration, not a separately enabled scheduler. Production remains
+disabled until live provider and credential checks pass. Cinema extends the
+existing boundaries; it does not create another database, web server, cron
+prompt, source gateway, or provider-specific rendering path.
 
 An implementer can verify the existing boundary in:
 

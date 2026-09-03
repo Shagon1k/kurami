@@ -67,6 +67,7 @@ for (const skillName of skillNames) {
 
 const briefingReferences = [
   "content-contract.md",
+  "cinema-addon.md",
   "editorial-policy.md",
   "item-contract.md",
   "provider-composio-gmail.md",
@@ -92,9 +93,19 @@ assert.match(briefingSkill, /Hermes `write_file` tool/);
 assert.match(briefingSkill, /start-attempt --id daily:YYYY-MM-DD --mode scheduled/);
 assert.match(briefingSkill, /compose --attempt <attempt-id>/);
 assert.match(briefingSkill, /render-preview --payload <payload\.json> --attempt <attempt-id>/);
+assert.match(briefingSkill, /references\/cinema-addon\.md/);
 assert.match(briefingSkill, /`mark_read_through_batch` once with `edition_id`, `attempt_id`, `plan_digest`/);
 assert.doesNotMatch(briefingSkill, /prepare-preview --payload <payload\.json> --html/);
 assert.doesNotMatch(briefingSkill, /app\/src\/briefing\/cli\.ts/);
+
+const cinemaReference = fs.readFileSync(
+  path.join(skillsRoot, "kurami-daily-briefing", "references", "cinema-addon.md"),
+  "utf8",
+);
+assert.match(cinemaReference, /\$CINEMA_CLI collect --date YYYY-MM-DD/);
+assert.match(cinemaReference, /\$CINEMA_CLI prepare --envelope/);
+assert.match(cinemaReference, /\$CINEMA_CLI promote --envelope/);
+assert.match(cinemaReference, /Never download video/);
 
 const uiSkill = fs.readFileSync(
   path.join(skillsRoot, "kurami-ui-preview-language", "SKILL.md"),

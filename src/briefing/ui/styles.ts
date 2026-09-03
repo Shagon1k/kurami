@@ -314,9 +314,13 @@ a { color: inherit; }
 .cinema-card__copy > span { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 4px; }
 .cinema-card__copy > span i { padding: 3px 5px; color: var(--muted); border: 1px solid var(--line); border-radius: 3px; font-size: .5625rem; font-style: normal; }
 .cinema-news-list { overflow: hidden; background: var(--surface); border: 1px solid var(--line); border-radius: 2px; }
-.cinema-news { display: grid; grid-template-columns: 36px minmax(0, 1fr) 44px; gap: 14px; align-items: start; padding: 20px; border-bottom: 1px solid var(--line); }
+.cinema-news { display: grid; grid-template-columns: 30px 150px minmax(0, 1fr) 44px; gap: 16px; align-items: start; padding: 20px; border-bottom: 1px solid var(--line); }
 .cinema-news:last-child { border-bottom: 0; }
 .cinema-news > span { color: var(--signal); font: 400 .625rem/1.4 var(--font-mono); }
+.cinema-news__image { aspect-ratio: 16 / 10; display: block; overflow: hidden; background: linear-gradient(135deg, var(--panel), color-mix(in srgb, var(--ink) 7%, var(--panel))); border: 1px solid var(--line); border-radius: 2px; }
+.cinema-news__image img { width: 100%; height: 100%; display: block; object-fit: cover; }
+.cinema-news__copy { min-width: 0; position: relative; }
+.cinema-news__note { position: absolute; right: 1%; top: -9px; color: var(--signal); transform: rotate(-2deg); font-size: 17px; }
 .cinema-news small { color: var(--muted); font-size: .625rem; }
 .cinema-news h3 { margin: 5px 0; font-size: clamp(16px, 2vw, 21px); line-height: 1.18; letter-spacing: -.02em; }
 .cinema-news p { max-width: 900px; margin: 0; color: var(--muted); font-size: .75rem; line-height: 1.5; }
@@ -408,8 +412,9 @@ a { color: inherit; }
   .cinema-preview { grid-template-columns: 1fr; align-items: start; margin-top: 36px; padding: 26px 20px; }
   .cinema-preview__facts { grid-column: auto; }
   .cinema-preview .button { width: 100%; }
-  .cinema-news { grid-template-columns: 28px minmax(0, 1fr); padding: 17px 12px; }
-  .cinema-news > a { grid-column: 2; }
+  .cinema-news { grid-template-columns: 24px 96px minmax(0, 1fr); gap: 10px; padding: 17px 12px; }
+  .cinema-news > a { grid-column: 3; }
+  .cinema-news__note { position: static; display: block; width: max-content; margin: 5px 0 1px auto; }
   .page-footer { grid-template-columns: 1fr; padding: 24px 0; }
   .page-footer span:last-child { justify-self: start; }
 }

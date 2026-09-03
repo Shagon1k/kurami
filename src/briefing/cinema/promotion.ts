@@ -72,6 +72,14 @@ export function loadCinemaSnapshot(database: DatabaseSync): CinemaEnvelope | nul
   return row ? parseCinemaEnvelope(row.envelope) : null;
 }
 
+export function cinemaSnapshotForDaily(
+  database: DatabaseSync,
+  localDate: string,
+): CinemaEnvelope | undefined {
+  const snapshot = loadCinemaSnapshot(database);
+  return snapshot?.data.localDate === localDate ? snapshot : undefined;
+}
+
 export function promoteCinemaEdition(
   database: DatabaseSync,
   editionId: string,

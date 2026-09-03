@@ -2,7 +2,15 @@ import { createHash, randomUUID } from "node:crypto";
 import { chmod, readFile, rename, writeFile } from "node:fs/promises";
 import { dirname, resolve } from "node:path";
 import type { DynamicBriefingSnapshot } from "./providers/dynamic-snapshot.ts";
-import type { Topic, KuramiNote, NewsExclusion, NewsItem, BriefingPayload, MailClass } from "./model.ts";
+import type {
+  Topic,
+  KuramiNote,
+  NewsExclusion,
+  NewsItem,
+  BriefingAddonEnvelope,
+  BriefingPayload,
+  MailClass,
+} from "./model.ts";
 import { parseBriefingPayload } from "./model.ts";
 import {
   calendarConflicts,
@@ -389,6 +397,7 @@ export async function composeBriefingPayload(input: {
   rawPath: string;
   normalizedPath: string;
   outputPath?: string;
+  addonSnapshots?: Record<string, BriefingAddonEnvelope>;
 }): Promise<{ payload: BriefingPayload; report: TelegramBatchReport; outputPath?: string }> {
   const [draftValue, liveValue, normalizedValue] = await Promise.all([
     readFile(input.draftPath, "utf8").then(JSON.parse),
@@ -442,7 +451,10 @@ export async function composeBriefingPayload(input: {
   const ranked = parseBriefingPayload(applyDeterministicRanking(base));
   const payload = parseBriefingPayload({
     ...ranked,
-    addons: captureAddonManifest(ranked),
+    addons: {
+      ...captureAddonManifest(ranked),
+      ...(input.addonSnapshots ?? {}),
+    },
   });
   if (input.outputPath) {
     const outputPath = resolve(input.outputPath);

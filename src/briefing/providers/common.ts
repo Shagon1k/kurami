@@ -221,6 +221,116 @@ export async function fetchJson(
   }, options.retry);
 }
 
+export async function fetchText(
+  url: URL,
+  options: {
+    fetchImpl?: FetchLike;
+    retry?: Partial<RetryPolicy>;
+    maximumBytes?: number;
+    accept?: string;
+    headers?: Record<string, string>;
+  } = {},
+): Promise<OperationOutcome<string>> {
+  const fetchImpl = options.fetchImpl ?? nodeHttpFetch;
+  const maximumBytes = Math.min(
+    8 * 1024 * 1024,
+    Math.max(1_024, options.maximumBytes ?? 2 * 1024 * 1024),
+  );
+  return retryOperation(async (signal) => {
+    let response: Response;
+    try {
+      response = await fetchImpl(url, {
+        method: "GET",
+        headers: {
+          accept: options.accept ?? "text/html, application/rss+xml;q=0.9, application/xml;q=0.8",
+          "user-agent": "kurami-cinema-collector/1.0",
+          ...options.headers,
+        },
+        redirect: "error",
+        signal,
+      });
+    } catch (error) {
+      if (error instanceof ProviderError) throw error;
+      if (signal.aborted || (error instanceof Error && error.name === "AbortError")) {
+        throw new ProviderError("provider_timeout", "Provider request timed out", true);
+      }
+      throw new ProviderError("provider_network_error", "Provider network request failed", true);
+    }
+    if (!response.ok) {
+      const transient = response.status === 408 || response.status === 429 || response.status >= 500;
+      throw new ProviderError(
+        `provider_http_${response.status}`,
+        `Provider returned HTTP ${response.status}`,
+        transient,
+      );
+    }
+    const contentLength = Number(response.headers.get("content-length"));
+    if (Number.isFinite(contentLength) && contentLength > maximumBytes) {
+      throw new ProviderError("provider_response_too_large", "Provider response exceeded its size limit");
+    }
+    const value = await response.text();
+    if (Buffer.byteLength(value, "utf8") > maximumBytes) {
+      throw new ProviderError("provider_response_too_large", "Provider response exceeded its size limit");
+    }
+    return value;
+  }, options.retry);
+}
+
+export async function fetchBuffer(
+  url: URL,
+  options: {
+    fetchImpl?: FetchLike;
+    retry?: Partial<RetryPolicy>;
+    maximumBytes?: number;
+    accept?: string;
+    headers?: Record<string, string>;
+  } = {},
+): Promise<OperationOutcome<Buffer>> {
+  const fetchImpl = options.fetchImpl ?? nodeHttpFetch;
+  const maximumBytes = Math.min(
+    8 * 1024 * 1024,
+    Math.max(1_024, options.maximumBytes ?? 2 * 1024 * 1024),
+  );
+  return retryOperation(async (signal) => {
+    let response: Response;
+    try {
+      response = await fetchImpl(url, {
+        method: "GET",
+        headers: {
+          accept: options.accept ?? "application/octet-stream",
+          "user-agent": "kurami-cinema-collector/1.0",
+          ...options.headers,
+        },
+        redirect: "error",
+        signal,
+      });
+    } catch (error) {
+      if (error instanceof ProviderError) throw error;
+      if (signal.aborted || (error instanceof Error && error.name === "AbortError")) {
+        throw new ProviderError("provider_timeout", "Provider request timed out", true);
+      }
+      throw new ProviderError("provider_network_error", "Provider network request failed", true);
+    }
+    if (!response.ok) {
+      const transient = response.status === 408 || response.status === 429 || response.status >= 500;
+      throw new ProviderError(
+        `provider_http_${response.status}`,
+        `Provider returned HTTP ${response.status}`,
+        transient,
+      );
+    }
+    const contentLength = Number(response.headers.get("content-length"));
+    if (Number.isFinite(contentLength) && contentLength > maximumBytes) {
+      throw new ProviderError("provider_response_too_large", "Provider response exceeded its size limit");
+    }
+    const value = Buffer.from(await response.arrayBuffer());
+    if (value.byteLength > maximumBytes) {
+      throw new ProviderError("provider_response_too_large", "Provider response exceeded its size limit");
+    }
+    return value;
+  }, options.retry);
+}
+
 export function failSoft<T>(
   outcome: OperationOutcome<T>,
   fetchedAt = new Date().toISOString(),

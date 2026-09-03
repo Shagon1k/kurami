@@ -6,11 +6,11 @@ export type LkcWeekendEntry = {
   weekendGrossEur: number;
   previousWeekendGrossEur?: number;
   changePercent?: number;
-  admissions: number;
-  showCount: number;
+  admissions?: number;
+  showCount?: number;
   weekInRelease?: number;
   cumulativeGrossEur: number;
-  cumulativeAdmissions: number;
+  cumulativeAdmissions?: number;
   releaseDate?: string;
   distributor?: string;
 };
@@ -51,7 +51,7 @@ function optionalFinite(value: unknown): number | undefined {
 }
 
 function optionalInteger(value: unknown): number | undefined {
-  return typeof value === "number" && Number.isSafeInteger(value) && value > 0 ? value : undefined;
+  return typeof value === "number" && Number.isSafeInteger(value) && value >= 0 ? value : undefined;
 }
 
 function excelDate(value: unknown): string | undefined {
@@ -83,6 +83,9 @@ export function normalizeLkcSheetRows(rows: unknown[][]): LkcWeekendEntry[] {
     const rankValue = row[0];
     const title = normalizedCell(row[column("Filmas (Movie)")]);
     if (!title || typeof rankValue !== "number") continue;
+    // The workbook's footer formula can leak a numeric style/value into the
+    // first cell. It is an aggregate row, not another ranked film.
+    if (/^total(?:\s|\()/iu.test(title)) continue;
     const change = optionalFinite(row[column("Pakitimas (Change)")]);
     result.push({
       id: id(title),
@@ -94,13 +97,19 @@ export function normalizeLkcSheetRows(rows: unknown[][]): LkcWeekendEntry[] {
         ? { previousWeekendGrossEur: optionalFinite(row[column("Pajamos praeita sav. (GBO LW)")])! }
         : {}),
       ...(change === undefined ? {} : { changePercent: Math.abs(change) <= 10 ? change * 100 : change }),
-      admissions: integer(row[column("Žiūrovų sk. (ADM)")], `row ${index + 3} admissions`),
-      showCount: integer(row[column("Seansų sk. (Show count)")], `row ${index + 3} show count`),
+      ...(optionalInteger(row[column("Žiūrovų sk. (ADM)")]) === undefined
+        ? {}
+        : { admissions: optionalInteger(row[column("Žiūrovų sk. (ADM)")])! }),
+      ...(optionalInteger(row[column("Seansų sk. (Show count)")]) === undefined
+        ? {}
+        : { showCount: optionalInteger(row[column("Seansų sk. (Show count)")])! }),
       ...(optionalInteger(row[column("Rodymo savaitė (Week on screen)")])
         ? { weekInRelease: optionalInteger(row[column("Rodymo savaitė (Week on screen)")])! }
         : {}),
       cumulativeGrossEur: finite(row[column("Bendros pajamos (Total GBO)")], `row ${index + 3} total gross`),
-      cumulativeAdmissions: integer(row[column("Bendras žiūrovų sk. (Total ADM)")], `row ${index + 3} total admissions`),
+      ...(optionalInteger(row[column("Bendras žiūrovų sk. (Total ADM)")]) === undefined
+        ? {}
+        : { cumulativeAdmissions: optionalInteger(row[column("Bendras žiūrovų sk. (Total ADM)")])! }),
       ...(excelDate(row[column("Premjeros data (Release date)")])
         ? { releaseDate: excelDate(row[column("Premjeros data (Release date)")])! }
         : {}),

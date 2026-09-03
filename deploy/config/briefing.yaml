@@ -33,8 +33,8 @@ capabilities:
   publisher:
     provider: kurami_briefing_runtime
 
-# Native weekly add-on. It remains inert until the provider fixtures,
-# promotion path, and live credential preflight all pass.
+# Native weekly add-on. Its implementation and fixture gates are complete; it
+# remains inert until the live provider and credential preflight passes.
 cinema:
   enabled: false
   market: LT
@@ -54,7 +54,7 @@ cinema:
     lkc:
       reports_url: https://www.lkc.lt/registras-ir-statistika/faktai-ir-statistika/naujausios-ataskaitos
     cinema_lt:
-      repertoire_url: https://www.cinema.lt/repertuaras
+      repertoire_url: https://cinema.lt/repertuaras
     tmdb:
       api_base_url: https://api.themoviedb.org/3
     youtube:

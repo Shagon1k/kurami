@@ -120,6 +120,21 @@ function rankedActuals(value: unknown, label: string): ActualRow[] {
   return rows;
 }
 
+type HistoricalRow = Pick<ActualRow, "title" | "identity" | "gross">;
+
+function historicalActuals(value: unknown, label: string): HistoricalRow[] {
+  const rows = array(value, label, 100).flatMap((entry, index) => {
+    const row = record(entry, `${label}[${index}]`);
+    const title = string(row.movie, `${label}[${index}].movie`);
+    const gross = finite(row.gross, `${label}[${index}].gross`);
+    if (gross < 0) fail(`${label}[${index}].gross cannot be negative`);
+    return [{ title, identity: boxOfficeFilmIdentity(title), gross }];
+  });
+  const identities = rows.map((row) => row.identity);
+  if (new Set(identities).size !== identities.length) fail(`${label} contains duplicate movie identities`);
+  return rows;
+}
+
 function chartEntries(rows: ActualRow[], sourceId: string): CinemaRankedEntry[] {
   return rows.slice(0, 10).map((row, index) => ({
     id: row.id,
@@ -223,7 +238,7 @@ function trend(
     const weekend = record(entry, `archive[${index}]`);
     return {
       at: boxOfficeWeekendEnd(weekend.dates),
-      rows: rankedActuals(weekend.actuals, `archive[${index}].actuals`),
+      rows: historicalActuals(weekend.actuals, `archive[${index}].actuals`),
     };
   });
   const weekends = [...archive, { at: currentDate, rows: current }]

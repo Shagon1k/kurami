@@ -20,6 +20,7 @@ KURAMI_HOME=/home/shagon1k/_hermes/_kurami
 CONFIG=/home/shagon1k/_hermes/_kurami/config/briefing.yaml
 TOPIC_SEED=/home/shagon1k/_hermes/_kurami/config/briefing-topics.yaml
 BRIEFING_CLI=/home/shagon1k/_hermes/_kurami/app/dist/briefing/cli.js
+CINEMA_CLI=/home/shagon1k/_hermes/_kurami/app/dist/briefing/cinema/cli.js
 BRIEFING_NODE=/home/shagon1k/_hermes/_kurami/runtime/node/bin/node
 ```
 
@@ -46,6 +47,8 @@ surface and is not an automatic-ingestion fallback.
   error; do not guess a provider or operation.
 - For the production weather surface and Central Poller, read
   `references/provider-open-meteo.md`.
+- On Saturday, when Cinema is enabled, read `references/cinema-addon.md`
+  before collecting or authoring any Cinema artifact.
 
 ## Choose the run mode
 
@@ -175,9 +178,12 @@ Default manual experiments to `dry-run`. Generation never archives Gmail;
    expanded reading layer must contain the useful substance, not another brief
    teaser; retrieve linked primary context for standard and deep stories when
    the configured capability permits it.
-9. On Saturday, build or refresh the weekly cinema edition from sources that
-   can prove release dates and freshness. A cinema failure must not block the
-   normal daily edition.
+9. On Saturday, when `cinema.enabled` is true, follow
+   `references/cinema-addon.md` and promote the exact weekly Cinema edition
+   before composing Daily. The Daily composer attaches only a promoted Cinema
+   snapshot whose local date exactly matches this Daily edition. Any Cinema
+   failure must be recorded as an isolated diagnostic and must not block,
+   mutate, or replace the normal Daily edition.
 10. Write only `editorial-draft.json` in the attempt directory. It contains
     `editionId`, `generatedAt`, optional hero/notes, stories with exact
     `sourceItemIds`, authored headline/summary/details/topics, and bounded

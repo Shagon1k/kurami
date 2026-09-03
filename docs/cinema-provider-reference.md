@@ -79,7 +79,7 @@ box-office subsection.
 
 ## cinema.lt premieres
 
-Source page: `https://www.cinema.lt/repertuaras`
+Source page: `https://cinema.lt/repertuaras`
 
 The server-rendered movie cards expose a canonical `/filmai/...` URL, local
 title, optional original title, poster candidate, and an explicit

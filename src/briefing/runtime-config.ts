@@ -393,7 +393,7 @@ export async function loadCinemaRuntimeConfig(
         repertoireUrl: httpsUrl(
           cinemaLt.repertoire_url,
           "cinema.sources.cinema_lt.repertoire_url",
-          "www.cinema.lt",
+          "cinema.lt",
         ),
       },
       tmdb: {

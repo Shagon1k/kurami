@@ -27,6 +27,7 @@ import { collectEditionLiveSnapshot } from "./live-collector.ts";
 import { assertEditorialPayload, loadTopicPolicy } from "./editorial-validation.ts";
 import { composeBriefingPayload } from "./composer.ts";
 import { applyDeterministicRanking } from "./ranking.ts";
+import { cinemaSnapshotForDaily } from "./cinema/promotion.ts";
 import {
   loadBriefingAttempt,
   recordBriefingRunStage,
@@ -218,6 +219,8 @@ export async function runBriefingCli(argv = process.argv.slice(2)): Promise<unkn
     try {
       const attempt = loadBriefingAttempt(database, args.attemptId!);
       if (!attempt || attempt.state !== "capture-validated") fail("compose requires a capture-validated attempt");
+      const localDate = attempt.editionId.startsWith("daily:") ? attempt.editionId.slice(6) : "";
+      const cinema = cinemaSnapshotForDaily(database, localDate);
       const composed = await composeBriefingPayload({
         draftPath: args.draftPath!,
         livePath: args.livePath!,
@@ -225,6 +228,7 @@ export async function runBriefingCli(argv = process.argv.slice(2)): Promise<unkn
         rawPath: args.rawPath!,
         normalizedPath: args.normalizedPath!,
         outputPath: args.outputPath!,
+        ...(cinema ? { addonSnapshots: { cinema } } : {}),
       });
       try {
         const policy = await loadTopicPolicy(paths.home, process.env, topicRegistry(database));

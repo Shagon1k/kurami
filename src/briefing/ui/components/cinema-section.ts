@@ -32,10 +32,10 @@ function noteMark(mark: CinemaNote["mark"]): string {
   return mark === "arrow-down" ? "↓" : mark === "arrow-down-left" ? "↙" : mark === "arrow-down-right" ? "↘" : "→";
 }
 
-function note(envelope: CinemaEnvelope, target: string): string {
+function note(envelope: CinemaEnvelope, target: string, className = "cinema-heading__note"): string {
   const item = envelope.data.notes.find((candidate) => candidate.target === target);
   if (!item) return "";
-  return `<span class="kurami-note cinema-heading__note" data-note-id="${escapeHtml(item.id)}">${escapeHtml(item.text)} <span aria-hidden="true">${noteMark(item.mark)}</span></span>`;
+  return `<span class="kurami-note ${escapeHtml(className)}" data-note-id="${escapeHtml(item.id)}">${escapeHtml(item.text)} <span aria-hidden="true">${noteMark(item.mark)}</span></span>`;
 }
 
 function chartRows(chart: CinemaChart, visible = 5): string {
@@ -117,7 +117,7 @@ function premieres(envelope: CinemaEnvelope): string {
 function news(envelope: CinemaEnvelope): string {
   const items = envelope.data.news.items;
   if (!items.length) return "";
-  return `<section class="cinema-block" id="cinema-news"><header class="cinema-heading"><div><p class="section-kicker">За 7 дней · ${items.length}</p><h2>Коротко о важном</h2></div>${note(envelope, "news")}</header><div class="cinema-news-list">${items.map((item, index) => `<article class="cinema-news"><span>${String(index + 1).padStart(2, "0")}</span><div><small>${escapeHtml(item.publisher)} · ${new Intl.DateTimeFormat("ru-RU", { day: "numeric", month: "short" }).format(new Date(item.publishedAt))}</small><h3>${escapeHtml(item.headline)}</h3><p>${escapeHtml(item.summary)}</p></div><a href="${escapeHtml(item.sourceUrl)}" target="_blank" rel="noopener noreferrer" aria-label="Открыть источник: ${escapeHtml(item.headline)}">↗</a></article>`).join("")}</div></section>`;
+  return `<section class="cinema-block" id="cinema-news"><header class="cinema-heading"><div><p class="section-kicker">За 7 дней · ${items.length}</p><h2>Коротко о важном</h2></div>${note(envelope, "news")}</header><div class="cinema-news-list">${items.map((item, index) => `<article class="cinema-news"><span>${String(index + 1).padStart(2, "0")}</span><span class="cinema-news__image${item.imageSrc ? " has-image" : ""}" aria-hidden="true">${item.imageSrc ? `<img src="${escapeHtml(item.imageSrc)}" alt="">` : ""}</span><div class="cinema-news__copy"><small>${escapeHtml(item.publisher)} · ${new Intl.DateTimeFormat("ru-RU", { day: "numeric", month: "short" }).format(new Date(item.publishedAt))}</small>${note(envelope, `news:${item.id}`, "cinema-news__note")}<h3>${escapeHtml(item.headline)}</h3><p>${escapeHtml(item.summary)}</p></div><a href="${escapeHtml(item.sourceUrl)}" target="_blank" rel="noopener noreferrer" aria-label="Открыть источник: ${escapeHtml(item.headline)}">↗</a></article>`).join("")}</div></section>`;
 }
 
 function full(envelope: CinemaEnvelope): string {

@@ -3,18 +3,24 @@ import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { resolve } from "node:path";
 import { DatabaseSync } from "node:sqlite";
-import { parseApTopTen } from "../../src/briefing/cinema/providers/ap.ts";
+import { apArticlePublishedAt, parseApTopTen } from "../../src/briefing/cinema/providers/ap.ts";
 import { normalizeBoxOfficeWatch } from "../../src/briefing/cinema/providers/box-office-watch.ts";
 import { parseCinemaLtPremieres } from "../../src/briefing/cinema/providers/cinema-lt.ts";
 import { normalizeLkcSheetRows } from "../../src/briefing/cinema/providers/lkc.ts";
 import { parseCinemaRss } from "../../src/briefing/cinema/providers/rss.ts";
 import { normalizeTmdbMovieResults } from "../../src/briefing/cinema/providers/tmdb.ts";
 import { normalizeYouTubeCandidates } from "../../src/briefing/cinema/providers/youtube.ts";
+import { collectCinemaCandidate } from "../../src/briefing/cinema/collector.ts";
+import { runCinemaCli } from "../../src/briefing/cinema/cli.ts";
+import { selectNewsCandidates } from "../../src/briefing/cinema/selection.ts";
+import { composeCinemaEnvelope, composeCinemaFallbackEnvelope } from "../../src/briefing/cinema/composer.ts";
+import { cacheCinemaMedia } from "../../src/briefing/cinema/media-cache.ts";
 import {
   cinemaEnvelopePromotable,
   parseCinemaEnvelope,
 } from "../../src/briefing/cinema/model.ts";
 import {
+  cinemaSnapshotForDaily,
   loadCinemaSnapshot,
   promoteCinemaEdition,
   promoteCinemaSnapshot,
@@ -27,6 +33,7 @@ import {
 import { loadCinemaRuntimeConfig } from "../../src/briefing/runtime-config.ts";
 import { renderBriefingPage } from "../../src/briefing/ui/render-page.ts";
 import {
+  briefingPaths,
   initializeBriefingStore,
   loadEdition,
   openBriefingDatabase,
@@ -40,6 +47,68 @@ const fixture = (name: string): Promise<string> => readFile(
   resolve(root, "tests/fixtures/briefing/cinema", name),
   "utf8",
 );
+
+function xmlText(value: unknown): string {
+  return String(value ?? "").replace(/&/gu, "&amp;").replace(/</gu, "&lt;").replace(/>/gu, "&gt;");
+}
+
+function cellReference(index: number, row: number): string {
+  let column = "";
+  for (let value = index + 1; value > 0; value = Math.floor((value - 1) / 26)) {
+    column = String.fromCharCode(65 + ((value - 1) % 26)) + column;
+  }
+  return `${column}${row}`;
+}
+
+function storedZip(entries: Record<string, string>): Buffer {
+  const locals: Buffer[] = [];
+  const centrals: Buffer[] = [];
+  let offset = 0;
+  for (const [name, content] of Object.entries(entries)) {
+    const nameBuffer = Buffer.from(name);
+    const data = Buffer.from(content);
+    const local = Buffer.alloc(30);
+    local.writeUInt32LE(0x04034b50, 0);
+    local.writeUInt16LE(20, 4);
+    local.writeUInt16LE(0, 8);
+    local.writeUInt32LE(data.byteLength, 18);
+    local.writeUInt32LE(data.byteLength, 22);
+    local.writeUInt16LE(nameBuffer.byteLength, 26);
+    locals.push(local, nameBuffer, data);
+    const central = Buffer.alloc(46);
+    central.writeUInt32LE(0x02014b50, 0);
+    central.writeUInt16LE(20, 4);
+    central.writeUInt16LE(20, 6);
+    central.writeUInt16LE(0, 10);
+    central.writeUInt32LE(data.byteLength, 20);
+    central.writeUInt32LE(data.byteLength, 24);
+    central.writeUInt16LE(nameBuffer.byteLength, 28);
+    central.writeUInt32LE(offset, 42);
+    centrals.push(central, nameBuffer);
+    offset += local.byteLength + nameBuffer.byteLength + data.byteLength;
+  }
+  const centralOffset = offset;
+  const centralSize = centrals.reduce((total, part) => total + part.byteLength, 0);
+  const end = Buffer.alloc(22);
+  end.writeUInt32LE(0x06054b50, 0);
+  end.writeUInt16LE(Object.keys(entries).length, 8);
+  end.writeUInt16LE(Object.keys(entries).length, 10);
+  end.writeUInt32LE(centralSize, 12);
+  end.writeUInt32LE(centralOffset, 16);
+  return Buffer.concat([...locals, ...centrals, end]);
+}
+
+function lkcWorkbookFixture(rows: unknown[][]): Buffer {
+  const sheetRows = rows.map((row, rowIndex) => `<row r="${rowIndex + 1}">${row.map((value, columnIndex) => {
+    const reference = cellReference(columnIndex, rowIndex + 1);
+    return typeof value === "number"
+      ? `<c r="${reference}"><v>${value}</v></c>`
+      : `<c r="${reference}" t="inlineStr"><is><t>${xmlText(value)}</t></is></c>`;
+  }).join("")}</row>`).join("");
+  return storedZip({
+    "xl/worksheets/sheet1.xml": `<?xml version="1.0"?><worksheet><sheetData>${sheetRows}</sheetData></worksheet>`,
+  });
+}
 
 const config = await loadCinemaRuntimeConfig(
   { home: root } as never,
@@ -92,6 +161,7 @@ const ap = parseApTopTen({
 assert.equal(ap.entries.length, 10);
 assert.equal(ap.entries[0]?.gross.amount, 39_000_000);
 assert.equal(ap.entries[9]?.rank, 10);
+assert.equal(apArticlePublishedAt('<meta property="article:published_time" content="2026-08-28T12:00:00Z">'), "2026-08-28T12:00:00.000Z");
 
 const lkcRows = JSON.parse(await fixture("lkc-rows.json")) as unknown[][];
 const lkc = normalizeLkcSheetRows(lkcRows);
@@ -102,6 +172,13 @@ assert.throws(
   () => normalizeLkcSheetRows([lkcRows[0]!, lkcRows[1]!.slice(0, 4), lkcRows[2]!]),
   /missing header/u,
 );
+const lkcWithMissingShowCount = structuredClone(lkcRows);
+lkcWithMissingShowCount[2]![7] = "-";
+assert.equal(normalizeLkcSheetRows(lkcWithMissingShowCount)[0]?.showCount, undefined);
+const lkcWithTotalFooter = structuredClone(lkcRows);
+lkcWithTotalFooter.push([14, null, "Total (2)", 100_000]);
+assert.equal(normalizeLkcSheetRows(lkcWithTotalFooter).length, 2);
+const lkcWorkbook = lkcWorkbookFixture(lkcRows);
 
 const cinemaLt = parseCinemaLtPremieres({
   html: await fixture("cinema-lt.html"),
@@ -141,10 +218,153 @@ for (const [name, publisher, expectedHost] of rssSpecs) {
 assert.equal(rssStories.find((story) => story.publisher === "Variety")?.imageUrl?.includes("variety.com"), true);
 assert.equal(rssStories.find((story) => story.publisher === "IndieWire")?.imageUrl, undefined);
 
+const newsCandidate = (id: string, publisher: string, title: string, excerpt: string, categories: string[] = []) => ({
+  id,
+  publisher,
+  title,
+  excerpt,
+  categories,
+  publishedAt: "2026-08-28T12:00:00Z",
+  sourceUrl: `https://${publisher === "Variety" ? "variety.com" : "deadline.com"}/${id}`,
+});
+const qualifiedNews = selectNewsCandidates([
+  newsCandidate("sandra-a", "Variety", "Sandra Hüller, Maria Schrader Team Up for ‘Arbeit und Struktur’", "The film enters production.", ["Film"]),
+  newsCandidate("sandra-b", "Deadline", "Sandra Hüller To Star As Wolfgang Herrndorf In Maria Schrader’s ‘Work And Structure’", "The movie enters production.", ["Film"]),
+  newsCandidate("hotel", "Variety", "Four Seasons Launches Refresh of Hotel Danieli", "The Venice hotel has appeared in movies.", ["Travel"]),
+  newsCandidate("hotel-film-category", "Variety", "Four Seasons Launches Refresh of Hotel Danieli", "The Venice hotel hosts a festival crowd.", ["Film"]),
+  newsCandidate("tv-season", "Deadline", "The Gentlemen Season 3 Adds a New Showrunner", "The television series continues.", ["Film"]),
+  newsCandidate("deal", "Deadline", "Studio Acquires New Animated Feature for Global Theatrical Release", "The distribution deal closes this week.", ["Film"]),
+], weekly.end, 20);
+assert.equal(qualifiedNews.length, 2);
+assert.equal(qualifiedNews.some((story) => story.id === "deal"), true);
+assert.equal(qualifiedNews.some((story) => story.id === "hotel-film-category"), false);
+assert.equal(qualifiedNews.some((story) => story.id === "tv-season"), false);
+assert.equal(qualifiedNews.filter((story) => story.id.startsWith("sandra-")).length, 1);
+
 const tmdb = normalizeTmdbMovieResults(JSON.parse(await fixture("tmdb.json")));
 assert.equal(tmdb.length, 1);
 assert.equal(tmdb[0]?.id, 123456);
 assert.equal(tmdb[0]?.posterPath, "/future-film.jpg");
+
+const rssByUrl = new Map<string, string>([
+  [config.sources.weeklyNews.variety, await fixture("rss-variety.xml")],
+  [config.sources.weeklyNews.deadline, await fixture("rss-deadline.xml")],
+  [config.sources.weeklyNews.hollywoodReporter, await fixture("rss-thr.xml")],
+  [config.sources.weeklyNews.indiewire, await fixture("rss-indiewire.xml")],
+]);
+const collectorFetch: typeof fetch = async (input) => {
+  const url = String(input);
+  if (url === config.sources.boxOfficeWatch.weekendUrl) {
+    return new Response(JSON.stringify(boxOfficeFixture.weekend), { status: 200 });
+  }
+  if (url === config.sources.boxOfficeWatch.yearlyUrl) {
+    return new Response(JSON.stringify(boxOfficeFixture.yearly), { status: 200 });
+  }
+  if (url === config.sources.cinemaLt.repertoireUrl) {
+    return new Response(await fixture("cinema-lt.html"), { status: 200 });
+  }
+  if (url === config.sources.lkc.reportsUrl) {
+    return new Response('<a href="/docs/Filmu rodymo ataskaitos/Savaitgalio (Weekend) TOP 2026.08.21-08.23.xlsx">LKC</a>', { status: 200 });
+  }
+  if (url === new URL("/docs/Filmu rodymo ataskaitos/Savaitgalio (Weekend) TOP 2026.08.21-08.23.xlsx", config.sources.lkc.reportsUrl).toString()) {
+    return new Response(Uint8Array.from(lkcWorkbook), { status: 200 });
+  }
+  const rss = rssByUrl.get(url);
+  if (rss) return new Response(rss, { status: 200 });
+  return new Response("not found", { status: 404 });
+};
+const collected = await collectCinemaCandidate({
+  localDate: "2026-08-29",
+  config,
+  fetchImpl: collectorFetch,
+  caller: async (name, arguments_) => {
+    assert.equal(name, "YOUTUBE_LIST_CHANNEL_VIDEOS");
+    assert.equal(typeof arguments_.channelId, "string");
+    assert.equal(arguments_.maxResults, 25);
+    assert.equal(arguments_.part, "snippet");
+    assert.equal("published_after" in arguments_, false);
+    return JSON.parse(await fixture("youtube.json"));
+  },
+  retry: { attempts: 1, timeoutMs: 1_000 },
+  now: () => new Date("2026-08-29T06:05:00Z"),
+});
+assert.equal(collected.boxOffice.state, "ready");
+assert.equal(collected.boxOffice.charts.find((chart) => chart.id === "lt-weekend")?.entries.length, 2);
+assert.equal(collected.trailers.state, "ready");
+assert.equal(collected.trailers.candidates.length, 1);
+assert.equal(collected.premieres.state, "ready");
+assert.equal(collected.news.state, "ready");
+assert.equal(collected.news.candidates.length, 4);
+assert.equal(collected.diagnostics.length, 0);
+
+const apArticleUrl = "https://apnews.com/article/weekly-box-office-test";
+const fallbackCollected = await collectCinemaCandidate({
+  localDate: "2026-08-29",
+  config,
+  fetchImpl: async (input) => {
+    const url = String(input);
+    if (url === config.sources.boxOfficeWatch.weekendUrl || url === config.sources.boxOfficeWatch.yearlyUrl) {
+      return new Response("unavailable", { status: 503 });
+    }
+    if (url === config.sources.apMovies.discoveryUrl) {
+      return new Response('<a href="/article/weekly-box-office-test">box office</a>', { status: 200 });
+    }
+    if (url === apArticleUrl) return new Response(`<meta property="article:published_time" content="2026-08-28T12:00:00Z">${await fixture("ap-top-ten.html")}`, { status: 200 });
+    return collectorFetch(input);
+  },
+  caller: async () => JSON.parse(await fixture("youtube.json")),
+  retry: { attempts: 1, timeoutMs: 1_000 },
+  now: () => new Date("2026-08-29T06:05:00Z"),
+});
+assert.equal(fallbackCollected.boxOffice.state, "partial");
+assert.equal(fallbackCollected.boxOffice.charts.find((chart) => chart.id === "us-weekend")?.entries.length, 10);
+assert.equal(fallbackCollected.provenance.some((source) => source.provider === "Associated Press"), true);
+assert.equal(fallbackCollected.boxOffice.trend.length, 0);
+
+const editorialDraft = {
+  version: 1,
+  localDate: "2026-08-29",
+  news: collected.news.candidates.map((candidate, index) => ({
+    candidateId: candidate.id,
+    headline: `Кинематографическая новость недели номер ${index + 1}`,
+    summary: `Проверенный источник сообщил важную деталь киноиндустрии; этот краткий пересказ сохраняет факты и не меняет исходные данные номер ${index + 1}.`,
+  })),
+  notes: [{ id: "note:test", target: `news:${collected.news.candidates[0]!.id}`, text: "вот это поворот", mark: "arrow-down-left" }],
+};
+const mediaRoot = await mkdtemp(resolve(tmpdir(), "kurami-cinema-media-"));
+const cachedMedia = await cacheCinemaMedia({
+  candidate: collected,
+  draft: editorialDraft,
+  config,
+  mediaRoot,
+  fetchImpl: async () => new Response(Uint8Array.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]), { status: 200 }),
+  retry: { attempts: 1, timeoutMs: 1_000 },
+});
+assert.equal(cachedMedia.cached > 0, true);
+assert.equal(Object.values(cachedMedia.media).every((path) => path.startsWith("/media/cinema/2026-08-29/")), true);
+await rm(mediaRoot, { recursive: true, force: true });
+const composed = composeCinemaEnvelope({ candidate: collected, config, draft: editorialDraft, media: cachedMedia.media });
+assert.equal(composed.state, "ready");
+assert.equal(composed.data.news.items.length, 4);
+assert.equal(composed.data.news.items[0]?.publisher.length !== 0, true);
+assert.throws(() => composeCinemaEnvelope({
+  candidate: collected,
+  config,
+  draft: {
+    version: 1,
+    localDate: "2026-08-29",
+    news: [{
+      candidateId: collected.news.candidates[0]!.id,
+      headline: "Что произошло: очередная история",
+      summary: "Русский пересказ достаточной длины, который всё равно не должен пропустить запрещённый шаблон заголовка.",
+    }],
+    notes: [],
+  },
+}), /forbidden generic copy/u);
+const fallback = composeCinemaFallbackEnvelope({ candidate: collected, config });
+assert.equal(fallback.data.news.state, "failed");
+assert.equal(fallback.data.news.items.length, 0);
+assert.equal(fallback.state, "partial");
 
 const source = (id: string, provider: string, url: string) => ({
   id,
@@ -277,6 +497,8 @@ snapshotDatabase.exec(`
 const firstPromotion = promoteCinemaSnapshot(snapshotDatabase, envelope);
 assert.equal(firstPromotion.status, "promoted");
 assert.equal(loadCinemaSnapshot(snapshotDatabase)?.data.localDate, "2026-08-29");
+assert.equal(cinemaSnapshotForDaily(snapshotDatabase, "2026-08-29")?.data.localDate, "2026-08-29");
+assert.equal(cinemaSnapshotForDaily(snapshotDatabase, "2026-08-30"), undefined);
 assert.equal(promoteCinemaSnapshot(snapshotDatabase, envelope).status, "unchanged");
 const beforeRejected = firstPromotion.status === "promoted" ? firstPromotion.contentDigest : "";
 const rejected = promoteCinemaSnapshot(snapshotDatabase, insufficient);
@@ -383,6 +605,31 @@ try {
   await rm(atomicRoot, { recursive: true, force: true });
 }
 
+const cliRoot = await mkdtemp(resolve(tmpdir(), "kurami-cinema-cli-"));
+try {
+  const envelopePath = resolve(cliRoot, "cinema-envelope.json");
+  await writeFile(envelopePath, `${JSON.stringify(envelope, null, 2)}\n`, "utf8");
+  const cliEnvironment = {
+    ...process.env,
+    KURAMI_HOME: cliRoot,
+    BRIEFING_MIGRATIONS_DIR: resolve(root, "migrations/briefing"),
+    BRIEFING_CONFIG_PATH: resolve(root, "deploy/config/briefing.yaml"),
+  } as NodeJS.ProcessEnv;
+  const preparedByCli = await runCinemaCli(["prepare", "--envelope", envelopePath], cliEnvironment);
+  assert.equal(preparedByCli.action, "cinema-prepare");
+  const promotedByCli = await runCinemaCli(["promote", "--envelope", envelopePath], cliEnvironment);
+  assert.equal(promotedByCli.action, "cinema-promote");
+  assert.equal(promotedByCli.publicationPath, "/cinema");
+  const cliDatabase = openBriefingDatabase(briefingPaths(cliEnvironment));
+  try {
+    assert.equal(loadCinemaSnapshot(cliDatabase)?.data.localDate, "2026-08-29");
+  } finally {
+    cliDatabase.close();
+  }
+} finally {
+  await rm(cliRoot, { recursive: true, force: true });
+}
+
 process.stdout.write(`${JSON.stringify({
   ok: true,
   cinemaDisabledByDefault: true,
@@ -394,4 +641,6 @@ process.stdout.write(`${JSON.stringify({
   deterministicFullAndDailyRenderers: true,
   rendererFailureIsolated: true,
   editionAndSnapshotPromoteAtomically: true,
+  apFallbackCovered: true,
+  operationalCliCovered: true,
 })}\n`);

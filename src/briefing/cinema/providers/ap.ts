@@ -63,8 +63,25 @@ export function parseApTopTen(input: {
   };
 }
 
-export function discoverApBoxOfficeLinks(html: string, limit = 30): string[] {
+export function apArticlePublishedAt(html: string): string | undefined {
+  const raw = /(?:article:published_time["'][^>]*content=["']([^"']+)|["']datePublished["']\s*:\s*["']([^"']+))/iu.exec(html);
+  const value = raw?.[1] ?? raw?.[2];
+  if (!value) return undefined;
+  const parsed = new Date(value);
+  return Number.isFinite(parsed.getTime()) ? parsed.toISOString() : undefined;
+}
+
+export function discoverApBoxOfficeLinks(
+  html: string,
+  limit = 30,
+  baseUrl = "https://apnews.com/hub/movies",
+): string[] {
   if (Buffer.byteLength(html, "utf8") > 2 * 1_024 * 1_024) throw new Error("AP discovery page exceeds 2 MiB");
-  return [...new Set([...html.matchAll(/https:\/\/apnews\.com\/article\/[A-Za-z0-9-]*box-office[A-Za-z0-9-]*/gu)]
-    .map((match) => match[0]))].slice(0, Math.min(50, Math.max(1, limit)));
+  const candidates = [
+    ...[...html.matchAll(/https:\/\/apnews\.com\/article\/[A-Za-z0-9-]*box-office[A-Za-z0-9-]*/gu)]
+      .map((match) => match[0]),
+    ...[...html.matchAll(/href=["'](\/article\/[A-Za-z0-9-]*box-office[A-Za-z0-9-]*)["']/gu)]
+      .map((match) => new URL(match[1]!, baseUrl).toString()),
+  ];
+  return [...new Set(candidates)].slice(0, Math.min(50, Math.max(1, limit)));
 }
