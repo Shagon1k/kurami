@@ -82,7 +82,10 @@ function metaContent(html: string, property: string): string | undefined {
     const attributes = match[1]!;
     const propertyValue = /(?:property|name)\s*=\s*["']([^"']+)["']/iu.exec(attributes)?.[1]?.toLocaleLowerCase("en-US");
     if (propertyValue !== property.toLocaleLowerCase("en-US")) continue;
-    return /content\s*=\s*["']([^"']+)["']/iu.exec(attributes)?.[1]?.replace(/&amp;/gu, "&");
+    return /content\s*=\s*["']([^"']+)["']/iu.exec(attributes)?.[1]
+      ?.replace(/&(?:amp|#0*38|#x0*26);/giu, "&")
+      .replace(/&(?:quot|#0*34|#x0*22);/giu, '"')
+      .replace(/&(?:apos|#0*39|#x0*27);/giu, "'");
   }
   return undefined;
 }

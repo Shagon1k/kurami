@@ -17,6 +17,8 @@ const TRAILER_PROMO_COPY = /\b(?:trailer just dropped|watch the (?:brand )?new t
 const CINEMA_NEWS = /\b(?:film|movie|cinema|theatrical|box[ -]office|filmmaker|director|actor|actress|stars?|starring|cast|casting|studio|production|distribution|distributor|festival|oscar|release|sequel|franchise|screenplay|screenwriter|cinematograph|animation|documentary)\b/iu;
 const EXPLICIT_FILM_TITLE = /\b(?:film|movie|cinema|theatrical|box[ -]office|filmmaker|director|actor|actress|stars?|starring|cast|casting|studio|production|distribution|festival|oscar|release|sequel|franchise|screenplay|animation|documentary)\b/iu;
 const ADJACENT_NON_FILM_TITLE = /\b(?:hotel|resort|restaurant|fashion|beauty|property|real estate|season\s+\d+|tv series|television series|showrunner)\b/iu;
+const SCREEN_ADJACENT_TITLE = /\b(?:tv|television|series|unscripted|competition series|conference|broadcast|streaming series)\b/iu;
+const EXPLICIT_CINEMA_TITLE = /\b(?:film|movie|cinema|theatrical|box[ -]office|filmmaker|festival|oscar|documentary)\b/iu;
 const HIGH_IMPACT = /\b(?:acquire|acquisition|merger|deal|greenlit|greenlight|production|distribution|release date|delay|cancell?ed|festival|box[ -]office|record|lawsuit|strike|agreement|chief executive|ceo|director|filmmaker)\b/iu;
 const LOW_SIGNAL = /\b(?:review|ranked|best .* movies|every .* explained|recap|trailer|teaser|photos?|first look|watch|listicle|gift guide)\b/iu;
 
@@ -128,6 +130,10 @@ function newsScore(candidate: CinemaNewsCandidate, coverageEnd: string): number 
   // story). Adjacent lifestyle or TV-only headlines need an explicit film
   // signal in the headline itself before entering the Cinema candidate pool.
   if (ADJACENT_NON_FILM_TITLE.test(candidate.title) && !EXPLICIT_FILM_TITLE.test(candidate.title)) return -1;
+  // General entertainment feeds mix cinema with television, unscripted shows
+  // and industry conferences. Those enter Cinema only when the headline itself
+  // contains an explicit film signal; a broad RSS category is not sufficient.
+  if (SCREEN_ADJACENT_TITLE.test(candidate.title) && !EXPLICIT_CINEMA_TITLE.test(candidate.title)) return -1;
   const ageHours = Math.max(0, (Date.parse(coverageEnd) - Date.parse(candidate.publishedAt)) / 3_600_000);
   return 100
     + (HIGH_IMPACT.test(combined) ? 35 : 0)

@@ -274,6 +274,22 @@ const prolificPublisher = prolificTitles.map((title, index) => ({
   sourceUrl: `https://www.youtube.com/watch?v=Prolific${String(index).padStart(3, "0")}`,
 }));
 assert.equal(selectTrailerCandidates(prolificPublisher, 8).length, 3);
+const mixedPublishers = prolificPublisher.concat(
+  ["North Star", "Open Water", "Stone House", "Night Train", "Bright Field"].map((title, index) => ({
+    ...youtube[0]!,
+    id: `youtube:mixed${index}`,
+    videoId: `Mixed${String(index).padStart(6, "0")}`,
+    publisher: `Publisher ${index + 1}`,
+    publisherChannelId: `UC${String(index + 1).repeat(22)}`,
+    title: `${title} — Official Trailer`,
+    sourceUrl: `https://www.youtube.com/watch?v=Mixed${String(index).padStart(6, "0")}`,
+  })),
+);
+const mixedSelection = selectTrailerCandidates(mixedPublishers, 8);
+assert.equal(mixedSelection.length, 8);
+assert.equal(Math.max(...[...new Set(mixedSelection.map((item) => item.publisherChannelId))].map(
+  (publisher) => mixedSelection.filter((item) => item.publisherChannelId === publisher).length,
+)), 3);
 
 const rssSpecs = [
   ["rss-variety.xml", "Variety", "variety.com"],
@@ -310,12 +326,16 @@ const qualifiedNews = selectNewsCandidates([
   newsCandidate("hotel", "Variety", "Four Seasons Launches Refresh of Hotel Danieli", "The Venice hotel has appeared in movies.", ["Travel"]),
   newsCandidate("hotel-film-category", "Variety", "Four Seasons Launches Refresh of Hotel Danieli", "The Venice hotel hosts a festival crowd.", ["Film"]),
   newsCandidate("tv-season", "Deadline", "The Gentlemen Season 3 Adds a New Showrunner", "The television series continues.", ["Film"]),
+  newsCandidate("unscripted", "Variety", "Asian Male Pageantry Competition Series Heads to Buyers", "An unscripted television format seeks a buyer at a film market.", ["Film"]),
+  newsCandidate("tv-market", "Variety", "Nippon TV Sets Tokyo Market Conference Lineup", "Broadcasters will discuss television formats.", ["Film"]),
   newsCandidate("deal", "Deadline", "Studio Acquires New Animated Feature for Global Theatrical Release", "The distribution deal closes this week.", ["Film"]),
 ], weekly.end, 20);
 assert.equal(qualifiedNews.length, 2);
 assert.equal(qualifiedNews.some((story) => story.id === "deal"), true);
 assert.equal(qualifiedNews.some((story) => story.id === "hotel-film-category"), false);
 assert.equal(qualifiedNews.some((story) => story.id === "tv-season"), false);
+assert.equal(qualifiedNews.some((story) => story.id === "unscripted"), false);
+assert.equal(qualifiedNews.some((story) => story.id === "tv-market"), false);
 assert.equal(qualifiedNews.filter((story) => story.id.startsWith("sandra-")).length, 1);
 
 const tmdb = normalizeTmdbMovieResults(JSON.parse(await fixture("tmdb.json")));
@@ -421,7 +441,7 @@ const cachedMedia = await cacheCinemaMedia({
   config,
   mediaRoot,
   fetchImpl: async (input) => String(input) === missingNewsImage?.sourceUrl
-    ? new Response(`<html><head><meta property="og:image" content="${fallbackImageUrl}"></head></html>`, { status: 200 })
+    ? new Response(`<html><head><meta property="og:image" content="${fallbackImageUrl}?w=1440&#038;h=810"></head></html>`, { status: 200 })
     : new Response(Uint8Array.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]), { status: 200 }),
   retry: { attempts: 1, timeoutMs: 1_000 },
 });
@@ -634,6 +654,8 @@ for (const marker of [
   "data-cinema-edition=\"2026-08-29\"",
   "Kurami Cinema",
 ]) assert.match(cinemaHtml, new RegExp(marker));
+assert.match(cinemaHtml, /\.cinema-trend__series circle \{ fill: var\(--trend-color\)/u);
+assert.match(cinemaHtml, /<b>Бюджет<\/b>/u);
 assert.doesNotMatch(cinemaHtml, /Kurami Daily Briefing/u);
 const prolificEnvelope = parseCinemaEnvelope({
   ...rawEnvelope,
@@ -653,6 +675,22 @@ const prolificHtml = renderBriefingPage(cinemaEnvelopeToBriefingPayload(prolific
 assert.match(prolificHtml, /Atlas Rising/u);
 assert.match(prolificHtml, /Distant Harbor/u);
 assert.doesNotMatch(prolificHtml, /Emerald City|Frozen Valley/u);
+const mixedEnvelope = parseCinemaEnvelope({
+  ...rawEnvelope,
+  data: {
+    ...rawEnvelope.data,
+    trailers: {
+      ...rawEnvelope.data.trailers,
+      items: mixedSelection.map((item) => ({
+        ...item,
+        trailerType: "main",
+        sourceId: "source:youtube",
+      })),
+    },
+  },
+});
+const mixedHtml = renderBriefingPage(cinemaEnvelopeToBriefingPayload(mixedEnvelope));
+assert.equal((mixedHtml.match(/<a class="cinema-trailer"/gu) ?? []).length, 8);
 if (process.env.CINEMA_FIXTURE_OUTPUT) {
   await writeFile(resolve(process.env.CINEMA_FIXTURE_OUTPUT), cinemaHtml, "utf8");
 }

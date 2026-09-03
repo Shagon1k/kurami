@@ -278,13 +278,13 @@ a { color: inherit; }
 .cinema-trend__zoom button:disabled { color: var(--muted); cursor: not-allowed; opacity: .45; }
 .cinema-trend svg { width: 100%; height: auto; display: block; margin-top: 12px; overflow: visible; }
 .cinema-trend__grid line { stroke: var(--grid); stroke-width: 1; }
-.cinema-trend__series { fill: none; stroke: var(--ink); stroke-width: 2.5; stroke-linecap: round; stroke-linejoin: round; }
-.cinema-trend__series--1 { stroke: var(--signal); }
-.cinema-trend__series--2 { stroke: var(--positive); }
-.cinema-trend__series--3 { stroke: var(--warning); }
-.cinema-trend__series--4 { stroke: var(--muted); stroke-dasharray: 6 4; }
-.cinema-trend__series circle { fill: var(--surface); stroke: inherit; stroke-width: 2; transition: r 140ms ease, fill 140ms ease; }
-.cinema-trend__series circle:hover, .cinema-trend__series circle:focus { r: 5; fill: var(--surface); outline: none; }
+.cinema-trend__series { --trend-color: var(--ink); fill: none; stroke: var(--trend-color); stroke-width: 2.5; stroke-linecap: round; stroke-linejoin: round; }
+.cinema-trend__series--1 { --trend-color: var(--signal); }
+.cinema-trend__series--2 { --trend-color: var(--positive); }
+.cinema-trend__series--3 { --trend-color: var(--warning); }
+.cinema-trend__series--4 { --trend-color: var(--muted); stroke-dasharray: 6 4; }
+.cinema-trend__series circle { fill: var(--trend-color); stroke: var(--surface); stroke-width: 1.25; transition: r 140ms ease, stroke-width 140ms ease; }
+.cinema-trend__series circle:hover, .cinema-trend__series circle:focus { r: 5; stroke-width: 2; outline: none; }
 .cinema-trend__labels text { fill: var(--muted); font: 400 10px/1 var(--font-mono); }
 .cinema-rank-groups { display: grid; gap: 16px; }
 .cinema-rank-group { display: grid; gap: 8px; }
