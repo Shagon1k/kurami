@@ -1,8 +1,9 @@
 import assert from "node:assert/strict";
-import { mkdtemp } from "node:fs/promises";
+import { mkdir, mkdtemp, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { resolve } from "node:path";
 import { assertEditorialPayload, loadTopicPolicy } from "../../src/briefing/editorial-validation.ts";
+import { importEditionMedia } from "../../src/briefing/media.ts";
 import { parseBriefingPayload } from "../../src/briefing/model.ts";
 import { briefingPaths, openBriefingDatabase, preparePreview, topicRegistry } from "../../src/briefing/store.ts";
 import { renderBriefingPage } from "../../src/briefing/ui/render-page.ts";
@@ -154,6 +155,21 @@ const paths = briefingPaths({
   BRIEFING_MIGRATIONS_DIR: resolve(import.meta.dirname, "../../migrations/briefing"),
 } as NodeJS.ProcessEnv);
 await preparePreview(proposedPayload, renderBriefingPage(proposedPayload), paths);
+const proposedTopicAsset = resolve(paths.mediaInboxDirectory, "proposed-topic.jpg");
+await mkdir(paths.mediaInboxDirectory, { recursive: true });
+await writeFile(proposedTopicAsset, Buffer.from([0xff, 0xd8, 0xff, 0xd9]));
+const imported = await importEditionMedia({
+  editionId: proposedPayload.edition.id,
+  stories: [{
+    itemId: "story-1",
+    assets: [{
+      sourcePath: proposedTopicAsset,
+      sourceKey: "telegram:onliner",
+      providerItemId: "101",
+    }],
+  }],
+}, paths);
+assert.equal(imported.imported, 1);
 const database = openBriefingDatabase(paths);
 try {
   assert.deepEqual(topicRegistry(database).find((topic) => topic.id === "food-theft"), {
@@ -173,4 +189,5 @@ console.log(JSON.stringify({
   housingRequiresSpecificSubtype: true,
   aiMayProposeAndUseNewTopic: true,
   proposedTopicPersistsInPool: true,
+  mediaRetryDoesNotRevalidateRegisteredProposal: true,
 }));

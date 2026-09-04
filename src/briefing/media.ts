@@ -17,7 +17,7 @@ import {
   initializeBriefingStore,
   loadEdition,
   openBriefingDatabase,
-  preparePreview,
+  refreshPreparedPreviewMedia,
 } from "./store.ts";
 import { renderBriefingPage } from "./ui/render-page.ts";
 
@@ -371,7 +371,7 @@ export async function importEditionMedia(
       : mediaSummary;
 
     const parsed = parseBriefingPayload(payload);
-    const prepared = await preparePreview(parsed, renderBriefingPage(parsed), paths);
+    const prepared = await refreshPreparedPreviewMedia(parsed, renderBriefingPage(parsed), paths);
     mediaCommitted = true;
     for (const stagedFile of stagedFiles) {
       await unlink(stagedFile).catch((error: NodeJS.ErrnoException) => {

@@ -670,6 +670,112 @@ export async function preparePreview(
   };
 }
 
+function mediaRefreshInvariant(payload: BriefingPayload): string {
+  const { mediaSummary: _mediaSummary, summary: _summary, telegramCollection, ...quality } = payload.dataQuality;
+  const collection = telegramCollection && typeof telegramCollection === "object" && !Array.isArray(telegramCollection)
+    ? telegramCollection as Record<string, unknown>
+    : {};
+  const {
+    downloaded: _downloaded,
+    imported: _imported,
+    storiesWithMedia: _storiesWithMedia,
+    ...stableCollection
+  } = collection;
+  const invariant = {
+    ...payload,
+    dataQuality: {
+      ...quality,
+      ...(Object.keys(stableCollection).length ? { telegramCollection: stableCollection } : {}),
+    },
+    news: {
+      ...payload.news,
+      items: payload.news.items.map(({ media: _media, ...story }) => story),
+    },
+  };
+  return canonicalJson(JSON.parse(JSON.stringify(invariant)) as unknown);
+}
+
+/**
+ * Persist media downloaded for an already validated prepared edition.
+ *
+ * This path intentionally does not rerun editorial validation: preparing an
+ * edition may register proposed topics, which changes the runtime policy and
+ * must not make a later media-only retry reject the exact same editorial
+ * payload. The invariant below proves that only story media and the derived
+ * media-quality counters changed.
+ */
+export async function refreshPreparedPreviewMedia(
+  payloadValue: unknown,
+  html: string,
+  paths: BriefingPaths = briefingPaths(),
+): Promise<{ editionId: string; previewPath: string; digest: string; state: "prepared" }> {
+  const payload = parseBriefingPayload(payloadValue);
+  assertProductionBriefingPayload(payload);
+  await initializeBriefingStore(paths);
+  if (payload.edition.type === "daily") {
+    payload.edition.retentionUntil = dailyRetentionUntil(payload.edition.localDate);
+  }
+  if (payload.schemaVersion === 2 && payload.edition.type === "daily" && payload.sourceBatches?.length) {
+    assertTelegramStoryCoverage(payload);
+  }
+  validateRenderedHtml(html, payload);
+
+  const database = openBriefingDatabase(paths);
+  let previousHtml: string | null = null;
+  let htmlPath = "";
+  let wroteHtml = false;
+  try {
+    const edition = loadEdition(database, { id: payload.edition.id });
+    if (!edition || edition.state !== "prepared") {
+      fail(`Edition ${payload.edition.id} is not prepared`);
+    }
+    const existing = parseBriefingPayload(JSON.parse(edition.payload_json) as unknown);
+    if (mediaRefreshInvariant(payload) !== mediaRefreshInvariant(existing)) {
+      fail("Prepared media refresh cannot change editorial or source content");
+    }
+    if (edition.html_path !== relativeHtmlPath(paths, payload)) {
+      fail("Prepared media refresh cannot change the edition page path");
+    }
+
+    const payloadJson = JSON.stringify(payload);
+    const digest = createHash("sha256").update(payloadJson).update("\0").update(html).digest("hex");
+    htmlPath = resolvedHtmlPath(paths, edition.html_path);
+    previousHtml = await readFile(htmlPath, "utf8").catch((error: NodeJS.ErrnoException) => {
+      if (error.code === "ENOENT") return null;
+      throw error;
+    });
+    const timestamp = now();
+
+    database.exec("BEGIN IMMEDIATE");
+    try {
+      await atomicWrite(htmlPath, html);
+      wroteHtml = true;
+      const update = database.prepare(`
+        UPDATE editions
+        SET payload_json = ?, content_digest = ?, retention_until = ?, updated_at = ?
+        WHERE id = ? AND state = 'prepared'
+      `).run(payloadJson, digest, payload.edition.retentionUntil, timestamp, edition.id);
+      if (update.changes !== 1) fail("Prepared edition changed during media refresh");
+      database.exec("COMMIT");
+    } catch (error) {
+      database.exec("ROLLBACK");
+      if (wroteHtml) {
+        if (previousHtml === null) await unlink(htmlPath).catch(() => undefined);
+        else await atomicWrite(htmlPath, previousHtml);
+      }
+      throw error;
+    }
+    return {
+      editionId: edition.id,
+      previewPath: `/preview/${payload.edition.type}/${payload.edition.localDate}`,
+      digest,
+      state: "prepared",
+    };
+  } finally {
+    database.close();
+  }
+}
+
 export async function rerenderPublishedPreview(
   payloadValue: unknown,
   html: string,
