@@ -1,0 +1,12 @@
+[Unit]
+Description=Verify Daily Briefing after primary and recovery windows
+
+[Timer]
+OnCalendar=*-*-* 09:50:00 Europe/Vilnius
+OnCalendar=*-*-* 10:50:00 Europe/Vilnius
+Persistent=true
+AccuracySec=30s
+Unit=kurami-daily-briefing-guard.service
+
+[Install]
+WantedBy=timers.target

@@ -85,12 +85,26 @@ Default manual experiments to `dry-run`. Generation never archives Gmail;
    Preserve the returned `attempt.attemptId` and `attempt.runDirectory`. When
    `shouldRun` is false, stop successfully without provider calls or delivery.
    This runtime check is the authoritative local-09:00 and duplicate-run guard.
+   At the local 10:00 recovery window, an unfinished scheduled attempt returns
+   `shouldRun: true`, `reason: scheduled_recovery_window`, and the same attempt
+   and run directory. Resume after the returned `attempt.state`: do not repeat
+   completed transitions, refetch a frozen Telegram batch, recollect an
+   existing live snapshot, rewrite accepted editorial copy, redownload
+   successful media, or create a second attempt. A previously failed attempt
+   is reopened at its latest successfully receipted stage while preserving the
+   failure receipt for audit. Provider mutations remain bounded by their
+   persisted plan and idempotency keys.
    After an attempt exists, any unrecoverable gate failure must be recorded
    once with `$BRIEFING_NODE $BRIEFING_CLI advance-attempt --attempt <attempt-id> --stage failed --error-code <safe_machine_code>`
    before returning the concise failure; never leave a knowingly failed run
    looking active. The runtime automatically creates one Discord status card
    per Daily date and edits that same card after meaningful stage transitions.
    Do not send separate progress, recovery, or release messages from the agent.
+   Independent runtime guards check an accepted published state (`complete`,
+   or a visible fail-soft `partial`) plus `notified` at 09:50 and 10:50
+   Europe/Vilnius. The first exposes an incomplete primary run while keeping it
+   resumable; the second records a terminal recovery failure. Do not bypass or
+   disable these guards from the agent workflow.
 4. Reuse the attempt's `live-snapshot.json` only when it is already valid. If
    it is absent, stale, or invalid, run
    `$BRIEFING_NODE $BRIEFING_CLI collect-live --id daily:YYYY-MM-DD --attempt <attempt-id>`. The

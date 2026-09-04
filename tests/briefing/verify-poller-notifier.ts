@@ -5,6 +5,8 @@ import { resolve } from "node:path";
 import { runDigestCentralPoller } from "../../src/briefing/poller.ts";
 import { notifyBriefingRelease, syncBriefingRunCard } from "../../src/briefing/release-notifier.ts";
 import { recordBriefingRunStage } from "../../src/briefing/run-attempt.ts";
+import { startBriefingAttempt } from "../../src/briefing/run-attempt.ts";
+import { guardBriefingRun } from "../../src/briefing/run-guard.ts";
 import {
   loadBriefingRuntimeConfig,
   loadTelegramCaptureConfig,
@@ -679,6 +681,60 @@ async function verifyFailureAndRecoveryReuseOneCard(): Promise<void> {
   assert.equal(requests[1]?.url, requests[2]?.url);
 }
 
+async function verifyDeterministicCompletionGuard(): Promise<void> {
+  const requests: Array<{ url: string; init: RequestInit | undefined }> = [];
+  const mockedFetch: typeof fetch = async (input, init) => {
+    requests.push({ url: input instanceof Request ? input.url : String(input), init });
+    return new Response(JSON.stringify({ id: "177777777777777777" }), {
+      status: 200,
+      headers: { "content-type": "application/json" },
+    });
+  };
+  const primary = await guardBriefingRun(environment, {
+    at: new Date("2026-09-02T06:50:00.000Z"),
+    fetchImpl: mockedFetch,
+  });
+  assert.deepEqual(primary, {
+    editionId: "daily:2026-09-02",
+    attemptId: "daily-2026-09-02--scheduled",
+    phase: "primary",
+    status: "incomplete",
+    state: "created",
+  });
+  const database = openBriefingDatabase(paths);
+  let attemptId = "";
+  try {
+    const recovery = await startBriefingAttempt(database, paths, {
+      editionId: "daily:2026-09-02",
+      mode: "scheduled",
+      timeZone: "Europe/Vilnius",
+      at: new Date("2026-09-02T07:00:00.000Z"),
+    });
+    assert.equal(recovery.shouldRun, true);
+    assert.equal(recovery.reason, "scheduled_recovery_window");
+    attemptId = recovery.attempt.attemptId;
+    recordBriefingRunStage(database, { attemptId, stage: "live-collected" });
+  } finally {
+    database.close();
+  }
+  const recoveryGuard = await guardBriefingRun(environment, {
+    at: new Date("2026-09-02T07:50:00.000Z"),
+    fetchImpl: mockedFetch,
+  });
+  assert.equal(recoveryGuard.phase, "recovery");
+  assert.equal(recoveryGuard.status, "failed");
+  assert.equal(recoveryGuard.state, "failed");
+  assert.equal(recoveryGuard.attemptId, attemptId);
+  assert.equal(requests[0]?.init?.method, "POST");
+  assert.equal(requests.at(-1)?.init?.method, "PATCH");
+  const delayedPersistentGuard = await guardBriefingRun(environment, {
+    at: new Date("2026-09-02T08:30:00.000Z"),
+    fetchImpl: mockedFetch,
+  });
+  assert.equal(delayedPersistentGuard.phase, "recovery");
+  assert.equal(delayedPersistentGuard.status, "failed");
+}
+
 await verifyRuntimeConfig();
 await verifyEmptyPollerIsLocalAndDeterministic();
 await verifyRetainedPollerFailSoft("missing-composio", {});
@@ -688,4 +744,5 @@ await verifyRetainedPollerFailSoft("invalid-composio", {
 });
 await verifyReleaseNotifier();
 await verifyFailureAndRecoveryReuseOneCard();
+await verifyDeterministicCompletionGuard();
 process.stdout.write("briefing poller and release notifier verified\n");

@@ -187,7 +187,9 @@ function runCardMessage(input: {
     fields.push({ name: "Дополнения", value: addonNames.join(" · "), inline: false });
   }
   const description = success
-    ? "✅ Выпуск опубликован"
+    ? attempt.recoveryStartedAt
+      ? "✅ Выпуск восстановлен автоматически"
+      : "✅ Выпуск опубликован"
     : failure
       ? "❌ Выпуск не опубликован. Карточка обновится при восстановлении."
       : `⏳ ${progress.label}`;

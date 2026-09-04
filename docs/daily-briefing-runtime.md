@@ -125,6 +125,18 @@ status-delivery failure is recorded but cannot block the briefing workflow.
 Gmail read-and-archive remains an explicit user action through the separate
 restricted automation contour.
 
+The scheduled agent has two local windows: 09:00 primary and 10:00 recovery.
+The recovery window reopens the same durable attempt at its latest completed
+stage and reuses the same frozen run directory. It never creates a second
+Telegram snapshot or a second Discord message. A separate systemd guard runs
+at 09:50 and 10:50 in `Europe/Vilnius`: the primary guard exposes an incomplete
+run on the existing card, while the recovery guard records a terminal failure
+if the edition still is not in an accepted published state (`complete`, or a
+visible fail-soft `partial`) and `notified`. A published edition whose only
+missing step is notification is completed directly by the guard. A delayed
+Persistent timer invocation after 10:50 is still treated as the final recovery
+guard rather than silently skipped.
+
 ## Provider boundaries
 
 - Gmail and Calendar use only the restricted `composio-read` Session and its

@@ -54,6 +54,18 @@ const serviceUnit = await readFile(
 assert.match(serviceUnit, /MemoryDenyWriteExecute=true/);
 assert.match(serviceUnit, /node --jitless .*\/dist\/briefing\/server\.js/);
 assert.doesNotMatch(serviceUnit, /\/src\/briefing\/server\.ts/);
+const guardServiceUnit = await readFile(
+  resolve(root, "deploy/systemd/kurami-daily-briefing-guard.service"),
+  "utf8",
+);
+const guardTimerUnit = await readFile(
+  resolve(root, "deploy/systemd/kurami-daily-briefing-guard.timer"),
+  "utf8",
+);
+assert.match(guardServiceUnit, /dist\/briefing\/cli\.js guard-run/u);
+assert.match(guardServiceUnit, /MemoryDenyWriteExecute=true/u);
+assert.match(guardTimerUnit, /09:50:00 Europe\/Vilnius/u);
+assert.match(guardTimerUnit, /10:50:00 Europe\/Vilnius/u);
 const home = await mkdtemp(resolve(tmpdir(), "kurami-briefing-runtime-"));
 const paths = briefingPaths({
   KURAMI_HOME: home,
@@ -1042,6 +1054,7 @@ assert.deepEqual(initialized.applied, [
   "004_deterministic_runs.sql",
   "005_addon_snapshots.sql",
   "006_discord_run_cards.sql",
+  "007_recovery_windows.sql",
 ]);
 const snapshotDatabase = openBriefingDatabase(paths);
 try {

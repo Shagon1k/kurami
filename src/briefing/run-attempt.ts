@@ -35,6 +35,8 @@ export type BriefingRunAttempt = {
   createdAt: string;
   updatedAt: string;
   completedAt: string | null;
+  recoveryStartedAt: string | null;
+  recoveryCompletedAt: string | null;
 };
 
 const ORDER: BriefingRunState[] = [
@@ -64,6 +66,8 @@ function row(value: Record<string, unknown>): BriefingRunAttempt {
     createdAt: String(value.created_at),
     updatedAt: String(value.updated_at),
     completedAt: value.completed_at === null ? null : String(value.completed_at),
+    recoveryStartedAt: value.recovery_started_at === null ? null : String(value.recovery_started_at),
+    recoveryCompletedAt: value.recovery_completed_at === null ? null : String(value.recovery_completed_at),
   };
 }
 
@@ -127,7 +131,42 @@ export async function startBriefingAttempt(
       "SELECT * FROM briefing_run_attempts WHERE edition_id = ? AND mode = 'scheduled'",
     ).get(input.editionId) as Record<string, unknown> | undefined;
     if (existing) {
-      const attempt = row(existing);
+      let attempt = row(existing);
+      if (local.hour === 10 && !["published", "notified", "skipped"].includes(attempt.state)) {
+        if (attempt.recoveryStartedAt) {
+          return {
+            attempt,
+            reused: true,
+            shouldRun: false,
+            reason: "scheduled_recovery_already_started",
+          };
+        }
+        let resumeState = attempt.state;
+        if (attempt.state === "failed") {
+          const completed = database.prepare(`
+            SELECT stage FROM briefing_run_stage_receipts
+            WHERE attempt_id = ? AND state = 'complete'
+          `).all(attempt.attemptId) as Array<{ stage: BriefingRunState }>;
+          resumeState = completed
+            .map((receipt) => receipt.stage)
+            .filter((stage) => ORDER.includes(stage))
+            .sort((left, right) => ORDER.indexOf(right) - ORDER.indexOf(left))[0] ?? "created";
+        }
+        database.prepare(`
+          UPDATE briefing_run_attempts
+          SET state = ?, error_code = NULL, completed_at = NULL,
+              recovery_started_at = COALESCE(recovery_started_at, ?),
+              recovery_completed_at = NULL, updated_at = ?
+          WHERE attempt_id = ?
+        `).run(resumeState, timestamp, timestamp, attempt.attemptId);
+        attempt = loadBriefingAttempt(database, attempt.attemptId)!;
+        return {
+          attempt,
+          reused: true,
+          shouldRun: true,
+          reason: "scheduled_recovery_window",
+        };
+      }
       return {
         attempt,
         reused: true,
@@ -137,7 +176,7 @@ export async function startBriefingAttempt(
           : "scheduled_attempt_already_exists",
       };
     }
-    if (local.hour !== 9) {
+    if (local.hour !== 9 && local.hour !== 10) {
       const attemptId = `daily-${match[1]}--scheduled`;
       const runDirectory = attemptDirectory(paths, attemptId);
       return {
@@ -153,6 +192,8 @@ export async function startBriefingAttempt(
           createdAt: timestamp,
           updatedAt: timestamp,
           completedAt: timestamp,
+          recoveryStartedAt: null,
+          recoveryCompletedAt: null,
         },
         reused: false,
         shouldRun: false,
@@ -168,9 +209,18 @@ export async function startBriefingAttempt(
   await mkdir(runDirectory, { recursive: true, mode: 0o700 });
   database.prepare(`
     INSERT INTO briefing_run_attempts (
-      attempt_id, edition_id, mode, state, run_directory, created_at, updated_at
-    ) VALUES (?, ?, ?, 'created', ?, ?, ?)
-  `).run(attemptId, input.editionId, input.mode, runDirectory, timestamp, timestamp);
+      attempt_id, edition_id, mode, state, run_directory, created_at, updated_at,
+      recovery_started_at
+    ) VALUES (?, ?, ?, 'created', ?, ?, ?, ?)
+  `).run(
+    attemptId,
+    input.editionId,
+    input.mode,
+    runDirectory,
+    timestamp,
+    timestamp,
+    input.mode === "scheduled" && local.hour === 10 ? timestamp : null,
+  );
   return { attempt: loadBriefingAttempt(database, attemptId)!, reused: false, shouldRun: true };
 }
 
@@ -226,7 +276,11 @@ export function recordBriefingRunStage(
       UPDATE briefing_run_attempts
       SET state = ?, input_digest = COALESCE(?, input_digest),
           output_digest = COALESCE(?, output_digest), error_code = ?,
-          updated_at = ?, completed_at = ?
+          updated_at = ?, completed_at = ?,
+          recovery_completed_at = CASE
+            WHEN ? = 'notified' AND recovery_started_at IS NOT NULL THEN ?
+            ELSE recovery_completed_at
+          END
       WHERE attempt_id = ?
     `).run(
       input.stage,
@@ -235,6 +289,8 @@ export function recordBriefingRunStage(
       input.errorCode ?? null,
       timestamp,
       ["notified", "failed", "skipped"].includes(input.stage) ? timestamp : null,
+      input.stage,
+      timestamp,
       input.attemptId,
     );
     database.exec("COMMIT");

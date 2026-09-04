@@ -1,0 +1,26 @@
+[Unit]
+Description=Kurami Daily Briefing completion guard
+After=network-online.target kurami-briefing.service
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+ExecStart=/home/shagon1k/_hermes/_kurami/runtime/node/bin/node --jitless /home/shagon1k/_hermes/_kurami/app/dist/briefing/cli.js guard-run
+TimeoutStartSec=2min
+
+Environment=HOME=/home/shagon1k
+Environment=KURAMI_HOME=/home/shagon1k/_hermes/_kurami
+Environment=PATH=/home/shagon1k/_hermes/_kurami/runtime/node/bin:/usr/local/bin:/usr/bin:/bin
+
+UMask=0077
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=read-only
+ReadWritePaths=/home/shagon1k/_hermes/_kurami/state/briefing
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6
+RestrictNamespaces=true
+RestrictSUIDSGID=true
+LockPersonality=true
+MemoryDenyWriteExecute=true
+SystemCallArchitectures=native

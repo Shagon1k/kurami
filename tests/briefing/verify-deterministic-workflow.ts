@@ -47,7 +47,7 @@ try {
     editionId: "daily:2026-09-01",
     mode: "scheduled",
     timeZone: "Europe/Vilnius",
-    at: new Date("2026-09-01T07:00:00Z"),
+    at: new Date("2026-09-01T06:10:00Z"),
   });
   assert.equal(duplicate.shouldRun, false);
   assert.equal(duplicate.attempt.attemptId, scheduled.attempt.attemptId);
@@ -58,6 +58,40 @@ try {
   recordBriefingRunStage(database, { attemptId: scheduled.attempt.attemptId, stage: "live-collected" });
   recordBriefingRunStage(database, { attemptId: scheduled.attempt.attemptId, stage: "telegram-captured" });
   recordBriefingRunStage(database, { attemptId: scheduled.attempt.attemptId, stage: "capture-validated" });
+  recordBriefingRunStage(database, {
+    attemptId: scheduled.attempt.attemptId,
+    stage: "failed",
+    errorCode: "primary_window_incomplete",
+  });
+  const recovery = await startBriefingAttempt(database, paths, {
+    editionId: "daily:2026-09-01",
+    mode: "scheduled",
+    timeZone: "Europe/Vilnius",
+    at: new Date("2026-09-01T07:00:00Z"),
+  });
+  assert.equal(recovery.shouldRun, true);
+  assert.equal(recovery.reused, true);
+  assert.equal(recovery.reason, "scheduled_recovery_window");
+  assert.equal(recovery.attempt.attemptId, scheduled.attempt.attemptId);
+  assert.equal(recovery.attempt.state, "capture-validated");
+  assert.equal(recovery.attempt.errorCode, null);
+  assert.equal(recovery.attempt.recoveryStartedAt, "2026-09-01T07:00:00.000Z");
+  const duplicateRecovery = await startBriefingAttempt(database, paths, {
+    editionId: "daily:2026-09-01",
+    mode: "scheduled",
+    timeZone: "Europe/Vilnius",
+    at: new Date("2026-09-01T07:05:00Z"),
+  });
+  assert.equal(duplicateRecovery.shouldRun, false);
+  assert.equal(duplicateRecovery.reason, "scheduled_recovery_already_started");
+  recordBriefingRunStage(database, { attemptId: recovery.attempt.attemptId, stage: "editorialized" });
+  recordBriefingRunStage(database, { attemptId: recovery.attempt.attemptId, stage: "prepared" });
+  recordBriefingRunStage(database, { attemptId: recovery.attempt.attemptId, stage: "media-ready" });
+  recordBriefingRunStage(database, { attemptId: recovery.attempt.attemptId, stage: "commit-planned" });
+  recordBriefingRunStage(database, { attemptId: recovery.attempt.attemptId, stage: "telegram-committed" });
+  recordBriefingRunStage(database, { attemptId: recovery.attempt.attemptId, stage: "published" });
+  const notified = recordBriefingRunStage(database, { attemptId: recovery.attempt.attemptId, stage: "notified" });
+  assert(notified.recoveryCompletedAt);
 } finally {
   database.close();
 }

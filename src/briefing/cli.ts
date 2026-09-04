@@ -32,6 +32,7 @@ import { assertEditorialPayload, loadTopicPolicy } from "./editorial-validation.
 import { composeBriefingPayload } from "./composer.ts";
 import { applyDeterministicRanking } from "./ranking.ts";
 import { cinemaSnapshotForDaily } from "./cinema/promotion.ts";
+import { guardBriefingRun } from "./run-guard.ts";
 import {
   loadBriefingAttempt,
   recordBriefingRunStage,
@@ -40,7 +41,7 @@ import {
   type BriefingRunState,
 } from "./run-attempt.ts";
 
-type Command = "init" | "start-attempt" | "attempt-status" | "advance-attempt" | "collect-live" | "compose" | "topic-pool" | "prepare-preview" | "render-preview" | "rerender-preview" | "revise-published" | "build-media-manifest" | "media-ready" | "import-media" | "validate-telegram-batch" | "telegram-capture-config" | "telegram-commit-plan" | "finalize" | "notify-release" | "inspect" | "cleanup";
+type Command = "init" | "start-attempt" | "attempt-status" | "advance-attempt" | "guard-run" | "collect-live" | "compose" | "topic-pool" | "prepare-preview" | "render-preview" | "rerender-preview" | "revise-published" | "build-media-manifest" | "media-ready" | "import-media" | "validate-telegram-batch" | "telegram-capture-config" | "telegram-commit-plan" | "finalize" | "notify-release" | "inspect" | "cleanup";
 
 type Arguments = {
   command: Command;
@@ -69,7 +70,7 @@ function fail(message: string): never {
 
 function parseArguments(argv = process.argv.slice(2)): Arguments {
   const command = argv.shift() as Command | undefined;
-  if (!command || !["init", "start-attempt", "attempt-status", "advance-attempt", "collect-live", "compose", "topic-pool", "prepare-preview", "render-preview", "rerender-preview", "revise-published", "build-media-manifest", "media-ready", "import-media", "validate-telegram-batch", "telegram-capture-config", "telegram-commit-plan", "finalize", "notify-release", "inspect", "cleanup"].includes(command)) {
+  if (!command || !["init", "start-attempt", "attempt-status", "advance-attempt", "guard-run", "collect-live", "compose", "topic-pool", "prepare-preview", "render-preview", "rerender-preview", "revise-published", "build-media-manifest", "media-ready", "import-media", "validate-telegram-batch", "telegram-capture-config", "telegram-commit-plan", "finalize", "notify-release", "inspect", "cleanup"].includes(command)) {
     fail("Unknown briefing command");
   }
   const result: Arguments = { command };
@@ -176,6 +177,9 @@ export async function runBriefingCli(argv = process.argv.slice(2)): Promise<unkn
   const paths = briefingPaths();
   if (args.command === "init") {
     return { ok: true, action: "init", ...(await initializeBriefingStore(paths)) };
+  }
+  if (args.command === "guard-run") {
+    return { ok: true, action: "guard-run", externalMutations: true, ...(await guardBriefingRun()) };
   }
   if (args.command === "start-attempt") {
     await initializeBriefingStore(paths);
