@@ -1075,6 +1075,7 @@ export function controlComponents(
       );
     const takeoverEligible =
       !preservedCancellation &&
+      card.run_state !== "needs_attention" &&
       !["handoff_pending", "autonomous_successor_pending"].includes(
         card.stage,
       ) &&

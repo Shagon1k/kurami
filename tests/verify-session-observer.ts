@@ -24,6 +24,10 @@ const approval = `
 Would you like to run the following command?
 Press enter to confirm or esc to cancel
 `;
+const conversationalQuestion = `
+I can run the focused smoke test next if useful. Would you like to run it now?
+• Working (12s • esc to interrupt)
+`;
 
 assert(
   classifyTranscript(blocker) === "idle_textual_blocker",
@@ -36,6 +40,10 @@ assert(
 assert(
   classifyTranscript(approval) === "waiting_on_approval",
   "Approval prompt was not detected",
+);
+assert(
+  classifyTranscript(conversationalQuestion) === null,
+  "A conversational question was misclassified as an interactive approval",
 );
 
 async function verifyDurableApprovalHandling(): Promise<void> {
@@ -144,6 +152,27 @@ printf '%s' "$FAKE_TMUX_TRANSCRIPT"
     assert(
       payload.source === "codex" && payload.kind === "waiting_on_approval",
       "Approval blocker did not create a durable attention event",
+    );
+    env.FAKE_TMUX_TRANSCRIPT = conversationalQuestion;
+    execFileSync(process.execPath, [observer, "--project", "pickflick"], {
+      env,
+      stdio: ["ignore", "pipe", "pipe"],
+    });
+    const recovered = new DatabaseSync(databasePath, { readOnly: true });
+    const recoveredRun = recovered
+      .prepare(`SELECT state, owner_state FROM runs WHERE run_id='r_observer_approval'`)
+      .get() as { state: string; owner_state: string };
+    const recoveryHistory = recovered
+      .prepare(`SELECT reason FROM run_state_history WHERE run_id='r_observer_approval' ORDER BY sequence DESC LIMIT 1`)
+      .get() as { reason: string };
+    recovered.close();
+    assert(
+      recoveredRun.state === "running" && recoveredRun.owner_state === "cli",
+      "A cleared approval blocker did not restore the managed run",
+    );
+    assert(
+      recoveryHistory.reason === "codex_approval_blocker_cleared",
+      "Cleared approval recovery did not leave durable history",
     );
   } finally {
     await rm(home, { recursive: true, force: true });

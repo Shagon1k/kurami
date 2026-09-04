@@ -63,7 +63,7 @@ function tmuxCapture(sessionName: string): {
 export function classifyTranscript(transcript: string): string | null {
   const tail = transcript.slice(-1_800);
   if (
-    /Would you like to run|Requested permission|Press enter to confirm|Allow .+\?/iu.test(
+    /(?:Would you like to run (?:the following|this) command\?|Requested permission|Allow .+\?)[\s\S]{0,600}Press enter to confirm/iu.test(
       tail,
     )
   ) {
@@ -182,6 +182,47 @@ function markApprovalBlockedRun(database: DatabaseSync, run: ActiveRun): boolean
   return true;
 }
 
+function recoverClearedApprovalBlock(
+  database: DatabaseSync,
+  run: ActiveRun,
+  kind: string | null,
+): boolean {
+  if (run.run_state !== "needs_attention" || kind === "waiting_on_approval")
+    return false;
+  const latest = database
+    .prepare(
+      `SELECT reason FROM run_state_history
+       WHERE run_id=? AND to_state='needs_attention'
+       ORDER BY sequence DESC LIMIT 1`,
+    )
+    .get(run.run_id) as { reason: string } | undefined;
+  if (latest?.reason !== "codex_waiting_on_approval") return false;
+  const changed = database
+    .prepare(
+      `UPDATE runs
+       SET state='running', updated_at=strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
+       WHERE run_id=? AND state='needs_attention' AND owner_state='cli'
+         AND stop_reason IS NULL`,
+    )
+    .run(run.run_id);
+  if (changed.changes !== 1) return false;
+  database
+    .prepare(
+      `INSERT INTO run_state_history (
+         run_id, from_state, to_state, reason, details_json
+       ) VALUES (?, 'needs_attention', 'running', ?, ?)`,
+    )
+    .run(
+      run.run_id,
+      "codex_approval_blocker_cleared",
+      JSON.stringify({
+        detail:
+          "The observed Codex transcript no longer contains an interactive approval prompt.",
+      }),
+    );
+  return true;
+}
+
 export function runSessionObserverCli(): void {
   const project = parseProject();
   const database = new DatabaseSync(databasePath, { timeout: 5_000 });
@@ -199,7 +240,7 @@ export function runSessionObserverCli(): void {
         JOIN project_events pe ON pe.event_id = r.trigger_event_id
         WHERE r.project = ?
           AND r.owner_state = 'cli'
-          AND r.state IN ('starting', 'running', 'parked_review', 'stopping')
+          AND r.state IN ('starting', 'running', 'parked_review', 'stopping', 'needs_attention')
         ORDER BY r.created_at
       `,
       )
@@ -209,6 +250,7 @@ export function runSessionObserverCli(): void {
     try {
       for (const run of runs) {
         const kind = classify(run);
+        recoverClearedApprovalBlock(database, run, kind);
         const previous = database
           .prepare(
             `

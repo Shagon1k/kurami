@@ -632,6 +632,24 @@ async function main(): Promise<void> {
       "Stable thread readiness caused repeated card edits",
     );
 
+    const attentionState = new DatabaseSync(databasePath);
+    attentionState.exec(`
+      UPDATE runs SET state='needs_attention', owner_state='cli'
+      WHERE run_id='r_discord_smoke';
+      UPDATE run_progress_cards
+      SET stage='needs_attention', detail='The run needs attention before it can continue.',
+          content_digest='digest-needs-attention',
+          updated_at='2026-08-16T09:12:00.000Z'
+      WHERE run_id='r_discord_smoke';
+    `);
+    attentionState.close();
+    await runNode(notifier, ["--apply"], testHome, discordEnv);
+    const attentionControls = customIds(currentDashboard());
+    assert(
+      !attentionControls.includes("kurami:take_control:r_discord_smoke"),
+      "Needs-attention run exposed a takeover action the controller will reject",
+    );
+
     const repairReady = new DatabaseSync(databasePath);
     repairReady.exec(`
       UPDATE runs SET state='parked_review', owner_state='none'
