@@ -62,6 +62,7 @@ unset HERMES_INITIAL_PROMPT_B64
 exec "${CODEX_BIN}" \
   -C "${HERMES_WORKTREE_PATH}" \
   --sandbox workspace-write \
+  -c 'sandbox_workspace_write.network_access=true' \
   --ask-for-approval never \
   -c 'approvals_reviewer="auto_review"' \
   -c "${trust_override}" \

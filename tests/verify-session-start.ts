@@ -32,6 +32,10 @@ async function main(): Promise<void> {
       !launcher.includes("--ask-for-approval on-request"),
     "Managed Codex launcher must not wait for an interactive approval",
   );
+  assert(
+    launcher.includes("sandbox_workspace_write.network_access=true"),
+    "Managed Codex launcher must allow GitHub reads and pushes while retaining workspace-write isolation",
+  );
   const home = await realpath(
     await mkdtemp(resolve(tmpdir(), "kurami-session-start-")),
   );

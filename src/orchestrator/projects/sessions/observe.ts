@@ -60,8 +60,28 @@ function tmuxCapture(sessionName: string): {
   );
 }
 
+function tmuxAcceptRateLimitModelSwitch(sessionName: string): void {
+  const result = spawnSync(
+    "tmux",
+    ["send-keys", "-t", `${sessionName}:0.0`, "Enter"],
+    { encoding: "utf8", env: process.env, stdio: ["ignore", "pipe", "pipe"] },
+  );
+  if (result.status === 0) return;
+  fail(
+    result.stderr.trim() ||
+      `Failed to accept managed Codex rate-limit model switch: ${sessionName}`,
+  );
+}
+
 export function classifyTranscript(transcript: string): string | null {
   const tail = transcript.slice(-1_800);
+  if (
+    /Approaching rate limits[\s\S]{0,800}Switch to .+? for lower credit usage\?[\s\S]{0,800}›\s*1\.\s*Switch to[\s\S]{0,1000}Press enter to confirm/iu.test(
+      tail,
+    )
+  ) {
+    return "rate_limit_model_switch";
+  }
   if (
     /(?:Would you like to run (?:the following|this) command\?|Requested permission|Allow .+\?)[\s\S]{0,600}Press enter to confirm/iu.test(
       tail,
@@ -105,6 +125,8 @@ function classify(run: ActiveRun): string | null {
 
 function description(kind: string): string {
   switch (kind) {
+    case "rate_limit_model_switch":
+      return "Managed Codex switched to its suggested lower-credit model after reaching the rate-limit threshold.";
     case "waiting_on_approval":
       return "Codex is still waiting for a human approval after two checks.";
     case "turn_interrupted":
@@ -299,6 +321,23 @@ export function runSessionObserverCli(): void {
           `,
           )
           .run(run.run_id, kind, count, kind);
+
+        if (
+          kind === "rate_limit_model_switch" &&
+          count === 1 &&
+          run.tmux_session_name
+        ) {
+          tmuxAcceptRateLimitModelSwitch(run.tmux_session_name);
+          notifications.push(
+            [
+              `${project} #${run.issue_number}: ${description(kind)}`,
+              run.issue_title ?? "",
+              run.issue_url ?? "",
+            ]
+              .filter(Boolean)
+              .join("\n"),
+          );
+        }
 
         if (kind && count >= 2 && previous?.notified_kind !== kind) {
           database

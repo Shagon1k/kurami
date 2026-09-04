@@ -1,5 +1,5 @@
 import { execFileSync } from "node:child_process";
-import { chmod, mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
+import { chmod, mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { delimiter, resolve } from "node:path";
 import { DatabaseSync } from "node:sqlite";
@@ -28,6 +28,16 @@ const conversationalQuestion = `
 I can run the focused smoke test next if useful. Would you like to run it now?
 • Working (12s • esc to interrupt)
 `;
+const rateLimitModelSwitch = `
+Approaching rate limits
+Switch to gpt-5.6-luna for lower credit usage?
+
+› 1. Switch to gpt-5.6-luna
+  2. Keep current model
+  3. Keep current model (never show again)
+
+Press enter to confirm or esc to go back
+`;
 
 assert(
   classifyTranscript(blocker) === "idle_textual_blocker",
@@ -45,11 +55,16 @@ assert(
   classifyTranscript(conversationalQuestion) === null,
   "A conversational question was misclassified as an interactive approval",
 );
+assert(
+  classifyTranscript(rateLimitModelSwitch) === "rate_limit_model_switch",
+  "Codex rate-limit model switch was not distinguished from an approval blocker",
+);
 
 async function verifyDurableApprovalHandling(): Promise<void> {
   const app = resolve(import.meta.dirname, "..");
   const home = await mkdtemp(resolve(tmpdir(), "kurami-session-observer-"));
   const fakeBin = resolve(home, "fake-bin");
+  const fakeTmuxActionLog = resolve(home, "tmux-actions.log");
   try {
     await mkdir(fakeBin, { recursive: true, mode: 0o700 });
     const fakeTmux = resolve(fakeBin, "tmux");
@@ -57,7 +72,17 @@ async function verifyDurableApprovalHandling(): Promise<void> {
       fakeTmux,
       `#!/bin/sh
 set -eu
-printf '%s' "$FAKE_TMUX_TRANSCRIPT"
+case "$1" in
+  capture-pane)
+    printf '%s' "$FAKE_TMUX_TRANSCRIPT"
+    ;;
+  send-keys)
+    printf '%s\\n' "$*" >> "$FAKE_TMUX_ACTION_LOG"
+    ;;
+  *)
+    exit 64
+    ;;
+esac
 `,
       { mode: 0o700 },
     );
@@ -68,6 +93,7 @@ printf '%s' "$FAKE_TMUX_TRANSCRIPT"
       ORCHESTRATOR_MIGRATIONS_DIR: resolve(app, "migrations"),
       PATH: `${fakeBin}${delimiter}${process.env.PATH ?? ""}`,
       FAKE_TMUX_TRANSCRIPT: approval,
+      FAKE_TMUX_ACTION_LOG: fakeTmuxActionLog,
     };
     execFileSync(
       process.execPath,
@@ -173,6 +199,16 @@ printf '%s' "$FAKE_TMUX_TRANSCRIPT"
     assert(
       recoveryHistory.reason === "codex_approval_blocker_cleared",
       "Cleared approval recovery did not leave durable history",
+    );
+    env.FAKE_TMUX_TRANSCRIPT = rateLimitModelSwitch;
+    execFileSync(process.execPath, [observer, "--project", "pickflick"], {
+      env,
+      stdio: ["ignore", "pipe", "pipe"],
+    });
+    const tmuxActions = await readFile(fakeTmuxActionLog, "utf8");
+    assert(
+      tmuxActions.includes("send-keys -t cx-pf-9-observer:0.0 Enter"),
+      "Rate-limit model switch was not accepted through the managed tmux session",
     );
   } finally {
     await rm(home, { recursive: true, force: true });
