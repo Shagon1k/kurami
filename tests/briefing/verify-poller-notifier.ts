@@ -679,6 +679,13 @@ async function verifyFailureAndRecoveryReuseOneCard(): Promise<void> {
   assert.equal(requests[1]?.init?.method, "PATCH");
   assert.equal(requests[2]?.init?.method, "PATCH");
   assert.equal(requests[1]?.url, requests[2]?.url);
+  const guardedRecovery = await guardBriefingRun(environment, {
+    at: new Date("2026-09-01T08:30:00.000Z"),
+    fetchImpl: mockedFetch,
+  });
+  assert.equal(guardedRecovery.attemptId, recovery);
+  assert.equal(guardedRecovery.phase, "recovery");
+  assert.equal(guardedRecovery.status, "failed");
 }
 
 async function verifyDeterministicCompletionGuard(): Promise<void> {

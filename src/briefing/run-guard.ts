@@ -77,12 +77,24 @@ export async function guardBriefingRun(
   const database = openBriefingDatabase(paths);
   let attempt: BriefingRunAttempt;
   try {
-    const scheduled = database.prepare(`
-      SELECT attempt_id FROM briefing_run_attempts
-      WHERE edition_id = ? AND mode = 'scheduled'
+    const cardAttempt = database.prepare(`
+      SELECT attempts.attempt_id
+      FROM briefing_run_cards AS cards
+      JOIN briefing_run_attempts AS attempts
+        ON attempts.attempt_id = cards.attempt_id
+      WHERE cards.edition_id = ?
     `).get(editionId) as { attempt_id: string } | undefined;
-    if (scheduled) {
-      attempt = loadBriefingAttempt(database, scheduled.attempt_id)!;
+    const preferred = cardAttempt ?? database.prepare(`
+      SELECT attempt_id FROM briefing_run_attempts
+      WHERE edition_id = ?
+      ORDER BY
+        CASE state WHEN 'notified' THEN 0 WHEN 'published' THEN 1 ELSE 2 END,
+        CASE mode WHEN 'scheduled' THEN 0 ELSE 1 END,
+        updated_at DESC
+      LIMIT 1
+    `).get(editionId) as { attempt_id: string } | undefined;
+    if (preferred) {
+      attempt = loadBriefingAttempt(database, preferred.attempt_id)!;
     } else {
       const started = await startBriefingAttempt(database, paths, {
         editionId,
