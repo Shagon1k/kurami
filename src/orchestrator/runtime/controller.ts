@@ -517,6 +517,13 @@ function planForRequest(
   };
   switch (request.requested_action) {
     case "take_control":
+      if (request.stop_reason === "cancelled") {
+        return {
+          ...base,
+          action: "request_reject",
+          reason: "cancellation_requested",
+        };
+      }
       if (request.run_state === "needs_attention") {
         return {
           ...base,
@@ -883,7 +890,11 @@ function buildPlans(
   `,
     )
     .all() as RequestRow[];
-  const requestedRuns = new Set(requests.map((row) => row.run_id));
+  const requestedRuns = new Set(
+    requests
+      .filter((row) => row.stop_reason !== "cancelled")
+      .map((row) => row.run_id),
+  );
   const automatic = database
     .prepare(
       `
@@ -1786,6 +1797,17 @@ function applyInternal(database: DatabaseSync, plan: PlannedAction): unknown {
         .run(plan.runId);
       if (changed.changes !== 1 && current.state !== "stopping")
         fail("Run changed before stop request");
+      database
+        .prepare(
+          `UPDATE run_control_requests
+           SET request_state='rejected',
+               result_json=json_object('reason', 'cancellation_requested'),
+               updated_at=strftime('%Y-%m-%dT%H:%M:%fZ', 'now'),
+               completed_at=strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
+           WHERE run_id=? AND request_id<>?
+             AND request_state IN ('pending','processing')`,
+        )
+        .run(plan.runId, plan.requestId!);
       result = { action: "stopping", previousState: current.state };
       completeRequest(database, plan.requestId!, "applied", result);
     } else if (plan.action === "resume_stop") {
