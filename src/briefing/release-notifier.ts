@@ -117,13 +117,25 @@ function safeErrorCode(value: string | null): string {
   return readable || "Запуск завершился до финальной публикации";
 }
 
-function payloadCounts(payload: BriefingPayload | null): { stories: number; images: number; sources: number } {
+function payloadCounts(payload: BriefingPayload | null): { stories: number; mail: number; events: number } {
   return {
     stories: payload?.news.items.length ?? 0,
-    images: payload?.news.items.reduce((total, story) =>
-      total + (story.media?.filter((media) => media.kind === "image").length ?? 0), 0) ?? 0,
-    sources: payload?.sourceBatches?.length ?? 0,
+    mail: payload?.mail.items.length ?? 0,
+    events: Array.isArray(payload?.calendar.events) ? payload.calendar.events.length : 0,
   };
+}
+
+function russianCount(value: number, one: string, few: string, many: string): string {
+  const modulo100 = Math.abs(value) % 100;
+  const modulo10 = modulo100 % 10;
+  const noun = modulo100 >= 11 && modulo100 <= 19
+    ? many
+    : modulo10 === 1
+      ? one
+      : modulo10 >= 2 && modulo10 <= 4
+        ? few
+        : many;
+  return `${value} ${noun}`;
 }
 
 function addonButtons(payload: BriefingPayload | null, baseUrl: string): JsonRecord[] {
@@ -155,9 +167,9 @@ function runCardMessage(input: {
   const counts = payloadCounts(payload);
   const fields: JsonRecord[] = success
     ? [
-        { name: "Сюжеты", value: String(counts.stories), inline: true },
-        { name: "Изображения", value: String(counts.images), inline: true },
-        { name: "Каналы", value: String(counts.sources), inline: true },
+        { name: "Новости", value: russianCount(counts.stories, "сюжет", "сюжета", "сюжетов"), inline: true },
+        { name: "Почта", value: russianCount(counts.mail, "письмо", "письма", "писем"), inline: true },
+        { name: "Расписание", value: russianCount(counts.events, "событие", "события", "событий"), inline: true },
       ]
     : failure
       ? [

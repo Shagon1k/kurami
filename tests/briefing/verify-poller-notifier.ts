@@ -539,9 +539,9 @@ async function verifyReleaseNotifier(): Promise<void> {
     };
     assert.match(completedBody.embeds[0]?.description ?? "", /Выпуск опубликован/u);
     assert.deepEqual(completedBody.embeds[0]?.fields.slice(0, 3), [
-      { name: "Сюжеты", value: "1", inline: true },
-      { name: "Изображения", value: "0", inline: true },
-      { name: "Каналы", value: "0", inline: true },
+      { name: "Новости", value: "1 сюжет", inline: true },
+      { name: "Почта", value: "0 писем", inline: true },
+      { name: "Расписание", value: "0 событий", inline: true },
     ]);
     assert.deepEqual(completedBody.components[0]?.components, [
       { type: 2, style: 5, label: "Открыть выпуск", url: "https://digest.shagon1k.win/daily/2026-08-31" },
