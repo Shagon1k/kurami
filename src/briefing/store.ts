@@ -1803,8 +1803,12 @@ export async function cleanupExpired(
   try {
     database.exec("BEGIN IMMEDIATE");
     try {
+      const removeCard = database.prepare("DELETE FROM briefing_run_cards WHERE edition_id = ?");
       const remove = database.prepare("DELETE FROM editions WHERE id = ?");
-      for (const edition of expired) remove.run(edition.id);
+      for (const edition of expired) {
+        removeCard.run(edition.id);
+        remove.run(edition.id);
+      }
       database.exec("COMMIT");
     } catch (error) {
       database.exec("ROLLBACK");

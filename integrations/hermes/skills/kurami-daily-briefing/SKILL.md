@@ -86,9 +86,11 @@ Default manual experiments to `dry-run`. Generation never archives Gmail;
    `shouldRun` is false, stop successfully without provider calls or delivery.
    This runtime check is the authoritative local-09:00 and duplicate-run guard.
    After an attempt exists, any unrecoverable gate failure must be recorded
-   once with `$BRIEFING_NODE $BRIEFING_CLI advance-attempt --attempt <attempt-id> --stage failed`
+   once with `$BRIEFING_NODE $BRIEFING_CLI advance-attempt --attempt <attempt-id> --stage failed --error-code <safe_machine_code>`
    before returning the concise failure; never leave a knowingly failed run
-   looking active.
+   looking active. The runtime automatically creates one Discord status card
+   per Daily date and edits that same card after meaningful stage transitions.
+   Do not send separate progress, recovery, or release messages from the agent.
 4. Reuse the attempt's `live-snapshot.json` only when it is already valid. If
    it is absent, stale, or invalid, run
    `$BRIEFING_NODE $BRIEFING_CLI collect-live --id daily:YYYY-MM-DD --attempt <attempt-id>`. The
@@ -331,8 +333,10 @@ For a production run:
    $BRIEFING_NODE $BRIEFING_CLI notify-release --id <edition-id> --attempt <attempt-id>
    ```
 
-   It sends one concise human line to the configured Discord destination with
-   the exact configured-base-URL plus `/daily/<local-date>`. The scheduled
+   It turns the date's existing Discord run card into the final success card
+   with the exact configured-base-URL plus `/daily/<local-date>`. Known add-ons
+   embedded in the Daily payload, including Cinema, receive an additional link
+   on that same card. The scheduled
    Hermes job uses local delivery and must not also emit a Discord cron wrapper,
    job ID, stop instructions, raw section details, or a second release message.
 

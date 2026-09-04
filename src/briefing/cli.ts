@@ -21,7 +21,11 @@ import { parseBriefingPayload } from "./model.ts";
 import { renderBriefingPage } from "./ui/render-page.ts";
 import { buildEditionMediaManifest, importEditionMedia, readMediaManifest } from "./media.ts";
 import { validateTelegramBatch } from "./telegram-batch.ts";
-import { notifyBriefingRelease } from "./release-notifier.ts";
+import {
+  notifyBriefingRelease,
+  syncBriefingRunCardFailSoft,
+  syncBriefingRunFailureCardFailSoft,
+} from "./release-notifier.ts";
 import { loadBriefingRuntimeConfig, loadTelegramCaptureConfig } from "./runtime-config.ts";
 import { collectEditionLiveSnapshot } from "./live-collector.ts";
 import { assertEditorialPayload, loadTopicPolicy } from "./editorial-validation.ts";
@@ -55,6 +59,7 @@ type Arguments = {
   attemptId?: string;
   mode?: BriefingRunMode;
   stage?: BriefingRunState;
+  errorCode?: string;
   at?: string;
 };
 
@@ -87,6 +92,7 @@ function parseArguments(argv = process.argv.slice(2)): Arguments {
     else if (option === "--attempt") result.attemptId = value;
     else if (option === "--mode" && ["scheduled", "manual", "recovery", "dry-run"].includes(value)) result.mode = value as BriefingRunMode;
     else if (option === "--stage") result.stage = value as BriefingRunState;
+    else if (option === "--error-code") result.errorCode = value;
     else if (option === "--at") result.at = value;
     else fail(`Unknown option ${option}`);
   }
@@ -108,6 +114,12 @@ function parseArguments(argv = process.argv.slice(2)): Arguments {
   if (command === "start-attempt" && (!result.editionId || !result.mode)) fail("start-attempt requires --id and --mode");
   if ((command === "attempt-status" || command === "advance-attempt") && !result.attemptId) fail(`${command} requires --attempt`);
   if (command === "advance-attempt" && !result.stage) fail("advance-attempt requires --stage");
+  if (result.errorCode && (command !== "advance-attempt" || result.stage !== "failed")) {
+    fail("--error-code is valid only for a failed advance-attempt");
+  }
+  if (result.errorCode && !/^[a-z][a-z0-9_]{0,79}$/u.test(result.errorCode)) {
+    fail("--error-code must be a bounded machine-safe code");
+  }
   if (command === "compose" && (!result.attemptId || !result.draftPath || !result.livePath || !result.configPath || !result.rawPath || !result.normalizedPath || !result.outputPath)) {
     fail("compose requires --attempt, --draft, --live, --config, --raw, --normalized and --output");
   }
@@ -204,7 +216,11 @@ export async function runBriefingCli(argv = process.argv.slice(2)): Promise<unkn
         ok: true,
         action: args.command,
         externalMutations: false,
-        attempt: recordBriefingRunStage(database, { attemptId: args.attemptId!, stage }),
+        attempt: recordBriefingRunStage(database, {
+          attemptId: args.attemptId!,
+          stage,
+          ...(args.errorCode ? { errorCode: args.errorCode } : {}),
+        }),
       };
     } finally {
       database.close();
@@ -544,7 +560,9 @@ export async function runBriefingCli(argv = process.argv.slice(2)): Promise<unkn
   }
   if (args.command === "notify-release") {
     await requireProductionMutations(paths);
-    const notified = await notifyBriefingRelease(args.editionId!);
+    const notified = await notifyBriefingRelease(args.editionId!, process.env, {
+      attemptId: args.attemptId,
+    });
     if (args.attemptId) {
       const database = openBriefingDatabase(paths);
       try {
@@ -684,9 +702,35 @@ export async function runBriefingCli(argv = process.argv.slice(2)): Promise<unkn
 }
 
 if (import.meta.main) {
-  runBriefingCli()
-    .then((result) => process.stdout.write(`${JSON.stringify(result)}\n`))
-    .catch((error: unknown) => {
+  const invocation = process.argv.slice(2);
+  const invocationAttemptIndex = invocation.indexOf("--attempt");
+  const invocationAttemptId = invocationAttemptIndex >= 0
+    && typeof invocation[invocationAttemptIndex + 1] === "string"
+    ? invocation[invocationAttemptIndex + 1]!
+    : null;
+  runBriefingCli(invocation)
+    .then(async (result) => {
+      const record = result && typeof result === "object" && !Array.isArray(result)
+        ? result as Record<string, unknown>
+        : {};
+      const nestedAttempt = record.attempt && typeof record.attempt === "object" && !Array.isArray(record.attempt)
+        ? record.attempt as Record<string, unknown>
+        : null;
+      const attemptId = typeof nestedAttempt?.attemptId === "string"
+        ? nestedAttempt.attemptId
+        : invocationAttemptId;
+      if (attemptId && record.action !== "attempt-status") {
+        await syncBriefingRunCardFailSoft(attemptId);
+      }
+      process.stdout.write(`${JSON.stringify(result)}\n`);
+    })
+    .catch(async (error: unknown) => {
+      if (invocationAttemptId) {
+        await syncBriefingRunFailureCardFailSoft(
+          invocationAttemptId,
+          invocation[0] ?? "runtime",
+        );
+      }
       const message = error instanceof Error ? error.message : String(error);
       process.stderr.write(`${JSON.stringify({ ok: false, error: message })}\n`);
       process.exitCode = 1;

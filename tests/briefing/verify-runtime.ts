@@ -1041,6 +1041,7 @@ assert.deepEqual(initialized.applied, [
   "003_ingestion_gates.sql",
   "004_deterministic_runs.sql",
   "005_addon_snapshots.sql",
+  "006_discord_run_cards.sql",
 ]);
 const snapshotDatabase = openBriefingDatabase(paths);
 try {
@@ -1460,6 +1461,14 @@ try {
       prepared_at, published_at, retention_until, updated_at
     ) VALUES (?, 'daily', ?, 'Europe/Vilnius', 'complete', '{}', ?, ?, 1, 0, ?, ?, ?, ?)
   `);
+  const insertCard = retentionDatabase.prepare(`
+    INSERT INTO briefing_run_cards (
+      edition_id, attempt_id, provider, destination, provider_message_id,
+      card_state, delivery_state, content_digest, provider_receipt_json,
+      created_at, updated_at
+    ) VALUES (?, NULL, 'discord', '1543918214835216584', ?,
+              'success', 'complete', ?, '{}', ?, ?)
+  `);
   for (const localDate of [
     "2026-08-25",
     "2026-08-26",
@@ -1479,6 +1488,13 @@ try {
       "2099-01-01T00:00:00.000Z",
       timestamp,
     );
+    insertCard.run(
+      `daily:${localDate}`,
+      `message-${localDate}`,
+      `card-${localDate}`,
+      timestamp,
+      timestamp,
+    );
   }
   assert.deepEqual(
     retainedDailyEditions(retentionDatabase, "2026-08-31T00:00:00.000Z")
@@ -1494,6 +1510,10 @@ retentionDatabase = openBriefingDatabase(retentionPaths);
 try {
   assert.equal(
     (retentionDatabase.prepare("SELECT COUNT(*) AS count FROM editions").get() as { count: number }).count,
+    5,
+  );
+  assert.equal(
+    (retentionDatabase.prepare("SELECT COUNT(*) AS count FROM briefing_run_cards").get() as { count: number }).count,
     5,
   );
 

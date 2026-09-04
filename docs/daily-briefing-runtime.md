@@ -114,9 +114,16 @@ One poll should:
 10. clean expired edition HTML, media, run, recovery, and artifact state.
 
 The poller is silent: it never posts to Discord and does not modify Gmail,
-Calendar, or Telegram. The daily release workflow alone sends the concise dated
-link to the configured Discord digest channel. Gmail read-and-archive remains
-an explicit user action through the separate restricted automation contour.
+Calendar, or Telegram. A production Daily attempt owns one durable Discord run
+card per local date. The runtime creates it when the attempt starts and edits
+the same message at meaningful lifecycle stages. A failed attempt leaves a
+visible failure card; a recovery attempt resumes that card rather than posting
+a duplicate. Publication turns it into the final release card with the exact
+`/daily/<local-date>` link. Known embedded add-ons add bounded link buttons on
+the same card (`cinema` maps to `/cinema`). Dry runs never create a card, and a
+status-delivery failure is recorded but cannot block the briefing workflow.
+Gmail read-and-archive remains an explicit user action through the separate
+restricted automation contour.
 
 ## Provider boundaries
 

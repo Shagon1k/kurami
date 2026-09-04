@@ -3,7 +3,8 @@ import { mkdtemp, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { resolve } from "node:path";
 import { runDigestCentralPoller } from "../../src/briefing/poller.ts";
-import { notifyBriefingRelease } from "../../src/briefing/release-notifier.ts";
+import { notifyBriefingRelease, syncBriefingRunCard } from "../../src/briefing/release-notifier.ts";
+import { recordBriefingRunStage } from "../../src/briefing/run-attempt.ts";
 import {
   loadBriefingRuntimeConfig,
   loadTelegramCaptureConfig,
@@ -383,8 +384,43 @@ async function verifyRetainedPollerFailSoft(
   }
 }
 
-async function seedPublishedEdition(): Promise<void> {
+async function seedPublishedEdition(): Promise<string> {
   await initializeBriefingStore(paths);
+  const payload = parseBriefingPayload({
+    schemaVersion: 1,
+    edition: {
+      id: "daily:2026-08-31",
+      type: "daily",
+      localDate: "2026-08-31",
+      timezone: "Europe/Vilnius",
+      generatedAt: "2026-08-31T09:00:00+03:00",
+      status: "complete",
+      retentionUntil: "2026-09-05T09:00:00.000Z",
+    },
+    hero: { title: "Доброе утро, Alex." },
+    calendar: { state: "empty", events: [] },
+    mail: { state: "empty", items: [] },
+    news: {
+      state: "ready",
+      pageSize: 10,
+      mainStoryIds: ["story-notifier"],
+      items: [{
+        id: "story-notifier",
+        fingerprint: "fp-story-notifier",
+        headline: "Карточка выпуска готова к проверке",
+        summary: "Один Discord-пост сопровождает выпуск от старта до публикации.",
+        details: ["Повторный запуск редактирует то же сообщение и не создаёт дубликат."],
+        topics: [
+          { id: "technology", label: "Technology" },
+          { id: "media", label: "Media" },
+        ],
+      }],
+    },
+    dataQuality: { state: "ready" },
+    addons: {
+      cinema: { version: 1, state: "ready", capturedAt: "2026-08-31T06:00:00.000Z", data: {} },
+    },
+  });
   const database = openBriefingDatabase(paths);
   try {
     const timestamp = "2026-08-31T09:00:00.000Z";
@@ -398,7 +434,7 @@ async function seedPublishedEdition(): Promise<void> {
       "daily:2026-08-31",
       "2026-08-31",
       "Europe/Vilnius",
-      "{}",
+      JSON.stringify(payload),
       "pages/preview/daily-2026-08-31.html",
       "test-content-digest",
       timestamp,
@@ -406,13 +442,26 @@ async function seedPublishedEdition(): Promise<void> {
       "2026-09-05T09:00:00.000Z",
       timestamp,
     );
+    database.prepare(`
+      INSERT INTO briefing_run_attempts (
+        attempt_id, edition_id, mode, state, run_directory,
+        created_at, updated_at, completed_at
+      ) VALUES (?, ?, 'scheduled', 'created', ?, ?, ?, NULL)
+    `).run(
+      "daily-2026-08-31--scheduled",
+      "daily:2026-08-31",
+      resolve(paths.runsDirectory, "daily-2026-08-31--scheduled"),
+      timestamp,
+      timestamp,
+    );
   } finally {
     database.close();
   }
+  return "daily-2026-08-31--scheduled";
 }
 
 async function verifyReleaseNotifier(): Promise<void> {
-  await seedPublishedEdition();
+  const attemptId = await seedPublishedEdition();
   const requests: Array<{ url: string; init: RequestInit | undefined }> = [];
   const mockedFetch: typeof fetch = async (input, init) => {
     requests.push({
@@ -425,8 +474,31 @@ async function verifyReleaseNotifier(): Promise<void> {
     });
   };
   try {
+    const started = await syncBriefingRunCard(attemptId, environment, {
+      fetchImpl: mockedFetch,
+    });
+    assert.equal(started.action, "created");
+    assert.equal(started.cardState, "running");
+    const stages = [
+      "live-collected",
+      "telegram-captured",
+      "capture-validated",
+      "editorialized",
+      "prepared",
+      "media-ready",
+      "commit-planned",
+      "telegram-committed",
+      "published",
+    ] as const;
+    const lifecycle = openBriefingDatabase(paths);
+    try {
+      for (const stage of stages) recordBriefingRunStage(lifecycle, { attemptId, stage });
+    } finally {
+      lifecycle.close();
+    }
     const first = await notifyBriefingRelease("daily:2026-08-31", environment, {
       fetchImpl: mockedFetch,
+      attemptId,
     });
     assert.deepEqual(first, {
       editionId: "daily:2026-08-31",
@@ -435,7 +507,7 @@ async function verifyReleaseNotifier(): Promise<void> {
       alreadyComplete: false,
       publicationUrl: "https://digest.shagon1k.win/daily/2026-08-31",
     });
-    assert.equal(requests.length, 1);
+    assert.equal(requests.length, 2);
     assert.equal(
       requests[0]?.url,
       "https://discord.com/api/v10/channels/1543918214835216584/messages",
@@ -443,28 +515,48 @@ async function verifyReleaseNotifier(): Promise<void> {
     assert.equal(requests[0]?.init?.method, "POST");
     const headers = new Headers(requests[0]?.init?.headers);
     assert.equal(headers.get("authorization"), "Bot test-notifier-token");
-    const body = JSON.parse(String(requests[0]?.init?.body)) as {
+    const startedBody = JSON.parse(String(requests[0]?.init?.body)) as {
       content: string;
+      embeds: Array<{ title: string; description: string }>;
+      components: unknown[];
       nonce: string;
       enforce_nonce: boolean;
     };
+    assert.equal(startedBody.content, "");
+    assert.equal(startedBody.embeds[0]?.title, "Daily Digest · 31 августа");
+    assert.match(startedBody.embeds[0]?.description ?? "", /Подключаю источники/u);
+    assert.deepEqual(startedBody.components, []);
+    assert.match(startedBody.nonce, /^\d{1,20}$/u);
+    assert.equal(startedBody.enforce_nonce, true);
     assert.equal(
-      body.content,
-      "☀️ Брифинг за 31 августа готов — https://digest.shagon1k.win/daily/2026-08-31",
+      requests[1]?.url,
+      "https://discord.com/api/v10/channels/1543918214835216584/messages/188888888888888888",
     );
-    assert.equal(body.content.includes("\n"), false);
-    assert.doesNotMatch(body.content, /Cronjob Response|To stop|manage this job|job_id/iu);
-    assert.match(body.nonce, /^\d{1,20}$/u);
-    assert.ok(body.nonce.length <= 25);
-    assert.equal(body.enforce_nonce, true);
+    assert.equal(requests[1]?.init?.method, "PATCH");
+    const completedBody = JSON.parse(String(requests[1]?.init?.body)) as {
+      embeds: Array<{ description: string; fields: Array<{ name: string; value: string }> }>;
+      components: Array<{ components: Array<{ label: string; url: string }> }>;
+    };
+    assert.match(completedBody.embeds[0]?.description ?? "", /Выпуск опубликован/u);
+    assert.deepEqual(completedBody.embeds[0]?.fields.slice(0, 3), [
+      { name: "Сюжеты", value: "1", inline: true },
+      { name: "Изображения", value: "0", inline: true },
+      { name: "Каналы", value: "0", inline: true },
+    ]);
+    assert.deepEqual(completedBody.components[0]?.components, [
+      { type: 2, style: 5, label: "Открыть выпуск", url: "https://digest.shagon1k.win/daily/2026-08-31" },
+      { type: 2, style: 5, label: "🎬 Cinema", url: "https://digest.shagon1k.win/cinema" },
+    ]);
+    assert.doesNotMatch(JSON.stringify(completedBody), /Cronjob Response|To stop|manage this job|job_id/iu);
 
     const second = await notifyBriefingRelease("daily:2026-08-31", environment, {
       fetchImpl: mockedFetch,
+      attemptId,
     });
     assert.equal(second.alreadyComplete, true);
     assert.equal(second.messageId, first.messageId);
     assert.equal(second.publicationUrl, first.publicationUrl);
-    assert.equal(requests.length, 1, "completed release must not create a second Discord POST");
+    assert.equal(requests.length, 2, "completed release must not create or edit Discord again");
 
     const database = openBriefingDatabase(paths);
     try {
@@ -489,14 +581,102 @@ async function verifyReleaseNotifier(): Promise<void> {
         messageId: "188888888888888888",
         state: "complete",
       });
-      assert.deepEqual(JSON.parse(receipt.provider_receipt_json), { id: "188888888888888888" });
+      assert.deepEqual(JSON.parse(receipt.provider_receipt_json), { id: "188888888888888888", runCard: true });
       assert.equal(receipt.provider_receipt_json.includes("test-notifier-token"), false);
+      const card = database.prepare(`
+        SELECT attempt_id, provider_message_id, card_state, delivery_state
+        FROM briefing_run_cards WHERE edition_id = ?
+      `).get("daily:2026-08-31");
+      assert.deepEqual({ ...card as Record<string, unknown> }, {
+        attempt_id: attemptId,
+        provider_message_id: "188888888888888888",
+        card_state: "success",
+        delivery_state: "complete",
+      });
     } finally {
       database.close();
     }
   } finally {
     // All notifier network I/O is injected and scoped to this verification.
   }
+}
+
+async function verifyFailureAndRecoveryReuseOneCard(): Promise<void> {
+  const scheduled = "daily-2026-09-01--scheduled";
+  const recovery = "daily-2026-09-01--recovery-abcdef1234";
+  const database = openBriefingDatabase(paths);
+  try {
+    const insert = database.prepare(`
+      INSERT INTO briefing_run_attempts (
+        attempt_id, edition_id, mode, state, run_directory,
+        created_at, updated_at, completed_at
+      ) VALUES (?, 'daily:2026-09-01', ?, 'created', ?, ?, ?, NULL)
+    `);
+    insert.run(
+      scheduled,
+      "scheduled",
+      resolve(paths.runsDirectory, scheduled),
+      "2026-09-01T06:00:00.000Z",
+      "2026-09-01T06:00:00.000Z",
+    );
+  } finally {
+    database.close();
+  }
+  const requests: Array<{ url: string; init: RequestInit | undefined }> = [];
+  const mockedFetch: typeof fetch = async (input, init) => {
+    requests.push({ url: input instanceof Request ? input.url : String(input), init });
+    return new Response(JSON.stringify({ id: "199999999999999999" }), {
+      status: 200,
+      headers: { "content-type": "application/json" },
+    });
+  };
+  await syncBriefingRunCard(scheduled, environment, { fetchImpl: mockedFetch });
+  const failed = openBriefingDatabase(paths);
+  try {
+    recordBriefingRunStage(failed, { attemptId: scheduled, stage: "live-collected" });
+    recordBriefingRunStage(failed, {
+      attemptId: scheduled,
+      stage: "failed",
+      errorCode: "telegram_capture_unavailable",
+    });
+  } finally {
+    failed.close();
+  }
+  const failure = await syncBriefingRunCard(scheduled, environment, { fetchImpl: mockedFetch });
+  assert.equal(failure.action, "updated");
+  assert.equal(failure.cardState, "failure");
+  const failureBody = JSON.parse(String(requests[1]?.init?.body)) as {
+    embeds: Array<{ fields: Array<{ name: string; value: string }> }>;
+  };
+  assert.deepEqual(failureBody.embeds[0]?.fields, [
+    { name: "Последний завершённый этап", value: "Почта, расписание и погода собраны", inline: false },
+    { name: "Причина", value: "telegram capture unavailable", inline: false },
+  ]);
+
+  const recoveryDatabase = openBriefingDatabase(paths);
+  try {
+    recoveryDatabase.prepare(`
+      INSERT INTO briefing_run_attempts (
+        attempt_id, edition_id, mode, state, run_directory,
+        created_at, updated_at, completed_at
+      ) VALUES (?, 'daily:2026-09-01', 'recovery', 'created', ?, ?, ?, NULL)
+    `).run(
+      recovery,
+      resolve(paths.runsDirectory, recovery),
+      "2026-09-01T07:00:00.000Z",
+      "2026-09-01T07:00:00.000Z",
+    );
+  } finally {
+    recoveryDatabase.close();
+  }
+  const resumed = await syncBriefingRunCard(recovery, environment, { fetchImpl: mockedFetch });
+  assert.equal(resumed.action, "updated");
+  assert.equal(resumed.cardState, "running");
+  assert.equal(requests.length, 3);
+  assert.equal(requests[0]?.init?.method, "POST");
+  assert.equal(requests[1]?.init?.method, "PATCH");
+  assert.equal(requests[2]?.init?.method, "PATCH");
+  assert.equal(requests[1]?.url, requests[2]?.url);
 }
 
 await verifyRuntimeConfig();
@@ -507,4 +687,5 @@ await verifyRetainedPollerFailSoft("invalid-composio", {
   COMPOSIO_READ_API_KEY: "test-invalid-connection",
 });
 await verifyReleaseNotifier();
+await verifyFailureAndRecoveryReuseOneCard();
 process.stdout.write("briefing poller and release notifier verified\n");
