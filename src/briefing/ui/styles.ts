@@ -306,12 +306,6 @@ a { color: inherit; }
 .cinema-rank:has(.cinema-rank__more[open]) .cinema-rank__extra { display: table-row; }
 .cinema-rank__more { margin-top: 8px; color: var(--signal); font-size: .625rem; font-weight: 600; }
 .cinema-rank__more summary { width: max-content; cursor: pointer; }
-.cinema-pulse { display: grid; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); gap: 10px; margin-top: 16px; }
-.cinema-pulse article { min-height: 150px; position: relative; display: grid; align-content: start; gap: 7px; padding: 18px 18px 42px; background: var(--panel); border-left: 3px solid var(--ink); }
-.cinema-pulse span { color: var(--muted); font: 400 .5625rem/1.3 var(--font-mono); text-transform: uppercase; }
-.cinema-pulse strong { font-size: .875rem; line-height: 1.3; }
-.cinema-pulse p { margin: 0; color: var(--muted); font-size: .6875rem; }
-.cinema-pulse b { position: absolute; right: 16px; bottom: 14px; color: var(--signal); font: 500 .75rem/1 var(--font-mono); }
 .cinema-trailer-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; }
 .cinema-trailer, .cinema-premiere { min-width: 0; overflow: hidden; color: var(--ink); background: var(--surface); border: 1px solid var(--line); border-radius: 2px; text-decoration: none; transition: border-color 160ms ease, transform 160ms ease, box-shadow 160ms ease; }
 .cinema-trailer:hover, .cinema-premiere:hover { border-color: var(--ink); transform: translateY(-2px); box-shadow: 3px 3px 0 var(--section-shadow); }

@@ -134,7 +134,7 @@ function rankGroup(charts: CinemaChart[], period: CinemaChart["period"]): string
 
 function boxOffice(envelope: CinemaEnvelope): string {
   const section = envelope.data.boxOffice;
-  if (section.state === "failed" || (!section.charts.length && !section.globalPulse.length)) return "";
+  if (section.state === "failed" || !section.charts.length) return "";
   const featured = section.charts.flatMap((chart) => chart.entries)
     .find((entry) => entry.id === section.featuredId);
   return `<section class="cinema-block cinema-box-office" id="box-office"><header class="cinema-heading"><div><p class="section-kicker">Прокат · цифры</p><h2>Пульс проката</h2></div>${note(envelope, "box-office")}</header>
@@ -142,7 +142,6 @@ function boxOffice(envelope: CinemaEnvelope): string {
     ${section.signals.length ? `<div class="cinema-signals">${section.signals.map((signal) => `<article><span>${escapeHtml(signal.label)}</span><strong>${escapeHtml(signal.filmTitle ?? section.charts.flatMap((chart) => chart.entries).find((entry) => entry.id === signal.filmId)?.title ?? signal.filmId)}</strong><b>${signal.value === undefined ? "" : `${signal.value > 0 ? "+" : ""}${signal.unit === "USD" ? money(signal.value, "USD") : `${Math.round(signal.value)}${signal.unit ?? ""}`}`}</b></article>`).join("")}</div>` : ""}
     ${trend(envelope)}
     <div class="cinema-rank-groups">${rankGroup(section.charts, "weekend")}${rankGroup(section.charts, "ytd")}</div>
-    ${section.globalPulse.length ? `<div class="cinema-pulse">${section.globalPulse.map((item) => `<article><span>${escapeHtml(item.territory)} · ${escapeHtml(item.period)}</span><strong>${escapeHtml(item.headline)}</strong><p>${escapeHtml(item.summary)}</p><b>${escapeHtml(String(item.value))} ${escapeHtml(item.unit)}</b></article>`).join("")}</div>` : ""}
   </section>`;
 }
 

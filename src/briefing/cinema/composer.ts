@@ -134,7 +134,7 @@ export function composeCinemaEnvelope(input: {
   const newsState = finalState(candidate.news.state, news.length);
   const states = [candidate.boxOffice.state, trailerState, premiereState, newsState];
   const contentSections = [
-    candidate.boxOffice.charts.length || candidate.boxOffice.globalPulse.length,
+    candidate.boxOffice.charts.length,
     trailers.length,
     premieres.length,
     news.length,

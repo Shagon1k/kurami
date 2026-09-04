@@ -566,7 +566,6 @@ const rawEnvelope = {
       charts: boxOffice.charts,
       signals: boxOffice.signals,
       trend: boxOffice.trend,
-      globalPulse: [],
       provenance: ["source:bow"],
     },
     trailers: {
@@ -619,6 +618,26 @@ const rawEnvelope = {
 const envelope = parseCinemaEnvelope(rawEnvelope);
 assert.equal(cinemaEnvelopePromotable(envelope), true);
 assert.equal(envelope.data.news.items.length, 4);
+const legacyPulseEnvelope = parseCinemaEnvelope({
+  ...rawEnvelope,
+  data: {
+    ...rawEnvelope.data,
+    boxOffice: {
+      ...rawEnvelope.data.boxOffice,
+      globalPulse: [{
+        id: "legacy-pulse",
+        headline: "Legacy pulse",
+        summary: "Retained only to verify backward-compatible reads.",
+        value: 1,
+        unit: "item",
+        territory: "WORLD",
+        period: "weekend",
+        sourceId: "source:bow",
+      }],
+    },
+  },
+});
+assert.equal("globalPulse" in legacyPulseEnvelope.data.boxOffice, false);
 assert.throws(
   () => parseCinemaEnvelope({
     ...rawEnvelope,

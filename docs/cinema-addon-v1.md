@@ -237,7 +237,6 @@ The section contains:
 - a separate latest-weekend row ordered World, US, Lithuania;
 - a separate YTD row ordered World, US, Lithuania (v1 renders World and US);
 - Top 5 with an explicit expansion to Top 10 in every available chart;
-- three to five verified global pulse items when available;
 - one multi-series trend chart.
 
 All rankings, totals, changes, signals, and chart points are deterministic.
@@ -498,7 +497,6 @@ the stored payload.
   fallback. If AP also fails, the Kinopoisk USA adapter is the final bounded
   fallback. If all three fail, the US subsection is `failed` and the remaining
   box-office subsections continue independently.
-- Missing global pulse stories do not invalidate US or Lithuanian charts.
 - Missing TMDB enrichment does not invalidate a verified local premiere; it
   removes only unproven enrichment fields or artwork.
 - No fallback may silently turn an estimate into an actual, a worldwide total
@@ -565,7 +563,7 @@ Cinema v1 is ready for production only when all of the following pass:
 7. Numeric claims, dates, ranks, and regions in the rendered page match stored
    provenance; no editorial step can change them.
 8. Zero/one/many states render without structural distortion for trailers,
-   premieres, news, global pulse items, and chart series.
+   premieres, news, and chart series.
 9. Desktop and mobile are visually inspected in light and dark modes; chart
    focus, legend, tooltip, and accessible fallback work without color alone.
 10. Generated HTML passes the existing inert-content and size limits; no

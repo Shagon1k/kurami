@@ -65,17 +65,6 @@ export type CinemaTrendSeries = {
   points: CinemaTrendPoint[];
 };
 
-export type CinemaGlobalPulse = {
-  id: string;
-  headline: string;
-  summary: string;
-  value: number;
-  unit: string;
-  territory: string;
-  period: string;
-  sourceId: string;
-};
-
 export type CinemaBoxOfficeSection = {
   state: SectionState;
   capturedAt: string;
@@ -83,7 +72,6 @@ export type CinemaBoxOfficeSection = {
   charts: CinemaChart[];
   signals: CinemaSignal[];
   trend: CinemaTrendSeries[];
-  globalPulse: CinemaGlobalPulse[];
   provenance: string[];
   diagnostics?: string[];
 };
@@ -397,31 +385,15 @@ function trendSeries(value: unknown, label: string): CinemaTrendSeries {
   };
 }
 
-function globalPulse(value: unknown, label: string): CinemaGlobalPulse {
-  const raw = object(value, label);
-  return {
-    id: safeId(raw.id, `${label}.id`),
-    headline: text(raw.headline, `${label}.headline`, 220),
-    summary: text(raw.summary, `${label}.summary`, 600),
-    value: finite(raw.value, `${label}.value`),
-    unit: text(raw.unit, `${label}.unit`, 30),
-    territory: text(raw.territory, `${label}.territory`, 80),
-    period: text(raw.period, `${label}.period`, 80),
-    sourceId: safeId(raw.sourceId, `${label}.sourceId`),
-  };
-}
-
 function boxOffice(value: unknown): CinemaBoxOfficeSection {
   const raw = object(value, "data.boxOffice");
   // Two periods across WORLD, US/CA and LT are the complete deterministic UI grid.
   const charts = list(raw.charts, "data.boxOffice.charts", 6, chart);
   const signals = list(raw.signals, "data.boxOffice.signals", 4, signal);
   const trend = list(raw.trend, "data.boxOffice.trend", 5, trendSeries);
-  const pulse = list(raw.globalPulse, "data.boxOffice.globalPulse", 5, globalPulse);
   unique(charts.map((entry) => entry.id), "data.boxOffice chart IDs");
   unique(signals.map((entry) => entry.id), "data.boxOffice signal IDs");
   unique(trend.map((entry) => entry.id), "data.boxOffice trend IDs");
-  unique(pulse.map((entry) => entry.id), "data.boxOffice pulse IDs");
   return {
     state: state(raw.state, "data.boxOffice.state"),
     capturedAt: timestamp(raw.capturedAt, "data.boxOffice.capturedAt"),
@@ -429,7 +401,6 @@ function boxOffice(value: unknown): CinemaBoxOfficeSection {
     charts,
     signals,
     trend,
-    globalPulse: pulse,
     provenance: strings(raw.provenance, "data.boxOffice.provenance", 20),
     ...(raw.diagnostics === undefined ? {} : { diagnostics: strings(raw.diagnostics, "data.boxOffice.diagnostics", 20) }),
   };
@@ -577,7 +548,7 @@ export function parseCinemaEnvelope(value: unknown): CinemaEnvelope {
 function sectionHasContent(envelope: CinemaEnvelope): boolean[] {
   const boxOffice = envelope.data.boxOffice;
   return [
-    boxOffice.charts.some((entry) => entry.entries.length > 0) || boxOffice.globalPulse.length > 0,
+    boxOffice.charts.some((entry) => entry.entries.length > 0),
     envelope.data.trailers.items.length > 0,
     envelope.data.premieres.items.length > 0,
     envelope.data.news.items.length > 0,
@@ -603,7 +574,6 @@ export function assertCinemaIntegrity(envelope: CinemaEnvelope): void {
     ...envelope.data.boxOffice.provenance,
     ...envelope.data.boxOffice.charts.flatMap((entry) => entry.entries.map((item) => item.sourceId)),
     ...envelope.data.boxOffice.signals.map((entry) => entry.sourceId),
-    ...envelope.data.boxOffice.globalPulse.map((entry) => entry.sourceId),
     ...envelope.data.trailers.provenance,
     ...envelope.data.trailers.items.map((entry) => entry.sourceId),
     ...envelope.data.premieres.provenance,
