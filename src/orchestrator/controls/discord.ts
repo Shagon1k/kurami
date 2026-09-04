@@ -709,6 +709,25 @@ function ciEventPayload(value: string): CiEventPayload | null {
   }
 }
 
+function codexApprovalEventPayload(value: string): { detail: string } | null {
+  try {
+    const payload = JSON.parse(value) as Partial<{
+      source: string;
+      kind: string;
+      detail: string;
+    }>;
+    if (
+      payload.source !== "codex" ||
+      payload.kind !== "waiting_on_approval" ||
+      typeof payload.detail !== "string"
+    )
+      return null;
+    return { detail: payload.detail };
+  } catch {
+    return null;
+  }
+}
+
 function eventStillValid(event: EventRow): boolean {
   const ci = ciEventPayload(event.payload_json);
   if (event.event_kind === "attention_required" && ci)
@@ -1893,6 +1912,7 @@ function eventMessage(
   pullRequest: PullRequest | null,
 ): string {
   const ci = ciEventPayload(event.payload_json);
+  const codexApproval = codexApprovalEventPayload(event.payload_json);
   if (event.event_kind === "attention_required" && ci) {
     const currentState = event.current_ci_aggregate_state;
     const currentChecks = parseCiChecks(event.current_ci_checks_json);
@@ -1905,6 +1925,16 @@ function eventMessage(
       event.current_ci_pull_request_url?.startsWith("https://")
         ? `[Open PR](${event.current_ci_pull_request_url})`
         : "",
+      event.issue_url ? `[Open issue](${event.issue_url})` : "",
+    ]
+      .filter(Boolean)
+      .join("\n");
+  }
+  if (event.event_kind === "attention_required" && codexApproval) {
+    return [
+      "**Codex approval blocked**",
+      codexApproval.detail,
+      "No command was approved or executed outside the managed sandbox.",
       event.issue_url ? `[Open issue](${event.issue_url})` : "",
     ]
       .filter(Boolean)

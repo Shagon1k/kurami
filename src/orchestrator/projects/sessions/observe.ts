@@ -118,6 +118,70 @@ function description(kind: string): string {
   }
 }
 
+function markApprovalBlockedRun(database: DatabaseSync, run: ActiveRun): boolean {
+  const current = database
+    .prepare(`SELECT state, owner_state, stop_reason FROM runs WHERE run_id = ?`)
+    .get(run.run_id) as
+    | { state: string; owner_state: string; stop_reason: string | null }
+    | undefined;
+  if (
+    !current ||
+    current.owner_state !== "cli" ||
+    current.stop_reason !== null ||
+    !["starting", "running", "handoff_pending", "parked_review"].includes(
+      current.state,
+    )
+  )
+    return false;
+  const changed = database
+    .prepare(
+      `UPDATE runs
+       SET state='needs_attention', updated_at=strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
+       WHERE run_id=? AND state=? AND owner_state='cli' AND stop_reason IS NULL`,
+    )
+    .run(run.run_id, current.state);
+  if (changed.changes !== 1) return false;
+  const reason = "codex_waiting_on_approval";
+  database
+    .prepare(
+      `INSERT INTO run_state_history (
+         run_id, from_state, to_state, reason, details_json
+       ) VALUES (?, ?, 'needs_attention', ?, ?)`,
+    )
+    .run(
+      run.run_id,
+      current.state,
+      reason,
+      JSON.stringify({
+        attentionKind: "waiting_on_approval",
+        detail: "Managed Codex requested an unexpected interactive approval.",
+      }),
+    );
+  database
+    .prepare(
+      `UPDATE run_control_requests
+       SET request_state='rejected',
+           result_json=json_object('reason', ?),
+           updated_at=strftime('%Y-%m-%dT%H:%M:%fZ', 'now'),
+           completed_at=strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
+       WHERE run_id=? AND action='take_control'
+         AND request_state IN ('pending','processing')`,
+    )
+    .run(reason, run.run_id);
+  database
+    .prepare(
+      `INSERT OR IGNORE INTO run_control_events (
+         event_id, run_id, event_kind, payload_json
+       ) VALUES (?, ?, 'attention_required', json_object(
+         'source', 'codex',
+         'kind', 'waiting_on_approval',
+         'detail', 'Managed Codex requested an unexpected interactive approval. No approval was applied.'
+       ))`,
+    )
+    .run(`ce_${run.run_id}_codex_approval`, run.run_id);
+  return true;
+}
+
 export function runSessionObserverCli(): void {
   const project = parseProject();
   const database = new DatabaseSync(databasePath, { timeout: 5_000 });
@@ -215,6 +279,8 @@ export function runSessionObserverCli(): void {
               .join("\n"),
           );
         }
+        if (kind === "waiting_on_approval" && count >= 2)
+          markApprovalBlockedRun(database, run);
       }
       database.exec("COMMIT");
     } catch (error) {

@@ -26,6 +26,12 @@ function git(directory: string, args: string[]): string {
 
 async function main(): Promise<void> {
   const app = resolve(import.meta.dirname, "..");
+  const launcher = await readFile(resolve(app, "bin/launch-codex-session.sh"), "utf8");
+  assert(
+    launcher.includes("--ask-for-approval never") &&
+      !launcher.includes("--ask-for-approval on-request"),
+    "Managed Codex launcher must not wait for an interactive approval",
+  );
   const home = await realpath(
     await mkdtemp(resolve(tmpdir(), "kurami-session-start-")),
   );

@@ -517,6 +517,13 @@ function planForRequest(
   };
   switch (request.requested_action) {
     case "take_control":
+      if (request.run_state === "needs_attention") {
+        return {
+          ...base,
+          action: "request_reject",
+          reason: "run_needs_attention",
+        };
+      }
       if (request.owner_state === "remote") {
         if (
           request.run_state === "remote_owned" &&
@@ -1613,6 +1620,8 @@ function progressFor(
   }
   if (["failed", "needs_attention"].includes(run.run_state)) {
     const timeoutLabels: Record<string, string> = {
+      codex_waiting_on_approval:
+        "Managed Codex unexpectedly requested interactive approval. No approval was applied; automation is paused so the policy can be investigated safely.",
       main_writer_runtime_budget_exceeded: `Main Codex writer exceeded its ${config.limits.main_writer_timeout_minutes}-minute limit. The worktree, branch, thread reference, and terminal evidence were preserved.`,
       ci_repair_runtime_budget_exceeded: `CI repair worker exceeded its ${config.limits.technical_worker_timeout_minutes}-minute limit. The worktree, thread reference, and terminal evidence were preserved.`,
       review_fix_runtime_budget_exceeded: `Review-fix worker exceeded its ${config.limits.technical_worker_timeout_minutes}-minute limit. The worktree, thread reference, and terminal evidence were preserved.`,
