@@ -4,6 +4,11 @@ import { resolve } from "node:path";
 import { resolveKuramiHome } from "../../core/kurami-home.ts";
 import { DatabaseSync } from "node:sqlite";
 import { parse } from "yaml";
+import {
+  isFailedAutonomousSuccessorRecovery,
+  isNeedsAttentionCliHandoff,
+  type RecoverySnapshot,
+} from "../runtime/recovery.ts";
 
 process.umask(0o077);
 
@@ -99,6 +104,39 @@ function fail(message: string): never {
   throw new Error(message);
 }
 
+function recoverySnapshot(run: {
+  state: string;
+  owner_state: string;
+  execution_mode: string;
+  resource_state: string;
+  worktree_path: string | null;
+  branch_name: string | null;
+  tmux_session_name: string | null;
+  codex_thread_id: string | null;
+  previous_codex_thread_id: string | null;
+  latest_attention_reason: string | null;
+  latest_autonomous_successor_state: string | null;
+  latest_autonomous_successor_predecessor_thread_id: string | null;
+  autonomous_successor_active: number;
+}): RecoverySnapshot {
+  return {
+    runState: run.state,
+    ownerState: run.owner_state,
+    executionMode: run.execution_mode,
+    resourceState: run.resource_state,
+    worktreePath: run.worktree_path,
+    branchName: run.branch_name,
+    tmuxSessionName: run.tmux_session_name,
+    codexThreadId: run.codex_thread_id,
+    previousCodexThreadId: run.previous_codex_thread_id,
+    latestAttentionReason: run.latest_attention_reason,
+    latestSuccessorState: run.latest_autonomous_successor_state,
+    latestSuccessorPredecessorThreadId:
+      run.latest_autonomous_successor_predecessor_thread_id,
+    autonomousSuccessorActive: run.autonomous_successor_active,
+  };
+}
+
 function valueAfter(args: string[], flag: string): string | undefined {
   const index = args.indexOf(flag);
   return index >= 0 ? args[index + 1]?.trim() : undefined;
@@ -185,6 +223,7 @@ function status(
       `
     SELECT r.run_id, r.project, r.repository, r.issue_number,
            pe.title, pe.url AS issue_url, r.interaction_policy,
+           r.execution_mode,
            r.state, r.owner_state, r.stop_reason,
            r.preview_required, r.preview_required_label,
            r.completion_requested_at,
@@ -193,6 +232,25 @@ function status(
            rr.resource_state, rr.branch_name, rr.worktree_path,
            rr.codex_thread_id, rr.previous_codex_thread_id,
            rr.tmux_session_name, rr.preview_id,
+           (SELECT reason FROM run_state_history attention_latest
+            WHERE attention_latest.run_id = r.run_id
+              AND attention_latest.to_state = 'needs_attention'
+            ORDER BY attention_latest.sequence DESC LIMIT 1)
+             AS latest_attention_reason,
+           (SELECT succession_state
+            FROM run_autonomous_successions successor_latest
+            WHERE successor_latest.run_id = r.run_id
+            ORDER BY successor_latest.succession_number DESC LIMIT 1)
+             AS latest_autonomous_successor_state,
+           (SELECT predecessor_thread_id
+            FROM run_autonomous_successions successor_latest
+            WHERE successor_latest.run_id = r.run_id
+            ORDER BY successor_latest.succession_number DESC LIMIT 1)
+             AS latest_autonomous_successor_predecessor_thread_id,
+           (SELECT COUNT(*) FROM run_autonomous_successions successor_active
+            WHERE successor_active.run_id = r.run_id
+              AND successor_active.succession_state IN ('starting','running'))
+             AS autonomous_successor_active,
            ps.hostname AS preview_hostname,
            pl.state AS preview_state,
            pl.expires_at AS preview_expires_at,
@@ -278,11 +336,39 @@ function presentPendingRequest(
   let presentation = pendingPresentations[action];
   if (action === "take_control") {
     const ownership = database
-      .prepare("SELECT state, owner_state FROM runs WHERE run_id=?")
-      .get(runId) as { state: string; owner_state: string } | undefined;
+      .prepare(`
+        SELECT r.state, r.owner_state, r.execution_mode, rr.resource_state,
+               rr.worktree_path, rr.branch_name,
+               rr.tmux_session_name, rr.codex_thread_id,
+               rr.previous_codex_thread_id,
+               (SELECT reason FROM run_state_history attention_latest
+                WHERE attention_latest.run_id = r.run_id
+                  AND attention_latest.to_state = 'needs_attention'
+                ORDER BY attention_latest.sequence DESC LIMIT 1)
+                 AS latest_attention_reason,
+               (SELECT succession_state
+                FROM run_autonomous_successions successor_latest
+                WHERE successor_latest.run_id = r.run_id
+                ORDER BY successor_latest.succession_number DESC LIMIT 1)
+                 AS latest_autonomous_successor_state,
+               (SELECT predecessor_thread_id
+                FROM run_autonomous_successions successor_latest
+                WHERE successor_latest.run_id = r.run_id
+                ORDER BY successor_latest.succession_number DESC LIMIT 1)
+                 AS latest_autonomous_successor_predecessor_thread_id,
+               (SELECT COUNT(*) FROM run_autonomous_successions successor_active
+                WHERE successor_active.run_id = r.run_id
+                  AND successor_active.succession_state IN ('starting','running'))
+                 AS autonomous_successor_active
+        FROM runs r JOIN run_resources rr USING (run_id)
+        WHERE r.run_id=?
+      `)
+      .get(runId) as Parameters<typeof recoverySnapshot>[0] | undefined;
     if (
-      ownership?.state === "remote_owned" &&
-      ownership.owner_state === "remote"
+      ownership &&
+      ((ownership.state === "remote_owned" &&
+        ownership.owner_state === "remote") ||
+        isFailedAutonomousSuccessorRecovery(recoverySnapshot(ownership)))
     ) {
       presentation = {
         stage: "autonomous_successor_pending",
@@ -348,8 +434,28 @@ function request(
       .prepare(
         `
       SELECT r.project, r.state, r.owner_state, r.stop_reason,
-             rr.resource_state, rr.tmux_session_name, rr.codex_thread_id,
-             rr.previous_codex_thread_id
+             r.execution_mode, rr.resource_state, rr.worktree_path,
+             rr.branch_name, rr.tmux_session_name, rr.codex_thread_id,
+             rr.previous_codex_thread_id,
+             (SELECT reason FROM run_state_history attention_latest
+              WHERE attention_latest.run_id = r.run_id
+                AND attention_latest.to_state = 'needs_attention'
+              ORDER BY attention_latest.sequence DESC LIMIT 1)
+               AS latest_attention_reason,
+             (SELECT succession_state
+              FROM run_autonomous_successions successor_latest
+              WHERE successor_latest.run_id = r.run_id
+              ORDER BY successor_latest.succession_number DESC LIMIT 1)
+               AS latest_autonomous_successor_state,
+             (SELECT predecessor_thread_id
+              FROM run_autonomous_successions successor_latest
+              WHERE successor_latest.run_id = r.run_id
+              ORDER BY successor_latest.succession_number DESC LIMIT 1)
+               AS latest_autonomous_successor_predecessor_thread_id,
+             (SELECT COUNT(*) FROM run_autonomous_successions successor_active
+              WHERE successor_active.run_id = r.run_id
+                AND successor_active.succession_state IN ('starting','running'))
+               AS autonomous_successor_active
       FROM runs r JOIN run_resources rr USING (run_id)
       WHERE r.run_id = ?
     `,
@@ -360,17 +466,27 @@ function request(
           state: string;
           owner_state: string;
           stop_reason: string | null;
+          execution_mode: string;
           resource_state: string;
+          worktree_path: string | null;
+          branch_name: string | null;
           tmux_session_name: string | null;
           codex_thread_id: string | null;
           previous_codex_thread_id: string | null;
+          latest_attention_reason: string | null;
+          latest_autonomous_successor_state: string | null;
+          latest_autonomous_successor_predecessor_thread_id: string | null;
+          autonomous_successor_active: number;
         }
       | undefined;
     if (!run) fail(`Run not found: ${runId}`);
+    const recovery = recoverySnapshot(run);
+    const failedSuccessorRecovery =
+      isFailedAutonomousSuccessorRecovery(recovery);
     const requestIntent =
       action === "take_control" &&
-      run.state === "remote_owned" &&
-      run.owner_state === "remote"
+      ((run.state === "remote_owned" && run.owner_state === "remote") ||
+        failedSuccessorRecovery)
         ? "autonomous_successor"
         : undefined;
     if (["rejected", "cancelled", "archived"].includes(run.state)) {
@@ -393,22 +509,35 @@ function request(
     if (action === "stop" && run.stop_reason === "cancelled") {
       fail("Run cancellation is already in progress or awaiting resolution");
     }
+    if (action === "take_control" && run.stop_reason === "cancelled") {
+      fail("Takeover is unavailable after cancellation was requested");
+    }
     if (action === "take_control" && run.previous_codex_thread_id !== null) {
       fail("Takeover is unavailable while a technical fix task cleanup is pending");
     }
+    if (action === "take_control" && run.state === "needs_attention") {
+      const cliHandoff = isNeedsAttentionCliHandoff(recovery);
+      if (
+        run.execution_mode !== "live" ||
+        (!cliHandoff &&
+          !(
+            failedSuccessorRecovery &&
+            Boolean(run.worktree_path) &&
+            Boolean(run.branch_name)
+          ))
+      ) {
+        fail("Needs-attention run has no safe managed recovery action");
+      }
+    }
     if (action === "take_control" && run.owner_state === "remote") {
-      const activeSuccessor = database
-        .prepare(
-          `SELECT COUNT(*) AS count FROM run_autonomous_successions
-           WHERE run_id=? AND succession_state IN ('starting','running')`,
-        )
-        .get(runId) as { count: number };
       if (
         run.state !== "remote_owned" ||
         run.resource_state !== "provisioned" ||
         run.tmux_session_name !== null ||
         !run.codex_thread_id ||
-        activeSuccessor.count !== 0
+        !run.worktree_path ||
+        !run.branch_name ||
+        run.autonomous_successor_active !== 0
       ) {
         fail(
           "Autonomous continuation requires one finished Remote task, a provisioned worktree, and no active managed writer",
@@ -714,12 +843,20 @@ function controls(
     ["running", "waiting_ci", "resolving"].includes(
       String(selected.review_fix_state),
     );
+  const selectedRecovery = recoverySnapshot(
+    selected as unknown as Parameters<typeof recoverySnapshot>[0],
+  );
+  const attentionCliHandoff = isNeedsAttentionCliHandoff(selectedRecovery);
+  const failedSuccessorRecovery =
+    isFailedAutonomousSuccessorRecovery(selectedRecovery);
   const availableActions = ["status"];
   if (
     !reviewFixBusy &&
     threadReady &&
     !repairCleanupPending &&
-    (ownerState === "cli" ||
+    ((ownerState === "cli" && runState !== "needs_attention") ||
+      attentionCliHandoff ||
+      failedSuccessorRecovery ||
       (ownerState === "remote" && runState === "remote_owned") ||
       (ownerState === "none" &&
         ["parked_review", "waiting_human"].includes(runState)))

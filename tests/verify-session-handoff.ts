@@ -234,8 +234,104 @@ esac
       "Handoff did not close the managed CLI session after interruption",
     );
 
+    const attentionRunId = "r_attention_handoff";
+    const attentionTmuxSession = "cx-tt-9502-attention";
+    const attentionDatabase = new DatabaseSync(databasePath);
+    attentionDatabase.exec(`
+      INSERT INTO project_events (
+        event_id, observed_at, project, item_id, content_id, content_type,
+        repository, issue_number, title, url, from_status, to_status,
+        payload_json, processing_state
+      ) VALUES (
+        'attention-handoff-event', '2026-08-17T09:25:00.000Z',
+        'tailortales', 'attention-handoff-item', 'attention-handoff-content',
+        'Issue', 'Shagon1k/TailorTales', 9502,
+        '[Test]: Needs-attention handoff',
+        'https://example.invalid/issues/9502', 'In progress', 'In progress',
+        '{"issueState":"OPEN","labels":[],"hasDescription":true}',
+        'processed'
+      );
+      INSERT INTO runs (
+        run_id, trigger_event_id, project, item_id, content_id, repository,
+        issue_number, interaction_policy, state, owner_state, execution_mode
+      ) VALUES (
+        '${attentionRunId}', 'attention-handoff-event', 'tailortales',
+        'attention-handoff-item', 'attention-handoff-content',
+        'Shagon1k/TailorTales', 9502, 'autonomous', 'needs_attention',
+        'cli', 'live'
+      );
+      INSERT INTO run_resources (
+        run_id, resource_state, worktree_path, branch_name,
+        codex_thread_id, tmux_session_name
+      ) VALUES (
+        '${attentionRunId}', 'provisioned',
+        '/tmp/worktrees/9502/TailorTales', 'TT-9502_attention-handoff',
+        'thread-attention-handoff', '${attentionTmuxSession}'
+      );
+      INSERT INTO run_control_requests (
+        request_id, run_id, action, request_state, requested_via,
+        idempotency_key
+      ) VALUES (
+        'rq_attention_handoff', '${attentionRunId}', 'take_control',
+        'pending', 'discord', 'test:attention-handoff'
+      );
+    `);
+    attentionDatabase.close();
+    await writeFile(fakeTmuxState, `${attentionTmuxSession}\n`, {
+      encoding: "utf8",
+      mode: 0o600,
+    });
+    await writeFile(fakeTmuxBusyState, `${attentionTmuxSession}\n`, {
+      encoding: "utf8",
+      mode: 0o600,
+    });
+    const controllerOutput = execFileSync(
+      process.execPath,
+      [
+        resolve(appDirectory, "src/orchestrator/runtime/controller.ts"),
+        "--apply",
+      ],
+      { encoding: "utf8", env, stdio: ["ignore", "pipe", "pipe"] },
+    );
+    const controller = JSON.parse(controllerOutput) as {
+      results: Array<{ runId: string; action: string; status: string }>;
+    };
+    assert(
+      controller.results.some(
+        (entry) =>
+          entry.runId === attentionRunId &&
+          entry.action === "handoff" &&
+          entry.status === "applied",
+      ),
+      "Controller did not honor needs-attention Take control through handoff",
+    );
+    const attentionVerify = new DatabaseSync(databasePath, { readOnly: true });
+    const attentionRow = attentionVerify
+      .prepare(
+        `SELECT r.state, r.owner_state, rr.tmux_session_name,
+                q.request_state
+         FROM runs r JOIN run_resources rr USING (run_id)
+         JOIN run_control_requests q USING (run_id)
+         WHERE r.run_id=? AND q.request_id='rq_attention_handoff'`,
+      )
+      .get(attentionRunId) as {
+      state: string;
+      owner_state: string;
+      tmux_session_name: string | null;
+      request_state: string;
+    };
+    attentionVerify.close();
+    assert(
+      attentionRow.state === "remote_owned" &&
+        attentionRow.owner_state === "remote" &&
+        attentionRow.tmux_session_name === null &&
+        attentionRow.request_state === "applied" &&
+        !(await exists(fakeTmuxState)),
+      "Needs-attention handoff did not release the managed writer safely",
+    );
+
     process.stdout.write(
-      `${JSON.stringify({ ok: true, isolated: true, reviewRaceNormalized: true, boundedInterrupt: true, remoteOwned: true, tmuxReleased: true })}\n`,
+      `${JSON.stringify({ ok: true, isolated: true, reviewRaceNormalized: true, boundedInterrupt: true, remoteOwned: true, tmuxReleased: true, needsAttentionHandoff: true })}\n`,
     );
   } finally {
     await rm(testHome, { recursive: true, force: true });

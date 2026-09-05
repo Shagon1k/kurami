@@ -9,6 +9,10 @@ import {
   loadEffectiveOrchestratorConfig,
   type RuntimeSettingsBaseConfig,
 } from "../settings/runtime-settings.ts";
+import {
+  isFailedAutonomousSuccessorRecovery,
+  isNeedsAttentionCliHandoff,
+} from "./recovery.ts";
 
 process.umask(0o077);
 
@@ -35,10 +39,13 @@ type RunRow = {
   project: string;
   issue_number: number;
   interaction_policy: "autonomous" | "human_control";
+  execution_mode: string;
   run_state: string;
   stop_reason: "cancelled" | "completed" | null;
   owner_state: string;
   resource_state: string;
+  worktree_path: string | null;
+  branch_name: string | null;
   tmux_session_name: string | null;
   codex_thread_id: string | null;
   previous_codex_thread_id: string | null;
@@ -69,6 +76,8 @@ type RunRow = {
   latest_review_head_sha: string | null;
   review_fix_active_count: number;
   autonomous_successor_active: number;
+  latest_autonomous_successor_state: string | null;
+  latest_autonomous_successor_predecessor_thread_id: string | null;
   latest_review_fix_state: string | null;
   latest_review_fix_number: number | null;
   latest_review_fix_round_id: string | null;
@@ -202,8 +211,10 @@ function parseArguments(): { apply: boolean } {
 function baseRunSelect(): string {
   return `
     SELECT r.run_id, r.project, r.issue_number, r.interaction_policy,
+           r.execution_mode,
            r.state AS run_state, r.stop_reason, r.owner_state,
-           rr.resource_state, rr.tmux_session_name, rr.codex_thread_id,
+           rr.resource_state, rr.worktree_path, rr.branch_name,
+           rr.tmux_session_name, rr.codex_thread_id,
            rr.previous_codex_thread_id,
            rr.preview_id, pl.lease_id AS preview_lease_id,
            pl.state AS preview_lease_state,
@@ -274,6 +285,16 @@ function baseRunSelect(): string {
              WHERE successor_active.run_id = r.run_id
                AND successor_active.succession_state IN ('starting','running')
            ) AS autonomous_successor_active
+           ,(SELECT succession_state
+             FROM run_autonomous_successions successor_latest
+             WHERE successor_latest.run_id = r.run_id
+             ORDER BY successor_latest.succession_number DESC LIMIT 1)
+              AS latest_autonomous_successor_state
+           ,(SELECT predecessor_thread_id
+             FROM run_autonomous_successions successor_latest
+             WHERE successor_latest.run_id = r.run_id
+             ORDER BY successor_latest.succession_number DESC LIMIT 1)
+              AS latest_autonomous_successor_predecessor_thread_id
            ,(SELECT round_state FROM run_review_fix_rounds fix_latest
              WHERE fix_latest.run_id = r.run_id
              ORDER BY fix_latest.round_number DESC LIMIT 1)
@@ -515,6 +536,22 @@ function planForRequest(
     issueNumber: request.issue_number,
     requestId: request.request_id,
   };
+  const recovery = {
+    runState: request.run_state,
+    ownerState: request.owner_state,
+    executionMode: request.execution_mode,
+    resourceState: request.resource_state,
+    worktreePath: request.worktree_path,
+    branchName: request.branch_name,
+    tmuxSessionName: request.tmux_session_name,
+    codexThreadId: request.codex_thread_id,
+    previousCodexThreadId: request.previous_codex_thread_id,
+    latestAttentionReason: request.latest_attention_reason,
+    latestSuccessorState: request.latest_autonomous_successor_state,
+    latestSuccessorPredecessorThreadId:
+      request.latest_autonomous_successor_predecessor_thread_id,
+    autonomousSuccessorActive: request.autonomous_successor_active,
+  };
   switch (request.requested_action) {
     case "take_control":
       if (request.stop_reason === "cancelled") {
@@ -523,6 +560,12 @@ function planForRequest(
           action: "request_reject",
           reason: "cancellation_requested",
         };
+      }
+      if (isNeedsAttentionCliHandoff(recovery)) {
+        return { ...base, action: "handoff" };
+      }
+      if (isFailedAutonomousSuccessorRecovery(recovery)) {
+        return { ...base, action: "successor_start" };
       }
       if (request.run_state === "needs_attention") {
         return {
@@ -1637,6 +1680,8 @@ function progressFor(
       ci_repair_runtime_budget_exceeded: `CI repair worker exceeded its ${config.limits.technical_worker_timeout_minutes}-minute limit. The worktree, thread reference, and terminal evidence were preserved.`,
       review_fix_runtime_budget_exceeded: `Review-fix worker exceeded its ${config.limits.technical_worker_timeout_minutes}-minute limit. The worktree, thread reference, and terminal evidence were preserved.`,
       ai_review_runtime_budget_exceeded: `AI review worker exceeded its ${config.limits.technical_worker_timeout_minutes}-minute limit. Its terminal evidence and the run worktree were preserved.`,
+      autonomous_successor_start_failed:
+        "The autonomous continuation could not start. The prior Codex thread, exact worktree, and branch were preserved; Continue autonomously can retry this guarded start.",
     };
     return {
       stage: "needs_attention",

@@ -1630,7 +1630,7 @@ async function leaveCliSession(
   }
   const handoffReadyStates =
     targetOwner === "remote"
-      ? ["running", "parked_review"]
+      ? ["running", "parked_review", "needs_attention"]
       : ["running", "parked_review", "stopping"];
   if (
     !handoffReadyStates.includes(run.run_state) ||
@@ -1644,6 +1644,18 @@ async function leaveCliSession(
   let tmuxAlive = run.tmux_session_name
     ? tmuxSessionExists(run.tmux_session_name)
     : false;
+  if (
+    targetOwner === "remote" &&
+    run.run_state === "needs_attention" &&
+    (run.resource_state !== "provisioned" ||
+      !run.tmux_session_name ||
+      !/^cx-[a-z0-9-]+$/u.test(run.tmux_session_name) ||
+      !tmuxAlive)
+  ) {
+    fail(
+      "Needs-attention handoff requires its live managed Codex tmux session",
+    );
+  }
   const tmuxAliveAtStart = tmuxAlive;
   let transcript =
     tmuxAlive && run.tmux_session_name
@@ -1652,7 +1664,10 @@ async function leaveCliSession(
   let waitingOnApproval = transcriptWaitingOnApproval(transcript);
   let busy = transcriptBusy(transcript);
   const initialBusy = busy;
-  const interruptRequired = targetOwner === "remote" && busy;
+  const attentionHandoff =
+    targetOwner === "remote" && run.run_state === "needs_attention";
+  const interruptRequired =
+    targetOwner === "remote" && (busy || (attentionHandoff && waitingOnApproval));
   const tailDirectory = resolve(orchestratorHome, "logs/session-handoffs");
   const tailPath = resolve(tailDirectory, `${run.run_id}.txt`);
   const projectReviewStatus = registry.projects[run.project]?.statuses.review;
@@ -1683,7 +1698,7 @@ async function leaveCliSession(
     interruptedTurn: false,
     tailPath,
   };
-  if (waitingOnApproval)
+  if (waitingOnApproval && !attentionHandoff)
     fail(`Codex is waiting for approval; resolve it before handoff`);
   if (busy && targetOwner !== "remote")
     fail(`Codex turn is still active; handoff is not safe yet`);
@@ -1711,7 +1726,7 @@ async function leaveCliSession(
       }
       transcript = capturePane(run.tmux_session_name);
       waitingOnApproval = transcriptWaitingOnApproval(transcript);
-      if (waitingOnApproval) {
+      if (waitingOnApproval && !attentionHandoff) {
         fail(`Codex reached an approval prompt during handoff; resolve it before retrying`);
       }
       busy = transcriptBusy(transcript);
@@ -1725,8 +1740,10 @@ async function leaveCliSession(
         sendTmuxKeys(run.tmux_session_name, ["Escape"]);
       }
     }
-    if (busy) {
-      fail(`Codex did not reach an idle prompt within the bounded interrupt window`);
+    if (busy || waitingOnApproval) {
+      fail(
+        `Codex did not reach an idle prompt within the bounded interrupt window`,
+      );
     }
   }
 

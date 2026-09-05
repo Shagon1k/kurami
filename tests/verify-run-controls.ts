@@ -539,6 +539,12 @@ async function main(): Promise<void> {
       "test:take-pending",
     );
     insertRequest.run(
+      "rq_unrelated_attention",
+      "r_runtime_timeout",
+      "take_control",
+      "test:unrelated-attention",
+    );
+    insertRequest.run(
       "rq_preview",
       "r_preview",
       "preview_start",
@@ -630,6 +636,24 @@ async function main(): Promise<void> {
       activePreviewError.includes("stable review state"),
       "Active CLI run accepted a premature preview request",
     );
+    const unrelatedRecoveryError = runNodeFails(
+      controlPath,
+      [
+        "request",
+        "--run-id",
+        "r_runtime_timeout",
+        "--action",
+        "take_control",
+        "--via",
+        "discord",
+        "--apply",
+      ],
+      testHome,
+    );
+    assert(
+      unrelatedRecoveryError.includes("no safe managed recovery action"),
+      "Run controls accepted an unrelated needs-attention recovery",
+    );
 
     const planned = runNode(controller, [], testHome) as unknown as {
       plans: Plan[];
@@ -649,6 +673,10 @@ async function main(): Promise<void> {
     assert(
       actions.r_takeover_pending === "handoff",
       "Active Take control request should plan a safe handoff",
+    );
+    assert(
+      actions.r_runtime_timeout === "request_reject",
+      "Unrelated needs-attention state exposed a broad takeover retry",
     );
     assert(
       actions.r_preview === "preview_allocate",

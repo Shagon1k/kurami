@@ -23,6 +23,11 @@ import {
   planResourceGuardDiscord,
   prepareResourceGuardDiscord,
 } from "../resources/discord.ts";
+import {
+  isFailedAutonomousSuccessorRecovery,
+  isNeedsAttentionCliHandoff,
+  type RecoverySnapshot,
+} from "../runtime/recovery.ts";
 
 process.umask(0o077);
 
@@ -73,14 +78,22 @@ type CardRow = {
   repository: string;
   issue_number: number;
   interaction_policy: string;
+  execution_mode: string;
   run_state: string;
   owner_state: string;
   stop_reason: string | null;
   title: string | null;
   issue_url: string | null;
+  resource_state: string;
+  worktree_path: string | null;
   branch_name: string | null;
+  tmux_session_name: string | null;
   codex_thread_id: string | null;
   previous_codex_thread_id: string | null;
+  latest_attention_reason: string | null;
+  latest_autonomous_successor_state: string | null;
+  latest_autonomous_successor_predecessor_thread_id: string | null;
+  autonomous_successor_active: number;
   preview_hostname: string | null;
   preview_state: string | null;
   preview_expires_at: string | null;
@@ -188,8 +201,24 @@ const ownerTimestampFormatter = new Intl.DateTimeFormat("en-GB", {
 });
 const desiredSurfaceDigestSql = `
   pc.content_digest || ':' || r.state || ':' || r.owner_state || ':' ||
+  r.execution_mode || ':' ||
   COALESCE(rr.codex_thread_id, 'thread:none') || ':' ||
   COALESCE(rr.previous_codex_thread_id, 'previous-thread:none') || ':' ||
+  rr.resource_state || ':' ||
+  COALESCE(rr.worktree_path, 'worktree:none') || ':' ||
+  COALESCE(rr.branch_name, 'branch:none') || ':' ||
+  COALESCE(rr.tmux_session_name, 'tmux:none') || ':' ||
+  COALESCE((SELECT reason FROM run_state_history attention_latest
+            WHERE attention_latest.run_id = r.run_id
+              AND attention_latest.to_state = 'needs_attention'
+            ORDER BY attention_latest.sequence DESC LIMIT 1), 'attention:none') || ':' ||
+  COALESCE((SELECT succession_state || ':' || predecessor_thread_id
+            FROM run_autonomous_successions successor_latest
+            WHERE successor_latest.run_id = r.run_id
+            ORDER BY successor_latest.succession_number DESC LIMIT 1), 'successor:none') || ':' ||
+  (SELECT COUNT(*) FROM run_autonomous_successions successor_active
+   WHERE successor_active.run_id = r.run_id
+     AND successor_active.succession_state IN ('starting','running')) || ':' ||
   COALESCE(pl.state, 'preview:none') || ':' ||
   COALESCE(pl.expires_at, 'expiry:none') || ':' ||
   COALESCE(pl.extension_count, 0) || ':' ||
@@ -233,6 +262,25 @@ const desiredSurfaceDigestSql = `
 
 function fail(message: string): never {
   throw new Error(message);
+}
+
+function cardRecovery(card: CardRow): RecoverySnapshot {
+  return {
+    runState: card.run_state,
+    ownerState: card.owner_state,
+    executionMode: card.execution_mode,
+    resourceState: card.resource_state,
+    worktreePath: card.worktree_path,
+    branchName: card.branch_name,
+    tmuxSessionName: card.tmux_session_name,
+    codexThreadId: card.codex_thread_id,
+    previousCodexThreadId: card.previous_codex_thread_id,
+    latestAttentionReason: card.latest_attention_reason,
+    latestSuccessorState: card.latest_autonomous_successor_state,
+    latestSuccessorPredecessorThreadId:
+      card.latest_autonomous_successor_predecessor_thread_id,
+    autonomousSuccessorActive: card.autonomous_successor_active,
+  };
 }
 
 function parseArguments(): {
@@ -402,10 +450,31 @@ function loadDesiredCards(
              ${desiredSurfaceDigestSql} AS desired_surface_digest,
              pc.updated_at,
              r.project, r.repository, r.issue_number, r.interaction_policy,
+             r.execution_mode,
              r.state AS run_state, r.owner_state, r.stop_reason,
              pe.title, pe.url AS issue_url,
-             rr.branch_name, rr.codex_thread_id,
+             rr.resource_state, rr.worktree_path, rr.branch_name,
+             rr.tmux_session_name, rr.codex_thread_id,
              rr.previous_codex_thread_id,
+             (SELECT reason FROM run_state_history attention_latest
+              WHERE attention_latest.run_id = r.run_id
+                AND attention_latest.to_state = 'needs_attention'
+              ORDER BY attention_latest.sequence DESC LIMIT 1)
+               AS latest_attention_reason,
+             (SELECT succession_state
+              FROM run_autonomous_successions successor_latest
+              WHERE successor_latest.run_id = r.run_id
+              ORDER BY successor_latest.succession_number DESC LIMIT 1)
+               AS latest_autonomous_successor_state,
+             (SELECT predecessor_thread_id
+              FROM run_autonomous_successions successor_latest
+              WHERE successor_latest.run_id = r.run_id
+              ORDER BY successor_latest.succession_number DESC LIMIT 1)
+               AS latest_autonomous_successor_predecessor_thread_id,
+             (SELECT COUNT(*) FROM run_autonomous_successions successor_active
+              WHERE successor_active.run_id = r.run_id
+                AND successor_active.succession_state IN ('starting','running'))
+               AS autonomous_successor_active,
              ps.hostname AS preview_hostname,
              pl.state AS preview_state,
              pl.expires_at AS preview_expires_at,
@@ -532,10 +601,31 @@ function loadCard(database: DatabaseSync, runId: string): CardRow {
              ${desiredSurfaceDigestSql} AS desired_surface_digest,
              pc.updated_at,
              r.project, r.repository, r.issue_number, r.interaction_policy,
+             r.execution_mode,
              r.state AS run_state, r.owner_state, r.stop_reason,
              pe.title, pe.url AS issue_url,
-             rr.branch_name, rr.codex_thread_id,
+             rr.resource_state, rr.worktree_path, rr.branch_name,
+             rr.tmux_session_name, rr.codex_thread_id,
              rr.previous_codex_thread_id,
+             (SELECT reason FROM run_state_history attention_latest
+              WHERE attention_latest.run_id = r.run_id
+                AND attention_latest.to_state = 'needs_attention'
+              ORDER BY attention_latest.sequence DESC LIMIT 1)
+               AS latest_attention_reason,
+             (SELECT succession_state
+              FROM run_autonomous_successions successor_latest
+              WHERE successor_latest.run_id = r.run_id
+              ORDER BY successor_latest.succession_number DESC LIMIT 1)
+               AS latest_autonomous_successor_state,
+             (SELECT predecessor_thread_id
+              FROM run_autonomous_successions successor_latest
+              WHERE successor_latest.run_id = r.run_id
+              ORDER BY successor_latest.succession_number DESC LIMIT 1)
+               AS latest_autonomous_successor_predecessor_thread_id,
+             (SELECT COUNT(*) FROM run_autonomous_successions successor_active
+              WHERE successor_active.run_id = r.run_id
+                AND successor_active.succession_state IN ('starting','running'))
+               AS autonomous_successor_active,
              ps.hostname AS preview_hostname,
              pl.state AS preview_state,
              pl.expires_at AS preview_expires_at,
@@ -1073,9 +1163,12 @@ export function controlComponents(
       ["running", "waiting_ci", "resolving"].includes(
         card.review_fix_state ?? "",
       );
+    const recovery = cardRecovery(card);
+    const attentionCliHandoff = isNeedsAttentionCliHandoff(recovery);
+    const failedSuccessorRecovery =
+      isFailedAutonomousSuccessorRecovery(recovery);
     const takeoverEligible =
       !preservedCancellation &&
-      card.run_state !== "needs_attention" &&
       !["handoff_pending", "autonomous_successor_pending"].includes(
         card.stage,
       ) &&
@@ -1090,7 +1183,9 @@ export function controlComponents(
       ].includes(card.stage) &&
       Boolean(card.codex_thread_id) &&
       card.previous_codex_thread_id === null &&
-      (card.owner_state === "cli" ||
+      ((card.owner_state === "cli" && card.run_state !== "needs_attention") ||
+        attentionCliHandoff ||
+        failedSuccessorRecovery ||
         (card.owner_state === "remote" &&
           card.run_state === "remote_owned") ||
         (card.owner_state === "none" &&
@@ -1099,7 +1194,7 @@ export function controlComponents(
       const takeoverLabel =
         card.owner_state === "cli"
           ? "Take control"
-          : card.owner_state === "remote"
+          : card.owner_state === "remote" || failedSuccessorRecovery
             ? "Continue autonomously"
             : "Continue in Codex";
       controls.push(

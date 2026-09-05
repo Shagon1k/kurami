@@ -9,6 +9,10 @@ import {
   sanitizeUntrustedPromptData,
   serializeUntrustedPromptData,
 } from "../../security/prompt-safety.ts";
+import {
+  autonomousSuccessorStartFailedReason,
+  isFailedAutonomousSuccessorRecovery,
+} from "../../runtime/recovery.ts";
 
 process.umask(0o077);
 
@@ -28,6 +32,10 @@ type Run = {
   tmux_session_name: string | null;
   codex_thread_id: string | null;
   previous_codex_thread_id: string | null;
+  latest_attention_reason: string | null;
+  latest_autonomous_successor_state: string | null;
+  latest_autonomous_successor_predecessor_thread_id: string | null;
+  autonomous_successor_active: number;
 };
 
 type Project = {
@@ -100,7 +108,26 @@ function loadRun(database: DatabaseSync, runId: string): Run {
            r.state, r.owner_state, r.execution_mode,
            rr.resource_state, rr.worktree_path, rr.branch_name,
            rr.tmux_session_name, rr.codex_thread_id,
-           rr.previous_codex_thread_id
+           rr.previous_codex_thread_id,
+           (SELECT reason FROM run_state_history attention_latest
+            WHERE attention_latest.run_id = r.run_id
+              AND attention_latest.to_state = 'needs_attention'
+            ORDER BY attention_latest.sequence DESC LIMIT 1)
+             AS latest_attention_reason,
+           (SELECT succession_state
+            FROM run_autonomous_successions successor_latest
+            WHERE successor_latest.run_id = r.run_id
+            ORDER BY successor_latest.succession_number DESC LIMIT 1)
+             AS latest_autonomous_successor_state,
+           (SELECT predecessor_thread_id
+            FROM run_autonomous_successions successor_latest
+            WHERE successor_latest.run_id = r.run_id
+            ORDER BY successor_latest.succession_number DESC LIMIT 1)
+             AS latest_autonomous_successor_predecessor_thread_id,
+           (SELECT COUNT(*) FROM run_autonomous_successions successor_active
+            WHERE successor_active.run_id = r.run_id
+              AND successor_active.succession_state IN ('starting','running'))
+             AS autonomous_successor_active
     FROM runs r
     JOIN run_resources rr USING (run_id)
     JOIN project_events pe ON pe.event_id = r.trigger_event_id
@@ -114,13 +141,36 @@ function bounded(value: string, max = 24_000): string {
   return value.length <= max ? value : `${value.slice(0, max)}\n...[truncated]`;
 }
 
+function isRecovery(run: Run): boolean {
+  return isFailedAutonomousSuccessorRecovery({
+    runState: run.state,
+    ownerState: run.owner_state,
+    executionMode: run.execution_mode,
+    resourceState: run.resource_state,
+    worktreePath: run.worktree_path,
+    branchName: run.branch_name,
+    tmuxSessionName: run.tmux_session_name,
+    codexThreadId: run.codex_thread_id,
+    previousCodexThreadId: run.previous_codex_thread_id,
+    latestAttentionReason: run.latest_attention_reason,
+    latestSuccessorState: run.latest_autonomous_successor_state,
+    latestSuccessorPredecessorThreadId:
+      run.latest_autonomous_successor_predecessor_thread_id,
+    autonomousSuccessorActive: run.autonomous_successor_active,
+  });
+}
+
 async function buildContext(
   database: DatabaseSync,
   run: Run,
   project: Project,
 ): Promise<Record<string, unknown>> {
-  if (run.state !== "remote_owned" || run.owner_state !== "remote")
-    fail(`Run is not Remote-owned: state=${run.state}, owner=${run.owner_state}`);
+  const remoteBoundary =
+    run.state === "remote_owned" && run.owner_state === "remote";
+  if (!remoteBoundary && !isRecovery(run))
+    fail(
+      `Run is not at a safe Remote or successor-recovery boundary: state=${run.state}, owner=${run.owner_state}`,
+    );
   if (run.resource_state !== "provisioned" || !run.worktree_path || !run.branch_name)
     fail("Remote run has no provisioned worktree and branch mapping");
   if (!run.codex_thread_id || run.previous_codex_thread_id || run.tmux_session_name)
@@ -204,6 +254,16 @@ function markAmbiguous(database: DatabaseSync, runId: string, requestId: string,
         INSERT INTO run_state_history (run_id, from_state, to_state, reason, details_json)
         VALUES (?, 'remote_owned', 'needs_attention', 'autonomous_successor_ambiguous', ?)
       `).run(runId, JSON.stringify({ requestId, error }));
+    } else if (isRecovery(current)) {
+      database.prepare(`
+        UPDATE runs SET updated_at=strftime('%Y-%m-%dT%H:%M:%fZ','now')
+        WHERE run_id=? AND state='needs_attention' AND owner_state='none'
+      `).run(runId);
+      database.prepare(`
+        INSERT INTO run_state_history (run_id, from_state, to_state, reason, details_json)
+        VALUES (?, 'needs_attention', 'needs_attention',
+                'autonomous_successor_recovery_ambiguous', ?)
+      `).run(runId, JSON.stringify({ requestId, error }));
     }
     database.exec("COMMIT");
   } catch (recordError) {
@@ -281,7 +341,10 @@ export async function runAutonomousSuccessorCli(): Promise<void> {
         SELECT 1 FROM run_autonomous_successions
         WHERE run_id=? AND succession_state IN ('starting','running')
       `).get(runId);
-      if (request.changes !== 1 || active || current.state !== "remote_owned" || current.owner_state !== "remote" ||
+      const ownershipBoundary =
+        (current.state === "remote_owned" && current.owner_state === "remote") ||
+        isRecovery(current);
+      if (request.changes !== 1 || active || !ownershipBoundary ||
           current.codex_thread_id !== run.codex_thread_id || current.tmux_session_name !== null ||
           current.worktree_path !== run.worktree_path || current.branch_name !== run.branch_name)
         fail("Remote ownership or single-writer boundary changed before successor claim");
@@ -299,8 +362,15 @@ export async function runAutonomousSuccessorCli(): Promise<void> {
         updated_at=strftime('%Y-%m-%dT%H:%M:%fZ','now') WHERE run_id=?`).run(tmuxName, runId);
       database.prepare(`
         INSERT INTO run_state_history (run_id, from_state, to_state, reason, details_json)
-        VALUES (?, 'remote_owned', 'running', 'autonomous_successor_claimed', ?)
-      `).run(runId, JSON.stringify({ successionId, requestId, predecessorThreadId: run.codex_thread_id }));
+        VALUES (?, ?, 'running', ?, ?)
+      `).run(
+        runId,
+        run.state,
+        isRecovery(run)
+          ? "autonomous_successor_recovery_claimed"
+          : "autonomous_successor_claimed",
+        JSON.stringify({ successionId, requestId, predecessorThreadId: run.codex_thread_id }),
+      );
       database.exec("COMMIT");
     } catch (error) {
       database.exec("ROLLBACK");
@@ -308,10 +378,10 @@ export async function runAutonomousSuccessorCli(): Promise<void> {
     }
 
     const promptDirectory = resolve(orchestratorHome, "state/session-prompts");
-    await mkdir(promptDirectory, { recursive: true, mode: 0o700 });
     const promptPath = resolve(promptDirectory, `${runId}-${requestId}.b64`);
-    await writeFile(promptPath, Buffer.from(promptFor(context), "utf8").toString("base64"), { mode: 0o600, flag: "wx" });
     try {
+      await mkdir(promptDirectory, { recursive: true, mode: 0o700 });
+      await writeFile(promptPath, Buffer.from(promptFor(context), "utf8").toString("base64"), { mode: 0o600, flag: "wx" });
       runFile("tmux", ["new-session", "-d", "-s", tmuxName, "-c", run.worktree_path!,
         "-e", `KURAMI_HOME=${orchestratorHome}`,
         "-e", `HERMES_RUN_ID=${runId}`,
@@ -330,13 +400,38 @@ export async function runAutonomousSuccessorCli(): Promise<void> {
       if (tmuxExists(tmuxName)) spawnSync("tmux", ["kill-session", "-t", `=${tmuxName}`]);
       database.exec("BEGIN IMMEDIATE");
       try {
+        const current = loadRun(database, runId);
+        if (
+          current.state !== "running" ||
+          current.owner_state !== "cli" ||
+          current.tmux_session_name !== tmuxName ||
+          current.codex_thread_id !== null ||
+          current.worktree_path !== run.worktree_path ||
+          current.branch_name !== run.branch_name
+        ) {
+          fail("Run changed during autonomous successor start failure recovery");
+        }
         database.prepare(`UPDATE runs SET state='needs_attention', owner_state='none',
-          updated_at=strftime('%Y-%m-%dT%H:%M:%fZ','now') WHERE run_id=?`).run(runId);
+          updated_at=strftime('%Y-%m-%dT%H:%M:%fZ','now')
+          WHERE run_id=? AND state='running' AND owner_state='cli'`).run(runId);
         database.prepare(`UPDATE run_resources SET tmux_session_name=NULL, codex_thread_id=?,
-          updated_at=strftime('%Y-%m-%dT%H:%M:%fZ','now') WHERE run_id=?`).run(run.codex_thread_id, runId);
+          updated_at=strftime('%Y-%m-%dT%H:%M:%fZ','now')
+          WHERE run_id=? AND tmux_session_name=? AND codex_thread_id IS NULL`).run(
+          run.codex_thread_id,
+          runId,
+          tmuxName,
+        );
         database.prepare(`UPDATE run_autonomous_successions SET succession_state='failed', failure_reason=?,
           tmux_session_name=NULL, completed_at=strftime('%Y-%m-%dT%H:%M:%fZ','now'),
           updated_at=strftime('%Y-%m-%dT%H:%M:%fZ','now') WHERE succession_id=?`).run(message, successionId);
+        database.prepare(`
+          INSERT INTO run_state_history (run_id, from_state, to_state, reason, details_json)
+          VALUES (?, 'running', 'needs_attention', ?, ?)
+        `).run(
+          runId,
+          autonomousSuccessorStartFailedReason,
+          JSON.stringify({ successionId, requestId, error: message }),
+        );
         database.exec("COMMIT");
       } catch (recordError) {
         database.exec("ROLLBACK");

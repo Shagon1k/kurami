@@ -44,10 +44,12 @@ async function main(): Promise<void> {
   );
   const fakeBin = resolve(home, "fake-bin");
   const fakeTmuxState = resolve(home, "tmux-alive");
+  const fakeTmuxFailState = resolve(home, "tmux-fail-next-start");
   const fakeTmuxLog = resolve(home, "tmux-calls.log");
   const worktreeRoot = resolve(home, "worktrees/tailortales");
   const worktree = resolve(worktreeRoot, "124/TailorTales");
   const ambiguousWorktree = resolve(worktreeRoot, "125/TailorTales");
+  const recoveryWorktree = resolve(worktreeRoot, "126/TailorTales");
   const canonical = resolve(home, "repositories/TailorTales");
   const successorPath = resolve(app, "src/orchestrator/projects/sessions/autonomous-successor.ts");
   const controlsPath = resolve(app, "src/orchestrator/controls/run.ts");
@@ -59,6 +61,7 @@ async function main(): Promise<void> {
     await mkdir(fakeBin, { recursive: true, mode: 0o700 });
     await mkdir(worktree, { recursive: true, mode: 0o700 });
     await mkdir(ambiguousWorktree, { recursive: true, mode: 0o700 });
+    await mkdir(recoveryWorktree, { recursive: true, mode: 0o700 });
     await mkdir(canonical, { recursive: true, mode: 0o700 });
     await copyFile(
       resolve(app, "deploy/config/orchestrator.yaml"),
@@ -86,6 +89,12 @@ async function main(): Promise<void> {
       git(directory, ["add", "README.md"]);
       git(directory, ["commit", "-m", "fixture"]);
     }
+    git(recoveryWorktree, ["init", "-b", "TT-126_recovery"]);
+    git(recoveryWorktree, ["config", "user.email", "successor-test@example.invalid"]);
+    git(recoveryWorktree, ["config", "user.name", "Successor Test"]);
+    await writeFile(resolve(recoveryWorktree, "README.md"), "base\n");
+    git(recoveryWorktree, ["add", "README.md"]);
+    git(recoveryWorktree, ["commit", "-m", "fixture"]);
     await writeFile(
       resolve(worktree, "README.md"),
       `base\nowner edit\nGH_TOKEN=${injectedCredential}\n`,
@@ -116,6 +125,10 @@ case "$1" in
     esac
     ;;
   new-session)
+    if test -f "$FAKE_TMUX_FAIL_STATE"; then
+      /bin/rm -f "$FAKE_TMUX_FAIL_STATE"
+      exit 1
+    fi
     : > "$FAKE_TMUX_STATE"
     ;;
   kill-session)
@@ -137,6 +150,7 @@ esac
       CODEX_BIN: process.execPath,
       PATH: `${fakeBin}${delimiter}${process.env.PATH ?? ""}`,
       FAKE_TMUX_STATE: fakeTmuxState,
+      FAKE_TMUX_FAIL_STATE: fakeTmuxFailState,
       FAKE_TMUX_LOG: fakeTmuxLog,
     };
     execFileSync(process.execPath, [resolve(app, "src/orchestrator/state/init-run-store.ts")], {
@@ -238,6 +252,7 @@ esac
       "human_control",
     );
     insertFixture("ambiguous", 125, ambiguousWorktree, "TT-125_wrong");
+    insertFixture("recovery", 126, recoveryWorktree, "TT-126_recovery");
     database.close();
 
     const queuedOutput = execFileSync(
@@ -436,6 +451,149 @@ esac
       "Successor startup changed owner work",
     );
 
+    await writeFile(fakeTmuxFailState, "fail\n", { mode: 0o600 });
+    const failedStartRequest = JSON.parse(
+      execFileSync(
+        process.execPath,
+        [
+          controlsPath,
+          "request",
+          "--run-id",
+          "r_recovery",
+          "--action",
+          "take_control",
+          "--via",
+          "discord",
+          "--apply",
+        ],
+        { encoding: "utf8", env, stdio: ["ignore", "pipe", "pipe"] },
+      ),
+    ) as { requestId: string; intent: string };
+    assert(
+      failedStartRequest.intent === "autonomous_successor",
+      "Initial autonomous continuation did not retain successor intent",
+    );
+    const failedControllerOutput = execFileSync(
+      process.execPath,
+      [controllerPath, "--apply"],
+      { encoding: "utf8", env, stdio: ["ignore", "pipe", "pipe"] },
+    );
+    const failedController = JSON.parse(failedControllerOutput) as {
+      results: Array<{ runId: string; action: string; status: string }>;
+    };
+    assert(
+      failedController.results.some(
+        (entry) =>
+          entry.runId === "r_recovery" &&
+          entry.action === "successor_start" &&
+          entry.status === "deferred",
+      ),
+      "Synthetic autonomous successor failure was not surfaced",
+    );
+    const failedState = new DatabaseSync(databasePath, { readOnly: true });
+    const failedRecovery = failedState
+      .prepare(
+        `SELECT r.state, r.owner_state, rr.tmux_session_name,
+                rr.codex_thread_id, s.succession_state,
+                q.request_state,
+                (SELECT reason FROM run_state_history h
+                 WHERE h.run_id=r.run_id AND h.to_state='needs_attention'
+                 ORDER BY h.sequence DESC LIMIT 1) AS attention_reason
+         FROM runs r JOIN run_resources rr USING (run_id)
+         JOIN run_autonomous_successions s USING (run_id)
+         JOIN run_control_requests q ON q.request_id=s.request_id
+         WHERE r.run_id='r_recovery'`,
+      )
+      .get() as {
+      state: string;
+      owner_state: string;
+      tmux_session_name: string | null;
+      codex_thread_id: string | null;
+      succession_state: string;
+      request_state: string;
+      attention_reason: string | null;
+    };
+    failedState.close();
+    assert(
+      failedRecovery.state === "needs_attention" &&
+        failedRecovery.owner_state === "none" &&
+        failedRecovery.tmux_session_name === null &&
+        failedRecovery.codex_thread_id === "thread-recovery-predecessor" &&
+        failedRecovery.succession_state === "failed" &&
+        failedRecovery.request_state === "failed" &&
+        failedRecovery.attention_reason ===
+          "autonomous_successor_start_failed",
+      "Failed successor did not restore and classify the safe recovery boundary",
+    );
+
+    const retryRequest = JSON.parse(
+      execFileSync(
+        process.execPath,
+        [
+          controlsPath,
+          "request",
+          "--run-id",
+          "r_recovery",
+          "--action",
+          "take_control",
+          "--via",
+          "discord",
+          "--apply",
+        ],
+        { encoding: "utf8", env, stdio: ["ignore", "pipe", "pipe"] },
+      ),
+    ) as { requestId: string; intent: string };
+    assert(
+      retryRequest.intent === "autonomous_successor" &&
+        retryRequest.requestId !== failedStartRequest.requestId,
+      "Guarded recovery did not create a fresh successor request",
+    );
+    const retryPlan = JSON.parse(
+      execFileSync(process.execPath, [controllerPath], {
+        encoding: "utf8",
+        env,
+        stdio: ["ignore", "pipe", "pipe"],
+      }),
+    ) as { plans: Array<{ runId: string; action: string }> };
+    assert(
+      retryPlan.plans.some(
+        (plan) =>
+          plan.runId === "r_recovery" && plan.action === "successor_start",
+      ),
+      "Controller did not recognize the exact failed-successor recovery state",
+    );
+    execFileSync(process.execPath, [controllerPath, "--apply"], {
+      env,
+      stdio: ["ignore", "ignore", "pipe"],
+    });
+    const retriedState = new DatabaseSync(databasePath, { readOnly: true });
+    const retriedRecovery = retriedState
+      .prepare(
+        `SELECT r.state, r.owner_state, rr.tmux_session_name,
+                COUNT(*) AS succession_count,
+                SUM(CASE WHEN s.succession_state='running' THEN 1 ELSE 0 END)
+                  AS running_count
+         FROM runs r JOIN run_resources rr USING (run_id)
+         JOIN run_autonomous_successions s USING (run_id)
+         WHERE r.run_id='r_recovery'`,
+      )
+      .get() as {
+      state: string;
+      owner_state: string;
+      tmux_session_name: string | null;
+      succession_count: number;
+      running_count: number;
+    };
+    retriedState.close();
+    assert(
+      retriedRecovery.state === "running" &&
+        retriedRecovery.owner_state === "cli" &&
+        Boolean(retriedRecovery.tmux_session_name) &&
+        retriedRecovery.succession_count === 2 &&
+        retriedRecovery.running_count === 1,
+      "Guarded retry did not establish exactly one managed writer",
+    );
+
     const repeated = runFails(
       process.execPath,
       [
@@ -450,7 +608,7 @@ esac
       env,
     );
     assert(
-      repeated.includes("Run is not Remote-owned"),
+      repeated.includes("safe Remote or successor-recovery boundary"),
       "Repeated successor start did not fail closed",
     );
 
@@ -522,6 +680,8 @@ esac
         boundedHandoff: true,
         noOpSuccessorParks: true,
         singleWriter: true,
+        failedStartRecoverable: true,
+        guardedRetry: true,
         repeatedRequestFailClosed: true,
         ambiguityNeedsAttention: true,
       })}\n`,

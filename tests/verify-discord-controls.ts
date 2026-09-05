@@ -636,6 +636,8 @@ async function main(): Promise<void> {
     attentionState.exec(`
       UPDATE runs SET state='needs_attention', owner_state='cli'
       WHERE run_id='r_discord_smoke';
+      UPDATE run_resources SET tmux_session_name='cx-tt-9401-attention'
+      WHERE run_id='r_discord_smoke';
       UPDATE run_progress_cards
       SET stage='needs_attention', detail='The run needs attention before it can continue.',
           content_digest='digest-needs-attention',
@@ -646,8 +648,75 @@ async function main(): Promise<void> {
     await runNode(notifier, ["--apply"], testHome, discordEnv);
     const attentionControls = customIds(currentDashboard());
     assert(
-      !attentionControls.includes("kurami:take_control:r_discord_smoke"),
-      "Needs-attention run exposed a takeover action the controller will reject",
+      attentionControls.includes("kurami:take_control:r_discord_smoke") &&
+        componentLabels(currentDashboard()).includes("Take control"),
+      "Live managed needs-attention run did not expose Take control",
+    );
+
+    const successorRecovery = new DatabaseSync(databasePath);
+    successorRecovery.exec(`
+      UPDATE runs SET owner_state='none' WHERE run_id='r_discord_smoke';
+      UPDATE run_resources SET tmux_session_name=NULL
+      WHERE run_id='r_discord_smoke';
+      INSERT INTO run_control_requests (
+        request_id, run_id, action, request_state, requested_via,
+        idempotency_key, result_json, completed_at
+      ) VALUES (
+        'rq_discord_successor_failed', 'r_discord_smoke', 'take_control',
+        'failed', 'discord', 'test:discord-successor-failed',
+        '{"action":"autonomous_successor_start_failed"}',
+        '2026-08-16T09:12:05.000Z'
+      );
+      INSERT INTO run_autonomous_successions (
+        succession_id, run_id, request_id, succession_number,
+        succession_state, predecessor_thread_id, worktree_path, branch_name,
+        source_head_sha, tmux_session_name, handoff_context_json,
+        failure_reason, completed_at
+      ) VALUES (
+        'ras_discord_failed', 'r_discord_smoke',
+        'rq_discord_successor_failed', 1, 'failed',
+        '${codexThreadId}', '/tmp/worktrees/9401/TailorTales',
+        'TT-9401_discord-control',
+        'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa', NULL, '{}',
+        'synthetic start failure', '2026-08-16T09:12:05.000Z'
+      );
+      INSERT INTO run_state_history (
+        run_id, from_state, to_state, reason, details_json
+      ) VALUES (
+        'r_discord_smoke', 'running', 'needs_attention',
+        'autonomous_successor_start_failed', '{}'
+      );
+      UPDATE run_progress_cards
+      SET content_digest='digest-successor-recovery',
+          updated_at='2026-08-16T09:12:10.000Z'
+      WHERE run_id='r_discord_smoke';
+    `);
+    successorRecovery.close();
+    await runNode(notifier, ["--apply"], testHome, discordEnv);
+    assert(
+      customIds(currentDashboard()).includes(
+        "kurami:take_control:r_discord_smoke",
+      ) &&
+        componentLabels(currentDashboard()).includes("Continue autonomously"),
+      "Exact failed-successor boundary did not expose autonomous recovery",
+    );
+
+    const unrelatedAttention = new DatabaseSync(databasePath);
+    unrelatedAttention.exec(`
+      INSERT INTO run_state_history (
+        run_id, from_state, to_state, reason, details_json
+      ) VALUES (
+        'r_discord_smoke', 'needs_attention', 'needs_attention',
+        'unrelated_attention_failure', '{}'
+      );
+    `);
+    unrelatedAttention.close();
+    await runNode(notifier, ["--apply"], testHome, discordEnv);
+    assert(
+      !customIds(currentDashboard()).includes(
+        "kurami:take_control:r_discord_smoke",
+      ),
+      "Unrelated needs-attention reason exposed a broad autonomous retry",
     );
 
     const repairReady = new DatabaseSync(databasePath);
