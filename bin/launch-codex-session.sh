@@ -46,8 +46,13 @@ fi
 canonical_repository="$(realpath -e -- "${HERMES_CANONICAL_REPOSITORY}")"
 canonical_git_dir="$(git -C "${canonical_repository}" rev-parse --path-format=absolute --git-dir)"
 worktree_common_dir="$(git -C "${HERMES_WORKTREE_PATH}" rev-parse --path-format=absolute --git-common-dir)"
+worktree_git_dir="$(git -C "${HERMES_WORKTREE_PATH}" rev-parse --path-format=absolute --git-dir)"
 if [[ "${canonical_repository}" != "${HERMES_CANONICAL_REPOSITORY}" || "${canonical_git_dir}" != "${worktree_common_dir}" ]]; then
   printf 'Managed worktree does not belong to the configured canonical repository\n' >&2
+  exit 1
+fi
+if [[ "${worktree_git_dir}" != "${worktree_common_dir}"/worktrees/* ]]; then
+  printf 'Managed worktree Git directory is not an isolated linked-worktree directory\n' >&2
   exit 1
 fi
 if [[ "${canonical_repository}" == *'"'* || "${canonical_repository}" == *'\\'* || "${canonical_repository}" == *$'\n'* ]]; then
@@ -62,6 +67,7 @@ unset HERMES_INITIAL_PROMPT_B64
 exec "${CODEX_BIN}" \
   -C "${HERMES_WORKTREE_PATH}" \
   --sandbox workspace-write \
+  --add-dir "${worktree_git_dir}" \
   -c 'sandbox_workspace_write.network_access=true' \
   --ask-for-approval never \
   -c 'approvals_reviewer="auto_review"' \

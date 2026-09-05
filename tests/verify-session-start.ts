@@ -36,6 +36,12 @@ async function main(): Promise<void> {
     launcher.includes("sandbox_workspace_write.network_access=true"),
     "Managed Codex launcher must allow GitHub reads and pushes while retaining workspace-write isolation",
   );
+  assert(
+    launcher.includes('worktree_git_dir="$(git -C "${HERMES_WORKTREE_PATH}" rev-parse --path-format=absolute --git-dir)"') &&
+      launcher.includes('"${worktree_git_dir}" != "${worktree_common_dir}"/worktrees/*') &&
+      launcher.includes('--add-dir "${worktree_git_dir}"'),
+    "Managed Codex launcher must grant write access only to the linked worktree Git directory",
+  );
   const home = await realpath(
     await mkdtemp(resolve(tmpdir(), "kurami-session-start-")),
   );
