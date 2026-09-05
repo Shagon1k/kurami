@@ -39,7 +39,8 @@ async function main(): Promise<void> {
   assert(
     launcher.includes('worktree_git_dir="$(git -C "${HERMES_WORKTREE_PATH}" rev-parse --path-format=absolute --git-dir)"') &&
       launcher.includes('"${worktree_git_dir}" != "${worktree_common_dir}"/worktrees/*') &&
-      launcher.includes('--add-dir "${worktree_git_dir}"'),
+      launcher.includes('--add-dir "${worktree_git_dir}"') &&
+      launcher.includes('--add-dir "${worktree_common_dir}"'),
     "Managed Codex launcher must grant write access only to the linked worktree Git directory",
   );
   const home = await realpath(

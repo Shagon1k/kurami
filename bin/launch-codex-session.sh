@@ -76,6 +76,7 @@ exec "${CODEX_BIN}" \
   -C "${HERMES_WORKTREE_PATH}" \
   --sandbox workspace-write \
   --add-dir "${worktree_git_dir}" \
+  --add-dir "${worktree_common_dir}" \
   -c 'sandbox_workspace_write.network_access=true' \
   --ask-for-approval never \
   -c 'approvals_reviewer="auto_review"' \
