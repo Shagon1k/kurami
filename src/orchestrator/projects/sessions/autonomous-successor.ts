@@ -1,6 +1,6 @@
 import { execFileSync, spawnSync } from "node:child_process";
 import { randomUUID } from "node:crypto";
-import { readFile, realpath, stat } from "node:fs/promises";
+import { mkdir, readFile, realpath, rm, stat, writeFile } from "node:fs/promises";
 import { relative, resolve } from "node:path";
 import { resolveKuramiHome } from "../../../core/kurami-home.ts";
 import { DatabaseSync } from "node:sqlite";
@@ -307,6 +307,10 @@ export async function runAutonomousSuccessorCli(): Promise<void> {
       throw error;
     }
 
+    const promptDirectory = resolve(orchestratorHome, "state/session-prompts");
+    await mkdir(promptDirectory, { recursive: true, mode: 0o700 });
+    const promptPath = resolve(promptDirectory, `${runId}-${requestId}.b64`);
+    await writeFile(promptPath, Buffer.from(promptFor(context), "utf8").toString("base64"), { mode: 0o600, flag: "wx" });
     try {
       runFile("tmux", ["new-session", "-d", "-s", tmuxName, "-c", run.worktree_path!,
         "-e", `KURAMI_HOME=${orchestratorHome}`,
@@ -315,7 +319,7 @@ export async function runAutonomousSuccessorCli(): Promise<void> {
         "-e", `HERMES_ISSUE_NUMBER=${run.issue_number}`,
         "-e", `HERMES_WORKTREE_PATH=${run.worktree_path}`,
         "-e", `HERMES_CANONICAL_REPOSITORY=${resolve(project.workspace.canonical_repository)}`,
-        "-e", `HERMES_INITIAL_PROMPT_B64=${Buffer.from(promptFor(context), "utf8").toString("base64")}`,
+        "-e", `HERMES_INITIAL_PROMPT_FILE=${promptPath}`,
         "-e", `CODEX_BIN=${codexBin}`, launcherPath]);
       await new Promise((resolveDelay) => setTimeout(resolveDelay, 1_000));
       if (!tmuxExists(tmuxName)) fail("Successor tmux session exited during startup");

@@ -1,5 +1,5 @@
 import { execFileSync, spawnSync } from "node:child_process";
-import { mkdir, readFile, realpath, stat, writeFile } from "node:fs/promises";
+import { mkdir, readFile, realpath, rm, stat, writeFile } from "node:fs/promises";
 import { relative, resolve } from "node:path";
 import { resolveKuramiHome } from "../../../core/kurami-home.ts";
 import { DatabaseSync } from "node:sqlite";
@@ -1140,6 +1140,10 @@ async function startSession(
       config.limits.max_tmux_sessions_global,
     );
   else claimSession(database, run, plan, config.limits.max_tmux_sessions_global);
+  const promptDirectory = resolve(orchestratorHome, "state/session-prompts");
+  await mkdir(promptDirectory, { recursive: true, mode: 0o700 });
+  const promptPath = resolve(promptDirectory, `${run.run_id}-${Date.now()}.b64`);
+  await writeFile(promptPath, Buffer.from(plan.initialPrompt, "utf8").toString("base64"), { mode: 0o600, flag: "wx" });
   try {
     runFile("tmux", [
       "new-session",
@@ -1161,7 +1165,7 @@ async function startSession(
       "-e",
       `HERMES_CANONICAL_REPOSITORY=${plan.canonicalRepository}`,
       "-e",
-      `HERMES_INITIAL_PROMPT_B64=${Buffer.from(plan.initialPrompt, "utf8").toString("base64")}`,
+      `HERMES_INITIAL_PROMPT_FILE=${promptPath}`,
       "-e",
       `CODEX_BIN=${plan.codexBin}`,
       plan.launcherPath,

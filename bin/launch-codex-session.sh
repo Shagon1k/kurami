@@ -10,7 +10,6 @@ KURAMI_HOME="${KURAMI_HOME:-}"
 : "${HERMES_ISSUE_NUMBER:?HERMES_ISSUE_NUMBER is required}"
 : "${HERMES_WORKTREE_PATH:?HERMES_WORKTREE_PATH is required}"
 : "${HERMES_CANONICAL_REPOSITORY:?HERMES_CANONICAL_REPOSITORY is required}"
-: "${HERMES_INITIAL_PROMPT_B64:?HERMES_INITIAL_PROMPT_B64 is required}"
 : "${CODEX_BIN:?CODEX_BIN is required}"
 export KURAMI_HOME
 
@@ -62,8 +61,17 @@ fi
 trust_override="projects.\"${canonical_repository}\".trust_level=\"trusted\""
 
 cd -- "${HERMES_WORKTREE_PATH}"
-initial_prompt="$(printf '%s' "${HERMES_INITIAL_PROMPT_B64}" | base64 --decode)"
-unset HERMES_INITIAL_PROMPT_B64
+if [[ -n "${HERMES_INITIAL_PROMPT_FILE:-}" ]]; then
+  [[ -f "${HERMES_INITIAL_PROMPT_FILE}" ]] || { printf 'Initial prompt file not found\n' >&2; exit 1; }
+  initial_prompt="$(base64 --decode < "${HERMES_INITIAL_PROMPT_FILE}")"
+  rm -f -- "${HERMES_INITIAL_PROMPT_FILE}"
+elif [[ -n "${HERMES_INITIAL_PROMPT_B64:-}" ]]; then
+  initial_prompt="$(printf '%s' "${HERMES_INITIAL_PROMPT_B64}" | base64 --decode)"
+  unset HERMES_INITIAL_PROMPT_B64
+else
+  printf 'Initial prompt is required\n' >&2
+  exit 1
+fi
 exec "${CODEX_BIN}" \
   -C "${HERMES_WORKTREE_PATH}" \
   --sandbox workspace-write \

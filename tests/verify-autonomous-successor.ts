@@ -505,7 +505,7 @@ esac
 
     const tmuxCalls = await readFile(fakeTmuxLog, "utf8");
     assert(
-      tmuxCalls.includes("HERMES_INITIAL_PROMPT_B64=") &&
+      tmuxCalls.includes("HERMES_INITIAL_PROMPT_FILE=") &&
         tmuxCalls.includes(`HERMES_WORKTREE_PATH=${worktree}`),
       "Managed successor launcher missed the exact worktree handoff",
     );
