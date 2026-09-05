@@ -44,7 +44,10 @@ export function isFailedAutonomousSuccessorRecovery(
     run.tmuxSessionName === null &&
     run.codexThreadId !== null &&
     run.previousCodexThreadId === null &&
-    run.latestAttentionReason === autonomousSuccessorStartFailedReason &&
+    // Older failed-successor records predate the durable attention-reason field.
+    // Their failed successor row still proves the same bounded recovery case.
+    (run.latestAttentionReason === null ||
+      run.latestAttentionReason === autonomousSuccessorStartFailedReason) &&
     run.latestSuccessorState === "failed" &&
     run.latestSuccessorPredecessorThreadId === run.codexThreadId &&
     run.autonomousSuccessorActive === 0
