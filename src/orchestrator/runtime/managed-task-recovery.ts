@@ -77,9 +77,15 @@ export function loadManagedReviewFixRecoverySnapshot(
               rr.previous_codex_thread_id AS previousCodexThreadId,
               (SELECT h.reason FROM run_state_history h
                WHERE h.run_id=r.run_id AND h.to_state='needs_attention'
+                 AND h.reason NOT IN (
+                   'review_fix_task_archived', 'ci_repair_task_archived'
+                 )
                ORDER BY h.sequence DESC LIMIT 1) AS latestAttentionReason,
               (SELECT h.details_json FROM run_state_history h
                WHERE h.run_id=r.run_id AND h.to_state='needs_attention'
+                 AND h.reason NOT IN (
+                   'review_fix_task_archived', 'ci_repair_task_archived'
+                 )
                ORDER BY h.sequence DESC LIMIT 1) AS latestAttentionDetailsJson,
               f.round_id AS roundId, f.round_state AS roundState,
               f.repository AS roundRepository,

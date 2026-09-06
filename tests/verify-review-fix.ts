@@ -460,7 +460,7 @@ esac
     await writeFile(fakeTmuxState, "alive\n", { mode: 0o600 });
     await writeFile(
       fakeCodex,
-      `#!${process.execPath}\nimport { appendFileSync } from "node:fs";\nimport { createInterface } from "node:readline";\nconst lines = createInterface({ input: process.stdin });\nfor await (const line of lines) {\n  const message = JSON.parse(line);\n  if (message.method === "thread/archive") {\n    appendFileSync(process.env.FAKE_CODEX_ARCHIVE_LOG, message.params.threadId + "\\n");\n  }\n  if (typeof message.id === "number") {\n    process.stdout.write(JSON.stringify({ id: message.id, result: {} }) + "\\n");\n  }\n}\n`,
+      `#!${process.execPath}\nimport { appendFileSync, existsSync, writeFileSync } from "node:fs";\nimport { createInterface } from "node:readline";\nimport { DatabaseSync } from "node:sqlite";\nconst lines = createInterface({ input: process.stdin });\nfor await (const line of lines) {\n  const message = JSON.parse(line);\n  if (message.method === "thread/archive") {\n    appendFileSync(process.env.FAKE_CODEX_ARCHIVE_LOG, message.params.threadId + "\\n");\n    if (process.env.FAKE_ARCHIVE_MUTATION_DB && process.env.FAKE_ARCHIVE_MUTATION_MARKER && !existsSync(process.env.FAKE_ARCHIVE_MUTATION_MARKER)) {\n      const database = new DatabaseSync(process.env.FAKE_ARCHIVE_MUTATION_DB);\n      database.prepare("UPDATE runs SET owner_state='remote' WHERE run_id=?").run(process.env.FAKE_ARCHIVE_MUTATION_RUN);\n      database.close();\n      writeFileSync(process.env.FAKE_ARCHIVE_MUTATION_MARKER, "mutated\\n");\n    }\n  }\n  if (typeof message.id === "number") {\n    process.stdout.write(JSON.stringify({ id: message.id, result: {} }) + "\\n");\n  }\n}\n`,
       { mode: 0o700 },
     );
     const lifecycleEnv = {
@@ -532,8 +532,8 @@ esac
     );
     const lifecycleRound = lifecycleVerify
       .prepare(
-        `SELECT f.round_state, f.result_head_sha, r.owner_state,
-                rr.tmux_session_name
+        `SELECT f.round_state, f.result_head_sha, f.waiting_ci_started_at,
+                r.owner_state, rr.tmux_session_name
          FROM run_review_fix_rounds f
          JOIN runs r USING (run_id)
          JOIN run_resources rr USING (run_id)
@@ -542,15 +542,17 @@ esac
       .get() as {
       round_state: string;
       result_head_sha: string | null;
+      waiting_ci_started_at: string | null;
       owner_state: string;
       tmux_session_name: string | null;
     };
     assert(
-      lifecycleRound.round_state === "resolving" &&
-        lifecycleRound.result_head_sha === resultSha &&
+      lifecycleRound.round_state === "waiting_ci" &&
+        lifecycleRound.result_head_sha === null &&
+        lifecycleRound.waiting_ci_started_at !== null &&
         lifecycleRound.owner_state === "none" &&
         lifecycleRound.tmux_session_name === null,
-      "Completed review fix with passed CI did not advance to resolution",
+      "Terminal review-fix observation did not stop at a fresh CI-wait boundary",
     );
     const shutdownCalls = await readFile(fakeTmuxLog, "utf8");
     assert(
@@ -558,6 +560,35 @@ esac
         "kill-session -t =cx-tt-141-review-fix",
       ),
       "Completed unresponsive Codex process was not boundedly stopped",
+    );
+    lifecycleVerify.close();
+    const ciObservationController = runNode(
+      resolve(app, "src/orchestrator/runtime/controller.ts"),
+      ["--apply"],
+      home,
+      lifecycleEnv,
+    );
+    assert(
+      (ciObservationController.results as JsonObject[]).some(
+        (result) =>
+          result.action === "review_fix_resolve" &&
+          result.roundId === "rfr_feedface1234",
+      ),
+      "Fresh controller observation did not execute review-fix resolution",
+    );
+    const observedState = new DatabaseSync(
+      resolve(home, "state/orchestrator.db"),
+    );
+    const observedRound = observedState
+      .prepare(
+        `SELECT round_state, result_head_sha
+         FROM run_review_fix_rounds WHERE round_id='rfr_feedface1234'`,
+      )
+      .get() as { round_state: string; result_head_sha: string | null };
+    assert(
+      observedRound.round_state === "resolving" &&
+        observedRound.result_head_sha === resultSha,
+      "Fresh exact CI observation did not advance the round to resolution",
     );
     const resolvingController = runNode(
       resolve(app, "src/orchestrator/runtime/controller.ts"),
@@ -572,12 +603,12 @@ esac
       ),
       "Controller did not schedule review thread resolution",
     );
-    lifecycleVerify.exec(`
+    observedState.exec(`
       UPDATE run_review_fix_rounds
       SET round_state='succeeded', completed_at=strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
       WHERE round_id='rfr_feedface1234';
     `);
-    lifecycleVerify.close();
+    observedState.close();
     const cleanupController = runNode(
       resolve(app, "src/orchestrator/runtime/controller.ts"),
       ["--apply"],
@@ -591,7 +622,7 @@ esac
           result.runId === "r_review_fix" &&
           result.status === "applied",
       ),
-      "Controller did not apply review-fix task cleanup",
+      `Controller did not apply review-fix task cleanup: ${JSON.stringify(cleanupController)}`,
     );
     const lifecycleCleanup = new DatabaseSync(
       resolve(home, "state/orchestrator.db"),
@@ -612,15 +643,420 @@ esac
           "01a-review-fix-completed",
       "Successful review-fix cleanup did not archive the writer and restore the primary task",
     );
-    lifecycleCleanup.exec(`
-      DELETE FROM run_review_fix_rounds WHERE round_id='rfr_feedface1234';
+    lifecycleCleanup.close();
+
+    const secondReviewRequest = runNode(
+      resolve(app, "src/orchestrator/controls/run.ts"),
+      ["request", "--run-id", "r_review_fix", "--action", "ai_review", "--via", "discord", "--apply"],
+      home,
+    );
+    const secondReviewId = String(secondReviewRequest.requestId);
+    const secondReviewState = new DatabaseSync(
+      resolve(home, "state/orchestrator.db"),
+    );
+    secondReviewState
+      .prepare(
+        `UPDATE run_control_requests
+         SET request_state='applied', completed_at=strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
+         WHERE request_id=?`,
+      )
+      .run(secondReviewId);
+    secondReviewState
+      .prepare(
+        `INSERT INTO run_ai_reviews (
+           review_id, run_id, request_id, review_number, review_state,
+           repository, pull_request_number, pull_request_url, base_ref,
+           base_sha, head_sha, tmux_session_name, important_count
+         ) VALUES ('air_second_cycle','r_review_fix',?,2,'ready',
+           'Shagon1k/TailorTales',241,'https://example.invalid/pulls/241',
+           'main',?,?, 'rv-second-cycle',1)`,
+      )
+      .run(secondReviewId, sourceSha, resultSha);
+    secondReviewState.close();
+    const secondFixRequest = runNode(
+      resolve(app, "src/orchestrator/controls/run.ts"),
+      ["request", "--run-id", "r_review_fix", "--action", "review_fix", "--via", "discord", "--apply"],
+      home,
+    );
+    const secondFixRequestId = String(secondFixRequest.requestId);
+
+    await writeFile(resolve(happyWorktree, "review-fix.txt"), "delivered twice\n");
+    git(happyWorktree, ["add", "review-fix.txt"]);
+    git(happyWorktree, ["commit", "-m", "deliver second review fix"]);
+    const secondResultSha = git(happyWorktree, ["rev-parse", "HEAD"]);
+    await writeFile(fakeTmuxState, "alive\n", { mode: 0o600 });
+    const secondFixState = new DatabaseSync(resolve(home, "state/orchestrator.db"));
+    secondFixState
+      .prepare(
+        `UPDATE run_control_requests
+         SET request_state='applied', completed_at=strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
+         WHERE request_id=?`,
+      )
+      .run(secondFixRequestId);
+    secondFixState.exec(`
+      UPDATE runs SET state='parked_review', owner_state='cli'
+      WHERE run_id='r_review_fix';
+      UPDATE run_resources
+      SET tmux_session_name='cx-tt-141-review-fix-2',
+          codex_thread_id='01a-review-fix-completed-2',
+          previous_codex_thread_id='01a-primary'
+      WHERE run_id='r_review_fix';
+      UPDATE run_ci_snapshots
+      SET head_sha='${resultSha}', aggregate_state='pending', completed_at=NULL,
+          last_error=NULL,
+          last_observed_at=strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
+      WHERE run_id='r_review_fix';
+    `);
+    secondFixState
+      .prepare(
+        `INSERT INTO run_review_fix_rounds (
+           round_id, run_id, request_id, round_number, round_state,
+           repository, pull_request_number, pull_request_url,
+           source_head_sha, snapshot_json, codex_thread_id,
+           created_at, updated_at
+         ) VALUES ('rfr_deadbeef5678','r_review_fix',?,2,'running',
+           'Shagon1k/TailorTales',241,'https://example.invalid/pulls/241',
+           ?,'[]','01a-review-fix-completed-2',
+           '2026-08-19T10:00:00.000Z','2026-08-19T10:00:00.000Z')`,
+      )
+      .run(secondFixRequestId, resultSha);
+    let duplicateActiveRejected = false;
+    try {
+      secondFixState.exec(`
+        INSERT INTO run_control_requests (
+          request_id, run_id, action, request_state, requested_via, idempotency_key
+        ) VALUES ('rq_duplicate_active','r_review_fix','review_fix','applied','cli','duplicate-active');
+        INSERT INTO run_review_fix_rounds (
+          round_id, run_id, request_id, round_number, round_state,
+          repository, pull_request_number, pull_request_url,
+          source_head_sha, snapshot_json
+        ) VALUES ('rfr_duplicate_active','r_review_fix','rq_duplicate_active',3,'running',
+          'Shagon1k/TailorTales',241,'https://example.invalid/pulls/241',
+          '${resultSha}','[]');
+      `);
+    } catch {
+      duplicateActiveRejected = true;
+      secondFixState.exec(
+        `DELETE FROM run_control_requests WHERE request_id='rq_duplicate_active'`,
+      );
+    }
+    secondFixState.close();
+    assert(duplicateActiveRejected, "A second active review-fix round was admitted");
+
+    runNode(
+      resolve(app, "src/orchestrator/runtime/controller.ts"),
+      ["--apply"],
+      home,
+      lifecycleEnv,
+    );
+    const secondBoundaryState = new DatabaseSync(
+      resolve(home, "state/orchestrator.db"),
+    );
+    const secondBoundary = secondBoundaryState
+      .prepare(
+        `SELECT f.round_state, f.failure_reason, f.waiting_ci_started_at,
+                r.state AS run_state, rr.codex_thread_id,
+                rr.previous_codex_thread_id
+         FROM run_review_fix_rounds f
+         JOIN runs r USING (run_id)
+         JOIN run_resources rr USING (run_id)
+         WHERE f.round_id='rfr_deadbeef5678'`,
+      )
+      .get() as {
+      round_state: string;
+      failure_reason: string | null;
+      waiting_ci_started_at: string | null;
+      run_state: string;
+      codex_thread_id: string;
+      previous_codex_thread_id: string | null;
+    };
+    assert(
+      secondBoundary.round_state === "waiting_ci" &&
+        secondBoundary.failure_reason === null &&
+        secondBoundary.waiting_ci_started_at !== null &&
+        secondBoundary.run_state === "parked_review" &&
+        secondBoundary.codex_thread_id === "01a-review-fix-completed-2" &&
+        secondBoundary.previous_codex_thread_id === "01a-primary",
+      "Stale task timestamps caused immediate review_fix_no_new_head after park",
+    );
+    secondBoundaryState.close();
+    runNode(
+      resolve(app, "src/orchestrator/runtime/controller.ts"),
+      ["--apply"],
+      home,
+      lifecycleEnv,
+    );
+    const delayedState = new DatabaseSync(resolve(home, "state/orchestrator.db"));
+    const stillWaiting = delayedState
+      .prepare(
+        `SELECT round_state FROM run_review_fix_rounds
+         WHERE round_id='rfr_deadbeef5678'`,
+      )
+      .get() as { round_state: string };
+    assert(
+      stillWaiting.round_state === "waiting_ci",
+      "Fresh CI-wait boundary reused the stale task start time",
+    );
+    delayedState.exec(`
+      UPDATE run_review_fix_rounds
+      SET waiting_ci_started_at='2026-08-19T10:00:00.000Z'
+      WHERE round_id='rfr_deadbeef5678';
+    `);
+    delayedState.close();
+    runNode(
+      resolve(app, "src/orchestrator/runtime/controller.ts"),
+      ["--apply"],
+      home,
+      lifecycleEnv,
+    );
+    const falseFailureState = new DatabaseSync(
+      resolve(home, "state/orchestrator.db"),
+    );
+    const falseFailure = falseFailureState
+      .prepare(
+        `SELECT f.round_state, f.failure_reason, f.completed_at,
+                r.state AS run_state, rr.codex_thread_id,
+                rr.previous_codex_thread_id
+         FROM run_review_fix_rounds f JOIN runs r USING (run_id)
+         JOIN run_resources rr USING (run_id)
+         WHERE f.round_id='rfr_deadbeef5678'`,
+      )
+      .get() as {
+      round_state: string;
+      failure_reason: string | null;
+      completed_at: string;
+      run_state: string;
+      codex_thread_id: string;
+      previous_codex_thread_id: string | null;
+    };
+    assert(
+      falseFailure.round_state === "needs_attention" &&
+        falseFailure.failure_reason === "review_fix_no_new_head" &&
+        falseFailure.run_state === "needs_attention" &&
+        falseFailure.codex_thread_id === "01a-review-fix-completed-2" &&
+        falseFailure.previous_codex_thread_id === "01a-primary",
+      "Timed-out no-new-head state did not preserve exact recovery identity",
+    );
+    falseFailureState.exec(`
+      INSERT INTO run_state_history (
+        run_id, from_state, to_state, reason, details_json
+      ) VALUES ('r_review_fix','needs_attention','needs_attention',
+        'generic_needs_attention','{}');
+      UPDATE run_ci_snapshots
+      SET head_sha='${secondResultSha}', aggregate_state='passed',
+          completed_at=strftime('%Y-%m-%dT%H:%M:%fZ', 'now'),
+          last_observed_at=strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
+      WHERE run_id='r_review_fix';
+      UPDATE run_review_fix_rounds
+      SET completed_at=datetime('now','-1 second')
+      WHERE round_id='rfr_deadbeef5678';
+    `);
+    falseFailureState.close();
+    runNode(
+      resolve(app, "src/orchestrator/runtime/controller.ts"),
+      ["--apply"],
+      home,
+      lifecycleEnv,
+    );
+    const negativeState = new DatabaseSync(resolve(home, "state/orchestrator.db"));
+    assert(
+      (negativeState.prepare(
+        `SELECT round_state FROM run_review_fix_rounds WHERE round_id='rfr_deadbeef5678'`,
+      ).get() as { round_state: string }).round_state === "needs_attention",
+      "Generic needs_attention was accepted as no-new-head recovery evidence",
+    );
+    negativeState.exec(`
+      INSERT INTO run_state_history (
+        run_id, from_state, to_state, reason, details_json
+      ) VALUES ('r_review_fix','needs_attention','needs_attention',
+        'review_fix_no_new_head','{}');
+      UPDATE run_resources SET codex_thread_id='01a-mismatched-task'
+      WHERE run_id='r_review_fix';
+    `);
+    negativeState.close();
+    runNode(
+      resolve(app, "src/orchestrator/runtime/controller.ts"),
+      ["--apply"],
+      home,
+      lifecycleEnv,
+    );
+    const mismatchedState = new DatabaseSync(resolve(home, "state/orchestrator.db"));
+    assert(
+      (mismatchedState.prepare(
+        `SELECT round_state FROM run_review_fix_rounds WHERE round_id='rfr_deadbeef5678'`,
+      ).get() as { round_state: string }).round_state === "needs_attention",
+      "Changed review-fix task identity was accepted for automatic recovery",
+    );
+    mismatchedState.exec(`
+      UPDATE run_resources
+      SET codex_thread_id='01a-review-fix-completed-2',
+          tmux_session_name='cx-tt-141-still-active'
+      WHERE run_id='r_review_fix';
+      UPDATE runs SET owner_state='cli' WHERE run_id='r_review_fix';
+    `);
+    mismatchedState.close();
+    runNode(
+      resolve(app, "src/orchestrator/runtime/controller.ts"),
+      ["--apply"],
+      home,
+      lifecycleEnv,
+    );
+    const activeState = new DatabaseSync(resolve(home, "state/orchestrator.db"));
+    assert(
+      (activeState.prepare(
+        `SELECT round_state FROM run_review_fix_rounds WHERE round_id='rfr_deadbeef5678'`,
+      ).get() as { round_state: string }).round_state === "needs_attention",
+      "Active review-fix worker was accepted for automatic recovery",
+    );
+    activeState.exec(`
+      UPDATE run_resources SET tmux_session_name=NULL WHERE run_id='r_review_fix';
+      UPDATE runs SET owner_state='none' WHERE run_id='r_review_fix';
+      UPDATE run_ci_snapshots SET aggregate_state='unknown', completed_at=NULL
+      WHERE run_id='r_review_fix';
+    `);
+    activeState.close();
+    runNode(
+      resolve(app, "src/orchestrator/runtime/controller.ts"),
+      ["--apply"],
+      home,
+      lifecycleEnv,
+    );
+    const unknownState = new DatabaseSync(resolve(home, "state/orchestrator.db"));
+    assert(
+      (unknownState.prepare(
+        `SELECT round_state FROM run_review_fix_rounds WHERE round_id='rfr_deadbeef5678'`,
+      ).get() as { round_state: string }).round_state === "needs_attention",
+      "Unknown CI state was accepted for automatic no-new-head recovery",
+    );
+    unknownState.exec(`
+      UPDATE run_ci_snapshots
+      SET aggregate_state='passed',
+          completed_at=strftime('%Y-%m-%dT%H:%M:%fZ', 'now'),
+          last_observed_at=strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
+      WHERE run_id='r_review_fix';
+    `);
+    unknownState.close();
+    runNode(
+      resolve(app, "src/orchestrator/runtime/controller.ts"),
+      ["--apply"],
+      home,
+      lifecycleEnv,
+    );
+    const convergedState = new DatabaseSync(resolve(home, "state/orchestrator.db"));
+    const converged = convergedState
+      .prepare(
+        `SELECT f.round_state, f.result_head_sha, r.state AS run_state
+         FROM run_review_fix_rounds f JOIN runs r USING (run_id)
+         WHERE f.round_id='rfr_deadbeef5678'`,
+      )
+      .get() as {
+      round_state: string;
+      result_head_sha: string | null;
+      run_state: string;
+    };
+    assert(
+      converged.round_state === "resolving" &&
+        converged.result_head_sha === secondResultSha &&
+        converged.run_state === "parked_review",
+      "Later authoritative exact-head CI did not heal false no-new-head state",
+    );
+    convergedState.exec(`
+      UPDATE run_review_fix_rounds
+      SET round_state='succeeded', completed_at=strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
+      WHERE round_id='rfr_deadbeef5678';
+    `);
+    convergedState.close();
+    const cleanupMutationMarker = resolve(home, "archive-cleanup-mutated");
+    const faultedCleanup = runNode(
+      resolve(app, "src/orchestrator/runtime/controller.ts"),
+      ["--apply"],
+      home,
+      {
+        ...lifecycleEnv,
+        FAKE_ARCHIVE_MUTATION_DB: resolve(home, "state/orchestrator.db"),
+        FAKE_ARCHIVE_MUTATION_MARKER: cleanupMutationMarker,
+        FAKE_ARCHIVE_MUTATION_RUN: "r_review_fix",
+      },
+    );
+    assert(
+      (faultedCleanup.results as JsonObject[]).some(
+        (result) =>
+          result.action === "review_fix_cleanup" &&
+          result.status === "deferred" &&
+          String(result.reason).includes("changed during review fix task cleanup"),
+      ),
+      "Late cleanup validation fault did not defer durable finalization",
+    );
+    const faultedCleanupState = new DatabaseSync(
+      resolve(home, "state/orchestrator.db"),
+    );
+    const durableCleanup = faultedCleanupState
+      .prepare(
+        `SELECT o.operation_state, r.owner_state, rr.codex_thread_id,
+                rr.previous_codex_thread_id
+         FROM run_review_fix_operations o
+         JOIN run_review_fix_rounds f USING (round_id)
+         JOIN runs r ON r.run_id=f.run_id
+         JOIN run_resources rr ON rr.run_id=f.run_id
+         WHERE o.round_id='rfr_deadbeef5678' AND o.operation_kind='cleanup'`,
+      )
+      .get() as {
+      operation_state: string;
+      owner_state: string;
+      codex_thread_id: string;
+      previous_codex_thread_id: string | null;
+    };
+    assert(
+      durableCleanup.operation_state === "side_effect_succeeded" &&
+        durableCleanup.owner_state === "remote" &&
+        durableCleanup.codex_thread_id === "01a-review-fix-completed-2" &&
+        durableCleanup.previous_codex_thread_id === "01a-primary",
+      "Successful archival was not durably reconcilable after late validation failed",
+    );
+    faultedCleanupState.exec(
+      `UPDATE runs SET owner_state='none' WHERE run_id='r_review_fix'`,
+    );
+    faultedCleanupState.close();
+    runNode(
+      resolve(app, "src/orchestrator/runtime/controller.ts"),
+      ["--apply"],
+      home,
+      lifecycleEnv,
+    );
+    const secondCleanupState = new DatabaseSync(
+      resolve(home, "state/orchestrator.db"),
+    );
+    const finalMapping = secondCleanupState
+      .prepare(
+        `SELECT codex_thread_id, previous_codex_thread_id
+         FROM run_resources WHERE run_id='r_review_fix'`,
+      )
+      .get() as {
+      codex_thread_id: string;
+      previous_codex_thread_id: string | null;
+    };
+    assert(
+      finalMapping.codex_thread_id === "01a-primary" &&
+        finalMapping.previous_codex_thread_id === null &&
+        (await readFile(archiveLog, "utf8")).trim().split("\n").join(",") ===
+          "01a-review-fix-completed,01a-review-fix-completed-2",
+      "Second review-fix cycle did not resolve, archive, and restore primary",
+    );
+    secondCleanupState.exec(`
+      DELETE FROM run_review_fix_operations WHERE round_id IN (
+        SELECT round_id FROM run_review_fix_rounds WHERE run_id='r_review_fix'
+      );
+      DELETE FROM run_review_fix_rounds WHERE run_id='r_review_fix';
+      DELETE FROM run_ai_reviews WHERE review_id='air_second_cycle';
+      DELETE FROM run_control_requests
+      WHERE request_id IN ('${secondReviewId}','${secondFixRequestId}');
       UPDATE runs SET owner_state='none' WHERE run_id='r_review_fix';
       UPDATE run_resources
       SET tmux_session_name=NULL, codex_thread_id='01a-primary',
           previous_codex_thread_id=NULL
       WHERE run_id='r_review_fix';
     `);
-    lifecycleCleanup.close();
+    secondCleanupState.close();
 
     const dirtyState = new DatabaseSync(resolve(home, "state/orchestrator.db"));
     dirtyState.exec(`
@@ -727,8 +1163,8 @@ esac
     );
     assert(
       cleanupFailure.includes("staged or uncommitted work") &&
-        (await readFile(archiveLog, "utf8")).trim() ===
-          "01a-review-fix-completed",
+        (await readFile(archiveLog, "utf8")).trim().split("\n").join(",") ===
+          "01a-review-fix-completed,01a-review-fix-completed-2",
       "Dirty review-fix task was archived during cleanup",
     );
     const guardedPlan = runNode(
@@ -861,6 +1297,12 @@ esac
         completedWriterShutdown: true,
         passedCiResolutionScheduled: true,
         cleanupScheduled: true,
+        twoSequentialReviewFixCycles: true,
+        freshWaitBoundary: true,
+        falseNoNewHeadConverged: true,
+        reasonAwareRecoveryNegatives: true,
+        oneActiveRoundEnforced: true,
+        cleanupSideEffectReconciled: true,
         stagedDirtyTaskPreserved: true,
         dirtyCleanupGuarded: true,
         resolutionOnlyRecovery: true,

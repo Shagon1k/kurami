@@ -148,6 +148,15 @@ type ReviewFixDeliveryRound = {
   failure_reason: string | null;
 };
 
+type ReviewFixOperation = {
+  operation_state: "claimed" | "side_effect_succeeded" | "completed";
+  request_id: string | null;
+  task_codex_thread_id: string;
+  previous_codex_thread_id: string;
+  tmux_session_name: string | null;
+  result_head_sha: string | null;
+};
+
 const orchestratorHome = resolveKuramiHome(
   resolve(import.meta.dirname, "../../../../.."),
 );
@@ -1741,7 +1750,16 @@ async function cleanupReviewFixSession(
     fail("Run has no completed review fix task ready for cleanup");
   const project = registry.projects[run.project];
   if (!project) fail(`Unknown project in run: ${run.project}`);
-  await guardReviewFixDelivery(database, run, project, round, false, apply);
+  let operation = database
+    .prepare(
+      `SELECT operation_state, request_id, task_codex_thread_id,
+              previous_codex_thread_id, tmux_session_name, result_head_sha
+       FROM run_review_fix_operations
+       WHERE round_id=? AND operation_kind='cleanup'`,
+    )
+    .get(round.round_id) as ReviewFixOperation | undefined;
+  if (!operation)
+    await guardReviewFixDelivery(database, run, project, round, false, apply);
   const plan = {
     runId: run.run_id,
     roundId: round.round_id,
@@ -1757,7 +1775,86 @@ async function cleanupReviewFixSession(
   }
   if (run.execution_mode !== "live")
     fail(`Refusing review fix cleanup for execution_mode=${run.execution_mode}`);
-  await archiveThread(planCodexBin(run.worktree_path), run.codex_thread_id);
+
+  if (!operation) {
+    database.exec("BEGIN IMMEDIATE");
+    try {
+      const current = loadRun(database, run.run_id);
+      const currentRound = database
+        .prepare(
+          `SELECT round_state, codex_thread_id
+           FROM run_review_fix_rounds WHERE round_id=? AND run_id=?`,
+        )
+        .get(round.round_id, run.run_id) as
+        | { round_state: string; codex_thread_id: string | null }
+        | undefined;
+      if (
+        current.owner_state !== "none" ||
+        current.tmux_session_name !== null ||
+        current.codex_thread_id !== run.codex_thread_id ||
+        current.previous_codex_thread_id !== run.previous_codex_thread_id ||
+        !currentRound ||
+        ["running", "waiting_ci", "resolving"].includes(
+          currentRound.round_state,
+        ) ||
+        currentRound.codex_thread_id !== run.codex_thread_id
+      )
+        fail("Run changed before review fix cleanup claim");
+      database
+        .prepare(
+          `INSERT INTO run_review_fix_operations (
+             round_id, operation_kind, operation_state,
+             task_codex_thread_id, previous_codex_thread_id
+           ) VALUES (?, 'cleanup', 'claimed', ?, ?)`,
+        )
+        .run(
+          round.round_id,
+          run.codex_thread_id,
+          run.previous_codex_thread_id,
+        );
+      database.exec("COMMIT");
+    } catch (error) {
+      database.exec("ROLLBACK");
+      throw error;
+    }
+    operation = {
+      operation_state: "claimed",
+      request_id: null,
+      task_codex_thread_id: run.codex_thread_id,
+      previous_codex_thread_id: run.previous_codex_thread_id,
+      tmux_session_name: null,
+      result_head_sha: null,
+    };
+  }
+  if (
+    operation.request_id !== null ||
+    operation.task_codex_thread_id !== run.codex_thread_id ||
+    operation.previous_codex_thread_id !== run.previous_codex_thread_id ||
+    operation.tmux_session_name !== null
+  )
+    fail("Review fix cleanup operation identity does not match the run");
+  if (operation.operation_state === "claimed") {
+    await archiveThread(planCodexBin(run.worktree_path), run.codex_thread_id);
+    const recorded = database
+      .prepare(
+        `UPDATE run_review_fix_operations
+         SET operation_state='side_effect_succeeded', failure_reason=NULL,
+             updated_at=strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
+         WHERE round_id=? AND operation_kind='cleanup'
+           AND operation_state='claimed'
+           AND task_codex_thread_id=? AND previous_codex_thread_id=?`,
+      )
+      .run(
+        round.round_id,
+        run.codex_thread_id,
+        run.previous_codex_thread_id,
+      );
+    if (recorded.changes !== 1)
+      fail("Review fix cleanup operation changed after archival");
+    operation.operation_state = "side_effect_succeeded";
+  }
+  if (operation.operation_state !== "side_effect_succeeded")
+    fail("Review fix cleanup operation is not ready to finalize");
   database.exec("BEGIN IMMEDIATE");
   try {
     const current = loadRun(database, run.run_id);
@@ -1780,6 +1877,22 @@ async function cleanupReviewFixSession(
       .run(run.run_id, run.codex_thread_id, run.previous_codex_thread_id);
     if (changed.changes !== 1)
       fail("Run resource mapping changed during review fix task cleanup");
+    const operationChanged = database
+      .prepare(
+        `UPDATE run_review_fix_operations
+         SET operation_state='completed', completed_at=strftime('%Y-%m-%dT%H:%M:%fZ', 'now'),
+             updated_at=strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
+         WHERE round_id=? AND operation_kind='cleanup'
+           AND operation_state='side_effect_succeeded'
+           AND task_codex_thread_id=? AND previous_codex_thread_id=?`,
+      )
+      .run(
+        round.round_id,
+        run.codex_thread_id,
+        run.previous_codex_thread_id,
+      );
+    if (operationChanged.changes !== 1)
+      fail("Review fix cleanup operation changed during finalization");
     appendHistory(database, run.run_id, current.run_state, current.run_state, "review_fix_task_archived", {
       roundId: round.round_id,
       roundNumber: round.round_number,
@@ -2231,21 +2344,52 @@ function recoverManagedReviewFixTask(
   if (!request || request.request_state !== "pending")
     fail("Managed task recovery request is no longer pending");
   const project = registry.projects[run.project];
+  let operation = database
+    .prepare(
+      `SELECT operation_state, request_id, task_codex_thread_id,
+              previous_codex_thread_id, tmux_session_name, result_head_sha
+       FROM run_review_fix_operations
+       WHERE round_id=(
+         SELECT round_id FROM run_review_fix_rounds
+         WHERE run_id=? ORDER BY round_number DESC LIMIT 1
+       ) AND operation_kind='managed_recovery'`,
+    )
+    .get(run.run_id) as ReviewFixOperation | undefined;
   const initial = loadManagedReviewFixRecoverySnapshot(
     database,
     run.run_id,
     requestId,
   );
   if (!initial) fail("Managed recovery run disappeared");
-  const inspection = inspectManagedReviewFixRecovery(initial, project);
-  if (!inspection.eligible)
+  const inspection = operation
+    ? null
+    : inspectManagedReviewFixRecovery(initial, project);
+  if (inspection && !inspection.eligible)
     fail(`Managed review-fix recovery refused: ${inspection.reason}`);
+  if (
+    operation &&
+    (operation.request_id !== requestId ||
+      operation.task_codex_thread_id !== run.codex_thread_id ||
+      operation.previous_codex_thread_id !== run.previous_codex_thread_id ||
+      operation.tmux_session_name !== run.tmux_session_name ||
+      !operation.result_head_sha ||
+      initial.roundId === null)
+  )
+    fail("Managed review-fix recovery operation identity mismatch");
+  const roundId = inspection?.eligible ? inspection.roundId : initial.roundId!;
+  const resultHeadSha = inspection?.eligible
+    ? inspection.headSha
+    : operation!.result_head_sha!;
+  const targetRoundState =
+    initial.ciHeadSha === resultHeadSha && initial.ciAggregateState === "passed"
+      ? "resolving"
+      : "waiting_ci";
   const plan = {
     runId: run.run_id,
     requestId,
-    roundId: inspection.roundId,
-    resultHeadSha: inspection.headSha,
-    targetRoundState: inspection.targetRoundState,
+    roundId,
+    resultHeadSha,
+    targetRoundState,
     tmuxSessionName: run.tmux_session_name,
     action: "recover_delivered_review_fix",
   };
@@ -2260,6 +2404,96 @@ function recoverManagedReviewFixTask(
   )
     fail("Managed task recovery may only be applied by the live controller");
 
+  if (!operation) {
+    database.exec("BEGIN IMMEDIATE");
+    try {
+      const current = loadManagedReviewFixRecoverySnapshot(
+        database,
+        run.run_id,
+        requestId,
+      );
+      if (!current) fail("Managed recovery run changed before claim");
+      const currentInspection = inspectManagedReviewFixRecovery(current, project);
+      if (
+        !currentInspection.eligible ||
+        currentInspection.roundId !== roundId ||
+        currentInspection.headSha !== resultHeadSha ||
+        current.tmuxSessionName !== run.tmux_session_name ||
+        !run.tmux_session_name ||
+        !run.codex_thread_id ||
+        !run.previous_codex_thread_id
+      )
+        fail(
+          `Managed review-fix recovery changed before claim${currentInspection.eligible ? "" : `: ${currentInspection.reason}`}`,
+        );
+      database
+        .prepare(
+          `INSERT INTO run_review_fix_operations (
+             round_id, operation_kind, operation_state, request_id,
+             task_codex_thread_id, previous_codex_thread_id,
+             tmux_session_name, result_head_sha
+           ) VALUES (?, 'managed_recovery', 'claimed', ?, ?, ?, ?, ?)`,
+        )
+        .run(
+          roundId,
+          requestId,
+          run.codex_thread_id,
+          run.previous_codex_thread_id,
+          run.tmux_session_name,
+          resultHeadSha,
+        );
+      database.exec("COMMIT");
+    } catch (error) {
+      database.exec("ROLLBACK");
+      throw error;
+    }
+    operation = {
+      operation_state: "claimed",
+      request_id: requestId,
+      task_codex_thread_id: run.codex_thread_id,
+      previous_codex_thread_id: run.previous_codex_thread_id,
+      tmux_session_name: run.tmux_session_name,
+      result_head_sha: resultHeadSha,
+    };
+  }
+
+  if (operation.operation_state === "claimed") {
+    if (!operation.tmux_session_name)
+      fail("Managed review-fix recovery lost its claimed session mapping");
+    if (tmuxSessionExists(operation.tmux_session_name))
+      killTmuxSession(operation.tmux_session_name);
+    if (tmuxSessionExists(operation.tmux_session_name))
+      fail("Managed review-fix session remained alive after termination");
+    const recorded = database
+      .prepare(
+        `UPDATE run_review_fix_operations
+         SET operation_state='side_effect_succeeded', failure_reason=NULL,
+             updated_at=strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
+         WHERE round_id=? AND operation_kind='managed_recovery'
+           AND operation_state='claimed' AND request_id=?
+           AND tmux_session_name=?`,
+      )
+      .run(roundId, requestId, operation.tmux_session_name);
+    if (recorded.changes !== 1)
+      fail("Managed review-fix recovery operation changed after termination");
+    operation.operation_state = "side_effect_succeeded";
+  }
+  if (operation.operation_state !== "side_effect_succeeded")
+    fail("Managed review-fix recovery operation is not ready to finalize");
+  if (
+    !run.worktree_path ||
+    !run.branch_name ||
+    git(run.worktree_path, ["status", "--porcelain", "--untracked-files=all"]) !==
+      "" ||
+    git(run.worktree_path, ["branch", "--show-current"]) !== run.branch_name ||
+    git(run.worktree_path, ["rev-parse", "HEAD"]) !== resultHeadSha ||
+    git(run.worktree_path, [
+      "rev-parse",
+      `refs/remotes/origin/${run.branch_name}`,
+    ]) !== resultHeadSha
+  )
+    fail("Managed review-fix Git state changed after session termination");
+
   database.exec("BEGIN IMMEDIATE");
   try {
     const current = loadManagedReviewFixRecoverySnapshot(
@@ -2267,53 +2501,46 @@ function recoverManagedReviewFixTask(
       run.run_id,
       requestId,
     );
-    if (!current) fail("Managed recovery run changed before claim");
-    const currentInspection = inspectManagedReviewFixRecovery(current, project);
     if (
-      !currentInspection.eligible ||
-      currentInspection.roundId !== inspection.roundId ||
-      currentInspection.headSha !== inspection.headSha ||
-      currentInspection.targetRoundState !== inspection.targetRoundState ||
-      current.tmuxSessionName !== run.tmux_session_name
+      !current ||
+      current.runState !== "needs_attention" ||
+      current.ownerState !== "cli" ||
+      current.stopReason !== null ||
+      current.roundId !== roundId ||
+      current.roundState !== "needs_attention" ||
+      current.roundFailureReason !== "review_fix_uncommitted_changes" ||
+      current.roundCodexThreadId !== operation.task_codex_thread_id ||
+      current.codexThreadId !== operation.task_codex_thread_id ||
+      current.previousCodexThreadId !== operation.previous_codex_thread_id ||
+      current.tmuxSessionName !== operation.tmux_session_name ||
+      current.ciHeadSha !== resultHeadSha ||
+      current.ciLastError !== null ||
+      !["pending", "passed"].includes(current.ciAggregateState ?? "")
     )
-      fail(
-        `Managed review-fix recovery changed before claim${currentInspection.eligible ? "" : `: ${currentInspection.reason}`}`,
-      );
-    if (!run.tmux_session_name)
-      fail("Managed review-fix recovery lost its exact session mapping");
-
-    // The task has a proven terminal turn. End the exact managed session without
-    // sending input or resuming any prompt before releasing CLI ownership.
-    killTmuxSession(run.tmux_session_name);
-    if (
-      !run.worktree_path ||
-      !run.branch_name ||
-      git(run.worktree_path, ["status", "--porcelain", "--untracked-files=all"]) !==
-        "" ||
-      git(run.worktree_path, ["branch", "--show-current"]) !== run.branch_name ||
-      git(run.worktree_path, ["rev-parse", "HEAD"]) !== inspection.headSha ||
-      git(run.worktree_path, [
-        "rev-parse",
-        `refs/remotes/origin/${run.branch_name}`,
-      ]) !== inspection.headSha
-    )
-      fail("Managed review-fix Git state changed while closing its session");
+      fail("Managed review-fix recovery state changed after termination");
+    const finalRoundState =
+      current.ciAggregateState === "passed" ? "resolving" : "waiting_ci";
     const roundChanged = database
       .prepare(
         `UPDATE run_review_fix_rounds
          SET round_state=?, result_head_sha=?, failure_reason=NULL,
              completed_at=NULL,
+             waiting_ci_started_at=CASE WHEN ?='waiting_ci'
+               THEN COALESCE(waiting_ci_started_at,
+                 strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))
+               ELSE waiting_ci_started_at END,
              updated_at=strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
          WHERE round_id=? AND run_id=? AND round_state='needs_attention'
            AND failure_reason='review_fix_uncommitted_changes'
            AND codex_thread_id=? AND source_head_sha=?`,
       )
       .run(
-        inspection.targetRoundState,
-        inspection.headSha,
-        inspection.roundId,
+        finalRoundState,
+        resultHeadSha,
+        finalRoundState,
+        roundId,
         run.run_id,
-        run.codex_thread_id,
+        operation.task_codex_thread_id,
         current.roundSourceHeadSha,
       );
     const runChanged = database
@@ -2334,14 +2561,24 @@ function recoverManagedReviewFixTask(
       )
       .run(
         run.run_id,
-        run.tmux_session_name,
-        run.codex_thread_id,
-        run.previous_codex_thread_id,
+        operation.tmux_session_name,
+        operation.task_codex_thread_id,
+        operation.previous_codex_thread_id,
       );
+    const operationChanged = database
+      .prepare(
+        `UPDATE run_review_fix_operations
+         SET operation_state='completed', completed_at=strftime('%Y-%m-%dT%H:%M:%fZ', 'now'),
+             updated_at=strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
+         WHERE round_id=? AND operation_kind='managed_recovery'
+           AND operation_state='side_effect_succeeded' AND request_id=?`,
+      )
+      .run(roundId, requestId);
     if (
       roundChanged.changes !== 1 ||
       runChanged.changes !== 1 ||
-      resourceChanged.changes !== 1
+      resourceChanged.changes !== 1 ||
+      operationChanged.changes !== 1
     )
       fail("Managed review-fix recovery state changed during claim");
     appendHistory(
@@ -2352,14 +2589,14 @@ function recoverManagedReviewFixTask(
       "review_fix_managed_task_recovered",
       {
         requestId,
-        roundId: inspection.roundId,
+        roundId,
         sourceHeadSha: current.roundSourceHeadSha,
-        resultHeadSha: inspection.headSha,
+        resultHeadSha,
         ciState: current.ciAggregateState,
-        targetRoundState: inspection.targetRoundState,
-        previousTmuxSessionName: run.tmux_session_name,
-        codexThreadId: run.codex_thread_id,
-        previousCodexThreadId: run.previous_codex_thread_id,
+        targetRoundState: finalRoundState,
+        previousTmuxSessionName: operation.tmux_session_name,
+        codexThreadId: operation.task_codex_thread_id,
+        previousCodexThreadId: operation.previous_codex_thread_id,
       },
     );
     database.exec("COMMIT");

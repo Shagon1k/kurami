@@ -216,6 +216,9 @@ const desiredSurfaceDigestSql = `
   COALESCE((SELECT reason FROM run_state_history attention_latest
             WHERE attention_latest.run_id = r.run_id
               AND attention_latest.to_state = 'needs_attention'
+              AND attention_latest.reason NOT IN (
+                'review_fix_task_archived', 'ci_repair_task_archived'
+              )
             ORDER BY attention_latest.sequence DESC LIMIT 1), 'attention:none') || ':' ||
   COALESCE((SELECT succession_state || ':' || predecessor_thread_id
             FROM run_autonomous_successions successor_latest
@@ -464,6 +467,9 @@ function loadDesiredCards(
              (SELECT reason FROM run_state_history attention_latest
               WHERE attention_latest.run_id = r.run_id
                 AND attention_latest.to_state = 'needs_attention'
+                AND attention_latest.reason NOT IN (
+                  'review_fix_task_archived', 'ci_repair_task_archived'
+                )
               ORDER BY attention_latest.sequence DESC LIMIT 1)
                AS latest_attention_reason,
              (SELECT succession_state
@@ -615,6 +621,9 @@ function loadCard(database: DatabaseSync, runId: string): CardRow {
              (SELECT reason FROM run_state_history attention_latest
               WHERE attention_latest.run_id = r.run_id
                 AND attention_latest.to_state = 'needs_attention'
+                AND attention_latest.reason NOT IN (
+                  'review_fix_task_archived', 'ci_repair_task_archived'
+                )
               ORDER BY attention_latest.sequence DESC LIMIT 1)
                AS latest_attention_reason,
              (SELECT succession_state

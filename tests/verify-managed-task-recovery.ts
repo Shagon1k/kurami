@@ -151,6 +151,10 @@ async function main(): Promise<void> {
           'codexThreadId','01a-review-fix-recovery',
           'previousCodexThreadId','01a-primary-recovery'
         ));
+      INSERT INTO run_state_history (
+        run_id, from_state, to_state, reason, details_json
+      ) VALUES ('r_managed_recovery','needs_attention','needs_attention',
+        'review_fix_task_archived','{}');
     `);
     database
       .prepare(
@@ -187,7 +191,10 @@ case "$1" in
         'To continue this session, run codex resume 01a07546-c4c9-7ac3-a74e-1e5ca49f39a8'
     fi
     ;;
-  kill-session) /bin/rm -f "$FAKE_TMUX_STATE" ;;
+  kill-session)
+    /bin/rm -f "$FAKE_TMUX_STATE"
+    if [ -n "\${FAKE_KILL_HOOK:-}" ]; then "$FAKE_KILL_HOOK"; fi
+    ;;
   *) exit 64 ;;
 esac
 `,
@@ -200,6 +207,12 @@ esac
       FAKE_TMUX_MODE: "complete",
       CONTROLLER_QUIET: "0",
     };
+    const killHook = resolve(fakeBin, "after-kill");
+    await writeFile(
+      killHook,
+      `#!${process.execPath}\nimport { DatabaseSync } from "node:sqlite";\nimport { resolve } from "node:path";\nconst database = new DatabaseSync(resolve(process.env.KURAMI_HOME, "state/orchestrator.db"));\ndatabase.exec("UPDATE run_ci_snapshots SET aggregate_state='unknown', completed_at=NULL WHERE run_id='r_managed_recovery'");\ndatabase.close();\n`,
+      { mode: 0o700 },
+    );
     const controlsPath = resolve(app, "src/orchestrator/controls/run.ts");
     const controllerPath = resolve(app, "src/orchestrator/runtime/controller.ts");
     const controls = () =>
@@ -452,6 +465,54 @@ esac
       directApplyFailure.includes("only be applied by the live controller"),
       "Session manager allowed recovery outside the deterministic controller",
     );
+    const faultedController = runNode(controllerPath, ["--apply"], home, {
+      ...baseEnv,
+      FAKE_KILL_HOOK: killHook,
+    });
+    assert(
+      (faultedController.results as JsonObject[]).some(
+        (result) =>
+          result.action === "recover_managed_task" &&
+          result.status === "deferred" &&
+          String(result.reason).includes("state changed after termination"),
+      ),
+      "Late recovery validation fault did not preserve a reconcilable operation",
+    );
+    const faultedRecovery = new DatabaseSync(resolve(home, "state/orchestrator.db"));
+    const durableTermination = faultedRecovery
+      .prepare(
+        `SELECT o.operation_state, q.request_state, r.owner_state,
+                rr.tmux_session_name
+         FROM run_review_fix_operations o
+         JOIN run_review_fix_rounds f USING (round_id)
+         JOIN run_control_requests q ON q.request_id=o.request_id
+         JOIN runs r ON r.run_id=f.run_id
+         JOIN run_resources rr ON rr.run_id=f.run_id
+         WHERE o.round_id='rfr_managed501'
+           AND o.operation_kind='managed_recovery'`,
+      )
+      .get() as {
+      operation_state: string;
+      request_state: string;
+      owner_state: string;
+      tmux_session_name: string | null;
+    };
+    assert(
+      durableTermination.operation_state === "side_effect_succeeded" &&
+        durableTermination.request_state === "pending" &&
+        durableTermination.owner_state === "cli" &&
+        durableTermination.tmux_session_name === "cx-tt-501-recovery" &&
+        !(await import("node:fs")).existsSync(tmuxState),
+      "Successful termination was not durable and retryable after late validation failed",
+    );
+    faultedRecovery.exec(`
+      UPDATE run_ci_snapshots
+      SET aggregate_state='passed',
+          completed_at=strftime('%Y-%m-%dT%H:%M:%fZ','now'),
+          last_observed_at=strftime('%Y-%m-%dT%H:%M:%fZ','now')
+      WHERE run_id='r_managed_recovery';
+    `);
+    faultedRecovery.close();
     const controller = runNode(controllerPath, ["--apply"], home, baseEnv);
     assert(
       (controller.results as JsonObject[]).some(
@@ -459,7 +520,7 @@ esac
           result.action === "recover_managed_task" &&
           result.status === "applied",
       ),
-      "Deterministic controller did not finalize managed recovery",
+      "Controller did not resume managed recovery from durable termination",
     );
     const verified = new DatabaseSync(resolve(home, "state/orchestrator.db"));
     const recovered = verified
@@ -515,6 +576,7 @@ esac
         controlsProven: true,
         discordControlsProven: true,
         controllerFinalizedRecovery: true,
+        terminationSideEffectReconciled: true,
         directSessionMutationRefused: true,
         originalSnapshotPreserved: true,
         normalResolutionLifecycleRestored: true,

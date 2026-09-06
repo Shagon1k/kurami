@@ -320,6 +320,9 @@ function baseRunSelect(): string {
            ,(SELECT reason FROM run_state_history attention_latest
              WHERE attention_latest.run_id = r.run_id
                AND attention_latest.to_state = 'needs_attention'
+               AND attention_latest.reason NOT IN (
+                 'review_fix_task_archived', 'ci_repair_task_archived'
+               )
              ORDER BY attention_latest.sequence DESC LIMIT 1)
               AS latest_attention_reason
            ,pps.last_captured_at AS project_poll_last_captured_at
@@ -847,7 +850,10 @@ function planAutomatic(
     run.latest_review_fix_state !== "resolving" &&
     run.latest_repair_failure_reason !== "runtime_budget_exceeded" &&
     run.latest_review_fix_failure_reason !== "runtime_budget_exceeded" &&
-    run.latest_review_fix_failure_reason !== "review_fix_uncommitted_changes"
+    run.latest_review_fix_failure_reason !== "review_fix_uncommitted_changes" &&
+    run.latest_review_fix_failure_reason !== "review_fix_no_new_head" &&
+    run.latest_review_fix_failure_reason !==
+      "No new PR head appeared after the review fixer task"
   ) {
     return run.latest_review_fix_codex_thread_id === run.codex_thread_id
       ? { ...base, action: "review_fix_cleanup" }
@@ -1157,44 +1163,51 @@ function markReviewFixNeedsAttention(
   failure: string,
   resultHeadSha: string | null,
 ): void {
-  database
-    .prepare(
-      `UPDATE run_review_fix_rounds
-       SET round_state='needs_attention', result_head_sha=?, failure_reason=?,
-           updated_at=strftime('%Y-%m-%dT%H:%M:%fZ', 'now'),
-           completed_at=strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
-       WHERE round_id=? AND round_state IN ('running','waiting_ci','resolving')`,
-    )
-    .run(resultHeadSha, failure, round.round_id);
-  const current = database
-    .prepare(`SELECT state FROM runs WHERE run_id=?`)
-    .get(round.run_id) as { state: string };
-  const changed = database
-    .prepare(
-      `UPDATE runs SET state='needs_attention', owner_state='none',
-         updated_at=strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
-       WHERE run_id=? AND state='parked_review' AND owner_state='none'`,
-    )
-    .run(round.run_id);
-  if (changed.changes === 1)
-    database
+  database.exec("BEGIN IMMEDIATE");
+  try {
+    const roundChanged = database
       .prepare(
-        `INSERT INTO run_state_history (
-           run_id, from_state, to_state, reason, details_json
-         ) VALUES (?, ?, 'needs_attention', ?, ?)`,
+        `UPDATE run_review_fix_rounds
+         SET round_state='needs_attention', result_head_sha=?, failure_reason=?,
+             updated_at=strftime('%Y-%m-%dT%H:%M:%fZ', 'now'),
+             completed_at=strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
+         WHERE round_id=? AND round_state IN ('running','waiting_ci','resolving')`,
       )
-      .run(
-        round.run_id,
-        current.state,
-        reason,
-        JSON.stringify({
-          roundId: round.round_id,
-          roundNumber: round.round_number,
-          sourceHeadSha: round.source_head_sha,
-          resultHeadSha,
-          failure,
-        }),
-      );
+      .run(resultHeadSha, failure, round.round_id);
+    if (roundChanged.changes === 0) {
+      database.exec("COMMIT");
+      return;
+    }
+    const changed = database
+      .prepare(
+        `UPDATE runs SET state='needs_attention', owner_state='none',
+           updated_at=strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
+         WHERE run_id=? AND state='parked_review' AND owner_state='none'`,
+      )
+      .run(round.run_id);
+    if (changed.changes === 1)
+      database
+        .prepare(
+          `INSERT INTO run_state_history (
+             run_id, from_state, to_state, reason, details_json
+           ) VALUES (?, 'parked_review', 'needs_attention', ?, ?)`,
+        )
+        .run(
+          round.run_id,
+          reason,
+          JSON.stringify({
+            roundId: round.round_id,
+            roundNumber: round.round_number,
+            sourceHeadSha: round.source_head_sha,
+            resultHeadSha,
+            failure,
+          }),
+        );
+    database.exec("COMMIT");
+  } catch (error) {
+    database.exec("ROLLBACK");
+    throw error;
+  }
 }
 
 function reconcileReviewFixRounds(database: DatabaseSync): void {
@@ -1222,9 +1235,15 @@ function reconcileReviewFixRounds(database: DatabaseSync): void {
   const rounds = database
     .prepare(
       `SELECT f.round_id, f.run_id, f.round_number, f.source_head_sha,
-              f.round_state, f.updated_at, r.state AS run_state,
-              r.owner_state, rr.tmux_session_name,
-              ci.head_sha, ci.aggregate_state
+              f.round_state, f.updated_at, f.waiting_ci_started_at,
+              f.repository, f.pull_request_number, f.pull_request_url,
+              f.codex_thread_id, r.state AS run_state,
+              r.owner_state, rr.tmux_session_name, rr.codex_thread_id AS current_codex_thread_id,
+              rr.previous_codex_thread_id,
+              ci.repository AS ci_repository,
+              ci.pull_request_number AS ci_pull_request_number,
+              ci.pull_request_url AS ci_pull_request_url,
+              ci.head_sha, ci.aggregate_state, ci.last_error
        FROM run_review_fix_rounds f
        JOIN runs r USING (run_id)
        JOIN run_resources rr USING (run_id)
@@ -1239,31 +1258,73 @@ function reconcileReviewFixRounds(database: DatabaseSync): void {
     source_head_sha: string;
     round_state: "running" | "waiting_ci";
     updated_at: string;
+    waiting_ci_started_at: string | null;
+    repository: string;
+    pull_request_number: number;
+    pull_request_url: string;
+    codex_thread_id: string | null;
     run_state: string;
     owner_state: string;
     tmux_session_name: string | null;
+    current_codex_thread_id: string | null;
+    previous_codex_thread_id: string | null;
+    ci_repository: string | null;
+    ci_pull_request_number: number | null;
+    ci_pull_request_url: string | null;
     head_sha: string | null;
     aggregate_state: string | null;
+    last_error: string | null;
   }>;
   for (const round of rounds) {
-    let roundState = round.round_state;
     if (
-      roundState === "running" &&
+      round.round_state === "running" &&
       round.run_state === "parked_review" &&
       round.owner_state === "none" &&
-      round.tmux_session_name === null
+      round.tmux_session_name === null &&
+      Boolean(round.codex_thread_id) &&
+      round.codex_thread_id === round.current_codex_thread_id &&
+      Boolean(round.previous_codex_thread_id)
     ) {
       database
         .prepare(
           `UPDATE run_review_fix_rounds SET round_state='waiting_ci',
+             waiting_ci_started_at=strftime('%Y-%m-%dT%H:%M:%fZ', 'now'),
              updated_at=strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
            WHERE round_id=? AND round_state='running'`,
         )
         .run(round.round_id);
-      roundState = "waiting_ci";
+      // The writer terminal state and CI snapshot were observed before this
+      // transition. A later controller pass must load both again.
+      continue;
     }
-    if (roundState !== "waiting_ci") continue;
-    const newHead = Boolean(round.head_sha) && round.head_sha !== round.source_head_sha;
+    if (round.round_state !== "waiting_ci") continue;
+    const exactTaskIdentity =
+      round.run_state === "parked_review" &&
+      round.owner_state === "none" &&
+      round.tmux_session_name === null &&
+      Boolean(round.codex_thread_id) &&
+      round.codex_thread_id === round.current_codex_thread_id &&
+      Boolean(round.previous_codex_thread_id);
+    if (!exactTaskIdentity) continue;
+    const exactPullRequestIdentity =
+      round.ci_repository?.toLowerCase() === round.repository.toLowerCase() &&
+      round.ci_pull_request_number === round.pull_request_number &&
+      round.ci_pull_request_url === round.pull_request_url;
+    if (!exactPullRequestIdentity) {
+      markReviewFixNeedsAttention(
+        database,
+        round,
+        "review_fix_ci_identity_mismatch",
+        "review_fix_ci_identity_mismatch",
+        null,
+      );
+      continue;
+    }
+    const exactPullRequest = round.last_error === null;
+    const newHead =
+      exactPullRequest &&
+      Boolean(round.head_sha) &&
+      round.head_sha !== round.source_head_sha;
     if (newHead && round.aggregate_state === "passed") {
       database
         .prepare(
@@ -1280,18 +1341,20 @@ function reconcileReviewFixRounds(database: DatabaseSync): void {
         database,
         round,
         "review_fix_ci_failed",
-        `CI ${round.aggregate_state} on review-fix SHA`,
+        "review_fix_ci_failed",
         round.head_sha,
       );
       continue;
     }
-    const ageMinutes = (Date.now() - Date.parse(round.updated_at)) / 60_000;
+    if (!round.waiting_ci_started_at) continue;
+    const ageMinutes =
+      (Date.now() - Date.parse(round.waiting_ci_started_at)) / 60_000;
     if (!newHead && ageMinutes >= 10) {
       markReviewFixNeedsAttention(
         database,
         round,
         "review_fix_no_new_head",
-        "No new PR head appeared after the review fixer task",
+        "review_fix_no_new_head",
         null,
       );
       continue;
@@ -1305,9 +1368,219 @@ function reconcileReviewFixRounds(database: DatabaseSync): void {
         database,
         round,
         "review_fix_ci_timeout",
-        "CI did not settle within the bounded wait",
+        "review_fix_ci_timeout",
         round.head_sha,
       );
+  }
+
+  reconcileFalseReviewFixNoNewHead(database);
+}
+
+function reconcileFalseReviewFixNoNewHead(database: DatabaseSync): void {
+  const candidates = database
+    .prepare(
+      `SELECT f.round_id, f.run_id, f.round_number, f.source_head_sha,
+              f.repository, f.pull_request_number, f.pull_request_url,
+              f.codex_thread_id, f.waiting_ci_started_at, f.completed_at,
+              r.state AS run_state, r.owner_state, r.stop_reason,
+              rr.tmux_session_name, rr.codex_thread_id AS current_codex_thread_id,
+              rr.previous_codex_thread_id,
+              q.action AS request_action, q.request_state,
+              ci.repository AS ci_repository,
+              ci.pull_request_number AS ci_pull_request_number,
+              ci.pull_request_url AS ci_pull_request_url,
+              ci.head_sha, ci.aggregate_state, ci.last_observed_at, ci.last_error,
+              (SELECT h.reason FROM run_state_history h
+               WHERE h.run_id=f.run_id AND h.to_state='needs_attention'
+                 AND h.reason NOT IN (
+                   'review_fix_task_archived', 'ci_repair_task_archived'
+                 )
+               ORDER BY h.sequence DESC LIMIT 1) AS attention_reason,
+              (SELECT COUNT(*) FROM run_ci_repair_attempts a
+               WHERE a.run_id=f.run_id
+                 AND a.attempt_state IN ('running','waiting_ci')) AS active_repair_count,
+              (SELECT COUNT(*) FROM run_ai_reviews a
+               WHERE a.run_id=f.run_id AND a.review_state='running') AS active_review_count,
+              (SELECT COUNT(*) FROM run_review_fix_rounds active
+               WHERE active.run_id=f.run_id
+                 AND active.round_state IN ('running','waiting_ci','resolving')) AS active_fix_count
+       FROM run_review_fix_rounds f
+       JOIN runs r USING (run_id)
+       JOIN run_resources rr USING (run_id)
+       JOIN run_control_requests q ON q.request_id=f.request_id
+       JOIN run_ci_snapshots ci USING (run_id)
+       WHERE f.round_state='needs_attention'
+         AND f.failure_reason IN (
+           'review_fix_no_new_head',
+           'No new PR head appeared after the review fixer task'
+         )
+         AND NOT EXISTS (
+           SELECT 1 FROM run_review_fix_rounds newer
+           WHERE newer.run_id=f.run_id AND newer.round_number>f.round_number
+         )
+       ORDER BY f.completed_at, f.round_id`,
+    )
+    .all() as Array<{
+    round_id: string;
+    run_id: string;
+    round_number: number;
+    source_head_sha: string;
+    repository: string;
+    pull_request_number: number;
+    pull_request_url: string;
+    codex_thread_id: string | null;
+    waiting_ci_started_at: string | null;
+    completed_at: string | null;
+    run_state: string;
+    owner_state: string;
+    stop_reason: string | null;
+    tmux_session_name: string | null;
+    current_codex_thread_id: string | null;
+    previous_codex_thread_id: string | null;
+    request_action: string;
+    request_state: string;
+    ci_repository: string;
+    ci_pull_request_number: number | null;
+    ci_pull_request_url: string | null;
+    head_sha: string | null;
+    aggregate_state: string;
+    last_observed_at: string;
+    last_error: string | null;
+    attention_reason: string | null;
+    active_repair_count: number;
+    active_review_count: number;
+    active_fix_count: number;
+  }>;
+
+  for (const round of candidates) {
+    const observedAt = Date.parse(round.last_observed_at);
+    const failedAt = Date.parse(round.completed_at ?? "");
+    const subsequentObservation =
+      Number.isFinite(observedAt) &&
+      Number.isFinite(failedAt) &&
+      observedAt <= Date.now() &&
+      observedAt > failedAt;
+    const exactDelivery =
+      round.run_state === "needs_attention" &&
+      round.owner_state === "none" &&
+      round.stop_reason === null &&
+      round.attention_reason === "review_fix_no_new_head" &&
+      round.request_action === "review_fix" &&
+      round.request_state === "applied" &&
+      round.tmux_session_name === null &&
+      Boolean(round.codex_thread_id) &&
+      round.codex_thread_id === round.current_codex_thread_id &&
+      Boolean(round.previous_codex_thread_id) &&
+      round.active_repair_count === 0 &&
+      round.active_review_count === 0 &&
+      round.active_fix_count === 0 &&
+      round.last_error === null &&
+      round.ci_repository.toLowerCase() === round.repository.toLowerCase() &&
+      round.ci_pull_request_number === round.pull_request_number &&
+      round.ci_pull_request_url === round.pull_request_url &&
+      Boolean(round.head_sha) &&
+      round.head_sha !== round.source_head_sha &&
+      subsequentObservation &&
+      ["pending", "passed", "failed", "missing"].includes(
+        round.aggregate_state,
+      );
+    if (!exactDelivery || !round.head_sha) continue;
+
+    if (["failed", "missing"].includes(round.aggregate_state)) {
+      database.exec("BEGIN IMMEDIATE");
+      try {
+        const changed = database
+          .prepare(
+            `UPDATE run_review_fix_rounds
+             SET result_head_sha=?, failure_reason='review_fix_ci_failed',
+                 updated_at=strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
+             WHERE round_id=? AND round_state='needs_attention'
+               AND failure_reason IN (
+                 'review_fix_no_new_head',
+                 'No new PR head appeared after the review fixer task'
+               )`,
+          )
+          .run(round.head_sha, round.round_id);
+        if (changed.changes !== 1)
+          fail("Review-fix no-new-head state changed during reconciliation");
+        database
+          .prepare(
+            `INSERT INTO run_state_history (
+               run_id, from_state, to_state, reason, details_json
+             ) VALUES (?, 'needs_attention', 'needs_attention',
+               'review_fix_ci_failed', ?)`,
+          )
+          .run(
+            round.run_id,
+            JSON.stringify({
+              roundId: round.round_id,
+              roundNumber: round.round_number,
+              sourceHeadSha: round.source_head_sha,
+              resultHeadSha: round.head_sha,
+              recoveredFrom: "review_fix_no_new_head",
+            }),
+          );
+        database.exec("COMMIT");
+      } catch (error) {
+        database.exec("ROLLBACK");
+        throw error;
+      }
+      continue;
+    }
+
+    const targetState =
+      round.aggregate_state === "passed" ? "resolving" : "waiting_ci";
+    database.exec("BEGIN IMMEDIATE");
+    try {
+      const roundChanged = database
+        .prepare(
+          `UPDATE run_review_fix_rounds
+           SET round_state=?, result_head_sha=?, failure_reason=NULL,
+               completed_at=NULL,
+               waiting_ci_started_at=COALESCE(
+                 waiting_ci_started_at,
+                 strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
+               ),
+               updated_at=strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
+           WHERE round_id=? AND round_state='needs_attention'
+             AND failure_reason IN (
+               'review_fix_no_new_head',
+               'No new PR head appeared after the review fixer task'
+             )`,
+        )
+        .run(targetState, round.head_sha, round.round_id);
+      const runChanged = database
+        .prepare(
+          `UPDATE runs SET state='parked_review', owner_state='none',
+               updated_at=strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
+           WHERE run_id=? AND state='needs_attention' AND owner_state='none'
+             AND stop_reason IS NULL`,
+        )
+        .run(round.run_id);
+      if (roundChanged.changes !== 1 || runChanged.changes !== 1)
+        fail("Review-fix no-new-head recovery state changed during reconciliation");
+      database
+        .prepare(
+          `INSERT INTO run_state_history (
+             run_id, from_state, to_state, reason, details_json
+           ) VALUES (?, 'needs_attention', 'parked_review',
+             'review_fix_no_new_head_recovered', ?)`,
+        )
+        .run(
+          round.run_id,
+          JSON.stringify({
+            roundId: round.round_id,
+            roundNumber: round.round_number,
+            sourceHeadSha: round.source_head_sha,
+            resultHeadSha: round.head_sha,
+            ciState: round.aggregate_state,
+          }),
+        );
+      database.exec("COMMIT");
+    } catch (error) {
+      database.exec("ROLLBACK");
+      throw error;
+    }
   }
 }
 
@@ -1826,6 +2099,24 @@ function completeRequest(
     .run(state, JSON.stringify(result), requestId);
 }
 
+function hasReconcilableReviewFixOperation(
+  database: DatabaseSync,
+  plan: PlannedAction,
+): boolean {
+  if (plan.action !== "recover_managed_task" || !plan.requestId) return false;
+  return Boolean(
+    database
+      .prepare(
+        `SELECT 1 FROM run_review_fix_operations o
+         JOIN run_review_fix_rounds f USING (round_id)
+         WHERE f.run_id=? AND o.operation_kind='managed_recovery'
+           AND o.request_id=?
+           AND o.operation_state IN ('claimed','side_effect_succeeded')`,
+      )
+      .get(plan.runId, plan.requestId),
+  );
+}
+
 function applyInternal(database: DatabaseSync, plan: PlannedAction): unknown {
   if (
     !["resume_stop", "preview_requirement_complete"].includes(plan.action) &&
@@ -2141,7 +2432,13 @@ export async function runOrchestratorControllerCli(): Promise<void> {
           })}\n`,
         );
       }
-      if (["successor_start", "review_start", "review_fix_start", "recover_managed_task"].includes(plan.action) && plan.requestId) {
+      if (
+        ["successor_start", "review_start", "review_fix_start", "recover_managed_task"].includes(
+          plan.action,
+        ) &&
+        plan.requestId &&
+        !hasReconcilableReviewFixOperation(database, plan)
+      ) {
         completeRequest(database, plan.requestId, "failed", {
           action:
             plan.action === "successor_start"
