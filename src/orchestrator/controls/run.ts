@@ -9,6 +9,10 @@ import {
   isNeedsAttentionCliHandoff,
   type RecoverySnapshot,
 } from "../runtime/recovery.ts";
+import {
+  inspectManagedReviewFixRecovery,
+  loadManagedReviewFixRecoverySnapshot,
+} from "../runtime/managed-task-recovery.ts";
 
 process.umask(0o077);
 
@@ -21,7 +25,8 @@ type Action =
   | "discard_published"
   | "ci_repair"
   | "ai_review"
-  | "review_fix";
+  | "review_fix"
+  | "recover_managed_task";
 type Command = "status" | "request" | "controls";
 type RequestSource = "telegram" | "discord" | "cli";
 
@@ -64,6 +69,11 @@ const pendingPresentations: Partial<
     detail:
       "Review fix requested; capturing the current unresolved GitHub review threads before starting a fresh Codex task.",
   },
+  recover_managed_task: {
+    stage: "review_fix_recovery_queued",
+    detail:
+      "Recovery requested; revalidating the exact preserved review-fix task, pushed head, and fresh CI evidence.",
+  },
 };
 
 const orchestratorHome = resolveKuramiHome(
@@ -74,7 +84,14 @@ const projectsPath = resolve(orchestratorHome, "config/projects.yaml");
 const configPath = resolve(orchestratorHome, "config/orchestrator.yaml");
 
 type ProjectsRegistry = {
-  projects: Record<string, { preview?: Record<string, unknown> }>;
+  projects: Record<
+    string,
+    {
+      repository: string;
+      preview?: Record<string, unknown>;
+      workspace: { worktree_root: string };
+    }
+  >;
 };
 
 type OrchestratorConfig = {
@@ -164,7 +181,7 @@ function parseArguments(): {
   const apply = args.includes("--apply");
   if (!command || !["status", "request", "controls"].includes(command)) {
     fail(
-      "Usage: run-controls.ts <status|request|controls> [--run-id <run_id>] [--action <take_control|preview_start|preview_stop|stop|discard_local|discard_published|ci_repair|ai_review|review_fix>] [--via <telegram|discord|cli>] [--project <project>] [--issue <number>] [--discord-thread-id <id>] [--apply]",
+      "Usage: run-controls.ts <status|request|controls> [--run-id <run_id>] [--action <take_control|preview_start|preview_stop|stop|discard_local|discard_published|ci_repair|ai_review|review_fix|recover_managed_task>] [--via <telegram|discord|cli>] [--project <project>] [--issue <number>] [--discord-thread-id <id>] [--apply]",
     );
   }
   if (command !== "controls" && !runId) fail(`${command} requires --run-id`);
@@ -185,6 +202,7 @@ function parseArguments(): {
         "ci_repair",
         "ai_review",
         "review_fix",
+        "recover_managed_task",
       ].includes(action))
   ) {
     fail("request requires a supported --action");
@@ -498,7 +516,9 @@ function request(
          WHERE run_id = ? AND request_state IN ('pending','processing')
            AND (
              action = 'review_fix' OR
-             (? = 'review_fix' AND action IN ('take_control','ci_repair','ai_review')) OR
+             action = 'recover_managed_task' OR
+             (? IN ('review_fix','recover_managed_task')
+               AND action IN ('take_control','ci_repair','ai_review','review_fix','recover_managed_task')) OR
              (action IN ('preview_start','preview_stop') AND ? IN ('preview_start','preview_stop'))
            )
          LIMIT 1`,
@@ -543,6 +563,32 @@ function request(
           "Autonomous continuation requires one finished Remote task, a provisioned worktree, and no active managed writer",
         );
       }
+    }
+    if (action === "recover_managed_task") {
+      const existingRecovery = database
+        .prepare(
+          `SELECT request_id FROM run_control_requests
+           WHERE run_id=? AND action='recover_managed_task'
+             AND request_state IN ('pending','processing')
+           ORDER BY created_at DESC LIMIT 1`,
+        )
+        .get(runId) as { request_id: string } | undefined;
+      const recoverySnapshot = loadManagedReviewFixRecoverySnapshot(
+        database,
+        runId,
+        existingRecovery?.request_id ?? null,
+      );
+      const recoveryInspection = recoverySnapshot
+        ? inspectManagedReviewFixRecovery(
+            recoverySnapshot,
+            (parse(readFileSync(projectsPath, "utf8")) as ProjectsRegistry)
+              .projects[run.project],
+          )
+        : { eligible: false as const, reason: "run_not_found" };
+      if (!recoveryInspection.eligible)
+        fail(
+          `Run is not eligible for managed review-fix recovery: ${recoveryInspection.reason}`,
+        );
     }
     if (
       ["discard_local", "discard_published"].includes(action) &&
@@ -850,6 +896,22 @@ function controls(
   const failedSuccessorRecovery =
     isFailedAutonomousSuccessorRecovery(selectedRecovery);
   const availableActions = ["status"];
+  const managedRecoverySnapshot = loadManagedReviewFixRecoverySnapshot(
+    database,
+    String(selected.run_id),
+  );
+  const managedRecoveryInspection = managedRecoverySnapshot
+    ? inspectManagedReviewFixRecovery(
+        managedRecoverySnapshot,
+        (parse(readFileSync(projectsPath, "utf8")) as ProjectsRegistry)
+          .projects[String(selected.project)],
+      )
+    : { eligible: false as const, reason: "run_not_found" };
+  if (
+    managedRecoveryInspection.eligible &&
+    !pendingActions.has("recover_managed_task")
+  )
+    availableActions.push("recover_managed_task");
   if (
     !reviewFixBusy &&
     threadReady &&

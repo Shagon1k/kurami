@@ -54,6 +54,7 @@ const suites = [
   "test:ai-review",
   "test:project-resilience",
   "test:review-fix",
+  "test:managed-task-recovery",
   "test:triage-snapshot",
   "test:projects-digest",
   "test:metadata-proposals",

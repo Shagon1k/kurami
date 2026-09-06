@@ -94,6 +94,20 @@ async function main(): Promise<void> {
         upgrade.prepare("PRAGMA foreign_key_check").all().length === 0,
       "Schema 16 did not preserve populated P3 review data",
     );
+    for (const migration of migrations.filter((name) => name.slice(0, 3) > "016"))
+      upgrade.exec(await readFile(resolve(migrationsDirectory, migration), "utf8"));
+    upgrade.exec(`
+      INSERT INTO run_control_requests (
+        request_id, run_id, action, requested_via, idempotency_key
+      ) VALUES ('rq_upgrade_recovery','r_upgrade_fix','recover_managed_task',
+        'cli','upgrade:managed-recovery');
+    `);
+    assert(
+      (upgrade.prepare("SELECT COUNT(*) AS count FROM run_ai_reviews").get() as { count: number }).count === 1 &&
+        (upgrade.prepare("SELECT action FROM run_control_requests WHERE request_id='rq_upgrade_recovery'").get() as { action: string }).action === "recover_managed_task" &&
+        upgrade.prepare("PRAGMA foreign_key_check").all().length === 0,
+      "Managed recovery migration did not preserve populated control dependencies",
+    );
     upgrade.close();
 
     const head = "b".repeat(40);
@@ -851,6 +865,7 @@ esac
         dirtyCleanupGuarded: true,
         resolutionOnlyRecovery: true,
         populatedV15UpgradePreserved: true,
+        populatedV30UpgradePreserved: true,
       })}\n`,
     );
   } finally {

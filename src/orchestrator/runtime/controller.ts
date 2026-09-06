@@ -99,7 +99,8 @@ type RequestRow = RunRow & {
     | "discard_published"
     | "ci_repair"
     | "ai_review"
-    | "review_fix";
+    | "review_fix"
+    | "recover_managed_task";
 };
 
 type ControllerAction =
@@ -112,6 +113,7 @@ type ControllerAction =
   | "review_fix_start"
   | "review_fix_resolve"
   | "review_fix_cleanup"
+  | "recover_managed_task"
   | "sync"
   | "cancel_cli"
   | "park"
@@ -439,6 +441,17 @@ function externalCommand(
       return [reviewFixManagerPath, "resolve", "--round-id", roundId, "--apply"];
     case "review_fix_cleanup":
       return [sessionManagerPath, "cleanup-review-fix", "--run-id", runId, "--apply"];
+    case "recover_managed_task":
+      if (!requestId) fail("Managed task recovery requires a request ID");
+      return [
+        sessionManagerPath,
+        "recover-managed-task",
+        "--run-id",
+        runId,
+        "--request-id",
+        requestId,
+        "--apply",
+      ];
     case "sync":
       return [sessionManagerPath, "sync", "--run-id", runId, "--apply"];
     case "cancel_cli":
@@ -752,6 +765,28 @@ function planForRequest(
         ...base,
         action: "request_reject",
         reason: "run_not_review_fix_eligible",
+      };
+    case "recover_managed_task":
+      if (
+        request.run_state === "needs_attention" &&
+        request.owner_state === "cli" &&
+        request.execution_mode === "live" &&
+        request.resource_state === "provisioned" &&
+        request.stop_reason === null &&
+        request.latest_attention_reason === "review_fix_uncommitted_changes" &&
+        request.latest_review_fix_state === "needs_attention" &&
+        request.latest_review_fix_failure_reason ===
+          "review_fix_uncommitted_changes" &&
+        request.latest_review_fix_round_id &&
+        request.latest_review_fix_codex_thread_id === request.codex_thread_id &&
+        request.previous_codex_thread_id !== null &&
+        request.tmux_session_name !== null
+      )
+        return { ...base, action: "recover_managed_task" };
+      return {
+        ...base,
+        action: "request_reject",
+        reason: "run_not_managed_task_recovery_eligible",
       };
   }
 }
@@ -1968,6 +2003,7 @@ function runExternal(plan: PlannedAction): unknown {
     env: {
       ...process.env,
       KURAMI_HOME: orchestratorHome,
+      KURAMI_CONTROLLER_ACTION: plan.action,
     },
     stdio: ["ignore", "pipe", "pipe"],
   }).trim();
@@ -2055,7 +2091,7 @@ export async function runOrchestratorControllerCli(): Promise<void> {
         : runExternal(plan);
       if (
         plan.requestId &&
-        ["handoff", "successor_start", "preview_up", "preview_down", "preview_expire", "preview_extend", "repair_start", "review_start", "review_fix_start"].includes(
+        ["handoff", "successor_start", "preview_up", "preview_down", "preview_expire", "preview_extend", "repair_start", "review_start", "review_fix_start", "recover_managed_task"].includes(
           plan.action,
         )
       ) {
@@ -2105,14 +2141,16 @@ export async function runOrchestratorControllerCli(): Promise<void> {
           })}\n`,
         );
       }
-      if (["successor_start", "review_start", "review_fix_start"].includes(plan.action) && plan.requestId) {
+      if (["successor_start", "review_start", "review_fix_start", "recover_managed_task"].includes(plan.action) && plan.requestId) {
         completeRequest(database, plan.requestId, "failed", {
           action:
             plan.action === "successor_start"
               ? "autonomous_successor_start_failed"
               : plan.action === "review_start"
               ? "ai_review_start_failed"
-              : "review_fix_start_failed",
+              : plan.action === "review_fix_start"
+                ? "review_fix_start_failed"
+                : "managed_task_recovery_failed",
           reason,
         });
       }

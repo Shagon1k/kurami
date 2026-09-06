@@ -17,6 +17,10 @@ import {
   redactSecretLikeText,
   serializeUntrustedPromptData,
 } from "../../security/prompt-safety.ts";
+import {
+  inspectManagedReviewFixRecovery,
+  loadManagedReviewFixRecoverySnapshot,
+} from "../../runtime/managed-task-recovery.ts";
 
 process.umask(0o077);
 
@@ -26,6 +30,7 @@ type Action =
   | "cleanup-repair"
   | "review-fix"
   | "cleanup-review-fix"
+  | "recover-managed-task"
   | "sync"
   | "inspect"
   | "cancel"
@@ -182,6 +187,7 @@ function parseArguments(): Arguments {
       action !== "cleanup-repair" &&
       action !== "review-fix" &&
       action !== "cleanup-review-fix" &&
+      action !== "recover-managed-task" &&
       action !== "sync" &&
       action !== "inspect" &&
       action !== "cancel" &&
@@ -189,12 +195,14 @@ function parseArguments(): Arguments {
       action !== "handoff" &&
       action !== "finalize-stop") ||
     !runId ||
-    (["repair", "review-fix"].includes(action) ? !requestId : Boolean(requestId)) ||
+    (["repair", "review-fix", "recover-managed-task"].includes(action)
+      ? !requestId
+      : Boolean(requestId)) ||
     unknown.length > 0 ||
     (action === "inspect" && args.includes("--apply"))
   ) {
     fail(
-      "Usage: session-manager.ts <start|repair|cleanup-repair|review-fix|cleanup-review-fix|sync|inspect|cancel|park|handoff|finalize-stop> --run-id <run_id> [--request-id <request_id>] [--apply]",
+      "Usage: session-manager.ts <start|repair|cleanup-repair|review-fix|cleanup-review-fix|recover-managed-task|sync|inspect|cancel|park|handoff|finalize-stop> --run-id <run_id> [--request-id <request_id>] [--apply]",
     );
   }
   return { action, runId, requestId, apply: args.includes("--apply") };
@@ -2206,6 +2214,162 @@ async function cancelCliSession(
   );
 }
 
+function recoverManagedReviewFixTask(
+  database: DatabaseSync,
+  run: SessionRun,
+  registry: ProjectsRegistry,
+  config: OrchestratorConfig,
+  requestId: string,
+  apply: boolean,
+): void {
+  const request = database
+    .prepare(
+      `SELECT request_state FROM run_control_requests
+       WHERE request_id=? AND run_id=? AND action='recover_managed_task'`,
+    )
+    .get(requestId, run.run_id) as { request_state: string } | undefined;
+  if (!request || request.request_state !== "pending")
+    fail("Managed task recovery request is no longer pending");
+  const project = registry.projects[run.project];
+  const initial = loadManagedReviewFixRecoverySnapshot(
+    database,
+    run.run_id,
+    requestId,
+  );
+  if (!initial) fail("Managed recovery run disappeared");
+  const inspection = inspectManagedReviewFixRecovery(initial, project);
+  if (!inspection.eligible)
+    fail(`Managed review-fix recovery refused: ${inspection.reason}`);
+  const plan = {
+    runId: run.run_id,
+    requestId,
+    roundId: inspection.roundId,
+    resultHeadSha: inspection.headSha,
+    targetRoundState: inspection.targetRoundState,
+    tmuxSessionName: run.tmux_session_name,
+    action: "recover_delivered_review_fix",
+  };
+  if (!apply) {
+    process.stdout.write(`${JSON.stringify({ ok: true, apply: false, plan })}\n`);
+    return;
+  }
+  if (
+    process.env.KURAMI_CONTROLLER_ACTION !== "recover_managed_task" ||
+    config.mode !== "live" ||
+    run.execution_mode !== "live"
+  )
+    fail("Managed task recovery may only be applied by the live controller");
+
+  database.exec("BEGIN IMMEDIATE");
+  try {
+    const current = loadManagedReviewFixRecoverySnapshot(
+      database,
+      run.run_id,
+      requestId,
+    );
+    if (!current) fail("Managed recovery run changed before claim");
+    const currentInspection = inspectManagedReviewFixRecovery(current, project);
+    if (
+      !currentInspection.eligible ||
+      currentInspection.roundId !== inspection.roundId ||
+      currentInspection.headSha !== inspection.headSha ||
+      currentInspection.targetRoundState !== inspection.targetRoundState ||
+      current.tmuxSessionName !== run.tmux_session_name
+    )
+      fail(
+        `Managed review-fix recovery changed before claim${currentInspection.eligible ? "" : `: ${currentInspection.reason}`}`,
+      );
+    if (!run.tmux_session_name)
+      fail("Managed review-fix recovery lost its exact session mapping");
+
+    // The task has a proven terminal turn. End the exact managed session without
+    // sending input or resuming any prompt before releasing CLI ownership.
+    killTmuxSession(run.tmux_session_name);
+    if (
+      !run.worktree_path ||
+      !run.branch_name ||
+      git(run.worktree_path, ["status", "--porcelain", "--untracked-files=all"]) !==
+        "" ||
+      git(run.worktree_path, ["branch", "--show-current"]) !== run.branch_name ||
+      git(run.worktree_path, ["rev-parse", "HEAD"]) !== inspection.headSha ||
+      git(run.worktree_path, [
+        "rev-parse",
+        `refs/remotes/origin/${run.branch_name}`,
+      ]) !== inspection.headSha
+    )
+      fail("Managed review-fix Git state changed while closing its session");
+    const roundChanged = database
+      .prepare(
+        `UPDATE run_review_fix_rounds
+         SET round_state=?, result_head_sha=?, failure_reason=NULL,
+             completed_at=NULL,
+             updated_at=strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
+         WHERE round_id=? AND run_id=? AND round_state='needs_attention'
+           AND failure_reason='review_fix_uncommitted_changes'
+           AND codex_thread_id=? AND source_head_sha=?`,
+      )
+      .run(
+        inspection.targetRoundState,
+        inspection.headSha,
+        inspection.roundId,
+        run.run_id,
+        run.codex_thread_id,
+        current.roundSourceHeadSha,
+      );
+    const runChanged = database
+      .prepare(
+        `UPDATE runs SET state='parked_review', owner_state='none',
+             updated_at=strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
+         WHERE run_id=? AND state='needs_attention' AND owner_state='cli'
+           AND stop_reason IS NULL AND execution_mode='live'`,
+      )
+      .run(run.run_id);
+    const resourceChanged = database
+      .prepare(
+        `UPDATE run_resources SET tmux_session_name=NULL,
+             updated_at=strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
+         WHERE run_id=? AND resource_state='provisioned'
+           AND tmux_session_name=? AND codex_thread_id=?
+           AND previous_codex_thread_id=?`,
+      )
+      .run(
+        run.run_id,
+        run.tmux_session_name,
+        run.codex_thread_id,
+        run.previous_codex_thread_id,
+      );
+    if (
+      roundChanged.changes !== 1 ||
+      runChanged.changes !== 1 ||
+      resourceChanged.changes !== 1
+    )
+      fail("Managed review-fix recovery state changed during claim");
+    appendHistory(
+      database,
+      run.run_id,
+      "needs_attention",
+      "parked_review",
+      "review_fix_managed_task_recovered",
+      {
+        requestId,
+        roundId: inspection.roundId,
+        sourceHeadSha: current.roundSourceHeadSha,
+        resultHeadSha: inspection.headSha,
+        ciState: current.ciAggregateState,
+        targetRoundState: inspection.targetRoundState,
+        previousTmuxSessionName: run.tmux_session_name,
+        codexThreadId: run.codex_thread_id,
+        previousCodexThreadId: run.previous_codex_thread_id,
+      },
+    );
+    database.exec("COMMIT");
+  } catch (error) {
+    database.exec("ROLLBACK");
+    throw error;
+  }
+  process.stdout.write(`${JSON.stringify({ ok: true, apply: true, ...plan })}\n`);
+}
+
 function inspectSession(database: DatabaseSync, runId: string): void {
   const run = loadRun(database, runId);
   const tmuxAlive = run.tmux_session_name
@@ -2377,6 +2541,17 @@ export async function runSessionManagerCli(): Promise<void> {
     }
     if (args.action === "cleanup-review-fix") {
       await cleanupReviewFixSession(database, run, registry, args.apply);
+      return;
+    }
+    if (args.action === "recover-managed-task") {
+      recoverManagedReviewFixTask(
+        database,
+        run,
+        registry,
+        config,
+        args.requestId!,
+        args.apply,
+      );
       return;
     }
     if (args.action === "cancel") {

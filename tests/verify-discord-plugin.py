@@ -234,6 +234,7 @@ def main() -> None:
         "kurami:ci_repair:r_9": ("ci_repair", "r_9"),
         "kurami:ai_review:r_9": ("ai_review", "r_9"),
         "kurami:review_fix:r_9": ("review_fix", "r_9"),
+        "kurami:recover_managed_task:r_9": ("recover_managed_task", "r_9"),
     }
     for custom_id, expected in accepted.items():
         require(module.parse_control_id(custom_id) == expected, f"Rejected {custom_id}")
@@ -465,6 +466,13 @@ def main() -> None:
         "review_fix", {"action": "created", "requestState": "pending"}
     )
     require("Fix Review" in fix_review, "Review fix response uses an ambiguous label")
+    recovery = module._request_message(
+        "recover_managed_task", {"action": "created", "requestState": "pending"}
+    )
+    require(
+        "Recover delivered fix" in recovery,
+        "Managed recovery response uses an ambiguous label",
+    )
     reviewed = module._request_message(
         "preview_reviewed", {"action": "reviewed"}
     )

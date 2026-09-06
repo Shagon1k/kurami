@@ -28,14 +28,19 @@ import {
   isNeedsAttentionCliHandoff,
   type RecoverySnapshot,
 } from "../runtime/recovery.ts";
+import {
+  inspectManagedReviewFixRecovery,
+  loadManagedReviewFixRecoverySnapshot,
+} from "../runtime/managed-task-recovery.ts";
 
 process.umask(0o077);
 
 type DiscordConfig = { guild_id: string; channel_id: string };
 type ProjectConfig = {
+  repository: string;
   discord?: DiscordConfig;
   preview?: Record<string, unknown>;
-  workspace: { branch_prefix: string };
+  workspace: { branch_prefix: string; worktree_root: string };
 };
 type ProjectsRegistry = {
   version: number;
@@ -1148,6 +1153,33 @@ function stageColor(stage: string): number {
   return 0x5865f2;
 }
 
+function managedRecoveryEligible(
+  card: CardRow,
+  project: ProjectConfig,
+): boolean {
+  if (
+    card.run_state !== "needs_attention" ||
+    card.owner_state !== "cli" ||
+    card.execution_mode !== "live" ||
+    card.resource_state !== "provisioned" ||
+    card.latest_attention_reason !== "review_fix_uncommitted_changes" ||
+    card.review_fix_state !== "needs_attention"
+  )
+    return false;
+  const database = new DatabaseSync(databasePath, { timeout: 5_000 });
+  try {
+    database.exec("PRAGMA foreign_keys=ON; PRAGMA busy_timeout=5000;");
+    const snapshot = loadManagedReviewFixRecoverySnapshot(database, card.run_id);
+    return Boolean(
+      snapshot && inspectManagedReviewFixRecovery(snapshot, project).eligible,
+    );
+  } catch {
+    return false;
+  } finally {
+    database.close();
+  }
+}
+
 export function controlComponents(
   card: CardRow,
   project: ProjectConfig,
@@ -1167,6 +1199,15 @@ export function controlComponents(
     const attentionCliHandoff = isNeedsAttentionCliHandoff(recovery);
     const failedSuccessorRecovery =
       isFailedAutonomousSuccessorRecovery(recovery);
+    const recoverManagedTask = managedRecoveryEligible(card, project);
+    if (recoverManagedTask)
+      controls.push(
+        button(
+          "Recover delivered fix",
+          1,
+          `kurami:recover_managed_task:${card.run_id}`,
+        ),
+      );
     const takeoverEligible =
       !preservedCancellation &&
       !["handoff_pending", "autonomous_successor_pending"].includes(
