@@ -12,6 +12,7 @@ import {
 import { tmpdir } from "node:os";
 import { delimiter, resolve } from "node:path";
 import { DatabaseSync } from "node:sqlite";
+import { promptFor } from "../src/orchestrator/projects/sessions/autonomous-successor.ts";
 
 function assert(condition: unknown, message: string): asserts condition {
   if (!condition) throw new Error(message);
@@ -38,6 +39,11 @@ function runFails(command: string, args: string[], env: NodeJS.ProcessEnv): stri
 }
 
 async function main(): Promise<void> {
+  const successorPrompt = promptFor({ issue: "untrusted" });
+  assert(
+    successorPrompt.includes("Do not ask for or wait for a separate interactive commit confirmation"),
+    "Autonomous successor prompt lacks explicit commit authorization",
+  );
   const app = resolve(import.meta.dirname, "..");
   const home = await realpath(
     await mkdtemp(resolve(tmpdir(), "kurami-autonomous-successor-")),

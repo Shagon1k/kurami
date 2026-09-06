@@ -164,8 +164,9 @@ async function main(): Promise<void> {
       "Repair task was not pinned to the source SHA",
     );
     assert(
-      String(repairPlan.initialPrompt).includes("never force-push"),
-      "Repair task lacks bounded Git safety instructions",
+      String(repairPlan.initialPrompt).includes("never force-push") &&
+        String(repairPlan.initialPrompt).includes("Do not ask for or wait for a separate interactive commit confirmation"),
+      "Repair task lacks bounded Git safety and explicit commit authorization instructions",
     );
     assert(
       String(repairPlan.initialPrompt).includes("untrusted CI evidence") &&

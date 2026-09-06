@@ -12,6 +12,7 @@ import {
 import { tmpdir } from "node:os";
 import { delimiter, resolve } from "node:path";
 import { DatabaseSync } from "node:sqlite";
+import { initialPrompt } from "../src/orchestrator/projects/sessions/manager.ts";
 
 function assert(condition: unknown, message: string): asserts condition {
   if (!condition) throw new Error(message);
@@ -25,6 +26,13 @@ function git(directory: string, args: string[]): string {
 }
 
 async function main(): Promise<void> {
+  const autonomousPrompt = initialPrompt({ interaction_policy: "autonomous" } as Parameters<typeof initialPrompt>[0]);
+  const humanControlPrompt = initialPrompt({ interaction_policy: "human_control" } as Parameters<typeof initialPrompt>[0]);
+  assert(
+    autonomousPrompt.includes("Do not ask for or wait for a separate interactive commit confirmation") &&
+      !humanControlPrompt.includes("Do not ask for or wait for a separate interactive commit confirmation"),
+    "Only autonomous primary runs should receive explicit commit authorization",
+  );
   const app = resolve(import.meta.dirname, "..");
   const launcher = await readFile(resolve(app, "bin/launch-codex-session.sh"), "utf8");
   assert(

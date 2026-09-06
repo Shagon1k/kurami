@@ -201,6 +201,7 @@ async function main(): Promise<void> {
         prompt.includes("Fix exactly these 2 unresolved review thread") &&
         prompt.includes("Do not address new or resolved threads") &&
         prompt.includes("never force-push") &&
+        prompt.includes("Do not ask for or wait for a separate interactive commit confirmation") &&
         prompt.includes("do not start another review or fix round"),
       "Review fix prompt is not exact-SHA bounded",
     );
