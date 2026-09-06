@@ -811,7 +811,8 @@ function planAutomatic(
     run.latest_review_fix_state !== "waiting_ci" &&
     run.latest_review_fix_state !== "resolving" &&
     run.latest_repair_failure_reason !== "runtime_budget_exceeded" &&
-    run.latest_review_fix_failure_reason !== "runtime_budget_exceeded"
+    run.latest_review_fix_failure_reason !== "runtime_budget_exceeded" &&
+    run.latest_review_fix_failure_reason !== "review_fix_uncommitted_changes"
   ) {
     return run.latest_review_fix_codex_thread_id === run.codex_thread_id
       ? { ...base, action: "review_fix_cleanup" }

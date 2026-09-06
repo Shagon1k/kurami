@@ -30,6 +30,27 @@ function runNode(
   return JSON.parse(output.trim().split(/\r?\n/u).filter(Boolean).at(-1)!) as JsonObject;
 }
 
+function runNodeFailure(
+  script: string,
+  args: string[],
+  home: string,
+  env: NodeJS.ProcessEnv = {},
+): string {
+  try {
+    runNode(script, args, home, env);
+  } catch (error) {
+    return String((error as { stderr?: string }).stderr ?? error);
+  }
+  throw new Error("Expected command to fail");
+}
+
+function git(directory: string, args: string[]): string {
+  return execFileSync("git", ["-C", directory, ...args], {
+    encoding: "utf8",
+    stdio: ["ignore", "pipe", "pipe"],
+  }).trim();
+}
+
 async function main(): Promise<void> {
   const app = resolve(import.meta.dirname, "..");
   const home = await realpath(await mkdtemp(resolve(tmpdir(), "kurami-review-fix-test-")));
@@ -270,10 +291,48 @@ async function main(): Promise<void> {
       resolve(home, "config/orchestrator.yaml"),
       await readFile(resolve(app, "deploy/config/orchestrator.yaml"), "utf8"),
     );
+    const worktreeRoot = resolve(home, "worktrees/tailortales");
+    const happyWorktree = resolve(worktreeRoot, "141/TailorTales");
+    const dirtyWorktree = resolve(worktreeRoot, "142/TailorTales");
+    const canonicalRepository = resolve(home, "repositories/TailorTales");
+    let projects = await readFile(
+      resolve(app, "deploy/config/projects.yaml"),
+      "utf8",
+    );
+    projects = projects
+      .replace("/home/shagon1k/_projects/TailorTales", canonicalRepository)
+      .replace(
+        "/home/shagon1k/_projects/.worktrees/tailortales",
+        worktreeRoot,
+      );
     await writeFile(
       resolve(home, "config/projects.yaml"),
-      await readFile(resolve(app, "deploy/config/projects.yaml"), "utf8"),
+      projects,
     );
+    for (const [worktree, branch] of [
+      [happyWorktree, "TT-141_fix"],
+      [dirtyWorktree, "TT-142_fix"],
+    ] as const) {
+      await mkdir(worktree, { recursive: true, mode: 0o700 });
+      execFileSync(
+        "git",
+        ["init", "--initial-branch", branch, worktree],
+        { stdio: ["ignore", "ignore", "pipe"] },
+      );
+      git(worktree, ["config", "user.name", "Kurami Test"]);
+      git(worktree, ["config", "user.email", "kurami@example.invalid"]);
+      await writeFile(resolve(worktree, "review-fix.txt"), "source\n");
+      git(worktree, ["add", "review-fix.txt"]);
+      git(worktree, ["commit", "-m", "source"]);
+    }
+    const sourceSha = git(happyWorktree, ["rev-parse", "HEAD"]);
+    const dirtySourceSha = git(dirtyWorktree, ["rev-parse", "HEAD"]);
+    await writeFile(resolve(happyWorktree, "review-fix.txt"), "delivered\n");
+    git(happyWorktree, ["add", "review-fix.txt"]);
+    git(happyWorktree, ["commit", "-m", "deliver review fix"]);
+    const resultSha = git(happyWorktree, ["rev-parse", "HEAD"]);
+    await writeFile(resolve(dirtyWorktree, "review-fix.txt"), "staged fix\n");
+    git(dirtyWorktree, ["add", "review-fix.txt"]);
     runNode(resolve(app, "src/orchestrator/state/init-run-store.ts"), [], home);
     const state = new DatabaseSync(resolve(home, "state/orchestrator.db"));
     state.exec(`
@@ -311,6 +370,21 @@ async function main(): Promise<void> {
         'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',
         'bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb','rv-review-ready',1);
     `);
+    state
+      .prepare(
+        `UPDATE run_resources SET worktree_path=? WHERE run_id='r_review_fix'`,
+      )
+      .run(happyWorktree);
+    state
+      .prepare(
+        `UPDATE run_ci_snapshots SET head_sha=? WHERE run_id='r_review_fix'`,
+      )
+      .run(sourceSha);
+    state
+      .prepare(
+        `UPDATE run_ai_reviews SET head_sha=? WHERE run_id='r_review_fix'`,
+      )
+      .run(sourceSha);
     state.close();
     const controls = runNode(
       resolve(app, "src/orchestrator/controls/run.ts"),
@@ -337,6 +411,8 @@ async function main(): Promise<void> {
     const fakeBin = resolve(home, "fake-bin");
     const fakeTmuxState = resolve(home, "review-fix-tmux-alive");
     const fakeTmuxLog = resolve(home, "review-fix-tmux.log");
+    const fakeCodex = resolve(home, "fake-codex.mjs");
+    const archiveLog = resolve(home, "review-fix-archives.log");
     await mkdir(fakeBin, { recursive: true, mode: 0o700 });
     await writeFile(
       resolve(fakeBin, "tmux"),
@@ -367,10 +443,17 @@ esac
       { mode: 0o700 },
     );
     await writeFile(fakeTmuxState, "alive\n", { mode: 0o600 });
+    await writeFile(
+      fakeCodex,
+      `#!${process.execPath}\nimport { appendFileSync } from "node:fs";\nimport { createInterface } from "node:readline";\nconst lines = createInterface({ input: process.stdin });\nfor await (const line of lines) {\n  const message = JSON.parse(line);\n  if (message.method === "thread/archive") {\n    appendFileSync(process.env.FAKE_CODEX_ARCHIVE_LOG, message.params.threadId + "\\n");\n  }\n  if (typeof message.id === "number") {\n    process.stdout.write(JSON.stringify({ id: message.id, result: {} }) + "\\n");\n  }\n}\n`,
+      { mode: 0o700 },
+    );
     const lifecycleEnv = {
       PATH: `${fakeBin}${delimiter}${process.env.PATH ?? ""}`,
       FAKE_TMUX_STATE: fakeTmuxState,
       FAKE_TMUX_LOG: fakeTmuxLog,
+      CODEX_BIN: fakeCodex,
+      FAKE_CODEX_ARCHIVE_LOG: archiveLog,
       CONTROLLER_QUIET: "0",
     };
     const lifecycleState = new DatabaseSync(
@@ -392,10 +475,14 @@ esac
           previous_codex_thread_id='01a-primary'
       WHERE run_id='r_review_fix';
       UPDATE run_ci_snapshots
-      SET head_sha='cccccccccccccccccccccccccccccccccccccccc',
-          aggregate_state='passed'
+      SET aggregate_state='passed'
       WHERE run_id='r_review_fix';
     `);
+    lifecycleState
+      .prepare(
+        `UPDATE run_ci_snapshots SET head_sha=? WHERE run_id='r_review_fix'`,
+      )
+      .run(resultSha);
     lifecycleState
       .prepare(
         `INSERT INTO run_review_fix_rounds (
@@ -404,10 +491,10 @@ esac
            source_head_sha, snapshot_json, codex_thread_id
          ) VALUES ('rfr_feedface1234','r_review_fix',?,1,'running',
            'Shagon1k/TailorTales',241,'https://example.invalid/pulls/241',
-           'bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb','[]',
+           ?,'[]',
            '01a-review-fix-completed')`,
       )
-      .run(requestId);
+      .run(requestId, sourceSha);
     lifecycleState.close();
 
     const lifecycleController = runNode(
@@ -445,8 +532,7 @@ esac
     };
     assert(
       lifecycleRound.round_state === "resolving" &&
-        lifecycleRound.result_head_sha ===
-          "cccccccccccccccccccccccccccccccccccccccc" &&
+        lifecycleRound.result_head_sha === resultSha &&
         lifecycleRound.owner_state === "none" &&
         lifecycleRound.tmux_session_name === null,
       "Completed review fix with passed CI did not advance to resolution",
@@ -479,19 +565,37 @@ esac
     lifecycleVerify.close();
     const cleanupController = runNode(
       resolve(app, "src/orchestrator/runtime/controller.ts"),
-      [],
+      ["--apply"],
       home,
+      lifecycleEnv,
     );
     assert(
-      (cleanupController.plans as JsonObject[]).some(
-        (plan) =>
-          plan.action === "review_fix_cleanup" &&
-          plan.runId === "r_review_fix",
+      (cleanupController.results as JsonObject[]).some(
+        (result) =>
+          result.action === "review_fix_cleanup" &&
+          result.runId === "r_review_fix" &&
+          result.status === "applied",
       ),
-      "Controller did not schedule review-fix task cleanup",
+      "Controller did not apply review-fix task cleanup",
     );
     const lifecycleCleanup = new DatabaseSync(
       resolve(home, "state/orchestrator.db"),
+    );
+    const cleanedMapping = lifecycleCleanup
+      .prepare(
+        `SELECT codex_thread_id, previous_codex_thread_id
+         FROM run_resources WHERE run_id='r_review_fix'`,
+      )
+      .get() as {
+      codex_thread_id: string;
+      previous_codex_thread_id: string | null;
+    };
+    assert(
+      cleanedMapping.codex_thread_id === "01a-primary" &&
+        cleanedMapping.previous_codex_thread_id === null &&
+        (await readFile(archiveLog, "utf8")).trim() ===
+          "01a-review-fix-completed",
+      "Successful review-fix cleanup did not archive the writer and restore the primary task",
     );
     lifecycleCleanup.exec(`
       DELETE FROM run_review_fix_rounds WHERE round_id='rfr_feedface1234';
@@ -502,6 +606,130 @@ esac
       WHERE run_id='r_review_fix';
     `);
     lifecycleCleanup.close();
+
+    const dirtyState = new DatabaseSync(resolve(home, "state/orchestrator.db"));
+    dirtyState.exec(`
+      INSERT INTO project_events (
+        event_id, observed_at, project, item_id, content_id, content_type,
+        repository, issue_number, title, url, payload_json, processing_state
+      ) VALUES ('event-fix-dirty','2026-08-19T12:00:00.000Z','tailortales',
+        'item-fix-dirty','content-fix-dirty','Issue','Shagon1k/TailorTales',142,
+        'Dirty review fix','https://example.invalid/issues/142','{}','processed');
+      INSERT INTO runs (
+        run_id, trigger_event_id, project, item_id, content_id, repository,
+        issue_number, interaction_policy, state, owner_state, execution_mode
+      ) VALUES ('r_review_fix_dirty','event-fix-dirty','tailortales',
+        'item-fix-dirty','content-fix-dirty','Shagon1k/TailorTales',142,
+        'autonomous','parked_review','cli','live');
+      INSERT INTO run_resources (
+        run_id, resource_state, worktree_path, branch_name, codex_thread_id,
+        previous_codex_thread_id, tmux_session_name
+      ) VALUES ('r_review_fix_dirty','provisioned','/tmp/placeholder',
+        'TT-142_fix','01a-review-fix-dirty','01a-primary-dirty',
+        'cx-tt-142-review-fix');
+      INSERT INTO run_control_requests (
+        request_id, run_id, action, request_state, requested_via, idempotency_key
+      ) VALUES ('rq_review_fix_dirty','r_review_fix_dirty','review_fix','applied',
+        'discord','review:fix:dirty');
+    `);
+    dirtyState
+      .prepare(
+        `UPDATE run_resources SET worktree_path=?
+         WHERE run_id='r_review_fix_dirty'`,
+      )
+      .run(dirtyWorktree);
+    dirtyState
+      .prepare(
+        `INSERT INTO run_review_fix_rounds (
+           round_id, run_id, request_id, round_number, round_state,
+           repository, pull_request_number, pull_request_url,
+           source_head_sha, snapshot_json, codex_thread_id
+         ) VALUES ('rfr_dirty','r_review_fix_dirty','rq_review_fix_dirty',1,
+           'running','Shagon1k/TailorTales',242,
+           'https://example.invalid/pulls/242',?,'[]','01a-review-fix-dirty')`,
+      )
+      .run(dirtySourceSha);
+    dirtyState.close();
+
+    const dirtyPark = runNode(
+      resolve(app, "src/orchestrator/runtime/controller.ts"),
+      ["--apply"],
+      home,
+      lifecycleEnv,
+    );
+    assert(
+      (dirtyPark.results as JsonObject[]).some(
+        (result) =>
+          result.runId === "r_review_fix_dirty" &&
+          result.action === "park" &&
+          result.status === "deferred" &&
+          String(result.reason).includes("staged or uncommitted work"),
+      ),
+      "Staged dirty review fix with unchanged HEAD did not fail closed before park",
+    );
+    const dirtyVerify = new DatabaseSync(resolve(home, "state/orchestrator.db"));
+    const preserved = dirtyVerify
+      .prepare(
+        `SELECT r.state, r.owner_state, rr.tmux_session_name,
+                rr.codex_thread_id, rr.previous_codex_thread_id,
+                f.round_state, f.failure_reason
+         FROM runs r JOIN run_resources rr USING (run_id)
+         JOIN run_review_fix_rounds f USING (run_id)
+         WHERE r.run_id='r_review_fix_dirty'`,
+      )
+      .get() as {
+      state: string;
+      owner_state: string;
+      tmux_session_name: string | null;
+      codex_thread_id: string;
+      previous_codex_thread_id: string | null;
+      round_state: string;
+      failure_reason: string | null;
+    };
+    assert(
+      preserved.state === "needs_attention" &&
+        preserved.owner_state === "none" &&
+        preserved.tmux_session_name === null &&
+        preserved.codex_thread_id === "01a-review-fix-dirty" &&
+        preserved.previous_codex_thread_id === "01a-primary-dirty" &&
+        preserved.round_state === "needs_attention" &&
+        preserved.failure_reason === "review_fix_uncommitted_changes" &&
+        git(dirtyWorktree, ["diff", "--cached", "--name-only"]) ===
+          "review-fix.txt",
+      "Dirty review-fix context or staged work was not preserved in needs_attention",
+    );
+    dirtyVerify.exec(`
+      UPDATE run_review_fix_rounds
+      SET round_state='succeeded', failure_reason=NULL
+      WHERE round_id='rfr_dirty';
+    `);
+    dirtyVerify.close();
+    const cleanupFailure = runNodeFailure(
+      resolve(app, "src/orchestrator/projects/sessions/manager.ts"),
+      ["cleanup-review-fix", "--run-id", "r_review_fix_dirty", "--apply"],
+      home,
+      lifecycleEnv,
+    );
+    assert(
+      cleanupFailure.includes("staged or uncommitted work") &&
+        (await readFile(archiveLog, "utf8")).trim() ===
+          "01a-review-fix-completed",
+      "Dirty review-fix task was archived during cleanup",
+    );
+    const guardedPlan = runNode(
+      resolve(app, "src/orchestrator/runtime/controller.ts"),
+      [],
+      home,
+      lifecycleEnv,
+    );
+    assert(
+      !(guardedPlan.plans as JsonObject[]).some(
+        (plan) =>
+          plan.runId === "r_review_fix_dirty" &&
+          plan.action === "review_fix_cleanup",
+      ),
+      "Guarded review-fix attention state still scheduled automatic cleanup",
+    );
 
     const recoveryState = new DatabaseSync(resolve(home, "state/orchestrator.db"));
     recoveryState.exec("BEGIN IMMEDIATE");
@@ -515,10 +743,14 @@ esac
     recoveryState.exec(`
       UPDATE runs SET state='needs_attention' WHERE run_id='r_review_fix';
       UPDATE run_ci_snapshots
-      SET head_sha='cccccccccccccccccccccccccccccccccccccccc',
-          aggregate_state='passed'
+      SET aggregate_state='passed'
       WHERE run_id='r_review_fix';
     `);
+    recoveryState
+      .prepare(
+        `UPDATE run_ci_snapshots SET head_sha=? WHERE run_id='r_review_fix'`,
+      )
+      .run(resultSha);
     recoveryState
       .prepare(
         `INSERT INTO run_review_fix_rounds (
@@ -528,12 +760,12 @@ esac
            resolution_attempt_count, failure_reason, completed_at
          ) VALUES ('rfr_abcdef123456','r_review_fix',?,1,'needs_attention',
            'Shagon1k/TailorTales',241,'https://example.invalid/pulls/241',
-           'bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb','[]','01a-review-fix',
-           'cccccccccccccccccccccccccccccccccccccccc',3,
+           ?,'[]','01a-review-fix',
+           ?,3,
            'GitHub thread reconciliation failed after 3 attempts: denied',
            strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))`,
       )
-      .run(requestId);
+      .run(requestId, sourceSha, resultSha);
     recoveryState.exec(`
       INSERT INTO run_review_fix_threads (
         round_id, thread_id, root_comment_id, source_kind, path, line,
@@ -614,6 +846,8 @@ esac
         completedWriterShutdown: true,
         passedCiResolutionScheduled: true,
         cleanupScheduled: true,
+        stagedDirtyTaskPreserved: true,
+        dirtyCleanupGuarded: true,
         resolutionOnlyRecovery: true,
         populatedV15UpgradePreserved: true,
       })}\n`,

@@ -134,6 +134,15 @@ type ReviewFixContext = {
   threads: ActionableReviewThread[];
 };
 
+type ReviewFixDeliveryRound = {
+  round_id: string;
+  round_number: number;
+  round_state: string;
+  source_head_sha: string;
+  codex_thread_id: string;
+  failure_reason: string | null;
+};
+
 const orchestratorHome = resolveKuramiHome(
   resolve(import.meta.dirname, "../../../../.."),
 );
@@ -317,6 +326,153 @@ function gitIsAncestor(worktreePath: string, ancestor: string): boolean {
   if (result.status === 0) return true;
   if (result.status === 1) return false;
   fail(result.stderr.trim() || "Failed to validate recorded base SHA");
+}
+
+async function reviewFixHasUndeliveredChanges(
+  run: SessionRun,
+  project: ProjectConfig,
+  round: ReviewFixDeliveryRound,
+): Promise<{ dirty: boolean; headSha: string; sourceHeadSha: string }> {
+  if (!run.worktree_path || !run.branch_name)
+    fail("Review fix has no managed worktree/branch mapping");
+  if (project.repository.toLowerCase() !== run.repository.toLowerCase())
+    fail("Review fix repository mapping does not match the run");
+
+  const worktreeRoot = resolve(project.workspace.worktree_root);
+  const worktreePath = resolve(run.worktree_path);
+  const relativePath = relative(worktreeRoot, worktreePath);
+  if (
+    !relativePath ||
+    relativePath.startsWith("..") ||
+    resolve(worktreeRoot, relativePath) !== worktreePath
+  )
+    fail(`Review fix worktree escapes the configured root: ${worktreePath}`);
+  if (!(await stat(worktreePath)).isDirectory())
+    fail(`Review fix worktree is not a directory: ${worktreePath}`);
+  if ((await realpath(worktreePath)) !== worktreePath)
+    fail(`Review fix worktree path is not canonical: ${worktreePath}`);
+  if (git(worktreePath, ["rev-parse", "--show-toplevel"]) !== worktreePath)
+    fail(`Review fix path is not the exact managed worktree: ${worktreePath}`);
+  const branch = git(worktreePath, ["branch", "--show-current"]);
+  if (branch !== run.branch_name)
+    fail(`Review fix branch mismatch: expected ${run.branch_name}, got ${branch}`);
+
+  return {
+    dirty:
+      git(worktreePath, ["status", "--porcelain", "--untracked-files=all"]) !==
+      "",
+    headSha: git(worktreePath, ["rev-parse", "HEAD"]),
+    sourceHeadSha: round.source_head_sha,
+  };
+}
+
+function markUndeliveredReviewFix(
+  database: DatabaseSync,
+  run: SessionRun,
+  round: ReviewFixDeliveryRound,
+  delivery: { headSha: string; sourceHeadSha: string },
+  tmuxAlive: boolean,
+): void {
+  const reason = "review_fix_uncommitted_changes";
+  const detail =
+    "Review fix left staged or uncommitted work without advancing HEAD beyond its source SHA";
+  database.exec("BEGIN IMMEDIATE");
+  try {
+    const current = loadRun(database, run.run_id);
+    if (
+      current.codex_thread_id !== run.codex_thread_id ||
+      current.previous_codex_thread_id !== run.previous_codex_thread_id ||
+      current.tmux_session_name !== run.tmux_session_name
+    )
+      fail("Run changed while preserving undelivered review fix work");
+    const currentRound = database
+      .prepare(
+        `SELECT source_head_sha, codex_thread_id, failure_reason
+         FROM run_review_fix_rounds WHERE round_id=? AND run_id=?`,
+      )
+      .get(round.round_id, run.run_id) as
+      | {
+          source_head_sha: string;
+          codex_thread_id: string | null;
+          failure_reason: string | null;
+        }
+      | undefined;
+    if (
+      !currentRound ||
+      currentRound.source_head_sha !== round.source_head_sha ||
+      currentRound.codex_thread_id !== round.codex_thread_id
+    )
+      fail("Review fix round changed while preserving undelivered work");
+
+    database
+      .prepare(
+        `UPDATE run_review_fix_rounds
+         SET round_state='needs_attention', failure_reason=?,
+             updated_at=strftime('%Y-%m-%dT%H:%M:%fZ', 'now'),
+             completed_at=COALESCE(completed_at, strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))
+         WHERE round_id=?`,
+      )
+      .run(reason, round.round_id);
+    if (!tmuxAlive && run.tmux_session_name)
+      database
+        .prepare(
+          `UPDATE run_resources SET tmux_session_name=NULL,
+             updated_at=strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
+           WHERE run_id=? AND tmux_session_name=?`,
+        )
+        .run(run.run_id, run.tmux_session_name);
+    if (!["archived", "cancelled"].includes(current.run_state))
+      database
+        .prepare(
+          `UPDATE runs SET state='needs_attention', owner_state=?,
+             updated_at=strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
+           WHERE run_id=?`,
+        )
+        .run(tmuxAlive ? "cli" : "none", run.run_id);
+    if (
+      current.run_state !== "needs_attention" ||
+      currentRound.failure_reason !== reason
+    )
+      appendHistory(
+        database,
+        run.run_id,
+        current.run_state,
+        ["archived", "cancelled"].includes(current.run_state)
+          ? current.run_state
+          : "needs_attention",
+        reason,
+        {
+          roundId: round.round_id,
+          roundNumber: round.round_number,
+          sourceHeadSha: delivery.sourceHeadSha,
+          localHeadSha: delivery.headSha,
+          codexThreadId: run.codex_thread_id,
+          previousCodexThreadId: run.previous_codex_thread_id,
+          detail,
+        },
+      );
+    database.exec("COMMIT");
+  } catch (error) {
+    database.exec("ROLLBACK");
+    throw error;
+  }
+}
+
+async function guardReviewFixDelivery(
+  database: DatabaseSync,
+  run: SessionRun,
+  project: ProjectConfig,
+  round: ReviewFixDeliveryRound,
+  tmuxAlive: boolean,
+  apply: boolean,
+): Promise<void> {
+  const delivery = await reviewFixHasUndeliveredChanges(run, project, round);
+  if (!delivery.dirty || delivery.headSha !== delivery.sourceHeadSha) return;
+  if (apply)
+    markUndeliveredReviewFix(database, run, round, delivery, tmuxAlive);
+  fail(
+    "Review fix left staged or uncommitted work without advancing HEAD beyond its source SHA; preserving the review-fix task for attention",
+  );
 }
 
 function sessionName(run: SessionRun, project: ProjectConfig): string {
@@ -1536,6 +1692,7 @@ async function cleanupRepairSession(
 async function cleanupReviewFixSession(
   database: DatabaseSync,
   run: SessionRun,
+  registry: ProjectsRegistry,
   apply: boolean,
 ): Promise<void> {
   if (
@@ -1550,21 +1707,20 @@ async function cleanupReviewFixSession(
     fail("Run is not ready for review fix cleanup");
   const round = database
     .prepare(
-      `SELECT round_id, round_number, round_state, codex_thread_id
+      `SELECT round_id, round_number, round_state, source_head_sha,
+              codex_thread_id, failure_reason
        FROM run_review_fix_rounds
        WHERE run_id = ? AND codex_thread_id = ?
        ORDER BY round_number DESC LIMIT 1`,
     )
     .get(run.run_id, run.codex_thread_id) as
-    | {
-        round_id: string;
-        round_number: number;
-        round_state: string;
-        codex_thread_id: string;
-      }
+    | ReviewFixDeliveryRound
     | undefined;
   if (!round || ["running", "waiting_ci", "resolving"].includes(round.round_state))
     fail("Run has no completed review fix task ready for cleanup");
+  const project = registry.projects[run.project];
+  if (!project) fail(`Unknown project in run: ${run.project}`);
+  await guardReviewFixDelivery(database, run, project, round, false, apply);
   const plan = {
     runId: run.run_id,
     roundId: round.round_id,
@@ -1708,6 +1864,31 @@ async function leaveCliSession(
     fail(`Codex is waiting for approval; resolve it before handoff`);
   if (busy && targetOwner !== "remote")
     fail(`Codex turn is still active; handoff is not safe yet`);
+  if (targetOwner === "none" && run.codex_thread_id) {
+    const activeReviewFix = database
+      .prepare(
+        `SELECT round_id, round_number, round_state, source_head_sha,
+                codex_thread_id, failure_reason
+         FROM run_review_fix_rounds
+         WHERE run_id=? AND codex_thread_id=? AND round_state='running'
+         ORDER BY round_number DESC LIMIT 1`,
+      )
+      .get(run.run_id, run.codex_thread_id) as
+      | ReviewFixDeliveryRound
+      | undefined;
+    if (activeReviewFix) {
+      const project = registry.projects[run.project];
+      if (!project) fail(`Unknown project in run: ${run.project}`);
+      await guardReviewFixDelivery(
+        database,
+        run,
+        project,
+        activeReviewFix,
+        tmuxAlive,
+        apply,
+      );
+    }
+  }
   if (!apply) {
     process.stdout.write(
       `${JSON.stringify({ ok: true, apply: false, plan: initialPlan })}\n`,
@@ -2182,7 +2363,7 @@ export async function runSessionManagerCli(): Promise<void> {
       return;
     }
     if (args.action === "cleanup-review-fix") {
-      await cleanupReviewFixSession(database, run, args.apply);
+      await cleanupReviewFixSession(database, run, registry, args.apply);
       return;
     }
     if (args.action === "cancel") {
