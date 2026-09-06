@@ -1221,6 +1221,12 @@ function transcriptHasIdlePrompt(transcript: string): boolean {
   return /(?:^|\n)›[^\n]*(?:\n|$)/u.test(transcript.slice(-1_500));
 }
 
+function transcriptHasCompletedTurn(transcript: string): boolean {
+  return /Worked for[^\n]*\nToken usage:[^\n]*\nTo continue this session, run codex resume [a-f0-9-]{16,}/iu.test(
+    transcript.slice(-2_000),
+  );
+}
+
 function sendTmuxLiteral(sessionNameValue: string, value: string): void {
   runFile("tmux", [
     "send-keys",
@@ -1747,12 +1753,14 @@ async function leaveCliSession(
     }
   }
 
+  const terminalTurnCompleted = transcriptHasCompletedTurn(transcript);
   const plan = {
     ...initialPlan,
     tmuxAlive: tmuxAliveAtStart,
     busy,
     waitingOnApproval,
     interruptedTurn,
+    terminalTurnCompleted,
   };
 
   await mkdir(tailDirectory, { recursive: true, mode: 0o700 });
@@ -1761,12 +1769,22 @@ async function leaveCliSession(
     mode: 0o600,
   });
 
+  let forced = false;
   if (tmuxAlive && run.tmux_session_name) {
     sendTmuxKeys(run.tmux_session_name, ["C-u"]);
     sendTmuxKeys(run.tmux_session_name, ["C-d"]);
     for (let attempt = 0; attempt < 40; attempt += 1) {
       await new Promise((resolveDelay) => setTimeout(resolveDelay, 250));
       if (!tmuxSessionExists(run.tmux_session_name)) break;
+      if (
+        attempt === 3 &&
+        targetOwner === "none" &&
+        terminalTurnCompleted
+      ) {
+        forced = true;
+        killTmuxSession(run.tmux_session_name);
+        break;
+      }
       if (attempt === 11 || attempt === 23) {
         sendTmuxKeys(run.tmux_session_name, ["C-d"]);
       }
@@ -1832,6 +1850,7 @@ async function leaveCliSession(
         previousTmuxSessionName: run.tmux_session_name,
         terminalTailPath: tailPath,
         recoveredAfterTmuxExit: !tmuxAlive,
+        forced,
       },
     );
     database.exec("COMMIT");
@@ -1841,7 +1860,7 @@ async function leaveCliSession(
   }
 
   process.stdout.write(
-    `${JSON.stringify({ ok: true, apply: true, ...plan })}\n`,
+    `${JSON.stringify({ ok: true, apply: true, ...plan, forced })}\n`,
   );
 }
 

@@ -1210,8 +1210,9 @@ function reconcileReviewFixRounds(database: DatabaseSync): void {
     aggregate_state: string | null;
   }>;
   for (const round of rounds) {
+    let roundState = round.round_state;
     if (
-      round.round_state === "running" &&
+      roundState === "running" &&
       round.run_state === "parked_review" &&
       round.owner_state === "none" &&
       round.tmux_session_name === null
@@ -1223,9 +1224,9 @@ function reconcileReviewFixRounds(database: DatabaseSync): void {
            WHERE round_id=? AND round_state='running'`,
         )
         .run(round.round_id);
-      continue;
+      roundState = "waiting_ci";
     }
-    if (round.round_state !== "waiting_ci") continue;
+    if (roundState !== "waiting_ci") continue;
     const newHead = Boolean(round.head_sha) && round.head_sha !== round.source_head_sha;
     if (newHead && round.aggregate_state === "passed") {
       database

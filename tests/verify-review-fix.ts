@@ -1,7 +1,7 @@
 import { execFileSync } from "node:child_process";
 import { mkdir, mkdtemp, readFile, readdir, realpath, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
-import { resolve } from "node:path";
+import { delimiter, resolve } from "node:path";
 import { DatabaseSync } from "node:sqlite";
 import {
   replyAndResolveReviewThread,
@@ -16,10 +16,15 @@ function assert(condition: unknown, message: string): asserts condition {
   if (!condition) throw new Error(message);
 }
 
-function runNode(script: string, args: string[], home: string): JsonObject {
+function runNode(
+  script: string,
+  args: string[],
+  home: string,
+  env: NodeJS.ProcessEnv = {},
+): JsonObject {
   const output = execFileSync(process.execPath, [script, ...args], {
     encoding: "utf8",
-    env: { ...process.env, KURAMI_HOME: home },
+    env: { ...process.env, ...env, KURAMI_HOME: home },
     stdio: ["ignore", "pipe", "pipe"],
   });
   return JSON.parse(output.trim().split(/\r?\n/u).filter(Boolean).at(-1)!) as JsonObject;
@@ -329,8 +334,176 @@ async function main(): Promise<void> {
       "Controller did not plan the explicit review fix",
     );
 
-    const recoveryState = new DatabaseSync(resolve(home, "state/orchestrator.db"));
+    const fakeBin = resolve(home, "fake-bin");
+    const fakeTmuxState = resolve(home, "review-fix-tmux-alive");
+    const fakeTmuxLog = resolve(home, "review-fix-tmux.log");
+    await mkdir(fakeBin, { recursive: true, mode: 0o700 });
+    await writeFile(
+      resolve(fakeBin, "tmux"),
+      `#!/bin/sh
+set -eu
+printf '%s\\n' "$*" >> "$FAKE_TMUX_LOG"
+case "$1" in
+  has-session)
+    test -f "$FAKE_TMUX_STATE"
+    ;;
+  capture-pane)
+    printf '%s\\n' 'Review fixes committed and pushed.' \
+      '─ Worked for 5m 58s ─' \
+      'Token usage: total=97,952 input=85,968 output=11,984' \
+      'To continue this session, run codex resume 01a07546-c4c9-7ac3-a74e-1e5ca49f39a8'
+    ;;
+  send-keys)
+    exit 0
+    ;;
+  kill-session)
+    /bin/rm -f "$FAKE_TMUX_STATE"
+    ;;
+  *)
+    exit 64
+    ;;
+esac
+`,
+      { mode: 0o700 },
+    );
+    await writeFile(fakeTmuxState, "alive\n", { mode: 0o600 });
+    const lifecycleEnv = {
+      PATH: `${fakeBin}${delimiter}${process.env.PATH ?? ""}`,
+      FAKE_TMUX_STATE: fakeTmuxState,
+      FAKE_TMUX_LOG: fakeTmuxLog,
+      CONTROLLER_QUIET: "0",
+    };
+    const lifecycleState = new DatabaseSync(
+      resolve(home, "state/orchestrator.db"),
+    );
     const requestId = String(created.requestId);
+    lifecycleState
+      .prepare(
+        `UPDATE run_control_requests
+         SET request_state='applied', completed_at=strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
+         WHERE request_id=?`,
+      )
+      .run(requestId);
+    lifecycleState.exec(`
+      UPDATE runs SET owner_state='cli' WHERE run_id='r_review_fix';
+      UPDATE run_resources
+      SET tmux_session_name='cx-tt-141-review-fix',
+          codex_thread_id='01a-review-fix-completed',
+          previous_codex_thread_id='01a-primary'
+      WHERE run_id='r_review_fix';
+      UPDATE run_ci_snapshots
+      SET head_sha='cccccccccccccccccccccccccccccccccccccccc',
+          aggregate_state='passed'
+      WHERE run_id='r_review_fix';
+    `);
+    lifecycleState
+      .prepare(
+        `INSERT INTO run_review_fix_rounds (
+           round_id, run_id, request_id, round_number, round_state,
+           repository, pull_request_number, pull_request_url,
+           source_head_sha, snapshot_json, codex_thread_id
+         ) VALUES ('rfr_feedface1234','r_review_fix',?,1,'running',
+           'Shagon1k/TailorTales',241,'https://example.invalid/pulls/241',
+           'bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb','[]',
+           '01a-review-fix-completed')`,
+      )
+      .run(requestId);
+    lifecycleState.close();
+
+    const lifecycleController = runNode(
+      resolve(app, "src/orchestrator/runtime/controller.ts"),
+      ["--apply"],
+      home,
+      lifecycleEnv,
+    );
+    assert(
+      (lifecycleController.results as JsonObject[]).some(
+        (result) =>
+          result.runId === "r_review_fix" &&
+          result.action === "park" &&
+          result.status === "applied",
+      ),
+      "Controller did not park a completed review-fix writer",
+    );
+    const lifecycleVerify = new DatabaseSync(
+      resolve(home, "state/orchestrator.db"),
+    );
+    const lifecycleRound = lifecycleVerify
+      .prepare(
+        `SELECT f.round_state, f.result_head_sha, r.owner_state,
+                rr.tmux_session_name
+         FROM run_review_fix_rounds f
+         JOIN runs r USING (run_id)
+         JOIN run_resources rr USING (run_id)
+         WHERE f.round_id='rfr_feedface1234'`,
+      )
+      .get() as {
+      round_state: string;
+      result_head_sha: string | null;
+      owner_state: string;
+      tmux_session_name: string | null;
+    };
+    assert(
+      lifecycleRound.round_state === "resolving" &&
+        lifecycleRound.result_head_sha ===
+          "cccccccccccccccccccccccccccccccccccccccc" &&
+        lifecycleRound.owner_state === "none" &&
+        lifecycleRound.tmux_session_name === null,
+      "Completed review fix with passed CI did not advance to resolution",
+    );
+    const shutdownCalls = await readFile(fakeTmuxLog, "utf8");
+    assert(
+      shutdownCalls.includes(
+        "kill-session -t =cx-tt-141-review-fix",
+      ),
+      "Completed unresponsive Codex process was not boundedly stopped",
+    );
+    const resolvingController = runNode(
+      resolve(app, "src/orchestrator/runtime/controller.ts"),
+      [],
+      home,
+    );
+    assert(
+      (resolvingController.plans as JsonObject[]).some(
+        (plan) =>
+          plan.action === "review_fix_resolve" &&
+          plan.roundId === "rfr_feedface1234",
+      ),
+      "Controller did not schedule review thread resolution",
+    );
+    lifecycleVerify.exec(`
+      UPDATE run_review_fix_rounds
+      SET round_state='succeeded', completed_at=strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
+      WHERE round_id='rfr_feedface1234';
+    `);
+    lifecycleVerify.close();
+    const cleanupController = runNode(
+      resolve(app, "src/orchestrator/runtime/controller.ts"),
+      [],
+      home,
+    );
+    assert(
+      (cleanupController.plans as JsonObject[]).some(
+        (plan) =>
+          plan.action === "review_fix_cleanup" &&
+          plan.runId === "r_review_fix",
+      ),
+      "Controller did not schedule review-fix task cleanup",
+    );
+    const lifecycleCleanup = new DatabaseSync(
+      resolve(home, "state/orchestrator.db"),
+    );
+    lifecycleCleanup.exec(`
+      DELETE FROM run_review_fix_rounds WHERE round_id='rfr_feedface1234';
+      UPDATE runs SET owner_state='none' WHERE run_id='r_review_fix';
+      UPDATE run_resources
+      SET tmux_session_name=NULL, codex_thread_id='01a-primary',
+          previous_codex_thread_id=NULL
+      WHERE run_id='r_review_fix';
+    `);
+    lifecycleCleanup.close();
+
+    const recoveryState = new DatabaseSync(resolve(home, "state/orchestrator.db"));
     recoveryState.exec("BEGIN IMMEDIATE");
     recoveryState
       .prepare(
@@ -438,6 +611,9 @@ async function main(): Promise<void> {
         freshWriterPlanned: true,
         splitCredentialResolution: true,
         idempotentGitHubResolution: true,
+        completedWriterShutdown: true,
+        passedCiResolutionScheduled: true,
+        cleanupScheduled: true,
         resolutionOnlyRecovery: true,
         populatedV15UpgradePreserved: true,
       })}\n`,
