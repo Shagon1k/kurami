@@ -1390,6 +1390,29 @@ function reconcileFalseReviewFixNoNewHead(database: DatabaseSync): void {
               ci.pull_request_number AS ci_pull_request_number,
               ci.pull_request_url AS ci_pull_request_url,
               ci.head_sha, ci.aggregate_state, ci.last_observed_at, ci.last_error,
+              EXISTS (
+                SELECT 1 FROM run_review_fix_operations cleanup
+                WHERE cleanup.round_id=f.round_id
+                  AND cleanup.operation_kind='cleanup'
+                  AND cleanup.operation_state='completed'
+                  AND cleanup.completed_at IS NOT NULL
+                  AND cleanup.task_codex_thread_id=f.codex_thread_id
+                  AND cleanup.previous_codex_thread_id=rr.codex_thread_id
+              ) AS exact_completed_cleanup_operation,
+              EXISTS (
+                SELECT 1 FROM run_state_history cleanup_history
+                WHERE cleanup_history.run_id=f.run_id
+                  AND cleanup_history.reason='review_fix_task_archived'
+                  AND json_extract(cleanup_history.details_json, '$.roundId')=f.round_id
+                  AND json_extract(
+                    cleanup_history.details_json,
+                    '$.reviewFixCodexThreadId'
+                  )=f.codex_thread_id
+                  AND json_extract(
+                    cleanup_history.details_json,
+                    '$.restoredCodexThreadId'
+                  )=rr.codex_thread_id
+              ) AS exact_cleanup_history,
               (SELECT h.reason FROM run_state_history h
                WHERE h.run_id=f.run_id AND h.to_state='needs_attention'
                  AND h.reason NOT IN (
@@ -1446,6 +1469,8 @@ function reconcileFalseReviewFixNoNewHead(database: DatabaseSync): void {
     aggregate_state: string;
     last_observed_at: string;
     last_error: string | null;
+    exact_completed_cleanup_operation: number;
+    exact_cleanup_history: number;
     attention_reason: string | null;
     active_repair_count: number;
     active_review_count: number;
@@ -1460,6 +1485,18 @@ function reconcileFalseReviewFixNoNewHead(database: DatabaseSync): void {
       Number.isFinite(failedAt) &&
       observedAt <= Date.now() &&
       observedAt > failedAt;
+    const activeTaskMapping =
+      Boolean(round.codex_thread_id) &&
+      round.codex_thread_id === round.current_codex_thread_id &&
+      Boolean(round.previous_codex_thread_id) &&
+      round.previous_codex_thread_id !== round.codex_thread_id;
+    const cleanupCompletedMapping =
+      Boolean(round.codex_thread_id) &&
+      Boolean(round.current_codex_thread_id) &&
+      round.current_codex_thread_id !== round.codex_thread_id &&
+      round.previous_codex_thread_id === null &&
+      (round.exact_completed_cleanup_operation === 1 ||
+        round.exact_cleanup_history === 1);
     const exactDelivery =
       round.run_state === "needs_attention" &&
       round.owner_state === "none" &&
@@ -1468,9 +1505,7 @@ function reconcileFalseReviewFixNoNewHead(database: DatabaseSync): void {
       round.request_action === "review_fix" &&
       round.request_state === "applied" &&
       round.tmux_session_name === null &&
-      Boolean(round.codex_thread_id) &&
-      round.codex_thread_id === round.current_codex_thread_id &&
-      Boolean(round.previous_codex_thread_id) &&
+      (activeTaskMapping || cleanupCompletedMapping) &&
       round.active_repair_count === 0 &&
       round.active_review_count === 0 &&
       round.active_fix_count === 0 &&

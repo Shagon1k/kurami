@@ -1,4 +1,5 @@
 import { execFileSync } from "node:child_process";
+import { generateKeyPairSync } from "node:crypto";
 import { mkdir, mkdtemp, readFile, readdir, realpath, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { delimiter, resolve } from "node:path";
@@ -720,6 +721,12 @@ esac
            '2026-08-19T10:00:00.000Z','2026-08-19T10:00:00.000Z')`,
       )
       .run(secondFixRequestId, resultSha);
+    secondFixState.exec(`
+      INSERT INTO run_review_fix_threads (
+        round_id, thread_id, root_comment_id, source_kind, path, line
+      ) VALUES ('rfr_deadbeef5678','thread-pf-11',711,'owner',
+        'src/review-fix.ts',27);
+    `);
     let duplicateActiveRejected = false;
     try {
       secondFixState.exec(`
@@ -889,12 +896,34 @@ esac
     );
     mismatchedState.exec(`
       UPDATE run_resources
+      SET codex_thread_id='01a-primary', previous_codex_thread_id=NULL
+      WHERE run_id='r_review_fix';
+    `);
+    mismatchedState.close();
+    runNode(
+      resolve(app, "src/orchestrator/runtime/controller.ts"),
+      ["--apply"],
+      home,
+      lifecycleEnv,
+    );
+    const unprovenCleanupState = new DatabaseSync(
+      resolve(home, "state/orchestrator.db"),
+    );
+    assert(
+      (unprovenCleanupState.prepare(
+        `SELECT round_state FROM run_review_fix_rounds WHERE round_id='rfr_deadbeef5678'`,
+      ).get() as { round_state: string }).round_state === "needs_attention",
+      "Restored-primary mapping without exact cleanup evidence was accepted",
+    );
+    unprovenCleanupState.exec(`
+      UPDATE run_resources
       SET codex_thread_id='01a-review-fix-completed-2',
+          previous_codex_thread_id='01a-primary',
           tmux_session_name='cx-tt-141-still-active'
       WHERE run_id='r_review_fix';
       UPDATE runs SET owner_state='cli' WHERE run_id='r_review_fix';
     `);
-    mismatchedState.close();
+    unprovenCleanupState.close();
     runNode(
       resolve(app, "src/orchestrator/runtime/controller.ts"),
       ["--apply"],
@@ -942,34 +971,54 @@ esac
       home,
       lifecycleEnv,
     );
-    const convergedState = new DatabaseSync(resolve(home, "state/orchestrator.db"));
-    const converged = convergedState
+    const activeMappingState = new DatabaseSync(
+      resolve(home, "state/orchestrator.db"),
+    );
+    const activeMappingRecovery = activeMappingState
       .prepare(
-        `SELECT f.round_state, f.result_head_sha, r.state AS run_state
-         FROM run_review_fix_rounds f JOIN runs r USING (run_id)
+        `SELECT f.round_state, f.result_head_sha, f.resolution_attempt_count,
+                r.state AS run_state, rr.codex_thread_id,
+                rr.previous_codex_thread_id
+         FROM run_review_fix_rounds f
+         JOIN runs r USING (run_id)
+         JOIN run_resources rr USING (run_id)
          WHERE f.round_id='rfr_deadbeef5678'`,
       )
       .get() as {
       round_state: string;
       result_head_sha: string | null;
+      resolution_attempt_count: number;
       run_state: string;
+      codex_thread_id: string;
+      previous_codex_thread_id: string | null;
     };
     assert(
-      converged.round_state === "resolving" &&
-        converged.result_head_sha === secondResultSha &&
-        converged.run_state === "parked_review",
-      "Later authoritative exact-head CI did not heal false no-new-head state",
+      activeMappingRecovery.round_state === "resolving" &&
+        activeMappingRecovery.result_head_sha === secondResultSha &&
+        activeMappingRecovery.resolution_attempt_count === 1 &&
+        activeMappingRecovery.run_state === "parked_review" &&
+        activeMappingRecovery.codex_thread_id ===
+          "01a-review-fix-completed-2" &&
+        activeMappingRecovery.previous_codex_thread_id === "01a-primary",
+      "Active review-fix mapping no longer supports exact no-new-head recovery",
     );
-    convergedState.exec(`
+    activeMappingState.exec(`
       UPDATE run_review_fix_rounds
-      SET round_state='succeeded', completed_at=strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
+      SET round_state='needs_attention', result_head_sha=NULL,
+          resolution_attempt_count=0,
+          failure_reason='review_fix_no_new_head',
+          completed_at=datetime('now','-1 second')
       WHERE round_id='rfr_deadbeef5678';
+      UPDATE runs SET state='needs_attention' WHERE run_id='r_review_fix';
+      UPDATE run_ci_snapshots
+      SET aggregate_state='unknown', completed_at=NULL
+      WHERE run_id='r_review_fix';
     `);
-    convergedState.close();
+    activeMappingState.close();
     const cleanupMutationMarker = resolve(home, "archive-cleanup-mutated");
-    const faultedCleanup = runNode(
-      resolve(app, "src/orchestrator/runtime/controller.ts"),
-      ["--apply"],
+    const faultedCleanupFailure = runNodeFailure(
+      resolve(app, "src/orchestrator/projects/sessions/manager.ts"),
+      ["cleanup-review-fix", "--run-id", "r_review_fix", "--apply"],
       home,
       {
         ...lifecycleEnv,
@@ -979,13 +1028,8 @@ esac
       },
     );
     assert(
-      (faultedCleanup.results as JsonObject[]).some(
-        (result) =>
-          result.action === "review_fix_cleanup" &&
-          result.status === "deferred" &&
-          String(result.reason).includes("changed during review fix task cleanup"),
-      ),
-      "Late cleanup validation fault did not defer durable finalization",
+      faultedCleanupFailure.includes("changed during review fix task cleanup"),
+      "Late cleanup validation fault did not preserve durable finalization",
     );
     const faultedCleanupState = new DatabaseSync(
       resolve(home, "state/orchestrator.db"),
@@ -1018,32 +1062,167 @@ esac
     );
     faultedCleanupState.close();
     runNode(
+      resolve(app, "src/orchestrator/projects/sessions/manager.ts"),
+      ["cleanup-review-fix", "--run-id", "r_review_fix", "--apply"],
+      home,
+      lifecycleEnv,
+    );
+    const completedCleanupState = new DatabaseSync(
+      resolve(home, "state/orchestrator.db"),
+    );
+    const completedCleanup = completedCleanupState
+      .prepare(
+        `SELECT o.operation_state, r.owner_state, rr.codex_thread_id,
+                rr.previous_codex_thread_id
+         FROM run_review_fix_operations o
+         JOIN run_review_fix_rounds f USING (round_id)
+         JOIN runs r ON r.run_id=f.run_id
+         JOIN run_resources rr ON rr.run_id=f.run_id
+         WHERE o.round_id='rfr_deadbeef5678' AND o.operation_kind='cleanup'`,
+      )
+      .get() as {
+      operation_state: string;
+      owner_state: string;
+      codex_thread_id: string;
+      previous_codex_thread_id: string | null;
+    };
+    assert(
+      completedCleanup.operation_state === "completed" &&
+        completedCleanup.owner_state === "none" &&
+        completedCleanup.codex_thread_id === "01a-primary" &&
+        completedCleanup.previous_codex_thread_id === null,
+      "Review-fix cleanup did not restore the primary task mapping",
+    );
+    completedCleanupState.exec(`
+      DELETE FROM run_review_fix_operations
+      WHERE round_id='rfr_deadbeef5678' AND operation_kind='cleanup';
+      UPDATE run_ci_snapshots
+      SET aggregate_state='passed',
+          completed_at=strftime('%Y-%m-%dT%H:%M:%fZ', 'now'),
+          last_observed_at=strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
+      WHERE run_id='r_review_fix';
+    `);
+    completedCleanupState.close();
+    runNode(
       resolve(app, "src/orchestrator/runtime/controller.ts"),
       ["--apply"],
       home,
       lifecycleEnv,
     );
-    const secondCleanupState = new DatabaseSync(
+    const convergedState = new DatabaseSync(
       resolve(home, "state/orchestrator.db"),
     );
-    const finalMapping = secondCleanupState
+    const converged = convergedState
       .prepare(
-        `SELECT codex_thread_id, previous_codex_thread_id
-         FROM run_resources WHERE run_id='r_review_fix'`,
+        `SELECT f.round_state, f.result_head_sha, f.resolution_attempt_count,
+                r.state AS run_state, rr.codex_thread_id,
+                rr.previous_codex_thread_id
+         FROM run_review_fix_rounds f
+         JOIN runs r USING (run_id)
+         JOIN run_resources rr USING (run_id)
+         WHERE f.round_id='rfr_deadbeef5678'`,
       )
       .get() as {
+      round_state: string;
+      result_head_sha: string | null;
+      resolution_attempt_count: number;
+      run_state: string;
       codex_thread_id: string;
       previous_codex_thread_id: string | null;
     };
     assert(
-      finalMapping.codex_thread_id === "01a-primary" &&
-        finalMapping.previous_codex_thread_id === null &&
+      converged.round_state === "resolving" &&
+        converged.result_head_sha === secondResultSha &&
+        converged.resolution_attempt_count === 1 &&
+        converged.run_state === "parked_review" &&
+        converged.codex_thread_id === "01a-primary" &&
+        converged.previous_codex_thread_id === null,
+      "Post-cleanup exact-head CI did not heal false no-new-head state",
+    );
+    convergedState.close();
+
+    const reviewerKey = resolve(home, "secrets/reviewer-private-key.pem");
+    const fakeGithubFetch = resolve(home, "fake-github-fetch.mjs");
+    const { privateKey } = generateKeyPairSync("rsa", {
+      modulusLength: 2048,
+      publicKeyEncoding: { type: "spki", format: "pem" },
+      privateKeyEncoding: { type: "pkcs8", format: "pem" },
+    });
+    await writeFile(reviewerKey, privateKey, { mode: 0o600 });
+    await writeFile(
+      resolve(home, "secrets/github-reviewer-app.env"),
+      [
+        "KURAMI_GITHUB_REVIEWER_APP_ID=1",
+        "KURAMI_GITHUB_REVIEWER_INSTALLATION_ID=2",
+        `KURAMI_GITHUB_REVIEWER_PRIVATE_KEY_FILE=${reviewerKey}`,
+        "",
+      ].join("\n"),
+      { mode: 0o600 },
+    );
+    await writeFile(
+      fakeGithubFetch,
+      `globalThis.fetch = async (input, init) => {
+  const url = String(input);
+  const payload = JSON.parse(String(init?.body ?? "{}"));
+  if (url.includes("/app/installations/") && url.endsWith("/access_tokens"))
+    return new Response(JSON.stringify({ token: "installation_token_1234567890", expires_at: "2099-01-01T00:00:00.000Z" }), { status: 201 });
+  if (url.includes("/comments/711/replies"))
+    return new Response(JSON.stringify({ id: 712 }), { status: 201 });
+  if (url.endsWith("/graphql") && payload.query?.includes("query("))
+    return new Response(JSON.stringify({ data: { node: { isResolved: false, comments: { nodes: [] } } } }), { status: 200 });
+  if (url.endsWith("/graphql") && payload.query?.includes("mutation("))
+    return new Response(JSON.stringify({ data: { resolveReviewThread: { thread: { id: "thread-pf-11", isResolved: true } } } }), { status: 200 });
+  throw new Error("Unexpected fake GitHub request: " + url);
+};
+`,
+      { mode: 0o600 },
+    );
+    const resolvedController = runNode(
+      resolve(app, "src/orchestrator/runtime/controller.ts"),
+      ["--apply"],
+      home,
+      {
+        ...lifecycleEnv,
+        NODE_OPTIONS: `${process.env.NODE_OPTIONS ?? ""} --import=${fakeGithubFetch}`.trim(),
+      },
+    );
+    assert(
+      (resolvedController.results as JsonObject[]).some(
+        (result) =>
+          result.action === "review_fix_resolve" &&
+          result.roundId === "rfr_deadbeef5678" &&
+          result.status === "applied",
+      ),
+      "Recovered PF-11 round did not run the existing thread resolver",
+    );
+    const secondCleanupState = new DatabaseSync(
+      resolve(home, "state/orchestrator.db"),
+    );
+    const resolved = secondCleanupState
+      .prepare(
+        `SELECT f.round_state, t.thread_state, t.reply_comment_id
+         FROM run_review_fix_rounds f
+         JOIN run_review_fix_threads t USING (round_id)
+         WHERE f.round_id='rfr_deadbeef5678' AND t.thread_id='thread-pf-11'`,
+      )
+      .get() as {
+      round_state: string;
+      thread_state: string;
+      reply_comment_id: number | null;
+    };
+    assert(
+      resolved.round_state === "succeeded" &&
+        resolved.thread_state === "resolved" &&
+        resolved.reply_comment_id === 712 &&
         (await readFile(archiveLog, "utf8")).trim().split("\n").join(",") ===
           "01a-review-fix-completed,01a-review-fix-completed-2",
-      "Second review-fix cycle did not resolve, archive, and restore primary",
+      "Post-cleanup PF-11 lifecycle did not resolve its snapshot thread",
     );
     secondCleanupState.exec(`
       DELETE FROM run_review_fix_operations WHERE round_id IN (
+        SELECT round_id FROM run_review_fix_rounds WHERE run_id='r_review_fix'
+      );
+      DELETE FROM run_review_fix_threads WHERE round_id IN (
         SELECT round_id FROM run_review_fix_rounds WHERE run_id='r_review_fix'
       );
       DELETE FROM run_review_fix_rounds WHERE run_id='r_review_fix';
