@@ -219,8 +219,11 @@ Default manual experiments to `dry-run`. Generation never archives Gmail;
     identities, source batches, live sections and versioned ranking. Then run
     `$BRIEFING_NODE $BRIEFING_CLI inspect` and use its `recentNotes` from the
     retained five-day window before writing Kurami Notes. Set the target note
-    count to `min(6, max(1, ceil(story_count / 8)))`: this keeps a long news
-    edition lively without turning it into a doodle wall. Ground at least two
+    count to `min(6, max(1, ceil(story_count / 5)))`: this keeps a long news
+    edition lively without turning it into a doodle wall. For story notes, use at
+    most one item from each consecutive five-story band in the final ranked feed;
+    spread them across the edition instead of stacking them on the first few
+    stories. Ground at least two
     thirds of the notes in concrete visible items, primarily stories, and use
     no more than two `personality` notes. Balance useful signals with gentle
     content-specific humor. Never select copy from a static phrase pool, repeat

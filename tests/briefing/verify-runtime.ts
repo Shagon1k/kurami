@@ -181,6 +181,20 @@ const payload = {
 };
 
 const parsedPayload = parseBriefingPayload(payload);
+const distributedStoryNotes = ["story-1", "story-6", "story-11"].map((storyId, index) => ({
+  id: `note:distributed-${index + 1}`,
+  target: `story:${storyId}`,
+  text: "важная деталь",
+  role: "context",
+  tone: "signal",
+  rotation: index % 2 === 0 ? "negative" : "positive",
+  mark: "arrow-down-left",
+}));
+assert.doesNotThrow(() => parseBriefingPayload({ ...payload, notes: distributedStoryNotes }));
+assert.throws(
+  () => parseBriefingPayload({ ...payload, notes: [distributedStoryNotes[0]!, { ...distributedStoryNotes[1]!, target: "story:story-2" }] }),
+  /story notes must target different five-story bands/,
+);
 const explicitCompositionPayload = parseBriefingPayload({
   ...payload,
   addons: {
