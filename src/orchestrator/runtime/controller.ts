@@ -1572,10 +1572,10 @@ function reconcileFalseReviewFixNoNewHead(database: DatabaseSync): void {
           `UPDATE run_review_fix_rounds
            SET round_state=?, result_head_sha=?, failure_reason=NULL,
                completed_at=NULL,
-               waiting_ci_started_at=COALESCE(
-                 waiting_ci_started_at,
-                 strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
-               ),
+               -- A recovered round begins a new CI-observation boundary.
+               -- Reusing the pre-attention clock can immediately turn fresh
+               -- pending or passed CI into a false timeout.
+               waiting_ci_started_at=strftime('%Y-%m-%dT%H:%M:%fZ', 'now'),
                updated_at=strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
            WHERE round_id=? AND round_state='needs_attention'
              AND failure_reason IN (

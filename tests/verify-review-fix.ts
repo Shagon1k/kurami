@@ -977,7 +977,7 @@ esac
     const activeMappingRecovery = activeMappingState
       .prepare(
         `SELECT f.round_state, f.result_head_sha, f.resolution_attempt_count,
-                r.state AS run_state, rr.codex_thread_id,
+                f.waiting_ci_started_at, r.state AS run_state, rr.codex_thread_id,
                 rr.previous_codex_thread_id
          FROM run_review_fix_rounds f
          JOIN runs r USING (run_id)
@@ -988,6 +988,7 @@ esac
       round_state: string;
       result_head_sha: string | null;
       resolution_attempt_count: number;
+      waiting_ci_started_at: string | null;
       run_state: string;
       codex_thread_id: string;
       previous_codex_thread_id: string | null;
@@ -996,6 +997,7 @@ esac
       activeMappingRecovery.round_state === "resolving" &&
         activeMappingRecovery.result_head_sha === secondResultSha &&
         activeMappingRecovery.resolution_attempt_count === 1 &&
+        activeMappingRecovery.waiting_ci_started_at !== "2026-08-19T10:00:00.000Z" &&
         activeMappingRecovery.run_state === "parked_review" &&
         activeMappingRecovery.codex_thread_id ===
           "01a-review-fix-completed-2" &&
