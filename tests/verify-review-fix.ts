@@ -1007,6 +1007,45 @@ esac
     activeMappingState.exec(`
       UPDATE run_review_fix_rounds
       SET round_state='needs_attention', result_head_sha=NULL,
+          resolution_attempt_count=0, failure_reason='review_fix_ci_timeout',
+          completed_at=datetime('now','-1 second'),
+          waiting_ci_started_at='2026-08-19T10:00:00.000Z'
+      WHERE round_id='rfr_deadbeef5678';
+      UPDATE runs SET state='needs_attention' WHERE run_id='r_review_fix';
+      UPDATE run_ci_snapshots
+      SET aggregate_state='passed', completed_at=strftime('%Y-%m-%dT%H:%M:%fZ', 'now'),
+          last_observed_at=strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
+      WHERE run_id='r_review_fix';
+      INSERT INTO run_state_history (
+        run_id, from_state, to_state, reason, details_json
+      ) VALUES ('r_review_fix','needs_attention','needs_attention',
+        'review_fix_ci_timeout','{}');
+    `);
+    runNode(
+      resolve(app, "src/orchestrator/runtime/controller.ts"),
+      ["--apply"],
+      home,
+      lifecycleEnv,
+    );
+    const timeoutRecovery = activeMappingState
+      .prepare(
+        `SELECT round_state, failure_reason, waiting_ci_started_at
+         FROM run_review_fix_rounds WHERE round_id='rfr_deadbeef5678'`,
+      )
+      .get() as {
+      round_state: string;
+      failure_reason: string | null;
+      waiting_ci_started_at: string | null;
+    };
+    assert(
+      timeoutRecovery.round_state === "resolving" &&
+        timeoutRecovery.failure_reason === null &&
+        timeoutRecovery.waiting_ci_started_at !== "2026-08-19T10:00:00.000Z",
+      "Fresh exact CI evidence did not recover a stale review-fix CI timeout",
+    );
+    activeMappingState.exec(`
+      UPDATE run_review_fix_rounds
+      SET round_state='needs_attention', result_head_sha=NULL,
           resolution_attempt_count=0,
           failure_reason='review_fix_no_new_head',
           completed_at=datetime('now','-1 second')
