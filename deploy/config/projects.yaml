@@ -39,10 +39,48 @@ projects:
       required_label: preview-required
       compose_file: docker-compose.yml
       secrets_file: /home/shagon1k/_hermes/_kurami/secrets/tailortales-preview.env
-      allowed_email: shagon1k@gmail.com
-      frontend_health_path: /en
-      backend_health_path: /health
-      minio_health_path: /minio/health/live
+      services:
+        postgres: postgres
+        minio: minio
+        release: release
+        api: backend
+        web: frontend
+      health:
+        frontend: { service: frontend, path: /en }
+        backend: { service: backend, path: /health }
+        minio: { service: minio, path: /minio/health/live }
+      required_secret_keys:
+        - GOOGLE_CLIENT_ID
+        - GOOGLE_CLIENT_SECRET
+      runtime_variables:
+        AUTH_ALLOWED_EMAILS: shagon1k@gmail.com
+      runtime_environment:
+        postgres:
+          POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+        minio:
+          MINIO_ROOT_USER: ${MINIO_ROOT_USER}
+          MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD}
+        release:
+          DATABASE_URL: postgresql://postgres:${POSTGRES_PASSWORD}@postgres:5432/tailortales?schema=public
+        api:
+          DATABASE_URL: postgresql://postgres:${POSTGRES_PASSWORD}@postgres:5432/tailortales?schema=public
+          GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID}
+          GOOGLE_CLIENT_SECRET: ${GOOGLE_CLIENT_SECRET}
+          JWT_SECRET: ${JWT_SECRET}
+          AUTH_ALLOWED_EMAILS: ${AUTH_ALLOWED_EMAILS}
+          BACKEND_URL: ${PREVIEW_API_URL}
+          FRONTEND_URL: ${PREVIEW_URL}
+          E2E_TEST_SECRET: ${E2E_TEST_SECRET}
+          STORAGE_ACCESS_KEY: ${MINIO_ROOT_USER}
+          STORAGE_SECRET_KEY: ${MINIO_ROOT_PASSWORD}
+          STORAGE_PUBLIC_ENDPOINT: ${PREVIEW_ASSETS_URL}
+        web:
+          NEXT_PUBLIC_SITE_URL: ${PREVIEW_URL}
+          NEXT_PUBLIC_STORAGE_URL: ${PREVIEW_ASSETS_URL}
+      runtime_build_args:
+        web:
+          NEXT_PUBLIC_SITE_URL: ${PREVIEW_URL}
+          NEXT_PUBLIC_STORAGE_URL: ${PREVIEW_ASSETS_URL}
 
   pickflick:
     owner: Shagon1k
@@ -78,10 +116,24 @@ projects:
       priority_field: Priority
       effort_field: Effort
     preview:
-      adapter: static
-      artifact_directory: preview-fixture
-      max_files: 100
-      max_bytes: 1048576
+      adapter: compose
+      required_label: preview-required
+      compose_file: compose.preview.yaml
+      services:
+        postgres: postgres
+        redis: redis
+        minio: minio
+        minio_init: minio-init
+        release: release
+        api: api
+        worker: worker
+        web: web
+      health:
+        frontend: { service: web, path: / }
+        backend: { service: api, path: /health/ready }
+        minio: { service: minio, path: /minio/health/live }
+      required_secret_keys: []
+      runtime_variables: {}
 
   ahurynovich-cv:
     owner: Shagon1k

@@ -390,7 +390,7 @@ function claimBuild(
   database.exec("BEGIN IMMEDIATE");
   try {
     const fresh = loadRuntime(database, record.run_id);
-    if (!["leased", "failed"].includes(fresh.lease_state)) {
+    if (fresh.lease_state !== "leased") {
       fail(`Static preview cannot start from state: ${fresh.lease_state}`);
     }
     const building = Number(

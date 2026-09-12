@@ -73,9 +73,14 @@ try {
           adapter: "compose",
           compose_file: "docker-compose.yml",
           secrets_file: secrets,
-          frontend_health_path: "/",
-          backend_health_path: "/health",
-          minio_health_path: "/minio/health/live",
+          services: { postgres: "postgres", api: "api", web: "web", minio: "minio" },
+          health: {
+            frontend: { service: "web", path: "/" },
+            backend: { service: "api", path: "/health" },
+            minio: { service: "minio", path: "/minio/health/live" },
+          },
+          required_secret_keys: ["TEST_ONLY"],
+          runtime_variables: {},
         },
       },
       beta: {

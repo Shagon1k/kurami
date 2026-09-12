@@ -43,14 +43,17 @@ type OrchestratorConfig = RuntimeSettingsBaseConfig & {
   };
 };
 
+type PreviewHealth = { service: string; path: string };
 type PreviewConfig = {
   adapter: "compose";
   compose_file: string;
-  secrets_file: string;
-  allowed_email: string;
-  frontend_health_path: string;
-  backend_health_path: string;
-  minio_health_path: string;
+  secrets_file?: string;
+  services: Record<string, string>;
+  health: { frontend: PreviewHealth; backend: PreviewHealth; minio: PreviewHealth };
+  required_secret_keys?: string[];
+  runtime_variables?: Record<string, string>;
+  runtime_environment?: Record<string, Record<string, string>>;
+  runtime_build_args?: Record<string, Record<string, string>>;
 };
 
 type ProjectConfig = {
@@ -103,6 +106,7 @@ type RuntimePlan = {
   runtimeDirectory: string;
   runtimeEnvPath: string;
   overridePath: string;
+  sourceRevision: string;
   ports: {
     frontend: number;
     backend: number;
@@ -284,6 +288,7 @@ async function buildPlan(
       runtimeDirectory,
       runtimeEnvPath: resolve(runtimeDirectory, "runtime.env"),
       overridePath: resolve(runtimeDirectory, "compose.preview.yaml"),
+      sourceRevision: expectedHeadSha ?? "",
       ports: {
         frontend: record.frontend_port,
         backend: record.backend_port,
@@ -323,83 +328,60 @@ async function writeRuntimeFiles(
   plan: RuntimePlan,
   preview: PreviewConfig,
 ): Promise<void> {
-  const secretValues = parseSecretFile(await readFile(preview.secrets_file, "utf8"));
-  for (const key of ["GOOGLE_CLIENT_ID", "GOOGLE_CLIENT_SECRET"]) {
+  const requiredSecretKeys = preview.required_secret_keys ?? [];
+  const secretValues = requiredSecretKeys.length > 0
+    ? parseSecretFile(await readFile(preview.secrets_file ?? "", "utf8"))
+    : {};
+  for (const key of requiredSecretKeys) {
     if (!secretValues[key]) fail(`Missing required preview credential: ${key}`);
   }
+  if (!plan.sourceRevision) fail("Preview runtime requires the exact CI head SHA");
 
   const runtimeValues: Record<string, string | number> = {
-    FRONTEND_HOST_PORT: plan.ports.frontend,
-    BACKEND_HOST_PORT: plan.ports.backend,
-    POSTGRES_HOST_PORT: plan.ports.postgres,
-    REDIS_HOST_PORT: plan.ports.redis,
-    MINIO_API_HOST_PORT: plan.ports.minioApi,
-    MINIO_CONSOLE_HOST_PORT: plan.ports.minioConsole,
+    FRONTEND_PORT: plan.ports.frontend,
+    BACKEND_PORT: plan.ports.backend,
+    POSTGRES_PORT: plan.ports.postgres,
+    REDIS_PORT: plan.ports.redis,
+    MINIO_API_PORT: plan.ports.minioApi,
+    MINIO_CONSOLE_PORT: plan.ports.minioConsole,
+    SOURCE_REVISION: plan.sourceRevision,
     PREVIEW_URL: plan.previewUrl,
     PREVIEW_API_URL: `${plan.previewUrl}/api`,
     PREVIEW_ASSETS_URL: plan.assetsUrl,
-    GOOGLE_CLIENT_ID: secretValues.GOOGLE_CLIENT_ID,
-    GOOGLE_CLIENT_SECRET: secretValues.GOOGLE_CLIENT_SECRET,
-    AUTH_ALLOWED_EMAILS: preview.allowed_email,
+    ...secretValues,
+    ...(preview.runtime_variables ?? {}),
     JWT_SECRET: randomBytes(48).toString("base64url"),
     E2E_TEST_SECRET: randomBytes(48).toString("base64url"),
     POSTGRES_PASSWORD: randomBytes(32).toString("base64url"),
     MINIO_ROOT_USER: `kurami${plan.slotNumber}`,
     MINIO_ROOT_PASSWORD: randomBytes(32).toString("base64url"),
   };
-
-  const override = `services:
-  postgres:
-    environment:
-      POSTGRES_PASSWORD: \${POSTGRES_PASSWORD}
-  minio:
-    environment:
-      MINIO_ROOT_USER: \${MINIO_ROOT_USER}
-      MINIO_ROOT_PASSWORD: \${MINIO_ROOT_PASSWORD}
-  release:
-    environment:
-      DATABASE_URL: postgresql://postgres:\${POSTGRES_PASSWORD}@postgres:5432/tailortales?schema=public
-  backend:
-    environment:
-      DATABASE_URL: postgresql://postgres:\${POSTGRES_PASSWORD}@postgres:5432/tailortales?schema=public
-      GOOGLE_CLIENT_ID: \${GOOGLE_CLIENT_ID}
-      GOOGLE_CLIENT_SECRET: \${GOOGLE_CLIENT_SECRET}
-      JWT_SECRET: \${JWT_SECRET}
-      AUTH_ALLOWED_EMAILS: \${AUTH_ALLOWED_EMAILS}
-      BACKEND_URL: \${PREVIEW_API_URL}
-      FRONTEND_URL: \${PREVIEW_URL}
-      E2E_TEST_SECRET: \${E2E_TEST_SECRET}
-      STORAGE_ACCESS_KEY: \${MINIO_ROOT_USER}
-      STORAGE_SECRET_KEY: \${MINIO_ROOT_PASSWORD}
-      STORAGE_PUBLIC_ENDPOINT: \${PREVIEW_ASSETS_URL}
-  frontend:
-    build:
-      args:
-        NEXT_PUBLIC_SITE_URL: \${PREVIEW_URL}
-        NEXT_PUBLIC_STORAGE_URL: \${PREVIEW_ASSETS_URL}
-    environment:
-      NEXT_PUBLIC_SITE_URL: \${PREVIEW_URL}
-      NEXT_PUBLIC_STORAGE_URL: \${PREVIEW_ASSETS_URL}
-`;
+  const overrideLines = ["services:"];
+  for (const [role, environment] of Object.entries(preview.runtime_environment ?? {})) {
+    const service = preview.services[role];
+    if (!service) fail(`Preview runtime environment references unknown service role: ${role}`);
+    overrideLines.push(`  ${service}:`, "    environment:");
+    for (const [key, value] of Object.entries(environment)) overrideLines.push(`      ${key}: ${value}`);
+  }
+  for (const [role, args] of Object.entries(preview.runtime_build_args ?? {})) {
+    const service = preview.services[role];
+    if (!service) fail(`Preview runtime build args reference unknown service role: ${role}`);
+    overrideLines.push(`  ${service}:`, "    build:", "      args:");
+    for (const [key, value] of Object.entries(args)) overrideLines.push(`        ${key}: ${value}`);
+  }
+  const override = `${overrideLines.join("\n")}\n`;
 
   await mkdir(plan.runtimeDirectory, { recursive: false, mode: 0o700 });
   await writeFile(
     plan.runtimeEnvPath,
-    `${Object.entries(runtimeValues)
-      .map(([key, value]) => envLine(key, value))
-      .join("\n")}\n`,
+    `${Object.entries(runtimeValues).map(([key, value]) => envLine(key, value)).join("\n")}\n`,
     { encoding: "utf8", mode: 0o600, flag: "wx" },
   );
-  await writeFile(plan.overridePath, override, {
-    encoding: "utf8",
-    mode: 0o600,
-    flag: "wx",
-  });
+  await writeFile(plan.overridePath, override, { encoding: "utf8", mode: 0o600, flag: "wx" });
   await chmod(plan.runtimeDirectory, 0o700);
   await chmod(plan.runtimeEnvPath, 0o600);
   await chmod(plan.overridePath, 0o600);
 }
-
 function composeArguments(plan: RuntimePlan): string[] {
   return [
     "compose",
@@ -473,7 +455,7 @@ function claimBuild(
     if (fresh.lease_state === "running") {
       fail(`Preview is already running for run: ${record.run_id}`);
     }
-    if (!["leased", "failed"].includes(fresh.lease_state)) {
+    if (fresh.lease_state !== "leased") {
       fail(`Preview lease cannot start from state: ${fresh.lease_state}`);
     }
     const building = Number(
@@ -546,9 +528,9 @@ function reconcileIngress(): void {
 
 async function waitForHealth(plan: RuntimePlan, preview: PreviewConfig): Promise<void> {
   const checks = [
-    `http://127.0.0.1:${plan.ports.frontend}${preview.frontend_health_path}`,
-    `http://127.0.0.1:${plan.ports.backend}${preview.backend_health_path}`,
-    `http://127.0.0.1:${plan.ports.minioApi}${preview.minio_health_path}`,
+    `http://127.0.0.1:${plan.ports.frontend}${preview.health.frontend.path}`,
+    `http://127.0.0.1:${plan.ports.backend}${preview.health.backend.path}`,
+    `http://127.0.0.1:${plan.ports.minioApi}${preview.health.minio.path}`,
   ];
   const deadline = Date.now() + 180_000;
   let lastError = "health check did not run";
@@ -593,7 +575,8 @@ async function up(
   }
   if (!apply) {
     process.stdout.write(
-      `${JSON.stringify({ ok: true, apply: false, action: "up", plan })}\n`,
+      `${JSON.stringify({ ok: true, apply: false, action: "up", plan })}
+`,
     );
     return;
   }
@@ -636,7 +619,8 @@ async function up(
         assetsUrl: plan.assetsUrl,
         composeProjectName: plan.composeProjectName,
         verifiedHeadSha: record.ci_head_sha,
-      })}\n`,
+      })}
+`,
     );
   } catch (error) {
     markLeaseState(database, record.lease_id, "failed");
@@ -666,7 +650,8 @@ async function down(
   };
   if (!apply) {
     process.stdout.write(
-      `${JSON.stringify({ ok: true, apply: false, action: "down", plan: releasePlan })}\n`,
+      `${JSON.stringify({ ok: true, apply: false, action: "down", plan: releasePlan })}
+`,
     );
     return;
   }
@@ -714,7 +699,8 @@ async function down(
         runId: plan.runId,
         slotNumber: plan.slotNumber,
         composeProjectName: plan.composeProjectName,
-      })}\n`,
+      })}
+`,
     );
   } catch (error) {
     markLeaseState(database, record.lease_id, "failed");
@@ -735,7 +721,8 @@ function inspect(record: RuntimeRecord, plan: RuntimePlan): void {
       composeProjectName: plan.composeProjectName,
       containerCount: containers.length,
       containerIds: containers,
-    })}\n`,
+    })}
+`,
   );
 }
 
@@ -783,7 +770,8 @@ export async function runPreviewComposeRuntimeCli(): Promise<void> {
 if (import.meta.main) {
   runPreviewComposeRuntimeCli().catch((error: unknown) => {
     const message = error instanceof Error ? error.message : String(error);
-    process.stderr.write(`${JSON.stringify({ ok: false, error: message })}\n`);
+    process.stderr.write(`${JSON.stringify({ ok: false, error: message })}
+`);
     process.exitCode = 1;
   });
 }

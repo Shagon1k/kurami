@@ -265,12 +265,30 @@ function validateProjectConfig(
     assertCheck(checks, safeRelativePath(stringValue(preview, "compose_file")),
       "preview.compose_file", "Compose file path is repository-relative and safe",
       "Compose preview needs a safe repository-relative compose_file", key);
-    assertCheck(checks, Boolean(stringValue(preview, "secrets_file") && isAbsolute(stringValue(preview, "secrets_file")!)),
-      "preview.secrets_file", "Compose secrets path is absolute",
-      "Compose preview needs an absolute secrets_file outside Git", key);
-    for (const field of ["frontend_health_path", "backend_health_path", "minio_health_path"]) {
-      assertCheck(checks, Boolean(stringValue(preview, field)?.startsWith("/")),
-        `preview.${field}`, `${field} is an absolute HTTP path`, `${field} must start with /`, key);
+    const services = asRecord(preview.services);
+    const health = asRecord(preview.health);
+    const requiredSecretKeys = Array.isArray(preview.required_secret_keys)
+      ? preview.required_secret_keys.filter((value): value is string => typeof value === "string" && Boolean(value.trim()))
+      : [];
+    assertCheck(checks, Boolean(services && Object.values(services).every((value) => typeof value === "string" && value.trim())),
+      "preview.services", "Compose service roles are declarative", "Compose preview needs non-empty declarative services", key);
+    assertCheck(checks, requiredSecretKeys.length === (Array.isArray(preview.required_secret_keys) ? preview.required_secret_keys.length : 0),
+      "preview.required_secret_keys", "Required preview secret keys are declarative", "required_secret_keys must be a string list", key);
+    const runtimeVariables = asRecord(preview.runtime_variables);
+    assertCheck(checks, Boolean(runtimeVariables && Object.entries(runtimeVariables).every(
+      ([name, value]) => /^[A-Z][A-Z0-9_]*$/u.test(name) && typeof value === "string",
+    )), "preview.runtime_variables", "Runtime variables are declarative",
+    "runtime_variables must map safe environment names to strings", key);
+    assertCheck(checks,
+      requiredSecretKeys.length === 0 || Boolean(stringValue(preview, "secrets_file") && isAbsolute(stringValue(preview, "secrets_file")!)),
+      "preview.secrets_file", "Compose secrets boundary is explicit when required",
+      "Compose previews with required_secret_keys need an absolute secrets_file outside Git", key);
+    for (const name of ["frontend", "backend", "minio"]) {
+      const check = asRecord(health?.[name]);
+      const service = stringValue(check, "service");
+      assertCheck(checks, Boolean(service && Object.values(services ?? {}).includes(service) && stringValue(check, "path")?.startsWith("/")),
+        `preview.health.${name}`, `${name} health target is declarative`,
+        `${name} health needs a declared service and an absolute HTTP path`, key);
     }
   } else if (adapter === "static") {
     assertCheck(checks, safeRelativePath(stringValue(preview, "artifact_directory")),
