@@ -461,6 +461,53 @@ function storeObservation(
       completedAt,
       observation.error,
     );
+  database
+    .prepare(`
+      UPDATE runs
+      SET preview_requirement_satisfied_at = NULL,
+          preview_requirement_lease_id = NULL,
+          updated_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
+      WHERE run_id = ? AND preview_requirement_satisfied_at IS NOT NULL
+        AND NOT EXISTS (
+          SELECT 1 FROM preview_leases evidence
+          WHERE evidence.lease_id = runs.preview_requirement_lease_id
+            AND evidence.reviewed_at IS NOT NULL
+            AND evidence.verified_head_sha = ?
+        )
+    `)
+    .run(run.run_id, observation.headSha);
+  database
+    .prepare(`
+      UPDATE runs
+      SET preview_requirement_satisfied_at = (
+            SELECT evidence.reviewed_at
+            FROM preview_leases evidence
+            WHERE evidence.run_id = runs.run_id
+              AND evidence.reviewed_at IS NOT NULL
+              AND evidence.verified_head_sha = ?
+            ORDER BY evidence.reviewed_at DESC, evidence.lease_id DESC
+            LIMIT 1
+          ),
+          preview_requirement_lease_id = (
+            SELECT evidence.lease_id
+            FROM preview_leases evidence
+            WHERE evidence.run_id = runs.run_id
+              AND evidence.reviewed_at IS NOT NULL
+              AND evidence.verified_head_sha = ?
+            ORDER BY evidence.reviewed_at DESC, evidence.lease_id DESC
+            LIMIT 1
+          ),
+          updated_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
+      WHERE run_id = ? AND preview_required = 1
+        AND preview_requirement_satisfied_at IS NULL
+        AND EXISTS (
+          SELECT 1 FROM preview_leases evidence
+          WHERE evidence.run_id = runs.run_id
+            AND evidence.reviewed_at IS NOT NULL
+            AND evidence.verified_head_sha = ?
+        )
+    `)
+    .run(observation.headSha, observation.headSha, run.run_id, observation.headSha);
 }
 
 export async function runCiObserverCli(): Promise<void> {

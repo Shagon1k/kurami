@@ -113,6 +113,22 @@ function seed(database: DatabaseSync): void {
     .run();
   database
     .prepare(`
+      INSERT INTO run_ci_snapshots (
+        run_id, repository, pull_request_number, pull_request_url,
+        pull_request_title, head_sha, aggregate_state, checks_json,
+        content_digest, first_observed_at, last_observed_at, completed_at
+      ) VALUES (
+        'r_preview_reviewed', 'Shagon1k/TailorTales', 9902,
+        'https://example.invalid/pulls/9902', 'Preview reviewed',
+        'preview-reviewed-sha', 'passed', '[]', 'preview-reviewed-ci',
+        strftime('%Y-%m-%dT%H:%M:%fZ', 'now'),
+        strftime('%Y-%m-%dT%H:%M:%fZ', 'now'),
+        strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
+      )
+    `)
+    .run();
+  database
+    .prepare(`
       INSERT INTO preview_leases (
         lease_id, run_id, slot_number, state, compose_project_name, expires_at
       ) VALUES (
@@ -144,6 +160,22 @@ async function main(): Promise<void> {
     v23.close();
 
     runNode(appDirectory, home, "src/orchestrator/state/init-run-store.ts", []);
+    const enrolled = new DatabaseSync(databasePath);
+    enrolled
+      .prepare(`
+        UPDATE runs
+        SET preview_required=1, preview_required_label='preview-required'
+        WHERE run_id='r_preview_reviewed'
+      `)
+      .run();
+    enrolled
+      .prepare(`
+        UPDATE preview_leases
+        SET verified_head_sha='preview-reviewed-sha'
+        WHERE lease_id='pv_preview_reviewed'
+      `)
+      .run();
+    enrolled.close();
     const migrated = new DatabaseSync(databasePath, { readOnly: true });
     const initial = migrated
       .prepare(`
@@ -220,9 +252,20 @@ async function main(): Promise<void> {
         WHERE run_id='r_preview_reviewed' AND reason='preview_reviewed'
       `)
       .get() as { count: number };
+    const evidence = verified
+      .prepare(`
+        SELECT preview_requirement_satisfied_at, preview_requirement_lease_id
+        FROM runs WHERE run_id='r_preview_reviewed'
+      `)
+      .get() as Record<string, string | null>;
     assert(after.state === initial.state, "Acknowledgement changed preview state");
     assert(after.expires_at === initial.expires_at, "Acknowledgement changed TTL");
     assert(after.reviewed_by === "discord:123456789", "First owner provenance drifted");
+    assert(
+      evidence.preview_requirement_satisfied_at !== null &&
+        evidence.preview_requirement_lease_id === "pv_preview_reviewed",
+      "Exact reviewed preview did not persist durable policy evidence",
+    );
     assert(audit.count === 1, "Acknowledgement audit is missing or duplicated");
     verified
       .prepare(`
@@ -271,6 +314,12 @@ async function main(): Promise<void> {
         WHERE run_id='r_preview_reviewed' AND state <> 'released'
       `)
       .get() as Record<string, string | null>;
+    const persistedEvidence = reset
+      .prepare(`
+        SELECT preview_requirement_satisfied_at, preview_requirement_lease_id
+        FROM runs WHERE run_id='r_preview_reviewed'
+      `)
+      .get() as Record<string, string | null>;
     const foreignKeys = reset.prepare("PRAGMA foreign_key_check").all();
     reset.close();
     assert(
@@ -279,6 +328,11 @@ async function main(): Promise<void> {
         nextLease.reviewed_by === null &&
         nextLease.reviewed_via === null,
       "A new lease inherited the previous acknowledgement",
+    );
+    assert(
+      persistedEvidence.preview_requirement_satisfied_at !== null &&
+        persistedEvidence.preview_requirement_lease_id === "pv_preview_reviewed",
+      "Stopping a reviewed preview erased durable policy evidence",
     );
     assert(foreignKeys.length === 0, "P5b migration introduced foreign-key drift");
 

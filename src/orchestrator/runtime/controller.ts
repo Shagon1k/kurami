@@ -60,6 +60,8 @@ type RunRow = {
   completion_requested_at: string | null;
   completion_source_event_id: string | null;
   preview_requirement_satisfied_at: string | null;
+  preview_requirement_lease_id: string | null;
+  preview_requirement_verified_head_sha: string | null;
   project_item_status: string | null;
   has_newer_run: number;
   backlog_satisfied: number;
@@ -226,6 +228,8 @@ function baseRunSelect(): string {
            r.preview_required, r.preview_required_label,
            r.completion_requested_at, r.completion_source_event_id,
            r.preview_requirement_satisfied_at,
+           r.preview_requirement_lease_id,
+           evidence.verified_head_sha AS preview_requirement_verified_head_sha,
            pi.status AS project_item_status,
            EXISTS (
              SELECT 1 FROM runs newer
@@ -332,6 +336,8 @@ function baseRunSelect(): string {
     LEFT JOIN run_ci_snapshots ci USING (run_id)
     LEFT JOIN preview_leases pl
       ON pl.run_id = r.run_id AND pl.state <> 'released'
+    LEFT JOIN preview_leases evidence
+      ON evidence.lease_id = r.preview_requirement_lease_id
     LEFT JOIN project_items pi
       ON pi.project = r.project AND pi.item_id = r.item_id
     LEFT JOIN project_poll_state pps ON pps.project = r.project
@@ -520,16 +526,19 @@ function previewExpired(run: RunRow, now = Date.now()): boolean {
   return Number.isFinite(expiresAt) && expiresAt <= now;
 }
 
-function previewRequirementSatisfied(run: RunRow): boolean {
+function previewEvidenceCurrent(run: RunRow): boolean {
   return (
     run.preview_required === 1 &&
-    run.completion_requested_at !== null &&
-    run.preview_lease_id !== null &&
-    run.preview_lease_state === "running" &&
-    run.preview_reviewed_at !== null &&
+    run.preview_requirement_satisfied_at !== null &&
+    run.preview_requirement_lease_id !== null &&
+    run.preview_requirement_verified_head_sha !== null &&
     run.ci_head_sha !== null &&
-    run.preview_verified_head_sha === run.ci_head_sha
+    run.preview_requirement_verified_head_sha === run.ci_head_sha
   );
+}
+
+function previewRequirementSatisfied(run: RunRow): boolean {
+  return run.completion_requested_at !== null && previewEvidenceCurrent(run);
 }
 
 function previewCompletionOwnershipStable(
@@ -810,7 +819,7 @@ function planAutomatic(
   if (
     previewCompletionOwnershipStable(run.run_state, run.owner_state) &&
     run.stop_reason === null &&
-    run.preview_requirement_satisfied_at === null &&
+    previewEvidenceCurrent(run) &&
     previewRequirementSatisfied(run)
   ) {
     return {
@@ -1809,7 +1818,7 @@ function progressFor(
   if (
     run.preview_required === 1 &&
     run.completion_requested_at !== null &&
-    run.preview_requirement_satisfied_at === null
+    !previewEvidenceCurrent(run)
   ) {
     if (!run.preview_lease_id) {
       return {
@@ -2239,15 +2248,15 @@ function applyInternal(database: DatabaseSync, plan: PlannedAction): unknown {
       const evidence = database
         .prepare(`
           SELECT r.state, r.owner_state, r.completion_source_event_id,
-                 ci.head_sha, pl.lease_id, pl.state AS lease_state,
-                 pl.verified_head_sha, pl.reviewed_at
+                 ci.head_sha, r.preview_requirement_satisfied_at,
+                 pl.lease_id, pl.verified_head_sha, pl.reviewed_at
           FROM runs r
           LEFT JOIN run_ci_snapshots ci USING (run_id)
           LEFT JOIN preview_leases pl
-            ON pl.run_id = r.run_id AND pl.state <> 'released'
+            ON pl.lease_id = r.preview_requirement_lease_id
           WHERE r.run_id = ? AND r.preview_required = 1
             AND r.completion_requested_at IS NOT NULL
-            AND r.preview_requirement_satisfied_at IS NULL
+            AND r.preview_requirement_satisfied_at IS NOT NULL
         `)
         .get(plan.runId) as
         | {
@@ -2256,7 +2265,6 @@ function applyInternal(database: DatabaseSync, plan: PlannedAction): unknown {
             completion_source_event_id: string | null;
             head_sha: string | null;
             lease_id: string | null;
-            lease_state: string | null;
             verified_head_sha: string | null;
             reviewed_at: string | null;
           }
@@ -2264,7 +2272,6 @@ function applyInternal(database: DatabaseSync, plan: PlannedAction): unknown {
       if (
         !evidence ||
         !previewCompletionOwnershipStable(evidence.state, evidence.owner_state) ||
-        evidence.lease_state !== "running" ||
         !evidence.lease_id ||
         !evidence.reviewed_at ||
         !evidence.head_sha ||
@@ -2275,15 +2282,13 @@ function applyInternal(database: DatabaseSync, plan: PlannedAction): unknown {
         .prepare(`
           UPDATE runs
           SET state = 'stopping', owner_state = 'none', stop_reason = 'completed',
-              preview_requirement_satisfied_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now'),
-              preview_requirement_lease_id = ?,
               updated_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
           WHERE run_id = ?
             AND ((state = 'parked_review' AND owner_state = 'none')
               OR (state = 'remote_owned' AND owner_state = 'remote'))
-            AND stop_reason IS NULL AND preview_requirement_satisfied_at IS NULL
+            AND stop_reason IS NULL AND preview_requirement_satisfied_at IS NOT NULL
         `)
-        .run(evidence.lease_id, plan.runId);
+        .run(plan.runId);
       if (changed.changes !== 1)
         fail("Run changed before guarded preview completion");
       database

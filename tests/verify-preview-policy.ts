@@ -343,10 +343,20 @@ async function main(): Promise<void> {
       .run();
     exact
       .prepare(`
-        UPDATE runs SET state='remote_owned', owner_state='remote'
+        UPDATE runs
+        SET state='remote_owned', owner_state='remote',
+            preview_requirement_satisfied_at=strftime('%Y-%m-%dT%H:%M:%fZ', 'now'),
+            preview_requirement_lease_id='pv_preview_policy'
         WHERE run_id=?
       `)
       .run(requiredRun.run_id);
+    exact
+      .prepare(`
+        UPDATE preview_leases
+        SET state='released', released_at=strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
+        WHERE lease_id='pv_preview_policy'
+      `)
+      .run();
     exact.close();
     const exactPlan = runNode(appDirectory, home, "src/orchestrator/runtime/controller.ts") as {
       plans: Array<{ action: string }>;

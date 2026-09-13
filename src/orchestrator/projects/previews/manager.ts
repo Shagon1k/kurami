@@ -36,6 +36,8 @@ type RunRecord = {
   state: string;
   execution_mode: string;
   preview_id: string | null;
+  preview_required: number;
+  ci_head_sha: string | null;
 };
 
 type SlotRecord = {
@@ -170,9 +172,10 @@ function runRecord(database: DatabaseSync, runId: string): RunRecord {
   const run = database
     .prepare(`
       SELECT r.run_id, r.project, r.issue_number, r.state, r.execution_mode,
-             rr.preview_id
+             r.preview_required, ci.head_sha AS ci_head_sha, rr.preview_id
       FROM runs r
       JOIN run_resources rr USING (run_id)
+      LEFT JOIN run_ci_snapshots ci USING (run_id)
       WHERE r.run_id = ?
     `)
     .get(runId) as RunRecord | undefined;
@@ -296,6 +299,21 @@ function review(
       fail("Preview changed before acknowledgement was applied");
     const updated = activeLeaseForRun(database, runId);
     if (!updated?.reviewed_at) fail("Preview acknowledgement was not persisted");
+    const satisfiesRequiredPreview =
+      run.preview_required === 1 &&
+      run.ci_head_sha !== null &&
+      updated.verified_head_sha === run.ci_head_sha;
+    if (satisfiesRequiredPreview) {
+      database
+        .prepare(`
+          UPDATE runs
+          SET preview_requirement_satisfied_at = ?,
+              preview_requirement_lease_id = ?,
+              updated_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
+          WHERE run_id = ? AND preview_required = 1
+        `)
+        .run(updated.reviewed_at, updated.lease_id, runId);
+    }
     database
       .prepare(`
         INSERT INTO run_state_history (

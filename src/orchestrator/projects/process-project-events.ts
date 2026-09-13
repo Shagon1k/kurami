@@ -77,6 +77,9 @@ type LiveRun = {
   preview_required: number;
   preview_required_label: string | null;
   completion_requested_at: string | null;
+  preview_requirement_satisfied_at: string | null;
+  preview_requirement_lease_id: string | null;
+  preview_requirement_verified_head_sha: string | null;
   ci_head_sha: string | null;
   preview_lease_id: string | null;
   preview_lease_state: string | null;
@@ -261,7 +264,9 @@ function latestRun(
     .prepare(`
       SELECT r.run_id, r.state, r.stop_reason, r.execution_mode, rr.resource_state,
              r.preview_required, r.preview_required_label,
-             r.completion_requested_at,
+             r.completion_requested_at, r.preview_requirement_satisfied_at,
+             r.preview_requirement_lease_id,
+             evidence.verified_head_sha AS preview_requirement_verified_head_sha,
              ci.head_sha AS ci_head_sha,
              pl.lease_id AS preview_lease_id,
              pl.state AS preview_lease_state,
@@ -272,6 +277,8 @@ function latestRun(
       LEFT JOIN run_ci_snapshots ci USING (run_id)
       LEFT JOIN preview_leases pl
         ON pl.run_id = r.run_id AND pl.state <> 'released'
+      LEFT JOIN preview_leases evidence
+        ON evidence.lease_id = r.preview_requirement_lease_id
       WHERE r.project = ? AND r.item_id = ?
       ORDER BY r.created_at DESC
       LIMIT 1
@@ -288,7 +295,9 @@ function liveRun(
     .prepare(`
       SELECT r.run_id, r.state, r.stop_reason, r.execution_mode, rr.resource_state,
              r.preview_required, r.preview_required_label,
-             r.completion_requested_at,
+             r.completion_requested_at, r.preview_requirement_satisfied_at,
+             r.preview_requirement_lease_id,
+             evidence.verified_head_sha AS preview_requirement_verified_head_sha,
              ci.head_sha AS ci_head_sha,
              pl.lease_id AS preview_lease_id,
              pl.state AS preview_lease_state,
@@ -299,6 +308,8 @@ function liveRun(
       LEFT JOIN run_ci_snapshots ci USING (run_id)
       LEFT JOIN preview_leases pl
         ON pl.run_id = r.run_id AND pl.state <> 'released'
+      LEFT JOIN preview_leases evidence
+        ON evidence.lease_id = r.preview_requirement_lease_id
       WHERE r.project = ?
         AND r.item_id = ?
         AND r.state IN (${LIVE_STATE_PARAMETERS})
@@ -559,11 +570,11 @@ function completeRun(database: DatabaseSync, event: EventRow): EventResult {
   }
   const previewEvidenceSatisfied =
     current.preview_required === 1 &&
-    current.preview_lease_state === "running" &&
-    current.preview_lease_id !== null &&
-    current.preview_reviewed_at !== null &&
+    current.preview_requirement_satisfied_at !== null &&
+    current.preview_requirement_lease_id !== null &&
+    current.preview_requirement_verified_head_sha !== null &&
     current.ci_head_sha !== null &&
-    current.preview_verified_head_sha === current.ci_head_sha;
+    current.preview_requirement_verified_head_sha === current.ci_head_sha;
   if (current.preview_required === 1 && !previewEvidenceSatisfied) {
     database
       .prepare(`
@@ -628,7 +639,7 @@ function completeRun(database: DatabaseSync, event: EventRow): EventResult {
     `)
     .run(
       nextState,
-      previewEvidenceSatisfied ? current.preview_lease_id : null,
+      previewEvidenceSatisfied ? current.preview_requirement_lease_id : null,
       nextState,
       nextState,
       current.run_id,
