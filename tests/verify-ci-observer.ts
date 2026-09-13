@@ -79,7 +79,13 @@ async function main(): Promise<void> {
     assert(
       pickFlickCi?.enabled === true &&
         JSON.stringify(pickFlickCi.required_checks) ===
-          JSON.stringify(["Secret scan", "Lint, type-check, test"]) &&
+          JSON.stringify([
+            "Secret scan",
+            "Lint, type-check, test",
+            "Integration and runtime smoke",
+            "UI accessibility and visual regression",
+            "Production images",
+          ]) &&
         pickFlickCi.missing_grace_minutes === 10,
       "Tracked PickFlick CI policy is not aligned with GitHub checks",
     );

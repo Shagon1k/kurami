@@ -110,6 +110,9 @@ projects:
       required_checks:
         - Secret scan
         - Lint, type-check, test
+        - Integration and runtime smoke
+        - UI accessibility and visual regression
+        - Production images
       missing_grace_minutes: 10
     triage:
       enabled: true
