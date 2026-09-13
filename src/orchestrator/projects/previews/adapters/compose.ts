@@ -2,6 +2,7 @@ import { execFileSync, spawnSync } from "node:child_process";
 import { randomBytes } from "node:crypto";
 import {
   chmod,
+  copyFile,
   mkdir,
   readFile,
   realpath,
@@ -106,6 +107,7 @@ type RuntimePlan = {
   runtimeDirectory: string;
   runtimeEnvPath: string;
   overridePath: string;
+  sourceComposePath: string;
   sourceRevision: string;
   ports: {
     frontend: number;
@@ -224,6 +226,7 @@ function validateRuntimeDirectory(runId: string): string {
 async function buildPlan(
   record: RuntimeRecord,
   registry: ProjectsRegistry,
+  requireSource: boolean,
   expectedHeadSha?: string,
 ): Promise<{ plan: RuntimePlan; preview: PreviewConfig }> {
   if (record.execution_mode !== "live") fail(`Run is not live: ${record.run_id}`);
@@ -246,34 +249,42 @@ async function buildPlan(
   const project = registry.projects[record.project];
   if (!project) fail(`Unknown project: ${record.project}`);
   const preview = project.preview;
-  if (!preview || preview.adapter !== "compose") {
+  if (requireSource && (!preview || preview.adapter !== "compose")) {
     fail(`Compose preview is not configured for project: ${record.project}`);
   }
+  const composePreview = preview as PreviewConfig | undefined;
   const worktreeRoot = resolve(project.workspace.worktree_root);
   const worktreePath = resolve(record.worktree_path);
   const child = relative(worktreeRoot, worktreePath);
   if (!child || child.startsWith("..") || resolve(worktreeRoot, child) !== worktreePath) {
     fail(`Worktree escapes configured root: ${worktreePath}`);
   }
-  if (!(await pathExists(worktreePath))) fail(`Worktree is absent: ${worktreePath}`);
-  if ((await realpath(worktreePath)) !== worktreePath) {
-    fail(`Worktree path is not canonical: ${worktreePath}`);
-  }
-  const repositoryName = project.repository.split("/").at(-1);
-  if (!repositoryName || basename(worktreePath) !== repositoryName) {
-    fail(`Worktree does not use the canonical repository basename`);
-  }
-  if (expectedHeadSha) {
+  if (requireSource) {
+    if (!(await pathExists(worktreePath))) fail(`Worktree is absent: ${worktreePath}`);
+    if ((await realpath(worktreePath)) !== worktreePath) {
+      fail(`Worktree path is not canonical: ${worktreePath}`);
+    }
+    const repositoryName = project.repository.split("/").at(-1);
+    if (!repositoryName || basename(worktreePath) !== repositoryName) {
+      fail(`Worktree does not use the canonical repository basename`);
+    }
+    if (!expectedHeadSha) fail("Compose preview source SHA is absent");
     assertPreviewSourceRevision(worktreePath, expectedHeadSha);
   }
-  const composeFile = resolve(worktreePath, preview.compose_file);
-  const composeChild = relative(worktreePath, composeFile);
-  if (composeChild.startsWith("..") || !(await pathExists(composeFile))) {
-    fail(`Compose file is absent or escapes worktree: ${composeFile}`);
-  }
   const runtimeDirectory = validateRuntimeDirectory(record.run_id);
+  const sourceComposePath = resolve(runtimeDirectory, "source.compose.yaml");
+  const sourceComposeFile = composePreview
+    ? resolve(worktreePath, composePreview.compose_file)
+    : sourceComposePath;
+  if (requireSource) {
+    const composeChild = relative(worktreePath, sourceComposeFile);
+    if (composeChild.startsWith("..") || !(await pathExists(sourceComposeFile))) {
+      fail(`Compose file is absent or escapes worktree: ${sourceComposeFile}`);
+    }
+  }
+  const composeFile = requireSource ? sourceComposeFile : sourceComposePath;
   return {
-    preview,
+    preview: composePreview as PreviewConfig,
     plan: {
       runId: record.run_id,
       project: record.project,
@@ -288,6 +299,7 @@ async function buildPlan(
       runtimeDirectory,
       runtimeEnvPath: resolve(runtimeDirectory, "runtime.env"),
       overridePath: resolve(runtimeDirectory, "compose.preview.yaml"),
+      sourceComposePath,
       sourceRevision: expectedHeadSha ?? "",
       ports: {
         frontend: record.frontend_port,
@@ -377,10 +389,12 @@ async function writeRuntimeFiles(
     `${Object.entries(runtimeValues).map(([key, value]) => envLine(key, value)).join("\n")}\n`,
     { encoding: "utf8", mode: 0o600, flag: "wx" },
   );
+  await copyFile(plan.composeFile, plan.sourceComposePath, 0);
   await writeFile(plan.overridePath, override, { encoding: "utf8", mode: 0o600, flag: "wx" });
   await chmod(plan.runtimeDirectory, 0o700);
   await chmod(plan.runtimeEnvPath, 0o600);
   await chmod(plan.overridePath, 0o600);
+  await chmod(plan.sourceComposePath, 0o600);
 }
 function composeArguments(plan: RuntimePlan): string[] {
   return [
@@ -594,7 +608,8 @@ async function up(
     }
     if (
       !(await pathExists(plan.runtimeEnvPath)) ||
-      !(await pathExists(plan.overridePath))
+      !(await pathExists(plan.overridePath)) ||
+      !(await pathExists(plan.sourceComposePath))
     ) {
       fail("Preview runtime directory is incomplete; manual reconciliation required");
     }
@@ -754,7 +769,12 @@ export async function runPreviewComposeRuntimeCli(): Promise<void> {
     const record = loadRuntime(database, args.runId);
     const expectedHeadSha =
       args.command === "up" ? requireExactHeadSha(record.ci_head_sha) : undefined;
-    const { plan, preview } = await buildPlan(record, registry, expectedHeadSha);
+    const { plan, preview } = await buildPlan(
+      record,
+      registry,
+      args.command === "up",
+      expectedHeadSha,
+    );
     if (args.command === "up") {
       await up(database, record, plan, preview, config, args.apply);
     } else if (args.command === "down") {
