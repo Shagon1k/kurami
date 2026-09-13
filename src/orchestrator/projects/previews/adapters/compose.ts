@@ -349,6 +349,7 @@ async function writeRuntimeFiles(
   }
   if (!plan.sourceRevision) fail("Preview runtime requires the exact CI head SHA");
 
+  const postgresPassword = randomBytes(32).toString("base64url");
   const runtimeValues: Record<string, string | number> = {
     FRONTEND_PORT: plan.ports.frontend,
     BACKEND_PORT: plan.ports.backend,
@@ -364,18 +365,30 @@ async function writeRuntimeFiles(
     ...(preview.runtime_variables ?? {}),
     JWT_SECRET: randomBytes(48).toString("base64url"),
     E2E_TEST_SECRET: randomBytes(48).toString("base64url"),
-    POSTGRES_PASSWORD: randomBytes(32).toString("base64url"),
+    POSTGRES_PASSWORD: postgresPassword,
+    DATABASE_URL: `postgresql://pickflick:${postgresPassword}@postgres:5432/pickflick`,
     MINIO_ROOT_USER: `kurami${plan.slotNumber}`,
     MINIO_ROOT_PASSWORD: randomBytes(32).toString("base64url"),
   };
-  const overrideLines = ["services:"];
+  // Docker Compose requires `services` to be a mapping. PickFlick's preview
+  // topology is self-contained, so it may not need any generated override.
+  const overrideLines = ["services: {}"];
+  let hasOverrides = false;
   for (const [role, environment] of Object.entries(preview.runtime_environment ?? {})) {
+    if (!hasOverrides) {
+      overrideLines[0] = "services:";
+      hasOverrides = true;
+    }
     const service = preview.services[role];
     if (!service) fail(`Preview runtime environment references unknown service role: ${role}`);
     overrideLines.push(`  ${service}:`, "    environment:");
     for (const [key, value] of Object.entries(environment)) overrideLines.push(`      ${key}: ${value}`);
   }
   for (const [role, args] of Object.entries(preview.runtime_build_args ?? {})) {
+    if (!hasOverrides) {
+      overrideLines[0] = "services:";
+      hasOverrides = true;
+    }
     const service = preview.services[role];
     if (!service) fail(`Preview runtime build args reference unknown service role: ${role}`);
     overrideLines.push(`  ${service}:`, "    build:", "      args:");
