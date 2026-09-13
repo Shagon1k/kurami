@@ -56,6 +56,8 @@ type PullRequest = {
   title: string;
   state: string;
   created_at: string;
+  merged_at?: string | null;
+  merge_commit_sha?: string | null;
   head: { ref: string; sha: string; repo: { full_name: string } | null };
   base: { repo: { full_name: string } | null };
 };
@@ -83,6 +85,7 @@ type Observation = {
   aggregateState: CiState;
   checks: NormalizedCheck[];
   error: string | null;
+  merged: boolean;
 };
 
 const orchestratorHome = resolveKuramiHome(
@@ -285,11 +288,15 @@ function activeRuns(database: DatabaseSync, project: string): RunRow[] {
     .all(project) as RunRow[];
 }
 
-function pullRequests(repository: string, branch: string): PullRequest[] {
+function pullRequests(
+  repository: string,
+  branch: string,
+  state: "open" | "closed" = "open",
+): PullRequest[] {
   const owner = repository.split("/")[0];
   if (!owner) throw new Error("Configured repository is invalid");
   return githubApi<PullRequest[]>(`repos/${repository}/pulls`, {
-    state: "open",
+    state,
     head: `${owner}:${branch}`,
     per_page: "3",
   }).filter(
@@ -309,7 +316,25 @@ function observeRun(
   let discoveredPull: PullRequest | undefined;
   try {
     const pulls = pullRequests(run.repository, run.branch_name);
-    if (pulls.length === 0)
+    if (pulls.length === 0) {
+      const closed = pullRequests(run.repository, run.branch_name, "closed")
+        .filter((pull) => Boolean(pull.merged_at))
+        .sort((left, right) => Date.parse(right.merged_at ?? "") - Date.parse(left.merged_at ?? ""));
+      const merged = closed[0];
+      if (merged) {
+        return {
+          pullRequestNumber: merged.number,
+          pullRequestUrl: merged.html_url,
+          pullRequestTitle: merged.title,
+          headSha: merged.head.sha,
+          aggregateState: existing?.head_sha === merged.head.sha
+            ? existing.aggregate_state
+            : "passed",
+          checks: [],
+          error: null,
+          merged: true,
+        };
+      }
       return {
         pullRequestNumber: null,
         pullRequestUrl: null,
@@ -318,7 +343,9 @@ function observeRun(
         aggregateState: "pending",
         checks: [],
         error: null,
+        merged: false,
       };
+    }
     if (pulls.length !== 1)
       return {
         pullRequestNumber: null,
@@ -328,6 +355,7 @@ function observeRun(
         aggregateState: "unknown",
         checks: [],
         error: "Multiple pull requests match the managed branch",
+        merged: false,
       };
     const pull = pulls[0]!;
     discoveredPull = pull;
@@ -340,6 +368,7 @@ function observeRun(
         aggregateState: "passed",
         checks: [],
         error: null,
+        merged: false,
       };
     }
     const firstObservedAt =
@@ -367,6 +396,7 @@ function observeRun(
       aggregateState: normalized.aggregateState,
       checks: normalized.checks,
       error: null,
+      merged: false,
     };
   } catch (error) {
     return {
@@ -380,6 +410,7 @@ function observeRun(
       aggregateState: "unknown",
       checks: [],
       error: error instanceof Error ? error.message : "CI observation failed",
+      merged: false,
     };
   }
 }
@@ -508,6 +539,20 @@ function storeObservation(
         )
     `)
     .run(observation.headSha, observation.headSha, run.run_id, observation.headSha);
+  if (observation.merged) {
+    database
+      .prepare(`
+        UPDATE runs
+        SET completion_requested_at = COALESCE(
+              completion_requested_at,
+              strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
+            ),
+            updated_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
+        WHERE run_id = ? AND state IN ('parked_review', 'remote_owned')
+          AND stop_reason IS NULL
+      `)
+      .run(run.run_id);
+  }
 }
 
 export async function runCiObserverCli(): Promise<void> {
@@ -549,6 +594,7 @@ export async function runCiObserverCli(): Promise<void> {
               aggregateState: "unknown" as const,
               checks: [],
               error: "Run repository does not match project configuration",
+              merged: false,
             };
       if (apply) storeObservation(database, run, observation, now);
       results.push({
