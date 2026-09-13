@@ -781,22 +781,6 @@ export function parseBriefingPayload(value: unknown): BriefingPayload {
         fail(`note ${note.id} targets an unknown story`);
       }
     }
-
-    // Notes should be a light reading-layer rhythm, not a decorative stack on
-    // the top-ranked stories. One story note per five-story band keeps them
-    // visibly distributed while allowing non-story notes where they are useful.
-    const storyPositions = new Map(parsed.news.items.map((item, index) => [item.id, index]));
-    const occupiedBands = new Set<number>();
-    for (const note of parsed.notes) {
-      if (!note.target.startsWith("story:")) continue;
-      const position = storyPositions.get(note.target.slice(6));
-      if (position === undefined) continue;
-      const band = Math.floor(position / 5);
-      if (occupiedBands.has(band)) {
-        fail("story notes must target different five-story bands");
-      }
-      occupiedBands.add(band);
-    }
   }
 
   return parsed;

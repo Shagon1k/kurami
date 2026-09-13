@@ -137,7 +137,10 @@ Use Hermes file tools to inspect and edit the target project. Use the target pro
   inline with browser controls. On wide feed layouts, keep one stable cover
   track for every row so headlines align whether media exists or not; leave the
   track empty rather than fabricating a placeholder. Collapse that track at the
-  mobile breakpoint. Do not hotlink provider-authenticated attachments.
+  mobile breakpoint. On mobile, retain the ordinal as a compact first-row lead-in
+  and start the cover, metadata, copy, and actions on the following row across
+  the full card width; do not reserve a permanent left rail beside story content.
+  Do not hotlink provider-authenticated attachments.
 - Keep disclosure media tiles a stable compact size. On wide layouts use four
   equal tracks: one or two assets occupy only their own tracks, while five or
   more wrap into additional rows. Reduce the track count responsively instead

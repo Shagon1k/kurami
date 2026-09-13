@@ -209,18 +209,28 @@ Default manual experiments to `dry-run`. Generation never archives Gmail;
     source as `story-source:<normalized-source-item-id>`; the composer resolves
     it to the stable story ID. Do not guess derived story IDs. Do not author source batches, provider IDs,
     fingerprints, stable IDs, live sections, ranks, retention, data quality,
-    or final payload structure. Run the deterministic composer:
+    or final payload structure. First write the draft **without `notes`**, then
+    produce a rank-only preview (no attempt transition or provider mutation):
+
+    ```text
+    $BRIEFING_NODE $BRIEFING_CLI rank-preview --draft <editorial-draft.json> --live <live-snapshot.json> --config $CONFIG --raw <telegram-raw.json> --normalized <telegram-normalized.json> --output <rank-preview.json>
+    ```
+
+    Use its final ranked story list to add notes to the same draft. Only then
+    run the deterministic composer:
 
     ```text
     $BRIEFING_NODE $BRIEFING_CLI compose --attempt <attempt-id> --draft <editorial-draft.json> --live <live-snapshot.json> --config $CONFIG --raw <telegram-raw.json> --normalized <telegram-normalized.json> --output <payload.json>
     ```
 
     The composer owns `schemaVersion: 2`, exact-one-owner coverage, stable
-    identities, source batches, live sections and versioned ranking. Then run
-    `$BRIEFING_NODE $BRIEFING_CLI inspect` and use its `recentNotes` from the
-    retained five-day window before writing Kurami Notes. Set the target note
+    identities, source batches, live sections and versioned ranking. Use
+    `$BRIEFING_NODE $BRIEFING_CLI inspect` and its `recentNotes` before writing
+    Kurami Notes. Set the target note
     count to `min(6, max(1, ceil(story_count / 5)))`: this keeps a long news
-    edition lively without turning it into a doodle wall. For story notes, use at
+    edition lively without turning it into a doodle wall. Author exactly that many
+    notes when the edition reaches editorialization; a smaller count is a validation
+    failure, not a discretionary omission. For story notes, use at
     most one item from each consecutive five-story band in the final ranked feed;
     spread them across the edition instead of stacking them on the first few
     stories. Ground at least two

@@ -196,6 +196,29 @@ function editorialCopyIssues(story: NewsItem): string[] {
   return issues;
 }
 
+export function storyNoteDistributionIssues(payload: BriefingPayload): string[] {
+  const noteBudget = Math.min(6, Math.max(1, Math.ceil(payload.news.items.length / 5)));
+  if ((payload.notes?.length ?? 0) !== noteBudget) {
+    return [`Kurami Notes must contain exactly ${noteBudget} notes for ${payload.news.items.length} stories`];
+  }
+  const storyPositions = new Map(payload.news.items.map((story, index) => [story.id, index]));
+  const occupiedBands = new Set<number>();
+  for (const note of payload.notes ?? []) {
+    if (!note.target.startsWith("story:")) continue;
+    const position = storyPositions.get(note.target.slice(6));
+    if (position === undefined) continue;
+    const band = Math.floor(position / 5);
+    if (occupiedBands.has(band)) return ["Story notes must target different five-story bands"];
+    occupiedBands.add(band);
+  }
+  return [];
+}
+
+export function assertKuramiNoteContract(payload: BriefingPayload): void {
+  const issues = storyNoteDistributionIssues(payload);
+  if (issues.length) throw new Error(`Kurami Note validation failed: ${issues.join("; ")}`);
+}
+
 export function assertEditorialPayload(payload: BriefingPayload, policy: TopicPolicy): void {
   const issues: string[] = [];
   const summaryOwners = new Map<string, string>();

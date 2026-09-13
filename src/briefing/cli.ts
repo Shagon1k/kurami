@@ -28,7 +28,7 @@ import {
 } from "./release-notifier.ts";
 import { loadBriefingRuntimeConfig, loadTelegramCaptureConfig } from "./runtime-config.ts";
 import { collectEditionLiveSnapshot } from "./live-collector.ts";
-import { assertEditorialPayload, loadTopicPolicy } from "./editorial-validation.ts";
+import { assertEditorialPayload, assertKuramiNoteContract, loadTopicPolicy } from "./editorial-validation.ts";
 import { composeBriefingPayload } from "./composer.ts";
 import { applyDeterministicRanking } from "./ranking.ts";
 import { cinemaSnapshotForDaily } from "./cinema/promotion.ts";
@@ -41,7 +41,7 @@ import {
   type BriefingRunState,
 } from "./run-attempt.ts";
 
-type Command = "init" | "start-attempt" | "attempt-status" | "advance-attempt" | "guard-run" | "collect-live" | "compose" | "topic-pool" | "prepare-preview" | "render-preview" | "rerender-preview" | "revise-published" | "build-media-manifest" | "media-ready" | "import-media" | "validate-telegram-batch" | "telegram-capture-config" | "telegram-commit-plan" | "finalize" | "notify-release" | "inspect" | "cleanup";
+type Command = "init" | "start-attempt" | "attempt-status" | "advance-attempt" | "guard-run" | "collect-live" | "rank-preview" | "compose" | "topic-pool" | "prepare-preview" | "render-preview" | "rerender-preview" | "revise-published" | "build-media-manifest" | "media-ready" | "import-media" | "validate-telegram-batch" | "telegram-capture-config" | "telegram-commit-plan" | "finalize" | "notify-release" | "inspect" | "cleanup";
 
 type Arguments = {
   command: Command;
@@ -70,7 +70,7 @@ function fail(message: string): never {
 
 function parseArguments(argv = process.argv.slice(2)): Arguments {
   const command = argv.shift() as Command | undefined;
-  if (!command || !["init", "start-attempt", "attempt-status", "advance-attempt", "guard-run", "collect-live", "compose", "topic-pool", "prepare-preview", "render-preview", "rerender-preview", "revise-published", "build-media-manifest", "media-ready", "import-media", "validate-telegram-batch", "telegram-capture-config", "telegram-commit-plan", "finalize", "notify-release", "inspect", "cleanup"].includes(command)) {
+  if (!command || !["init", "start-attempt", "attempt-status", "advance-attempt", "guard-run", "collect-live", "rank-preview", "compose", "topic-pool", "prepare-preview", "render-preview", "rerender-preview", "revise-published", "build-media-manifest", "media-ready", "import-media", "validate-telegram-batch", "telegram-capture-config", "telegram-commit-plan", "finalize", "notify-release", "inspect", "cleanup"].includes(command)) {
     fail("Unknown briefing command");
   }
   const result: Arguments = { command };
@@ -123,6 +123,9 @@ function parseArguments(argv = process.argv.slice(2)): Arguments {
   }
   if (command === "compose" && (!result.attemptId || !result.draftPath || !result.livePath || !result.configPath || !result.rawPath || !result.normalizedPath || !result.outputPath)) {
     fail("compose requires --attempt, --draft, --live, --config, --raw, --normalized and --output");
+  }
+  if (command === "rank-preview" && (!result.draftPath || !result.livePath || !result.configPath || !result.rawPath || !result.normalizedPath || !result.outputPath)) {
+    fail("rank-preview requires --draft, --live, --config, --raw, --normalized and --output");
   }
   if (command === "build-media-manifest" && (!result.editionId || !result.downloadsPath || !result.outputPath)) {
     fail("build-media-manifest requires --id, --downloads and --output");
@@ -233,6 +236,35 @@ export async function runBriefingCli(argv = process.argv.slice(2)): Promise<unkn
   if (args.command === "collect-live") {
     return collectEditionLiveSnapshot(args.editionId!, args.attemptId);
   }
+  if (args.command === "rank-preview") {
+    await initializeBriefingStore(paths);
+    const database = openBriefingDatabase(paths);
+    try {
+      const composed = await composeBriefingPayload({
+        draftPath: args.draftPath!,
+        livePath: args.livePath!,
+        configPath: args.configPath!,
+        rawPath: args.rawPath!,
+        normalizedPath: args.normalizedPath!,
+        outputPath: args.outputPath!,
+      });
+      const policy = await loadTopicPolicy(paths.home, process.env, topicRegistry(database));
+      assertEditorialPayload(composed.payload, policy);
+      return {
+        ok: true,
+        action: "rank-preview",
+        externalMutations: false,
+        outputPath: args.outputPath!,
+        stories: composed.payload.news.items.map((story, index) => ({
+          rank: index + 1,
+          storyId: story.id,
+          headline: story.headline,
+        })),
+      };
+    } finally {
+      database.close();
+    }
+  }
   if (args.command === "compose") {
     await initializeBriefingStore(paths);
     const database = openBriefingDatabase(paths);
@@ -253,6 +285,7 @@ export async function runBriefingCli(argv = process.argv.slice(2)): Promise<unkn
       try {
         const policy = await loadTopicPolicy(paths.home, process.env, topicRegistry(database));
         assertEditorialPayload(composed.payload, policy);
+        assertKuramiNoteContract(composed.payload);
       } catch (error) {
         await unlink(args.outputPath!).catch(() => undefined);
         throw error;

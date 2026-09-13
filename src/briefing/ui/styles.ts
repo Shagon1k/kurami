@@ -398,7 +398,10 @@ a { color: inherit; }
   .digest-feed { margin-top: 36px; padding: 24px 16px; box-shadow: 3px 3px 0 var(--section-shadow); }
   .digest-feed__header { align-items: start; flex-direction: column; gap: 10px; }
   .news-story { grid-template-columns: 24px minmax(0, 1fr); gap: 10px; padding: 22px 12px; }
-  .story-cover, .news-story__copy, .news-story__actions { grid-column: 2; }
+  /* Keep the ordinal as a compact lead-in, then let the actual story use the
+     full card width from the next row. On mobile this removes the permanent
+     empty left rail while preserving a stable reading order. */
+  .story-cover, .news-story__copy, .news-story__actions { grid-column: 1 / -1; }
   .story-cover { aspect-ratio: 16 / 9; margin-bottom: 4px; }
   .news-story__actions { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px; }
   .news-story__note { margin-right: 2%; font-size: 18px; }

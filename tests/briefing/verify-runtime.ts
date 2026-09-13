@@ -10,6 +10,7 @@ import {
   removeArchivedMailFromRetainedEditions,
 } from "../../src/briefing/server.ts";
 import { parseBriefingPayload } from "../../src/briefing/model.ts";
+import { storyNoteDistributionIssues } from "../../src/briefing/editorial-validation.ts";
 import { renderBriefingPage } from "../../src/briefing/ui/render-page.ts";
 import {
   collectAddonMetrics,
@@ -103,6 +104,15 @@ const payload = {
       rotation: "negative",
       mark: "arrow-down-left",
     },
+    {
+      id: "note:story-later",
+      target: "story:story-6",
+      text: "ещё один акцент",
+      role: "focus",
+      tone: "signal",
+      rotation: "positive",
+      mark: "arrow-down-left",
+    },
   ],
   calendar: {
     state: "ready",
@@ -191,9 +201,20 @@ const distributedStoryNotes = ["story-1", "story-6", "story-11"].map((storyId, i
   mark: "arrow-down-left",
 }));
 assert.doesNotThrow(() => parseBriefingPayload({ ...payload, notes: distributedStoryNotes }));
-assert.throws(
-  () => parseBriefingPayload({ ...payload, notes: [distributedStoryNotes[0]!, { ...distributedStoryNotes[1]!, target: "story:story-2" }] }),
-  /story notes must target different five-story bands/,
+assert.deepEqual(
+  storyNoteDistributionIssues(parseBriefingPayload({ ...payload, notes: distributedStoryNotes })),
+  [],
+);
+assert.deepEqual(
+  storyNoteDistributionIssues(parseBriefingPayload({
+    ...payload,
+    notes: [distributedStoryNotes[0]!, { ...distributedStoryNotes[1]!, target: "story:story-2" }, distributedStoryNotes[2]!],
+  })),
+  ["Story notes must target different five-story bands"],
+);
+assert.deepEqual(
+  storyNoteDistributionIssues(parseBriefingPayload({ ...payload, notes: [distributedStoryNotes[0]!] })),
+  ["Kurami Notes must contain exactly 3 notes for 11 stories"],
 );
 const explicitCompositionPayload = parseBriefingPayload({
   ...payload,
@@ -719,6 +740,15 @@ const makeSchemaV2Payload = (claimedItemIds: string[]) => ({
       }],
     }],
   },
+  notes: [{
+    id: "note:story-v2",
+    target: "story:story-v2",
+    text: "один важный сюжет",
+    role: "context" as const,
+    tone: "signal" as const,
+    rotation: "none" as const,
+    mark: "arrow-down-left" as const,
+  }],
   dataQuality: { state: "ready" as const },
   sourceBatches: [{
     sourceKey: "telegram:test",
@@ -856,6 +886,7 @@ const onlyVideoStoryPayload = parseBriefingPayload({
     }],
     mainStoryIds: ["story-video-only"],
   },
+  notes: [{ ...makeSchemaV2Payload(["8000"]).notes[0], target: "story:story-video-only" }],
   sourceBatches: [{
     sourceKey: "telegram:test",
     provider: "telegram",
@@ -1193,6 +1224,13 @@ assert.throws(
   /forbidden script elements/,
 );
 assert.throws(
+  () => validateRenderedHtml("<!doctype html><html><body><button data-theme-toggle onclick=\"alert(1)\">Тема</button></body></html>"),
+  /forbidden inline event handlers/,
+);
+assert.doesNotThrow(
+  () => validateRenderedHtml("<!doctype html><html><body><button data-theme-toggle>Тема</button><p>const onClick = () =&gt; undefined</p></body></html>"),
+);
+assert.throws(
   () => validateRenderedHtml("<!doctype html><html><body><p>Без темы</p></body></html>"),
   /visible theme toggle/,
 );
@@ -1242,6 +1280,7 @@ try {
   assert.match(previewHtml, /class="story-media"/);
   assert.match(previewHtml, /\.news-story \{[^}]*grid-template-columns: 36px 176px minmax\(0, 1fr\) auto/);
   assert.match(previewHtml, /\.story-media__grid \{[^}]*grid-template-columns: repeat\(4, minmax\(0, 1fr\)\)/);
+  assert.match(previewHtml, /@media \(max-width: 620px\) \{[\s\S]*?\.story-cover, \.news-story__copy, \.news-story__actions \{ grid-column: 1 \/ -1; \}/);
   assert.match(previewHtml, /@media \(max-width: 620px\) \{[\s\S]*?\.news-story__actions \{ display: grid; grid-template-columns: repeat\(3, minmax\(0, 1fr\)\); gap: 6px; \}/);
   assert.match(previewHtml, /\.story-toggle \{ grid-column: 1 \/ -1; width: 100%; \}/);
   assert.match(previewHtml, /\.news-story__source, \.news-story__actions \.icon-button \{ width: 100%; min-width: 0; padding-inline: 0; \}/);

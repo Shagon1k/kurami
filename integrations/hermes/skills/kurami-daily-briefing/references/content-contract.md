@@ -46,8 +46,9 @@ Every payload uses a versioned envelope with these roles:
 
 ## Kurami Notes
 
-The producer, not the renderer, writes the daily note copy. Notes are authored
-from the finished visible payload after inspecting `recentNotes` from
+The producer, not the renderer, writes daily note copy in two passes. First
+compose a rank-only preview without notes; then inspect its finished ranked story
+list and author notes against those visible slots, alongside `recentNotes` from
 `briefing inspect`:
 
 ```json
@@ -66,8 +67,10 @@ from the finished visible payload after inspecting `recentNotes` from
 }
 ```
 
-Supply up to the deterministic edition budget
-`min(6, max(1, ceil(story_count / 8)))`, each one to four words. Supported
+Supply exactly the deterministic edition budget
+`min(6, max(1, ceil(story_count / 5)))`, each one to four words. In the
+ranked feed, story notes must occupy distinct consecutive five-story bands;
+this is selected from the rank-only preview before the final compose. Supported
 section targets are
 `hero`, `news`, `calendar`, `mail`, `metric:mail`, `metric:stories`,
 `metric:time`, and `metric:weather`. A note may instead target one concrete

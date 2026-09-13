@@ -14,7 +14,11 @@ import {
   type Reaction,
 } from "./model.ts";
 import { assertTelegramStoryCoverage } from "./coverage.ts";
-import { assertEditorialPayload, loadTopicPolicy } from "./editorial-validation.ts";
+import {
+  assertEditorialPayload,
+  assertKuramiNoteContract,
+  loadTopicPolicy,
+} from "./editorial-validation.ts";
 import type { TopicDefinition } from "./editorial-validation.ts";
 import type { TelegramBatchReport } from "./telegram-batch.ts";
 import { DAILY_RETENTION_DAYS } from "./runtime-config.ts";
@@ -352,7 +356,7 @@ export function validateRenderedHtml(html: string, payload?: BriefingPayload): v
   const forbidden: Array<[RegExp, string]> = [
     [/<script\b/i, "script elements"],
     [/<(?:iframe|object|embed|base|form)\b/i, "active embedded content"],
-    [/\son[a-z]+\s*=/i, "inline event handlers"],
+    [/<[a-z][^>]*\son[a-z]+\s*=/i, "inline event handlers"],
     [/<meta[^>]+http-equiv\s*=\s*["']?refresh/i, "meta refresh"],
   ];
   for (const [pattern, label] of forbidden) {
@@ -441,6 +445,9 @@ export async function preparePreview(
   }
   if (payload.schemaVersion === 2 && payload.edition.type === "daily" && payload.sourceBatches?.length) {
     assertTelegramStoryCoverage(payload);
+  }
+  if (payload.edition.type === "daily") {
+    assertKuramiNoteContract(payload);
   }
   validateRenderedHtml(html, payload);
   const currentDatabase = openBriefingDatabase(paths);
