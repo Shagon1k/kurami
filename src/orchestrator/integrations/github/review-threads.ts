@@ -10,6 +10,8 @@ export type ActionableReviewThread = {
   threadId: string;
   rootCommentId: number;
   sourceKind: "ai" | "owner";
+  reviewId: string | null;
+  findingNumber: number | null;
   path: string;
   line: number | null;
   rootBody: string;
@@ -45,11 +47,14 @@ function boundedBody(value: string | null | undefined): string {
   return body.slice(0, 4_000);
 }
 
-function findingMarker(body: string): { reviewId: string; headSha: string } | null {
-  const match = /<!--\s*kurami-ai-finding:(air_[a-f0-9]+):\d+;head=([a-f0-9]{7,64})\s*-->/iu.exec(
+function findingMarker(body: string): { reviewId: string; findingNumber: number; headSha: string } | null {
+  const match = /<!--\s*kurami-ai-finding:(air_[a-f0-9]+):(\d+);head=([a-f0-9]{7,64})\s*-->/iu.exec(
     body,
   );
-  return match ? { reviewId: match[1]!, headSha: match[2]!.toLowerCase() } : null;
+  const findingNumber = Number(match?.[2]);
+  return match && Number.isInteger(findingNumber) && findingNumber > 0
+    ? { reviewId: match[1]!, findingNumber, headSha: match[3]!.toLowerCase() }
+    : null;
 }
 
 function normalizedLogin(value: string): string {
@@ -93,6 +98,8 @@ export function selectActionableReviewThreads(
       threadId,
       rootCommentId: rootId,
       sourceKind: ai ? "ai" : "owner",
+      reviewId: ai ? marker!.reviewId : null,
+      findingNumber: ai ? marker!.findingNumber : null,
       path: thread.path.slice(0, 500),
       line: Number.isInteger(thread.line) && Number(thread.line) > 0 ? Number(thread.line) : null,
       rootBody,
