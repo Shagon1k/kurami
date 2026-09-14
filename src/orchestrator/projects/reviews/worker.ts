@@ -195,6 +195,16 @@ function summaryOnlyFinding(finding: ReviewFinding): string {
   return `- **${severityLabel(finding.severity)} — ${finding.title}** (\`${finding.path}:${finding.line}\`): ${finding.body}`;
 }
 
+function summaryFindingsMarker(
+  findings: ReviewFinding[],
+  reviewId: string,
+  headSha: string,
+): string {
+  if (findings.length === 0) return "";
+  const encoded = Buffer.from(JSON.stringify(findings), "utf8").toString("base64url");
+  return `<!-- kurami-ai-summary-findings:${reviewId};head=${headSha};data=${encoded} -->`;
+}
+
 export function buildGitHubReviewPayload(
   review: ParsedReview,
   reviewId: string,
@@ -220,6 +230,7 @@ export function buildGitHubReviewPayload(
           ...publication.summaryOnlyFindings.map(summaryOnlyFinding),
         ]),
     `<!-- kurami-ai-review:${reviewId};head=${headSha} -->`,
+    summaryFindingsMarker(publication.summaryOnlyFindings, reviewId, headSha),
   ].join("\n\n");
   return {
     commit_id: headSha,

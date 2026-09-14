@@ -19,6 +19,19 @@ export type ActionableReviewThread = {
   url: string;
 };
 
+export type SummaryOnlyReviewFinding = {
+  reviewId: string;
+  findingNumber: number;
+  severity: "critical" | "important" | "suggestion";
+  confidence: "high" | "medium" | "low";
+  title: string;
+  body: string;
+  path: string;
+  line: number;
+};
+
+type StoredAiReview = { reviewId: string; githubReviewId: string };
+
 type GraphQlComment = {
   databaseId?: number | null;
   body?: string | null;
@@ -134,6 +147,74 @@ async function githubRequest(
     fail(`GitHub review-thread request failed: HTTP ${response.status}${details ? `; ${details}` : ""}`);
   }
   return response.json();
+}
+
+function parseSummaryFindings(body: string, reviewId: string, headSha: string): SummaryOnlyReviewFinding[] {
+  const marker = new RegExp(
+    `<!--\\s*kurami-ai-summary-findings:${reviewId};head=${headSha};data=([A-Za-z0-9_-]+)\\s*-->`,
+    "u",
+  ).exec(body);
+  if (!marker) return [];
+  let decoded: unknown;
+  try {
+    decoded = JSON.parse(Buffer.from(marker[1]!, "base64url").toString("utf8"));
+  } catch {
+    fail("GitHub AI review summary marker is invalid");
+  }
+  if (!Array.isArray(decoded) || decoded.length > 10)
+    fail("GitHub AI review summary findings are invalid");
+  return decoded.map((entry, index) => {
+    if (!entry || typeof entry !== "object") fail("GitHub AI review summary finding is invalid");
+    const finding = entry as Record<string, unknown>;
+    const severity = finding.severity;
+    const confidence = finding.confidence;
+    const line = Number(finding.line);
+    if (
+      !(["critical", "important", "suggestion"] as unknown[]).includes(severity) ||
+      !(["high", "medium", "low"] as unknown[]).includes(confidence) ||
+      typeof finding.title !== "string" || !finding.title.trim() ||
+      typeof finding.body !== "string" || !finding.body.trim() ||
+      typeof finding.path !== "string" || !finding.path.trim() ||
+      !Number.isInteger(line) || line <= 0
+    ) fail("GitHub AI review summary finding has an invalid shape");
+    return {
+      reviewId,
+      findingNumber: index + 1,
+      severity: severity as SummaryOnlyReviewFinding["severity"],
+      confidence: confidence as SummaryOnlyReviewFinding["confidence"],
+      title: finding.title.trim().slice(0, 200),
+      body: finding.body.trim().slice(0, 2_000),
+      path: finding.path.trim().slice(0, 500),
+      line,
+    };
+  });
+}
+
+export async function fetchSummaryOnlyReviewFindings(
+  token: string,
+  repository: string,
+  pullRequestNumber: number,
+  headSha: string,
+  reviews: StoredAiReview[],
+  fetchImplementation: typeof fetch = fetch,
+): Promise<SummaryOnlyReviewFinding[]> {
+  const [owner, name] = repository.split("/");
+  if (!owner || !name) fail("Invalid repository name");
+  const result: SummaryOnlyReviewFinding[] = [];
+  for (const review of reviews) {
+    if (!/^\d+$/u.test(review.githubReviewId)) fail("Stored GitHub review id is invalid");
+    const response = (await githubRequest(
+      token,
+      `https://api.github.com/repos/${owner}/${name}/pulls/${pullRequestNumber}/reviews/${review.githubReviewId}`,
+      { method: "GET" },
+      fetchImplementation,
+    )) as { body?: string | null; commit_id?: string | null };
+    if (response.commit_id?.toLowerCase() !== headSha.toLowerCase())
+      fail("GitHub AI review is not attached to the current PR SHA");
+    result.push(...parseSummaryFindings(response.body ?? "", review.reviewId, headSha));
+  }
+  if (result.length > 10) fail("Review fix exceeds the 10-finding safety limit");
+  return result;
 }
 
 export async function fetchActionableReviewThreads(
