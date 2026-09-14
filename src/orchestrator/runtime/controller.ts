@@ -957,8 +957,12 @@ function planAutomatic(
   ) {
     return { ...base, action: "preview_down" };
   }
+  const retryMergedRelease =
+    run.run_state === "needs_attention" &&
+    run.stop_reason === "cancelled" &&
+    run.latest_attention_reason === "worktree_release_blocked";
   if (
-    run.run_state === "stopping" &&
+    (run.run_state === "stopping" || retryMergedRelease) &&
     run.tmux_session_name === null &&
     !run.preview_lease_id &&
     ["provisioned", "partial", "releasing"].includes(run.resource_state)
@@ -998,7 +1002,12 @@ function buildPlans(
            OR rr.previous_codex_thread_id IS NOT NULL
            OR (pl.state = 'running'
                AND pl.expires_at IS NOT NULL
-               AND pl.expires_at <= strftime('%Y-%m-%dT%H:%M:%fZ', 'now')))
+               AND pl.expires_at <= strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))
+           OR (r.stop_reason = 'cancelled'
+               AND (SELECT reason FROM run_state_history attention_latest
+                    WHERE attention_latest.run_id = r.run_id
+                      AND attention_latest.to_state = 'needs_attention'
+                    ORDER BY attention_latest.sequence DESC LIMIT 1) = 'worktree_release_blocked'))
       AND (r.state <> 'archived'
            OR rr.previous_codex_thread_id IS NOT NULL)
     ORDER BY r.created_at, r.run_id

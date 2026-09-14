@@ -1,4 +1,6 @@
+import { spawnSync } from "node:child_process";
 import { randomUUID } from "node:crypto";
+import { lstat, readdir, rmdir, unlink } from "node:fs/promises";
 import { resolve } from "node:path";
 import { DatabaseSync } from "node:sqlite";
 import { resolveKuramiHome } from "../../../core/kurami-home.ts";
@@ -9,7 +11,13 @@ import {
 
 process.umask(0o077);
 
-type Command = "allocate" | "inspect" | "release" | "extend" | "review";
+type Command =
+  | "allocate"
+  | "inspect"
+  | "release"
+  | "extend"
+  | "review"
+  | "reconcile-orphan-runtime";
 
 type Arguments = {
   command: Command;
@@ -84,9 +92,12 @@ function fail(message: string): never {
 function parseArguments(): Arguments {
   const args = process.argv.slice(2);
   const command = args.shift() as Command | undefined;
-  if (!command || !["allocate", "inspect", "release", "extend", "review"].includes(command)) {
+  if (
+    !command ||
+    !["allocate", "inspect", "release", "extend", "review", "reconcile-orphan-runtime"].includes(command)
+  ) {
     fail(
-      "Usage: preview-manager.ts <allocate|inspect|release|extend|review> [--run-id <id>] [--reviewed-by <discord:id|cli:owner>] [--apply] [--runtime-absent]",
+      "Usage: preview-manager.ts <allocate|inspect|release|extend|review|reconcile-orphan-runtime> [--run-id <id>] [--reviewed-by <discord:id|cli:owner>] [--apply] [--runtime-absent]",
     );
   }
 
@@ -131,7 +142,10 @@ function parseArguments(): Arguments {
     }
   }
 
-  if (["allocate", "release", "extend", "review"].includes(command) && !runId) {
+  if (
+    ["allocate", "release", "extend", "review", "reconcile-orphan-runtime"].includes(command) &&
+    !runId
+  ) {
     fail(`${command} requires --run-id`);
   }
   if (command === "inspect" && (apply || runtimeAbsent)) {
@@ -613,6 +627,89 @@ function release(
   }
 }
 
+async function reconcileOrphanRuntime(
+  database: DatabaseSync,
+  runId: string,
+  apply: boolean,
+): Promise<void> {
+  if (!/^r_[A-Za-z0-9_]+$/u.test(runId)) fail("Invalid run ID");
+  const run = runRecord(database, runId);
+  if (run.preview_id !== null) fail(`Run still owns preview_id: ${run.preview_id}`);
+  const activeCount = Number(
+    (database
+      .prepare("SELECT COUNT(*) AS count FROM preview_leases WHERE run_id=? AND state <> 'released'")
+      .get(runId) as { count: number }).count,
+  );
+  if (activeCount !== 0) fail(`Run still has ${activeCount} active preview lease(s)`);
+  const lease = database
+    .prepare(`SELECT compose_project_name, runtime_adapter FROM preview_leases
+              WHERE run_id=? ORDER BY updated_at DESC LIMIT 1`)
+    .get(runId) as { compose_project_name: string; runtime_adapter: string } | undefined;
+  if (!lease || lease.runtime_adapter !== "compose") {
+    fail("No released Compose preview lease found for run");
+  }
+
+  const runtimeDirectory = resolve(orchestratorHome, "state/previews", runId);
+  const runtimeRoot = resolve(orchestratorHome, "state/previews");
+  if (!runtimeDirectory.startsWith(`${runtimeRoot}/`)) fail("Unsafe runtime directory path");
+  const allowedRuntimeArtifactSets = [
+    ["runtime.env", "compose.preview.yaml"],
+    ["runtime.env", "compose.preview.yaml", "source.compose.yaml"],
+  ];
+  const entries = await readdir(runtimeDirectory, { withFileTypes: true });
+  const names = entries.map((entry) => entry.name).sort();
+  const expectedFiles = allowedRuntimeArtifactSets.find(
+    (allowed) => names.join("\0") === [...allowed].sort().join("\0"),
+  );
+  if (!expectedFiles) {
+    fail(`Runtime directory has unexpected entries: ${names.join(",")}`);
+  }
+  for (const name of expectedFiles) {
+    const entry = entries.find((candidate) => candidate.name === name);
+    if (!entry || !entry.isFile() || entry.isSymbolicLink()) {
+      fail(`Runtime artifact is not a regular file: ${name}`);
+    }
+    const metadata = await lstat(resolve(runtimeDirectory, name));
+    if (!metadata.isFile() || metadata.isSymbolicLink()) {
+      fail(`Runtime artifact changed during inspection: ${name}`);
+    }
+  }
+
+  const dockerArgs = [
+    ["ps", "-aq", "--filter", `label=com.docker.compose.project=${lease.compose_project_name}`],
+    ["volume", "ls", "-q", "--filter", `label=com.docker.compose.project=${lease.compose_project_name}`],
+    ["network", "ls", "-q", "--filter", `label=com.docker.compose.project=${lease.compose_project_name}`],
+  ];
+  const resources = dockerArgs.map((args) => {
+    const result = spawnSync("docker", args, { encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] });
+    if (result.status !== 0) fail(result.stderr.trim() || `Cannot inspect Docker ${args[0]} resources`);
+    return result.stdout.split("\n").filter(Boolean);
+  });
+  if (resources.some((resource) => resource.length > 0)) {
+    fail("Refusing orphan runtime cleanup while Compose resources still exist");
+  }
+
+  const plan = {
+    runId,
+    composeProjectName: lease.compose_project_name,
+    runtimeDirectory,
+    files: expectedFiles,
+    dockerResources: { containers: 0, volumes: 0, networks: 0 },
+  };
+  if (!apply) {
+    process.stdout.write(`${JSON.stringify({ ok: true, apply: false, action: "reconcile_orphan_runtime", plan })}\n`);
+    return;
+  }
+
+  for (const name of expectedFiles) await unlink(resolve(runtimeDirectory, name));
+  await rmdir(runtimeDirectory);
+  database
+    .prepare(`INSERT INTO run_state_history (run_id, from_state, to_state, reason, details_json)
+              VALUES (?, ?, ?, 'orphan_runtime_reconciled', ?)`)
+    .run(runId, run.state, run.state, JSON.stringify(plan));
+  process.stdout.write(`${JSON.stringify({ ok: true, apply: true, action: "orphan_runtime_reconciled", plan })}\n`);
+}
+
 export async function runPreviewManagerCli(): Promise<void> {
   const args = parseArguments();
   const config = await loadEffectiveOrchestratorConfig<OrchestratorConfig>(
@@ -673,6 +770,8 @@ export async function runPreviewManagerCli(): Promise<void> {
       );
     } else if (args.command === "extend") {
       extend(database, config, args.runId!, args.apply);
+    } else if (args.command === "reconcile-orphan-runtime") {
+      await reconcileOrphanRuntime(database, args.runId!, args.apply);
     } else {
       review(database, args.runId!, args.reviewedBy!, args.apply);
     }

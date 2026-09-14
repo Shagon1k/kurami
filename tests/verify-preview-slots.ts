@@ -1,5 +1,5 @@
 import { execFileSync, spawnSync } from "node:child_process";
-import { copyFile, mkdir, mkdtemp, rm } from "node:fs/promises";
+import { copyFile, mkdir, mkdtemp, rm, stat, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { resolve } from "node:path";
 import { DatabaseSync } from "node:sqlite";
@@ -157,6 +157,35 @@ async function main(): Promise<void> {
       "--runtime-absent",
     ]);
     assert(release.action === "released", "Lease release did not apply");
+
+    const orphanRuntime = resolve(testHome, "state/previews/r_preview_test_1");
+    await mkdir(orphanRuntime, { recursive: true, mode: 0o700 });
+    await Promise.all(
+      ["runtime.env", "compose.preview.yaml", "source.compose.yaml"].map((name) =>
+        writeFile(resolve(orphanRuntime, name), "fixture\n", { mode: 0o600 }),
+      ),
+    );
+    const orphanPlan = runManager(appDirectory, testHome, [
+      "reconcile-orphan-runtime",
+      "--run-id",
+      "r_preview_test_1",
+    ]);
+    assert(orphanPlan.action === "reconcile_orphan_runtime", "Orphan runtime dry-run was rejected");
+    const orphanCleanup = runManager(appDirectory, testHome, [
+      "reconcile-orphan-runtime",
+      "--run-id",
+      "r_preview_test_1",
+      "--apply",
+    ]);
+    assert(orphanCleanup.action === "orphan_runtime_reconciled", "Orphan runtime cleanup did not apply");
+    await stat(orphanRuntime)
+      .then(() => {
+        throw new Error("Orphan runtime directory still exists after cleanup");
+      })
+      .catch((error: NodeJS.ErrnoException) => {
+        if (error.code !== "ENOENT") throw error;
+      });
+
     const replacement = runManager(appDirectory, testHome, [
       "allocate",
       "--run-id",

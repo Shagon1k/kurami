@@ -255,7 +255,7 @@ async function buildPlan(
   if (!project) fail(`Unknown project in run: ${run.project}`);
   const canonicalRepository = resolve(project.workspace.canonical_repository);
   const remoteBaseRef = `refs/remotes/origin/${project.workspace.base_branch}`;
-  if (run.stop_reason === "completed" && refreshRemote) {
+  if (refreshRemote) {
     git(canonicalRepository, ["fetch", "--prune", "origin", project.workspace.base_branch]);
   }
   if (!gitRefExists(canonicalRepository, remoteBaseRef)) {
@@ -325,7 +325,7 @@ async function buildPlan(
   let mergedPullRequestNumber: number | null = null;
   let mergedPullRequestUrl: string | null = null;
   let mergeVerificationError: string | null = null;
-  if (run.stop_reason === "completed" && refreshRemote && !mergedIntoBase) {
+  if (refreshRemote && !mergedIntoBase) {
     const pullRequest = verifyMergedPullRequest(
       project.repository,
       project.workspace.base_branch,
@@ -339,11 +339,13 @@ async function buildPlan(
     mergeVerificationError = pullRequest.error;
   }
   if (
+    !completionVerified &&
+    run.run_state !== "needs_attention" &&
     run.stop_reason !== "completed" &&
     (commitsAfterBase !== 0 || headSha !== run.base_sha)
   ) {
     fail(
-      `Branch contains work beyond the recorded base; refusing release: head=${headSha}, base=${run.base_sha}, commitsAfterBase=${commitsAfterBase}`,
+      `Branch contains work beyond the recorded base without verified merge evidence: head=${headSha}, base=${run.base_sha}, commitsAfterBase=${commitsAfterBase}`,
     );
   }
   return {
@@ -365,7 +367,7 @@ async function buildPlan(
     mergedPullRequestNumber,
     mergedPullRequestUrl,
     mergeVerificationError,
-    finalState: run.stop_reason === "completed" ? "archived" : "cancelled",
+    finalState: completionVerified ? "archived" : "cancelled",
   };
 }
 
@@ -565,7 +567,10 @@ export async function runReleaseWorktreeCli(): Promise<void> {
       process.stdout.write(`${JSON.stringify({ ok: true, apply: false, plan })}\n`);
       return;
     }
-    if (run.stop_reason === "completed" && !plan.completionVerified) {
+    if (
+      !plan.completionVerified &&
+      (run.stop_reason === "completed" || run.run_state === "needs_attention")
+    ) {
       process.stdout.write(
         `${JSON.stringify({
           ok: true,
