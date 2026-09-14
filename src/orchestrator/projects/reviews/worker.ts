@@ -239,6 +239,15 @@ export function buildGitHubReviewPayload(
   };
 }
 
+export function shouldRetryWithoutInlineComments(
+  error: unknown,
+  publication: ReviewPublication,
+): boolean {
+  if (publication.inlineFindings.length === 0) return false;
+  const message = error instanceof Error ? error.message : String(error);
+  return /Path could not be resolved|line must be part of the diff|position is invalid/iu.test(message);
+}
+
 function boundedSourceText(value: string | null | undefined, maximum: number): string {
   const normalized = value?.trim();
   return normalized ? normalized.slice(0, maximum) : "(not provided)";
@@ -451,21 +460,30 @@ export async function runAiReviewWorkerCli(): Promise<void> {
       run("git", ["-C", row.worktree_path, "diff", "--no-ext-diff", "--unified=0", `${row.base_sha}..${row.head_sha}`]),
     );
     const publication = splitReviewFindings(parsed, changedLines);
-    const payload = buildGitHubReviewPayload(parsed, reviewId, row.head_sha, publication);
-    const published = JSON.parse(
-      gh(
-        [
-          "api",
-          "--method",
-          "POST",
-          `repos/${row.repository}/pulls/${row.pull_request_number}/reviews`,
-          "--input",
-          "-",
-        ],
-        JSON.stringify(payload),
-        installationToken,
-      ),
-    ) as PublishedReview;
+    const publish = (candidate: ReviewPublication): PublishedReview => {
+      const payload = buildGitHubReviewPayload(parsed, reviewId, row.head_sha, candidate);
+      return JSON.parse(
+        gh(
+          [
+            "api",
+            "--method",
+            "POST",
+            `repos/${row.repository}/pulls/${row.pull_request_number}/reviews`,
+            "--input",
+            "-",
+          ],
+          JSON.stringify(payload),
+          installationToken,
+        ),
+      ) as PublishedReview;
+    };
+    let published: PublishedReview;
+    try {
+      published = publish(publication);
+    } catch (error) {
+      if (!shouldRetryWithoutInlineComments(error, publication)) throw error;
+      published = publish({ inlineFindings: [], summaryOnlyFindings: parsed.findings });
+    }
     const critical = parsed.findings.filter((finding) => finding.severity === "critical").length;
     const important = parsed.findings.filter((finding) => finding.severity === "important").length;
     const suggestion = parsed.findings.filter((finding) => finding.severity === "suggestion").length;

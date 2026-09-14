@@ -10,6 +10,7 @@ import {
   changedRightLines,
   parseReviewResult,
   runAiReviewWorkerCli,
+  shouldRetryWithoutInlineComments,
   splitReviewFindings,
 } from "../src/orchestrator/projects/reviews/worker.ts";
 import {
@@ -237,6 +238,30 @@ index aaaaaaa..bbbbbbb 100644
         String(fallbackPayload.body).includes("Findings without an inline anchor") &&
         String(fallbackPayload.body).includes("`src/state.ts:7`"),
       "Unanchorable AI review findings would still fail the entire GitHub review publication",
+    );
+    assert(
+      shouldRetryWithoutInlineComments(
+        new Error('gh: Unprocessable Entity (HTTP 422)\n{"errors":["Path could not be resolved"]}'),
+        publication,
+      ) &&
+        !shouldRetryWithoutInlineComments(new Error("HTTP 422: unrelated validation failure"), publication) &&
+        !shouldRetryWithoutInlineComments(
+          new Error('Path could not be resolved'),
+          { inlineFindings: [], summaryOnlyFindings: publication.summaryOnlyFindings },
+        ),
+      "AI review publication retry must only downgrade inline findings for known GitHub anchor failures",
+    );
+    const retryPayload = buildGitHubReviewPayload(
+      { summary: "Anchor checks are required.", findings: [...publication.inlineFindings, ...publication.summaryOnlyFindings] },
+      "air_retry",
+      "d".repeat(40),
+      { inlineFindings: [], summaryOnlyFindings: [...publication.inlineFindings, ...publication.summaryOnlyFindings] },
+    );
+    assert(
+      Array.isArray(retryPayload.comments) && retryPayload.comments.length === 0 &&
+        String(retryPayload.body).includes("`src/state.ts:41`") &&
+        String(retryPayload.body).includes("`src/state.ts:7`"),
+      "GitHub anchor fallback would not preserve every finding in the review summary",
     );
     assert(
       parseReviewResult('{"summary":"Clean","findings":[]}').findings.length === 0,
