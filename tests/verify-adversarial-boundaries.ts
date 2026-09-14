@@ -155,6 +155,8 @@ const reviewFix = reviewFixPrompt(
         threadId: "thread-attack",
         rootCommentId: 1,
         sourceKind: "owner",
+        reviewId: null,
+        findingNumber: null,
         path: "src/example.ts",
         line: 10,
         rootBody: attack,
@@ -162,6 +164,7 @@ const reviewFix = reviewFixPrompt(
         url: "https://example.invalid/thread-attack",
       },
     ],
+    summaryOnlyFindings: [],
   },
 );
 assert(

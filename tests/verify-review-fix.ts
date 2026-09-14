@@ -163,8 +163,9 @@ async function main(): Promise<void> {
     assert(
       selected.length === 2 &&
         selected[0]?.sourceKind === "ai" &&
+        selected[0]?.reviewId === "air_abcd" && selected[0]?.findingNumber === 1 &&
         selected[0]?.ownerReplies[0] === "Keep the public behavior unchanged." &&
-        selected[1]?.sourceKind === "owner",
+        selected[1]?.sourceKind === "owner" && selected[1]?.reviewId === null && selected[1]?.findingNumber === null,
       "Review thread snapshot was not deterministic",
     );
     const legacyBotLogin = selectActionableReviewThreads(
@@ -209,11 +210,25 @@ async function main(): Promise<void> {
         pullRequestNumber: 240,
         pullRequestUrl: "https://example.invalid/pulls/240",
         threads: selected,
+        summaryOnlyFindings: [
+          {
+            reviewId: "air_abcd",
+            findingNumber: 2,
+            severity: "important",
+            confidence: "high",
+            title: "Summary-only finding",
+            body: "GitHub rejected the inline anchor, so this evidence must still be fixed.",
+            path: "src/fallback.ts",
+            line: 9,
+          },
+        ],
       },
     );
     assert(
       prompt.includes(`exact PR head SHA ${head}`) &&
-        prompt.includes("Fix exactly these 2 unresolved review thread") &&
+        prompt.includes("Fix exactly these 3 review item") &&
+        prompt.includes("Summary-only finding") &&
+        prompt.includes("GitHub rejected the inline anchor") &&
         prompt.includes("Do not address new or resolved threads") &&
         prompt.includes("never force-push") &&
         prompt.includes("Do not ask for or wait for a separate interactive commit confirmation") &&
