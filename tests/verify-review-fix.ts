@@ -5,11 +5,13 @@ import { tmpdir } from "node:os";
 import { delimiter, resolve } from "node:path";
 import { DatabaseSync } from "node:sqlite";
 import {
+  fetchSummaryOnlyReviewFindings,
   replyAndResolveReviewThread,
   selectActionableReviewThreads,
 } from "../src/orchestrator/integrations/github/review-threads.ts";
 import { loadOwnerGitHubTokenFromFile } from "../src/orchestrator/integrations/github/app-auth.ts";
 import { reviewFixPrompt } from "../src/orchestrator/projects/sessions/manager.ts";
+import { buildGitHubReviewPayload } from "../src/orchestrator/projects/reviews/worker.ts";
 
 type JsonObject = Record<string, unknown>;
 
@@ -167,6 +169,31 @@ async function main(): Promise<void> {
         selected[0]?.ownerReplies[0] === "Keep the public behavior unchanged." &&
         selected[1]?.sourceKind === "owner" && selected[1]?.reviewId === null && selected[1]?.findingNumber === null,
       "Review thread snapshot was not deterministic",
+    );
+    const summaryPayload = buildGitHubReviewPayload(
+      {
+        summary: "Anchor fallback.",
+        findings: [
+          { severity: "important", confidence: "high", title: "GitHub source", body: "Read this from GitHub.", path: "src/fallback.ts", line: 9 },
+        ],
+      },
+      "air_abcd",
+      head,
+      { inlineFindings: [], summaryOnlyFindings: [{ severity: "important", confidence: "high", title: "GitHub source", body: "Read this from GitHub.", path: "src/fallback.ts", line: 9 }] },
+    );
+    const githubSummaryFindings = await fetchSummaryOnlyReviewFindings(
+      "app-token",
+      "Shagon1k/TailorTales",
+      240,
+      head,
+      [{ reviewId: "air_abcd", githubReviewId: "88" }],
+      async () => new Response(JSON.stringify({ commit_id: head, body: summaryPayload.body }), { status: 200 }),
+    );
+    assert(
+      githubSummaryFindings.length === 1 &&
+        githubSummaryFindings[0]?.title === "GitHub source" &&
+        githubSummaryFindings[0]?.reviewId === "air_abcd",
+      "Fix Review did not reload summary-only findings from GitHub",
     );
     const legacyBotLogin = selectActionableReviewThreads(
       [
