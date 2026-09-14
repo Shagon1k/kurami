@@ -1028,6 +1028,25 @@ revokes ingress first, then removes only the recorded Compose project and its
 volumes. The slot is released only after container absence is proven; failed
 cleanup stays visible in runtime health instead of silently freeing the slot.
 
+A released Compose lease can leave only its private runtime directory behind if
+an earlier lifecycle version stopped after releasing the lease. Operators must
+use `preview-manager.ts reconcile-orphan-runtime --run-id <run>`, first without
+`--apply`. The command refuses any run with a live `preview_id` or non-released
+lease, any Docker container, volume, or network carrying the recorded Compose
+project label, symlinks, directories, or unexpected artifacts. It accepts only
+the known runtime artifact sets and records an `orphan_runtime_reconciled`
+history event after `--apply`; it never touches a worktree, branch, PR, or
+Compose resource.
+
+When a previous cancellation left a clean managed worktree in
+`needs_attention` with `worktree_release_blocked`, the controller retries its
+normal release path. A retry may delete the worktree and local branch only after
+GitHub reports a `MERGED` pull request whose head SHA matches the managed
+worktree HEAD. A merely closed PR, dirty tree, live owner/tmux mapping, active
+preview lease, SHA mismatch, or unavailable merge evidence stays fail-closed.
+A verified merged result is archived with the PR evidence; the PR itself and
+its merged commits are never changed.
+
 Branch naming is deterministic and readable:
 
 ```text
