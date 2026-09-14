@@ -25,6 +25,10 @@ export type ReviewFinding = {
   line: number;
 };
 export type ParsedReview = { summary: string; findings: ReviewFinding[] };
+export type ReviewPublication = {
+  inlineFindings: ReviewFinding[];
+  summaryOnlyFindings: ReviewFinding[];
+};
 
 type ReviewRow = {
   review_id: string;
@@ -127,10 +131,78 @@ function severityLabel(severity: ReviewSeverity): string {
   return severity[0]!.toUpperCase() + severity.slice(1);
 }
 
+function diffRangeStart(header: string): { start: number; count: number } | undefined {
+  const match = /^@@ -\d+(?:,\d+)? \+(\d+)(?:,(\d+))? @@(?:.*)$/u.exec(header);
+  if (!match) return undefined;
+  return {
+    start: Number(match[1]),
+    count: match[2] === undefined ? 1 : Number(match[2]),
+  };
+}
+
+export function changedRightLines(diff: string): Map<string, Set<number>> {
+  const result = new Map<string, Set<number>>();
+  let path: string | undefined;
+  let line = 0;
+  let remaining = 0;
+  for (const sourceLine of diff.split(/\r?\n/u)) {
+    if (sourceLine.startsWith("+++ b/")) {
+      path = sourceLine.slice("+++ b/".length);
+      continue;
+    }
+    if (sourceLine.startsWith("@@ ")) {
+      const range = diffRangeStart(sourceLine);
+      if (!range || !path) {
+        path = undefined;
+        remaining = 0;
+        continue;
+      }
+      line = range.start;
+      remaining = range.count;
+      continue;
+    }
+    if (!path || remaining <= 0 || sourceLine.startsWith("\\ No newline")) continue;
+    if (sourceLine.startsWith("+")) {
+      const lines = result.get(path) ?? new Set<number>();
+      lines.add(line);
+      result.set(path, lines);
+      line += 1;
+      remaining -= 1;
+    } else if (sourceLine.startsWith(" ")) {
+      line += 1;
+      remaining -= 1;
+    } else if (sourceLine.startsWith("-")) {
+      // Removed left-side lines do not advance the new-file coordinate.
+    }
+  }
+  return result;
+}
+
+export function splitReviewFindings(
+  review: ParsedReview,
+  changedLines: ReadonlyMap<string, ReadonlySet<number>>,
+): ReviewPublication {
+  const inlineFindings: ReviewFinding[] = [];
+  const summaryOnlyFindings: ReviewFinding[] = [];
+  for (const finding of review.findings) {
+    if (changedLines.get(finding.path)?.has(finding.line)) inlineFindings.push(finding);
+    else summaryOnlyFindings.push(finding);
+  }
+  return { inlineFindings, summaryOnlyFindings };
+}
+
+function summaryOnlyFinding(finding: ReviewFinding): string {
+  return `- **${severityLabel(finding.severity)} — ${finding.title}** (\`${finding.path}:${finding.line}\`): ${finding.body}`;
+}
+
 export function buildGitHubReviewPayload(
   review: ParsedReview,
   reviewId: string,
   headSha: string,
+  publication: ReviewPublication = {
+    inlineFindings: review.findings,
+    summaryOnlyFindings: [],
+  },
 ): Record<string, unknown> {
   const count = (severity: ReviewSeverity): number =>
     review.findings.filter((finding) => finding.severity === severity).length;
@@ -140,13 +212,20 @@ export function buildGitHubReviewPayload(
     `Reviewed \`${headSha.slice(0, 12)}\``,
     `**${counts}**`,
     review.summary || (review.findings.length === 0 ? "No actionable findings." : "Actionable findings are attached inline."),
+    ...(publication.summaryOnlyFindings.length === 0
+      ? []
+      : [
+          "### Findings without an inline anchor",
+          "GitHub only accepts inline comments on changed right-side lines. These findings were preserved here instead:",
+          ...publication.summaryOnlyFindings.map(summaryOnlyFinding),
+        ]),
     `<!-- kurami-ai-review:${reviewId};head=${headSha} -->`,
   ].join("\n\n");
   return {
     commit_id: headSha,
     event: "COMMENT",
     body,
-    comments: review.findings.map((finding, index) => ({
+    comments: publication.inlineFindings.map((finding, index) => ({
       path: finding.path,
       line: finding.line,
       side: "RIGHT",
@@ -240,13 +319,29 @@ function run(
   input?: string,
   environment: NodeJS.ProcessEnv = process.env,
 ): string {
-  return execFileSync(command, args, {
-    encoding: "utf8",
-    env: environment,
-    input,
-    stdio: [input === undefined ? "ignore" : "pipe", "pipe", "pipe"],
-    timeout: 60_000,
-  }).trim();
+  try {
+    return execFileSync(command, args, {
+      encoding: "utf8",
+      env: environment,
+      input,
+      stdio: [input === undefined ? "ignore" : "pipe", "pipe", "pipe"],
+      timeout: 60_000,
+    }).trim();
+  } catch (error) {
+    const commandError = error as { message?: unknown; stdout?: unknown; stderr?: unknown };
+    const details = [commandError.stderr, commandError.stdout, commandError.message]
+      .filter((value): value is string | Buffer => typeof value === "string" || Buffer.isBuffer(value))
+      .map((value) => value.toString().trim())
+      .filter(Boolean)
+      .join("\n")
+      .slice(0, 4_000);
+    try {
+      assertNoSecretLikeText(details, "GitHub review publication failure");
+    } catch {
+      throw new Error("GitHub review publication failed; response omitted because it contained secret-like material");
+    }
+    throw new Error(details || `${command} failed without a diagnostic response`);
+  }
 }
 
 function gh(args: string[], input: string | undefined, token: string): string {
@@ -352,7 +447,11 @@ export async function runAiReviewWorkerCli(): Promise<void> {
       process.stdout.write(`${JSON.stringify({ ok: true, reviewId, state: "superseded" })}\n`);
       return;
     }
-    const payload = buildGitHubReviewPayload(parsed, reviewId, row.head_sha);
+    const changedLines = changedRightLines(
+      run("git", ["-C", row.worktree_path, "diff", "--no-ext-diff", "--unified=0", `${row.base_sha}..${row.head_sha}`]),
+    );
+    const publication = splitReviewFindings(parsed, changedLines);
+    const payload = buildGitHubReviewPayload(parsed, reviewId, row.head_sha, publication);
     const published = JSON.parse(
       gh(
         [

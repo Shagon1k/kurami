@@ -7,8 +7,10 @@ import { DatabaseSync } from "node:sqlite";
 import {
   buildReviewInstructions,
   buildGitHubReviewPayload,
+  changedRightLines,
   parseReviewResult,
   runAiReviewWorkerCli,
+  splitReviewFindings,
 } from "../src/orchestrator/projects/reviews/worker.ts";
 import {
   detachedCodexEnvironment,
@@ -169,7 +171,7 @@ async function main(): Promise<void> {
             title: "Race can lose the update",
             body: "Two concurrent writers can overwrite the same state.",
             path: "src/state.ts",
-            line: 42,
+            line: 41,
           },
         ],
       }),
@@ -193,6 +195,48 @@ async function main(): Promise<void> {
           "<!-- kurami-ai-finding:air_test:1;head=",
         ),
       "AI review visible attribution or deterministic provenance is missing",
+    );
+    const publication = splitReviewFindings(
+      {
+        summary: "Anchor checks are required.",
+        findings: [
+          parsed.findings[0]!,
+          {
+            severity: "suggestion",
+            confidence: "medium",
+            title: "Old line",
+            body: "This reference is not on the changed right side.",
+            path: "src/state.ts",
+            line: 7,
+          },
+        ],
+      },
+      changedRightLines(`diff --git a/src/state.ts b/src/state.ts
+index aaaaaaa..bbbbbbb 100644
+--- a/src/state.ts
++++ b/src/state.ts
+@@ -40,3 +40,3 @@ export function update() {
+ old();
+-save(previous);
++save(next);
+ done();`),
+    );
+    assert(
+      publication.inlineFindings.length === 1 && publication.inlineFindings[0]?.line === 41 &&
+        publication.summaryOnlyFindings.length === 1 && publication.summaryOnlyFindings[0]?.line === 7,
+      "AI review findings were not split by changed right-side line eligibility",
+    );
+    const fallbackPayload = buildGitHubReviewPayload(
+      { summary: "Anchor checks are required.", findings: [...publication.inlineFindings, ...publication.summaryOnlyFindings] },
+      "air_fallback",
+      "c".repeat(40),
+      publication,
+    );
+    assert(
+      Array.isArray(fallbackPayload.comments) && fallbackPayload.comments.length === 1 &&
+        String(fallbackPayload.body).includes("Findings without an inline anchor") &&
+        String(fallbackPayload.body).includes("`src/state.ts:7`"),
+      "Unanchorable AI review findings would still fail the entire GitHub review publication",
     );
     assert(
       parseReviewResult('{"summary":"Clean","findings":[]}').findings.length === 0,
