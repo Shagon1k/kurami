@@ -8,6 +8,7 @@ import {
   buildReviewInstructions,
   buildGitHubReviewPayload,
   changedRightLines,
+  findPublishedReviewWithMarker,
   parseReviewResult,
   runAiReviewWorkerCli,
   shouldRetryWithoutInlineComments,
@@ -262,6 +263,25 @@ index aaaaaaa..bbbbbbb 100644
         String(retryPayload.body).includes("`src/state.ts:41`") &&
         String(retryPayload.body).includes("`src/state.ts:7`"),
       "GitHub anchor fallback would not preserve every finding in the review summary",
+    );
+    const publishedAfterEmptyResponse = findPublishedReviewWithMarker(
+      [
+        { id: 17, commit_id: "wrong", body: "<!-- kurami-ai-review:air_response;head=expected -->" },
+        { id: 18, commit_id: "e".repeat(40), body: "unrelated review" },
+        {
+          id: 19,
+          html_url: "https://example.invalid/reviews/19",
+          commit_id: "e".repeat(40),
+          body: `review\n<!-- kurami-ai-review:air_response;head=${"e".repeat(40)} -->`,
+        },
+      ],
+      "air_response",
+      "e".repeat(40),
+    );
+    assert(
+      publishedAfterEmptyResponse?.id === 19 &&
+        findPublishedReviewWithMarker([], "air_response", "e".repeat(40)) === undefined,
+      "An empty successful GitHub publication response cannot be recovered from exact review provenance",
     );
     assert(
       parseReviewResult('{"summary":"Clean","findings":[]}').findings.length === 0,
