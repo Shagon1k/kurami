@@ -1454,6 +1454,7 @@ function reconcileFalseReviewFixNoNewHead(database: DatabaseSync): void {
          AND f.failure_reason IN (
            'review_fix_no_new_head',
            'review_fix_ci_timeout',
+           'review_fix_ci_failed',
            'No new PR head appeared after the review fixer task'
          )
          AND NOT EXISTS (
@@ -1521,7 +1522,8 @@ function reconcileFalseReviewFixNoNewHead(database: DatabaseSync): void {
       round.owner_state === "none" &&
       round.stop_reason === null &&
       (round.attention_reason === "review_fix_no_new_head" ||
-        round.attention_reason === "review_fix_ci_timeout") &&
+        round.attention_reason === "review_fix_ci_timeout" ||
+        round.attention_reason === "review_fix_ci_failed") &&
       round.request_action === "review_fix" &&
       round.request_state === "applied" &&
       round.tmux_session_name === null &&
@@ -1553,6 +1555,7 @@ function reconcileFalseReviewFixNoNewHead(database: DatabaseSync): void {
                AND failure_reason IN (
                  'review_fix_no_new_head',
                  'review_fix_ci_timeout',
+                 'review_fix_ci_failed',
                  'No new PR head appeared after the review fixer task'
                )`,
           )
@@ -1602,6 +1605,7 @@ function reconcileFalseReviewFixNoNewHead(database: DatabaseSync): void {
              AND failure_reason IN (
                'review_fix_no_new_head',
                'review_fix_ci_timeout',
+               'review_fix_ci_failed',
                'No new PR head appeared after the review fixer task'
              )`,
         )
