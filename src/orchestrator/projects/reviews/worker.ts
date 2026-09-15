@@ -47,7 +47,12 @@ type ReviewRow = {
   branch_name: string;
 };
 
-type PublishedReview = { id?: number | string; html_url?: string };
+type PublishedReview = {
+  id?: number | string;
+  html_url?: string;
+  body?: string | null;
+  commit_id?: string | null;
+};
 type PullDetails = {
   state?: string;
   title?: string | null;
@@ -372,6 +377,46 @@ function gh(args: string[], input: string | undefined, token: string): string {
   });
 }
 
+export function findPublishedReviewWithMarker(
+  reviews: unknown,
+  reviewId: string,
+  headSha: string,
+): PublishedReview | undefined {
+  if (!Array.isArray(reviews)) fail("GitHub returned an invalid review list after an empty publication response");
+  const marker = `<!-- kurami-ai-review:${reviewId};head=${headSha} -->`;
+  return reviews.find(
+    (candidate): candidate is PublishedReview =>
+      Boolean(candidate) &&
+      typeof candidate === "object" &&
+      (candidate as PublishedReview).commit_id === headSha &&
+      typeof (candidate as PublishedReview).body === "string" &&
+      (candidate as PublishedReview).body?.includes(marker) === true &&
+      (typeof (candidate as PublishedReview).id === "number" ||
+        typeof (candidate as PublishedReview).id === "string"),
+  );
+}
+
+function resolvePublishedReviewAfterEmptyResponse(
+  row: ReviewRow,
+  reviewId: string,
+  token: string,
+): PublishedReview {
+  const reviews = JSON.parse(
+    gh(
+      [
+        "api",
+        `repos/${row.repository}/pulls/${row.pull_request_number}/reviews?per_page=100`,
+      ],
+      undefined,
+      token,
+    ),
+  ) as unknown;
+  const published = findPublishedReviewWithMarker(reviews, reviewId, row.head_sha);
+  if (!published)
+    fail("GitHub accepted the review request without a response, but its exact published review could not be verified");
+  return published;
+}
+
 function loadReview(database: DatabaseSync, reviewId: string): ReviewRow {
   const row = database
     .prepare(
@@ -473,20 +518,21 @@ export async function runAiReviewWorkerCli(): Promise<void> {
     const publication = splitReviewFindings(parsed, changedLines);
     const publish = (candidate: ReviewPublication): PublishedReview => {
       const payload = buildGitHubReviewPayload(parsed, reviewId, row.head_sha, candidate);
-      return JSON.parse(
-        gh(
-          [
-            "api",
-            "--method",
-            "POST",
-            `repos/${row.repository}/pulls/${row.pull_request_number}/reviews`,
-            "--input",
-            "-",
-          ],
-          JSON.stringify(payload),
-          installationToken,
-        ),
-      ) as PublishedReview;
+      const response = gh(
+        [
+          "api",
+          "--method",
+          "POST",
+          `repos/${row.repository}/pulls/${row.pull_request_number}/reviews`,
+          "--input",
+          "-",
+        ],
+        JSON.stringify(payload),
+        installationToken,
+      );
+      return response
+        ? (JSON.parse(response) as PublishedReview)
+        : resolvePublishedReviewAfterEmptyResponse(row, reviewId, installationToken);
     };
     let published: PublishedReview;
     try {
