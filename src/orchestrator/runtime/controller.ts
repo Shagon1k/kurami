@@ -1261,7 +1261,30 @@ function reconcileReviewFixRounds(database: DatabaseSync): void {
               ci.repository AS ci_repository,
               ci.pull_request_number AS ci_pull_request_number,
               ci.pull_request_url AS ci_pull_request_url,
-              ci.head_sha, ci.aggregate_state, ci.last_error
+              ci.head_sha, ci.aggregate_state, ci.last_error,
+              EXISTS (
+                SELECT 1 FROM run_review_fix_operations cleanup
+                WHERE cleanup.round_id=f.round_id
+                  AND cleanup.operation_kind='cleanup'
+                  AND cleanup.operation_state='completed'
+                  AND cleanup.completed_at IS NOT NULL
+                  AND cleanup.task_codex_thread_id=f.codex_thread_id
+                  AND cleanup.previous_codex_thread_id=rr.codex_thread_id
+              ) AS exact_completed_cleanup_operation,
+              EXISTS (
+                SELECT 1 FROM run_state_history cleanup_history
+                WHERE cleanup_history.run_id=f.run_id
+                  AND cleanup_history.reason='review_fix_task_archived'
+                  AND json_extract(cleanup_history.details_json, '$.roundId')=f.round_id
+                  AND json_extract(
+                    cleanup_history.details_json,
+                    '$.reviewFixCodexThreadId'
+                  )=f.codex_thread_id
+                  AND json_extract(
+                    cleanup_history.details_json,
+                    '$.restoredCodexThreadId'
+                  )=rr.codex_thread_id
+              ) AS exact_cleanup_history
        FROM run_review_fix_rounds f
        JOIN runs r USING (run_id)
        JOIN run_resources rr USING (run_id)
@@ -1292,6 +1315,8 @@ function reconcileReviewFixRounds(database: DatabaseSync): void {
     head_sha: string | null;
     aggregate_state: string | null;
     last_error: string | null;
+    exact_completed_cleanup_operation: number;
+    exact_cleanup_history: number;
   }>;
   for (const round of rounds) {
     if (
@@ -1316,13 +1341,21 @@ function reconcileReviewFixRounds(database: DatabaseSync): void {
       continue;
     }
     if (round.round_state !== "waiting_ci") continue;
+    const activeTaskMapping =
+      Boolean(round.codex_thread_id) &&
+      round.codex_thread_id === round.current_codex_thread_id &&
+      Boolean(round.previous_codex_thread_id);
+    const cleanupCompletedMapping =
+      Boolean(round.codex_thread_id) &&
+      Boolean(round.current_codex_thread_id) &&
+      round.current_codex_thread_id !== round.codex_thread_id &&
+      round.previous_codex_thread_id === null &&
+      (round.exact_completed_cleanup_operation === 1 || round.exact_cleanup_history === 1);
     const exactTaskIdentity =
       round.run_state === "parked_review" &&
       round.owner_state === "none" &&
       round.tmux_session_name === null &&
-      Boolean(round.codex_thread_id) &&
-      round.codex_thread_id === round.current_codex_thread_id &&
-      Boolean(round.previous_codex_thread_id);
+      (activeTaskMapping || cleanupCompletedMapping);
     if (!exactTaskIdentity) continue;
     const exactPullRequestIdentity =
       round.ci_repository?.toLowerCase() === round.repository.toLowerCase() &&
