@@ -1,5 +1,5 @@
 import { execFileSync } from "node:child_process";
-import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, readFile, realpath, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { delimiter, resolve } from "node:path";
 import { DatabaseSync } from "node:sqlite";
@@ -47,7 +47,11 @@ function git(directory: string, args: string[]): string {
 
 async function main(): Promise<void> {
   const app = resolve(import.meta.dirname, "..");
-  const home = await mkdtemp(resolve(tmpdir(), "kurami-managed-recovery-"));
+  // Recovery requires a physical worktree path. macOS tmpdir() can return
+  // /var/... while realpath resolves that same directory to /private/var/....
+  const home = await realpath(
+    await mkdtemp(resolve(tmpdir(), "kurami-managed-recovery-")),
+  );
   try {
     const worktreeRoot = resolve(home, "worktrees/tailortales");
     const worktree = resolve(worktreeRoot, "501/TailorTales");
