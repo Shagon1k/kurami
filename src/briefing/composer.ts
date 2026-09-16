@@ -35,6 +35,8 @@ export async function composeBriefingPayload(input: {
   const localDate = draft.editionId.slice(6);
   const base: BriefingPayload = {
     schemaVersion: 2,
+    formatVersion: 3,
+    addons: {},
     edition: {
       id: draft.editionId,
       type: "daily",
@@ -49,14 +51,18 @@ export async function composeBriefingPayload(input: {
       subtitle: draft.hero?.subtitle ?? "Главное к началу дня.",
     },
     ...(notes ? { notes } : {}),
-    mail: { state: "empty", items: [] },
-    calendar: { state: "empty", events: [], allDayEvents: [] },
-    news,
     dataQuality: { state: "ready", summary: "" },
-    sourceBatches,
   };
-  base.addons = Object.fromEntries(Object.entries(captureAddonManifest(base))
-    .filter(([id]) => enabled[id as keyof typeof enabled] !== false));
+  for (const [id, value] of Object.entries({
+    mail: { state: "empty", items: [] }, calendar: { state: "empty", events: [], allDayEvents: [] },
+    weather: { state: "failed" }, news,
+  })) {
+    if (enabled[id as keyof typeof enabled] !== false) base.addons[id] = {
+      version: 2, state: value.state as import("./model.ts").SectionState,
+      capturedAt: id === "news" ? draft.generatedAt : snapshot.refreshedAt,
+      data: { section: value, ...(id === "news" ? { sourceBatches } : {}) },
+    };
+  }
   applyLiveAddons(base, snapshot, {
     initial: true, refreshedAt: snapshot.refreshedAt, classifications: draft.mailClassifications,
   });

@@ -1,3 +1,4 @@
+import { section } from "../../addons/envelopes.ts";
 import type { BriefingPayload } from "../../model.ts";
 import { displayString, escapeHtml, externalUrl } from "../html.ts";
 import { renderButton } from "./button.ts";
@@ -22,7 +23,7 @@ function receivedTime(item: Record<string, unknown>, timeZone: string): string {
 }
 
 export function renderMailSection(payload: BriefingPayload): string {
-  const items = payload.mail.items as Array<Record<string, unknown>>;
+  const items = section(payload, "mail").items as Array<Record<string, unknown>>;
   const actionCount = items.filter((item) => mailClass(item) === "ACTION").length;
   const demoCount = items.filter((item) => item.demo === true).length;
   const rows = items.length
@@ -51,7 +52,7 @@ export function renderMailSection(payload: BriefingPayload): string {
         <div class="mail-row__badges"><span class="mail-row__class">${classification}</span>${demo ? '<span class="mail-row__demo">DEMO</span>' : ""}</div>
       </article>`;
     }).join("")
-    : `<div class="section-empty"><strong>${payload.mail.state === "empty" ? "Primary inbox чист" : "Почта пока недоступна"}</strong><span>${payload.mail.state === "empty" ? "Новых писем для утренней гигиены нет." : "Секция обновится после следующего успешного чтения."}</span></div>`;
+    : `<div class="section-empty"><strong>${section(payload, "mail").state === "empty" ? "Primary inbox чист" : "Почта пока недоступна"}</strong><span>${section(payload, "mail").state === "empty" ? "Новых писем для утренней гигиены нет." : "Секция обновится после следующего успешного чтения."}</span></div>`;
 
   const actionableCount = items.filter((item) => item.provider === "gmail" && Boolean(displayString(item.providerItemId))).length;
   const selectAll = renderSelectionControl({

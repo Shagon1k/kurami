@@ -1,3 +1,4 @@
+import { newsBatches, section } from "./addons/envelopes.ts";
 import { briefingAddonEnabled, type BriefingPayload } from "./model.ts";
 
 export type TelegramCoverageIssue = {
@@ -24,7 +25,7 @@ function itemKey(sourceKey: string, itemId: string): string {
 
 export function telegramStoryCoverage(payload: BriefingPayload): TelegramCoverageReport {
   const captured = new Set<string>();
-  for (const batch of payload.sourceBatches ?? []) {
+  for (const batch of newsBatches(payload) ?? []) {
     for (const itemId of batch.itemIds) captured.add(itemKey(batch.sourceKey, itemId));
   }
 
@@ -35,7 +36,7 @@ export function telegramStoryCoverage(payload: BriefingPayload): TelegramCoverag
     owners.set(key, current);
   };
 
-  for (const story of payload.news.items) {
+  for (const story of section(payload, "news").items) {
     const sources = Array.isArray(story.sources) ? story.sources : [];
     for (const sourceValue of sources) {
       if (typeof sourceValue !== "object" || sourceValue === null || Array.isArray(sourceValue)) {
@@ -52,7 +53,7 @@ export function telegramStoryCoverage(payload: BriefingPayload): TelegramCoverag
     }
   }
 
-  const exclusions = Array.isArray(payload.news.exclusions) ? payload.news.exclusions : [];
+  const exclusions = section(payload, "news").exclusions ?? [];
   for (const exclusionValue of exclusions) {
     if (typeof exclusionValue !== "object" || exclusionValue === null || Array.isArray(exclusionValue)) {
       continue;
@@ -80,7 +81,7 @@ export function telegramStoryCoverage(payload: BriefingPayload): TelegramCoverag
     else if (itemOwners[0]?.startsWith("excluded:")) excludedItems += 1;
   }
   return {
-    complete: (captured.size > 0 || (!briefingAddonEnabled(payload, "news") && payload.news.items.length === 0))
+    complete: (captured.size > 0 || (!briefingAddonEnabled(payload, "news") && section(payload, "news").items.length === 0))
       && issues.length === 0,
     capturedItems: captured.size,
     storyItems,

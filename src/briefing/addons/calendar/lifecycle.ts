@@ -1,3 +1,4 @@
+import { section, setSection } from "../envelopes.ts";
 import { fetchCalendarSnapshot, partitionCalendarItemsByLocalDate, type NormalizedCalendarEvent } from "../../providers/composio-calendar.ts";
 import { requireCaller, type LiveAddon } from "../live-contract.ts";
 import { providerComplete } from "../provider-state.ts";
@@ -64,18 +65,18 @@ export const calendarLifecycle: LiveAddon = {
         ? partitionCalendarItemsByLocalDate(result.value.items, payload.edition.timezone).get(payload.edition.localDate) ?? []
         : context.calendarItems;
       if (items === null) return;
-      const { staleAt: _staleAt, ...prior } = payload.calendar;
-      payload.calendar = { ...prior, state: items.length ? "ready" : "empty", fetchedAt: result.fetchedAt,
+      const { staleAt: _staleAt, ...prior } = section(payload, "calendar");
+      setSection(payload, "calendar", { ...prior, state: items.length ? "ready" : "empty", fetchedAt: result.fetchedAt,
         allDayEvents: items.filter(item => item.allDay).map(calendarEvent),
         events: items.filter(item => !item.allDay).map(calendarEvent),
-        conflicts: calendarConflicts(items), sources: result.value.sources };
+        conflicts: calendarConflicts(items), sources: result.value.sources });
     } else if (context.initial) {
-      payload.calendar = { state: "failed", events: [], allDayEvents: [], conflicts: [] };
+      setSection(payload, "calendar", { state: "failed", events: [], allDayEvents: [], conflicts: [] });
     } else {
-      payload.calendar = { ...payload.calendar, state: "stale", staleAt: context.refreshedAt };
+      setSection(payload, "calendar", { ...section(payload, "calendar"), state: "stale", staleAt: context.refreshedAt });
     }
     const ids = new Set(["events", "allDayEvents", "demoEvents"].flatMap(key =>
-      Array.isArray(payload.calendar[key]) ? (payload.calendar[key] as Array<{ id: string }>).map(item => item.id) : []));
+      Array.isArray(section(payload, "calendar")[key]) ? (section(payload, "calendar")[key] as Array<{ id: string }>).map(item => item.id) : []));
     payload.notes = payload.notes?.filter(note => !note.target.startsWith("calendar-event:") || ids.has(note.target.slice(15)));
     if (payload.notes?.length === 0) delete payload.notes;
   },

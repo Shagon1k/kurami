@@ -1,16 +1,17 @@
+import { preparePreview } from "./payload-fixtures.ts";
 import assert from "node:assert/strict";
 import { mkdtemp } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { resolve } from "node:path";
-import { parseBriefingPayload } from "../../src/briefing/model.ts";
+import { parseBriefingPayload } from "./payload-fixtures.ts";
 import { captureAddonManifest, renderAddonSlot } from "../../src/briefing/addons/registry.ts";
 import { applyLiveAddons, collectLiveAddons, LIVE_ADDONS } from "../../src/briefing/addons/live.ts";
-import { captureBuiltinAddon } from "../../src/briefing/addons/envelopes.ts";
+import { newsBatches, section, captureBuiltinAddon } from "../../src/briefing/addons/envelopes.ts";
 import { removeArchivedMail } from "../../src/briefing/addons/mail/lifecycle.ts";
 import { updatePayload } from "../../src/briefing/poller.ts";
 import { renderBriefingPage } from "../../src/briefing/ui/render-page.ts";
 import { telegramStoryCoverage } from "../../src/briefing/coverage.ts";
-import { briefingPaths, preparePreview, openBriefingDatabase, recordTelegramValidation, createTelegramCommitPlan, finalizeEdition, refreshPublishedEdition, loadEdition } from "../../src/briefing/store.ts";
+import { briefingPaths, openBriefingDatabase, recordTelegramValidation, createTelegramCommitPlan, finalizeEdition, refreshPublishedEdition, loadEdition } from "../../src/briefing/store.ts";
 import type { LiveCollectionContext, LiveResults } from "../../src/briefing/addons/live-contract.ts";
 import type { ProviderResult } from "../../src/briefing/providers/common.ts";
 
@@ -31,14 +32,14 @@ const native = parseBriefingPayload({ ...legacy, addons: captureAddonManifest(le
 assert.equal(renderBriefingPage(native), renderBriefingPage(legacy), "migration must preserve exact HTML");
 for (const id of ["mail", "calendar", "weather", "news"] as const) {
   assert.equal(native.addons?.[id]?.version, 2);
-  assert.deepEqual(native.addons?.[id]?.data.section, native[id]);
+  assert.deepEqual(native.addons?.[id]?.data.section, section(native, id));
 }
 const envelopeOnly = structuredClone(native);
 for (const key of ["mail", "calendar", "weather", "news", "sourceBatches"]) delete envelopeOnly[key];
 const roundTrip = parseBriefingPayload(envelopeOnly);
 assert.equal(renderBriefingPage(roundTrip), renderBriefingPage(native));
-assert.deepEqual(roundTrip.sourceBatches, native.sourceBatches);
-assert.throws(() => parseBriefingPayload({ ...native, addons: { ...native.addons, news: { ...native.addons!.news, version: 99 } } }), /Unsupported news add-on version/);
+assert.deepEqual(newsBatches(roundTrip), newsBatches(native));
+assert.throws(() => parseBriefingPayload({ ...native, addons: { ...native.addons, news: { ...native.addons!.news, version: 99 } } }), /addons.news.version must equal 2/);
 
 const complete = <T>(value: T): ProviderResult<T> => ({ state: "ready", value, fetchedAt: at, attempts: 1, issues: [] });
 const failed = <T>(): ProviderResult<T> => ({ state: "failed", value: null, fetchedAt: at, attempts: 1, issues: [] });
@@ -51,18 +52,18 @@ const withNotes = parseBriefingPayload({ ...native, notes: [{
   id: "note-1", target: "mail-item:mail-1", text: "нужно ответить", role: "action", tone: "signal", rotation: "none",
 }] });
 const refreshed = updatePayload(withNotes, at, results.gmail, results.calendar, [], results.weather);
-assert.equal(refreshed.mail.state, "empty");
+assert.equal(section(refreshed, "mail").state, "empty");
 assert.equal(refreshed.notes, undefined);
-assert.equal(refreshed.weather?.state, "stale");
-assert.equal(refreshed.weather?.temperatureC, 18);
-assert.deepEqual(refreshed.news, native.news);
+assert.equal(section(refreshed, "weather")?.state, "stale");
+assert.equal(section(refreshed, "weather")?.temperatureC, 18);
+assert.deepEqual(section(refreshed, "news"), section(native, "news"));
 assert.deepEqual(refreshed.addons?.news, native.addons?.news);
-assert.deepEqual(refreshed.addons?.mail?.data.section, refreshed.mail);
+assert.deepEqual(refreshed.addons?.mail?.data.section, section(refreshed, "mail"));
 assert.equal(refreshed.live?.lastSuccessAt, undefined, "failed first poll cannot invent a successful timestamp");
 const removed = structuredClone(withNotes);
 assert.equal(removeArchivedMail(removed, ["message-1"]), true);
 const archived = parseBriefingPayload(removed);
-assert.deepEqual(archived.addons?.mail?.data.section, archived.mail);
+assert.deepEqual(archived.addons?.mail?.data.section, section(archived, "mail"));
 assert.equal(archived.notes, undefined);
 const calendarNote = parseBriefingPayload({ ...native, notes: [{
   id: "note-1", target: "calendar-event:event-1", text: "свободнее к обеду", role: "context", tone: "signal", rotation: "none",
@@ -71,9 +72,9 @@ assert.equal(updatePayload(calendarNote, at, results.gmail, results.calendar, []
 
 const onlyWeather = parseBriefingPayload({ ...native, addons: { weather: native.addons!.weather } });
 assert.doesNotMatch(renderAddonSlot(onlyWeather, "overview"), /Почта|Расписание/);
-const frozenMail = JSON.stringify(onlyWeather.mail);
+const frozenMail = JSON.stringify(section(onlyWeather, "mail"));
 applyLiveAddons(onlyWeather, results, { refreshedAt: at });
-assert.equal(JSON.stringify(onlyWeather.mail), frozenMail);
+assert.equal(JSON.stringify(section(onlyWeather, "mail")), frozenMail);
 assert.equal(onlyWeather.addons?.mail, undefined);
 
 const context: LiveCollectionContext = {
@@ -107,9 +108,9 @@ assert.equal(mixed.calendar.state, "empty");
 assert.deepEqual(calls.filter(id => id !== "weather"), ["mail", "calendar"]);
 const malformed = structuredClone(native);
 applyLiveAddons(malformed, { ...results, gmail: complete({ items: null } as never) }, { refreshedAt: at });
-assert.equal(malformed.mail.state, "stale");
-assert.deepEqual(malformed.mail.items, native.mail.items);
-assert.equal(malformed.calendar.state, "empty", "mail normalization failure must not block another add-on");
+assert.equal(section(malformed, "mail").state, "stale");
+assert.deepEqual(section(malformed, "mail").items, section(native, "mail").items);
+assert.equal(section(malformed, "calendar").state, "empty", "mail normalization failure must not block another add-on");
 
 // Publication with News explicitly off still uses a validated empty ledger/commit plan.
 const home = await mkdtemp(resolve(tmpdir(), "kurami-native-addons-"));
@@ -120,7 +121,7 @@ const noNews = parseBriefingPayload({
   notes: [{ id: "note-hero", target: "hero", text: "сегодня без новостей", role: "context", tone: "signal", rotation: "none" }],
 });
 assert.equal(telegramStoryCoverage(noNews).complete, true);
-assert.equal(telegramStoryCoverage({ ...noNews, addons: undefined }).complete, false, "enabled news cannot bypass the existing empty capture gate");
+assert.equal(telegramStoryCoverage({ ...noNews, addons: { news: captureBuiltinAddon(native, "news") } }).complete, false, "enabled news cannot bypass the existing empty capture gate");
 await preparePreview(noNews, renderBriefingPage(noNews), paths);
 const db = openBriefingDatabase(paths);
 try {
@@ -133,6 +134,6 @@ try {
   const after = updatePayload(before, at, results.gmail, results.calendar, [], results.weather);
   await refreshPublishedEdition(after, renderBriefingPage(after), row.content_digest, paths);
   const stored = parseBriefingPayload(JSON.parse(loadEdition(db, { id: noNews.edition.id })!.payload_json));
-  assert.deepEqual(stored.addons?.mail?.data.section, stored.mail);
+  assert.deepEqual(stored.addons?.mail?.data.section, section(stored, "mail"));
 } finally { db.close(); }
 process.stdout.write("native briefing add-on isolation and compatibility verified\n");

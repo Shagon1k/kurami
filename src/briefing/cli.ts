@@ -1,3 +1,4 @@
+import { section, newsBatches } from "./addons/envelopes.ts";
 import { chmod, readFile, rename, unlink, writeFile } from "node:fs/promises";
 import { createHash } from "node:crypto";
 import { dirname, resolve } from "node:path";
@@ -255,7 +256,7 @@ export async function runBriefingCli(argv = process.argv.slice(2)): Promise<unkn
         action: "rank-preview",
         externalMutations: false,
         outputPath: args.outputPath!,
-        stories: composed.payload.news.items.map((story, index) => ({
+        stories: section(composed.payload, "news").items.map((story, index) => ({
           rank: index + 1,
           storyId: story.id,
           headline: story.headline,
@@ -295,9 +296,9 @@ export async function runBriefingCli(argv = process.argv.slice(2)): Promise<unkn
         attemptId: args.attemptId!,
         stage: "editorialized",
         outputDigest,
-        metadata: { outputPath: args.outputPath, stories: composed.payload.news.items.length },
+        metadata: { outputPath: args.outputPath, stories: section(composed.payload, "news").items.length },
       });
-      return { ok: true, action: "compose", externalMutations: false, outputPath: args.outputPath, outputDigest, stories: composed.payload.news.items.length };
+      return { ok: true, action: "compose", externalMutations: false, outputPath: args.outputPath, outputDigest, stories: section(composed.payload, "news").items.length };
     } finally {
       database.close();
     }
@@ -384,7 +385,7 @@ export async function runBriefingCli(argv = process.argv.slice(2)): Promise<unkn
         reaction: "like" | "dislike" | null;
       }>;
       const byId = new Map(states.map((state) => [state.item_id, state]));
-      payload.news.items = payload.news.items.map((story) => {
+      section(payload, "news").items = section(payload, "news").items.map((story) => {
         const state = byId.get(story.id);
         return {
           ...story,
@@ -623,9 +624,9 @@ export async function runBriefingCli(argv = process.argv.slice(2)): Promise<unkn
       const edition = loadEdition(database, { id: args.editionId });
       if (!edition) fail(`Edition ${args.editionId} not found`);
       const payload = parseBriefingPayload(JSON.parse(edition.payload_json) as unknown);
-      const sourceItems = new Set((payload.sourceBatches ?? []).flatMap((batch) => batch.itemIds));
+      const sourceItems = new Set((newsBatches(payload) ?? []).flatMap((batch) => batch.itemIds));
       const ownedItems = new Set<string>();
-      for (const story of payload.news.items) {
+      for (const story of section(payload, "news").items) {
         for (const sourceValue of Array.isArray(story.sources) ? story.sources : []) {
           if (typeof sourceValue !== "object" || sourceValue === null || Array.isArray(sourceValue)) continue;
           const source = sourceValue as Record<string, unknown>;
@@ -634,8 +635,8 @@ export async function runBriefingCli(argv = process.argv.slice(2)): Promise<unkn
           }
         }
       }
-      for (const exclusion of payload.news.exclusions ?? []) ownedItems.add(exclusion.itemId);
-      const media = payload.news.items.flatMap((story) => story.media ?? []);
+      for (const exclusion of section(payload, "news").exclusions ?? []) ownedItems.add(exclusion.itemId);
+      const media = section(payload, "news").items.flatMap((story) => story.media ?? []);
       const validation = database.prepare(`
         SELECT report_json, commit_plan_digest FROM telegram_validation_receipts WHERE edition_id = ?
       `).get(edition.id) as { report_json: string; commit_plan_digest: string | null } | undefined;
@@ -672,12 +673,12 @@ export async function runBriefingCli(argv = process.argv.slice(2)): Promise<unkn
           retentionUntil: edition.retention_until,
         },
         counts: {
-          stories: payload.news.items.length,
-          exclusions: payload.news.exclusions?.length ?? 0,
-          sourceBatches: payload.sourceBatches?.length ?? 0,
+          stories: section(payload, "news").items.length,
+          exclusions: section(payload, "news").exclusions?.length ?? 0,
+          sourceBatches: newsBatches(payload)?.length ?? 0,
           sourceItems: sourceItems.size,
           ownedItems: ownedItems.size,
-          sourceLinks: payload.news.items.filter((story) =>
+          sourceLinks: section(payload, "news").items.filter((story) =>
             Array.isArray(story.sources) && story.sources.some((source) =>
               typeof source === "object" && source !== null && !Array.isArray(source)
               && typeof (source as Record<string, unknown>).url === "string"
@@ -685,9 +686,9 @@ export async function runBriefingCli(argv = process.argv.slice(2)): Promise<unkn
           ).length,
           images: media.filter((asset) => asset.kind === "image").length,
           legacyVideos: media.filter((asset) => asset.kind === "video").length,
-          mail: payload.mail.items.length,
-          calendar: (Array.isArray(payload.calendar.events) ? payload.calendar.events.length : 0)
-            + (Array.isArray(payload.calendar.allDayEvents) ? payload.calendar.allDayEvents.length : 0),
+          mail: section(payload, "mail").items.length,
+          calendar: (Array.isArray(section(payload, "calendar").events) ? (section(payload, "calendar").events as unknown[]).length : 0)
+            + (Array.isArray(section(payload, "calendar").allDayEvents) ? (section(payload, "calendar").allDayEvents as unknown[]).length : 0),
         },
         sourceBatchStates: Object.fromEntries(batches.map((batch) => [batch.state, Number(batch.count)])),
         telegramValidation: validationSummary,

@@ -71,8 +71,8 @@ Default manual experiments to `dry-run`. Generation never archives Gmail;
    previously proposed topics as the current topic pool.
    Respect each `sources.<id>.enabled` flag. Weather, Calendar and Mail
    collection/refresh now belongs to their runtime add-ons; disabled sources
-   make no provider calls. The composer owns populated add-on envelopes and
-   their legacy root-field compatibility view. Do not hand-author either.
+   make no provider calls. The composer owns formatVersion 3 and populated add-on envelopes. Root
+   section copies are forbidden; do not hand-author the derived payload.
 2. For each enabled source, load its provider profile, validate the available
    MCP or built-in operation against that profile, collect a bounded page at a
    time, and normalize the result to `references/item-contract.md`. Provider
@@ -151,7 +151,7 @@ Default manual experiments to `dry-run`. Generation never archives Gmail;
    artifacts instead of moving the morning cutoff.
 
    Preserve the per-channel cutoff, exact fetched message IDs, and collection
-   state in the payload `sourceBatches`, including the configured source key and
+   state in `addons.news.data.sourceBatches`, including the configured source key and
    numeric Telegram channel ID. The capture operation already runs album
    normalization and an unbound validation preflight. If an explicitly
    authorized exact-ID recovery must construct replacement artifacts, run:
@@ -399,7 +399,7 @@ calendar state, the last-update timestamp, and the client-side current clock.
 It is fail-soft and preserves the last successful provider value when a refresh
 fails.
 
-The poller must preserve the edition envelope, `news`, `sourceBatches`, story
+The poller must preserve the edition envelope and complete `addons.news` snapshot, story
 read state, reactions, topics, and media byte-for-byte. It never fetches,
 clusters, rewrites, reranks, acknowledges, or otherwise touches Telegram news;
 the news section remains the frozen 09:00 snapshot. Do not invoke the model or

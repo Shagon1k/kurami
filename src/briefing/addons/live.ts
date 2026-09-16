@@ -30,11 +30,12 @@ export function applyLiveAddons(payload: BriefingPayload, results: LiveResults, 
   const effective = { ...results };
   for (const addon of active) {
     // A provider's unusable/partial response preserves its last good section.
-    const prior = payload[addon.id];
+    const prior = structuredClone(payload.addons[addon.id]);
     const priorNotes = payload.notes;
     try { addon.apply(payload, effective, context); }
     catch (error) {
-      Object.assign(payload, { [addon.id]: prior, notes: priorNotes });
+      payload.addons[addon.id] = prior;
+      payload.notes = priorNotes;
       effective[addon.providerKey] = failedProviderResult(error, context.refreshedAt, `${addon.id}_normalization_failed`);
       addon.apply(payload, effective, context);
     }

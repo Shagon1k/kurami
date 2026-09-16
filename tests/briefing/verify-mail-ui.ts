@@ -47,7 +47,7 @@ for (const selection of [rowSelection, allSelection]) {
 
 const mailHtml = renderMailSection({
   edition: { id: "daily:2026-08-31", timezone: "Europe/Vilnius" },
-  mail: {
+  addons: { mail: { version: 2, state: "ready", capturedAt: "2026-08-31T06:00:00Z", data: { section: {
     state: "ready",
     items: [{
       id: "mail-1",
@@ -58,7 +58,7 @@ const mailHtml = renderMailSection({
       class: "ACTION",
       summary: "Проверка почтового интерфейса.",
     }],
-  },
+  } } } },
 } as never);
 assert.match(mailHtml, /class="mail-row__select" data-selection-control/);
 assert.match(mailHtml, /class="mail-actions__select-all" data-selection-control/);

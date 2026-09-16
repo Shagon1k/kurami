@@ -1,3 +1,4 @@
+import { section } from "../../src/briefing/addons/envelopes.ts";
 import assert from "node:assert/strict";
 import { mkdtemp, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
@@ -11,7 +12,7 @@ import {
   loadBriefingRuntimeConfig,
   loadTelegramCaptureConfig,
 } from "../../src/briefing/runtime-config.ts";
-import { parseBriefingPayload } from "../../src/briefing/model.ts";
+import { parseBriefingPayload } from "./payload-fixtures.ts";
 import { renderBriefingPage } from "../../src/briefing/ui/render-page.ts";
 import {
   briefingPaths,
@@ -356,16 +357,16 @@ async function verifyRetainedPollerFailSoft(
       const retained = loadEdition(persisted, { id: original.edition.id });
       assert(retained);
       const refreshed = parseBriefingPayload(JSON.parse(retained.payload_json) as unknown);
-      assert.deepEqual(refreshed.news, original.news);
-      assert.equal(refreshed.mail.state, "stale");
-      assert.equal(refreshed.mail.staleAt, result.refreshedAt);
-      assert.deepEqual(refreshed.mail.items, original.mail.items);
-      assert.equal(refreshed.calendar.state, "stale");
-      assert.equal(refreshed.calendar.staleAt, result.refreshedAt);
-      assert.deepEqual(refreshed.calendar.events, original.calendar.events);
-      assert.equal(refreshed.weather?.state, "ready");
-      assert.equal(refreshed.weather?.provider, "open-meteo");
-      assert.equal(refreshed.weather?.temperatureC, 18.4);
+      assert.deepEqual(section(refreshed, "news"), section(original, "news"));
+      assert.equal(section(refreshed, "mail").state, "stale");
+      assert.equal(section(refreshed, "mail").staleAt, result.refreshedAt);
+      assert.deepEqual(section(refreshed, "mail").items, section(original, "mail").items);
+      assert.equal(section(refreshed, "calendar").state, "stale");
+      assert.equal(section(refreshed, "calendar").staleAt, result.refreshedAt);
+      assert.deepEqual(section(refreshed, "calendar").events, section(original, "calendar").events);
+      assert.equal(section(refreshed, "weather")?.state, "ready");
+      assert.equal(section(refreshed, "weather")?.provider, "open-meteo");
+      assert.equal(section(refreshed, "weather")?.temperatureC, 18.4);
       assert.equal(refreshed.dataQuality.state, "partial");
       assert.match(String(refreshed.dataQuality.summary), /почта, расписание/u);
       assert.doesNotMatch(String(refreshed.dataQuality.summary), /погода/u);
@@ -421,6 +422,7 @@ async function seedPublishedEdition(): Promise<string> {
     dataQuality: { state: "ready" },
     addons: {
       cinema: { version: 1, state: "ready", capturedAt: "2026-08-31T06:00:00.000Z", data: {} },
+      news: { version: 1, state: "ready", capturedAt: "2026-08-31T06:00:00.000Z", data: {} },
     },
   });
   const database = openBriefingDatabase(paths);

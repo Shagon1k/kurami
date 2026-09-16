@@ -1,3 +1,4 @@
+import { section } from "../../addons/envelopes.ts";
 import type { BriefingPayload, KuramiNoteTarget } from "../../model.ts";
 import { displayString, escapeHtml } from "../html.ts";
 import { renderKuramiNote } from "./kurami-note.ts";
@@ -39,7 +40,7 @@ function note(payload: BriefingPayload, target: KuramiNoteTarget): string {
 }
 
 export function mailMetricCard(payload: BriefingPayload): MetricCard {
-  const mailCount = numberValue(payload.mail, "count") ?? payload.mail.items.length;
+  const mailCount = numberValue(section(payload, "mail"), "count") ?? section(payload, "mail").items.length;
   return {
     key: "mail",
     label: "Письма",
@@ -53,7 +54,7 @@ export function storiesMetricCard(payload: BriefingPayload): MetricCard {
   return {
     key: "stories",
     label: "Сюжеты",
-    value: String(payload.news.items.length),
+    value: String(section(payload, "news").items.length),
     chip: "срез 09:00",
     context: "новости выпуска не меняются",
   };
@@ -72,7 +73,7 @@ export function timeMetricCard(payload: BriefingPayload): MetricCard {
 }
 
 export function weatherMetricCard(payload: BriefingPayload): MetricCard {
-  const weather = payload.weather ?? { state: "failed" as const };
+  const weather = section(payload, "weather") ?? { state: "failed" as const };
   const weatherState = weather.state;
   return {
     key: "weather",

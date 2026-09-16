@@ -11,6 +11,7 @@ Every payload uses a versioned envelope with these roles:
 ```json
 {
   "schemaVersion": 2,
+  "formatVersion": 3,
   "edition": {
     "id": "daily:2026-08-28",
     "type": "daily",
@@ -27,22 +28,30 @@ Every payload uses a versioned envelope with these roles:
     "state": "ready | empty | partial | stale | failed",
     "lastSuccessAt": "RFC3339 timestamp"
   },
-  "weather": {},
-  "calendar": {},
-  "priorities": [],
-  "mail": {},
-  "news": {
-    "state": "ready",
-    "pageSize": 10,
-    "mainStoryIds": ["story:example"],
-    "items": [],
-    "exclusions": []
+  "addons": {
+    "mail": { "version": 2, "state": "empty", "capturedAt": "RFC3339 timestamp", "data": { "section": { "state": "empty", "items": [] } } },
+    "calendar": { "version": 2, "state": "empty", "capturedAt": "RFC3339 timestamp", "data": { "section": { "state": "empty", "events": [] } } },
+    "weather": { "version": 2, "state": "failed", "capturedAt": "RFC3339 timestamp", "data": { "section": { "state": "failed" } } },
+    "news": {
+      "version": 2, "state": "ready", "capturedAt": "RFC3339 timestamp",
+      "data": {
+        "section": { "state": "ready", "pageSize": 10, "items": [], "exclusions": [] },
+        "sourceBatches": []
+      }
+    }
   },
-  "cinemaPreview": null,
   "dataQuality": {},
   "actions": {}
 }
 ```
+
+Root section fields are forbidden. Below, `news`, `mail`, `calendar`
+and `weather` are shorthand for the corresponding
+`addons.<id>.data.section`, not root payload properties. Source batches live
+only in `addons.news.data.sourceBatches`. Omit a disabled add-on from the map.
+Omit optional empty `notes` and `media` arrays in actual payloads.
+`schemaVersion` controls provenance validation; `formatVersion: 3` is mandatory
+for all current payloads.
 
 ## Kurami Notes
 
@@ -93,8 +102,7 @@ repeats from the retained five-day history. Omit a slot when no grounded note
 is useful. The renderer validates and positions supplied notes; it never
 supplies generic fallback phrases.
 
-`weather`, `priorities`, `live`, and `cinemaPreview` may be absent when no trustworthy
-input exists. `calendar`, `mail`, `news`, and `dataQuality` must always disclose
+Disabled add-ons are absent. Enabled add-ons and `dataQuality` must disclose
 whether they are ready, empty, partial, stale, or failed. Empty is a valid fact;
 it is not a rendering error.
 
@@ -134,7 +142,7 @@ this action.
 
 ## Prepared source batches
 
-A production daily payload includes one `sourceBatches` entry per successfully
+A production daily payload includes one `addons.news.data.sourceBatches` entry per successfully
 captured Telegram channel:
 
 ```json
@@ -154,7 +162,7 @@ configured channels still remain visible in the raw capture ledger and data
 quality diagnostics.
 
 The runtime persists this exact snapshot during preparation. In schema version
-2, the union of all `sourceBatches[].itemIds` is an exact accounting set. Every
+2, the union of all `addons.news.data.sourceBatches[].itemIds` is an exact accounting set. Every
 member must have exactly one owner: either one story source or one bounded
 `news.exclusions` entry. Unknown IDs, missing IDs, and IDs claimed twice are
 validation errors.
@@ -272,7 +280,7 @@ appears only inside the expanded story. Do not put provider-local paths,
 Telegram-authenticated URLs, or base64 payloads into this contract.
 
 `news.items` plus `news.exclusions` is the complete normalized Telegram
-collection for the edition. Every `sourceBatches[].itemIds` member occurs
+collection for the edition. Every `addons.news.data.sourceBatches[].itemIds` member occurs
 exactly once across `news.items[].sources[].itemIds` and
 `news.exclusions`; a merged story claims all contributing input IDs. An item
 cannot be both a story source and an exclusion, and it cannot be claimed by two
@@ -388,7 +396,7 @@ stack traces in the page payload.
 
 ## Hourly live refresh
 
-The production edition freezes `edition`, `news`, `sourceBatches`, topics,
+The production edition freezes `edition`, the complete `addons.news` snapshot, topics,
 media, reactions, and story read state at the morning publication boundary.
 The deterministic external `Digest-Central-Poller` may refresh only live
 surfaces for the retained five-day window: `mail`, `weather`, relevant

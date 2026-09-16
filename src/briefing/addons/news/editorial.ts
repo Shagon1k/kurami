@@ -276,7 +276,7 @@ function storyFromDraft(draft: EditorialStoryDraft, lookup: Map<string, Normaliz
   };
 }
 
-function sourceBatches(report: TelegramBatchReport): BriefingPayload["sourceBatches"] {
+function sourceBatches(report: TelegramBatchReport): import("../../model.ts").SourceBatch[] {
   return report.channels.filter((channel) => channel.itemIds.length > 0).map((channel) => {
     const ids = channel.itemIds.map(String);
     if (channel.upperMessageId === null) throw new Error(`Telegram channel ${channel.sourceKey} has no upper boundary`);

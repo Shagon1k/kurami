@@ -1,3 +1,4 @@
+import { section } from "./addons/envelopes.ts";
 import type { BriefingPayload, NewsItem } from "./model.ts";
 
 export const BRIEFING_RANKING_POLICY = "deterministic-v1";
@@ -80,14 +81,14 @@ export function rankBriefingStories(stories: NewsItem[]): NewsItem[] {
 
 export function applyDeterministicRanking(payload: BriefingPayload): BriefingPayload {
   const next = structuredClone(payload);
-  next.news.items = rankBriefingStories(next.news.items);
-  if (next.news.items.some((story) => story.editorialSignals)) {
-    const selected = next.news.items
+  section(next, "news").items = rankBriefingStories(section(next, "news").items);
+  if (section(next, "news").items.some((story) => story.editorialSignals)) {
+    const selected = section(next, "news").items
       .filter((story) => story.editorialSignals?.importance === "critical" || story.editorialSignals?.importance === "high")
       .slice(0, 5)
       .map((story) => story.id);
-    next.news.mainStoryIds = selected.length >= 3 ? selected : next.news.items.slice(0, Math.min(3, next.news.items.length)).map((story) => story.id);
+    section(next, "news").mainStoryIds = selected.length >= 3 ? selected : section(next, "news").items.slice(0, Math.min(3, section(next, "news").items.length)).map((story) => story.id);
   }
-  next.news.rankingPolicy = BRIEFING_RANKING_POLICY;
+  section(next, "news").rankingPolicy = BRIEFING_RANKING_POLICY;
   return next;
 }

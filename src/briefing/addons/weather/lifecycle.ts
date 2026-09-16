@@ -1,9 +1,10 @@
-import type { BriefingPayload, SectionState } from "../../model.ts";
+import { section, setSection } from "../envelopes.ts";
+import type { BriefingSections, SectionState } from "../../model.ts";
 import { fetchOpenMeteo, type WeatherSnapshot } from "../../providers/open-meteo.ts";
 import type { LiveAddon } from "../live-contract.ts";
 import { providerComplete } from "../provider-state.ts";
 
-export function weatherValue(snapshot: WeatherSnapshot, state: SectionState): BriefingPayload["weather"] {
+export function weatherValue(snapshot: WeatherSnapshot, state: SectionState): BriefingSections["weather"] {
   const high = snapshot.maximumCelsius === null ? "" : `до ${Math.round(snapshot.maximumCelsius)}°`;
   const precipitation = snapshot.precipitationProbabilityPercent === null
     ? ""
@@ -28,8 +29,8 @@ export const weatherLifecycle: LiveAddon = {
   }),
   apply(payload, results, context) {
     const result = results.weather;
-    if (providerComplete(result)) payload.weather = weatherValue(result.value, result.state);
-    else if (!context.initial && payload.weather) payload.weather = { ...payload.weather, state: "stale", staleAt: context.refreshedAt };
-    else payload.weather = { state: "failed", summary: "Прогноз временно недоступен" };
+    if (providerComplete(result)) setSection(payload, "weather", weatherValue(result.value, result.state));
+    else if (!context.initial && section(payload, "weather")) setSection(payload, "weather", { ...section(payload, "weather"), state: "stale", staleAt: context.refreshedAt });
+    else setSection(payload, "weather", { state: "failed", summary: "Прогноз временно недоступен" });
   },
 };

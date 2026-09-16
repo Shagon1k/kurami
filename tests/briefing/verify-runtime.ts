@@ -1,3 +1,5 @@
+import { preparePreview } from "./payload-fixtures.ts";
+import { section } from "../../src/briefing/addons/envelopes.ts";
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
 import { mkdir, mkdtemp, readFile, readdir, writeFile } from "node:fs/promises";
@@ -9,7 +11,7 @@ import {
   injectRuntime,
   removeArchivedMailFromRetainedEditions,
 } from "../../src/briefing/server.ts";
-import { parseBriefingPayload } from "../../src/briefing/model.ts";
+import { parseBriefingPayload } from "./payload-fixtures.ts";
 import { storyNoteDistributionIssues } from "../../src/briefing/editorial-validation.ts";
 import { renderBriefingPage } from "../../src/briefing/ui/render-page.ts";
 import {
@@ -36,7 +38,6 @@ import {
   loadAddonSnapshot,
   loadEdition,
   openBriefingDatabase,
-  preparePreview,
   revisePublishedEdition,
   readEditionHtml,
   recordTelegramValidation,
@@ -381,10 +382,10 @@ const providerWeatherPayload = parseBriefingPayload({
     precipitationProbabilityPercent: 100,
   },
 });
-assert.equal(providerWeatherPayload.weather?.temperatureC, 20.3);
-assert.equal(providerWeatherPayload.weather?.feelsLikeC, 21);
-assert.equal(providerWeatherPayload.weather?.condition, "☁️ Пасмурно");
-assert.equal(providerWeatherPayload.weather?.summary, "до 22° · осадки 100%");
+assert.equal(section(providerWeatherPayload, "weather")?.temperatureC, 20.3);
+assert.equal(section(providerWeatherPayload, "weather")?.feelsLikeC, 21);
+assert.equal(section(providerWeatherPayload, "weather")?.condition, "☁️ Пасмурно");
+assert.equal(section(providerWeatherPayload, "weather")?.summary, "до 22° · осадки 100%");
 assert.match(renderBriefingPage(providerWeatherPayload), /metric-card__value">\+20°<\/strong>/);
 assert.match(html, /\[hidden\]\s*\{\s*display:\s*none !important/);
 assert.match(html, /class="topic-chip"/);
@@ -1212,7 +1213,7 @@ try {
   const storedPayload = parseBriefingPayload(JSON.parse(edition.payload_json) as unknown);
   preparedPayloadWithMedia = storedPayload;
   assert.equal(storedPayload.edition.retentionUntil, "2026-09-02T00:00:00.000Z");
-  assert.equal(storedPayload.news.items[0]?.media?.[0]?.src, "/media/daily/2026-08-28/story-1/01.jpg");
+  assert.equal(section(storedPayload, "news").items[0]?.media?.[0]?.src, "/media/daily/2026-08-28/story-1/01.jpg");
   assert.equal((storedPayload.dataQuality.telegramCollection as { imported: number }).imported, 1);
   assert.match(String(storedPayload.dataQuality.summary), /1 медиафайлов сохранено/);
 } finally {
@@ -1456,13 +1457,13 @@ try {
   const refreshedEdition = loadEdition(persisted, { id: "daily:2026-08-28" });
   assert(refreshedEdition);
   const refreshedPayload = parseBriefingPayload(JSON.parse(refreshedEdition.payload_json) as unknown);
-  assert.equal(refreshedPayload.mail.items.some((item) => item.providerItemId === "gmail-message-1"), false);
+  assert.equal(section(refreshedPayload, "mail").items.some((item) => item.providerItemId === "gmail-message-1"), false);
   assert.doesNotMatch(await readEditionHtml(refreshedEdition, paths), /gmail-message-1/);
   await assert.rejects(
     preparePreview(payload, html, paths),
     /already published/,
   );
-  const rerendered = await rerenderPublishedPreview(payload, html, paths);
+  const rerendered = await rerenderPublishedPreview(parseBriefingPayload(payload), html, paths);
   assert.equal(rerendered.state, "complete");
   assert.equal(rerendered.previewPath, "/preview/daily/2026-08-28");
   assert.equal(loadEdition(persisted, { id: "daily:2026-08-28" })?.state, "complete");
@@ -1482,8 +1483,8 @@ const revisionPayload = parseBriefingPayload({
     mark: "arrow-down-right",
   }],
   news: {
-    ...preparedPayloadWithMedia.news,
-    items: preparedPayloadWithMedia.news.items.map((story) => story.id === "story-1" ? {
+    ...section(preparedPayloadWithMedia, "news"),
+    items: section(preparedPayloadWithMedia, "news").items.map((story) => story.id === "story-1" ? {
       ...story,
       headline: "Редакционный заголовок обновлён без повторного сбора",
       summary: "Краткий пересказ теперь сообщает конкретный факт и остаётся независимым от полного текста.",
@@ -1498,7 +1499,7 @@ try {
   const edition = loadEdition(persisted, { id: "daily:2026-08-28" });
   assert(edition);
   const revisedStored = parseBriefingPayload(JSON.parse(edition.payload_json) as unknown);
-  const revisedStory = revisedStored.news.items.find((story) => story.id === "story-1");
+  const revisedStory = section(revisedStored, "news").items.find((story) => story.id === "story-1");
   assert.equal(revisedStory?.headline, "Редакционный заголовок обновлён без повторного сбора");
   assert.equal(revisedStory?.media?.[0]?.src, "/media/daily/2026-08-28/story-1/01.jpg");
   assert.equal(revisedStory?.readState, "read");

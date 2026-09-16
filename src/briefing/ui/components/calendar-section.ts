@@ -1,3 +1,4 @@
+import { section } from "../../addons/envelopes.ts";
 import type { BriefingPayload } from "../../model.ts";
 import { displayString, escapeHtml, externalUrl, records } from "../html.ts";
 import { renderKuramiNote } from "./kurami-note.ts";
@@ -43,14 +44,14 @@ function eventCountLabel(count: number): string {
 
 export function renderCalendarSection(payload: BriefingPayload): string {
   const events = [
-    ...records(payload.calendar.allDayEvents),
-    ...records(payload.calendar.events),
-    ...records(payload.calendar.demoEvents),
+    ...records(section(payload, "calendar").allDayEvents),
+    ...records(section(payload, "calendar").events),
+    ...records(section(payload, "calendar").demoEvents),
   ];
-  const conflicts = records(payload.calendar.conflicts).length;
+  const conflicts = records(section(payload, "calendar").conflicts).length;
   const label = events.length
     ? eventCountLabel(events.length)
-    : payload.calendar.state === "empty" ? "день свободен" : "нет данных";
+    : section(payload, "calendar").state === "empty" ? "день свободен" : "нет данных";
 
   const rows = events.length
     ? events.map((event) => {
@@ -75,7 +76,7 @@ export function renderCalendarSection(payload: BriefingPayload): string {
         <div class="agenda-row__badges">${tentative ? '<span class="agenda-row__badge">TENTATIVE</span>' : ""}${demo ? '<span class="agenda-row__badge is-demo">DEMO</span>' : ""}</div>
       </article>`;
     }).join("")
-    : `<div class="section-empty"><strong>${payload.calendar.state === "empty" ? "На сегодня событий нет" : "Календарь пока недоступен"}</strong><span>${payload.calendar.state === "empty" ? "Можно оставить день свободным." : "Секция обновится после следующего успешного чтения."}</span></div>`;
+    : `<div class="section-empty"><strong>${section(payload, "calendar").state === "empty" ? "На сегодня событий нет" : "Календарь пока недоступен"}</strong><span>${section(payload, "calendar").state === "empty" ? "Можно оставить день свободным." : "Секция обновится после следующего успешного чтения."}</span></div>`;
 
   const sectionNote = payload.notes?.find((note) => note.target === "calendar");
   return `<section class="briefing-panel briefing-panel--calendar" aria-labelledby="calendar-heading">

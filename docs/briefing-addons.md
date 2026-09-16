@@ -30,9 +30,11 @@ Composio read caller. Failures are captured independently, so one failed
 collection cannot prevent another module from attempting its own source.
 No model is invoked by live refresh.
 
-## Data and compatibility
+## Canonical data format
 
-New built-in envelopes use version 2:
+Every stored or submitted Briefing payload now requires `formatVersion: 3`
+and an explicit `addons` map. Root `mail`, `calendar`, `weather`, `news`
+and `sourceBatches` fields are rejected. There is one stored copy:
 
 ```text
 addons.<id> = {
@@ -46,29 +48,45 @@ addons.<id> = {
 }
 ```
 
-The section contains actual normalized data, not the former empty manifest
-placeholder. Each module has a typed `BuiltinAddonEnvelope<id>`.
-Cinema retains its independently versioned contract.
+`BriefingSections` types section contents. `section(payload, id)` reads the
+owning envelope directly; `setSection` replaces it and synchronizes status.
+Missing add-ons return transient empty display values without storing a
+section. No root projection, dual writer or legacy read fallback exists.
 
-For compatibility, schemaVersion 1/2 payloads still expose the root
-`mail`, `calendar`, `weather`, `news` and `sourceBatches` fields.
-Existing writers update those fields; `parseBriefingPayload` synchronizes
-version-2 envelopes from that canonical compatibility view. Add-on-only inputs
-can omit those root fields; the parser reconstructs them from the envelopes
-and runs the same validation. Do not separately author two conflicting copies.
-Unknown built-in envelope versions are rejected.
+Cinema retains its independently versioned inner envelope. `schemaVersion`
+still denotes the editorial/provenance validation level (Daily production
+requires 2); it does not select the storage layout. Cinema and retained
+editions with provenance level 1 also require formatVersion 3.
 
-Existing version-1 empty manifests and payloads without any manifest remain
-readable. They do not require a bulk database migration or regeneration.
-A live update upgrades only its enabled live envelopes; it leaves the frozen
-News envelope unchanged. The media-import invariant normalizes the duplicate
-News view before comparing non-media content, so attaching images remains
-compatible. Explicit editorial revisions still use the established guarded
-revision command.
+## One-time migration
 
-Removing root compatibility fields and introducing a new universal payload
-schema are deferred. This migration provides module ownership without forcing
-every existing CLI, media operation and retained edition to switch at once.
+With the Briefing service and Poller writers stopped, run:
+
+```sh
+node dist/briefing/migrations/migrate-addon-format.js
+node dist/briefing/migrations/migrate-addon-format.js --apply
+```
+
+The default is read-only validation of every saved edition. Apply creates a
+private SQLite backup under `state/briefing/recovery/`, then updates all
+edition payloads and content digests in one optimistic transaction. Any
+failure rolls back the whole set. HTML, media, reaction/read tables, source
+checkpoints and provider/action receipts are unchanged. A second run is a
+no-op. An active recent run blocks apply.
+
+The offline importer in `migrations/addon-format.ts` is the only code that
+understands legacy root fields. It is not imported by the serving, collection,
+publication or polling paths. Historical run artifacts remain evidence; when
+an explicit recovery needs one, convert it to a new file first:
+
+```sh
+node dist/briefing/migrations/migrate-addon-format.js --input old-payload.json --output canonical-payload.json
+```
+
+Before switching production, compare old and new renderer output on the same
+saved editions. For rollback while writers are still stopped, restore the
+matching pre-migration database backup and previous runtime code together;
+do not run the old runtime against subsequently changed data blindly.
 
 ## Enable and disable
 

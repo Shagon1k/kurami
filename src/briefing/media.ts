@@ -1,3 +1,4 @@
+import { section, newsBatches } from "./addons/envelopes.ts";
 import {
   chmod,
   copyFile,
@@ -183,13 +184,13 @@ export function buildEditionMediaManifest(
   }
   const stories: ManifestStory[] = [];
   const expected = new Set<string>();
-  for (const story of payload.news.items) {
+  for (const story of section(payload, "news").items) {
     const assets: ManifestAsset[] = [];
     for (const source of Array.isArray(story.sources) ? story.sources : []) {
       if (!source || typeof source !== "object" || Array.isArray(source)) continue;
       const item = source as Record<string, unknown>;
       if (typeof item.sourceKey !== "string" || !Array.isArray(item.mediaMessageIds)) continue;
-      const providerSourceId = payload.sourceBatches?.find((batch) => batch.sourceKey === item.sourceKey)?.providerSourceId;
+      const providerSourceId = newsBatches(payload)?.find((batch) => batch.sourceKey === item.sourceKey)?.providerSourceId;
       const chatId = providerSourceId ? Number(providerSourceId) : NaN;
       if (!Number.isSafeInteger(chatId)) fail(`story ${story.id} has no provider source identity`);
       for (const providerItemId of item.mediaMessageIds) {
@@ -254,7 +255,7 @@ export async function importEditionMedia(
     database.close();
   }
 
-  const storyById = new Map(payload.news.items.map((story) => [story.id, story]));
+  const storyById = new Map(section(payload, "news").items.map((story) => [story.id, story]));
   const editionDirectory = resolve(paths.mediaDirectory, payload.edition.type, payload.edition.localDate);
   await mkdir(editionDirectory, { recursive: true, mode: 0o700 });
   const stagingRoot = await mkdtemp(resolve(paths.mediaInboxDirectory, ".media-import-"));

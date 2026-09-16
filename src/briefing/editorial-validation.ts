@@ -1,3 +1,4 @@
+import { section } from "./addons/envelopes.ts";
 import { readFile } from "node:fs/promises";
 import { resolve } from "node:path";
 import { parse as parseYaml } from "yaml";
@@ -197,11 +198,11 @@ function editorialCopyIssues(story: NewsItem): string[] {
 }
 
 export function storyNoteDistributionIssues(payload: BriefingPayload): string[] {
-  const noteBudget = Math.min(6, Math.max(1, Math.ceil(payload.news.items.length / 5)));
+  const noteBudget = Math.min(6, Math.max(1, Math.ceil(section(payload, "news").items.length / 5)));
   if ((payload.notes?.length ?? 0) !== noteBudget) {
-    return [`Kurami Notes must contain exactly ${noteBudget} notes for ${payload.news.items.length} stories`];
+    return [`Kurami Notes must contain exactly ${noteBudget} notes for ${section(payload, "news").items.length} stories`];
   }
-  const storyPositions = new Map(payload.news.items.map((story, index) => [story.id, index]));
+  const storyPositions = new Map(section(payload, "news").items.map((story, index) => [story.id, index]));
   const occupiedBands = new Set<number>();
   for (const note of payload.notes ?? []) {
     if (!note.target.startsWith("story:")) continue;
@@ -224,7 +225,7 @@ export function assertEditorialPayload(payload: BriefingPayload, policy: TopicPo
   const summaryOwners = new Map<string, string>();
   const globalTopicSets = new Map<string, number>();
   const sourceTopicSets = new Map<string, number>();
-  for (const story of payload.news.items) {
+  for (const story of section(payload, "news").items) {
     issues.push(...editorialCopyIssues(story));
     const summaryKey = normalized(story.summary);
     const summaryOwner = summaryOwners.get(summaryKey);
@@ -296,7 +297,7 @@ export function assertEditorialPayload(payload: BriefingPayload, policy: TopicPo
       issues.push(`Story ${story.id} topics are only broad containers or geography; add a contextual subtype`);
     }
   }
-  const globalLimit = Math.max(3, Math.ceil(payload.news.items.length / 10));
+  const globalLimit = Math.max(3, Math.ceil(section(payload, "news").items.length / 10));
   for (const [topicSet, count] of globalTopicSets) {
     if (count > globalLimit) {
       issues.push(`Topic set ${topicSet} is reused by ${count} stories; maximum is ${globalLimit}`);

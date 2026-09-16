@@ -1,11 +1,12 @@
+import { preparePreview } from "./payload-fixtures.ts";
 import assert from "node:assert/strict";
 import { mkdir, mkdtemp, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { resolve } from "node:path";
 import { assertEditorialPayload, loadTopicPolicy } from "../../src/briefing/editorial-validation.ts";
 import { importEditionMedia } from "../../src/briefing/media.ts";
-import { parseBriefingPayload } from "../../src/briefing/model.ts";
-import { briefingPaths, openBriefingDatabase, preparePreview, topicRegistry } from "../../src/briefing/store.ts";
+import { parseBriefingPayload } from "./payload-fixtures.ts";
+import { briefingPaths, openBriefingDatabase, topicRegistry } from "../../src/briefing/store.ts";
 import { renderBriefingPage } from "../../src/briefing/ui/render-page.ts";
 import { captureAddonManifest } from "../../src/briefing/addons/registry.ts";
 

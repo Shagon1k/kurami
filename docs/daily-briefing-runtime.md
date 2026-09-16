@@ -20,8 +20,8 @@ approved weekly snapshot is production-enabled at `/cinema`.
 ## Ownership and state
 
 Weather, Calendar, Mail and News now have explicit add-on modules, populated
-version-2 envelopes and configuration switches. Their collection, refresh,
-action ownership and legacy payload compatibility are documented in
+version-2 envelopes, canonical formatVersion 3 and configuration switches. Their collection, refresh,
+action ownership and one-time payload migration are documented in
 [Daily add-on lifecycle](briefing-addons.md). The shared publishing flow and
 five-day Daily retention remain unchanged.
 

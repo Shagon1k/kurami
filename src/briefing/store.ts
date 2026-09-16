@@ -22,7 +22,7 @@ import {
 import type { TopicDefinition } from "./editorial-validation.ts";
 import type { TelegramBatchReport } from "./telegram-batch.ts";
 import { DAILY_RETENTION_DAYS } from "./runtime-config.ts";
-import { syncBuiltinEnvelopes } from "./addons/envelopes.ts";
+import { setSection, section, newsBatches } from "./addons/envelopes.ts";
 
 process.umask(0o077);
 
@@ -368,7 +368,7 @@ export function validateRenderedHtml(html: string, payload?: BriefingPayload): v
   }
   if (!payload) return;
 
-  for (const story of briefingAddonEnabled(payload, "news") ? payload.news.items : []) {
+  for (const story of briefingAddonEnabled(payload, "news") ? section(payload, "news").items : []) {
     const itemAttributes = { "data-item-id": story.id };
     if (!htmlHasAttributes(html, { ...itemAttributes, "data-feed-item": null })) {
       fail(`Rendered HTML is missing feed item ${story.id}`);
@@ -384,8 +384,8 @@ export function validateRenderedHtml(html: string, payload?: BriefingPayload): v
     }
   }
 
-  const pageSize = payload.news.pageSize ?? 10;
-  if (briefingAddonEnabled(payload, "news") && payload.news.items.length > pageSize) {
+  const pageSize = section(payload, "news").pageSize ?? 10;
+  if (briefingAddonEnabled(payload, "news") && section(payload, "news").items.length > pageSize) {
     for (const attribute of [
       "data-paginated-feed",
       "data-feed-pagination",
@@ -444,7 +444,7 @@ export async function preparePreview(
   if (payload.edition.type === "daily") {
     payload.edition.retentionUntil = dailyRetentionUntil(payload.edition.localDate);
   }
-  if (payload.schemaVersion === 2 && payload.edition.type === "daily" && payload.sourceBatches?.length) {
+  if (payload.schemaVersion === 2 && payload.edition.type === "daily" && newsBatches(payload)?.length) {
     assertTelegramStoryCoverage(payload);
   }
   if (payload.edition.type === "daily") {
@@ -596,7 +596,7 @@ export async function preparePreview(
           committed_at, error_code
         ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       `);
-      for (const batch of payload.sourceBatches ?? []) {
+      for (const batch of newsBatches(payload) ?? []) {
         const prior = priorBatches.get(batch.sourceKey);
         const preserveCommit = prior?.state === "committed"
           && prior.provider_source_id === batch.providerSourceId
@@ -620,7 +620,7 @@ export async function preparePreview(
           topic_id, edition_id, story_fingerprint, source_key, observed_at
         ) VALUES (?, ?, ?, ?, ?)
       `);
-      for (const story of payload.news.items) {
+      for (const story of section(payload, "news").items) {
         const sourceKeys = new Set(
           (Array.isArray(story.sources) ? story.sources : [])
             .map((source) => source && typeof source === "object" && !Array.isArray(source)
@@ -696,12 +696,10 @@ function mediaRefreshInvariant(payload: BriefingPayload): string {
       ...quality,
       ...(Object.keys(stableCollection).length ? { telegramCollection: stableCollection } : {}),
     },
-    news: {
-      ...payload.news,
-      items: payload.news.items.map(({ media: _media, ...story }) => story),
-    },
   };
-  syncBuiltinEnvelopes(invariant);
+  if (invariant.addons.news) setSection(invariant, "news", {
+    ...section(payload, "news"), items: section(payload, "news").items.map(({ media: _media, ...story }) => story),
+  });
   return canonicalJson(JSON.parse(JSON.stringify(invariant)) as unknown);
 }
 
@@ -725,7 +723,7 @@ export async function refreshPreparedPreviewMedia(
   if (payload.edition.type === "daily") {
     payload.edition.retentionUntil = dailyRetentionUntil(payload.edition.localDate);
   }
-  if (payload.schemaVersion === 2 && payload.edition.type === "daily" && payload.sourceBatches?.length) {
+  if (payload.schemaVersion === 2 && payload.edition.type === "daily" && newsBatches(payload)?.length) {
     assertTelegramStoryCoverage(payload);
   }
   validateRenderedHtml(html, payload);
@@ -885,7 +883,7 @@ export async function replacePublishedAddonEdition(
 }
 
 function stableSourceOwnership(payload: BriefingPayload): string {
-  return JSON.stringify(payload.news.items.map((story) => ({
+  return JSON.stringify(section(payload, "news").items.map((story) => ({
     id: story.id,
     fingerprint: story.fingerprint,
     sources: (Array.isArray(story.sources) ? story.sources : [])
@@ -900,7 +898,7 @@ function stableSourceOwnership(payload: BriefingPayload): string {
 }
 
 function stableSourceBatches(payload: BriefingPayload): string {
-  return JSON.stringify((payload.sourceBatches ?? []).map((batch) => ({
+  return JSON.stringify((newsBatches(payload) ?? []).map((batch) => ({
     sourceKey: batch.sourceKey,
     providerSourceId: batch.providerSourceId,
     minItemId: batch.minItemId,
@@ -910,7 +908,7 @@ function stableSourceBatches(payload: BriefingPayload): string {
 }
 
 function stableExclusions(payload: BriefingPayload): string {
-  return JSON.stringify([...(payload.news.exclusions ?? [])].sort((left, right) =>
+  return JSON.stringify([...(section(payload, "news").exclusions ?? [])].sort((left, right) =>
     `${left.sourceKey}:${left.itemId}`.localeCompare(`${right.sourceKey}:${right.itemId}`)
   ));
 }
@@ -958,9 +956,9 @@ export async function revisePublishedEdition(
       reaction: Reaction | null;
     }>;
     const stateById = new Map(states.map((state) => [state.item_id, state]));
-    const existingById = new Map(existing.news.items.map((story) => [story.id, story]));
-    const { notes: _existingNotes, news: _existingNews, ...stableExisting } = existing;
-    const revisedStories = revision.news.items.map((story) => {
+    const existingById = new Map(section(existing, "news").items.map((story) => [story.id, story]));
+    const { notes: _existingNotes, ...stableExisting } = structuredClone(existing);
+    const revisedStories = section(revision, "news").items.map((story) => {
       const prior = existingById.get(story.id)!;
       const state = stateById.get(story.id);
       const { media: _revisionMedia, readState: _revisionReadState, reaction: _revisionReaction, ...editorial } = story;
@@ -974,14 +972,14 @@ export async function revisePublishedEdition(
     const revisedNotes = revision.notes?.map((note) =>
       note.target.startsWith("story:") ? { ...note, mark: "arrow-down-left" as const } : note
     );
+    if (stableExisting.addons.news) setSection(stableExisting, "news", { ...section(revision, "news"), items: revisedStories });
     const candidate = parseBriefingPayload({
       ...stableExisting,
       ...(revisedNotes ? { notes: revisedNotes } : {}),
-      news: { ...revision.news, items: revisedStories },
     });
     const topicPolicy = await loadTopicPolicy(paths.home, process.env, topicRegistry(database));
     assertEditorialPayload(candidate, topicPolicy);
-    if (candidate.schemaVersion === 2 && candidate.edition.type === "daily" && candidate.sourceBatches?.length) {
+    if (candidate.schemaVersion === 2 && candidate.edition.type === "daily" && newsBatches(candidate)?.length) {
       assertTelegramStoryCoverage(candidate);
     }
     const html = renderer(candidate);
@@ -1028,7 +1026,7 @@ export async function revisePublishedEdition(
           topic_id, edition_id, story_fingerprint, source_key, observed_at
         ) VALUES (?, ?, ?, ?, ?)
       `);
-      for (const story of candidate.news.items) {
+      for (const story of section(candidate, "news").items) {
         const update = updateItem.run(
           story.fingerprint,
           JSON.stringify(story.topics.map((topic) => topic.id)),
@@ -1083,7 +1081,7 @@ function telegramBatchMap(payload: BriefingPayload): Map<string, {
   itemIds: string[];
   maxItemId: string;
 }> {
-  return new Map((payload.sourceBatches ?? []).map((batch) => [batch.sourceKey, {
+  return new Map((newsBatches(payload) ?? []).map((batch) => [batch.sourceKey, {
     providerSourceId: batch.providerSourceId,
     itemIds: [...batch.itemIds].sort(),
     maxItemId: batch.maxItemId,
@@ -1158,7 +1156,7 @@ function storyMediaExpectations(
     channel.mediaItemIds.map((itemId) => `telegram:${channel.sourceKey}:${itemId}`)
   ));
   const result = new Map<string, Set<string>>();
-  for (const story of payload.news.items) {
+  for (const story of section(payload, "news").items) {
     const expected = new Set<string>();
     const sources = Array.isArray(story.sources) ? story.sources : [];
     for (const sourceValue of sources) {
@@ -1275,7 +1273,7 @@ export async function readEditionHtml(
 
 function immutableNewsDigest(payload: BriefingPayload): string {
   return createHash("sha256")
-    .update(JSON.stringify({ news: payload.news, sourceBatches: payload.sourceBatches ?? [], newsAddon: payload.addons?.news }))
+    .update(JSON.stringify({ news: section(payload, "news"), sourceBatches: newsBatches(payload) ?? [], newsAddon: payload.addons?.news }))
     .digest("hex");
 }
 
@@ -1359,7 +1357,7 @@ export async function refreshPublishedEdition(
           topic_ids_json, read_at, reaction, updated_at
         ) VALUES (?, ?, 'mail', NULL, '[]', ?, NULL, ?)
       `);
-      for (const item of payload.mail.items) {
+      for (const item of section(payload, "mail").items) {
         insert.run(payload.edition.id, item.id, priorRead.get(item.id) ?? null, timestamp);
       }
       writable.prepare(`
@@ -1404,7 +1402,7 @@ export function prepareMailReadAndArchive(
   const edition = loadEdition(database, { id: editionId });
   if (!edition) fail("Unknown briefing edition");
   const payload = parseBriefingPayload(JSON.parse(edition.payload_json) as unknown);
-  const mailById = new Map(payload.mail.items.map((item) => [item.id, item]));
+  const mailById = new Map(section(payload, "mail").items.map((item) => [item.id, item]));
   if (!briefingAddonEnabled(payload, "mail")) fail("Mail add-on is disabled for this edition");
   const providerMessageIds = itemIds.map((itemId) => {
     const item = mailById.get(itemId);

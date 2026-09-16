@@ -150,8 +150,8 @@ timestamp, and the client-side current clock. Provider failures are fail-soft:
 preserve the last successful value, mark it stale or partial, and continue
 independent providers.
 
-The poller's immutable boundary is the edition envelope plus `news`,
-`sourceBatches`, story media, topics, reactions, and story read state. It never
+The poller's immutable boundary is the edition envelope plus the complete
+`addons.news` snapshot, story media, topics, reactions, and story read state. It never
 fetches new Telegram posts, changes a news counter, rewrites or reranks a story,
 downloads Telegram media, builds a Telegram commit plan, or marks Telegram
 read. The daily news collection remains the frozen 09:00 Europe/Vilnius

@@ -1,3 +1,4 @@
+import { section } from "./addons/envelopes.ts";
 import { createHash } from "node:crypto";
 import { readFile } from "node:fs/promises";
 import { resolve } from "node:path";
@@ -119,9 +120,9 @@ function safeErrorCode(value: string | null): string {
 
 function payloadCounts(payload: BriefingPayload | null): { stories: number; mail: number; events: number } {
   return {
-    stories: payload?.news.items.length ?? 0,
-    mail: payload?.mail.items.length ?? 0,
-    events: Array.isArray(payload?.calendar.events) ? payload.calendar.events.length : 0,
+    stories: section(payload, "news").items.length ?? 0,
+    mail: section(payload, "mail").items.length ?? 0,
+    events: Array.isArray(section(payload, "calendar").events) ? (section(payload, "calendar").events as unknown[]).length : 0,
   };
 }
 

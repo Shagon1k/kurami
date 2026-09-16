@@ -2,7 +2,6 @@ import type { DatabaseSync } from "node:sqlite";
 import { loadEdition, retainedDailyEditions, refreshPublishedEdition, type BriefingPaths } from "../../store.ts";
 import { parseBriefingPayload, briefingAddonEnabled } from "../../model.ts";
 import { renderBriefingPage } from "../../ui/render-page.ts";
-import { syncBuiltinEnvelopes } from "../envelopes.ts";
 import { removeArchivedMail } from "./lifecycle.ts";
 
 export async function removeArchivedMailFromRetainedEditions(
@@ -18,7 +17,6 @@ export async function removeArchivedMailFromRetainedEditions(
       if (!current || (current.state !== "complete" && current.state !== "partial")) break;
       const payload = parseBriefingPayload(JSON.parse(current.payload_json) as unknown);
       if (!briefingAddonEnabled(payload, "mail") || !removeArchivedMail(payload, providerMessageIds)) break;
-      syncBuiltinEnvelopes(payload);
       try {
         await refreshPublishedEdition(
           payload,

@@ -1,4 +1,4 @@
-import { builtinSectionInput, syncBuiltinEnvelopes } from "./addons/envelopes.ts";
+import { section } from "./addons/envelopes.ts";
 export type EditionType = "daily" | "cinema";
 export type PayloadStatus = "complete" | "partial";
 export type SectionState = "ready" | "empty" | "partial" | "stale" | "failed";
@@ -149,7 +149,20 @@ export type BriefingPayload = {
   hero: Record<string, unknown>;
   notes?: KuramiNote[];
   live?: LiveSnapshot;
-  weather?: Record<string, unknown> & { state: SectionState };
+  dataQuality: Record<string, unknown> & { state: SectionState };
+  formatVersion: 3;
+  addons: Record<string, BriefingAddonEnvelope>;
+  // Prevent legacy writes even though scenario-specific metadata is extensible.
+  mail?: never;
+  calendar?: never;
+  weather?: never;
+  news?: never;
+  sourceBatches?: never;
+  [key: string]: unknown;
+};
+
+export type BriefingSections = {
+  weather: Record<string, unknown> & { state: SectionState };
   calendar: Record<string, unknown> & { state: SectionState };
   mail: Record<string, unknown> & { state: SectionState; items: MailItem[] };
   news: Record<string, unknown> & {
@@ -159,10 +172,6 @@ export type BriefingPayload = {
     pageSize?: number;
     exclusions?: NewsExclusion[];
   };
-  dataQuality: Record<string, unknown> & { state: SectionState };
-  sourceBatches?: SourceBatch[];
-  addons?: Record<string, BriefingAddonEnvelope>;
-  [key: string]: unknown;
 };
 
 export type PersistedItem = {
@@ -284,15 +293,9 @@ function addonEnvelopes(value: unknown): Record<string, BriefingAddonEnvelope> |
   }));
 }
 
-/**
- * Payloads published before the add-on manifest existed keep the legacy full
- * briefing composition. Once a manifest exists, omission is an explicit
- * per-edition disable and remains fixed for that edition.
- */
+/** Omission is an explicit per-edition disable. */
 export function briefingAddonEnabled(payload: BriefingPayload, addonId: string): boolean {
-  return payload.addons === undefined
-    ? true
-    : Object.prototype.hasOwnProperty.call(payload.addons, addonId);
+  return Object.prototype.hasOwnProperty.call(payload.addons, addonId);
 }
 
 function finiteNumber(value: unknown): number | null {
@@ -303,14 +306,14 @@ function optionalText(value: unknown): string | null {
   return typeof value === "string" && value.trim() ? value.trim() : null;
 }
 
-function normalizeWeather(value: Record<string, unknown>): BriefingPayload["weather"] {
+function normalizeWeather(value: Record<string, unknown>): BriefingSections["weather"] {
   const state = sectionState(value.state, "weather.state");
   if (value.temperatureC !== undefined || value.temperatureCelsius === undefined) {
-    return { ...value, state } as BriefingPayload["weather"];
+    return { ...value, state } as BriefingSections["weather"];
   }
 
   const temperatureC = finiteNumber(value.temperatureCelsius);
-  if (temperatureC === null) return { ...value, state } as BriefingPayload["weather"];
+  if (temperatureC === null) return { ...value, state } as BriefingSections["weather"];
 
   const conditionRecord = value.condition !== undefined
     ? record(value.condition, "weather.condition")
@@ -622,6 +625,10 @@ export function parseBriefingPayload(value: unknown): BriefingPayload {
   if (root.schemaVersion !== 1 && root.schemaVersion !== 2) {
     fail("schemaVersion must equal 1 or 2");
   }
+  if (root.formatVersion !== 3) fail("formatVersion must equal 3; migrate this payload before use");
+  for (const key of ["mail", "calendar", "weather", "news", "sourceBatches"]) {
+    if (Object.hasOwn(root, key)) fail(`root.${key} is forbidden; use the owning add-on`);
+  }
   const schemaVersion = root.schemaVersion;
 
   const edition = record(root.edition, "edition");
@@ -639,7 +646,14 @@ export function parseBriefingPayload(value: unknown): BriefingPayload {
   const hero = record(root.hero, "hero");
   const parsedNotes = notes(root.notes);
   const parsedAddons = addonEnvelopes(root.addons);
-  const parsedSourceBatches = sourceBatches(root.sourceBatches ?? (parsedAddons?.news?.version === 2 ? parsedAddons.news.data.sourceBatches : undefined));
+  if (!parsedAddons) fail("addons is required");
+  const sectionInput = (id: keyof BriefingSections): unknown => {
+    const envelope = parsedAddons[id];
+    if (!envelope) return id === "weather" ? undefined : { state: "empty", items: [], events: [], allDayEvents: [] };
+    if (envelope.version !== 2) fail(`addons.${id}.version must equal 2`);
+    return record(envelope.data.section, `addons.${id}.data.section`);
+  };
+  const parsedSourceBatches = sourceBatches(parsedAddons.news?.data.sourceBatches);
   let live: LiveSnapshot | undefined;
   if (root.live !== undefined) {
     const value = record(root.live, "live");
@@ -651,15 +665,15 @@ export function parseBriefingPayload(value: unknown): BriefingPayload {
         : {}),
     };
   }
-  let weather: BriefingPayload["weather"];
-  const weatherInput = builtinSectionInput(root, "weather", parsedAddons);
+  let weather: BriefingSections["weather"] | undefined;
+  const weatherInput = sectionInput("weather");
   if (weatherInput !== undefined) {
     const value = record(weatherInput, "weather");
     weather = normalizeWeather(value);
   }
-  const calendar = record(builtinSectionInput(root, "calendar", parsedAddons), "calendar");
+  const calendar = record(sectionInput("calendar"), "calendar");
   calendar.state = sectionState(calendar.state, "calendar.state");
-  const mail = record(builtinSectionInput(root, "mail", parsedAddons), "mail");
+  const mail = record(sectionInput("mail"), "mail");
   mail.state = sectionState(mail.state, "mail.state");
   if (!Array.isArray(mail.items)) fail("mail.items must be an array");
   const mailItems = mail.items.map((raw, index) => {
@@ -690,7 +704,7 @@ export function parseBriefingPayload(value: unknown): BriefingPayload {
     };
   });
 
-  const news = record(builtinSectionInput(root, "news", parsedAddons), "news");
+  const news = record(sectionInput("news"), "news");
   news.state = sectionState(news.state, "news.state");
   if (!Array.isArray(news.items)) fail("news.items must be an array");
   const newsItems = news.items.map((raw, index) => {
@@ -742,27 +756,34 @@ export function parseBriefingPayload(value: unknown): BriefingPayload {
     },
     hero,
     ...(parsedNotes ? { notes: parsedNotes } : {}),
-    ...(parsedSourceBatches ? { sourceBatches: parsedSourceBatches } : {}),
-    ...(parsedAddons ? { addons: parsedAddons } : {}),
+    formatVersion: 3,
+    addons: parsedAddons,
     ...(live ? { live } : {}),
-    ...(weather ? { weather } : {}),
-    calendar: calendar as BriefingPayload["calendar"],
-    mail: { ...mail, items: mailItems } as BriefingPayload["mail"],
-    news: { ...news, items: newsItems, ...(exclusions ? { exclusions } : {}) } as BriefingPayload["news"],
+
     dataQuality: dataQuality as BriefingPayload["dataQuality"],
   };
 
+  for (const [id, normalized] of Object.entries({
+    calendar, mail: { ...mail, items: mailItems },
+    news: { ...news, items: newsItems, ...(exclusions ? { exclusions } : {}) }, weather,
+  })) {
+    const envelope = parsed.addons[id];
+    if (envelope && normalized) parsed.addons[id] = {
+      ...envelope, state: (normalized as Record<string, unknown>).state as SectionState,
+      data: { section: normalized, ...(id === "news" && parsedSourceBatches ? { sourceBatches: parsedSourceBatches } : {}) },
+    };
+  }
   if (parsed.notes) {
-    const noteBudget = Math.min(6, Math.max(1, Math.ceil(parsed.news.items.length / 5)));
+    const noteBudget = Math.min(6, Math.max(1, Math.ceil(section(parsed, "news").items.length / 5)));
     if (parsed.notes.length > noteBudget) {
-      fail(`notes exceeds the ${noteBudget}-note budget for ${parsed.news.items.length} stories`);
+      fail(`notes exceeds the ${noteBudget}-note budget for ${section(parsed, "news").items.length} stories`);
     }
   }
 
   if (parsed.notes) {
     const calendarIds = new Set<string>();
     for (const key of ["events", "allDayEvents", "demoEvents"] as const) {
-      const values = parsed.calendar[key];
+      const values = section(parsed, "calendar")[key];
       if (!Array.isArray(values)) continue;
       for (const value of values) {
         if (value && typeof value === "object" && !Array.isArray(value) && typeof (value as Record<string, unknown>).id === "string") {
@@ -770,8 +791,8 @@ export function parseBriefingPayload(value: unknown): BriefingPayload {
         }
       }
     }
-    const mailIds = new Set(parsed.mail.items.map((item) => item.id));
-    const storyIds = new Set(parsed.news.items.map((item) => item.id));
+    const mailIds = new Set(section(parsed, "mail").items.map((item) => item.id));
+    const storyIds = new Set(section(parsed, "news").items.map((item) => item.id));
     for (const note of parsed.notes) {
       if (note.target.startsWith("calendar-event:") && !calendarIds.has(note.target.slice(15))) {
         fail(`note ${note.id} targets an unknown calendar event`);
@@ -785,15 +806,11 @@ export function parseBriefingPayload(value: unknown): BriefingPayload {
     }
   }
 
-  syncBuiltinEnvelopes(parsed);
   return parsed;
 }
 
-/**
- * Legacy schemaVersion 1 payloads remain readable so already-published pages
- * can still be served and refreshed. New daily production writes must use the
- * ingestion-gated schemaVersion 2 contract.
- */
+/** schemaVersion controls editorial provenance requirements, not storage layout.
+ * All payloads use formatVersion 3. Daily production requires provenance v2. */
 export function assertProductionBriefingPayload(payload: BriefingPayload): void {
   if (payload.edition.type === "daily" && payload.schemaVersion !== 2) {
     fail("new daily production editions require schemaVersion 2");
@@ -802,7 +819,7 @@ export function assertProductionBriefingPayload(payload: BriefingPayload): void 
 
 export function persistedItems(payload: BriefingPayload): PersistedItem[] {
   const items: PersistedItem[] = briefingAddonEnabled(payload, "news")
-    ? payload.news.items.map((story) => ({
+    ? section(payload, "news").items.map((story) => ({
     itemId: story.id,
     itemType: "story",
     storyFingerprint: story.fingerprint,
@@ -810,7 +827,7 @@ export function persistedItems(payload: BriefingPayload): PersistedItem[] {
     }))
     : [];
   const seen = new Set(items.map((item) => item.itemId));
-  for (const message of briefingAddonEnabled(payload, "mail") ? payload.mail.items : []) {
+  for (const message of briefingAddonEnabled(payload, "mail") ? section(payload, "mail").items : []) {
     if (seen.has(message.id)) fail(`duplicate cross-section item ID ${message.id}`);
     seen.add(message.id);
     items.push({

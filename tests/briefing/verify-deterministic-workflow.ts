@@ -1,3 +1,4 @@
+import { section, newsBatches } from "../../src/briefing/addons/envelopes.ts";
 import assert from "node:assert/strict";
 import { mkdtemp, readFile, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
@@ -232,13 +233,13 @@ const composed = await composeBriefingPayload({
   outputPath,
 });
 assert.equal(composed.report.complete, true);
-const composedSource = (composed.payload.news.items[0]!.sources as Array<{ itemIds: string[] }>)[0]!;
+const composedSource = (section(composed.payload, "news").items[0]!.sources as Array<{ itemIds: string[] }>)[0]!;
 assert.equal(composedSource.itemIds[0], "10");
-assert.equal(composed.payload.sourceBatches?.[0]!.maxItemId, "10");
-assert.equal(composed.payload.news.items[0]!.rankingPolicy, "deterministic-v1");
-assert.equal(composed.payload.notes?.[0]?.target, `story:${composed.payload.news.items[0]!.id}`);
+assert.equal(newsBatches(composed.payload)?.[0]!.maxItemId, "10");
+assert.equal(section(composed.payload, "news").items[0]!.rankingPolicy, "deterministic-v1");
+assert.equal(composed.payload.notes?.[0]?.target, `story:${section(composed.payload, "news").items[0]!.id}`);
 assert.equal(composed.payload.notes?.[0]?.mark, "arrow-down-left");
-assert.equal(composed.payload.weather?.temperatureC, 18);
+assert.equal(section(composed.payload, "weather")?.temperatureC, 18);
 assert.deepEqual(Object.keys(composed.payload.addons ?? {}).sort(), [
   "calendar",
   "mail",
@@ -246,7 +247,7 @@ assert.deepEqual(Object.keys(composed.payload.addons ?? {}).sort(), [
   "weather",
 ]);
 assert.equal(composed.payload.addons?.news?.capturedAt, composed.payload.edition.generatedAt);
-assert.equal(composed.payload.addons?.mail?.state, composed.payload.mail.state);
+assert.equal(composed.payload.addons?.mail?.state, section(composed.payload, "mail").state);
 assert.equal(await readFile(outputPath, "utf8"), `${JSON.stringify(composed.payload, null, 2)}\n`);
 
 const copiedDraft = JSON.parse(await readFile(draftPath, "utf8"));
@@ -274,8 +275,8 @@ await writeFile(draftPath, JSON.stringify({
 const disabled = await composeBriefingPayload({ draftPath, livePath, configPath, rawPath, normalizedPath });
 assert.equal(disabled.payload.addons?.news, undefined);
 assert.equal(disabled.payload.addons?.mail, undefined);
-assert.deepEqual(disabled.payload.news.items, []);
-assert.deepEqual(disabled.payload.sourceBatches, []);
+assert.deepEqual(section(disabled.payload, "news").items, []);
+assert.deepEqual(newsBatches(disabled.payload), []);
 assert.equal(disabled.report.complete, true);
 
 process.stdout.write("deterministic briefing workflow verified\n");

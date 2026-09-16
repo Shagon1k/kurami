@@ -9,6 +9,7 @@ export function cinemaEnvelopeToBriefingPayload(value: unknown): BriefingPayload
   const state = envelope.state === "ready" ? "ready" : "partial";
   return parseBriefingPayload({
     schemaVersion: 1,
+    formatVersion: 3,
     edition: {
       id: `cinema:${envelope.data.localDate}`,
       type: "cinema",
@@ -22,9 +23,6 @@ export function cinemaEnvelopeToBriefingPayload(value: unknown): BriefingPayload
       title: "Кино за неделю",
       subtitle: "Прокат, свежие трейлеры, премьеры и то, что стоило заметить.",
     },
-    calendar: { state: "empty", events: [] },
-    mail: { state: "empty", items: [] },
-    news: { state: "empty", items: [] },
     dataQuality: { state, summary: envelope.data.quality.summary },
     addons: { cinema: envelope },
   });
