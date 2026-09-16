@@ -119,6 +119,11 @@ Default manual experiments to `dry-run`. Generation never archives Gmail;
    would require an interactive approval that cron cannot grant.
    Preserve configured calendar keys, event IDs, timing, location,
    description, conflicts, and Gmail provider message/thread IDs.
+   The enabled Signals add-on may extend the calendar input through tomorrow.
+   Only the edition date belongs in today's schedule and calendar-item notes;
+   tomorrow's events are look-ahead data, not additional meetings today.
+   The runtime derives Signals from numeric inputs and configured thresholds.
+   Do not author its envelope, severity, signal copy or layout in the draft.
 5. From the normalized mail collection in `live-snapshot.json`, process all unread Primary Gmail
    messages. Classify every
    message as `ACTION`, `IMPORTANT`, or `GENERAL`; do not change Gmail state.

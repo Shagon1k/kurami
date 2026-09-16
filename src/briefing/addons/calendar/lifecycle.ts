@@ -2,6 +2,7 @@ import { section, setSection } from "../envelopes.ts";
 import { fetchCalendarSnapshot, partitionCalendarItemsByLocalDate, type NormalizedCalendarEvent } from "../../providers/composio-calendar.ts";
 import { requireCaller, type LiveAddon } from "../live-contract.ts";
 import { providerComplete } from "../provider-state.ts";
+import { nextLocalDate } from "../../dates.ts";
 
 function durationLabel(event: NormalizedCalendarEvent): string {
   if (event.allDay) return "Весь день";
@@ -31,6 +32,7 @@ export function calendarEvent(value: NormalizedCalendarEvent): Record<string, un
     allDay: value.allDay,
     tentative: value.tentative,
     responseStatus: value.responseStatus,
+    status: value.status,
     duration: durationLabel(value),
     ...(value.externalUrl ? { externalUrl: value.externalUrl } : {}),
   };
@@ -54,7 +56,8 @@ export function calendarConflicts(items: NormalizedCalendarEvent[]): Array<Recor
 export const calendarLifecycle: LiveAddon = {
   id: "calendar", providerKey: "calendar", lane: "mcp",
   collect: context => fetchCalendarSnapshot(requireCaller(context), {
-    localDate: context.localDate, endLocalDateExclusive: context.endLocalDateExclusive,
+    localDate: context.localDate, endLocalDateExclusive: context.includeTomorrow
+      ? nextLocalDate(context.endLocalDateExclusive ?? nextLocalDate(context.localDate)) : context.endLocalDateExclusive,
     timeZone: context.timeZone, sources: context.calendars,
     pageSize: 250, maximumPagesPerSource: 10, retry: context.retry, now: context.now,
   }),
@@ -65,11 +68,17 @@ export const calendarLifecycle: LiveAddon = {
         ? partitionCalendarItemsByLocalDate(result.value.items, payload.edition.timezone).get(payload.edition.localDate) ?? []
         : context.calendarItems;
       if (items === null) return;
-      const { staleAt: _staleAt, ...prior } = section(payload, "calendar");
+      const { staleAt: _staleAt, tomorrow: _tomorrow, ...prior } = section(payload, "calendar");
+      const tomorrowDate = nextLocalDate(payload.edition.localDate);
+      const tomorrowItems = partitionCalendarItemsByLocalDate(result.value.items,payload.edition.timezone).get(tomorrowDate) ?? [];
+      const tomorrow = result.value.localDateEndExclusive > tomorrowDate ? {
+        localDate: tomorrowDate, state: tomorrowItems.length ? "ready" : "empty",
+        events: tomorrowItems.map(calendarEvent),
+      } : undefined;
       setSection(payload, "calendar", { ...prior, state: items.length ? "ready" : "empty", fetchedAt: result.fetchedAt,
         allDayEvents: items.filter(item => item.allDay).map(calendarEvent),
         events: items.filter(item => !item.allDay).map(calendarEvent),
-        conflicts: calendarConflicts(items), sources: result.value.sources });
+        conflicts: calendarConflicts(items), sources: result.value.sources, ...(tomorrow ? { tomorrow } : {}) });
     } else if (context.initial) {
       setSection(payload, "calendar", { state: "failed", events: [], allDayEvents: [], conflicts: [] });
     } else {

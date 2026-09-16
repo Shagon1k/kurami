@@ -3,6 +3,8 @@ import { loadEdition, retainedDailyEditions, refreshPublishedEdition, type Brief
 import { parseBriefingPayload, briefingAddonEnabled } from "../../model.ts";
 import { renderBriefingPage } from "../../ui/render-page.ts";
 import { removeArchivedMail } from "./lifecycle.ts";
+import { refreshDerivedAddons } from "../derived.ts";
+import { refreshDataQuality } from "../quality.ts";
 
 export async function removeArchivedMailFromRetainedEditions(
   database: DatabaseSync,
@@ -17,6 +19,9 @@ export async function removeArchivedMailFromRetainedEditions(
       if (!current || (current.state !== "complete" && current.state !== "partial")) break;
       const payload = parseBriefingPayload(JSON.parse(current.payload_json) as unknown);
       if (!briefingAddonEnabled(payload, "mail") || !removeArchivedMail(payload, providerMessageIds)) break;
+      const at = currentTime ?? new Date().toISOString();
+      refreshDerivedAddons(payload, { at });
+      refreshDataQuality(payload, payload.live?.refreshedAt ?? payload.edition.generatedAt);
       try {
         await refreshPublishedEdition(
           payload,

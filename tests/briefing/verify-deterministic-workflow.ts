@@ -244,6 +244,7 @@ assert.deepEqual(Object.keys(composed.payload.addons ?? {}).sort(), [
   "calendar",
   "mail",
   "news",
+  "signals",
   "weather",
 ]);
 assert.equal(composed.payload.addons?.news?.capturedAt, composed.payload.edition.generatedAt);

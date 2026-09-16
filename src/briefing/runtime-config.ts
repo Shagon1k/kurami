@@ -5,6 +5,7 @@ import type { BriefingPaths } from "./store.ts";
 import type { CalendarSource } from "./providers/composio-calendar.ts";
 import type { OpenMeteoLocation } from "./providers/open-meteo.ts";
 import type { AddonSwitches, BuiltinAddonId } from "./addons/live-contract.ts";
+import { parseSignalsConfig, type SignalsConfig } from "./addons/signals/config.ts";
 
 type JsonRecord = Record<string, unknown>;
 
@@ -32,6 +33,7 @@ export const DAILY_RETENTION_DAYS = 5;
 export type BriefingRuntimeConfig = {
   configPath: string;
   addons: Record<"mail" | "calendar" | "weather" | "news", boolean>;
+  signals: SignalsConfig;
   timeZone: string;
   retentionDays: number;
   gmailQuery: string;
@@ -236,6 +238,7 @@ export async function loadBriefingRuntimeConfig(
     configPath: loaded.path,
     timeZone,
     addons: sourceAddonSwitches(sources),
+    signals: parseSignalsConfig(root.signals),
     retentionDays,
     gmailQuery: string(mailSettings.query, "mail.query"),
     gmailPageSize,

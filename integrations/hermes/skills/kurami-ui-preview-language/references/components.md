@@ -148,6 +148,18 @@ Keep the primitive service-agnostic. The calling workflow owns copy, IDs, cutoff
 
 Telegram may appear in the reference component library as demo content only. The same primitive must accept another provider without structural changes.
 
+## Signal strip
+
+`SignalStrip` belongs immediately below Daily metrics. It contains zero to
+three `SignalItem` components and an evaluation timestamp. Items use shared
+panel/border/type tokens, a fixed amber exclamation mark for attention and an
+ink/muted arrow for information. Use a responsive compact grid; stack on
+mobile without changing content. There is no outer offset shadow.
+
+The runtime supplies the selected notices, fixed section links and expiry.
+An empty/expired strip is absent. Do not use AI-selected icons, colors, layout
+or fallback text. Keep these components separate from the calendar/news rows.
+
 ## Charts
 
 - Use a restrained grid and direct labeling where possible.

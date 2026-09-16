@@ -9,6 +9,7 @@ import type {
   OrderedMetricCard,
 } from "./types.ts";
 import { weatherAddon } from "./weather.ts";
+import { signalsAddon } from "./signals.ts";
 
 export const BRIEFING_ADDONS: readonly BriefingAddon[] = Object.freeze([
   mailAddon,
@@ -16,6 +17,7 @@ export const BRIEFING_ADDONS: readonly BriefingAddon[] = Object.freeze([
   newsAddon,
   weatherAddon,
   cinemaAddon,
+  signalsAddon,
 ]);
 
 const ADDON_ID = /^[a-z][a-z0-9-]{0,63}$/u;

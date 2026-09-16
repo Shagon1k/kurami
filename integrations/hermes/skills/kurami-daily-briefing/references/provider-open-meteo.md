@@ -29,6 +29,10 @@ temperature, humidity, precipitation, precipitation probability, wind, daily
 minimum and maximum, sunrise, sunset, provider name, and configured location
 in structured metadata. Round only for presentation; preserve provider values
 in the stored snapshot.
+Retain the first two aligned local forecast dates with numeric minimum,
+maximum and precipitation probability, and the successful UTC fetchedAt.
+Signals compares exact local dates; never substitute today's maximum for a
+missing tomorrow maximum or parse forecast values from the summary text.
 
 Weather is dynamic. The Central Poller may refresh it without changing a
 daily edition's frozen news snapshot. A failed refresh is fail-soft: preserve

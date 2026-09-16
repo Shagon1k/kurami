@@ -6,6 +6,8 @@ import { initializeBriefingStore, openBriefingDatabase } from "./store.ts";
 import { loadBriefingAttempt, recordBriefingRunStage } from "./run-attempt.ts";
 import { loadBriefingRuntimeConfig } from "./runtime-config.ts";
 import { collectDynamicBriefingSnapshot } from "./providers/dynamic-snapshot.ts";
+import { partitionCalendarItemsByLocalDate } from "./providers/composio-calendar.ts";
+import { nextLocalDate } from "./dates.ts";
 import {
   composioReadConnectionFromEnvironment,
   createComposioReadToolCaller,
@@ -38,6 +40,7 @@ export async function collectEditionLiveSnapshot(
   const snapshot = await collectDynamicBriefingSnapshot({
     getCaller: () => createComposioReadToolCaller(composioReadConnectionFromEnvironment(environment)),
     enabled: config.addons,
+    includeTomorrow: config.signals.enabled && config.signals.rules.earlyTomorrow,
     gmailPageSize: config.gmailPageSize,
     gmailQuery: config.gmailQuery,
     calendars: config.calendars,
@@ -94,7 +97,8 @@ export async function collectEditionLiveSnapshot(
     mailState: snapshot.gmail.state,
     mailCount: snapshot.gmail.value?.items.length ?? 0,
     calendarState: snapshot.calendar.state,
-    calendarCount: snapshot.calendar.value?.items.length ?? 0,
+    calendarCount: partitionCalendarItemsByLocalDate(snapshot.calendar.value?.items ?? [],config.timeZone).get(localDate)?.length ?? 0,
+    calendarTomorrowCount: partitionCalendarItemsByLocalDate(snapshot.calendar.value?.items ?? [],config.timeZone).get(nextLocalDate(localDate))?.length ?? 0,
     weatherState: snapshot.weather.state,
   };
 }

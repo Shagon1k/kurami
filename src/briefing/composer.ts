@@ -12,6 +12,8 @@ import { applyDeterministicRanking } from "./ranking.ts";
 import { captureAddonManifest } from "./addons/registry.ts";
 import { validateTelegramBatch, type TelegramBatchReport } from "./telegram-batch.ts";
 import { readBriefingAddonSwitches } from "./runtime-config.ts";
+import { readSignalsConfig } from "./addons/signals/config.ts";
+import { refreshDerivedAddons } from "./addons/derived.ts";
 
 export async function composeBriefingPayload(input: {
   draftPath: string;
@@ -22,11 +24,12 @@ export async function composeBriefingPayload(input: {
   outputPath?: string;
   addonSnapshots?: Record<string, BriefingAddonEnvelope>;
 }): Promise<{ payload: BriefingPayload; report: TelegramBatchReport; outputPath?: string }> {
-  const [draftValue, liveValue, normalizedValue, enabled] = await Promise.all([
+  const [draftValue, liveValue, normalizedValue, enabled, signals] = await Promise.all([
     readFile(input.draftPath, "utf8").then(JSON.parse),
     readFile(input.livePath, "utf8").then(JSON.parse),
     readFile(input.normalizedPath, "utf8").then(JSON.parse),
     readBriefingAddonSwitches(input.configPath),
+    readSignalsConfig(input.configPath),
   ]);
   const snapshot = liveValue as DynamicBriefingSnapshot;
   const report = await validateTelegramBatch(input.configPath, input.rawPath, input.normalizedPath);
@@ -76,6 +79,10 @@ export async function composeBriefingPayload(input: {
       ...(input.addonSnapshots ?? {}),
     },
   });
+  const signalTime = new Date(Math.max(...[draft.generatedAt,snapshot.refreshedAt,
+    snapshot.gmail.fetchedAt,snapshot.calendar.fetchedAt,snapshot.weather.fetchedAt].map(Date.parse).filter(Number.isFinite))).toISOString();
+  refreshDerivedAddons(payload, { at: signalTime, settings: { signals } });
+  refreshDataQuality(payload, snapshot.refreshedAt);
   if (input.outputPath) {
     const outputPath = resolve(input.outputPath);
     const temporary = resolve(dirname(outputPath), `.${randomUUID()}.tmp`);

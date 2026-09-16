@@ -98,6 +98,21 @@ a { color: inherit; }
 .metric-card__note { position: absolute; right: 14px; top: 13px; max-width: 130px; font-size: 18px; text-align: right; }
 
 .briefing-overview { display: grid; grid-template-columns: minmax(0, 1.05fr) minmax(0, .95fr); gap: 22px; margin-top: 52px; }
+.signal-strip { margin-top: 24px; }
+.signal-strip > header { display: flex; align-items: baseline; flex-wrap: wrap; gap: 8px 16px; margin-bottom: 10px; }
+.signal-strip h2 { margin: 0; font-size: .875rem; font-weight: 600; }
+.signal-strip > header > span { color: var(--muted); font-size: .6875rem; }
+.signal-strip__items { display: grid; grid-template-columns: repeat(auto-fit,minmax(min(100%,260px),1fr)); gap: 12px; }
+.signal-item { display: grid; grid-template-columns: 24px minmax(0,1fr); gap: 10px; padding: 16px; border: 1px solid var(--line); border-radius: 3px; background: var(--panel); }
+.signal-item__icon { color: var(--muted); font-size: 18px; line-height: 1.2; font-weight: 600; text-align: center; }
+.signal-item--attention { border-top: 2px solid var(--warning); }
+.signal-item--attention .signal-item__icon { color: var(--warning); }
+.signal-item h3 { margin: 0 0 6px; font-size: .8125rem; font-weight: 600; line-height: 1.3; }
+.signal-item p { margin: 0; font-size: .75rem; line-height: 1.5; color: var(--muted); overflow-wrap: anywhere; }
+.signal-item a { display: inline-flex; align-items: center; min-height: 44px; color: var(--ink); font-size: .75rem; font-weight: 600; text-underline-offset: 3px; }
+.signal-item a:hover { color: var(--signal); }
+.signal-item a:focus-visible { outline: 2px solid var(--signal); outline-offset: 3px; }
+.signal-strip:not([hidden]) + .briefing-overview { margin-top: 28px; }
 .briefing-panel { min-width: 0; position: relative; padding: clamp(24px, 3vw, 34px); background: var(--section); border: 1px solid var(--line); border-radius: 3px; box-shadow: 4px 4px 0 var(--section-shadow); }
 .briefing-panel__note { position: absolute; right: 30px; top: 72px; z-index: 1; max-width: 170px; font-size: 19px; text-align: right; pointer-events: none; }
 .briefing-panel__header { display: flex; align-items: end; justify-content: space-between; gap: 20px; padding-bottom: 18px; border-bottom: 1px solid var(--line); }

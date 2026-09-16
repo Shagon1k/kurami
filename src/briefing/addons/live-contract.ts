@@ -21,6 +21,7 @@ export type LiveCollectionContext = {
   calendars: CalendarSource[];
   localDate: string;
   endLocalDateExclusive?: string;
+  includeTomorrow?: boolean;
   timeZone: string;
   weatherLocation: OpenMeteoLocation;
   fetchImpl?: FetchLike;

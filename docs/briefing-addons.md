@@ -13,6 +13,7 @@ transactions, action receipts and five-day Daily retention stay common.
 | Mail | Primary unread collection, classification mapping, selected-message archive executor, retained-page reconciliation | Morning, hourly and explicit page actions |
 | News | Editorial draft interpretation, source ownership, stable story identities, source batches, snapshot and feed UI | Frozen morning snapshot |
 | Cinema | Weekly providers, editorial composition, promotion, full page and teaser | Saturday, last successful snapshot |
+| Signals | Derived calendar/mail/weather notices, thresholds, expiry and deduplication | After composition, live refresh and mail actions |
 
 Entry points are `src/briefing/addons/{mail,calendar,weather,news}.ts`.
 Their domain implementations live in the corresponding subdirectories.
@@ -22,6 +23,9 @@ in `ui/components/`, and transaction/receipt enforcement in `store.ts`.
 `addons/registry.ts` owns ordered rendering slots, metrics, quality reporting,
 and references to optional live lifecycles. `addons/live.ts` derives its
 participants from that registry; News and Cinema have no hourly lifecycle.
+
+Derived modules use `addons/derived.ts` after input updates. Signals contributes
+to `after-metrics`; its contract is in [Smart Morning Signals](smart-morning-signals.md).
 
 A live lifecycle declares its ID, provider-result key, transport lane,
 collection function and section update function. HTTP collection may overlap

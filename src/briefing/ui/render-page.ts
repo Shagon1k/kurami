@@ -41,6 +41,7 @@ export function renderBriefingPage(payload: BriefingPayload): string {
   ].sort((left, right) => left.order - right.order || left.addonId.localeCompare(right.addonId))
     .map((value) => value.card);
   const overview = renderAddonSlot(payload, "overview");
+  const afterMetrics = renderAddonSlot(payload, "after-metrics");
   const main = renderAddonSlot(payload, "main");
   const afterMain = renderAddonSlot(payload, "after-main");
   const utilityTitle = payload.edition.type === "cinema" ? "Kurami Cinema" : "Kurami Daily Briefing";
@@ -75,6 +76,7 @@ export function renderBriefingPage(payload: BriefingPayload): string {
       ${renderKuramiNote(heroNote, "hero__note")}
     </section>
     ${payload.edition.type === "cinema" ? "" : renderMetricStrip(payload, metricCards)}
+    ${afterMetrics}
     ${overview ? `<div class="briefing-overview">
       ${overview}
     </div>` : ""}

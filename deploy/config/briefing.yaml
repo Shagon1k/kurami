@@ -1,5 +1,31 @@
 version: 3
 
+# Optional derived add-on. No LLM, provider mutation, or separate notification.
+signals:
+  enabled: true
+  maxItems: 3
+  maxAgeMinutes: 180
+  overlapMinutes: 5
+  busyMinutes: 240
+  chainCount: 3
+  gapMinutes: 15
+  longMeetingMinutes: 120
+  earlyBeforeHour: 9
+  oldActionHours: 48
+  rainPercent: 60
+  coldBelowC: 0
+  hotFromC: 30
+  coolingC: 8
+  rules:
+    overlap: true
+    denseDay: true
+    actionMail: true
+    weather: true
+    longMeeting: true
+    earlyTomorrow: true
+    oldActionMail: true
+    coolingTomorrow: true
+
 edition:
   timezone: Europe/Vilnius
   daily_schedule: "0 9 * * *"

@@ -28,6 +28,7 @@ export { mailItem, classifyMail } from "./addons/mail/lifecycle.ts";
 export { weatherValue } from "./addons/weather/lifecycle.ts";
 export { providerComplete, sectionState } from "./addons/provider-state.ts";
 import { loadBriefingRuntimeConfig } from "./runtime-config.ts";
+import { refreshDerivedAddons } from "./addons/derived.ts";
 
 type PollerResult = {
   refreshedAt: string;
@@ -59,6 +60,7 @@ export function updatePayload(
 ): BriefingPayload {
   const next = structuredClone(original);
   applyLiveAddons(next, { gmail, calendar, weather }, { refreshedAt, calendarItems });
+  refreshDerivedAddons(next, { at: refreshedAt });
   refreshDataQuality(next, refreshedAt);
   return parseBriefingPayload(next);
 }
@@ -99,6 +101,7 @@ export async function runDigestCentralPoller(
     gmailQuery: config.gmailQuery, gmailPageSize: config.gmailPageSize,
     calendars: config.calendars, localDate: retained[0]!.local_date,
     endLocalDateExclusive: nextLocalDate(retained.at(-1)!.local_date),
+    includeTomorrow: config.signals.enabled && config.signals.rules.earlyTomorrow,
     timeZone: config.timeZone, weatherLocation: config.weatherLocation,
     fetchImpl: dependencies.weatherFetch, enabled,
     retry: { attempts: 3, timeoutMs: 12_000, initialDelayMs: 300, maximumDelayMs: 2_000 },
@@ -109,6 +112,7 @@ export async function runDigestCentralPoller(
       const original = parseBriefingPayload(JSON.parse(row.payload_json) as unknown);
       const payload = structuredClone(original);
       applyLiveAddons(payload, snapshot, { refreshedAt, enabled });
+      refreshDerivedAddons(payload, { at: new Date().toISOString(), settings: { signals: config.signals } });
       refreshDataQuality(payload, refreshedAt);
       const validated = parseBriefingPayload(payload);
       await refreshPublishedEdition(validated, renderBriefingPage(validated), row.content_digest, paths);

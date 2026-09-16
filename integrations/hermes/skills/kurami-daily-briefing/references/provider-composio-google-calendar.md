@@ -36,6 +36,12 @@ configured provider `id` and those same bounds. Expand recurring events when
 supported and paginate each calendar independently until exhausted. Do not
 decode, rewrite, or replace configured calendar IDs with a guessed `primary`.
 
+The runtime may request one extra civil day when Signals earlyTomorrow is
+enabled. It still displays only the edition date in the main schedule and
+stores the next day separately as look-ahead data. Use the runtime's explicit
+RFC3339 bounds, including a possible DST offset change; do not add 24 UTC hours
+or move tomorrow's events into today's display or item-targeted notes.
+
 Return one source batch per configured calendar key. Merge successful batches
 only after normalization. If one calendar fails, preserve the others and mark
 the aggregate calendar section partial with the failed calendar label.

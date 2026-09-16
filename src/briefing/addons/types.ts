@@ -2,7 +2,9 @@ import type { BriefingAddonEnvelope, BriefingPayload } from "../model.ts";
 import type { MetricCard } from "../ui/components/metric-strip.ts";
 import type { LiveAddon } from "./live-contract.ts";
 
-export type BriefingAddonSlot = "overview" | "main" | "after-main";
+export type BriefingAddonSlot = "after-metrics" | "overview" | "main" | "after-main";
+
+export type DerivedAddonContext = { at: string; settings?: Record<string, unknown> };
 
 export type BriefingAddonSection = {
   slot: BriefingAddonSlot;
@@ -24,6 +26,7 @@ export type BriefingAddonMetric = {
 export type BriefingAddon = {
   id: string;
   live?: LiveAddon;
+  derive?: (payload: BriefingPayload, context: DerivedAddonContext) => BriefingAddonEnvelope | null;
   quality?: { order: number; label: string; state: (payload: BriefingPayload) => import("../model.ts").SectionState };
   failurePolicy: "propagate" | "isolate";
   enabled: (payload: BriefingPayload) => boolean;

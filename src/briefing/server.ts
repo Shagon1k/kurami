@@ -77,6 +77,16 @@ const CLIENT_SCRIPT = `(() => {
 
   const updateLiveClocks = () => {
     const instant = new Date();
+    document.querySelectorAll('[data-signal-strip]').forEach(strip => {
+      try {
+        const date = new Intl.DateTimeFormat('en-CA', {timeZone:strip.dataset.signalTimezone,year:'numeric',month:'2-digit',day:'2-digit'}).format(instant);
+        strip.querySelectorAll('[data-signal-item]').forEach(item => {
+          item.hidden = Boolean(item.dataset.signalExpires) && !(instant.getTime() < Date.parse(item.dataset.signalExpires));
+        });
+        strip.hidden = date !== strip.dataset.signalDate || !(instant.getTime() < Date.parse(strip.dataset.signalUntil))
+          || !Array.from(strip.querySelectorAll('[data-signal-item]')).some(item => !item.hidden);
+      } catch { strip.hidden = true; }
+    });
     document.querySelectorAll('[data-live-clock]').forEach((clock) => {
       const timeZone = clock.getAttribute('data-timezone') || 'Europe/Vilnius';
       try {

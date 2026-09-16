@@ -40,6 +40,8 @@ export type WeatherSnapshot = {
   maximumCelsius: number | null;
   sunrise: string | null;
   sunset: string | null;
+  dailyForecast?: Array<{ localDate: string; minimumCelsius: number | null;
+    maximumCelsius: number | null; precipitationProbabilityPercent: number | null }>;
 };
 
 export type OpenMeteoOptions = {
@@ -179,6 +181,14 @@ export function normalizeOpenMeteo(
     maximumCelsius: indexed(daily.temperature_2m_max, index, number),
     sunrise: indexed(daily.sunrise, index, string),
     sunset: indexed(daily.sunset, index, string),
+    dailyForecast: dates.slice(index,index+2).flatMap((date,offset) => {
+      if(typeof date !== "string" || !/^\d{4}-\d{2}-\d{2}$/u.test(date)) return [];
+      const probability = indexed(daily.precipitation_probability_max,index+offset,number);
+      return [{ localDate: date,
+        minimumCelsius: indexed(daily.temperature_2m_min,index+offset,number),
+        maximumCelsius: indexed(daily.temperature_2m_max,index+offset,number),
+        precipitationProbabilityPercent: probability !== null && probability >= 0 && probability <= 100 ? probability : null }];
+    }),
   };
 }
 

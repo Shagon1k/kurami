@@ -129,6 +129,10 @@ Use Hermes file tools to inspect and edit the target project. Use the target pro
   `StoryDisclosure`, `StoryCover`, `StoryMediaGallery`, `MediaLightbox`,
   `ReactionGroup`, `FeedOrderControl`, and `ThemeToggle` from the production UI layer. Do not
   recreate them with one-off HTML.
+- Render the optional below-metrics Signals add-on only through canonical
+  `SignalStrip` / `SignalItem`. Preserve supplied priority, fixed icon/color
+  mapping, text and expiry. Show at most three; an empty or expired strip
+  disappears. Never generate a different layout or extra signal copy per day.
 
 - Use story rows for readable news items.
 - When a story supplies canonical cached media, use the first image as a

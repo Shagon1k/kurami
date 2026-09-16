@@ -377,6 +377,15 @@ may contain multiple recent trailers, next-week premieres, and box-office
 items. Every time-sensitive claim needs a source date and target region. Omit a
 section that cannot establish freshness rather than filling it with old data.
 
+## Signals
+
+The optional `addons.signals` envelope is runtime-derived. It uses Calendar,
+Mail and Weather inputs after collection/refresh; the agent never hand-authors
+signals or thresholds. Calendar's `tomorrow` object and Weather's two-date
+`dailyForecast` are structured look-ahead inputs, not today's extra events or
+free-form prose. Signals appear below metrics only on the current local day,
+with at most three notices, and disappear when empty or expired.
+
 ## Data quality
 
 Provide a compact public summary and detailed diagnostics containing only
