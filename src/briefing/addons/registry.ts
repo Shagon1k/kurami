@@ -11,14 +11,21 @@ import type {
 import { weatherAddon } from "./weather.ts";
 
 export const BRIEFING_ADDONS: readonly BriefingAddon[] = Object.freeze([
-  calendarAddon,
   mailAddon,
+  calendarAddon,
   newsAddon,
   weatherAddon,
   cinemaAddon,
 ]);
 
 const ADDON_ID = /^[a-z][a-z0-9-]{0,63}$/u;
+
+export function collectAddonQuality(payload: BriefingPayload, addons = BRIEFING_ADDONS) {
+  return enabledAddons(payload, addons)
+    .flatMap(addon => addon.quality ? [{ id: addon.id, ...addon.quality }] : [])
+    .sort((left, right) => left.order - right.order)
+    .map(quality => ({ id: quality.id, label: quality.label, state: quality.state(payload) }));
+}
 
 function validOrder(value: number, label: string): number {
   if (!Number.isSafeInteger(value) || value < 0 || value > 10_000) {

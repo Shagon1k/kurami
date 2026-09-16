@@ -4,6 +4,7 @@
   "description": "Kurami system control plane for Hermes",
   "main": "index.js",
   "scripts": {
+    "test:briefing-addons": "node tests/briefing/verify-native-addons.ts",
     "test": "npm run check && node tests/run-regression.ts",
     "readiness": "node src/orchestrator/projects/project-readiness.ts",
     "poll": "node src/orchestrator/projects/poll-projects.ts",

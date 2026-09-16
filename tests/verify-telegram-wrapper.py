@@ -474,6 +474,33 @@ with tempfile.TemporaryDirectory() as capture_home:
     assert reused["ok"] is True and reused["reused"] is True
     assert capture_calls["count"] == 1
 
+    # An explicitly disabled News add-on still writes a validated empty ledger,
+    # but must never acquire or connect the Telegram client.
+    disabled_run = capture_run / "disabled"
+    disabled_run.mkdir()
+    wrapper._capture_paths = lambda edition_id, attempt_id: (
+        disabled_run,
+        disabled_run / "telegram-raw.json",
+        disabled_run / "telegram-normalized.json",
+    )
+    wrapper._telegram_capture_config = lambda: {**capture_config, "enabled": False, "channels": []}
+    wrapper._briefing_cli = lambda arguments: {"ok": True}
+
+    def forbidden_client(account):
+        raise AssertionError("Disabled News must not connect to Telegram")
+
+    def validate_empty(config_path, raw_path, normalized_path, attempt_id):
+        raw = json.loads(raw_path.read_text())
+        assert raw["items"] == [] and raw["capture"]["channels"] == []
+        normalized_path.write_text(json.dumps(raw))
+        return {"ok": True, "complete": True, "configuredChannels": 0}
+
+    wrapper.get_client = forbidden_client
+    wrapper._normalize_and_validate_capture = validate_empty
+    disabled = json.loads(asyncio.run(wrapper.capture_daily_briefing_batch(capture_edition, capture_attempt)))
+    assert disabled["ok"] is True
+    assert disabled["report"]["configuredChannels"] == 0
+
 
 with tempfile.TemporaryDirectory() as temporary_home:
     os.environ["KURAMI_HOME"] = temporary_home

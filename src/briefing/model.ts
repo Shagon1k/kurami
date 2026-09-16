@@ -1,3 +1,4 @@
+import { builtinSectionInput, syncBuiltinEnvelopes } from "./addons/envelopes.ts";
 export type EditionType = "daily" | "cinema";
 export type PayloadStatus = "complete" | "partial";
 export type SectionState = "ready" | "empty" | "partial" | "stale" | "failed";
@@ -489,8 +490,8 @@ function notes(value: unknown): KuramiNote[] | undefined {
 
 function sourceBatches(value: unknown): SourceBatch[] | undefined {
   if (value === undefined) return undefined;
-  if (!Array.isArray(value) || value.length < 1 || value.length > 64) {
-    fail("sourceBatches must contain one to 64 entries");
+  if (!Array.isArray(value) || value.length > 64) {
+    fail("sourceBatches must contain zero to 64 entries");
   }
   const seen = new Set<string>();
   return value.map((raw, index) => {
@@ -637,8 +638,8 @@ export function parseBriefingPayload(value: unknown): BriefingPayload {
 
   const hero = record(root.hero, "hero");
   const parsedNotes = notes(root.notes);
-  const parsedSourceBatches = sourceBatches(root.sourceBatches);
   const parsedAddons = addonEnvelopes(root.addons);
+  const parsedSourceBatches = sourceBatches(root.sourceBatches ?? (parsedAddons?.news?.version === 2 ? parsedAddons.news.data.sourceBatches : undefined));
   let live: LiveSnapshot | undefined;
   if (root.live !== undefined) {
     const value = record(root.live, "live");
@@ -651,13 +652,14 @@ export function parseBriefingPayload(value: unknown): BriefingPayload {
     };
   }
   let weather: BriefingPayload["weather"];
-  if (root.weather !== undefined) {
-    const value = record(root.weather, "weather");
+  const weatherInput = builtinSectionInput(root, "weather", parsedAddons);
+  if (weatherInput !== undefined) {
+    const value = record(weatherInput, "weather");
     weather = normalizeWeather(value);
   }
-  const calendar = record(root.calendar, "calendar");
+  const calendar = record(builtinSectionInput(root, "calendar", parsedAddons), "calendar");
   calendar.state = sectionState(calendar.state, "calendar.state");
-  const mail = record(root.mail, "mail");
+  const mail = record(builtinSectionInput(root, "mail", parsedAddons), "mail");
   mail.state = sectionState(mail.state, "mail.state");
   if (!Array.isArray(mail.items)) fail("mail.items must be an array");
   const mailItems = mail.items.map((raw, index) => {
@@ -688,7 +690,7 @@ export function parseBriefingPayload(value: unknown): BriefingPayload {
     };
   });
 
-  const news = record(root.news, "news");
+  const news = record(builtinSectionInput(root, "news", parsedAddons), "news");
   news.state = sectionState(news.state, "news.state");
   if (!Array.isArray(news.items)) fail("news.items must be an array");
   const newsItems = news.items.map((raw, index) => {
@@ -783,6 +785,7 @@ export function parseBriefingPayload(value: unknown): BriefingPayload {
     }
   }
 
+  syncBuiltinEnvelopes(parsed);
   return parsed;
 }
 

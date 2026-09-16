@@ -4,8 +4,25 @@ import { parse as parseYaml } from "yaml";
 import type { BriefingPaths } from "./store.ts";
 import type { CalendarSource } from "./providers/composio-calendar.ts";
 import type { OpenMeteoLocation } from "./providers/open-meteo.ts";
+import type { AddonSwitches, BuiltinAddonId } from "./addons/live-contract.ts";
 
 type JsonRecord = Record<string, unknown>;
+
+export async function readBriefingAddonSwitches(configPath: string): Promise<AddonSwitches> {
+  const root = record(parseYaml(await readFile(configPath, "utf8")), "root");
+  const sources = record(root.sources, "sources");
+  return sourceAddonSwitches(sources);
+}
+
+function sourceAddonSwitches(sources: JsonRecord): Record<BuiltinAddonId, boolean> {
+  return Object.fromEntries(["mail", "calendar", "weather", "news"].map(id => {
+    const source = sources[id] === undefined ? {} : record(sources[id], `sources.${id}`);
+    if (source.enabled !== undefined && typeof source.enabled !== "boolean") {
+      throw new Error(`Invalid briefing config: sources.${id}.enabled must be boolean`);
+    }
+    return [id, source.enabled !== false];
+  })) as Record<BuiltinAddonId, boolean>;
+}
 
 // The public digest keeps exactly the latest five daily editions. Keeping this
 // value in the runtime config module gives the store and config validation one
@@ -14,6 +31,7 @@ export const DAILY_RETENTION_DAYS = 5;
 
 export type BriefingRuntimeConfig = {
   configPath: string;
+  addons: Record<"mail" | "calendar" | "weather" | "news", boolean>;
   timeZone: string;
   retentionDays: number;
   gmailQuery: string;
@@ -67,6 +85,7 @@ export type TelegramCaptureSource = {
 
 export type TelegramCaptureConfig = {
   configPath: string;
+  enabled?: boolean;
   profile: "telegram-user";
   pageSize: number;
   discoveryLimit: number;
@@ -191,7 +210,7 @@ export async function loadBriefingRuntimeConfig(
       label: string(value.label, `calendars[${index}].label`),
       role: string(value.role, `calendars[${index}].role`),
     }));
-  if (calendars.length === 0 || new Set(calendars.map((item) => item.key)).size !== calendars.length) {
+  if ((calendar.enabled !== false && calendars.length === 0) || new Set(calendars.map((item) => item.key)).size !== calendars.length) {
     throw new Error("Invalid briefing config: enabled calendar keys must be unique");
   }
   const retentionDays = finiteNumber(edition.daily_retention_days, "edition.daily_retention_days");
@@ -216,6 +235,7 @@ export async function loadBriefingRuntimeConfig(
   return {
     configPath: loaded.path,
     timeZone,
+    addons: sourceAddonSwitches(sources),
     retentionDays,
     gmailQuery: string(mailSettings.query, "mail.query"),
     gmailPageSize,
@@ -249,8 +269,11 @@ export async function loadTelegramCaptureConfig(
   const root = record(loaded.value, "root");
   const sources = record(root.sources, "sources");
   const news = record(sources.news, "sources.news");
+  if (news.enabled === false) {
+    return { configPath: loaded.path, enabled: false, profile: "telegram-user", pageSize: 100, discoveryLimit: 100, channels: [] };
+  }
   if (news.enabled !== true) {
-    throw new Error("Invalid briefing config: Telegram news source is disabled");
+    throw new Error("Invalid briefing config: Telegram news enabled flag is required");
   }
   if (string(news.profile, "sources.news.profile") !== "telegram-user") {
     throw new Error("Invalid briefing config: Telegram news profile must be telegram-user");

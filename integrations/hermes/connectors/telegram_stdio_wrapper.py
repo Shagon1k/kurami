@@ -131,7 +131,7 @@ def _briefing_cli(arguments: list[str]) -> dict[str, Any]:
 def _telegram_capture_config() -> dict[str, Any]:
     payload = _briefing_cli(["telegram-capture-config"])
     channels = payload.get("channels")
-    if not isinstance(channels, list) or not channels:
+    if not isinstance(channels, list) or (not channels and payload.get("enabled") is not False):
         raise RuntimeError("Telegram capture config has no enabled channels")
     return payload
 
@@ -566,8 +566,10 @@ async def capture_daily_briefing_batch(
                 ensure_ascii=False,
             )
 
-        client = get_client(account)
-        await ensure_connected(client)
+        client = None
+        if config["channels"]:
+            client = get_client(account)
+            await ensure_connected(client)
         discovery_limit = int(config["discoveryLimit"])
         capture_channels: list[dict[str, Any]] = []
         items: list[dict[str, Any]] = []
@@ -1174,11 +1176,11 @@ async def mark_read_through_batch(
     """
 
     del ctx
-    if not isinstance(items, list) or not 1 <= len(items) <= MAX_BATCH_MARK_READ:
+    if not isinstance(items, list) or not 0 <= len(items) <= MAX_BATCH_MARK_READ:
         return json.dumps(
             {
                 "ok": False,
-                "error": f"items must contain one to {MAX_BATCH_MARK_READ} entries",
+                "error": f"items must contain zero to {MAX_BATCH_MARK_READ} entries",
                 "results": [],
             }
         )
@@ -1210,6 +1212,9 @@ async def mark_read_through_batch(
     plan_ok, plan_error = _validate_commit_plan(edition_id, attempt_id, plan_digest, items)
     if not plan_ok:
         return json.dumps({"ok": False, "error": plan_error, "results": []})
+
+    if not validated:
+        return json.dumps({"ok": True, "results": []})
 
     client = get_client(account)
     await ensure_connected(client)

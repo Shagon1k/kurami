@@ -69,6 +69,10 @@ Default manual experiments to `dry-run`. Generation never archives Gmail;
    mutation gates from configuration. Run
    `$BRIEFING_NODE $BRIEFING_CLI topic-pool` and use its union of seeded and
    previously proposed topics as the current topic pool.
+   Respect each `sources.<id>.enabled` flag. Weather, Calendar and Mail
+   collection/refresh now belongs to their runtime add-ons; disabled sources
+   make no provider calls. The composer owns populated add-on envelopes and
+   their legacy root-field compatibility view. Do not hand-author either.
 2. For each enabled source, load its provider profile, validate the available
    MCP or built-in operation against that profile, collect a bounded page at a
    time, and normalize the result to `references/item-contract.md`. Provider
@@ -124,6 +128,13 @@ Default manual experiments to `dry-run`. Generation never archives Gmail;
    operations reliably. If the direct operation is absent or its call fails,
    abort the run as a failed infrastructure gate; never report a successful
    no-op.
+
+   When `sources.news.enabled: false` is explicitly configured, use the same
+   capture command: it deterministically writes a validated empty ledger
+   without connecting to Telegram. Author `stories: []` and no story-targeted
+   notes. Continue through the normal validation and empty commit plan; the
+   bounded acknowledgement performs no provider operation for that plan.
+   Do not treat a failed enabled source as disabled.
 
    For a normal scheduled Telegram collection, first call the Kurami-owned
    read-only `capture_daily_briefing_batch` operation with the current

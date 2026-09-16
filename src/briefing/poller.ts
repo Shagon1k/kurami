@@ -11,32 +11,22 @@ import {
   briefingAddonEnabled,
   parseBriefingPayload,
   type BriefingPayload,
-  type MailItem,
-  type SectionState,
 } from "./model.ts";
 import { renderBriefingPage } from "./ui/render-page.ts";
 import {
   composioReadConnectionFromEnvironment,
   createComposioReadToolCaller,
 } from "./providers/composio-mcp.ts";
-import {
-  fetchGmailSnapshot,
-  type GmailSnapshot,
-  type NormalizedGmailMessage,
-} from "./providers/composio-gmail.ts";
-import {
-  fetchCalendarSnapshot,
-  partitionCalendarItemsByLocalDate,
-  type CalendarSnapshot,
-  type NormalizedCalendarEvent,
-} from "./providers/composio-calendar.ts";
-import { fetchOpenMeteo, type WeatherSnapshot } from "./providers/open-meteo.ts";
-import {
-  providerIssue,
-  type FetchLike,
-  type ProviderResult,
-  type ProviderState,
-} from "./providers/common.ts";
+import type { fetchGmailSnapshot } from "./providers/composio-gmail.ts";
+import type { fetchCalendarSnapshot, NormalizedCalendarEvent } from "./providers/composio-calendar.ts";
+import type { fetchOpenMeteo } from "./providers/open-meteo.ts";
+import type { FetchLike, ProviderState } from "./providers/common.ts";
+import { collectDynamicBriefingSnapshot } from "./providers/dynamic-snapshot.ts";
+import { applyLiveAddons, LIVE_ADDONS } from "./addons/live.ts";
+export { calendarEvent, calendarConflicts } from "./addons/calendar/lifecycle.ts";
+export { mailItem, classifyMail } from "./addons/mail/lifecycle.ts";
+export { weatherValue } from "./addons/weather/lifecycle.ts";
+export { providerComplete, sectionState } from "./addons/provider-state.ts";
 import { loadBriefingRuntimeConfig } from "./runtime-config.ts";
 
 type PollerResult = {
@@ -56,145 +46,8 @@ function nextLocalDate(localDate: string): string {
   return new Date(parsed.getTime() + 86_400_000).toISOString().slice(0, 10);
 }
 
-function durationLabel(event: NormalizedCalendarEvent): string {
-  if (event.allDay) return "Весь день";
-  const start = Date.parse(event.start);
-  const end = Date.parse(event.end);
-  if (!Number.isFinite(start) || !Number.isFinite(end) || end <= start) return "";
-  const minutes = Math.round((end - start) / 60_000);
-  if (minutes < 60) return `${minutes} мин`;
-  const hours = Math.floor(minutes / 60);
-  const remainder = minutes % 60;
-  return remainder ? `${hours}ч ${remainder}м` : `${hours}ч`;
-}
-
-export function calendarEvent(value: NormalizedCalendarEvent): Record<string, unknown> {
-  return {
-    id: value.id,
-    provider: value.provider,
-    providerItemId: value.providerItemId,
-    sourceKey: value.sourceKey,
-    calendarLabel: value.sourceLabel,
-    calendarRole: value.sourceRole,
-    title: value.title,
-    description: value.description,
-    location: value.location,
-    start: value.start,
-    end: value.end,
-    allDay: value.allDay,
-    tentative: value.tentative,
-    responseStatus: value.responseStatus,
-    duration: durationLabel(value),
-    ...(value.externalUrl ? { externalUrl: value.externalUrl } : {}),
-  };
-}
-
-export function calendarConflicts(items: NormalizedCalendarEvent[]): Array<Record<string, unknown>> {
-  const timed = items.filter((item) => !item.allDay)
-    .map((item) => ({ item, start: Date.parse(item.start), end: Date.parse(item.end) }))
-    .filter((item) => Number.isFinite(item.start) && Number.isFinite(item.end))
-    .sort((left, right) => left.start - right.start);
-  const conflicts: Array<Record<string, unknown>> = [];
-  for (let left = 0; left < timed.length; left += 1) {
-    for (let right = left + 1; right < timed.length && timed[right]!.start < timed[left]!.end; right += 1) {
-      conflicts.push({ firstId: timed[left]!.item.id, secondId: timed[right]!.item.id });
-    }
-  }
-  return conflicts;
-}
-
-export function classifyMail(item: NormalizedGmailMessage): "ACTION" | "IMPORTANT" | "GENERAL" {
-  if (item.classification === "IMPORTANT") return "IMPORTANT";
-  const signal = `${item.title} ${item.summary}`.toLocaleLowerCase("ru");
-  return /\b(?:action|required|deadline|confirm|approval|approve|respond|reply|payment|invoice|trial)\b|(?:нужно|требуется|подтверд|ответить|оплат|срок|заканчивается)/iu.test(signal)
-    ? "ACTION"
-    : "GENERAL";
-}
-
-export function mailItem(item: NormalizedGmailMessage): MailItem {
-  return {
-    id: item.id,
-    provider: "gmail",
-    providerItemId: item.providerItemId,
-    threadId: item.threadId,
-    class: classifyMail(item),
-    subject: item.title,
-    sender: item.sender,
-    summary: item.summary,
-    receivedAt: item.receivedAt,
-    ...(item.externalUrl ? { externalUrl: item.externalUrl } : {}),
-  };
-}
-
-export function weatherValue(snapshot: WeatherSnapshot, state: SectionState): BriefingPayload["weather"] {
-  const high = snapshot.maximumCelsius === null ? "" : `до ${Math.round(snapshot.maximumCelsius)}°`;
-  const precipitation = snapshot.precipitationProbabilityPercent === null
-    ? ""
-    : `осадки ${snapshot.precipitationProbabilityPercent}%`;
-  return {
-    state,
-    provider: snapshot.provider,
-    location: snapshot.location,
-    observedAt: snapshot.observedAt,
-    temperatureC: snapshot.temperatureCelsius,
-    feelsLikeC: snapshot.apparentTemperatureCelsius,
-    condition: `${snapshot.condition.emoji} ${snapshot.condition.label}`,
-    summary: [high, precipitation].filter(Boolean).join(" · ") || snapshot.location,
-  };
-}
-
-export function sectionState(value: ProviderState): SectionState {
-  return value;
-}
-
-export function providerComplete<T>(result: ProviderResult<T>): result is ProviderResult<T> & { value: T } {
-  return result.value !== null && (result.state === "ready" || result.state === "empty");
-}
-
-export function refreshDataQuality(payload: BriefingPayload, refreshedAt: string): void {
-  const sections = ([
-    ["news", "новости", payload.news.state],
-    ["mail", "почта", payload.mail.state],
-    ["calendar", "расписание", payload.calendar.state],
-    ["weather", "погода", payload.weather?.state ?? "failed"],
-  ] as const)
-    .filter(([addonId]) => briefingAddonEnabled(payload, addonId))
-    .map(([, label, state]): [string, SectionState] => [label, state]);
-  const issues = sections
-    .filter(([, state]) => state === "partial" || state === "stale" || state === "failed")
-    .map(([label]) => label);
-  const retainedMorningCaveat = payload.edition.status === "partial"
-    && payload.dataQuality.state !== "ready"
-    && issues.length === 0;
-  const time = new Intl.DateTimeFormat("ru-RU", {
-    hour: "2-digit",
-    minute: "2-digit",
-    timeZone: payload.edition.timezone,
-  }).format(new Date(refreshedAt));
-  payload.dataQuality = {
-    ...payload.dataQuality,
-    state: issues.length || retainedMorningCaveat ? "partial" : "ready",
-    summary: issues.length
-      ? `Требуют внимания: ${issues.join(", ")}. Live-данные обновлены в ${time}.`
-      : retainedMorningCaveat
-        ? `У утреннего среза есть оговорки; live-данные обновлены в ${time}.`
-        : `Утренний срез зафиксирован; live-данные обновлены в ${time}.`,
-  };
-}
-
-function failedProviderResult<T>(
-  error: unknown,
-  fetchedAt: string,
-  fallbackCode: string,
-): ProviderResult<T> {
-  return {
-    state: "failed",
-    value: null,
-    fetchedAt,
-    attempts: 0,
-    issues: [providerIssue(error, fallbackCode)],
-  };
-}
+export { refreshDataQuality } from "./addons/quality.ts";
+import { refreshDataQuality } from "./addons/quality.ts";
 
 export function updatePayload(
   original: BriefingPayload,
@@ -205,56 +58,7 @@ export function updatePayload(
   weather: Awaited<ReturnType<typeof fetchOpenMeteo>>,
 ): BriefingPayload {
   const next = structuredClone(original);
-  const states = [gmail.state, calendar.state, weather.state];
-  const anyFailure = states.some((state) => state === "failed" || state === "partial");
-  next.live = {
-    refreshedAt,
-    state: anyFailure ? "partial" : "ready",
-    ...(anyFailure && original.live?.lastSuccessAt
-      ? { lastSuccessAt: original.live.lastSuccessAt }
-      : { lastSuccessAt: refreshedAt }),
-  };
-  if (briefingAddonEnabled(next, "mail") && providerComplete(gmail)) {
-    next.mail = {
-      ...next.mail,
-      state: sectionState(gmail.state),
-      count: gmail.value.unreadCount,
-      fetchedAt: gmail.fetchedAt,
-      items: gmail.value.items.map(mailItem),
-    } as BriefingPayload["mail"];
-  } else if (briefingAddonEnabled(next, "mail")) {
-    next.mail = { ...next.mail, state: "stale", staleAt: refreshedAt };
-  }
-  if (briefingAddonEnabled(next, "calendar") && providerComplete(calendar) && calendarItems !== null) {
-    next.calendar = {
-      ...next.calendar,
-      state: calendar.state === "partial" ? "partial" : calendarItems.length ? "ready" : "empty",
-      fetchedAt: calendar.fetchedAt,
-      allDayEvents: calendarItems.filter((item) => item.allDay).map(calendarEvent),
-      events: calendarItems.filter((item) => !item.allDay).map(calendarEvent),
-      conflicts: calendarConflicts(calendarItems),
-      sources: calendar.value.sources,
-    } as BriefingPayload["calendar"];
-  } else if (briefingAddonEnabled(next, "calendar") && !providerComplete(calendar)) {
-    next.calendar = { ...next.calendar, state: "stale", staleAt: refreshedAt };
-  }
-  if (briefingAddonEnabled(next, "weather") && providerComplete(weather)) {
-    next.weather = weatherValue(weather.value, sectionState(weather.state));
-  } else if (briefingAddonEnabled(next, "weather") && next.weather) {
-    next.weather = { ...next.weather, state: "stale", staleAt: refreshedAt };
-  } else if (briefingAddonEnabled(next, "weather")) {
-    next.weather = { state: "failed", location: "Vilnius", summary: "Прогноз временно недоступен" };
-  }
-  if (next.addons) {
-    for (const [id, state] of [
-      ["mail", next.mail.state],
-      ["calendar", next.calendar.state],
-      ["weather", next.weather?.state ?? "failed"],
-    ] as const) {
-      const envelope = next.addons[id];
-      if (envelope) next.addons[id] = { ...envelope, state, capturedAt: refreshedAt };
-    }
-  }
+  applyLiveAddons(next, { gmail, calendar, weather }, { refreshedAt, calendarItems });
   refreshDataQuality(next, refreshedAt);
   return parseBriefingPayload(next);
 }
@@ -283,54 +87,31 @@ export async function runDigestCentralPoller(
       deleted: cleanup.deleted,
     };
   }
-  const retry = { attempts: 3, timeoutMs: 12_000, initialDelayMs: 300, maximumDelayMs: 2_000 };
-  const weatherPromise = fetchOpenMeteo({
-    location: config.weatherLocation,
-    fetchImpl: dependencies.weatherFetch,
-    retry,
+  const enabled = Object.fromEntries(LIVE_ADDONS.map(addon => [
+    addon.id,
+    config.addons[addon.id] && retained.some(row => {
+      try { return briefingAddonEnabled(parseBriefingPayload(JSON.parse(row.payload_json)), addon.id); }
+      catch { return false; }
+    }),
+  ]));
+  const snapshot = await collectDynamicBriefingSnapshot({
+    getCaller: () => createComposioReadToolCaller(composioReadConnectionFromEnvironment(environment)),
+    gmailQuery: config.gmailQuery, gmailPageSize: config.gmailPageSize,
+    calendars: config.calendars, localDate: retained[0]!.local_date,
+    endLocalDateExclusive: nextLocalDate(retained.at(-1)!.local_date),
+    timeZone: config.timeZone, weatherLocation: config.weatherLocation,
+    fetchImpl: dependencies.weatherFetch, enabled,
+    retry: { attempts: 3, timeoutMs: 12_000, initialDelayMs: 300, maximumDelayMs: 2_000 },
   });
-  const oldest = retained[0]!.local_date;
-  const newest = retained.at(-1)!.local_date;
-  let gmail: ProviderResult<GmailSnapshot>;
-  let calendar: ProviderResult<CalendarSnapshot>;
-  try {
-    const caller = createComposioReadToolCaller(composioReadConnectionFromEnvironment(environment));
-    gmail = await fetchGmailSnapshot(caller, {
-      query: config.gmailQuery,
-      pageSize: config.gmailPageSize,
-      maximumPages: 20,
-      retry,
-    });
-    calendar = await fetchCalendarSnapshot(caller, {
-      localDate: oldest,
-      endLocalDateExclusive: nextLocalDate(newest),
-      timeZone: config.timeZone,
-      sources: config.calendars,
-      pageSize: 250,
-      maximumPagesPerSource: 10,
-      retry,
-    });
-  } catch (error) {
-    gmail = failedProviderResult(error, refreshedAt, "gmail_connection_unavailable");
-    calendar = failedProviderResult(error, refreshedAt, "calendar_connection_unavailable");
-  }
-  const weather = await weatherPromise;
-  const partitions = providerComplete(calendar)
-    ? partitionCalendarItemsByLocalDate(calendar.value.items, config.timeZone)
-    : new Map<string, NormalizedCalendarEvent[]>();
   const editions: PollerResult["editions"] = [];
   for (const row of retained) {
     try {
       const original = parseBriefingPayload(JSON.parse(row.payload_json) as unknown);
-      const payload = updatePayload(
-        original,
-        refreshedAt,
-        gmail,
-        calendar,
-        providerComplete(calendar) ? partitions.get(row.local_date) ?? [] : null,
-        weather,
-      );
-      await refreshPublishedEdition(payload, renderBriefingPage(payload), row.content_digest, paths);
+      const payload = structuredClone(original);
+      applyLiveAddons(payload, snapshot, { refreshedAt, enabled });
+      refreshDataQuality(payload, refreshedAt);
+      const validated = parseBriefingPayload(payload);
+      await refreshPublishedEdition(validated, renderBriefingPage(validated), row.content_digest, paths);
       editions.push({ id: row.id, state: "updated" });
     } catch (error) {
       editions.push({
@@ -344,7 +125,7 @@ export async function runDigestCentralPoller(
   return {
     refreshedAt,
     editions,
-    providers: { gmail: gmail.state, calendar: calendar.state, weather: weather.state },
+    providers: { gmail: snapshot.gmail.state, calendar: snapshot.calendar.state, weather: snapshot.weather.state },
     deleted: cleanup.deleted,
   };
 }

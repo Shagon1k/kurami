@@ -22,6 +22,7 @@ import {
 import type { TopicDefinition } from "./editorial-validation.ts";
 import type { TelegramBatchReport } from "./telegram-batch.ts";
 import { DAILY_RETENTION_DAYS } from "./runtime-config.ts";
+import { syncBuiltinEnvelopes } from "./addons/envelopes.ts";
 
 process.umask(0o077);
 
@@ -690,6 +691,7 @@ function mediaRefreshInvariant(payload: BriefingPayload): string {
   } = collection;
   const invariant = {
     ...payload,
+    ...(payload.addons ? { addons: structuredClone(payload.addons) } : {}),
     dataQuality: {
       ...quality,
       ...(Object.keys(stableCollection).length ? { telegramCollection: stableCollection } : {}),
@@ -699,6 +701,7 @@ function mediaRefreshInvariant(payload: BriefingPayload): string {
       items: payload.news.items.map(({ media: _media, ...story }) => story),
     },
   };
+  syncBuiltinEnvelopes(invariant);
   return canonicalJson(JSON.parse(JSON.stringify(invariant)) as unknown);
 }
 
@@ -1272,7 +1275,7 @@ export async function readEditionHtml(
 
 function immutableNewsDigest(payload: BriefingPayload): string {
   return createHash("sha256")
-    .update(JSON.stringify({ news: payload.news, sourceBatches: payload.sourceBatches ?? [] }))
+    .update(JSON.stringify({ news: payload.news, sourceBatches: payload.sourceBatches ?? [], newsAddon: payload.addons?.news }))
     .digest("hex");
 }
 
@@ -1402,6 +1405,7 @@ export function prepareMailReadAndArchive(
   if (!edition) fail("Unknown briefing edition");
   const payload = parseBriefingPayload(JSON.parse(edition.payload_json) as unknown);
   const mailById = new Map(payload.mail.items.map((item) => [item.id, item]));
+  if (!briefingAddonEnabled(payload, "mail")) fail("Mail add-on is disabled for this edition");
   const providerMessageIds = itemIds.map((itemId) => {
     const item = mailById.get(itemId);
     if (!item || item.provider !== "gmail" || typeof item.providerItemId !== "string") {
@@ -1518,7 +1522,7 @@ export function finalizeEdition(
     max_item_id: string | null;
     state: "prepared" | "committed" | "failed" | "skipped";
   }>;
-  if (edition.edition_type === "daily" && batches.length < 1) {
+  if (edition.edition_type === "daily" && batches.length < 1 && briefingAddonEnabled(payload, "news")) {
     fail("Daily production edition has no prepared source batches");
   }
   const resultBySource = new Map(results.map((result) => [result.sourceKey, result]));

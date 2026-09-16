@@ -1,4 +1,4 @@
-import type { BriefingPayload } from "./model.ts";
+import { briefingAddonEnabled, type BriefingPayload } from "./model.ts";
 
 export type TelegramCoverageIssue = {
   key: string;
@@ -80,7 +80,8 @@ export function telegramStoryCoverage(payload: BriefingPayload): TelegramCoverag
     else if (itemOwners[0]?.startsWith("excluded:")) excludedItems += 1;
   }
   return {
-    complete: captured.size > 0 && issues.length === 0,
+    complete: (captured.size > 0 || (!briefingAddonEnabled(payload, "news") && payload.news.items.length === 0))
+      && issues.length === 0,
     capturedItems: captured.size,
     storyItems,
     excludedItems,

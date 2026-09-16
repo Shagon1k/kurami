@@ -7,12 +7,13 @@ import { importEditionMedia } from "../../src/briefing/media.ts";
 import { parseBriefingPayload } from "../../src/briefing/model.ts";
 import { briefingPaths, openBriefingDatabase, preparePreview, topicRegistry } from "../../src/briefing/store.ts";
 import { renderBriefingPage } from "../../src/briefing/ui/render-page.ts";
+import { captureAddonManifest } from "../../src/briefing/addons/registry.ts";
 
 const topicSeed = resolve(import.meta.dirname, "../../deploy/config/briefing-topics.yaml");
 const policy = await loadTopicPolicy("/unused", { TOPIC_SEED: topicSeed } as NodeJS.ProcessEnv);
 
 function payload(story: Record<string, unknown>) {
-  return parseBriefingPayload({
+  const base = parseBriefingPayload({
     schemaVersion: 2,
     edition: {
       id: "daily:2026-09-02",
@@ -24,6 +25,7 @@ function payload(story: Record<string, unknown>) {
       retentionUntil: "2026-09-07T00:00:00Z",
     },
     hero: { title: "Доброе утро, Alex." },
+    notes: [{ id: "note:story-1", target: "story:story-1", text: "обед под присмотром", role: "context", tone: "signal", rotation: "none" }],
     calendar: { state: "empty", events: [] },
     mail: { state: "empty", items: [] },
     news: {
@@ -55,6 +57,7 @@ function payload(story: Record<string, unknown>) {
     }],
     dataQuality: { state: "ready" },
   });
+  return parseBriefingPayload({ ...base, addons: captureAddonManifest(base) });
 }
 
 assert.doesNotThrow(() => assertEditorialPayload(payload({}), policy));

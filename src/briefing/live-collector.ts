@@ -35,9 +35,10 @@ export async function collectEditionLiveSnapshot(
   if (localDate !== currentLocalDate(config.timeZone)) {
     throw new Error("collect-live is allowed only for today's local edition");
   }
-  const caller = createComposioReadToolCaller(composioReadConnectionFromEnvironment(environment));
   const snapshot = await collectDynamicBriefingSnapshot({
-    caller,
+    getCaller: () => createComposioReadToolCaller(composioReadConnectionFromEnvironment(environment)),
+    enabled: config.addons,
+    gmailPageSize: config.gmailPageSize,
     gmailQuery: config.gmailQuery,
     calendars: config.calendars,
     localDate,

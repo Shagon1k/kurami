@@ -1,6 +1,7 @@
 import { spawnSync } from "node:child_process";
 
 const suites = [
+  "test:briefing-addons",
   "test:skills",
   "test:telegram-wrapper",
   "test:briefing-runtime",

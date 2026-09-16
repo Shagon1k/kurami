@@ -1,89 +1,27 @@
-import type { ProviderIssue, ProviderState, RetryPolicy } from "./common.ts";
-import {
-  fetchCalendarSnapshot,
-  type CalendarSnapshot,
-  type CalendarSource,
-} from "./composio-calendar.ts";
-import {
-  fetchGmailSnapshot,
-  type GmailSnapshot,
-} from "./composio-gmail.ts";
-import type { ComposioToolCaller } from "./composio-mcp.ts";
-import {
-  fetchOpenMeteo,
-  type OpenMeteoLocation,
-  type WeatherSnapshot,
-} from "./open-meteo.ts";
-import type { FetchLike, ProviderResult } from "./common.ts";
+import type { ProviderIssue, ProviderState, ProviderResult } from "./common.ts";
+import { collectLiveAddons, LIVE_ADDONS } from "../addons/live.ts";
+import { aggregateProviderState } from "../addons/provider-state.ts";
+import type { AddonSwitches, LiveResults, LiveCollectionContext } from "../addons/live-contract.ts";
 
-export type DynamicBriefingSnapshot = {
+export type DynamicBriefingSnapshot = LiveResults & {
   state: ProviderState;
   refreshedAt: string;
   localDate: string;
-  gmail: ProviderResult<GmailSnapshot>;
-  calendar: ProviderResult<CalendarSnapshot>;
-  weather: ProviderResult<WeatherSnapshot>;
+  enabled?: AddonSwitches;
   issues: ProviderIssue[];
 };
+export type DynamicSnapshotOptions = LiveCollectionContext;
 
-export type DynamicSnapshotOptions = {
-  caller: ComposioToolCaller;
-  gmailQuery: string;
-  calendars: CalendarSource[];
-  localDate: string;
-  timeZone: string;
-  weatherLocation: OpenMeteoLocation;
-  fetchImpl?: FetchLike;
-  retry?: Partial<RetryPolicy>;
-  now?: () => Date;
-};
-
-function aggregateState(results: Array<ProviderResult<unknown>>): ProviderState {
-  if (results.every((result) => result.state === "failed")) return "failed";
-  if (results.some((result) => result.state === "failed" || result.state === "partial")) {
-    return "partial";
-  }
-  if (results.every((result) => result.state === "empty")) return "empty";
-  return "ready";
-}
-
-/**
- * Collects one edition's dynamic inputs. Open-Meteo runs alongside the MCP
- * work, while Gmail and Calendar remain sequential because the restricted
- * Composio Session declares no parallel tool-call support.
- */
-export async function collectDynamicBriefingSnapshot(
-  options: DynamicSnapshotOptions,
-): Promise<DynamicBriefingSnapshot> {
+export async function collectDynamicBriefingSnapshot(options: DynamicSnapshotOptions): Promise<DynamicBriefingSnapshot> {
   const clock = options.now ?? (() => new Date());
   const refreshedAt = clock().toISOString();
-  const weatherPromise = fetchOpenMeteo({
-    location: options.weatherLocation,
-    fetchImpl: options.fetchImpl,
-    retry: options.retry,
-    now: clock,
-  });
-  const gmail = await fetchGmailSnapshot(options.caller, {
-    query: options.gmailQuery,
-    retry: options.retry,
-    now: clock,
-  });
-  const calendar = await fetchCalendarSnapshot(options.caller, {
-    localDate: options.localDate,
-    timeZone: options.timeZone,
-    sources: options.calendars,
-    retry: options.retry,
-    now: clock,
-  });
-  const weather = await weatherPromise;
-  const results: Array<ProviderResult<unknown>> = [gmail, calendar, weather];
+  const collected = await collectLiveAddons({ ...options, now: clock });
+  const results: Array<ProviderResult<unknown>> = LIVE_ADDONS
+    .filter(addon => options.enabled?.[addon.id] !== false)
+    .map(addon => collected[addon.providerKey]);
   return {
-    state: aggregateState(results),
-    refreshedAt,
-    localDate: options.localDate,
-    gmail,
-    calendar,
-    weather,
-    issues: results.flatMap((result) => result.issues),
+    state: aggregateProviderState(results), refreshedAt, localDate: options.localDate,
+    ...(options.enabled ? { enabled: options.enabled } : {}),
+    ...collected, issues: results.flatMap(result => result.issues),
   };
 }

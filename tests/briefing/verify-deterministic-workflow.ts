@@ -263,4 +263,19 @@ const unsignalled = [
 ] as NewsItem[];
 assert.deepEqual(rankBriefingStories(unsignalled).map((story) => story.id), ["one", "two"]);
 
+await writeFile(configPath, "sources:\n  news:\n    enabled: false\n  mail:\n    enabled: false\n");
+const emptyBatch = { sourceKey: "news", profile: "telegram-user", status: "ready", capture: { channels: [] }, items: [] };
+await writeFile(rawPath, JSON.stringify(emptyBatch));
+await writeFile(normalizedPath, JSON.stringify(emptyBatch));
+await writeFile(draftPath, JSON.stringify({
+  editionId: "daily:2026-09-01", generatedAt: "2026-09-01T06:01:00Z", stories: [],
+  notes: [{ id: "note:hero", target: "hero", text: "расписание под рукой", role: "context", tone: "signal", rotation: "none" }],
+}));
+const disabled = await composeBriefingPayload({ draftPath, livePath, configPath, rawPath, normalizedPath });
+assert.equal(disabled.payload.addons?.news, undefined);
+assert.equal(disabled.payload.addons?.mail, undefined);
+assert.deepEqual(disabled.payload.news.items, []);
+assert.deepEqual(disabled.payload.sourceBatches, []);
+assert.equal(disabled.report.complete, true);
+
 process.stdout.write("deterministic briefing workflow verified\n");
