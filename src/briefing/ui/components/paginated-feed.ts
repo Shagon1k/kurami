@@ -4,18 +4,20 @@ import { escapeHtml } from "../html.ts";
 import { renderKuramiNote } from "./kurami-note.ts";
 import { renderNewsStory } from "./news-story.ts";
 import { renderButton } from "./button.ts";
+import { renderFeedOrderControl } from "./feed-order-control.ts";
 
 export function renderPaginatedFeed(payload: BriefingPayload): string {
   const pageSize = section(payload, "news").pageSize ?? 10;
   const total = section(payload, "news").items.length;
   const pages = Math.max(1, Math.ceil(total / pageSize));
   const newsNote = payload.notes?.find((note) => note.target === "news");
-  return `<section class="digest-feed" aria-labelledby="news-heading" data-paginated-feed data-page-size="${pageSize}" data-page-param="newsPage">
+  return `<section class="digest-feed" aria-labelledby="news-heading" data-paginated-feed data-edition-id="${escapeHtml(payload.edition.id)}" data-page-size="${pageSize}" data-page-param="newsPage">
     ${renderKuramiNote(newsNote, "digest-feed__note")}
     <header class="digest-feed__header">
       <div><p class="section-kicker">Утренняя пачка</p><h2 id="news-heading" data-feed-heading>Новости</h2><p>${total} ${storyWord(total)} · ${pageSize} на странице</p></div>
       <span class="digest-feed__count">Telegram · ${total}</span>
     </header>
+    ${total ? renderFeedOrderControl() : ""}
     <div class="digest-feed__items">${section(payload, "news").items.map((story, index) => renderNewsStory({ edition: payload.edition, story, index, notes: payload.notes })).join("")}</div>
     ${pages > 1 ? `<nav class="pagination" aria-label="Страницы новостей" data-feed-pagination>
       <span class="pagination__range" data-page-range>1–${Math.min(pageSize, total)} из ${total}</span>

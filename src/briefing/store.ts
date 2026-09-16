@@ -22,6 +22,7 @@ import {
 import type { TopicDefinition } from "./editorial-validation.ts";
 import type { TelegramBatchReport } from "./telegram-batch.ts";
 import { DAILY_RETENTION_DAYS } from "./runtime-config.ts";
+import { reactionSourceKeys } from "./interest-profile.ts";
 import { setSection, section, newsBatches } from "./addons/envelopes.ts";
 
 process.umask(0o077);
@@ -1632,6 +1633,12 @@ export function setReaction(
     | { story_fingerprint: string | null; topic_ids_json: string }
     | undefined;
   if (!item?.story_fingerprint) fail("Unknown briefing story");
+  const edition = loadEdition(database, { id: editionId });
+  const payload = edition ? parseBriefingPayload(JSON.parse(edition.payload_json)) : null;
+  const story = payload && briefingAddonEnabled(payload, "news")
+    ? section(payload, "news").items.find(story => story.id === itemId) : undefined;
+  if (!story) fail("Unknown briefing story");
+  const context = JSON.stringify({ version: 1, sources: reactionSourceKeys(story) });
   const timestamp = now();
   database.exec("BEGIN IMMEDIATE");
   try {
@@ -1641,10 +1648,10 @@ export function setReaction(
     database
       .prepare(`
         INSERT INTO reaction_events (
-          story_fingerprint, topic_ids_json, reaction, recorded_at
-        ) VALUES (?, ?, ?, ?)
+          story_fingerprint, topic_ids_json, reaction, recorded_at, context_json
+        ) VALUES (?, ?, ?, ?, ?)
       `)
-      .run(item.story_fingerprint, item.topic_ids_json, reaction, timestamp);
+      .run(item.story_fingerprint, item.topic_ids_json, reaction, timestamp, context);
     database.exec("COMMIT");
   } catch (error) {
     database.exec("ROLLBACK");

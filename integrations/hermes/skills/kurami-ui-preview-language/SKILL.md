@@ -127,7 +127,7 @@ Use Hermes file tools to inspect and edit the target project. Use the target pro
   CSS, accessibility hooks, and runtime data attributes stay deterministic.
 - In the Daily Briefing runtime, use `PaginatedFeed`, `NewsStory`, `TopicSet`,
   `StoryDisclosure`, `StoryCover`, `StoryMediaGallery`, `MediaLightbox`,
-  `ReactionGroup`, and `ThemeToggle` from the production UI layer. Do not
+  `ReactionGroup`, `FeedOrderControl`, and `ThemeToggle` from the production UI layer. Do not
   recreate them with one-off HTML.
 
 - Use story rows for readable news items.
@@ -222,6 +222,10 @@ Use Hermes file tools to inspect and edit the target project. Use the target pro
   it whenever arrows, desktop buttons, or URL state change. A printed `1 / 2`
   without working controls is invalid.
 - Preserve pagination position in the URL or caller state when the target application supports it. After a page change, return focus or scroll position to the feed heading rather than the top of the full page.
+- Use `FeedOrderControl` for Обзор / Для меня. The runtime supplies all order,
+  evidence and explanation data; UI code must not calculate preferences or
+  hide stories. Keep the same controls and explanation disclosure on mobile.
+  Changing order resets pagination; reacting does not reshuffle the page.
 - Keep long feeds page-bounded. Do not add `Show all`; do not place the primary reading feed inside an independently scrolling window.
 - Give an expanded story the full available feed width. Use a neutral ink
   rule for ordinary reading; reserve red disclosure rules for error or urgent

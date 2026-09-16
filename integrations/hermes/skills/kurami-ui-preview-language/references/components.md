@@ -112,7 +112,17 @@ Open extended content inline beneath the selected item. Keep only one item expan
 
 At narrow widths, replace the full numbered page strip with `Newer`, `page x of y`, and `Older`. After changing page, return the reader to the feed heading rather than the top of the entire page.
 
+## Feed order control
+
+The canonical `FeedOrderControl` sits between the Digest Feed header and items.
+It reuses secondary buttons with an explicit pressed state for Обзор / Для меня,
+a live status line, and a quiet explanation disclosure. The runtime supplies
+the complete item permutation, profile readiness, weights and brief reasons.
+Keep every item, existing reaction state, disclosure and media attached to its
+stable identity when reordering. Use the same component at every breakpoint.
+
 ## Topic Set
+
 
 Use a Topic Set to display one to four canonical topics supplied for a story or feed item.
 

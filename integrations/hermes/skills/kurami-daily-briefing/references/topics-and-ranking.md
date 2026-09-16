@@ -115,11 +115,12 @@ opening a source, dwell time, and Gmail actions are not preference signals.
 Initially calculate per-topic positive and negative counts. Also retain the
 canonical topic set on each explicit event so later profiling can distinguish
 intersections such as `Politics + United States` from `Politics + Lithuania`.
-After an exact topic pair has at least three explicit reactions, a bounded pair
-score may refine `For You`; shrink sparse pairs toward their individual topic
-scores. Do not create visible combined categories merely to support this score.
-Do not add a machine-learning model, source preference, time decay, or inferred
-negative feedback in the first version.
+After a feature has at least three distinct-story reactions, its weight is
+`(likes - dislikes) / (likes + dislikes + 4)`. Before that its weight is zero.
+Bounded pair scores refine `For You`; sparse evidence shrinks toward zero. Do not create visible combined categories merely to support this score.
+Interest Profile v1 now also captures canonical source keys as a weak signal,
+following the approved roadmap. Do not add a machine-learning model, time decay
+or inferred negative feedback.
 
 ## Ranking modes
 
@@ -141,3 +142,14 @@ time of the newest contributing report while retaining all source times.
 
 Use stable tie-breaking so pagination does not reshuffle while the reader is on
 the frozen edition.
+
+## Implemented Interest Profile v1
+
+The News runtime owns profile calculation and optional view ordering. The
+skill continues to produce the ordinary editorial morning order and must not
+pre-sort or omit stories using personal weights. Runtime policy `interest-v1`
+uses broad topics, narrower canonical aspects, configured geography, topic
+pairs and a weak source dimension. Full formula, thresholds, APIs and
+retention are in `docs/interest-profile-v1.md` in the application repository.
+The UI provides Обзор / Для меня. A selected bell toggles to clear; a reaction
+never triggers an implicit reshuffle or changes the published snapshot.

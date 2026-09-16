@@ -4,6 +4,8 @@
   "description": "Kurami system control plane for Hermes",
   "main": "index.js",
   "scripts": {
+    "test:briefing-interest": "node tests/briefing/verify-interest-profile.ts",
+    "briefing:interest-backfill": "node src/briefing/interest-context.ts --apply",
     "test:briefing-format": "node tests/briefing/verify-addon-format.ts",
     "briefing:migrate-addons": "node src/briefing/migrations/migrate-addon-format.ts",
     "test:briefing-addons": "node tests/briefing/verify-native-addons.ts",

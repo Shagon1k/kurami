@@ -49,6 +49,7 @@ tasks. The primary owner entry points are:
 
 - [Daily Briefing runtime](docs/daily-briefing-runtime.md)
 - [Daily add-on lifecycle and data format](docs/briefing-addons.md)
+- [Interest Profile v1](docs/interest-profile-v1.md)
 - [Cinema add-on v1 contract](docs/cinema-addon-v1.md)
 - [Project Orchestrator guide — RU](docs/guide.html)
 - [Project Orchestrator guide — EN](docs/guide.en.html)

@@ -1101,6 +1101,7 @@ assert.deepEqual(initialized.applied, [
   "005_addon_snapshots.sql",
   "006_discord_run_cards.sql",
   "007_recovery_windows.sql",
+  "008_interest_profile.sql",
 ]);
 const snapshotDatabase = openBriefingDatabase(paths);
 try {

@@ -15,12 +15,16 @@ import {
   setReaction,
   topicProfile,
   topicPairProfile,
+  topicRegistry,
   type BriefingPaths,
   type EditionRow,
 } from "./store.ts";
 import { loadBriefingRuntimeConfig } from "./runtime-config.ts";
 import { latestBriefingAttempt } from "./run-attempt.ts";
 import { parseBriefingPayload } from "./model.ts";
+import { section } from "./addons/envelopes.ts";
+import { buildInterestProfile, personalizedNewsOrder } from "./interest-profile.ts";
+import { loadTopicPolicy } from "./editorial-validation.ts";
 
 const FAVICON_PATH = new URL(
   "../../integrations/hermes/skills/kurami-ui-preview-language/assets/kurami-favicon.svg",
@@ -109,7 +113,6 @@ const CLIENT_SCRIPT = `(() => {
           panel.classList.toggle('is-read', itemState.read === true);
         }
       });
-      if (itemState.reaction !== 'like' && itemState.reaction !== 'dislike') return;
       document.querySelectorAll('[data-reaction][data-item-id="' + CSS.escape(itemState.itemId) + '"]').forEach((button) => {
         button.setAttribute('aria-pressed', String(button.getAttribute('data-reaction') === itemState.reaction));
       });
@@ -124,7 +127,8 @@ const CLIENT_SCRIPT = `(() => {
 
   const initializePaginatedFeeds = () => {
     document.querySelectorAll('[data-paginated-feed]').forEach((feed) => {
-      const items = Array.from(feed.querySelectorAll('[data-feed-item]'));
+      const editorialItems = Array.from(feed.querySelectorAll('[data-feed-item]'));
+      let items = [...editorialItems];
       const requestedPageSize = Number.parseInt(feed.getAttribute('data-page-size') || '10', 10);
       const pageSize = Number.isInteger(requestedPageSize) && requestedPageSize > 0 ? requestedPageSize : 10;
       const totalPages = Math.max(1, Math.ceil(items.length / pageSize));
@@ -210,7 +214,67 @@ const CLIENT_SCRIPT = `(() => {
         });
       });
 
+      const orderButtons = Array.from(feed.querySelectorAll('[data-news-order]'));
+      const interestStatus = feed.querySelector('[data-interest-status]');
+      const evidence = feed.querySelector('[data-interest-weights]');
+      const applyOrder = async (requested, resetPage = true) => {
+        orderButtons.forEach(button => { button.disabled = true; button.setAttribute('aria-busy', 'true'); });
+        if (interestStatus) interestStatus.textContent = 'Загружаю профиль интересов…';
+        try {
+          const editionId = feed.getAttribute('data-edition-id');
+          const response = await fetch('/api/news/order?editionId=' + encodeURIComponent(editionId || '') + '&mode=' + encodeURIComponent(requested));
+          if (!response.ok) throw new Error('Order unavailable');
+          const result = await response.json();
+          const byId = new Map(editorialItems.map(item => [item.getAttribute('data-item-id'), item]));
+          if (!Array.isArray(result.order) || result.order.length !== editorialItems.length
+            || new Set(result.order).size !== editorialItems.length || result.order.some(id => !byId.has(id))) throw new Error('Edition changed');
+          items = result.order.map(id => byId.get(id));
+          feed.querySelector('.digest-feed__items')?.append(...items);
+          items.forEach((item, index) => {
+            const ordinal = item.querySelector('.news-story__index');
+            if (ordinal) ordinal.textContent = String(index + 1).padStart(2, '0');
+            const reason = item.querySelector('[data-interest-reason]');
+            const detail = result.details.find(detail => detail.id === item.getAttribute('data-item-id'));
+            if (reason) {
+              reason.hidden = result.mode !== 'for-you' || (!detail?.protected && !detail?.reasons.length);
+              const main = detail?.reasons[0];
+              reason.textContent = detail?.protected ? 'Важное — приоритет сохранён'
+                : main ? (main.points > 0 ? 'Больше такого: ' : 'Меньше такого: ') + main.label : '';
+            }
+          });
+          orderButtons.forEach(button => button.setAttribute('aria-pressed', String(button.getAttribute('data-news-order') === result.mode)));
+          const nextQuery = new URLSearchParams(location.search);
+          if (result.mode === 'for-you') nextQuery.set('newsOrder', 'for-you'); else nextQuery.delete('newsOrder');
+          const search = nextQuery.toString();
+          history.replaceState(null, '', location.pathname + (search ? '?' + search : '') + location.hash);
+          if (resetPage) page = 1;
+          renderPage(false);
+          const count = result.profile.reactions;
+          const coverage = feed.querySelector('[data-interest-coverage]');
+          if (coverage) coverage.textContent = 'Источник известен для ' + result.profile.withSourceContext + ' из ' + count + ' реакций. Остальные учитываются по сохранённым темам.';
+          if (interestStatus) interestStatus.textContent = !result.profile.ready
+            ? 'Пока обычный обзор: ' + count + ' из ' + result.profile.policy.minimumReactions + ' реакций для персонализации. Все сюжеты доступны.'
+            : (result.mode === 'for-you' ? 'Порядок для вас' : 'Утренний порядок') + ' · учтено реакций: ' + count + '. Все сюжеты доступны.';
+          if (evidence) {
+            evidence.replaceChildren();
+            result.profile.weights.filter(value => value.weight !== 0).slice(0, 8).forEach(value => {
+              const row = document.createElement('li');
+              row.textContent = value.label + ': ' + (value.weight > 0 ? '+' : '') + value.weight.toLocaleString('ru-RU', { maximumFractionDigits: 2 }) + ' · реакций: ' + value.evidence;
+              evidence.append(row);
+            });
+          }
+        } catch {
+          if (interestStatus) interestStatus.textContent = 'Не удалось обновить профиль. Текущий порядок сохранён; можно повторить.';
+        } finally {
+          orderButtons.forEach(button => { button.disabled = false; button.removeAttribute('aria-busy'); });
+        }
+      };
+      orderButtons.forEach(button => button.addEventListener('click', () => applyOrder(button.getAttribute('data-news-order'))));
+      feed.addEventListener('kurami:reaction-saved', () => {
+        if (interestStatus) interestStatus.textContent = 'Реакция сохранена. Нажмите «Для меня», чтобы обновить порядок.';
+      });
       renderPage(false);
+      if (orderButtons.length) applyOrder(query.get('newsOrder') === 'for-you' ? 'for-you' : 'briefing', false);
     });
   };
   initializePaginatedFeeds();
@@ -483,18 +547,27 @@ const CLIENT_SCRIPT = `(() => {
       }
       return;
     }
-    const reaction = target.getAttribute('data-reaction');
+    const requestedReaction = target.getAttribute('data-reaction');
+    const reaction = target.getAttribute('aria-pressed') === 'true' ? 'clear' : requestedReaction;
     const editionId = target.getAttribute('data-edition-id');
     const itemId = target.getAttribute('data-item-id');
     if (!reaction || !editionId || !itemId) return;
+    const group = Array.from(target.closest('.reaction-group')?.querySelectorAll('button') || []);
+    if (target.disabled) return;
+    group.forEach(button => { button.disabled = true; });
     target.setAttribute('aria-busy', 'true');
     try {
       await request('/api/stories/reaction', { editionId, itemId, reaction });
       document.querySelectorAll('[data-reaction][data-edition-id="' + CSS.escape(editionId) + '"][data-item-id="' + CSS.escape(itemId) + '"]').forEach((button) => {
         button.setAttribute('aria-pressed', String(button.getAttribute('data-reaction') === reaction && reaction !== 'clear'));
       });
+      target.closest('[data-paginated-feed]')?.dispatchEvent(new CustomEvent('kurami:reaction-saved'));
+    } catch {
+      const status = target.closest('[data-paginated-feed]')?.querySelector('[data-interest-status]');
+      if (status) status.textContent = 'Не удалось сохранить реакцию. Попробуйте ещё раз.';
     } finally {
       target.removeAttribute('aria-busy');
+      group.forEach(button => { button.disabled = false; });
     }
   });
 
@@ -828,6 +901,25 @@ export async function createBriefingServer(
       }
       if (request.method === "GET" && url.pathname === "/api/profile/topics") {
         json(response, 200, { topics: topicProfile(database), pairs: topicPairProfile(database) });
+        return;
+      }
+      if (request.method === "GET" && (url.pathname === "/api/profile/interests" || url.pathname === "/api/news/order")) {
+        const policy = await loadTopicPolicy(paths.home, process.env, topicRegistry(database));
+        const profile = buildInterestProfile(database, policy);
+        if (url.pathname === "/api/profile/interests") {
+          json(response, 200, profile);
+          return;
+        }
+        const id = requiredString(url.searchParams.get("editionId"), "editionId");
+        const requested = url.searchParams.get("mode") ?? "briefing";
+        if (requested !== "briefing" && requested !== "for-you") throw new Error("Invalid news order");
+        const edition = loadEdition(database, { id });
+        if (!edition || edition.edition_type !== "daily" || edition.state === "aborted") throw new Error("Unknown briefing edition");
+        const payload = parseBriefingPayload(JSON.parse(edition.payload_json));
+        const stories = section(payload, "news").items;
+        const result = personalizedNewsOrder(stories, profile, policy);
+        const mode = requested === "for-you" && profile.ready ? "for-you" : "briefing";
+        json(response, 200, { ...result, mode, order: mode === "for-you" ? result.order : stories.map(story => story.id) });
         return;
       }
       if (request.method === "POST" && url.pathname === "/api/items/read") {

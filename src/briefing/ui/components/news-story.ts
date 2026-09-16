@@ -61,6 +61,7 @@ export function renderNewsStory(input: {
       <h3>${escapeHtml(story.headline)}</h3>
       <p class="news-story__summary">${escapeHtml(story.summary)}</p>
       ${renderTopicSet(story.topics)}
+      <p class="news-story__interest" data-interest-reason hidden></p>
     </div>
     <div class="news-story__actions">${renderStoryToggle(story.id)}${sourceLink}${renderReactionGroup({ editionId: edition.id, itemId: story.id, reaction })}</div>
     ${renderStoryPanel({ editionId: edition.id, itemId: story.id, details: story.details, sourceUrl: source.url, read, media: story.media })}
