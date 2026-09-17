@@ -202,8 +202,85 @@ async function main(): Promise<void> {
         row.resource_state === "released",
       `Unexpected final state: ${JSON.stringify(row)}`,
     );
+
+    const cancelledRunId = "r_cancelled_release_test";
+    const cancellationDatabase = new DatabaseSync(databasePath);
+    cancellationDatabase
+      .prepare(`
+        INSERT INTO project_events (
+          event_id, observed_at, project, item_id, content_id, content_type,
+          repository, issue_number, title, url, from_status, to_status,
+          payload_json, processing_state
+        ) VALUES (
+          'cancelled-release-event', '2026-08-15T00:00:00.000Z', 'tailortales',
+          'cancelled-release-item', 'cancelled-release-content', 'Issue',
+          'Shagon1k/TailorTales', 9903, '[Test]: Cancelled release',
+          'https://example.invalid/9903', 'In progress', 'Backlog', '{}', 'processed'
+        )
+      `)
+      .run();
+    cancellationDatabase
+      .prepare(`
+        INSERT INTO runs (
+          run_id, trigger_event_id, project, item_id, content_id, repository,
+          issue_number, interaction_policy, state, owner_state,
+          execution_mode, stop_reason
+        ) VALUES (
+          ?, 'cancelled-release-event', 'tailortales', 'cancelled-release-item',
+          'cancelled-release-content', 'Shagon1k/TailorTales', 9903,
+          'autonomous', 'stopping', 'none', 'live', 'cancelled'
+        )
+      `)
+      .run(cancelledRunId);
+    cancellationDatabase
+      .prepare(`
+        INSERT INTO run_resources (
+          run_id, resource_state, base_sha, worktree_path, branch_name
+        ) VALUES (?, 'provisioned', ?, ?, ?)
+      `)
+      .run(
+        cancelledRunId,
+        baseSha,
+        resolve(worktreeRoot, "TT-9903_cancelled-release", "TailorTales"),
+        "TT-9903_cancelled-release",
+      );
+    cancellationDatabase.close();
+
+    const cancelledArgs = [
+      resolve(appDirectory, "src/orchestrator/projects/worktrees/release.ts"),
+      "--run-id",
+      cancelledRunId,
+      "--apply",
+    ];
+    const cancelledRelease = JSON.parse(
+      execFileSync(process.execPath, cancelledArgs, {
+        encoding: "utf8",
+        env: environment,
+        stdio: ["ignore", "pipe", "pipe"],
+      }),
+    ) as Record<string, unknown>;
+    assert(
+      cancelledRelease.action === "released" && cancelledRelease.finalState === "cancelled",
+      `Cancellation was not released as cancelled: ${JSON.stringify(cancelledRelease)}`,
+    );
+
+    const cancelledVerification = new DatabaseSync(databasePath, { readOnly: true });
+    const cancelledRow = cancelledVerification
+      .prepare(`
+        SELECT r.state, r.stop_reason, rr.resource_state
+        FROM runs r JOIN run_resources rr USING (run_id)
+        WHERE r.run_id = ?
+      `)
+      .get(cancelledRunId) as { state: string; stop_reason: string; resource_state: string };
+    cancelledVerification.close();
+    assert(
+      cancelledRow.state === "cancelled" &&
+        cancelledRow.stop_reason === "cancelled" &&
+        cancelledRow.resource_state === "released",
+      `Cancellation was incorrectly archived: ${JSON.stringify(cancelledRow)}`,
+    );
     process.stdout.write(
-      `${JSON.stringify({ ok: true, isolated: true, beforeMerge: beforeMerge.action, afterMerge: afterMerge.action, mergeEvidence: afterMerge.mergeEvidence, baseSha, headSha, final: row })}\n`,
+      `${JSON.stringify({ ok: true, isolated: true, beforeMerge: beforeMerge.action, afterMerge: afterMerge.action, mergeEvidence: afterMerge.mergeEvidence, final: row, cancelledFinal: cancelledRow })}\n`,
     );
   } finally {
     await rm(testHome, { recursive: true, force: true });

@@ -367,7 +367,15 @@ async function buildPlan(
     mergedPullRequestNumber,
     mergedPullRequestUrl,
     mergeVerificationError,
-    finalState: completionVerified ? "archived" : "cancelled",
+    // A cancellation must remain a cancellation even when its branch happens to
+    // be an ancestor of the current base. Otherwise the release path archives
+    // the run and bypasses the controller's cancelled-item Backlog writeback.
+    finalState:
+      run.stop_reason === "cancelled"
+        ? "cancelled"
+        : completionVerified
+          ? "archived"
+          : "cancelled",
   };
 }
 
