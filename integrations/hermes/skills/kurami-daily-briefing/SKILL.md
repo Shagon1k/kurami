@@ -284,6 +284,10 @@ Default manual experiments to `dry-run`. Generation never archives Gmail;
     review of the preceding seven completed local dates. Do not author Weekly
     totals, charts or observations in the editorial draft. No extra provider
     collection or AI-generated weekly calculations are needed.
+    When Stocks is enabled, the same worker attaches its deterministic cached
+    teaser. Do not fetch quotes, calculate returns or author Stocks in the
+    draft. Central Poller owns its once-daily free-quota collection; the Daily
+    teaser stays frozen while `/stocks` serves the latest available cache.
 13. In `dry-run`, use a `dry-run` attempt and write only the editorial draft
     with the Hermes `write_file` tool. Do not generate the
     artifact through a shell heredoc, inline Python/Node program, or a

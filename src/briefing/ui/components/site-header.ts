@@ -1,10 +1,11 @@
 import {escapeHtml} from "../html.ts";
 import {renderThemeToggle} from "./theme-toggle.ts";
 
-export type SiteSection="daily"|"cinema"|"weekly";
+export type SiteSection="daily"|"cinema"|"weekly"|"stocks";
 export type SiteLink={section:SiteSection;date?:string};
 const destinations:Record<SiteSection,{href:string;label:string}>={
   daily:{href:"/",label:"День"},cinema:{href:"/cinema",label:"Кино"},weekly:{href:"/weekly",label:"Неделя"},
+  stocks:{href:"/stocks",label:"Акции"},
 };
 export function renderSiteNavigation(links:readonly SiteLink[],current:SiteSection):string {
   const seen=new Set<SiteSection>();

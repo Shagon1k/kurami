@@ -221,7 +221,8 @@ Use Hermes file tools to inspect and edit the target project. Use the target pro
   and small shadow only after scroll.
 - Use the canonical `SiteHeader`: transparent fox, Kurami wordmark, issue date,
   available section links and one theme control. The server determines which
-  latest Daily/Cinema/Weekly pages are published; do not infer availability
+  latest Daily/Cinema/Weekly pages are published (or a valid enabled Stocks
+  cache exists); do not infer availability
   from a preview or embed stale navigation in a generated edition. Preserve
   the active-section marker and the mobile second-row navigation.
 - Render every long-feed item with `data-feed-item` and its stable

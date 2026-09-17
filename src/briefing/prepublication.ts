@@ -11,6 +11,7 @@ import { composioReadConnectionFromEnvironment, createComposioReadToolCaller } f
 import { renderBriefingPage } from "./ui/render-page.ts";
 import {attachWeeklyReview} from "./weekly/lifecycle.ts";
 import {isSunday} from "./weekly/model.ts";
+import {attachStocksBrief} from "./stocks/lifecycle.ts";
 
 export async function refreshBeforePublication(editionId:string, attemptId:string, environment:NodeJS.ProcessEnv=process.env,
   collect:typeof collectDynamicBriefingSnapshot=collectDynamicBriefingSnapshot, now=()=>new Date()) {
@@ -33,7 +34,8 @@ export async function refreshBeforePublication(editionId:string, attemptId:strin
     return !Number.isFinite(timestamp) || timestamp>at.getTime() || at.getTime()-timestamp>15*60_000;
   });
   const weekly=config.weekly.enabled&&isSunday(payload.edition.localDate);
-  if(!old&&!weekly)return {updated:false,reason:"live_data_fresh"};
+  const stocks=config.stocks.enabled&&!payload.addons.stocks;
+  if(!old&&!weekly&&!stocks)return {updated:false,reason:"live_data_fresh"};
   if(old) {
     const snapshot=await collect({
     getCaller:()=>createComposioReadToolCaller(composioReadConnectionFromEnvironment(environment)),
@@ -52,7 +54,13 @@ export async function refreshBeforePublication(editionId:string, attemptId:strin
     catch {console.warn("Weekly add-on preparation failed; Daily continues");}
     finally {history.close();}
   }
-  refreshDataQuality(payload,refreshedAt);
+  if(stocks) {
+    const cache=openBriefingDatabase(paths);
+    try {attachStocksBrief(cache,payload,config.stocks,refreshedAt);}
+    catch {console.warn("Stocks snapshot unavailable; Daily continues");}
+    finally {cache.close();}
+  }
+  refreshDataQuality(payload,payload.live?.refreshedAt??refreshedAt);
   const validated=parseBriefingPayload(payload);
   await refreshPublishedEdition(validated,renderBriefingPage(validated),row.content_digest,paths,{prepared:true});
   return {updated:true,state:payload.live?.state,refreshedAt};

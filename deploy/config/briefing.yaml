@@ -1,5 +1,24 @@
 version: 3
 
+# Personal watchlist, not position sizes or brokerage valuation.
+stocks:
+  enabled: true
+  benchmark: VUAA
+  moveThresholdPercent: 2
+  assets:
+    - { id: VUAA, symbol: VUAA.XETRA, name: Vanguard S&P 500 UCITS ETF Acc, isin: IE00BFMXXD54, currency: EUR, exchange: XETRA, timezone: Europe/Berlin, kind: etf }
+    - { id: SPCX, symbol: SPCX.US, name: SpaceX, isin: US84615Q1031, currency: USD, exchange: US, timezone: America/New_York, kind: stock, listedFrom: "2026-06-12" }
+    - { id: NVDA, symbol: NVDA.US, name: NVIDIA, isin: US67066G1040, currency: USD, exchange: US, timezone: America/New_York, kind: stock }
+    - { id: TSM, symbol: TSM.US, name: TSMC (ADR), isin: US8740391003, currency: USD, exchange: US, timezone: America/New_York, kind: stock }
+    - { id: AMZN, symbol: AMZN.US, name: Amazon, isin: US0231351067, currency: USD, exchange: US, timezone: America/New_York, kind: stock }
+    - { id: MSFT, symbol: MSFT.US, name: Microsoft, isin: US5949181045, currency: USD, exchange: US, timezone: America/New_York, kind: stock }
+    - { id: MRK, symbol: MRK.US, name: Merck & Co., isin: US58933Y1055, currency: USD, exchange: US, timezone: America/New_York, kind: stock }
+    - { id: NOK, symbol: NOK.US, name: Nokia (ADR), isin: US6549022043, currency: USD, exchange: US, timezone: America/New_York, kind: stock }
+    - { id: SOFI, symbol: SOFI.US, name: SoFi, isin: US83406F1021, currency: USD, exchange: US, timezone: America/New_York, kind: stock }
+    - { id: MX, symbol: MX.US, name: Magnachip Semiconductor, isin: US55933J2033, currency: USD, exchange: US, timezone: America/New_York, kind: stock }
+    - { id: SPCE, symbol: SPCE.US, name: Virgin Galactic, isin: US92766K4031, currency: USD, exchange: US, timezone: America/New_York, kind: stock }
+    - { id: GRRR, symbol: GRRR.US, name: Gorilla Technology, isin: KYG4000K1756, currency: USD, exchange: US, timezone: America/New_York, kind: stock }
+
 weekly:
   enabled: true
   observationDays: 7

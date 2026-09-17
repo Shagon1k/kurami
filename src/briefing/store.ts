@@ -1320,6 +1320,10 @@ export async function refreshPublishedEdition(
     }
     edition = loaded;
     previousPayload = parseBriefingPayload(JSON.parse(loaded.payload_json) as unknown);
+    if(previousPayload.addons.stocks && (loaded.state==="complete"||loaded.state==="partial")
+      && (!payload.addons.stocks || addonEnvelopeDigest(previousPayload.addons.stocks)!==addonEnvelopeDigest(payload.addons.stocks))) {
+      fail("Dynamic refresh attempted to change the frozen stocks snapshot");
+    }
     if (immutableNewsDigest(previousPayload) !== immutableNewsDigest(payload)) {
       fail("Dynamic refresh attempted to change frozen news or source batches");
     }

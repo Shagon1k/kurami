@@ -7,6 +7,7 @@ import type { OpenMeteoLocation } from "./providers/open-meteo.ts";
 import type { AddonSwitches, BuiltinAddonId } from "./addons/live-contract.ts";
 import { parseSignalsConfig, type SignalsConfig } from "./addons/signals/config.ts";
 import {parseWeeklyConfig,type WeeklyConfig} from "./weekly/config.ts";
+import {parseStocksConfig,type StocksConfig} from "./stocks/config.ts";
 
 type JsonRecord = Record<string, unknown>;
 
@@ -36,6 +37,7 @@ export type BriefingRuntimeConfig = {
   addons: Record<"mail" | "calendar" | "weather" | "news", boolean>;
   signals: SignalsConfig;
   weekly: WeeklyConfig;
+  stocks: StocksConfig;
   timeZone: string;
   retentionDays: number;
   gmailQuery: string;
@@ -242,6 +244,7 @@ export async function loadBriefingRuntimeConfig(
     addons: sourceAddonSwitches(sources),
     signals: parseSignalsConfig(root.signals),
     weekly: parseWeeklyConfig(root.weekly),
+    stocks: parseStocksConfig(root.stocks),
     retentionDays,
     gmailQuery: string(mailSettings.query, "mail.query"),
     gmailPageSize,

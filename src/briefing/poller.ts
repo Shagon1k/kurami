@@ -30,6 +30,7 @@ export { providerComplete, sectionState } from "./addons/provider-state.ts";
 import { loadBriefingRuntimeConfig } from "./runtime-config.ts";
 import { refreshDerivedAddons } from "./addons/derived.ts";
 import {collectWeeklyHistory} from "./weekly/lifecycle.ts";
+import {refreshStocksSafely} from "./stocks/collector.ts";
 
 type PollerResult = {
   refreshedAt: string;
@@ -73,6 +74,7 @@ export async function runDigestCentralPoller(
   const paths = briefingPaths(environment);
   await initializeBriefingStore(paths);
   const config = await loadBriefingRuntimeConfig(paths, environment);
+  const stocksRefresh=refreshStocksSafely(config.stocks,paths);
   const refreshedAt = new Date().toISOString();
   const before = openBriefingDatabase(paths);
   let retained: EditionRow[];
@@ -82,6 +84,7 @@ export async function runDigestCentralPoller(
     before.close();
   }
   if (retained.length === 0) {
+    await stocksRefresh;
     const history=openBriefingDatabase(paths);
     try {collectWeeklyHistory(history,config.weekly,refreshedAt,config.timeZone);}
     catch {console.warn("Weekly observation cleanup failed");}
@@ -131,6 +134,7 @@ export async function runDigestCentralPoller(
     }
   }
   const history=openBriefingDatabase(paths);
+  await stocksRefresh;
   try {collectWeeklyHistory(history,config.weekly,refreshedAt,config.timeZone);}
   catch {console.warn("Weekly observation failed; live refresh continues");}
   finally {history.close();}

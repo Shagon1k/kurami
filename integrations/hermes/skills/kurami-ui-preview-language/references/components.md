@@ -26,7 +26,7 @@ SVG favicon for browser tabs. On dark surfaces use the component's restrained
 edge contrast, not a recolored logo or a new boxed variant.
 
 `SiteNavigation` renders only runtime-supplied published destinations:
-День → `/`, Кино → `/cinema`, Неделя → `/weekly`. Availability is resolved
+День → `/`, Кино → `/cinema`, Неделя → `/weekly`, Акции → `/stocks`. Availability is resolved
 on each HTTP response, not frozen in page content. Prepared previews do not
 enable a link. The active section uses `aria-current="location"`, a warm
 surface and a thin red underline. On mobile keep visible links on a second
@@ -238,6 +238,17 @@ copy column, with a down-left arrow pointing back to the title. Do not append
 it below the topic chips, where the arrow appears to point at the next row.
 All Kurami Notes use signal red; placement, rotation, and marks provide visual
 variation without switching handwritten notes to normal ink.
+
+## Stocks components
+
+Use the canonical `stocks/render.ts` teaser and watchlist, not agent-authored
+financial cards. The teaser is titled `Акции`; the full page is `Мои акции`
+with `Открыть обзор →` as its single Daily action. Reuse `SelectionControl`,
+shared buttons and `ui/charts/TrendChart` for periods and up-to-five comparisons.
+Preserve native currencies, quote dates, adjusted-return labels and explicit
+stale/unavailable states. Mobile scroll is confined to the labeled watchlist
+table region. Prices, movements and chart data are supplied by the deterministic
+Stocks model; the renderer must not invent commentary or investment signals.
 
 ## Responsive rules
 

@@ -14,6 +14,7 @@ transactions, action receipts and seven-day Daily retention stay common.
 | News | Editorial draft interpretation, source ownership, stable story identities, source batches, snapshot and feed UI | Frozen morning snapshot |
 | Cinema | Weekly providers, editorial composition, promotion, full page and teaser | Saturday, last successful snapshot |
 | Weekly | Compact daily observations, deterministic retrospective, full page and teaser | Sunday, previous seven completed local dates |
+| Stocks | Validated EOD history cache, adjusted returns, watchlist page and frozen teaser | Cache once daily; Daily immutable after attachment |
 | Signals | Derived calendar/mail/weather notices, thresholds, expiry and deduplication | After composition, live refresh and mail actions |
 
 Entry points are `src/briefing/addons/{mail,calendar,weather,news}.ts`.
@@ -27,6 +28,10 @@ participants from that registry; News and Cinema have no hourly lifecycle.
 
 Derived modules use `addons/derived.ts` after input updates. Signals contributes
 to `after-metrics`; its contract is in [Smart Morning Signals](smart-morning-signals.md).
+
+Stocks has a separate bounded cache lifecycle invoked by Central Poller, not
+the retained-edition live lifecycle. See [Stocks](stocks-addon.md) for its
+free-quota budget, independent enable flag and immutable Daily contract.
 
 A live lifecycle declares its ID, provider-result key, transport lane,
 collection function and section update function. HTTP collection may overlap

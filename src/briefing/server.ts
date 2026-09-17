@@ -1,4 +1,7 @@
 import { CHART_CLIENT_SCRIPT } from "./ui/charts/client.ts";
+import {STOCKS_CLIENT_SCRIPT} from "./stocks/client.ts";
+import {renderStocksPage} from "./stocks/render.ts";
+import {loadStocksCache} from "./stocks/collector.ts";
 import {publishedSiteLinks} from "./site-navigation.ts";
 import {injectSiteNavigation} from "./ui/components/site-header.ts";
 import {renderPageShell} from "./ui/page-shell.ts";
@@ -304,7 +307,8 @@ const CLIENT_SCRIPT = `(() => {
   };
   initializePaginatedFeeds();
 
-  ${CHART_CLIENT_SCRIPT}
+${CHART_CLIENT_SCRIPT}
+${STOCKS_CLIENT_SCRIPT}
 
   document.querySelectorAll('[data-overflow="true"]').forEach((region) => {
     region.addEventListener('keydown', (event) => {
@@ -710,6 +714,7 @@ async function serveEdition(
   paths: BriefingPaths,
   allowEmpty: boolean,
   weeklyEnabled = false,
+  stocksEnabled = false,
 ): Promise<void> {
   if (!edition) {
     if (!allowEmpty) {
@@ -718,18 +723,18 @@ async function serveEdition(
     }
     sendHeaders(response, "text/html; charset=utf-8");
     response.statusCode = 200;
-    response.end(injectRuntime(injectSiteNavigation(emptyPage(),publishedSiteLinks(database,weeklyEnabled),"daily")));
+    response.end(injectRuntime(injectSiteNavigation(emptyPage(),publishedSiteLinks(database,weeklyEnabled,new Date().toISOString(),stocksEnabled),"daily")));
     return;
   }
   const html = await readEditionHtml(edition, paths);
   sendHeaders(response, "text/html; charset=utf-8");
   response.statusCode = 200;
-  response.end(injectRuntime(injectSiteNavigation(html,publishedSiteLinks(database,weeklyEnabled),edition.edition_type), editionClientState(database, edition.id)));
+  response.end(injectRuntime(injectSiteNavigation(html,publishedSiteLinks(database,weeklyEnabled,new Date().toISOString(),stocksEnabled),edition.edition_type), editionClientState(database, edition.id)));
 }
 
 export async function createBriefingServer(
   paths: BriefingPaths = briefingPaths(),
-  options: { mailActionExecutor?: MailActionExecutor | null; weekly?:boolean } = {},
+  options: { mailActionExecutor?: MailActionExecutor | null; weekly?:boolean; stocks?:boolean } = {},
 ): Promise<Server> {
   await initializeBriefingStore(paths);
   const favicon = await readFile(FAVICON_PATH, "utf8");
@@ -917,6 +922,13 @@ export async function createBriefingServer(
         return;
       }
       if (request.method === "GET") {
+        if(url.pathname==="/stocks") {
+          if(!(options.stocks??runtimeConfig?.stocks.enabled??false)){text(response,404,"Not found\n");return;}
+          const html=renderStocksPage(loadStocksCache(database),url.searchParams);
+          sendHeaders(response,"text/html; charset=utf-8");response.statusCode=200;
+          response.end(injectRuntime(injectSiteNavigation(html,publishedSiteLinks(database,options.weekly??runtimeConfig?.weekly.enabled??false,new Date().toISOString(),true),"stocks")));
+          return;
+        }
         if(url.pathname==="/weekly" || url.pathname==="/preview/weekly") {
           if(!(options.weekly??runtimeConfig?.weekly.enabled??false)) {text(response,404,"Not found\n");return;}
           const timezone=runtimeConfig?.timeZone??"Europe/Vilnius";
@@ -924,11 +936,11 @@ export async function createBriefingServer(
           const review=preview?buildWeeklyReview(database,weeklyLocalDate(new Date().toISOString(),timezone),timezone):loadWeeklyReview(database);
           sendHeaders(response,"text/html; charset=utf-8");
           response.statusCode=200;
-          response.end(injectRuntime(injectSiteNavigation(renderWeeklyPage(review,preview),publishedSiteLinks(database,true),"weekly")));
+          response.end(injectRuntime(injectSiteNavigation(renderWeeklyPage(review,preview),publishedSiteLinks(database,true,new Date().toISOString(),options.stocks??runtimeConfig?.stocks.enabled??false),"weekly")));
           return;
         }
         const edition = routeEdition(database, url.pathname);
-        await serveEdition(response, database, edition, paths, url.pathname === "/",options.weekly??runtimeConfig?.weekly.enabled??false);
+        await serveEdition(response, database, edition, paths, url.pathname === "/",options.weekly??runtimeConfig?.weekly.enabled??false,options.stocks??runtimeConfig?.stocks.enabled??false);
         return;
       }
       text(response, 404, "Not found\n");
