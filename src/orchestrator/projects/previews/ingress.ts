@@ -163,14 +163,6 @@ export function renderRoutes(routes: IngressRoute[]): string {
     } else {
       sections.push(
         `\t# ${route.run_id}`,
-        `\t@${matcher}_api {`,
-        `\t\thost ${route.hostname}`,
-        "\t\tpath /api /api/*",
-        "\t}",
-        `\thandle @${matcher}_api {`,
-        "\t\turi strip_prefix /api",
-        `\t\treverse_proxy 127.0.0.1:${route.backend_port}`,
-        "\t}",
         `\t@${matcher}_frontend host ${route.hostname}`,
         `\thandle @${matcher}_frontend {`,
         `\t\treverse_proxy 127.0.0.1:${route.frontend_port}`,

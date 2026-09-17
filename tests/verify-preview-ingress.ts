@@ -46,11 +46,11 @@ function main(): void {
     "Routes are not deterministically ordered by slot",
   );
   assert(
-    rendered.includes("path /api /api/*") &&
-      count(rendered, "uri strip_prefix /api") === 2,
-    "API prefix routing is incomplete",
+    !rendered.includes("uri strip_prefix /api") &&
+      !rendered.includes("@preview_1_api"),
+    "Compose API requests must reach the frontend rewrite layer without a stripped prefix",
   );
-  for (const port of [43101, 43201, 49101, 43102, 43202, 49102]) {
+  for (const port of [43101, 49101, 43102, 49102]) {
     assert(rendered.includes(`127.0.0.1:${port}`), `Missing upstream port: ${port}`);
   }
   assert(count(rendered, "no active route") === 1, "Fallback route is not unique");
@@ -138,7 +138,7 @@ function main(): void {
       ok: true,
       routes: routes.length,
       deterministicOrder: true,
-      apiPrefixStripped: true,
+      apiForwardedThroughFrontend: true,
       loopbackOnly: true,
       emptyFailClosed: true,
       unsafeHostnameRejected: true,
