@@ -57,7 +57,17 @@ async function main(): Promise<void> {
   const registry = record(parse(registryText));
   const preview = record(record(record(registry.projects).pickflick).preview);
   assert(preview.adapter === "compose" && preview.compose_file === "compose.preview.yaml", "PickFlick must use its isolated Compose preview file");
-  assert(Array.isArray(preview.required_secret_keys) && preview.required_secret_keys.length === 0, "PickFlick preview must not require TailorTales credentials");
+  assert(
+    preview.secrets_file === "/home/shagon1k/_hermes/_kurami/secrets/pickflick-preview.env",
+    "PickFlick preview must load its dedicated private Google OAuth credential file",
+  );
+  assert(
+    Array.isArray(preview.required_secret_keys)
+      && preview.required_secret_keys.length === 2
+      && preview.required_secret_keys.includes("GOOGLE_CLIENT_ID")
+      && preview.required_secret_keys.includes("GOOGLE_CLIENT_SECRET"),
+    "PickFlick preview must require its dedicated Google OAuth credentials",
+  );
   const services = record(preview.services);
   for (const service of ["postgres", "redis", "minio", "minio_init", "release", "api", "worker", "web"]) {
     assert(typeof services[service] === "string", `Missing declarative PickFlick service role: ${service}`);

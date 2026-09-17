@@ -135,11 +135,12 @@ projects:
         frontend: { service: web, path: / }
         backend: { service: api, path: /health/ready }
         minio: { service: minio, path: /minio/health/live }
-      required_secret_keys: []
+      secrets_file: /home/shagon1k/_hermes/_kurami/secrets/pickflick-preview.env
+      required_secret_keys:
+        - GOOGLE_CLIENT_ID
+        - GOOGLE_CLIENT_SECRET
       runtime_variables:
         AUTH_BASE_URL: ${PREVIEW_URL}
-        GOOGLE_CLIENT_ID: preview-synthetic-google-client-id
-        GOOGLE_CLIENT_SECRET: preview-synthetic-google-client-secret
 
   ahurynovich-cv:
     owner: Shagon1k
