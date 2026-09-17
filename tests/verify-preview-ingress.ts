@@ -26,6 +26,17 @@ function main(): void {
       artifact_root: null,
     },
     {
+      run_id: "r_preview_six",
+      slot_number: 6,
+      hostname: "preview-6.shagon1k.win",
+      assets_hostname: "assets-preview-6.shagon1k.win",
+      frontend_port: 43106,
+      backend_port: 43206,
+      minio_api_port: 49106,
+      runtime_adapter: "compose",
+      artifact_root: null,
+    },
+    {
       run_id: "r_preview_one",
       slot_number: 1,
       hostname: "preview-1.shagon1k.win",
@@ -46,11 +57,19 @@ function main(): void {
     "Routes are not deterministically ordered by slot",
   );
   assert(
-    !rendered.includes("uri strip_prefix /api") &&
-      !rendered.includes("@preview_1_api"),
+    !rendered.includes("uri strip_prefix /api"),
     "Compose API requests must reach the frontend rewrite layer without a stripped prefix",
   );
-  for (const port of [43101, 49101, 43102, 49102]) {
+  for (const route of routes) {
+    const matcher = `preview_${route.slot_number}`;
+    assert(
+      !rendered.includes(`@${matcher}_api`) &&
+        rendered.includes(`@${matcher}_frontend host ${route.hostname}`) &&
+        rendered.includes(`reverse_proxy 127.0.0.1:${route.frontend_port}`),
+      `Compose preview slot ${route.slot_number} does not route requests through its own frontend`,
+    );
+  }
+  for (const port of [43101, 49101, 43102, 49102, 43106, 49106]) {
     assert(rendered.includes(`127.0.0.1:${port}`), `Missing upstream port: ${port}`);
   }
   assert(count(rendered, "no active route") === 1, "Fallback route is not unique");
