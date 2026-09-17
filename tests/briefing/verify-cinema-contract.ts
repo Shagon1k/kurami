@@ -729,8 +729,8 @@ for (const marker of [
   "Трейлеры недели",
   "Премьеры",
   "Новости",
-  "data-cinema-trend",
-  "data-trend-key",
+  "data-chart",
+  "data-chart-key",
   "Последний уикенд",
   "С начала года",
   "Мировой прокат — уикенд",
@@ -739,7 +739,7 @@ for (const marker of [
   "data-cinema-edition=\"2026-08-29\"",
   "Kurami Cinema",
 ]) assert.match(cinemaHtml, new RegExp(marker));
-assert.match(cinemaHtml, /\.cinema-trend__series circle \{ fill: var\(--trend-color\)/u);
+assert.match(cinemaHtml, /\.chart__series circle \{ fill: var\(--chart-color\)/u);
 assert.doesNotMatch(cinemaHtml, /<b>Бюджет<\/b>/u);
 assert.doesNotMatch(cinemaHtml, /Kurami Daily Briefing/u);
 const legacyBilingualEnvelope = parseCinemaEnvelope({

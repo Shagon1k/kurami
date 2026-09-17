@@ -1,10 +1,11 @@
+import { renderTrendChart } from "../charts/index.ts";
+import { cinemaTrendInput } from "../../cinema/chart-adapter.ts";
 import type { BriefingPayload } from "../../model.ts";
 import {
   parseCinemaEnvelope,
   type CinemaChart,
   type CinemaEnvelope,
   type CinemaNote,
-  type CinemaTrendSeries,
 } from "../../cinema/model.ts";
 import { originalTitleFromBilingual } from "../../cinema/titles.ts";
 import { escapeHtml } from "../html.ts";
@@ -55,53 +56,9 @@ function rankTable(chart: CinemaChart): string {
   </article>`;
 }
 
-function linePaths(series: CinemaTrendSeries[], width: number, height: number): string {
-  const values = series.flatMap((item) => item.points.map((point) => point.gross)).filter((value): value is number => value !== null);
-  const maximum = Math.max(...values, 1);
-  return series.map((item, seriesIndex) => {
-    const points = item.points.map((point, index) => point.gross === null ? null : {
-      x: 56 + index * ((width - 80) / Math.max(1, item.points.length - 1)),
-      y: 18 + (1 - point.gross / maximum) * (height - 54),
-      point,
-    });
-    const segments: string[][] = [];
-    for (const point of points) {
-      if (!point) continue;
-      const last = segments.at(-1);
-      const previousIndex = points.indexOf(point) - 1;
-      if (!last || previousIndex < 0 || points[previousIndex] === null) segments.push([]);
-      segments.at(-1)!.push(`${point.x.toFixed(1)},${point.y.toFixed(1)}`);
-    }
-    const lines = segments.filter((segment) => segment.length > 0)
-      .map((segment) => `<polyline points="${segment.join(" ")}"/>`).join("");
-    const dots = points.filter((point): point is NonNullable<typeof point> => point !== null)
-      .map(({ x, y, point }) => `<circle cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="3" tabindex="0"><title>${escapeHtml(item.label)} · ${escapeHtml(point.label)} · ${money(point.gross!, item.currency)}</title></circle>`).join("");
-    return `<g class="cinema-trend__series cinema-trend__series--${seriesIndex}" data-trend-series="${seriesIndex}">${lines}${dots}</g>`;
-  }).join("");
-}
-
-function trendJson(series: CinemaTrendSeries[]): string {
-  return Buffer.from(JSON.stringify(series), "utf8").toString("base64url");
-}
-
-function trendAxis(series: CinemaTrendSeries[]): string {
-  const values = series.flatMap((item) => item.points.map((point) => point.gross)).filter((value): value is number => value !== null);
-  const maximum = Math.max(...values, 1);
-  return [1, .67, .33, 0].map((ratio, index) => {
-    const y = [42, 106, 170, 224][index]!;
-    return `<text x="48" y="${y + 3}" text-anchor="end">${escapeHtml(money(maximum * ratio, series[0]?.currency ?? "USD"))}</text>`;
-  }).join("");
-}
-
 function trend(envelope: CinemaEnvelope): string {
   const series = envelope.data.boxOffice.trend;
-  if (!series.length) return "";
-  const points = series[0]!.points;
-  const labels = points.map((point, index, all) => `<text x="${56 + index * (640 / Math.max(1, all.length - 1))}" y="246" text-anchor="middle">${escapeHtml(point.label)}</text>`).join("");
-  return `<article class="cinema-trend" data-cinema-trend data-cinema-trend-data="${trendJson(series)}"><header><div><span>${points.length} уикендов</span><h3>Динамика текущего топа</h3></div><div class="cinema-trend__legend" aria-label="Линии графика">${series.map((item, index) => `<button type="button" class="cinema-trend__key cinema-trend__key--${index}" data-trend-key="${index}" aria-pressed="true">${escapeHtml(item.label)}</button>`).join("")}</div></header>
-    <div class="cinema-trend__toolbar"><span>Масштаб по времени</span><div class="cinema-trend__zoom"><button type="button" data-trend-zoom-out aria-label="Показать больше уикендов">−</button><output data-trend-window>${points.length} / ${points.length}</output><button type="button" data-trend-zoom-in aria-label="Показать меньше уикендов">+</button></div></div>
-    <svg viewBox="0 0 720 260" role="img" aria-label="Динамика кассовых сборов пяти фильмов"><g class="cinema-trend__grid"><line x1="56" y1="42" x2="696" y2="42"/><line x1="56" y1="106" x2="696" y2="106"/><line x1="56" y1="170" x2="696" y2="170"/><line x1="56" y1="224" x2="696" y2="224"/></g>${linePaths(series, 720, 230)}<g class="cinema-trend__labels cinema-trend__labels--y" data-trend-y-labels>${trendAxis(series)}</g><g class="cinema-trend__labels cinema-trend__labels--x" data-trend-x-labels>${labels}</g></svg>
-  </article>`;
+  return series.length ? renderTrendChart(cinemaTrendInput(series)) : "";
 }
 
 function regionOrder(chart: CinemaChart): number {

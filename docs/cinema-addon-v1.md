@@ -263,7 +263,8 @@ archive collection means unknown/not reported, not zero gross.
   and no invented history or forecast line. An older film whose first visible
   point merely falls inside the six-week window is not relabelled as a debut.
 - A returning film begins a line only when actual history exists.
-- The current point exposes exact gross and weekend change.
+- Each point exposes exact gross and its weekend; weekend change remains in
+  the box-office table.
 - Hover or keyboard focus emphasizes one series and dims the others.
 - Nodes are 3px at rest and 6px on hover/focus, following the visual-language
   chart contract.
@@ -280,10 +281,12 @@ archive collection means unknown/not reported, not zero gross.
 - AP fallback does not render this chart because it cannot prove the required
   history.
 
-The chart is the first production use of a generic reusable `TrendChart`
-primitive. Its component contract must remain domain-agnostic so a later stock
-price add-on can reuse it. Cinema owns only the series mapping, labels, units,
-and empty-state rules.
+Cinema uses the shared `src/briefing/ui/charts` TrendChart through
+`src/briefing/cinema/chart-adapter.ts`. Cinema owns only series mapping, dates,
+labels, currency and empty-state rules. The generic module owns geometry,
+controls, exact tooltips, accessibility and styling; it also provides BarChart
+for future period totals. See [Reusable charts](charts.md). Mixed currencies
+produce an explicit unavailable state, not an invented conversion.
 
 ## Fresh trailers
 

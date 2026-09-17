@@ -4,6 +4,7 @@
   "description": "Kurami system control plane for Hermes",
   "main": "index.js",
   "scripts": {
+    "test:briefing-charts": "node tests/briefing/verify-charts.ts",
     "test:briefing-signals": "node tests/briefing/verify-signals.ts",
     "test:briefing-interest": "node tests/briefing/verify-interest-profile.ts",
     "briefing:interest-backfill": "node src/briefing/interest-context.ts --apply",

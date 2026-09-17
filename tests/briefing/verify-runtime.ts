@@ -1302,7 +1302,9 @@ try {
   assert.match(clientScript, /data-page-next|URLSearchParams|data-story-details|is-scrolled/);
   assert.match(clientScript, /data-overflow|PageDown|region\.scrollBy/);
   assert.match(clientScript, /api\/mail\/read-and-archive|data-mail-select-all/);
-  assert.match(clientScript, /data-cinema-trend|data-trend-key|data-trend-zoom-in|compactMoney/);
+  for (const hook of ["data-chart", "data-chart-key", "data-chart-zoom-in", "data-chart-point"]) {
+    assert(clientScript.includes(hook), `Missing shared chart hook ${hook}`);
+  }
 
   const favicon = await fetch(`${base}/favicon.svg`);
   assert.equal(favicon.status, 200);

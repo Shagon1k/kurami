@@ -157,7 +157,9 @@ Use Hermes file tools to inspect and edit the target project. Use the target pro
 - Use alerts for persistent state requiring attention, not for decorative callouts.
 - Use badges and pills only for compact status or metadata.
 - Use source tables only for explicit source management or diagnostics; use a compact quality disclosure in a normal briefing.
-- Use trend charts for meaningful time series, with small interactive nodes.
+- Use canonical `ui/charts` primitives: `TrendChart` for meaningful time series,
+  `BarChart` for period totals. Supply validated data, not generated SVG geometry.
+  See the Charts contract in `references/components.md`.
 - Use media collections for trailers, premieres, and currently playing titles.
 - Represent loading, empty, stale, partial, and error states explicitly.
 - For preference calibration, use the canonical `🔔` / `🔕` pair with

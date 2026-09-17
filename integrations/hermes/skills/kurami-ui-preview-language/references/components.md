@@ -163,9 +163,22 @@ or fallback text. Keep these components separate from the calendar/news rows.
 ## Charts
 
 - Use a restrained grid and direct labeling where possible.
-- Trend lines use signal red for the primary series and muted or soft red for comparison.
-- Nodes are 3px by default and 6px on hover/focus.
+- Reuse `src/briefing/ui/charts`: `renderTrendChart` and `renderBarChart`
+  share a validated ChartInput, geometry engine, controls, table and styles.
+  Do not copy the Cinema renderer or calculate SVG coordinates in generated output.
+- The stable series palette is ink, signal red, positive, warning and muted
+  (dashed). Components choose colors by series index, not by AI interpretation.
+- Trend nodes are filled circles, 3px by default and 6px on hover/focus.
 - Tooltip shows the exact value and useful axis context.
+- Include both axes, keyboard navigation, a full-value table and common zoom
+  controls. Legend toggles rescale the visible series; zoom selects trailing
+  periods without interpolation. Only the plot scrolls horizontally on mobile.
+- Use explicit null for unknown data, never zero; break trend lines at gaps.
+  BarChart v1 accepts one series and always includes zero, including negative
+  values. Mark incomplete periods with asterisk, dashed treatment and a note.
+- One chart has one unit/currency. Source adapters own aggregation, dates and
+  missing-data semantics. Charts make no provider calls and never invent values.
+- The runtime contract and examples are documented in `docs/charts.md`.
 - Do not add a chart when a compact value or table communicates the relationship better.
 - Gauges need a visible value and label; never rely only on arc length.
 
