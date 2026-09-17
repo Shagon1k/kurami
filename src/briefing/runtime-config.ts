@@ -6,6 +6,7 @@ import type { CalendarSource } from "./providers/composio-calendar.ts";
 import type { OpenMeteoLocation } from "./providers/open-meteo.ts";
 import type { AddonSwitches, BuiltinAddonId } from "./addons/live-contract.ts";
 import { parseSignalsConfig, type SignalsConfig } from "./addons/signals/config.ts";
+import {parseWeeklyConfig,type WeeklyConfig} from "./weekly/config.ts";
 
 type JsonRecord = Record<string, unknown>;
 
@@ -25,15 +26,16 @@ function sourceAddonSwitches(sources: JsonRecord): Record<BuiltinAddonId, boolea
   })) as Record<BuiltinAddonId, boolean>;
 }
 
-// The public digest keeps exactly the latest five daily editions. Keeping this
+// The public digest keeps exactly the latest seven daily editions. Keeping this
 // value in the runtime config module gives the store and config validation one
 // authoritative policy instead of trusting an agent-authored payload date.
-export const DAILY_RETENTION_DAYS = 5;
+export const DAILY_RETENTION_DAYS = 7;
 
 export type BriefingRuntimeConfig = {
   configPath: string;
   addons: Record<"mail" | "calendar" | "weather" | "news", boolean>;
   signals: SignalsConfig;
+  weekly: WeeklyConfig;
   timeZone: string;
   retentionDays: number;
   gmailQuery: string;
@@ -239,6 +241,7 @@ export async function loadBriefingRuntimeConfig(
     timeZone,
     addons: sourceAddonSwitches(sources),
     signals: parseSignalsConfig(root.signals),
+    weekly: parseWeeklyConfig(root.weekly),
     retentionDays,
     gmailQuery: string(mailSettings.query, "mail.query"),
     gmailPageSize,

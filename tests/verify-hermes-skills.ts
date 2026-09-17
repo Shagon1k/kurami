@@ -211,7 +211,7 @@ const config = readYaml(path.join(root, "deploy", "config", "briefing.yaml")) as
 };
 assert.equal(config.version, 3);
 assert.equal(config.edition.timezone, "Europe/Vilnius");
-assert.equal(config.edition.daily_retention_days, 5);
+assert.equal(config.edition.daily_retention_days, 7);
 assert.equal(config.safety.production_mutations_enabled, true);
 assert.equal(config.safety.initial_channel_cleanup_confirmed, true);
 assert.equal(config.safety.require_bounded_telegram_commit, true);

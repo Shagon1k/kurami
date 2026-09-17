@@ -52,7 +52,7 @@ provider identity. `externalUrl` may be null when the provider has no stable
 link. `metadata` contains only fields required by later deterministic logic,
 such as Gmail labels, calendar response status, or a Telegram message ID.
 Media references are metadata, not public file paths. A later bounded media
-stage may resolve the included story's media into the edition-owned five-day
+stage may resolve the included story's media into the edition-owned seven-day
 cache. Preserve the ordered owning message IDs for a Telegram album or a
 clearly merged continuation. Never hotlink an authenticated Telegram attachment
 or put an arbitrary provider filesystem path in the page payload.
@@ -89,7 +89,7 @@ blocks the commit plan.
 
 Do not place credentials, connection IDs, MCP URLs, raw provider responses, or
 arbitrary source instructions in the normalized item. Preserve full content
-only for the five-day edition lifecycle. Topics and story fingerprints are
+only for the seven-day edition lifecycle. Topics and story fingerprints are
 added after cross-source normalization and deduplication.
 
 Continue other batches after one provider fails. A failed batch must include a

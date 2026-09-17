@@ -1,5 +1,6 @@
 import { section, newsBatches } from "./addons/envelopes.ts";
 import { completionContext, resumeCompletion, assertCompletion } from "./completion.ts";
+import { refreshBeforePublication } from "./prepublication.ts";
 import { chmod, readFile, rename, unlink, writeFile } from "node:fs/promises";
 import { createHash } from "node:crypto";
 import { dirname, resolve } from "node:path";
@@ -43,7 +44,7 @@ import {
   type BriefingRunState,
 } from "./run-attempt.ts";
 
-type Command = "completion-context" | "resume-completion" | "assert-complete" | "init" | "start-attempt" | "attempt-status" | "advance-attempt" | "guard-run" | "collect-live" | "rank-preview" | "compose" | "topic-pool" | "prepare-preview" | "render-preview" | "rerender-preview" | "revise-published" | "build-media-manifest" | "media-ready" | "import-media" | "validate-telegram-batch" | "telegram-capture-config" | "telegram-commit-plan" | "finalize" | "notify-release" | "inspect" | "cleanup";
+type Command = "refresh-before-publish" | "completion-context" | "resume-completion" | "assert-complete" | "init" | "start-attempt" | "attempt-status" | "advance-attempt" | "guard-run" | "collect-live" | "rank-preview" | "compose" | "topic-pool" | "prepare-preview" | "render-preview" | "rerender-preview" | "revise-published" | "build-media-manifest" | "media-ready" | "import-media" | "validate-telegram-batch" | "telegram-capture-config" | "telegram-commit-plan" | "finalize" | "notify-release" | "inspect" | "cleanup";
 
 type Arguments = {
   command: Command;
@@ -72,7 +73,7 @@ function fail(message: string): never {
 
 function parseArguments(argv = process.argv.slice(2)): Arguments {
   const command = argv.shift() as Command | undefined;
-  if (!command || !["completion-context", "resume-completion", "assert-complete", "init", "start-attempt", "attempt-status", "advance-attempt", "guard-run", "collect-live", "rank-preview", "compose", "topic-pool", "prepare-preview", "render-preview", "rerender-preview", "revise-published", "build-media-manifest", "media-ready", "import-media", "validate-telegram-batch", "telegram-capture-config", "telegram-commit-plan", "finalize", "notify-release", "inspect", "cleanup"].includes(command)) {
+  if (!command || !["refresh-before-publish", "completion-context", "resume-completion", "assert-complete", "init", "start-attempt", "attempt-status", "advance-attempt", "guard-run", "collect-live", "rank-preview", "compose", "topic-pool", "prepare-preview", "render-preview", "rerender-preview", "revise-published", "build-media-manifest", "media-ready", "import-media", "validate-telegram-batch", "telegram-capture-config", "telegram-commit-plan", "finalize", "notify-release", "inspect", "cleanup"].includes(command)) {
     fail("Unknown briefing command");
   }
   const result: Arguments = { command };
@@ -99,7 +100,7 @@ function parseArguments(argv = process.argv.slice(2)): Arguments {
     else if (option === "--at") result.at = value;
     else fail(`Unknown option ${option}`);
   }
-  if (["completion-context", "resume-completion", "assert-complete"].includes(command) && (!result.editionId || !result.attemptId)) {
+  if (["refresh-before-publish", "completion-context", "resume-completion", "assert-complete"].includes(command) && (!result.editionId || !result.attemptId)) {
     fail("Completion commands require --id and --attempt");
   }
   if (command === "prepare-preview" && (!result.payloadPath || !result.htmlPath)) {
@@ -183,6 +184,8 @@ async function readPayload(path: string): Promise<unknown> {
 export async function runBriefingCli(argv = process.argv.slice(2)): Promise<unknown> {
   const args = parseArguments([...argv]);
   const paths = briefingPaths();
+  if(args.command==="refresh-before-publish")return {ok:true,action:args.command,externalMutations:false,
+    ...await refreshBeforePublication(args.editionId!,args.attemptId!)};
   if (["completion-context", "resume-completion", "assert-complete"].includes(args.command)) {
     if (args.command !== "assert-complete") await requireProductionMutations(paths);
     await initializeBriefingStore(paths);

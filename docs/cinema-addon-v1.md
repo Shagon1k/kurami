@@ -573,7 +573,7 @@ Cinema v1 is ready for production only when all of the following pass:
     iframe, downloaded video, provider credential, or remote active content is
     present, and the existing 2 MiB rendered-HTML limit is enforced.
 11. The latest successful snapshot is reachable at `/cinema`, Saturday Daily
-    links to it, and the existing five-day Daily retention remains unchanged.
+    links to it, and the existing seven-day Daily retention remains unchanged.
 12. The tracked skill/provider references, non-secret configuration, runtime
     documentation, and recovery notes are updated before the scheduled job is
     enabled.

@@ -13,6 +13,8 @@ import { captureAddonManifest } from "./addons/registry.ts";
 import { validateTelegramBatch, type TelegramBatchReport } from "./telegram-batch.ts";
 import { readBriefingAddonSwitches } from "./runtime-config.ts";
 import { readSignalsConfig } from "./addons/signals/config.ts";
+import {readWeeklyConfig} from "./weekly/config.ts";
+import {DAILY_RETENTION_DAYS} from "./runtime-config.ts";
 import { refreshDerivedAddons } from "./addons/derived.ts";
 
 export async function composeBriefingPayload(input: {
@@ -24,12 +26,13 @@ export async function composeBriefingPayload(input: {
   outputPath?: string;
   addonSnapshots?: Record<string, BriefingAddonEnvelope>;
 }): Promise<{ payload: BriefingPayload; report: TelegramBatchReport; outputPath?: string }> {
-  const [draftValue, liveValue, normalizedValue, enabled, signals] = await Promise.all([
+  const [draftValue, liveValue, normalizedValue, enabled, signals, weekly] = await Promise.all([
     readFile(input.draftPath, "utf8").then(JSON.parse),
     readFile(input.livePath, "utf8").then(JSON.parse),
     readFile(input.normalizedPath, "utf8").then(JSON.parse),
     readBriefingAddonSwitches(input.configPath),
     readSignalsConfig(input.configPath),
+    readWeeklyConfig(input.configPath),
   ]);
   const snapshot = liveValue as DynamicBriefingSnapshot;
   const report = await validateTelegramBatch(input.configPath, input.rawPath, input.normalizedPath);
@@ -47,7 +50,7 @@ export async function composeBriefingPayload(input: {
       timezone: "Europe/Vilnius",
       generatedAt: draft.generatedAt,
       status: snapshot.state === "failed" || snapshot.state === "partial" ? "partial" : "complete",
-      retentionUntil: new Date(Date.parse(`${localDate}T00:00:00Z`) + 5 * 86_400_000).toISOString(),
+      retentionUntil: new Date(Date.parse(`${localDate}T00:00:00Z`) + DAILY_RETENTION_DAYS * 86_400_000).toISOString(),
     },
     hero: {
       title: draft.hero?.title ?? "Утренний обзор",
@@ -81,7 +84,7 @@ export async function composeBriefingPayload(input: {
   });
   const signalTime = new Date(Math.max(...[draft.generatedAt,snapshot.refreshedAt,
     snapshot.gmail.fetchedAt,snapshot.calendar.fetchedAt,snapshot.weather.fetchedAt].map(Date.parse).filter(Number.isFinite))).toISOString();
-  refreshDerivedAddons(payload, { at: signalTime, settings: { signals } });
+  refreshDerivedAddons(payload, { at: signalTime, settings: { signals, weekly } });
   refreshDataQuality(payload, snapshot.refreshedAt);
   if (input.outputPath) {
     const outputPath = resolve(input.outputPath);

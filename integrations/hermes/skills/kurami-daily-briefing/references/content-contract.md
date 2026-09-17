@@ -98,7 +98,7 @@ the rest carry an informative signal. Never force a joke, joke about sensitive
 news or private mail, or write vague commentary that could fit any day. Every
 note must point to visible content, use a different target and treatment, and
 avoid exact or conspicuously near
-repeats from the retained five-day history. Omit a slot when no grounded note
+repeats from the retained seven-day history. Omit a slot when no grounded note
 is useful. The renderer validates and positions supplied notes; it never
 supplies generic fallback phrases.
 
@@ -408,7 +408,7 @@ stack traces in the page payload.
 The production edition freezes `edition`, the complete `addons.news` snapshot, topics,
 media, reactions, and story read state at the morning publication boundary.
 The deterministic external `Digest-Central-Poller` may refresh only live
-surfaces for the retained five-day window: `mail`, `weather`, relevant
+surfaces for the retained seven-day window: `mail`, `weather`, relevant
 `calendar` state, and `live` timestamps. It uses the `open-meteo` provider for
 weather, runs hourly without an agent or model, and preserves the last
 successful value when one provider fails. A poller update must not mutate,

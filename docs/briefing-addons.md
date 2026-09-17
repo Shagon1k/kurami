@@ -2,7 +2,7 @@
 
 Weather, Calendar, Mail and News now have explicit module ownership. Cinema
 keeps its existing weekly lifecycle. The shared shell, UI tokens, publishing
-transactions, action receipts and five-day Daily retention stay common.
+transactions, action receipts and seven-day Daily retention stay common.
 
 ## Module boundaries
 
@@ -13,6 +13,7 @@ transactions, action receipts and five-day Daily retention stay common.
 | Mail | Primary unread collection, classification mapping, selected-message archive executor, retained-page reconciliation | Morning, hourly and explicit page actions |
 | News | Editorial draft interpretation, source ownership, stable story identities, source batches, snapshot and feed UI | Frozen morning snapshot |
 | Cinema | Weekly providers, editorial composition, promotion, full page and teaser | Saturday, last successful snapshot |
+| Weekly | Compact daily observations, deterministic retrospective, full page and teaser | Sunday, previous seven completed local dates |
 | Signals | Derived calendar/mail/weather notices, thresholds, expiry and deduplication | After composition, live refresh and mail actions |
 
 Entry points are `src/briefing/addons/{mail,calendar,weather,news}.ts`.

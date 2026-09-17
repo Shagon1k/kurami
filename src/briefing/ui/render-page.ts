@@ -2,9 +2,8 @@ import type { BriefingPayload } from "../model.ts";
 import { collectAddonMetrics, renderAddonSlot } from "../addons/registry.ts";
 import { displayString, escapeHtml } from "./html.ts";
 import { renderKuramiNote } from "./components/kurami-note.ts";
-import { renderThemeToggle } from "./components/theme-toggle.ts";
+import {renderPageShell} from "./page-shell.ts";
 import { renderMetricStrip, timeMetricCard } from "./components/metric-strip.ts";
-import { BRIEFING_STYLES } from "./styles.ts";
 
 function formatDate(payload: BriefingPayload): string {
   const value = new Date(`${payload.edition.localDate}T12:00:00`);
@@ -45,31 +44,7 @@ export function renderBriefingPage(payload: BriefingPayload): string {
   const main = renderAddonSlot(payload, "main");
   const afterMain = renderAddonSlot(payload, "after-main");
   const utilityTitle = payload.edition.type === "cinema" ? "Kurami Cinema" : "Kurami Daily Briefing";
-  return `<!doctype html>
-<html lang="ru" data-theme="light">
-<head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
-  <meta name="color-scheme" content="light dark">
-  <meta name="theme-color" content="#fbfbf8">
-  <title>${escapeHtml(title)} · Kurami</title>
-  <link rel="icon" type="image/svg+xml" href="/favicon.svg">
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Caveat:wght@600&family=Fragment+Mono&family=Onest:wght@400;500;600;700&display=swap" rel="stylesheet">
-  <style>${BRIEFING_STYLES}</style>
-</head>
-<body>
-  <a class="skip-link" href="#main">К содержанию</a>
-  <header class="utility-header" data-utility-header>
-    <div class="utility-header__inner page-shell">
-      <div class="utility-brand"><span class="utility-brand__mark" aria-hidden="true">K</span><span>${utilityTitle}</span></div>
-      <time class="utility-meta" datetime="${escapeHtml(payload.edition.localDate)}">${escapeHtml(formatDate(payload))}</time>
-      <div class="utility-actions">${renderThemeToggle()}</div>
-    </div>
-  </header>
-  <main id="main" class="page-shell">
-    <section class="hero">
+  return renderPageShell({title,brand:utilityTitle,date:payload.edition.localDate,dateLabel:formatDate(payload),generated,timezone:payload.edition.timezone,content:`\n    <section class="hero">
       <div><p class="hero__eyebrow">${escapeHtml(payloadTitle)} · ${escapeHtml(payload.edition.localDate)}</p>
         <h1>${escapeHtml(title)}</h1>
         <p class="hero__subtitle">${escapeHtml(subtitle)}</p></div>
@@ -82,9 +57,5 @@ export function renderBriefingPage(payload: BriefingPayload): string {
     </div>` : ""}
     ${main}
     ${afterMain ? `${afterMain}\n    ` : ""}${renderQuality(payload)}
-  </main>
-  <footer class="page-footer page-shell"><span>Kurami · ${escapeHtml(payload.edition.localDate)}</span><span>Собрано в ${escapeHtml(generated)} · ${escapeHtml(payload.edition.timezone)}</span></footer>
-  <dialog class="media-lightbox" data-media-dialog aria-label="Просмотр изображения"><button class="media-lightbox__close" type="button" data-media-close aria-label="Закрыть">×</button><img data-media-dialog-image alt=""></dialog>
-</body>
-</html>`;
+  `});
 }

@@ -37,7 +37,7 @@ const paths = briefingPaths(environment);
 const validConfig = `
 edition:
   timezone: Europe/Vilnius
-  daily_retention_days: 5
+  daily_retention_days: 7
 notification:
   destination: "1543918214835216584"
 safety:
@@ -94,7 +94,7 @@ async function verifyRuntimeConfig(): Promise<void> {
   const config = await loadBriefingRuntimeConfig(paths, environment);
   assert.equal(config.configPath, configPath);
   assert.equal(config.timeZone, "Europe/Vilnius");
-  assert.equal(config.retentionDays, 5);
+  assert.equal(config.retentionDays, 7);
   assert.equal(config.gmailQuery, "in:inbox is:unread category:primary");
   assert.equal(config.gmailPageSize, 75);
   assert.deepEqual(config.safety, {
@@ -122,10 +122,10 @@ async function verifyRuntimeConfig(): Promise<void> {
     channels: [{ key: "test-news", id: -1001234567890, label: "Test News" }],
   });
 
-  await writeFile(configPath, validConfig.replace("daily_retention_days: 5", "daily_retention_days: 15"));
+  await writeFile(configPath, validConfig.replace("daily_retention_days: 7", "daily_retention_days: 15"));
   await assert.rejects(
     loadBriefingRuntimeConfig(paths, environment),
-    /daily retention must equal 5 days/,
+    /daily retention must equal 7 days/,
   );
 
   await writeFile(configPath, validConfig.replace("timezone: Europe/Vilnius", "timezone: Invalid/Zone"));

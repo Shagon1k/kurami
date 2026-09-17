@@ -160,6 +160,10 @@ Use Hermes file tools to inspect and edit the target project. Use the target pro
 - Use canonical `ui/charts` primitives: `TrendChart` for meaningful time series,
   `BarChart` for period totals. Supply validated data, not generated SVG geometry.
   See the Charts contract in `references/components.md`.
+- Weekly Review uses the shared page shell, metric cards and BarChart, with
+  canonical `WeeklyTeaser` and report sections. Preserve the supplied coverage
+  and counter definitions; never turn unknown days into zeroes or claim that
+  calendar time is actual work. The runtime owns observations and comparisons.
 - Use media collections for trailers, premieres, and currently playing titles.
 - Represent loading, empty, stale, partial, and error states explicitly.
 - For preference calibration, use the canonical `🔔` / `🔕` pair with

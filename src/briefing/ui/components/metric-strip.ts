@@ -97,15 +97,16 @@ export function renderMetricStrip(
     weatherMetricCard(payload),
   ],
 ): string {
-
+  return renderMetricCards(cards,payload.edition.timezone,key=>note(payload,`metric:${key}` as KuramiNoteTarget));
+}
+export function renderMetricCards(cards:MetricCard[],timezone:string,renderNote:(key:string)=>string=()=>""):string {
   return `<section class="metric-strip" aria-label="Коротко о выпуске">${cards.map((card) => {
-    const target = `metric:${card.key}` as KuramiNoteTarget;
     return `<article class="metric-card" data-metric="${escapeHtml(card.key)}">
       <span class="metric-card__label">${escapeHtml(card.label)}</span>
-      <strong class="metric-card__value"${card.liveClock ? ` data-live-clock data-timezone="${escapeHtml(payload.edition.timezone)}"` : ""}>${escapeHtml(card.value)}</strong>
+      <strong class="metric-card__value"${card.liveClock ? ` data-live-clock data-timezone="${escapeHtml(timezone)}"` : ""}>${escapeHtml(card.value)}</strong>
       <span class="metric-card__chip${card.warning ? " warning" : ""}">${escapeHtml(card.chip)}</span>
       <p class="metric-card__context">${escapeHtml(card.context)}</p>
-      ${note(payload, target)}
+      ${renderNote(card.key)}
     </article>`;
   }).join("")}</section>`;
 }

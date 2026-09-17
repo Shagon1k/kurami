@@ -95,6 +95,9 @@ async def finish(edition_id: str, attempt_id: str, *, cli: Callable, download: C
                     await command("media-ready", "--attempt", attempt_id)
                 state = "media-ready"
             if state in {"media-ready", "commit-planned"}:
+                if state == "media-ready":
+                    current_stage = "live_refresh"
+                    await command("refresh-before-publish", "--id", edition_id, "--attempt", attempt_id)
                 current_stage = "validation"
                 await command("validate-telegram-batch", "--config", str(home / "config/briefing.yaml"),
                     "--raw", str(run / "telegram-raw.json"), "--normalized", str(run / "telegram-normalized.json"),

@@ -23,7 +23,7 @@ Weather, Calendar, Mail and News now have explicit add-on modules, populated
 version-2 envelopes, canonical formatVersion 3 and configuration switches. Their collection, refresh,
 action ownership and one-time payload migration are documented in
 [Daily add-on lifecycle](briefing-addons.md). The shared publishing flow and
-five-day Daily retention remain unchanged.
+seven-day Daily retention remain unchanged.
 
 - Tracked application: `_kurami/app/src/briefing/`
 - Database migrations: `_kurami/app/migrations/briefing/`
@@ -35,9 +35,9 @@ five-day Daily retention remain unchanged.
 - Skill contract: `_core/skills/kurami-daily-briefing/`
 
 The briefing SQLite database is separate from the orchestrator database. Daily
-edition payloads, rendered pages, and edition media are retained for five days.
+edition payloads, rendered pages, and edition media are retained for seven days.
 Compact reaction events, the topic registry, preference aggregates, and
-idempotent action receipts survive edition cleanup. Run/recovery/artifact directories must follow the same five-day
+idempotent action receipts survive edition cleanup. Run/recovery/artifact directories must follow the same seven-day
 edition retention; cleanup is not complete if it only deletes the database row
 and HTML file.
 
@@ -105,7 +105,7 @@ One poll should:
 
 1. acquire `_kurami/state/briefing/.central-poller.lock`; a concurrent run exits
    successfully without work;
-2. load at most the five retained published daily editions;
+2. load at most the seven retained published daily editions;
 3. fetch unread Primary Gmail once;
 4. fetch each configured Calendar once over the complete retained date range,
    paginate it, then partition normalized events by edition date;
@@ -208,7 +208,7 @@ in this order:
 2. sync `kurami-digest-central-poller.sh` into `_core/scripts/` with mode 0755;
 3. install the user service and timer from `deploy/systemd/`;
 4. run `systemctl --user start kurami-digest-central-poller.service` once and
-   verify the database, five retained routes, frozen-news digests, and journal;
+   verify the database, seven retained routes, frozen-news digests, and journal;
 5. only then enable `kurami-digest-central-poller.timer`.
 
 Do not enable the timer while the runner is absent: the wrapper intentionally

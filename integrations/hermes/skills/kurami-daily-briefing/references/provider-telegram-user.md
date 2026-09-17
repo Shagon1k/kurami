@@ -242,7 +242,7 @@ $BRIEFING_NODE $BRIEFING_CLI import-media --manifest <media-manifest.json> --att
 ```
 
 The deterministic importer validates type, size, and provenance, moves
-accepted assets into the edition-owned five-day cache, updates the payload, and
+accepted assets into the edition-owned seven-day cache, updates the payload, and
 rerenders the preview. The commit-plan gate checks that every retained image-only
 `mediaMessageIds` member has exactly one imported asset carrying the matching
 `sourceKey` plus `providerItemId`. Never modify the upstream connector for

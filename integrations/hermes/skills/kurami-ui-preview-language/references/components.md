@@ -184,6 +184,12 @@ or fallback text. Keep these components separate from the calendar/news rows.
 
 ## Structured source list
 
+Weekly Review composes the shared `renderPageShell`, `renderMetricCards` and
+`BarChart`, then adds fixed observation and topic-table sections. Its Daily
+`WeeklyTeaser` shows the supplied period and coverage with one secondary link.
+Missing history must remain visible. Reuse these components for subsequent
+weekly editions; never generate a parallel report layout.
+
 Use a table or compact list for explicit source management, channel freshness, status, rating, and preference controls. This is a diagnostics/settings component, not a mandatory Daily Briefing section.
 
 - Search input icon is 18–20px and vertically centered.

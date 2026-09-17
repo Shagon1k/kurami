@@ -131,7 +131,7 @@ whole section. Keep each note to one to four words. Use no more than two
 a concrete visible fact; never joke about emergencies, death, conflict,
 financial loss, private mail, or another sensitive subject.
 
-Inspect the retained five-day note history and write new copy. Do not choose
+Inspect the retained seven-day note history and write new copy. Do not choose
 from a fixed pool, rotate stock phrases, paraphrase yesterday's line, or add a
 generic phrase merely to fill a slot. Prefer item-level targets when a calendar
 event, mail item, story, or live metric is the actual subject.

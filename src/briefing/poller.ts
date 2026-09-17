@@ -29,6 +29,7 @@ export { weatherValue } from "./addons/weather/lifecycle.ts";
 export { providerComplete, sectionState } from "./addons/provider-state.ts";
 import { loadBriefingRuntimeConfig } from "./runtime-config.ts";
 import { refreshDerivedAddons } from "./addons/derived.ts";
+import {collectWeeklyHistory} from "./weekly/lifecycle.ts";
 
 type PollerResult = {
   refreshedAt: string;
@@ -81,6 +82,10 @@ export async function runDigestCentralPoller(
     before.close();
   }
   if (retained.length === 0) {
+    const history=openBriefingDatabase(paths);
+    try {collectWeeklyHistory(history,config.weekly,refreshedAt,config.timeZone);}
+    catch {console.warn("Weekly observation cleanup failed");}
+    finally {history.close();}
     const cleanup = await cleanupExpired(refreshedAt, paths);
     return {
       refreshedAt,
@@ -112,7 +117,7 @@ export async function runDigestCentralPoller(
       const original = parseBriefingPayload(JSON.parse(row.payload_json) as unknown);
       const payload = structuredClone(original);
       applyLiveAddons(payload, snapshot, { refreshedAt, enabled });
-      refreshDerivedAddons(payload, { at: new Date().toISOString(), settings: { signals: config.signals } });
+      refreshDerivedAddons(payload, { at: new Date().toISOString(), settings: { signals: config.signals, weekly:config.weekly } });
       refreshDataQuality(payload, refreshedAt);
       const validated = parseBriefingPayload(payload);
       await refreshPublishedEdition(validated, renderBriefingPage(validated), row.content_digest, paths);
@@ -125,6 +130,10 @@ export async function runDigestCentralPoller(
       });
     }
   }
+  const history=openBriefingDatabase(paths);
+  try {collectWeeklyHistory(history,config.weekly,refreshedAt,config.timeZone);}
+  catch {console.warn("Weekly observation failed; live refresh continues");}
+  finally {history.close();}
   const cleanup = await cleanupExpired(refreshedAt, paths);
   return {
     refreshedAt,

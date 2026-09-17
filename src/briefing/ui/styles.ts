@@ -1,4 +1,5 @@
 import { CHART_STYLES } from "./charts/styles.ts";
+import {WEEKLY_STYLES} from "../weekly/styles.ts";
 export const BRIEFING_STYLES = `
 :root {
   color-scheme: light;
@@ -441,4 +442,5 @@ a { color: inherit; }
   * { transition-duration: 0.01ms !important; }
 }
 ${CHART_STYLES}
+${WEEKLY_STYLES}
 `;

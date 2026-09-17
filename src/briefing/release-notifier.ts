@@ -61,6 +61,7 @@ const PROGRESS: Record<BriefingRunState, { step: number; label: string }> = {
 
 const ADDON_LINKS: Record<string, { label: string; path: string; emoji: string }> = {
   cinema: { label: "Cinema", path: "/cinema", emoji: "🎬" },
+  weekly: { label: "Неделя", path: "/weekly", emoji: "📊" },
 };
 
 function parseEnvValue(text: string, key: string): string | null {
@@ -141,6 +142,7 @@ function russianCount(value: number, one: string, few: string, many: string): st
 
 function addonButtons(payload: BriefingPayload | null, baseUrl: string): JsonRecord[] {
   return Object.keys(payload?.addons ?? {}).sort().flatMap((addonId) => {
+    if(addonId==="weekly"&&!payload?.addons.weekly?.data.review)return [];
     const addon = ADDON_LINKS[addonId];
     return addon ? [{
       type: 2,
@@ -183,6 +185,7 @@ function runCardMessage(input: {
         ]
       : [{ name: "Прогресс", value: `${progress.step} / 10`, inline: true }];
   const addonNames = Object.keys(payload?.addons ?? {}).sort()
+    .filter(id=>id!=="weekly"||Boolean(payload?.addons.weekly?.data.review))
     .flatMap((id) => ADDON_LINKS[id] ? [`${ADDON_LINKS[id]!.emoji} ${ADDON_LINKS[id]!.label}`] : []);
   if (success && addonNames.length) {
     fields.push({ name: "Дополнения", value: addonNames.join(" · "), inline: false });

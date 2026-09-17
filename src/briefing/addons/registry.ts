@@ -10,6 +10,7 @@ import type {
 } from "./types.ts";
 import { weatherAddon } from "./weather.ts";
 import { signalsAddon } from "./signals.ts";
+import {weeklyAddon} from "./weekly.ts";
 
 export const BRIEFING_ADDONS: readonly BriefingAddon[] = Object.freeze([
   mailAddon,
@@ -18,6 +19,7 @@ export const BRIEFING_ADDONS: readonly BriefingAddon[] = Object.freeze([
   weatherAddon,
   cinemaAddon,
   signalsAddon,
+  weeklyAddon,
 ]);
 
 const ADDON_ID = /^[a-z][a-z0-9-]{0,63}$/u;

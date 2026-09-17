@@ -1102,6 +1102,7 @@ assert.deepEqual(initialized.applied, [
   "006_discord_run_cards.sql",
   "007_recovery_windows.sql",
   "008_interest_profile.sql",
+  "009_weekly_review.sql",
 ]);
 const snapshotDatabase = openBriefingDatabase(paths);
 try {
@@ -1202,7 +1203,7 @@ try {
   assert(edition);
   assert.equal(edition.state, "prepared");
   assert.equal(edition.is_current, 0);
-  assert.equal(edition.retention_until, "2026-09-02T00:00:00.000Z");
+  assert.equal(edition.retention_until, "2026-09-04T00:00:00.000Z");
   const itemCounts = database
     .prepare("SELECT item_type, COUNT(*) AS count FROM edition_items GROUP BY item_type ORDER BY item_type")
     .all()
@@ -1213,7 +1214,7 @@ try {
   ]);
   const storedPayload = parseBriefingPayload(JSON.parse(edition.payload_json) as unknown);
   preparedPayloadWithMedia = storedPayload;
-  assert.equal(storedPayload.edition.retentionUntil, "2026-09-02T00:00:00.000Z");
+  assert.equal(storedPayload.edition.retentionUntil, "2026-09-04T00:00:00.000Z");
   assert.equal(section(storedPayload, "news").items[0]?.media?.[0]?.src, "/media/daily/2026-08-28/story-1/01.jpg");
   assert.equal((storedPayload.dataQuality.telegramCollection as { imported: number }).imported, 1);
   assert.match(String(storedPayload.dataQuality.summary), /1 медиафайлов сохранено/);
@@ -1540,6 +1541,8 @@ try {
               'success', 'complete', ?, '{}', ?, ?)
   `);
   for (const localDate of [
+    "2026-08-23",
+    "2026-08-24",
     "2026-08-25",
     "2026-08-26",
     "2026-08-27",
@@ -1569,22 +1572,22 @@ try {
   assert.deepEqual(
     retainedDailyEditions(retentionDatabase, "2026-08-31T00:00:00.000Z")
       .map((edition) => edition.local_date),
-    ["2026-08-26", "2026-08-27", "2026-08-28", "2026-08-29", "2026-08-30"],
+    ["2026-08-24", "2026-08-25", "2026-08-26", "2026-08-27", "2026-08-28", "2026-08-29", "2026-08-30"],
   );
 } finally {
   retentionDatabase.close();
 }
 const boundedCleanup = await cleanupExpired("2026-08-31T00:00:00.000Z", retentionPaths);
-assert.deepEqual(boundedCleanup.deleted, ["daily:2026-08-25"]);
+assert.deepEqual(boundedCleanup.deleted, ["daily:2026-08-23"]);
 retentionDatabase = openBriefingDatabase(retentionPaths);
 try {
   assert.equal(
     (retentionDatabase.prepare("SELECT COUNT(*) AS count FROM editions").get() as { count: number }).count,
-    5,
+    7,
   );
   assert.equal(
     (retentionDatabase.prepare("SELECT COUNT(*) AS count FROM briefing_run_cards").get() as { count: number }).count,
-    5,
+    7,
   );
 
   const legacyPayload = parseBriefingPayload({

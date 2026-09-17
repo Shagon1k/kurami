@@ -1,5 +1,9 @@
 version: 3
 
+weekly:
+  enabled: true
+  observationDays: 7
+
 # Optional derived add-on. No LLM, provider mutation, or separate notification.
 signals:
   enabled: true
@@ -31,7 +35,7 @@ edition:
   daily_schedule: "0 9 * * *"
   cinema_schedule: "0 9 * * 6"
   live_refresh_schedule: "37 * * * *"
-  daily_retention_days: 5
+  daily_retention_days: 7
   cinema_retention: until_next_success
 
 safety:

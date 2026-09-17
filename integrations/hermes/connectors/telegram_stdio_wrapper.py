@@ -117,7 +117,7 @@ def _briefing_cli(arguments: list[str]) -> dict[str, Any]:
         check=False,
         capture_output=True,
         text=True,
-        timeout=30,
+        timeout=120 if arguments[0] == "refresh-before-publish" else 30,
     )
     if result.returncode != 0:
         raise RuntimeError("briefing runtime command failed")

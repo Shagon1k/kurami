@@ -22,6 +22,9 @@ import {
 import type { TopicDefinition } from "./editorial-validation.ts";
 import type { TelegramBatchReport } from "./telegram-batch.ts";
 import { DAILY_RETENTION_DAYS } from "./runtime-config.ts";
+import {observeDaily} from "./weekly/observations.ts";
+import {promoteWeeklyReview} from "./weekly/lifecycle.ts";
+import {localDate as weeklyLocalDate} from "./weekly/model.ts";
 import { reactionSourceKeys } from "./interest-profile.ts";
 import { setSection, section, newsBatches } from "./addons/envelopes.ts";
 
@@ -1300,6 +1303,7 @@ export async function refreshPublishedEdition(
   html: string,
   expectedContentDigest: string,
   paths: BriefingPaths = briefingPaths(),
+  options: { prepared?: boolean } = {},
 ): Promise<{ editionId: string; digest: string }> {
   const payload = parseBriefingPayload(payloadValue);
   validateRenderedHtml(html, payload);
@@ -1308,7 +1312,7 @@ export async function refreshPublishedEdition(
   let previousPayload: BriefingPayload;
   try {
     const loaded = loadEdition(database, { id: payload.edition.id });
-    if (!loaded || (loaded.state !== "complete" && loaded.state !== "partial")) {
+    if (!loaded || (loaded.state !== "complete" && loaded.state !== "partial" && !(options.prepared && loaded.state === "prepared"))) {
       fail("Dynamic refresh requires a published edition");
     }
     if (loaded.content_digest !== expectedContentDigest) {
@@ -1343,6 +1347,11 @@ export async function refreshPublishedEdition(
       if (!current || current.content_digest !== expectedContentDigest) {
         fail("Dynamic refresh lost its optimistic edition lock");
       }
+      if (current.state === "prepared") {
+        // Refreshing live data changes the content lock; validation must bind
+        // the new digest before any Telegram acknowledgement.
+        writable.prepare("DELETE FROM telegram_validation_receipts WHERE edition_id = ?").run(payload.edition.id);
+      }
       await atomicWrite(htmlPath, html);
       wroteHtml = true;
       const priorMail = writable.prepare(`
@@ -1366,6 +1375,10 @@ export async function refreshPublishedEdition(
         SET payload_json = ?, content_digest = ?, updated_at = ?
         WHERE id = ? AND content_digest = ?
       `).run(payloadJson, digest, timestamp, payload.edition.id, expectedContentDigest);
+      if(current.state!=="prepared") {
+        try {observeDaily(writable,payload,timestamp);}
+        catch {console.warn("Weekly observation failed; edition refresh continues");}
+      }
       writable.exec("COMMIT");
     } catch (error) {
       writable.exec("ROLLBACK");
@@ -1462,6 +1475,13 @@ export function finishMailReadAndArchive(
       action.actionId,
     );
     if (result.ok) {
+      try {
+        const edition=loadEdition(database,{id:action.editionId});
+        if(edition && parseBriefingPayload(JSON.parse(edition.payload_json)).addons.weekly) {
+          database.prepare("INSERT OR IGNORE INTO weekly_mail_actions(action_id,local_date,item_count) VALUES(?,?,?)")
+            .run(action.actionId,weeklyLocalDate(timestamp,edition.timezone),action.itemIds.length);
+        }
+      } catch {console.warn("Weekly mail observation failed; archive action continues");}
       const mark = database.prepare(`
         UPDATE edition_items
         SET read_at = COALESCE(read_at, ?), updated_at = ?
@@ -1589,6 +1609,8 @@ export function finalizeEdition(
       }
     }
     const state = failed ? "partial" : "complete";
+    try {observeDaily(database,payload,timestamp);promoteWeeklyReview(database,payload);}
+    catch {console.warn("Weekly add-on persistence failed; Daily publication continues");}
     database.prepare(`
       UPDATE editions SET is_current = 0, updated_at = ?
       WHERE edition_type = ? AND is_current = 1

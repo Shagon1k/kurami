@@ -278,6 +278,12 @@ Default manual experiments to `dry-run`. Generation never archives Gmail;
     calls the same operation on the runtime-resumed attempt. A failed
     completion preserves its progress and returns a bounded diagnostic.
     Missing capability is a recorded failure, not permission to weaken gates.
+    Before publication, the worker refreshes live sections older than 15
+    minutes and recomputes Signals, without altering the frozen news snapshot.
+    On Sundays, when Weekly is enabled, it also attaches the deterministic
+    review of the preceding seven completed local dates. Do not author Weekly
+    totals, charts or observations in the editorial draft. No extra provider
+    collection or AI-generated weekly calculations are needed.
 13. In `dry-run`, use a `dry-run` attempt and write only the editorial draft
     with the Hermes `write_file` tool. Do not generate the
     artifact through a shell heredoc, inline Python/Node program, or a

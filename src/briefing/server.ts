@@ -1,4 +1,8 @@
 import { CHART_CLIENT_SCRIPT } from "./ui/charts/client.ts";
+import {renderWeeklyPage} from "./weekly/render.ts";
+import {loadWeeklyReview} from "./weekly/lifecycle.ts";
+import {buildWeeklyReview} from "./weekly/build.ts";
+import {localDate as weeklyLocalDate} from "./weekly/model.ts";
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from "node:http";
 import { createReadStream } from "node:fs";
 import { readFile, stat } from "node:fs/promises";
@@ -712,7 +716,7 @@ async function serveEdition(
 
 export async function createBriefingServer(
   paths: BriefingPaths = briefingPaths(),
-  options: { mailActionExecutor?: MailActionExecutor | null } = {},
+  options: { mailActionExecutor?: MailActionExecutor | null; weekly?:boolean } = {},
 ): Promise<Server> {
   await initializeBriefingStore(paths);
   const favicon = await readFile(FAVICON_PATH, "utf8");
@@ -890,6 +894,16 @@ export async function createBriefingServer(
         return;
       }
       if (request.method === "GET") {
+        if(url.pathname==="/weekly" || url.pathname==="/preview/weekly") {
+          if(!(options.weekly??runtimeConfig?.weekly.enabled??false)) {text(response,404,"Not found\n");return;}
+          const timezone=runtimeConfig?.timeZone??"Europe/Vilnius";
+          const preview=url.pathname==="/preview/weekly";
+          const review=preview?buildWeeklyReview(database,weeklyLocalDate(new Date().toISOString(),timezone),timezone):loadWeeklyReview(database);
+          sendHeaders(response,"text/html; charset=utf-8");
+          response.statusCode=200;
+          response.end(injectRuntime(renderWeeklyPage(review,preview)));
+          return;
+        }
         const edition = routeEdition(database, url.pathname);
         await serveEdition(response, database, edition, paths, url.pathname === "/");
         return;

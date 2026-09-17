@@ -162,7 +162,7 @@ snapshot.
 
 Delete daily payloads, rendered pages, raw and normalized source artifacts,
 run and recovery artifacts, edition media, per-edition read state, validation
-and action receipts, and release-notification receipts after five days.
+and action receipts, and release-notification receipts after seven days.
 
 Keep only the current weekly cinema edition until a newer successful edition
 replaces it.

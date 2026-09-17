@@ -23,7 +23,7 @@ invent the source for deleted editions or change historical topic sets.
 Source coverage is visible in the explanation disclosure. Old reactions with
 no source context still contribute their preserved topics.
 
-Events remain after the five-day edition cleanup. There is no time decay,
+Events remain after the seven-day edition cleanup. There is no time decay,
 automatic classification of the reader, or external learning service in v1.
 
 ## Canonical features
