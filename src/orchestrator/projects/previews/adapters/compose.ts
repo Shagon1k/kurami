@@ -363,6 +363,7 @@ async function writeRuntimeFiles(
     PREVIEW_ASSETS_URL: plan.assetsUrl,
     ...secretValues,
     ...(preview.runtime_variables ?? {}),
+    AUTH_SECRET: randomBytes(48).toString("base64url"),
     JWT_SECRET: randomBytes(48).toString("base64url"),
     E2E_TEST_SECRET: randomBytes(48).toString("base64url"),
     POSTGRES_PASSWORD: postgresPassword,

@@ -84,10 +84,14 @@ async function main(): Promise<void> {
     assert(composeText.includes(`127.0.0.1:${"${"}${variable}`), `Preview port must be loopback-mapped from ${variable}`);
   }
   assert(composeText.includes("DATABASE_URL: ${DATABASE_URL:?DATABASE_URL is required}"), "Preview runtime must require generated DATABASE_URL");
+  for (const variable of ["AUTH_BASE_URL", "AUTH_SECRET", "GOOGLE_CLIENT_ID", "GOOGLE_CLIENT_SECRET"]) {
+    assert(composeText.includes(`${variable}: ${"${"}${variable}:?${variable} is required}`), `Preview runtime must require ${variable}`);
+  }
   assert(composeText.includes("redis://redis:6379") && composeText.includes("http://minio:9000"), "Private Redis and object-storage URLs must use Compose aliases");
-  assert(composeText.includes("preview-not-a-secret") && composeText.includes("preview@example.invalid"), "Preview mail placeholder must be harmless and valid");
+  assert(composeText.includes("RESEND_API_KEY: preview-disabled") && composeText.includes("CONTACT_DELIVERY_TO: contact@example.invalid"), "Preview mail placeholder must be harmless and valid");
   assert(adapterText.includes("SOURCE_REVISION: plan.sourceRevision"), "Adapter must pass exact CI SHA as SOURCE_REVISION");
   assert(adapterText.includes("DATABASE_URL: `postgresql://pickflick:"), "Adapter must generate DATABASE_URL for Compose interpolation");
+  assert(adapterText.includes("AUTH_SECRET: randomBytes(48).toString(\"base64url\")"), "Adapter must generate a private preview auth secret");
   assert(!adapterText.includes("GOOGLE_CLIENT_ID: secretValues.GOOGLE_CLIENT_ID"), "Adapter must not inject TailorTales Google credentials generically");
   assert(!adapterText.includes('["leased", "failed"].includes(fresh.lease_state)'), "Failed preview leases must be terminal");
 
@@ -98,7 +102,12 @@ async function main(): Promise<void> {
       envPath,
       [
         "SOURCE_REVISION=0123456789abcdef0123456789abcdef01234567",
-        "DATABASE_URL=postgresql://pickflick:encoded-password@postgres:5432/pickflick",
+        "PREVIEW_URL=https://preview-1.shagon1k.win",
+        "DATABASE_URL=postgresql://pickflick:***@postgres:5432/pickflick",
+        "AUTH_BASE_URL=${PREVIEW_URL}",
+        "AUTH_SECRET=preview-auth-secret",
+        "GOOGLE_CLIENT_ID=preview-synthetic-google-client-id",
+        "GOOGLE_CLIENT_SECRET=preview-synthetic-google-client-secret",
         "POSTGRES_PASSWORD=encoded-password",
         "JWT_SECRET=preview-jwt",
         "E2E_TEST_SECRET=preview-e2e",
