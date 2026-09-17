@@ -19,6 +19,20 @@ by an edition or add-on.
 
 ## Actions and navigation
 
+The canonical `SiteHeader` is shared by Daily, Cinema, Weekly and empty states.
+Use `assets/kurami-fox-transparent.png` at 48px (42px mobile), without a square
+background, beside the Kurami wordmark and issue date. Keep the existing framed
+SVG favicon for browser tabs. On dark surfaces use the component's restrained
+edge contrast, not a recolored logo or a new boxed variant.
+
+`SiteNavigation` renders only runtime-supplied published destinations:
+День → `/`, Кино → `/cinema`, Неделя → `/weekly`. Availability is resolved
+on each HTTP response, not frozen in page content. Prepared previews do not
+enable a link. The active section uses `aria-current="location"`, a warm
+surface and a thin red underline. On mobile keep visible links on a second
+row; do not substitute a hamburger. The measured header height controls anchor
+offsets so feed pagination and section links remain visible below it.
+
 - Primary button: red fill, high-contrast label, Onest 600.
 - Secondary button: transparent or surface fill with ink border.
 - Text link: ink or signal color with a deliberate underline or arrow cue.

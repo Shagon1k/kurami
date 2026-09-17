@@ -83,6 +83,7 @@ Use Hermes file tools to inspect and edit the target project. Use the target pro
 |---|---|
 | Overall character | Editorial, precise, warm paper, black ink, red signal |
 | Brand asset | Always use `assets/kurami-favicon.svg` as the site favicon |
+| Site header | Reuse `SiteHeader`, transparent `assets/kurami-fox-transparent.png`, and server-supplied published navigation |
 | Body and headings | Onest |
 | Technical Latin labels | Fragment Mono |
 | Handwritten notes | Caveat 600 |
@@ -218,6 +219,11 @@ Use Hermes file tools to inspect and edit the target project. Use the target pro
 - Keep the utility header full-width with a padded page-shell inner container;
   its controls must never touch the structural border. Add the stronger border
   and small shadow only after scroll.
+- Use the canonical `SiteHeader`: transparent fox, Kurami wordmark, issue date,
+  available section links and one theme control. The server determines which
+  latest Daily/Cinema/Weekly pages are published; do not infer availability
+  from a preview or embed stale navigation in a generated edition. Preserve
+  the active-section marker and the mobile second-row navigation.
 - Render every long-feed item with `data-feed-item` and its stable
   `data-item-id`. Use the canonical accessible disclosure pair:
   `button[data-story-toggle]` plus the matching region

@@ -1,4 +1,7 @@
 import { CHART_CLIENT_SCRIPT } from "./ui/charts/client.ts";
+import {publishedSiteLinks} from "./site-navigation.ts";
+import {injectSiteNavigation} from "./ui/components/site-header.ts";
+import {renderPageShell} from "./ui/page-shell.ts";
 import {renderWeeklyPage} from "./weekly/render.ts";
 import {loadWeeklyReview} from "./weekly/lifecycle.ts";
 import {buildWeeklyReview} from "./weekly/build.ts";
@@ -33,6 +36,10 @@ import { loadTopicPolicy } from "./editorial-validation.ts";
 
 const FAVICON_PATH = new URL(
   "../../integrations/hermes/skills/kurami-ui-preview-language/assets/kurami-favicon.svg",
+  import.meta.url,
+);
+const FOX_LOGO_PATH = new URL(
+  "../../integrations/hermes/skills/kurami-ui-preview-language/assets/kurami-fox-transparent.png",
   import.meta.url,
 );
 
@@ -136,7 +143,10 @@ const CLIENT_SCRIPT = `(() => {
   applyPersistedState();
 
   const stickyHeader = document.querySelector('[data-utility-header]');
-  const updateStickyHeader = () => stickyHeader?.classList.toggle('is-scrolled', window.scrollY > 4);
+  const updateStickyHeader = () => stickyHeader?.classList.toggle('is-scrolled', window.scrollY > 0);
+  if (stickyHeader && typeof ResizeObserver !== 'undefined') {
+    new ResizeObserver(() => document.documentElement.style.setProperty('--header-offset', Math.ceil(stickyHeader.getBoundingClientRect().height + 16) + 'px')).observe(stickyHeader);
+  }
   updateStickyHeader();
   addEventListener('scroll', updateStickyHeader, { passive: true });
 
@@ -688,7 +698,9 @@ function routeEdition(database: DatabaseSync, pathname: string): EditionRow | nu
 }
 
 function emptyPage(): string {
-  return `<!doctype html><html lang="ru"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="theme-color" content="#fbfbf8"><title>Kurami Briefing</title><link rel="icon" type="image/svg+xml" href="/favicon.svg"><style>:root{color-scheme:light dark}body{margin:0;padding:48px;font:16px/1.5 system-ui;background:#faf9f6;color:#111}html[data-theme=dark] body{background:#0a0a0a;color:#f7f4ec}main{max-width:760px;margin:auto;border:1px solid #888;padding:32px}h1{font-size:32px;margin:0 0 12px}button{min-height:44px;padding:8px 14px;float:right}</style></head><body><button type="button" data-theme-toggle><span data-theme-icon aria-hidden="true">◐</span> <span data-theme-label>Тёмная тема</span></button><main><h1>Briefing ещё не опубликован</h1><p>Runtime работает. Подготовленный preview будет доступен по своему адресу.</p></main></body></html>`;
+  return renderPageShell({title:"Briefing ещё не опубликован",brand:"Kurami",section:"daily",
+    date:new Date().toISOString().slice(0,10),dateLabel:"Дневной обзор",generated:"—",timezone:"Europe/Vilnius",
+    content:'<section class="hero"><div><p class="hero__eyebrow">Daily Briefing</p><h1>Briefing ещё не опубликован</h1><p class="hero__subtitle">Здесь появится следующий готовый выпуск. Доступные обзоры можно открыть через навигацию.</p></div></section>'});
 }
 
 async function serveEdition(
@@ -697,6 +709,7 @@ async function serveEdition(
   edition: EditionRow | null,
   paths: BriefingPaths,
   allowEmpty: boolean,
+  weeklyEnabled = false,
 ): Promise<void> {
   if (!edition) {
     if (!allowEmpty) {
@@ -705,13 +718,13 @@ async function serveEdition(
     }
     sendHeaders(response, "text/html; charset=utf-8");
     response.statusCode = 200;
-    response.end(injectRuntime(emptyPage()));
+    response.end(injectRuntime(injectSiteNavigation(emptyPage(),publishedSiteLinks(database,weeklyEnabled),"daily")));
     return;
   }
   const html = await readEditionHtml(edition, paths);
   sendHeaders(response, "text/html; charset=utf-8");
   response.statusCode = 200;
-  response.end(injectRuntime(html, editionClientState(database, edition.id)));
+  response.end(injectRuntime(injectSiteNavigation(html,publishedSiteLinks(database,weeklyEnabled),edition.edition_type), editionClientState(database, edition.id)));
 }
 
 export async function createBriefingServer(
@@ -720,6 +733,7 @@ export async function createBriefingServer(
 ): Promise<Server> {
   await initializeBriefingStore(paths);
   const favicon = await readFile(FAVICON_PATH, "utf8");
+  const foxLogo = await readFile(FOX_LOGO_PATH);
   const database = openBriefingDatabase(paths);
   const runtimeConfig = options.mailActionExecutor === undefined
     ? await loadBriefingRuntimeConfig(paths)
@@ -785,6 +799,15 @@ export async function createBriefingServer(
         response.setHeader("x-content-type-options", "nosniff");
         response.setHeader("content-length", String(Buffer.byteLength(favicon)));
         response.end(request.method === "HEAD" ? undefined : favicon);
+        return;
+      }
+      if ((request.method === "GET" || request.method === "HEAD") && url.pathname === "/assets/kurami-fox.png") {
+        response.statusCode=200;
+        response.setHeader("content-type","image/png");
+        response.setHeader("cache-control","public, max-age=86400");
+        response.setHeader("x-content-type-options","nosniff");
+        response.setHeader("content-length",String(foxLogo.length));
+        response.end(request.method==="HEAD"?undefined:foxLogo);
         return;
       }
       if ((request.method === "GET" || request.method === "HEAD") && url.pathname.startsWith("/media/")) {
@@ -901,11 +924,11 @@ export async function createBriefingServer(
           const review=preview?buildWeeklyReview(database,weeklyLocalDate(new Date().toISOString(),timezone),timezone):loadWeeklyReview(database);
           sendHeaders(response,"text/html; charset=utf-8");
           response.statusCode=200;
-          response.end(injectRuntime(renderWeeklyPage(review,preview)));
+          response.end(injectRuntime(injectSiteNavigation(renderWeeklyPage(review,preview),publishedSiteLinks(database,true),"weekly")));
           return;
         }
         const edition = routeEdition(database, url.pathname);
-        await serveEdition(response, database, edition, paths, url.pathname === "/");
+        await serveEdition(response, database, edition, paths, url.pathname === "/",options.weekly??runtimeConfig?.weekly.enabled??false);
         return;
       }
       text(response, 404, "Not found\n");

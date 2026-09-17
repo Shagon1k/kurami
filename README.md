@@ -53,6 +53,7 @@ tasks. The primary owner entry points are:
 - [Smart Morning Signals](docs/smart-morning-signals.md)
 - [Reusable charts](docs/charts.md)
 - [Weekly Review](docs/weekly-review.md)
+- [Shared site header](docs/site-header.md)
 - [Cinema add-on v1 contract](docs/cinema-addon-v1.md)
 - [Project Orchestrator guide — RU](docs/guide.html)
 - [Project Orchestrator guide — EN](docs/guide.en.html)

@@ -20,7 +20,7 @@ export function renderWeeklyTeaser(payload:BriefingPayload):string {
 }
 
 export function renderWeeklyPage(raw:WeeklyReview|null,preview=false):string {
-  if(!raw) return renderPageShell({title:"Неделя",brand:"Kurami Weekly",date:new Date().toISOString().slice(0,10),dateLabel:"По воскресеньям",generated:"—",timezone:"Europe/Vilnius",
+  if(!raw) return renderPageShell({title:"Неделя",brand:"Kurami Weekly",section:"weekly",date:new Date().toISOString().slice(0,10),dateLabel:"По воскресеньям",generated:"—",timezone:"Europe/Vilnius",
     content:'<section class="hero"><div><p class="hero__eyebrow">Weekly Review</p><h1>Здесь будет ваша неделя</h1><p class="hero__subtitle">Обзор появится вместе с воскресным Daily в 09:00. Сейчас накапливаются наблюдения.</p><a href="/">Вернуться к Daily →</a></div></section>'});
   const review=parseWeeklyReview(raw),d=review.data,period=dateLabel(d.start)+" — "+dateLabel(d.end);
   const cards:MetricCard[]=[
@@ -49,6 +49,6 @@ export function renderWeeklyPage(raw:WeeklyReview|null,preview=false):string {
       ${topicRows?`<div class="weekly-table-scroll"><table><thead><tr><th>Тема</th><th>Больше</th><th>Меньше</th><th>Баланс</th><th>Прошлая неделя</th></tr></thead><tbody>${topicRows}</tbody></table></div>`:"<p>За этот период реакций на сюжеты нет.</p>"}
     </section>
     <details class="weekly-method"><summary>Как посчитано</summary><p>Календарь отражает запланированные события, без отменённых, отклонённых и демонстрационных. События на весь день не превращаются в рабочие часы. Почтовые наблюдения привязаны к дню получения, а не к дате страницы. Действия вне Daily не выдаются за архивирование через дайджест. Все выводы рассчитаны по фиксированным правилам, без дополнительных запросов к AI.</p></details>`;
-  return renderPageShell({title:"Недельный обзор",brand:"Kurami Weekly",date:d.publicationDate,dateLabel:period,
+  return renderPageShell({title:"Недельный обзор",brand:"Kurami Weekly",section:"weekly",date:d.publicationDate,dateLabel:period,
     generated:new Intl.DateTimeFormat("ru-RU",{timeZone:d.timezone,hour:"2-digit",minute:"2-digit"}).format(new Date(review.capturedAt)),timezone:d.timezone,content});
 }

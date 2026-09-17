@@ -19,6 +19,12 @@ shared asset for Daily, Cinema, previews, and empty runtime states.
 - The thin square frame is part of the favicon asset and its silhouette fills
   the canvas deliberately so the fox stays legible at 16px.
 
+The header uses the sibling `../assets/kurami-fox-transparent.png`, extracted
+from Alex's approved fox artwork. Its exterior is transparent; the black
+outline, orange areas and white cheeks remain opaque. Do not replace white
+cheeks with transparency. The framed favicon and unframed header asset have
+different size/readability roles, not different identities.
+
 ## Typography
 
 - Use **Onest** for display headings, body copy, controls, Cyrillic metadata, values, and mixed-language phrases.
