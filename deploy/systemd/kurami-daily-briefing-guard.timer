@@ -2,6 +2,8 @@
 Description=Verify Daily Briefing after primary and recovery windows
 
 [Timer]
+OnCalendar=*-*-* 09:05,10,15,20,25,30,35,40,45:00 Europe/Vilnius
+OnCalendar=*-*-* 10:05,10,15,20,25,30,35,40:00 Europe/Vilnius
 OnCalendar=*-*-* 09:50:00 Europe/Vilnius
 OnCalendar=*-*-* 10:50:00 Europe/Vilnius
 Persistent=true

@@ -1,4 +1,5 @@
 import type { FetchLike } from "./providers/common.ts";
+import { cronEndedAfter } from "./cron-observer.ts";
 import {
   notifyBriefingRelease,
   syncBriefingRunCard,
@@ -69,7 +70,9 @@ export async function guardBriefingRun(
   await initializeBriefingStore(paths);
   const config = await loadBriefingRuntimeConfig(paths, environment);
   const local = localParts(at, config.timeZone);
-  const phase = phaseAt(local);
+  const regularPhase = phaseAt(local);
+  const earlyCheck = (local.hour === 9 || local.hour === 10) && local.minute < 50;
+  const phase = regularPhase ?? (earlyCheck ? "primary" : null);
   if (!phase) {
     return { editionId: null, attemptId: null, phase: "outside-window", status: "skipped", state: null };
   }
@@ -95,6 +98,8 @@ export async function guardBriefingRun(
     `).get(editionId) as { attempt_id: string } | undefined;
     if (preferred) {
       attempt = loadBriefingAttempt(database, preferred.attempt_id)!;
+    } else if (earlyCheck) {
+      return {editionId, attemptId:null, phase, status:"skipped", state:null};
     } else {
       const started = await startBriefingAttempt(database, paths, {
         editionId,
@@ -108,6 +113,8 @@ export async function guardBriefingRun(
     database.close();
   }
 
+  const endedEarly = await cronEndedAfter(paths, attempt.createdAt, at, environment);
+  if (earlyCheck && !endedEarly) return {editionId, attemptId:attempt.attemptId, phase, status:"skipped", state:attempt.state};
   const stateDatabase = openBriefingDatabase(paths);
   let editionState: string | null = null;
   try {
@@ -161,8 +168,17 @@ export async function guardBriefingRun(
   }
 
   if (phase === "primary") {
+    if (endedEarly && !["failed", "skipped", "notified"].includes(attempt.state)) {
+      const failedDatabase = openBriefingDatabase(paths);
+      try {
+        attempt = recordBriefingRunStage(failedDatabase, {
+          attemptId:attempt.attemptId, stage:"failed", errorCode:"agent_returned_incomplete",
+          metadata:{guard:phase},
+        });
+      } finally { failedDatabase.close(); }
+    }
     await syncBriefingRunCard(attempt.attemptId, environment, {
-      failureCode: "primary_window_incomplete",
+      failureCode: endedEarly ? "agent_returned_incomplete" : "primary_window_incomplete",
       ...(options.fetchImpl ? { fetchImpl: options.fetchImpl } : {}),
     }).catch(() => undefined);
     return { editionId, attemptId: attempt.attemptId, phase, status: "incomplete", state: attempt.state };

@@ -143,6 +143,49 @@ missing step is notification is completed directly by the guard. A delayed
 Persistent timer invocation after 10:50 is still treated as the final recovery
 guard rather than silently skipped.
 
+The installed cron prompt is versioned in
+`integrations/hermes/briefing-cron-prompt.md`; `bin/sync-briefing-cron.py`
+checks drift and `--apply` updates only that prompt through Hermes' locked
+scheduler API. Runtime `start-attempt` is the only time/duplicate gate.
+
+After composition, `finish_daily_briefing(edition_id, attempt_id)` in the
+existing Telegram MCP process executes the technical tail without further AI
+decisions. Its pure orchestration module is
+`integrations/hermes/connectors/briefing_completion.py`. It creates no new
+Telegram session or generic MCP client. The runtime derives image identities
+from the accepted payload; the operation accepts no paths, tool names or
+provider cutoffs. A per-attempt file lock excludes duplicate workers.
+
+Downloads use chunks of at most 12 with at most three passes, retrying only
+missing successes. Exact successful receipts are atomically checkpointed after
+each chunk. Canonical files from an interrupted older call can be reused only
+after the existing downloader verifies them against Telegram. The total worker
+budget is 900 seconds. The MCP request timeout must be at least 930 seconds.
+Size/type, source coverage, production enablement and acknowledgement gates
+remain unchanged. No partial image manifest is silently published.
+
+The worker then imports, validates, creates the bounded read plan, stores
+acknowledgement receipts, finalizes and updates the release card. Stored commit
+receipts prevent replay; a crash between a provider acknowledgement and receipt
+write can replay only the same idempotent bounded max-ID acknowledgement.
+Notification failure leaves the edition published and retries only notification.
+`assert-complete` checks both published state and the durable notification
+receipt. This is the success criterion, not Hermes' generic cron status.
+
+The guard additionally probes every five minutes during the morning windows.
+It reads the latest matching Hermes execution metadata without running a model;
+if the agent has returned but the edition is incomplete, it records
+`agent_returned_incomplete` on the existing card. Running executions are not
+interrupted by these early probes. Existing 09:50/10:50 deadlines remain.
+This does not guarantee an agent reaches the completion call; it makes an
+early return detectable and resumable rather than a silent success.
+
+An explicit operator can resume a failed technical tail with
+`briefing resume-completion --id daily:YYYY-MM-DD --attempt <attempt-id>`,
+then invoke the same completion tool. It preserves the failure receipt, frozen
+source capture and accepted copy. Earlier editorial failures cannot be resumed
+through this command. Do not use it to bypass production gates.
+
 ## Provider boundaries
 
 - Gmail and Calendar use only the restricted `composio-read` Session and its

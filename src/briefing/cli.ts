@@ -1,4 +1,5 @@
 import { section, newsBatches } from "./addons/envelopes.ts";
+import { completionContext, resumeCompletion, assertCompletion } from "./completion.ts";
 import { chmod, readFile, rename, unlink, writeFile } from "node:fs/promises";
 import { createHash } from "node:crypto";
 import { dirname, resolve } from "node:path";
@@ -42,7 +43,7 @@ import {
   type BriefingRunState,
 } from "./run-attempt.ts";
 
-type Command = "init" | "start-attempt" | "attempt-status" | "advance-attempt" | "guard-run" | "collect-live" | "rank-preview" | "compose" | "topic-pool" | "prepare-preview" | "render-preview" | "rerender-preview" | "revise-published" | "build-media-manifest" | "media-ready" | "import-media" | "validate-telegram-batch" | "telegram-capture-config" | "telegram-commit-plan" | "finalize" | "notify-release" | "inspect" | "cleanup";
+type Command = "completion-context" | "resume-completion" | "assert-complete" | "init" | "start-attempt" | "attempt-status" | "advance-attempt" | "guard-run" | "collect-live" | "rank-preview" | "compose" | "topic-pool" | "prepare-preview" | "render-preview" | "rerender-preview" | "revise-published" | "build-media-manifest" | "media-ready" | "import-media" | "validate-telegram-batch" | "telegram-capture-config" | "telegram-commit-plan" | "finalize" | "notify-release" | "inspect" | "cleanup";
 
 type Arguments = {
   command: Command;
@@ -71,7 +72,7 @@ function fail(message: string): never {
 
 function parseArguments(argv = process.argv.slice(2)): Arguments {
   const command = argv.shift() as Command | undefined;
-  if (!command || !["init", "start-attempt", "attempt-status", "advance-attempt", "guard-run", "collect-live", "rank-preview", "compose", "topic-pool", "prepare-preview", "render-preview", "rerender-preview", "revise-published", "build-media-manifest", "media-ready", "import-media", "validate-telegram-batch", "telegram-capture-config", "telegram-commit-plan", "finalize", "notify-release", "inspect", "cleanup"].includes(command)) {
+  if (!command || !["completion-context", "resume-completion", "assert-complete", "init", "start-attempt", "attempt-status", "advance-attempt", "guard-run", "collect-live", "rank-preview", "compose", "topic-pool", "prepare-preview", "render-preview", "rerender-preview", "revise-published", "build-media-manifest", "media-ready", "import-media", "validate-telegram-batch", "telegram-capture-config", "telegram-commit-plan", "finalize", "notify-release", "inspect", "cleanup"].includes(command)) {
     fail("Unknown briefing command");
   }
   const result: Arguments = { command };
@@ -97,6 +98,9 @@ function parseArguments(argv = process.argv.slice(2)): Arguments {
     else if (option === "--error-code") result.errorCode = value;
     else if (option === "--at") result.at = value;
     else fail(`Unknown option ${option}`);
+  }
+  if (["completion-context", "resume-completion", "assert-complete"].includes(command) && (!result.editionId || !result.attemptId)) {
+    fail("Completion commands require --id and --attempt");
   }
   if (command === "prepare-preview" && (!result.payloadPath || !result.htmlPath)) {
     fail("prepare-preview requires --payload and --html");
@@ -179,6 +183,19 @@ async function readPayload(path: string): Promise<unknown> {
 export async function runBriefingCli(argv = process.argv.slice(2)): Promise<unknown> {
   const args = parseArguments([...argv]);
   const paths = briefingPaths();
+  if (["completion-context", "resume-completion", "assert-complete"].includes(args.command)) {
+    if (args.command !== "assert-complete") await requireProductionMutations(paths);
+    await initializeBriefingStore(paths);
+    const database = openBriefingDatabase(paths);
+    try {
+      const result = args.command === "completion-context"
+        ? await completionContext(database, paths, args.editionId!, args.attemptId!)
+        : args.command === "resume-completion"
+          ? {attempt: resumeCompletion(database, args.editionId!, args.attemptId!)}
+          : assertCompletion(database, args.editionId!, args.attemptId!);
+      return {ok:true, action:args.command, externalMutations:false, ...result};
+    } finally { database.close(); }
+  }
   if (args.command === "init") {
     return { ok: true, action: "init", ...(await initializeBriefingStore(paths)) };
   }

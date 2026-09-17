@@ -18,6 +18,8 @@ from zoneinfo import ZoneInfo
 # Hermes starts this file with cwd set to the pinned external connector. Keep
 # the checkout unmodified while importing its installed package and venv.
 sys.path.insert(0, str(Path.cwd()))
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from briefing_completion import finish as _finish_briefing
 
 from mcp.types import ToolAnnotations  # type: ignore[import-not-found]  # noqa: E402
 from telethon import functions as telethon_functions  # type: ignore[import-not-found]  # noqa: E402
@@ -1246,6 +1248,41 @@ async def mark_read_through_batch(
         },
         ensure_ascii=False,
     )
+
+
+@mcp.tool(
+    annotations=ToolAnnotations(
+        title="Finish Daily Briefing",
+        openWorldHint=False,
+        destructiveHint=True,
+        idempotentHint=True,
+    )
+)
+async def finish_daily_briefing(
+    edition_id: str,
+    attempt_id: str,
+    ctx: Optional[Context] = None,
+) -> str:
+    """Finish accepted Daily content: all images, safe acknowledgement, publish, notify.
+
+    One bounded workflow in the existing Telegram process. No new Telegram
+    session, model calls, arbitrary tools, paths or cutoffs are accepted.
+    Retries reuse durable receipts. Success requires a published edition AND
+    a notification receipt; a tool response or SILENT is not publication.
+    """
+    try:
+        _capture_paths(edition_id, attempt_id)
+        async def download(items):
+            return await download_media_batch(items, ctx=ctx)
+        async def acknowledge(items, edition, attempt, digest):
+            return await mark_read_through_batch(items, edition, attempt, digest, ctx=ctx)
+        result = await _finish_briefing(edition_id, attempt_id,
+            cli=_briefing_cli, download=download, acknowledge=acknowledge,
+            atomic_json=_atomic_json, valid_path=_validated_inbox_media_path,
+            home=_briefing_home_path())
+        return json.dumps(result)
+    except Exception:
+        return json.dumps({"ok":False, "errorCode":"completion_context_rejected"})
 
 
 if __name__ == "__main__":

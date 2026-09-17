@@ -168,6 +168,14 @@ not put the same ID in two stories or in both a story and an exclusion. Do not
 exclude an item merely because it is low-interest or inconvenient to
 summarize.
 
+In production use `finish_daily_briefing(edition_id, attempt_id)` once after
+accepted editorial content. It runs all transport and publication steps below
+programmatically in this same MCP process. The configured tool allowlist must
+include it and its request timeout must exceed the bounded 900-second workflow.
+The agent does not construct batches or receipts; the following is the worker
+contract and operator-recovery reference. Existing download/acknowledgement
+gates remain enforced.
+
 Do not download attachments during initial collection. After deduplication and
 story selection, download the retained story media with the Kurami-owned
 bounded `download_media_batch` capability in the same Telegram stdio process

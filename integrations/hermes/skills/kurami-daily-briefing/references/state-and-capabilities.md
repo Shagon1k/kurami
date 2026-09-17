@@ -25,6 +25,7 @@ Kurami-owned adapter exposing a stable MCP schema.
 | `calendar.list_events` | Fetch one configured calendar for the briefing window | no |
 | `weather.forecast` | Fetch local weather | no |
 | `publisher.prepare` | Validate and durably stage an edition | local |
+| `publisher.complete` | Complete accepted content through the same-process deterministic worker | bounded Telegram/read, publish, notify |
 | `publisher.telegram_validate` | Bind raw and normalized Telegram artifact digests to one final prepared edition | local |
 | `publisher.telegram_plan` | Derive the exact content-covered acknowledgement plan and digest | local |
 | `publisher.finalize` | Record commit results and make the edition current | local |

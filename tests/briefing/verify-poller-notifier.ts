@@ -1,6 +1,7 @@
 import { section } from "../../src/briefing/addons/envelopes.ts";
 import assert from "node:assert/strict";
-import { mkdtemp, writeFile } from "node:fs/promises";
+import { mkdtemp, writeFile, mkdir } from "node:fs/promises";
+import { DatabaseSync } from "node:sqlite";
 import { tmpdir } from "node:os";
 import { resolve } from "node:path";
 import { runDigestCentralPoller } from "../../src/briefing/poller.ts";
@@ -690,6 +691,33 @@ async function verifyFailureAndRecoveryReuseOneCard(): Promise<void> {
   assert.equal(guardedRecovery.status, "failed");
 }
 
+async function verifyEarlyAgentExit(): Promise<void> {
+  await initializeBriefingStore(paths);
+  const hermes = resolve(home, "hermes-observer");
+  await mkdir(resolve(hermes, "cron"), {recursive:true});
+  await writeFile(resolve(hermes, "cron/jobs.json"), JSON.stringify([{id:"test-daily",name:"kurami-daily-briefing"}]));
+  const executions = new DatabaseSync(resolve(hermes, "cron/executions.db"));
+  executions.exec("CREATE TABLE executions(job_id TEXT,status TEXT,claimed_at TEXT,finished_at TEXT)");
+  executions.exec("INSERT INTO executions VALUES('test-daily','running','2026-09-03T06:00:00Z',NULL)");
+  const database = openBriefingDatabase(paths);
+  const {attempt} = await startBriefingAttempt(database,paths,{editionId:"daily:2026-09-03",mode:"scheduled",timeZone:"Europe/Vilnius",at:new Date("2026-09-03T06:00:00Z")});
+  database.close();
+  const calls: string[] = [];
+  const options = {at:new Date("2026-09-03T06:15:00Z"),fetchImpl:async(input:Parameters<typeof fetch>[0])=>{
+    calls.push(String(input));
+    return new Response(JSON.stringify({id:"188888888888888888"}),{status:200});
+  }};
+  const env = {...environment,HERMES_HOME:hermes};
+  assert.equal((await guardBriefingRun(env,options)).status,"skipped");
+  assert.equal(calls.length,0,"running model is not interrupted by an early probe");
+  executions.exec("UPDATE executions SET status='completed',finished_at='2026-09-03T06:12:00Z'");
+  const stopped = await guardBriefingRun(env,options);
+  assert.equal(stopped.state,"failed");
+  const check = openBriefingDatabase(paths);
+  assert.equal(check.prepare("SELECT error_code FROM briefing_run_attempts WHERE attempt_id=?").get(attempt.attemptId)?.error_code,"agent_returned_incomplete");
+  check.close(); executions.close();
+}
+
 async function verifyDeterministicCompletionGuard(): Promise<void> {
   const requests: Array<{ url: string; init: RequestInit | undefined }> = [];
   const mockedFetch: typeof fetch = async (input, init) => {
@@ -745,6 +773,7 @@ async function verifyDeterministicCompletionGuard(): Promise<void> {
 }
 
 await verifyRuntimeConfig();
+await verifyEarlyAgentExit();
 await verifyEmptyPollerIsLocalAndDeterministic();
 await verifyRetainedPollerFailSoft("missing-composio", {});
 await verifyRetainedPollerFailSoft("invalid-composio", {

@@ -262,22 +262,22 @@ Default manual experiments to `dry-run`. Generation never archives Gmail;
     `StoryMediaGallery`, `MediaLightbox`, `ReactionGroup`, or `ThemeToggle`.
     The renderer must not rewrite facts, ordering, topics, reactions, read
     state, or action semantics.
-12. After the runtime accepts the base edition, download retained Telegram
-    media by path only with the Kurami-owned resumable batch capability. Build
-    one stable expected pair list, split it into deterministic chunks of at
-    most 12, merge per-pair receipts in provider order, and retry only failed or
-    missing pairs. Treat both `downloaded` and `reused` as successful only when
-    they carry a non-empty canonical path. Do not import media or continue to a
-    Telegram commit plan until every expected image pair is accounted exactly once.
-    The manifest must contain every retained image in provider order, up
-    to the twelve-asset per-story limit, rather than a fixed sample of one or
-    two files. Every manifest asset must carry the canonical `sourceKey` and
-    its exact Telegram `providerItemId`; the importer persists that provenance
-    on the story asset. A story that would exceed the limit must be split at a
-    real content boundary, not silently truncate an album. Run the canonical
-    `import-media` command described by the Telegram provider reference. Do not
-    ask the model to inspect images unless an explicit later task
-    requires visual analysis.
+12. In production, once the attempt is `editorialized` or further, call
+    `finish_daily_briefing(edition_id, attempt_id)` through the configured
+    Telegram MCP. This single deterministic operation runs in the existing
+    connector process; it renders the accepted payload, derives exact image
+    pairs, downloads every image in bounded batches, checkpoints successful
+    receipts, retries only missing pairs, imports, validates, acknowledges only
+    the persisted plan, publishes and notifies. It never analyzes image bytes.
+    Do not write manifests/receipts, loop over download batches, launch a
+    second Telegram client, or substitute arbitrary tools yourself.
+    Require `ok: true`, then run
+    `$BRIEFING_NODE $BRIEFING_CLI assert-complete --id <edition-id> --attempt <attempt-id>`.
+    Stop successfully only when that check passes. A prepared preview, a
+    successful first batch or `[SILENT]` is not completion. The 10:00 recovery
+    calls the same operation on the runtime-resumed attempt. A failed
+    completion preserves its progress and returns a bounded diagnostic.
+    Missing capability is a recorded failure, not permission to weaken gates.
 13. In `dry-run`, use a `dry-run` attempt and write only the editorial draft
     with the Hermes `write_file` tool. Do not generate the
     artifact through a shell heredoc, inline Python/Node program, or a
@@ -299,7 +299,9 @@ data-quality report. The runtime owns component markup, theme, pagination,
 read-state, and reaction behavior; rendered HTML must not contain scripts,
 inline event handlers, forms, frames, or embedded active content.
 
-For a production run:
+The completion worker owns the following production sequence. These details
+document its safety contract and explicit operator recovery, not an additional
+model-driven checklist. Scheduled agents use the single operation in step 12.
 
 1. Write the final `schemaVersion: 2` payload and durably prepare the rendered
    page before any external mutation. The payload must account for every
@@ -425,6 +427,11 @@ this skill from the hourly poller.
   a provider tool name or arbitrary provider parameters.
 
 ## Report the result
+
+The scheduled job prompt is versioned at
+`integrations/hermes/briefing-cron-prompt.md`. Deploy/check it with
+`bin/sync-briefing-cron.py --apply` / `bin/sync-briefing-cron.py`; preserve the
+existing job and schedule. Never add a second time gate to that prompt.
 
 Return the edition date, mode, status, section counts, failed or stale sources,
 Telegram commit status, publication URL when available, and whether a Discord
