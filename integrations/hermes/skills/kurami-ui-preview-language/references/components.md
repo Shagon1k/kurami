@@ -294,6 +294,15 @@ than reconstructed from a few summary percentages.
 
 ## Responsive rules
 
+The optional `InvestmentReviewPanel` in `investment-review/panel.ts` belongs
+only on /stocks and only when explicitly enabled. Render independently retained
+weekly/monthly slots as native collapsed disclosures; each position remains
+collapsed inside. Reuse `renderReviewPosition`, `ReviewIdea`, `LearningNote`
+and `KuramiComment` from the standalone review, not agent-generated markup.
+Keep source coverage, report age and composition-confirmation state visible.
+Do not create a Daily teaser, trade controls, provider requests or publishing
+side effects from this component.
+
 - Desktop and mobile have the same information and the same Kurami Note limits.
 - Reflow grids into a single reading column in semantic order.
 - Keep primary actions reachable; avoid moving essential controls below long content without a second affordance.

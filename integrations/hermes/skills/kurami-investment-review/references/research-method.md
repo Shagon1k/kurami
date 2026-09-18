@@ -42,6 +42,21 @@ scripts, connectors, dependency installers or agents were installed.
 
 ## Data/cost boundary
 
+`collect.ts` is the first autonomous source adapter: official SEC company
+identity plus XBRL companyfacts, at most 15 public symbols / 16 requests per
+run. It needs no API key and never sends quantities. It preserves source
+currency, actual start/end, filing date and accession; never annualise an
+interim result, merge different metrics or confuse YTD with a quarter.
+Coverage refers ONLY to these accounting metrics, not complete research.
+Foreign issuers and newly listed companies may lack current tagged data.
+An unavailable feed or missing XBRL record is NOT an issuer-identity mismatch:
+keep separately confirmed ISIN/issuer mapping and retained filings valid unless
+contradictory evidence actually appears. Do not ask the owner to re-confirm an
+identity solely because this adapter has no data.
+Retained issuer evidence keeps its original dates and is never relabelled as
+freshly collected. A partial collection cannot justify claiming autonomous
+coverage of all holdings. Report any material disagreement with retained facts.
+
 Existing EODHD cache supplies closes without new calls. ECB dated XML supplies
 reference FX, not a broker execution rate. Fund issuer pages supply dated fund
 constituents; only verified fields enter look-through calculations. Issuer IR

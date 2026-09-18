@@ -24,6 +24,8 @@ import {renderSparkline} from "../../src/briefing/ui/charts/sparkline.ts";
 import {stockInsights} from "../../src/briefing/stocks/insights.ts";
 import {Script} from "node:vm";
 import {verifyStockClient} from "./stocks-client-harness.ts";
+import {acceptReview} from "../../src/briefing/investment-review/store.ts";
+import {inputDigest,type ReviewInput,type ReviewDraft} from "../../src/briefing/investment-review/model.ts";
 
 const root=resolve(import.meta.dirname,"../..");
 const config=parseStocksConfig(yaml(await readFile(resolve(root,"deploy/config/briefing.yaml"),"utf8")).stocks);
@@ -162,6 +164,26 @@ const server=await createBriefingServer(paths,{mailActionExecutor:null,stocks:tr
 server.listen(Number(process.env.STOCKS_PREVIEW_PORT??0),"127.0.0.1");await once(server,"listening");
 const base="http://127.0.0.1:"+(server.address() as {port:number}).port;
 assert.equal((await fetch(base+"/stocks")).status,200);
+const reviewAsset=initial.data.series[0]!.asset;
+const reviewInput:ReviewInput={version:1,mode:"weekly",asOfDate:"2026-09-18",
+  baseline:{version:1,asOfLocalDate:"2026-09-18",timezone:"Europe/Vilnius",positions:[{symbol:reviewAsset.id,isin:reviewAsset.isin,quantity:"1"}],unknowns:{currentMonthExecutedTrades:null,currentMonthNewContributionsEUR:null}},
+  market:initial,fx:{date:"2026-09-16",usdPerEUR:1.1,sourceId:"test-source"},
+  sources:[{id:"test-source",title:"Synthetic source",url:"https://issuer.example/report",asOfDate:"2026-09-16",retrievedAt:"2026-09-18T06:00:00Z"}],
+  facts:[{id:"test-fact",symbol:reviewAsset.id,sourceId:"test-source",statement:"Synthetic fact"}]};
+const reviewDraft:ReviewDraft={version:3,inputDigest:inputDigest(reviewInput),headline:"Private review sentinel",summary:["Synthetic conclusion"],positions:[{
+  symbol:reviewAsset.id,action:"maintain",adviceReason:"Synthetic reason",blockingInfo:null,factIds:["test-fact"],rationale:"Synthetic conclusion",portfolioMeaning:"Synthetic fit",
+  counterargument:"Synthetic risk",revisitWhen:"Next report",learningIds:[]}],learningNotes:[],nextSteps:[],proposedOrders:[]};
+await acceptReview(resolve(paths.stateDirectory,"portfolio/reviews"),reviewInput,reviewDraft);
+assert(!(await(await fetch(base+"/stocks")).text()).includes("Private review sentinel"),"Reader is opt-in even with accepted files");
+const reviewServer=await createBriefingServer(paths,{mailActionExecutor:null,stocks:true,investmentReview:true});
+reviewServer.listen(0,"127.0.0.1");await once(reviewServer,"listening");
+const reviewBase="http://127.0.0.1:"+(reviewServer.address() as {port:number}).port;
+assert((await(await fetch(reviewBase+"/stocks")).text()).includes("Private review sentinel"));
+assert(!(await(await fetch(reviewBase+"/")).text()).includes("Private review sentinel"),"Never add to Daily");
+assert.equal((await fetch(reviewBase+"/portfolio/reviews/latest-weekly.json")).status,404);
+await writeFile(resolve(paths.stateDirectory,"portfolio/reviews/latest-monthly.json"),'{"id":"bad"}',{mode:0o600});
+assert((await(await fetch(reviewBase+"/stocks")).text()).includes("Private review sentinel"),"Bad monthly slot does not break weekly or quotes");
+await new Promise<void>(resolve=>reviewServer.close(()=>resolve()));
 assert.equal((await fetch(base+"/stocks?symbols=SPCX&period=1y")).status,200);
 assert.equal((await fetch(base+"/stocks?symbols=UNKNOWN")).status,400);
 assert.equal((await fetch(base+"/stocks/2026-09-17")).status,404);

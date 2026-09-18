@@ -2,9 +2,9 @@ import {escapeHtml as e} from "../ui/html.ts";
 import type {LearningNote} from "./model.ts";
 
 /** Content is authored and validated; this component only supplies stable reading structure. */
-export function renderLearningNotes(notes:LearningNote[]):string {
+export function renderLearningNotes(notes:LearningNote[],namespace=""):string {
   if(!notes.length)return "";
-  return `<section class="review-section review-learning" aria-labelledby="review-learning-title"><h2 id="review-learning-title">Разобраться по ходу</h2><p>Короткие пояснения к этому выпуску. Можно открыть нужное и вернуться к отчёту.</p>${notes.map(n=>`<details class="review-learning-note" id="learn-${e(n.id)}"><summary>${e(n.term)}</summary><div><p><strong>Что означает:</strong> ${e(n.explanation)}</p><p><strong>Пример из отчёта:</strong> ${e(n.example)}</p><p><strong>Чего из этого не следует:</strong> ${e(n.limitation)}</p><a href="${e(n.reference.url)}" target="_blank" rel="noopener noreferrer">Подробнее: ${e(n.reference.title)} ↗</a></div></details>`).join("")}</section>`;
+  return `<section class="review-section review-learning" aria-labelledby="${e(namespace)}review-learning-title"><h2 id="${e(namespace)}review-learning-title">Разобраться по ходу</h2><p>Короткие пояснения к этому выпуску. Можно открыть нужное и вернуться к отчёту.</p>${notes.map(n=>`<details class="review-learning-note" id="${e(namespace)}learn-${e(n.id)}"><summary>${e(n.term)}</summary><div><p><strong>Что означает:</strong> ${e(n.explanation)}</p><p><strong>Пример из отчёта:</strong> ${e(n.example)}</p><p><strong>Чего из этого не следует:</strong> ${e(n.limitation)}</p><a href="${e(n.reference.url)}" target="_blank" rel="noopener noreferrer">Подробнее: ${e(n.reference.title)} ↗</a></div></details>`).join("")}</section>`;
 }
 export const REVIEW_LEARNING_STYLES=`
 .review-learning-note { border:1px solid var(--line); border-left:3px solid var(--ink); background:var(--panel); margin:12px 0; padding:0 18px; scroll-margin-top:calc(var(--header-offset,104px) + 16px); }

@@ -5,6 +5,12 @@ import {renderInvestmentReview,investmentAdviceLabels} from "../../src/briefing/
 import {REVIEW_LEARNING_SCRIPT} from "../../src/briefing/investment-review/learning-note.ts";
 import {runInNewContext} from "node:vm";
 import {renderKuramiComment,KURAMI_COMMENT_STYLES} from "../../src/briefing/ui/components/kurami-comment.ts";
+import {extractSecFacts,collectIssuerEvidence,mergeCollectedEvidence} from "../../src/briefing/investment-review/collect.ts";
+import {acceptReview,loadReview,reviewFreshness} from "../../src/briefing/investment-review/store.ts";
+import {renderReviewPanel} from "../../src/briefing/investment-review/panel.ts";
+import {mkdtemp,rm,readFile} from "node:fs/promises";
+import {tmpdir} from "node:os";
+import {join} from "node:path";
 const assets=[{id:"AAA",symbol:"AAA.US",isin:"US1234567890",name:"Example stock",currency:"USD" as const,exchange:"US" as const,timezone:"America/New_York",kind:"stock" as const},
   {id:"FUND",symbol:"FUND.XETRA",isin:"IE1234567890",name:"Example fund",currency:"EUR" as const,exchange:"XETRA" as const,timezone:"Europe/Berlin",kind:"etf" as const}];
 const source={id:"issuer",title:"Test issuer",url:"https://issuer.example/report",asOfDate:"2026-08-31",retrievedAt:"2026-09-18T06:00:00Z"};
@@ -24,7 +30,7 @@ const mismatch=structuredClone(input);mismatch.baseline.positions[0]!.isin="US00
 const stale=structuredClone(input);stale.market.data.series[0]!.points[0]!.date="2026-08-01";assert.equal(calculateReview(stale).totalEUR,null);
 const future=structuredClone(input);future.sources[0]!.asOfDate="2026-09-19";assert.throws(()=>parseReviewInput(future));
 const bad=structuredClone(input);bad.baseline.positions.push(bad.baseline.positions[0]!);assert.throws(()=>parseReviewInput(bad));
-const draft:ReviewDraft={version:2,inputDigest:inputDigest(input),headline:"Пробный обзор",summary:["Проверяем структуру"],positions:input.baseline.positions.map(p=>({symbol:p.symbol,action:"review",factIds:[p.symbol==="AAA"?"aaa-fact":"fund-fact"],rationale:"Вывод",portfolioMeaning:"Связь с портфелем",counterargument:"Контраргумент",revisitWhen:"Условие пересмотра",learningIds:["overlap"]})),learningNotes:[{id:"overlap",term:"Пересечение вложений",explanation:"Объяснение",example:"Пример из отчёта",limitation:"Граница вывода",reference:{title:"Источник",url:"https://www.investor.gov/"}}],nextSteps:["Проверить данные"],proposedOrders:[]};
+const draft:ReviewDraft={version:3,inputDigest:inputDigest(input),headline:"Пробный обзор",summary:["Проверяем структуру"],positions:input.baseline.positions.map(p=>({symbol:p.symbol,action:"review",adviceReason:"Неясна устойчивость прибыли",blockingInfo:"Нужен следующий отчёт",factIds:[p.symbol==="AAA"?"aaa-fact":"fund-fact"],rationale:"Вывод",portfolioMeaning:"Связь с портфелем",counterargument:"Контраргумент",revisitWhen:"Условие пересмотра",learningIds:["overlap"]})),learningNotes:[{id:"overlap",term:"Пересечение вложений",explanation:"Объяснение",example:"Пример из отчёта",limitation:"Граница вывода",reference:{title:"Источник",url:"https://www.investor.gov/introduction-investing/investing-basics/glossary/diversification"}}],nextSteps:["Проверить данные"],proposedOrders:[]};
 assert.equal(validateReviewDraft(input,draft),draft);
 const withIdea=structuredClone(input);
 withIdea.candidates=[{symbol:"BBB",name:"<Example candidate>",exchange:"EXAMPLE",identitySourceId:"issuer"}];
@@ -51,14 +57,18 @@ assert.throws(()=>validateReviewDraft(input,ideaDraft),"Draft binds to the exact
 assert.throws(()=>validateReviewDraft(input,{...draft,inputDigest:"wrong"}));
 assert.throws(()=>validateReviewDraft(input,{...draft,proposedOrders:[{symbol:"AAA",eur:100}]}));
 const unsupported=structuredClone(draft);unsupported.positions[0]!.factIds=["fund-fact"];assert.throws(()=>validateReviewDraft(input,unsupported));
+const supportedOverlap=structuredClone(draft);supportedOverlap.positions[0]!.factIds.push("fund-fact");validateReviewDraft(input,supportedOverlap);
+const inventedReference=structuredClone(draft);inventedReference.learningNotes[0]!.reference.url="https://www.sec.gov/invented";assert.throws(()=>validateReviewDraft(input,inventedReference));
 const unsafe=structuredClone(draft);unsafe.summary=['<script>alert(1)</script>'];const html=renderInvestmentReview(input,unsafe);assert(html.includes('&lt;script&gt;alert(1)&lt;/script&gt;'));assert(!html.includes('<script>alert(1)'));
 assert(html.includes("Остаток сделок: неизвестен"));assert(html.includes("Приватный пробный обзор"));
 const comments=[...html.matchAll(/<aside\b[^>]*data-kurami-comment[\s\S]*?<\/aside>/g)].map(m=>m[0]);
 assert.equal(comments.length,draft.positions.length+2);
 assert(comments.every(c=>c.includes("Курами:")&&c.includes("🦊")));
 assert(comments.some(c=>c.includes("Совет:")));
-assert(html.includes("Пока без рекомендации"));assert(!html.includes("Что рассмотреть"));assert(!/бумаг/i.test(html));
-assert.deepEqual(Object.values(investmentAdviceLabels),["Пока без рекомендации","Оставить без изменений","Рассмотреть докупку","Рассмотреть частичную продажу","Рассмотреть полную продажу","Анализ ещё не проведён"]);
+assert(html.includes("Недостаточно данных для совета"));assert(!html.includes("Что рассмотреть"));assert(!/бумаг/i.test(html));
+assert.deepEqual(Object.values(investmentAdviceLabels),["Недостаточно данных для совета","Оставить без изменений","Пока не увеличивать позицию","Дождаться конкретного события","Рассмотреть докупку","Рассмотреть частичную продажу","Рассмотреть полную продажу","Анализ ещё не проведён"]);
+const unexplained=structuredClone(draft);unexplained.positions[0]!.blockingInfo=null;assert.throws(()=>validateReviewDraft(input,unexplained));
+for(const action of ["maintain","no-add","wait"] as const){const d=structuredClone(draft);d.positions[0]!.action=action;d.positions[0]!.blockingInfo=null;validateReviewDraft(input,d);}
 assert(comments.every(c=>!c.includes("<table")&&!c.includes("Example factual input")&&!c.includes("review-learning-note")));
 assert.equal(renderKuramiComment({}),"");
 assert(renderKuramiComment({items:["<script>bad</script>"],ordered:true}).includes("<ol><li>&lt;script&gt;"));
@@ -81,3 +91,52 @@ click();assert(lesson.open);assert(focused);
 assert.equal(parseEcbUSD('<Cube time="2026-09-17"><Cube currency="USD" rate="1.1481"/></Cube>',"2026-09-17"),1.1481);
 assert.throws(()=>parseEcbUSD('<Cube time="2026-09-16"><Cube currency="USD" rate="1.1481"/></Cube>',"2026-09-17"));
 console.log("Investment review: calendar months, FX direction, complete/missing valuations, overlap, private draft binding, unknown allowances and no-order boundary verified.");
+const secRow={start:"2026-04-01",end:"2026-06-30",val:123,accn:"0000000001-26-000001",form:"10-Q",filed:"2026-08-01"};
+const sec={cik:1,entityName:"Example Inc",facts:{"us-gaap":{
+  RevenueFromContractWithCustomerExcludingAssessedTax:{units:{USD:[{...secRow,end:"2022-06-30",start:"2022-04-01",filed:"2022-08-01",val:1}]}},
+  Revenues:{units:{USD:[secRow,{...secRow,end:"2026-09-30",filed:"2026-10-01",val:999}]}},
+  NetIncomeLoss:{units:{USD:[{...secRow,val:-10}]}},
+  CashAndCashEquivalentsAtCarryingValue:{units:{USD:[{end:"2026-06-30",val:500,accn:secRow.accn,form:"10-Q",filed:secRow.filed}]}}
+}}};
+const extracted=extractSecFacts(sec,{symbol:"AAA",namePattern:"Example"},"2026-09-18","2026-09-18T06:00:00Z");
+assert.equal(extracted.facts.length,3);assert(extracted.facts[0]!.statement.includes("123 USD"));
+assert(extracted.facts[0]!.statement.includes("2026-04-01 — 2026-06-30"));assert(!extracted.facts.some(f=>f.statement.includes("999")));
+assert.equal(extracted.sources.length,1);assert(extracted.sources[0]!.url.endsWith("-index.html"));
+assert.throws(()=>extractSecFacts(sec,{symbol:"AAA",namePattern:"Other"},"2026-09-18","2026-09-18T06:00:00Z"));
+assert.equal(extractSecFacts(sec,{symbol:"SOFI",namePattern:"Example"},"2026-09-18","2026-09-18T06:00:00Z").facts.length,2,"Do not call partial bank customer revenue total revenue");
+const conflict=structuredClone(sec);conflict.facts["us-gaap"].Revenues.units.USD.push({...secRow,val:124});
+assert.equal(extractSecFacts(conflict,{symbol:"AAA",namePattern:"Example"},"2026-09-18","2026-09-18T06:00:00Z").facts.length,2);
+let requests=0;
+const fakeFetch=(async(url:unknown,init:RequestInit)=>{requests++;assert.equal(init.redirect,"error");return new Response(JSON.stringify(requests===1?{"0":{cik_str:1,ticker:"AAA",title:"Example Inc"}}:sec));}) as typeof fetch;
+const collected=await collectIssuerEvidence([{symbol:"AAA",namePattern:"Example"}],"2026-09-18",fakeFetch);
+assert.equal(collected.requests,2);assert.equal(collected.coverage[0]!.state,"ready");
+const merged=mergeCollectedEvidence(input,collected);
+assert.equal(merged.sources.find(s=>s.id==="issuer")!.asOfDate,source.asOfDate);
+assert(merged.facts.some(f=>f.id==="aaa-fact"),"Retained primary evidence survives collection");
+assert(merged.facts.some(f=>f.id==="sec-aaa-revenue"));
+assert.equal(merged.researchCoverage!.find(c=>c.symbol==="FUND")!.state,"retained");
+assert.equal(merged.sources.some(s=>s.id==="ecb"),false,"Snapshot supplies its newly dated FX source");
+const directory=await mkdtemp(join(tmpdir(),"kurami-review-store-"));
+try{
+  const week={...structuredClone(input),mode:"weekly" as const},weekDraft={...structuredClone(draft),inputDigest:inputDigest(week)};
+  const saved=await acceptReview(directory,week,weekDraft,"2026-09-18T06:00:00Z");
+  assert.equal((await loadReview(directory,"weekly"))!.id,saved.id);assert.equal(await loadReview(directory,"monthly"),null);
+  await assert.rejects(()=>acceptReview(directory,input,draft),"Trial cannot silently become weekly");
+  await assert.rejects(()=>acceptReview(directory,week,{...weekDraft,inputDigest:"bad"}));
+  assert.equal((await loadReview(directory,"weekly"))!.id,saved.id);
+  assert.equal((await acceptReview(directory,week,weekDraft)).id,saved.id);
+  const month={...structuredClone(input),mode:"monthly" as const},monthDraft={...structuredClone(draft),inputDigest:inputDigest(month)};
+  const savedMonth=await acceptReview(directory,month,monthDraft,"2026-09-18T06:00:00Z");
+  assert.equal((await loadReview(directory,"weekly"))!.id,saved.id);
+  assert.equal((await loadReview(directory,"monthly"))!.id,savedMonth.id);
+  assert(reviewFreshness(saved,"2026-10-18T06:00:00Z",input.baseline).stale);
+  assert(reviewFreshness(saved,"2026-09-18T06:00:00Z").needsConfirmation);
+  const changed=structuredClone(input.baseline);changed.positions[0]!.quantity="3";
+  assert(reviewFreshness(saved,"2026-09-18T06:00:00Z",changed).changedHoldings);
+  const panel=renderReviewPanel([saved,savedMonth],"2026-09-18T06:00:00Z",input.baseline);
+  assert(panel.includes("Неделя"));assert(panel.includes("Месяц"));assert(!panel.includes(" open"));
+  assert(panel.includes('id="weekly-learn-overlap"'));assert(panel.includes('id="monthly-learn-overlap"'));
+  assert.equal(renderReviewPanel([],"2026-09-18T06:00:00Z"),"");
+  assert(JSON.parse(await readFile(join(directory,"latest-weekly.json"),"utf8")).id===saved.id);
+}finally{await rm(directory,{recursive:true,force:true});}
+console.log("SEC periods/aliases/identity/partial banks, separate accepted slots, failed-update preservation, freshness and compact reader verified.");

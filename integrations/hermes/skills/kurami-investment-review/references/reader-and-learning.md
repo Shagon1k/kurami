@@ -12,12 +12,16 @@ Use "акция" for a company holding and "фонд"/"ETF" for an ETF. Do not u
 "бумага" as a reader-facing synonym. Mixed headings may say "Акция / фонд".
 The short field is **Совет**, with fixed renderer labels:
 - maintain: **Оставить без изменений**;
+- no-add: **Пока не увеличивать позицию**;
+- wait: **Дождаться конкретного события**;
 - consider-add: **Рассмотреть докупку**;
 - consider-trim: **Рассмотреть частичную продажу**;
 - consider-exit: **Рассмотреть полную продажу**;
-- review: **Пока без рекомендации** (examined, but no supported action yet);
+- review: **Недостаточно данных для совета** (a specific decisive gap blocks a stance);
 - not-assessed: **Анализ ещё не проведён** (coverage gap, not a hold advice).
 Do not strengthen an uncertain assessment merely to populate the advice field.
+Each label is followed by `adviceReason`, a short concrete explanation rather
+than a second generic disclaimer. Follow the decision rubric in policy-and-contract.
 
 Each mini-report follows one stable structure:
 1. **Короткий вывод** — the conclusion in one or two direct sentences.

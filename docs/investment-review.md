@@ -1,15 +1,17 @@
 # Investment Review — manual prototype
 
-Status: skill + deterministic calculations + private trial renderer. No route,
-cron, Poller participant, public payload, order submission or production UI
-integration is enabled. The existing Daily/Stocks/Discovery remain unchanged.
+Status: manual research pipeline, deterministic calculations, private renderer
+and accepted weekly/monthly storage. A compact /stocks reader is implemented
+behind `investmentReview.enabled` (false by default). No cron, Poller
+participant, automatic acceptance, public activation or order submission.
+The existing Daily/Stocks/Discovery continue independently.
 
-Draft v2 adds an adult-beginner reading contract: each mini-review explains
+Draft v3 keeps an adult-beginner reading contract: each mini-review explains
 its portfolio relevance in plain Russian, alongside conclusion, countercase
 and revisit condition. Up to three shared contextual learning notes stay
 collapsed until opened, with meaning/example/limitation/reference fields and
 links from relevant positions. Evidence remains accessible in a separate
-disclosure. Existing v1 HTML stays intact; new drafts use v2 explicitly.
+disclosure. Existing v1/v2 HTML stays intact; new drafts require v3.
 
 The reusable `KuramiComment` component separates authored interpretation from
 evidence with the short byline `🦊 Курами:`, warm panel and thin left rule.
@@ -17,9 +19,12 @@ Headline/summary, position reasoning/action considerations and next steps use
 it; numeric tables, source disclosures, learning notes and policy do not.
 Draft values and calculations are unchanged by this presentation treatment.
 
-Reader-facing action caption is `Совет`. Keep the distinction between
-`Пока без рекомендации` (reviewed, but no supported action yet) and
-`Анализ ещё не проведён` (not covered); neither means hold. Use `акция` for a
+Reader-facing action caption is `Совет`, followed by a position-specific reason.
+The old rubric conflated a missing valuation with inability to offer any useful
+stance. The v3 rubric distinguishes maintain, no-add, wait, add, trim/exit,
+insufficient evidence and not assessed. Only insufficient evidence requires a
+specific `blockingInfo`; it must not become a generic fallback. There is no
+forced distribution of advice or default hold. Use `акция` for a
 company and `фонд`/`ETF` for funds instead of the generic `бумага`.
 
 `integrations/hermes/skills/kurami-investment-review` contains the custom method,
@@ -40,7 +45,7 @@ for that standalone artifact; model-supplied HTML/scripts are never accepted.
 Narrative fields are escaped. The UI displays explicit research coverage,
 unpriced positions, unknown allowances and valuation-vs-personal-return limits.
 
-Phase-two contract: independently retained latest weekly/monthly reports,
+Lifecycle contract: independently retained latest weekly/monthly reports,
 Sunday and first-calendar-day cadence, combined work on collisions; compact
 Week/Month view on `/stocks` only. Preserve last success with visible freshness
 and invalidate action applicability after relevant changes. Activation requires
@@ -54,8 +59,53 @@ Next readiness steps, before recurring activation:
    non-held candidates, own evidence, risks, portfolio fit, alternatives and
    missing valuation checks. Ideas are study-only, not holdings or orders.
    Existing movement-based Discovery is not this.
-3. Add independently retained weekly/monthly report storage and the compact
-   `/stocks` view; then validate scheduling, collision handling and source costs.
+3. Finish source coverage and owner review, enable the already implemented
+   compact reader, then validate scheduling/collisions separately.
+
+## Source collection and storage
+
+`collect.ts` reads the free SEC ticker registry and companyfacts API:
+at most 15 public tickers and 16 requests; no holdings quantities or paid quote
+calls. Metrics retain currency, reporting start/end, filing date and accession.
+Only periods ending within 150 days are selected, aliases are never summed,
+conflicting values are omitted, and financial-company revenue uses an explicit
+net-interest-aware tag. Operating cash flow is not part of this first adapter.
+No automatic annualisation, quarterly derivation, ADR conversion or fair-value
+model is attempted. A failed XBRL fetch does not revoke a confirmed issuer ISIN.
+The returned coverage is accounting-field coverage, not full company research.
+
+September 18's corrected collection returned the full three metrics for six
+of twelve requested companies and partial metrics for one more. Other issuers
+need primary-release adapters; VUAA holdings still use retained issuer evidence.
+Retained facts keep original dates and a visible coverage disclosure. This is
+not sufficient for unattended comprehensive research or automatic publication.
+
+`draft-packet --input ... --output ...` creates the reproducible skill/evidence/
+calculation prompt for the installed tool-free Hermes runner. Drafts cannot
+invent learning reference URLs; company facts are mandatory, with supplementary
+fund facts allowed only for verified overlap.
+
+Manual pipeline: collect public targets → `merge-evidence --input <previous-input>
+--collected <collection> --output <evidence>` → snapshot with confirmed baseline
+and current cached quotes/ECB → draft-packet → isolated Hermes → validate/render.
+Merging replaces matching adapter fact IDs, keeps dated primary evidence and
+marks retained coverage. No model needs to manually recalculate the input hash.
+Acceptance is separate and never implicit after a model call.
+
+`accept --input ... --draft ... --store <private-directory>` is an explicit
+acceptance step, not generation. Only weekly/monthly inputs may update their own
+latest pointer. Content-addressed records and an atomic pointer swap preserve
+previous success; a writer lock prevents parallel acceptance. Trial reports
+cannot silently become published weekly reports. No retention cleanup deletes
+these private accepted records yet. After an interrupted acceptance the lock
+may require operator recovery; no automatic stale-lock deletion is implemented.
+
+The optional /stocks panel reads accepted files only, never calls a provider,
+and is absent from Daily. Each period and position is collapsed by default.
+It reuses the same position/idea/learning components as the standalone report.
+Missing/corrupt slots are isolated from each other and from quotes. With no
+separately supplied current baseline it explicitly asks to confirm the current
+composition; it does not falsely certify old holdings as still current.
 
 On 2026-09-18 an anonymous HTTP request to `/stocks` returned a 302 redirect
 to Cloudflare Access. This confirms an anonymous access gate, not a complete

@@ -40,6 +40,7 @@ export type BriefingRuntimeConfig = {
   stocks: StocksConfig;
   stocksDiscovery: boolean;
   stocksLogos: boolean;
+  investmentReview: boolean;
   timeZone: string;
   retentionDays: number;
   gmailQuery: string;
@@ -249,6 +250,7 @@ export async function loadBriefingRuntimeConfig(
     stocks: parseStocksConfig(root.stocks),
     stocksDiscovery: Boolean(root.stocksDiscovery&&typeof root.stocksDiscovery==="object"&&(root.stocksDiscovery as JsonRecord).enabled===true),
     stocksLogos: Boolean(root.stocksLogos&&typeof root.stocksLogos==="object"&&(root.stocksLogos as JsonRecord).enabled===true),
+    investmentReview: Boolean(root.investmentReview&&typeof root.investmentReview==="object"&&(root.investmentReview as JsonRecord).enabled===true),
     retentionDays,
     gmailQuery: string(mailSettings.query, "mail.query"),
     gmailPageSize,

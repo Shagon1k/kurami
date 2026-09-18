@@ -53,13 +53,15 @@ become current-month usage or an assumed unused allowance.
 
 ```text
 {
-  version: 2,
+  version: 3,
   inputDigest: exact digest from calculate,
   headline: short Russian title,
   summary: 1–3 concise observations,
   positions: [{
     symbol,
-    action: review | maintain | consider-add | consider-trim | consider-exit | not-assessed,
+    action: review | maintain | no-add | wait | consider-add | consider-trim | consider-exit | not-assessed,
+    adviceReason: one concise position-specific reason,
+    blockingInfo: specific missing decisive information for review, otherwise null,
     factIds: [existing position-specific fact IDs],
     rationale, portfolioMeaning, counterargument, revisitWhen,
     learningIds: [IDs of up to two relevant notes]
@@ -76,12 +78,46 @@ become current-month usage or an assumed unused allowance.
 Every held symbol appears exactly once. `not-assessed` must not be presented as
 an implicit hold recommendation. Each assessment requires evidence for that
 same company, not merely an index or a different company's press release.
+An additional fund-composition fact is allowed only for a constituent present
+in the verified look-through map; own-company evidence is still required.
+Learning references must use a supplied source URL or one of the canonical
+educational references listed by the packet. Never construct a plausible URL.
 All proposed order lists are rejected in this trial version, even if monthly
 usage happens to be known. Advice never writes holdings, receipts or cash.
 All learning-note IDs are unique and referenced by at least one position;
 unknown links, oversized notes and unsafe URLs are rejected. Version-1 HTML
-remains an archived artifact; new drafts use version 2 without a parallel
-legacy renderer. Education links are reference material, not new price data.
+remains an archived artifact; new drafts use version 3 without a parallel
+legacy renderer. Existing v2 HTML remains an archive; new drafts require v3.
+Education links are reference material, not new price data.
+
+## Advice decision rubric
+
+Do not confuse "not proved cheap enough to buy" with "no useful advice".
+There is no quota or forced distribution of labels, and no default hold:
+
+- `maintain`: current evidence supports continuing the existing business/portfolio
+  role, without a material reason to change now. State what supports this and what
+  would invalidate it. It does not mean cheap, guaranteed safe, or worth adding.
+- `no-add`: a concrete unresolved business, financing or overlap concern supports
+  not committing more money now; it does not automatically imply selling existing
+  shares. Don't declare allocation excessive against an unagreed target.
+- `wait`: an identifiable pending result/event is decisive for the next step.
+  Name it in `revisitWhen`; "wait for more information" is not enough.
+- `consider-add`: business fit AND evidence about the current price relative to
+  business results support adding; growth alone is not valuation evidence.
+- `consider-trim/exit`: supported business-thesis deterioration or another
+  explicit reason to reduce/exit. Do not require a fair-value model to discuss
+  a broken thesis. State the consequence of being wrong and applicable unknown costs.
+- `review`: evidence is conflicting, identity uncertain, or a specific missing
+  fact prevents ANY supported stance above. Name the decisive gap and next check,
+  not the generic absence of a full valuation model.
+- `not-assessed`: actual coverage gap, not a cautious opinion.
+
+Unknown current-month usage, purchase cost and cash block transaction amounts,
+personal P&L/tax claims and execution; they do not automatically block a
+qualitative hold/no-add/wait or reasoned discussion of reducing risk. Missing
+target/risk policy still limits suitability claims. Never replace review with
+hold just to remove an unhelpful label. Source quality takes precedence over UX.
 
 Ideas are research-only and must use a registered candidate and its own facts.
 No action, quantity, price target or order fields are accepted in an idea.

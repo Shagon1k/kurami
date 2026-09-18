@@ -5,18 +5,20 @@ import {renderLearningNotes,REVIEW_LEARNING_STYLES,REVIEW_LEARNING_SCRIPT} from 
 import {dayShift} from "../stocks/model.ts";
 import {renderKuramiComment} from "../ui/components/kurami-comment.ts";
 import {renderReviewIdea} from "./idea.ts";
+import {investmentAdviceLabels,renderReviewPosition,renderReviewEvidence,renderResearchCoverage} from "./position.ts";
+export {investmentAdviceLabels} from "./position.ts";
 
 const eur=(n:number|null)=>n===null?"недостаточно данных":new Intl.NumberFormat("ru-RU",{style:"currency",currency:"EUR",maximumFractionDigits:2}).format(n);
 const pct=(n:number|null)=>n===null?"—":new Intl.NumberFormat("ru-RU",{maximumFractionDigits:2}).format(n)+"%";
-export const investmentAdviceLabels={review:"Пока без рекомендации",maintain:"Оставить без изменений","consider-add":"Рассмотреть докупку","consider-trim":"Рассмотреть частичную продажу","consider-exit":"Рассмотреть полную продажу","not-assessed":"Анализ ещё не проведён"};
 export function renderInvestmentReview(input:ReviewInput,value:ReviewDraft):string {
-  const draft=validateReviewDraft(input,value),m=calculateReview(input),facts=new Map(input.facts.map(f=>[f.id,f])),sources=new Map(input.sources.map(s=>[s.id,s]));
+  const draft=validateReviewDraft(input,value),m=calculateReview(input);
   const position=(symbol:string)=>m.rows.find(r=>r.symbol===symbol)!;
-  const evidence=(ids:string[])=>ids.length?`<details class="review-evidence"><summary>Факты и источники (${ids.length})</summary><ul>${ids.map(id=>{const f=facts.get(id)!,s=sources.get(f.sourceId)!;return `<li>${e(f.statement)} <a href="${e(s.url)}" target="_blank" rel="noopener noreferrer">${e(s.title)}</a> · ${e(s.asOfDate)}</li>`;}).join("")}</ul></details>`:"";
+  const evidence=(ids:string[])=>renderReviewEvidence(input,ids);
   const assessed=draft.positions.filter(p=>p.action!=="not-assessed").length;
   const content=`<section class="hero stocks-hero"><div><p class="hero__eyebrow">Приватный пробный обзор · ${e(input.asOfDate)}</p><h1>Обзор портфеля</h1></div></section>
     <div class="stocks-status"><span>Состав подтверждён: ${e(input.baseline.asOfLocalDate)}</span><span>Цены и валютный курс: ${e(input.fx.date)}</span><span>Разобрано по доступным фактам: ${assessed}/${m.rows.length}</span></div>
     <section class="review-section"><h2>Главное</h2>${renderKuramiComment({context:"Главное",headline:draft.headline,items:draft.summary})}</section>
+    ${renderResearchCoverage(input)}
     <section class="stocks-watchlist"><header class="stocks-section-heading"><h2>Подтверждённый состав</h2><span>${eur(m.totalEUR)} · только указанные позиции, без остатка денег</span></header>
     <div class="review-table"><table><thead><tr><th>Акция / фонд</th><th>Количество</th><th>Оценка, EUR</th><th>Доля</th></tr></thead><tbody>${m.rows.map(r=>`<tr><th>${e(r.symbol)}</th><td>${e(r.quantity)}</td><td>${eur(r.valueEUR)}</td><td>${pct(r.weight)}</td></tr>`).join("")}</tbody></table></div>
     <details class="review-evidence"><summary>Как получилась стоимость</summary><p>Количество акций или долей фонда умножается на цену закрытия торгов. Доллары переводятся в евро делением на ${input.fx.usdPerEUR} — справочный курс ECB на указанную дату. Получается оценка стоимости твоих вложений, а не прибыль от покупок: их стоимость приобретения пока неизвестна.</p></details></section>
@@ -25,14 +27,7 @@ export function renderInvestmentReview(input:ReviewInput,value:ReviewDraft):stri
     <section class="review-section"><h2>Разбор твоих вложений</h2>${draft.positions.map(p=>{
       const r=position(p.symbol);
       return `<details class="review-position"${p.action!=="not-assessed"?" open":""}><summary><strong>${e(p.symbol)}</strong> · ${pct(r.weight)}${p.action==="not-assessed"?" · "+investmentAdviceLabels[p.action]:""}</summary>
-      <div class="review-position__body">${renderKuramiComment({context:p.symbol,paragraphs:[
-        {label:"Совет",text:investmentAdviceLabels[p.action]},
-        {label:"Короткий вывод",text:p.rationale},
-        {label:"Для твоего портфеля",text:p.portfolioMeaning},
-        {label:"Что может пойти иначе",text:p.counterargument},
-        {label:"За чем следить",text:p.revisitWhen}
-      ]})}
-      ${evidence(p.factIds)}
+      <div class="review-position__body">${renderReviewPosition(input,p)}
       ${p.learningIds.length?`<div class="review-learning-links">${p.learningIds.map(id=>`<a data-review-lesson-link href="#learn-${e(id)}">Разобраться: ${e(draft.learningNotes.find(n=>n.id===id)!.term)}</a>`).join("")}</div>`:""}</div></details>`;
     }).join("")}</section>
     ${draft.ideas?.length?`<section class="review-section"><h2>Идеи для изучения</h2><p>Отдельно от твоих вложений. Это кандидаты для дальнейшего разбора, не предложения купить сейчас; доступность в Revolut ещё не подтверждена.</p>${draft.ideas.map(idea=>renderReviewIdea(input.candidates!.find(c=>c.symbol===idea.symbol)!,idea,evidence(idea.factIds))).join("")}</section>`:""}

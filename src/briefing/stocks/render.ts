@@ -11,6 +11,8 @@ import {stockInsights} from "./insights.ts";
 import {renderStocksDiscovery} from "./discovery-render.ts";
 import type {DiscoverySnapshot} from "./discovery-model.ts";
 import type {CompanyLogoDomains} from "./logo-registry.ts";
+import {renderReviewPanel,REVIEW_PANEL_STYLES} from "../investment-review/panel.ts";
+import type {StoredReview} from "../investment-review/store.ts";
 const href=(ids:string[],period:StockPeriod,anchor=true)=>"/stocks?"+new URLSearchParams({symbols:ids.join(","),period}).toString()+(anchor?"#stock-"+ids[0]:"");
 
 export function renderStocksTeaser(payload:BriefingPayload):string {
@@ -34,7 +36,7 @@ export function renderStocksTeaser(payload:BriefingPayload):string {
   </section>`;
 }
 
-export function renderStocksPage(value:StocksSnapshot|null,params=new URLSearchParams(),at=new Date().toISOString(),discovery?:DiscoverySnapshot|null,logos?:CompanyLogoDomains):string {
+export function renderStocksPage(value:StocksSnapshot|null,params=new URLSearchParams(),at=new Date().toISOString(),discovery?:DiscoverySnapshot|null,logos?:CompanyLogoDomains,reviews:Array<StoredReview|null>=[]):string {
   const snapshot=value?parseStocksSnapshot(value):null;
   const timezone="Europe/Vilnius",date=at.slice(0,10);
   if(!snapshot)return renderPageShell({title:"Мои акции",brand:"Kurami Stocks",section:"stocks",date,dateLabel:"Список наблюдения",generated:"—",timezone,
@@ -52,6 +54,7 @@ export function renderStocksPage(value:StocksSnapshot|null,params=new URLSearchP
     <div class="stocks-status"><span>Получено: ${e(updated)}</span><span>Источник: <a href="https://eodhd.com/" target="_blank" rel="noopener noreferrer">EODHD</a> · обновление раз в сутки</span></div>
     ${ready<quotes.length?`<aside class="stocks-notice">Свежие котировки: ${ready}/${quotes.length}. Даты и состояние сохранённых котировок указаны в строках.</aside>`:""}
     ${observations}
+    ${renderReviewPanel(reviews,at)}
     <section class="stocks-watchlist" aria-labelledby="stocks-list-heading" data-stock-list data-stock-period="${selection.period}">
       <header class="stocks-section-heading"><div><h2 id="stocks-list-heading">В твоём списке</h2><p>Цена закрытия и изменение за сессию</p></div>
         <label class="stocks-sort">Порядок<select data-stock-sort><option value="original">Мой порядок</option><option value="moves">Заметные движения</option></select></label>
@@ -60,5 +63,5 @@ export function renderStocksPage(value:StocksSnapshot|null,params=new URLSearchP
     </section>
     ${renderStocksDiscovery(discovery,at,new Set(quotes.map(q=>q.asset.id)),logos)}`;
   return renderPageShell({title:"Мои акции",brand:"Kurami Stocks",section:"stocks",date,dateLabel:"Цены закрытия · "+ready+"/"+quotes.length+" актуальных",generated:updated,timezone,content,
-    ...(logos?.size?{footerLink:{label:"Logos by AllInvestView",href:"https://www.allinvestview.com/tools/ticker-logos/"}}:{})});
+    ...(logos?.size?{footerLink:{label:"Logos by AllInvestView",href:"https://www.allinvestview.com/tools/ticker-logos/"}}:{})}).replace("</style>",REVIEW_PANEL_STYLES+"</style>");
 }

@@ -6,6 +6,9 @@ import {nodeHttpFetch} from "../providers/node-http-fetch.ts";
 import {parseStocksSnapshot} from "../stocks/model.ts";
 import {calculateReview,parseReviewInput,validateReviewDraft,dateOnly,type ReviewInput} from "./model.ts";
 import {renderInvestmentReview} from "./render.ts";
+import {acceptReview} from "./store.ts";
+import {buildReviewPacket} from "./packet.ts";
+import {mergeCollectedEvidence} from "./collect.ts";
 
 export function parseEcbUSD(xml:string,date:string):number {
   if(!dateOnly(date)||xml.length>300000)throw Error("Invalid ECB input");
@@ -33,7 +36,7 @@ if(import.meta.main){
     const response=await nodeHttpFetch(url,{redirect:"error",signal:AbortSignal.timeout(12000)});if(!response.ok)throw Error("ECB unavailable");
     const xml=await response.text(),usdPerEUR=parseEcbUSD(xml,dates[0]!);
     const input=parseReviewInput({version:1,asOfDate:date,mode:"trial",baseline,market,fx:{date:dates[0],usdPerEUR,sourceId:"ecb-fx"},
-      sources:[{id:"ecb-fx",title:"ECB — EUR reference rates",url,asOfDate:dates[0],retrievedAt:new Date().toISOString()},...evidence.sources],facts:evidence.facts,...(evidence.fundHoldings?{fundHoldings:evidence.fundHoldings}:{}),...(evidence.candidates?{candidates:evidence.candidates}:{})});
+      sources:[{id:"ecb-fx",title:"ECB — EUR reference rates",url,asOfDate:dates[0],retrievedAt:new Date().toISOString()},...evidence.sources],facts:evidence.facts,...(evidence.fundHoldings?{fundHoldings:evidence.fundHoldings}:{}),...(evidence.candidates?{candidates:evidence.candidates}:{}),...(evidence.researchCoverage?{researchCoverage:evidence.researchCoverage}:{})});
     const calculated=calculateReview(input);await privateWrite(resolve(flag("output")),JSON.stringify(input,null,2)+"\n");
     console.log(JSON.stringify({snapshot:flag("output"),inputDigest:calculated.inputDigest,complete:calculated.complete,positions:calculated.rows.length,financialApiRequests:0,ecbRequests:1}));
   }else if(command==="render"){
@@ -47,7 +50,22 @@ if(import.meta.main){
       .replace('href="/"','href="https://digest.shagon1k.win/"');
     await privateWrite(resolve(flag("output")),html);
     console.log(JSON.stringify({report:flag("output"),mode:input.mode,publicRoute:false,scheduleEnabled:false}));
+  }else if(command==="merge-evidence"){
+    if(flags.size!==3||![...flags.keys()].every(k=>["--input","--collected","--output"].includes(k)))throw Error("Invalid evidence merge arguments");
+    const merged=mergeCollectedEvidence(parseReviewInput(await readJson(flag("input"))),await readJson(flag("collected")));
+    await privateWrite(resolve(flag("output")),JSON.stringify(merged,null,2)+"\n");
+    console.log(JSON.stringify({evidence:flag("output"),facts:merged.facts.length}));
+  }else if(command==="draft-packet"){
+    if(flags.size!==2||![...flags.keys()].every(k=>["--input","--output"].includes(k)))throw Error("Invalid packet arguments");
+    const packet=await buildReviewPacket(parseReviewInput(await readJson(flag("input"))));
+    await privateWrite(resolve(flag("output")),JSON.stringify(packet)+"\n");
+    console.log(JSON.stringify({packet:flag("output"),tools:0}));
+  }else if(command==="accept"){
+    if([...flags.keys()].some(k=>!["--input","--draft","--store"].includes(k)))throw Error("Unknown acceptance argument");
+    const input=parseReviewInput(await readJson(flag("input"))),draft=validateReviewDraft(input,await readJson(flag("draft")));
+    const saved=await acceptReview(resolve(flag("store")),input,draft);
+    console.log(JSON.stringify({accepted:saved.id,slot:input.mode,scheduleEnabled:false}));
   }else if(command==="calculate"){
     if(flags.size!==1)throw Error("Unexpected calculate argument");console.log(JSON.stringify(calculateReview(parseReviewInput(await readJson(flag("input")))),null,2));
-  }else throw Error("Use snapshot, calculate or render; no publish/execute command exists");
+  }else throw Error("Use snapshot, calculate, render or explicit accept; no trade/schedule command exists");
 }

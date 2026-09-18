@@ -2,7 +2,7 @@
 name: kurami-investment-review
 description: Prepare Alex's evidence-backed long-term stock portfolio review from a confirmed private holdings snapshot, cached quotes, and dated issuer evidence. Use for an explicitly requested investment review, thesis reassessment, or approved weekly/monthly research run. Not for intraday signals, automatic trading, generic Daily generation, tax filing, or changing holdings from suggestions.
 metadata:
-  version: 0.3.0
+  version: 0.4.0
 ---
 
 # Kurami Investment Review
@@ -13,9 +13,10 @@ considerations for a human decision, never instructions to a brokerage.
 
 ## Current phase and boundaries
 
-This version is **manual trial only**. No recurring job, public report route,
-Daily section or automatic publishing is enabled. Do not create any of them
-when executing this skill. The existing Stocks/Discovery collectors retain
+Research runs are **manual until separately activated**. No recurring job,
+Daily section or automatic publishing is enabled. Accepted weekly/monthly
+storage and the optional /stocks reader are available, but acceptance and
+enabling the reader are explicit owner-controlled steps. The existing Stocks/Discovery collectors retain
 their ownership and quota; do not spend their remaining API budget on research.
 Use `kurami-ui-preview-language` and the deterministic investment-review renderer.
 
@@ -47,7 +48,9 @@ Read these references before research:
    to the exact runtime `inputDigest`. Do not author monetary totals, percentages,
    stress-loss amounts or remaining monthly allowances; the renderer calculates
    them. `proposedOrders` must be empty in this phase.
-   Use draft version 2. Supply up to three contextual learning notes, linked
+   Use draft version 3. Every advice has a short `adviceReason`; `review` also
+   requires specific `blockingInfo`, otherwise `blockingInfo` is null.
+   Supply up to three contextual learning notes, linked
    from relevant positions; do not turn every report into a glossary or course.
 6. Validate and render the private HTML. Review the rendered copy against its
    evidence. A schema pass proves structure and input binding, not the truth
