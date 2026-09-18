@@ -10,6 +10,8 @@ function initializeCharts(factory: typeof createChartEngine): void {
   };
   document.querySelectorAll<HTMLElement>("[data-chart]").forEach(root=>{
     if(root.dataset.chartMounted)return;
+    const disclosure=root.closest<HTMLDetailsElement>("details");
+    if(disclosure&&!disclosure.open)return;
     root.dataset.chartMounted="true";
     const status=root.querySelector<HTMLElement>("[data-chart-status]");
     try {
@@ -99,7 +101,6 @@ function initializeCharts(factory: typeof createChartEngine): void {
       root.addEventListener("focusout",hideTip);
       root.addEventListener("click",event=>{const point=pointFrom(event.target);if(point)showTip(point);});
       plotNode.addEventListener("scroll",hideTip);
-      document.addEventListener("pointerdown",event=>{if(event.target instanceof Node && !root.contains(event.target))hideTip();});
       root.addEventListener("keydown",event=>{
         const point=pointFrom(event.target);if(!point)return;
         if(event.key==="Escape"){hideTip();return;}
@@ -130,4 +131,12 @@ function initializeCharts(factory: typeof createChartEngine): void {
   });
 }
 
-export const CHART_CLIENT_SCRIPT=`(${initializeCharts.toString()})(${createChartEngine.toString()});`;
+export const CHART_CLIENT_SCRIPT=`(()=>{
+  const mount=()=>(${initializeCharts.toString()})(${createChartEngine.toString()});
+  mount();document.addEventListener("kurami:charts-mount",mount);
+  document.addEventListener("pointerdown",event=>{
+    document.querySelectorAll("[data-chart]").forEach(root=>{
+      if(!root.contains(event.target)){const tip=root.querySelector("[data-chart-tooltip]");if(tip)tip.hidden=true;}
+    });
+  });
+})();`;

@@ -243,12 +243,18 @@ variation without switching handwritten notes to normal ink.
 
 Use the canonical `stocks/render.ts` teaser and watchlist, not agent-authored
 financial cards. The teaser is titled `Акции`; the full page is `Мои акции`
-with `Открыть обзор →` as its single Daily action. Reuse `SelectionControl`,
-shared buttons and `ui/charts/TrendChart` for periods and up-to-five comparisons.
-Preserve native currencies, quote dates, adjusted-return labels and explicit
-stale/unavailable states. Mobile scroll is confined to the labeled watchlist
-table region. Prices, movements and chart data are supplied by the deterministic
-Stocks model; the renderer must not invent commentary or investment signals.
+with `Открыть обзор →` as its single Daily action. Use canonical `StockRow` and
+`StockDetails` from `stocks/components.ts`: aligned company/ticker, closing
+price, daily change and the shared `ui/charts/Sparkline` for a month. One row
+opens inline; its shared `TrendChart` has month/three-month/year controls.
+Do not recreate the wide quote table, multi-selection checkboxes or a detached
+comparison chart. Preserve the period when moving between rows. Default order
+is stable; movement sorting is an explicit action, not automatic shuffling.
+Mobile rows reflow without horizontal list scrolling; only the detailed chart
+may scroll. Preserve currencies, quote dates, adjusted-return labels and
+stale/unavailable states. Sparklines have independent scales and explicit
+missing-data handling. Factual observations come from the deterministic Stocks
+model; the renderer must not invent commentary or investment signals.
 
 ## Responsive rules
 

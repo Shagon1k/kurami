@@ -91,5 +91,9 @@ For local visual QA, run
 showcase contains a multi-series trend and a 13-bucket bar chart, using the
 real shared styles and browser script. It never reads production state.
 
-There is no production BarChart placement yet. A future Weekly Review or
-Portfolio add-on must first define its source, aggregation and snapshot rules.
+Weekly Review uses BarChart; Stocks and Cinema use TrendChart. The shared
+`renderSparkline(values, label)` supplies a bounded non-interactive miniature
+for Stocks rows: finite values, explicit null gaps, flat-range handling and
+an accessible caller-supplied label. It does not replace the detailed chart.
+Dynamic disclosures dispatch `kurami:charts-mount` after inserting canonical
+markup; already-mounted charts are skipped and closed details stay unmounted.

@@ -1,21 +1,14 @@
 import type {BriefingPayload} from "../model.ts";
 import {escapeHtml as e} from "../ui/html.ts";
 import {renderPageShell} from "../ui/page-shell.ts";
-import {renderTrendChart} from "../ui/charts/index.ts";
-import {renderButton} from "../ui/components/button.ts";
-import {renderSelectionControl} from "../ui/components/selection-control.ts";
-import {parseStocksSnapshot,stockQuote,stocksBrief,type StockQuote,type StocksBrief,type StocksSnapshot} from "./model.ts";
-import {stockSelection,stocksChart,type StockPeriod} from "./view.ts";
+import {parseStocksSnapshot,stocksBrief,type StocksBrief,type StocksSnapshot} from "./model.ts";
+import {stockSelection,type StockPeriod} from "./view.ts";
 
-const shortDate=(date:string|null)=>date?new Intl.DateTimeFormat("ru-RU",{day:"numeric",month:"short",timeZone:"UTC"}).format(new Date(date+"T12:00:00Z")):"нет даты";
-export function formatStockPercent(value:number|null):string {
-  if(value===null||!Number.isFinite(value))return "—";
-  const rounded=Math.round(value*100)/100;
-  return (rounded>0?"+":"")+new Intl.NumberFormat("ru-RU",{minimumFractionDigits:2,maximumFractionDigits:2}).format(Object.is(rounded,-0)?0:rounded)+"%";
-}
-const delta=(value:number|null)=>`<span class="stock-change ${value===null?"":value>0?"is-up":value<0?"is-down":""}">${e(formatStockPercent(value))}</span>`;
-const money=(quote:StockQuote)=>quote.price===null?"—":new Intl.NumberFormat("ru-RU",{style:"currency",currency:quote.asset.currency,minimumFractionDigits:2,maximumFractionDigits:2}).format(quote.price);
-const href=(ids:string[],period:StockPeriod,anchor=true)=>"/stocks?"+new URLSearchParams({symbols:ids.join(","),period}).toString()+(anchor?"#stocks-chart":"");
+import {shortDate,delta,money,formatStockPercent} from "./format.ts";
+export {formatStockPercent} from "./format.ts";
+import {renderStockRow,stockHref} from "./components.ts";
+import {stockInsights} from "./insights.ts";
+const href=(ids:string[],period:StockPeriod,anchor=true)=>"/stocks?"+new URLSearchParams({symbols:ids.join(","),period}).toString()+(anchor?"#stock-"+ids[0]:"");
 
 export function renderStocksTeaser(payload:BriefingPayload):string {
   const brief=payload.addons.stocks as unknown as StocksBrief|undefined;
@@ -45,32 +38,24 @@ export function renderStocksPage(value:StocksSnapshot|null,params=new URLSearchP
     content:'<section class="hero stocks-hero"><div><p class="hero__eyebrow">Акции</p><h1>Котировки готовятся.</h1><p class="hero__subtitle">Пока нет сохранённого среза. Остальные разделы работают независимо.</p><a href="/">← К Daily</a></div></section>'});
   const selection=stockSelection(snapshot,params),brief=stocksBrief(snapshot,snapshot.data.policy,at),quotes=brief.data.quotes;
   const ready=quotes.filter(q=>q.state==="ready").length;
-  const chart=stocksChart(snapshot,selection);
-  const rows=quotes.map(quote=>`<tr class="${selection.ids.includes(quote.asset.id)?"is-selected":""}">
-    <td class="stocks-select">${renderSelectionControl({label:"Сравнить "+quote.asset.name,checked:selection.ids.includes(quote.asset.id),disabled:quote.price===null,
-      attributes:{"data-stock-select":true,value:quote.asset.id}})}</td>
-    <th scope="row"><a class="stock-symbol" href="${e(href([quote.asset.id],selection.period))}">${e(quote.asset.id)}</a><span class="stock-name">${e(quote.asset.name)}</span>
-      <small>${e(quote.asset.currency)} · ${e(quote.asset.exchange)}${quote.asset.kind==="etf"?" · ETF":""}</small></th>
-    <td><strong>${e(money(quote))}</strong><small>${e(shortDate(quote.date))}</small>${quote.state!=="ready"?`<span class="stocks-warning">${quote.state==="stale"?"Устарело":"Нет данных"}</span>`:""}</td>
-    <td>${delta(quote.day)}</td><td>${delta(quote.week)}</td><td>${delta(quote.month)}</td>
-  </tr>`).join("");
-  const periods=(["1m","3m","1y"] as const).map(period=>`<a class="button button--${period===selection.period?"primary":"secondary"}" href="${e(href(selection.ids,period))}"${period===selection.period?' aria-current="true"':""}>${period==="1m"?"1 месяц":period==="3m"?"3 месяца":"Год"}</a>`).join("");
+  // Previously shared comparison URLs still open their first symbol; no selection UI.
+  const selected=params.has("symbols")?selection.ids[0]:null;
+  const rows=quotes.map((quote,index)=>renderStockRow(snapshot,quote.asset.id,selection.period,quote.asset.id===selected,at,index)).join("");
+  const insights=stockInsights(snapshot,at);
+  const observations=insights.length?`<section class="stocks-observations" aria-labelledby="stocks-observations-heading"><h2 id="stocks-observations-heading">Что изменилось</h2><ul>${insights.map(item=>`<li><a href="${e(stockHref(item.symbol,selection.period))}" data-stock-open="${e(item.symbol)}"><strong>${e(item.symbol)}</strong> ${item.kind==="high"?"Новый максимум закрытия за 3 месяца":formatStockPercent(item.value)+(item.kind==="week"?" за 7 дней":" за сессию")} <span aria-hidden="true">↗</span></a><small>На ${e(shortDate(item.date))}</small></li>`).join("")}</ul><p class="stocks-footnote">Факты из истории скорректированных закрытий, не рекомендации к покупке.</p></section>`:"";
   const updated=new Intl.DateTimeFormat("ru-RU",{timeZone:timezone,day:"numeric",month:"long",hour:"2-digit",minute:"2-digit"}).format(new Date(snapshot.capturedAt));
   const content=`<section class="hero stocks-hero"><div><p class="hero__eyebrow">Твой список наблюдения</p><h1>Мои акции</h1>
-    <p class="hero__subtitle">${quotes.length} акций и ETF · цены закрытия · без торгового шума</p></div></section>
+    <p class="hero__subtitle">${quotes.length} акций и ETF · раскрой строку, чтобы посмотреть динамику</p></div></section>
     <div class="stocks-status"><span>Получено: ${e(updated)}</span><span>Источник: <a href="https://eodhd.com/" target="_blank" rel="noopener noreferrer">EODHD</a> · обновление раз в сутки</span></div>
-    ${ready<quotes.length?`<aside class="stocks-notice">Свежие данные доступны для ${ready} из ${quotes.length} бумаг. Последние сохранённые цены не заменены нулями; их даты и состояние указаны в таблице.</aside>`:""}
-    <section class="stocks-watchlist" aria-labelledby="stocks-list-heading" data-stock-picker data-stock-period="${selection.period}">
-      <header class="stocks-section-heading"><h2 id="stocks-list-heading">В твоём списке</h2><span>Выбери до пяти для сравнения</span></header>
-      <div class="stocks-table-scroll" role="region" tabindex="0" aria-label="Котировки выбранных акций"><table class="stocks-table"><thead><tr><th><span class="sr-only">Сравнение</span></th><th>Акция / ETF</th><th>Цена закрытия</th><th>За день*</th><th>За 7 дней*</th><th>За 30 дней*</th></tr></thead><tbody>${rows}</tbody></table></div>
-      <div class="stocks-compare-actions"><span data-stock-selection-status aria-live="polite">Выбрано ${selection.ids.length} из 5</span>
-      ${renderButton({label:"Сравнить выбранные",variant:"secondary",disabled:selection.ids.length<2,attributes:{"data-stock-compare":true}})}</div>
-      <noscript><p>График одной бумаги открывается по её тикеру. Для сравнения нескольких нужен JavaScript.</p></noscript>
+    ${ready<quotes.length?`<aside class="stocks-notice">Свежие данные доступны для ${ready} из ${quotes.length} бумаг. Даты и состояние сохранённых котировок указаны в строках.</aside>`:""}
+    ${observations}
+    <section class="stocks-watchlist" aria-labelledby="stocks-list-heading" data-stock-list data-stock-period="${selection.period}">
+      <header class="stocks-section-heading"><div><h2 id="stocks-list-heading">В твоём списке</h2><p>Цена закрытия и изменение за сессию</p></div>
+        <label class="stocks-sort">Порядок<select data-stock-sort><option value="original">Мой порядок</option><option value="moves">Заметные движения</option></select></label>
+      </header>
+      <div data-stock-rows>${rows}</div>
     </section>
-    <section id="stocks-chart" class="stocks-chart-section" aria-label="История котировок"><div class="stocks-periods" aria-label="Период графика">${periods}</div>
-      ${renderTrendChart(chart)}
-      <p class="stocks-footnote">* Проценты и график рассчитаны по adjusted close — с учётом сплитов и дивидендов. Цена в таблице — обычное закрытие. Недельное и месячное изменение сравнивает с последней доступной сессией не позднее 7 и 30 календарных дней назад. Пропуски — не нули.</p>
-      <p class="stocks-footnote">Котировки ориентировочные и могут отличаться от Revolut. VUAA показан по листингу Xetra в EUR. Это не стоимость твоих позиций и не рекомендация покупать или продавать.</p>
-    </section>`;
+    <p class="stocks-footnote">Мини-графики показывают месяц на собственном масштабе: наклон линий разных акций напрямую не сравнивается. Графики и проценты учитывают сплиты и дивиденды (adjusted close). Цена в строке — обычное закрытие. Пропуски — не нули.</p>
+    <p class="stocks-footnote">Котировки могут отличаться от Revolut. VUAA показан по листингу Xetra в EUR. Это список наблюдения, не стоимость твоих позиций и не рекомендация покупать или продавать.</p>`;
   return renderPageShell({title:"Мои акции",brand:"Kurami Stocks",section:"stocks",date,dateLabel:"Цены закрытия · "+ready+"/"+quotes.length+" актуальных",generated:updated,timezone,content});
 }

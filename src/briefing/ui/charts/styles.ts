@@ -1,4 +1,6 @@
 export const CHART_STYLES = `
+.sparkline { width:140px; max-width:100%; height:44px; display:block; }
+.sparkline-empty { display:block; font-size:.75rem; color:var(--muted); }
 .chart { position: relative; margin: 16px 0; padding: 20px; background: var(--surface); border: 1px solid var(--line); border-radius: 2px; }
 .chart__header { display: flex; align-items: start; justify-content: space-between; gap: 16px; }
 .chart h3 { margin: 4px 0 0; font-size: 1rem; font-weight: 600; line-height: 1.25; }

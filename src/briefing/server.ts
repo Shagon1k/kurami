@@ -1,6 +1,7 @@
 import { CHART_CLIENT_SCRIPT } from "./ui/charts/client.ts";
 import {STOCKS_CLIENT_SCRIPT} from "./stocks/client.ts";
 import {renderStocksPage} from "./stocks/render.ts";
+import {renderStockDetails} from "./stocks/components.ts";
 import {loadStocksCache} from "./stocks/collector.ts";
 import {publishedSiteLinks} from "./site-navigation.ts";
 import {injectSiteNavigation} from "./ui/components/site-header.ts";
@@ -922,6 +923,13 @@ export async function createBriefingServer(
         return;
       }
       if (request.method === "GET") {
+        if(url.pathname==="/api/stocks/details") {
+          if(!(options.stocks??runtimeConfig?.stocks.enabled??false)){text(response,404,"Not found\n");return;}
+          const snapshot=loadStocksCache(database);
+          if(!snapshot){text(response,503,"Stocks cache unavailable\n");return;}
+          const html=renderStockDetails(snapshot,url.searchParams);
+          sendHeaders(response,"text/html; charset=utf-8");response.statusCode=200;response.end(html);return;
+        }
         if(url.pathname==="/stocks") {
           if(!(options.stocks??runtimeConfig?.stocks.enabled??false)){text(response,404,"Not found\n");return;}
           const html=renderStocksPage(loadStocksCache(database),url.searchParams);
