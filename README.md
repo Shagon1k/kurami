@@ -54,6 +54,7 @@ tasks. The primary owner entry points are:
 - [Reusable charts](docs/charts.md)
 - [Weekly Review](docs/weekly-review.md)
 - [Stocks add-on](docs/stocks-addon.md)
+- [Investment Review — manual prototype](docs/investment-review.md)
 - [Shared site header](docs/site-header.md)
 - [Cinema add-on v1 contract](docs/cinema-addon-v1.md)
 - [Project Orchestrator guide — RU](docs/guide.html)
