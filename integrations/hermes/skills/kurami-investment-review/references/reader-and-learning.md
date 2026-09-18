@@ -8,6 +8,17 @@ underlying reasoning. No baby talk, patronizing praise, childish analogies,
 
 ## Main reading layer
 
+Use "акция" for a company holding and "фонд"/"ETF" for an ETF. Do not use
+"бумага" as a reader-facing synonym. Mixed headings may say "Акция / фонд".
+The short field is **Совет**, with fixed renderer labels:
+- maintain: **Оставить без изменений**;
+- consider-add: **Рассмотреть докупку**;
+- consider-trim: **Рассмотреть частичную продажу**;
+- consider-exit: **Рассмотреть полную продажу**;
+- review: **Пока без рекомендации** (examined, but no supported action yet);
+- not-assessed: **Анализ ещё не проведён** (coverage gap, not a hold advice).
+Do not strengthen an uncertain assessment merely to populate the advice field.
+
 Each mini-report follows one stable structure:
 1. **Короткий вывод** — the conclusion in one or two direct sentences.
 2. **Для твоего портфеля** — why the finding matters for his existing holdings

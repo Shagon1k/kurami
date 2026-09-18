@@ -37,7 +37,7 @@ export function stocksChart(snapshot:StocksSnapshot,selection:{ids:string[];peri
     dates=[first,...new Set(byWeek.values())].filter((date,index,array)=>array.indexOf(date)===index).sort();
   }
   if(dates.length>120)throw new Error("Stock chart exceeds category limit");
-  return {...base,description:(compare?"Общая база: "+label(first)+". Каждая бумага в своей валюте; без пересчёта валют. ":"")
+  return {...base,description:(compare?"Общая база: "+label(first)+". Значения в исходной валюте каждого вложения; без пересчёта валют. ":"")
       +(selection.period==="1y"?"Недельные закрытия. ":"Дневные закрытия. ")+"Учтены сплиты и дивиденды.",
     categories:dates.map(date=>({key:date,label:date,shortLabel:label(date),
       ...(selection.period==="1y"&&dayShift(week(date),4)>=snapshot.capturedAt.slice(0,10)?{partial:true}:{})})),

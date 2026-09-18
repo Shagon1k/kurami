@@ -50,7 +50,7 @@ export function renderStocksPage(value:StocksSnapshot|null,params=new URLSearchP
   const content=`<section class="hero stocks-hero"><div><p class="hero__eyebrow">Твой список наблюдения</p><h1>Мои акции</h1>
     <p class="hero__subtitle">${quotes.length} акций и ETF · раскрой строку, чтобы посмотреть динамику</p></div></section>
     <div class="stocks-status"><span>Получено: ${e(updated)}</span><span>Источник: <a href="https://eodhd.com/" target="_blank" rel="noopener noreferrer">EODHD</a> · обновление раз в сутки</span></div>
-    ${ready<quotes.length?`<aside class="stocks-notice">Свежие данные доступны для ${ready} из ${quotes.length} бумаг. Даты и состояние сохранённых котировок указаны в строках.</aside>`:""}
+    ${ready<quotes.length?`<aside class="stocks-notice">Свежие котировки: ${ready}/${quotes.length}. Даты и состояние сохранённых котировок указаны в строках.</aside>`:""}
     ${observations}
     <section class="stocks-watchlist" aria-labelledby="stocks-list-heading" data-stock-list data-stock-period="${selection.period}">
       <header class="stocks-section-heading"><div><h2 id="stocks-list-heading">В твоём списке</h2><p>Цена закрытия и изменение за сессию</p></div>

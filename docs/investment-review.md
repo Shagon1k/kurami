@@ -17,6 +17,11 @@ Headline/summary, position reasoning/action considerations and next steps use
 it; numeric tables, source disclosures, learning notes and policy do not.
 Draft values and calculations are unchanged by this presentation treatment.
 
+Reader-facing action caption is `Совет`. Keep the distinction between
+`Пока без рекомендации` (reviewed, but no supported action yet) and
+`Анализ ещё не проведён` (not covered); neither means hold. Use `акция` for a
+company and `фонд`/`ETF` for funds instead of the generic `бумага`.
+
 `integrations/hermes/skills/kurami-investment-review` contains the custom method,
 user constraints and evidence contract. `src/briefing/investment-review` owns
 input/draft validation, calendar boundaries, valuations, overlap, hypothetical
@@ -41,6 +46,19 @@ Week/Month view on `/stocks` only. Preserve last success with visible freshness
 and invalidate action applicability after relevant changes. Activation requires
 review of the trial and confirmation of private-page access, source automation,
 fees/cash/monthly transaction reconciliation and risk/target policy.
+
+Next readiness steps, before recurring activation:
+1. Complete an initial research pass for currently uncovered holdings and
+   test that a fresh run follows the skill rather than a handcrafted layout.
+2. Agree and add a separate bounded long-term idea contract: candidates are
+   not holdings, with evidence, risks and comparison against adding to existing
+   holdings or doing nothing. Existing movement-based Discovery is not this.
+3. Add independently retained weekly/monthly report storage and the compact
+   `/stocks` view; then validate scheduling, collision handling and source costs.
+
+On 2026-09-18 an anonymous HTTP request to `/stocks` returned a 302 redirect
+to Cloudflare Access. This confirms an anonymous access gate, not a complete
+audit of the Access allow policy. No personal report has been published yet.
 
 Verification: `npm run test:investment-review`. Tests use synthetic holdings
 only and cover leap-month boundaries, FX direction, missing/old/identity-mismatch

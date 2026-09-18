@@ -7,24 +7,24 @@ import {renderKuramiComment} from "../ui/components/kurami-comment.ts";
 
 const eur=(n:number|null)=>n===null?"недостаточно данных":new Intl.NumberFormat("ru-RU",{style:"currency",currency:"EUR",maximumFractionDigits:2}).format(n);
 const pct=(n:number|null)=>n===null?"—":new Intl.NumberFormat("ru-RU",{maximumFractionDigits:2}).format(n)+"%";
-const actionLabels={review:"Проверить роль",maintain:"Сохранить подход","consider-add":"Рассмотреть пополнение","consider-trim":"Рассмотреть сокращение","consider-exit":"Рассмотреть выход","not-assessed":"Пока не оценено"};
+export const investmentAdviceLabels={review:"Пока без рекомендации",maintain:"Оставить без изменений","consider-add":"Рассмотреть докупку","consider-trim":"Рассмотреть частичную продажу","consider-exit":"Рассмотреть полную продажу","not-assessed":"Анализ ещё не проведён"};
 export function renderInvestmentReview(input:ReviewInput,value:ReviewDraft):string {
   const draft=validateReviewDraft(input,value),m=calculateReview(input),facts=new Map(input.facts.map(f=>[f.id,f])),sources=new Map(input.sources.map(s=>[s.id,s]));
   const position=(symbol:string)=>m.rows.find(r=>r.symbol===symbol)!;
   const assessed=draft.positions.filter(p=>p.action!=="not-assessed").length;
   const content=`<section class="hero stocks-hero"><div><p class="hero__eyebrow">Приватный пробный обзор · ${e(input.asOfDate)}</p><h1>Обзор портфеля</h1></div></section>
-    <div class="stocks-status"><span>Количество бумаг подтверждено: ${e(input.baseline.asOfLocalDate)}</span><span>Цены и валютный курс: ${e(input.fx.date)}</span><span>Углублённо проверено: ${assessed}/${m.rows.length}</span></div>
+    <div class="stocks-status"><span>Состав подтверждён: ${e(input.baseline.asOfLocalDate)}</span><span>Цены и валютный курс: ${e(input.fx.date)}</span><span>Углублённо проверено: ${assessed}/${m.rows.length}</span></div>
     <section class="review-section"><h2>Главное</h2>${renderKuramiComment({context:"Главное",headline:draft.headline,items:draft.summary})}</section>
     <section class="stocks-watchlist"><header class="stocks-section-heading"><h2>Подтверждённый состав</h2><span>${eur(m.totalEUR)} · только указанные позиции, без остатка денег</span></header>
-    <div class="review-table"><table><thead><tr><th>Бумага</th><th>Количество</th><th>Оценка, EUR</th><th>Доля</th></tr></thead><tbody>${m.rows.map(r=>`<tr><th>${e(r.symbol)}</th><td>${e(r.quantity)}</td><td>${eur(r.valueEUR)}</td><td>${pct(r.weight)}</td></tr>`).join("")}</tbody></table></div>
-    <details class="review-evidence"><summary>Как получилась стоимость</summary><p>Количество бумаг умножается на цену закрытия торгов. Доллары переводятся в евро делением на ${input.fx.usdPerEUR} — справочный курс ECB на указанную дату. Получается оценка того, сколько стоят эти бумаги, а не прибыль от твоих покупок: их стоимость приобретения пока неизвестна.</p></details></section>
+    <div class="review-table"><table><thead><tr><th>Акция / фонд</th><th>Количество</th><th>Оценка, EUR</th><th>Доля</th></tr></thead><tbody>${m.rows.map(r=>`<tr><th>${e(r.symbol)}</th><td>${e(r.quantity)}</td><td>${eur(r.valueEUR)}</td><td>${pct(r.weight)}</td></tr>`).join("")}</tbody></table></div>
+    <details class="review-evidence"><summary>Как получилась стоимость</summary><p>Количество акций или долей фонда умножается на цену закрытия торгов. Доллары переводятся в евро делением на ${input.fx.usdPerEUR} — справочный курс ECB на указанную дату. Получается оценка стоимости твоих вложений, а не прибыль от покупок: их стоимость приобретения пока неизвестна.</p></details></section>
     ${m.overlap.length?`<section class="review-section"><h2>Одни и те же компании — напрямую и через VUAA</h2><p>Считаем, какая часть всего портфеля связана с компанией: отдельные акции плюс её доля внутри фонда. Это приближение по составу VUAA на ${e(m.fundHoldingsDate!)}; показаны только проверенные пересечения.</p><div class="review-table"><table><thead><tr><th>Компания</th><th>Напрямую</th><th>Через фонд</th><th>Вместе</th></tr></thead><tbody>${m.overlap.map(r=>`<tr><th>${e(r.symbol)}</th><td>${pct(r.directWeight)}</td><td>${pct(r.fundWeight)}</td><td>${pct(r.totalWeight)}</td></tr>`).join("")}</tbody></table></div></section>`:""}
     <section class="review-section"><h2>Проверка устойчивости</h2><div class="review-stress">${m.stress.map(s=>`<article><h3>Сценарий −${pct(s.drop*100)}</h3><strong>${eur(s.remainingEUR)}</strong><p>Снижение оценки на ${eur(s.lossEUR)}</p></article>`).join("")}</div><p class="stocks-footnote">Это арифметические сценарии, не прогноз, не оценка вероятности и не согласованный тобой предел риска. Отдельная подушка не включена.</p></section>
     <section class="review-section"><h2>Разбор твоих вложений</h2>${draft.positions.map(p=>{
       const r=position(p.symbol);
-      return `<details class="review-position"${p.action!=="not-assessed"?" open":""}><summary><strong>${e(p.symbol)}</strong> · ${pct(r.weight)}${p.action==="not-assessed"?" · Пока не оценено":""}</summary>
+      return `<details class="review-position"${p.action!=="not-assessed"?" open":""}><summary><strong>${e(p.symbol)}</strong> · ${pct(r.weight)}${p.action==="not-assessed"?" · "+investmentAdviceLabels[p.action]:""}</summary>
       <div class="review-position__body">${renderKuramiComment({context:p.symbol,paragraphs:[
-        {label:"Что рассмотреть",text:actionLabels[p.action]},
+        {label:"Совет",text:investmentAdviceLabels[p.action]},
         {label:"Короткий вывод",text:p.rationale},
         {label:"Для твоего портфеля",text:p.portfolioMeaning},
         {label:"Что может пойти иначе",text:p.counterargument},

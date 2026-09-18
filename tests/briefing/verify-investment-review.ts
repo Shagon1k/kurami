@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import {calculateReview,calendarMonth,reportPeriod,parseReviewInput,inputDigest,validateReviewDraft,type ReviewInput,type ReviewDraft} from "../../src/briefing/investment-review/model.ts";
 import {parseEcbUSD} from "../../src/briefing/investment-review/cli.ts";
-import {renderInvestmentReview} from "../../src/briefing/investment-review/render.ts";
+import {renderInvestmentReview,investmentAdviceLabels} from "../../src/briefing/investment-review/render.ts";
 import {REVIEW_LEARNING_SCRIPT} from "../../src/briefing/investment-review/learning-note.ts";
 import {runInNewContext} from "node:vm";
 import {renderKuramiComment,KURAMI_COMMENT_STYLES} from "../../src/briefing/ui/components/kurami-comment.ts";
@@ -34,7 +34,9 @@ assert(html.includes("Остаток сделок: неизвестен"));asser
 const comments=[...html.matchAll(/<aside\b[^>]*data-kurami-comment[\s\S]*?<\/aside>/g)].map(m=>m[0]);
 assert.equal(comments.length,draft.positions.length+2);
 assert(comments.every(c=>c.includes("Курами:")&&c.includes("🦊")));
-assert(comments.some(c=>c.includes("Что рассмотреть:")));
+assert(comments.some(c=>c.includes("Совет:")));
+assert(html.includes("Пока без рекомендации"));assert(!html.includes("Что рассмотреть"));assert(!/бумаг/i.test(html));
+assert.deepEqual(Object.values(investmentAdviceLabels),["Пока без рекомендации","Оставить без изменений","Рассмотреть докупку","Рассмотреть частичную продажу","Рассмотреть полную продажу","Анализ ещё не проведён"]);
 assert(comments.every(c=>!c.includes("<table")&&!c.includes("Example factual input")&&!c.includes("review-learning-note")));
 assert.equal(renderKuramiComment({}),"");
 assert(renderKuramiComment({items:["<script>bad</script>"],ordered:true}).includes("<ol><li>&lt;script&gt;"));
