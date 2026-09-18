@@ -19,24 +19,28 @@ export function parseEcbUSD(xml:string,date:string):number {
 }
 const readJson=async(path:string)=>{const text=await readFile(path,"utf8");if(text.length>2_000_000)throw Error("Review file too large");return JSON.parse(text);};
 async function privateWrite(path:string,value:string){await mkdir(dirname(path),{recursive:true,mode:0o700});await writeFile(path,value,{mode:0o600,flag:"wx"});}
+export async function snapshotReview(baselinePath:string,evidence:Pick<ReviewInput,"sources"|"facts"|"fundHoldings"|"candidates"|"researchCoverage">,date:string,paths=briefingPaths(),fetcher:typeof fetch=nodeHttpFetch):Promise<ReviewInput>{
+  const info=await lstat(baselinePath);
+  if(!info.isFile()||info.isSymbolicLink()||(info.mode&0o077))throw Error("Baseline must be a private regular file");
+  if(!dateOnly(date))throw Error("Invalid review date");
+  const baseline=await readJson(baselinePath),db=new DatabaseSync(paths.databasePath,{readOnly:true});let market;
+  try{market=parseStocksSnapshot(loadAddonSnapshot(db,"stocks")?.envelope);}finally{db.close();}
+  const dates=[...new Set(market.data.series.flatMap(s=>s.points.at(-1)?.date??[]))];
+  if(dates.length!==1||dates[0]!>=date)throw Error("Trial requires aligned completed quote sessions");
+  const url="https://www.ecb.europa.eu/stats/eurofxref/eurofxref-hist-90d.xml";
+  const response=await fetcher(url,{redirect:"error",signal:AbortSignal.timeout(12000)});if(!response.ok)throw Error("ECB unavailable");
+  const usdPerEUR=parseEcbUSD(await response.text(),dates[0]!);
+  return parseReviewInput({version:1,asOfDate:date,mode:"trial",baseline,market,fx:{date:dates[0],usdPerEUR,sourceId:"ecb-fx"},
+    ...evidence,sources:[{id:"ecb-fx",title:"ECB — EUR reference rates",url,asOfDate:dates[0],retrievedAt:new Date().toISOString()},...evidence.sources]});
+}
 if(import.meta.main){
   const [command,...args]=process.argv.slice(2),flags=new Map<string,string>();
   for(let n=0;n<args.length;n+=2){if(!args[n]?.startsWith("--")||!args[n+1]||flags.has(args[n]!))throw Error("Invalid review arguments");flags.set(args[n]!,args[n+1]!);}
   const flag=(key:string)=>{const v=flags.get("--"+key);if(!v)throw Error("Missing review argument: "+key);return v;};
   if(command==="snapshot"){
     if([...flags.keys()].some(k=>!["--baseline","--evidence","--date","--output"].includes(k)))throw Error("Unknown snapshot argument");
-    const path=resolve(flag("baseline")),info=await lstat(path);if(!info.isFile()||info.isSymbolicLink()||(info.mode&0o077))throw Error("Baseline must be a private regular file");
-    const baseline=await readJson(path),evidence=await readJson(flag("evidence")),paths=briefingPaths(),date=flag("date");
-    if(!dateOnly(date))throw Error("Invalid review date");
-    const db=new DatabaseSync(paths.databasePath,{readOnly:true});let market;
-    try{market=parseStocksSnapshot(loadAddonSnapshot(db,"stocks")?.envelope);}finally{db.close();}
-    const dates=[...new Set(market.data.series.flatMap(s=>s.points.at(-1)?.date??[]))];
-    if(dates.length!==1||dates[0]!>=date)throw Error("Trial requires aligned completed quote sessions");
-    const url="https://www.ecb.europa.eu/stats/eurofxref/eurofxref-hist-90d.xml";
-    const response=await nodeHttpFetch(url,{redirect:"error",signal:AbortSignal.timeout(12000)});if(!response.ok)throw Error("ECB unavailable");
-    const xml=await response.text(),usdPerEUR=parseEcbUSD(xml,dates[0]!);
-    const input=parseReviewInput({version:1,asOfDate:date,mode:"trial",baseline,market,fx:{date:dates[0],usdPerEUR,sourceId:"ecb-fx"},
-      sources:[{id:"ecb-fx",title:"ECB — EUR reference rates",url,asOfDate:dates[0],retrievedAt:new Date().toISOString()},...evidence.sources],facts:evidence.facts,...(evidence.fundHoldings?{fundHoldings:evidence.fundHoldings}:{}),...(evidence.candidates?{candidates:evidence.candidates}:{}),...(evidence.researchCoverage?{researchCoverage:evidence.researchCoverage}:{})});
+    const raw=await readJson(flag("evidence"));
+    const input=await snapshotReview(resolve(flag("baseline")),{sources:raw.sources,facts:raw.facts,fundHoldings:raw.fundHoldings,candidates:raw.candidates,researchCoverage:raw.researchCoverage},flag("date"));
     const calculated=calculateReview(input);await privateWrite(resolve(flag("output")),JSON.stringify(input,null,2)+"\n");
     console.log(JSON.stringify({snapshot:flag("output"),inputDigest:calculated.inputDigest,complete:calculated.complete,positions:calculated.rows.length,financialApiRequests:0,ecbRequests:1}));
   }else if(command==="render"){

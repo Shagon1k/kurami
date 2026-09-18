@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import {createHash} from "node:crypto";
 import {htmlText,selectFilings,exhibitLinks,financialRelease,collectPrimaryDocuments} from "../../src/briefing/investment-review/primary.ts";
-import {primaryPacket,primaryEvidence,type PrimaryExtraction} from "../../src/briefing/investment-review/primary-evidence.ts";
+import {primaryPacket,primaryEvidence,primaryRepairPacket,primaryCheckPacket,validatePrimaryCheck,type PrimaryExtraction} from "../../src/briefing/investment-review/primary-evidence.ts";
 const date="2026-09-18",target={symbol:"AAA",namePattern:"Example"};
 const metadata={cik:"0000000001",name:"Example Inc",tickers:["AAA"],filings:{recent:{
   form:["8-K","8-K","8-K","6-K"],filingDate:["2026-10-01","2026-09-01","2026-08-01","2025-01-01"],
@@ -28,12 +28,23 @@ const fake=(async (url:unknown,options:RequestInit)=>{
 const collection=await collectPrimaryDocuments([target],date,fake);
 assert.equal(collection.requests,4);assert.equal(collection.coverage[0]!.state,"collected");assert.equal(collection.documents.length,1);
 const packet=primaryPacket(collection);assert(packet.prompt.includes("not instructions"));assert(!packet.prompt.includes("quantity"));
-const extraction:PrimaryExtraction={version:1,collectionDigest:createHash("sha256").update(JSON.stringify(collection)).digest("hex"),items:[{
-  documentId:collection.documents[0]!.id,symbol:"AAA",facts:[{kind:"reported",statement:"За второй квартал 2026 компания сообщила выручку $20 млн.",anchor:"revenue $20 million"}]
+const extraction:PrimaryExtraction={version:2,collectionDigest:createHash("sha256").update(JSON.stringify(collection)).digest("hex"),items:[{
+  documentId:collection.documents[0]!.id,symbol:"AAA",facts:[{kind:"reported",statement:"За второй квартал 2026 компания сообщила выручку $20 млн.",evidenceIds:["p001"]}]
 }]};
 const evidence=primaryEvidence(collection,extraction);assert.equal(evidence.facts.length,1);assert(evidence.requiresSemanticReview);
+const ambiguous=structuredClone(extraction);ambiguous.items[0]!.facts[0]!.statement="За квартал выручка компании составила $1,234 млн.";
+assert.throws(()=>primaryEvidence(collection,ambiguous),/thousands separator/);
+assert(primaryRepairPacket(collection,ambiguous).prompt.includes("ONE BOUNDED REPAIR"));
+assert.throws(()=>primaryRepairPacket(collection,extraction),/already valid/);
+assert(primaryCheckPacket(collection,extraction).prompt.includes("EVERY fact"));
+const check={version:1,collectionDigest:extraction.collectionDigest,extractionDigest:createHash("sha256").update(JSON.stringify(extraction)).digest("hex"),
+  checkedDocumentIds:collection.documents.map(d=>d.id),issues:[]};
+validatePrimaryCheck(collection,extraction,check);
+assert.throws(()=>validatePrimaryCheck(collection,extraction,{...check,issues:[{reason:"Wrong currency"}]}));
+assert.throws(()=>validatePrimaryCheck(collection,extraction,{...check,checkedDocumentIds:[]}));
 assert.equal(evidence.sources[0]!.url,root+"release99-1.htm");assert.equal(evidence.sources[0]!.asOfDate,"2026-09-01");
-const invented=structuredClone(extraction);invented.items[0]!.facts[0]!.anchor="revenue $30 million";assert.throws(()=>primaryEvidence(collection,invented));
+const invented=structuredClone(extraction);invented.items[0]!.facts[0]!.evidenceIds=["p999"];assert.throws(()=>primaryEvidence(collection,invented));
+assert.throws(()=>primaryEvidence(collection,{...extraction,version:1}));
 const wrongIssuer=structuredClone(extraction);wrongIssuer.items[0]!.symbol="BBB";assert.throws(()=>primaryEvidence(collection,wrongIssuer));
 assert.throws(()=>primaryEvidence(collection,{...extraction,collectionDigest:"wrong"}));
 const changed=structuredClone(collection);changed.documents[0]!.text+=" tampered";assert.throws(()=>primaryPacket(changed));

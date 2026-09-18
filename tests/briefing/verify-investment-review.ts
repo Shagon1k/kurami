@@ -10,6 +10,7 @@ import {acceptReview,loadReview,reviewFreshness} from "../../src/briefing/invest
 import {renderReviewPanel} from "../../src/briefing/investment-review/panel.ts";
 import {primaryPacket,mergePrimaryEvidence} from "../../src/briefing/investment-review/primary-evidence.ts";
 import {createHash} from "node:crypto";
+import {applyVuaa,buildFundSnapshot} from "../../src/briefing/investment-review/vanguard.ts";
 import {mkdtemp,rm,readFile} from "node:fs/promises";
 import {tmpdir} from "node:os";
 import {join} from "node:path";
@@ -28,12 +29,32 @@ assert.throws(()=>calendarMonth("2026-02-29"));
 const known=structuredClone(input);known.baseline.unknowns={currentMonthExecutedTrades:4,currentMonthNewContributionsEUR:175};assert.equal(calculateReview(known).remainingTrades,1);assert.equal(calculateReview(known).remainingNewMoneyEUR,25);
 known.baseline.asOfLocalDate="2026-08-18";assert.equal(calculateReview(known).remainingTrades,null);assert(calculateReview(known).requiresPositionConfirmation);
 const missing=structuredClone(input);missing.market.data.series[0]!.points=[];missing.market.data.series[0]!.state="unavailable";assert.equal(calculateReview(missing).totalEUR,null);assert(calculateReview(missing).rows.every(r=>r.weight===null));
+const fundInput=structuredClone(input);
+const fundIsin="IE00BFMXXD54",stockIsin="US67066G1040";
+fundInput.baseline.positions=[{symbol:"NVDA",isin:stockIsin,quantity:"2"},{symbol:"VUAA",isin:fundIsin,quantity:"5"}];
+for(const a of [...fundInput.market.data.policy.assets,...fundInput.market.data.series.map(s=>s.asset)]){
+  a.id=a.kind==="stock"?"NVDA":"VUAA";a.isin=a.kind==="stock"?stockIsin:fundIsin;a.symbol=a.id+(a.kind==="stock"?".US":".XETRA");
+}
+fundInput.market.data.policy.benchmark="VUAA";fundInput.facts.forEach(f=>f.symbol=f.symbol==="AAA"?"NVDA":"VUAA");
+fundInput.fundHoldings={...fundInput.fundHoldings!,fundSymbol:"VUAA",fundIsin,weights:{NVDA:10}};
+const fundRows=Array.from({length:500},(_,n)=>({issuerName:n===0?"NVIDIA Corp":"Other "+n,securityLongDescription:"Example",ticker:n===0?"NVDA":"X"+n,
+  marketValuePercentage:n===0?8:92/499,securityType:"EQ.STOCK",effectiveDate:"2026-08-31",sedol1:"S"+n}));
+const fundSnapshot=buildFundSnapshot([{data:{funds:[{profile:{fundFullName:"Vanguard S&P 500 UCITS ETF (USD) Accumulating",fundCurrency:"USD"}}],
+  borHoldings:[{holdings:{items:fundRows,totalHoldings:500,lastItemKey:null}}]}}],"2026-09-18");
+const applied=applyVuaa(fundInput,{state:"ready",snapshot:fundSnapshot,reason:"Test"});
+assert.equal(calculateReview(applied).totalEUR,200);assert.deepEqual(applied.fundHoldings!.weights,{NVDA:8});
+assert.equal(Object.hasOwn(applied.fundHoldings!.weights,"MRK"),false,"Unconfirmed exposure is not fabricated as zero");
+const retainedInput=applyVuaa(fundInput,{state:"retained",snapshot:fundSnapshot,reason:"Unavailable"});
+assert.equal(retainedInput.fundHoldings!.asOfDate,"2026-08-31");assert.equal(retainedInput.researchCoverage![0]!.state,"retained");
 const mismatch=structuredClone(input);mismatch.baseline.positions[0]!.isin="US0000000000";assert.equal(calculateReview(mismatch).totalEUR,null);
 const stale=structuredClone(input);stale.market.data.series[0]!.points[0]!.date="2026-08-01";assert.equal(calculateReview(stale).totalEUR,null);
+const staleFund=structuredClone(input);staleFund.fundHoldings!.asOfDate="2026-06-30";
+assert.equal(calculateReview(staleFund).fundHoldingsUsable,false);assert.deepEqual(calculateReview(staleFund).overlap,[]);
 const future=structuredClone(input);future.sources[0]!.asOfDate="2026-09-19";assert.throws(()=>parseReviewInput(future));
 const bad=structuredClone(input);bad.baseline.positions.push(bad.baseline.positions[0]!);assert.throws(()=>parseReviewInput(bad));
 const draft:ReviewDraft={version:3,inputDigest:inputDigest(input),headline:"Пробный обзор",summary:["Проверяем структуру"],positions:input.baseline.positions.map(p=>({symbol:p.symbol,action:"review",adviceReason:"Неясна устойчивость прибыли",blockingInfo:"Нужен следующий отчёт",factIds:[p.symbol==="AAA"?"aaa-fact":"fund-fact"],rationale:"Вывод",portfolioMeaning:"Связь с портфелем",counterargument:"Контраргумент",revisitWhen:"Условие пересмотра",learningIds:["overlap"]})),learningNotes:[{id:"overlap",term:"Пересечение вложений",explanation:"Объяснение",example:"Пример из отчёта",limitation:"Граница вывода",reference:{title:"Источник",url:"https://www.investor.gov/introduction-investing/investing-basics/glossary/diversification"}}],nextSteps:["Проверить данные"],proposedOrders:[]};
 assert.equal(validateReviewDraft(input,draft),draft);
+assert(renderInvestmentReview(staleFund,{...draft,inputDigest:inputDigest(staleFund)}).includes("пересечения не рассчитаны"));
 const withIdea=structuredClone(input);
 withIdea.candidates=[{symbol:"BBB",name:"<Example candidate>",exchange:"EXAMPLE",identitySourceId:"issuer"}];
 withIdea.facts.push({id:"bbb-fact",symbol:"BBB",sourceId:"issuer",statement:"Candidate evidence"});
@@ -123,8 +144,8 @@ const primaryCollection={version:1 as const,asOfDate:input.asOfDate,requests:4,c
   documents:[{id:"primary-aaa-test",symbol:"AAA",title:"Example issuer report",url:"https://www.sec.gov/Archives/edgar/data/1/report.htm",
     filedAt:"2026-08-01",retrievedAt:"2026-09-18T06:00:00Z",contentDigest:createHash("sha256").update(primaryText).digest("hex"),text:primaryText,truncated:false}]};
 primaryPacket(primaryCollection);
-const extraction={version:1,collectionDigest:createHash("sha256").update(JSON.stringify(primaryCollection)).digest("hex"),
-  items:[{documentId:"primary-aaa-test",symbol:"AAA",facts:[{statement:"Компания сообщила выручку USD 123 млн за второй квартал 2026.",kind:"reported",anchor:"revenue of USD 123 million"}]}]};
+const extraction={version:2,collectionDigest:createHash("sha256").update(JSON.stringify(primaryCollection)).digest("hex"),
+  items:[{documentId:"primary-aaa-test",symbol:"AAA",facts:[{statement:"Компания сообщила выручку USD 123 млн за второй квартал 2026.",kind:"reported",evidenceIds:["p001"]}]}]};
 assert.throws(()=>mergePrimaryEvidence(input,primaryCollection,extraction,false));
 const withPrimary=mergePrimaryEvidence(input,primaryCollection,extraction,true);
 assert.equal(calculateReview(withPrimary).totalEUR,m.totalEUR);

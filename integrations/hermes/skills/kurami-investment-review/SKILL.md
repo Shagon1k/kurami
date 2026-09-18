@@ -2,7 +2,7 @@
 name: kurami-investment-review
 description: Prepare Alex's evidence-backed long-term stock portfolio review from a confirmed private holdings snapshot, cached quotes, and dated issuer evidence. Use for an explicitly requested investment review, thesis reassessment, or approved weekly/monthly research run. Not for intraday signals, automatic trading, generic Daily generation, tax filing, or changing holdings from suggestions.
 metadata:
-  version: 0.5.0
+  version: 0.6.0
 ---
 
 # Kurami Investment Review
@@ -41,6 +41,9 @@ Read these references before research:
 3. Use the runtime CLI to freeze an input and calculate weights, FX conversion,
    stress scenarios, overlap and calendar windows. The CLI reads cached quotes
    and one free ECB FX document; it never accesses brokerage credentials.
+   The `run.ts prepare` path collects current SEC evidence and full published
+   VUAA holdings before drafting. Keep this run isolated from accepted reports.
+   See the source-specific freshness and independent-check rules below.
 4. Review portfolio structure first. Select a few material positions for
    deeper issuer research; list all others explicitly as `not-assessed`.
    For each assessed position provide evidence references, a concise conclusion,

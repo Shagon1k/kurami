@@ -7,9 +7,10 @@ export type ReviewFact={id:string;symbol:string;sourceId:string;statement:string
 export type ReviewCandidate={symbol:string;name:string;exchange:string;identitySourceId:string};
 export type ReviewInput={version:1;asOfDate:string;mode:"trial"|"weekly"|"monthly";baseline:PortfolioBaseline;market:StocksSnapshot;
   fx:{date:string;usdPerEUR:number;sourceId:string};sources:ReviewSource[];facts:ReviewFact[];candidates?:ReviewCandidate[];
-  researchCoverage?:Array<{symbol:string;state:"fresh"|"primary"|"retained";note:string}>;
+  researchCoverage?:Array<{symbol:string;state:"fresh"|"primary"|"retained"|"partial";note:string}>;
   fundHoldings?:{fundSymbol:string;fundIsin:string;asOfDate:string;sourceId:string;weights:Record<string,number>}};
 export const inputDigest=(input:ReviewInput)=>createHash("sha256").update(JSON.stringify(input)).digest("hex");
+export const FUND_HOLDINGS_MAX_AGE_DAYS=45;
 export function dateOnly(value:unknown):value is string{return typeof value==="string"&&/^\d{4}-\d{2}-\d{2}$/.test(value)&&Number.isFinite(Date.parse(value))&&dayShift(value,0)===value;}
 export function calendarMonth(date:string){
   if(!dateOnly(date))throw Error("Invalid review date");
@@ -55,7 +56,7 @@ export function parseReviewInput(value:unknown):ReviewInput {
   for(const f of i.facts){if(!/^[a-z][a-z0-9-]{0,60}$/.test(f.id)||factIds.has(f.id)||!researchIds.has(f.symbol)||!sources.has(f.sourceId)||!f.statement||f.statement.length>1000)throw Error("Invalid evidence fact");factIds.add(f.id);}
   if(i.researchCoverage!==undefined&&(!Array.isArray(i.researchCoverage)||i.researchCoverage.length>52
     ||new Set(i.researchCoverage.map(c=>c.symbol)).size!==i.researchCoverage.length
-    ||i.researchCoverage.some(c=>!researchIds.has(c.symbol)||!["fresh","primary","retained"].includes(c.state)||typeof c.note!=="string"||!c.note||c.note.length>500)))throw Error("Invalid research coverage");
+    ||i.researchCoverage.some(c=>!researchIds.has(c.symbol)||!["fresh","primary","retained","partial"].includes(c.state)||typeof c.note!=="string"||!c.note||c.note.length>500)))throw Error("Invalid research coverage");
   if(!dateOnly(i.fx?.date)||i.fx.date>i.asOfDate||!Number.isFinite(i.fx.usdPerEUR)||i.fx.usdPerEUR<=0||!sources.has(i.fx.sourceId))throw Error("Invalid FX evidence");
   const h=i.fundHoldings;
   if(h&&(!dateOnly(h.asOfDate)||h.asOfDate>i.asOfDate||!sources.has(h.sourceId)||!i.baseline.positions.some(p=>p.symbol===h.fundSymbol&&p.isin===h.fundIsin)
@@ -78,11 +79,12 @@ export function calculateReview(input:ReviewInput){
   const complete=rows.every(r=>r.valueEUR!==null),totalEUR=complete?rows.reduce((sum,r)=>sum+r.valueEUR!,0):null;
   const weighted=rows.map(r=>({...r,weight:totalEUR?r.valueEUR!/totalEUR*100:null}));
   const fund=i.fundHoldings,heldFund=fund&&weighted.find(r=>r.symbol===fund.fundSymbol),fundValue=heldFund?.valueEUR;
-  const overlap=totalEUR&&fund&&fundValue!=null?Object.entries(fund.weights).map(([symbol,weight])=>{
+  const fundHoldingsUsable=Boolean(fund&&fund.asOfDate>=dayShift(i.asOfDate,-FUND_HOLDINGS_MAX_AGE_DAYS));
+  const overlap=totalEUR&&fund&&fundHoldingsUsable&&fundValue!=null?Object.entries(fund.weights).map(([symbol,weight])=>{
     const direct=weighted.find(r=>r.symbol===symbol)!;return {symbol,directWeight:direct.weight!,fundWeight:fundValue*weight/100/totalEUR*100,totalWeight:direct.weight!+fundValue*weight/100/totalEUR*100};
   }):[];
   const u=i.baseline.unknowns,usageCurrent=i.baseline.asOfLocalDate.slice(0,7)===i.asOfDate.slice(0,7);
-  return {inputDigest:inputDigest(i),complete,totalEUR,rows:weighted,overlap,fundHoldingsDate:fund?.asOfDate??null,
+  return {inputDigest:inputDigest(i),complete,totalEUR,rows:weighted,overlap,fundHoldingsDate:fund?.asOfDate??null,fundHoldingsUsable,
     requiresPositionConfirmation:i.baseline.asOfLocalDate<dayShift(i.asOfDate,-30),period:reportPeriod(i.mode,i.asOfDate),tradeWindow:calendarMonth(i.asOfDate),
     remainingTrades:!usageCurrent||u.currentMonthExecutedTrades===null?null:Math.max(0,5-u.currentMonthExecutedTrades),
     remainingNewMoneyEUR:!usageCurrent||u.currentMonthNewContributionsEUR===null?null:Math.max(0,200-u.currentMonthNewContributionsEUR),
@@ -121,7 +123,7 @@ export function validateReviewDraft(input:ReviewInput,value:unknown):ReviewDraft
       ||!text(p.adviceReason,300)||(p.action==="review"?!text(p.blockingInfo,400):p.blockingInfo!==null)
       ||!Array.isArray(p.factIds)||p.factIds.some(id=>{
         const f=facts.get(id),h=input.fundHoldings;
-        return !f||(f.symbol!==p.symbol&&!(h&&p.symbol in h.weights&&f.symbol===h.fundSymbol&&f.sourceId===h.sourceId));
+        return !f||(f.symbol!==p.symbol&&!(h&&metrics.fundHoldingsUsable&&p.symbol in h.weights&&f.symbol===h.fundSymbol&&f.sourceId===h.sourceId));
       })||![p.rationale,p.portfolioMeaning,p.counterargument,p.revisitWhen].every(v=>text(v))
       ||!Array.isArray(p.learningIds)||p.learningIds.length>2||new Set(p.learningIds).size!==p.learningIds.length||p.learningIds.some(id=>!lessons.has(id)))throw Error("Invalid position review");
     p.learningIds.forEach(id=>usedLessons.add(id));

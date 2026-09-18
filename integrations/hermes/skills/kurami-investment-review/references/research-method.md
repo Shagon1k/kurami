@@ -62,16 +62,31 @@ not a manually dated release URL. It selects recent 8-K earnings disclosures
 (item 2.02) or 6-K reports, follows at most two same-filing HTML exhibits, and
 bounds the run to eight issuers / 64 requests. Network failures remain gaps.
 Documents over 50,000 text characters are explicitly excerpts.
-`primary-evidence.ts packet` prepares tool-free extraction; `validate` checks
-document/issuer/hash binding, exact short anchors and quote budgets. Guidance
+`primary-evidence.ts packet` prepares tool-free extraction v2 with program-assigned
+fragment IDs, not model-copied quotation anchors. `validate` checks
+document/issuer/hash binding, fragment existence and ambiguous numeric separators. Guidance
 is labelled separately from achieved results. These checks are necessary but
 do not establish semantic truth: inspect statement context, period, units and
 accounting basis. Do not map an ordinary-share dividend onto an ADR.
-Only after that review use `merge-reviewed`. It supersedes older narrated
+Use an independent `check-packet` pass for period, currency, scaling and actual/
+forecast checks; bind its result to the exact collection and extraction hashes.
+A passing model check is not a guarantee of correctness. The full manual run
+uses `finish-checked` only after an empty issue list and complete document coverage.
+After explicit manual semantic review, `merge-reviewed` remains available. It supersedes older narrated
 facts for the refreshed issuer, keeps independent SEC metrics and unrelated
 fund evidence, and preserves the old input as an immutable audit artifact.
 One bounded repair may fix extraction diagnostics; repeated failure stops
 without changing the accepted report. Do not loosen validation to accept it.
+
+`vanguard.ts` verifies VUAA / IE00BFMXXD54 / Accumulating on the official public
+page, then reads the same anonymous GraphQL holdings query used by that page.
+No brokerage or private Vanguard credentials are used. Verify profile identity,
+complete bounded pagination, common effective date, unique holdings and weight
+reconciliation. Use only exact held ticker/issuer/ISIN mappings; exclude cash,
+rights and derivatives from company look-through. Unknown mappings are not zero.
+The source date is not the fetch date. Keep the prior snapshot on failure, and
+disable look-through once its effective date is older than 45 days; never
+refresh an old date or substitute another S&P 500 ETF.
 
 Existing EODHD cache supplies closes without new calls. ECB dated XML supplies
 reference FX, not a broker execution rate. Fund issuer pages supply dated fund

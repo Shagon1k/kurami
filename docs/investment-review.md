@@ -1,6 +1,6 @@
 # Investment Review — manual prototype
 
-Status: manual research pipeline, deterministic calculations, private renderer
+Status: manual research pipeline, automatic issuer/fund collection, deterministic calculations, private renderer
 and accepted weekly/monthly storage. A compact /stocks reader is implemented
 behind `investmentReview.enabled` (false by default). No cron, Poller
 participant, automatic acceptance, public activation or order submission.
@@ -76,7 +76,7 @@ The returned coverage is accounting-field coverage, not full company research.
 
 September 18's corrected collection returned the full three metrics for six
 of twelve requested companies and partial metrics for one more. The subsequent
-primary-document adapter covers issuer gaps; VUAA holdings still use retained issuer evidence.
+primary-document adapter covers issuer gaps. VUAA now has a separate automatic adapter.
 Retained facts keep original dates and a visible coverage disclosure. This is
 not sufficient for unattended comprehensive research or automatic publication.
 
@@ -90,12 +90,14 @@ candidate filings per target, two exhibits per filing, 64 total requests,
 15 seconds per request, explicit text truncation above 50,000 characters.
 
 `primary-evidence.ts packet <collection> <new-packet>` creates a bounded,
-tool-free fact-extraction prompt. Then `validate <collection> <new-evidence>
+tool-free fact-extraction prompt (v2). Then `validate <collection> <new-evidence>
 <extraction>` rejects unknown documents, mismatched issuers/digests, invented
-anchors and excessive quotations. Table separator pipes are layout, not text.
+fragment IDs and ambiguous English-thousands/Russian-decimal separators.
+Source fragments are deterministically numbered; models never retype table cells
+as quotation locators. Existing v1 extraction artifacts are archival only.
 Keep original period and currency; do not turn approvals into actual spending
 or a dividend on ordinary shares into a dividend on ADRs. Numerical/semantic
-context is checked separately: matching a snippet is not proof of the whole claim.
+context is checked separately: a valid fragment ID is not proof of the whole claim.
 
 After explicit semantic review, `merge-reviewed <collection> <new-input>
 <extraction> <previous-input>` replaces previous narrative facts only for
@@ -107,8 +109,43 @@ The September 18 live trial discovered six issuer documents with 28 requests
 and extracted 18 facts after one bounded anchor-repair pass. No release URL or
 financial fact was manually supplied to that extraction. Periods, units and
 reported/forecast distinctions were checked against source context before merge.
-The remaining retained source is the Vanguard holdings snapshot; autonomous
-publication and full news/fair-value research are still outside this trial.
+Autonomous publication and full news/fair-value research are still outside this trial.
+
+### VUAA refresh and full manual run
+
+`vanguard.ts <date> <new-result> [previous-result]` checks the official VUAA
+share-class identity and fetches the full published holdings via the public page's
+read-only GraphQL operation. At most four pages plus one identity page. Pagination,
+dates, duplicate securities and weights are checked; only stocks/REITs are matched
+to confirmed held identities. Cash, rights and derivatives are not allocated to
+companies. The current live response contains 512 rows, 503 eligible equity rows;
+the effective date remains the publisher's date, not today's download date.
+Failed refreshes retain the previous snapshot unchanged. Look-through older than
+45 days is suppressed, not displayed as zero.
+
+`run.ts prepare <date> <private-baseline> <public-targets> <new-private-directory>`
+starts from current cached quotes, ECB, SEC and Vanguard; it does not read old
+authored facts. For incomplete SEC metrics it collects primary documents and emits
+an extraction packet. A separate tool-free Hermes call extracts facts. The
+`check-packet` operation prepares an independent semantic check with exact input
+hashes and explicit issues. `run.ts finish-checked <directory> <extraction> <check>`
+requires that check to pass, then prepares the draft packet. The existing renderer
+validates the completed draft. No phase accepts/publishes a report or touches a
+weekly/monthly success pointer. Failed attempts remain separate artifacts.
+
+The first full trial exposed a fragile exact-quotation contract and ambiguous
+thousands separators. Its bounded retry failed, so no report was produced.
+Extraction v2 uses deterministic fragment references; the rules were corrected
+before a new from-scratch trial, rather than patching that failed output by hand.
+
+The v2 live end-to-end trial then completed from a fresh private directory:
+current stock cache + ECB → Vanguard full list → SEC metrics → five primary
+documents → extraction → independent semantic check → new draft → validated
+HTML. It used no prior authored facts or report text and no new EODHD calls.
+There were three model calls in that successful trial and no repairs. Twelve
+positions and 37 source facts were bound into the report; four fund overlaps
+were confirmed. The prior failed trial remains separate. This is a tested
+manual workflow, not a claim of guaranteed future investment correctness.
 
 `draft-packet --input ... --output ...` creates the reproducible skill/evidence/
 calculation prompt for the installed tool-free Hermes runner. Drafts cannot
