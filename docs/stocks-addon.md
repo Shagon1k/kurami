@@ -93,35 +93,74 @@ It refuses an existing cache or a report older than 72 hours.
 
 Provider reference: https://eodhd.com/financial-apis/api-for-historical-data-and-volumes
 
-## Discovery feasibility — 2026-09-18
+## Stocks Discovery v1 — /stocks only
 
-No automated `Вне твоего списка` feed is enabled yet. Discovery must be an
-independent optional input and cannot consume the watchlist's reserved quota.
-Do not display demo responses as live candidates or scrape around access gates.
+An independent optional sub-module under `stocksDiscovery.enabled` (absent
+means disabled). Its snapshot ID is `stocks-discovery`; it never enters a
+Daily payload, teaser or Discord release. Disabling it removes the section
+after service reload and stops collection; the ordinary watchlist is unchanged.
 
-- EODHD free plan covers our existing histories. Do not assume Screener access
-  from having spare credits; a new endpoint's entitlement must be verified.
-- Finviz exposes useful movement categories, but its official API/export link
-  routes to Elite. No unlicensed scraper was added.
-- Yahoo's public gainers page returned HTTP 429 during research; it is not
-  accepted as a reliable automated dependency.
-- Alpha Vantage documents `TOP_GAINERS_LOSERS` with 20 gainers, 20 losers and
-  20 most-active US symbols. Default data updates at end of day; realtime and
-  delayed intraday data require premium. Its support page states 25 daily
-  requests for the free service. This is the preferred next feasibility test:
-  one daily discovery request, then at most 2–3 identity-validated EODHD
-  histories within the remaining base quota. A personal free key is required;
-  the published demo query returned an informational key-required response,
-  not market data. Real-key freshness, coverage and entitlement remain untested.
+Central Poller calls it after the ordinary watchlist refresh. A completed
+current-UTC-day watchlist ledger is mandatory. A unique daily claim allows at
+most one Alpha Vantage request and four paid-in-quota EODHD units: one US
+catalogue and at most three histories. `/api/user` costs zero. The fresh
+account quota must confirm the free plan; total usage is capped at 18 of the
+base 20, ignoring bonus credits. A smaller remaining budget reduces the number
+of histories; no retries or replacement candidates may consume the reserve.
+Claims survive crashes; the next UTC day is the next automatic attempt.
+The API key `ALPHAVANTAGE_API_KEY` shares the private `config/stocks.env` file.
 
-Before activation validate dated completed sessions, symbol identities and
-allowed instrument types; exclude the current watchlist and low-liquidity
-spikes, avoid repeats, and publish fewer candidates when evidence is weak.
-Do not infer sustained trends from one day's gainers or a causal explanation
-from price alone. Filters and exact ranking need validation against a real
-response before being treated as a production contract.
+### Selection contract
+
+1. Alpha Vantage `TOP_GAINERS_LOSERS` supplies its three top-20 lists, not the
+   entire market. Deduplicate by symbol and exclude the configured watchlist.
+2. Accept only uniquely identified USD Common Stock on supported major US
+   exchanges, with ISIN/name validated in the EODHD catalogue. Exclude ETFs,
+   warrants, preferred shares and units.
+3. Require price ≥$5, price × share volume ≥$20M (a turnover proxy, not actual
+   traded dollar value), and absolute daily change from 3% through 30%.
+   Extreme jumps need separate corporate-action research and are not included.
+4. Skip recent symbols for three calendar days unless direction reverses or
+   absolute movement grows at least 1.5× AND by at least 3 percentage points.
+   The same session is never treated as a new event.
+5. Rank eligible candidates by absolute daily change descending, ticker as
+   tie-breaker. Request histories for at most three, within quota.
+6. Require the history's final date to match the completed discovery session;
+   the discovery date must also match the latest US watchlist session.
+   Reject >0.5% closing-price difference, >0.5 percentage-point daily-change
+   mismatch, or >0.5-point raw/adjusted daily difference (possible corporate
+   action). Reject incomplete/invalid volumes and >10% volume disagreement.
+7. Require at least 21 history points and final share volume ≥1.5× the mean
+   of the preceding 20 sessions, excluding the current session.
+8. Publish zero to three passing cards, without filling vacancies. Week/month
+   returns use adjusted closes and 7/30 calendar-day lookbacks. Reasons are
+   factual movement/volume descriptions, never inferred news causes.
+
+A weekend/holiday response for the same accepted session reuses that dated
+snapshot without catalogue/history calls. Last-known cards survive a provider
+failure only with an explicit warning; sessions older than four calendar days
+are hidden. A healthy empty result renders no block. At most 31 days of
+attempt metadata and 14 days of symbol cooldown records are retained.
+
+### UI and verification
+
+`discovery-render.ts` owns `StocksDiscovery` and `DiscoveryCard`; render only
+on the detailed Stocks page. Use the shared tokens, percentage formatting and
+optional Sparkline. There are no buy buttons or automatic watchlist additions.
+Both sources are linked and methodology is in a quiet disclosure.
+
+`npm run test:briefing-discovery` covers priorities, budgets, concurrency
+claims/idempotency, filtering, corporate-action mismatch, relative volume,
+cooldown, stale/empty/partial states, disabled routing, cache isolation and
+offline bootstrap. No test consumes real API quota.
+
+The initial rollout imports the 2026-09-18 verified feasibility artifacts via
+`importDiscoveryProbe`, with no new provider requests. It accepts at most a
+48-hour-old source/verification pair, checks agreement and thresholds, refuses
+an existing cache and records the already-consumed calls. Those artifacts did
+not retain raw history points: initial cards deliberately omit sparklines;
+subsequent normal fetches supply them. No graph is fabricated.
 
 Sources: [Alpha Vantage endpoint](https://www.alphavantage.co/documentation/#top-gainers-losers),
 [free key / limits](https://www.alphavantage.co/support/),
-[EODHD limits](https://eodhd.com/financial-apis/api-limits),
-[Finviz API/export](https://finviz.com/api-and-exports).
+[EODHD limits](https://eodhd.com/financial-apis/api-limits).

@@ -17,11 +17,11 @@ export function loadStocksCache(database:DatabaseSync):StocksSnapshot|null {
   try {const row=loadAddonSnapshot(database,"stocks");return row?parseStocksSnapshot(row.envelope):null;}
   catch {return null;}
 }
-async function credential(paths:BriefingPaths):Promise<string> {
+export async function stockCredential(paths:BriefingPaths,name:"EODHD_API_TOKEN"|"ALPHAVANTAGE_API_KEY"="EODHD_API_TOKEN"):Promise<string> {
   const path=resolve(paths.home,"config/stocks.env"),info=await lstat(path);
   if(!info.isFile()||info.isSymbolicLink()||(info.mode&0o077))throw new StockError("credential_permissions");
   const text=await readFile(path,"utf8");
-  const matches=[...text.matchAll(/^\s*EODHD_API_TOKEN\s*=\s*(.*?)\s*$/gm)];
+  const matches=[...text.matchAll(new RegExp("^\\s*"+name+"\\s*=\\s*(.*?)\\s*$","gm"))];
   if(matches.length!==1)throw new StockError("credential_missing");
   let key=matches[0]![1]!;
   if((key.startsWith('"')&&key.endsWith('"'))||(key.startsWith("'")&&key.endsWith("'")))key=key.slice(1,-1);
@@ -48,7 +48,7 @@ export async function refreshStocksCache(config:StocksConfig,paths:BriefingPaths
       state:points.length?"stale":"unavailable",issue:code};
   };
   try {
-    const key=await credential(paths),fetchImpl=options.fetchImpl??nodeHttpFetch;
+    const key=await stockCredential(paths),fetchImpl=options.fetchImpl??nodeHttpFetch;
     let maximumRequests=18;
     async function get(path:string,params:Record<string,string>={}):Promise<unknown> {
       if(requests>=maximumRequests)throw new StockError("daily_budget_exhausted");

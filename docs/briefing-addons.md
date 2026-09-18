@@ -15,6 +15,7 @@ transactions, action receipts and seven-day Daily retention stay common.
 | Cinema | Weekly providers, editorial composition, promotion, full page and teaser | Saturday, last successful snapshot |
 | Weekly | Compact daily observations, deterministic retrospective, full page and teaser | Sunday, previous seven completed local dates |
 | Stocks | Validated EOD history cache, adjusted returns, watchlist page and frozen teaser | Cache once daily; Daily immutable after attachment |
+| Stocks Discovery | Independent candidate verification/cache and up to three cards on `/stocks` only | Once daily after successful watchlist refresh; no Daily envelope |
 | Signals | Derived calendar/mail/weather notices, thresholds, expiry and deduplication | After composition, live refresh and mail actions |
 
 Entry points are `src/briefing/addons/{mail,calendar,weather,news}.ts`.

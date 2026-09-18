@@ -256,6 +256,16 @@ stale/unavailable states. Sparklines have independent scales and explicit
 missing-data handling. Factual observations come from the deterministic Stocks
 model; the renderer must not invent commentary or investment signals.
 
+`StocksDiscovery` / `DiscoveryCard` in `stocks/discovery-render.ts` render
+zero to three verified candidates under `Вне твоего списка`, only on `/stocks`.
+Do not add them to Daily, its teaser, or Discord. Reuse percent formatting,
+semantic surfaces and optional shared Sparkline. Cards show the session date,
+day/week/month changes, relative volume and an external study link. An empty
+successful selection is omitted; failures and expired data remain explicit.
+Never fill three slots with weaker candidates, generate causes of movement,
+or present the selection as buy/sell advice. A missing chart is omitted rather
+than reconstructed from a few summary percentages.
+
 ## Responsive rules
 
 - Desktop and mobile have the same information and the same Kurami Note limits.

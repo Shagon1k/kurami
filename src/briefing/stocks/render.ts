@@ -8,6 +8,8 @@ import {shortDate,delta,money,formatStockPercent} from "./format.ts";
 export {formatStockPercent} from "./format.ts";
 import {renderStockRow,stockHref} from "./components.ts";
 import {stockInsights} from "./insights.ts";
+import {renderStocksDiscovery} from "./discovery-render.ts";
+import type {DiscoverySnapshot} from "./discovery-model.ts";
 const href=(ids:string[],period:StockPeriod,anchor=true)=>"/stocks?"+new URLSearchParams({symbols:ids.join(","),period}).toString()+(anchor?"#stock-"+ids[0]:"");
 
 export function renderStocksTeaser(payload:BriefingPayload):string {
@@ -31,7 +33,7 @@ export function renderStocksTeaser(payload:BriefingPayload):string {
   </section>`;
 }
 
-export function renderStocksPage(value:StocksSnapshot|null,params=new URLSearchParams(),at=new Date().toISOString()):string {
+export function renderStocksPage(value:StocksSnapshot|null,params=new URLSearchParams(),at=new Date().toISOString(),discovery?:DiscoverySnapshot|null):string {
   const snapshot=value?parseStocksSnapshot(value):null;
   const timezone="Europe/Vilnius",date=at.slice(0,10);
   if(!snapshot)return renderPageShell({title:"Мои акции",brand:"Kurami Stocks",section:"stocks",date,dateLabel:"Список наблюдения",generated:"—",timezone,
@@ -56,6 +58,7 @@ export function renderStocksPage(value:StocksSnapshot|null,params=new URLSearchP
       <div data-stock-rows>${rows}</div>
     </section>
     <p class="stocks-footnote">Мини-графики показывают месяц на собственном масштабе: наклон линий разных акций напрямую не сравнивается. Графики и проценты учитывают сплиты и дивиденды (adjusted close). Цена в строке — обычное закрытие. Пропуски — не нули.</p>
-    <p class="stocks-footnote">Котировки могут отличаться от Revolut. VUAA показан по листингу Xetra в EUR. Это список наблюдения, не стоимость твоих позиций и не рекомендация покупать или продавать.</p>`;
+    <p class="stocks-footnote">Котировки могут отличаться от Revolut. VUAA показан по листингу Xetra в EUR. Это список наблюдения, не стоимость твоих позиций и не рекомендация покупать или продавать.</p>
+    ${renderStocksDiscovery(discovery,at,new Set(quotes.map(q=>q.asset.id)))}`;
   return renderPageShell({title:"Мои акции",brand:"Kurami Stocks",section:"stocks",date,dateLabel:"Цены закрытия · "+ready+"/"+quotes.length+" актуальных",generated:updated,timezone,content});
 }

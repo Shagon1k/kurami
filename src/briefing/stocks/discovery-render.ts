@@ -1,0 +1,30 @@
+import {escapeHtml as e} from "../ui/html.ts";
+import {renderSparkline} from "../ui/charts/index.ts";
+import {dayShift} from "./model.ts";
+import {delta,shortDate} from "./format.ts";
+import {parseDiscoverySnapshot,type DiscoverySnapshot,type DiscoveryCard} from "./discovery-model.ts";
+
+export function renderDiscoveryCard(card:DiscoveryCard):string {
+  const amount=new Intl.NumberFormat("ru-RU",{style:"currency",currency:"USD",maximumFractionDigits:2}).format(card.price);
+  const ratio=new Intl.NumberFormat("ru-RU",{maximumFractionDigits:2}).format(card.relativeVolume);
+  return `<article class="stock-discovery-card" data-stock-discovery-card>
+    <header><span>${e(card.symbol)} · USD</span><h3>${e(card.name)}</h3></header>
+    <div class="stock-discovery-card__price"><strong>${e(amount)}</strong>${delta(card.day)}<small>за сессию · ${e(shortDate(card.date))}</small></div>
+    <p>${card.day>0?"Рост":"Снижение"} на повышенном объёме: <strong>×${e(ratio)}</strong> к среднему за предыдущие 20 сессий.</p>
+    ${card.points.length>1?`<div class="stock-discovery-card__trend">${renderSparkline(card.points.map(p=>p.adjusted),card.symbol+": скорректированные закрытия за месяц, собственный масштаб")}<small>Месяц · собственный масштаб</small></div>`:""}
+    <dl><div><dt>За 7 дней</dt><dd>${delta(card.week)}</dd></div><div><dt>За 30 дней</dt><dd>${delta(card.month)}</dd></div></dl>
+    <a href="https://finance.yahoo.com/quote/${encodeURIComponent(card.symbol)}/" target="_blank" rel="noopener noreferrer">Изучить компанию ↗</a>
+  </article>`;
+}
+export function renderStocksDiscovery(value:DiscoverySnapshot|null|undefined,at:string,owned:Set<string>):string {
+  if(!value)return "";
+  let s:DiscoverySnapshot;try{s=parseDiscoverySnapshot(value);}catch{return "";}
+  const old=s.data.sessionDate<dayShift(at.slice(0,10),-4),cards=old?[]:s.data.cards.filter(c=>!owned.has(c.symbol));
+  if(s.state==="empty"&&!old||!cards.length&&s.state==="ready"&&!old)return "";
+  const warning=old?"Подборка устарела и скрыта. Новые данные пока недоступны.":s.state==="failed"?"Обновить подборку не удалось. Ниже — последний сохранённый срез с указанной датой.":s.state==="partial"?"Часть кандидатов не удалось проверить; показаны только подтверждённые.":"";
+  return `<section class="stocks-discovery" aria-labelledby="stocks-discovery-heading"><header><p class="hero__eyebrow">Заметные движения · ${e(shortDate(s.data.sessionDate))}</p><h2 id="stocks-discovery-heading">Вне твоего списка</h2><p>До трёх акций для самостоятельного изучения. Это не рекомендации покупать или продавать.</p></header>
+    ${warning?`<p class="stocks-notice">${e(warning)}</p>`:""}
+    ${cards.length?`<div class="stocks-discovery__grid">${cards.map(renderDiscoveryCard).join("")}</div>`:""}
+    <details class="stocks-discovery__method"><summary>Как отобраны</summary><p>Из дневных списков Alpha Vantage, не всего рынка: обычные акции США вне твоего watchlist, цена от $5, цена × объём от $20 млн (приближение оборота). Движение от 3% до 30% по модулю и объём от 1,5 среднего за 20 сессий. Даты, цены и история сверены с EODHD. Проверяются максимум три кандидата, поэтому подходящих карточек может быть меньше.</p><p>Повтор в течение трёх дней возможен только при смене направления или заметном усилении движения. Проценты учитывают сплиты и дивиденды. Причина движения цены не установлена этими данными.</p><p>Источники: <a href="https://www.alphavantage.co/documentation/#top-gainers-losers" target="_blank" rel="noopener noreferrer">Alpha Vantage</a> · <a href="https://eodhd.com/financial-apis/api-for-historical-data-and-volumes" target="_blank" rel="noopener noreferrer">EODHD</a>.</p></details>
+  </section>`;
+}

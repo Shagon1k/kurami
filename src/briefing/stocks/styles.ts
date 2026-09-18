@@ -1,4 +1,22 @@
 export const STOCKS_STYLES=`
+.stocks-discovery { margin-top:40px; border-top:1px solid var(--line); padding-top:28px; }
+.stocks-discovery h2 { margin:0; font-size:clamp(1.5rem,2.5vw,2rem); font-weight:600; }
+.stocks-discovery>header>p:not(.hero__eyebrow) { color:var(--muted); font-size:.875rem; line-height:1.6; }
+.stocks-discovery__grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(min(100%,280px),1fr)); gap:20px; margin-top:24px; }
+.stock-discovery-card { display:flex; flex-direction:column; align-items:start; gap:16px; padding:24px; border:1px solid var(--line); border-radius:3px; background:var(--panel); min-width:0; }
+.stock-discovery-card h3 { margin:8px 0 0; font-size:1.125rem; line-height:1.35; font-weight:600; overflow-wrap:anywhere; }
+.stock-discovery-card header>span,.stock-discovery-card small { font-size:.75rem; color:var(--muted); }
+.stock-discovery-card__price { display:flex; align-items:baseline; flex-wrap:wrap; gap:8px 16px; }
+.stock-discovery-card__price>strong { font-size:1.5rem; font-weight:600; }
+.stock-discovery-card__price>small { flex-basis:100%; }
+.stock-discovery-card p { margin:0; font-size:.875rem; line-height:1.6; }
+.stock-discovery-card__trend { width:100%; }
+.stock-discovery-card dl { display:flex; flex-wrap:wrap; gap:24px; margin:0; }
+.stock-discovery-card dt { color:var(--muted); font-size:.75rem; }
+.stock-discovery-card dd { margin:6px 0 0; font-size:1rem; }
+.stock-discovery-card>a { display:inline-flex; min-height:44px; align-items:center; margin-top:auto; color:var(--ink); font-size:.875rem; text-underline-offset:4px; }
+.stocks-discovery__method { margin-top:20px; color:var(--muted); font-size:.8125rem; line-height:1.6; }
+.stocks-discovery__method summary { cursor:pointer; min-height:44px; align-content:center; color:var(--ink); }
 .stocks-hero { min-height:0; padding:40px 0 24px; grid-template-columns:1fr; }
 .stocks-status { display:flex; flex-wrap:wrap; gap:8px 24px; margin:0 0 28px; color:var(--muted); font-size:.8125rem; }
 .stocks-notice { padding:16px 20px; margin-bottom:24px; background:var(--panel); border-left:3px solid var(--warning); line-height:1.6; }
