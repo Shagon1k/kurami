@@ -56,6 +56,20 @@ sets, and no unapproved paid plan. Research cannot delay the morning Daily.
 
 ## Checks before handoff
 
+For new long-term ideas, prefer a comprehensible business with current primary
+evidence and a different economic driver from the user's concentrated exposures.
+Compare against existing holdings and no new position. A company already inside
+VUAA is not a new independent source of diversification merely because its
+ticker is absent from the direct holdings. Missing price/valuation evidence
+means study-only, not a purchase recommendation. One strong candidate is enough.
+
+In a frozen-input independent trial, use only the supplied evidence and calculated
+metrics. Do not pretend to have browsed or researched beyond that packet.
+Keep source-derived paraphrases compact (normally under 150 words per issuer
+source across the report); general analytical reasoning is separate. Return the
+structured draft, not hand-authored HTML. This tests synthesis and contract
+compliance, not autonomous source collection or unattended scheduling.
+
 - All holdings accounted for; exact input hash bound to the draft.
 - EUR conversion direction, quantities and source dates checked by code.
 - Personal return/cost basis remain unknown unless supplied.

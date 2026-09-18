@@ -33,6 +33,9 @@
 - `facts`: unique ID, symbol, source ID, compact factual statement.
 - Optional `fundHoldings`: fund ticker/ISIN, as-of date, source ID and percentage
   weights for the specifically researched overlapping constituents only.
+- Optional `candidates`: at most two non-held companies, with symbol, name,
+  exchange and `identitySourceId`. Facts can reference these symbols, but
+  candidates never enter portfolio quantities, valuation or allocation.
 
 Any missing, stale or identity-mismatched quote makes total/portfolio weights
 unavailable rather than renormalizing the remaining known positions to 100%.
@@ -63,6 +66,8 @@ become current-month usage or an assumed unused allowance.
   }],
   learningNotes: [{id, term, explanation, example, limitation,
     reference: {title, url}}], // maximum three, collapsed by default
+  ideas: [{symbol, factIds, rationale, portfolioMeaning, counterargument,
+    alternative, valuationGap, revisitWhen}], // optional, zero to two
   nextSteps: at most 5 short paragraphs,
   proposedOrders: []
 }
@@ -77,6 +82,13 @@ All learning-note IDs are unique and referenced by at least one position;
 unknown links, oversized notes and unsafe URLs are rejected. Version-1 HTML
 remains an archived artifact; new drafts use version 2 without a parallel
 legacy renderer. Education links are reference material, not new price data.
+
+Ideas are research-only and must use a registered candidate and its own facts.
+No action, quantity, price target or order fields are accepted in an idea.
+Explain the business, portfolio fit/overlap, risks, comparison with adding to
+existing holdings or doing nothing, and missing valuation evidence. The
+renderer always labels these as ideas to study, never recommendations to buy.
+Do not fill slots just to reach two ideas. Broker availability is unverified.
 
 ## Later lifecycle — agreed, not activated
 

@@ -26,6 +26,28 @@ const future=structuredClone(input);future.sources[0]!.asOfDate="2026-09-19";ass
 const bad=structuredClone(input);bad.baseline.positions.push(bad.baseline.positions[0]!);assert.throws(()=>parseReviewInput(bad));
 const draft:ReviewDraft={version:2,inputDigest:inputDigest(input),headline:"Пробный обзор",summary:["Проверяем структуру"],positions:input.baseline.positions.map(p=>({symbol:p.symbol,action:"review",factIds:[p.symbol==="AAA"?"aaa-fact":"fund-fact"],rationale:"Вывод",portfolioMeaning:"Связь с портфелем",counterargument:"Контраргумент",revisitWhen:"Условие пересмотра",learningIds:["overlap"]})),learningNotes:[{id:"overlap",term:"Пересечение вложений",explanation:"Объяснение",example:"Пример из отчёта",limitation:"Граница вывода",reference:{title:"Источник",url:"https://www.investor.gov/"}}],nextSteps:["Проверить данные"],proposedOrders:[]};
 assert.equal(validateReviewDraft(input,draft),draft);
+const withIdea=structuredClone(input);
+withIdea.candidates=[{symbol:"BBB",name:"<Example candidate>",exchange:"EXAMPLE",identitySourceId:"issuer"}];
+withIdea.facts.push({id:"bbb-fact",symbol:"BBB",sourceId:"issuer",statement:"Candidate evidence"});
+assert.equal(calculateReview(withIdea).totalEUR,m.totalEUR);
+assert.deepEqual(calculateReview(withIdea).rows,m.rows,"Candidates do not change holdings or weights");
+const ideaDraft={...structuredClone(draft),inputDigest:inputDigest(withIdea),ideas:[{symbol:"BBB",factIds:["bbb-fact"],rationale:"Why",portfolioMeaning:"Fit",counterargument:"Risk",alternative:"Existing fund or no purchase",valuationGap:"No valuation",revisitWhen:"Next filing"}]};
+assert.equal(validateReviewDraft(withIdea,ideaDraft),ideaDraft);
+const ideaHtml=renderInvestmentReview(withIdea,ideaDraft);
+assert(ideaHtml.includes("&lt;Example candidate&gt;"));assert(!ideaHtml.includes("<Example candidate>"));
+assert(ideaHtml.includes("Альтернатива:"));assert(ideaHtml.includes("Чего не хватает для покупки:"));
+assert(!ideaHtml.includes('class="review-position review-idea" open'));
+for(const ideas of [
+  [{...ideaDraft.ideas[0],symbol:"AAA"}],
+  [{...ideaDraft.ideas[0],factIds:["aaa-fact"]}],
+  [{...ideaDraft.ideas[0],factIds:[]}],
+  [{...ideaDraft.ideas[0],quantity:1}],
+  [...ideaDraft.ideas,...ideaDraft.ideas],
+  Array.from({length:3},()=>ideaDraft.ideas[0])
+])assert.throws(()=>validateReviewDraft(withIdea,{...ideaDraft,ideas}));
+assert.throws(()=>parseReviewInput({...withIdea,candidates:[{...withIdea.candidates![0],symbol:"AAA"}]}));
+assert.throws(()=>parseReviewInput({...withIdea,candidates:[{...withIdea.candidates![0],identitySourceId:"missing"}]}));
+assert.throws(()=>validateReviewDraft(input,ideaDraft),"Draft binds to the exact candidate/evidence packet");
 assert.throws(()=>validateReviewDraft(input,{...draft,inputDigest:"wrong"}));
 assert.throws(()=>validateReviewDraft(input,{...draft,proposedOrders:[{symbol:"AAA",eur:100}]}));
 const unsupported=structuredClone(draft);unsupported.positions[0]!.factIds=["fund-fact"];assert.throws(()=>validateReviewDraft(input,unsupported));

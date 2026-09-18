@@ -34,6 +34,16 @@ replace FX with "валютный курс" and unexplained "экспозици�
 company's combined share or dependence. Do not use a second unexplained term
 as a definition. Distinguish reported revenue, profit, cash flow and forecasts.
 
+The renderer owns field captions. Do not start a field with "Короткий вывод:",
+"Для твоего портфеля:" or another repeated heading. Use Russian explanations
+instead of unexplained "valuation", "due diligence", "capex" or "non-GAAP".
+Company/product names may remain original. If a technical accounting measure
+is essential, briefly explain it in that sentence (e.g. profit adjusted by the
+company to exclude selected expenses); otherwise use the plain meaning. Avoid
+hardware acronyms such as MOSFET/SiC in the main layer when "силовые чипы" suffices.
+Missing valuation means we have not established whether the current stock price
+is justified by future business results, not merely a missing technical field.
+
 The main layer must remain understandable without opening a lesson. Short
 first-use explanations are allowed even when the optional lesson repeats the
 concept in more depth. Quoted/retained evidence keeps its original meaning:

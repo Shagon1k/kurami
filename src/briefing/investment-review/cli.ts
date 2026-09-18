@@ -33,7 +33,7 @@ if(import.meta.main){
     const response=await nodeHttpFetch(url,{redirect:"error",signal:AbortSignal.timeout(12000)});if(!response.ok)throw Error("ECB unavailable");
     const xml=await response.text(),usdPerEUR=parseEcbUSD(xml,dates[0]!);
     const input=parseReviewInput({version:1,asOfDate:date,mode:"trial",baseline,market,fx:{date:dates[0],usdPerEUR,sourceId:"ecb-fx"},
-      sources:[{id:"ecb-fx",title:"ECB — EUR reference rates",url,asOfDate:dates[0],retrievedAt:new Date().toISOString()},...evidence.sources],facts:evidence.facts,...(evidence.fundHoldings?{fundHoldings:evidence.fundHoldings}:{})});
+      sources:[{id:"ecb-fx",title:"ECB — EUR reference rates",url,asOfDate:dates[0],retrievedAt:new Date().toISOString()},...evidence.sources],facts:evidence.facts,...(evidence.fundHoldings?{fundHoldings:evidence.fundHoldings}:{}),...(evidence.candidates?{candidates:evidence.candidates}:{})});
     const calculated=calculateReview(input);await privateWrite(resolve(flag("output")),JSON.stringify(input,null,2)+"\n");
     console.log(JSON.stringify({snapshot:flag("output"),inputDigest:calculated.inputDigest,complete:calculated.complete,positions:calculated.rows.length,financialApiRequests:0,ecbRequests:1}));
   }else if(command==="render"){

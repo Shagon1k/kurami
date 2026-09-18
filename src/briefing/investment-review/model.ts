@@ -4,8 +4,9 @@ import {dayShift,parseStocksSnapshot,type StocksSnapshot} from "../stocks/model.
 export type PortfolioBaseline={version:1;asOfLocalDate:string;timezone:"Europe/Vilnius";positions:Array<{symbol:string;isin:string;quantity:string}>;unknowns:{currentMonthExecutedTrades:number|null;currentMonthNewContributionsEUR:number|null}};
 export type ReviewSource={id:string;title:string;url:string;asOfDate:string;retrievedAt:string};
 export type ReviewFact={id:string;symbol:string;sourceId:string;statement:string};
+export type ReviewCandidate={symbol:string;name:string;exchange:string;identitySourceId:string};
 export type ReviewInput={version:1;asOfDate:string;mode:"trial"|"weekly"|"monthly";baseline:PortfolioBaseline;market:StocksSnapshot;
-  fx:{date:string;usdPerEUR:number;sourceId:string};sources:ReviewSource[];facts:ReviewFact[];
+  fx:{date:string;usdPerEUR:number;sourceId:string};sources:ReviewSource[];facts:ReviewFact[];candidates?:ReviewCandidate[];
   fundHoldings?:{fundSymbol:string;fundIsin:string;asOfDate:string;sourceId:string;weights:Record<string,number>}};
 export const inputDigest=(input:ReviewInput)=>createHash("sha256").update(JSON.stringify(input)).digest("hex");
 export function dateOnly(value:unknown):value is string{return typeof value==="string"&&/^\d{4}-\d{2}-\d{2}$/.test(value)&&Number.isFinite(Date.parse(value))&&dayShift(value,0)===value;}
@@ -41,7 +42,16 @@ export function parseReviewInput(value:unknown):ReviewInput {
       ||!dateOnly(s.asOfDate)||s.asOfDate>i.asOfDate||!Number.isFinite(Date.parse(s.retrievedAt)))throw Error("Invalid evidence source");sources.add(s.id);
   }
   const factIds=new Set<string>();
-  for(const f of i.facts){if(!/^[a-z][a-z0-9-]{0,60}$/.test(f.id)||factIds.has(f.id)||!ids.has(f.symbol)||!sources.has(f.sourceId)||!f.statement||f.statement.length>1000)throw Error("Invalid evidence fact");factIds.add(f.id);}
+  const researchIds=new Set(ids);
+  if(i.candidates!==undefined){
+    if(!Array.isArray(i.candidates)||i.candidates.length>2)throw Error("Invalid research candidates");
+    for(const c of i.candidates){
+      if(!c||!/^[A-Z][A-Z0-9.-]{0,15}$/.test(c.symbol)||researchIds.has(c.symbol)||typeof c.name!=="string"||!c.name.trim()||c.name.length>120
+        ||typeof c.exchange!=="string"||!c.exchange.trim()||c.exchange.length>40||!sources.has(c.identitySourceId))throw Error("Invalid candidate identity");
+      researchIds.add(c.symbol);
+    }
+  }
+  for(const f of i.facts){if(!/^[a-z][a-z0-9-]{0,60}$/.test(f.id)||factIds.has(f.id)||!researchIds.has(f.symbol)||!sources.has(f.sourceId)||!f.statement||f.statement.length>1000)throw Error("Invalid evidence fact");factIds.add(f.id);}
   if(!dateOnly(i.fx?.date)||i.fx.date>i.asOfDate||!Number.isFinite(i.fx.usdPerEUR)||i.fx.usdPerEUR<=0||!sources.has(i.fx.sourceId))throw Error("Invalid FX evidence");
   const h=i.fundHoldings;
   if(h&&(!dateOnly(h.asOfDate)||h.asOfDate>i.asOfDate||!sources.has(h.sourceId)||!i.baseline.positions.some(p=>p.symbol===h.fundSymbol&&p.isin===h.fundIsin)
@@ -76,7 +86,8 @@ export function calculateReview(input:ReviewInput){
     personalReturn:null,costBasis:null,scenarios:totalEUR&&fundValue!=null?([100,200] as const).map(amount=>({newMoneyEUR:amount,fundSymbol:fund!.fundSymbol,fundWeightIfAdded:(fundValue+amount)/(totalEUR+amount)*100})):[]};
 }
 export type LearningNote={id:string;term:string;explanation:string;example:string;limitation:string;reference:{title:string;url:string}};
-export type ReviewDraft={version:2;inputDigest:string;headline:string;summary:string[];positions:Array<{symbol:string;action:"review"|"maintain"|"consider-add"|"consider-trim"|"consider-exit"|"not-assessed";factIds:string[];rationale:string;portfolioMeaning:string;counterargument:string;revisitWhen:string;learningIds:string[]}>;learningNotes:LearningNote[];nextSteps:string[];proposedOrders:never[]};
+export type ReviewIdea={symbol:string;factIds:string[];rationale:string;portfolioMeaning:string;counterargument:string;alternative:string;valuationGap:string;revisitWhen:string};
+export type ReviewDraft={version:2;inputDigest:string;headline:string;summary:string[];positions:Array<{symbol:string;action:"review"|"maintain"|"consider-add"|"consider-trim"|"consider-exit"|"not-assessed";factIds:string[];rationale:string;portfolioMeaning:string;counterargument:string;revisitWhen:string;learningIds:string[]}>;learningNotes:LearningNote[];ideas?:ReviewIdea[];nextSteps:string[];proposedOrders:never[]};
 export function validateReviewDraft(input:ReviewInput,value:unknown):ReviewDraft {
   const d=value as ReviewDraft,metrics=calculateReview(input),ids=new Set(input.baseline.positions.map(p=>p.symbol)),seen=new Set<string>(),facts=new Map(input.facts.map(f=>[f.id,f]));
   const text=(v:unknown,max=1600)=>typeof v==="string"&&v.length>0&&v.length<=max;
@@ -92,6 +103,10 @@ export function validateReviewDraft(input:ReviewInput,value:unknown):ReviewDraft
     lessons.add(n.id);
   }
   for(const p of d.positions){
+    if(Array.isArray(p.learningIds)){
+      const missing=p.learningIds.filter(id=>!lessons.has(id));
+      if(missing.length)throw Error("Unknown learning note for "+p.symbol+": "+missing.join(", "));
+    }
     if(!ids.has(p.symbol)||seen.has(p.symbol)||!["review","maintain","consider-add","consider-trim","consider-exit","not-assessed"].includes(p.action)
       ||!Array.isArray(p.factIds)||p.factIds.some(id=>facts.get(id)?.symbol!==p.symbol)||![p.rationale,p.portfolioMeaning,p.counterargument,p.revisitWhen].every(v=>text(v))
       ||!Array.isArray(p.learningIds)||p.learningIds.length>2||new Set(p.learningIds).size!==p.learningIds.length||p.learningIds.some(id=>!lessons.has(id)))throw Error("Invalid position review");
@@ -101,5 +116,16 @@ export function validateReviewDraft(input:ReviewInput,value:unknown):ReviewDraft
     seen.add(p.symbol);
   }
   if(usedLessons.size!==lessons.size)throw Error("Learning notes must be tied to a reviewed position");
+  if(d.ideas!==undefined){
+    if(!Array.isArray(d.ideas)||d.ideas.length>2)throw Error("Invalid long-term ideas");
+    const candidates=new Set(input.candidates?.map(c=>c.symbol)),ideaIds=new Set<string>();
+    for(const idea of d.ideas){
+      if(!idea||!candidates.has(idea.symbol)||ideaIds.has(idea.symbol)||!Array.isArray(idea.factIds)||!idea.factIds.length
+        ||new Set(idea.factIds).size!==idea.factIds.length||idea.factIds.some(id=>facts.get(id)?.symbol!==idea.symbol)
+        ||![idea.rationale,idea.portfolioMeaning,idea.counterargument,idea.alternative,idea.valuationGap,idea.revisitWhen].every(v=>text(v,900))
+        ||Object.keys(idea).some(k=>!["symbol","factIds","rationale","portfolioMeaning","counterargument","alternative","valuationGap","revisitWhen"].includes(k)))throw Error("Invalid long-term idea");
+      ideaIds.add(idea.symbol);
+    }
+  }
   return d;
 }

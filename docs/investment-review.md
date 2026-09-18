@@ -50,9 +50,10 @@ fees/cash/monthly transaction reconciliation and risk/target policy.
 Next readiness steps, before recurring activation:
 1. Complete an initial research pass for currently uncovered holdings and
    test that a fresh run follows the skill rather than a handcrafted layout.
-2. Agree and add a separate bounded long-term idea contract: candidates are
-   not holdings, with evidence, risks and comparison against adding to existing
-   holdings or doing nothing. Existing movement-based Discovery is not this.
+2. Exercise the separate bounded long-term idea contract: up to two registered
+   non-held candidates, own evidence, risks, portfolio fit, alternatives and
+   missing valuation checks. Ideas are study-only, not holdings or orders.
+   Existing movement-based Discovery is not this.
 3. Add independently retained weekly/monthly report storage and the compact
    `/stocks` view; then validate scheduling, collision handling and source costs.
 
@@ -64,3 +65,36 @@ Verification: `npm run test:investment-review`. Tests use synthetic holdings
 only and cover leap-month boundaries, FX direction, missing/old/identity-mismatch
 quotes, overlap, unknown month usage, evidence binding, unsafe markup and
 rejection of executable orders. They do not prove narrative factual accuracy.
+
+## Independent frozen-input trial
+
+`bin/investment-review-trial.py` runs the installed Hermes environment's
+configured model with an empty tool allowlist, no memory/context-file loading,
+no background reviews and no publishing. It preserves Kurami's existing soul.
+Input is a mode-600 JSON packet with a `prompt`; use the skill, source-backed
+facts and calculated metrics, without a previous handcrafted report. Output
+must be a fresh private directory. Raw response, draft and minimal status are
+retained there; exceptions do not print provider credentials. An external
+timeout bounds the manual process. The wrapper never retries on its own.
+
+Hermes completion is **not** report acceptance: run the deterministic renderer
+against the exact frozen input and inspect claims/plain-language quality before
+sharing. A rejected draft cannot produce an HTML report. A single explicit
+repair attempt may use validator diagnostics; retain both attempts and never
+silently hand-edit the model's investment judgments. If repair still fails,
+stop and keep the previous accepted report.
+
+The September 18 trial used manually verified public issuer/SEC evidence and
+the existing quote snapshot, without additional financial API requests. This
+tests synthesis and rendering, not autonomous research, comprehensive current
+news coverage or unattended scheduling. Action judgments may vary between
+runs on identical facts; structural checks do not make them deterministic.
+Recurring activation therefore remains a separate readiness step.
+
+Observed trial outcome: two clean-context syntheses and one bounded repair,
+one model call each, no tools. The second draft's dangling lesson reference
+was rejected before HTML creation. The repaired draft validated; its action
+choices, candidate selection and fact references were checked unchanged from
+the rejected draft. The first draft also exposed unnecessary English jargon,
+so the reader contract was clarified rather than hand-editing report copy.
+Neither trial is evidence of investment performance or unattended reliability.

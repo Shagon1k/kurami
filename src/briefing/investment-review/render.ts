@@ -4,6 +4,7 @@ import {calculateReview,validateReviewDraft,type ReviewInput,type ReviewDraft} f
 import {renderLearningNotes,REVIEW_LEARNING_STYLES,REVIEW_LEARNING_SCRIPT} from "./learning-note.ts";
 import {dayShift} from "../stocks/model.ts";
 import {renderKuramiComment} from "../ui/components/kurami-comment.ts";
+import {renderReviewIdea} from "./idea.ts";
 
 const eur=(n:number|null)=>n===null?"недостаточно данных":new Intl.NumberFormat("ru-RU",{style:"currency",currency:"EUR",maximumFractionDigits:2}).format(n);
 const pct=(n:number|null)=>n===null?"—":new Intl.NumberFormat("ru-RU",{maximumFractionDigits:2}).format(n)+"%";
@@ -11,9 +12,10 @@ export const investmentAdviceLabels={review:"Пока без рекоменда�
 export function renderInvestmentReview(input:ReviewInput,value:ReviewDraft):string {
   const draft=validateReviewDraft(input,value),m=calculateReview(input),facts=new Map(input.facts.map(f=>[f.id,f])),sources=new Map(input.sources.map(s=>[s.id,s]));
   const position=(symbol:string)=>m.rows.find(r=>r.symbol===symbol)!;
+  const evidence=(ids:string[])=>ids.length?`<details class="review-evidence"><summary>Факты и источники (${ids.length})</summary><ul>${ids.map(id=>{const f=facts.get(id)!,s=sources.get(f.sourceId)!;return `<li>${e(f.statement)} <a href="${e(s.url)}" target="_blank" rel="noopener noreferrer">${e(s.title)}</a> · ${e(s.asOfDate)}</li>`;}).join("")}</ul></details>`:"";
   const assessed=draft.positions.filter(p=>p.action!=="not-assessed").length;
   const content=`<section class="hero stocks-hero"><div><p class="hero__eyebrow">Приватный пробный обзор · ${e(input.asOfDate)}</p><h1>Обзор портфеля</h1></div></section>
-    <div class="stocks-status"><span>Состав подтверждён: ${e(input.baseline.asOfLocalDate)}</span><span>Цены и валютный курс: ${e(input.fx.date)}</span><span>Углублённо проверено: ${assessed}/${m.rows.length}</span></div>
+    <div class="stocks-status"><span>Состав подтверждён: ${e(input.baseline.asOfLocalDate)}</span><span>Цены и валютный курс: ${e(input.fx.date)}</span><span>Разобрано по доступным фактам: ${assessed}/${m.rows.length}</span></div>
     <section class="review-section"><h2>Главное</h2>${renderKuramiComment({context:"Главное",headline:draft.headline,items:draft.summary})}</section>
     <section class="stocks-watchlist"><header class="stocks-section-heading"><h2>Подтверждённый состав</h2><span>${eur(m.totalEUR)} · только указанные позиции, без остатка денег</span></header>
     <div class="review-table"><table><thead><tr><th>Акция / фонд</th><th>Количество</th><th>Оценка, EUR</th><th>Доля</th></tr></thead><tbody>${m.rows.map(r=>`<tr><th>${e(r.symbol)}</th><td>${e(r.quantity)}</td><td>${eur(r.valueEUR)}</td><td>${pct(r.weight)}</td></tr>`).join("")}</tbody></table></div>
@@ -30,9 +32,10 @@ export function renderInvestmentReview(input:ReviewInput,value:ReviewDraft):stri
         {label:"Что может пойти иначе",text:p.counterargument},
         {label:"За чем следить",text:p.revisitWhen}
       ]})}
-      ${p.factIds.length?`<details class="review-evidence"><summary>Факты и источники (${p.factIds.length})</summary><ul>${p.factIds.map(id=>{const f=facts.get(id)!,s=sources.get(f.sourceId)!;return `<li>${e(f.statement)} <a href="${e(s.url)}" target="_blank" rel="noopener noreferrer">${e(s.title)}</a> · ${e(s.asOfDate)}</li>`;}).join("")}</ul></details>`:""}
+      ${evidence(p.factIds)}
       ${p.learningIds.length?`<div class="review-learning-links">${p.learningIds.map(id=>`<a data-review-lesson-link href="#learn-${e(id)}">Разобраться: ${e(draft.learningNotes.find(n=>n.id===id)!.term)}</a>`).join("")}</div>`:""}</div></details>`;
     }).join("")}</section>
+    ${draft.ideas?.length?`<section class="review-section"><h2>Идеи для изучения</h2><p>Отдельно от твоих вложений. Это кандидаты для дальнейшего разбора, не предложения купить сейчас; доступность в Revolut ещё не подтверждена.</p>${draft.ideas.map(idea=>renderReviewIdea(input.candidates!.find(c=>c.symbol===idea.symbol)!,idea,evidence(idea.factIds))).join("")}</section>`:""}
     ${renderLearningNotes(draft.learningNotes)}
     <section class="review-section"><h2>Деньги и действия</h2><p>Плановый диапазон новых взносов — €100–200 за календарный месяц. Общий предел — 5 покупок и продаж, не обязательное количество.</p><p>Период учёта: с ${e(m.tradeWindow.start)} по ${e(dayShift(m.tradeWindow.endExclusive,-1))} включительно.</p><p>Остаток сделок: ${m.remainingTrades??"неизвестен"}. Остаток бюджета новых взносов: ${m.remainingNewMoneyEUR===null?"неизвестен":eur(m.remainingNewMoneyEUR)}. Прибыль от покупок, комиссии и налоговый результат продажи не рассчитаны.</p>
     ${m.scenarios.length?`<details><summary>Как пополнение фонда изменило бы доли — без продаж</summary><ul>${m.scenarios.map(s=>`<li>Если добавить ${eur(s.newMoneyEUR)} только в ${e(s.fundSymbol)}, его доля стала бы ${pct(s.fundWeightIfAdded)}.</li>`).join("")}</ul><p>Условный пример при неизменных ценах, без комиссий. Это не доступный остаток бюджета, не целевая доля и не поручение купить.</p></details>`:""}
