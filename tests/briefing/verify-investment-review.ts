@@ -8,6 +8,8 @@ import {renderKuramiComment,KURAMI_COMMENT_STYLES} from "../../src/briefing/ui/c
 import {extractSecFacts,collectIssuerEvidence,mergeCollectedEvidence} from "../../src/briefing/investment-review/collect.ts";
 import {acceptReview,loadReview,reviewFreshness} from "../../src/briefing/investment-review/store.ts";
 import {renderReviewPanel} from "../../src/briefing/investment-review/panel.ts";
+import {primaryPacket,mergePrimaryEvidence} from "../../src/briefing/investment-review/primary-evidence.ts";
+import {createHash} from "node:crypto";
 import {mkdtemp,rm,readFile} from "node:fs/promises";
 import {tmpdir} from "node:os";
 import {join} from "node:path";
@@ -116,6 +118,21 @@ assert(merged.facts.some(f=>f.id==="aaa-fact"),"Retained primary evidence surviv
 assert(merged.facts.some(f=>f.id==="sec-aaa-revenue"));
 assert.equal(merged.researchCoverage!.find(c=>c.symbol==="FUND")!.state,"retained");
 assert.equal(merged.sources.some(s=>s.id==="ecb"),false,"Snapshot supplies its newly dated FX source");
+const primaryText="Example Inc reported second-quarter revenue of USD 123 million and an operating loss of USD 2 million. The reporting period ended June 30, 2026.";
+const primaryCollection={version:1 as const,asOfDate:input.asOfDate,requests:4,coverage:[],
+  documents:[{id:"primary-aaa-test",symbol:"AAA",title:"Example issuer report",url:"https://www.sec.gov/Archives/edgar/data/1/report.htm",
+    filedAt:"2026-08-01",retrievedAt:"2026-09-18T06:00:00Z",contentDigest:createHash("sha256").update(primaryText).digest("hex"),text:primaryText,truncated:false}]};
+primaryPacket(primaryCollection);
+const extraction={version:1,collectionDigest:createHash("sha256").update(JSON.stringify(primaryCollection)).digest("hex"),
+  items:[{documentId:"primary-aaa-test",symbol:"AAA",facts:[{statement:"Компания сообщила выручку USD 123 млн за второй квартал 2026.",kind:"reported",anchor:"revenue of USD 123 million"}]}]};
+assert.throws(()=>mergePrimaryEvidence(input,primaryCollection,extraction,false));
+const withPrimary=mergePrimaryEvidence(input,primaryCollection,extraction,true);
+assert.equal(calculateReview(withPrimary).totalEUR,m.totalEUR);
+assert(!withPrimary.facts.some(f=>f.id==="aaa-fact"),"Reviewed issuer facts replace older narrative for that issuer");
+assert(withPrimary.facts.some(f=>f.id==="fund-fact"),"Unrelated fund evidence stays intact");
+assert(withPrimary.facts.some(f=>f.id==="primary-aaa-test-1"));
+assert.equal(withPrimary.researchCoverage!.find(c=>c.symbol==="AAA")!.state,"primary");
+assert.equal(mergePrimaryEvidence(withPrimary,primaryCollection,extraction,true).facts.length,withPrimary.facts.length,"Repeat collection does not accumulate duplicate primary facts");
 const directory=await mkdtemp(join(tmpdir(),"kurami-review-store-"));
 try{
   const week={...structuredClone(input),mode:"weekly" as const},weekDraft={...structuredClone(draft),inputDigest:inputDigest(week)};
@@ -134,7 +151,12 @@ try{
   const changed=structuredClone(input.baseline);changed.positions[0]!.quantity="3";
   assert(reviewFreshness(saved,"2026-09-18T06:00:00Z",changed).changedHoldings);
   const panel=renderReviewPanel([saved,savedMonth],"2026-09-18T06:00:00Z",input.baseline);
+  assert(panel.startsWith('<details class="investment-review"><summary><h2>Обзор портфеля</h2>'));
+  assert(!panel.includes(saved.draft.headline),"Editorial headline does not add a second disclosure title");
   assert(panel.includes("Неделя"));assert(panel.includes("Месяц"));assert(!panel.includes(" open"));
+  const single=renderReviewPanel([saved],"2026-09-18T06:00:00Z",input.baseline);
+  assert(!single.includes('class="investment-review__period"'),"Single report opens with the main heading, no redundant nesting");
+  assert(!single.includes("Пробный обзор"));assert(single.includes("18 сентября"));
   assert(panel.includes('id="weekly-learn-overlap"'));assert(panel.includes('id="monthly-learn-overlap"'));
   assert.equal(renderReviewPanel([],"2026-09-18T06:00:00Z"),"");
   assert(JSON.parse(await readFile(join(directory,"latest-weekly.json"),"utf8")).id===saved.id);

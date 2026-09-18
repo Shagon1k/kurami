@@ -7,7 +7,7 @@ export type ReviewFact={id:string;symbol:string;sourceId:string;statement:string
 export type ReviewCandidate={symbol:string;name:string;exchange:string;identitySourceId:string};
 export type ReviewInput={version:1;asOfDate:string;mode:"trial"|"weekly"|"monthly";baseline:PortfolioBaseline;market:StocksSnapshot;
   fx:{date:string;usdPerEUR:number;sourceId:string};sources:ReviewSource[];facts:ReviewFact[];candidates?:ReviewCandidate[];
-  researchCoverage?:Array<{symbol:string;state:"fresh"|"retained";note:string}>;
+  researchCoverage?:Array<{symbol:string;state:"fresh"|"primary"|"retained";note:string}>;
   fundHoldings?:{fundSymbol:string;fundIsin:string;asOfDate:string;sourceId:string;weights:Record<string,number>}};
 export const inputDigest=(input:ReviewInput)=>createHash("sha256").update(JSON.stringify(input)).digest("hex");
 export function dateOnly(value:unknown):value is string{return typeof value==="string"&&/^\d{4}-\d{2}-\d{2}$/.test(value)&&Number.isFinite(Date.parse(value))&&dayShift(value,0)===value;}
@@ -55,7 +55,7 @@ export function parseReviewInput(value:unknown):ReviewInput {
   for(const f of i.facts){if(!/^[a-z][a-z0-9-]{0,60}$/.test(f.id)||factIds.has(f.id)||!researchIds.has(f.symbol)||!sources.has(f.sourceId)||!f.statement||f.statement.length>1000)throw Error("Invalid evidence fact");factIds.add(f.id);}
   if(i.researchCoverage!==undefined&&(!Array.isArray(i.researchCoverage)||i.researchCoverage.length>52
     ||new Set(i.researchCoverage.map(c=>c.symbol)).size!==i.researchCoverage.length
-    ||i.researchCoverage.some(c=>!researchIds.has(c.symbol)||!["fresh","retained"].includes(c.state)||typeof c.note!=="string"||!c.note||c.note.length>500)))throw Error("Invalid research coverage");
+    ||i.researchCoverage.some(c=>!researchIds.has(c.symbol)||!["fresh","primary","retained"].includes(c.state)||typeof c.note!=="string"||!c.note||c.note.length>500)))throw Error("Invalid research coverage");
   if(!dateOnly(i.fx?.date)||i.fx.date>i.asOfDate||!Number.isFinite(i.fx.usdPerEUR)||i.fx.usdPerEUR<=0||!sources.has(i.fx.sourceId))throw Error("Invalid FX evidence");
   const h=i.fundHoldings;
   if(h&&(!dateOnly(h.asOfDate)||h.asOfDate>i.asOfDate||!sources.has(h.sourceId)||!i.baseline.positions.some(p=>p.symbol===h.fundSymbol&&p.isin===h.fundIsin)

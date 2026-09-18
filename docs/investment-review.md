@@ -75,10 +75,40 @@ model is attempted. A failed XBRL fetch does not revoke a confirmed issuer ISIN.
 The returned coverage is accounting-field coverage, not full company research.
 
 September 18's corrected collection returned the full three metrics for six
-of twelve requested companies and partial metrics for one more. Other issuers
-need primary-release adapters; VUAA holdings still use retained issuer evidence.
+of twelve requested companies and partial metrics for one more. The subsequent
+primary-document adapter covers issuer gaps; VUAA holdings still use retained issuer evidence.
 Retained facts keep original dates and a visible coverage disclosure. This is
 not sufficient for unattended comprehensive research or automatic publication.
+
+### Primary documents
+
+`primary.ts <public-targets.json> <date> <new-collection.json>` discovers recent
+issuer filings through the SEC submissions API and retrieves the relevant HTML
+release/report. It checks ticker/name/CIK, dates and document paths; exhibits
+must remain in the same SEC filing directory. Limits: eight targets, eight
+candidate filings per target, two exhibits per filing, 64 total requests,
+15 seconds per request, explicit text truncation above 50,000 characters.
+
+`primary-evidence.ts packet <collection> <new-packet>` creates a bounded,
+tool-free fact-extraction prompt. Then `validate <collection> <new-evidence>
+<extraction>` rejects unknown documents, mismatched issuers/digests, invented
+anchors and excessive quotations. Table separator pipes are layout, not text.
+Keep original period and currency; do not turn approvals into actual spending
+or a dividend on ordinary shares into a dividend on ADRs. Numerical/semantic
+context is checked separately: matching a snippet is not proof of the whole claim.
+
+After explicit semantic review, `merge-reviewed <collection> <new-input>
+<extraction> <previous-input>` replaces previous narrative facts only for
+successfully refreshed issuers. Structured metrics and unrelated fund evidence
+remain; old immutable inputs preserve history. It does not approve a report,
+change holdings, enable the reader or create a schedule.
+
+The September 18 live trial discovered six issuer documents with 28 requests
+and extracted 18 facts after one bounded anchor-repair pass. No release URL or
+financial fact was manually supplied to that extraction. Periods, units and
+reported/forecast distinctions were checked against source context before merge.
+The remaining retained source is the Vanguard holdings snapshot; autonomous
+publication and full news/fair-value research are still outside this trial.
 
 `draft-packet --input ... --output ...` creates the reproducible skill/evidence/
 calculation prompt for the installed tool-free Hermes runner. Drafts cannot
@@ -101,7 +131,10 @@ these private accepted records yet. After an interrupted acceptance the lock
 may require operator recovery; no automatic stale-lock deletion is implemented.
 
 The optional /stocks panel reads accepted files only, never calls a provider,
-and is absent from Daily. Each period and position is collapsed by default.
+and is absent from Daily. Its one collapsed heading is `Обзор портфеля`.
+One report opens directly; separate period selectors appear inside only when
+both slots exist. Dates, coverage and necessary warnings remain inside; no
+repeated trial/editorial title or routine "saved" disclaimer. Positions stay collapsed.
 It reuses the same position/idea/learning components as the standalone report.
 Missing/corrupt slots are isolated from each other and from quotes. With no
 separately supplied current baseline it explicitly asks to confirm the current

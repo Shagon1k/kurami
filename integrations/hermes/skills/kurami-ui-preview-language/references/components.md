@@ -295,9 +295,13 @@ than reconstructed from a few summary percentages.
 ## Responsive rules
 
 The optional `InvestmentReviewPanel` in `investment-review/panel.ts` belongs
-only on /stocks and only when explicitly enabled. Render independently retained
-weekly/monthly slots as native collapsed disclosures; each position remains
-collapsed inside. Reuse `renderReviewPosition`, `ReviewIdea`, `LearningNote`
+only on /stocks and only when explicitly enabled. The single outer disclosure
+is titled `Обзор портфеля`; do not repeat it with a trial label, date and
+editorial headline in a second collapsed row. With one available report,
+opening this heading immediately reveals the report. With both weekly/monthly
+reports, put their short selectors inside. Keep dates and meaningful freshness
+warnings inside; omit routine "saved report" and preview scaffolding copy.
+Each position remains collapsed inside. Reuse `renderReviewPosition`, `ReviewIdea`, `LearningNote`
 and `KuramiComment` from the standalone review, not agent-generated markup.
 Keep source coverage, report age and composition-confirmation state visible.
 Do not create a Daily teaser, trade controls, provider requests or publishing

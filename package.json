@@ -4,7 +4,7 @@
   "description": "Kurami system control plane for Hermes",
   "main": "index.js",
   "scripts": {
-    "test:investment-review": "node tests/briefing/verify-investment-review.ts && python3 tests/briefing/verify-investment-review-trial.py",
+    "test:investment-review": "node tests/briefing/verify-investment-review.ts && node tests/briefing/verify-investment-primary.ts && python3 tests/briefing/verify-investment-review-trial.py",
     "test:briefing-company-logos": "node tests/briefing/verify-company-logos.ts",
     "test:briefing-discovery": "node tests/briefing/verify-discovery.ts",
     "test:briefing-stocks": "node tests/briefing/verify-stocks.ts",

@@ -170,7 +170,7 @@ const reviewInput:ReviewInput={version:1,mode:"weekly",asOfDate:"2026-09-18",
   market:initial,fx:{date:"2026-09-16",usdPerEUR:1.1,sourceId:"test-source"},
   sources:[{id:"test-source",title:"Synthetic source",url:"https://issuer.example/report",asOfDate:"2026-09-16",retrievedAt:"2026-09-18T06:00:00Z"}],
   facts:[{id:"test-fact",symbol:reviewAsset.id,sourceId:"test-source",statement:"Synthetic fact"}]};
-const reviewDraft:ReviewDraft={version:3,inputDigest:inputDigest(reviewInput),headline:"Private review sentinel",summary:["Synthetic conclusion"],positions:[{
+const reviewDraft:ReviewDraft={version:3,inputDigest:inputDigest(reviewInput),headline:"Private review sentinel",summary:["Private review sentinel"],positions:[{
   symbol:reviewAsset.id,action:"maintain",adviceReason:"Synthetic reason",blockingInfo:null,factIds:["test-fact"],rationale:"Synthetic conclusion",portfolioMeaning:"Synthetic fit",
   counterargument:"Synthetic risk",revisitWhen:"Next report",learningIds:[]}],learningNotes:[],nextSteps:[],proposedOrders:[]};
 await acceptReview(resolve(paths.stateDirectory,"portfolio/reviews"),reviewInput,reviewDraft);

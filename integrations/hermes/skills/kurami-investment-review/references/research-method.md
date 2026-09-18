@@ -57,6 +57,22 @@ Retained issuer evidence keeps its original dates and is never relabelled as
 freshly collected. A partial collection cannot justify claiming autonomous
 coverage of all holdings. Report any material disagreement with retained facts.
 
+For gaps, `primary.ts` discovers issuer documents from live SEC submissions,
+not a manually dated release URL. It selects recent 8-K earnings disclosures
+(item 2.02) or 6-K reports, follows at most two same-filing HTML exhibits, and
+bounds the run to eight issuers / 64 requests. Network failures remain gaps.
+Documents over 50,000 text characters are explicitly excerpts.
+`primary-evidence.ts packet` prepares tool-free extraction; `validate` checks
+document/issuer/hash binding, exact short anchors and quote budgets. Guidance
+is labelled separately from achieved results. These checks are necessary but
+do not establish semantic truth: inspect statement context, period, units and
+accounting basis. Do not map an ordinary-share dividend onto an ADR.
+Only after that review use `merge-reviewed`. It supersedes older narrated
+facts for the refreshed issuer, keeps independent SEC metrics and unrelated
+fund evidence, and preserves the old input as an immutable audit artifact.
+One bounded repair may fix extraction diagnostics; repeated failure stops
+without changing the accepted report. Do not loosen validation to accept it.
+
 Existing EODHD cache supplies closes without new calls. ECB dated XML supplies
 reference FX, not a broker execution rate. Fund issuer pages supply dated fund
 constituents; only verified fields enter look-through calculations. Issuer IR
