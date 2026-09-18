@@ -367,6 +367,7 @@ a { color: inherit; }
 .cinema-failure strong { color: var(--ink); }
 .page-footer { min-height: 94px; display: grid; grid-template-columns: 1fr auto 1fr; align-items: center; gap: 20px; color: var(--muted); border-top: 1px solid var(--line); font-size: .625rem; }
 .page-footer span:last-child { justify-self: end; }
+.page-footer__credit { display:inline-flex; align-items:center; min-height:44px; color:inherit; text-underline-offset:3px; }
 
 @media (max-width: 900px) {
   .hero { grid-template-columns: 1fr; min-height: 280px; }

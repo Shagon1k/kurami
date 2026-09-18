@@ -45,7 +45,7 @@ export function renderStocksPage(value:StocksSnapshot|null,params=new URLSearchP
   const selected=params.has("symbols")?selection.ids[0]:null;
   const rows=quotes.map((quote,index)=>renderStockRow(snapshot,quote.asset.id,selection.period,quote.asset.id===selected,at,index,logos)).join("");
   const insights=stockInsights(snapshot,at);
-  const observations=insights.length?`<section class="stocks-observations" aria-labelledby="stocks-observations-heading"><h2 id="stocks-observations-heading">Что изменилось</h2><ul>${insights.map(item=>`<li><a href="${e(stockHref(item.symbol,selection.period))}" data-stock-open="${e(item.symbol)}"><strong>${e(item.symbol)}</strong> ${item.kind==="high"?"Новый максимум закрытия за 3 месяца":formatStockPercent(item.value)+(item.kind==="week"?" за 7 дней":" за сессию")} <span aria-hidden="true">↗</span></a><small>На ${e(shortDate(item.date))}</small></li>`).join("")}</ul><p class="stocks-footnote">Факты из истории скорректированных закрытий, не рекомендации к покупке.</p></section>`:"";
+  const observations=insights.length?`<section class="stocks-observations" aria-labelledby="stocks-observations-heading"><h2 id="stocks-observations-heading">Что изменилось</h2><ul>${insights.map(item=>`<li><a href="${e(stockHref(item.symbol,selection.period))}" data-stock-open="${e(item.symbol)}"><strong>${e(item.symbol)}</strong> ${item.kind==="high"?"Новый максимум закрытия за 3 месяца":formatStockPercent(item.value)+(item.kind==="week"?" за 7 дней":" за сессию")} <span aria-hidden="true">↗</span></a><small>На ${e(shortDate(item.date))}</small></li>`).join("")}</ul></section>`:"";
   const updated=new Intl.DateTimeFormat("ru-RU",{timeZone:timezone,day:"numeric",month:"long",hour:"2-digit",minute:"2-digit"}).format(new Date(snapshot.capturedAt));
   const content=`<section class="hero stocks-hero"><div><p class="hero__eyebrow">Твой список наблюдения</p><h1>Мои акции</h1>
     <p class="hero__subtitle">${quotes.length} акций и ETF · раскрой строку, чтобы посмотреть динамику</p></div></section>
@@ -58,9 +58,7 @@ export function renderStocksPage(value:StocksSnapshot|null,params=new URLSearchP
       </header>
       <div data-stock-rows>${rows}</div>
     </section>
-    <p class="stocks-footnote">Мини-графики показывают месяц на собственном масштабе: наклон линий разных акций напрямую не сравнивается. Графики и проценты учитывают сплиты и дивиденды (adjusted close). Цена в строке — обычное закрытие. Пропуски — не нули.</p>
-    <p class="stocks-footnote">Котировки могут отличаться от Revolut. VUAA показан по листингу Xetra в EUR. Это список наблюдения, не стоимость твоих позиций и не рекомендация покупать или продавать.</p>
-    ${renderStocksDiscovery(discovery,at,new Set(quotes.map(q=>q.asset.id)),logos)}
-    ${logos?.size?'<p class="stocks-footnote"><a href="https://www.allinvestview.com/tools/ticker-logos/" target="_blank" rel="noopener noreferrer">Logos by AllInvestView</a> · Для VUAA — знак управляющей компании Vanguard.</p>':""}`;
-  return renderPageShell({title:"Мои акции",brand:"Kurami Stocks",section:"stocks",date,dateLabel:"Цены закрытия · "+ready+"/"+quotes.length+" актуальных",generated:updated,timezone,content});
+    ${renderStocksDiscovery(discovery,at,new Set(quotes.map(q=>q.asset.id)),logos)}`;
+  return renderPageShell({title:"Мои акции",brand:"Kurami Stocks",section:"stocks",date,dateLabel:"Цены закрытия · "+ready+"/"+quotes.length+" актуальных",generated:updated,timezone,content,
+    ...(logos?.size?{footerLink:{label:"Logos by AllInvestView",href:"https://www.allinvestview.com/tools/ticker-logos/"}}:{})});
 }

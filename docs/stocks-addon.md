@@ -196,7 +196,10 @@ The browser retrieves only needed images from the fixed
 There is no bulk logo download or proxy to arbitrary company sites. This does
 expose a normal image request to that CDN; images are optional, not private
 market data. The page includes the service's required visible dofollow
-`Logos by AllInvestView` link. No API key or signup is needed.
+`Logos by AllInvestView` link in the shared page footer, without a separate
+content footnote or issuer explanation. No API key or signup is needed.
+General explanatory paragraphs under the watchlist and observations are
+omitted; detailed chart labels and Discovery methodology remain contextual.
 
 `npm run test:briefing-company-logos` covers domain/name/exchange validation,
 ticker reuse, fallback load/error behavior, cached and negative lookups,

@@ -48,6 +48,9 @@ const html=renderStocksPage(snapshot,new URLSearchParams(),at.toISOString(),null
 assert.equal((html.match(/class="company-avatar"/g)??[]).length,12);
 assert.equal((html.match(/data-company-logo/g)??[]).length,11);
 assert.match(html,/Logos by AllInvestView/);assert(!html.includes('rel="nofollow"'));
+assert(!html.slice(html.indexOf('<main'),html.indexOf('</main>')).includes('Logos by AllInvestView'));
+assert.match(html.slice(html.indexOf('<footer')),/Logos by AllInvestView/);
+assert(!html.includes('Для VUAA — знак управляющей компании'));
 const server=await createBriefingServer(paths,{mailActionExecutor:null,stocks:true,stocksLogos:true});server.listen(0,"127.0.0.1");await once(server,"listening");
 const url="http://127.0.0.1:"+(server.address() as {port:number}).port;
 assert.match(await(await fetch(url+"/stocks")).text(),/cdn.tickerlogos.com\/nvidia.com/);
