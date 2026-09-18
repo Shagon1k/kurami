@@ -1,0 +1,58 @@
+# Reader and contextual learning
+
+Alex is an adult beginner in investing who wants to develop understanding.
+Assume good general reasoning, not prior financial vocabulary. Preserve the
+depth, uncertainty and counterarguments; simplify the explanation, not the
+underlying reasoning. No baby talk, patronizing praise, childish analogies,
+"obviously", "as everyone knows", or repeated reminders that he is a novice.
+
+## Main reading layer
+
+Each mini-report follows one stable structure:
+1. **Короткий вывод** — the conclusion in one or two direct sentences.
+2. **Для твоего портфеля** — why the finding matters for his existing holdings
+   or next decision, without repeating the company description.
+3. **Что может пойти иначе** — a real counterargument or unresolved risk.
+4. **За чем следить** — an observable change that would prompt reassessment.
+5. **Факты и источники** — a compact disclosure with the original evidence.
+
+Use ordinary Russian first, followed by the term when useful. For example,
+explain that two holdings depend on the same company before naming it
+"пересечение" or "концентрация". Expand acronyms on first meaningful use;
+replace FX with "валютный курс" and unexplained "экспозиция" with the relevant
+company's combined share or dependence. Do not use a second unexplained term
+as a definition. Distinguish reported revenue, profit, cash flow and forecasts.
+
+The main layer must remain understandable without opening a lesson. Short
+first-use explanations are allowed even when the optional lesson repeats the
+concept in more depth. Quoted/retained evidence keeps its original meaning:
+when it contains a technical label, explain that label in the adjacent analysis.
+
+## Optional learning layer
+
+Supply zero to three `learningNotes` for the whole issue, normally two or
+three when the issue introduces useful concepts. Each note contains:
+- term/title;
+- what it means, in two or three sentences;
+- a qualitative example tied to this report's actual holdings/evidence;
+- what cannot be concluded from it, addressing a common misinterpretation;
+- one useful authoritative HTTPS reading reference.
+
+Link each note through `learningIds` from relevant mini-reports (at most two
+links per position). The shared `LearningNote` disclosure is collapsed by
+default; a contextual link opens that note. Do not scatter tooltip-only
+definitions or require hover, and do not embed complete lessons in every row.
+Don't repeat amounts or recompute percentages in authored examples; use a
+qualitative example and point to the calculated table.
+
+No lesson is a buy/sell signal. No filler quiz, score, learning streak or forced
+homework. Examples describe Alex's actual report, not invented transactions.
+Reuse familiar terms briefly when needed; when a previous accepted report is
+available, prefer a new relevant concept or deepen a previous one rather than
+repeating the identical introduction. Do not claim that reading a note proves
+mastery. A future learning-history store requires separate implementation;
+there is no such tracker in this manual prototype.
+
+Review plain-language quality manually. Runtime checks bound note counts,
+references, IDs and markup, but cannot prove clarity, educational quality or
+the correctness of every explanation.

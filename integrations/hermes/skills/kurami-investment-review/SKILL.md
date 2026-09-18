@@ -2,7 +2,7 @@
 name: kurami-investment-review
 description: Prepare Alex's evidence-backed long-term stock portfolio review from a confirmed private holdings snapshot, cached quotes, and dated issuer evidence. Use for an explicitly requested investment review, thesis reassessment, or approved weekly/monthly research run. Not for intraday signals, automatic trading, generic Daily generation, tax filing, or changing holdings from suggestions.
 metadata:
-  version: 0.1.0
+  version: 0.2.0
 ---
 
 # Kurami Investment Review
@@ -19,9 +19,10 @@ when executing this skill. The existing Stocks/Discovery collectors retain
 their ownership and quota; do not spend their remaining API budget on research.
 Use `kurami-ui-preview-language` and the deterministic investment-review renderer.
 
-Read both references before research:
+Read these references before research:
 - `references/policy-and-contract.md`: inputs, calculations and allowed outputs.
 - `references/research-method.md`: evidence, thesis review and source limits.
+- `references/reader-and-learning.md`: adult beginner audience, plain language and contextual learning.
 
 ## Workflow
 
@@ -38,13 +39,16 @@ Read both references before research:
    and one free ECB FX document; it never accesses brokerage credentials.
 4. Review portfolio structure first. Select a few material positions for
    deeper issuer research; list all others explicitly as `not-assessed`.
-   For each assessed position provide evidence references, a conclusion,
-   its strongest counterargument and a concrete reason to revisit it.
+   For each assessed position provide evidence references, a concise conclusion,
+   what it means for Alex's portfolio, its strongest counterargument and a
+   concrete reason to revisit it. Explain unfamiliar terms at first use.
    Distinguish a business result from management guidance and your inference.
 5. Author only the structured `ReviewDraft` described in the reference. Bind it
    to the exact runtime `inputDigest`. Do not author monetary totals, percentages,
    stress-loss amounts or remaining monthly allowances; the renderer calculates
    them. `proposedOrders` must be empty in this phase.
+   Use draft version 2. Supply up to three contextual learning notes, linked
+   from relevant positions; do not turn every report into a glossary or course.
 6. Validate and render the private HTML. Review the rendered copy against its
    evidence. A schema pass proves structure and input binding, not the truth
    of every narrative sentence. Report incomplete coverage plainly.

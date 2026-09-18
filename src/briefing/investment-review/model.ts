@@ -75,19 +75,31 @@ export function calculateReview(input:ReviewInput){
     stress:totalEUR?[.3,.5].map(drop=>({drop,lossEUR:totalEUR*drop,remainingEUR:totalEUR*(1-drop)})):[],
     personalReturn:null,costBasis:null,scenarios:totalEUR&&fundValue!=null?([100,200] as const).map(amount=>({newMoneyEUR:amount,fundSymbol:fund!.fundSymbol,fundWeightIfAdded:(fundValue+amount)/(totalEUR+amount)*100})):[]};
 }
-export type ReviewDraft={version:1;inputDigest:string;headline:string;summary:string[];positions:Array<{symbol:string;action:"review"|"maintain"|"consider-add"|"consider-trim"|"consider-exit"|"not-assessed";factIds:string[];rationale:string;counterargument:string;revisitWhen:string}>;nextSteps:string[];proposedOrders:never[]};
+export type LearningNote={id:string;term:string;explanation:string;example:string;limitation:string;reference:{title:string;url:string}};
+export type ReviewDraft={version:2;inputDigest:string;headline:string;summary:string[];positions:Array<{symbol:string;action:"review"|"maintain"|"consider-add"|"consider-trim"|"consider-exit"|"not-assessed";factIds:string[];rationale:string;portfolioMeaning:string;counterargument:string;revisitWhen:string;learningIds:string[]}>;learningNotes:LearningNote[];nextSteps:string[];proposedOrders:never[]};
 export function validateReviewDraft(input:ReviewInput,value:unknown):ReviewDraft {
   const d=value as ReviewDraft,metrics=calculateReview(input),ids=new Set(input.baseline.positions.map(p=>p.symbol)),seen=new Set<string>(),facts=new Map(input.facts.map(f=>[f.id,f]));
   const text=(v:unknown,max=1600)=>typeof v==="string"&&v.length>0&&v.length<=max;
-  if(d?.version!==1||d.inputDigest!==metrics.inputDigest||!text(d.headline,150)||!Array.isArray(d.summary)||d.summary.length<1||d.summary.length>3||!d.summary.every(v=>text(v))
+  if(d?.version!==2||d.inputDigest!==metrics.inputDigest||!text(d.headline,150)||!Array.isArray(d.summary)||d.summary.length<1||d.summary.length>3||!d.summary.every(v=>text(v))
     ||!Array.isArray(d.positions)||d.positions.length!==ids.size||!Array.isArray(d.nextSteps)||d.nextSteps.length>5||!d.nextSteps.every(v=>text(v))
-    ||!Array.isArray(d.proposedOrders)||d.proposedOrders.length)throw Error("Invalid review draft or execution proposal");
+    ||!Array.isArray(d.proposedOrders)||d.proposedOrders.length||!Array.isArray(d.learningNotes)||d.learningNotes.length>3)throw Error("Invalid review draft or execution proposal");
+  const lessons=new Set<string>(),usedLessons=new Set<string>();
+  for(const n of d.learningNotes){
+    if(!n||typeof n.id!=="string"||!/^[a-z][a-z0-9-]{0,40}$/.test(n.id)||lessons.has(n.id)||!text(n.term,90)
+      ||![n.explanation,n.example,n.limitation].every(v=>text(v,700))||!text(n.reference?.title,150)||!text(n.reference?.url,2048))throw Error("Invalid learning note");
+    const url=new URL(n.reference.url);
+    if(url.protocol!=="https:"||url.username||url.password||[...url.searchParams.keys()].some(k=>/^(api_token|apikey|api_key|access_token|token)$/i.test(k)))throw Error("Invalid learning reference");
+    lessons.add(n.id);
+  }
   for(const p of d.positions){
     if(!ids.has(p.symbol)||seen.has(p.symbol)||!["review","maintain","consider-add","consider-trim","consider-exit","not-assessed"].includes(p.action)
-      ||!Array.isArray(p.factIds)||p.factIds.some(id=>facts.get(id)?.symbol!==p.symbol)||![p.rationale,p.counterargument,p.revisitWhen].every(v=>text(v)))throw Error("Invalid position review");
+      ||!Array.isArray(p.factIds)||p.factIds.some(id=>facts.get(id)?.symbol!==p.symbol)||![p.rationale,p.portfolioMeaning,p.counterargument,p.revisitWhen].every(v=>text(v))
+      ||!Array.isArray(p.learningIds)||p.learningIds.length>2||new Set(p.learningIds).size!==p.learningIds.length||p.learningIds.some(id=>!lessons.has(id)))throw Error("Invalid position review");
+    p.learningIds.forEach(id=>usedLessons.add(id));
     if(p.action!=="not-assessed"&&!p.factIds.length)throw Error("Assessment requires position-specific evidence");
     if(["consider-add","consider-trim","consider-exit"].includes(p.action)&&(!metrics.complete||metrics.requiresPositionConfirmation))throw Error("Action consideration requires current complete valuation");
     seen.add(p.symbol);
   }
+  if(usedLessons.size!==lessons.size)throw Error("Learning notes must be tied to a reviewed position");
   return d;
 }

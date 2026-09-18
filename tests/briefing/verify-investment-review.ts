@@ -2,6 +2,8 @@ import assert from "node:assert/strict";
 import {calculateReview,calendarMonth,reportPeriod,parseReviewInput,inputDigest,validateReviewDraft,type ReviewInput,type ReviewDraft} from "../../src/briefing/investment-review/model.ts";
 import {parseEcbUSD} from "../../src/briefing/investment-review/cli.ts";
 import {renderInvestmentReview} from "../../src/briefing/investment-review/render.ts";
+import {REVIEW_LEARNING_SCRIPT} from "../../src/briefing/investment-review/learning-note.ts";
+import {runInNewContext} from "node:vm";
 const assets=[{id:"AAA",symbol:"AAA.US",isin:"US1234567890",name:"Example stock",currency:"USD" as const,exchange:"US" as const,timezone:"America/New_York",kind:"stock" as const},
   {id:"FUND",symbol:"FUND.XETRA",isin:"IE1234567890",name:"Example fund",currency:"EUR" as const,exchange:"XETRA" as const,timezone:"Europe/Berlin",kind:"etf" as const}];
 const source={id:"issuer",title:"Test issuer",url:"https://issuer.example/report",asOfDate:"2026-08-31",retrievedAt:"2026-09-18T06:00:00Z"};
@@ -21,13 +23,27 @@ const mismatch=structuredClone(input);mismatch.baseline.positions[0]!.isin="US00
 const stale=structuredClone(input);stale.market.data.series[0]!.points[0]!.date="2026-08-01";assert.equal(calculateReview(stale).totalEUR,null);
 const future=structuredClone(input);future.sources[0]!.asOfDate="2026-09-19";assert.throws(()=>parseReviewInput(future));
 const bad=structuredClone(input);bad.baseline.positions.push(bad.baseline.positions[0]!);assert.throws(()=>parseReviewInput(bad));
-const draft:ReviewDraft={version:1,inputDigest:inputDigest(input),headline:"Пробный обзор",summary:["Проверяем структуру"],positions:input.baseline.positions.map(p=>({symbol:p.symbol,action:"review",factIds:[p.symbol==="AAA"?"aaa-fact":"fund-fact"],rationale:"Вывод",counterargument:"Контраргумент",revisitWhen:"Условие пересмотра"})),nextSteps:["Проверить данные"],proposedOrders:[]};
+const draft:ReviewDraft={version:2,inputDigest:inputDigest(input),headline:"Пробный обзор",summary:["Проверяем структуру"],positions:input.baseline.positions.map(p=>({symbol:p.symbol,action:"review",factIds:[p.symbol==="AAA"?"aaa-fact":"fund-fact"],rationale:"Вывод",portfolioMeaning:"Связь с портфелем",counterargument:"Контраргумент",revisitWhen:"Условие пересмотра",learningIds:["overlap"]})),learningNotes:[{id:"overlap",term:"Пересечение вложений",explanation:"Объяснение",example:"Пример из отчёта",limitation:"Граница вывода",reference:{title:"Источник",url:"https://www.investor.gov/"}}],nextSteps:["Проверить данные"],proposedOrders:[]};
 assert.equal(validateReviewDraft(input,draft),draft);
 assert.throws(()=>validateReviewDraft(input,{...draft,inputDigest:"wrong"}));
 assert.throws(()=>validateReviewDraft(input,{...draft,proposedOrders:[{symbol:"AAA",eur:100}]}));
 const unsupported=structuredClone(draft);unsupported.positions[0]!.factIds=["fund-fact"];assert.throws(()=>validateReviewDraft(input,unsupported));
 const unsafe=structuredClone(draft);unsafe.summary=['<script>alert(1)</script>'];const html=renderInvestmentReview(input,unsafe);assert(html.includes('&lt;script&gt;alert(1)&lt;/script&gt;'));assert(!html.includes('<script>alert(1)'));
 assert(html.includes("Остаток сделок: неизвестен"));assert(html.includes("Приватный пробный обзор"));
+assert(html.includes("Для твоего портфеля:"));assert(html.includes('href="#learn-overlap"'));
+assert.equal((html.match(/id="learn-overlap"/g)??[]).length,1,"One shared learning note, not repeated per position");
+assert(!html.includes('id="learn-overlap" open'));assert(html.includes("Чего из этого не следует:"));
+assert.throws(()=>validateReviewDraft(input,{...draft,version:1}));
+assert.throws(()=>validateReviewDraft(input,{...draft,learningNotes:[...draft.learningNotes,...draft.learningNotes]}));
+const missingLesson=structuredClone(draft);missingLesson.positions[0]!.learningIds=["missing"];assert.throws(()=>validateReviewDraft(input,missingLesson));
+const unsafeLesson=structuredClone(draft);unsafeLesson.learningNotes[0]!.reference.url="javascript:alert(1)";assert.throws(()=>validateReviewDraft(input,unsafeLesson));
+const excess=structuredClone(draft);excess.learningNotes=Array.from({length:4},(_,i)=>({...draft.learningNotes[0]!,id:"note-"+i}));assert.throws(()=>validateReviewDraft(input,excess));
+const teaching=structuredClone(draft);teaching.learningNotes[0]!.example="<img src=x onerror=alert(1)>";assert(renderInvestmentReview(input,teaching).includes("&lt;img"));
+let focused=false,click=()=>{};
+class Lesson {open=false;querySelector(){return {focus:()=>{focused=true;}};}}
+const lesson=new Lesson();
+runInNewContext(REVIEW_LEARNING_SCRIPT,{HTMLDetailsElement:Lesson,document:{getElementById:(id:string)=>id==="learn-overlap"?lesson:null,querySelectorAll:()=>[{hash:"#learn-overlap",addEventListener:(_type:string,handler:()=>void)=>{click=handler;}}]}});
+click();assert(lesson.open);assert(focused);
 assert.equal(parseEcbUSD('<Cube time="2026-09-17"><Cube currency="USD" rate="1.1481"/></Cube>',"2026-09-17"),1.1481);
 assert.throws(()=>parseEcbUSD('<Cube time="2026-09-16"><Cube currency="USD" rate="1.1481"/></Cube>',"2026-09-17"));
 console.log("Investment review: calendar months, FX direction, complete/missing valuations, overlap, private draft binding, unknown allowances and no-order boundary verified.");

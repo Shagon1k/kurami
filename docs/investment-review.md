@@ -4,6 +4,13 @@ Status: skill + deterministic calculations + private trial renderer. No route,
 cron, Poller participant, public payload, order submission or production UI
 integration is enabled. The existing Daily/Stocks/Discovery remain unchanged.
 
+Draft v2 adds an adult-beginner reading contract: each mini-review explains
+its portfolio relevance in plain Russian, alongside conclusion, countercase
+and revisit condition. Up to three shared contextual learning notes stay
+collapsed until opened, with meaning/example/limitation/reference fields and
+links from relevant positions. Evidence remains accessible in a separate
+disclosure. Existing v1 HTML stays intact; new drafts use v2 explicitly.
+
 `integrations/hermes/skills/kurami-investment-review` contains the custom method,
 user constraints and evidence contract. `src/briefing/investment-review` owns
 input/draft validation, calendar boundaries, valuations, overlap, hypothetical

@@ -50,7 +50,7 @@ become current-month usage or an assumed unused allowance.
 
 ```text
 {
-  version: 1,
+  version: 2,
   inputDigest: exact digest from calculate,
   headline: short Russian title,
   summary: 1–3 concise observations,
@@ -58,8 +58,11 @@ become current-month usage or an assumed unused allowance.
     symbol,
     action: review | maintain | consider-add | consider-trim | consider-exit | not-assessed,
     factIds: [existing position-specific fact IDs],
-    rationale, counterargument, revisitWhen
+    rationale, portfolioMeaning, counterargument, revisitWhen,
+    learningIds: [IDs of up to two relevant notes]
   }],
+  learningNotes: [{id, term, explanation, example, limitation,
+    reference: {title, url}}], // maximum three, collapsed by default
   nextSteps: at most 5 short paragraphs,
   proposedOrders: []
 }
@@ -70,6 +73,10 @@ an implicit hold recommendation. Each assessment requires evidence for that
 same company, not merely an index or a different company's press release.
 All proposed order lists are rejected in this trial version, even if monthly
 usage happens to be known. Advice never writes holdings, receipts or cash.
+All learning-note IDs are unique and referenced by at least one position;
+unknown links, oversized notes and unsafe URLs are rejected. Version-1 HTML
+remains an archived artifact; new drafts use version 2 without a parallel
+legacy renderer. Education links are reference material, not new price data.
 
 ## Later lifecycle — agreed, not activated
 
