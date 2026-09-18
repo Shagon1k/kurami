@@ -164,3 +164,43 @@ subsequent normal fetches supply them. No graph is fabricated.
 Sources: [Alpha Vantage endpoint](https://www.alphavantage.co/documentation/#top-gainers-losers),
 [free key / limits](https://www.alphavantage.co/support/),
 [EODHD limits](https://eodhd.com/financial-apis/api-limits).
+
+## Company logos
+
+`stocksLogos.enabled` independently enables external company logos on `/stocks`
+(absent/false means letters only). No financial provider requests or quota are
+used. `ui/components/company-avatar.ts` is the canonical 40px component with
+the same geometry in the watchlist and Discovery cards. Brand colors remain
+unchanged; a white substrate keeps transparent black marks readable in either
+theme. Initial/missing/error/no-JS states keep a two-letter ticker fallback.
+The decorative image has empty alt text; the adjacent company name supplies
+the accessible identity. Lazy images retain layout before loading.
+
+`stocks/logo-registry.ts` pins manually checked domains by BOTH ticker and
+ISIN, so reused tickers cannot inherit another company's brand. The initial
+2026-09-18 metadata check matched 11 watchlist companies plus Intel and
+CoreWeave. VUAA deliberately uses its issuer Vanguard. Gorilla Technology's
+search result contained website `nan`: no domain was inferred from it.
+
+For new identities, `stocks/logos.ts` performs at most three sequential metadata
+searches per Poller run, after Stocks/Discovery. Require an exact ticker,
+normalized company name and a supported US exchange code. Ambiguous, missing
+exchange, malformed/private domains or mismatched results remain letters.
+Positive matches are cached 30 days, negative/failed attempts seven days in
+the independent `stock-logos` snapshot (maximum 100 entries). A metadata
+attempt is recorded before awaiting the request; failures cannot block Daily.
+Rendering is cache-only and never triggers a search.
+
+The browser retrieves only needed images from the fixed
+`https://cdn.tickerlogos.com/{domain}` origin with `referrerpolicy=no-referrer`.
+There is no bulk logo download or proxy to arbitrary company sites. This does
+expose a normal image request to that CDN; images are optional, not private
+market data. The page includes the service's required visible dofollow
+`Logos by AllInvestView` link. No API key or signup is needed.
+
+`npm run test:briefing-company-logos` covers domain/name/exchange validation,
+ticker reuse, fallback load/error behavior, cached and negative lookups,
+attribution, constant sizing and `/stocks`-only output.
+
+Provider: [API](https://www.allinvestview.com/tools/ticker-logos/docs/),
+[terms](https://www.allinvestview.com/tools/ticker-logos/terms/).

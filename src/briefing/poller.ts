@@ -32,6 +32,7 @@ import { refreshDerivedAddons } from "./addons/derived.ts";
 import {collectWeeklyHistory} from "./weekly/lifecycle.ts";
 import {refreshStocksSafely} from "./stocks/collector.ts";
 import {refreshStocksDiscoverySafely} from "./stocks/discovery.ts";
+import {refreshCompanyLogosSafely} from "./stocks/logos.ts";
 
 type PollerResult = {
   refreshedAt: string;
@@ -76,7 +77,8 @@ export async function runDigestCentralPoller(
   await initializeBriefingStore(paths);
   const config = await loadBriefingRuntimeConfig(paths, environment);
   const stocksRefresh=refreshStocksSafely(config.stocks,paths)
-    .then(()=>refreshStocksDiscoverySafely(config.stocks,config.stocksDiscovery,paths));
+    .then(()=>refreshStocksDiscoverySafely(config.stocks,config.stocksDiscovery,paths))
+    .then(()=>refreshCompanyLogosSafely(config.stocks,config.stocksLogos,paths,{includeDiscovery:config.stocksDiscovery}));
   const refreshedAt = new Date().toISOString();
   const before = openBriefingDatabase(paths);
   let retained: EditionRow[];

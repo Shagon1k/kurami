@@ -1,6 +1,7 @@
 import { CHART_STYLES } from "./charts/styles.ts";
 import {WEEKLY_STYLES} from "../weekly/styles.ts";
 import {STOCKS_STYLES} from "../stocks/styles.ts";
+import {COMPANY_AVATAR_STYLES} from "./components/company-avatar.ts";
 export const BRIEFING_STYLES = `
 :root {
   --header-offset: 104px;
@@ -463,4 +464,5 @@ a { color: inherit; }
 ${CHART_STYLES}
 ${WEEKLY_STYLES}
 ${STOCKS_STYLES}
+${COMPANY_AVATAR_STYLES}
 `;

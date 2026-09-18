@@ -4,6 +4,8 @@ import {renderSparkline} from "../ui/charts/sparkline.ts";
 import {stockQuote,dayShift,type StocksSnapshot} from "./model.ts";
 import {stockSelection,stocksChart,type StockPeriod} from "./view.ts";
 import {delta,money,shortDate} from "./format.ts";
+import {renderCompanyAvatar} from "../ui/components/company-avatar.ts";
+import type {CompanyLogoDomains} from "./logo-registry.ts";
 
 export const stockHref=(id:string,period:StockPeriod)=>"/stocks?"+new URLSearchParams({symbols:id,period})+"#stock-"+id;
 export function renderStockDetails(snapshot:StocksSnapshot,params:URLSearchParams,at=new Date().toISOString()):string {
@@ -25,12 +27,12 @@ export function renderStockDetails(snapshot:StocksSnapshot,params:URLSearchParam
   </div>`;
 }
 
-export function renderStockRow(snapshot:StocksSnapshot,id:string,period:StockPeriod,open:boolean,at:string,index:number):string {
+export function renderStockRow(snapshot:StocksSnapshot,id:string,period:StockPeriod,open:boolean,at:string,index:number,logos?:CompanyLogoDomains):string {
   const series=snapshot.data.series.find(s=>s.asset.id===id)!,quote=stockQuote(series,at);
   const last=series.points.at(-1),points=last?series.points.filter(p=>p.date>=dayShift(last.date,-30)):[];
   const status=quote.state==="ready"?"":quote.state==="stale"?"Устарело":"Нет данных";
   return `<details class="stock-row" id="stock-${e(id)}" name="stocks-watchlist" data-stock-row="${e(id)}" data-stock-index="${index}" data-stock-move="${quote.state==="ready"&&quote.day!==null?Math.abs(quote.day):-1}"${open?" open":""}>
-    <summary class="stock-row__summary"><span class="stock-row__identity"><strong>${e(series.asset.name)}</strong><small>${e(id)} · ${e(series.asset.currency)}${series.asset.kind==="etf"?" · ETF":""}</small></span>
+    <summary class="stock-row__summary"><span class="stock-row__identity">${renderCompanyAvatar(id,logos?.get(id+":"+series.asset.isin))}<span><strong>${e(series.asset.name)}</strong><small>${e(id)} · ${e(series.asset.currency)}${series.asset.kind==="etf"?" · ETF":""}</small></span></span>
       <span class="stock-row__trend">${renderSparkline(points.map(p=>p.adjusted),id+": скорректированные закрытия за месяц; собственный масштаб")}<small>За месяц</small></span>
       <span class="stock-row__quote"><strong>${e(money(quote))}</strong><small>${e(shortDate(quote.date))}${status?` · <span class="stocks-warning">${status}</span>`:""}</small></span>
       <span class="stock-row__change">${delta(quote.day)}<small>за сессию</small></span><span class="stock-row__chevron" aria-hidden="true">⌄</span>

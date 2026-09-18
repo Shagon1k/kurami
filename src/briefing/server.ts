@@ -3,6 +3,8 @@ import {STOCKS_CLIENT_SCRIPT} from "./stocks/client.ts";
 import {renderStocksPage} from "./stocks/render.ts";
 import {renderStockDetails} from "./stocks/components.ts";
 import {loadDiscovery} from "./stocks/discovery.ts";
+import {loadCompanyLogoDomains} from "./stocks/logos.ts";
+import {COMPANY_AVATAR_CLIENT_SCRIPT} from "./ui/components/company-avatar.ts";
 import {loadStocksCache} from "./stocks/collector.ts";
 import {publishedSiteLinks} from "./site-navigation.ts";
 import {injectSiteNavigation} from "./ui/components/site-header.ts";
@@ -311,6 +313,7 @@ const CLIENT_SCRIPT = `(() => {
 
 ${CHART_CLIENT_SCRIPT}
 ${STOCKS_CLIENT_SCRIPT}
+${COMPANY_AVATAR_CLIENT_SCRIPT}
 
   document.querySelectorAll('[data-overflow="true"]').forEach((region) => {
     region.addEventListener('keydown', (event) => {
@@ -736,7 +739,7 @@ async function serveEdition(
 
 export async function createBriefingServer(
   paths: BriefingPaths = briefingPaths(),
-  options: { mailActionExecutor?: MailActionExecutor | null; weekly?:boolean; stocks?:boolean; stocksDiscovery?:boolean } = {},
+  options: { mailActionExecutor?: MailActionExecutor | null; weekly?:boolean; stocks?:boolean; stocksDiscovery?:boolean; stocksLogos?:boolean } = {},
 ): Promise<Server> {
   await initializeBriefingStore(paths);
   const favicon = await readFile(FAVICON_PATH, "utf8");
@@ -934,7 +937,8 @@ export async function createBriefingServer(
         if(url.pathname==="/stocks") {
           if(!(options.stocks??runtimeConfig?.stocks.enabled??false)){text(response,404,"Not found\n");return;}
           const html=renderStocksPage(loadStocksCache(database),url.searchParams,new Date().toISOString(),
-            (options.stocksDiscovery??runtimeConfig?.stocksDiscovery??false)?loadDiscovery(database):null);
+            (options.stocksDiscovery??runtimeConfig?.stocksDiscovery??false)?loadDiscovery(database):null,
+            (options.stocksLogos??runtimeConfig?.stocksLogos??false)?loadCompanyLogoDomains(database):undefined);
           sendHeaders(response,"text/html; charset=utf-8");response.statusCode=200;
           response.end(injectRuntime(injectSiteNavigation(html,publishedSiteLinks(database,options.weekly??runtimeConfig?.weekly.enabled??false,new Date().toISOString(),true),"stocks")));
           return;

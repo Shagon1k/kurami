@@ -39,6 +39,7 @@ export type BriefingRuntimeConfig = {
   weekly: WeeklyConfig;
   stocks: StocksConfig;
   stocksDiscovery: boolean;
+  stocksLogos: boolean;
   timeZone: string;
   retentionDays: number;
   gmailQuery: string;
@@ -247,6 +248,7 @@ export async function loadBriefingRuntimeConfig(
     weekly: parseWeeklyConfig(root.weekly),
     stocks: parseStocksConfig(root.stocks),
     stocksDiscovery: Boolean(root.stocksDiscovery&&typeof root.stocksDiscovery==="object"&&(root.stocksDiscovery as JsonRecord).enabled===true),
+    stocksLogos: Boolean(root.stocksLogos&&typeof root.stocksLogos==="object"&&(root.stocksLogos as JsonRecord).enabled===true),
     retentionDays,
     gmailQuery: string(mailSettings.query, "mail.query"),
     gmailPageSize,

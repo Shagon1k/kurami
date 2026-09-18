@@ -1,4 +1,7 @@
 export const STOCKS_STYLES=`
+.stock-row__identity,.stock-discovery-card__identity { display:flex; align-items:center; gap:12px; min-width:0; }
+.stock-row__identity>span:last-child,.stock-discovery-card__identity>div { min-width:0; }
+.stock-discovery-card__identity>div>span { font-size:.75rem; color:var(--muted); }
 .stocks-discovery { margin-top:40px; border-top:1px solid var(--line); padding-top:28px; }
 .stocks-discovery h2 { margin:0; font-size:clamp(1.5rem,2.5vw,2rem); font-weight:600; }
 .stocks-discovery>header>p:not(.hero__eyebrow) { color:var(--muted); font-size:.875rem; line-height:1.6; }

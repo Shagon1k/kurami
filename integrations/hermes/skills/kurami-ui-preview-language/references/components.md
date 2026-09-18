@@ -256,6 +256,16 @@ stale/unavailable states. Sparklines have independent scales and explicit
 missing-data handling. Factual observations come from the deterministic Stocks
 model; the renderer must not invent commentary or investment signals.
 
+Use the shared `ui/components/company-avatar.ts` `CompanyAvatar` at the left
+of Stocks identities, including Discovery cards. Its 40px frame never changes
+size: an unchanged-color logo on a white brand substrate replaces the quiet
+two-letter ticker fallback only after successful loading. Without a confirmed
+domain, with failed loading, or without JavaScript, keep the letters. Icons
+are decorative next to the visible company name and add no separate tab stop.
+The data layer verifies company/domain identity; the renderer never searches
+or guesses. Keep the visible `Logos by AllInvestView` attribution on `/stocks`
+when enabling their images. Do not add these external logos to Daily.
+
 `StocksDiscovery` / `DiscoveryCard` in `stocks/discovery-render.ts` render
 zero to three verified candidates under `Вне твоего списка`, only on `/stocks`.
 Do not add them to Daily, its teaser, or Discord. Reuse percent formatting,

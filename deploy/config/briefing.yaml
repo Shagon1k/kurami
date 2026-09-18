@@ -3,6 +3,8 @@ version: 3
 # Personal watchlist, not position sizes or brokerage valuation.
 stocksDiscovery:
   enabled: true
+stocksLogos:
+  enabled: true
 stocks:
   enabled: true
   benchmark: VUAA
