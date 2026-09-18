@@ -226,6 +226,22 @@ Trailers, upcoming premieres, and currently playing films are independent repeat
 - Render zero, one, and many items gracefully.
 - Do not invent photographic artwork. If no image is supplied, use a deliberate typographic or geometric placeholder that still contains title or category context.
 
+## Kurami commentary
+
+The `KuramiComment` component in `ui/components/kurami-comment.ts`
+marks AI-authored interpretation, judgments and proposed actions. Its fixed
+visible byline is **🦊 Курами:**; accessibility text identifies AI commentary.
+Use one warm `--panel` surface and thin `--line` left rule per coherent group,
+not per sentence. Keep normal Onest text and shared theme tokens: no red
+warning treatment, handwriting or shadow. This is distinct from the short
+handwritten notes described below.
+
+The caller explicitly selects commentary fields. Source facts/citations,
+calculated tables/charts, user constraints and educational definitions stay
+outside. Unmarked facts are not guaranteed accurate. Do not classify all
+model-written prose as opinion, or invent a comment to fill an empty block.
+The component accepts escaped text, labelled paragraphs and lists only.
+
 ## Kurami Note component
 
 Use the roles and placement matrix from `references/kurami-notes.md`. A note

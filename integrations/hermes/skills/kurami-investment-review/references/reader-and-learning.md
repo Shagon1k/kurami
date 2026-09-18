@@ -30,6 +30,13 @@ when it contains a technical label, explain that label in the adjacent analysis.
 
 ## Optional learning layer
 
+Group the authored headline/summary, each position's action consideration and
+reasoning, and next-step proposals into the shared `KuramiComment` treatment,
+visibly signed **🦊 Курами:**. Speak directly and respectfully; preserve
+uncertainty. Source facts/citations, calculations and user constraints stay
+outside. Learning notes are educational disclosures, not trading opinions.
+Do not insert the byline into draft strings; the component owns it.
+
 Supply zero to three `learningNotes` for the whole issue, normally two or
 three when the issue introduces useful concepts. Each note contains:
 - term/title;

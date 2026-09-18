@@ -11,6 +11,12 @@ collapsed until opened, with meaning/example/limitation/reference fields and
 links from relevant positions. Evidence remains accessible in a separate
 disclosure. Existing v1 HTML stays intact; new drafts use v2 explicitly.
 
+The reusable `KuramiComment` component separates authored interpretation from
+evidence with the short byline `🦊 Курами:`, warm panel and thin left rule.
+Headline/summary, position reasoning/action considerations and next steps use
+it; numeric tables, source disclosures, learning notes and policy do not.
+Draft values and calculations are unchanged by this presentation treatment.
+
 `integrations/hermes/skills/kurami-investment-review` contains the custom method,
 user constraints and evidence contract. `src/briefing/investment-review` owns
 input/draft validation, calendar boundaries, valuations, overlap, hypothetical

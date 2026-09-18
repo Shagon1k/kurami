@@ -4,6 +4,7 @@ import {parseEcbUSD} from "../../src/briefing/investment-review/cli.ts";
 import {renderInvestmentReview} from "../../src/briefing/investment-review/render.ts";
 import {REVIEW_LEARNING_SCRIPT} from "../../src/briefing/investment-review/learning-note.ts";
 import {runInNewContext} from "node:vm";
+import {renderKuramiComment,KURAMI_COMMENT_STYLES} from "../../src/briefing/ui/components/kurami-comment.ts";
 const assets=[{id:"AAA",symbol:"AAA.US",isin:"US1234567890",name:"Example stock",currency:"USD" as const,exchange:"US" as const,timezone:"America/New_York",kind:"stock" as const},
   {id:"FUND",symbol:"FUND.XETRA",isin:"IE1234567890",name:"Example fund",currency:"EUR" as const,exchange:"XETRA" as const,timezone:"Europe/Berlin",kind:"etf" as const}];
 const source={id:"issuer",title:"Test issuer",url:"https://issuer.example/report",asOfDate:"2026-08-31",retrievedAt:"2026-09-18T06:00:00Z"};
@@ -30,6 +31,15 @@ assert.throws(()=>validateReviewDraft(input,{...draft,proposedOrders:[{symbol:"A
 const unsupported=structuredClone(draft);unsupported.positions[0]!.factIds=["fund-fact"];assert.throws(()=>validateReviewDraft(input,unsupported));
 const unsafe=structuredClone(draft);unsafe.summary=['<script>alert(1)</script>'];const html=renderInvestmentReview(input,unsafe);assert(html.includes('&lt;script&gt;alert(1)&lt;/script&gt;'));assert(!html.includes('<script>alert(1)'));
 assert(html.includes("Остаток сделок: неизвестен"));assert(html.includes("Приватный пробный обзор"));
+const comments=[...html.matchAll(/<aside\b[^>]*data-kurami-comment[\s\S]*?<\/aside>/g)].map(m=>m[0]);
+assert.equal(comments.length,draft.positions.length+2);
+assert(comments.every(c=>c.includes("Курами:")&&c.includes("🦊")));
+assert(comments.some(c=>c.includes("Что рассмотреть:")));
+assert(comments.every(c=>!c.includes("<table")&&!c.includes("Example factual input")&&!c.includes("review-learning-note")));
+assert.equal(renderKuramiComment({}),"");
+assert(renderKuramiComment({items:["<script>bad</script>"],ordered:true}).includes("<ol><li>&lt;script&gt;"));
+assert(!renderKuramiComment({headline:'<img src=x onerror=1>'}).includes('<img'));
+assert(KURAMI_COMMENT_STYLES.includes("var(--panel)"));assert(!KURAMI_COMMENT_STYLES.includes("var(--signal)"));
 assert(html.includes("Для твоего портфеля:"));assert(html.includes('href="#learn-overlap"'));
 assert.equal((html.match(/id="learn-overlap"/g)??[]).length,1,"One shared learning note, not repeated per position");
 assert(!html.includes('id="learn-overlap" open'));assert(html.includes("Чего из этого не следует:"));
