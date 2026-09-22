@@ -59,6 +59,7 @@ const suites = [
   "test:session-start",
   "test:session-handoff",
   "test:autonomous-successor",
+  "test:autonomous-completion",
   "test:cancel-resolution",
   "test:project-status",
   "test:ci",

@@ -23,6 +23,12 @@ import {
   inspectManagedReviewFixRecovery,
   loadManagedReviewFixRecoverySnapshot,
 } from "../../runtime/managed-task-recovery.ts";
+import {
+  transcriptBusy,
+  transcriptHasCompletedTurn,
+  transcriptHasIdlePrompt,
+  transcriptWaitingOnApproval,
+} from "../../runtime/codex-terminal.ts";
 
 process.umask(0o077);
 
@@ -1414,28 +1420,6 @@ function sendTmuxKeys(sessionNameValue: string, keys: string[]): void {
   runFile("tmux", ["send-keys", "-t", `${sessionNameValue}:0.0`, ...keys]);
 }
 
-function transcriptWaitingOnApproval(transcript: string): boolean {
-  return /Would you like to run|Requested permission|Press enter to confirm|Allow .+\?/iu.test(
-    transcript.slice(-1_500),
-  );
-}
-
-function transcriptBusy(transcript: string): boolean {
-  return /Working \(|esc to interrupt|Booting MCP server/iu.test(
-    transcript.slice(-700),
-  );
-}
-
-function transcriptHasIdlePrompt(transcript: string): boolean {
-  return /(?:^|\n)›[^\n]*(?:\n|$)/u.test(transcript.slice(-1_500));
-}
-
-function transcriptHasCompletedTurn(transcript: string): boolean {
-  return /Worked for[^\n]*\nToken usage:[^\n]*\nTo continue this session, run codex resume [a-f0-9-]{16,}/iu.test(
-    transcript.slice(-2_000),
-  );
-}
-
 function sendTmuxLiteral(sessionNameValue: string, value: string): void {
   runFile("tmux", [
     "send-keys",
@@ -1989,18 +1973,17 @@ async function leaveCliSession(
     targetOwner === "remote" && (busy || (attentionHandoff && waitingOnApproval));
   const tailDirectory = resolve(orchestratorHome, "logs/session-handoffs");
   const tailPath = resolve(tailDirectory, `${run.run_id}.txt`);
-  const projectReviewStatus = registry.projects[run.project]?.statuses.review;
-  const completedSuccessor =
+  const autonomousCompletion =
     targetOwner === "none" &&
     run.run_state === "running" &&
-    run.autonomous_successor_active !== 0 &&
-    Boolean(projectReviewStatus) &&
-    run.project_item_status === projectReviewStatus;
+    (run.interaction_policy === "autonomous" ||
+      run.autonomous_successor_active !== 0);
   const targetState = targetOwner === "remote"
     ? "remote_owned"
-    : completedSuccessor
+    : autonomousCompletion
       ? "parked_review"
       : run.run_state;
+  let terminalTurnCompleted = transcriptHasCompletedTurn(transcript);
   const initialPlan = {
     runId: run.run_id,
     fromState: run.run_state,
@@ -2013,6 +1996,7 @@ async function leaveCliSession(
     initialBusy,
     busy,
     waitingOnApproval,
+    terminalTurnCompleted,
     interruptRequired,
     interruptedTurn: false,
     tailPath,
@@ -2021,6 +2005,20 @@ async function leaveCliSession(
     fail(`Codex is waiting for approval; resolve it before handoff`);
   if (busy && targetOwner !== "remote")
     fail(`Codex turn is still active; handoff is not safe yet`);
+  if (
+    targetOwner === "none" &&
+    tmuxAlive &&
+    !terminalTurnCompleted
+  ) {
+    fail("Codex turn has not reached a completed terminal prompt");
+  }
+  if (
+    targetOwner === "none" &&
+    run.run_state === "running" &&
+    !autonomousCompletion
+  ) {
+    fail("A running non-autonomous turn cannot be parked");
+  }
   if (targetOwner === "none" && run.codex_thread_id) {
     const activeReviewFix = database
       .prepare(
@@ -2091,7 +2089,18 @@ async function leaveCliSession(
     }
   }
 
-  const terminalTurnCompleted = transcriptHasCompletedTurn(transcript);
+  if (targetOwner === "none" && tmuxAlive && run.tmux_session_name) {
+    transcript = capturePane(run.tmux_session_name);
+    waitingOnApproval = transcriptWaitingOnApproval(transcript);
+    busy = transcriptBusy(transcript);
+    terminalTurnCompleted = transcriptHasCompletedTurn(transcript);
+    if (waitingOnApproval)
+      fail(`Codex is waiting for approval; resolve it before handoff`);
+    if (busy) fail(`Codex turn is still active; handoff is not safe yet`);
+    if (!terminalTurnCompleted)
+      fail("Codex turn has not reached a completed terminal prompt");
+  }
+
   const plan = {
     ...initialPlan,
     tmuxAlive: tmuxAliveAtStart,
@@ -2138,35 +2147,34 @@ async function leaveCliSession(
     if (
       current.run_state !== run.run_state ||
       current.owner_state !== "cli" ||
-      current.tmux_session_name !== run.tmux_session_name ||
-      (completedSuccessor &&
-        (current.autonomous_successor_active === 0 ||
-          current.project_item_status !== projectReviewStatus))
+      current.tmux_session_name !== run.tmux_session_name
     ) {
       fail(
         `Run changed during handoff: state=${current.run_state}, owner=${current.owner_state}, tmux=${current.tmux_session_name ?? "none"}`,
       );
     }
-    database
+    const runChanged = database
       .prepare(
         `
         UPDATE runs
         SET state = ?, owner_state = ?,
             updated_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
-        WHERE run_id = ?
+        WHERE run_id = ? AND state = ? AND owner_state = 'cli'
       `,
       )
-      .run(plan.toState, targetOwner, run.run_id);
-    database
+      .run(plan.toState, targetOwner, run.run_id, run.run_state);
+    const resourceChanged = database
       .prepare(
         `
         UPDATE run_resources
         SET tmux_session_name = NULL,
             updated_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
-        WHERE run_id = ?
+        WHERE run_id = ? AND tmux_session_name IS ?
       `,
       )
-      .run(run.run_id);
+      .run(run.run_id, run.tmux_session_name);
+    if (runChanged.changes !== 1 || resourceChanged.changes !== 1)
+      fail("Run changed while recording the completed tmux release");
     database
       .prepare(
         `UPDATE run_autonomous_successions
@@ -2178,7 +2186,7 @@ async function leaveCliSession(
     appendHistory(
       database,
       run.run_id,
-      run.run_state,
+      current.run_state,
       plan.toState,
       targetOwner === "remote"
         ? "codex_cli_handoff_completed"

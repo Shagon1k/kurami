@@ -4,6 +4,7 @@ import { resolve } from "node:path";
 import { resolveKuramiHome } from "../../../core/kurami-home.ts";
 import { DatabaseSync } from "node:sqlite";
 import { parse } from "yaml";
+import { transcriptHasCompletedTurn } from "../../runtime/codex-terminal.ts";
 
 process.umask(0o077);
 
@@ -410,10 +411,36 @@ export function recordRuntimeTimeout(
   }
 }
 
+export function shouldDeferCompletedMainWriter(
+  plan: RuntimeBudgetPlan,
+  transcript: string,
+): boolean {
+  return plan.kind === "main_writer" && transcriptHasCompletedTurn(transcript);
+}
+
 async function applyPlan(
   database: DatabaseSync,
   plan: RuntimeBudgetPlan,
 ): Promise<object> {
+  // The controller owns normal terminal completion. Never let a timeout race
+  // reclassify a finished main writer as an attention incident.
+  if (plan.kind === "main_writer" && tmuxExists(plan.tmuxSessionName)) {
+    const transcript = tmux([
+      "capture-pane",
+      "-p",
+      "-J",
+      "-t",
+      `${plan.tmuxSessionName}:0.0`,
+      "-S",
+      "-200",
+    ]);
+    if (shouldDeferCompletedMainWriter(plan, transcript)) {
+      return {
+        ...plan,
+        action: "completed_turn_deferred_to_controller",
+      };
+    }
+  }
   const evidence = await stopManagedRuntime(plan);
   if (!evidence.tmuxAliveAtStart)
     return {

@@ -123,7 +123,9 @@ case "$1" in
     test -f "$FAKE_TMUX_STATE"
     ;;
   capture-pane)
-    printf '%s\n' '› Write tests for @filename'
+    printf '%s\n' 'No further work is needed.' \
+      '─ Worked for 1m 00s ─' \
+      '› Ask Codex to do anything'
     ;;
   send-keys)
     case "$*" in

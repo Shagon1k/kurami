@@ -12,7 +12,7 @@ type ProjectConfig = {
   owner: string;
   project_number: number;
   status_field: string;
-  statuses: { backlog: string };
+  statuses: { backlog: string; active: string; review: string };
 };
 
 type ProjectsRegistry = {
@@ -24,13 +24,18 @@ type RunRow = {
   run_id: string;
   project: string;
   item_id: string;
+  interaction_policy: "autonomous" | "human_control";
   state: string;
   stop_reason: string | null;
   owner_state: string;
+  execution_mode: string;
   resource_state: string;
+  tmux_session_name: string | null;
   item_status: string | null;
   has_newer_run: number;
   backlog_satisfied: number;
+  completion_parked: number;
+  autonomous_successor_parked: number;
 };
 
 const orchestratorHome = resolveKuramiHome(
@@ -43,20 +48,25 @@ function fail(message: string): never {
   throw new Error(message);
 }
 
-function parseArguments(): { runId: string; apply: boolean } {
+function parseArguments(): {
+  action: "backlog" | "review";
+  runId: string;
+  apply: boolean;
+} {
   const args = process.argv.slice(2);
+  const action = args[0];
   const index = args.indexOf("--run-id");
   const runId = index >= 0 ? args[index + 1]?.trim() : undefined;
-  const known = new Set(["backlog", "--run-id", runId, "--apply"]);
+  const known = new Set([action, "--run-id", runId, "--apply"]);
   if (
-    args[0] !== "backlog" ||
+    (action !== "backlog" && action !== "review") ||
     !runId ||
     !/^r_[A-Za-z0-9_]+$/u.test(runId) ||
     args.some((arg) => !known.has(arg))
   ) {
-    fail("Usage: project-status.ts backlog --run-id <run_id> [--apply]");
+    fail("Usage: project-status.ts <backlog|review> --run-id <run_id> [--apply]");
   }
-  return { runId, apply: args.includes("--apply") };
+  return { action, runId, apply: args.includes("--apply") };
 }
 
 function ghGraphql(query: string, variables: Record<string, string | number>): unknown {
@@ -75,8 +85,9 @@ function loadRun(database: DatabaseSync, runId: string): RunRow {
   const run = database
     .prepare(
       `
-      SELECT r.run_id, r.project, r.item_id, r.state, r.stop_reason,
-             r.owner_state, rr.resource_state, pi.status AS item_status,
+      SELECT r.run_id, r.project, r.item_id, r.interaction_policy,
+             r.state, r.stop_reason, r.owner_state, r.execution_mode,
+             rr.resource_state, rr.tmux_session_name, pi.status AS item_status,
              EXISTS (
                SELECT 1 FROM runs newer
                WHERE newer.project = r.project
@@ -90,7 +101,17 @@ function loadRun(database: DatabaseSync, runId: string): RunRow {
                    'cancelled_item_returned_to_backlog',
                    'cancelled_item_already_backlog'
                  )
-             ) AS backlog_satisfied
+             ) AS backlog_satisfied,
+             EXISTS (
+               SELECT 1 FROM run_state_history completion_history
+               WHERE completion_history.run_id = r.run_id
+                 AND completion_history.reason = 'codex_cli_park_completed'
+             ) AS completion_parked,
+             EXISTS (
+               SELECT 1 FROM run_autonomous_successions successor
+               WHERE successor.run_id = r.run_id
+                 AND successor.succession_state = 'parked'
+             ) AS autonomous_successor_parked
       FROM runs r
       JOIN run_resources rr USING (run_id)
       LEFT JOIN project_items pi
@@ -103,7 +124,7 @@ function loadRun(database: DatabaseSync, runId: string): RunRow {
   return run;
 }
 
-function resolveProject(config: ProjectConfig): {
+function resolveProject(config: ProjectConfig, status: string): {
   projectId: string;
   fieldId: string;
   optionId: string;
@@ -139,11 +160,57 @@ function resolveProject(config: ProjectConfig): {
   const project = response.data?.user?.projectV2;
   const field = project?.field;
   const option = field?.options?.find(
-    (candidate) => candidate.name === config.statuses.backlog,
+    (candidate) => candidate.name === status,
   );
   if (!project?.id || !field?.id || !option?.id)
-    fail("Configured GitHub Project or Backlog option could not be resolved");
+    fail(`Configured GitHub Project or ${status} option could not be resolved`);
   return { projectId: project.id, fieldId: field.id, optionId: option.id };
+}
+
+function recordReviewWriteback(
+  database: DatabaseSync,
+  run: RunRow,
+  fromStatus: string | null,
+  review: string,
+): void {
+  const itemChanged = database
+    .prepare(
+      `UPDATE project_items
+       SET status=?, last_seen_at=strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
+       WHERE project=? AND item_id=?`,
+    )
+    .run(review, run.project, run.item_id);
+  if (itemChanged.changes !== 1)
+    fail("Project item changed before Human Review status was recorded");
+  database
+    .prepare(
+      `INSERT INTO run_state_history (
+         run_id, from_state, to_state, reason, details_json
+       ) VALUES (?, 'parked_review', 'parked_review', ?, ?)`,
+    )
+    .run(
+      run.run_id,
+      "autonomous_completion_moved_to_human_review",
+      JSON.stringify({ fromStatus, toStatus: review }),
+    );
+}
+
+function validateReviewRun(run: RunRow, active: string): void {
+  if (
+    run.state !== "parked_review" ||
+    run.stop_reason !== null ||
+    run.owner_state !== "none" ||
+    run.execution_mode !== "live" ||
+    run.resource_state !== "provisioned" ||
+    run.tmux_session_name !== null ||
+    run.item_status !== active ||
+    run.has_newer_run !== 0 ||
+    run.completion_parked === 0 ||
+    (run.interaction_policy !== "autonomous" &&
+      run.autonomous_successor_parked === 0)
+  ) {
+    fail("Run is not a released autonomous completion awaiting Human Review");
+  }
 }
 
 function moveItem(
@@ -203,7 +270,7 @@ function recordBacklogSatisfaction(
 }
 
 export async function runProjectStatusCli(): Promise<void> {
-  const { runId, apply } = parseArguments();
+  const { action, runId, apply } = parseArguments();
   const registry = parse(await readFile(projectsPath, "utf8")) as ProjectsRegistry;
   if (registry.version !== 1) fail("Unsupported projects registry version");
   const database = new DatabaseSync(databasePath, { timeout: 5_000 });
@@ -212,6 +279,41 @@ export async function runProjectStatusCli(): Promise<void> {
     const run = loadRun(database, runId);
     const config = registry.projects[run.project];
     if (!config) fail(`Unknown project: ${run.project}`);
+    if (action === "review") {
+      const active = config.statuses.active;
+      const review = config.statuses.review;
+      if (!active) fail(`Project has no configured active status: ${run.project}`);
+      if (!review) fail(`Project has no configured Human Review status: ${run.project}`);
+      validateReviewRun(run, active);
+      if (!apply) {
+        process.stdout.write(
+          `${JSON.stringify({ ok: true, apply: false, action: "move_to_human_review", runId, fromStatus: run.item_status, toStatus: review })}\n`,
+        );
+        return;
+      }
+      const target = resolveProject(config, review);
+      validateReviewRun(loadRun(database, runId), active);
+      moveItem(run.item_id, target);
+      database.exec("BEGIN IMMEDIATE");
+      try {
+        const current = loadRun(database, runId);
+        validateReviewRun(current, active);
+        recordReviewWriteback(
+          database,
+          current,
+          run.item_status,
+          review,
+        );
+        database.exec("COMMIT");
+      } catch (error) {
+        database.exec("ROLLBACK");
+        throw error;
+      }
+      process.stdout.write(
+        `${JSON.stringify({ ok: true, apply: true, action: "moved_to_human_review", runId, toStatus: review })}\n`,
+      );
+      return;
+    }
     const backlog = config.statuses.backlog;
     if (
       run.state !== "cancelled" ||
@@ -281,7 +383,7 @@ export async function runProjectStatusCli(): Promise<void> {
       return;
     }
 
-    const target = resolveProject(config);
+    const target = resolveProject(config, backlog);
     if (loadRun(database, runId).has_newer_run !== 0) {
       process.stdout.write(
         `${JSON.stringify({ ok: true, apply: true, action: "superseded_before_apply", runId })}\n`,

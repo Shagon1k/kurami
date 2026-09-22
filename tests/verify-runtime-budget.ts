@@ -12,6 +12,7 @@ import { DatabaseSync } from "node:sqlite";
 import {
   inspectRuntimeBudgets,
   recordRuntimeTimeout,
+  shouldDeferCompletedMainWriter,
   stopManagedRuntime,
   type RuntimeBudgetConfig,
 } from "../src/orchestrator/projects/sessions/runtime-budget.ts";
@@ -140,6 +141,22 @@ try {
   );
 
   const main = inspection.plans[0]!;
+  const completedTerminal = [
+    "Completed the bounded delivery.",
+    "─ Worked for 4h 01m ─",
+    "› Ask Codex to do anything",
+  ].join("\n");
+  assert(
+    shouldDeferCompletedMainWriter(main, completedTerminal),
+    "A completed main writer should be deferred to the controller, not timed out",
+  );
+  assert(
+    !shouldDeferCompletedMainWriter(
+      main,
+      `${completedTerminal}\nWorking (1s • esc to interrupt)`,
+    ),
+    "An active main writer must not bypass its runtime budget",
+  );
   const fakeBin = resolve(root, "bin");
   const fakeState = resolve(root, "tmux-alive");
   await mkdir(fakeBin, { recursive: true });

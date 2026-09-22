@@ -13,6 +13,7 @@ import {
   isFailedAutonomousSuccessorRecovery,
   isNeedsAttentionCliHandoff,
 } from "./recovery.ts";
+import { transcriptHasCompletedTurn } from "./codex-terminal.ts";
 
 process.umask(0o077);
 
@@ -26,7 +27,7 @@ type OrchestratorConfig = RuntimeSettingsBaseConfig & {
 };
 
 type ProjectConfig = {
-  statuses: { backlog: string; review: string };
+  statuses: { backlog: string; active: string; review: string };
 };
 
 type ProjectsRegistry = {
@@ -65,6 +66,7 @@ type RunRow = {
   project_item_status: string | null;
   has_newer_run: number;
   backlog_satisfied: number;
+  completion_parked: number;
   takeover_pending: number;
   ci_head_sha: string | null;
   ci_aggregate_state: string | null;
@@ -134,7 +136,8 @@ type ControllerAction =
   | "release"
   | "discard_cancelled"
   | "discard_published_cancelled"
-  | "project_backlog";
+  | "project_backlog"
+  | "project_review";
 
 type PlannedAction = {
   action: ControllerAction;
@@ -243,8 +246,13 @@ function baseRunSelect(): string {
                AND backlog_history.reason IN (
                  'cancelled_item_returned_to_backlog',
                  'cancelled_item_already_backlog'
-               )
+             )
            ) AS backlog_satisfied,
+           EXISTS (
+             SELECT 1 FROM run_state_history completion_history
+             WHERE completion_history.run_id = r.run_id
+               AND completion_history.reason = 'codex_cli_park_completed'
+           ) AS completion_parked,
            EXISTS (
              SELECT 1 FROM run_control_requests takeover_request
              WHERE takeover_request.run_id = r.run_id
@@ -501,6 +509,8 @@ function externalCommand(
       ];
     case "project_backlog":
       return [projectStatusPath, "backlog", "--run-id", runId, "--apply"];
+    case "project_review":
+      return [projectStatusPath, "review", "--run-id", runId, "--apply"];
     default:
       return null;
   }
@@ -549,6 +559,28 @@ function previewCompletionOwnershipStable(
     (state === "parked_review" && ownerState === "none") ||
     (state === "remote_owned" && ownerState === "remote")
   );
+}
+
+function managedCliTurnCompleted(sessionName: string): boolean {
+  if (!/^cx-[a-z0-9-]+$/u.test(sessionName)) return false;
+  const result = spawnSync(
+    "tmux",
+    [
+      "capture-pane",
+      "-p",
+      "-J",
+      "-t",
+      `${sessionName}:0.0`,
+      "-S",
+      "-200",
+    ],
+    {
+      encoding: "utf8",
+      env: process.env,
+      stdio: ["ignore", "pipe", "ignore"],
+    },
+  );
+  return result.status === 0 && transcriptHasCompletedTurn(result.stdout);
 }
 
 function planForRequest(
@@ -828,6 +860,22 @@ function planAutomatic(
       reason: "exact_preview_reviewed",
     };
   }
+  const project = registry.projects[run.project];
+  if (
+    project &&
+    run.run_state === "parked_review" &&
+    run.stop_reason === null &&
+    run.owner_state === "none" &&
+    run.tmux_session_name === null &&
+    run.resource_state === "provisioned" &&
+    run.project_item_status === project.statuses.active &&
+    run.has_newer_run === 0 &&
+    run.completion_parked !== 0 &&
+    (run.interaction_policy === "autonomous" ||
+      run.latest_autonomous_successor_state === "parked")
+  ) {
+    return { ...base, action: "project_review" };
+  }
   if (
     run.latest_review_fix_state === "resolving" &&
     run.latest_review_fix_round_id &&
@@ -914,6 +962,19 @@ function planAutomatic(
     return { ...base, action: "sync" };
   }
   const review = registry.projects[run.project]?.statuses.review;
+  if (
+    review &&
+    run.run_state === "running" &&
+    run.stop_reason === null &&
+    (run.interaction_policy === "autonomous" ||
+      run.autonomous_successor_active !== 0) &&
+    run.owner_state === "cli" &&
+    run.tmux_session_name &&
+    run.codex_thread_id &&
+    managedCliTurnCompleted(run.tmux_session_name)
+  ) {
+    return { ...base, action: "park" };
+  }
   if (
     review &&
     run.run_state === "running" &&

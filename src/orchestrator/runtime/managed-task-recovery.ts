@@ -2,6 +2,7 @@ import { spawnSync } from "node:child_process";
 import { realpathSync, statSync } from "node:fs";
 import { relative, resolve } from "node:path";
 import { DatabaseSync } from "node:sqlite";
+import { transcriptHasCompletedTurn } from "./codex-terminal.ts";
 
 export const reviewFixUncommittedChangesReason =
   "review_fix_uncommitted_changes";
@@ -166,21 +167,6 @@ function repositoryFromRemote(remote: string): string | null {
     normalized,
   );
   return match?.[1] ?? null;
-}
-
-function completedTaskTranscript(transcript: string): boolean {
-  const tail = transcript.slice(-4_000);
-  const terminalPrompt =
-    /Worked for[^\n]*\nToken usage:[^\n]*\nTo continue this session, run codex resume [a-f0-9-]{16,}/iu.test(
-      tail,
-    ) || /─ Worked for[^\n]*─[\s\S]*?\n\s*› Ask Codex to do anything\b/iu.test(tail);
-  return (
-    terminalPrompt &&
-    !/Would you like to run|Requested permission|Press enter to confirm|Allow .+\?/iu.test(
-      tail,
-    ) &&
-    !/Working \(|esc to interrupt|Booting MCP server/iu.test(tail.slice(-700))
-  );
 }
 
 export function inspectManagedReviewFixRecovery(
@@ -354,7 +340,7 @@ export function inspectManagedReviewFixRecovery(
     "-S",
     "-200",
   ]);
-  if (!transcript.ok || !completedTaskTranscript(transcript.stdout))
+  if (!transcript.ok || !transcriptHasCompletedTurn(transcript.stdout))
     return reject("managed_session_not_terminal_or_approval_blocked");
   return {
     eligible: true,
