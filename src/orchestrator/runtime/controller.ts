@@ -68,6 +68,8 @@ type RunRow = {
   backlog_satisfied: number;
   completion_parked: number;
   takeover_pending: number;
+  ci_pull_request_number: number | null;
+  ci_pull_request_url: string | null;
   ci_head_sha: string | null;
   ci_aggregate_state: string | null;
   repair_attempt_count: number;
@@ -259,6 +261,8 @@ function baseRunSelect(): string {
                AND takeover_request.action = 'take_control'
                AND takeover_request.request_state IN ('pending', 'processing')
            ) AS takeover_pending,
+           ci.pull_request_number AS ci_pull_request_number,
+           ci.pull_request_url AS ci_pull_request_url,
            ci.head_sha AS ci_head_sha,
            ci.aggregate_state AS ci_aggregate_state,
            (SELECT COUNT(*) FROM run_ci_repair_attempts repair_count
@@ -871,6 +875,9 @@ function planAutomatic(
     run.project_item_status === project.statuses.active &&
     run.has_newer_run === 0 &&
     run.completion_parked !== 0 &&
+    run.ci_pull_request_number !== null &&
+    run.ci_pull_request_url !== null &&
+    run.ci_head_sha !== null &&
     (run.interaction_policy === "autonomous" ||
       run.latest_autonomous_successor_state === "parked")
   ) {

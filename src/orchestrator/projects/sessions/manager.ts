@@ -545,6 +545,9 @@ export function initialPrompt(run: SessionRun): string {
     "GH_TOKEN is already injected by the managed launcher. A GitHub CLI authentication or credential error observed inside the Codex sandbox is inconclusive when network access or DNS may be restricted. Do not run `gh auth login`, replace credentials, modify authentication configuration, or request interactive permission. If an authorized GitHub read or same-branch push cannot run inside the sandbox, report the exact blocked capability and stop without changing policy.",
     policy,
     run.interaction_policy === "autonomous" ? commitPushAuthorization("issue") : "",
+    run.interaction_policy === "autonomous"
+      ? `After verifying the focused commit is pushed normally to the managed branch, create exactly one matching open Draft PR and link issue #${run.issue_number} in its body. If an exact matching PR already exists, do not create another. This authorizes only that Draft PR creation; it does not authorize merge, force-push, rebase, or deployment.`
+      : "",
   ]
     .filter(Boolean)
     .join("\n\n");

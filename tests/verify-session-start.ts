@@ -26,12 +26,36 @@ function git(directory: string, args: string[]): string {
 }
 
 async function main(): Promise<void> {
-  const autonomousPrompt = initialPrompt({ interaction_policy: "autonomous" } as Parameters<typeof initialPrompt>[0]);
-  const humanControlPrompt = initialPrompt({ interaction_policy: "human_control" } as Parameters<typeof initialPrompt>[0]);
+  const promptRun = {
+    repository: "Shagon1k/TailorTales",
+    issue_number: 117,
+    issue_url: "https://example.invalid/issues/117",
+    run_id: "r_initial_start",
+  };
+  const autonomousPrompt = initialPrompt({
+    ...promptRun,
+    interaction_policy: "autonomous",
+  } as Parameters<typeof initialPrompt>[0]);
+  const humanControlPrompt = initialPrompt({
+    ...promptRun,
+    interaction_policy: "human_control",
+  } as Parameters<typeof initialPrompt>[0]);
   assert(
     autonomousPrompt.includes("Do not ask for or wait for a separate interactive commit confirmation") &&
       !humanControlPrompt.includes("Do not ask for or wait for a separate interactive commit confirmation"),
     "Only autonomous primary runs should receive explicit commit authorization",
+  );
+  assert(
+    autonomousPrompt.includes(
+      "After verifying the focused commit is pushed normally to the managed branch, create exactly one matching open Draft PR",
+    ) &&
+      autonomousPrompt.includes("link issue #117 in its body") &&
+      autonomousPrompt.includes("If an exact matching PR already exists, do not create another") &&
+      autonomousPrompt.includes(
+        "does not authorize merge, force-push, rebase, or deployment",
+      ) &&
+      !humanControlPrompt.includes("create exactly one matching open Draft PR"),
+    "Autonomous initial writer prompt did not authorize exactly one linked Draft PR while preserving prohibited operations",
   );
   const app = resolve(import.meta.dirname, "..");
   const launcher = await readFile(resolve(app, "bin/launch-codex-session.sh"), "utf8");

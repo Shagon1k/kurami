@@ -36,6 +36,9 @@ type RunRow = {
   backlog_satisfied: number;
   completion_parked: number;
   autonomous_successor_parked: number;
+  ci_pull_request_number: number | null;
+  ci_pull_request_url: string | null;
+  ci_head_sha: string | null;
 };
 
 const orchestratorHome = resolveKuramiHome(
@@ -112,8 +115,12 @@ function loadRun(database: DatabaseSync, runId: string): RunRow {
                WHERE successor.run_id = r.run_id
                  AND successor.succession_state = 'parked'
              ) AS autonomous_successor_parked
+             ,ci.pull_request_number AS ci_pull_request_number
+             ,ci.pull_request_url AS ci_pull_request_url
+             ,ci.head_sha AS ci_head_sha
       FROM runs r
       JOIN run_resources rr USING (run_id)
+      LEFT JOIN run_ci_snapshots ci USING (run_id)
       LEFT JOIN project_items pi
         ON pi.project = r.project AND pi.item_id = r.item_id
       WHERE r.run_id = ?
@@ -206,6 +213,9 @@ function validateReviewRun(run: RunRow, active: string): void {
     run.item_status !== active ||
     run.has_newer_run !== 0 ||
     run.completion_parked === 0 ||
+    run.ci_pull_request_number === null ||
+    run.ci_pull_request_url === null ||
+    run.ci_head_sha === null ||
     (run.interaction_policy !== "autonomous" &&
       run.autonomous_successor_parked === 0)
   ) {

@@ -228,6 +228,11 @@ esac
     addRun("active", 202, "cx-tt-202-active");
     addRun("approval", 203, "cx-tt-203-approval");
     addRun("stuck", 204, "cx-tt-204-stuck");
+    database.exec(`
+      UPDATE runs
+      SET preview_required=1, preview_required_label='preview-required'
+      WHERE run_id='r_complete'
+    `);
     database.close();
 
     const controllerPath = resolve(app, "src/orchestrator/runtime/controller.ts");
@@ -395,12 +400,71 @@ esac
       "An unsafe completion-like tail caused a Project mutation",
     );
 
+    const missingPrPlan = runController(controllerPath, env);
+    assert(
+      !missingPrPlan.plans?.some(
+        (entry) => entry.runId === "r_complete" && entry.action === "project_review",
+      ),
+      "Released autonomous completion without an observed PR was scheduled for Project review writeback",
+    );
+    const missingPrApplied = runController(controllerPath, env, true);
+    assert(
+      !missingPrApplied.results?.some(
+        (entry) => entry.runId === "r_complete" && entry.action === "project_review",
+      ) &&
+        (await readFile(ghCalls, "utf8")) === "",
+      "Missing-PR completion mutated the GitHub Project",
+    );
+
+    const observed = new DatabaseSync(databasePath);
+    observed
+      .prepare(
+        `INSERT INTO run_ci_snapshots (
+           run_id, repository, pull_request_number, pull_request_url,
+           pull_request_title, head_sha, aggregate_state, checks_json,
+           content_digest, first_observed_at, last_observed_at
+         ) VALUES (
+           'r_complete', 'Shagon1k/TailorTales', 201,
+           'https://example.invalid/pulls/201', 'Autonomous complete', NULL,
+           'pending', '[]', 'digest-complete',
+           '2026-09-22T00:01:00.000Z', '2026-09-22T00:01:00.000Z'
+         )`,
+      )
+      .run();
+    observed.close();
+
+    const missingHeadPlan = runController(controllerPath, env);
+    assert(
+      !missingHeadPlan.plans?.some(
+        (entry) => entry.runId === "r_complete" && entry.action === "project_review",
+      ),
+      "Observed PR without a current CI head SHA was scheduled for Project review writeback",
+    );
+    const missingHeadApplied = runController(controllerPath, env, true);
+    assert(
+      !missingHeadApplied.results?.some(
+        (entry) => entry.runId === "r_complete" && entry.action === "project_review",
+      ) &&
+        (await readFile(ghCalls, "utf8")) === "",
+      "PR observation without a current CI head SHA mutated the GitHub Project",
+    );
+
+    const currentHead = new DatabaseSync(databasePath);
+    currentHead
+      .prepare(
+        `UPDATE run_ci_snapshots
+         SET head_sha='aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa'
+         WHERE run_id='r_complete'`,
+      )
+      .run();
+    currentHead.close();
+
     const reviewPlan = runController(controllerPath, env);
     assert(
       reviewPlan.plans?.some(
         (entry) => entry.runId === "r_complete" && entry.action === "project_review",
       ),
-      "Released autonomous completion was not scheduled for Project review writeback",
+      "Released autonomous completion with an exact observed PR head was not scheduled for Project review writeback",
     );
     const reviewApplied = runController(controllerPath, env, true);
     assert(
