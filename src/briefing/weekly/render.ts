@@ -38,7 +38,7 @@ export function renderWeeklyPage(raw:WeeklyReview|null,preview=false):string {
   const content=`<section class="hero"><div><p class="hero__eyebrow">${preview?"Предпросмотр · не опубликованный недельный выпуск":"Weekly Review"}</p>
     <h1>Неделя, без лишнего шума.</h1><p class="hero__subtitle">${e(period)} · семь завершённых дней</p><a href="/">← К Daily</a></div></section>
     ${review.state!=="ready"?`<aside class="weekly-caveat"><strong>Пока неполная история.</strong> Календарь: ${d.coverage.calendar}/7 дней, почта: ${d.coverage.mail}/7, новости: ${d.coverage.news}/7. Уже удалённые данные не восстанавливались; неполные недели не сравниваю как полные.</aside>`:""}
-    ${renderMetricCards(cards,d.timezone)}
+    <div class="weekly-metrics">${renderMetricCards(cards,d.timezone)}</div>
     <section class="weekly-observations" aria-labelledby="weekly-notes"><p class="hero__eyebrow">По вашим данным</p><h2 id="weekly-notes">Что заметила Курами</h2>
       ${d.insights.length?`<ol>${d.insights.map(text=>`<li>${e(text)}</li>`).join("")}</ol>`:"<p>Пока недостаточно наблюдений для содержательных выводов.</p>"}
       ${d.calendarDeltaMinutes!==null?`<p>Относительно прошлой полной недели: ${d.calendarDeltaMinutes>0?"+":""}${d.calendarDeltaMinutes} минут в календаре.</p>`:""}

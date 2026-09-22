@@ -81,6 +81,7 @@ assert.equal(isSunday("2026-10-25"),true);
 assert.equal(shiftDate("2026-03-01",-1),"2026-02-28");
 assert.throws(()=>shiftDate("2026-02-30",0));
 assert.match(renderWeeklyPage(review),/data-chart-kind="bar"|chart--bar/);
+assert.match(renderWeeklyPage(review),/class="weekly-metrics"/);
 assert.match(renderWeeklyPage(review),/data-theme-toggle/);
 assert.match(renderWeeklyPage(review),/favicon.svg/);
 const attack=structuredClone(review);attack.data.insights=["<script>alert(1)</script>"];

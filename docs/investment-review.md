@@ -1,10 +1,9 @@
-# Investment Review — manual prototype
+# Investment Review
 
-Status: manual research pipeline, automatic issuer/fund collection, deterministic calculations, private renderer
-and accepted weekly/monthly storage. A compact /stocks reader is implemented
-behind `investmentReview.enabled` (false by default). No cron, Poller
-participant, automatic acceptance, public activation or order submission.
-The existing Daily/Stocks/Discovery continue independently.
+Status: bounded automatic weekly research and acceptance, manual monthly runs,
+deterministic calculations, private storage, and a compact `/stocks` reader.
+The weekly runner is independent of Daily/Weekly briefing generation and never
+uses brokerage APIs or submits orders.
 
 Draft v3 keeps an adult-beginner reading contract: each mini-review explains
 its portfolio relevance in plain Russian, alongside conclusion, countercase
@@ -45,22 +44,48 @@ for that standalone artifact; model-supplied HTML/scripts are never accepted.
 Narrative fields are escaped. The UI displays explicit research coverage,
 unpriced positions, unknown allowances and valuation-vs-personal-return limits.
 
-Lifecycle contract: independently retained latest weekly/monthly reports,
-Sunday and first-calendar-day cadence, combined work on collisions; compact
-Week/Month view on `/stocks` only. Preserve last success with visible freshness
-and invalidate action applicability after relevant changes. Activation requires
-review of the trial and confirmation of private-page access, source automation,
-fees/cash/monthly transaction reconciliation and risk/target policy.
+Lifecycle contract: weekly automation runs only on Sunday in Europe/Vilnius.
+Weekly and monthly accepted reports retain independent latest pointers. The
+compact Week/Month view appears on `/stocks`; failures leave its previous
+accepted report in place. Position changes and stale holdings invalidate action
+applicability.
 
-Next readiness steps, before recurring activation:
-1. Complete an initial research pass for currently uncovered holdings and
-   test that a fresh run follows the skill rather than a handcrafted layout.
-2. Exercise the separate bounded long-term idea contract: up to two registered
-   non-held candidates, own evidence, risks, portfolio fit, alternatives and
-   missing valuation checks. Ideas are study-only, not holdings or orders.
-   Existing movement-based Discovery is not this.
-3. Finish source coverage and owner review, enable the already implemented
-   compact reader, then validate scheduling/collisions separately.
+## Automatic weekly runner
+
+Build with `npm run briefing:build`, then use this cron-safe command:
+
+```text
+KURAMI_HOME=/home/shagon1k/_hermes/_kurami /home/shagon1k/_hermes/_kurami/runtime/node/bin/node /home/shagon1k/_hermes/_kurami/app/dist/briefing/investment-review/automation.js run
+```
+
+The runner selects the newest private
+`$KURAMI_HOME/state/briefing/portfolio/baseline-*.json`. Pass
+`--baseline <private-file>` to pin one. Issuer identity patterns come from
+`$KURAMI_HOME/config/investment-review-targets.json` when present, otherwise
+`deploy/config/investment-review-targets.json`. `--targets`, `--hermes-repo`,
+and `--python` provide deployment overrides.
+
+`dry-run` evaluates the local-date, duplicate, baseline-age, and target-coverage
+guards without writing state, calling providers, or invoking synthesis. It and
+`inspect` accept `--now <ISO timestamp>` for deterministic checks; `run` always
+uses the real clock so a caller cannot override the Sunday gate. Every command
+prints one JSON receipt. Rejected and failed runs exit nonzero; ordinary skips
+such as a non-Sunday or duplicate run exit zero.
+
+`weekly-automation.json` records the atomic per-date claim and preserves a
+separate `lastSuccess`. Run artifacts live under `portfolio/weekly-runs/<date>`;
+accepted records remain in `portfolio/reviews`. A preexisting accepted weekly
+report for the local date suppresses another run even if automation state is
+missing. A crashed `running` claim also suppresses a retry for that date; remove
+the lock only after operator inspection.
+
+The production path is fixed: cached Stocks quotes and ECB snapshot, SEC metric
+collection, Vanguard holdings, bounded primary-document extraction and its
+independent tool-free check when needed, then one tool-free review synthesis.
+The input is changed to `weekly` before any synthesis. At most three model calls
+are possible and each has a five-minute process timeout. No report is accepted
+when holdings are older than 30 days, current quotes or position evidence are
+incomplete, a synthesis/check fails, or `validateReviewDraft` rejects the draft.
 
 ## Source collection and storage
 
@@ -144,8 +169,8 @@ documents → extraction → independent semantic check → new draft → valida
 HTML. It used no prior authored facts or report text and no new EODHD calls.
 There were three model calls in that successful trial and no repairs. Twelve
 positions and 37 source facts were bound into the report; four fund overlaps
-were confirmed. The prior failed trial remains separate. This is a tested
-manual workflow, not a claim of guaranteed future investment correctness.
+were confirmed. The prior failed trial remains separate. This validates the
+bounded pipeline, not the correctness or future performance of a judgment.
 
 `draft-packet --input ... --output ...` creates the reproducible skill/evidence/
 calculation prompt for the installed tool-free Hermes runner. Drafts cannot
@@ -159,13 +184,14 @@ Merging replaces matching adapter fact IDs, keeps dated primary evidence and
 marks retained coverage. No model needs to manually recalculate the input hash.
 Acceptance is separate and never implicit after a model call.
 
-`accept --input ... --draft ... --store <private-directory>` is an explicit
-acceptance step, not generation. Only weekly/monthly inputs may update their own
-latest pointer. Content-addressed records and an atomic pointer swap preserve
-previous success; a writer lock prevents parallel acceptance. Trial reports
-cannot silently become published weekly reports. No retention cleanup deletes
-these private accepted records yet. After an interrupted acceptance the lock
-may require operator recovery; no automatic stale-lock deletion is implemented.
+`accept --input ... --draft ... --store <private-directory>` remains the manual
+acceptance command. Weekly automation calls the same `acceptReview` function
+only after all gates pass. Only weekly/monthly inputs may update their own latest
+pointer. Content-addressed records and an atomic pointer swap preserve previous
+success; a writer lock prevents parallel acceptance. Trial reports cannot
+silently become weekly reports. No retention cleanup deletes these private
+accepted records yet. After an interrupted acceptance the lock may require
+operator recovery; no automatic stale-lock deletion is implemented.
 
 The optional /stocks panel reads accepted files only, never calls a provider,
 and is absent from Daily. Its one collapsed heading is `Обзор портфеля`.
@@ -197,19 +223,17 @@ must be a fresh private directory. Raw response, draft and minimal status are
 retained there; exceptions do not print provider credentials. An external
 timeout bounds the manual process. The wrapper never retries on its own.
 
-Hermes completion is **not** report acceptance: run the deterministic renderer
-against the exact frozen input and inspect claims/plain-language quality before
-sharing. A rejected draft cannot produce an HTML report. A single explicit
-repair attempt may use validator diagnostics; retain both attempts and never
-silently hand-edit the model's investment judgments. If repair still fails,
-stop and keep the previous accepted report.
+Hermes completion alone is **not** report acceptance. Manual trials still need
+review. The weekly coordinator additionally requires complete current inputs,
+an independent primary-evidence check when applicable, and deterministic draft
+validation before it calls `acceptReview`. It performs no repair attempt. Any
+failure keeps the previous accepted report.
 
 The September 18 trial used manually verified public issuer/SEC evidence and
 the existing quote snapshot, without additional financial API requests. This
-tests synthesis and rendering, not autonomous research, comprehensive current
-news coverage or unattended scheduling. Action judgments may vary between
-runs on identical facts; structural checks do not make them deterministic.
-Recurring activation therefore remains a separate readiness step.
+tests synthesis and rendering, not comprehensive current-news coverage. Action
+judgments may vary between runs on identical facts; structural checks do not
+make them deterministic.
 
 Observed trial outcome: two clean-context syntheses and one bounded repair,
 one model call each, no tools. The second draft's dangling lesson reference

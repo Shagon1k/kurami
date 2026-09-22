@@ -1,0 +1,13 @@
+[
+  {"symbol":"SPCX","namePattern":"Space Exploration Technologies"},
+  {"symbol":"NVDA","namePattern":"NVIDIA"},
+  {"symbol":"TSM","namePattern":"Taiwan Semiconductor"},
+  {"symbol":"AMZN","namePattern":"Amazon"},
+  {"symbol":"MSFT","namePattern":"Microsoft"},
+  {"symbol":"MRK","namePattern":"Merck"},
+  {"symbol":"NOK","namePattern":"Nokia"},
+  {"symbol":"SOFI","namePattern":"SoFi"},
+  {"symbol":"MX","namePattern":"Magnachip"},
+  {"symbol":"SPCE","namePattern":"Virgin Galactic"},
+  {"symbol":"GRRR","namePattern":"Gorilla Technology"}
+]

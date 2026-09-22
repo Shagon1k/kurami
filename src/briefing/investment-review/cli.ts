@@ -3,7 +3,7 @@ import {resolve,dirname} from "node:path";
 import {DatabaseSync} from "node:sqlite";
 import {briefingPaths,loadAddonSnapshot} from "../store.ts";
 import {nodeHttpFetch} from "../providers/node-http-fetch.ts";
-import {parseStocksSnapshot} from "../stocks/model.ts";
+import {dayShift,parseStocksSnapshot,type StocksSnapshot} from "../stocks/model.ts";
 import {calculateReview,parseReviewInput,validateReviewDraft,dateOnly,type ReviewInput} from "./model.ts";
 import {renderInvestmentReview} from "./render.ts";
 import {acceptReview} from "./store.ts";
@@ -26,7 +26,9 @@ export async function snapshotReview(baselinePath:string,evidence:Pick<ReviewInp
   const baseline=await readJson(baselinePath),db=new DatabaseSync(paths.databasePath,{readOnly:true});let market;
   try{market=parseStocksSnapshot(loadAddonSnapshot(db,"stocks")?.envelope);}finally{db.close();}
   const dates=[...new Set(market.data.series.flatMap(s=>s.points.at(-1)?.date??[]))];
-  if(dates.length!==1||dates[0]!>=date)throw Error("Trial requires aligned completed quote sessions");
+  // Weekly Sunday publication uses the most recent completed market session
+  // (normally Friday). A weekend must not make otherwise fresh quotes unusable.
+  if(dates.length!==1||dates[0]!>date||dates[0]!<dayShift(date,-4))throw Error("Trial requires a recent aligned completed quote session");
   const url="https://www.ecb.europa.eu/stats/eurofxref/eurofxref-hist-90d.xml";
   const response=await fetcher(url,{redirect:"error",signal:AbortSignal.timeout(12000)});if(!response.ok)throw Error("ECB unavailable");
   const usdPerEUR=parseEcbUSD(await response.text(),dates[0]!);

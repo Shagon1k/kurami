@@ -6,15 +6,16 @@ import {collectVuaa,applyVuaa} from "./vanguard.ts";
 import {collectPrimaryDocuments} from "./primary.ts";
 import {primaryPacket,primaryEvidence,mergePrimaryEvidence,validatePrimaryCheck} from "./primary-evidence.ts";
 import {buildReviewPacket} from "./packet.ts";
-import {calculateReview,parseReviewInput} from "./model.ts";
+import {calculateReview,parseReviewInput,type ReviewInput} from "./model.ts";
 const read=async(path:string)=>JSON.parse(await readFile(path,"utf8"));
 const save=async(dir:string,name:string,value:unknown)=>writeFile(join(dir,name),JSON.stringify(value,null,2)+"\n",{mode:0o600,flag:"wx"});
-/** Isolated manual pipeline. No scheduler, acceptance, publishing or broker calls. */
-export async function prepareReviewRun(date:string,baseline:string,allTargets:ResearchTarget[],directory:string){
+/** Bounded collection pipeline. Acceptance and broker operations remain outside it. */
+export async function prepareReviewRun(date:string,baseline:string,allTargets:ResearchTarget[],directory:string,mode:ReviewInput["mode"]="trial"){
   await mkdir(directory,{mode:0o700});
   let stage="snapshot";
   try{
     let input=await snapshotReview(baseline,{sources:[],facts:[]},date);
+    input=parseReviewInput({...input,mode});
     if(!calculateReview(input).complete)throw Error("Current quote snapshot is incomplete");
     const held=new Set(input.baseline.positions.filter(p=>p.symbol!=="VUAA").map(p=>p.symbol));
     const targets=allTargets.filter(t=>held.has(t.symbol));

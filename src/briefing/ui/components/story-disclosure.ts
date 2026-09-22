@@ -28,9 +28,10 @@ export function renderStoryPanel(input: {
   sourceUrl?: string | null;
   read?: boolean;
   media?: StoryMedia[];
+  headline?: string;
 }): string {
   const source = input.sourceUrl
     ? `<a class="source-link" href="${escapeHtml(input.sourceUrl)}" target="_blank" rel="noopener noreferrer">Перейти к источнику ↗</a>`
     : "";
-  return `<section id="${escapeHtml(panelId(input.itemId))}" class="story-disclosure__body${input.read ? " is-read" : ""}" data-story-details data-edition-id="${escapeHtml(input.editionId)}" data-item-id="${escapeHtml(input.itemId)}" data-read="${input.read === true}" aria-label="Подробности новости" hidden><div class="story-disclosure__copy">${input.details.map((paragraph) => `<p>${escapeHtml(paragraph)}</p>`).join("")}${source}</div>${renderStoryMediaGallery(input.media)}</section>`;
+  return `<section id="${escapeHtml(panelId(input.itemId))}" class="story-disclosure__body${input.read ? " is-read" : ""}" data-story-details data-edition-id="${escapeHtml(input.editionId)}" data-item-id="${escapeHtml(input.itemId)}" data-read="${input.read === true}" aria-label="Подробности новости" hidden><div class="story-disclosure__copy">${input.details.map((paragraph) => `<p>${escapeHtml(paragraph)}</p>`).join("")}${source}</div>${renderStoryMediaGallery(input.media, input.headline)}</section>`;
 }

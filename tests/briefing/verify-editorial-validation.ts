@@ -110,6 +110,14 @@ assert.throws(
 
 assert.throws(
   () => assertEditorialPayload(payload({
+    headline: "Литва: материал о теме «Society» (10)",
+    summary: "Материал №10 собран из исходной публикации и раскрывает заявленную тему в её конкретном контексте.",
+  }), policy),
+  /generation placeholder/u,
+);
+
+assert.throws(
+  () => assertEditorialPayload(payload({
     summary: "Подробности и первоисточник сохранены в раскрытии.",
   }), policy),
   /summary contains UI or source-navigation filler/u,

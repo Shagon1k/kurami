@@ -17,5 +17,15 @@ export const WEEKLY_STYLES=`
 .weekly-teaser { display:flex; justify-content:space-between; gap:24px; align-items:center; padding:28px; margin:32px 0; border:1px solid var(--line); background:var(--panel); }
 .weekly-teaser .button { flex-shrink:0; }
 @media(max-width:1000px) { .weekly-charts {grid-template-columns:1fr;} }
-@media(max-width:640px) { .weekly-teaser {display:block;padding:20px;} .weekly-topics {padding:20px;} }
+@media(max-width:640px) {
+  .weekly-teaser {display:block;padding:20px;}
+  .weekly-topics {padding:20px;}
+  /* Weekly cards carry long labels and explanations; a two-column mobile grid
+     turns them into a dense poster rather than an at-a-glance review. */
+  .weekly-metrics .metric-strip {grid-template-columns:1fr;}
+  .weekly-metrics .metric-card {min-height:0; padding:18px; border-right:0;}
+  .weekly-metrics .metric-card + .metric-card {border-top:1px solid var(--line);}
+  .weekly-metrics .metric-card__value {font-size:clamp(2rem,11vw,2.75rem);}
+  .weekly-metrics .metric-card__context {font-size:.8125rem;}
+}
 `;

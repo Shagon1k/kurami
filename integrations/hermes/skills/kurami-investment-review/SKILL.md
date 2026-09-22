@@ -2,7 +2,7 @@
 name: kurami-investment-review
 description: Prepare Alex's evidence-backed long-term stock portfolio review from a confirmed private holdings snapshot, cached quotes, and dated issuer evidence. Use for an explicitly requested investment review, thesis reassessment, or approved weekly/monthly research run. Not for intraday signals, automatic trading, generic Daily generation, tax filing, or changing holdings from suggestions.
 metadata:
-  version: 0.6.0
+  version: 0.7.0
 ---
 
 # Kurami Investment Review
@@ -13,11 +13,12 @@ considerations for a human decision, never instructions to a brokerage.
 
 ## Current phase and boundaries
 
-Research runs are **manual until separately activated**. No recurring job,
-Daily section or automatic publishing is enabled. Accepted weekly/monthly
-storage and the optional /stocks reader are available, but acceptance and
-enabling the reader are explicit owner-controlled steps. The existing Stocks/Discovery collectors retain
-their ownership and quota; do not spend their remaining API budget on research.
+The bounded weekly runner may automatically accept a report on Sundays after
+current-position, quote, evidence, independent-check and schema gates pass.
+Monthly and ad hoc runs remain manual. No Daily section or brokerage action is
+enabled. Accepted weekly/monthly storage and the optional `/stocks` reader are
+available. The existing Stocks/Discovery collectors retain their ownership and
+quota; do not spend their remaining API budget on research.
 Use `kurami-ui-preview-language` and the deterministic investment-review renderer.
 
 Read these references before research:
@@ -61,8 +62,9 @@ Read these references before research:
 6. Validate and render the private HTML. Review the rendered copy against its
    evidence. A schema pass proves structure and input binding, not the truth
    of every narrative sentence. Report incomplete coverage plainly.
-7. Return a concise summary and the private report artifact. Stop for Alex's
-   review before recurring activation or integration into `/stocks`.
+7. Return only the requested structured draft to the caller. Manual workflows
+   stop for Alex's review. The weekly coordinator, not the model, decides whether
+   the validated draft can replace the accepted weekly slot.
 
 ## Runtime commands
 

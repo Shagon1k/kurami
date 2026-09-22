@@ -166,6 +166,10 @@ function wordCount(value: string): number {
 const FORBIDDEN_HEADLINE_PREFIX = /^(?:что произошло|главное|новость|исходная публикация)\s*[:—-]/iu;
 const META_SUMMARY = /(?:подробност(?:и|ей)|первоисточник|источник)\s+(?:и\s+)?(?:сохран(?:ен|ён|ены|ённые)|доступ(?:ен|ны)|наход(?:ится|ятся))|(?:сохран(?:ен|ён|ены)|доступ(?:ен|ны))\s+в\s+раскрыти|нажмите\s+(?:читать|подробнее)|читайте\s+(?:далее|в\s+источнике)/iu;
 const SOURCE_WRAPPER = /^(?:исходная публикация|текст источника|оригинал|источник)\s*:/iu;
+// These are generation fallbacks, not editorial copy. Never publish them: a
+// syntactically valid payload with generic titles is still a broken Daily.
+const PLACEHOLDER_HEADLINE = /(?:^|:)\s*материал\s+о\s+теме\s+[«"]?.+[»"]?\s*\(\d+\)\s*$/iu;
+const PLACEHOLDER_SUMMARY = /^материал\s*№?\d+\s+собран\s+из\s+исходной\s+публикации\b/iu;
 
 function editorialCopyIssues(story: NewsItem): string[] {
   const issues: string[] = [];
@@ -177,6 +181,8 @@ function editorialCopyIssues(story: NewsItem): string[] {
 
   if (headline.length > 120 || wordCount(headline) > 18) issues.push(`Story ${story.id} headline is not concise`);
   if (FORBIDDEN_HEADLINE_PREFIX.test(headline)) issues.push(`Story ${story.id} headline uses a generic template prefix`);
+  if (PLACEHOLDER_HEADLINE.test(headline)) issues.push(`Story ${story.id} headline is a generation placeholder`);
+  if (PLACEHOLDER_SUMMARY.test(summary)) issues.push(`Story ${story.id} summary is a generation placeholder`);
   if (summary.length > 360 || wordCount(summary) > 55) issues.push(`Story ${story.id} summary is not short`);
   if (META_SUMMARY.test(summary)) issues.push(`Story ${story.id} summary contains UI or source-navigation filler`);
   if (SOURCE_WRAPPER.test(story.details[0] ?? "")) issues.push(`Story ${story.id} details wrap source text instead of retelling it`);

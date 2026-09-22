@@ -50,7 +50,7 @@ export function renderNewsStory(input: {
     : "";
   const depth = displayString(story.depth, "standard");
   const safeDepth = ["featured", "standard", "compact"].includes(depth) ? depth : "standard";
-  const cover = renderStoryCover(story.media);
+  const cover = renderStoryCover(story.media, story.headline);
   const storyNote = input.notes?.find((note) => note.target === `story:${story.id}`);
   return `<article class="news-story news-story--${safeDepth}${read ? " is-read" : ""}${cover ? " has-media" : ""}" data-feed-item data-item-id="${escapeHtml(story.id)}">
     <span class="news-story__index" aria-hidden="true">${String(input.index + 1).padStart(2, "0")}</span>
@@ -64,6 +64,6 @@ export function renderNewsStory(input: {
       <p class="news-story__interest" data-interest-reason hidden></p>
     </div>
     <div class="news-story__actions">${renderStoryToggle(story.id)}${sourceLink}${renderReactionGroup({ editionId: edition.id, itemId: story.id, reaction })}</div>
-    ${renderStoryPanel({ editionId: edition.id, itemId: story.id, details: story.details, sourceUrl: source.url, read, media: story.media })}
+    ${renderStoryPanel({ editionId: edition.id, itemId: story.id, headline: story.headline, details: story.details, sourceUrl: source.url, read, media: story.media })}
   </article>`;
 }

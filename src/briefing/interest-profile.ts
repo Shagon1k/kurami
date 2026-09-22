@@ -5,7 +5,7 @@ import type { TopicPolicy } from "./editorial-validation.ts";
 
 export const INTEREST_POLICY = Object.freeze({
   version: "interest-v1", minimumReactions: 10, minimumEvidence: 3,
-  prior: 4, maximumAdjustment: 20, positionStep: 4,
+  prior: 4, maximumAdjustment: 20, positionStep: 1.5,
   caps: { topic: 4, aspect: 8, geography: 2, source: 2, pair: 12 },
 });
 export type InterestKind = keyof typeof INTEREST_POLICY.caps;

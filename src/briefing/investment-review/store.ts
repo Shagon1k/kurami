@@ -1,7 +1,7 @@
 import {createHash,randomUUID} from "node:crypto";
 import {mkdir,writeFile,readFile,rename,lstat,rm} from "node:fs/promises";
 import {join} from "node:path";
-import {calculateReview,parseReviewInput,validateReviewDraft,type ReviewInput,type ReviewDraft} from "./model.ts";
+import {calculateReview,dateOnly,parseReviewInput,validateReviewDraft,type ReviewInput,type ReviewDraft} from "./model.ts";
 export type ReviewSlot="weekly"|"monthly";
 export type StoredReview={version:1;id:string;acceptedAt:string;input:ReviewInput;draft:ReviewDraft};
 const digest=(value:unknown)=>createHash("sha256").update(JSON.stringify(value)).digest("hex");
@@ -32,7 +32,9 @@ export async function loadReview(root:string,slot:ReviewSlot):Promise<StoredRevi
 export async function acceptReview(root:string,input:ReviewInput,draft:ReviewDraft,acceptedAt=new Date().toISOString()){
   parseReviewInput(input);validateReviewDraft(input,draft);
   if(input.mode==="trial")throw Error("Trial cannot replace a weekly or monthly report");
-  if(!Number.isFinite(Date.parse(acceptedAt))||acceptedAt.slice(0,10)<input.asOfDate)throw Error("Invalid acceptance date");
+  const parts=Number.isFinite(Date.parse(acceptedAt))?new Intl.DateTimeFormat("en-CA",{timeZone:"Europe/Vilnius",year:"numeric",month:"2-digit",day:"2-digit"}).formatToParts(new Date(acceptedAt)):[];
+  const acceptedDate=["year","month","day"].map(type=>parts.find(part=>part.type===type)?.value??"").join("-");
+  if(!dateOnly(acceptedDate)||acceptedDate<input.asOfDate)throw Error("Invalid acceptance date");
   await mkdir(root,{recursive:true,mode:0o700});
   const stat=await lstat(root);if(stat.isSymbolicLink()||!stat.isDirectory()||(stat.mode&0o077))throw Error("Unsafe review directory");
   const lock=join(root,"accept.lock");await writeFile(lock,"locked",{flag:"wx",mode:0o600});

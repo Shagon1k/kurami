@@ -62,6 +62,7 @@ const frozen=JSON.stringify(payload);
 const ordered=personalizedNewsOrder(section(payload,"news").items,profile,policy);
 assert.equal(ordered.order[0],"story-0","critical story keeps its exact position");
 assert(ordered.order.indexOf("story-3")<ordered.order.indexOf("story-2"),"country-specific preference changes nearby ordering");
+assert(Math.max(...ordered.order.map((id,index)=>Math.abs(index-stories.findIndex(story=>story.id===id))))>=2,"ready preferences produce a visible bounded reorder");
 assert.deepEqual([...ordered.order].sort(),stories.map(story=>story.id).sort());
 assert.equal(JSON.stringify(payload),frozen);
 const urgent = structuredClone(section(payload,"news").items);
