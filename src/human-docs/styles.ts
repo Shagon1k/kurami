@@ -1,6 +1,8 @@
 import {SITE_TOKENS} from "../shared-ui/tokens.ts";
 
 export const DOCS_STYLES = `${SITE_TOKENS}
+:root { --docs-signal-text: #c71410; }
+html[data-theme=dark] { --docs-signal-text: var(--signal); }
 @font-face { font-family: Onest; font-style: normal; font-weight: 400 700; font-display: swap; src: url('/assets/onest-latin.woff2') format('woff2'); unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215; }
 @font-face { font-family: Onest; font-style: normal; font-weight: 400 700; font-display: swap; src: url('/assets/onest-cyrillic.woff2') format('woff2'); unicode-range: U+0301, U+0400-045F, U+0490-0491, U+04B0-04B1, U+2116; }
 @font-face { font-family: 'Fragment Mono'; font-style: normal; font-weight: 400; font-display: swap; src: url('/assets/fragment-mono-latin.woff2') format('woff2'); }
@@ -28,7 +30,7 @@ html[data-theme=dark] .brand img { filter: drop-shadow(0 0 1px #ffffff88); }
 .actions a, .actions button { min-width: 44px; min-height: 44px; display: inline-grid; place-items: center; padding: 0 10px; background: var(--panel); color: var(--ink); border: 1px solid var(--line); border-radius: 3px; font-size: .78rem; font-weight: 600; text-decoration: none; }
 .actions a[aria-current] { border-color: var(--signal); }
 .page { padding: clamp(38px, 6vw, 76px) 0 110px; }
-.eyebrow, .folio { color: var(--signal); font: 500 .72rem/1.4 var(--font-mono); letter-spacing: .075em; text-transform: uppercase; }
+.eyebrow, .folio { color: var(--docs-signal-text); font: 500 .72rem/1.4 var(--font-mono); letter-spacing: .075em; text-transform: uppercase; }
 h1,h2,h3,p { margin-top: 0; }
 h1 { max-width: 840px; margin-bottom: 20px; font-size: clamp(2.45rem, 5.8vw, 5rem); line-height: 1.03; letter-spacing: -.055em; font-weight: 600; }
 h2 { font-size: clamp(1.4rem, 2.6vw, 2rem); line-height: 1.18; letter-spacing: -.035em; }
@@ -65,13 +67,13 @@ h3 { font-size: 1rem; line-height: 1.25; }
 .block td,.block th { padding: 12px 8px; border-bottom: 1px solid var(--line); text-align: left; }
 .visual { display: grid; gap: 13px; padding: 20px; margin: 20px 0; border: 1px solid var(--line); background: var(--section); box-shadow: 4px 4px 0 var(--section-shadow); }
 .visual__label { color: var(--muted); font: 500 .68rem/1.3 var(--font-mono); text-transform: uppercase; }
-.flow { display: grid; grid-template-columns: repeat(auto-fit,minmax(min(100%,120px),1fr)); gap: 8px; }
+.flow { display: grid; grid-template-columns: repeat(3,minmax(0,1fr)); gap: 8px; }
 .flow__step { display: grid; align-content: start; gap: 9px; min-width: 0; padding: 15px; background: var(--surface); border: 1px solid var(--line); }
 .flow__step strong { font-size: .9rem; line-height: 1.25; }
 .flow__step small { color: var(--muted); line-height: 1.35; }
 .flow__step .folio { font-size: .63rem; }
 .architecture-map { margin: 20px 0 24px; padding: 20px; border: 1px solid var(--line); background: var(--section); }
-.architecture-map figcaption { margin-bottom: 16px; color: var(--signal); font-size: .76rem; font-weight: 600; letter-spacing: .04em; }
+.architecture-map figcaption { margin-bottom: 16px; color: var(--docs-signal-text); font-size: .76rem; font-weight: 600; letter-spacing: .04em; }
 .architecture-map__path { display: grid; grid-template-columns: repeat(4,minmax(0,1fr)); gap: 24px; margin: 0; padding: 0; list-style: none; }
 .architecture-map__path li { position: relative; display: grid; align-content: start; gap: 8px; min-width: 0; padding: 14px; background: var(--surface); border: 1px solid var(--line); }
 .architecture-map__path li:not(:last-child)::after { content: '→'; position: absolute; right: -25px; top: 50%; transform: translateY(-50%); width: 24px; color: var(--signal); text-align: center; font-weight: 700; line-height: 1; }
@@ -83,13 +85,80 @@ h3 { font-size: 1rem; line-height: 1.25; }
 .architecture-map__outcomes strong { margin-bottom: 5px; }
 .architecture-map__source { margin: 18px 0 0; color: var(--muted); font-size: .75rem; overflow-wrap: anywhere; }
 .architecture-map__source code { color: var(--ink); }
-.system-map { display: grid; gap: 14px; margin-top: 34px; padding: 20px; background: var(--section); border: 1px solid var(--line); box-shadow: 4px 4px 0 var(--section-shadow); }
+.system-map { display: grid; gap: 14px; margin: 34px 0 0; padding: 20px; background: var(--section); border: 1px solid var(--line); box-shadow: 4px 4px 0 var(--section-shadow); }
 .block .system-map { margin-bottom: 24px; }
-.system-map__branches { display: grid; grid-template-columns: repeat(2, minmax(0,1fr)); gap: 12px; }
-.system-map__cell { min-width: 0; padding: 17px; background: var(--surface); border: 1px solid var(--line); }
-.system-map__cell strong { display: block; margin-bottom: 5px; }
-.system-map__cell p { margin: 0; color: var(--muted); font-size: .82rem; }
-.system-map__result { border-left: 3px solid var(--signal); }
+.system-map figcaption, .roles-map figcaption, .state-legend figcaption, .comparison-map figcaption, .order-map figcaption, .admission-map figcaption, .project-cards figcaption, .health-map figcaption, .recovery-matrix figcaption, .boundary-map figcaption { color: var(--docs-signal-text); font-size: .76rem; font-weight: 600; letter-spacing: .04em; }
+.system-map__paths, .system-map__products { display: grid; gap: 12px; }
+.system-map__paths { grid-template-columns: repeat(2,minmax(0,1fr)); }
+.system-map__products { grid-template-columns: repeat(3,minmax(0,1fr)); }
+.system-map__path, .system-map__products > div { min-width: 0; padding: 16px; background: var(--surface); border: 1px solid var(--line); }
+.system-map__path { display: grid; align-content: start; gap: 8px; }
+.system-map__path strong, .system-map__products strong, .system-map__junction strong, .system-map__evidence strong, .system-map__owner strong { display: block; font-size: .9rem; line-height: 1.3; }
+.system-map__path p, .system-map__products p, .system-map__junction p, .system-map__evidence p, .system-map__owner p { margin: 5px 0 0; color: var(--muted); font-size: .81rem; line-height: 1.45; }
+.system-map__junction { position: relative; padding: 16px; border: 1px solid var(--signal); background: var(--panel); text-align: center; }
+.system-map__junction::before, .system-map__junction::after { content: '↓'; position: absolute; top: -19px; color: var(--signal); font-weight: 700; }
+.system-map__junction::before { left: 25%; }
+.system-map__junction::after { right: 25%; }
+.system-map__evidence, .system-map__owner { padding: 12px 16px; border-left: 3px solid var(--muted); background: var(--panel); }
+.system-map__owner { border-color: var(--signal); }
+.roles-map, .state-legend { margin: 20px 0 24px; padding: 20px; border: 1px solid var(--line); background: var(--section); box-shadow: 4px 4px 0 var(--section-shadow); }
+.roles-map__grid { display: grid; grid-template-columns: repeat(3,minmax(0,1fr)); gap: 12px; margin-top: 16px; }
+.roles-map__card { min-width: 0; padding: 16px; border: 1px solid var(--line); background: var(--surface); }
+.roles-map__card strong { display: block; margin-bottom: 7px; font-size: .96rem; }
+.roles-map__card p { margin-bottom: 12px; color: var(--ink); font-size: .84rem; }
+.roles-map__card small { display: block; padding-top: 10px; border-top: 1px solid var(--line); color: var(--muted); line-height: 1.45; }
+.roles-map__owner { margin: 14px 0 0; padding: 12px 14px; border-left: 3px solid var(--signal); background: var(--panel); font-size: .84rem; }
+.state-legend dl { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 10px; margin: 16px 0 0; }
+.state-legend dl > div { min-width: 0; padding: 14px; border: 1px solid var(--line); background: var(--surface); }
+.state-legend dt { display: flex; gap: 10px; align-items: baseline; font-weight: 700; }
+.state-legend dd { margin: 7px 0 0; color: var(--muted); font-size: .82rem; line-height: 1.45; }
+.comparison-map, .order-map { margin: 20px 0 24px; padding: 20px; border: 1px solid var(--line); background: var(--section); box-shadow: 4px 4px 0 var(--section-shadow); }
+.comparison-map__grid, .order-map__grid { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 12px; margin-top: 16px; }
+.comparison-map__grid > div, .order-map__grid > div { min-width: 0; padding: 16px; border: 1px solid var(--line); background: var(--surface); }
+.comparison-map__grid strong, .order-map__grid strong { display: block; margin-bottom: 7px; font-size: .92rem; }
+.comparison-map__grid p { margin: 0; color: var(--muted); font-size: .82rem; line-height: 1.45; }
+.comparison-map__note, .order-map > p { margin: 14px 0 0; padding: 11px 14px; border-left: 3px solid var(--signal); background: var(--panel); color: var(--muted); font-size: .82rem; }
+.order-map ol { margin: 0; padding-left: 22px; color: var(--muted); font-size: .82rem; }
+.order-map li { padding: 5px 0; }
+.admission-map, .project-cards { margin: 20px 0 24px; padding: 20px; border: 1px solid var(--line); background: var(--section); box-shadow: 4px 4px 0 var(--section-shadow); }
+.admission-map__status { display: grid; grid-template-columns: repeat(3,minmax(0,1fr)); gap: 10px; margin-top: 16px; }
+.admission-map__status > div { min-width: 0; padding: 13px; border: 1px solid var(--line); background: var(--surface); }
+.admission-map__status strong { color: var(--docs-signal-text); font: 600 .72rem/1.2 var(--font-mono); }
+.admission-map__status p, .admission-map__gates p { margin: 7px 0 0; color: var(--muted); font-size: .8rem; line-height: 1.4; }
+.admission-map__gates { display: grid; grid-template-columns: repeat(4,minmax(0,1fr)); gap: 10px; margin: 16px 0 0; padding: 0; list-style: none; }
+.admission-map__gates li { display: grid; align-content: start; gap: 5px; min-width: 0; padding: 14px; border: 1px solid var(--line); background: var(--surface); }
+.admission-map__gates strong { font-size: .88rem; line-height: 1.3; }
+.admission-map__note, .project-cards__note { margin: 14px 0 0; padding: 11px 14px; border-left: 3px solid var(--signal); background: var(--panel); color: var(--muted); font-size: .82rem; }
+.project-cards__grid { display: grid; grid-template-columns: repeat(auto-fit,minmax(min(100%,160px),1fr)); gap: 12px; margin-top: 16px; }
+.project-cards__card { min-width: 0; padding: 16px; border: 1px solid var(--line); background: var(--surface); }
+.project-cards__card > strong { display: block; margin-bottom: 9px; font-size: .92rem; }
+.project-cards__card p { margin: 0; color: var(--muted); font-size: .82rem; line-height: 1.45; }
+.project-cards__card dl { margin: 0; }
+.project-cards__card dt { margin-top: 9px; color: var(--muted); font: 500 .64rem/1.3 var(--font-mono); text-transform: uppercase; }
+.project-cards__card dd { margin: 3px 0 0; font-size: .8rem; line-height: 1.4; }
+.project-cards__card small { display: block; margin-top: 13px; padding-top: 10px; border-top: 1px solid var(--line); color: var(--docs-signal-text); line-height: 1.4; }
+.health-map, .recovery-matrix, .boundary-map { margin: 20px 0 24px; padding: 20px; border: 1px solid var(--line); background: var(--section); box-shadow: 4px 4px 0 var(--section-shadow); }
+.health-map__path { display: grid; grid-template-columns: repeat(3,minmax(0,1fr)); gap: 24px; margin: 16px 0 0; padding: 0; list-style: none; }
+.health-map__path li { position: relative; display: grid; align-content: start; gap: 7px; min-width: 0; padding: 15px; border: 1px solid var(--line); background: var(--surface); }
+.health-map__path li:not(:last-child)::after { content: '→'; position: absolute; right: -25px; top: 50%; transform: translateY(-50%); width: 24px; color: var(--signal); text-align: center; font-weight: 700; }
+.health-map__path strong, .health-map__outcomes strong { font-size: .9rem; }
+.health-map__path p, .health-map__outcomes p { margin: 0; color: var(--muted); font-size: .8rem; line-height: 1.42; }
+.health-map__outcomes { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 12px; margin-top: 16px; }
+.health-map__outcomes > div { min-width: 0; padding: 12px 14px; border-left: 3px solid var(--muted); background: var(--panel); }
+.health-map__outcomes > div + div { border-color: var(--signal); }
+.health-map__outcomes strong { display: block; margin-bottom: 5px; }
+.health-map__note, .boundary-map > p { margin: 14px 0 0; padding: 11px 14px; border-left: 3px solid var(--signal); background: var(--panel); color: var(--muted); font-size: .82rem; }
+.recovery-matrix__rows { display: grid; gap: 10px; margin-top: 16px; }
+.recovery-matrix__row { display: grid; grid-template-columns: minmax(120px,.7fr) minmax(0,2.3fr); gap: 16px; min-width: 0; padding: 15px; border: 1px solid var(--line); background: var(--surface); }
+.recovery-matrix__row > strong { font-size: .9rem; }
+.recovery-matrix__row dl { display: grid; grid-template-columns: .65fr 1.2fr 1.4fr; gap: 14px; margin: 0; }
+.recovery-matrix__row dt, .boundary-map dt { color: var(--muted); font: 500 .63rem/1.3 var(--font-mono); text-transform: uppercase; }
+.recovery-matrix__row dd, .boundary-map dd { margin: 4px 0 0; font-size: .78rem; line-height: 1.4; }
+.boundary-map__grid { display: grid; grid-template-columns: repeat(3,minmax(0,1fr)); gap: 12px; margin-top: 16px; }
+.boundary-map__card { min-width: 0; padding: 16px; border: 1px solid var(--line); background: var(--surface); }
+.boundary-map__card > strong { display: block; margin-bottom: 12px; font-size: .92rem; }
+.boundary-map__card dl { margin: 0; }
+.boundary-map__card dt:not(:first-child) { margin-top: 13px; padding-top: 10px; border-top: 1px solid var(--line); color: var(--docs-signal-text); }
 .changes { display: grid; gap: 20px; }
 .change-day { padding: 20px; border: 1px solid var(--line); background: var(--surface); }
 .change-day h2 { margin-bottom: 15px; }
@@ -101,6 +170,8 @@ h3 { font-size: 1rem; line-height: 1.25; }
 @media (max-width: 1100px) {
   .architecture-map__path { grid-template-columns: repeat(2,minmax(0,1fr)); }
   .architecture-map__path li::after { display: none; }
+  .admission-map__gates { grid-template-columns: repeat(2,minmax(0,1fr)); }
+  .recovery-matrix__row { grid-template-columns: 1fr; }
 }
 @media (max-width: 900px) {
   .site-header__inner { display: grid; grid-template-columns: minmax(0,1fr) auto auto; gap: 8px; }
@@ -126,7 +197,11 @@ h3 { font-size: 1rem; line-height: 1.25; }
   .architecture-map__path, .architecture-map__outcomes { grid-template-columns: minmax(0,1fr); }
   .architecture-map__path { gap: 18px; }
   .architecture-map__path li:not(:last-child)::after { display: block; content: '↓'; top: auto; bottom: -17px; right: calc(50% - 11px); }
-  .frame { width: min(100% - 28px, 1180px); } .site-header__inner { gap: 6px; } .brand { gap: 6px; font-size: 1rem; } .brand img { width: 34px; height: 34px; } .actions { gap: 4px; } .mobile-menu nav { grid-template-columns: 1fr; } .sections, .system-map__branches { grid-template-columns: 1fr; } .route { min-height: 135px; padding: 18px; } .side-mobile nav { grid-template-columns: 1fr; } .flow { grid-template-columns: 1fr 1fr; } .flow__step { min-height: 98px; } .page { padding-top: 32px; } .visual { padding: 14px; } }
+  .health-map__path, .health-map__outcomes, .boundary-map__grid { grid-template-columns: 1fr; }
+  .health-map__path { gap: 18px; }
+  .health-map__path li:not(:last-child)::after { content: '↓'; top: auto; bottom: -17px; right: calc(50% - 11px); }
+  .recovery-matrix__row dl { grid-template-columns: 1fr; gap: 10px; }
+  .frame { width: min(100% - 28px, 1180px); } .site-header__inner { gap: 6px; } .brand { gap: 6px; font-size: 1rem; } .brand img { width: 34px; height: 34px; } .actions { gap: 4px; } .mobile-menu nav { grid-template-columns: 1fr; } .sections, .system-map__paths, .system-map__products, .roles-map__grid, .state-legend dl, .comparison-map__grid, .order-map__grid, .admission-map__status, .admission-map__gates, .project-cards__grid { grid-template-columns: 1fr; } .system-map__junction::before { left: calc(50% - 5px); } .system-map__junction::after { display: none; } .route { min-height: 135px; padding: 18px; } .side-mobile nav { grid-template-columns: 1fr; } .flow { grid-template-columns: 1fr 1fr; } .flow__step { min-height: 98px; } .page { padding-top: 32px; } .visual, .system-map, .roles-map, .state-legend, .comparison-map, .order-map, .admission-map, .project-cards, .health-map, .recovery-matrix, .boundary-map { padding: 14px; } }
 @media (max-width: 360px) { .brand { font-size: .86rem; } .brand img { width: 30px; height: 30px; } }
 @media (prefers-reduced-motion: reduce) { html { scroll-behavior: auto; } }
 `;

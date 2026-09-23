@@ -31,7 +31,7 @@ export function changesForDeployedSha(deployedSha: string, lang: Language): Chan
     if (!entry) throw new Error(`Missing curated changelog classification for ${sha}`);
     if (entry.exclude) {
       const paths = git("diff-tree", "--no-commit-id", "--name-only", "-r", sha).split("\n");
-      if (!paths.length || paths.some((p) => !(/^(?:src\/human-docs\/|tests\/human-docs\/|docs\/human-docs-(?:concept|operations)\.md$)/).test(p))) {
+      if (!paths.length || paths.some((p) => !(/^(?:src\/human-docs\/|tests\/human-docs\/|docs\/human-docs-(?:concept|operations|delivery-plan)\.md$)/).test(p))) {
         throw new Error(`Exclusion for ${sha} covers non-docs files`);
       }
       return [];
@@ -47,7 +47,7 @@ export function changesForDeployedSha(deployedSha: string, lang: Language): Chan
 export function assertDocsSourceMatchesDeployment(deployedSha:string):void {
   if(git("status","--porcelain"))throw new Error("Release docs build requires a clean working tree");
   const changed=git("diff","--name-only",`${deployedSha}..HEAD`);
-  const docsOnly=/^(?:src\/human-docs\/|tests\/human-docs\/|docs\/human-docs-(?:concept|operations)\.md)$/;
+  const docsOnly=/^(?:src\/human-docs\/|tests\/human-docs\/|docs\/human-docs-(?:concept|operations|delivery-plan)\.md)$/;
   if(changed&&changed.split("\n").some(path=>!docsOnly.test(path)))throw new Error("Docs checkout includes application changes newer than the verified deployment");
 }
 
