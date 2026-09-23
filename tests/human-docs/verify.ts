@@ -6,6 +6,11 @@ import {execFileSync} from "node:child_process";
 import {pages} from "../../src/human-docs/content.ts";
 import {changesForDeployedSha,readDeploymentManifest,assertDocsSourceMatchesDeployment} from "../../src/human-docs/changelog.ts";
 import {renderArticle,renderChangelog,renderHome} from "../../src/human-docs/render.ts";
+import {DOCS_STYLES} from "../../src/human-docs/styles.ts";
+
+// Keep diagram connectors between cards and reserve space below prose maps.
+assert.match(DOCS_STYLES,/\.architecture-map__path \{[^}]*gap: 24px/);
+assert.match(DOCS_STYLES,/\.block \.system-map \{ margin-bottom: 24px; \}/);
 
 const root=resolve(import.meta.dirname,"../..");
 assert.ok(pages.length>=14);

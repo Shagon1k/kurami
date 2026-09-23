@@ -72,9 +72,9 @@ h3 { font-size: 1rem; line-height: 1.25; }
 .flow__step .folio { font-size: .63rem; }
 .architecture-map { margin: 20px 0 24px; padding: 20px; border: 1px solid var(--line); background: var(--section); }
 .architecture-map figcaption { margin-bottom: 16px; color: var(--signal); font-size: .76rem; font-weight: 600; letter-spacing: .04em; }
-.architecture-map__path { display: grid; grid-template-columns: repeat(4,minmax(0,1fr)); gap: 12px; margin: 0; padding: 0; list-style: none; }
+.architecture-map__path { display: grid; grid-template-columns: repeat(4,minmax(0,1fr)); gap: 24px; margin: 0; padding: 0; list-style: none; }
 .architecture-map__path li { position: relative; display: grid; align-content: start; gap: 8px; min-width: 0; padding: 14px; background: var(--surface); border: 1px solid var(--line); }
-.architecture-map__path li:not(:last-child)::after { content: '→'; position: absolute; z-index: 1; right: -12px; top: 45%; width: 22px; color: var(--signal); background: var(--section); text-align: center; font-weight: 700; line-height: 1; }
+.architecture-map__path li:not(:last-child)::after { content: '→'; position: absolute; right: -25px; top: 50%; transform: translateY(-50%); width: 24px; color: var(--signal); text-align: center; font-weight: 700; line-height: 1; }
 .architecture-map__path strong, .architecture-map__outcomes strong { display: block; font-size: .9rem; line-height: 1.3; }
 .architecture-map__path p, .architecture-map__outcomes p { margin: 0; color: var(--muted); font-size: .81rem; line-height: 1.45; }
 .architecture-map__outcomes { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 12px; margin-top: 16px; }
@@ -84,6 +84,7 @@ h3 { font-size: 1rem; line-height: 1.25; }
 .architecture-map__source { margin: 18px 0 0; color: var(--muted); font-size: .75rem; overflow-wrap: anywhere; }
 .architecture-map__source code { color: var(--ink); }
 .system-map { display: grid; gap: 14px; margin-top: 34px; padding: 20px; background: var(--section); border: 1px solid var(--line); box-shadow: 4px 4px 0 var(--section-shadow); }
+.block .system-map { margin-bottom: 24px; }
 .system-map__branches { display: grid; grid-template-columns: repeat(2, minmax(0,1fr)); gap: 12px; }
 .system-map__cell { min-width: 0; padding: 17px; background: var(--surface); border: 1px solid var(--line); }
 .system-map__cell strong { display: block; margin-bottom: 5px; }
