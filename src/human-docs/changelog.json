@@ -18,6 +18,36 @@
       "en": "The review stage requires pull-request evidence before a run can advance.",
       "ru": "Перед переходом к review система требует подтверждённый pull request.",
       "page": "engineering-evidence"
+    },
+    "847a7248193d708f07886b02d4e397995624c75b": {
+      "category": "new",
+      "en": "Added the private bilingual Kurami documentation site with system, Digest, Projects and Operations routes plus a deployment-bound changelog.",
+      "ru": "Добавлен закрытый двуязычный сайт документации Курами с разделами системы, Digest, Projects и Operations и changelog, привязанным к подтверждённому deploy.",
+      "page": "what-is-kurami"
+    },
+    "859a23c970620f8d754866bd5a76bf3e063a4cf2": {
+      "category": "improved",
+      "en": "Refined bilingual navigation and technical copy, including clearer system boundaries and a safer static origin.",
+      "ru": "Уточнены двуязычная навигация и технические тексты, включая границы системы и более безопасный static origin.",
+      "page": "system-map"
+    },
+    "09743cd30fb6f2fadb8e1fbb7a711feb413f91dc": {
+      "category": "improved",
+      "en": "Added accessible architecture diagrams for the Daily publication lifecycle and managed engineering runs.",
+      "ru": "Добавлены доступные архитектурные схемы жизненного цикла Daily и управляемых инженерных запусков.",
+      "page": "daily-lifecycle"
+    },
+    "095b03fb0f40bf39b914fef13dfec4c1b8348f7b": {
+      "category": "fixed",
+      "en": "Kept diagram connectors clear of adjacent cards and restored spacing after system maps.",
+      "ru": "Стрелки схем больше не пересекают соседние карточки, а после системных карт восстановлен отступ.",
+      "page": "system-map"
+    },
+    "f06f8eb0c5c9857f8d0dd0fa14c172a215c04304": {
+      "category": "operations",
+      "en": "",
+      "ru": "",
+      "exclude": "Internal delivery plan and acceptance matrix; no reader-visible or deployed behavior change."
     }
   }
 }

@@ -15,7 +15,7 @@ Open `http://127.0.0.1:8799/ru/`. The preview changelog intentionally contains n
 
 ## Changelog contract
 
-`src/human-docs/changelog.json` contains reviewed English and Russian summaries keyed by full commit SHA. The baseline is a Git commit. With a **trusted deployment controller's** successful app revision, the builder reads the actual commit range from baseline through that revision. It does not use `HEAD` as the deployed app revision. Every commit in that range requires a bilingual classification; a docs-only commit may be explicitly excluded, but the builder checks that its changed paths are only human docs sources/tests or the two human docs design/operations documents. A missing classification, unsafe linked route, failed manifest, unknown SHA, or non-ancestor revision fails the app-bound release build.
+`src/human-docs/changelog.json` contains reviewed English and Russian summaries keyed by full commit SHA. The baseline is a Git commit. With a **trusted deployment controller's** successful app revision, the builder reads the actual commit range from baseline through that revision. It does not use `HEAD` as the deployed app revision. Every commit in that range requires a bilingual classification; a docs-only commit may be explicitly excluded, but the builder checks that its changed paths are only human docs sources/tests or the human docs concept, operations and delivery-plan documents. A missing classification, unsafe linked route, failed manifest, unknown SHA, or non-ancestor revision fails the app-bound release build.
 
 A build-time flag is **not proof** by itself. The release controller must supply a manifest outside the repository after verifying a successful application deployment:
 
