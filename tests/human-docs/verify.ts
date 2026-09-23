@@ -20,6 +20,12 @@ for(const page of pages){
     assert.ok(html.includes(`/${lang}/${page.slug}/`));
     assert.ok(html.includes(`/${lang==="en"?"ru":"en"}/${page.slug}/`));
     assert.ok(!html.includes("data-visual="),`Unrendered visual in ${page.slug}`);
+    if(page.slug==="daily-lifecycle"||page.slug==="project-orchestrator"){
+      assert.match(html,/<figure class="architecture-map">[\s\S]*?<ol class="architecture-map__path">/);
+      assert.equal((html.match(/class="architecture-map__outcomes"/g)??[]).length,1);
+      assert.ok(html.includes(page.slug==="daily-lifecycle"?"docs/daily-briefing-runtime.md":"docs/technical-reference.md"));
+      assert.ok(html.includes(page.slug==="daily-lifecycle"?(lang==="ru"?"Обновляемые поля":"Refreshable fields"):(lang==="ru"?"Безопасная остановка":"Safe stop")));
+    }
   }
 }
 for(const lang of ["en","ru"] as const){
