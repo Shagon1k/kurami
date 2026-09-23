@@ -1,0 +1,25 @@
+[Unit]
+Description=Kurami human documentation static origin
+After=default.target
+ConditionPathExists=/home/shagon1k/_hermes/_kurami/state/human-docs/release/build.json
+
+[Service]
+Type=simple
+ExecStart=/home/shagon1k/_hermes/_kurami/runtime/node/bin/node /home/shagon1k/_hermes/_kurami/app/src/human-docs/server.ts
+Environment=DOCS_ROOT=/home/shagon1k/_hermes/_kurami/state/human-docs/release
+Environment=DOCS_PORT=8799
+Restart=on-failure
+RestartSec=3s
+UMask=0077
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=read-only
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6
+RestrictNamespaces=true
+RestrictSUIDSGID=true
+LockPersonality=true
+SystemCallArchitectures=native
+
+[Install]
+WantedBy=default.target

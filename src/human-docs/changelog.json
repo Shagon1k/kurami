@@ -1,0 +1,23 @@
+{
+  "baseline": "4a38c09",
+  "commits": {
+    "6c1689e20dcfab3147d2994a88f17e88705058f3": {
+      "category": "improved",
+      "en": "Daily rejects placeholder editorial copy; the personal news order is more noticeable. Weekly Investment Review gained a guarded scheduled runner, but a successful accepted report is not implied.",
+      "ru": "Daily отклоняет шаблонные тексты, а персональная сортировка заметнее. Для еженедельного Investment Review добавлен запуск с проверками; это не означает, что отчёт уже успешно принят.",
+      "page": "for-me"
+    },
+    "ebd2e81b639489c8922ed2a00273d16133f10243": {
+      "category": "fixed",
+      "en": "Completed autonomous engineering runs now wait for the owner's decision instead of being treated as released work.",
+      "ru": "Завершённые автономные engineering runs теперь ожидают решения владельца, а не считаются освобождённой работой.",
+      "page": "run-lifecycle"
+    },
+    "596c877dfa0f7d1a82bfaacfed1c1194fdbd6b26": {
+      "category": "fixed",
+      "en": "The review stage requires pull-request evidence before a run can advance.",
+      "ru": "Перед переходом к review система требует подтверждённый pull request.",
+      "page": "engineering-evidence"
+    }
+  }
+}
