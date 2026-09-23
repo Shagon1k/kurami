@@ -4,7 +4,7 @@ import {resolve,dirname} from "node:path";
 import {fileURLToPath} from "node:url";
 import {pages} from "./content.ts";
 import {readDeploymentManifest,changesForDeployedSha,assertDocsSourceMatchesDeployment,type Language} from "./changelog.ts";
-import {renderArticle,renderChangelog,renderHome,renderLanguageChoice} from "./render.ts";
+import {renderArticle,renderChangelog,renderHome} from "./render.ts";
 import {DOCS_STYLES} from "./styles.ts";
 
 const root=resolve(dirname(fileURLToPath(import.meta.url)),"../..");
@@ -23,12 +23,12 @@ const paths=new Set<string>();
 for(const page of pages){
   if(!/^[a-z0-9-]+(?:\/[a-z0-9-]+)*$/.test(page.slug)||paths.has(page.slug))throw new Error(`Invalid or duplicate docs route: ${page.slug}`);
   paths.add(page.slug);
-  if(!page.title.en||!page.title.ru||!page.summary.en||!page.summary.ru||!page.blocks.length||page.blocks.some(b=>!b.en||!b.ru))throw new Error(`Incomplete bilingual docs page: ${page.slug}`);
+  if(!page.title.en||!page.title.ru||!page.navTitle.en||!page.navTitle.ru||!page.summary.en||!page.summary.ru||!page.blocks.length||page.blocks.some(b=>!b.en||!b.ru))throw new Error(`Incomplete bilingual docs page: ${page.slug}`);
 }
 const changes=revision?({en:changesForDeployedSha(revision,"en"),ru:changesForDeployedSha(revision,"ru")}):{en:[],ru:[]};
 for(const lang of ["en","ru"] as Language[])for(const change of changes[lang])if(change.page&&!paths.has(change.page))throw new Error(`Changelog links to missing route: ${change.page}`);
 // Validate everything before replacing a previous build; a failed release gate leaves it untouched.
-const rendered: [string,string][]=[["index.html",renderLanguageChoice()]];
+const rendered: [string,string][]=[];
 for(const lang of ["en","ru"] as Language[]){
   rendered.push([`${lang}/index.html`,renderHome(lang)]);
   for(const page of pages)rendered.push([`${lang}/${page.slug}/index.html`,renderArticle(page,lang)]);

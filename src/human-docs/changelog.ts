@@ -31,7 +31,7 @@ export function changesForDeployedSha(deployedSha: string, lang: Language): Chan
     if (!entry) throw new Error(`Missing curated changelog classification for ${sha}`);
     if (entry.exclude) {
       const paths = git("diff-tree", "--no-commit-id", "--name-only", "-r", sha).split("\n");
-      if (!paths.length || paths.some((p) => !(/^(?:src\/human-docs\/|tests\/human-docs\/|docs\/human-docs-concept\.md)/).test(p))) {
+      if (!paths.length || paths.some((p) => !(/^(?:src\/human-docs\/|tests\/human-docs\/|docs\/human-docs-(?:concept|operations)\.md$)/).test(p))) {
         throw new Error(`Exclusion for ${sha} covers non-docs files`);
       }
       return [];

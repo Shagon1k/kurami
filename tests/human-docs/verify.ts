@@ -13,7 +13,8 @@ const slugs=new Set(pages.map(p=>p.slug));
 assert.equal(slugs.size,pages.length);
 for(const page of pages){
   for(const lang of ["en","ru"] as const){
-    assert.ok(page.title[lang]&&page.summary[lang]&&page.blocks.every(block=>block[lang]));
+    assert.ok(page.title[lang]&&page.navTitle?.[lang]&&page.summary[lang]&&page.blocks.every(block=>block[lang]));
+    assert.doesNotMatch(JSON.stringify({title:page.title[lang],navTitle:page.navTitle[lang],summary:page.summary[lang],blocks:page.blocks.map(b=>b[lang])}),/\bAlex\b|Л[её]ш[а-яё]*|09:00|10:00|Вильнюс|Vilnius|Схема поведения, не реальный API|Conceptual rule, not a callable API/i);
     const html=renderArticle(page,lang);
     assert.match(html,new RegExp(`<html lang="${lang}"`));
     assert.ok(html.includes(`/${lang}/${page.slug}/`));
@@ -25,6 +26,8 @@ for(const lang of ["en","ru"] as const){
   const html=renderHome(lang);
   assert.ok(html.includes("system-map__branches"));
   assert.ok(html.includes("/assets/theme.js"));
+  assert.ok(html.includes('class="mobile-menu"'));
+  assert.ok(html.includes('class="topnav"'));
   assert.ok(!renderChangelog(lang,[]).includes("github.com/Shagon1k/kurami/commit/"));
 }
 const scratch=mkdtempSync(join(tmpdir(),"kurami-docs-test-"));
@@ -46,6 +49,7 @@ try {
   assert.ok(renderChangelog("ru",[],undefined,true).includes("Документация опубликована"));
   const built=resolve(root,"dist/human-docs");
   if(existsSync(built)) {
+    assert.ok(!existsSync(join(built,"index.html")),"Root must redirect on the origin, not render a choice page");
     const metadata=JSON.parse(readFileSync(join(built,"build.json"),"utf8")) as {mode:string;revision:string|null;docsSha?:string|null};
     assert.ok(["preview","release"].includes(metadata.mode));
     if(metadata.mode==="preview") assert.ok(metadata.docsSha==null);

@@ -13,7 +13,7 @@ try {
   writeFileSync(join(root,"build.json"),JSON.stringify({mode:"release",revision:null,docsSha:revision}));
   assert.doesNotThrow(()=>createDocsServer(root));
   writeFileSync(join(root,"build.json"),JSON.stringify({mode:"release",revision,docsSha:revision}));
-  for(const path of ["index.html","ru/index.html","en/changelog/index.html","assets/docs.css"]){
+  for(const path of ["ru/index.html","en/index.html","en/changelog/index.html","assets/docs.css"]){
     const destination=join(root,path);
     mkdirSync(dirname(destination),{recursive:true});
     writeFileSync(destination,`fixture:${path}`);
@@ -25,8 +25,18 @@ try {
     const address=server.address();
     assert.ok(address && typeof address!=="string");
     const base=`http://127.0.0.1:${address.port}`;
+    for(const path of ["/","/index.html"]){
+      const redirect=await fetch(base+path,{redirect:"manual"});
+      assert.equal(redirect.status,302,path);
+      assert.equal(redirect.headers.get("location"),"/en/");
+    }
+    const rootHead=await fetch(base+"/",{method:"HEAD",redirect:"manual"});
+    assert.equal(rootHead.status,302);
+    assert.equal(rootHead.headers.get("location"),"/en/");
+    assert.equal(await rootHead.text(),"");
+    assert.equal((await fetch(base+"/",{method:"POST",redirect:"manual"})).status,405);
     for(const [path,status,body] of [
-      ["/",200,"fixture:index.html"],
+      ["/en/",200,"fixture:en/index.html"],
       ["/ru/",200,"fixture:ru/index.html"],
       ["/en/changelog/",200,"fixture:en/changelog/index.html"],
       ["/assets/docs.css",200,"fixture:assets/docs.css"],
