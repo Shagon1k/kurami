@@ -11,6 +11,7 @@ export type { EditorialStoryDraft, EditorialBriefingDraft } from "./addons/news/
 import { applyDeterministicRanking } from "./ranking.ts";
 import { captureAddonManifest } from "./addons/registry.ts";
 import { validateTelegramBatch, type TelegramBatchReport } from "./telegram-batch.ts";
+import { assertTelegramStoryCoverage } from "./coverage.ts";
 import { readBriefingAddonSwitches } from "./runtime-config.ts";
 import { readSignalsConfig } from "./addons/signals/config.ts";
 import {readWeeklyConfig} from "./weekly/config.ts";
@@ -86,6 +87,9 @@ export async function composeBriefingPayload(input: {
     snapshot.gmail.fetchedAt,snapshot.calendar.fetchedAt,snapshot.weather.fetchedAt].map(Date.parse).filter(Number.isFinite))).toISOString();
   refreshDerivedAddons(payload, { at: signalTime, settings: { signals, weekly } });
   refreshDataQuality(payload, snapshot.refreshedAt);
+  // The editorial draft must account for every frozen Telegram item before
+  // rank-preview or compose can accept it. Render/prepare are too late.
+  assertTelegramStoryCoverage(payload);
   if (input.outputPath) {
     const outputPath = resolve(input.outputPath);
     const temporary = resolve(dirname(outputPath), `.${randomUUID()}.tmp`);

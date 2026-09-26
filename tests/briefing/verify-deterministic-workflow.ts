@@ -251,6 +251,18 @@ assert.equal(composed.payload.addons?.news?.capturedAt, composed.payload.edition
 assert.equal(composed.payload.addons?.mail?.state, section(composed.payload, "mail").state);
 assert.equal(await readFile(outputPath, "utf8"), `${JSON.stringify(composed.payload, null, 2)}\n`);
 
+// A structurally valid draft that silently omits one captured source item
+// must fail before a rank preview or editorialized output is accepted.
+const completeDraft = JSON.parse(await readFile(draftPath, "utf8"));
+await writeFile(draftPath, JSON.stringify({ ...completeDraft, stories: [], notes: [] }));
+const incompleteOutputPath = resolve(home, "incomplete-payload.json");
+await assert.rejects(
+  composeBriefingPayload({ draftPath, livePath, configPath, rawPath, normalizedPath, outputPath: incompleteOutputPath }),
+  /Telegram source coverage is incomplete.*missing:telegram:test:10/u,
+);
+await assert.rejects(readFile(incompleteOutputPath), { code: "ENOENT" });
+await writeFile(draftPath, JSON.stringify(completeDraft));
+
 const copiedDraft = JSON.parse(await readFile(draftPath, "utf8"));
 copiedDraft.stories[0].headline = telegramItem.title;
 await writeFile(draftPath, JSON.stringify(copiedDraft));
