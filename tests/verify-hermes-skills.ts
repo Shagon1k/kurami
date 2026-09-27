@@ -70,9 +70,10 @@ const briefingReferences = [
   "cinema-addon.md",
   "editorial-policy.md",
   "item-contract.md",
+  "operator-recovery.md",
   "provider-composio-gmail.md",
   "provider-composio-google-calendar.md",
-  "provider-hermes-weather.md",
+  "provider-open-meteo.md",
   "provider-telegram-user.md",
   "state-and-capabilities.md",
   "topics-and-ranking.md",
@@ -94,9 +95,21 @@ assert.match(briefingSkill, /start-attempt --id daily:YYYY-MM-DD --mode schedule
 assert.match(briefingSkill, /compose --attempt <attempt-id>/);
 assert.match(briefingSkill, /render-preview --payload <payload\.json> --attempt <attempt-id>/);
 assert.match(briefingSkill, /references\/cinema-addon\.md/);
-assert.match(briefingSkill, /`mark_read_through_batch` once with `edition_id`, `attempt_id`, `plan_digest`/);
+assert.match(briefingSkill, /finish_daily_briefing\(edition_id, attempt_id\)/);
+assert.match(briefingSkill, /For the scheduled job, return exactly `\[SILENT\]`/);
+assert.doesNotMatch(briefingSkill, /^\d+\. Fetch weather/m);
+assert.doesNotMatch(briefingSkill, /^\d+\. Invoke `kurami-ui-preview-language`/m);
+assert.doesNotMatch(briefingSkill, /build-media-manifest --id/);
 assert.doesNotMatch(briefingSkill, /prepare-preview --payload <payload\.json> --html/);
 assert.doesNotMatch(briefingSkill, /app\/src\/briefing\/cli\.ts/);
+
+const operatorRecovery = fs.readFileSync(
+  path.join(skillsRoot, "kurami-daily-briefing", "references", "operator-recovery.md"),
+  "utf8",
+);
+assert.match(operatorRecovery, /build-media-manifest --id/);
+assert.match(operatorRecovery, /`mark_read_through_batch` once with `edition_id`, `attempt_id`/);
+assert.match(operatorRecovery, /get_messages_exact_batch/);
 
 const cinemaReference = fs.readFileSync(
   path.join(skillsRoot, "kurami-daily-briefing", "references", "cinema-addon.md"),
@@ -130,12 +143,11 @@ assert.match(telegramProfile, /atomically persists/);
 assert.match(telegramProfile, /Do not\s+parse the human-readable line stream from `get_messages`/);
 assert.match(telegramProfile, /validate-telegram-batch/);
 assert.match(telegramProfile, /capturedUnreadCount/);
-assert.match(telegramProfile, /download_media/);
-assert.match(telegramProfile, /download_media_batch/);
 assert.match(telegramProfile, /get_messages_exact_batch/);
 assert.match(telegramProfile, /canonical `externalUrl`/);
-assert.match(telegramProfile, /chunks\s+of at most 12/);
-assert.match(telegramProfile, /retry only `failed` and `missing` pairs/);
+assert.match(operatorRecovery, /download_media_batch/);
+assert.match(operatorRecovery, /chunks of at most 12/);
+assert.match(operatorRecovery, /retries only `failed` or `missing` pairs/);
 
 const telegramWrapperPath = path.resolve(
   root,
@@ -215,7 +227,7 @@ assert.equal(config.edition.daily_retention_days, 7);
 assert.equal(config.safety.production_mutations_enabled, true);
 assert.equal(config.safety.initial_channel_cleanup_confirmed, true);
 assert.equal(config.safety.require_bounded_telegram_commit, true);
-assert.deepEqual(Object.keys(config.capabilities).sort(), ["publisher", "renderer"]);
+assert.deepEqual(Object.keys(config.capabilities).sort(), ["publisher"]);
 assert.equal(config.sources.calendar.profile, "composio-google-calendar");
 assert.equal(config.sources.calendar.settings.window, "local_day");
 assert.equal(config.sources.calendar.settings.calendars.length, 3);

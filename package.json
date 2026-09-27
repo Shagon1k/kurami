@@ -81,7 +81,7 @@
     "test:metadata-owner-review": "node tests/verify-metadata-owner-review.ts",
     "test:metadata-sync": "node tests/verify-metadata-sync.ts",
     "test:metadata-scheduler": "node tests/verify-metadata-scheduler.ts",
-    "test:skills": "node tests/verify-hermes-skills.ts",
+    "test:skills": "node tests/verify-hermes-skills.ts && python3 tests/verify-briefing-cron-sync.py",
     "test:telegram-wrapper": "python3 tests/verify-telegram-wrapper.py",
     "test:briefing-runtime": "node tests/briefing/verify-runtime.ts",
     "test:briefing-http": "node tests/briefing/verify-node-http-fetch.ts",

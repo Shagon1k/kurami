@@ -65,6 +65,7 @@ tasks. The primary owner entry points are:
 - [E2E catalog](docs/e2e-scenarios.md)
 - [Recovery guide](docs/recovery.md)
 - [KURAMI_HOME migration](docs/kurami-home-migration.md)
+- [Technical debt roadmap](docs/tech-debt-audit.md)
 
 The repository started as the Project Orchestrator, so some stable internal
 paths and component names still contain `orchestrator`. They describe that

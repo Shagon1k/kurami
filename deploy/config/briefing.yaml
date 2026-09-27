@@ -83,8 +83,6 @@ notification:
   notify_on_total_failure: true
 
 capabilities:
-  renderer:
-    skill: kurami-ui-preview-language
   publisher:
     provider: kurami_briefing_runtime
 
