@@ -1,4 +1,5 @@
-Run the configured Kurami Daily Briefing using the attached skills.
+Run the configured Kurami Daily Briefing using the attached
+`kurami-daily-briefing` skill.
 
 Start by obtaining today's date in Europe/Vilnius, then call the canonical
 briefing CLI start-attempt with that daily edition ID and --mode scheduled.
@@ -10,7 +11,10 @@ When shouldRun is true, resume the returned attempt and run directory from
 its persisted stage. Never recollect a frozen Telegram capture or rewrite
 accepted editorial content. Follow the two-pass notes procedure in the Daily
 skill: draft without notes, rank-preview, grounded notes in distinct ranked
-bands, then compose. Do not hand-author the derived presentation payload.
+bands, then compose. Apply its editorial quality rules to every captured item.
+On Saturday, complete the enabled Cinema gate before Daily composition; record
+an isolated Cinema failure without blocking Daily. Do not hand-author the
+derived presentation payload or invoke a separate UI skill.
 
 Once the attempt is editorialized or further, call the configured Telegram
 finish_daily_briefing operation with edition_id and attempt_id. It owns render,

@@ -143,10 +143,16 @@ missing step is notification is completed directly by the guard. A delayed
 Persistent timer invocation after 10:50 is still treated as the final recovery
 guard rather than silently skipped.
 
-The installed cron prompt is versioned in
-`integrations/hermes/briefing-cron-prompt.md`; `bin/sync-briefing-cron.py`
-checks drift and `--apply` updates only that prompt through Hermes' locked
-scheduler API. Runtime `start-attempt` is the only time/duplicate gate.
+The intended cron prompt is versioned in
+`integrations/hermes/briefing-cron-prompt.md`. `bin/sync-briefing-cron.py`
+checks prompt and attached-skill drift. Its `--apply` mode updates only those
+fields on the existing job, preserves schedule and enabled state, and refuses
+a job without local delivery. It selects the Hermes profile through
+`HERMES_HOME` (defaulting to the gateway's `/home/shagon1k/_hermes/_core`),
+not the legacy `~/.hermes` profile. Read its `jobId` and pass the same ID with
+`--expect-job-id` to `--apply`;
+a clean versioned file alone does not prove scheduling is active. Runtime
+`start-attempt` is the only time/duplicate gate.
 
 After composition, `finish_daily_briefing(edition_id, attempt_id)` in the
 existing Telegram MCP process executes the technical tail without further AI
@@ -184,7 +190,9 @@ An explicit operator can resume a failed technical tail with
 `briefing resume-completion --id daily:YYYY-MM-DD --attempt <attempt-id>`,
 then invoke the same completion tool. It preserves the failure receipt, frozen
 source capture and accepted copy. Earlier editorial failures cannot be resumed
-through this command. Do not use it to bypass production gates.
+through this command. Do not use it to bypass production gates. The guarded
+low-level commands live in the Daily skill's
+`references/operator-recovery.md`, outside the scheduled prompt path.
 
 ## Provider boundaries
 

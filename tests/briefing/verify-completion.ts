@@ -54,5 +54,8 @@ const prompt=await readFile(resolve(root,"integrations/hermes/briefing-cron-prom
 assert.match(prompt,/shouldRun flag is the ONLY/);
 assert.match(prompt,/finish_daily_briefing/);
 assert.match(prompt,/assert-complete/);
+assert.match(prompt,/attached\s+`kurami-daily-briefing` skill/);
+assert.match(prompt,/return \[SILENT\]/);
+assert.match(prompt,/Do not hand-author the\s+derived presentation payload or invoke a separate UI skill/);
 assert.doesNotMatch(prompt,/local hour is not 09|only at 09:00/);
 console.log("Completion context, immutable editorial digest, failed-stage recovery, terminal assertion, cron exit observation and prompt contract verified.");

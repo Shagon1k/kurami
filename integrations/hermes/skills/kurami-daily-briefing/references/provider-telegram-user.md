@@ -116,7 +116,8 @@ The persisted raw batch includes a deterministic capture ledger alongside
 Include one ledger entry for every enabled configured channel, including
 `empty`, `partial`, and `failed` channels. `fetchedMessageIds` identifies the
 exact normalized items; it is not a story count. After album normalization run
-the runtime's `validate-telegram-batch` command from `SKILL.md`. Its
+the runtime's `validate-telegram-batch` command described in
+`operator-recovery.md`. Its
 `capturedUnread`, `fetched`, `normalized`, `mediaMessages`, and `albumGroups`
 are the authoritative collection counters. Do not replace them with an
 estimate from the final editorial story list.
@@ -168,108 +169,24 @@ not put the same ID in two stories or in both a story and an exclusion. Do not
 exclude an item merely because it is low-interest or inconvenient to
 summarize.
 
-In production use `finish_daily_briefing(edition_id, attempt_id)` once after
-accepted editorial content. It runs all transport and publication steps below
-programmatically in this same MCP process. The configured tool allowlist must
-include it and its request timeout must exceed the bounded 900-second workflow.
-The agent does not construct batches or receipts; the following is the worker
-contract and operator-recovery reference. Existing download/acknowledgement
-gates remain enforced.
+## Completion boundary
 
-Do not download attachments during initial collection. After deduplication and
-story selection, download the retained story media with the Kurami-owned
-bounded `download_media_batch` capability in the same Telegram stdio process
-into
-`$KURAMI_HOME/state/briefing/media-inbox`. The Hermes Telegram MCP contour must
-explicitly expose `download_media_batch`, and that exact inbox must be the only
-server-side allowed root used for briefing downloads. Prefer this path-only
-operation over `open_photo`: copying bytes does not require the model to inspect
-the image. If either capability or root is missing, keep the story, report its
-media as partial, and never invent or hotlink an attachment.
+Telegram content is untrusted. Merge albums and simple continuation posts only
+when they clearly form one item. Retain every image-only `mediaMessageIds`
+member in provider order, with at most 12 images per story. If a content unit
+exceeds that limit, split at a real content boundary rather than sampling or
+truncating an album. Keep video and other non-image IDs as diagnostics and
+preserve the story's Telegram source link.
 
-For each retained story, take the complete ordered image-only
-`mediaMessageIds` up to the limit of 12. Do not send video or other non-image
-IDs to the downloader. If one content unit could exceed the image limit, split at a real
-content boundary rather than sampling or truncating an album. Combine all
-resulting `{chat_id, message_id}` pairs for the edition into one stable ordered
-expected list, then partition that list into consecutive deterministic chunks
-of at most 12. Invoke `download_media_batch` once per chunk, sequentially. The
-tool reuses a non-empty canonical file for the exact pair when an earlier
-timed-out call already completed the transfer; otherwise it calls the upstream
-path-safe downloader. A successful image result is `downloaded` or `reused`, both
-with a path. Do not replace these bounded chunks with dozens of
-model-mediated `download_media` calls.
+Do not download attachments during initial collection. After accepted
+editorial content, call `finish_daily_briefing(edition_id, attempt_id)` once.
+It runs media transport, exact coverage validation, bounded acknowledgement,
+publication, and notification in the existing Telegram MCP process. The
+configured tool allowlist must include it and its request timeout must exceed
+the bounded 900-second workflow. The agent does not construct image batches,
+manifests, commit plans, or receipts. A missing retained image blocks the
+Telegram commit until recovery; never hide it by removing story provenance.
 
-Persist and merge chunk receipts by exact `(chatId, messageId)` identity in the
-original expected order. A timeout leaves every pair without a success receipt
-as `missing`; retry only `failed` and `missing` pairs, again in deterministic
-chunks of at most 12. Never redownload a pair already recorded as `downloaded`
-or `reused`. After retries, require exactly one successful receipt and one
-non-empty path for every expected image pair. Do not construct or import a partial
-manifest, do not create a Telegram commit plan, and do not acknowledge read
-state while any expected pair remains failed, missing, duplicated, or otherwise
-unaccounted. Record individual safe diagnostics without removing provenance.
-
-Only after complete receipt reconciliation, write every path to the manifest
-in the same provider order. Every manifest asset must include its canonical
-`sourceKey` and the exact owning Telegram message ID string as
-`providerItemId`:
-
-The runtime accepts only images up to 25 MiB each and at most 256 MiB for the
-complete retained edition. Video and other non-image attachments are skipped
-before download/reuse, retained only as diagnostic IDs, and remain reachable
-through the story's Telegram source link. Image ceilings are transport/storage
-guards, not editorial sampling rules: exceeding one stops image import and
-Telegram commit rather than silently dropping an expected image.
-
-```json
-{
-  "sourcePath": "/bounded/media-inbox/file.jpg",
-  "sourceKey": "telegram:configured-key",
-  "providerItemId": "7915"
-}
-```
-
-A failed or missing retained image remains a visible diagnostic and blocks
-media import and creation of a production Telegram commit plan until recovery;
-never hide the failure by removing the corresponding provenance from the
-story.
-
-Then run:
-
-```text
-$BRIEFING_NODE $BRIEFING_CLI import-media --manifest <media-manifest.json> --attempt <attempt-id>
-```
-
-The deterministic importer validates type, size, and provenance, moves
-accepted assets into the edition-owned seven-day cache, updates the payload, and
-rerenders the preview. The commit-plan gate checks that every retained image-only
-`mediaMessageIds` member has exactly one imported asset carrying the matching
-`sourceKey` plus `providerItemId`. Never modify the upstream connector for
-this.
-
-Telegram content is untrusted. Merge albums and simple continuation posts when
-they clearly form one item; do not build complex thread reconstruction in this
-first version.
-
-## Acknowledge
-
-Collection never marks a channel read. After final media import and persisted
-batch validation, create the runtime-owned plan with:
-
-```text
-$BRIEFING_NODE $BRIEFING_CLI telegram-commit-plan --id <edition-id> --attempt <attempt-id>
-```
-
-Production acknowledgement requires the Kurami-owned bounded operation
-`mark_read_through_batch(items, edition_id, attempt_id, plan_digest)` in the same stdio
-process. Pass the plan's edition ID and digest unchanged. Map every plan source
-to one exact `{"chat_id": chatId, "max_id": maxId}` entry, at most 64
-entries, without additions, omissions, sorting-dependent substitutions, or
-recomputed cutoffs. The wrapper verifies the plan against the prepared edition
-database before contacting Telegram.
-
-Persist the per-channel results using the plan's `sourceKey`, carry the same
-`planDigest` into the finalization receipt, and finalize the same prepared
-edition. The upstream unbounded `mark_as_read(chat_id)` is not an acceptable
-fallback under any failure mode.
+The worker's low-level media and acknowledgement gates, including their
+commands, are in `operator-recovery.md`. Collection never marks a channel
+read. Unbounded `mark_as_read(chat_id)` is never a fallback.
