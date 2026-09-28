@@ -13,6 +13,14 @@ code, and time. It stores no provider content. A successful retry clears that
 edition's failure record; it does not reconstruct missing observations unless
 the retained edition still contains the needed data.
 
+The Weekly mail counter is also optional. If its write fails after a successful
+`Read & Archive`, the mail action stays complete. The
+`weekly_mail_observation_failures` table records only the opaque action ID,
+edition ID, bounded error code and time. The next enabled Weekly history
+collection retries completed action receipts without calling Gmail. A
+successful counter write clears the failure record; repeated collection does
+not count the action twice.
+
 - `/weekly`: latest promoted review, retained until the next successful one.
 - `/preview/weekly`: explicitly labelled, read-only preview of the last seven
   completed days relative to today. It is not a published Sunday edition.
@@ -96,6 +104,7 @@ It does not delay or rewrite the morning news snapshot.
 
 `npm run test:briefing-weekly` covers period arithmetic, counters, duplicate
 observations, calendar overlap, inbox isolation, cleared reactions, missing
-data, safe markup, Sunday promotion, opt-out routes, late live refresh and
-retention migration. `WEEKLY_PREVIEW_PORT=8794 npm run test:briefing-weekly`
+data, safe markup, Sunday promotion, mail observation failure and recovery,
+opt-out routes, late live refresh and retention migration.
+`WEEKLY_PREVIEW_PORT=8794 npm run test:briefing-weekly`
 serves a local synthetic example through the real app renderer.

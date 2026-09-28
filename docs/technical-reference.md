@@ -48,6 +48,7 @@ app/
         snapshot-store.ts     Independent add-on snapshot persistence
       weekly/
         persistence.ts       Isolates optional Weekly publication writes
+        mail-observation.ts  Records and retries Weekly mail counters
     discord/
       ui.ts                   Shared Discord Components V2 primitives
     orchestrator/

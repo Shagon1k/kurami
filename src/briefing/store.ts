@@ -22,7 +22,7 @@ import {
 import type { TelegramBatchReport } from "./telegram-batch.ts";
 import { DAILY_RETENTION_DAYS } from "./runtime-config.ts";
 import {persistOptionalWeekly} from "./weekly/persistence.ts";
-import {localDate as weeklyLocalDate} from "./weekly/model.ts";
+import { observeCompletedMailAction } from "./weekly/mail-observation.ts";
 import { setSection, section, newsBatches } from "./addons/envelopes.ts";
 import { loadEdition, type EditionRow } from "./edition-store.ts";
 import { topicRegistry, type TopicRegistryRow } from "./interest-profile-store.ts";
@@ -1138,13 +1138,12 @@ export function finishMailReadAndArchive(
       action.actionId,
     );
     if (result.ok) {
-      try {
-        const edition=loadEdition(database,{id:action.editionId});
-        if(edition && parseBriefingPayload(JSON.parse(edition.payload_json)).addons.weekly) {
-          database.prepare("INSERT OR IGNORE INTO weekly_mail_actions(action_id,local_date,item_count) VALUES(?,?,?)")
-            .run(action.actionId,weeklyLocalDate(timestamp,edition.timezone),action.itemIds.length);
-        }
-      } catch {console.warn("Weekly mail observation failed; archive action continues");}
+      observeCompletedMailAction(database, {
+        actionId: action.actionId,
+        editionId: action.editionId,
+        itemIdsJson: JSON.stringify(action.itemIds),
+        completedAt: timestamp,
+      });
       const mark = database.prepare(`
         UPDATE edition_items
         SET read_at = COALESCE(read_at, ?), updated_at = ?
