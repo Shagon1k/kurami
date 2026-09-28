@@ -5,14 +5,14 @@ This roadmap records verified Kurami debt. Update **Status** as fixes land:
 verified at code level; it does not by itself claim a production rollout. The **Jira**
 column remains empty unless the owner asks for tickets.
 
-_Last audit: 2026-09-28. Scope: Daily Briefing skill and scheduled-job contract._
+_Last audit: 2026-09-28. Scope: Daily Briefing skill, Digest persistence, and Orchestrator runtime boundaries._
 
 ## Summary
 
 | Severity | Open | In progress | Done |
 | --- | ---: | ---: | ---: |
 | High | 0 | 0 | 0 |
-| Medium | 0 | 1 | 5 |
+| Medium | 5 | 1 | 5 |
 | Low | 0 | 0 | 1 |
 
 ## Rollout evidence
@@ -40,6 +40,11 @@ run was 2026-09-28 at 06:00 UTC; its result is tracked in M1.
 | M4 | configuration | `deploy/config/briefing.yaml:85` | A renderer-skill capability and attached UI skill suggested model-driven HTML work even though the completion worker renders the accepted payload. This loaded unrelated UI instructions into scheduled runs. | Remove the unused renderer-skill setting and require only `kurami-daily-briefing` in the versioned cron contract; keep UI skill available for manual UI work. | Done | — |
 | M5 | testing | `tests/verify-hermes-skills.ts:68` | String-presence tests required a dead weather profile and low-level commands in the main skill, but did not check prompt, skill-list, delivery, schedule, or enabled-state drift. | Assert the scheduled contract and exercise cron sync against a fake job record, including incompatible delivery and preservation of operator controls. | Done | — |
 | M6 | configuration | `integrations/hermes/skills/kurami-daily-briefing/references/editorial-policy.md:126` | The active skill targeted one Kurami Note per five stories while Git specified one per eight. The owner chose the active `/5` rule, and the tracked reference now matches it. | Keep the versioned `/5` rule aligned with the active skill; do not let an unrelated broad sync change editorial policy. | Done | — |
+| M7 | maintainability | `src/briefing/store.ts:281` | The store still combines preview files, publication transactions, mail actions, and retention. Edition lookup, interest-profile persistence, and Telegram validation/commit planning are separate on this branch. | Move preview/publication file operations into a cohesive module; retain the current `store.ts` API and test each transition before removing the facade. | Open | — |
+| M8 | maintainability | `src/orchestrator/projects/sessions/manager.ts:763` | Session claims, Codex startup, cleanup, handoff, and recovery still share a 2700-line CLI module. A change to one transition is hard to review against the others. | Extract claim/start and stop/handoff operations behind explicit state and side-effect boundaries; keep the CLI entry point and add restart/failure tests for each boundary. | Open | — |
+| M9 | maintainability | `src/orchestrator/runtime/controller.ts:362` | Request and automatic planning are separate, but reconciliation and internal/external action execution still occupy the controller CLI. This keeps planning tests from covering the full transition boundary. | Extract reconciliation by lifecycle and action execution behind typed interfaces, preserving decision order and the existing dry-run output. | Open | — |
+| M10 | error-handling | `src/briefing/store.ts:1147` | A failed Weekly mail observation is caught and logged while the mail action completes, with no durable failure receipt. Weekly mail counts can remain incomplete without a retry target. | Record a bounded, edition-bound observation failure and clear it after a successful retry; test that mail archival remains committed and the failure stays visible. | Open | — |
+| M11 | testing | `package.json:26` | The repository has a full local regression command, but no tracked GitHub workflow, and PR #13 reports no checks. A reviewer cannot rely on automatic regression evidence for each push. | Add a secretless PR workflow that runs `npm ci` and `npm test`; decide separately whether the check should become a required merge gate. | Open | — |
 
 ## Low
 

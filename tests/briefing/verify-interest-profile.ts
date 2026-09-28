@@ -4,7 +4,9 @@ import { resolve } from "node:path";
 import { tmpdir } from "node:os";
 import { DatabaseSync } from "node:sqlite";
 import { once } from "node:events";
-import { briefingPaths, initializeBriefingStore, openBriefingDatabase, setReaction } from "../../src/briefing/store.ts";
+import { briefingPaths, initializeBriefingStore, openBriefingDatabase } from "../../src/briefing/store.ts";
+import { loadEdition } from "../../src/briefing/edition-store.ts";
+import { setReaction } from "../../src/briefing/interest-profile-store.ts";
 import { parseBriefingPayload } from "../../src/briefing/model.ts";
 import { section } from "../../src/briefing/addons/envelopes.ts";
 import { loadTopicPolicy } from "../../src/briefing/editorial-validation.ts";
@@ -39,6 +41,9 @@ await writeFile(resolve(paths.previewDirectory,"interest.html"),renderBriefingPa
 db.prepare(`INSERT INTO editions(id,edition_type,local_date,timezone,state,payload_json,html_path,content_digest,is_current,prepared_at,published_at,retention_until,updated_at)
 VALUES(?,'daily','2026-09-16','Europe/Vilnius','complete',?,'pages/preview/interest.html','frozen',1,?,?,?,?)`)
  .run(payload.edition.id,JSON.stringify(payload),now,now,payload.edition.retentionUntil,now);
+assert.equal(loadEdition(db,{id:payload.edition.id})?.id,payload.edition.id);
+assert.equal(loadEdition(db,{type:"daily",date:"2026-09-16"})?.id,payload.edition.id);
+assert.equal(loadEdition(db,{type:"daily",current:true})?.id,payload.edition.id);
 for(const story of stories) db.prepare(`INSERT INTO edition_items(edition_id,item_id,item_type,story_fingerprint,topic_ids_json,updated_at) VALUES(?,?,'story',?,?,?)`)
  .run(payload.edition.id,story.id,story.fingerprint,JSON.stringify(story.topics.map(topic=>topic.id)),now);
 const empty=buildInterestProfile(db,policy);

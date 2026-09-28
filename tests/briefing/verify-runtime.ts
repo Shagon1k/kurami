@@ -29,9 +29,12 @@ import {
   type TelegramBatchReport,
 } from "../../src/briefing/telegram-batch.ts";
 import {
+  createTelegramCommitPlan,
+  recordTelegramValidation,
+} from "../../src/briefing/telegram-commit-store.ts";
+import {
   briefingPaths,
   cleanupExpired,
-  createTelegramCommitPlan,
   finalizeEdition,
   initializeBriefingStore,
   listAddonSnapshots,
@@ -40,7 +43,6 @@ import {
   openBriefingDatabase,
   revisePublishedEdition,
   readEditionHtml,
-  recordTelegramValidation,
   rerenderPublishedPreview,
   retainedDailyEditions,
   topicProfile,
