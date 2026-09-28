@@ -43,6 +43,7 @@ import {
   loadEdition,
   openBriefingDatabase,
   refreshPreparedPreviewMedia,
+  refreshPublishedEdition,
   revisePublishedEdition,
   rerenderPublishedPreview,
   retainedDailyEditions,
@@ -1613,6 +1614,80 @@ try {
 } finally {
   persisted.close();
 }
+
+const publishedHtmlPath = resolve(paths.previewDirectory, "daily-2026-08-28.html");
+const originalPublishedHtml = await readFile(publishedHtmlPath, "utf8");
+const publishedFault = openBriefingDatabase(paths);
+let originalPublishedRow: { payload_json: string; content_digest: string; updated_at: string };
+let originalStoryState: unknown[];
+let originalOccurrences: unknown[];
+let publishedPayload: ReturnType<typeof parseBriefingPayload>;
+try {
+  originalPublishedRow = publishedFault.prepare(`
+    SELECT payload_json, content_digest, updated_at FROM editions WHERE id = ?
+  `).get(revised.editionId) as typeof originalPublishedRow;
+  publishedPayload = parseBriefingPayload(JSON.parse(originalPublishedRow.payload_json) as unknown);
+  originalStoryState = publishedFault.prepare(`
+    SELECT item_id, story_fingerprint, topic_ids_json, read_at, reaction
+    FROM edition_items WHERE edition_id = ? ORDER BY item_id
+  `).all(revised.editionId);
+  originalOccurrences = publishedFault.prepare(`
+    SELECT topic_id, story_fingerprint, source_key
+    FROM topic_story_occurrences WHERE edition_id = ? ORDER BY topic_id, story_fingerprint, source_key
+  `).all(revised.editionId);
+  publishedFault.exec(`
+    CREATE TABLE published_commit_fault_parent (id INTEGER PRIMARY KEY) STRICT;
+    CREATE TABLE published_commit_fault_child (
+      id INTEGER PRIMARY KEY,
+      parent_id INTEGER NOT NULL REFERENCES published_commit_fault_parent(id)
+        DEFERRABLE INITIALLY DEFERRED
+    ) STRICT;
+    CREATE TRIGGER published_commit_fault AFTER UPDATE ON editions BEGIN
+      INSERT INTO published_commit_fault_child (id, parent_id) VALUES (1, 42);
+    END;
+  `);
+} finally {
+  publishedFault.close();
+}
+try {
+  await assert.rejects(
+    revisePublishedEdition(revisionPayload, (candidate) =>
+      `${renderBriefingPage(candidate)}<!-- revision-commit-failure-probe -->`, paths),
+    /FOREIGN KEY constraint failed/,
+  );
+  await assert.rejects(
+    refreshPublishedEdition(
+      publishedPayload,
+      `${renderBriefingPage(publishedPayload)}<!-- refresh-commit-failure-probe -->`,
+      originalPublishedRow.content_digest,
+      paths,
+    ),
+    /FOREIGN KEY constraint failed/,
+  );
+} finally {
+  const publishedCleanup = openBriefingDatabase(paths);
+  try {
+    publishedCleanup.exec(`
+      DROP TRIGGER published_commit_fault;
+      DROP TABLE published_commit_fault_child;
+      DROP TABLE published_commit_fault_parent;
+    `);
+    assert.deepEqual(publishedCleanup.prepare(`
+      SELECT payload_json, content_digest, updated_at FROM editions WHERE id = ?
+    `).get(revised.editionId), originalPublishedRow);
+    assert.deepEqual(publishedCleanup.prepare(`
+      SELECT item_id, story_fingerprint, topic_ids_json, read_at, reaction
+      FROM edition_items WHERE edition_id = ? ORDER BY item_id
+    `).all(revised.editionId), originalStoryState);
+    assert.deepEqual(publishedCleanup.prepare(`
+      SELECT topic_id, story_fingerprint, source_key
+      FROM topic_story_occurrences WHERE edition_id = ? ORDER BY topic_id, story_fingerprint, source_key
+    `).all(revised.editionId), originalOccurrences);
+  } finally {
+    publishedCleanup.close();
+  }
+}
+assert.equal(await readFile(publishedHtmlPath, "utf8"), originalPublishedHtml);
 
 const cleanup = await cleanupExpired("2030-01-01T00:00:00.000Z", paths);
 assert.deepEqual(cleanup.deleted, ["daily:2026-08-28"]);

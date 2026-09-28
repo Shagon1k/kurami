@@ -44,6 +44,8 @@ app/
       preview-store.ts        Preview and media-refresh transactions with HTML rollback
       addon-publication-store.ts
                               Published add-on replacement and HTML rollback
+      published-edition-store.ts
+                              Editorial revisions and dynamic refresh transactions
       edition-store.ts        Edition lookup and row contract
       interest-profile-store.ts
                               Reaction writes and topic-profile queries
