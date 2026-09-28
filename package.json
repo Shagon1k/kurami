@@ -40,6 +40,7 @@
     "test:preview-static": "node tests/verify-preview-static.ts",
     "test:pickflick-preview-contract": "node tests/verify-pickflick-preview-contract.ts",
     "test:controls": "node tests/verify-run-controls.ts",
+    "test:controller-planning": "node tests/verify-controller-planning.ts",
     "test:observer": "node tests/verify-session-observer.ts",
     "test:discord": "node tests/verify-discord-controls.ts",
     "test:discord-plugin": "KURAMI_DISCORD_PLUGIN_DIR=${KURAMI_DISCORD_PLUGIN_DIR:-integrations/hermes/plugins/kurami-discord-controls} python3 tests/verify-discord-plugin.py",
