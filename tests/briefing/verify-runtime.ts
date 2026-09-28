@@ -1143,10 +1143,96 @@ try {
   snapshotDatabase.close();
 }
 
+await initializeBriefingStore(paths);
+const firstCommitFault = openBriefingDatabase(paths);
+try {
+  firstCommitFault.exec(`
+    CREATE TABLE preview_commit_fault_parent (id INTEGER PRIMARY KEY) STRICT;
+    CREATE TABLE preview_commit_fault_child (
+      id INTEGER PRIMARY KEY,
+      parent_id INTEGER NOT NULL REFERENCES preview_commit_fault_parent(id)
+        DEFERRABLE INITIALLY DEFERRED
+    ) STRICT;
+    CREATE TRIGGER preview_commit_fault AFTER INSERT ON editions BEGIN
+      INSERT INTO preview_commit_fault_child (id, parent_id) VALUES (1, 42);
+    END;
+  `);
+} finally {
+  firstCommitFault.close();
+}
+try {
+  await assert.rejects(preparePreview(payload, html, paths), /FOREIGN KEY constraint failed/);
+} finally {
+  const faultCleanup = openBriefingDatabase(paths);
+  try {
+    faultCleanup.exec(`
+      DROP TRIGGER preview_commit_fault;
+      DROP TABLE preview_commit_fault_child;
+      DROP TABLE preview_commit_fault_parent;
+    `);
+    assert.equal(loadEdition(faultCleanup, { id: "daily:2026-08-28" }), null);
+  } finally {
+    faultCleanup.close();
+  }
+}
+await assert.rejects(
+  readFile(resolve(paths.previewDirectory, "daily-2026-08-28.html"), "utf8"),
+  { code: "ENOENT" },
+);
+
 const prepared = await preparePreview(payload, html, paths);
 assert.equal(prepared.editionId, "daily:2026-08-28");
 assert.equal(prepared.previewPath, "/preview/daily/2026-08-28");
 assert.equal(prepared.state, "prepared");
+
+const preparedHtmlPath = resolve(paths.previewDirectory, "daily-2026-08-28.html");
+const originalPreparedHtml = await readFile(preparedHtmlPath, "utf8");
+let originalPreparedRow: { payload_json: string; content_digest: string; prepared_at: string };
+const faultSetup = openBriefingDatabase(paths);
+try {
+  originalPreparedRow = faultSetup.prepare(`
+    SELECT payload_json, content_digest, prepared_at FROM editions WHERE id = ?
+  `).get(prepared.editionId) as typeof originalPreparedRow;
+  faultSetup.exec(`
+    CREATE TABLE preview_commit_fault_parent (id INTEGER PRIMARY KEY) STRICT;
+    CREATE TABLE preview_commit_fault_child (
+      id INTEGER PRIMARY KEY,
+      parent_id INTEGER NOT NULL REFERENCES preview_commit_fault_parent(id)
+        DEFERRABLE INITIALLY DEFERRED
+    ) STRICT;
+    CREATE TRIGGER preview_commit_fault AFTER UPDATE ON editions BEGIN
+      INSERT INTO preview_commit_fault_child (id, parent_id) VALUES (1, 42);
+    END;
+  `);
+} finally {
+  faultSetup.close();
+}
+try {
+  await assert.rejects(
+    preparePreview(payload, `${html}<!-- commit-failure-probe -->`, paths),
+    /FOREIGN KEY constraint failed/,
+  );
+} finally {
+  const faultCleanup = openBriefingDatabase(paths);
+  try {
+    faultCleanup.exec(`
+      DROP TRIGGER preview_commit_fault;
+      DROP TABLE preview_commit_fault_child;
+      DROP TABLE preview_commit_fault_parent;
+    `);
+  } finally {
+    faultCleanup.close();
+  }
+}
+const afterFault = openBriefingDatabase(paths);
+try {
+  assert.deepEqual(afterFault.prepare(`
+    SELECT payload_json, content_digest, prepared_at FROM editions WHERE id = ?
+  `).get(prepared.editionId), originalPreparedRow);
+} finally {
+  afterFault.close();
+}
+assert.equal(await readFile(preparedHtmlPath, "utf8"), originalPreparedHtml);
 
 const inboxAsset = resolve(paths.mediaInboxDirectory, "story-1.jpg");
 await mkdir(paths.mediaInboxDirectory, { recursive: true });
