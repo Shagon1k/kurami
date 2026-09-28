@@ -1,5 +1,15 @@
 import assert from "node:assert/strict";
+import type { DatabaseSync } from "node:sqlite";
 import { planAutomatic } from "../src/orchestrator/runtime/automatic-plan.ts";
+import {
+  reconcileAfterAppliedAction,
+  reconcileAfterCycle,
+  reconcileBeforePlanning,
+  type ControllerReconcilers,
+} from "../src/orchestrator/runtime/controller-cycle.ts";
+import { executePlannedAction, type ControllerActionEffects } from "../src/orchestrator/runtime/controller-execution.ts";
+import type { OrchestratorConfig } from "../src/orchestrator/runtime/controller-types.ts";
+import type { PlannedAction } from "../src/orchestrator/runtime/request-plan.ts";
 import type { RunRow } from "../src/orchestrator/runtime/run-read-model.ts";
 
 const registry = {
@@ -110,4 +120,76 @@ assert.equal(
   "cancel_cli",
 );
 
-process.stdout.write(`${JSON.stringify({ ok: true, automaticPlanning: true })}\n`);
+const database = {} as DatabaseSync;
+const config = {} as OrchestratorConfig;
+const calls: string[] = [];
+const record = (name: string) => (received: DatabaseSync) => {
+  assert.equal(received, database);
+  calls.push(name);
+};
+const reconcilers: ControllerReconcilers = {
+  ciRepair: record("ci_repair"),
+  reviewFix: record("review_fix"),
+  aiReview: record("ai_review"),
+  controlEvents: record("control_events"),
+  progressCards: (received, selectedConfig) => {
+    assert.equal(received, database);
+    assert.equal(selectedConfig, config);
+    calls.push("progress_cards");
+  },
+};
+reconcileBeforePlanning(database, config, reconcilers);
+assert.deepEqual(calls.splice(0), ["ci_repair", "review_fix", "ai_review", "control_events", "progress_cards"]);
+reconcileAfterAppliedAction(database, config, reconcilers);
+assert.deepEqual(calls.splice(0), ["ci_repair", "review_fix", "progress_cards", "control_events"]);
+reconcileAfterCycle(database, config, reconcilers);
+assert.deepEqual(calls, ["control_events", "progress_cards"]);
+
+const effects: ControllerActionEffects = {
+  internal: (received, plan) => {
+    assert.equal(received, database);
+    calls.push(`internal:${plan.action}`);
+    return { action: "remote_claimed" };
+  },
+  external: (plan) => {
+    calls.push(`external:${plan.action}`);
+    return { action: plan.action === "discard_cancelled" ? "discarded_local_work" : "handoff_completed" };
+  },
+  complete: (received, requestId, state) => {
+    assert.equal(received, database);
+    calls.push(`complete:${requestId}:${state}`);
+  },
+};
+const action = (actionName: PlannedAction["action"], requestOutcome?: PlannedAction["requestOutcome"]): PlannedAction => ({
+  action: actionName,
+  runId: "run-1",
+  project: "example",
+  issueNumber: 42,
+  requestId: "rq-1",
+  requestOutcome,
+});
+calls.length = 0;
+executePlannedAction(database, action("claim_remote"), effects);
+assert.deepEqual(calls.splice(0), ["internal:claim_remote"]);
+executePlannedAction(database, action("handoff"), effects);
+assert.deepEqual(calls.splice(0), ["external:handoff", "complete:rq-1:applied"]);
+executePlannedAction(database, action("preview_expire", "rejected"), effects);
+assert.deepEqual(calls.splice(0), ["external:preview_expire", "complete:rq-1:rejected"]);
+executePlannedAction(database, action("discard_cancelled"), effects);
+assert.deepEqual(calls.splice(0), ["external:discard_cancelled", "complete:rq-1:applied"]);
+executePlannedAction(database, action("discard_published_cancelled"), effects);
+assert.deepEqual(calls, ["external:discard_published_cancelled", "complete:rq-1:rejected"]);
+calls.length = 0;
+assert.throws(
+  () => executePlannedAction(database, action("handoff"), {
+    ...effects,
+    external: () => {
+      calls.push("external:failed");
+      throw new Error("tmux failed");
+    },
+  }),
+  /tmux failed/u,
+);
+assert.deepEqual(calls, ["external:failed"], "Failed external work must not complete the owner request");
+
+process.stdout.write(`${JSON.stringify({ ok: true, automaticPlanning: true, reconciliationOrder: true, actionExecution: true, failedExternalReceiptPreserved: true })}\n`);

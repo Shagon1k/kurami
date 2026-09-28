@@ -63,7 +63,20 @@ app/
       ui.ts                   Shared Discord Components V2 primitives
     orchestrator/
       runtime/
-        controller.ts         Reconciles state and dispatches planned actions
+        controller.ts         Loads state, plans actions, and runs the cycle
+        controller-context.ts Runtime paths and failure helper
+        controller-types.ts   Config, registry, and progress contracts
+        controller-cycle.ts   Ordered reconciliation phases
+        controller-execution.ts
+                              Internal/external actions and request receipts
+        reconcile-ci-repair.ts
+                              CI repair attempt state
+        reconcile-review-fix.ts
+                              Review-fix delivery and CI state
+        reconcile-ai-review.ts
+                              Detached AI review worker state
+        reconcile-progress.ts
+                              Control events and progress cards
         request-plan.ts       Plans explicit owner control requests
         automatic-plan.ts     Plans automatic run transitions
         run-read-model.ts     Controller run projection and SQL query
@@ -442,6 +455,10 @@ review or fix round starts only through an explicit owner action.
 
 `src/orchestrator/runtime/controller.ts` reads actionable Run Store states after
 event consumption and dispatches only the next eligible deterministic handler.
+`controller-cycle.ts` preserves the reconciliation order before planning, after
+each applied action, and at cycle end. The four `reconcile-*.ts` modules own
+their respective lifecycle checks; `controller-execution.ts` maps typed plans
+to internal transactions or guarded subprocesses and records request results.
 
 ```text
 admission_pending + planned       -> provision worktree
