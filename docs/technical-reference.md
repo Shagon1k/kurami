@@ -41,7 +41,9 @@ app/
       store.ts                Preview validation, publication transactions, action facade
       paths.ts                Briefing state and artifact paths
       html-artifacts.ts       HTML validation, path guards, and atomic writes
-      preview-store.ts        Prepared-edition transaction and HTML rollback
+      preview-store.ts        Preview and media-refresh transactions with HTML rollback
+      addon-publication-store.ts
+                              Published add-on replacement and HTML rollback
       edition-store.ts        Edition lookup and row contract
       interest-profile-store.ts
                               Reaction writes and topic-profile queries
