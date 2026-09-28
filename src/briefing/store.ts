@@ -19,13 +19,13 @@ import {
   assertKuramiNoteContract,
   loadTopicPolicy,
 } from "./editorial-validation.ts";
-import type { TopicDefinition } from "./editorial-validation.ts";
 import type { TelegramBatchReport } from "./telegram-batch.ts";
 import { DAILY_RETENTION_DAYS } from "./runtime-config.ts";
 import {persistOptionalWeekly} from "./weekly/persistence.ts";
 import {localDate as weeklyLocalDate} from "./weekly/model.ts";
-import { reactionSourceKeys } from "./interest-profile.ts";
 import { setSection, section, newsBatches } from "./addons/envelopes.ts";
+import { loadEdition, type EditionRow } from "./edition-store.ts";
+import { topicRegistry, type TopicRegistryRow } from "./interest-profile-store.ts";
 import {
   addonEnvelopeDigest,
   canonicalJson,
@@ -41,6 +41,12 @@ export {
   upsertAddonSnapshot,
 } from "./addons/snapshot-store.ts";
 export type { AddonSnapshotRow } from "./addons/snapshot-store.ts";
+export { loadEdition } from "./edition-store.ts";
+export type { EditionRow } from "./edition-store.ts";
+export { setReaction, topicProfile, topicPairProfile, topicRegistry } from "./interest-profile-store.ts";
+export type { TopicProfileRow, TopicPairProfileRow, TopicRegistryRow } from "./interest-profile-store.ts";
+export { recordTelegramValidation, createTelegramCommitPlan } from "./telegram-commit-store.ts";
+export type { TelegramCommitPlan } from "./telegram-commit-store.ts";
 
 process.umask(0o077);
 
@@ -59,39 +65,6 @@ export type BriefingPaths = {
   stateArtifactsDirectory: string;
 };
 
-export type EditionRow = {
-  id: string;
-  edition_type: "daily" | "cinema";
-  local_date: string;
-  timezone: string;
-  state: "prepared" | "complete" | "partial" | "aborted";
-  payload_json: string;
-  html_path: string;
-  content_digest: string;
-  preview_enabled: 0 | 1;
-  is_current: 0 | 1;
-  prepared_at: string;
-  published_at: string | null;
-  retention_until: string;
-  updated_at: string;
-};
-
-export type TopicProfileRow = {
-  topicId: string;
-  label: string;
-  likes: number;
-  dislikes: number;
-};
-
-export type TopicPairProfileRow = {
-  topicIds: [string, string];
-  likes: number;
-  dislikes: number;
-  reactions: number;
-};
-
-export type TopicRegistryRow = TopicDefinition;
-
 export type PreparedMailAction = {
   actionId: string;
   editionId: string;
@@ -104,16 +77,6 @@ export type SourceCommitResult = {
   sourceKey: string;
   status: "committed" | "failed";
   errorCode?: string;
-};
-
-export type TelegramCommitPlan = {
-  editionId: string;
-  planDigest: string;
-  sources: Array<{
-    sourceKey: string;
-    chatId: number;
-    maxId: number;
-  }>;
 };
 
 export type AddonEditionPromotion = {
@@ -967,194 +930,6 @@ export async function revisePublishedEdition(
   }
 }
 
-function telegramBatchMap(payload: BriefingPayload): Map<string, {
-  providerSourceId: string;
-  itemIds: string[];
-  maxItemId: string;
-}> {
-  return new Map((newsBatches(payload) ?? []).map((batch) => [batch.sourceKey, {
-    providerSourceId: batch.providerSourceId,
-    itemIds: [...batch.itemIds].sort(),
-    maxItemId: batch.maxItemId,
-  }]));
-}
-
-function assertValidationMatchesPayload(payload: BriefingPayload, report: TelegramBatchReport): void {
-  const batches = telegramBatchMap(payload);
-  const reports = new Map(report.channels
-    .filter((channel) => channel.itemIds.length > 0)
-    .map((channel) => [`telegram:${channel.sourceKey}`, channel]));
-  if (batches.size !== reports.size) {
-    fail(`Telegram validation covers ${reports.size} non-empty sources; payload contains ${batches.size}`);
-  }
-  for (const [sourceKey, batch] of batches) {
-    const channel = reports.get(sourceKey);
-    if (!channel) fail(`Telegram validation is missing ${sourceKey}`);
-    if (String(channel.channelId) !== batch.providerSourceId) {
-      fail(`Telegram validation channel ID differs for ${sourceKey}`);
-    }
-    const itemIds = channel.itemIds.map(String).sort();
-    if (itemIds.length !== batch.itemIds.length
-      || itemIds.some((itemId, index) => itemId !== batch.itemIds[index])) {
-      fail(`Telegram validation item IDs differ for ${sourceKey}`);
-    }
-    if (channel.upperMessageId === null || String(channel.upperMessageId) !== batch.maxItemId) {
-      fail(`Telegram validation upper boundary differs for ${sourceKey}`);
-    }
-  }
-}
-
-export function recordTelegramValidation(
-  database: DatabaseSync,
-  editionId: string,
-  report: TelegramBatchReport,
-  digests: { raw: string; normalized: string },
-): void {
-  const edition = loadEdition(database, { id: editionId });
-  if (!edition || edition.state !== "prepared") fail("Telegram validation requires a prepared edition");
-  const payload = parseBriefingPayload(JSON.parse(edition.payload_json) as unknown);
-  if (payload.schemaVersion !== 2) fail("Telegram validation requires schemaVersion 2");
-  assertTelegramStoryCoverage(payload);
-  assertValidationMatchesPayload(payload, report);
-  const timestamp = now();
-  database.prepare(`
-    INSERT INTO telegram_validation_receipts (
-      edition_id, raw_digest, normalized_digest, report_json,
-      commit_plan_json, commit_plan_digest, validated_at, planned_at
-    ) VALUES (?, ?, ?, ?, NULL, NULL, ?, NULL)
-    ON CONFLICT(edition_id) DO UPDATE SET
-      raw_digest = excluded.raw_digest,
-      normalized_digest = excluded.normalized_digest,
-      report_json = excluded.report_json,
-      commit_plan_json = NULL,
-      commit_plan_digest = NULL,
-      validated_at = excluded.validated_at,
-      planned_at = NULL
-  `).run(
-    editionId,
-    digests.raw,
-    digests.normalized,
-    JSON.stringify(report),
-    timestamp,
-  );
-}
-
-function storyMediaExpectations(
-  payload: BriefingPayload,
-  report: TelegramBatchReport,
-): Map<string, Set<string>> {
-  const availableMedia = new Set(report.channels.flatMap((channel) =>
-    channel.mediaItemIds.map((itemId) => `telegram:${channel.sourceKey}:${itemId}`)
-  ));
-  const result = new Map<string, Set<string>>();
-  for (const story of section(payload, "news").items) {
-    const expected = new Set<string>();
-    const sources = Array.isArray(story.sources) ? story.sources : [];
-    for (const sourceValue of sources) {
-      if (typeof sourceValue !== "object" || sourceValue === null || Array.isArray(sourceValue)) continue;
-      const source = sourceValue as Record<string, unknown>;
-      const sourceKey = typeof source.sourceKey === "string"
-        ? source.sourceKey
-        : typeof source.sourceId === "string" ? `telegram:${source.sourceId}` : "";
-      const canonicalSourceKey = sourceKey.startsWith("telegram:") ? sourceKey : `telegram:${sourceKey}`;
-      const itemIds = new Set(Array.isArray(source.itemIds)
-        ? source.itemIds.filter((itemId): itemId is string => typeof itemId === "string")
-        : []);
-      const mediaItemIds = Array.isArray(source.mediaMessageIds)
-        ? source.mediaMessageIds.filter((itemId): itemId is string => typeof itemId === "string")
-        : [];
-      for (const itemId of mediaItemIds) {
-        if (!itemIds.has(itemId)) fail(`Story ${story.id} media item ${itemId} is not a source item`);
-        const key = `${canonicalSourceKey}:${itemId}`;
-        if (!availableMedia.has(key)) fail(`Story ${story.id} claims unknown Telegram media ${key}`);
-        expected.add(key);
-      }
-      for (const itemId of itemIds) {
-        const key = `${canonicalSourceKey}:${itemId}`;
-        if (availableMedia.has(key) && !expected.has(key)) {
-          fail(`Story ${story.id} omitted retained Telegram media ${key}`);
-        }
-      }
-    }
-    if (expected.size > 12) fail(`Story ${story.id} exceeds the twelve-asset media limit`);
-    const imported = new Set((story.media ?? []).map((asset) =>
-      asset.sourceKey && asset.providerItemId ? `${asset.sourceKey}:${asset.providerItemId}` : ""
-    ));
-    imported.delete("");
-    if (expected.size !== (story.media?.length ?? 0) || imported.size !== expected.size
-      || [...expected].some((key) => !imported.has(key))) {
-      fail(`Story ${story.id} imported ${(story.media?.length ?? 0)} of ${expected.size} expected media assets`);
-    }
-    result.set(story.id, expected);
-  }
-  return result;
-}
-
-export function createTelegramCommitPlan(
-  database: DatabaseSync,
-  editionId: string,
-): TelegramCommitPlan {
-  const edition = loadEdition(database, { id: editionId });
-  if (!edition || edition.state !== "prepared") fail("Telegram commit plan requires a prepared edition");
-  const payload = parseBriefingPayload(JSON.parse(edition.payload_json) as unknown);
-  if (payload.schemaVersion !== 2) fail("Telegram commit plan requires schemaVersion 2");
-  assertTelegramStoryCoverage(payload);
-  const receipt = database.prepare(`
-    SELECT report_json FROM telegram_validation_receipts WHERE edition_id = ?
-  `).get(editionId) as { report_json: string } | undefined;
-  if (!receipt) fail("Telegram commit plan requires a persisted raw/normalized validation receipt");
-  const report = JSON.parse(receipt.report_json) as TelegramBatchReport;
-  if (report.complete !== true) {
-    fail("Telegram commit plan requires a complete raw/normalized capture");
-  }
-  assertValidationMatchesPayload(payload, report);
-  storyMediaExpectations(payload, report);
-  const sources = report.channels
-    .filter((channel) => channel.itemIds.length > 0)
-    .map((channel) => ({
-      sourceKey: `telegram:${channel.sourceKey}`,
-      chatId: channel.channelId,
-      maxId: channel.upperMessageId!,
-    }))
-    .sort((left, right) => left.sourceKey.localeCompare(right.sourceKey));
-  if (sources.some((source) => !Number.isSafeInteger(source.chatId)
-    || !Number.isSafeInteger(source.maxId) || source.maxId < 1)) {
-    fail("Telegram commit plan contains an unsafe provider identifier");
-  }
-  const planBody = { editionId, sources };
-  const planDigest = createHash("sha256").update(JSON.stringify(planBody)).digest("hex");
-  const plan = { ...planBody, planDigest };
-  const timestamp = now();
-  database.prepare(`
-    UPDATE telegram_validation_receipts
-    SET commit_plan_json = ?, commit_plan_digest = ?, planned_at = ?
-    WHERE edition_id = ?
-  `).run(JSON.stringify(plan), planDigest, timestamp, editionId);
-  return plan;
-}
-
-export function loadEdition(
-  database: DatabaseSync,
-  selector: { id?: string; type?: "daily" | "cinema"; date?: string; current?: boolean },
-): EditionRow | null {
-  if (selector.id) {
-    return (database.prepare("SELECT * FROM editions WHERE id = ?").get(selector.id) as
-      | EditionRow
-      | undefined) ?? null;
-  }
-  if (selector.current && selector.type) {
-    return (database
-      .prepare("SELECT * FROM editions WHERE edition_type = ? AND is_current = 1")
-      .get(selector.type) as EditionRow | undefined) ?? null;
-  }
-  if (selector.type && selector.date) {
-    return (database
-      .prepare("SELECT * FROM editions WHERE edition_type = ? AND local_date = ?")
-      .get(selector.type, selector.date) as EditionRow | undefined) ?? null;
-  }
-  fail("Incomplete edition selector");
-}
-
 export async function readEditionHtml(
   edition: EditionRow,
   paths: BriefingPaths = briefingPaths(),
@@ -1524,151 +1299,6 @@ export function finalizeEdition(
     database.exec("ROLLBACK");
     throw error;
   }
-}
-
-export function setReaction(
-  database: DatabaseSync,
-  editionId: string,
-  itemId: string,
-  reaction: Reaction | "clear",
-): void {
-  const item = database
-    .prepare(`
-      SELECT story_fingerprint, topic_ids_json
-      FROM edition_items
-      WHERE edition_id = ? AND item_id = ? AND item_type = 'story'
-    `)
-    .get(editionId, itemId) as
-    | { story_fingerprint: string | null; topic_ids_json: string }
-    | undefined;
-  if (!item?.story_fingerprint) fail("Unknown briefing story");
-  const edition = loadEdition(database, { id: editionId });
-  const payload = edition ? parseBriefingPayload(JSON.parse(edition.payload_json)) : null;
-  const story = payload && briefingAddonEnabled(payload, "news")
-    ? section(payload, "news").items.find(story => story.id === itemId) : undefined;
-  if (!story) fail("Unknown briefing story");
-  const context = JSON.stringify({ version: 1, sources: reactionSourceKeys(story) });
-  const timestamp = now();
-  database.exec("BEGIN IMMEDIATE");
-  try {
-    database
-      .prepare("UPDATE edition_items SET reaction = ?, updated_at = ? WHERE edition_id = ? AND item_id = ?")
-      .run(reaction === "clear" ? null : reaction, timestamp, editionId, itemId);
-    database
-      .prepare(`
-        INSERT INTO reaction_events (
-          story_fingerprint, topic_ids_json, reaction, recorded_at, context_json
-        ) VALUES (?, ?, ?, ?, ?)
-      `)
-      .run(item.story_fingerprint, item.topic_ids_json, reaction, timestamp, context);
-    database.exec("COMMIT");
-  } catch (error) {
-    database.exec("ROLLBACK");
-    throw error;
-  }
-}
-
-export function topicProfile(database: DatabaseSync): TopicProfileRow[] {
-  return database
-    .prepare(`
-      WITH ranked AS (
-        SELECT story_fingerprint, topic_ids_json, reaction,
-               ROW_NUMBER() OVER (
-                 PARTITION BY story_fingerprint ORDER BY event_id DESC
-               ) AS position
-        FROM reaction_events
-      ), current_reactions AS (
-        SELECT story_fingerprint, topic_ids_json, reaction
-        FROM ranked
-        WHERE position = 1 AND reaction != 'clear'
-      )
-      SELECT topics.value AS topic_id,
-             COALESCE(registry.label, topics.value) AS label,
-             SUM(CASE WHEN current_reactions.reaction = 'like' THEN 1 ELSE 0 END) AS likes,
-             SUM(CASE WHEN current_reactions.reaction = 'dislike' THEN 1 ELSE 0 END) AS dislikes
-      FROM current_reactions, json_each(current_reactions.topic_ids_json) AS topics
-      LEFT JOIN topic_registry registry ON registry.id = topics.value
-      GROUP BY topics.value, registry.label
-      ORDER BY likes DESC, dislikes ASC, topics.value ASC
-    `)
-    .all()
-    .map((row) => {
-      const value = row as { topic_id: string; label: string; likes: number; dislikes: number };
-      return {
-        topicId: value.topic_id,
-        label: value.label,
-        likes: Number(value.likes),
-        dislikes: Number(value.dislikes),
-      };
-    });
-}
-
-export function topicPairProfile(database: DatabaseSync): TopicPairProfileRow[] {
-  const current = database.prepare(`
-    WITH ranked AS (
-      SELECT story_fingerprint, topic_ids_json, reaction,
-             ROW_NUMBER() OVER (
-               PARTITION BY story_fingerprint ORDER BY event_id DESC
-             ) AS position
-      FROM reaction_events
-    )
-    SELECT topic_ids_json, reaction
-    FROM ranked
-    WHERE position = 1 AND reaction != 'clear'
-  `).all() as Array<{ topic_ids_json: string; reaction: "like" | "dislike" }>;
-  const pairs = new Map<string, { topicIds: [string, string]; likes: number; dislikes: number }>();
-  for (const item of current) {
-    let topics: string[];
-    try {
-      const parsed = JSON.parse(item.topic_ids_json) as unknown;
-      topics = Array.isArray(parsed)
-        ? [...new Set(parsed.filter((value): value is string => typeof value === "string"))].sort()
-        : [];
-    } catch {
-      topics = [];
-    }
-    for (let left = 0; left < topics.length; left += 1) {
-      for (let right = left + 1; right < topics.length; right += 1) {
-        const topicIds: [string, string] = [topics[left]!, topics[right]!];
-        const key = topicIds.join("+");
-        const value = pairs.get(key) ?? { topicIds, likes: 0, dislikes: 0 };
-        if (item.reaction === "like") value.likes += 1;
-        else value.dislikes += 1;
-        pairs.set(key, value);
-      }
-    }
-  }
-  return [...pairs.values()]
-    .map((value) => ({ ...value, reactions: value.likes + value.dislikes }))
-    .filter((value) => value.reactions >= 3)
-    .sort((left, right) => right.reactions - left.reactions || left.topicIds.join("+").localeCompare(right.topicIds.join("+")));
-}
-
-export function topicRegistry(database: DatabaseSync): TopicRegistryRow[] {
-  return database
-    .prepare(`
-      SELECT id, label, aliases_json, status
-      FROM topic_registry
-      WHERE status IN ('active', 'proposed')
-      ORDER BY status ASC, id ASC
-    `)
-    .all()
-    .map((row) => {
-      const value = row as {
-        id: string;
-        label: string;
-        aliases_json: string;
-        status: "active" | "proposed";
-      };
-      let aliases: string[] = [];
-      try {
-        const parsed = JSON.parse(value.aliases_json) as unknown;
-        if (Array.isArray(parsed)) aliases = parsed.filter((item): item is string => typeof item === "string");
-      } catch {
-        aliases = [];
-      }
-      return { id: value.id, label: value.label, aliases, status: value.status };
-    });
 }
 
 export async function cleanupExpired(

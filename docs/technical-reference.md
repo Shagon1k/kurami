@@ -37,11 +37,26 @@ app/
   src/
     core/
       kurami-home.ts          Canonical KURAMI_HOME resolution
+    briefing/
+      store.ts                Preview, publication, and action facade
+      edition-store.ts        Edition lookup and row contract
+      interest-profile-store.ts
+                              Reaction writes and topic-profile queries
+      telegram-commit-store.ts
+                              Telegram validation receipts and commit plans
+      addons/
+        snapshot-store.ts     Independent add-on snapshot persistence
+      weekly/
+        persistence.ts       Isolates optional Weekly publication writes
     discord/
       ui.ts                   Shared Discord Components V2 primitives
     orchestrator/
       runtime/
-        controller.ts         Plans and dispatches eligible state transitions
+        controller.ts         Reconciles state and dispatches planned actions
+        request-plan.ts       Plans explicit owner control requests
+        automatic-plan.ts     Plans automatic run transitions
+        run-read-model.ts     Controller run projection and SQL query
+        run-predicates.ts     Shared freshness and preview guards
       state/
         init-run-store.ts     Applies migrations and checks DB integrity
       controls/
@@ -85,6 +100,7 @@ app/
           fix-manager.ts      Resolves and recovers bounded review-fix rounds
         sessions/
           manager.ts          Starts, parks, hands off, and finalizes Codex TUI sessions
+          prompts.ts          Builds bounded Codex task instructions
           observe.ts          Deduplicates persistent CLI attention conditions
           runtime-budget.ts   Enforces bounded main/technical task runtimes
           autonomous-successor.ts
