@@ -37,9 +37,11 @@ import { renderBriefingPage } from "../../src/briefing/ui/render-page.ts";
 import {
   briefingPaths,
   initializeBriefingStore,
+  loadAddonSnapshot,
   loadEdition,
   openBriefingDatabase,
   preparePreview,
+  replacePublishedAddonEdition,
   validateRenderedHtml,
   type BriefingPaths,
 } from "../../src/briefing/store.ts";
@@ -859,6 +861,49 @@ try {
   } finally {
     atomicDatabase.close();
   }
+
+  const editionHtmlPath = resolve(atomicPaths.previewDirectory, "cinema-2026-08-29.html");
+  const originalHtml = await readFile(editionHtmlPath, "utf8");
+  const replacementFault = openBriefingDatabase(atomicPaths);
+  let originalEditionDigest: string | undefined;
+  let originalSnapshotDigest: string | undefined;
+  try {
+    originalEditionDigest = loadEdition(replacementFault, { id: cinemaPayload.edition.id })?.content_digest;
+    originalSnapshotDigest = loadAddonSnapshot(replacementFault, "cinema")?.contentDigest;
+    replacementFault.exec(`
+      CREATE TABLE replacement_fault_parent (id INTEGER PRIMARY KEY) STRICT;
+      CREATE TABLE replacement_fault_child (
+        id INTEGER PRIMARY KEY,
+        parent_id INTEGER NOT NULL REFERENCES replacement_fault_parent(id)
+          DEFERRABLE INITIALLY DEFERRED
+      ) STRICT;
+      CREATE TRIGGER replacement_fault AFTER UPDATE ON editions BEGIN
+        INSERT INTO replacement_fault_child (id, parent_id) VALUES (1, 42);
+      END;
+    `);
+  } finally {
+    replacementFault.close();
+  }
+  try {
+    await assert.rejects(
+      replacePublishedAddonEdition(cinemaPayload, `${cinemaHtml}<!-- replacement-failure-probe -->`, "cinema", atomicPaths),
+      /FOREIGN KEY constraint failed/,
+    );
+  } finally {
+    const cleanup = openBriefingDatabase(atomicPaths);
+    try {
+      cleanup.exec(`
+        DROP TRIGGER replacement_fault;
+        DROP TABLE replacement_fault_child;
+        DROP TABLE replacement_fault_parent;
+      `);
+      assert.equal(loadEdition(cleanup, { id: cinemaPayload.edition.id })?.content_digest, originalEditionDigest);
+      assert.equal(loadAddonSnapshot(cleanup, "cinema")?.contentDigest, originalSnapshotDigest);
+    } finally {
+      cleanup.close();
+    }
+  }
+  assert.equal(await readFile(editionHtmlPath, "utf8"), originalHtml);
 
 } finally {
   await rm(atomicRoot, { recursive: true, force: true });

@@ -42,6 +42,7 @@ import {
   loadAddonSnapshot,
   loadEdition,
   openBriefingDatabase,
+  refreshPreparedPreviewMedia,
   revisePublishedEdition,
   rerenderPublishedPreview,
   retainedDailyEditions,
@@ -1210,6 +1211,10 @@ try {
 try {
   await assert.rejects(
     preparePreview(payload, `${html}<!-- commit-failure-probe -->`, paths),
+    /FOREIGN KEY constraint failed/,
+  );
+  await assert.rejects(
+    refreshPreparedPreviewMedia(parseBriefingPayload(payload), `${html}<!-- media-commit-failure-probe -->`, paths),
     /FOREIGN KEY constraint failed/,
   );
 } finally {

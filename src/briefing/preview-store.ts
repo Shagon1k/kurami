@@ -1,10 +1,12 @@
 import { createHash } from "node:crypto";
 import { readFile, unlink } from "node:fs/promises";
 import type { DatabaseSync } from "node:sqlite";
-import { newsBatches, section } from "./addons/envelopes.ts";
+import { newsBatches, section, setSection } from "./addons/envelopes.ts";
+import { canonicalJson } from "./addons/snapshot-store.ts";
+import { loadEdition } from "./edition-store.ts";
 import type { TopicPolicy } from "./editorial-validation.ts";
 import { atomicWrite, relativeHtmlPath, resolvedHtmlPath } from "./html-artifacts.ts";
-import { persistedItems, type BriefingPayload, type Reaction } from "./model.ts";
+import { parseBriefingPayload, persistedItems, type BriefingPayload, type Reaction } from "./model.ts";
 import type { BriefingPaths } from "./paths.ts";
 
 export async function persistPreparedPreview(
@@ -217,4 +219,85 @@ export async function persistPreparedPreview(
   }
 
   return digest;
+}
+
+function mediaRefreshInvariant(payload: BriefingPayload): string {
+  const { mediaSummary: _mediaSummary, summary: _summary, telegramCollection, ...quality } = payload.dataQuality;
+  const collection = telegramCollection && typeof telegramCollection === "object" && !Array.isArray(telegramCollection)
+    ? telegramCollection as Record<string, unknown>
+    : {};
+  const {
+    downloaded: _downloaded,
+    imported: _imported,
+    storiesWithMedia: _storiesWithMedia,
+    ...stableCollection
+  } = collection;
+  const invariant = {
+    ...payload,
+    ...(payload.addons ? { addons: structuredClone(payload.addons) } : {}),
+    dataQuality: {
+      ...quality,
+      ...(Object.keys(stableCollection).length ? { telegramCollection: stableCollection } : {}),
+    },
+  };
+  if (invariant.addons.news) setSection(invariant, "news", {
+    ...section(payload, "news"), items: section(payload, "news").items.map(({ media: _media, ...story }) => story),
+  });
+  return canonicalJson(JSON.parse(JSON.stringify(invariant)) as unknown);
+}
+
+function fail(message: string): never {
+  throw new Error(message);
+}
+
+export async function persistPreparedMediaRefresh(
+  database: DatabaseSync,
+  payload: BriefingPayload,
+  html: string,
+  paths: BriefingPaths,
+): Promise<{ editionId: string; digest: string }> {
+  let previousHtml: string | null = null;
+  let htmlPath = "";
+  let wroteHtml = false;
+  const edition = loadEdition(database, { id: payload.edition.id });
+  if (!edition || edition.state !== "prepared") {
+    fail(`Edition ${payload.edition.id} is not prepared`);
+  }
+  const existing = parseBriefingPayload(JSON.parse(edition.payload_json) as unknown);
+  if (mediaRefreshInvariant(payload) !== mediaRefreshInvariant(existing)) {
+    fail("Prepared media refresh cannot change editorial or source content");
+  }
+  if (edition.html_path !== relativeHtmlPath(paths, payload)) {
+    fail("Prepared media refresh cannot change the edition page path");
+  }
+
+  const payloadJson = JSON.stringify(payload);
+  const digest = createHash("sha256").update(payloadJson).update("\0").update(html).digest("hex");
+  htmlPath = resolvedHtmlPath(paths, edition.html_path);
+  previousHtml = await readFile(htmlPath, "utf8").catch((error: NodeJS.ErrnoException) => {
+    if (error.code === "ENOENT") return null;
+    throw error;
+  });
+  const timestamp = new Date().toISOString();
+
+  database.exec("BEGIN IMMEDIATE");
+  try {
+    await atomicWrite(htmlPath, html);
+    wroteHtml = true;
+    const update = database.prepare(`
+      UPDATE editions
+      SET payload_json = ?, content_digest = ?, retention_until = ?, updated_at = ?
+      WHERE id = ? AND state = 'prepared'
+    `).run(payloadJson, digest, payload.edition.retentionUntil, timestamp, edition.id);
+    if (update.changes !== 1) fail("Prepared edition changed during media refresh");
+    database.exec("COMMIT");
+  } catch (error) {
+    database.exec("ROLLBACK");
+    if (wroteHtml) {
+      if (previousHtml === null) await unlink(htmlPath).catch(() => undefined);
+      else await atomicWrite(htmlPath, previousHtml);
+    }
+    throw error;
+  }
+  return { editionId: edition.id, digest };
 }

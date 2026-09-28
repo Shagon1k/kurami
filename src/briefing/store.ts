@@ -26,10 +26,10 @@ import { loadEdition, type EditionRow } from "./edition-store.ts";
 import { topicRegistry, type TopicRegistryRow } from "./interest-profile-store.ts";
 import { briefingPaths, type BriefingPaths } from "./paths.ts";
 import { atomicWrite, relativeHtmlPath, resolvedHtmlPath, validateRenderedHtml } from "./html-artifacts.ts";
-import { persistPreparedPreview } from "./preview-store.ts";
+import { persistPreparedMediaRefresh, persistPreparedPreview } from "./preview-store.ts";
+import { persistPublishedAddonReplacement } from "./addon-publication-store.ts";
 import {
   addonEnvelopeDigest,
-  canonicalJson,
   checkedAddonId,
   loadAddonSnapshot,
   upsertAddonSnapshot,
@@ -213,30 +213,6 @@ export async function preparePreview(
   };
 }
 
-function mediaRefreshInvariant(payload: BriefingPayload): string {
-  const { mediaSummary: _mediaSummary, summary: _summary, telegramCollection, ...quality } = payload.dataQuality;
-  const collection = telegramCollection && typeof telegramCollection === "object" && !Array.isArray(telegramCollection)
-    ? telegramCollection as Record<string, unknown>
-    : {};
-  const {
-    downloaded: _downloaded,
-    imported: _imported,
-    storiesWithMedia: _storiesWithMedia,
-    ...stableCollection
-  } = collection;
-  const invariant = {
-    ...payload,
-    ...(payload.addons ? { addons: structuredClone(payload.addons) } : {}),
-    dataQuality: {
-      ...quality,
-      ...(Object.keys(stableCollection).length ? { telegramCollection: stableCollection } : {}),
-    },
-  };
-  if (invariant.addons.news) setSection(invariant, "news", {
-    ...section(payload, "news"), items: section(payload, "news").items.map(({ media: _media, ...story }) => story),
-  });
-  return canonicalJson(JSON.parse(JSON.stringify(invariant)) as unknown);
-}
 
 /**
  * Persist media downloaded for an already validated prepared edition.
@@ -264,52 +240,10 @@ export async function refreshPreparedPreviewMedia(
   validateRenderedHtml(html, payload);
 
   const database = openBriefingDatabase(paths);
-  let previousHtml: string | null = null;
-  let htmlPath = "";
-  let wroteHtml = false;
   try {
-    const edition = loadEdition(database, { id: payload.edition.id });
-    if (!edition || edition.state !== "prepared") {
-      fail(`Edition ${payload.edition.id} is not prepared`);
-    }
-    const existing = parseBriefingPayload(JSON.parse(edition.payload_json) as unknown);
-    if (mediaRefreshInvariant(payload) !== mediaRefreshInvariant(existing)) {
-      fail("Prepared media refresh cannot change editorial or source content");
-    }
-    if (edition.html_path !== relativeHtmlPath(paths, payload)) {
-      fail("Prepared media refresh cannot change the edition page path");
-    }
-
-    const payloadJson = JSON.stringify(payload);
-    const digest = createHash("sha256").update(payloadJson).update("\0").update(html).digest("hex");
-    htmlPath = resolvedHtmlPath(paths, edition.html_path);
-    previousHtml = await readFile(htmlPath, "utf8").catch((error: NodeJS.ErrnoException) => {
-      if (error.code === "ENOENT") return null;
-      throw error;
-    });
-    const timestamp = now();
-
-    database.exec("BEGIN IMMEDIATE");
-    try {
-      await atomicWrite(htmlPath, html);
-      wroteHtml = true;
-      const update = database.prepare(`
-        UPDATE editions
-        SET payload_json = ?, content_digest = ?, retention_until = ?, updated_at = ?
-        WHERE id = ? AND state = 'prepared'
-      `).run(payloadJson, digest, payload.edition.retentionUntil, timestamp, edition.id);
-      if (update.changes !== 1) fail("Prepared edition changed during media refresh");
-      database.exec("COMMIT");
-    } catch (error) {
-      database.exec("ROLLBACK");
-      if (wroteHtml) {
-        if (previousHtml === null) await unlink(htmlPath).catch(() => undefined);
-        else await atomicWrite(htmlPath, previousHtml);
-      }
-      throw error;
-    }
+    const { editionId, digest } = await persistPreparedMediaRefresh(database, payload, html, paths);
     return {
-      editionId: edition.id,
+      editionId,
       previewPath: `/preview/${payload.edition.type}/${payload.edition.localDate}`,
       digest,
       state: "prepared",
@@ -368,50 +302,11 @@ export async function replacePublishedAddonEdition(
   await initializeBriefingStore(paths);
 
   const database = openBriefingDatabase(paths);
-  let previousHtml: string | null = null;
-  let htmlPath = "";
-  let wroteHtml = false;
   try {
-    const edition = loadEdition(database, { id: payload.edition.id });
-    if (!edition || (edition.state !== "complete" && edition.state !== "partial") || edition.is_current !== 1) {
-      fail(`Add-on edition ${payload.edition.id} is not the current published edition`);
-    }
-    const existing = parseBriefingPayload(JSON.parse(edition.payload_json) as unknown);
-    if (existing.edition.type !== payload.edition.type
-      || existing.edition.localDate !== payload.edition.localDate
-      || existing.edition.timezone !== payload.edition.timezone) {
-      fail("Add-on replacement cannot change edition identity");
-    }
-    const currentSnapshot = loadAddonSnapshot(database, addonId);
-    if (currentSnapshot && Date.parse(envelope.capturedAt) < Date.parse(currentSnapshot.envelope.capturedAt)) {
-      fail(`Replacement ${addonId} snapshot is older than the current snapshot`);
-    }
-
-    const payloadJson = JSON.stringify(payload);
-    const digest = createHash("sha256").update(payloadJson).update("\0").update(html).digest("hex");
-    htmlPath = resolvedHtmlPath(paths, edition.html_path);
-    previousHtml = await readFile(htmlPath, "utf8");
-    const timestamp = now();
-    const state = payload.edition.status;
-
-    database.exec("BEGIN IMMEDIATE");
-    try {
-      await atomicWrite(htmlPath, html);
-      wroteHtml = true;
-      const update = database.prepare(`
-        UPDATE editions
-        SET state = ?, payload_json = ?, content_digest = ?, updated_at = ?
-        WHERE id = ? AND is_current = 1
-      `).run(state, payloadJson, digest, timestamp, edition.id);
-      if (update.changes !== 1) fail("Current add-on edition changed during replacement");
-      upsertAddonSnapshot(database, addonId, envelope);
-      database.exec("COMMIT");
-    } catch (error) {
-      database.exec("ROLLBACK");
-      if (wroteHtml && previousHtml !== null) await atomicWrite(htmlPath, previousHtml);
-      throw error;
-    }
-    return { editionId: edition.id, publicationPath: "/cinema", digest, state };
+    const { editionId, digest, state } = await persistPublishedAddonReplacement(
+      database, payload, html, addonId, envelope, paths,
+    );
+    return { editionId, publicationPath: "/cinema", digest, state };
   } finally {
     database.close();
   }
