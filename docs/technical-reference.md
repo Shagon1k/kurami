@@ -110,7 +110,11 @@ app/
           worker.ts           Publishes one bounded native GitHub PR review
           fix-manager.ts      Resolves and recovers bounded review-fix rounds
         sessions/
-          manager.ts          Starts, parks, hands off, and finalizes Codex TUI sessions
+          manager.ts          CLI entry, sync, cleanup, and recovery actions
+          session-types.ts    Shared run and session contracts
+          session-shared.ts   DB lookup, history, and guarded Git/tmux helpers
+          session-start.ts    Validates, claims, launches, and records Codex sessions
+          session-stop.ts     Guards delivery, releases CLI ownership, and finalizes stops
           prompts.ts          Builds bounded Codex task instructions
           observe.ts          Deduplicates persistent CLI attention conditions
           runtime-budget.ts   Enforces bounded main/technical task runtimes
@@ -825,9 +829,11 @@ The controller invokes this canonical path.
 
 ### Session Manager
 
-`src/orchestrator/projects/sessions/manager.ts` starts interactive Codex TUI
-processes only for live
-runs whose worktree is already `provisioned`. The default `start` action is
+`src/orchestrator/projects/sessions/manager.ts` exposes the session CLI.
+`session-start.ts` validates, claims, launches, and records Codex TUI sessions;
+`session-stop.ts` guards handoff and records ownership release after tmux exits.
+Sessions start only for live runs whose worktree is already `provisioned`.
+The default `start` action is
 plan-only; `--apply` claims a unique `cx-*` tmux identity, enforces the global
 tmux cap, starts Codex in the recorded worktree with the initial engineering
 prompt passed directly to the CLI, moves ownership to `cli`, and records the run
