@@ -33,6 +33,7 @@ const suites = [
   "test:preview-policy",
   "test:preview-static",
   "test:controls",
+  "test:controller-planning",
   "test:observer",
   "test:discord",
   "test:discord-plugin",
