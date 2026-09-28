@@ -143,6 +143,35 @@ database.prepare("INSERT INTO edition_items(edition_id,item_id,item_type,updated
 database.prepare(`INSERT INTO action_receipts(action_id,edition_id,action_type,item_ids_json,state,created_at,updated_at)
   VALUES(?,?,'mail.read_and_archive',?,'prepared',?,?)`)
   .run(mailActionId,failedWeekly.edition.id,JSON.stringify([mailItemId]),mailTimestamp,mailTimestamp);
+database.exec(`
+  CREATE TABLE mail_commit_fault_parent (id INTEGER PRIMARY KEY) STRICT;
+  CREATE TABLE mail_commit_fault_child (
+    id INTEGER PRIMARY KEY,
+    parent_id INTEGER NOT NULL REFERENCES mail_commit_fault_parent(id)
+      DEFERRABLE INITIALLY DEFERRED
+  ) STRICT;
+  CREATE TRIGGER mail_commit_fault AFTER UPDATE ON action_receipts BEGIN
+    INSERT INTO mail_commit_fault_child (id, parent_id) VALUES (1, 42);
+  END;
+`);
+try {
+  assert.throws(() => finishMailReadAndArchive(database, {
+    actionId:mailActionId,editionId:failedWeekly.edition.id,itemIds:[mailItemId],providerMessageIds:[],alreadyComplete:false,
+  },{ok:true,receipt:{provider:"synthetic"}}),/FOREIGN KEY constraint failed/);
+  const receiptAfterFault=database.prepare(`SELECT state,provider_receipt_json FROM action_receipts WHERE action_id=?`)
+    .get(mailActionId) as {state:string;provider_receipt_json:string|null};
+  assert.equal(receiptAfterFault.state,"prepared");
+  assert.equal(receiptAfterFault.provider_receipt_json,null);
+  assert.equal((database.prepare(`SELECT read_at FROM edition_items WHERE edition_id=? AND item_id=?`)
+    .get(failedWeekly.edition.id,mailItemId) as {read_at:string|null}).read_at,null);
+  assert.equal(database.prepare(`SELECT 1 FROM weekly_mail_actions WHERE action_id=?`).get(mailActionId),undefined);
+} finally {
+  database.exec(`
+    DROP TRIGGER mail_commit_fault;
+    DROP TABLE mail_commit_fault_child;
+    DROP TABLE mail_commit_fault_parent;
+  `);
+}
 database.exec(`CREATE TRIGGER reject_weekly_mail_observation BEFORE INSERT ON weekly_mail_actions
   BEGIN SELECT RAISE(ABORT, 'injected weekly mail observation failure'); END`);
 finishMailReadAndArchive(database,{

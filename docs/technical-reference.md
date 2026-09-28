@@ -38,7 +38,7 @@ app/
     core/
       kurami-home.ts          Canonical KURAMI_HOME resolution
     briefing/
-      store.ts                Preview validation, publication transactions, action facade
+      store.ts                Store initialization, public facade, retention cleanup
       paths.ts                Briefing state and artifact paths
       html-artifacts.ts       HTML validation, path guards, and atomic writes
       preview-store.ts        Preview and media-refresh transactions with HTML rollback
@@ -46,6 +46,8 @@ app/
                               Published add-on replacement and HTML rollback
       published-edition-store.ts
                               Editorial revisions and dynamic refresh transactions
+      finalization-store.ts  Source commits and edition publication transaction
+      mail-action-store.ts   Read state and Gmail action receipts
       edition-store.ts        Edition lookup and row contract
       interest-profile-store.ts
                               Reaction writes and topic-profile queries

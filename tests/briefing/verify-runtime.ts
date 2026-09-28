@@ -1498,6 +1498,46 @@ try {
     { raw: "runtime-raw-digest", normalized: "runtime-normalized-digest" },
   );
   const partialPlan = createTelegramCommitPlan(persisted, "daily:2026-08-28");
+  const originalBatch = persisted.prepare(`
+    SELECT state, committed_at, error_code FROM source_batches
+    WHERE edition_id = ? AND source_key = ?
+  `).get("daily:2026-08-28", "telegram:test");
+  const originalCheckpoint = persisted.prepare(`
+    SELECT * FROM source_checkpoints WHERE source_key = ?
+  `).get("telegram:test");
+  persisted.exec(`
+    CREATE TABLE finalization_fault_parent (id INTEGER PRIMARY KEY) STRICT;
+    CREATE TABLE finalization_fault_child (
+      id INTEGER PRIMARY KEY,
+      parent_id INTEGER NOT NULL REFERENCES finalization_fault_parent(id)
+        DEFERRABLE INITIALLY DEFERRED
+    ) STRICT;
+    CREATE TRIGGER finalization_fault AFTER UPDATE OF state ON editions BEGIN
+      INSERT INTO finalization_fault_child (id, parent_id) VALUES (1, 42);
+    END;
+  `);
+  try {
+    assert.throws(
+      () => finalizeEdition(persisted, "daily:2026-08-28", [
+        { sourceKey: "telegram:test", status: "committed" },
+      ], partialPlan.planDigest),
+      /FOREIGN KEY constraint failed/,
+    );
+    assert.equal(loadEdition(persisted, { id: "daily:2026-08-28" })?.state, "prepared");
+    assert.deepEqual(persisted.prepare(`
+      SELECT state, committed_at, error_code FROM source_batches
+      WHERE edition_id = ? AND source_key = ?
+    `).get("daily:2026-08-28", "telegram:test"), originalBatch);
+    assert.deepEqual(persisted.prepare(`
+      SELECT * FROM source_checkpoints WHERE source_key = ?
+    `).get("telegram:test"), originalCheckpoint);
+  } finally {
+    persisted.exec(`
+      DROP TRIGGER finalization_fault;
+      DROP TABLE finalization_fault_child;
+      DROP TABLE finalization_fault_parent;
+    `);
+  }
   const partial = finalizeEdition(persisted, "daily:2026-08-28", [
     { sourceKey: "telegram:test", status: "failed", errorCode: "calendar_gate_blocked" },
   ], partialPlan.planDigest);
