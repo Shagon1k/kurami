@@ -10,7 +10,7 @@ import {
   selectActionableReviewThreads,
 } from "../src/orchestrator/integrations/github/review-threads.ts";
 import { loadOwnerGitHubTokenFromFile } from "../src/orchestrator/integrations/github/app-auth.ts";
-import { reviewFixPrompt } from "../src/orchestrator/projects/sessions/manager.ts";
+import { reviewFixPrompt } from "../src/orchestrator/projects/sessions/prompts.ts";
 import { buildGitHubReviewPayload } from "../src/orchestrator/projects/reviews/worker.ts";
 
 type JsonObject = Record<string, unknown>;
