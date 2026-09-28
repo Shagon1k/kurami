@@ -323,6 +323,22 @@ esac
         failedRow.tmux_session_name === null,
       "Prompt preparation failure left a claimed tmux mapping or an unreported run",
     );
+    let failedRetryRejected = false;
+    try {
+      execFileSync(
+        process.execPath,
+        [resolve(app, "src/orchestrator/projects/sessions/manager.ts"), "start", "--run-id", runId, "--apply"],
+        { encoding: "utf8", env, stdio: ["ignore", "pipe", "pipe"] },
+      );
+    } catch (error) {
+      const stderr = (error as { stderr?: string }).stderr ?? String(error);
+      failedRetryRejected = stderr.includes("not ready for session start");
+    }
+    assert(failedRetryRejected, "A failed start was retried without recovery from needs_attention");
+    const newSessionCalls = (await readFile(fakeTmuxLog, "utf8"))
+      .split("\n")
+      .filter((line) => line.startsWith("new-session "));
+    assert(newSessionCalls.length === 1, "Failed start retry attempted a second tmux session");
 
     process.stdout.write(
       `${JSON.stringify({
@@ -330,6 +346,7 @@ esac
         initialNullThreadAccepted: true,
         existingThreadRejectedByContract: existingThreadRejected,
         promptPreparationFailureReconciled: true,
+        failedRetryRejected,
         tmuxClaimed: true,
         canonicalTrustContext: true,
         state: row.state,

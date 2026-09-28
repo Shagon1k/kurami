@@ -233,6 +233,20 @@ esac
       (await readFile(fakeTmuxLog, "utf8")).includes("C-d"),
       "Handoff did not close the managed CLI session after interruption",
     );
+    const callsBeforeReplay = await readFile(fakeTmuxLog, "utf8");
+    const replay = JSON.parse(execFileSync(
+      process.execPath,
+      [resolve(appDirectory, "src/orchestrator/projects/sessions/manager.ts"), "handoff", "--run-id", runId, "--apply"],
+      { encoding: "utf8", env, stdio: ["ignore", "pipe", "pipe"] },
+    )) as { ok: boolean; action: string; codexThreadId: string };
+    assert(
+      replay.ok && replay.action === "already_remote_owned" && replay.codexThreadId === threadId,
+      "Restarted handoff did not recognize completed Remote ownership",
+    );
+    assert(
+      await readFile(fakeTmuxLog, "utf8") === callsBeforeReplay,
+      "Restarted handoff repeated a tmux side effect",
+    );
 
     const attentionRunId = "r_attention_handoff";
     const attentionTmuxSession = "cx-tt-9502-attention";
@@ -331,7 +345,7 @@ esac
     );
 
     process.stdout.write(
-      `${JSON.stringify({ ok: true, isolated: true, reviewRaceNormalized: true, boundedInterrupt: true, remoteOwned: true, tmuxReleased: true, needsAttentionHandoff: true })}\n`,
+      `${JSON.stringify({ ok: true, isolated: true, reviewRaceNormalized: true, boundedInterrupt: true, remoteOwned: true, restartIdempotent: true, tmuxReleased: true, needsAttentionHandoff: true })}\n`,
     );
   } finally {
     await rm(testHome, { recursive: true, force: true });
