@@ -38,7 +38,9 @@ app/
     core/
       kurami-home.ts          Canonical KURAMI_HOME resolution
     briefing/
-      store.ts                Preview, publication, and action facade
+      store.ts                SQLite preview/publication transactions and action facade
+      paths.ts                Briefing state and artifact paths
+      html-artifacts.ts       HTML validation, path guards, and atomic writes
       edition-store.ts        Edition lookup and row contract
       interest-profile-store.ts
                               Reaction writes and topic-profile queries

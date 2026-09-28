@@ -1,8 +1,7 @@
-import { createHash, randomUUID } from "node:crypto";
-import { chmod, mkdir, readFile, readdir, rename, rm, unlink, writeFile } from "node:fs/promises";
-import { isAbsolute, relative, resolve } from "node:path";
+import { createHash } from "node:crypto";
+import { chmod, mkdir, readFile, readdir, rm, unlink } from "node:fs/promises";
+import { resolve } from "node:path";
 import { DatabaseSync } from "node:sqlite";
-import { resolveKuramiHome } from "../core/kurami-home.ts";
 import {
   assertProductionBriefingPayload,
   briefingAddonEnabled,
@@ -26,6 +25,8 @@ import { observeCompletedMailAction } from "./weekly/mail-observation.ts";
 import { setSection, section, newsBatches } from "./addons/envelopes.ts";
 import { loadEdition, type EditionRow } from "./edition-store.ts";
 import { topicRegistry, type TopicRegistryRow } from "./interest-profile-store.ts";
+import { briefingPaths, type BriefingPaths } from "./paths.ts";
+import { atomicWrite, relativeHtmlPath, resolvedHtmlPath, validateRenderedHtml } from "./html-artifacts.ts";
 import {
   addonEnvelopeDigest,
   canonicalJson,
@@ -47,23 +48,11 @@ export { setReaction, topicProfile, topicPairProfile, topicRegistry } from "./in
 export type { TopicProfileRow, TopicPairProfileRow, TopicRegistryRow } from "./interest-profile-store.ts";
 export { recordTelegramValidation, createTelegramCommitPlan } from "./telegram-commit-store.ts";
 export type { TelegramCommitPlan } from "./telegram-commit-store.ts";
+export { briefingPaths } from "./paths.ts";
+export type { BriefingPaths } from "./paths.ts";
+export { validateRenderedHtml, readEditionHtml } from "./html-artifacts.ts";
 
 process.umask(0o077);
-
-export type BriefingPaths = {
-  home: string;
-  stateDirectory: string;
-  pagesDirectory: string;
-  previewDirectory: string;
-  mediaDirectory: string;
-  mediaInboxDirectory: string;
-  databasePath: string;
-  migrationsDirectory: string;
-  runsDirectory: string;
-  recoveryDirectory: string;
-  artifactsDirectory: string;
-  stateArtifactsDirectory: string;
-};
 
 export type PreparedMailAction = {
   actionId: string;
@@ -83,27 +72,6 @@ export type AddonEditionPromotion = {
   addonId: string;
   envelope: BriefingAddonEnvelope;
 };
-
-export function briefingPaths(environment: NodeJS.ProcessEnv = process.env): BriefingPaths {
-  const home = resolveKuramiHome(resolve(import.meta.dirname, "../../.."), environment);
-  const stateDirectory = resolve(home, "state/briefing");
-  return {
-    home,
-    stateDirectory,
-    pagesDirectory: resolve(stateDirectory, "pages"),
-    previewDirectory: resolve(stateDirectory, "pages/preview"),
-    mediaDirectory: resolve(stateDirectory, "media"),
-    mediaInboxDirectory: resolve(stateDirectory, "media-inbox"),
-    databasePath: resolve(stateDirectory, "briefing.db"),
-    migrationsDirectory: resolve(
-      environment.BRIEFING_MIGRATIONS_DIR ?? resolve(import.meta.dirname, "../../migrations/briefing"),
-    ),
-    runsDirectory: resolve(stateDirectory, "runs"),
-    recoveryDirectory: resolve(stateDirectory, "recovery"),
-    artifactsDirectory: resolve(home, "artifacts/briefing"),
-    stateArtifactsDirectory: resolve(stateDirectory, "artifacts"),
-  };
-}
 
 function now(): string {
   return new Date().toISOString();
@@ -188,94 +156,6 @@ export function openBriefingDatabase(paths: BriefingPaths = briefingPaths()): Da
   const database = new DatabaseSync(paths.databasePath, { timeout: 5_000 });
   configureDatabase(database);
   return database;
-}
-
-function htmlHasAttributes(html: string, attributes: Record<string, string | null>): boolean {
-  const tags = html.match(/<[a-z][^>]*>/gi) ?? [];
-  return tags.some((tag) =>
-    Object.entries(attributes).every(([name, value]) => {
-      const escapedName = name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-      if (value === null) return new RegExp(`\\s${escapedName}(?:\\s|=|>|\\/)`, "i").test(tag);
-      const escapedValue = value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-      return new RegExp(`\\s${escapedName}\\s*=\\s*["']${escapedValue}["']`, "i").test(tag);
-    }),
-  );
-}
-
-export function validateRenderedHtml(html: string, payload?: BriefingPayload): void {
-  if (Buffer.byteLength(html, "utf8") > 2 * 1024 * 1024) fail("Rendered HTML exceeds 2 MiB");
-  if (!/^\s*<!doctype html>/i.test(html)) fail("Rendered HTML must begin with a doctype");
-  if (!/<html\b/i.test(html) || !/<body\b/i.test(html) || !/<\/body>/i.test(html)) {
-    fail("Rendered HTML must contain html and body elements");
-  }
-  const forbidden: Array<[RegExp, string]> = [
-    [/<script\b/i, "script elements"],
-    [/<(?:iframe|object|embed|base|form)\b/i, "active embedded content"],
-    [/<[a-z][^>]*\son[a-z]+\s*=/i, "inline event handlers"],
-    [/<meta[^>]+http-equiv\s*=\s*["']?refresh/i, "meta refresh"],
-  ];
-  for (const [pattern, label] of forbidden) {
-    if (pattern.test(html)) fail(`Rendered HTML contains forbidden ${label}`);
-  }
-  if (!htmlHasAttributes(html, { "data-theme-toggle": null })) {
-    fail("Rendered HTML must contain a visible theme toggle");
-  }
-  if (!payload) return;
-
-  for (const story of briefingAddonEnabled(payload, "news") ? section(payload, "news").items : []) {
-    const itemAttributes = { "data-item-id": story.id };
-    if (!htmlHasAttributes(html, { ...itemAttributes, "data-feed-item": null })) {
-      fail(`Rendered HTML is missing feed item ${story.id}`);
-    }
-    if (
-      !htmlHasAttributes(html, {
-        ...itemAttributes,
-        "data-edition-id": payload.edition.id,
-        "data-story-details": null,
-      })
-    ) {
-      fail(`Rendered HTML is missing expandable details for ${story.id}`);
-    }
-  }
-
-  const pageSize = section(payload, "news").pageSize ?? 10;
-  if (briefingAddonEnabled(payload, "news") && section(payload, "news").items.length > pageSize) {
-    for (const attribute of [
-      "data-paginated-feed",
-      "data-feed-pagination",
-      "data-page-prev",
-      "data-page-next",
-      "data-page-status",
-    ]) {
-      if (!htmlHasAttributes(html, { [attribute]: null })) {
-        fail(`Rendered HTML is missing pagination hook ${attribute}`);
-      }
-    }
-  }
-}
-
-async function atomicWrite(path: string, content: string): Promise<void> {
-  const candidate = `${path}.${randomUUID().replaceAll("-", "")}.tmp`;
-  await writeFile(candidate, content, { encoding: "utf8", mode: 0o600, flag: "wx" });
-  await rename(candidate, path);
-  await chmod(path, 0o600);
-}
-
-function relativeHtmlPath(paths: BriefingPaths, payload: BriefingPayload): string {
-  return relative(
-    paths.stateDirectory,
-    resolve(paths.previewDirectory, `${payload.edition.type}-${payload.edition.localDate}.html`),
-  );
-}
-
-function resolvedHtmlPath(paths: BriefingPaths, storedPath: string): string {
-  if (isAbsolute(storedPath) || storedPath.includes("..")) fail("Unsafe stored HTML path");
-  const candidate = resolve(paths.stateDirectory, storedPath);
-  const child = relative(paths.pagesDirectory, candidate);
-  if (child.startsWith("..") || resolve(paths.pagesDirectory, child) !== candidate) {
-    fail("Stored HTML path escapes briefing pages");
-  }
-  return candidate;
 }
 
 export async function preparePreview(
@@ -928,13 +808,6 @@ export async function revisePublishedEdition(
   } finally {
     database.close();
   }
-}
-
-export async function readEditionHtml(
-  edition: EditionRow,
-  paths: BriefingPaths = briefingPaths(),
-): Promise<string> {
-  return readFile(resolvedHtmlPath(paths, edition.html_path), "utf8");
 }
 
 function immutableNewsDigest(payload: BriefingPayload): string {

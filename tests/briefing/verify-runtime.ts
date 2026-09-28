@@ -32,8 +32,9 @@ import {
   createTelegramCommitPlan,
   recordTelegramValidation,
 } from "../../src/briefing/telegram-commit-store.ts";
+import { briefingPaths } from "../../src/briefing/paths.ts";
+import { readEditionHtml, resolvedHtmlPath, validateRenderedHtml } from "../../src/briefing/html-artifacts.ts";
 import {
-  briefingPaths,
   cleanupExpired,
   finalizeEdition,
   initializeBriefingStore,
@@ -42,12 +43,10 @@ import {
   loadEdition,
   openBriefingDatabase,
   revisePublishedEdition,
-  readEditionHtml,
   rerenderPublishedPreview,
   retainedDailyEditions,
   topicProfile,
   upsertAddonSnapshot,
-  validateRenderedHtml,
 } from "../../src/briefing/store.ts";
 
 const root = resolve(import.meta.dirname, "../..");
@@ -75,6 +74,10 @@ const paths = briefingPaths({
   KURAMI_HOME: home,
   BRIEFING_MIGRATIONS_DIR: resolve(root, "migrations/briefing"),
 } as NodeJS.ProcessEnv);
+assert.equal(resolvedHtmlPath(paths, "pages/preview/daily.html"), resolve(paths.previewDirectory, "daily.html"));
+assert.throws(() => resolvedHtmlPath(paths, "../outside.html"), /Unsafe stored HTML path/);
+assert.throws(() => resolvedHtmlPath(paths, "/tmp/outside.html"), /Unsafe stored HTML path/);
+assert.throws(() => resolvedHtmlPath(paths, "other/outside.html"), /Stored HTML path escapes briefing pages/);
 
 const payload = {
   schemaVersion: 2,
