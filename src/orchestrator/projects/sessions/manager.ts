@@ -1,5 +1,6 @@
 import { execFileSync, spawnSync } from "node:child_process";
 import { mkdir, readFile, realpath, rm, stat, writeFile } from "node:fs/promises";
+import { writeSync } from "node:fs";
 import { relative, resolve } from "node:path";
 import { resolveKuramiHome } from "../../../core/kurami-home.ts";
 import { DatabaseSync } from "node:sqlite";
@@ -1359,10 +1360,10 @@ async function startSession(
     );
   else claimSession(database, run, plan, config.limits.max_tmux_sessions_global);
   const promptDirectory = resolve(orchestratorHome, "state/session-prompts");
-  await mkdir(promptDirectory, { recursive: true, mode: 0o700 });
   const promptPath = resolve(promptDirectory, `${run.run_id}-${Date.now()}.b64`);
-  await writeFile(promptPath, Buffer.from(plan.initialPrompt, "utf8").toString("base64"), { mode: 0o600, flag: "wx" });
   try {
+    await mkdir(promptDirectory, { recursive: true, mode: 0o700 });
+    await writeFile(promptPath, Buffer.from(plan.initialPrompt, "utf8").toString("base64"), { mode: 0o600, flag: "wx" });
     runFile("tmux", [
       "new-session",
       "-d",
@@ -1402,7 +1403,7 @@ async function startSession(
     throw error;
   }
 
-  process.stdout.write(
+  writeSync(1,
     `${JSON.stringify({ ok: true, apply: true, action: plan.repair ? "repair_started" : plan.reviewFix ? "review_fix_started" : "started", ...plan, ownerState: "cli", runState: plan.repair || plan.reviewFix ? "parked_review" : "running" })}\n`,
   );
 }
@@ -2861,7 +2862,7 @@ export async function runSessionManagerCli(): Promise<void> {
 if (import.meta.main) {
   runSessionManagerCli().catch((error: unknown) => {
     const message = error instanceof Error ? error.message : String(error);
-    process.stderr.write(`${JSON.stringify({ ok: false, error: message })}\n`);
+    writeSync(2, `${JSON.stringify({ ok: false, error: message })}\n`);
     process.exitCode = 1;
   });
 }
