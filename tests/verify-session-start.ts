@@ -12,7 +12,7 @@ import {
 import { tmpdir } from "node:os";
 import { delimiter, resolve } from "node:path";
 import { DatabaseSync } from "node:sqlite";
-import { initialPrompt } from "../src/orchestrator/projects/sessions/manager.ts";
+import { initialPrompt } from "../src/orchestrator/projects/sessions/prompts.ts";
 
 function assert(condition: unknown, message: string): asserts condition {
   if (!condition) throw new Error(message);

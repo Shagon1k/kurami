@@ -15,7 +15,7 @@ import {
   sanitizeUntrustedPromptData,
   serializeUntrustedPromptData,
 } from "../src/orchestrator/security/prompt-safety.ts";
-import { reviewFixPrompt } from "../src/orchestrator/projects/sessions/manager.ts";
+import { reviewFixPrompt } from "../src/orchestrator/projects/sessions/prompts.ts";
 
 function assert(condition: unknown, message: string): asserts condition {
   if (!condition) throw new Error(message);
