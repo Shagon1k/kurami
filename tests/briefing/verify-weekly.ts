@@ -1,9 +1,9 @@
 import assert from "node:assert/strict";
-import {mkdtemp,mkdir,readFile,writeFile} from "node:fs/promises";
+import {copyFile,mkdtemp,mkdir,readFile,readdir,writeFile} from "node:fs/promises";
 import {resolve} from "node:path";
 import {tmpdir} from "node:os";
 import {once} from "node:events";
-import {briefingPaths,initializeBriefingStore,openBriefingDatabase,upsertAddonSnapshot,type EditionRow,loadEdition,recordTelegramValidation,createTelegramCommitPlan,finalizeEdition} from "../../src/briefing/store.ts";
+import {briefingPaths,initializeBriefingStore,openBriefingDatabase,upsertAddonSnapshot,type EditionRow,loadEdition,recordTelegramValidation,createTelegramCommitPlan,finalizeEdition,finishMailReadAndArchive} from "../../src/briefing/store.ts";
 import {buildWeeklyReview} from "../../src/briefing/weekly/build.ts";
 import {parseWeeklyConfig} from "../../src/briefing/weekly/config.ts";
 import {observeDaily,calendarObservation,pruneWeeklyObservations} from "../../src/briefing/weekly/observations.ts";
@@ -24,6 +24,30 @@ const root=resolve(import.meta.dirname,"../.."),home=await mkdtemp(resolve(tmpdi
 assert.equal(parseWeeklyConfig({enabled:true,observationDays:999}).enabled,false,"bad optional add-on config must not block Daily");
 const env={KURAMI_HOME:home,BRIEFING_MIGRATIONS_DIR:resolve(root,"migrations/briefing")},paths=briefingPaths(env);
 await initializeBriefingStore(paths);
+const upgradeHome=await mkdtemp(resolve(tmpdir(),"kurami-weekly-upgrade-"));
+const oldMigrations=resolve(upgradeHome,"migrations");
+await mkdir(oldMigrations);
+for(const name of (await readdir(resolve(root,"migrations/briefing"))).filter(name=>/^0(?:0[1-9]|1[0-2])_.*\.sql$/.test(name))) {
+  await copyFile(resolve(root,"migrations/briefing",name),resolve(oldMigrations,name));
+}
+const upgradePaths=briefingPaths({KURAMI_HOME:upgradeHome,BRIEFING_MIGRATIONS_DIR:oldMigrations});
+assert.equal((await initializeBriefingStore(upgradePaths)).applied.length,12);
+const oldDatabase=openBriefingDatabase(upgradePaths);
+oldDatabase.prepare(`INSERT INTO editions(id,edition_type,local_date,timezone,state,payload_json,html_path,
+  content_digest,prepared_at,retention_until,updated_at)
+  VALUES('daily:upgrade','daily','2026-09-18','Europe/Vilnius','complete','{}','upgrade.html',
+  'synthetic','2026-09-18T06:00:00Z','2026-09-25T00:00:00Z','2026-09-18T06:00:00Z')`).run();
+oldDatabase.prepare(`INSERT INTO action_receipts(action_id,edition_id,action_type,item_ids_json,state,created_at,updated_at)
+  VALUES('mail:upgrade','daily:upgrade','mail.read_and_archive','[]','complete',
+  '2026-09-18T06:00:00Z','2026-09-18T06:00:00Z')`).run();
+oldDatabase.close();
+assert.deepEqual((await initializeBriefingStore({...upgradePaths,migrationsDirectory:resolve(root,"migrations/briefing")})).applied,
+  ["013_weekly_mail_observation_failures.sql"]);
+const upgradedDatabase=openBriefingDatabase(upgradePaths);
+assert.equal((upgradedDatabase.prepare("SELECT state FROM action_receipts WHERE action_id='mail:upgrade'")
+  .get() as {state:string}).state,"complete");
+assert(upgradedDatabase.prepare("SELECT 1 FROM sqlite_schema WHERE name='weekly_mail_observation_failures'").get());
+upgradedDatabase.close();
 await mkdir(resolve(home,"config"),{recursive:true});
 await writeFile(resolve(home,"config/briefing.yaml"),await readFile(resolve(root,"deploy/config/briefing.yaml")));
 const database=openBriefingDatabase(paths);
@@ -112,6 +136,38 @@ database.exec("DROP TRIGGER reject_weekly_observation");
 persistOptionalWeekly(database,failedWeekly,new Date().toISOString(),"refresh");
 assert.equal(database.prepare("SELECT 1 FROM weekly_persistence_failures WHERE edition_id=?")
   .get(failedWeekly.edition.id),undefined,"successful retry must clear the failure receipt");
+
+const mailActionId="mail:weekly-observation-test",mailItemId="weekly-mail-item",mailTimestamp=new Date().toISOString();
+database.prepare("INSERT INTO edition_items(edition_id,item_id,item_type,updated_at) VALUES(?,?,'mail',?)")
+  .run(failedWeekly.edition.id,mailItemId,mailTimestamp);
+database.prepare(`INSERT INTO action_receipts(action_id,edition_id,action_type,item_ids_json,state,created_at,updated_at)
+  VALUES(?,?,'mail.read_and_archive',?,'prepared',?,?)`)
+  .run(mailActionId,failedWeekly.edition.id,JSON.stringify([mailItemId]),mailTimestamp,mailTimestamp);
+database.exec(`CREATE TRIGGER reject_weekly_mail_observation BEFORE INSERT ON weekly_mail_actions
+  BEGIN SELECT RAISE(ABORT, 'injected weekly mail observation failure'); END`);
+finishMailReadAndArchive(database,{
+  actionId:mailActionId,editionId:failedWeekly.edition.id,itemIds:[mailItemId],providerMessageIds:[],alreadyComplete:false,
+},{ok:true,receipt:{provider:"synthetic"}});
+assert.equal((database.prepare("SELECT state FROM action_receipts WHERE action_id=?").get(mailActionId) as {state:string}).state,
+  "complete","optional Weekly observation failure must not undo the mail action");
+assert((database.prepare("SELECT read_at FROM edition_items WHERE edition_id=? AND item_id=?")
+  .get(failedWeekly.edition.id,mailItemId) as {read_at:string|null}).read_at);
+const mailFailure=database.prepare("SELECT edition_id,error_code FROM weekly_mail_observation_failures WHERE action_id=?")
+  .get(mailActionId) as {edition_id:string;error_code:string}|undefined;
+assert.equal(mailFailure?.edition_id,failedWeekly.edition.id);
+assert(mailFailure?.error_code,"optional Weekly observation failure must leave a durable diagnostic code");
+collectWeeklyHistory(database,{enabled:true,observationDays:28},new Date().toISOString(),"Europe/Vilnius");
+assert(database.prepare("SELECT 1 FROM weekly_mail_observation_failures WHERE action_id=?").get(mailActionId),
+  "a failed history replay must preserve the failure receipt");
+database.exec("DROP TRIGGER reject_weekly_mail_observation");
+collectWeeklyHistory(database,{enabled:true,observationDays:28},new Date().toISOString(),"Europe/Vilnius");
+assert.equal(database.prepare("SELECT 1 FROM weekly_mail_observation_failures WHERE action_id=?").get(mailActionId),
+  undefined,"history reconciliation must clear a recovered mail observation failure");
+assert.equal((database.prepare("SELECT item_count FROM weekly_mail_actions WHERE action_id=?")
+  .get(mailActionId) as {item_count:number}).item_count,1);
+collectWeeklyHistory(database,{enabled:true,observationDays:28},new Date().toISOString(),"Europe/Vilnius");
+assert.equal(Number((database.prepare("SELECT COUNT(*) AS count FROM weekly_mail_actions WHERE action_id=?")
+  .get(mailActionId) as {count:number}).count),1,"replay must not count the action twice");
 
 // Late-publication debt: apply fresh providers while preserving news and envelope.
 const staged=fixture("2026-09-17");

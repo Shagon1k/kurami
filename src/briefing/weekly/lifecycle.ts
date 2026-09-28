@@ -2,8 +2,9 @@ import type {DatabaseSync} from "node:sqlite";
 import {parseBriefingPayload,type BriefingPayload,type BriefingAddonEnvelope} from "../model.ts";
 import {loadAddonSnapshot,upsertAddonSnapshot} from "../addons/snapshot-store.ts";
 import {buildWeeklyReview} from "./build.ts";
-import {parseWeeklyReview,isSunday,localDate,type WeeklyReview} from "./model.ts";
+import {parseWeeklyReview,isSunday,type WeeklyReview} from "./model.ts";
 import {observeDaily,pruneWeeklyObservations} from "./observations.ts";
+import {observeCompletedMailAction} from "./mail-observation.ts";
 import type {WeeklyConfig} from "./config.ts";
 
 export function collectWeeklyHistory(database:DatabaseSync,config:WeeklyConfig,at:string,timezone:string):void {
@@ -14,9 +15,11 @@ export function collectWeeklyHistory(database:DatabaseSync,config:WeeklyConfig,a
     observeDaily(database,payload,at);
   }
   // Historical action receipts prove only actions taken through this app.
-  for(const row of database.prepare("SELECT a.action_id,a.updated_at,a.item_ids_json,e.timezone FROM action_receipts a JOIN editions e ON e.id=a.edition_id WHERE a.action_type='mail.read_and_archive' AND a.state='complete'").all() as Array<{action_id:string;updated_at:string;item_ids_json:string;timezone:string}>) {
-    database.prepare("INSERT OR IGNORE INTO weekly_mail_actions(action_id,local_date,item_count) VALUES(?,?,?)")
-      .run(row.action_id,localDate(row.updated_at,row.timezone),JSON.parse(row.item_ids_json).length);
+  for(const row of database.prepare("SELECT a.action_id,a.edition_id,a.updated_at,a.item_ids_json,e.timezone FROM action_receipts a JOIN editions e ON e.id=a.edition_id WHERE a.action_type='mail.read_and_archive' AND a.state='complete' ORDER BY a.updated_at,a.action_id").all() as Array<{action_id:string;edition_id:string;updated_at:string;item_ids_json:string;timezone:string}>) {
+    observeCompletedMailAction(database,{
+      actionId:row.action_id,editionId:row.edition_id,itemIdsJson:row.item_ids_json,completedAt:row.updated_at,
+      timezone:row.timezone,
+    },{includeWithoutWeekly:true});
   }
   pruneWeeklyObservations(database,at,timezone,config.observationDays);
 }
