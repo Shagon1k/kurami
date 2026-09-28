@@ -293,11 +293,43 @@ esac
       "Initial start accepted a pre-existing Codex thread mapping",
     );
 
+    const preparation = new DatabaseSync(databasePath);
+    preparation.prepare("UPDATE run_resources SET codex_thread_id = NULL WHERE run_id = ?").run(runId);
+    preparation.close();
+    const promptDirectory = resolve(home, "state/session-prompts");
+    await rm(promptDirectory, { recursive: true, force: true });
+    await writeFile(promptDirectory, "blocks prompt directory creation\n");
+    let preparationFailed = false;
+    try {
+      execFileSync(
+        process.execPath,
+        [resolve(app, "src/orchestrator/projects/sessions/manager.ts"), "start", "--run-id", runId, "--apply"],
+        { encoding: "utf8", env, stdio: ["ignore", "pipe", "pipe"] },
+      );
+    } catch {
+      preparationFailed = true;
+    }
+    assert(preparationFailed, "Prompt directory failure did not stop session startup");
+    const failedStart = new DatabaseSync(databasePath, { readOnly: true });
+    const failedRow = failedStart.prepare(`
+      SELECT r.state, r.owner_state, rr.tmux_session_name
+      FROM runs r JOIN run_resources rr USING (run_id)
+      WHERE r.run_id = ?
+    `).get(runId) as { state: string; owner_state: string; tmux_session_name: string | null };
+    failedStart.close();
+    assert(
+      failedRow.state === "needs_attention" &&
+        failedRow.owner_state === "none" &&
+        failedRow.tmux_session_name === null,
+      "Prompt preparation failure left a claimed tmux mapping or an unreported run",
+    );
+
     process.stdout.write(
       `${JSON.stringify({
         ok: true,
         initialNullThreadAccepted: true,
         existingThreadRejectedByContract: existingThreadRejected,
+        promptPreparationFailureReconciled: true,
         tmuxClaimed: true,
         canonicalTrustContext: true,
         state: row.state,
