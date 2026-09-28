@@ -1784,6 +1784,27 @@ try {
       timestamp,
     );
   }
+  const expiredRun = resolve(retentionPaths.runsDirectory, "run-expired");
+  const outsideRun = resolve(retentionHome, "outside-runs", "run-expired");
+  const retainedHtml = resolve(retentionPaths.previewDirectory, "daily-2026-08-24.html");
+  await mkdir(expiredRun, { recursive: true });
+  await mkdir(outsideRun, { recursive: true });
+  await mkdir(resolve(retentionPaths.mediaDirectory, "daily", "2026-08-23"), { recursive: true });
+  await mkdir(resolve(retentionPaths.recoveryDirectory, "daily-2026-08-23-legacy"), { recursive: true });
+  await mkdir(resolve(retentionPaths.recoveryDirectory, "daily-2026-08-24-keep"), { recursive: true });
+  await writeFile(resolve(retentionPaths.previewDirectory, "daily-2026-08-23.html"), "expired page");
+  await writeFile(retainedHtml, "retained page");
+  await writeFile(resolve(expiredRun, "probe"), "expired run");
+  await writeFile(resolve(outsideRun, "probe"), "outside run");
+  await writeFile(resolve(retentionPaths.mediaDirectory, "daily", "2026-08-23", "probe"), "expired media");
+  const insertAttempt = retentionDatabase.prepare(`
+    INSERT INTO briefing_run_attempts (
+      attempt_id, edition_id, mode, state, run_directory, created_at, updated_at
+    ) VALUES (?, 'daily:2026-08-23', 'manual', 'created', ?, ?, ?)
+  `);
+  const attemptTime = "2026-08-23T06:00:00.000Z";
+  insertAttempt.run("retention-safe-run", expiredRun, attemptTime, attemptTime);
+  insertAttempt.run("retention-outside-run", outsideRun, attemptTime, attemptTime);
   assert.deepEqual(
     retainedDailyEditions(retentionDatabase, "2026-08-31T00:00:00.000Z")
       .map((edition) => edition.local_date),
@@ -1794,6 +1815,13 @@ try {
 }
 const boundedCleanup = await cleanupExpired("2026-08-31T00:00:00.000Z", retentionPaths);
 assert.deepEqual(boundedCleanup.deleted, ["daily:2026-08-23"]);
+await assert.rejects(readFile(resolve(retentionPaths.previewDirectory, "daily-2026-08-23.html"), "utf8"), { code: "ENOENT" });
+await assert.rejects(readdir(resolve(retentionPaths.mediaDirectory, "daily", "2026-08-23")), { code: "ENOENT" });
+await assert.rejects(readdir(resolve(retentionPaths.runsDirectory, "run-expired")), { code: "ENOENT" });
+await assert.rejects(readdir(resolve(retentionPaths.recoveryDirectory, "daily-2026-08-23-legacy")), { code: "ENOENT" });
+assert.equal(await readFile(resolve(retentionHome, "outside-runs", "run-expired", "probe"), "utf8"), "outside run");
+assert.equal(await readFile(resolve(retentionPaths.previewDirectory, "daily-2026-08-24.html"), "utf8"), "retained page");
+assert.deepEqual(await readdir(resolve(retentionPaths.recoveryDirectory, "daily-2026-08-24-keep")), []);
 retentionDatabase = openBriefingDatabase(retentionPaths);
 try {
   assert.equal(
