@@ -123,7 +123,7 @@ look complete.
 ## Write Kurami Notes from evidence
 
 Kurami Notes are small editorial annotations, not slogans. Target
-`min(6, max(1, ceil(story_count / 8)))` notes for the finished payload. Ground
+`min(6, max(1, ceil(story_count / 5)))` notes for the finished payload. Ground
 at least two thirds in concrete visible items, primarily individual stories;
 use section or metric targets only when the comment genuinely belongs to the
 whole section. Keep each note to one to four words. Use no more than two
