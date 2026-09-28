@@ -5,14 +5,14 @@ This roadmap records verified Kurami debt. Update **Status** as fixes land:
 verified at code level; it does not by itself claim a production rollout. The **Jira**
 column remains empty unless the owner asks for tickets.
 
-_Last audit: 2026-09-27. Scope: Daily Briefing skill and scheduled-job contract._
+_Last audit: 2026-09-28. Scope: Daily Briefing skill and scheduled-job contract._
 
 ## Summary
 
 | Severity | Open | In progress | Done |
 | --- | ---: | ---: | ---: |
 | High | 0 | 0 | 0 |
-| Medium | 1 | 1 | 4 |
+| Medium | 0 | 1 | 5 |
 | Low | 0 | 0 | 1 |
 
 ## Rollout evidence
@@ -22,8 +22,8 @@ PR [#11](https://github.com/Shagon1k/kurami/pull/11) merged the cleanup into
 installed in the active Hermes profile. The active Daily job now has the
 versioned prompt and only the Daily skill; it remains enabled with local
 delivery and the same schedule. The gateway remained active. No application
-deploy or broad five-skill sync was performed. The next scheduled run is
-2026-09-28 at 06:00 UTC, so post-rollout attempt receipts are not yet available.
+deploy or broad five-skill sync was performed. At rollout, the next scheduled
+run was 2026-09-28 at 06:00 UTC; its result is tracked in M1.
 
 ## High
 
@@ -39,7 +39,7 @@ deploy or broad five-skill sync was performed. The next scheduled run is
 | M3 | consistency | `integrations/hermes/skills/kurami-daily-briefing/SKILL.md:317` | The skill asked for a detailed final report while the cron prompt required `[SILENT]`; it also repeated weather collection after `collect-live`. These instructions could steer the agent away from the guarded path. | Give scheduled and interactive responses separate rules, and read weather only from the runtime snapshot. | Done | — |
 | M4 | configuration | `deploy/config/briefing.yaml:85` | A renderer-skill capability and attached UI skill suggested model-driven HTML work even though the completion worker renders the accepted payload. This loaded unrelated UI instructions into scheduled runs. | Remove the unused renderer-skill setting and require only `kurami-daily-briefing` in the versioned cron contract; keep UI skill available for manual UI work. | Done | — |
 | M5 | testing | `tests/verify-hermes-skills.ts:68` | String-presence tests required a dead weather profile and low-level commands in the main skill, but did not check prompt, skill-list, delivery, schedule, or enabled-state drift. | Assert the scheduled contract and exercise cron sync against a fake job record, including incompatible delivery and preservation of operator controls. | Done | — |
-| M6 | configuration | `integrations/hermes/skills/kurami-daily-briefing/references/editorial-policy.md:126` | The active skill targets one Kurami Note per five stories, while the tracked reference targets one per eight. A broad skill sync would silently change the active editorial rule. | Choose the authoritative rule with the owner, commit it, then install that one reference deliberately; do not let an unrelated sync decide the rule. | Open | — |
+| M6 | configuration | `integrations/hermes/skills/kurami-daily-briefing/references/editorial-policy.md:126` | The active skill targeted one Kurami Note per five stories while Git specified one per eight. The owner chose the active `/5` rule, and the tracked reference now matches it. | Keep the versioned `/5` rule aligned with the active skill; do not let an unrelated broad sync change editorial policy. | Done | — |
 
 ## Low
 
