@@ -3,12 +3,13 @@ import {mkdtemp,mkdir,readFile,writeFile} from "node:fs/promises";
 import {resolve} from "node:path";
 import {tmpdir} from "node:os";
 import {once} from "node:events";
-import {briefingPaths,initializeBriefingStore,openBriefingDatabase,upsertAddonSnapshot,type EditionRow,loadEdition,recordTelegramValidation} from "../../src/briefing/store.ts";
+import {briefingPaths,initializeBriefingStore,openBriefingDatabase,upsertAddonSnapshot,type EditionRow,loadEdition,recordTelegramValidation,createTelegramCommitPlan,finalizeEdition} from "../../src/briefing/store.ts";
 import {buildWeeklyReview} from "../../src/briefing/weekly/build.ts";
 import {parseWeeklyConfig} from "../../src/briefing/weekly/config.ts";
 import {observeDaily,calendarObservation,pruneWeeklyObservations} from "../../src/briefing/weekly/observations.ts";
 import {parseWeeklyReview,shiftDate,isSunday} from "../../src/briefing/weekly/model.ts";
 import {attachWeeklyReview,loadWeeklyReview,promoteWeeklyReview,collectWeeklyHistory} from "../../src/briefing/weekly/lifecycle.ts";
+import {persistOptionalWeekly} from "../../src/briefing/weekly/persistence.ts";
 import {parseBriefingPayload,preparePreview} from "./payload-fixtures.ts";
 import {renderBriefingPage} from "../../src/briefing/ui/render-page.ts";
 import {renderWeeklyPage,renderWeeklyTeaser} from "../../src/briefing/weekly/render.ts";
@@ -88,6 +89,29 @@ const attack=structuredClone(review);attack.data.insights=["<script>alert(1)</sc
 assert(!renderWeeklyPage(attack).includes("<script>alert"));
 pruneWeeklyObservations(database,"2026-09-20T06:00:00Z","Europe/Vilnius",7);
 assert.equal(Number(database.prepare("SELECT COUNT(*) AS n FROM weekly_daily_observations").get()!.n),7);
+
+const failedWeekly=fixture("2026-09-18");
+failedWeekly.schemaVersion=2;
+failedWeekly.notes=[{id:"weekly-failure-note",target:"hero",text:"Проверка",role:"context",tone:"signal",rotation:"none"}];
+delete failedWeekly.addons.news;
+await preparePreview(failedWeekly,renderBriefingPage(failedWeekly),paths);
+recordTelegramValidation(database,failedWeekly.edition.id,{
+  complete:true,configuredChannels:0,capturedUnread:0,fetched:0,normalized:0,
+  mediaMessages:0,skippedNonImageMessages:0,albumGroups:0,channels:[],
+},{raw:"empty-raw",normalized:"empty-normalized"});
+const emptyPlan=createTelegramCommitPlan(database,failedWeekly.edition.id);
+database.exec(`CREATE TRIGGER reject_weekly_observation BEFORE INSERT ON weekly_daily_observations
+  BEGIN SELECT RAISE(ABORT, 'injected weekly persistence failure'); END`);
+const dailyResult=finalizeEdition(database,failedWeekly.edition.id,[],emptyPlan.planDigest);
+assert.equal(dailyResult.state,"complete","optional Weekly failure must not block Daily publication");
+const failure=database.prepare("SELECT operation,error_code FROM weekly_persistence_failures WHERE edition_id=?")
+  .get(failedWeekly.edition.id) as {operation:string;error_code:string}|undefined;
+assert.equal(failure?.operation,"publish");
+assert(failure?.error_code,"Weekly failure must leave a durable diagnostic code");
+database.exec("DROP TRIGGER reject_weekly_observation");
+persistOptionalWeekly(database,failedWeekly,new Date().toISOString(),"refresh");
+assert.equal(database.prepare("SELECT 1 FROM weekly_persistence_failures WHERE edition_id=?")
+  .get(failedWeekly.edition.id),undefined,"successful retry must clear the failure receipt");
 
 // Late-publication debt: apply fresh providers while preserving news and envelope.
 const staged=fixture("2026-09-17");

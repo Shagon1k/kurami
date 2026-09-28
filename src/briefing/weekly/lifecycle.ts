@@ -1,6 +1,6 @@
 import type {DatabaseSync} from "node:sqlite";
 import {parseBriefingPayload,type BriefingPayload,type BriefingAddonEnvelope} from "../model.ts";
-import {loadAddonSnapshot,upsertAddonSnapshot} from "../store.ts";
+import {loadAddonSnapshot,upsertAddonSnapshot} from "../addons/snapshot-store.ts";
 import {buildWeeklyReview} from "./build.ts";
 import {parseWeeklyReview,isSunday,localDate,type WeeklyReview} from "./model.ts";
 import {observeDaily,pruneWeeklyObservations} from "./observations.ts";

@@ -6,6 +6,13 @@ of the preceding seven completed local dates (Sunday through Saturday).
 Publication promotes the snapshot together with Daily. A failure stays isolated;
 the previous successful Weekly remains available.
 
+Weekly observation and promotion use a savepoint inside the Daily transaction.
+If either write fails, Daily can still publish and
+`weekly_persistence_failures` records the edition, operation, bounded error
+code, and time. It stores no provider content. A successful retry clears that
+edition's failure record; it does not reconstruct missing observations unless
+the retained edition still contains the needed data.
+
 - `/weekly`: latest promoted review, retained until the next successful one.
 - `/preview/weekly`: explicitly labelled, read-only preview of the last seven
   completed days relative to today. It is not a published Sunday edition.
