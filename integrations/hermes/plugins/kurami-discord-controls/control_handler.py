@@ -41,6 +41,14 @@ METADATA_SELECTION_CONTROL_ID = re.compile(
 )
 _METADATA_PAGE_SIZE = 12
 _HEALTH_HISTORY_ID = "kurami:health:history"
+DOCS_CONTROL_ID = re.compile(
+    r"^kurami:docs_(discuss|revise|publish|reject):(dp_[a-f0-9]{12})$"
+)
+_DOCS_MESSAGES = {
+    "revise": "Принято: агент применит замечания из обсуждения и обновит карточку.",
+    "publish": "Принято: PR будет слит, документация выпущена. Карточка покажет результат.",
+    "reject": "Предложение отклонено. PR будет закрыт, ветка останется на GitHub.",
+}
 
 _ACTION_LABELS = {
     "take_control": "Take control",
@@ -230,6 +238,100 @@ def _health_history_message(entry: object) -> str:
             "```",
         ]
     )
+
+
+def parse_docs_control_id(custom_id: object) -> Optional[tuple[str, str]]:
+    """Return an allowlisted docs proposal ``(action, proposal_id)`` pair or ``None``."""
+
+    if not isinstance(custom_id, str):
+        return None
+    match = DOCS_CONTROL_ID.fullmatch(custom_id)
+    if match is None:
+        return None
+    return match.group(1), match.group(2)
+
+
+async def _run_docs_control(
+    action: str,
+    proposal_id: str,
+    thread_id: Optional[str] = None,
+    actor_id: Optional[str] = None,
+) -> dict[str, Any]:
+    home = _kurami_home()
+    node = home / "runtime/node/bin/node"
+    control = home / "app/src/human-docs/approval/controls.ts"
+    if not node.is_file() or not control.is_file():
+        raise RuntimeError("Kurami docs approval runtime is unavailable")
+    if not re.fullmatch(r"dp_[a-f0-9]{12}", proposal_id):
+        raise RuntimeError("Invalid docs proposal ID")
+    args = [str(node), str(control), action, "--proposal-id", proposal_id]
+    if thread_id is not None:
+        if not thread_id.isdigit():
+            raise RuntimeError("Invalid Discord discussion thread ID")
+        args.extend(["--thread-id", thread_id])
+    if actor_id:
+        if not actor_id.isdigit():
+            raise RuntimeError("Invalid Discord actor ID")
+        args.extend(["--actor-id", actor_id])
+    if action != "status":
+        args.append("--apply")
+    process = await asyncio.create_subprocess_exec(
+        *args,
+        stdin=asyncio.subprocess.DEVNULL,
+        stdout=asyncio.subprocess.PIPE,
+        stderr=asyncio.subprocess.PIPE,
+        env=_kurami_subprocess_env(),
+    )
+    try:
+        stdout, stderr = await asyncio.wait_for(process.communicate(), timeout=15)
+    except asyncio.TimeoutError:
+        process.kill()
+        await process.wait()
+        raise RuntimeError("Kurami docs control timed out") from None
+    output = stdout.decode("utf-8", errors="replace").strip()
+    last_line = next((line for line in reversed(output.splitlines()) if line), "")
+    try:
+        payload = json.loads(last_line) if last_line else {}
+    except json.JSONDecodeError as exc:
+        raise RuntimeError("Kurami docs control returned invalid output") from exc
+    if process.returncode != 0 or not payload.get("ok"):
+        message = payload.get("error") or stderr.decode("utf-8", errors="replace").strip()
+        raise RuntimeError(str(message or "Kurami docs control failed")[:400])
+    return payload
+
+
+async def _handle_docs_control(
+    client: Any, interaction: Any, action: str, proposal_id: str
+) -> None:
+    if not interaction.response.is_done():
+        await interaction.response.defer(ephemeral=True, thinking=True)
+    actor_id = str(getattr(getattr(interaction, "user", None), "id", "")) or None
+    try:
+        if action == "discuss":
+            payload = await _run_docs_control("discuss", proposal_id, actor_id=actor_id)
+            thread_id = payload.get("discussionThreadId")
+            if isinstance(thread_id, str) and thread_id.isdigit():
+                thread = client.get_channel(int(thread_id)) or await client.fetch_channel(
+                    int(thread_id)
+                )
+                await thread.edit(archived=False, locked=False)
+            else:
+                thread = await interaction.message.create_thread(
+                    name=str(payload.get("title") or "Документация")[:100],
+                    auto_archive_duration=10080,
+                    reason="Owner opened a Kurami docs proposal discussion",
+                )
+                thread_id = str(thread.id)
+                await _run_docs_control(
+                    "record-thread", proposal_id, thread_id=thread_id, actor_id=actor_id
+                )
+            message = f"Обсуждение открыто: <#{thread_id}>"
+        else:
+            await _run_docs_control(action, proposal_id, actor_id=actor_id)
+            message = _DOCS_MESSAGES[action]
+    except Exception as exc:
+        message = f"Не выполнено, ничего не изменено: {str(exc)[:400]}"
+    await interaction.followup.send(message, ephemeral=True)
 
 
 def _metadata_paths() -> tuple[Path, Path, Path]:
@@ -741,6 +843,17 @@ def install_control_listener(
                     f"Health history could not be opened safely: {str(exc)[:350]}",
                     ephemeral=True,
                 )
+            return
+        docs_parsed = parse_docs_control_id(custom_id)
+        if docs_parsed is not None:
+            if not authorized(interaction):
+                if not interaction.response.is_done():
+                    await interaction.response.send_message(
+                        "This Kurami docs control is not authorized for your account.",
+                        ephemeral=True,
+                    )
+                return
+            await _handle_docs_control(client, interaction, *docs_parsed)
             return
         metadata_page_parsed = parse_metadata_page_control_id(custom_id)
         metadata_selection_parsed = parse_metadata_selection_control_id(custom_id)

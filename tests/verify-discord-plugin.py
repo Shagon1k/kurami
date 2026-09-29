@@ -14,6 +14,105 @@ def require(condition: bool, message: str) -> None:
         raise AssertionError(message)
 
 
+def verify_docs_listener(module) -> dict[str, object]:
+    """Owner-only docs buttons: a stranger changes nothing; Discuss opens and records one thread."""
+
+    import asyncio
+
+    calls: list[tuple] = []
+
+    async def fake_control(action, proposal_id, thread_id=None, actor_id=None):
+        calls.append((action, proposal_id, thread_id, actor_id))
+        if action == "discuss":
+            return {"ok": True, "needsThread": True, "title": "Документация · dp_0123456789ab"}
+        return {"ok": True}
+
+    class Response:
+        def __init__(self):
+            self.done = False
+            self.sent: list[str] = []
+
+        def is_done(self):
+            return self.done
+
+        async def send_message(self, text, ephemeral=False):
+            self.done = True
+            self.sent.append(text)
+
+        async def defer(self, ephemeral=False, thinking=False):
+            self.done = True
+
+    class Thread:
+        id = 987654321
+
+    class Message:
+        async def create_thread(self, name, auto_archive_duration, reason):
+            require(name.startswith("Документация"), "Docs thread name lost its label")
+            return Thread()
+
+    class Followup:
+        def __init__(self):
+            self.sent: list[str] = []
+
+        async def send(self, text, ephemeral=False):
+            require(ephemeral, "Docs control reply must be ephemeral")
+            self.sent.append(text)
+
+    class User:
+        id = 42
+
+    class Interaction:
+        def __init__(self, custom_id):
+            self.data = {"custom_id": custom_id}
+            self.response = Response()
+            self.followup = Followup()
+            self.message = Message()
+            self.user = User()
+
+    class Client:
+        def __init__(self):
+            self.listeners = []
+
+        def add_listener(self, callback, name=None):
+            self.listeners.append(callback)
+
+        def event(self, callback):
+            self.listeners.append(callback)
+            return callback
+
+    original = module._run_docs_control
+    module._run_docs_control = fake_control
+    try:
+        client = Client()
+        module.install_control_listener(client, lambda interaction: interaction.user.id == 42)
+        require(client.listeners, "Docs listener was not installed")
+        listener = client.listeners[-1]
+
+        stranger = Interaction("kurami:docs_publish:dp_0123456789ab")
+        stranger.user = type("Stranger", (), {"id": 7})()
+        asyncio.run(listener(stranger))
+        require(not calls, "A non-owner docs click reached the control runtime")
+        require("not authorized" in stranger.response.sent[0], "Non-owner was not told why")
+
+        discuss = Interaction("kurami:docs_discuss:dp_0123456789ab")
+        asyncio.run(listener(discuss))
+        require(
+            [call[0] for call in calls] == ["discuss", "record-thread"]
+            and calls[1][2] == "987654321",
+            f"Discuss did not record exactly one thread: {calls}",
+        )
+        require("<#987654321>" in discuss.followup.sent[0], "Discuss reply lost the thread link")
+
+        calls.clear()
+        publish = Interaction("kurami:docs_publish:dp_0123456789ab")
+        asyncio.run(listener(publish))
+        require(calls == [("publish", "dp_0123456789ab", None, "42")], f"Publish call is wrong: {calls}")
+        require("Принято" in publish.followup.sent[0], "Publish reply is missing")
+    finally:
+        module._run_docs_control = original
+    return {"docs_owner_only": True, "docs_discuss_thread": True}
+
+
 def main() -> None:
     default_plugin_dir = Path(__file__).with_name("kurami-discord-controls")
     plugin_dir = Path(os.environ.get("KURAMI_DISCORD_PLUGIN_DIR", default_plugin_dir))
@@ -334,6 +433,33 @@ def main() -> None:
             module.parse_metadata_control_id(custom_id) is None,
             f"Accepted metadata control {custom_id!r}",
         )
+    docs_accepted = {
+        "kurami:docs_discuss:dp_0123456789ab": ("discuss", "dp_0123456789ab"),
+        "kurami:docs_revise:dp_0123456789ab": ("revise", "dp_0123456789ab"),
+        "kurami:docs_publish:dp_0123456789ab": ("publish", "dp_0123456789ab"),
+        "kurami:docs_reject:dp_0123456789ab": ("reject", "dp_0123456789ab"),
+    }
+    for custom_id, expected in docs_accepted.items():
+        require(
+            module.parse_docs_control_id(custom_id) == expected,
+            f"Rejected docs control {custom_id}",
+        )
+    docs_rejected = [
+        None,
+        "kurami:docs_merge:dp_0123456789ab",
+        "kurami:docs_publish:dp_0123456789",
+        "kurami:docs_publish:dp_0123456789AB",
+        "kurami:docs_publish:dp_0123456789ab;rm",
+        "kurami:docs_publish:dp_0123456789ab:extra",
+        "kurami:docs_publish:pmb_0123456789ab",
+    ]
+    for custom_id in docs_rejected:
+        require(
+            module.parse_docs_control_id(custom_id) is None,
+            f"Accepted docs control {custom_id!r}",
+        )
+    docs_listener = verify_docs_listener(module)
+
     require(
         module.parse_metadata_page_control_id("kurami:metadata_page:pmb_abc123:2")
         == ("pmb_abc123", 2),
@@ -648,6 +774,9 @@ def main() -> None:
                 "rejected": len(rejected),
                 "metadata_accepted": len(metadata_accepted),
                 "metadata_rejected": len(metadata_rejected),
+                "docs_accepted": len(docs_accepted),
+                "docs_rejected": len(docs_rejected),
+                **docs_listener,
                 "listener": "strict_component_allowlist",
                 "settings": "owner_only_kurami_settings",
                 "run_status": "owner_only_kurami_status",
