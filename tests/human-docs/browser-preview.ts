@@ -89,7 +89,7 @@ async function checkKeyboard(devtools:Devtools,navScreenshotPath?:string){
   await pressTab(devtools);
   const first=await devtools.evaluate<boolean>(`document.querySelector('.side-mobile > summary')?document.activeElement===document.querySelector('.side-mobile > summary'):document.activeElement===document.querySelector('.route')`);
   if(!first)throw new Error("Tab from skipped main did not reach the first content control");
-  for(const selector of [".mobile-menu > summary",".side-mobile > summary",".article details > summary"]){
+  for(const selector of [".site-menu > summary",".side-mobile > summary",".article details > summary"]){
     const exists=await devtools.evaluate<boolean>(`document.querySelector(${JSON.stringify(selector)})!==null`);
     if(!exists){
       if(selector===".article details > summary"&&await devtools.evaluate<boolean>(`document.querySelector('[data-page]')!==null`))throw new Error("Article has no keyboard disclosure");

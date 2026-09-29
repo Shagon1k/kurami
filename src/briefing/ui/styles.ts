@@ -7,6 +7,7 @@ import {THEME_CSS} from "../../ui-library/themes/index.ts";
 import {FOUNDATION_CSS} from "../../ui-library/foundations/index.ts";
 import {BUTTON_CSS} from "../../ui-library/components/button.ts";
 import {THEME_SWITCH_CSS} from "../../ui-library/components/theme-switch.ts";
+import {SITE_HEADER_CSS} from "../../ui-library/patterns/site-header.ts";
 export const BRIEFING_STYLES = `
 ${THEME_CSS}
 ${FOUNDATION_CSS}
@@ -17,26 +18,8 @@ ${FOUNDATION_CSS}
 
 ${BUTTON_CSS}
 ${THEME_SWITCH_CSS}
+${SITE_HEADER_CSS}
 
-.utility-header { position: sticky; top: 0; z-index: 30; width: 100%; color: var(--text-primary); background: color-mix(in srgb, var(--surface-page) 94%, transparent); border-bottom: 1px solid var(--border-default); backdrop-filter: blur(14px); transition: box-shadow 160ms ease, border-color 160ms ease, background 160ms ease; }
-.utility-header.is-scrolled { background: color-mix(in srgb, var(--surface-page) 97%, transparent); border-bottom-color: color-mix(in srgb, var(--border-default) 72%, var(--text-primary)); box-shadow: 0 8px 22px color-mix(in srgb, var(--text-primary) 10%, transparent); }
-.utility-header__inner { min-height:84px; display:grid; grid-template-columns:minmax(0,1fr) auto auto; grid-template-areas:"brand nav theme"; align-items:center; gap:24px; padding-block:12px; }
-.utility-brand { grid-area:brand; justify-self:start; min-width:0; min-height:48px; display:inline-flex; align-items:center; gap:12px; color:var(--text-primary); text-decoration:none; border-radius:3px; }
-.utility-brand__fox { width:48px; height:48px; flex-shrink:0; object-fit:contain; }
-.utility-brand__copy { display:grid; gap:3px; min-width:0; }
-.utility-brand__name { font-size:1.375rem; font-weight:600; line-height:1.05; letter-spacing:-.055em; }
-.utility-brand__dot { color:var(--accent-primary); }
-.utility-brand:hover .utility-brand__name { color:var(--accent-primary); }
-.utility-brand:focus-visible,.site-nav__link:focus-visible { outline:2px solid var(--accent-primary); outline-offset:4px; }
-.utility-meta { color:var(--text-muted); font-size:.75rem; line-height:1.45; font-weight:400; }
-.utility-actions { grid-area:theme; justify-self:end; padding-left:20px; border-left:1px solid var(--border-default); }
-.site-nav { grid-area:nav; display:flex; align-items:center; gap:6px; }
-.site-nav__link { position:relative; display:inline-flex; align-items:center; justify-content:center; min-height:44px; padding:10px 16px; color:var(--text-muted); font-size:.8125rem; font-weight:600; text-decoration:none; border-radius:3px; transition:background 140ms ease,color 140ms ease; }
-.site-nav__link:hover { color:var(--text-primary); background:var(--surface-section); }
-.site-nav__link:active { background:var(--surface-panel); }
-.site-nav__link[aria-current] { color:var(--text-primary); background:var(--surface-section); }
-.site-nav__link[aria-current]::after { content:""; position:absolute; height:2px; background:var(--accent-primary); bottom:0; left:16px; right:16px; }
-[data-theme="dark"] .utility-brand__fox { filter:drop-shadow(0 0 1px #ffffff8c); }
 #main,h2[id],section[id] { scroll-margin-top:var(--header-offset); }
 .icon-button { inline-size: 44px; block-size: 44px; display: inline-grid; place-items: center; padding: 0; color: var(--text-primary); background: var(--surface-panel); border: 1px solid var(--border-default); border-radius: 3px; cursor: pointer; font-weight: 600; line-height: 1; text-decoration: none; transition: color 150ms, background 150ms, border-color 150ms, transform 150ms; }
 .icon-button:hover { border-color: var(--accent-primary); }
@@ -340,13 +323,6 @@ ${THEME_SWITCH_CSS}
 
 @media (max-width: 620px) {
   :root { --header-offset:148px; }
-  .utility-header__inner { min-height:72px; grid-template-columns:minmax(0,1fr) auto; grid-template-areas:"brand theme" "nav nav"; column-gap:12px; row-gap:4px; padding-block:10px 6px; }
-  .utility-brand { gap:9px; }
-  .utility-brand__fox { width:42px; height:42px; }
-  .utility-brand__name { font-size:1.25rem; }
-  .utility-actions { border-left:0; padding-left:0; }
-  .site-nav { justify-self:stretch; gap:4px; border-top:1px solid var(--border-default); padding-top:4px; }
-  .site-nav__link { flex:1; padding-inline:10px; }
   .hero { min-height: 260px; padding-top: 50px; }
   .hero__note { bottom: 26px; font-size: 21px; }
   .metric-card { min-height: 140px; padding: 16px; }

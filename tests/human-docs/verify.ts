@@ -372,10 +372,10 @@ for(const lang of ["en","ru"] as const){
   assert.equal((html.match(/class="system-map__path"/g)??[]).length,2);
   assert.ok(html.includes(lang==="ru"?"Решение владельца":"Owner decision"));
   assert.ok(html.includes("/assets/theme.js"));
-  assert.ok(html.includes('class="mobile-menu"'));
-  assert.ok(html.includes('class="topnav"'));
+  assert.ok(html.includes('class="site-menu"'));
+  assert.ok(html.includes('class="site-nav"'));
   assert.ok(html.includes(`aria-label="${lang==="ru"?"Основная навигация":"Primary navigation"}"`));
-  assert.ok(html.includes('id="main" tabindex="-1"'));
+  assert.ok(html.includes('id="main" class="container page" tabindex="-1"'));
   assert.ok(html.includes('data-theme-toggle')&&html.includes('aria-pressed="false"'));
   const sectionArticle=renderArticle(pages.find(page=>page.slug==="who-does-what")!,lang);
   assert.ok(sectionArticle.includes(`href="/${lang}/" aria-current="location"`));
