@@ -1,7 +1,7 @@
 import {existsSync} from "node:fs";
 import {resolve} from "node:path";
 
-export const sections=["start","understand","digest","projects","operations"] as const;
+export const sections=["basics","digest","projects","operations","docs"] as const;
 export type Section=typeof sections[number];
 export type Localized<T>={en:T;ru:T};
 
