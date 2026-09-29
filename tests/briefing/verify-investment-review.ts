@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import {calculateReview,calendarMonth,reportPeriod,parseReviewInput,inputDigest,validateReviewDraft,type ReviewInput,type ReviewDraft} from "../../src/briefing/investment-review/model.ts";
-import {parseEcbUSD} from "../../src/briefing/investment-review/cli.ts";
+import {parseEcbUSD,standaloneReportHtml} from "../../src/briefing/investment-review/cli.ts";
+import {THEME_RUNTIME_JS} from "../../src/ui-library/runtime/theme.ts";
 import {renderInvestmentReview,investmentAdviceLabels} from "../../src/briefing/investment-review/render.ts";
 import {REVIEW_LEARNING_SCRIPT} from "../../src/briefing/investment-review/learning-note.ts";
 import {runInNewContext} from "node:vm";
@@ -63,6 +64,10 @@ assert.deepEqual(calculateReview(withIdea).rows,m.rows,"Candidates do not change
 const ideaDraft={...structuredClone(draft),inputDigest:inputDigest(withIdea),ideas:[{symbol:"BBB",factIds:["bbb-fact"],rationale:"Why",portfolioMeaning:"Fit",counterargument:"Risk",alternative:"Existing fund or no purchase",valuationGap:"No valuation",revisitWhen:"Next filing"}]};
 assert.equal(validateReviewDraft(withIdea,ideaDraft),ideaDraft);
 const ideaHtml=renderInvestmentReview(withIdea,ideaDraft);
+const standalone=await standaloneReportHtml(renderInvestmentReview(input,draft));
+assert.doesNotMatch(standalone,/(?:src|href)="\/(?!\/)|url\("\/assets\//,"standalone report has no site-relative assets");
+assert.match(standalone,/url\("data:font\/woff2;base64,/);
+assert.ok(standalone.indexOf(THEME_RUNTIME_JS)>0&&standalone.indexOf(THEME_RUNTIME_JS)<standalone.indexOf("</head>"),"theme runtime runs in head");
 assert(ideaHtml.includes("&lt;Example candidate&gt;"));assert(!ideaHtml.includes("<Example candidate>"));
 assert(ideaHtml.includes("Альтернатива:"));assert(ideaHtml.includes("Чего не хватает для покупки:"));
 assert(!ideaHtml.includes('class="review-position review-idea" open'));

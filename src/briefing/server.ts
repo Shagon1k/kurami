@@ -40,6 +40,7 @@ import { latestBriefingAttempt } from "./run-attempt.ts";
 import { parseBriefingPayload } from "./model.ts";
 import { section } from "./addons/envelopes.ts";
 import { FONT_FACES, fontFiles } from "../ui-library/foundations/fonts.ts";
+import { THEME_RUNTIME_JS, THEME_SCRIPT_TAG } from "../ui-library/runtime/theme.ts";
 import { buildInterestProfile, personalizedNewsOrder } from "./interest-profile.ts";
 import { loadTopicPolicy } from "./editorial-validation.ts";
 
@@ -83,20 +84,6 @@ const CLIENT_SCRIPT = `(() => {
     if (!response.ok) throw new Error(await response.text());
     return response.json();
   };
-
-  const applyTheme = (theme) => {
-    document.documentElement.dataset.theme = theme;
-    document.querySelectorAll('[data-theme-toggle]').forEach((button) => {
-      button.setAttribute('aria-label', theme === 'dark' ? 'Включить светлую тему' : 'Включить тёмную тему');
-      button.setAttribute('aria-pressed', String(theme === 'dark'));
-      const label = button.querySelector('[data-theme-label]');
-      if (label) label.textContent = theme === 'dark' ? 'Светлая тема' : 'Тёмная тема';
-      const icon = button.querySelector('[data-theme-icon]');
-      if (icon) icon.textContent = theme === 'dark' ? '☀' : '◐';
-    });
-  };
-  const storedTheme = localStorage.getItem('kurami-theme');
-  applyTheme(storedTheme || (matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light'));
 
   const updateLiveClocks = () => {
     const instant = new Date();
@@ -367,7 +354,7 @@ ${COMPANY_AVATAR_CLIENT_SCRIPT}
   });
 
   document.addEventListener('click', async (event) => {
-    const target = event.target instanceof Element ? event.target.closest('[data-theme-toggle], [data-story-toggle], [data-reaction], [data-media-lightbox], [data-media-close], [data-mail-archive]') : null;
+    const target = event.target instanceof Element ? event.target.closest('[data-story-toggle], [data-reaction], [data-media-lightbox], [data-media-close], [data-mail-archive]') : null;
     if (!target) return;
     if (target.hasAttribute('data-mail-archive')) {
       const section = target.closest('[data-mail-section]');
@@ -413,12 +400,6 @@ ${COMPANY_AVATAR_CLIENT_SCRIPT}
     if (target.hasAttribute('data-media-close')) {
       const dialog = target.closest('[data-media-dialog]');
       if (dialog instanceof HTMLDialogElement) dialog.close();
-      return;
-    }
-    if (target.hasAttribute('data-theme-toggle')) {
-      const next = document.documentElement.dataset.theme === 'dark' ? 'light' : 'dark';
-      localStorage.setItem('kurami-theme', next);
-      applyTheme(next);
       return;
     }
     if (target.hasAttribute('data-story-toggle')) {
@@ -572,6 +553,8 @@ function stateTag(items: ClientItemState[]): string {
 export function injectRuntime(html: string, items: ClientItemState[] = []): string {
   // Editions frozen before self-hosted fonts still link Google Fonts; serve the same faces locally.
   if (html.includes("fonts.googleapis.com")) html = html.replace(GOOGLE_FONTS, "").replace(/<\/head>/i, `<style>${FONT_FACES}</style></head>`);
+  // Every served page, including frozen editions, gets the shared theme runtime before first paint.
+  if (!html.includes(THEME_SCRIPT_TAG)) html = html.replace(/<\/head>/i, `${THEME_SCRIPT_TAG}</head>`);
   const favicon = '<link rel="icon" type="image/svg+xml" href="/favicon.svg">';
   const themeColor = '<meta name="theme-color" content="#fbfbf8">';
   const branded = html.includes('href="/favicon.svg"')
@@ -801,6 +784,12 @@ export async function createBriefingServer(
           } : null,
           live,
         });
+        return;
+      }
+      if (request.method === "GET" && url.pathname === "/assets/theme.js") {
+        sendHeaders(response, "text/javascript; charset=utf-8");
+        response.statusCode = 200;
+        response.end(THEME_RUNTIME_JS);
         return;
       }
       if (request.method === "GET" && url.pathname === "/assets/briefing.js") {

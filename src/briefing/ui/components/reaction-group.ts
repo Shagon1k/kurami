@@ -1,5 +1,5 @@
 import type { Reaction } from "../../model.ts";
-import { renderButton } from "./button.ts";
+import { renderButton } from "../../../ui-library/components/button.ts";
 
 export function renderReactionGroup(input: {
   editionId: string;

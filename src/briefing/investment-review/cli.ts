@@ -10,6 +10,24 @@ import {acceptReview} from "./store.ts";
 import {buildReviewPacket} from "./packet.ts";
 import {mergeCollectedEvidence} from "./collect.ts";
 
+/** The report is a standalone private file: brand assets and fonts travel inside it. */
+export async function standaloneReportHtml(html:string):Promise<string> {
+  const assets=new URL("../../../integrations/hermes/skills/kurami-ui-preview-language/assets/",import.meta.url);
+  const [fox,favicon]=await Promise.all([readFile(new URL("kurami-fox-transparent.png",assets)),readFile(new URL("kurami-favicon.svg",assets))]);
+  const fontDirectory=new URL("../../../src/ui-library/assets/fonts/",import.meta.url);
+  const fonts=new Map<string,string>(await Promise.all(fontFiles.map(async font=>[font.file,(await readFile(new URL(font.file,fontDirectory))).toString("base64")] as const)));
+  return html
+    .replace('src="/assets/kurami-fox.png"','src="data:image/png;base64,'+fox.toString("base64")+'"')
+    .replace('href="/favicon.svg"','href="data:image/svg+xml;base64,'+favicon.toString("base64")+'"')
+    .replace('href="/"','href="https://digest.shagon1k.win/"')
+    .replace(/url\("\/assets\/([a-z0-9-]+\.woff2)"\)/g,(_match,file:string)=>{
+      const font=fonts.get(file);
+      if(!font)throw new Error(`Unknown report font: ${file}`);
+      return `url("data:font/woff2;base64,${font}")`;
+    });
+}
+import {fontFiles} from "../../ui-library/foundations/fonts.ts";
+
 export function parseEcbUSD(xml:string,date:string):number {
   if(!dateOnly(date)||xml.length>300000)throw Error("Invalid ECB input");
   const block=[...xml.matchAll(/<Cube\s+time=["'](\d{4}-\d{2}-\d{2})["']\s*>([\s\S]*?)<\/Cube>/g)].filter(m=>m[1]===date);
@@ -48,12 +66,7 @@ if(import.meta.main){
   }else if(command==="render"){
     if([...flags.keys()].some(k=>!["--input","--draft","--output"].includes(k)))throw Error("Unknown render argument");
     const input=parseReviewInput(await readJson(flag("input"))),draft=validateReviewDraft(input,await readJson(flag("draft")));
-    const assets=new URL("../../../integrations/hermes/skills/kurami-ui-preview-language/assets/",import.meta.url);
-    const [fox,favicon]=await Promise.all([readFile(new URL("kurami-fox-transparent.png",assets)),readFile(new URL("kurami-favicon.svg",assets))]);
-    const html=renderInvestmentReview(input,draft)
-      .replace('src="/assets/kurami-fox.png"','src="data:image/png;base64,'+fox.toString("base64")+'"')
-      .replace('href="/favicon.svg"','href="data:image/svg+xml;base64,'+favicon.toString("base64")+'"')
-      .replace('href="/"','href="https://digest.shagon1k.win/"');
+    const html=await standaloneReportHtml(renderInvestmentReview(input,draft));
     await privateWrite(resolve(flag("output")),html);
     console.log(JSON.stringify({report:flag("output"),mode:input.mode,publicRoute:false,scheduleEnabled:false}));
   }else if(command==="merge-evidence"){

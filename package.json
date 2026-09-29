@@ -25,7 +25,7 @@
     "poll": "node src/orchestrator/projects/poll-projects.ts",
     "check": "tsc --noEmit",
     "test:ui-library": "node tests/ui-library/verify.ts",
-    "ui:snapshots": "node src/ui-library/testing/visual-regression.ts",
+    "test:ui-browser": "node src/ui-library/testing/visual-regression.ts --out=dist/ui-browser",
     "docs:build": "node src/human-docs/build.ts --preview",
     "test:docs:browser-daily": "node tests/human-docs/browser-preview.ts",
     "test:docs:browser-weekly": "node tests/human-docs/browser-preview.ts --routes=weekly-cinema,weekly,cinema",

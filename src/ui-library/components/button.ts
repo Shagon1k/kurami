@@ -1,0 +1,79 @@
+// Kurami button: primary/secondary/quiet/icon variants, busy state and a link form.
+import { escapeHtml } from "../foundations/html.ts";
+
+export type ButtonVariant = "primary" | "secondary" | "quiet" | "icon";
+
+type AttributeValue = string | number | boolean | undefined;
+
+export type ButtonInput = {
+  label: string;
+  variant: ButtonVariant;
+  className?: string;
+  type?: "button" | "submit";
+  disabled?: boolean;
+  busyLabel?: string;
+  icon?: string;
+  ariaLabel?: string;
+  attributes?: Record<string, AttributeValue>;
+  labelAttributes?: Record<string, AttributeValue>;
+};
+
+const SAFE_ATTRIBUTE = /^(?:aria-[a-z][a-z0-9-]*|data-[a-z][a-z0-9-]*|id|name|value|title|hreflang)$/;
+const SAFE_CLASS_LIST = /^[A-Za-z0-9_-]+(?:\s+[A-Za-z0-9_-]+)*$/;
+
+function renderAttributes(attributes: Record<string, AttributeValue> | undefined): string {
+  if (!attributes) return "";
+  return Object.entries(attributes).map(([name, value]) => {
+    if (!SAFE_ATTRIBUTE.test(name)) throw new Error(`Unsafe button attribute: ${name}`);
+    if (value === false || value === undefined) return "";
+    if (value === true) return ` ${name}`;
+    return ` ${name}="${escapeHtml(String(value))}"`;
+  }).join("");
+}
+
+export const BUTTON_CSS = `
+.button { --button-busy-color: var(--text-primary); min-height: 44px; position: relative; display: inline-flex; align-items: center; justify-content: center; gap: 8px; padding: 0 16px; color: var(--text-primary); background: var(--surface-raised); border: 1px solid var(--text-primary); border-radius: 3px; cursor: pointer; font: 600 .75rem/1 var(--font-sans); text-decoration: none; transition: color 160ms ease, background 160ms ease, border-color 160ms ease, transform 160ms ease, opacity 160ms ease; }
+.button:hover:not(:disabled):not([aria-busy="true"]) { color: var(--surface-page); background: var(--text-primary); border-color: var(--text-primary); }
+.button:active:not(:disabled):not([aria-busy="true"]) { transform: translateY(1px); }
+.button:focus-visible { outline: 3px solid var(--accent-primary); outline-offset: 3px; }
+.button:disabled { color: var(--text-muted); background: var(--surface-panel); border-color: var(--border-default); cursor: not-allowed; opacity: .68; }
+.button[aria-busy="true"] { color: transparent; cursor: wait; opacity: 1; pointer-events: none; }
+.button[aria-busy="true"]::after { content: attr(data-busy-label); position: absolute; inset: 0; display: inline-flex; align-items: center; justify-content: center; padding: inherit; color: var(--button-busy-color); white-space: nowrap; }
+.button--primary { --button-busy-color: var(--text-on-accent); color: var(--text-on-accent); background: var(--accent-primary); border-color: var(--accent-primary); }
+.button--primary:hover:not(:disabled):not([aria-busy="true"]) { color: var(--text-on-accent); background: color-mix(in srgb, var(--accent-primary) 82%, var(--text-primary)); border-color: color-mix(in srgb, var(--accent-primary) 82%, var(--text-primary)); }
+.button--primary[aria-busy="true"] { background: var(--accent-primary); border-color: var(--accent-primary); }
+.button--secondary { color: var(--text-primary); background: var(--surface-raised); border-color: var(--text-primary); }
+.button--quiet { min-height: 40px; padding-inline: 11px; background: transparent; border-color: transparent; }
+.button--quiet:hover:not(:disabled):not([aria-busy="true"]) { color: var(--text-primary); background: var(--surface-panel); border-color: var(--border-default); }
+.button--icon { inline-size: 44px; block-size: 44px; padding: 0; background: var(--surface-panel); border-color: var(--border-default); }
+.button--icon:hover:not(:disabled):not([aria-busy="true"]) { color: var(--text-primary); background: var(--accent-soft); border-color: var(--accent-primary); }
+.button__icon { display: inline-grid; place-items: center; font-size: 1.125rem; line-height: 1; }
+`;
+
+export function renderButton(input: ButtonInput): string {
+  if (input.className && !SAFE_CLASS_LIST.test(input.className)) {
+    throw new Error("Unsafe button class list");
+  }
+  const classes = ["button", `button--${input.variant}`, input.className].filter(Boolean).join(" ");
+  const type = input.type ?? "button";
+  const ariaLabel = input.ariaLabel ? ` aria-label="${escapeHtml(input.ariaLabel)}"` : "";
+  const busyLabel = input.busyLabel
+    ? ` data-busy-label="${escapeHtml(input.busyLabel)}"`
+    : "";
+  const attributes = renderAttributes(input.attributes);
+  const disabled = input.disabled ? " disabled" : "";
+  const labelAttributes = renderAttributes(input.labelAttributes);
+  const content = input.icon
+    ? `<span class="button__icon" aria-hidden="true">${escapeHtml(input.icon)}</span><span class="sr-only"${labelAttributes}>${escapeHtml(input.label)}</span>`
+    : input.labelAttributes
+      ? `<span${labelAttributes}>${escapeHtml(input.label)}</span>`
+      : escapeHtml(input.label);
+  return `<button class="${classes}" type="${type}"${ariaLabel}${busyLabel}${attributes}${disabled}>${content}</button>`;
+}
+
+/** Navigation that looks like a button; `href` must be a site-relative or https URL. */
+export function renderLinkButton(input: { label: string; href: string; variant: ButtonVariant; ariaLabel?: string; attributes?: Record<string, AttributeValue> }): string {
+  if (!/^(?:\/(?!\/)|https:\/\/)/.test(input.href)) throw new Error("Unsafe link button href");
+  const ariaLabel = input.ariaLabel ? ` aria-label="${escapeHtml(input.ariaLabel)}"` : "";
+  return `<a class="button button--${input.variant}" href="${escapeHtml(input.href)}"${ariaLabel}${renderAttributes(input.attributes)}>${escapeHtml(input.label)}</a>`;
+}

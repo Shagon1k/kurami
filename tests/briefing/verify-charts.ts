@@ -8,7 +8,7 @@ import { createChartEngine, renderTrendChart, renderBarChart, type ChartInput } 
 import { CHART_CLIENT_SCRIPT } from "../../src/briefing/ui/charts/client.ts";
 import { cinemaTrendInput } from "../../src/briefing/cinema/chart-adapter.ts";
 import { BRIEFING_STYLES } from "../../src/briefing/ui/styles.ts";
-import { renderThemeToggle } from "../../src/briefing/ui/components/theme-toggle.ts";
+import { renderThemeSwitch } from "../../src/ui-library/components/theme-switch.ts";
 import { injectRuntime } from "../../src/briefing/server.ts";
 import { createBriefingServer, type MailActionExecutor } from "../../src/briefing/server.ts";
 import { briefingPaths } from "../../src/briefing/store.ts";
@@ -106,7 +106,7 @@ if(process.env.CHARTS_PREVIEW_PORT) {
  const appPort=(app.address() as {port:number}).port;
  const empty=renderTrendChart({...trend,id:"empty-demo",title:"Нет данных",categories:[],series:[]});
  const signed=renderBarChart({...bar,id:"signed-demo",title:"Отрицательные значения",categories:bar.categories.slice(0,3),series:[{id:"delta",label:"Изменение",values:[-5,0,8]}]});
- const html=injectRuntime(`<!doctype html><html lang="ru" data-theme="light"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Charts · Kurami</title><link href="https://fonts.googleapis.com/css2?family=Onest:wght@400;500;600;700&display=swap" rel="stylesheet"><style>${BRIEFING_STYLES}</style></head><body><header class="utility-header"><div class="utility-header__inner page-shell"><strong>Charts · проверка компонентов</strong>${renderThemeToggle()}</div></header><main class="container" style="padding-top:100px"><h1>Графики Kurami</h1><p>Тестовая страница. Все значения демонстрационные.</p>${renderTrendChart(trend)}${renderBarChart(bar)}${signed}${empty}</main></body></html>`);
+ const html=injectRuntime(`<!doctype html><html lang="ru" data-theme="light"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Charts · Kurami</title><link href="https://fonts.googleapis.com/css2?family=Onest:wght@400;500;600;700&display=swap" rel="stylesheet"><style>${BRIEFING_STYLES}</style></head><body><header class="utility-header"><div class="utility-header__inner page-shell"><strong>Charts · проверка компонентов</strong>${renderThemeSwitch("ru")}</div></header><main class="container" style="padding-top:100px"><h1>Графики Kurami</h1><p>Тестовая страница. Все значения демонстрационные.</p>${renderTrendChart(trend)}${renderBarChart(bar)}${signed}${empty}</main></body></html>`);
  const server=createServer(async(req,res)=>{
   if(req.url==="/assets/briefing.js"){const response=await fetch("http://127.0.0.1:"+appPort+req.url);res.setHeader("content-type","text/javascript");res.end(await response.text());return;}
   if(req.url==="/favicon.svg"){res.setHeader("content-type","image/svg+xml");res.end(await readFile(resolve(import.meta.dirname,"../../integrations/hermes/skills/kurami-ui-preview-language/assets/kurami-favicon.svg")));return;}
