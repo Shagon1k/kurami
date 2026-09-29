@@ -13,6 +13,8 @@ import {THEME_RUNTIME_JS,THEME_SCRIPT_TAG} from "../../src/ui-library/runtime/th
 import {renderThemeSwitch} from "../../src/ui-library/components/theme-switch.ts";
 import {renderLinkButton} from "../../src/ui-library/components/button.ts";
 import {validateRenderedHtml} from "../../src/briefing/html-artifacts.ts";
+import {renderSiteHeader,renderSiteNav,SITE_HEADER_CSS} from "../../src/ui-library/patterns/site-header.ts";
+import {renderDocument} from "../../src/ui-library/patterns/page-shell.ts";
 
 const root=resolve(import.meta.dirname,"../..");
 
@@ -75,5 +77,21 @@ for(const [lang,name] of [["ru","Тёмная тема"],["en","Dark theme"]] as
 assert.match(renderLinkButton({label:"RU",href:"/ru/",variant:"icon",attributes:{hreflang:"ru"}}),/^<a class="button button--icon" href="\/ru\/" hreflang="ru">RU<\/a>$/);
 assert.throws(()=>renderLinkButton({label:"x",href:"javascript:alert(1)",variant:"icon"}),/Unsafe link/);
 assert.throws(()=>renderLinkButton({label:"x",href:"//evil.example",variant:"icon"}),/Unsafe link/);
+
+// Header and document patterns: one implementation for both sites, escaped input, safe links.
+for(const [site,css] of [["Digest",BRIEFING_STYLES],["Docs",DOCS_STYLES]] as const)assert.equal(css.split(SITE_HEADER_CSS).length,2,`${site} includes the header pattern once`);
+const header=renderSiteHeader({brand:{href:"/",ariaLabel:"Kurami",foxSrc:"/assets/fox.png",suffix:"docs",meta:{label:"<b>x</b>"}},nav:{label:"Sections",links:[{href:"/a/",label:"A",current:"page"},{href:"/b/",label:"B"}],collapse:{label:"Menu"}},actions:renderThemeSwitch("en")});
+assert.match(header,/class="site-header site-header--collapsible" data-site-header/);
+assert.match(header,/<a class="site-nav__link" href="\/a\/" aria-current="page">A<\/a>/);
+assert.equal((header.match(/aria-label="Sections"/g)??[]).length,2,"inline and collapsed navigation");
+assert.match(header,/&lt;b&gt;x&lt;\/b&gt;/);
+assert.throws(()=>renderSiteNav({label:"x",links:[{href:"javascript:alert(1)",label:"x"}]}),/Unsafe navigation href/);
+assert.throws(()=>renderSiteNav({label:"x",links:[],attributes:{onclick:"x"}}),/Unsafe header attribute/);
+assert.match(renderSiteNav({label:"x",links:[],hideWhenEmpty:true}),/ hidden>/);
+const documentHtml=renderDocument({lang:"en",title:"T",favicon:"/f.svg",styles:{href:"/s.css"},themeScript:true,skipLabel:"Skip",header,main:"<p>m</p>",footer:"<footer></footer>"});
+assert.match(documentHtml,/<a class="skip-link" href="#main">Skip<\/a>/);
+assert.match(documentHtml,/<main id="main" class="container" tabindex="-1">/);
+assert.ok(documentHtml.indexOf(THEME_SCRIPT_TAG)<documentHtml.indexOf("</head>"));
+assert.throws(()=>renderDocument({lang:"en\"",title:"T",favicon:"/f",styles:{href:"/s"},themeScript:false,skipLabel:"s",header:"",main:"",footer:""}),/Invalid document language/);
 
 console.log(`UI library theme contract verified: ${colorRoles.length} roles × 2 modes, no retired or undefined tokens`);

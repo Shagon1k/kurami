@@ -1,7 +1,11 @@
 # Shared site header
 
-`ui/components/site-header.ts` is the canonical header/navigation primitive.
+`src/ui-library/patterns/site-header.ts` is the canonical header/navigation
+pattern for every Kurami site; `patterns/page-shell.ts` builds the document
+around it. Digest's `ui/components/site-header.ts` is a thin adapter that
+supplies sections, the edition date and injectable navigation, and Digest's
 `page-shell.ts` uses it for Daily, Cinema, Weekly, previews and empty states.
+Docs use the same pattern with a collapsible menu below tablet width.
 The transparent fox and wordmark replace the old boxed K. The edition date
 stays next to the brand; the theme control remains a shared icon button.
 

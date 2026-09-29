@@ -4,6 +4,8 @@ import {digestNavigation} from "./content/digest.ts";
 import {assertSafeMarkup,assertSourcePath,type VisualId} from "./content/schema.ts";
 import {renderLinkButton} from "../ui-library/components/button.ts";
 import {renderThemeSwitch} from "../ui-library/components/theme-switch.ts";
+import {renderSiteHeader} from "../ui-library/patterns/site-header.ts";
+import {renderDocument} from "../ui-library/patterns/page-shell.ts";
 
 const escape = (s:string) => s.replaceAll("&","&amp;").replaceAll("<","&lt;").replaceAll(">","&gt;").replaceAll('"',"&quot;");
 const labels = {
@@ -19,9 +21,18 @@ function shell(lang:Language, title:string, description:string, body:string, act
   const current=url(lang,alternateSlug);
   const links=(["start","digest","projects","operations","changelog"] as const).map(s=>{
     const destination=s==="changelog"?url(lang,"changelog"):s==="start"?url(lang,""):url(lang,pages.find(p=>p.section===s)?.slug??"");
-    return `<a href="${destination}"${active===s?` aria-current="${destination===current?"page":"location"}"`:""}>${t[s]}</a>`;
-  }).join("");
-  return `<!doctype html><html lang="${lang}" data-theme="light"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="color-scheme" content="light dark"><meta name="theme-color" content="#fbfbf8"><title>${escape(title)} · Kurami docs</title><meta name="description" content="${escape(description)}"><link rel="icon" href="/assets/favicon.svg" type="image/svg+xml"><link rel="stylesheet" href="/assets/docs.css"><script src="/assets/theme.js"></script></head><body><a class="skip-link" href="#main">${t.skip}</a><header class="site-header"><div class="container site-header__inner"><a class="brand" href="${url(lang,"")}"><img src="/assets/fox.png" alt=""><b>Kurami<span>.</span> docs</b></a><nav class="topnav" aria-label="${t.primaryNav}">${links}</nav><details class="mobile-menu"><summary aria-label="${lang==="ru"?"Разделы":"Sections"}"><span class="menu-icon" aria-hidden="true"></span></summary><nav aria-label="${t.primaryNav}">${links}</nav></details><div class="actions">${renderLinkButton({label:other.toUpperCase(),href:alternate,variant:"icon",ariaLabel:t.choose,attributes:{hreflang:other}})}${renderThemeSwitch(lang)}</div></div></header><main class="container page" id="main" tabindex="-1">${body}</main><footer class="footer"><div class="container">Kurami · ${t.current}</div></footer></body></html>`;
+    return {href:destination,label:t[s],current:active===s?destination===current?"page" as const:"location" as const:undefined};
+  });
+  return renderDocument({
+    lang,title:`${title} · Kurami docs`,description,favicon:"/assets/favicon.svg",styles:{href:"/assets/docs.css"},themeScript:true,skipLabel:t.skip,
+    header:renderSiteHeader({
+      brand:{href:url(lang,""),ariaLabel:lang==="ru"?"Kurami docs — главная":"Kurami docs — home",foxSrc:"/assets/fox.png",suffix:"docs"},
+      nav:{label:t.primaryNav,links,collapse:{label:lang==="ru"?"Разделы":"Sections"}},
+      actions:renderLinkButton({label:other.toUpperCase(),href:alternate,variant:"icon",ariaLabel:t.choose,attributes:{hreflang:other}})+renderThemeSwitch(lang),
+    }),
+    main:body,mainClass:"page",
+    footer:`<footer class="footer"><div class="container">Kurami · ${t.current}</div></footer>`,
+  });
 }
 function steps(items:[string,string][],lang:Language) {return `<div class="visual"><span class="visual__label">${labels[lang].flow}</span><div class="flow">${items.map(([title,detail],index)=>`<div class="flow__step"><span class="folio">${String(index+1).padStart(2,"0")}</span><strong>${escape(title)}</strong><small>${escape(detail)}</small></div>`).join("")}</div></div>`;}
 type ArchitectureKind="project-architecture";

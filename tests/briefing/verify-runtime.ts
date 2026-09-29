@@ -417,8 +417,8 @@ assert.match(html, /aria-label="Все непрочитанные письма"/
 assert.match(html, /class="mail-row__select"/);
 assert.match(html, /class="mail-row__select-placeholder"/);
 assert.match(html, /data-mail-archive disabled>Прочитать и архивировать/);
-assert.match(html, /data-utility-header/);
-assert.match(html, /utility-header__inner/);
+assert.match(html, /data-site-header/);
+assert.match(html, /site-header__inner/);
 assert.match(html, /data-media-dialog/);
 assert.doesNotMatch(html, /data-read-state/);
 const legacyVideoPayload = parseBriefingPayload({

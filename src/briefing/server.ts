@@ -140,7 +140,7 @@ const CLIENT_SCRIPT = `(() => {
   };
   applyPersistedState();
 
-  const stickyHeader = document.querySelector('[data-utility-header]');
+  const stickyHeader = document.querySelector('[data-site-header], [data-utility-header]');
   const updateStickyHeader = () => stickyHeader?.classList.toggle('is-scrolled', window.scrollY > 0);
   if (stickyHeader && typeof ResizeObserver !== 'undefined') {
     new ResizeObserver(() => document.documentElement.style.setProperty('--header-offset', Math.ceil(stickyHeader.getBoundingClientRect().height + 16) + 'px')).observe(stickyHeader);

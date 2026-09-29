@@ -1,4 +1,4 @@
-import {escapeHtml} from "../html.ts";
+import {renderSiteHeader as renderKuramiHeader,renderSiteNav} from "../../../ui-library/patterns/site-header.ts";
 import {renderThemeSwitch} from "../../../ui-library/components/theme-switch.ts";
 
 export type SiteSection="daily"|"cinema"|"weekly"|"stocks";
@@ -7,30 +7,28 @@ const destinations:Record<SiteSection,{href:string;label:string}>={
   daily:{href:"/",label:"День"},cinema:{href:"/cinema",label:"Кино"},weekly:{href:"/weekly",label:"Неделя"},
   stocks:{href:"/stocks",label:"Акции"},
 };
-export function renderSiteNavigation(links:readonly SiteLink[],current:SiteSection):string {
+function navigation(links:readonly SiteLink[],current:SiteSection) {
   const seen=new Set<SiteSection>();
-  const items=links.map(link=>{
+  return {label:"Разделы Kurami",attributes:{"data-site-navigation":true as const},hideWhenEmpty:true,links:links.map(link=>{
     const destination=destinations[link.section];
     if(!Object.hasOwn(destinations,link.section) || seen.has(link.section))throw new Error("Invalid site navigation entry");
     seen.add(link.section);
     const date=link.date&&/^[0-9]{4}-[0-9]{2}-[0-9]{2}$/.test(link.date)?link.date:undefined;
-    return `<a class="site-nav__link" href="${destination.href}"${link.section===current?' aria-current="location"':""} title="${escapeHtml(destination.label+(date?" · выпуск "+date:""))}">${destination.label}</a>`;
-  }).join("");
-  return `<nav class="site-nav" data-site-navigation aria-label="Разделы Kurami"${items?"":" hidden"}>${items}</nav>`;
+    return {href:destination.href,label:destination.label,current:link.section===current?"location" as const:undefined,title:destination.label+(date?" · выпуск "+date:"")};
+  })};
+}
+export function renderSiteNavigation(links:readonly SiteLink[],current:SiteSection):string {
+  return renderSiteNav(navigation(links,current));
 }
 export function renderSiteHeader(input:{section:SiteSection;label?:string;date:string;dateLabel:string;links?:readonly SiteLink[]}):string {
   if(!Object.hasOwn(destinations,input.section))throw new Error("Invalid site section");
-  return `<header class="utility-header" data-utility-header data-site-section="${input.section}" aria-label="${escapeHtml(input.label??"Kurami")}">
-    <div class="utility-header__inner container">
-      <a class="utility-brand" href="/" aria-label="Kurami — последний дневной выпуск">
-        <img class="utility-brand__fox" src="/assets/kurami-fox.png" width="48" height="48" alt="" decoding="async">
-        <span class="utility-brand__copy"><span class="utility-brand__name">Kurami<span class="utility-brand__dot" aria-hidden="true">.</span></span>
-        <time class="utility-meta" datetime="${escapeHtml(input.date)}">${escapeHtml(input.dateLabel)}</time></span>
-      </a>
-      ${renderSiteNavigation(input.links??[],input.section)}
-      <div class="utility-actions">${renderThemeSwitch("ru")}</div>
-    </div>
-  </header>`;
+  return renderKuramiHeader({
+    label:input.label??"Kurami",
+    attributes:{"data-site-section":input.section},
+    brand:{href:"/",ariaLabel:"Kurami — последний дневной выпуск",foxSrc:"/assets/kurami-fox.png",meta:{label:input.dateLabel,datetime:input.date}},
+    nav:navigation(input.links??[],input.section),
+    actions:renderThemeSwitch("ru"),
+  });
 }
 /** Availability is injected at request time, never frozen into a Daily snapshot. */
 export function injectSiteNavigation(html:string,links:readonly SiteLink[],current:SiteSection):string {
