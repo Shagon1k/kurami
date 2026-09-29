@@ -49,7 +49,7 @@ const root=resolve(import.meta.dirname,"../..");
 assert.doesNotThrow(()=>assertContent(pages,root));
 assert.ok(readFileSync(resolve(root,"docs/interest-profile-v1.md"),"utf8")
   .includes(`base = -${INTEREST_POLICY.positionStep} × zero-based index`));
-assert.equal(pages.length,28);
+assert.equal(pages.length,29);
 assert.deepEqual(pages.filter(page=>page.section==="digest").map(page=>page.slug),[
   "daily","for-me","daily-addons","signals","daily-lifecycle","weekly","cinema",
   "stocks","stocks-discovery","investment-review","weekly-cinema","stocks-review",

@@ -42,7 +42,7 @@ function shell(lang:Language, title:string, description:string, body:string, act
     footer:`<footer class="footer"><div class="container">Kurami · ${t.current}</div></footer>`,
   });
 }
-function steps(items:[string,string][],lang:Language) {return `<div class="visual"><span class="visual__label">${labels[lang].flow}</span><div class="flow">${items.map(([title,detail],index)=>`<div class="flow__step"><span class="folio">${String(index+1).padStart(2,"0")}</span><strong>${escape(title)}</strong><small>${escape(detail)}</small></div>`).join("")}</div></div>`;}
+function steps(items:[string,string][],lang:Language,label:string=labels[lang].flow) {return `<div class="visual"><span class="visual__label">${escape(label)}</span><div class="flow">${items.map(([title,detail],index)=>`<div class="flow__step"><span class="folio">${String(index+1).padStart(2,"0")}</span><strong>${escape(title)}</strong><small>${escape(detail)}</small></div>`).join("")}</div></div>`;}
 type ArchitectureKind="project-architecture";
 const architectures:Record<ArchitectureKind,Record<Language,{caption:string;steps:[string,string][];outcomes:[string,string][];source:string}>>={
   "project-architecture":{
@@ -247,10 +247,15 @@ function visual(kind:VisualId,lang:Language):string {
   if(kind==="automation-boundaries") return boundaryMap(lang);
   if(kind==="project-architecture") return architectureMap(kind,lang);
   const data:Record<string,Record<Language,[string,string][]>>={
+    "ui-layers":{
+      ru:[["Тема","Роли цветов и формы: «основной текст», «акцент», «рамка», скругление, тень. Светлый и тёмный режим."],["Основа","Шрифты, заметный фокус для клавиатуры, ссылка «К содержанию», ширина страницы."],["Компоненты","Кнопки, переключатель темы, таблицы, врезки, раскрывающиеся блоки."],["Шаблоны","Шапка с лисой и навигацией, каркас всей страницы."],["Страницы","Digest, эта документация и будущие разделы: только своя раскладка и своё содержимое."]],
+      en:[["Theme","Colour and shape roles: primary text, accent, border, radius, shadow. Light and dark modes."],["Foundations","Fonts, a visible keyboard focus, the skip link, page width."],["Components","Buttons, the theme switch, tables, callouts, disclosures."],["Patterns","The fox header with navigation and the whole-page shell."],["Pages","Digest, these docs and future sections add only their own layout and content."]],
+    },
     "project-flow":{en:[["Queued","Durable Project transition"],["Admitted","Policy and capacity passed"],["Active","Managed worktree and Codex"],["Parked","Review or owner attention"],["Stopping","Merge or cancellation evidence"],["Released","Only after exact cleanup proof"]],ru:[["В очереди","Сохранённый переход Project"],["Допущен","Правила и лимиты пройдены"],["В работе","Управляемые worktree и Codex"],["Остановлен","Review или решение владельца"],["Завершение","Проверка merge или отмены"],["Освобождён","Только после точного доказательства очистки"]]},
   };
   if(!data[kind])throw new Error(`Unknown docs visual: ${kind}`);
-  return steps(data[kind][lang],lang);
+  const stepLabels:Partial<Record<string,Record<Language,string>>>={"ui-layers":{ru:"Слои библиотеки",en:"Library layers"}};
+  return steps(data[kind][lang],lang,stepLabels[kind]?.[lang]);
 }
 function systemMap(lang:Language) {
   const ru=lang==="ru";
