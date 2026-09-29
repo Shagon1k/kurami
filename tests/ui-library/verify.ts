@@ -20,6 +20,7 @@ import {renderCallout,CALLOUT_CSS} from "../../src/ui-library/components/callout
 import {renderDisclosure,DISCLOSURE_CSS} from "../../src/ui-library/components/disclosure.ts";
 import {inlineDiagram} from "../../src/ui-library/foundations/diagram.ts";
 import {exportBundle,exportDirectory} from "../../src/ui-library/export.ts";
+import {baselineGrew,evaluateUiImpact,touchesUi} from "../../src/ui-library/testing/impact.ts";
 import {readFileSync,readdirSync} from "node:fs";
 
 const root=resolve(import.meta.dirname,"../..");
@@ -140,5 +141,25 @@ const named=[...new Set(skillText.match(/\b(?:render[A-Z][A-Za-z]+|inlineDiagram
 assert.ok(named.length>=10,"skill names real functions");
 for(const name of named)assert.ok(exported.has(name),`skill names ${name}, which no module exports`);
 for(const path of new Set(skillText.match(/src\/ui-library\/[a-z0-9/._-]+[a-z0-9]/g)))assert.ok(existsSync(resolve(root,path)),`skill path ${path} exists`);
+
+// Every Digest page renderer is exercised by the joint browser regression; a new page type needs a fixture.
+const fixtureSource=readFileSync(resolve(root,"src/ui-library/testing/fixtures.ts"),"utf8");
+const renderers=execFileSync("git",["grep","--untracked","-hoE","-e","export (async )?function render[A-Za-z]*(Page|InvestmentReview)\\b","--","src/briefing/*.ts"],{cwd:root,encoding:"utf8"}).split("\n").filter(Boolean).map(line=>line.replace(/^export (?:async )?function /,""));
+assert.ok(renderers.length>=4,"page renderers found");
+for(const renderer of renderers)assert.match(fixtureSource,new RegExp(`\\b${renderer}\\(`),`${renderer} has no fixture in src/ui-library/testing/fixtures.ts, so test:ui-browser never audits it`);
+
+// PR declaration: UI changes say whether they used, extended or bypassed the library.
+assert.ok(touchesUi("src/human-docs/render.ts")&&touchesUi("src/briefing/stocks/styles.ts")&&!touchesUi("src/orchestrator/runtime/controller.ts"));
+assert.deepEqual(evaluateUiImpact(["src/orchestrator/x.ts"],"",false),[]);
+assert.match(evaluateUiImpact(["src/briefing/ui/styles.ts"],"",false)[0]!,/UI-Library: used/);
+assert.deepEqual(evaluateUiImpact(["src/briefing/ui/styles.ts"],"UI-Library: used",false),[]);
+assert.match(evaluateUiImpact(["src/briefing/ui/styles.ts"],"UI-Library: extended",false)[0]!,/src\/ui-library/);
+assert.match(evaluateUiImpact(["src/briefing/ui/styles.ts"],"UI-Library: used",true)[0]!,/baseline grew/);
+assert.match(evaluateUiImpact(["src/briefing/ui/styles.ts"],"UI-Library: exception\nUI-Reason: short",true)[0]!,/UI-Reason/);
+assert.deepEqual(evaluateUiImpact(["src/briefing/ui/styles.ts"],"UI-Library: exception\nUI-Reason: Stocks sparkline needs its own compact control",true),[]);
+const frozenBaseline=JSON.stringify({counts:{"css:radius":{"a.ts":2}},duplicates:{}});
+assert.equal(baselineGrew(frozenBaseline,JSON.stringify({counts:{"css:radius":{"a.ts":1}},duplicates:{}})),false);
+assert.equal(baselineGrew(frozenBaseline,JSON.stringify({counts:{"css:radius":{"a.ts":3}},duplicates:{}})),true);
+assert.equal(baselineGrew(frozenBaseline,JSON.stringify({counts:{},duplicates:{abc:".x"}})),true);
 
 console.log(`UI library theme contract verified: ${colorRoles.length} colour roles × 2 modes, ${scaleRoles.length} scale roles, no retired or undefined tokens`);

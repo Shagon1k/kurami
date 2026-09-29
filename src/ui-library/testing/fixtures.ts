@@ -2,6 +2,9 @@
 import {upgradeLegacyPayload} from "../../briefing/migrations/addon-format.ts";
 import {renderBriefingPage} from "../../briefing/ui/render-page.ts";
 import {renderStocksPage} from "../../briefing/stocks/render.ts";
+import {renderWeeklyPage} from "../../briefing/weekly/render.ts";
+import {renderInvestmentReview} from "../../briefing/investment-review/render.ts";
+import {input as reviewInput,draft as reviewDraft} from "../../../tests/fixtures/briefing/investment-review.ts";
 import {THEME_CSS} from "../themes/index.ts";
 import {FOUNDATION_CSS} from "../foundations/index.ts";
 import {BUTTON_CSS,renderButton,renderLinkButton} from "../components/button.ts";
@@ -41,6 +44,14 @@ export function syntheticDaily():string {
 
 export function syntheticStocksEmpty():string {
   return renderStocksPage(null,new URLSearchParams(),at);
+}
+
+export function syntheticWeeklyEmpty():string {
+  return renderWeeklyPage(null);
+}
+
+export function syntheticInvestmentReview():string {
+  return renderInvestmentReview(reviewInput,reviewDraft);
 }
 
 /** A sub-site assembled only from the library: proves a new site needs no Digest or Docs CSS. */

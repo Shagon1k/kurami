@@ -25,6 +25,7 @@
     "poll": "node src/orchestrator/projects/poll-projects.ts",
     "check": "tsc --noEmit",
     "test:ui-library": "node tests/ui-library/verify.ts",
+    "test:ui-guard": "node tests/ui-library/guard.ts",
     "test:ui-browser": "node src/ui-library/testing/visual-regression.ts --out=dist/ui-browser",
     "ui:export": "node src/ui-library/export.ts --write",
     "docs:build": "node src/human-docs/build.ts --preview",

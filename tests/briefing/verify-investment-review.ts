@@ -13,14 +13,9 @@ import {primaryPacket,mergePrimaryEvidence} from "../../src/briefing/investment-
 import {createHash} from "node:crypto";
 import {applyVuaa,buildFundSnapshot} from "../../src/briefing/investment-review/vanguard.ts";
 import {mkdtemp,rm,readFile} from "node:fs/promises";
+import {assets,source,input,draft} from "../fixtures/briefing/investment-review.ts";
 import {tmpdir} from "node:os";
 import {join} from "node:path";
-const assets=[{id:"AAA",symbol:"AAA.US",isin:"US1234567890",name:"Example stock",currency:"USD" as const,exchange:"US" as const,timezone:"America/New_York",kind:"stock" as const},
-  {id:"FUND",symbol:"FUND.XETRA",isin:"IE1234567890",name:"Example fund",currency:"EUR" as const,exchange:"XETRA" as const,timezone:"Europe/Berlin",kind:"etf" as const}];
-const source={id:"issuer",title:"Test issuer",url:"https://issuer.example/report",asOfDate:"2026-08-31",retrievedAt:"2026-09-18T06:00:00Z"};
-const input:ReviewInput={version:1,asOfDate:"2026-09-18",mode:"trial",baseline:{version:1,asOfLocalDate:"2026-09-18",timezone:"Europe/Vilnius",positions:[{symbol:"AAA",isin:assets[0]!.isin,quantity:"2"},{symbol:"FUND",isin:assets[1]!.isin,quantity:"5"}],unknowns:{currentMonthExecutedTrades:null,currentMonthNewContributionsEUR:null}},
-  market:{version:1,state:"ready",capturedAt:"2026-09-18T06:00:00Z",data:{provider:"eodhd",policy:{enabled:true,assets,benchmark:"FUND",moveThresholdPercent:2},series:assets.map((asset,index)=>({asset,state:"ready",fetchedAt:"2026-09-18T06:00:00Z",points:[{date:"2026-09-17",close:index?20:100,adjusted:index?20:100}]}))}},
-  fx:{date:"2026-09-17",usdPerEUR:2,sourceId:"ecb"},sources:[source,{...source,id:"ecb",title:"FX",url:"https://www.ecb.europa.eu/example",asOfDate:"2026-09-17"}],facts:[{id:"aaa-fact",symbol:"AAA",sourceId:"issuer",statement:"Example factual input"},{id:"fund-fact",symbol:"FUND",sourceId:"issuer",statement:"Example fund input"}],fundHoldings:{fundSymbol:"FUND",fundIsin:assets[1]!.isin,asOfDate:"2026-08-31",sourceId:"issuer",weights:{AAA:10}}};
 const m=calculateReview(input);assert.equal(m.totalEUR,200);assert.equal(m.rows[0]!.weight,50);assert.equal(m.overlap[0]!.totalWeight,55);assert.equal(m.remainingTrades,null);assert.equal(m.remainingNewMoneyEUR,null);assert.equal(m.personalReturn,null);assert.equal(m.stress[0]!.remainingEUR,140);
 assert.deepEqual(calendarMonth("2028-02-29"),{start:"2028-02-01",endExclusive:"2028-03-01"});
 assert.deepEqual(reportPeriod("monthly","2028-03-01"),{start:"2028-02-01",endExclusive:"2028-03-01"});
@@ -53,7 +48,6 @@ const staleFund=structuredClone(input);staleFund.fundHoldings!.asOfDate="2026-06
 assert.equal(calculateReview(staleFund).fundHoldingsUsable,false);assert.deepEqual(calculateReview(staleFund).overlap,[]);
 const future=structuredClone(input);future.sources[0]!.asOfDate="2026-09-19";assert.throws(()=>parseReviewInput(future));
 const bad=structuredClone(input);bad.baseline.positions.push(bad.baseline.positions[0]!);assert.throws(()=>parseReviewInput(bad));
-const draft:ReviewDraft={version:3,inputDigest:inputDigest(input),headline:"Пробный обзор",summary:["Проверяем структуру"],positions:input.baseline.positions.map(p=>({symbol:p.symbol,action:"review",adviceReason:"Неясна устойчивость прибыли",blockingInfo:"Нужен следующий отчёт",factIds:[p.symbol==="AAA"?"aaa-fact":"fund-fact"],rationale:"Вывод",portfolioMeaning:"Связь с портфелем",counterargument:"Контраргумент",revisitWhen:"Условие пересмотра",learningIds:["overlap"]})),learningNotes:[{id:"overlap",term:"Пересечение вложений",explanation:"Объяснение",example:"Пример из отчёта",limitation:"Граница вывода",reference:{title:"Источник",url:"https://www.investor.gov/introduction-investing/investing-basics/glossary/diversification"}}],nextSteps:["Проверить данные"],proposedOrders:[]};
 assert.equal(validateReviewDraft(input,draft),draft);
 assert(renderInvestmentReview(staleFund,{...draft,inputDigest:inputDigest(staleFund)}).includes("пересечения не рассчитаны"));
 const withIdea=structuredClone(input);

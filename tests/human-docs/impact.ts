@@ -2,6 +2,7 @@ import {execFileSync} from "node:child_process";
 import {readFileSync} from "node:fs";
 import {resolve} from "node:path";
 import {onlyDocsPackageScriptsChanged} from "../../src/human-docs/changelog.ts";
+import {baselineGrew,evaluateUiImpact} from "../../src/ui-library/testing/impact.ts";
 
 type Area="digest"|"projects"|"operations"|"understand"|"site";
 const root=resolve(import.meta.dirname,"../..");
@@ -60,7 +61,10 @@ if(import.meta.main){
     const after=JSON.parse(execFileSync("git",["show","HEAD:package.json"],{cwd:root,encoding:"utf8"}));
     return !onlyDocsPackageScriptsChanged(before,after);
   });
-  const errors=evaluateDocsImpact(paths,event.pull_request?.body??"");
+  const guard="tests/ui-library/guard-baseline.json";
+  const show=(ref:string)=>{try{return execFileSync("git",["show",`${ref}:${guard}`],{cwd:root,encoding:"utf8",stdio:["ignore","pipe","ignore"]});}catch{return null;}};
+  const body=event.pull_request?.body??"";
+  const errors=[...evaluateDocsImpact(paths,body),...evaluateUiImpact(paths,body,baselineGrew(show(base),show("HEAD")))];
   if(errors.length){for(const error of errors)console.error(error);process.exitCode=1;}
-  else console.log("PR docs-impact declaration and affected sections checked");
+  else console.log("PR docs-impact and UI-library declarations checked");
 }

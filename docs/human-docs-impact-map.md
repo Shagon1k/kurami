@@ -18,6 +18,15 @@ Changelog-EN: <short, reviewed English description>
 Changelog-RU: <short, reviewed Russian description>
 ```
 
+A PR that touches UI rendering (`src/ui-library/`, `src/briefing/ui/`, renderer, style or component modules, or the UI-language skill) also declares how it used the shared UI library, checked by the same gate:
+
+```text
+UI-Library: used | extended | exception
+UI-Reason: <required for exception: why no library part fits, and whether it should be promoted later>
+```
+
+`extended` must change `src/ui-library/`. If the frozen UI-guard exceptions in `tests/ui-library/guard-baseline.json` grew, only `exception` is accepted. See `AGENTS.md`.
+
 For a change with no intended reader-visible effect, state the specific reason:
 
 ```text
