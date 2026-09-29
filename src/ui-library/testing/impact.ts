@@ -30,11 +30,12 @@ export function evaluateUiImpact(paths:readonly string[],body:string,baselineGre
   return [];
 }
 
-/** True when any frozen count or duplicate in the head baseline exceeds the base baseline. */
+/** True when any frozen count or duplicate in the head baseline exceeds the base baseline.
+ *  The PR that first introduces the baseline freezes the existing state; that is not growth. */
 export function baselineGrew(before:string|null,after:string|null):boolean {
-  if(!after)return false;
+  if(!after||!before)return false;
   type Baseline={counts:Record<string,Record<string,number>>;duplicates:Record<string,string>};
-  const base:Baseline=before?JSON.parse(before):{counts:{},duplicates:{}},head:Baseline=JSON.parse(after);
+  const base:Baseline=JSON.parse(before),head:Baseline=JSON.parse(after);
   for(const [rule,files] of Object.entries(head.counts))for(const [file,count] of Object.entries(files))if(count>(base.counts[rule]?.[file]??0))return true;
   return Object.keys(head.duplicates).some(key=>!(key in base.duplicates));
 }
