@@ -12,32 +12,32 @@ const diagrams=resolve(root,"src/human-docs/diagrams");
 const assets=resolve(root,"src/human-docs/assets");
 const copy={
   en:{
-    title:"Two entry paths · separate workflows",
+    title:"Two ways in · three workflows",
     boxes:[
-      ["talk",42,72,476,112,"Owner conversation","Discord · Hermes agent tools"],
-      ["schedule",42,210,476,112,"Schedule or source event","Guarded work · agent if needed"],
-      ["kurami",42,372,476,106,"Kurami boundary","Checks · product state",true],
-      ["digest",102,558,416,100,"Digest","Briefing store · editions"],
-      ["projects",102,691,416,100,"Project Orchestrator","Run Store · GitHub evidence"],
-      ["operations",102,824,416,100,"Operations","Health · recovery state"],
-      ["owner",42,1010,476,110,"Evidence → owner decision","Controls · merge/deploy manual",true],
+      ["talk",42,70,476,102,"Owner request","Discord · via Hermes"],
+      ["schedule",42,200,476,102,"Schedule or new data","An agent only when needed"],
+      ["kurami",42,350,476,100,"Kurami rules","Checks · separate state",true],
+      ["digest",102,535,416,96,"Digest","Dated editions · live sections"],
+      ["projects",102,658,416,96,"Project Orchestrator","Engineering runs · review"],
+      ["operations",102,781,416,96,"Operations","Health checks · backups"],
     ] as (string|number|boolean)[][],
-    branch:"choose a product workflow",
-    note:"Products are alternatives, not sequential stages.",
+    branch:"separate product workflows",
+    note:"Each workflow keeps its own state.",
+    note2:"Discord can show results and controls.",
   },
   ru:{
-    title:"Два входа · разные процессы",
+    title:"Два входа · три процесса",
     boxes:[
-      ["talk",42,72,476,112,"Разговор с владельцем","Discord · агенты Hermes"],
-      ["schedule",42,210,476,112,"Расписание или событие","Проверки · агент при необходимости"],
-      ["kurami",42,372,476,106,"Граница Курами","Проверки · состояние продукта",true],
-      ["digest",102,558,416,100,"Digest","База Digest · выпуски"],
-      ["projects",102,691,416,100,"Project Orchestrator","Run Store · данные GitHub"],
-      ["operations",102,824,416,100,"Operations","Здоровье · восстановление"],
-      ["owner",42,1010,476,110,"Решение владельца","Действия · merge/deploy вручную",true],
+      ["talk",42,70,476,102,"Запрос владельца","Discord · через Hermes"],
+      ["schedule",42,200,476,102,"Расписание или новые данные","Агент — только если нужен"],
+      ["kurami",42,350,476,100,"Правила Курами","Проверки · отдельное состояние",true],
+      ["digest",102,535,416,96,"Digest","Выпуски · живые блоки"],
+      ["projects",102,658,416,96,"Project Orchestrator","Запуски · проверка работы"],
+      ["operations",102,781,416,96,"Operations","Здоровье · резервные копии"],
     ] as (string|number|boolean)[][],
-    branch:"выбрать процесс продукта",
-    note:"Продукты — варианты, а не этапы цепочки.",
+    branch:"отдельные процессы продуктов",
+    note:"У каждого процесса своё состояние.",
+    note2:"Discord может показать результат и действия.",
   },
 } as const;
 
@@ -59,13 +59,12 @@ function build(lang:Language){
   const words=copy[lang];
   const boxes=words.boxes.map(([id,x,y,width,height,label,detail,accent])=>({id:String(id),x:Number(x),y:Number(y),width:Number(width),height:Number(height),label:String(label),detail:String(detail),accent:Boolean(accent)})) as Box[];
   const arrows:Arrow[]=[
-    {id:"talk-to-boundary",points:[[518,128],[532,128],[532,346],[450,346],[450,372]]},
-    {id:"schedule-to-boundary",points:[[330,322],[330,372]]},
-    {id:"boundary-to-branch",points:[[70,478],[70,924]]},
-    {id:"branch-digest",points:[[70,608],[102,608]]},
-    {id:"branch-projects",points:[[70,741],[102,741]]},
-    {id:"branch-operations",points:[[70,874],[102,874]]},
-    {id:"branch-to-owner",points:[[70,924],[70,1010]]},
+    {id:"talk-to-boundary",points:[[518,121],[532,121],[532,330],[450,330],[450,350]]},
+    {id:"schedule-to-boundary",points:[[330,302],[330,350]]},
+    {id:"boundary-to-branch",points:[[70,450],[70,877]]},
+    {id:"branch-digest",points:[[70,583],[102,583]]},
+    {id:"branch-projects",points:[[70,706],[102,706]]},
+    {id:"branch-operations",points:[[70,829],[102,829]]},
   ];
   // The branch trunk is a connector, not a lifecycle arrow between products.
   const elements=[
@@ -76,14 +75,15 @@ function build(lang:Language){
       textElement(`${box.id}-label`,box.label,box.x+18,box.y+12,27),
       textElement(`${box.id}-detail`,box.detail,box.x+18,box.y+54,24),
     ]),
-    textElement("branch-label",words.branch,102,512,21),
-    textElement("note",words.note,42,1150,19),
+    textElement("branch-label",words.branch,102,481,21),
+    textElement("note",words.note,42,920,20),
+    textElement("note-2",words.note2,42,954,20),
   ];
   const scene={type:"excalidraw",version:2,source:"https://excalidraw.com",elements,appState:{viewBackgroundColor:"#ffffff",gridSize:null},files:{}};
   writeFileSync(resolve(diagrams,`system-map-${lang}.excalidraw`),JSON.stringify(scene,null,2)+"\n");
   const line=(arrow:Arrow)=>`<polyline points="${arrow.points.map(([x,y])=>`${x},${y}`).join(" ")}" fill="none" stroke="#e21b16" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"${arrow.id==="boundary-to-branch"?"":' marker-end="url(#tip)"'}/>`;
   const box=(item:Box)=>`<g><rect x="${item.x}" y="${item.y}" width="${item.width}" height="${item.height}" rx="7" fill="${item.accent?"#fff0ed":"#faf8f2"}" stroke="${item.accent?"#e21b16":"#0b0b0b"}" stroke-width="2"/><text x="${item.x+18}" y="${item.y+42}" font-size="27" font-weight="700">${xml(item.label)}</text><text x="${item.x+18}" y="${item.y+81}" font-size="24">${xml(item.detail)}</text></g>`;
-  const svg=`<svg xmlns="http://www.w3.org/2000/svg" width="560" height="1190" viewBox="0 0 560 1190" role="img" aria-labelledby="title desc"><title id="title">${xml(words.title)}</title><desc id="desc">${xml(words.note)}</desc><defs><marker id="tip" markerWidth="8" markerHeight="8" refX="6.5" refY="4" orient="auto"><path d="M1 1 L7 4 L1 7" fill="none" stroke="#e21b16" stroke-width="1.5"/></marker></defs><rect width="560" height="1190" fill="#fff"/><g font-family="Onest,Arial,sans-serif" fill="#0b0b0b"><text x="42" y="46" font-size="23" font-weight="700">${xml(words.title)}</text>${arrows.map(line).join("")}${boxes.map(box).join("")}<text x="102" y="535" font-size="21" fill="#5e5e59">${xml(words.branch)}</text><text x="42" y="1168" font-size="19" fill="#5e5e59">${xml(words.note)}</text></g></svg>\n`;
+  const svg=`<svg xmlns="http://www.w3.org/2000/svg" width="560" height="1000" viewBox="0 0 560 1000" role="img" aria-labelledby="title desc"><title id="title">${xml(words.title)}</title><desc id="desc">${xml(words.note)} ${xml(words.note2)}</desc><defs><marker id="tip" markerWidth="8" markerHeight="8" refX="6.5" refY="4" orient="auto"><path d="M1 1 L7 4 L1 7" fill="none" stroke="#e21b16" stroke-width="1.5"/></marker></defs><rect width="560" height="1000" fill="#fff"/><g font-family="Onest,Arial,sans-serif" fill="#0b0b0b"><text x="42" y="46" font-size="23" font-weight="700">${xml(words.title)}</text>${arrows.map(line).join("")}${boxes.map(box).join("")}<text x="102" y="505" font-size="21" fill="#5e5e59">${xml(words.branch)}</text><text x="42" y="944" font-size="20" fill="#5e5e59">${xml(words.note)}</text><text x="42" y="978" font-size="20" fill="#5e5e59">${xml(words.note2)}</text></g></svg>\n`;
   writeFileSync(resolve(assets,`system-map-${lang}.svg`),svg);
 }
 mkdirSync(assets,{recursive:true});

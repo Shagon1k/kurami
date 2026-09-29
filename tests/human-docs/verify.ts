@@ -188,13 +188,15 @@ for(const page of pages){
     }
     if(page.slug==="system-map"){
       assert.match(html,new RegExp(`<figure class="scene-map">[\\s\\S]*?/assets/system-map-${lang}\\.svg`));
-      assert.ok(html.includes(lang==="ru"?"разное состояние":"separate state"));
+      assert.ok(html.includes(lang==="ru"?"У каждого процесса своё состояние":"Each workflow keeps its own state"));
+      assert.equal(page.blocks.some(block=>block.type==="table"),false);
       const svg=readFileSync(resolve(root,`src/human-docs/assets/system-map-${lang}.svg`),"utf8");
       const scene=JSON.parse(readFileSync(resolve(root,`src/human-docs/diagrams/system-map-${lang}.excalidraw`),"utf8"));
       assert.equal(scene.type,"excalidraw");
-      assert.match(svg,/<svg[^>]*viewBox="0 0 560 1190"/);
-      assert.ok(svg.includes(lang==="ru"?"Два входа · разные процессы":"Two entry paths · separate workflows"));
-      assert.ok(svg.includes(lang==="ru"?"агент при необходимости":"agent if needed"));
+      assert.match(svg,/<svg[^>]*viewBox="0 0 560 1000"/);
+      assert.ok(svg.includes(lang==="ru"?"Два входа · три процесса":"Two ways in · three workflows"));
+      assert.ok(svg.includes(lang==="ru"?"Агент — только если нужен":"An agent only when needed"));
+      assert.ok(!scene.elements.some((element:{id?:string})=>element.id==="owner-box"||element.id==="branch-to-owner"));
       for(const label of ["Digest","Project Orchestrator","Operations"])assert.ok(svg.includes(label)&&scene.elements.some((element:{text?:string})=>element.text===label));
     }
     if(page.slug==="daily"||page.slug==="weekly-cinema"||page.slug==="stocks-review"){
