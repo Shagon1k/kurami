@@ -316,3 +316,22 @@ Track duplicate or reusable patterns while improving the documentation. A later 
 ## Acceptance of this audit
 
 This stage is ready for owner review when the inventory names every current `docs/` file, each current article has a concrete gap and source anchor, the new code refactor is accounted for, source versus deployed claims are separated, and the proposed route/visual scope can be accepted or narrowed. It does **not** complete the behavioral fact check of 32 pages, production rollout review, or final editorial acceptance. Those occur in section-sized delivery batches after the owner reviews this matrix.
+
+## Coverage refresh — 2026-09-29 (navigation and voice rewrite)
+
+Checked against `7ff0081` plus the docs branch: orchestrator, Discord, system and connector modules, `deploy/config/projects.yaml`, installed Hermes jobs, owner screenshots of the run card, `/kurami status` and `/kurami settings`. Keyword matches over page copy were used only to find candidates; each gap below was confirmed in code or internal docs.
+
+| Capability | Evidence | Current coverage | Proposal |
+| --- | --- | --- | --- |
+| Project configuration (`projects.yaml`: repository, board statuses, CI checks, preview adapter and label, Discord channel, triage fields) | `deploy/config/projects.yaml`, `docs/project-readiness.md` | Mentioned inside Admission | New page "Connecting a project" (config + readiness), Admission keeps the per-task check |
+| Board statuses (Backlog, In progress, Human Review, Done, Deferred) and what each transition triggers | `projects.yaml` `statuses`, run controller | Scattered; Deferred mentioned once | New page "Board statuses" with the owner's board screenshot |
+| `human-control` label, Take control, Open in Codex, Continue autonomously, successor handoff | `docs/technical-reference.md` §Remote ownership, `sessions/autonomous-successor.ts` | One paragraph in Owner controls; label absent | New page "Human control and handoff" with the card sequence |
+| AI Code Review and review-fix rounds; Attempt CI fix | `projects/reviews/*`, `runtime/reconcile-*` | Two sentences in CI, reviews and previews | Split: "CI and AI review" and "Previews" (policy `preview-required`, slots, lifetime, Compose/static adapters) |
+| `/kurami settings` (health interval, concurrent LLM, WIP per project, AI triage, previews; changes locked while runs, resources or previews are live) and `/kurami status` | `settings/*`, owner screenshots | Health interval only | New page "Limits and settings"; `/kurami status` joins Owner controls |
+| Session time limits (main writer and technical worker timeouts) | `sessions/runtime-budget.ts` | Absent | One paragraph in Engineering run |
+| External access model (docs behind Cloudflare Access, preview ingress, Codex launcher) without exact hosts | `docs/human-docs-operations.md`, `docs/technical-reference.md` | Partly in Connector authority | Optional page "Access from outside" |
+| How the docs are written and kept fresh (rules, `Docs-Impact`/`UI-Library` PR lines, weekly audit to #updates) | `docs/human-docs-*`, `src/human-docs/automation/` | Absent from the site | New Docs page "How the docs stay current" |
+| Docs releases and the changelog (docs-only vs app-bound, `revision: null`, rollback) | `docs/human-docs-operations.md`, `changelog.ts` | Absent from the site | New Docs page "Releases and the changelog" |
+| Legacy comparison routes `weekly-cinema`, `stocks-review` | content | Unlisted duplicates | Replace with short pointer pages to Weekly/Cinema and Stocks/Investment Review |
+
+Digest, Operations monitoring and recovery pages already cover their capabilities; they need the voice rewrite and screenshots rather than new pages.
