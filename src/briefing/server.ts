@@ -45,11 +45,11 @@ import { buildInterestProfile, personalizedNewsOrder } from "./interest-profile.
 import { loadTopicPolicy } from "./editorial-validation.ts";
 
 const FAVICON_PATH = new URL(
-  "../../integrations/hermes/skills/kurami-ui-preview-language/assets/kurami-favicon.svg",
+  "../../src/ui-library/assets/brand/kurami-favicon.svg",
   import.meta.url,
 );
 const FOX_LOGO_PATH = new URL(
-  "../../integrations/hermes/skills/kurami-ui-preview-language/assets/kurami-fox-transparent.png",
+  "../../src/ui-library/assets/brand/kurami-fox-transparent.png",
   import.meta.url,
 );
 const FONT_DIRECTORY = new URL("../../src/ui-library/assets/fonts/", import.meta.url);

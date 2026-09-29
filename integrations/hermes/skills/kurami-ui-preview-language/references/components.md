@@ -14,13 +14,14 @@ Use this order as a grammar, not a mandatory template:
 Sections share one token system but not one container. Alternate open editorial sections, compact strips, split panels, structured lists, selective warm blocks, and visual media collections. Read `references/layout-archetypes.md` before composing the page.
 
 The document head is also shared UI. It must link to
-`assets/kurami-favicon.svg`; this is a global brand primitive, not content owned
+`src/ui-library/assets/brand/kurami-favicon.svg`; this is a global brand primitive, not content owned
 by an edition or add-on.
 
 ## Actions and navigation
 
-The canonical `SiteHeader` is shared by Daily, Cinema, Weekly and empty states.
-Use `assets/kurami-fox-transparent.png` at 48px (42px mobile), without a square
+The library site header (`src/ui-library/patterns/site-header.ts`) is shared by
+Daily, Cinema, Weekly, empty states and the docs. Digest wraps it in
+`ui/components/site-header.ts`. It uses the transparent header fox at 48px (42px mobile), without a square
 background, beside the Kurami wordmark and issue date. Keep the existing framed
 SVG favicon for browser tabs. On dark surfaces use the component's restrained
 edge contrast, not a recolored logo or a new boxed variant.
@@ -231,7 +232,7 @@ Trailers, upcoming premieres, and currently playing films are independent repeat
 The `KuramiComment` component in `ui/components/kurami-comment.ts`
 marks AI-authored interpretation, judgments and proposed actions. Its fixed
 visible byline is **🦊 Курами:**; accessibility text identifies AI commentary.
-Use one warm `--panel` surface and thin `--line` left rule per coherent group,
+Use one warm `--surface-panel` surface and thin `--border-default` left rule per coherent group,
 not per sentence. Keep normal Onest text and shared theme tokens: no red
 warning treatment, handwriting or shadow. This is distinct from the short
 handwritten notes described below.

@@ -109,7 +109,7 @@ if(process.env.CHARTS_PREVIEW_PORT) {
  const html=injectRuntime(`<!doctype html><html lang="ru" data-theme="light"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Charts · Kurami</title><link href="https://fonts.googleapis.com/css2?family=Onest:wght@400;500;600;700&display=swap" rel="stylesheet"><style>${BRIEFING_STYLES}</style></head><body><header class="utility-header"><div class="utility-header__inner page-shell"><strong>Charts · проверка компонентов</strong>${renderThemeSwitch("ru")}</div></header><main class="container" style="padding-top:100px"><h1>Графики Kurami</h1><p>Тестовая страница. Все значения демонстрационные.</p>${renderTrendChart(trend)}${renderBarChart(bar)}${signed}${empty}</main></body></html>`);
  const server=createServer(async(req,res)=>{
   if(req.url==="/assets/briefing.js"){const response=await fetch("http://127.0.0.1:"+appPort+req.url);res.setHeader("content-type","text/javascript");res.end(await response.text());return;}
-  if(req.url==="/favicon.svg"){res.setHeader("content-type","image/svg+xml");res.end(await readFile(resolve(import.meta.dirname,"../../integrations/hermes/skills/kurami-ui-preview-language/assets/kurami-favicon.svg")));return;}
+  if(req.url==="/favicon.svg"){res.setHeader("content-type","image/svg+xml");res.end(await readFile(resolve(import.meta.dirname,"../../src/ui-library/assets/brand/kurami-favicon.svg")));return;}
   res.setHeader("content-type","text/html; charset=utf-8");res.end(html);
  });
  server.listen(Number(process.env.CHARTS_PREVIEW_PORT),"127.0.0.1");await once(server,"listening");

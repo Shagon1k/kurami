@@ -12,7 +12,7 @@ import {mergeCollectedEvidence} from "./collect.ts";
 
 /** The report is a standalone private file: brand assets and fonts travel inside it. */
 export async function standaloneReportHtml(html:string):Promise<string> {
-  const assets=new URL("../../../integrations/hermes/skills/kurami-ui-preview-language/assets/",import.meta.url);
+  const assets=new URL("../../../src/ui-library/assets/brand/",import.meta.url);
   const [fox,favicon]=await Promise.all([readFile(new URL("kurami-fox-transparent.png",assets)),readFile(new URL("kurami-favicon.svg",assets))]);
   const fontDirectory=new URL("../../../src/ui-library/assets/fonts/",import.meta.url);
   const fonts=new Map<string,string>(await Promise.all(fontFiles.map(async font=>[font.file,(await readFile(new URL(font.file,fontDirectory))).toString("base64")] as const)));

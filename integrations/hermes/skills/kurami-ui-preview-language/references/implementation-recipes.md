@@ -1,368 +1,107 @@
-# Kurami UI implementation recipes
+# Kurami UI implementation guide
 
-Use this reference when implementing or refining HTML, CSS, React, or another web UI. The recipes are framework-neutral baselines; preserve their semantic roles when translating them into components or utility classes.
+Use this reference when implementing or refining a Kurami page. The code in
+`/home/shagon1k/_hermes/_kurami/app/src/ui-library/` is the implementation;
+this file only says how to use it and which rules no code can enforce. For the
+Daily Briefing runtime, the production components in `src/briefing/ui/` render
+every repeated element; do not hand-author their markup.
 
-For the configured Kurami Briefing runtime, these recipes are fallback
-documentation. The production TypeScript components in
-`app/src/briefing/ui/` are authoritative and must render the repeated elements.
-Do not copy this sample markup into a generated briefing.
+## Starting point
 
-## Font loading
+- In this repository, compose pages from library parts: `renderDocument`,
+  `renderSiteHeader`, `renderThemeSwitch`, `renderButton` / `renderLinkButton`,
+  `renderTable`, `renderCallout`, `renderDisclosure` and `inlineDiagram`. Add
+  the matching `*_CSS` strings after `THEME_CSS` and `FOUNDATION_CSS`, then only
+  your page's own layout.
+- Outside this repository, link the generated `../assets/kurami-ui.css`, load
+  `../assets/kurami-theme.js` synchronously in `<head>`, and copy
+  `src/ui-library/assets/fonts/` beside the stylesheet as `fonts/`. Render the
+  same class names and attributes the library functions produce.
+- Style only through theme roles: `var(--surface-page)`, `var(--text-muted)`,
+  `var(--border-default)`, `var(--radius)`, `var(--shadow-card)`,
+  `var(--space-4)` and so on. A literal colour, radius or card shadow is a bug.
 
-Load all three approved families from Google Fonts:
+## Typography
 
-```html
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Caveat:wght@600&family=Fragment+Mono:ital@0;1&family=Onest:wght@400;500;600;700&display=swap" rel="stylesheet">
-```
+Fonts are self-hosted OFL files; never add a Google Fonts link. The library
+stacks are `--font-sans` (Onest), `--font-mono` (Fragment Mono) and
+`--font-note` (Caveat 600, Kurami Notes only). Do not render a phrase that
+contains Cyrillic with `--font-mono`, and do not request weights the fonts do
+not provide (Onest 400–700, Fragment Mono 400, Caveat 600).
 
-Use these stacks:
+## Surfaces
 
-```css
-:root {
-  --font-sans: "Onest", system-ui, -apple-system, "Segoe UI", sans-serif;
-  --font-mono: "Fragment Mono", ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
-  --font-note: "Caveat", "Segoe Print", cursive;
-}
+The framed paper block (`--surface-section`, `--border-default`,
+`--shadow-card`) is one archetype, not the default wrapper. Use the card shadow
+on at most two or three important blocks. Select other structures from
+`references/layout-archetypes.md` to create rhythm.
 
-body { font-family: var(--font-sans); }
-.technical-label { font-family: var(--font-mono); }
-.kurami-note { color: var(--signal); font-family: var(--font-note); font-weight: 600; }
-.page-title { font-size: clamp(2.5rem, 5.5vw, 4.75rem); font-weight: 600; line-height: 1.02; }
-.section-title { font-size: clamp(1.65rem, 3vw, 3rem); font-weight: 600; line-height: 1.08; }
-```
+## Controls
 
-Do not request weights that are not loaded. Do not render mixed Cyrillic phrases with `--font-mono`.
+- Buttons and link buttons come from the library. Controls use Onest 600,
+  never heavier, and keep 44×44px targets.
+- Text links use a persistent underline, arrow or other non-colour affordance.
+- Use one icon family per page and normalize icons through one wrapper instead
+  of per-glyph margins. Familiar emoji are allowed for feedback actions, with an
+  explicit accessible name.
+- Alerts use `!` for warning, pair semantic colour with an icon and explicit
+  text, and keep the dismiss action at the edge with an accessible label. For a
+  short note beside running text, use the library callout.
 
-## Canvas and section recipe
+## Metrics and stories
 
-```css
-.page {
-  min-height: 100dvh;
-  color: var(--ink);
-  background: var(--paper);
-}
+Keep label, value, delta and context/period legible; the empty third row is
+breathing room, not most of the card. Render a mixed-language metadata phrase
+entirely in Onest.
 
-.page-shell {
-  width: min(100% - 32px, 1280px);
-  margin-inline: auto;
-}
+## Paginated feeds
 
-.section-block--framed {
-  padding: clamp(24px, 4vw, 48px);
-  border: 1px solid var(--line);
-  border-radius: 3px;
-  background: var(--section);
-  box-shadow: 4px 4px 0 var(--section-shadow);
-}
+Keep provider names in data attributes or rendered values, never in component
+or class names. Use 10–12 items per page for long primary feeds; no
+`Show all`, infinite document growth or independently scrolling feed window.
+Expand content inline with one item open by default. Render one to four
+caller-supplied topics without changing their strings or order.
 
-.section-block--open {
-  padding-block: clamp(24px, 4vw, 52px);
-  border-block: 1px solid var(--line);
-}
+The runtime owns pagination, theme persistence, reactions and read state. The
+generated HTML stays inert but must expose the Digest hooks listed in
+`SKILL.md` (`data-feed-item`, `data-item-id`, `data-story-toggle`,
+`data-story-details`, `data-paginated-feed`, `data-feed-pagination`,
+`data-page-prev`, `data-page-next`, `data-page-status`, `data-page-input`) and
+include every feed item in document order; the runtime hides pages outside the
+current range. On small screens hide the numbered strip and show the 42px
+numeric page input between previous and next.
 
-.section-strip {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
-  border: 1px solid var(--line);
-  background: var(--surface);
-}
-```
+## Bulk source actions
 
-The framed block is one archetype, not the default wrapper. Use the offset shadow on at most two or three important blocks. Select other structures from `references/layout-archetypes.md` to create rhythm.
+Render `idle`, `confirming`, `loading`, `success` and `error` from caller-owned
+state. Do not embed provider APIs, provider names, cursor mutation or
+persistence logic in the visual primitive.
 
-## Button and link recipe
+## Media
 
-```css
-.button {
-  min-height: 44px;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: 8px;
-  padding: 10px 16px;
-  border: 1px solid var(--ink);
-  border-radius: 3px;
-  font: 600 0.875rem/1 var(--font-sans);
-  text-decoration: none;
-  transition: color 160ms, background 160ms, border-color 160ms, transform 160ms;
-}
+Use a 2:3 visual area for poster-led premieres and 16:9 for video. If the
+payload has no image, create a deliberate typographic placeholder with title or
+category context rather than a large anonymous gradient.
 
-.button--primary { color: #fff; background: var(--signal); border-color: var(--signal); }
-.button--secondary { color: var(--ink); background: var(--surface); }
-.button:active { transform: translateY(1px); }
-.button:focus-visible { outline: 2px solid var(--signal); outline-offset: 3px; }
-```
+## Charts and diagrams
 
-Text links use Onest 600 and a persistent underline, arrow, or other non-color affordance. Never use font-weight above 600 for controls.
-
-## Icon button recipe
-
-```css
-.icon-button {
-  inline-size: 44px;
-  block-size: 44px;
-  display: inline-grid;
-  place-items: center;
-  padding: 0;
-  border: 1px solid var(--line);
-  border-radius: 3px;
-  color: var(--ink);
-  background: var(--surface);
-}
-
-.icon-button > svg { inline-size: 20px; block-size: 20px; stroke-width: 1.75; }
-```
-
-Use one icon family per page. Normalize icons through one wrapper rather than correcting each glyph with arbitrary margins.
-
-For familiar feedback actions, emoji are allowed:
-
-```html
-<button class="icon-button reaction" type="button" aria-label="Больше такого" title="Больше такого" aria-pressed="false">🔔</button>
-<button class="icon-button reaction" type="button" aria-label="Меньше такого" title="Меньше такого" aria-pressed="false">🔕</button>
-```
-
-```css
-.reaction { font-size: 18px; line-height: 1; }
-.reaction[aria-pressed="true"] { color: #fff; background: var(--signal); border-color: var(--signal); }
-```
-
-## Badge and alert recipe
-
-```css
-.badge {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  min-height: 24px;
-  padding: 3px 8px;
-  border: 1px solid currentColor;
-  border-radius: 5px;
-  font: 600 0.75rem/1 var(--font-sans);
-}
-
-.alert {
-  min-height: 56px;
-  display: grid;
-  grid-template-columns: 24px minmax(0, 1fr) 44px;
-  align-items: center;
-  gap: 12px;
-  padding: 8px 8px 8px 16px;
-  border: 1px solid currentColor;
-  border-left-width: 4px;
-  border-radius: 3px;
-}
-```
-
-Use `!` for warning. Keep the dismiss action in the final grid column and give it an accessible label. Pair semantic color with an icon and explicit text.
-
-## Metric and story recipe
-
-```css
-.metric-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(min(100%, 220px), 1fr));
-  gap: 12px;
-}
-
-.metric-card {
-  min-height: 176px;
-  display: grid;
-  grid-template-rows: auto auto 1fr auto;
-  align-content: start;
-  gap: 8px;
-  padding: 20px;
-  border: 1px solid var(--line);
-  border-radius: 5px;
-  background: var(--panel);
-}
-
-.metric-label { color: var(--muted); font-size: 0.8125rem; }
-.metric-value { font-size: clamp(1.75rem, 3vw, 2.5rem); font-weight: 600; line-height: 1.05; }
-.metric-context { align-self: end; color: var(--muted); font-size: 0.75rem; }
-.metric-delta { width: max-content; padding: 5px 9px; border: 1px solid; border-radius: 6px; font-size: 0.75rem; font-weight: 600; line-height: 1; }
-
-.story-row {
-  display: grid;
-  grid-template-columns: 48px minmax(0, 1fr) 44px;
-  gap: 16px;
-  padding: 24px 0;
-  border-bottom: 1px solid var(--line);
-}
-```
-
-Keep label, value, delta, and context/period legible. Use the empty third row as breathing room, not most of the card. Render a mixed-language metadata phrase entirely in Onest. Match the richer metric structure in `templates/reference/component-library.tsx` when possible.
-
-## Paginated Digest Feed recipe
-
-Keep provider names in data attributes or rendered values, not in component or class names.
-
-```html
-<section class="digest-feed" aria-labelledby="digest-title" data-paginated-feed data-page-size="10" data-page-param="newsPage">
-  <header class="digest-feed__header">
-    <div><h2 id="digest-title" data-feed-heading>Prepared title</h2><p>Prepared total and cutoff</p></div>
-    <span class="source-facet">Prepared source · 126</span>
-  </header>
-
-  <article class="digest-item" data-feed-item data-item-id="prepared-stable-id">
-    <span class="digest-item__index">01</span>
-    <div class="digest-item__copy">
-      <p class="digest-item__meta">Prepared source · Prepared sub-source · Prepared time</p>
-      <h3>Prepared headline</h3>
-      <p>Prepared summary</p>
-      <div class="topic-set" aria-label="Prepared topics">
-        <span>Prepared topic</span><span>Another topic</span>
-      </div>
-      <details class="digest-item__details" data-story-details data-edition-id="prepared-edition-id" data-item-id="prepared-stable-id">
-        <summary class="button button--secondary">Подробнее</summary>
-        <div class="digest-item__expanded"><p>Prepared extended digest paragraph.</p></div>
-      </details>
-    </div>
-    <div class="digest-item__actions">…</div>
-  </article>
-
-  <nav class="pagination" aria-label="Prepared pagination label" data-feed-pagination>
-    <button class="button button--secondary" type="button" data-page-prev>← Назад</button>
-    <span aria-live="polite" data-page-status>1 / prepared total</span>
-    <label class="pagination__mobile-jump"><span class="sr-only">Перейти к странице</span><input type="number" min="1" max="prepared total" value="1" data-page-input><span aria-hidden="true">/ prepared total</span></label>
-    <button class="button button--secondary" type="button" data-page-next>Дальше →</button>
-  </nav>
-</section>
-```
-
-```css
-.digest-item {
-  display: grid;
-  grid-template-columns: 32px minmax(0, 1fr) auto;
-  gap: 16px;
-  padding: 24px 0;
-  border-bottom: 1px solid var(--line);
-}
-
-.digest-item__expanded {
-  margin-top: 20px;
-  padding: 18px 20px;
-  background: var(--surface);
-  border-left: 4px solid var(--signal);
-}
-
-.topic-set {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 5px;
-  margin-top: 12px;
-}
-
-.topic-set > span {
-  padding: 3px 7px;
-  color: var(--muted);
-  background: var(--panel);
-  border: 1px solid var(--line);
-  border-radius: 4px;
-  font: 500 0.625rem/1.2 var(--font-sans);
-}
-
-.pagination {
-  min-height: 64px;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 16px;
-}
-```
-
-Use 10–12 items per page for long primary feeds. Do not add `Show all`, infinite document growth, or an independently scrolling feed window. Expand content inline and keep only one item open by default. Render one to four caller-supplied topics without changing their strings or order. On small screens, hide the numbered strip and show the canonical 42px numeric `data-page-input` between previous and next arrows. Clamp it, synchronize it with the URL and desktop page buttons, and preserve the current range.
-
-The runtime owns pagination, theme persistence, reactions, and read-state. The
-generated HTML stays inert but must expose the exact `data-*` hooks shown above.
-Include all feed items in document order; the runtime hides pages outside the
-current range. Put this visible theme control in the utility header:
-
-```html
-<button class="button button--secondary" type="button" data-theme-toggle aria-pressed="false">
-  <span data-theme-icon aria-hidden="true">◐</span>
-  <span data-theme-label>Тёмная тема</span>
-</button>
-```
-
-## Bulk Source Action recipe
-
-```html
-<section class="bulk-source-action">
-  <div>
-    <span>Prepared scope</span>
-    <h3>Prepared action context</h3>
-    <p>Prepared batch size, boundary, and consequence.</p>
-  </div>
-  <button class="button button--primary">Prepared action label</button>
-  <small>Prepared exclusion or safety note.</small>
-</section>
-```
-
-```css
-.bulk-source-action {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
-  gap: 16px 28px;
-  align-items: center;
-  padding: 24px;
-  border: 1px solid var(--line);
-  border-top: 4px solid var(--ink);
-  background: var(--surface);
-}
-
-.bulk-source-action > small { grid-column: 1 / -1; color: var(--muted); }
-```
-
-Render `idle`, `confirming`, `loading`, `success`, and `error` from caller-owned state. Do not embed provider APIs, provider names, cursor mutation, or persistence logic in the visual primitive.
-
-## Media card recipe
-
-```css
-.media-card {
-  min-width: 0;
-  display: grid;
-  grid-template-rows: auto 1fr;
-  border: 1px solid var(--line);
-  border-radius: 4px;
-  overflow: hidden;
-  background: var(--surface);
-}
-
-.media-visual { position: relative; aspect-ratio: 16 / 9; background: var(--ink); }
-.media-duration { position: absolute; right: 10px; bottom: 10px; padding: 4px 6px; color: #fff; background: #000c; border-radius: 3px; }
-.media-body { display: grid; gap: 6px; padding: 16px; }
-.media-meta { color: var(--muted); font-size: 0.75rem; }
-```
-
-Use a 2:3 visual area for poster-led premieres and 16:9 for video. If the payload has no image, create a deliberate typographic/geometric placeholder with title or category context; do not leave a large anonymous gradient.
-
-## Chart interaction recipe
-
-```css
-.chart-node {
-  r: 3;
-  transition: r 140ms ease;
-}
-
-.chart-node:hover,
-.chart-node:focus {
-  r: 6;
-}
-```
-
-Make SVG nodes keyboard-focusable when they expose tooltips. The tooltip must include the exact value and useful time/category context.
+Chart series read `--chart-1` … `--chart-5`. Make SVG nodes keyboard-focusable
+when they expose tooltips, and include the exact value with useful time or
+category context. Author explanatory diagrams in the light diagram palette and
+inline them with `inlineDiagram` so they follow the theme; keep an adjacent
+prose equivalent.
 
 ## Responsive matrix
+
+The library breakpoints are `phone` (620px) and `tablet` (900px) in
+`tokens/index.ts`.
 
 | Width | Layout behavior |
 |---|---|
 | `≥ 1200px` | Full editorial grid; 3–4 metrics; multi-column media; compact briefing rhythm of 28–56px or standard rhythm of 48–80px |
 | `900–1199px` | Reduce to 2–3 columns; preserve side-by-side sections only when both remain readable |
-| `640–899px` | Two-column compact grids; story and source actions remain visible; media may become a horizontal rail |
-| `< 640px` | Single reading column; 16px gutters; sections use 20–24px padding; tables become labeled rows or scroll safely |
+| `620–899px` | Two-column compact grids; story and source actions remain visible; media may become a horizontal rail |
+| `< 620px` | Single reading column; 14px gutters; sections use 20–24px padding; tables stack into labelled rows or scroll safely |
 | `< 400px` | Tighten gaps, never type; retain 44px targets and all content/actions |
 
 Collapsing rules:
@@ -378,14 +117,14 @@ Collapsing rules:
 
 Refine every page in this order:
 
-1. **Canvas:** apply paper, ink, surface, section, and line tokens; confirm light and dark theme roots.
-2. **Typography:** load fonts, apply role-based families, then tune size, line-height, and wrapping using real Cyrillic content.
+1. **Canvas:** apply the library theme and foundations; confirm light, dark and the system default.
+2. **Typography:** apply role-based families, then tune size, line-height, and wrapping using real Cyrillic content.
 3. **Sections:** choose density and archetypes, establish reading width and responsive stacking, then verify that no universal wrapper dominates the page.
-4. **Components:** normalize controls, icons, alerts, metrics, rows, charts, tables, and collections.
+4. **Components:** use library components first; normalize remaining controls, icons, alerts, metrics, rows, charts, tables, and collections.
 5. **Personality:** add only useful Kurami Notes and targeted doodle marks.
 6. **Interaction:** implement hover, focus-visible, active, selected, disabled, tooltip, and dismiss behavior.
-7. **Themes:** verify semantic alert colors, borders, muted text, and media surfaces in dark mode.
+7. **Themes:** verify semantic alert colours, borders, muted text, diagrams and media surfaces in dark mode.
 8. **Stress cases:** test long headings, zero/one/many items, partial data, mixed metadata, and narrow screens.
-9. **Visual QA:** compare the result with `templates/reference/`, run the build, and correct drift before handoff.
+9. **Visual QA:** in this repository run `npm run test:ui-browser` (and the product's own browser checks); elsewhere inspect phone and desktop widths in both themes, run the build, and correct drift before handoff.
 
 Do not polish isolated card shadows or doodles before the canvas, hierarchy, and typography are stable.

@@ -1,6 +1,6 @@
 # UI library — inventory and proposed boundary (stage 9.1–9.2)
 
-Status: inventory at `c31a505`, proposal awaiting owner approval. Nothing has moved yet. Stage 9 of `docs/human-docs-delivery-plan.md`.
+Status: inventory at `c31a505`; the owner approved the structure, self-hosted fonts, the system theme as first-visit default and a generated bundle for the UI skill. Implemented on branch `feat/ui-library`; see "Result" at the end. Stage 9 of `docs/human-docs-delivery-plan.md`.
 
 ## What exists today
 
@@ -104,3 +104,22 @@ Each step is its own commit with Digest and Docs adapters, tests and a light/dar
 - Self-host fonts in Digest (removes the Google Fonts request; bundles Caveat under OFL).
 - Default to the system theme on first visit in Docs as well as Digest.
 - The UI skill's React reference templates: delete them, or keep a generated token CSS file for previews built outside this repository.
+
+## Result
+
+Implemented in seven commits, one per migration step. Each step kept Digest pixel-stable (≤0.1% changed pixels in the joint screenshots) except for deliberate fixes, and passed `npm test` and the docs browser QA.
+
+| Stage 9.6 criterion | Evidence |
+| --- | --- |
+| Digest and Docs share one library for confirmed shared parts | Both import tokens, foundations, button, theme switch, header, document shell, table, callout and disclosure from `src/ui-library/`; `tests/ui-library/verify.ts` asserts each CSS block is included exactly once per site. |
+| Product components did not move for formal reuse | Story, mail, agenda, Cinema, Stocks, charts engine, Kurami notes and state messages stay in `src/briefing/ui`; Docs maps and article layout stay in `src/human-docs`. |
+| No competing `shared-ui` location | `src/shared-ui` is deleted; brand assets and fonts live only in `src/ui-library/assets`; the skill holds generated copies checked for freshness. |
+| Light/dark did not regress | `npm run test:ui-browser` checks theme behaviour and audits overflow, names and AA contrast on Digest, Docs and a library-only page in both themes; Docs browser QA passes 360 combinations. |
+| A new theme is a token-set swap | `Theme` requires 28 colour roles per mode and 19 scale roles; the contract test builds a different theme without touching components and rejects incomplete ones. |
+| A sub-site needs no Digest/Docs CSS | The `library-subsite` fixture renders header, table, callout, disclosure and buttons from the library plus six lines of layout and passes the same audit. |
+| The skill references real components | The skill names library and Digest functions and `src/ui-library` paths; the test fails if any name or path does not exist, or if the skill restates colours, Google Fonts or templates. |
+| Joint browser regression | `npm run test:ui-browser -- --compare=<baseline dir>` compares screenshots of both products and reports the share of changed pixels. |
+
+Fixes found along the way: the Digest pagination input had no focus ring (undefined `--focus`); white on the dark accent was 3.3:1, so dark primary buttons now use near-black text; small red text on warm sections was 4.1:1 and now uses `text-accent`; dark-mode Digest flashed light before its deferred theme script; diagrams were white slabs in dark mode; Lithuanian and arrow glyphs fell back to system fonts.
+
+Deploying needs `npm run briefing:build`, a `kurami-briefing` restart, a docs release and `bin/sync-hermes-skills.sh --apply` for the rewritten skill. The stale `dist/shared-ui/` directory can be removed after the build.

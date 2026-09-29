@@ -26,7 +26,7 @@ shared; the logo has a subtle dark-theme edge treatment without a background box
 ## Brand assets
 
 - Browser favicon: existing `kurami-favicon.svg`, unchanged.
-- Header: `integrations/hermes/skills/kurami-ui-preview-language/assets/kurami-fox-transparent.png`.
+- Header: `src/ui-library/assets/brand/kurami-fox-transparent.png`.
 - Server asset URL: `/assets/kurami-fox.png` (GET/HEAD, cached).
 
 The header PNG was produced with built-in ImageGen, editing the user-approved

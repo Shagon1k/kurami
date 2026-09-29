@@ -42,7 +42,7 @@ This skill may not:
 - change read/unread state;
 - add schedules or cron jobs;
 - invent values, links, statuses, or editorial priority;
-- copy demo facts from reference templates.
+- copy demo facts from examples or fixtures.
 
 ## Suggested payload shape
 

@@ -3,7 +3,7 @@ name: kurami-ui-preview-language
 description: Render pages in Kurami's fixed visual language.
 license: private
 metadata:
-  version: 0.9.2
+  version: 1.0.0
   author: Aliaksei Hurynovich with Hermes Agent
   hermes:
     tags:
@@ -45,16 +45,56 @@ Read these references before making visual decisions:
 - `references/visual-language.md` for tokens, typography, themes, spacing, and accessibility.
 - `references/components.md` for component selection and layout grammar.
 - `references/content-contract.md` for the boundary between content and presentation.
-- `references/implementation-recipes.md` for font imports, CSS recipes, responsive behavior, and the iteration sequence.
+- `references/implementation-recipes.md` for building with the library, responsive behavior, and the iteration sequence.
 - `references/layout-archetypes.md` for density profiles and section composition.
 - `references/kurami-notes.md` for semantic note roles, placement, and daily variation.
 
 For Kurami Briefing pages, the production components in
 `/home/shagon1k/_hermes/_kurami/app/src/briefing/ui/` are canonical. Use the
-runtime renderer instead of hand-authoring known components. Inspect
-`templates/reference/` only for a new target that cannot use the canonical
-renderer; those files are a portable visual baseline, not a second component
-implementation and not a source of facts or demo copy.
+runtime renderer instead of hand-authoring known components.
+
+## Shared UI library
+
+`/home/shagon1k/_hermes/_kurami/app/src/ui-library/` is the implementation
+source of truth for every Kurami site: Digest, the human docs and any new
+sub-site. This skill explains when to use its parts. It does not restate their
+CSS or APIs; read the module when you need the details.
+
+| Layer | Module (under `src/ui-library/`) | Use for |
+|---|---|---|
+| Tokens | `tokens/index.ts`, `themes/kurami.ts` | Colour roles by purpose (`surface-*`, `text-*`, `border-*`, `accent-*`, `status-*`, `chart-*`, `diagram-*`) and scale roles (`font-*`, `radius*`, `shadow-*`, `duration-*`, `space-*`). A new theme replaces values, never names. |
+| Foundations | `foundations/` | Reset, body type, focus ring, `.skip-link`, `.sr-only`, `.container` (a site sets `--container-max`), self-hosted fonts, themed inline SVG diagrams, HTML escaping. |
+| Components | `components/` | Button and link button, theme switch, data table, callout, disclosure. |
+| Patterns | `patterns/` | Site header (navigation wraps on phones or collapses into a menu) and the document shell. |
+| Runtime | `runtime/theme.ts` | The only theme script: stored choice, otherwise the system theme, applied before first paint. |
+| Brand | `assets/brand/` | `kurami-favicon.svg` and the transparent header fox. |
+| Testing | `testing/` | `npm run test:ui-browser`: theme behaviour and screenshots for Digest and Docs together. |
+
+To build a new page or sub-site in this repository:
+
+1. Render the document with `renderDocument` and `renderSiteHeader`; put
+   `renderThemeSwitch` (and any link buttons) in the header actions.
+2. Build its stylesheet from `THEME_CSS`, `FOUNDATION_CSS`, the CSS of the
+   components you use, and your own layout rules. Never copy CSS from Digest
+   or Docs, and never write a literal colour, radius or card shadow: use roles.
+3. Serve the theme runtime as `/assets/theme.js`, loaded synchronously in
+   `<head>` (Digest injects it when serving, because its artifacts must stay
+   script-free), and serve the fonts from `assets/fonts/` at `/assets/`.
+4. Keep product layout and product components inside the product. Move a
+   component into the library only when a second product really uses it.
+
+Do not reuse Digest domain components outside Digest: news stories, mail,
+agenda, Cinema, Stocks, metric and signal strips, Kurami notes and comments,
+charts, feed ordering and pagination live in `src/briefing/ui/` for a reason.
+Docs' article layout, side navigation and explanatory maps stay in
+`src/human-docs/`.
+
+For a target outside this repository, link the generated
+`assets/kurami-ui.css`, load `assets/kurami-theme.js` synchronously in
+`<head>`, copy `src/ui-library/assets/fonts/` beside the stylesheet as
+`fonts/`, and use the brand files from `src/ui-library/assets/brand/`. Both
+generated files come from `npm run ui:export`; change the library, never the
+copies. Use the same class names the library components render.
 
 ## How to Run
 
@@ -82,8 +122,8 @@ Use Hermes file tools to inspect and edit the target project. Use the target pro
 | Concern | Rule |
 |---|---|
 | Overall character | Editorial, precise, warm paper, black ink, red signal |
-| Brand asset | Always use `assets/kurami-favicon.svg` as the site favicon |
-| Site header | Reuse `SiteHeader`, transparent `assets/kurami-fox-transparent.png`, and server-supplied published navigation |
+| Brand asset | Always use `src/ui-library/assets/brand/kurami-favicon.svg` as the site favicon |
+| Site header | Reuse the library `renderSiteHeader` pattern (Digest adds server-supplied published navigation) |
 | Body and headings | Onest |
 | Technical Latin labels | Fragment Mono |
 | Handwritten notes | Caveat 600 |
@@ -95,7 +135,7 @@ Use Hermes file tools to inspect and edit the target project. Use the target pro
 | Long feeds | Paginate 10–12 items; never use `Show all` or a nested feed scrollbar |
 | Topics | Render 1–4 caller-supplied canonical strings as quiet labels |
 | Service scope | Keep components provider-agnostic; service names belong to payloads |
-| Theme | Complete light/dark support with a visible switch |
+| Theme | Library theme roles in light and dark, the shared theme runtime and a visible `renderThemeSwitch` |
 | Responsive behavior | Same information and note limits on mobile and desktop |
 | Density | Briefing compact; report standard; media visual |
 | Emoji | Functional familiar symbols are welcome; decoration is restrained |
@@ -128,7 +168,7 @@ Use Hermes file tools to inspect and edit the target project. Use the target pro
   CSS, accessibility hooks, and runtime data attributes stay deterministic.
 - In the Daily Briefing runtime, use `PaginatedFeed`, `NewsStory`, `TopicSet`,
   `StoryDisclosure`, `StoryCover`, `StoryMediaGallery`, `MediaLightbox`,
-  `ReactionGroup`, `FeedOrderControl`, and `ThemeToggle` from the production UI layer. Do not
+  `ReactionGroup`, `FeedOrderControl`, and the library `renderThemeSwitch`. Do not
   recreate them with one-off HTML.
 - Render the optional below-metrics Signals add-on only through canonical
   `SignalStrip` / `SignalItem`. Preserve supplied priority, fixed icon/color
@@ -175,9 +215,9 @@ Use Hermes file tools to inspect and edit the target project. Use the target pro
 
 - Use the exact token roles from `references/visual-language.md`.
 - Link every rendered Kurami page to the canonical
-  `assets/kurami-favicon.svg`. Do not generate edition-specific favicons or
+  `src/ui-library/assets/brand/kurami-favicon.svg` (served as `/favicon.svg` or `/assets/favicon.svg`). Do not generate edition-specific favicons or
   redraw the fox inside individual renderers.
-- Start from the font imports and framework-neutral recipes in `references/implementation-recipes.md`; translate them into the target stack without changing token roles.
+- Start from the library (or its generated bundle outside this repository); see `references/implementation-recipes.md`. Fonts are self-hosted; do not link Google Fonts.
 - Keep briefing headings compact enough for scan-first reading: section titles use Onest 600 and the page title must not exceed the approved fluid maximum.
 - Set controls and links to Onest 600 and optically center their labels.
 - Keep icon geometry consistent, centered, and at least 18px inside 44px targets.
@@ -207,9 +247,10 @@ Use Hermes file tools to inspect and edit the target project. Use the target pro
 
 ### 6. Implement interaction and themes
 
-- Put one visible theme control in the page utility header. It must use
-  `data-theme-toggle` and may contain `data-theme-icon` and
-  `data-theme-label`; never rely only on the browser color preference.
+- Put one visible theme control in the site header: the library
+  `renderThemeSwitch`. It keeps a constant accessible name and reports state
+  with `aria-pressed`; the shared runtime owns the icon, storage and the
+  system-theme default. Do not write another theme script.
 - Provide visible hover, focus-visible, active, disabled, and selected states.
 - Make briefing read state explicit but quiet: use a subtle whole-row tint and
   a small red Caveat check mark, plus the screen-reader label `Прочитано`.
@@ -219,7 +260,7 @@ Use Hermes file tools to inspect and edit the target project. Use the target pro
 - Keep the utility header full-width with a padded page-shell inner container;
   its controls must never touch the structural border. Add the stronger border
   and small shadow only after scroll.
-- Use the canonical `SiteHeader`: transparent fox, Kurami wordmark, issue date,
+- Use the library site header through Digest's adapter: transparent fox, Kurami wordmark, issue date,
   available section links and one theme control. The server determines which
   latest Daily/Cinema/Weekly pages are published (or a valid enabled Stocks
   cache exists); do not infer availability
@@ -272,7 +313,7 @@ Use Hermes file tools to inspect and edit the target project. Use the target pro
 - Do not encode a trailer or premiere section as exactly one item.
 - Do not render large media or premiere cards as mostly empty boxes when the payload contains visual, source, date, duration, or rating context.
 - Do not hide missing, stale, or failed data behind a polished normal state.
-- Do not copy demo facts, publication names, movie titles, or dates from reference templates.
+- Do not copy demo facts, publication names, movie titles, or dates from examples or fixtures.
 - Do not hard-code Telegram, Gmail, RSS, or another provider into `Digest Feed`, pagination, reactions, or bulk-action primitives. Provider-specific copy is allowed only as supplied content or an explicitly labeled demo.
 - Do not infer, merge, translate, rename, or normalize topics. Do not turn source labels into topics or render more than four visible topic labels per item.
 - Do not render 100+ feed items in one document flow. Paginate long collections with a default page size of 10–12.
@@ -283,7 +324,7 @@ Use Hermes file tools to inspect and edit the target project. Use the target pro
 Before handoff, confirm all of the following:
 
 - The page uses Onest, Fragment Mono only where allowed, and Caveat only for Kurami Notes.
-- Light and dark themes use semantic tokens rather than isolated hard-coded colors.
+- Light and dark themes use library roles rather than isolated hard-coded colours, radii or shadows, and no CSS is copied from Digest or Docs.
 - A visible `data-theme-toggle` changes the theme in the rendered runtime.
 - Headings are readable, sentence case by default, and never collide.
 - Buttons and links use weight 600 and appear vertically centered.
