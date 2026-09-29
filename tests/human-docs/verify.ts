@@ -36,8 +36,8 @@ assert.equal(onlyDocsWorkflowChanged(regressionWorkflow,withDocsGate.replace("np
 assert.match(DOCS_STYLES,/\.architecture-map__path \{[^}]*gap: 24px/);
 assert.match(DOCS_STYLES,/\.block \.system-map \{ margin-bottom: 24px; \}/);
 assert.match(DOCS_STYLES,/\.article \.data-table caption \{ display: block; width: 100%;/);
-// Small labels on the light section background need the docs-specific AA text color.
-assert.match(DOCS_STYLES,/:root \{ --docs-signal-text: #c71410; \}/);
+// Small accent labels on the light section background need the darker AA accent-text role.
+assert.match(DOCS_STYLES,/:root \{[^}]*--text-accent: #c71410;/);
 for(const lang of ["en","ru"] as const)for(const theme of ["light","dark"] as const){
   const fixture=syntheticDailyHtml(lang,theme);
   assert.doesNotThrow(()=>assertSyntheticFixture(fixture));

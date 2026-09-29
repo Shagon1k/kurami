@@ -465,7 +465,7 @@ assert.match(html, /button__icon" aria-hidden="true">🔕<\/span>/);
 assert.match(html, /data-note-id="note:hero"[^>]*>утро без суеты/);
 assert.match(html, /data-note-id="note:story"[^>]*>сюда стоит смотреть/);
 assert.doesNotMatch(html, /kurami-note--ink/);
-assert.match(html, /\.kurami-note \{ color: var\(--signal\);/);
+assert.match(html, /\.kurami-note \{ color: var\(--accent-primary\);/);
 assert.doesNotMatch(html, /спокойно, всё собрано|главное — рядом/);
 assert.doesNotMatch(html, /<script\b/i);
 

@@ -6,17 +6,17 @@ import {renderLearningNotes,REVIEW_LEARNING_STYLES} from "./learning-note.ts";
 import {reviewFreshness,type StoredReview} from "./store.ts";
 import type {ReviewInput} from "./model.ts";
 export const REVIEW_PANEL_STYLES=REVIEW_LEARNING_STYLES+`
-.investment-review{margin:32px 0;border:1px solid var(--line);background:var(--panel)}
+.investment-review{margin:32px 0;border:1px solid var(--border-default);background:var(--surface-panel)}
 .investment-review h2{font-size:1.5rem;margin:0}.investment-review summary{cursor:pointer;min-height:44px;padding:12px 0}
 .investment-review>summary{display:flex;align-items:center;justify-content:space-between;gap:16px;padding:24px;list-style:none}
 .investment-review>summary::-webkit-details-marker{display:none}
-.investment-review>summary:hover{background:var(--section)}
-.investment-review>summary:focus-visible{outline:2px solid var(--signal);outline-offset:3px}
+.investment-review>summary:hover{background:var(--surface-section)}
+.investment-review>summary:focus-visible{outline:2px solid var(--accent-primary);outline-offset:3px}
 .investment-review__chevron{font-size:20px;line-height:1}
 .investment-review[open]>summary .investment-review__chevron{transform:rotate(180deg)}
 .investment-review__content{padding:0 24px 8px}
-.investment-review details{border-top:1px solid var(--line)}.investment-review__body{padding:0 0 16px;max-width:95ch}
-.investment-review__status{color:var(--muted);line-height:1.5}
+.investment-review details{border-top:1px solid var(--border-default)}.investment-review__body{padding:0 0 16px;max-width:95ch}
+.investment-review__status{color:var(--text-muted);line-height:1.5}
 @media(max-width:600px){.investment-review>summary{padding:16px}.investment-review__content{padding:0 16px 8px}}
 `;
 /** Compact, cache-only, no action controls; only accepted independent slots. */
