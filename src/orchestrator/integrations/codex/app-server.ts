@@ -255,6 +255,24 @@ class AppServerClient {
     return undefined;
   }
 
+  completedAgentMessage(threadId: string, turnId: string): string | undefined {
+    for (let index = this.#notifications.length - 1; index >= 0; index -= 1) {
+      const message = this.#notifications[index];
+      if (message.method !== "item/completed") continue;
+      const params = message.params as
+        | { threadId?: string; turnId?: string; item?: { type?: string; text?: string; phase?: string | null } }
+        | undefined;
+      if (
+        params?.threadId === threadId &&
+        params.turnId === turnId &&
+        params.item?.type === "agentMessage" &&
+        (params.item.phase === "final_answer" || params.item.phase == null) &&
+        typeof params.item.text === "string"
+      ) return params.item.text;
+    }
+    return undefined;
+  }
+
   close(): void {
     this.#child.stdin.end();
     this.#child.kill("SIGTERM");
@@ -267,7 +285,7 @@ type ReviewTurn = {
   error?: { message?: string } | null;
   items?: Array<
     | { type: "exitedReviewMode"; review: string }
-    | { type: "agentMessage"; text: string }
+    | { type: "agentMessage"; text: string; phase?: string | null }
     | { type: string }
   >;
 };
@@ -277,6 +295,7 @@ type ReviewStartResponse = {
   turn?: ReviewTurn;
   reviewThreadId?: string;
 };
+type TurnStartResponse = { turn?: ReviewTurn };
 
 export type DetachedReviewResult = {
   parentThreadId: string;
@@ -291,6 +310,7 @@ export async function runDetachedReview(
     cwd: string;
     title: string;
     instructions: string;
+    outputSchema?: Record<string, unknown>;
     timeoutMs?: number;
     onStarted?: (reviewThreadId: string, turnId: string) => void;
   },
@@ -313,14 +333,23 @@ export async function runDetachedReview(
       threadId: parentThreadId,
       name: options.title,
     });
-    const reviewStarted = (await client.request("review/start", {
-      threadId: parentThreadId,
-      target: { type: "custom", instructions: options.instructions },
-      // This thread exists only for this review. Inline delivery keeps the
-      // review isolated without the unsupported paginated detached-review fork.
-      delivery: "inline",
-    })) as ReviewStartResponse;
-    reviewThreadId = reviewStarted.reviewThreadId ?? null;
+    // review/start returns presentation text; structured callers need turn/start's outputSchema.
+    const reviewStarted = options.outputSchema
+      ? (await client.request("turn/start", {
+          threadId: parentThreadId,
+          input: [{ type: "text", text: options.instructions }],
+          outputSchema: options.outputSchema,
+        })) as TurnStartResponse
+      : (await client.request("review/start", {
+          threadId: parentThreadId,
+          target: { type: "custom", instructions: options.instructions },
+          // This thread exists only for this review. Inline delivery keeps the
+          // review isolated without the unsupported paginated detached-review fork.
+          delivery: "inline",
+        })) as ReviewStartResponse;
+    reviewThreadId = options.outputSchema
+      ? parentThreadId
+      : (reviewStarted as ReviewStartResponse).reviewThreadId ?? null;
     const turnId = reviewStarted.turn?.id;
     if (reviewThreadId !== parentThreadId || !turnId)
       throw new Error("Codex returned an unexpected review task identity");
@@ -337,20 +366,28 @@ export async function runDetachedReview(
       throw new Error(
         `Codex review did not complete: ${turn.status}${turn.error?.message ? ` (${turn.error.message})` : ""}`,
       );
-    const review =
-      client.completedReview(reviewThreadId, turnId) ??
-      turn.items
-        ?.filter(
-          (item): item is { type: "exitedReviewMode"; review: string } =>
-            item.type === "exitedReviewMode" && "review" in item,
-        )
-        .at(-1)?.review ??
-      turn.items
-        ?.filter(
-          (item): item is { type: "agentMessage"; text: string } =>
-            item.type === "agentMessage" && "text" in item,
-        )
-        .at(-1)?.text;
+    const review = options.outputSchema
+      ? client.completedAgentMessage(reviewThreadId, turnId) ??
+        turn.items
+          ?.filter(
+            (item): item is { type: "agentMessage"; text: string; phase?: string | null } =>
+              item.type === "agentMessage" && "text" in item &&
+              (item.phase === "final_answer" || item.phase == null),
+          )
+          .at(-1)?.text
+      : client.completedReview(reviewThreadId, turnId) ??
+        turn.items
+          ?.filter(
+            (item): item is { type: "exitedReviewMode"; review: string } =>
+              item.type === "exitedReviewMode" && "review" in item,
+          )
+          .at(-1)?.review ??
+        turn.items
+          ?.filter(
+            (item): item is { type: "agentMessage"; text: string } =>
+              item.type === "agentMessage" && "text" in item,
+          )
+          .at(-1)?.text;
     if (!review?.trim()) throw new Error("Codex review returned no result");
     return {
       parentThreadId,

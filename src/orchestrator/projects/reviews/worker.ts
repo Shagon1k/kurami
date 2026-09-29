@@ -25,6 +25,30 @@ export type ReviewFinding = {
   line: number;
 };
 export type ParsedReview = { summary: string; findings: ReviewFinding[] };
+export const reviewOutputSchema = {
+  type: "object",
+  properties: {
+    summary: { type: "string" },
+    findings: {
+      type: "array",
+      items: {
+        type: "object",
+        properties: {
+          severity: { type: "string", enum: ["critical", "important", "suggestion"] },
+          confidence: { type: "string", enum: ["high", "medium", "low"] },
+          title: { type: "string" },
+          body: { type: "string" },
+          path: { type: "string" },
+          line: { type: "integer" },
+        },
+        required: ["severity", "confidence", "title", "body", "path", "line"],
+        additionalProperties: false,
+      },
+    },
+  },
+  required: ["summary", "findings"],
+  additionalProperties: false,
+};
 export type ReviewPublication = {
   inlineFindings: ReviewFinding[];
   summaryOnlyFindings: ReviewFinding[];
@@ -483,6 +507,7 @@ export async function runAiReviewWorkerCli(): Promise<void> {
       cwd: row.worktree_path,
       title: `PR #${row.pull_request_number} · AI Code Review`,
       instructions: buildReviewInstructions(row, source.context),
+      outputSchema: reviewOutputSchema,
       onStarted: (threadId) => {
         database
           .prepare(
