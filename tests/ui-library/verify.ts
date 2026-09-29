@@ -18,6 +18,8 @@ import {renderDocument} from "../../src/ui-library/patterns/page-shell.ts";
 import {renderTable,TABLE_CSS} from "../../src/ui-library/components/table.ts";
 import {renderCallout,CALLOUT_CSS} from "../../src/ui-library/components/callout.ts";
 import {renderDisclosure,DISCLOSURE_CSS} from "../../src/ui-library/components/disclosure.ts";
+import {inlineDiagram} from "../../src/ui-library/foundations/diagram.ts";
+import {readFileSync,readdirSync} from "node:fs";
 
 const root=resolve(import.meta.dirname,"../..");
 
@@ -110,5 +112,17 @@ assert.throws(()=>renderTable({columns:["a","b"],rows:[["only one"]]}),/does not
 assert.match(renderCallout({tone:"warning",title:"T",body:"<x>"}),/^<aside class="callout callout--warning"><strong>T<\/strong><p>&lt;x&gt;<\/p><\/aside>$/);
 assert.throws(()=>renderCallout({tone:"loud" as "note",body:"x"}),/Invalid callout tone/);
 assert.match(renderDisclosure({summary:"<s>",body:"<p>b</p>",boxed:true,open:true}),/^<details class="disclosure disclosure--boxed" open><summary>&lt;s&gt;<\/summary><p>b<\/p><\/details>$/);
+
+// Diagrams: every shipped scene stays inside the palette and becomes theme-aware when inlined.
+const scenes=readdirSync(resolve(root,"src/human-docs/assets")).filter(file=>file.endsWith(".svg"));
+assert.ok(scenes.length>=8);
+for(const file of scenes){
+  const inline=inlineDiagram(readFileSync(resolve(root,"src/human-docs/assets",file),"utf8"),{id:file.replace(".svg",""),label:"Scene"});
+  assert.doesNotMatch(inline,/\s(?:fill|stroke)="#/,`${file} keeps no fixed colours`);
+  assert.match(inline,/style="[^"]*var\(--diagram-[a-z-]+,#[0-9a-f]+\)/);
+  assert.doesNotMatch(inline,new RegExp(`\\sid="(?!${file.replace(".svg","")}-)`),`${file} ids are namespaced`);
+}
+assert.throws(()=>inlineDiagram('<svg><rect fill="#123456"/></svg>',{id:"x",label:"x"}),/outside the diagram palette/);
+assert.throws(()=>inlineDiagram('<svg onload="x()"></svg>',{id:"x",label:"x"}),/Unsafe diagram/);
 
 console.log(`UI library theme contract verified: ${colorRoles.length} colour roles × 2 modes, ${scaleRoles.length} scale roles, no retired or undefined tokens`);

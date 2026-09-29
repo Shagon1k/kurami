@@ -9,11 +9,11 @@ export const CHART_STYLES = `
 .chart__key { --chart-color: var(--text-primary); display: inline-flex; align-items: center; gap: 6px; min-height: 44px; padding: 5px 8px; font: 500 .6875rem/1.3 var(--font-sans); text-align: left; }
 .chart__key::before { content: ""; flex: 0 0 16px; height: 3px; background: var(--chart-color); }
 .chart__key[aria-pressed="false"] { opacity: .6; text-decoration: line-through; }
-.chart__series--0, .chart__key--0 { --chart-color: var(--text-primary); }
-.chart__series--1, .chart__key--1 { --chart-color: var(--accent-primary); }
-.chart__series--2, .chart__key--2 { --chart-color: var(--status-success); }
-.chart__series--3, .chart__key--3 { --chart-color: var(--status-warning); }
-.chart__series--4, .chart__key--4 { --chart-color: var(--text-muted); }
+.chart__series--0, .chart__key--0 { --chart-color: var(--chart-1); }
+.chart__series--1, .chart__key--1 { --chart-color: var(--chart-2); }
+.chart__series--2, .chart__key--2 { --chart-color: var(--chart-3); }
+.chart__series--3, .chart__key--3 { --chart-color: var(--chart-4); }
+.chart__series--4, .chart__key--4 { --chart-color: var(--chart-5); }
 .chart__series--4 polyline { stroke-dasharray: 6 4; }
 .chart__key--4::before { background: repeating-linear-gradient(to right,var(--chart-color) 0 5px,transparent 5px 8px); }
 .chart__toolbar { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-top: 8px; color: var(--text-muted); font-size: .6875rem; }

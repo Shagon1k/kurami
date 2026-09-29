@@ -7,6 +7,8 @@ export const colorRoles=[
   "accent-primary","accent-soft",
   "status-success","status-warning","status-failure",
   "shadow-offset","focus-ring",
+  "chart-1","chart-2","chart-3","chart-4","chart-5",
+  "diagram-surface","diagram-panel","diagram-ink","diagram-muted","diagram-accent","diagram-accent-soft",
 ] as const;
 export type ColorRole=typeof colorRoles[number];
 // Mode-independent roles: typefaces, shape, elevation, motion and spacing. A theme may change them too.

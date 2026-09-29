@@ -156,7 +156,7 @@ for(const page of pages){
       assert.ok(html.includes(lang==="ru"?"Accept записывает решение в SQLite":"Accept records your decision in SQLite"));
     }
     if(page.slug==="daily-lifecycle"){
-      assert.match(html,new RegExp(`<figure class="scene-map">[\\s\\S]*?/assets/daily-publication-${lang}\\.svg`));
+      assert.match(html,new RegExp(`<figure class="scene-map">[\\s\\S]*?<svg class="diagram" aria-label="[^"]+"[^>]*role="img"[\\s\\S]*?id="daily-publication-${lang}-tip"`));
       assert.ok(html.includes(lang==="ru"?"Что проверять при сбое этапа":"What to check when a stage fails"));
       assert.ok(html.includes(lang==="ru"?"Успех планировщика — не успех Daily":"A scheduler success is not a Daily success"));
       assert.equal((html.match(/<th scope="row">/g)??[]).length,3);
@@ -187,7 +187,7 @@ for(const page of pages){
       assert.ok(html.includes(lang==="ru"?"Решение владельца":"Owner decision"));
     }
     if(page.slug==="system-map"){
-      assert.match(html,new RegExp(`<figure class="scene-map">[\\s\\S]*?/assets/system-map-${lang}\\.svg`));
+      assert.match(html,new RegExp(`<figure class="scene-map">[\\s\\S]*?<svg class="diagram" aria-label="[^"]+"[^>]*role="img"[\\s\\S]*?id="system-map-${lang}-tip"`));
       assert.ok(html.includes(lang==="ru"?"У каждого процесса своё состояние":"Each workflow keeps its own state"));
       assert.equal(page.blocks.some(block=>block.type==="table"),false);
       const svg=readFileSync(resolve(root,`src/human-docs/assets/system-map-${lang}.svg`),"utf8");
@@ -268,7 +268,7 @@ for(const page of pages){
       assert.ok(html.includes(lang==="ru"?"лимит Codex-сессий проверяется при старте":"Codex session capacity is enforced when"));
     }
     if(page.slug==="run-lifecycle"){
-      assert.match(html,new RegExp(`<figure class="scene-map">[\\s\\S]*?/assets/project-run-state-${lang}\\.svg`));
+      assert.match(html,new RegExp(`<figure class="scene-map">[\\s\\S]*?<svg class="diagram" aria-label="[^"]+"[^>]*role="img"[\\s\\S]*?id="project-run-state-${lang}-tip"`));
       assert.equal((html.match(/<th scope="row">/g)??[]).length,4);
       assert.ok(html.includes(lang==="ru"?"Состояние Review-ready требует освобождения CLI":"Review-ready requires CLI release"));
       const svg=readFileSync(resolve(root,`src/human-docs/assets/project-run-state-${lang}.svg`),"utf8");
@@ -301,7 +301,7 @@ for(const page of pages){
       assert.ok(html.includes(lang==="ru"?"три последовательные":"three consecutive"));
     }
     if(page.slug==="recovery"){
-      assert.match(html,new RegExp(`<figure class="scene-map">[\\s\\S]*?/assets/recovery-topology-${lang}\\.svg`));
+      assert.match(html,new RegExp(`<figure class="scene-map">[\\s\\S]*?<svg class="diagram" aria-label="[^"]+"[^>]*role="img"[\\s\\S]*?id="recovery-topology-${lang}-tip"`));
       assert.equal((html.match(/<th scope="row">/g)??[]).length,4);
       const svg=readFileSync(resolve(root,`src/human-docs/assets/recovery-topology-${lang}.svg`),"utf8");
       const scene=JSON.parse(readFileSync(resolve(root,`src/human-docs/diagrams/recovery-topology-${lang}.excalidraw`),"utf8"));
