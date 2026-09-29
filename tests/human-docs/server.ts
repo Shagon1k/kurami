@@ -13,7 +13,7 @@ try {
   writeFileSync(join(root,"build.json"),JSON.stringify({mode:"release",revision:null,docsSha:revision}));
   assert.doesNotThrow(()=>createDocsServer(root));
   writeFileSync(join(root,"build.json"),JSON.stringify({mode:"release",revision,docsSha:revision}));
-  for(const path of ["ru/index.html","en/index.html","en/changelog/index.html","assets/docs.css"]){
+  for(const path of ["ru/index.html","en/index.html","en/changelog/index.html","assets/docs.css","assets/system-map-en.svg","assets/system-map-ru.svg","assets/daily-publication-en.svg","assets/daily-publication-ru.svg","assets/project-run-state-en.svg","assets/project-run-state-ru.svg","assets/recovery-topology-en.svg","assets/recovery-topology-ru.svg"]){
     const destination=join(root,path);
     mkdirSync(dirname(destination),{recursive:true});
     writeFileSync(destination,`fixture:${path}`);
@@ -40,6 +40,14 @@ try {
       ["/ru/",200,"fixture:ru/index.html"],
       ["/en/changelog/",200,"fixture:en/changelog/index.html"],
       ["/assets/docs.css",200,"fixture:assets/docs.css"],
+      ["/assets/system-map-en.svg",200,"fixture:assets/system-map-en.svg"],
+      ["/assets/system-map-ru.svg",200,"fixture:assets/system-map-ru.svg"],
+      ["/assets/daily-publication-en.svg",200,"fixture:assets/daily-publication-en.svg"],
+      ["/assets/daily-publication-ru.svg",200,"fixture:assets/daily-publication-ru.svg"],
+      ["/assets/project-run-state-en.svg",200,"fixture:assets/project-run-state-en.svg"],
+      ["/assets/project-run-state-ru.svg",200,"fixture:assets/project-run-state-ru.svg"],
+      ["/assets/recovery-topology-en.svg",200,"fixture:assets/recovery-topology-en.svg"],
+      ["/assets/recovery-topology-ru.svg",200,"fixture:assets/recovery-topology-ru.svg"],
       ["/build.json",404,""],
       ["/%2e%2e/build.json",404,""],
       ["/ru/missing/",404,""],

@@ -22,4 +22,6 @@ jobs:
           node-version: "22"
           package-manager-cache: false
       - run: npm ci
+      - if: github.event_name == 'pull_request'
+        run: node tests/human-docs/impact.ts
       - run: npm test

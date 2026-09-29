@@ -20,12 +20,15 @@ One route has one clear subject. Questions can guide an explanation, but section
 | Start | What belongs to Kurami, Hermes, and Codex? | three-part boundary diagram | `README.md`, `docs/technical-reference.md` |
 | Understand | How does work move through the system? | paths from intent to evidence | control flow and subsystem guides |
 | Understand | What counts as current, stale, failed, or accepted? | compact state legend | each product's runtime code |
-| Digest | What does Daily show? | screenshot crop + frozen/live split | `docs/daily-briefing-runtime.md` |
-| Digest | How does an edition reach you? | lifecycle rail | attempt and publication code |
-| Digest | What do Weekly and Cinema add? | two small comparison cards | Weekly/Cinema docs and code |
-| Digest | What is Stocks, and what is Investment Review? | source → report boundary | `docs/stocks-addon.md`, Investment Review code |
-| Digest | What does “For me” change? | before/after ordered list | `src/briefing/interest-profile.ts` |
+| Digest · Daily | What does an edition show, and which sections can refresh? | frozen/live split | `docs/daily-briefing-runtime.md`, add-on code |
+| Digest · Daily | What does “For me” change in the news order? | before/after ordered list | `src/briefing/interest-profile.ts` |
+| Digest · Daily | How does an edition reach you? | publication and recovery path | attempt and publication code |
+| Digest · Weekly | What can seven completed dates support? | coverage and missing-data example | `docs/weekly-review.md` |
+| Digest · Cinema | When can a new snapshot replace the page? | section-to-promotion decision | `docs/cinema-addon-v1.md` |
+| Digest · Markets | How do you read a Stocks row or Discovery card? | dated price and candidate checks | `docs/stocks-addon.md`, Stocks code |
+| Digest · Markets | When is Investment Review accepted? | draft-to-accepted boundary | `docs/investment-review.md`, Review code |
 | Projects | What is Project Orchestrator? | intent → run → PR → owner diagram | `README.md`, `docs/technical-reference.md` |
+| Projects | What does Projects Digest suggest? | factual ranking versus optional owner-reviewed metadata | `docs/technical-reference.md`, triage/metadata code |
 | Projects | How does a project become eligible? | readiness decision cards | `docs/project-readiness.md` |
 | Projects | What happens during a run? | lifecycle rail with stop points | run controller, sessions, GitHub evidence |
 | Projects | What are previews, CI and reviews? | three distinct evidence cards | preview/CI/review modules |
@@ -33,6 +36,9 @@ One route has one clear subject. Questions can guide an explanation, but section
 | Operations | How does health monitoring report problems? | one persistent card, alert path | health code and config |
 | Operations | What can be recovered, and what stays untouched? | recovery boundary diagram | `docs/recovery.md`, backup code |
 | Operations | What runs on a schedule? | small schedule list, not a promise of uptime | current configured jobs and timers |
+| Operations | What does monthly maintenance remove? | narrow cleanup versus preserved resources | maintenance and Resource Guard code |
+| Operations | Which connector can read or change provider data? | three authority contours | `docs/composio-capability-contours.md` |
+| Operations | Where does automation stop? | per-workflow guard and owner decision | runtime and connector contracts |
 | Changelog | What changed, and when? | dated grouped entries | deployed commit range + curated copy |
 
 Small pages should not be padded to fill a template. A page whose subject is only two sentences may link to a neighboring flow. Avoid copying the existing technical reference wholesale; it is an evidence source, not reader-facing copy.
@@ -121,4 +127,4 @@ A feature change is not complete without a human-facing doc update and a changel
 - Operations remains a first-class route alongside Digest and Project Orchestrator.
 - Accessible HTML cards and maps cover the initial flows; Excalidraw source files are reserved for diagrams that would genuinely benefit from illustration.
 
-Implementation: the responsive HTML system map and 17 bilingual pages are in `src/human-docs/`; the changelog gate is implemented. The hostname already responds with a Cloudflare Access login redirect to anonymous requests, but the origin and authenticated route are not verified. See `docs/human-docs-operations.md`.
+Implementation update: the unpublished branch preview has 28 bilingual article routes, including the expanded Operations section and four editable bilingual Excalidraw scenes. The published docs-only release remains the earlier 17-route artifact. Select authenticated routes were checked at earlier release checkpoints; the current unpublished preview has not passed authenticated production smoke. The changelog gate remains deployment-revision-bound. See `docs/human-docs-operations.md`.

@@ -48,6 +48,138 @@
       "en": "",
       "ru": "",
       "exclude": "Internal delivery plan and acceptance matrix; no reader-visible or deployed behavior change."
+    },
+    "214675ae5bee69d54561358c935b170f895448a4": {
+      "category": "improved",
+      "en": "Expanded the bilingual documentation with clearer system boundaries, Digest and Project explanations, diagrams, and source links.",
+      "ru": "Расширена двуязычная документация: уточнены границы системы, описания Digest и Projects, схемы и ссылки на исходники.",
+      "page": "system-map"
+    },
+    "e67702d4494706356446f5318b57cff447e3a48d": {
+      "category": "fixed",
+      "en": "Daily now rejects an editorial candidate when required Telegram source coverage is missing.",
+      "ru": "Daily теперь отклоняет редакционный вариант, если в нём не хватает обязательного охвата источников Telegram.",
+      "page": "daily-lifecycle"
+    },
+    "c7422ca98d42b5cfc154013ed8323c57b1d98c2a": {
+      "category": "operations",
+      "en": "Aligned the scheduled Daily instructions with the runtime's attempt and completion guards; prompt sync now checks the attached skill and preserves the existing schedule.",
+      "ru": "Инструкции планового Daily согласованы с проверками попытки и завершения в runtime; синхронизация prompt проверяет подключённый skill и сохраняет существующее расписание.",
+      "page": "daily-lifecycle"
+    },
+    "a798b843e9a361a8a7192ab8c596dd98fecc4274": {
+      "category": "operations",
+      "en": "",
+      "ru": "",
+      "exclusionScope": "no-reader-visible-change",
+      "exclude": "Updated the internal Daily rollout audit only; no product or human-docs content changed."
+    },
+    "0c7b8a364eb09f74f769b0c6d601a860356e6930": {
+      "category": "improved",
+      "en": "Adjusted Daily's editorial guidance to keep more short, grounded Kurami Notes when the story set warrants them.",
+      "ru": "Редакционные правила Daily уточнены: при достаточном числе сюжетов сохраняется больше коротких Kurami Notes с опорой на материалы.",
+      "page": "daily"
+    },
+    "795d53f0e457874cd849832dcc015b539a79a0ea": {
+      "category": "fixed",
+      "en": "A failure while preparing the Codex prompt file now follows the session-start rollback path.",
+      "ru": "Сбой при подготовке файла задания для Codex теперь проходит через откат запуска сессии.",
+      "page": "run-lifecycle"
+    },
+    "e36e0e939d5383842da2e283b8be725ffc591163": {
+      "category": "fixed",
+      "en": "A Weekly persistence failure is recorded separately, so Daily can still publish while the last successful Weekly remains available.",
+      "ru": "Сбой записи Weekly фиксируется отдельно: Daily может публиковаться, а последний успешный Weekly остаётся доступным.",
+      "page": "weekly"
+    },
+    "af5afb31cdc97b97143756753e532490e303f547": {
+      "category": "operations",
+      "en": "",
+      "ru": "",
+      "exclusionScope": "no-reader-visible-change",
+      "exclude": "Separated Orchestrator read and request-planning code without an intended workflow or owner-control change."
+    },
+    "075f1803be8543b6baa4dc2ecde21a3163cb45fc": {
+      "category": "operations",
+      "en": "",
+      "ru": "",
+      "exclusionScope": "no-reader-visible-change",
+      "exclude": "Moved automatic planning and predicates into modules, with planning tests; no intended external behavior change."
+    },
+    "b320b5b237e756a48c34edd20c2efbb3b1e7057d": {
+      "category": "operations",
+      "en": "",
+      "ru": "",
+      "exclusionScope": "no-reader-visible-change",
+      "exclude": "Moved Session Manager prompt assembly into a module without changing the documented run lifecycle."
+    },
+    "4c35c2993a49834a1776fc0be9b3e758131ef96c": {
+      "category": "operations",
+      "en": "",
+      "ru": "",
+      "exclusionScope": "no-reader-visible-change",
+      "exclude": "Separated Digest persistence stores and updated internal references; no intended reader-facing state change."
+    },
+    "94cfd0091a78ec6712f3e0794ceb4a21c2a03fbf": {
+      "category": "fixed",
+      "en": "If a completed mail action's Weekly counter fails to save, the next enabled history collection retries the counter without repeating the mail action.",
+      "ru": "Если счётчик Weekly для завершённого почтового действия не сохранился, следующий включённый сбор истории повторит запись счётчика без повторения действия с почтой.",
+      "page": "weekly"
+    },
+    "50728a845686fd2caa6e3659c9af78a290177d9f": {
+      "category": "operations",
+      "en": "",
+      "ru": "",
+      "exclusionScope": "no-reader-visible-change",
+      "exclude": "Moved Digest HTML artifact and path helpers into modules; no intended publication or display change."
+    },
+    "6de59f37e42e296096482e7fcdc9f7642243976e": {
+      "category": "operations",
+      "en": "Added pull-request CI regression checks while separating Digest preview persistence; preview and publication remain distinct.",
+      "ru": "Добавлена регрессионная проверка pull request в CI, а хранение preview Digest выделено отдельно; preview по-прежнему не равен публикации.",
+      "page": "engineering-evidence"
+    },
+    "15f4a242df1e618b40e2f778a6219c8ea8d39e3e": {
+      "category": "operations",
+      "en": "",
+      "ru": "",
+      "exclusionScope": "no-reader-visible-change",
+      "exclude": "Separated Digest media and add-on storage behind existing interfaces, with focused tests; no intended output change."
+    },
+    "cc62f541d89aa7a77152759d603c932f0d717280": {
+      "category": "operations",
+      "en": "",
+      "ru": "",
+      "exclusionScope": "no-reader-visible-change",
+      "exclude": "Moved published-edition database updates into their own store with tests; no intended acceptance change."
+    },
+    "a04cb89a0fba07e0b916360f69a0bf733af7d897": {
+      "category": "operations",
+      "en": "",
+      "ru": "",
+      "exclusionScope": "no-reader-visible-change",
+      "exclude": "Separated Digest finalization and mail-action storage, preserving the existing guarded calls."
+    },
+    "c778a4bff1f5eaf2847a5651f3ab534776a70f27": {
+      "category": "operations",
+      "en": "",
+      "ru": "",
+      "exclusionScope": "no-reader-visible-change",
+      "exclude": "Moved Digest retention cleanup into a dedicated store and retained its existing scope checks."
+    },
+    "79f0118c0aa3622b85d367b99c8f9f2f7bac1f98": {
+      "category": "operations",
+      "en": "",
+      "ru": "",
+      "exclusionScope": "no-reader-visible-change",
+      "exclude": "Split Session Manager lifecycle modules with existing ownership tests; no intended stop or release change."
+    },
+    "6ae670a12f7224a4386677ef5dac8c2e07793b3f": {
+      "category": "operations",
+      "en": "",
+      "ru": "",
+      "exclusionScope": "no-reader-visible-change",
+      "exclude": "Split Controller lifecycle and execution modules with planning tests; no intended run-state change."
     }
   }
 }

@@ -71,7 +71,7 @@ including zero-evidence features in the denominator, then multiply by:
 | Topic pair | 12 |
 
 Clamp the total adjustment to ±20. The editorial view position supplies
-`base = -4 × zero-based index`; sort by base + adjustment, breaking ties by
+`base = -1.5 × zero-based index`; sort by base + adjustment, breaking ties by
 the original position. Thus the morning editorial/diversity order remains the
 starting point and distant stories cannot jump arbitrarily far based on a
 single broad preference.

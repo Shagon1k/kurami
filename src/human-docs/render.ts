@@ -1,10 +1,12 @@
 import type {Change,Language} from "./changelog.ts";
 import {pages,type HumanDocsPage} from "./content.ts";
+import {digestNavigation} from "./content/digest.ts";
+import {assertSafeMarkup,assertSourcePath,type VisualId} from "./content/schema.ts";
 
 const escape = (s:string) => s.replaceAll("&","&amp;").replaceAll("<","&lt;").replaceAll(">","&gt;").replaceAll('"',"&quot;");
 const labels = {
-  en: {start:"Start",understand:"Understand",digest:"Digest",projects:"Projects",operations:"Operations",changelog:"Changelog",home:"Home",skip:"Skip to content",theme:"Toggle light and dark theme",choose:"Switch to Russian",latest:"Changes verified for deployed revision",unpublished:"No deployment revision was supplied. Changes are not claimed as live.",awaiting:"Docs are published; no verified application deployment revision has been supplied. Changes are not claimed as live.",source:"Commit",next:"Explore",flow:"How it moves",bounded:"Actions remain bounded by their own rules",current:"Current state"},
-  ru: {start:"Начать",understand:"Устройство",digest:"Digest",projects:"Проекты",operations:"Эксплуатация",changelog:"Изменения",home:"Главная",skip:"К содержанию",theme:"Переключить светлую и тёмную темы",choose:"Переключить на английский",latest:"Изменения подтверждены для развёрнутой версии",unpublished:"Версия развёртывания не указана. Изменения не объявлены опубликованными.",awaiting:"Документация опубликована, но подтверждённая версия приложения не передана. Изменения не объявлены опубликованными.",source:"Коммит",next:"Разделы",flow:"Как это движется",bounded:"Для каждого действия действуют свои границы",current:"Текущее состояние"}
+  en: {start:"Start",understand:"Understand",digest:"Digest",projects:"Projects",operations:"Operations",changelog:"Changelog",home:"Home",skip:"Skip to content",theme:"Dark theme",choose:"Switch to Russian",primaryNav:"Primary navigation",articleNav:"Documentation sections",latest:"Changes verified for deployed revision",unpublished:"No deployment revision was supplied. Changes are not claimed as live.",awaiting:"Docs are published; no verified application deployment revision has been supplied. Changes are not claimed as live.",source:"Commit",next:"Explore",flow:"How it moves",bounded:"Actions remain bounded by their own rules",current:"Current state"},
+  ru: {start:"Начать",understand:"Устройство",digest:"Digest",projects:"Проекты",operations:"Эксплуатация",changelog:"Изменения",home:"Главная",skip:"К содержанию",theme:"Тёмная тема",choose:"Переключить на английский",primaryNav:"Основная навигация",articleNav:"Разделы документации",latest:"Изменения подтверждены для развёрнутой версии",unpublished:"Версия развёртывания не указана. Изменения не объявлены опубликованными.",awaiting:"Документация опубликована, но подтверждённая версия приложения не передана. Изменения не объявлены опубликованными.",source:"Коммит",next:"Разделы",flow:"Как это движется",bounded:"Для каждого действия действуют свои границы",current:"Текущее состояние"}
 } as const;
 type Section = HumanDocsPage["section"];
 const sections: Section[] = ["start","understand","digest","projects","operations"];
@@ -12,19 +14,16 @@ const url = (lang:Language, slug:string) => `/${lang}/${slug ? slug+"/" : ""}`;
 function shell(lang:Language, title:string, description:string, body:string, active?:string, alternateSlug="") {
   const t=labels[lang], other:Language=lang==="en"?"ru":"en";
   const alternate=url(other,alternateSlug);
+  const current=url(lang,alternateSlug);
   const links=(["start","digest","projects","operations","changelog"] as const).map(s=>{
     const destination=s==="changelog"?url(lang,"changelog"):s==="start"?url(lang,""):url(lang,pages.find(p=>p.section===s)?.slug??"");
-    return `<a href="${destination}"${active===s?' aria-current="page"':''}>${t[s]}</a>`;
+    return `<a href="${destination}"${active===s?` aria-current="${destination===current?"page":"location"}"`:""}>${t[s]}</a>`;
   }).join("");
-  return `<!doctype html><html lang="${lang}" data-theme="light"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="color-scheme" content="light dark"><meta name="theme-color" content="#fbfbf8"><title>${escape(title)} · Kurami docs</title><meta name="description" content="${escape(description)}"><link rel="icon" href="/assets/favicon.svg" type="image/svg+xml"><link rel="stylesheet" href="/assets/docs.css"><script src="/assets/theme.js"></script></head><body><a class="skip" href="#main">${t.skip}</a><header class="site-header"><div class="frame site-header__inner"><a class="brand" href="${url(lang,"")}"><img src="/assets/fox.png" alt=""><b>Kurami<span>.</span> docs</b></a><nav class="topnav" aria-label="${t.next}">${links}</nav><details class="mobile-menu"><summary aria-label="${lang==="ru"?"Разделы":"Sections"}"><span class="menu-icon" aria-hidden="true"></span></summary><nav aria-label="${t.next}">${links}</nav></details><div class="actions"><a href="${alternate}" hreflang="${other}" aria-label="${t.choose}">${other.toUpperCase()}</a><button type="button" data-theme-toggle aria-label="${t.theme}">◐</button></div></div></header><main class="frame page" id="main">${body}</main><footer class="footer"><div class="frame">Kurami · ${t.current}</div></footer></body></html>`;
+  return `<!doctype html><html lang="${lang}" data-theme="light"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="color-scheme" content="light dark"><meta name="theme-color" content="#fbfbf8"><title>${escape(title)} · Kurami docs</title><meta name="description" content="${escape(description)}"><link rel="icon" href="/assets/favicon.svg" type="image/svg+xml"><link rel="stylesheet" href="/assets/docs.css"><script src="/assets/theme.js"></script></head><body><a class="skip" href="#main">${t.skip}</a><header class="site-header"><div class="frame site-header__inner"><a class="brand" href="${url(lang,"")}"><img src="/assets/fox.png" alt=""><b>Kurami<span>.</span> docs</b></a><nav class="topnav" aria-label="${t.primaryNav}">${links}</nav><details class="mobile-menu"><summary aria-label="${lang==="ru"?"Разделы":"Sections"}"><span class="menu-icon" aria-hidden="true"></span></summary><nav aria-label="${t.primaryNav}">${links}</nav></details><div class="actions"><a href="${alternate}" hreflang="${other}" aria-label="${t.choose}">${other.toUpperCase()}</a><button type="button" data-theme-toggle aria-label="${t.theme}" aria-pressed="false">◐</button></div></div></header><main class="frame page" id="main" tabindex="-1">${body}</main><footer class="footer"><div class="frame">Kurami · ${t.current}</div></footer></body></html>`;
 }
 function steps(items:[string,string][],lang:Language) {return `<div class="visual"><span class="visual__label">${labels[lang].flow}</span><div class="flow">${items.map(([title,detail],index)=>`<div class="flow__step"><span class="folio">${String(index+1).padStart(2,"0")}</span><strong>${escape(title)}</strong><small>${escape(detail)}</small></div>`).join("")}</div></div>`;}
-type ArchitectureKind="daily-architecture"|"project-architecture";
+type ArchitectureKind="project-architecture";
 const architectures:Record<ArchitectureKind,Record<Language,{caption:string;steps:[string,string][];outcomes:[string,string][];source:string}>>={
-  "daily-architecture":{
-    en:{caption:"Daily · publication and refresh",steps:[["Scheduled attempt","One durable attempt for the local edition date."],["Capture","Source batch is persisted and validated."],["Publish","Edition and news snapshot become visible."],["Notify","One Discord card and a durable notification receipt."]],outcomes:[["Frozen in the edition","Source batch, story IDs and ownership stay fixed; explicit editorial repair may revise authored copy."],["Refreshable fields","Mail, calendar and weather keep their last good value if a refresh fails, marked stale."]],source:"docs/daily-briefing-runtime.md"},
-    ru:{caption:"Daily · публикация и обновление",steps:[["Запуск по расписанию","Одна сохраняемая попытка на локальную дату выпуска."],["Сбор","Пакет источников сохранён и проверен."],["Публикация","Выпуск и снимок новостей становятся доступны."],["Уведомление","Одна карточка Discord и сохранённое подтверждение доставки."]],outcomes:[["Зафиксировано в выпуске","Пакет источников, ID и принадлежность сюжетов не меняются; текст можно исправить отдельным редакционным действием."],["Обновляемые поля","Почта, календарь и погода при сбое сохраняют последнее достоверное значение с отметкой об устаревании."]],source:"docs/daily-briefing-runtime.md"}
-  },
   "project-architecture":{
     en:{caption:"Project Orchestrator · admission to release",steps:[["Status transition","GitHub Project poller records a real change, not the initial snapshot."],["Admission","Event consumer checks the durable transition against policy and capacity."],["Managed run","Controller provisions an isolated worktree and starts Codex."],["Evidence & decision","Exact PR head, CI and owner review; no automatic merge."]],outcomes:[["Verified release","After merge, verified Git ancestry or an exact matching merged PR gates resource cleanup."],["Safe stop","Unclear ownership, dirty work or unmatched published results stay visible for attention."]],source:"docs/technical-reference.md"},
     ru:{caption:"Project Orchestrator · от допуска до завершения",steps:[["Переход статуса","Опрос GitHub Project сохраняет реальное изменение, не первый снимок."],["Допуск","Обработчик событий сверяет сохранённый переход с правилами допуска и лимитами."],["Управляемый запуск","Контроллер создаёт отдельный worktree и запускает Codex."],["Проверки и решение","Точный коммит PR, CI и ревью владельца; автоматического merge нет."]],outcomes:[["Проверенное завершение","После merge доказанная история Git или точно совпадающий слитый PR допускают очистку ресурсов."],["Безопасная остановка","Неясный владелец, незаписанные изменения и несовпадающий опубликованный результат остаются для разбора."]],source:"docs/technical-reference.md"}
@@ -108,6 +107,17 @@ function admissionMap(lang:Language) {
   ];
   return `<figure class="admission-map"><figcaption>${ru?"Совместимость проекта не равна допуску задачи":"Project compatibility is not run admission"}</figcaption><div class="admission-map__status">${statuses.map(([title,detail])=>`<div><strong>${title}</strong><p>${escape(detail)}</p></div>`).join("")}</div><ol class="admission-map__gates">${gates.map(([title,detail],index)=>`<li><span class="folio">${String(index+1).padStart(2,"0")}</span><strong>${escape(title)}</strong><p>${escape(detail)}</p></li>`).join("")}</ol><p class="admission-map__note">${ru?"Проверка готовности ничего не меняет. Запуск появляется только после отдельного допуска сохранённого события.":"The readiness check changes nothing. A run exists only after the durable event passes separate admission."}</p></figure>`;
 }
+function projectDigestMap(lang:Language) {
+  const ru=lang==="ru";
+  const paths=ru?[
+    ["Факты и рекомендация","Снимок Project → детерминированный порядок подходящих Issue → одна текущая карточка.","Без изменения полей и запуска работы."],
+    ["Необязательные предложения","Ограниченная AI-оценка → решение владельца → повторная проверка поля перед записью.","Принятие не перезаписывает изменение владельца."],
+  ]:[
+    ["Facts and suggestion","Project snapshot → deterministic order of eligible Issues → one current card.","No field edit or run start."],
+    ["Optional proposals","Bounded AI assessment → owner decision → fresh field check before a write.","Acceptance does not overwrite an owner change."],
+  ];
+  return `<figure class="project-digest-map"><figcaption>${ru?"Две ветки одной карточки, разные полномочия":"One card, two paths with different authority"}</figcaption><div class="project-digest-map__paths">${paths.map(([title,path,limit])=>`<div><strong>${escape(title)}</strong><p>${escape(path)}</p><small>${escape(limit)}</small></div>`).join("")}</div></figure>`;
+}
 function evidenceMap(lang:Language) {
   const ru=lang==="ru";
   const cards=ru?[
@@ -123,38 +133,32 @@ function evidenceMap(lang:Language) {
 }
 function controlsMap(lang:Language) {
   const ru=lang==="ru";
-  const cards=ru?[
-    ["Проверить","Статус и ссылки на текущий run, PR, Codex и preview."],
-    ["Направить","Takeover или продолжение — только когда ownership и состояние это разрешают."],
-    ["Получить evidence","Ограниченное исправление CI, review и preview по явному запросу."],
-    ["Остановить","Отмена или снятие preview; сомнительная и опубликованная работа сохраняется."],
-  ]:[
-    ["Inspect","Status and links for the current run, PR, Codex task and preview."],
-    ["Steer","Takeover or continue only when state and ownership allow it."],
-    ["Request evidence","Bounded CI repair, review and preview on explicit request."],
-    ["Stop","Cancel or remove preview; ambiguous and published work is preserved."],
-  ];
-  return `<figure class="project-cards controls-map"><figcaption>${ru?"Карточка показывает только допустимые сейчас действия":"The card exposes only actions valid now"}</figcaption><div class="project-cards__grid">${cards.map(([title,detail])=>`<div class="project-cards__card"><strong>${escape(title)}</strong><p>${escape(detail)}</p></div>`).join("")}</div><p class="project-cards__note">${ru?"Нажатие создаёт проверяемое намерение. Завершение подтверждает сохраняемое состояние, а не сам клик.":"A click records verifiable intent. Durable state—not the click—confirms completion."}</p></figure>`;
+  const facts=ru?[["Этап","Human Review · writer освобождён"],["CI","Failed · вымышленный SHA B"],["AI review","Не запрошен"],["Preview","Не запущен"]]:[["Stage","Human Review · writer released"],["CI","Failed · invented SHA B"],["AI review","Not requested"],["Preview","Not running"]];
+  return `<figure class="sample-run-card"><figcaption>${ru?"Вымышленная карточка Discord, не снимок действующего запуска":"Synthetic Discord card, not a live run screenshot"}</figcaption><div class="sample-run-card__window"><div class="sample-run-card__header"><strong>${ru?"Пример задачи · текущая карточка":"Example issue · current dashboard"}</strong><small>${ru?"Последнее сообщение бота в thread":"Latest bot message in the thread"}</small></div><dl>${facts.map(([label,value])=>`<div><dt>${escape(label)}</dt><dd>${escape(value)}</dd></div>`).join("")}</dl><p class="sample-run-card__links">${ru?"Ссылки: Issue · PR · Codex":"Links: Issue · PR · Codex"}</p><div class="sample-run-card__action"><strong>Attempt CI fix</strong><p>${ru?"Возможное действие только при подходящем состоянии ревью и подтверждённом сбое CI.":"A possible action only in an eligible review state with a verified CI failure."}</p></div></div><p class="sample-run-card__note">${ru?"Карточка показывает состояние и допустимое действие. Запрос, выполнение и итог — разные события.":"The card shows state and an eligible action. Request, execution and result are separate events."}</p></figure>`;
 }
 function healthMap(lang:Language) {
   const ru=lang==="ru";
-  const steps=ru?[
-    ["Наблюдать","Ресурсы узла, связь, runtime, recovery и свежесть копий."],
-    ["Оценить","Настроенные пороги, серии сбоев и cooldown хранятся между проверками."],
-    ["Показать","Одна постоянная карточка и ограниченная история снимков."],
-  ]:[
-    ["Observe","Host resources, connectivity, runtime, recovery and backup freshness."],
-    ["Evaluate","Configured thresholds, failure streaks and cooldown survive checks."],
-    ["Present","One persistent card and a bounded snapshot history."],
-  ];
-  const outcomes=ru?[
-    ["Стабильно","Карточка обновляется без нового сообщения."],
-    ["Изменение инцидента","Alerts получает новый сбой, смену серьёзности, напоминание или восстановление."],
-  ]:[
-    ["Stable","The card updates without a new message."],
-    ["Incident change","Alerts receives a new incident, severity change, reminder or recovery."],
-  ];
-  return `<figure class="health-map"><figcaption>${ru?"Сигнал здоровья, а не обещание uptime":"A health signal, not an uptime promise"}</figcaption><ol class="health-map__path">${steps.map(([title,detail],index)=>`<li><span class="folio">${String(index+1).padStart(2,"0")}</span><strong>${escape(title)}</strong><p>${escape(detail)}</p></li>`).join("")}</ol><div class="health-map__outcomes">${outcomes.map(([title,detail])=>`<div><strong>${escape(title)}</strong><p>${escape(detail)}</p></div>`).join("")}</div><p class="health-map__note">${ru?"Обычная проверка ничего не очищает и не исправляет автоматически.":"The ordinary health check neither cleans up nor repairs resources."}</p></figure>`;
+  const system=ru?[["CPU","86% · 5 сек"],["RAM","52%"],["Сеть","online"],["Диск","41%"]]:[["CPU","86% · 5s"],["RAM","52%"],["Network","online"],["Disk","41%"]];
+  const runtime=ru?[["State DB","healthy"],["Previews","1 active"],["Backup","current"]]:[["State DB","healthy"],["Previews","1 active"],["Backup","current"]];
+  const rows=(items:string[][])=>items.map(([label,value])=>`<div><dt>${escape(label)}</dt><dd>${escape(value)}</dd></div>`).join("");
+  return `<figure class="health-map"><figcaption>${ru?"Вымышленная карточка System Health — не снимок действующего узла":"Synthetic System Health card — not a live host screenshot"}</figcaption><div class="health-map__card"><div class="health-map__heading"><strong>Kurami System Health</strong><span>${ru?"Одна проверка требует внимания":"One check needs attention"}</span></div><div class="health-map__groups"><section><h3>${ru?"Узел":"System"}</h3><dl>${rows(system)}</dl></section><section><h3>Project Orchestrator</h3><dl>${rows(runtime)}</dl></section></div><p class="health-map__recent">${ru?"Недавние проверки: до 10 снимков · время проверки показано в настоящей карточке":"Recent health runs: up to 10 snapshots · the real card shows the check time"}</p></div><p class="health-map__note">${ru?"Карточка может показать проблему до отправки Alerts. Health не удаляет ресурсы.":"The card can show a problem before Alerts sends a message. Health does not delete resources."}</p></figure>`;
+}
+function scheduleEvidence(lang:Language){
+  const ru=lang==="ru";
+  const stages=ru?[["01","Триггер","Hermes вызвал задание или пришло изменение источника."],["02","Попытка","Процесс проверил допустимость и записал собственное состояние."],["03","Результат","Ищи выпуск, карточку, run или проверенную копию."]]:[["01","Trigger","Hermes invoked a job or a source changed."],["02","Attempt","The workflow checked its guards and recorded its state."],["03","Outcome","Look for an edition, card, run or verified backup."]];
+  return `<figure class="schedule-evidence"><figcaption>${ru?"Три разных факта, не один статус успеха":"Three different facts, not one success state"}</figcaption><ol>${stages.map(([number,title,detail])=>`<li><span class="folio">${number}</span><strong>${escape(title)}</strong><p>${escape(detail)}</p></li>`).join("")}</ol></figure>`;
+}
+function maintenanceScope(lang:Language){
+  const ru=lang==="ru";
+  const permitted=ru?["Старые логи допустимых типов","Неиспользуемые образы Docker","Builder cache сверх лимита"]:["Old logs of allowed types","Unused Docker images","Builder cache above its ceiling"];
+  const preserved=ru?["Контейнеры и volumes","Worktrees и preview runtimes","Неясные leases и ресурсы"]:["Containers and volumes","Worktrees and preview runtimes","Ambiguous leases and resources"];
+  const column=(title:string,items:string[],kind:string)=>`<div class="maintenance-scope__column maintenance-scope__column--${kind}"><strong>${escape(title)}</strong><ul>${items.map(item=>`<li>${escape(item)}</li>`).join("")}</ul></div>`;
+  return `<figure class="maintenance-scope"><figcaption>${ru?"Штатная уборка имеет короткий список целей":"Routine cleanup has a short target list"}</figcaption><div class="maintenance-scope__grid">${column(ru?"Может удалить":"May remove",permitted,"remove")}${column(ru?"Сохраняет":"Preserves",preserved,"keep")}</div><p>${ru?"Проверка Health ничего не удаляет; для неоднозначного запуска требуется отдельное решение.":"Health inspection deletes nothing; an ambiguous run needs a separate decision."}</p></figure>`;
+}
+function connectorContours(lang:Language){
+  const ru=lang==="ru";
+  const contours=ru?[["composio-read","Фоновое чтение","Только read-only leaf без одобрения."],["composio-automation","Проверенный эффект","Точные leaf tools и правила аргументов."],["composio","Действие владельца","Запись требует одобрения; не fallback."]]:[["composio-read","Unattended reading","Only read-only leaf tools bypass approval."],["composio-automation","Reviewed side effect","Exact leaf tools plus argument policy."],["composio","Owner-directed work","Write calls need approval; never a fallback."]];
+  return `<figure class="connector-contours"><figcaption>${ru?"Три контура — три уровня полномочий":"Three contours, three authority levels"}</figcaption><dl>${contours.map(([name,use,limit])=>`<div><dt><code>${escape(name)}</code></dt><dd><strong>${escape(use)}</strong><span>${escape(limit)}</span></dd></div>`).join("")}</dl></figure>`;
 }
 function recoveryMatrix(lang:Language) {
   const ru=lang==="ru";
@@ -184,19 +188,43 @@ function boundaryMap(lang:Language) {
   ];
   return `<figure class="boundary-map"><figcaption>${ru?"Триггер запускает один ограниченный процесс":"A trigger starts one bounded workflow"}</figcaption><div class="boundary-map__grid">${cards.map(([title,allowed,denied])=>`<div class="boundary-map__card"><strong>${escape(title)}</strong><dl><dt>${ru?"Можно":"May"}</dt><dd>${escape(allowed)}</dd><dt>${ru?"Не делегировано":"Not delegated"}</dt><dd>${escape(denied)}</dd></dl></div>`).join("")}</div><p>${ru?"Текст задач и данные источников считаются данными, а не командами. Неоднозначность сохраняется для владельца.":"Issue text and provider content are data, not instructions. Ambiguity is preserved for the owner."}</p></figure>`;
 }
-function visual(kind:string,lang:Language):string {
+type DigestMapKind="signals-gates"|"weekly-evidence"|"cinema-states"|"stocks-data"|"discovery-screen"|"review-acceptance";
+function digestMap(kind:DigestMapKind,lang:Language):string {
+  const ru=lang==="ru";
+  const data:Record<DigestMapKind,{caption:string;items:[string,string][];steps?:boolean}>={
+    "signals-gates":ru?{caption:"Уведомление появляется только после всех проверок",items:[["Дата","Это Daily за текущий локальный день."],["Источник","Значение принято и ещё свежее."],["Правило","Факт проходит порог, приоритет и срок действия."]]}:{caption:"A notice needs all three checks",items:[["Date","This is the current local-date Daily."],["Source","The value is accepted and still fresh."],["Rule","The fact passes threshold, priority and expiry."]]},
+    "weekly-evidence":ru?{caption:"От наблюдения к обзору",steps:true,items:[["Сохранить","Компактные счётчики и даты без содержания писем."],["Собрать","Семь завершённых дней; пропуски не равны нулю."],["Опубликовать","Только проверенный обзор; прежний результат сохраняется при сбое."]]}:{caption:"From observation to review",steps:true,items:[["Observe","Compact counters and dates, not mail content."],["Aggregate","Seven completed dates; missing is not zero."],["Promote","Validated review only; failure keeps the previous result."]]},
+    "cinema-states":ru?{caption:"От четырёх блоков к одной странице",steps:true,items:[["Собрать","Прокат, трейлеры, премьеры и новости имеют разные источники и периоды."],["Проверить","Состояние каждого блока и общие данные, даты, источники, медиа."],["Решить","Принять весь снимок или сохранить прошлую успешную страницу."]]}:{caption:"Four sections, one page decision",steps:true,items:[["Collect","Box office, trailers, premieres and news have separate sources and windows."],["Validate","Each section’s state plus shared identity, dates, sources and media."],["Decide","Promote the whole snapshot or keep the last successful page."]]},
+    "stocks-data":ru?{caption:"Три разных вопроса к строке Stocks",items:[["Цена","Сырое закрытие и валюта за указанную сессию."],["Изменение","Сравнение скорректированных закрытий; без истории недоступно."],["Свежесть","Принятая дата, устаревшее или отсутствующее значение."]]}:{caption:"Three questions for a Stocks row",items:[["Price","Raw close and currency for a named session."],["Return","Adjusted-close comparison; unavailable without history."],["Freshness","Accepted date, stale value or no trustworthy value."]]},
+    "discovery-screen":ru?{caption:"Проверка кандидата",steps:true,items:[["Короткий список","Источник движений; не весь рынок."],["Сверка","Идентичность, дата, цена и объём в независимой истории."],["Карточка","Не больше трёх; без покупки и добавления в watchlist."]]}:{caption:"Candidate screening",steps:true,items:[["Shortlist","Mover source, not the whole market."],["Cross-check","Identity, date, price and volume against independent history."],["Card","At most three; no buy or watchlist mutation."]]},
+    "review-acceptance":ru?{caption:"Частный анализ → принятый результат",steps:true,items:[["Вход","Подтверждённый состав и свежие котировки."],["Данные","Датированные источники, расчёты и охват."],["Принятие","Проверенный черновик; отдельные Week и Month."]]}:{caption:"Private research → accepted output",steps:true,items:[["Input","Confirmed holdings and current quotes."],["Evidence","Dated sources, calculations and coverage."],["Acceptance","Validated draft; separate Week and Month slots."]]},
+  };
+  const item=data[kind];
+  const entries=item.items.map(([title,detail],index)=>item.steps?`<li><span class="folio">0${index+1}</span><strong>${escape(title)}</strong><p>${escape(detail)}</p></li>`:`<div><dt>${escape(title)}</dt><dd>${escape(detail)}</dd></div>`).join("");
+  return `<figure class="digest-map"><figcaption>${escape(item.caption)}</figcaption>${item.steps?`<ol class="digest-map__steps">${entries}</ol>`:`<dl class="digest-map__matrix">${entries}</dl>`}</figure>`;
+}
+function visual(kind:VisualId,lang:Language):string {
   if(kind==="home-map") return systemMap(lang);
+  if(kind==="daily-publication") return `<figure class="scene-map"><figcaption>${lang==="ru"?"Публикация и два пути восстановления":"Publication and two recovery paths"}</figcaption><img src="/assets/daily-publication-${lang}.svg" alt="${lang==="ru"?"Одна попытка Daily проходит сбор и проверку, технический этап, публикацию и уведомление. Сбой до публикации возобновляет ту же попытку без нового пакета News; сбой уведомления сохраняет выпуск и повторяет только уведомление.":"One Daily attempt passes capture and validation, technical work, publication and notification. Failure before publication resumes that attempt without a new News batch; notification failure keeps the edition and retries only notification."}" width="560" height="1100"><p>${lang==="ru"?"Критерий завершения — опубликованный выпуск и сохранённое подтверждение уведомления.":"Completion requires a published edition and a durable notification receipt."}</p></figure>`;
+  if(kind==="project-run-state") return `<figure class="scene-map"><figcaption>${lang==="ru"?"После допуска: запуск, ревью и безопасная остановка":"After admission: work, review and safe stop"}</figcaption><img src="/assets/project-run-state-${lang}.svg" alt="${lang==="ru"?"Допущенный запуск планирует ресурсы, затем создаёт отдельный worktree и получает одного управляемого writer Codex. После освобождения CLI он готов к ревью. Done или Cancel запускают остановку; точное доказательство разрешает очистку, а неоднозначная работа сохраняется для разбора. Отменить можно и до ревью.":"An admitted run plans resources, then provisions an isolated worktree and claims one managed Codex writer. After CLI ownership is released it becomes review-ready. Done or Cancel starts stopping; exact proof permits release, while ambiguous work stays for attention. Cancellation can also bypass review."}" width="560" height="1210"><p>${lang==="ru"?"Состояние Review-ready требует освобождения CLI; Done не равен немедленному удалению. Левая ветка ведёт от активной работы к отмене без ревью, правая — от остановки к сохранению неоднозначного результата.":"Review-ready requires CLI release; Done does not delete resources. The left branch cancels active work without review; the right branch preserves an ambiguous stop for the owner."}</p></figure>`;
+  if(kind==="signals-gates"||kind==="weekly-evidence"||kind==="cinema-states"||kind==="stocks-data"||kind==="discovery-screen"||kind==="review-acceptance") return digestMap(kind,lang);
+  if(kind==="system-architecture") return `<figure class="scene-map"><figcaption>${lang==="ru"?"Карта границ: два входа, три независимых продукта":"Boundary map: two entry paths, three independent products"}</figcaption><img src="/assets/system-map-${lang}.svg" alt="${lang==="ru"?"Разговор в Discord через Hermes, расписание или событие источника могут запустить ограниченный процесс Курами. Агент нужен не каждому процессу. Digest, Project Orchestrator и Operations хранят разное состояние; результат и действия видны владельцу.":"A Discord conversation via Hermes, a schedule or a source event can start a bounded Kurami workflow. Not every workflow needs an agent. Digest, Project Orchestrator and Operations keep separate state; evidence and controls reach the owner."}" width="560" height="1190"><p>${lang==="ru"?"Красные стрелки показывают выбор процесса, а не обязательный маршрут через все три продукта. Ни одна ветка не даёт права на автоматический merge или deploy.":"Red arrows show a choice of workflow, not a required route through all three products. No branch grants automatic merge or deployment authority."}</p></figure>`;
   if(kind==="roles") return rolesMap(lang);
   if(kind==="state-legend") return stateLegend(lang);
   if(kind==="comparison"||kind==="weekly-contrast"||kind==="stocks-boundary") return comparisonMap(kind,lang);
   if(kind==="for-me-order") return forMeOrder(lang);
   if(kind==="project-admission") return admissionMap(lang);
+  if(kind==="project-digest") return projectDigestMap(lang);
   if(kind==="engineering-evidence") return evidenceMap(lang);
   if(kind==="owner-controls") return controlsMap(lang);
   if(kind==="health-map") return healthMap(lang);
+  if(kind==="schedule-evidence") return scheduleEvidence(lang);
+  if(kind==="recovery-topology") return `<figure class="scene-map"><figcaption>${lang==="ru"?"Топология восстановления: источники, проверка и исключения":"Recovery topology: sources, verification and exclusions"}</figcaption><img src="/assets/recovery-topology-${lang}.svg" alt="${lang==="ru"?"Код из Git и проверенная локальная копия состояния могут войти в восстановление. Если включён внешний архив, он создаётся из проверенной копии и выбранных данных, затем сверяется после выгрузки. На новом узле состояние возвращают явно, внешние сервисы пересоздают. Worktrees, Codex sessions и Docker data не копируются.":"Git code and a verified local state backup can enter a restore. If enabled, an encrypted off-site bundle is built from the verified backup and selected inputs, then checked after upload. On a new host, state is restored explicitly and external services are rebuilt. Worktrees, Codex sessions and Docker data are not copied."}" width="560" height="940"><p>${lang==="ru"?"Стрелки показывают возможные источники, а не автоматическое продолжение старых запусков.":"The arrows show possible sources, not automatic continuation of old runs."}</p></figure>`;
+  if(kind==="maintenance-scope") return maintenanceScope(lang);
+  if(kind==="connector-contours") return connectorContours(lang);
   if(kind==="recovery-matrix") return recoveryMatrix(lang);
   if(kind==="automation-boundaries") return boundaryMap(lang);
-  if(kind==="daily-architecture"||kind==="project-architecture") return architectureMap(kind,lang);
+  if(kind==="project-architecture") return architectureMap(kind,lang);
   const data:Record<string,Record<Language,[string,string][]>>={
     "project-flow":{en:[["Queued","Durable Project transition"],["Admitted","Policy and capacity passed"],["Active","Managed worktree and Codex"],["Parked","Review or owner attention"],["Stopping","Merge or cancellation evidence"],["Released","Only after exact cleanup proof"]],ru:[["В очереди","Сохранённый переход Project"],["Допущен","Правила и лимиты пройдены"],["В работе","Управляемые worktree и Codex"],["Остановлен","Review или решение владельца"],["Завершение","Проверка merge или отмены"],["Освобождён","Только после точного доказательства очистки"]]},
   };
@@ -224,19 +252,46 @@ function systemMap(lang:Language) {
   return `<figure class="system-map"><figcaption>${ru?"Два входных пути, отдельные процессы и видимый результат":"Two entry paths, separate workflows and visible outcomes"}</figcaption><div class="system-map__paths">${paths.map(([title,detail],index)=>`<div class="system-map__path"><span class="folio">0${index+1}</span><strong>${escape(title)}</strong><p>${escape(detail)}</p></div>`).join("")}</div><div class="system-map__junction"><strong>${ru?"Курами: правила, проверки и долговременное состояние":"Kurami: policy, gates and durable state"}</strong><p>${ru?"Каждый процесс допускает только разрешённое действие и сохраняет собственные подтверждения.":"Each workflow admits only allowed actions and records its own evidence."}</p></div><div class="system-map__products">${products.map(([title,detail])=>`<div><strong>${escape(title)}</strong><p>${escape(detail)}</p></div>`).join("")}</div><div class="system-map__evidence"><strong>${ru?"Результат":"Outcome"}</strong><p>${ru?"Показан результат, явный сбой или ожидание владельца. Состояния разных продуктов не смешиваются.":"The system shows a result, a visible failure or an owner decision. Product state machines remain separate."}</p></div><div class="system-map__owner"><strong>${ru?"Решение владельца":"Owner decision"}</strong><p>${ru?"Принять, направить, остановить или разрешить действие, которое не было делегировано автоматике.":"Accept, steer, stop or authorize an action that was not delegated to automation."}</p></div></figure>`;
 }
 function side(lang:Language,active:string) {
-  const items=sections.map(section=>`<div><h2>${labels[lang][section]}</h2><ul>${pages.filter(p=>p.section===section).map(p=>`<li><a href="${url(lang,p.slug)}"${active===p.slug?' aria-current="page"':''}>${escape(p.navTitle[lang])}</a></li>`).join("")}</ul></div>`).join("");
-  return `<nav class="side" aria-label="${labels[lang].next}">${items}</nav><details class="side-mobile"><summary>${labels[lang].next}</summary><nav aria-label="${labels[lang].next}">${items}</nav></details>`;
+  const link=(page:HumanDocsPage)=>`<li><a href="${url(lang,page.slug)}"${active===page.slug?' aria-current="page"':''}>${escape(page.navTitle[lang])}</a></li>`;
+  const digestPages=new Map(pages.filter(page=>page.section==="digest").map(page=>[page.slug,page]));
+  const digestItems=digestNavigation.map(group=>`<div class="side-group${group.heading?"":" side-group--solo"}">${group.heading?`<h3>${escape(group.heading[lang])}</h3>`:""}<ul>${group.slugs.map(slug=>{
+    const page=digestPages.get(slug);
+    if(!page)throw new Error(`Missing Digest navigation route: ${slug}`);
+    return link(page);
+  }).join("")}</ul></div>`).join("");
+  const items=sections.map(section=>section==="digest"
+    ?`<div class="side-section side-section--digest"><h2>${labels[lang][section]}</h2><div class="side-groups">${digestItems}</div></div>`
+    :`<div class="side-section"><h2>${labels[lang][section]}</h2><ul>${pages.filter(page=>page.section===section).map(link).join("")}</ul></div>`).join("");
+  return `<nav class="side" aria-label="${labels[lang].articleNav}">${items}</nav><details class="side-mobile"><summary>${labels[lang].next}</summary><nav aria-label="${labels[lang].articleNav}">${items}</nav></details>`;
 }
-function safeBlocks(page:HumanDocsPage,lang:Language) {
+function safeBlocks(page:HumanDocsPage,lang:Language,sourceSha?:string,deployed=false) {
   return page.blocks.map(block=>{
+    if(block.type==="source-links")return sourceNotes(block.paths,lang,sourceSha,deployed);
+    if(block.type==="diagram")return `<section class="block diagram-block">${visual(block.visual,lang)}<p class="diagram-block__explanation">${escape(block.explanation[lang])}</p></section>`;
+    if(block.type==="table")return `<section class="block"><div class="data-table"><table><caption>${escape(block.caption[lang])}</caption><thead><tr>${block.columns[lang].map(value=>`<th scope="col">${escape(value)}</th>`).join("")}</tr></thead><tbody>${block.rows[lang].map(row=>`<tr>${row.map((value,index)=>index===0?`<th scope="row">${escape(value)}</th>`:`<td><span class="data-table__label" aria-hidden="true">${escape(block.columns[lang][index])}</span>${escape(value)}</td>`).join("")}</tr>`).join("")}</tbody></table></div></section>`;
+    if(block.type==="callout")return `<aside class="block callout callout--${block.tone}"><strong>${escape(block.title[lang])}</strong><p>${escape(block.body[lang])}</p></aside>`;
+    if(block.type==="example")return `<section class="block example"><p class="example__label">${lang==="ru"?"Вымышленный пример":"Synthetic example"}</p><h2>${escape(block.title[lang])}</h2><p>${escape(block.body[lang])}</p></section>`;
+    if(block.type==="technical")return `<section class="block"><details class="technical"><summary>${escape(block.summary[lang])}</summary><p>${escape(block.body[lang])}</p>${block.code?`<pre><code>${escape(block.code[lang])}</code></pre>`:""}</details></section>`;
     const raw=block[lang];
-    if (/<\s*(?:script|iframe|object|embed|form|input|button)\b|\bon[a-z]+\s*=|javascript:|data:text\/html/i.test(raw)) throw new Error(`Unsafe markup in ${page.slug}/${lang}`);
-    return `<section class="block">${raw.replace(/<div data-visual=['"]([a-z-]+)['"]\s*><\/div>/g,(_match,kind:string)=>visual(kind,lang))}</section>`;
+    assertSafeMarkup(raw,`${page.slug}/${lang}`);
+    if(block.type==="details")return `<section class="block"><details><summary>${escape(block.summary[lang])}</summary>${raw}</details></section>`;
+    return `<section class="block">${block.visual?visual(block.visual,lang):""}${raw}</section>`;
   }).join("");
 }
-export function renderArticle(page:HumanDocsPage,lang:Language) {
+function sourceNotes(paths:readonly string[],lang:Language,sourceSha?:string,deployed=false){
+  if(!paths.length||!sourceSha)return "";
+  if(!/^[0-9a-f]{40}$/.test(sourceSha))throw new Error("Invalid docs source revision");
+  const links=paths.map(path=>{
+    assertSourcePath(path);
+    return `<li><a href="https://github.com/Shagon1k/kurami/blob/${sourceSha}/${path}">${escape(path)}</a></li>`;
+  }).join("");
+  const note=deployed?(lang==="ru"?"Исходники на подтверждённой версии приложения":"Source at the verified application revision"):(lang==="ru"?"Исходники на указанной версии Git; это не доказательство развёртывания приложения":"Repository source at the cited revision; this does not prove application deployment");
+  return `<aside class="source-notes" aria-label="${lang==="ru"?"Проверяемые источники":"Source references"}"><h2>${lang==="ru"?"Проверить в репозитории":"Check in the repository"}</h2><p>${note} · <code>${sourceSha.slice(0,12)}</code></p><ul>${links}</ul></aside>`;
+}
+export function renderArticle(page:HumanDocsPage,lang:Language,sourceSha?:string,deployed=false) {
   const active=page.section;
-  const body=`<div class="layout">${side(lang,page.slug)}<article class="article"><header class="intro"><p class="eyebrow">${labels[lang][active]}</p><h1>${escape(page.title[lang])}</h1><p class="lede">${escape(page.summary[lang])}</p></header>${safeBlocks(page,lang)}</article></div>`;
+  const inlineSources=page.blocks.some(block=>block.type==="source-links");
+  const body=`<div class="layout">${side(lang,page.slug)}<article class="article" data-page="${escape(page.slug)}"><header class="intro"><p class="eyebrow">${labels[lang][active]}</p><h1>${escape(page.title[lang])}</h1><p class="lede">${escape(page.summary[lang])}</p></header>${safeBlocks(page,lang,sourceSha,deployed)}${inlineSources?"":sourceNotes(page.sources??[],lang,sourceSha,deployed)}</article></div>`;
   return shell(lang,page.title[lang],page.summary[lang],body,active,page.slug);
 }
 export function renderHome(lang:Language) {
@@ -255,7 +310,9 @@ export function renderChangelog(lang:Language,changes:Change[],revision?:string,
   for(const change of changes) groups.set(change.date,[...(groups.get(change.date)??[]),change]);
   const categories={en:{new:"New",improved:"Improved",fixed:"Fixed",operations:"Operations"},ru:{new:"Новое",improved:"Улучшено",fixed:"Исправлено",operations:"Эксплуатация"}};
   const cards=[...groups].map(([date,items])=>`<section class="change-day"><h2>${escape(date)}</h2>${items.map(c=>`<div class="change"><span class="change__category">${categories[lang][c.category]}</span><a href="https://github.com/Shagon1k/kurami/commit/${c.sha}" rel="noopener noreferrer">${t.source} ${c.sha.slice(0,7)}</a><p>${escape(c.copy)}</p>${c.page?`<a href="${url(lang,c.page)}">${ru?"Открыть страницу":"Read the page"} ↗</a>`:""}</div>`).join("")}</section>`).join("");
-  const status=revision?t.latest:published?t.awaiting:t.unpublished;
+  const status=revision
+    ? `${t.latest}. ${ru?"Даты в списке — дни коммитов, не дни развёртывания.":"List dates are commit days, not deployment days."}`
+    : published?t.awaiting:t.unpublished;
   const empty=revision
     ? ru?"После начальной точки пока нет опубликованных изменений.":"No published changes since the baseline."
     : published
