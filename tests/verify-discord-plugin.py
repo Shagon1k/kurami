@@ -24,7 +24,7 @@ def verify_docs_listener(module) -> dict[str, object]:
     async def fake_control(action, proposal_id, thread_id=None, actor_id=None):
         calls.append((action, proposal_id, thread_id, actor_id))
         if action == "discuss":
-            return {"ok": True, "needsThread": True, "title": "Документация · dp_0123456789ab"}
+            return {"ok": True, "needsThread": True, "title": "Docs proposal · dp_0123456789ab"}
         return {"ok": True}
 
     class Response:
@@ -47,7 +47,7 @@ def verify_docs_listener(module) -> dict[str, object]:
 
     class Message:
         async def create_thread(self, name, auto_archive_duration, reason):
-            require(name.startswith("Документация"), "Docs thread name lost its label")
+            require(name.startswith("Docs proposal"), "Docs thread name lost its label")
             return Thread()
 
     class Followup:
@@ -107,7 +107,7 @@ def verify_docs_listener(module) -> dict[str, object]:
         publish = Interaction("kurami:docs_publish:dp_0123456789ab")
         asyncio.run(listener(publish))
         require(calls == [("publish", "dp_0123456789ab", None, "42")], f"Publish call is wrong: {calls}")
-        require("Принято" in publish.followup.sent[0], "Publish reply is missing")
+        require("Publish queued" in publish.followup.sent[0], "Publish reply is missing")
     finally:
         module._run_docs_control = original
     return {"docs_owner_only": True, "docs_discuss_thread": True}

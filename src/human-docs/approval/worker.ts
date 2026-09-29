@@ -114,11 +114,11 @@ function runChecks(config:WorkerConfig,worktree:string):void {
   const result=run(config.node,["tests/human-docs/verify.ts"],{cwd:worktree,timeoutMs:5*60_000,allowFailure:true});
   if(result.status!==0){
     const tail=(result.stderr||result.stdout).trim().split("\n").slice(-4).join(" ");
-    throw new ChecksFailed(`тесты документации: ${tail.slice(0,300)}`);
+    throw new ChecksFailed(`docs tests failed: ${tail.slice(0,300)}`);
   }
 }
 
-function pageDigest(config:WorkerConfig,root:string):Record<string,{titleRu:string;hash:string}> {
+function pageDigest(config:WorkerConfig,root:string):Record<string,{title:string;hash:string}> {
   return JSON.parse(run(config.node,[resolve(config.appRoot,"src/human-docs/approval/pages.ts"),root],{timeoutMs:60_000}).stdout);
 }
 
@@ -177,12 +177,12 @@ function land(config:WorkerConfig,store:ProposalStore,row:ProposalRow,summary:Pr
 function withDropNote(summary:ProposalSummary,dropped:string[]):ProposalSummary {
   if(!dropped.length)return summary;
   const list=dropped.slice(0,4).map(path=>`\`${path}\``).join(", ");
-  return {summaryRu:`${summary.summaryRu}\n-# Отброшены правки вне документации: ${list}.`,summaryEn:`${summary.summaryEn}\n\nDropped changes outside the docs allowlist: ${list}.`};
+  return {summaryRu:`${summary.summaryRu}\n\nОтброшены правки вне документации: ${list}.`,summaryEn:`${summary.summaryEn}\n-# Dropped changes outside the docs allowlist: ${list}.`};
 }
 
 const FALLBACK_SUMMARY:ProposalSummary={
-  summaryRu:"Проверка не оставила описания черновика. Что и почему поменялось, смотри в её отчёте в этом канале и в PR.",
-  summaryEn:"The audit left no draft summary. See its report in #updates and the PR diff.",
+  summaryRu:"Аудит не оставил описания черновика. Смотри его отчёт в #updates и изменения в PR.",
+  summaryEn:"The audit left no draft summary. See its report in this channel and the PR diff.",
 };
 
 async function finalizeDraft(config:WorkerConfig,store:ProposalStore,surface:Surface,row:ProposalRow):Promise<void> {
@@ -190,7 +190,7 @@ async function finalizeDraft(config:WorkerConfig,store:ProposalStore,surface:Sur
   const summaryReady=existsSync(row.summary_path)&&now-statSync(row.summary_path).mtimeMs>=SUMMARY_SETTLE_MS;
   const timedOut=now-Date.parse(row.created_at)>=DRAFT_TIMEOUT_MS;
   if(!summaryReady&&!timedOut)return;
-  if(!existsSync(row.draft_path))throw new Error("черновик пропал с диска");
+  if(!existsSync(row.draft_path))throw new Error("the draft is missing on disk");
   uncommitSince(row.draft_path,row.base_sha);
   if(!changedPaths(row.draft_path).length){
     store.update(row.proposal_id,{state:"empty"},["drafting"]);
@@ -241,7 +241,7 @@ function codexRevision(config:WorkerConfig,row:ProposalRow,remarks:string):Codex
       "- Run `node tests/human-docs/verify.ts` and fix failures before finishing.",
       "- Do not commit, push or change Git state.",
       "",
-      "Final answer: summaryRu and summaryEn describe what the whole proposal now changes (1–3 sentences each). reply is 1–3 Russian sentences for the owner: what you changed for these remarks, or why you did not.",
+      "Final answer: summaryRu and summaryEn describe what the whole proposal now changes (1–3 sentences each). reply is 1–3 English sentences for the owner: what you changed for these remarks, or why you did not.",
     ].join("\n");
     run(config.codex,["exec","-C",row.draft_path,"-s","workspace-write","--ephemeral","--output-schema",schema,"-o",answer,"-"],{
       input:prompt,timeoutMs:REVISION_TIMEOUT_MS,env:{PATH:`${dirname(config.node)}:${process.env.PATH??""}`},
@@ -249,13 +249,13 @@ function codexRevision(config:WorkerConfig,row:ProposalRow,remarks:string):Codex
     const parsed=JSON.parse(readFileSync(answer,"utf8")) as Record<string,unknown>;
     const summary=parseSummary(parsed);
     const reply=typeof parsed.reply==="string"?parsed.reply.trim().slice(0,700):"";
-    return {...summary,reply:reply||"Правки внесены."};
+    return {...summary,reply:reply||"Remarks applied."};
   }finally{rmSync(scratch,{recursive:true,force:true});}
 }
 
 async function revise(config:WorkerConfig,store:ProposalStore,surface:Surface,row:ProposalRow):Promise<void> {
   const back=row.pr_url?"ready":"failed";
-  if(!row.thread_id)throw new Error("у предложения нет обсуждения");
+  if(!row.thread_id)throw new Error("the proposal has no discussion");
   const owner=ownerId();
   const seen=await surface.client.messagesAfter(row.thread_id,row.remarks_after_message_id);
   const remarks=seen.filter(message=>message.author.id===owner&&!message.author.bot&&message.content.trim());
@@ -263,7 +263,7 @@ async function revise(config:WorkerConfig,store:ProposalStore,surface:Surface,ro
   const lastSeen=seen.at(-1)?.id??row.remarks_after_message_id;
   if(!remarks.length){
     store.update(row.proposal_id,{state:back,remarks_after_message_id:lastSeen},["revising"]);
-    await surface.threadNote(row,"Не вижу новых замечаний после прошлой правки. Напиши, что поменять, и нажми «Применить правки» ещё раз.");
+    await surface.threadNote(row,"No new remarks since the last revision. Write what to change, then click Apply remarks again.");
     await surface.showCard(store.get(row.proposal_id));
     return;
   }
@@ -275,17 +275,17 @@ async function revise(config:WorkerConfig,store:ProposalStore,surface:Surface,ro
     const {result,dropped}=land(config,store,store.get(row.proposal_id),answer,`docs(human-docs): apply owner remarks (${row.revision_count+1})`);
     if(result==="nochange"){
       store.update(row.proposal_id,{state:back,remarks_after_message_id:lastSeen},["revising"]);
-      await surface.threadNote(row,`Агент ничего не изменил. ${answer.reply}`);
+      await surface.threadNote(row,`The agent changed nothing. ${answer.reply}`);
     } else {
       const noted=withDropNote(answer,dropped);
       store.update(row.proposal_id,{state:"ready",last_error:null,revision_count:row.revision_count+1,remarks_after_message_id:lastSeen,summary_ru:noted.summaryRu,summary_en:noted.summaryEn},["revising"]);
-      await surface.threadNote(row,`Готово, ветка обновлена. ${answer.reply}`);
+      await surface.threadNote(row,`Done, the branch is updated. ${answer.reply}`);
     }
   }catch(error){
     if(!(error instanceof ChecksFailed))throw error;
     if(row.head_sha)resetToHead(row.draft_path);
     store.update(row.proposal_id,{state:back,remarks_after_message_id:lastSeen,...(back==="failed"?{last_error:error.message}:{})},["revising"]);
-    await surface.threadNote(row,`Правки не прошли проверки и отменены (${error.message}). Уточни замечания и нажми «Применить правки» ещё раз.`);
+    await surface.threadNote(row,`The edits failed the checks and were reverted (${error.message}). Clarify the remarks and click Apply remarks again.`);
   }
   await surface.showCard(store.get(row.proposal_id));
 }
@@ -299,7 +299,7 @@ async function smoke(config:WorkerConfig):Promise<void> {
     }catch{/* server still starting */}
     await new Promise(done=>setTimeout(done,500));
   }
-  throw new Error("сайт документации не ответил после перезапуска");
+  throw new Error("the docs site did not answer after the restart");
 }
 
 function readDocsSha(dir:string):string|null {
@@ -310,7 +310,7 @@ function readDocsSha(dir:string):string|null {
 export async function releaseDocs(config:WorkerConfig,mergedSha:string):Promise<{docsSha:string;rollbackDir:string}> {
   git(config.sourceClone,"fetch","--quiet","--no-tags","origin","refs/heads/main:refs/remotes/origin/main");
   const tip=git(config.sourceClone,"rev-parse","refs/remotes/origin/main");
-  if(run("git",["merge-base","--is-ancestor",mergedSha,tip],{cwd:config.sourceClone,allowFailure:true}).status!==0)throw new Error("слитый коммит не найден в main");
+  if(run("git",["merge-base","--is-ancestor",mergedSha,tip],{cwd:config.sourceClone,allowFailure:true}).status!==0)throw new Error("the merged commit is not on main");
   const stamp=config.now().toISOString().replace(/\D/g,"").slice(0,14);
   const build=resolve(config.releaseRoot,`build-${tip.slice(0,12)}-${stamp}`);
   git(config.sourceClone,"worktree","add","--detach","--quiet",build,tip);
@@ -318,7 +318,7 @@ export async function releaseDocs(config:WorkerConfig,mergedSha:string):Promise<
     run(config.node,["src/human-docs/build.ts","--docs-release"],{cwd:build,timeoutMs:5*60_000});
     const output=resolve(build,"dist/human-docs");
     const info=JSON.parse(readFileSync(resolve(output,"build.json"),"utf8")) as {mode?:string;docsSha?:string;revision?:string|null};
-    if(info.mode!=="release"||info.docsSha!==tip||info.revision!==null)throw new Error("сборка документации вернула неожиданный build.json");
+    if(info.mode!=="release"||info.docsSha!==tip||info.revision!==null)throw new Error("the docs build produced an unexpected build.json");
     const stage=resolve(config.releaseRoot,`stage-${tip}`);
     rmSync(stage,{recursive:true,force:true});
     cpSync(output,stage,{recursive:true});
@@ -336,7 +336,7 @@ export async function releaseDocs(config:WorkerConfig,mergedSha:string):Promise<
       renameSync(current,resolve(config.releaseRoot,`failed-${tip}-${stamp}`));
       if(hadCurrent)renameSync(rollback,current);
       run(config.systemctl,["--user","restart",config.service],{timeoutMs:60_000,allowFailure:true});
-      throw new Error(`${error instanceof Error?error.message:String(error)}; прежняя версия возвращена`);
+      throw new Error(`${error instanceof Error?error.message:String(error)}; the previous release was restored`);
     }
     return {docsSha:tip,rollbackDir:rollback};
   }finally{
@@ -349,17 +349,17 @@ async function publish(config:WorkerConfig,store:ProposalStore,surface:Surface,r
   let mergedSha=row.merged_sha;
   if(!mergedSha){
     try{
-      if(!row.pr_number||!row.head_sha)throw new Error("у предложения нет PR");
+      if(!row.pr_number||!row.head_sha)throw new Error("the proposal has no PR");
       const slug=repoSlug(config);
       const view=()=>JSON.parse(run(config.gh,["pr","view",String(row.pr_number),"--repo",slug,"--json","state,headRefOid,files,mergeCommit"]).stdout) as {state:string;headRefOid:string;files:Array<{path:string}>;mergeCommit:{oid:string}|null};
       const before=view();
-      if(before.headRefOid!==row.head_sha||row.requested_head_sha!==row.head_sha)throw new Error("ветка PR изменилась после показа карточки");
+      if(before.headRefOid!==row.head_sha||row.requested_head_sha!==row.head_sha)throw new Error("the PR branch changed after the card was shown");
       const outside=disallowedPaths(before.files.map(file=>file.path));
-      if(outside.length)throw new Error(`PR меняет файлы вне документации: ${outside.slice(0,3).join(", ")}`);
+      if(outside.length)throw new Error(`the PR changes files outside the docs: ${outside.slice(0,3).join(", ")}`);
       if(before.state==="OPEN")run(config.gh,["pr","merge",String(row.pr_number),"--repo",slug,"--squash","--match-head-commit",row.head_sha]);
-      else if(before.state!=="MERGED")throw new Error("PR закрыт без слияния");
+      else if(before.state!=="MERGED")throw new Error("the PR was closed without a merge");
       const after=view();
-      if(after.state!=="MERGED"||!after.mergeCommit?.oid)throw new Error("GitHub не подтвердил слияние");
+      if(after.state!=="MERGED"||!after.mergeCommit?.oid)throw new Error("GitHub did not confirm the merge");
       mergedSha=after.mergeCommit.oid;
       store.update(row.proposal_id,{merged_sha:mergedSha});
       store.event(row.proposal_id,"merged",{mergedSha});

@@ -45,9 +45,9 @@ DOCS_CONTROL_ID = re.compile(
     r"^kurami:docs_(discuss|revise|publish|reject):(dp_[a-f0-9]{12})$"
 )
 _DOCS_MESSAGES = {
-    "revise": "Принято: агент применит замечания из обсуждения и обновит карточку.",
-    "publish": "Принято: PR будет слит, документация выпущена. Карточка покажет результат.",
-    "reject": "Предложение отклонено. PR будет закрыт, ветка останется на GitHub.",
+    "revise": "Apply remarks queued. The agent edits the branch and updates the card.",
+    "publish": "Publish queued. The PR is merged and the docs released; the card shows the result.",
+    "reject": "Proposal rejected. The PR will be closed; the branch stays on GitHub.",
 }
 
 _ACTION_LABELS = {
@@ -317,7 +317,7 @@ async def _handle_docs_control(
                 await thread.edit(archived=False, locked=False)
             else:
                 thread = await interaction.message.create_thread(
-                    name=str(payload.get("title") or "Документация")[:100],
+                    name=str(payload.get("title") or "Docs proposal")[:100],
                     auto_archive_duration=10080,
                     reason="Owner opened a Kurami docs proposal discussion",
                 )
@@ -325,12 +325,12 @@ async def _handle_docs_control(
                 await _run_docs_control(
                     "record-thread", proposal_id, thread_id=thread_id, actor_id=actor_id
                 )
-            message = f"Обсуждение открыто: <#{thread_id}>"
+            message = f"Discussion opened: <#{thread_id}>"
         else:
             await _run_docs_control(action, proposal_id, actor_id=actor_id)
             message = _DOCS_MESSAGES[action]
     except Exception as exc:
-        message = f"Не выполнено, ничего не изменено: {str(exc)[:400]}"
+        message = f"Docs control rejected safely: {str(exc)[:400]}"
     await interaction.followup.send(message, ephemeral=True)
 
 

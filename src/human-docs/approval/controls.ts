@@ -24,8 +24,8 @@ function publicStatus(row:ProposalRow){
 
 function refuse(row:ProposalRow,action:OwnerAction):never {
   throw new Error(row.merged_sha&&action!=="publish"
-    ?"PR уже слит; доступен только повтор выпуска"
-    :`Карточка устарела: предложение сейчас в состоянии «${row.state}»`);
+    ?"The PR is already merged; only a release retry is available"
+    :`This card is outdated: the proposal is now ${row.state}`);
 }
 
 /** Discord follow-ups are best effort and bounded: the state change is already saved and the plugin waits 15 s. */
@@ -59,8 +59,8 @@ export async function runControl(store:ProposalStore,command:Command,proposalId:
   }
   const action=command as OwnerAction;
   if(!acceptsAction(row.state,action,merged))refuse(row,action);
-  if(action==="discuss")return {ok:true,needsThread:!row.thread_id,title:`Документация · ${row.proposal_id}`,...publicStatus(row)};
-  if(action==="revise"&&!row.thread_id)throw new Error("Сначала открой обсуждение и напиши замечания");
+  if(action==="discuss")return {ok:true,needsThread:!row.thread_id,title:`Docs proposal · ${row.proposal_id}`,...publicStatus(row)};
+  if(action==="revise"&&!row.thread_id)throw new Error("Open the discussion and write your remarks first");
   const next=action==="reject"?"rejected":stateAfterAction(action)!;
   const changed=store.update(proposalId,{
     state:next,
@@ -69,7 +69,7 @@ export async function runControl(store:ProposalStore,command:Command,proposalId:
     requested_at:store.now(),
     requested_head_sha:action==="publish"?row.head_sha:row.requested_head_sha,
   },[row.state]);
-  if(!changed)throw new Error("Предложение изменилось одновременно с нажатием; обнови карточку");
+  if(!changed)throw new Error("The proposal changed at the same moment as the click; check the card again");
   store.event(proposalId,`owner-${action}`,{actorId:options.actorId??null,headSha:row.head_sha});
   await refresh(surface,store,proposalId);
   return {ok:true,...publicStatus(store.get(proposalId))};
