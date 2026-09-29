@@ -49,7 +49,7 @@ export function renderChart(value:ChartSpec):string {
     <div class="chart__tooltip" id="${spec.id}-tooltip" data-chart-tooltip role="tooltip" hidden></div>
     <p class="sr-only" id="${spec.id}-help">Стрелки влево и вправо — точки, вверх и вниз — ряды. Escape закрывает подсказку. Все значения доступны в таблице.</p>
     ${spec.categories.some(category=>category.partial)?'<p class="chart__footnote">* Неполный период — значение ещё может измениться.</p>':""}
-    <details class="chart__table"><summary>Данные таблицей</summary><div><table><caption>${escape(spec.title)} · ${escape(spec.yLabel)}</caption>
+    <details class="disclosure chart__table"><summary>Данные таблицей</summary><div class="table table--numeric"><table><caption>${escape(spec.title)} · ${escape(spec.yLabel)}</caption>
       <thead><tr><th scope="col">${escape(spec.xLabel)}</th>${spec.series.map(series=>`<th scope="col">${escape(series.label)}</th>`).join("")}</tr></thead>
       <tbody>${spec.categories.map((category,index)=>`<tr><th scope="row">${escape(category.label)}${category.partial?"*":""}</th>${spec.series.map(series=>`<td>${series.values[index]===null?"—":escape(engine.format(series.values[index]!,spec.unit))}</td>`).join("")}</tr>`).join("")}</tbody>
     </table></div></details>

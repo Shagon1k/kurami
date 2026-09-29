@@ -6,14 +6,11 @@ export const WEEKLY_STYLES=`
 .weekly-observations li { padding:8px 0 8px 8px; line-height:1.65; }
 .weekly-charts { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:24px; margin:24px 0; }
 .weekly-charts .chart { min-width:0; margin:0; }
-.weekly-topics { padding:28px; background:var(--surface-section); border:1px solid var(--border-default); box-shadow:4px 4px 0 var(--shadow-offset); }
-.weekly-table-scroll { overflow-x:auto; }
+.weekly-topics { padding:28px; background:var(--surface-section); border:1px solid var(--border-default); box-shadow:var(--shadow-card); }
 .weekly-topics p,.weekly-method p,.weekly-teaser p { color:var(--text-muted); line-height:1.6; }
-.weekly-topics table { width:100%; border-collapse:collapse; }
-.weekly-topics th,.weekly-topics td { padding:14px 12px; border-bottom:1px solid var(--border-default); text-align:right; }
-.weekly-topics th:first-child { text-align:left; }
+.weekly-table { --table-font-size:inherit; --table-cell-padding:14px 12px; }
+.weekly-table th,.weekly-table td { white-space:normal; }
 .weekly-method { margin:28px 0; }
-.weekly-method summary { min-height:44px; align-content:center; cursor:pointer; font-weight:600; }
 .weekly-teaser { display:flex; justify-content:space-between; gap:24px; align-items:center; padding:28px; margin:32px 0; border:1px solid var(--border-default); background:var(--surface-panel); }
 .weekly-teaser .button { flex-shrink:0; }
 @media(max-width:1000px) { .weekly-charts {grid-template-columns:1fr;} }

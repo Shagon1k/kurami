@@ -9,7 +9,7 @@ export function renderCompanyAvatar(symbol:string,domain?:string):string {
   return `<span class="company-avatar" aria-hidden="true"><span class="company-avatar__letters">${e(letters)}</span>${validLogoDomain(domain)?`<img data-company-logo src="https://cdn.tickerlogos.com/${domain}" alt="" width="40" height="40" loading="lazy" decoding="async" referrerpolicy="no-referrer">`:""}</span>`;
 }
 export const COMPANY_AVATAR_STYLES=`
-.company-avatar { position:relative; display:inline-grid; place-items:center; width:40px; height:40px; flex:0 0 40px; overflow:hidden; border:1px solid var(--border-default); border-radius:4px; background:var(--surface-panel); color:var(--text-muted); font:600 .8125rem var(--font-sans); }
+.company-avatar { position:relative; display:inline-grid; place-items:center; width:40px; height:40px; flex:0 0 40px; overflow:hidden; border:1px solid var(--border-default); border-radius:var(--radius-md); background:var(--surface-panel); color:var(--text-muted); font:600 .8125rem var(--font-sans); }
 .company-avatar img { position:absolute; inset:0; width:100%; height:100%; padding:4px; object-fit:contain; background:#fff; opacity:0; }
 .company-avatar.is-loaded img { opacity:1; }
 .company-avatar img[hidden] { display:none; }

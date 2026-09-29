@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import {execFileSync} from "node:child_process";
 import {resolve} from "node:path";
-import {colorRoles,type Theme} from "../../src/ui-library/tokens/index.ts";
+import {colorRoles,scaleRoles,type Theme} from "../../src/ui-library/tokens/index.ts";
 import {kuramiTheme,themeCss,THEME_CSS} from "../../src/ui-library/themes/index.ts";
 import {BRIEFING_STYLES} from "../../src/briefing/ui/styles.ts";
 import {DOCS_STYLES} from "../../src/human-docs/styles.ts";
@@ -15,6 +15,9 @@ import {renderLinkButton} from "../../src/ui-library/components/button.ts";
 import {validateRenderedHtml} from "../../src/briefing/html-artifacts.ts";
 import {renderSiteHeader,renderSiteNav,SITE_HEADER_CSS} from "../../src/ui-library/patterns/site-header.ts";
 import {renderDocument} from "../../src/ui-library/patterns/page-shell.ts";
+import {renderTable,TABLE_CSS} from "../../src/ui-library/components/table.ts";
+import {renderCallout,CALLOUT_CSS} from "../../src/ui-library/components/callout.ts";
+import {renderDisclosure,DISCLOSURE_CSS} from "../../src/ui-library/components/disclosure.ts";
 
 const root=resolve(import.meta.dirname,"../..");
 
@@ -27,17 +30,21 @@ assert.ok(BRIEFING_STYLES.startsWith(`\n${THEME_CSS}`)||BRIEFING_STYLES.includes
 assert.ok(DOCS_STYLES.startsWith(THEME_CSS),"Docs uses the library theme");
 
 // A new theme replaces values only; an incomplete one is rejected.
-const inverted:Theme={name:"test",light:kuramiTheme.dark,dark:kuramiTheme.light};
+const inverted:Theme={...kuramiTheme,name:"test",light:kuramiTheme.dark,dark:kuramiTheme.light};
 assert.match(themeCss(inverted),/:root \{ color-scheme: dark;/);
 const incomplete=structuredClone(kuramiTheme);
 delete (incomplete.dark.colors as Partial<Record<string,string>>)["focus-ring"];
 assert.throws(()=>themeCss(incomplete),/missing roles: focus-ring/);
+const noShape=structuredClone(kuramiTheme);
+delete (noShape.scale as Partial<Record<string,string>>)["radius"];
+assert.throws(()=>themeCss(noShape),/missing scale roles: radius/);
+for(const role of scaleRoles)assert.match(THEME_CSS,new RegExp(`:root \\{[^}]*--${role}: `),`scale ${role}`);
 
 // Components read semantic roles only: no retired names and no undefined custom properties.
 const sources=execFileSync("git",["grep","--untracked","-hoE","-e","var\\(--[a-z0-9-]+","--","src/*.ts"],{cwd:root,encoding:"utf8"}).split("\n").filter(Boolean);
 const retired=/^var\(--(paper|surface|panel|section|section-shadow|ink|muted|signal|signal-soft|line|grid|positive|warning|focus|docs-signal-text)$/;
 assert.deepEqual(sources.filter(value=>retired.test(value)),[],"retired token names");
-const known=new Set<string>([...colorRoles,"font-sans","font-mono","font-note"]);
+const known=new Set<string>([...colorRoles,...scaleRoles]);
 const local=execFileSync("git",["grep","--untracked","-hoE","-e","--[a-z0-9-]+\\s*:","--","src/*.ts"],{cwd:root,encoding:"utf8"}).split("\n").map(value=>value.replace(/\s*:$/,"").slice(2)).filter(Boolean);
 for(const name of local)known.add(name);
 const undefinedNames=[...new Set(sources.map(value=>value.slice(6)))].filter(name=>!known.has(name));
@@ -94,4 +101,14 @@ assert.match(documentHtml,/<main id="main" class="container" tabindex="-1">/);
 assert.ok(documentHtml.indexOf(THEME_SCRIPT_TAG)<documentHtml.indexOf("</head>"));
 assert.throws(()=>renderDocument({lang:"en\"",title:"T",favicon:"/f",styles:{href:"/s"},themeScript:false,skipLabel:"s",header:"",main:"",footer:""}),/Invalid document language/);
 
-console.log(`UI library theme contract verified: ${colorRoles.length} roles × 2 modes, no retired or undefined tokens`);
+// Components shared by both products: included once, escaped by default, trusted HTML only when marked.
+for(const css of [TABLE_CSS,CALLOUT_CSS,DISCLOSURE_CSS])for(const [site,styles] of [["Digest",BRIEFING_STYLES],["Docs",DOCS_STYLES]] as const)assert.equal(styles.split(css).length,2,`${site} includes a component once`);
+const table=renderTable({caption:"Cap",columns:["Name","Value"],rows:[["<b>",{html:"<em>1</em>"}]],rowHeaders:true,numeric:true,stack:true});
+assert.match(table,/^<div class="table table--numeric table--stack"><table><caption>Cap<\/caption>/);
+assert.match(table,/<th scope="row">&lt;b&gt;<\/th><td><span class="table__label" aria-hidden="true">Value<\/span><em>1<\/em><\/td>/);
+assert.throws(()=>renderTable({columns:["a","b"],rows:[["only one"]]}),/does not match/);
+assert.match(renderCallout({tone:"warning",title:"T",body:"<x>"}),/^<aside class="callout callout--warning"><strong>T<\/strong><p>&lt;x&gt;<\/p><\/aside>$/);
+assert.throws(()=>renderCallout({tone:"loud" as "note",body:"x"}),/Invalid callout tone/);
+assert.match(renderDisclosure({summary:"<s>",body:"<p>b</p>",boxed:true,open:true}),/^<details class="disclosure disclosure--boxed" open><summary>&lt;s&gt;<\/summary><p>b<\/p><\/details>$/);
+
+console.log(`UI library theme contract verified: ${colorRoles.length} colour roles × 2 modes, ${scaleRoles.length} scale roles, no retired or undefined tokens`);

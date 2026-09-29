@@ -35,7 +35,7 @@ assert.equal(onlyDocsWorkflowChanged(regressionWorkflow,withDocsGate.replace("np
 // Keep diagram connectors between cards and reserve space below prose maps.
 assert.match(DOCS_STYLES,/\.architecture-map__path \{[^}]*gap: 24px/);
 assert.match(DOCS_STYLES,/\.block \.system-map \{ margin-bottom: 24px; \}/);
-assert.match(DOCS_STYLES,/\.article \.data-table caption \{ display: block; width: 100%;/);
+assert.match(DOCS_STYLES,/\.table--stack table, \.table--stack tbody, \.table--stack tr, \.table--stack caption \{ display: block; width: 100%;/);
 // Small accent labels on the light section background need the darker AA accent-text role.
 assert.match(DOCS_STYLES,/:root \{[^}]*--text-accent: #c71410;/);
 for(const lang of ["en","ru"] as const)for(const theme of ["light","dark"] as const){
@@ -96,10 +96,10 @@ for(const lang of ["en","ru"] as const){
   assert.match(html,/<figure class="roles-map">/);
   assert.match(html,/<table><caption>/);
   assert.match(html,/<th scope="row">/);
-  assert.match(html,/class="data-table__label" aria-hidden="true"/);
-  assert.match(html,/class="block callout callout--limit"/);
+  assert.match(html,/class="table__label" aria-hidden="true"/);
+  assert.match(html,/class="callout callout--limit block"/);
   assert.ok(html.includes(lang==="en"?"Synthetic example":"Вымышленный пример"));
-  assert.match(html,/<details class="technical">/);
+  assert.match(html,/<details class="disclosure disclosure--boxed technical">/);
   assert.ok(html.includes("a &lt; b"));
   assert.equal((html.match(/class="source-notes"/g)??[]).length,1);
 }

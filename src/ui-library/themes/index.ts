@@ -1,4 +1,4 @@
-import {colorRoles,typeface,type Theme,type ThemeMode} from "../tokens/index.ts";
+import {colorRoles,scaleRoles,type Theme,type ThemeMode} from "../tokens/index.ts";
 import {kuramiTheme} from "./kurami.ts";
 
 export {kuramiTheme};
@@ -11,7 +11,9 @@ function declarations(mode:ThemeMode):string {
 
 /** Light is the root mode; `html[data-theme="dark"]` switches every role at once. */
 export function themeCss(theme:Theme=kuramiTheme):string {
-  const scale=Object.entries(typeface).map(([name,value])=>`--${name}: ${value};`).join(" ");
+  const missing=scaleRoles.filter(role=>!theme.scale[role]?.trim());
+  if(missing.length)throw new Error(`Theme is missing scale roles: ${missing.join(", ")}`);
+  const scale=scaleRoles.map(role=>`--${role}: ${theme.scale[role]};`).join(" ");
   return `:root { ${declarations(theme.light)} ${scale} }\nhtml[data-theme="dark"] { ${declarations(theme.dark)} }\n`;
 }
 

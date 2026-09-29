@@ -46,9 +46,9 @@ export function renderWeeklyPage(raw:WeeklyReview|null,preview=false):string {
     <div class="weekly-charts">${calendar}${mail}</div>
     <section class="weekly-topics" aria-labelledby="weekly-topics"><h2 id="weekly-topics">На что вы реагировали</h2>
       <p>Сигналы интереса, не оценка самих событий. Тема может встречаться в нескольких сюжетах; баланс — 🔔 минус 🔕, а не вес Interest Profile.</p>
-      ${topicRows?`<div class="weekly-table-scroll"><table><thead><tr><th>Тема</th><th>Больше</th><th>Меньше</th><th>Баланс</th><th>Прошлая неделя</th></tr></thead><tbody>${topicRows}</tbody></table></div>`:"<p>За этот период реакций на сюжеты нет.</p>"}
+      ${topicRows?`<div class="table table--numeric weekly-table"><table><thead><tr><th>Тема</th><th>Больше</th><th>Меньше</th><th>Баланс</th><th>Прошлая неделя</th></tr></thead><tbody>${topicRows}</tbody></table></div>`:"<p>За этот период реакций на сюжеты нет.</p>"}
     </section>
-    <details class="weekly-method"><summary>Как посчитано</summary><p>Календарь отражает запланированные события, без отменённых, отклонённых и демонстрационных. События на весь день не превращаются в рабочие часы. Почтовые наблюдения привязаны к дню получения, а не к дате страницы. Действия вне Daily не выдаются за архивирование через дайджест. Все выводы рассчитаны по фиксированным правилам, без дополнительных запросов к AI.</p></details>`;
+    <details class="disclosure weekly-method"><summary>Как посчитано</summary><p>Календарь отражает запланированные события, без отменённых, отклонённых и демонстрационных. События на весь день не превращаются в рабочие часы. Почтовые наблюдения привязаны к дню получения, а не к дате страницы. Действия вне Daily не выдаются за архивирование через дайджест. Все выводы рассчитаны по фиксированным правилам, без дополнительных запросов к AI.</p></details>`;
   return renderPageShell({title:"Недельный обзор",brand:"Kurami Weekly",section:"weekly",date:d.publicationDate,dateLabel:period,
     generated:new Intl.DateTimeFormat("ru-RU",{timeZone:d.timezone,hour:"2-digit",minute:"2-digit"}).format(new Date(review.capturedAt)),timezone:d.timezone,content});
 }
