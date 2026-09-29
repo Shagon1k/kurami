@@ -57,5 +57,8 @@ assert.match(prompt,/assert-complete/);
 assert.match(prompt,/attached\s+`kurami-daily-briefing` skill/);
 assert.match(prompt,/return \[SILENT\]/);
 assert.match(prompt,/Do not hand-author the\s+derived presentation payload or invoke a separate UI skill/);
+assert.match(prompt,/draft rejected by rank-preview is not accepted/);
+assert.match(prompt,/never generate it\s+with an ad-hoc script/);
+assert.match(prompt,/same frozen source batch/);
 assert.doesNotMatch(prompt,/local hour is not 09|only at 09:00/);
 console.log("Completion context, immutable editorial digest, failed-stage recovery, terminal assertion, cron exit observation and prompt contract verified.");
