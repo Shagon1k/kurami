@@ -5,6 +5,10 @@ import {colorRoles,type Theme} from "../../src/ui-library/tokens/index.ts";
 import {kuramiTheme,themeCss,THEME_CSS} from "../../src/ui-library/themes/index.ts";
 import {BRIEFING_STYLES} from "../../src/briefing/ui/styles.ts";
 import {DOCS_STYLES} from "../../src/human-docs/styles.ts";
+import {FOUNDATION_CSS,fontFiles} from "../../src/ui-library/foundations/index.ts";
+import {injectRuntime} from "../../src/briefing/server.ts";
+import {renderPageShell} from "../../src/briefing/ui/page-shell.ts";
+import {existsSync} from "node:fs";
 
 const root=resolve(import.meta.dirname,"../..");
 
@@ -32,5 +36,20 @@ const local=execFileSync("git",["grep","--untracked","-hoE","-e","--[a-z0-9-]+\\
 for(const name of local)known.add(name);
 const undefinedNames=[...new Set(sources.map(value=>value.slice(6)))].filter(name=>!known.has(name));
 assert.deepEqual(undefinedNames,[],"custom properties used without a definition");
+
+// Foundations: both sites include them once; every font subset and its family licence ship in the repo.
+for(const [site,css] of [["Digest",BRIEFING_STYLES],["Docs",DOCS_STYLES]] as const)assert.equal(css.split(FOUNDATION_CSS).length,2,`${site} includes foundations once`);
+for(const font of fontFiles){
+  assert.ok(existsSync(resolve(root,"src/ui-library/assets/fonts",font.file)),font.file);
+  assert.ok(existsSync(resolve(root,"src/ui-library/assets/fonts",`OFL-${font.family.replaceAll(" ","-")}.txt`)),`${font.family} licence`);
+  assert.ok(FOUNDATION_CSS.includes(`url("/assets/${font.file}")`),`${font.file} face`);
+}
+const page=renderPageShell({title:"T",brand:"Kurami",date:"2026-09-16",dateLabel:"16",generated:"10:00",timezone:"UTC",content:"<p>x</p>"});
+assert.doesNotMatch(page,/fonts\.(googleapis|gstatic)\.com/,"Digest pages load no third-party fonts");
+const frozen='<html><head><link rel="preconnect" href="https://fonts.googleapis.com"><link href="https://fonts.googleapis.com/css2?family=Onest" rel="stylesheet"></head><body></body></html>';
+const served=injectRuntime(frozen);
+assert.doesNotMatch(served,/fonts\.googleapis\.com/,"older editions stop requesting Google Fonts");
+assert.ok(served.includes('url("/assets/onest-latin.woff2")'),"older editions get self-hosted faces");
+assert.equal(injectRuntime(page).includes("@font-face"),page.includes("@font-face"),"current pages are not given a second copy");
 
 console.log(`UI library theme contract verified: ${colorRoles.length} roles × 2 modes, no retired or undefined tokens`);

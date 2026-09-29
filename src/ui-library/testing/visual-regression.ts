@@ -9,6 +9,7 @@ import {isAbsolute,join,resolve,sep} from "node:path";
 import {setTimeout as delay} from "node:timers/promises";
 import {findBrowser,launchBrowser} from "./devtools.ts";
 import {syntheticDaily,syntheticStocksEmpty} from "./fixtures.ts";
+import {changedShare,decodePng} from "./png.ts";
 
 const root=resolve(import.meta.dirname,"../../..");
 const brandAssets=resolve(root,"integrations/hermes/skills/kurami-ui-preview-language/assets");
@@ -80,9 +81,14 @@ async function main(){
   writeFileSync(join(output,"manifest.json"),JSON.stringify(manifest,null,2));
   if(!compare){console.log(JSON.stringify({ok:true,screenshots:Object.keys(manifest).length,out:output}));return;}
   const baseline=JSON.parse(readFileSync(resolve(compare,"manifest.json"),"utf8")) as Record<string,string>;
-  const changed=Object.keys({...baseline,...manifest}).filter(file=>baseline[file]!==manifest[file]).sort();
-  console.log(JSON.stringify({ok:!changed.length,screenshots:Object.keys(manifest).length,changed,out:output}));
-  if(changed.length)process.exitCode=1;
+  const changed:Record<string,string>={};
+  for(const file of Object.keys({...baseline,...manifest}).sort()){
+    if(baseline[file]===manifest[file])continue;
+    const before=resolve(compare,file),after=join(output,file);
+    changed[file]=existsSync(before)&&existsSync(after)?`${(changedShare(decodePng(readFileSync(before)),decodePng(readFileSync(after)))*100).toFixed(2)}% pixels`:"missing";
+  }
+  console.log(JSON.stringify({ok:!Object.keys(changed).length,screenshots:Object.keys(manifest).length,changed,out:output},null,1));
+  if(Object.keys(changed).length)process.exitCode=1;
 }
 
 await main();

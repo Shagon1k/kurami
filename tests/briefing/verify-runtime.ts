@@ -451,7 +451,7 @@ const readStateHtml = renderBriefingPage(parseBriefingPayload({
 }));
 assert.match(readStateHtml, /data-item-id="story-1"[\s\S]*?data-read-state>Прочитано/);
 assert.equal((readStateHtml.match(/data-read-state/g) ?? []).length, 1);
-assert.match(html, /family=Caveat/);
+assert.match(html, /font-family: "Caveat";[^}]*url\("\/assets\/caveat-cyrillic\.woff2"\)/);
 assert.match(html, /data-feed-pagination/);
 assert.match(html, /data-page-range/);
 assert.match(html, /data-page="2"/);

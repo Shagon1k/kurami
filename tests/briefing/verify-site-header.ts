@@ -54,7 +54,12 @@ const logo=await fetch(appBase+"/assets/kurami-fox.png");
 assert.equal(logo.status,200);assert.equal(logo.headers.get("content-type"),"image/png");
 assert.deepEqual(Buffer.from(await logo.arrayBuffer()),asset);
 assert.equal((await fetch(appBase+"/assets/kurami-fox.png",{method:"HEAD"})).status,200);
-console.log("Site header: published-only navigation, empty/disabled states, immutable content, accessible active section and transparent asset verified.");
+const font=await fetch(appBase+"/assets/onest-cyrillic.woff2");
+assert.equal(font.status,200);assert.equal(font.headers.get("content-type"),"font/woff2");
+assert.deepEqual(Buffer.from(await font.arrayBuffer()),await readFile(resolve(root,"src/ui-library/assets/fonts/onest-cyrillic.woff2")));
+assert.equal((await fetch(appBase+"/assets/unknown.woff2")).status,404);
+assert.match(String((await fetch(appBase+"/")).headers.get("content-security-policy")),/font-src 'self' data:;/);
+console.log("Site header: published-only navigation, empty/disabled states, immutable content, accessible active section and transparent asset and self-hosted fonts verified.");
 if(process.env.HEADER_PREVIEW_PORT) {
   const server=createServer(async(request,response)=>{
     const path=new URL(request.url??"/","http://localhost").pathname;
