@@ -58,6 +58,9 @@ h3 { font-size: 1rem; line-height: 1.25; }
 .example { padding: 16px 20px; border: 1px solid var(--border-default); background: var(--surface-panel); }
 .callout, .example { margin: 22px 0; }
 .example p { margin: 8px 0 0; }
+.screenshot { margin: var(--space-6) 0; }
+.screenshot img { display: block; max-width: min(100%, 640px); height: auto; border: 1px solid var(--border-default); border-radius: var(--radius-md); box-shadow: var(--shadow-card-sm); background: var(--surface-raised); }
+.screenshot figcaption { margin-top: var(--space-2); color: var(--text-muted); font-size: .84rem; }
 .next-page { display: grid; gap: var(--space-2); margin: var(--space-8) 0 var(--space-6); padding-top: var(--space-5); border-top: 1px solid var(--border-default); }
 .next-page > span { color: var(--text-accent); font: 500 .72rem/1.4 var(--font-mono); text-transform: uppercase; }
 .next-page a { display: grid; gap: var(--space-1); padding: var(--space-4) var(--space-5); border: 1px solid var(--border-default); background: var(--surface-panel); text-decoration: none; }

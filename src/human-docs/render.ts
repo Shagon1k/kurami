@@ -297,6 +297,7 @@ function safeBlocks(page:HumanDocsPage,lang:Language,sourceSha?:string,deployed=
     if(block.type==="source-links")return sourceNotes(block.paths,lang,sourceSha,deployed);
     if(block.type==="diagram")return `<section class="block diagram-block">${visual(block.visual,lang)}<p class="diagram-block__explanation">${escape(block.explanation[lang])}</p></section>`;
     if(block.type==="table")return `<section class="block">${renderTable({caption:block.caption[lang],columns:block.columns[lang],rows:block.rows[lang],rowHeaders:true,stack:true})}</section>`;
+    if(block.type==="screenshot")return `<figure class="block screenshot"><img src="/assets/${escape(block.file)}" alt="${escape(block.alt[lang])}" loading="lazy" decoding="async"><figcaption>${escape(block.caption[lang])}</figcaption></figure>`;
     if(block.type==="callout")return renderCallout({tone:block.tone,title:block.title[lang],body:block.body[lang],className:"block"});
     if(block.type==="example")return `<section class="block example"><p class="example__label">${lang==="ru"?"Вымышленный пример":"Synthetic example"}</p><h2>${escape(block.title[lang])}</h2><p>${escape(block.body[lang])}</p></section>`;
     if(block.type==="technical")return `<section class="block">${renderDisclosure({summary:block.summary[lang],body:`<p>${escape(block.body[lang])}</p>${block.code?`<pre><code>${escape(block.code[lang])}</code></pre>`:""}`,boxed:true,className:"technical"})}</section>`;

@@ -61,6 +61,8 @@ The first published copy read like a specification: every sentence was a separat
 
 A page may drop steps it does not need, but never starts with limits and never consists only of limits.
 
+**Titles.** Page titles and menu labels are short nouns of one to three words ("Cinema", "Board statuses", «Ручное управление»), not questions or sentences. The summary under the title carries the question or promise.
+
 **Terms.** Explain every internal term the first time it appears on a page, in plain words, and link the glossary. Keep one name per concept across pages. Product names (Digest, Project Orchestrator, Hermes, Codex) stay in Latin in both languages; ordinary words are translated (a "run" is «запуск», "admission" is «допуск», "worktree" is «рабочая копия (worktree)» on first use).
 
 **Negation budget.** At most one "not / never / does not" sentence per paragraph. If a boundary matters, say what happens instead ("Kurami stops and asks you" rather than "Kurami does not guess").
