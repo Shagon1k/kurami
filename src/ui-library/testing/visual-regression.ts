@@ -1,5 +1,6 @@
-// Joint Digest + Docs browser regression: theme runtime behaviour on both sites, then screenshots
-// in light/dark at phone and desktop widths, optionally compared with a baseline run.
+// Joint Digest + Docs browser regression. Checks the theme runtime, then audits every Docs route and
+// every Digest page fixture in light/dark at phone and desktop widths (accessibility and component
+// inventory), and screenshots a representative set, optionally compared with a baseline run.
 // Usage: node src/ui-library/testing/visual-regression.ts --out=<dir> [--compare=<baseline dir>] [/absolute/path/to/chromium]
 import {execFileSync} from "node:child_process";
 import {createHash} from "node:crypto";
@@ -9,9 +10,10 @@ import {tmpdir} from "node:os";
 import {isAbsolute,join,resolve,sep} from "node:path";
 import {setTimeout as delay} from "node:timers/promises";
 import {findBrowser,launchBrowser} from "./devtools.ts";
-import {librarySubsite,syntheticDaily,syntheticStocksEmpty} from "./fixtures.ts";
+import {librarySubsite,syntheticDaily,syntheticInvestmentReview,syntheticStocksEmpty,syntheticWeeklyEmpty} from "./fixtures.ts";
 import {changedShare,decodePng} from "./png.ts";
-import {AUDIT_EXPRESSION} from "./audit.ts";
+import {AUDIT_EXPRESSION,inventoryExpression} from "./audit.ts";
+import {pages as docsPages} from "../../human-docs/content.ts";
 import {injectRuntime} from "../../briefing/server.ts";
 import type {Devtools} from "./devtools.ts";
 
@@ -19,9 +21,12 @@ const root=resolve(import.meta.dirname,"../../..");
 const brandAssets=resolve(root,"src/ui-library/assets/brand");
 const widths=[390,1280] as const;
 const themes=["light","dark"] as const;
+// Screenshots: a representative set. The audit covers these plus every Docs route in both languages.
 const pages:Record<string,string>={
   "digest-daily":"/digest/daily.html",
   "digest-stocks-empty":"/digest/stocks.html",
+  "digest-weekly-empty":"/digest/weekly.html",
+  "digest-investment-review":"/digest/review.html",
   "library-subsite":"/lab/index.html",
   "docs-home-en":"/en/",
   "docs-overview-ru":"/ru/what-is-kurami/",
@@ -45,6 +50,8 @@ function site():string {
   // Digest pages pass through the same serve-time injection as production.
   writeFileSync(join(served,"digest/daily.html"),injectRuntime(syntheticDaily()));
   writeFileSync(join(served,"digest/stocks.html"),injectRuntime(syntheticStocksEmpty()));
+  writeFileSync(join(served,"digest/weekly.html"),injectRuntime(syntheticWeeklyEmpty()));
+  writeFileSync(join(served,"digest/review.html"),injectRuntime(syntheticInvestmentReview()));
   mkdirSync(join(served,"lab"),{recursive:true});
   writeFileSync(join(served,"lab/index.html"),librarySubsite());
   cpSync(join(brandAssets,"kurami-fox-transparent.png"),join(served,"assets/kurami-fox.png"));
@@ -106,16 +113,21 @@ async function main(){
   const {devtools,close}=await launchBrowser(findBrowser(args.find(arg=>isAbsolute(arg))));
   const manifest:Record<string,string>={};
   const audit:Record<string,string[]>={};
+  let auditedCount=0;
   try{
     await devtools.call("Page.enable");
     for(const path of ["/digest/daily.html","/en/reading-state/","/lab/index.html"])await checkThemeRuntime(devtools,`http://127.0.0.1:${port}`,path);
-    for(const [name,path] of Object.entries(pages))for(const width of widths)for(const theme of themes){
+    const audited:Record<string,string>={...pages};
+    for(const lang of ["en","ru"])for(const route of ["","changelog",...docsPages.map(page=>page.slug)])audited[`docs-${lang}-${route||"home"}`]??=`/${lang}/${route?route+"/":""}`;
+    for(const [name,path] of Object.entries(audited))if(!Object.values(pages).includes(path)||name in pages)for(const width of widths)for(const theme of themes){
       await devtools.call("Emulation.setDeviceMetricsOverride",{width,height:900,deviceScaleFactor:1,mobile:width<600});
       await open(devtools,`http://127.0.0.1:${port}${path}`);
       await devtools.evaluate(`(()=>{const style=document.createElement('style');style.textContent='*,*::before,*::after{transition:none!important;animation:none!important;caret-color:transparent!important}';document.head.append(style);if(document.documentElement.dataset.theme!==${JSON.stringify(theme)})document.querySelector('[data-theme-toggle]').click();return document.fonts.ready.then(()=>true)})()`);
       await delay(150);
-      const issues=await devtools.evaluate<string[]>(AUDIT_EXPRESSION);
+      const issues=[...await devtools.evaluate<string[]>(AUDIT_EXPRESSION),...await devtools.evaluate<string[]>(inventoryExpression())];
+      auditedCount++;
       if(issues.length)audit[`${name}-${width}-${theme}`]=issues;
+      if(!(name in pages))continue;
       const shot=await devtools.call<{data:string}>("Page.captureScreenshot",{format:"png",captureBeyondViewport:true});
       const file=`${name}-${width}-${theme}.png`;
       const png=Buffer.from(shot.data,"base64");
@@ -125,7 +137,7 @@ async function main(){
   }finally{close();server.close();rmSync(served,{recursive:true,force:true});}
   writeFileSync(join(output,"manifest.json"),JSON.stringify(manifest,null,2));
   if(Object.keys(audit).length){console.log(JSON.stringify({ok:false,audit},null,1));process.exitCode=1;return;}
-  if(!compare){console.log(JSON.stringify({ok:true,themeRuntime:"verified",screenshots:Object.keys(manifest).length,out:output}));return;}
+  if(!compare){console.log(JSON.stringify({ok:true,themeRuntime:"verified",audited:auditedCount,screenshots:Object.keys(manifest).length,out:output}));return;}
   const baseline=JSON.parse(readFileSync(resolve(compare,"manifest.json"),"utf8")) as Record<string,string>;
   const changed:Record<string,string>={};
   for(const file of Object.keys({...baseline,...manifest}).sort()){

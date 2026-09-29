@@ -1,0 +1,62 @@
+{
+  "counts": {
+    "css:hex-colour": {
+      "src/briefing/cinema/providers/ap.ts": 1,
+      "src/briefing/cinema/providers/cinema-lt.ts": 1,
+      "src/briefing/cinema/providers/rss.ts": 1,
+      "src/briefing/providers/composio-calendar.ts": 1,
+      "src/briefing/server.ts": 1,
+      "src/briefing/ui/components/company-avatar.ts": 1,
+      "src/briefing/ui/styles.ts": 20,
+      "src/human-docs/diagrams/build-daily-publication.ts": 16,
+      "src/human-docs/diagrams/build-project-run-state.ts": 16,
+      "src/human-docs/diagrams/build-recovery-topology.ts": 16,
+      "src/human-docs/diagrams/build-system-map.ts": 18
+    },
+    "markup:theme-toggle": {
+      "src/briefing/html-artifacts.ts": 1
+    },
+    "markup:details": {
+      "src/briefing/investment-review/idea.ts": 1,
+      "src/briefing/investment-review/learning-note.ts": 1,
+      "src/briefing/investment-review/panel.ts": 3,
+      "src/briefing/investment-review/position.ts": 2,
+      "src/briefing/investment-review/render.ts": 4,
+      "src/briefing/stocks/components.ts": 1,
+      "src/briefing/stocks/discovery-render.ts": 1,
+      "src/briefing/ui/charts/render.ts": 1,
+      "src/briefing/ui/components/cinema-section.ts": 1,
+      "src/briefing/ui/components/feed-order-control.ts": 1,
+      "src/briefing/weekly/render.ts": 1,
+      "src/human-docs/render.ts": 1
+    },
+    "markup:table": {
+      "src/briefing/investment-review/render.ts": 2,
+      "src/briefing/ui/charts/render.ts": 1,
+      "src/briefing/ui/components/cinema-section.ts": 1,
+      "src/briefing/weekly/render.ts": 1
+    },
+    "markup:button-class": {
+      "src/briefing/stocks/components.ts": 1,
+      "src/briefing/stocks/render.ts": 1,
+      "src/briefing/ui/components/cinema-section.ts": 1,
+      "src/briefing/weekly/render.ts": 1
+    },
+    "css:library-class": {
+      "src/briefing/ui/charts/styles.ts": 1,
+      "src/briefing/ui/styles.ts": 3,
+      "src/briefing/weekly/styles.ts": 1,
+      "src/human-docs/styles.ts": 1
+    },
+    "markup:button": {
+      "src/briefing/ui/page-shell.ts": 1
+    },
+    "css:radius": {
+      "src/briefing/ui/styles.ts": 3
+    },
+    "css:shadow": {
+      "src/briefing/ui/styles.ts": 1
+    }
+  },
+  "duplicates": {}
+}

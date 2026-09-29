@@ -7,10 +7,10 @@ export function renderResearchCoverage(input:ReviewInput):string{
   const coverage=input.researchCoverage??[];
   if(!coverage.length&&!staleFund)return "";
   const title=coverage.length?"Источники: "+coverage.filter(c=>c.state==="fresh"||c.state==="primary").length+"/"+coverage.length+" с обновлёнными данными"+(staleFund?" · состав фонда устарел":""):"Состав фонда устарел";
-  return `<details class="review-evidence"><summary>${title}</summary><p>Проверены показатели или первичные документы, не все новости. Даты и пробелы — ниже.</p>${staleFund?"<p>Состав фонда старше 45 дней: пересечения не рассчитаны, это не нулевые доли.</p>":""}<ul>${coverage.map(c=>`<li>${e(c.symbol)}: ${e(c.note)}</li>`).join("")}</ul></details>`;
+  return `<details class="disclosure review-evidence"><summary>${title}</summary><p>Проверены показатели или первичные документы, не все новости. Даты и пробелы — ниже.</p>${staleFund?"<p>Состав фонда старше 45 дней: пересечения не рассчитаны, это не нулевые доли.</p>":""}<ul>${coverage.map(c=>`<li>${e(c.symbol)}: ${e(c.note)}</li>`).join("")}</ul></details>`;
 }
 export function renderReviewEvidence(input:ReviewInput,ids:string[]):string{
-  return ids.length?`<details class="review-evidence"><summary>Факты и источники (${ids.length})</summary><ul>${ids.map(id=>{
+  return ids.length?`<details class="disclosure review-evidence"><summary>Факты и источники (${ids.length})</summary><ul>${ids.map(id=>{
     const f=input.facts.find(f=>f.id===id)!,s=input.sources.find(s=>s.id===f.sourceId)!;
     return `<li>${e(f.statement)} <a href="${e(s.url)}" target="_blank" rel="noopener noreferrer">${e(s.title)}</a> · ${e(s.asOfDate)}</li>`;
   }).join("")}</ul></details>`:"";
