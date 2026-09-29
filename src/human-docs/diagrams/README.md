@@ -10,3 +10,5 @@ These are the spatial diagrams currently worth maintaining as Excalidraw scenes.
 | `recovery-topology` | `recovery-topology-{en,ru}.excalidraw` | `../assets/recovery-topology-{en,ru}.svg` | `node src/human-docs/diagrams/build-recovery-topology.ts` | `recovery` |
 
 After editing a scene, regenerate both locales, check that text and arrows do not collide at desktop and narrow-phone widths, and retain the adjacent prose equivalent. Do not put private operational data in a scene, SVG or screenshot. A generated asset is not a substitute for browser QA or owner review.
+
+Pages inline these SVGs through `inlineDiagram` in `src/ui-library/foundations/diagram.ts`: fixed colours map to the theme's `diagram-*` roles (the light value stays as fallback) and ids are namespaced, so scenes follow dark mode and page fonts. Author scenes only in the light diagram palette (`#ffffff`, `#faf8f2`, `#fff0ed`, `#0b0b0b`, `#5e5e59`, `#e21b16`); any other colour fails the docs build.

@@ -6,6 +6,7 @@ import {SITE_HEADER_CSS} from "../ui-library/patterns/site-header.ts";
 import {TABLE_CSS} from "../ui-library/components/table.ts";
 import {CALLOUT_CSS} from "../ui-library/components/callout.ts";
 import {DISCLOSURE_CSS} from "../ui-library/components/disclosure.ts";
+import {DIAGRAM_CSS} from "../ui-library/foundations/diagram.ts";
 
 export const DOCS_STYLES = `${THEME_CSS}${FOUNDATION_CSS}${BUTTON_CSS}
 ${THEME_SWITCH_CSS}
@@ -13,6 +14,7 @@ ${SITE_HEADER_CSS}
 ${TABLE_CSS}
 ${CALLOUT_CSS}
 ${DISCLOSURE_CSS}
+${DIAGRAM_CSS}
 :root { --container-max: 1180px; }
 body { line-height: 1.55; }
 a { text-decoration-thickness: 1px; text-underline-offset: 4px; }
@@ -62,10 +64,9 @@ h3 { font-size: 1rem; line-height: 1.25; }
 .example p { margin: 8px 0 0; }
 .example__label { color: var(--text-accent); font: 500 .72rem/1.4 var(--font-mono); text-transform: uppercase; }
 .example h2 { margin: 8px 0 0; font-size: 1.1rem; }
-.scene-map { max-width: 560px; margin: 20px auto 24px; padding: 14px; border: 1px solid var(--border-default); background: #fff; color: #0b0b0b; box-shadow: var(--shadow-card); }
-.scene-map figcaption { margin-bottom: 12px; color: #a51612; font-size: .76rem; font-weight: 700; }
-.scene-map img { display: block; width: 100%; height: auto; }
-.scene-map p { margin: 10px 0 0; color: #454540; font-size: .8rem; }
+.scene-map { max-width: 560px; margin: 20px auto 24px; padding: 14px; border: 1px solid var(--border-default); background: var(--diagram-surface); color: var(--text-primary); box-shadow: var(--shadow-card); }
+.scene-map figcaption { margin-bottom: 12px; color: var(--text-accent); font-size: .76rem; font-weight: 700; }
+.scene-map p { margin: 10px 0 0; color: var(--text-muted); font-size: .8rem; }
 .digest-map { margin: 20px 0 24px; padding: 20px; border: 1px solid var(--border-default); background: var(--surface-section); box-shadow: var(--shadow-card); }
 .digest-map figcaption { margin-bottom: 15px; color: var(--text-accent); font-size: .76rem; font-weight: 600; letter-spacing: .04em; }
 .digest-map__matrix { margin: 0; }
