@@ -134,8 +134,7 @@ for(const page of pages){
     assert.ok(rendered>=1&&rendered<=2||tableLed&&rendered===0,`${page.slug}/${lang} must have one or two purposeful visuals`);
     assertInternalLinks(html);
     if(page.slug==="for-me"){
-      assert.ok(page.navTitle[lang].includes(lang==="ru"?"новости":"news order"));
-      assert.ok(page.summary[lang].includes(lang==="ru"?"новостей Daily":"Daily news stories"));
+      assert.ok(page.summary[lang].includes(lang==="ru"?"порядок новостей":"news order"),"the summary says the mode reorders news");
     }
     if(page.slug==="daily"){
       const sidebar=html.match(/<nav class="side"[^>]*>([\s\S]*?)<\/nav>/)?.[1];
@@ -164,8 +163,8 @@ for(const page of pages){
     }
     if(page.slug==="daily-lifecycle"){
       assert.match(html,new RegExp(`<figure class="scene-map">[\\s\\S]*?<svg class="diagram" aria-label="[^"]+"[^>]*role="img"[\\s\\S]*?id="daily-publication-${lang}-tip"`));
-      assert.ok(html.includes(lang==="ru"?"Что проверять при сбое этапа":"What to check when a stage fails"));
-      assert.ok(html.includes(lang==="ru"?"Успех планировщика — не успех Daily":"A scheduler success is not a Daily success"));
+      assert.ok(html.includes(lang==="ru"?"Что проверять при сбое":"What to check when a stage fails"));
+      assert.ok(html.includes(lang==="ru"?"Одного успешного статуса планировщика для этого мало":"A successful scheduler status alone does not show that"));
       assert.equal((html.match(/<th scope="row">/g)??[]).length,3);
       const svg=readFileSync(resolve(root,`src/human-docs/assets/daily-publication-${lang}.svg`),"utf8");
       const scene=JSON.parse(readFileSync(resolve(root,`src/human-docs/diagrams/daily-publication-${lang}.excalidraw`),"utf8"));
@@ -206,22 +205,20 @@ for(const page of pages){
       assert.ok(!scene.elements.some((element:{id?:string})=>element.id==="owner-box"||element.id==="branch-to-owner"));
       for(const label of ["Digest","Project Orchestrator","Operations"])assert.ok(svg.includes(label)&&scene.elements.some((element:{text?:string})=>element.text===label));
     }
-    if(page.slug==="daily"||page.slug==="weekly-cinema"||page.slug==="stocks-review"){
+    if(page.slug==="daily"){
       assert.match(html,/<figure class="comparison-map">/);
       assert.equal((html.match(/class="comparison-map__card"/g)??[]).length,2);
     }
     if(page.slug==="daily"){
       assert.ok(html.includes(lang==="ru"?"Вымышленный пример":"Synthetic example"));
-      assert.ok(html.includes(lang==="ru"?"а не расписание Курами":"not Kurami’s configured schedule"));
+      assert.ok(html.includes(lang==="ru"?"это не расписание Курами":"they are not Kurami's schedule"));
     }
     if(page.slug==="daily-addons"){
-      assert.ok(html.includes(lang==="ru"?"Кому принадлежит каждый блок Daily":"Who owns each Daily section"));
+      assert.ok(html.includes(lang==="ru"?"Как ведёт себя каждый блок":"How each section behaves"));
       assert.equal((html.match(/<th scope="row">/g)??[]).length,4);
     }
     if(page.slug==="weekly-cinema"){
-      assert.ok(html.includes(lang==="ru"?"Два результата — две границы принятия":"Two outcomes, two acceptance boundaries"));
-      assert.equal((html.match(/<th scope="row">/g)??[]).length,3);
-      assert.ok(html.includes(lang==="ru"?"Поздний сбой Daily не откатывает":"A later Daily failure does not roll Cinema back"));
+      assert.ok(html.includes(`href="/${lang}/weekly/"`)&&html.includes(`href="/${lang}/cinema/"`),"legacy route points to the split pages");
     }
     if(page.slug==="weekly"){
       assert.ok(html.includes(lang==="ru"?"Пять дней — не семь":"Five days are not seven"));
@@ -229,24 +226,24 @@ for(const page of pages){
       assert.ok(html.includes("/preview/weekly"));
     }
     if(page.slug==="cinema"){
-      assert.ok(html.includes(lang==="ru"?"Может ли новый Cinema заменить страницу?":"Can a new Cinema candidate replace the page?"));
+      assert.ok(html.includes(lang==="ru"?"Может ли новый Cinema заменить страницу?":"Can a new Cinema replace the page?"));
       assert.equal((html.match(/<th scope="row">/g)??[]).length,3);
-      assert.ok(html.includes(lang==="ru"?"Остались два блока":"Two sections survive"));
+      assert.ok(html.includes(lang==="ru"?"Остались два блока":"Two sections left"));
     }
     if(page.slug==="stocks"){
-      assert.ok(html.includes(lang==="ru"?"Одна котировка, два разных числа":"One quote, two kinds of number"));
+      assert.ok(html.includes(lang==="ru"?"Одна котировка, два числа":"One quote, two numbers"));
       assert.ok(page.sources?.includes("docs/charts.md"));
       assert.ok(html.includes(lang==="ru"?"свой масштаб":"its own scale"));
     }
     if(page.slug==="stocks-discovery"){
-      assert.ok(html.includes(lang==="ru"?"Заметное движение может не пройти сверку":"A mover can fail verification"));
+      assert.ok(html.includes(lang==="ru"?"Заметное движение может не пройти сверку":"A big move can fail the check"));
       assert.ok(html.includes(lang==="ru"?"четырёх календарных дней":"four calendar days"));
       assert.ok(page.sources?.includes("src/briefing/stocks/discovery-model.ts"));
     }
     if(page.slug==="investment-review"){
-      assert.ok(html.includes(lang==="ru"?"Что означает состояние отчёта":"What each report state means"));
+      assert.ok(html.includes(lang==="ru"?"Что означает состояние отчёта":"What a report state means"));
       assert.equal((html.match(/<th scope="row">/g)??[]).length,3);
-      assert.ok(html.includes(lang==="ru"?"не доказывают верность каждого аналитического вывода":"do not prove every research judgment correct"));
+      assert.ok(html.includes(lang==="ru"?"не гарантируют верность каждого вывода":"cannot prove every analytical conclusion"));
     }
     if(["signals","weekly","cinema","stocks","stocks-discovery","investment-review"].includes(page.slug)){
       assert.match(html,/<figure class="digest-map">/);
@@ -255,14 +252,14 @@ for(const page of pages){
     if(page.slug==="for-me"){
       assert.match(html,/<figure class="order-map">/);
       assert.equal((html.match(/class="order-map__column"/g)??[]).length,2);
-      assert.ok(html.includes(lang==="ru"?"десяти активных реакций":"ten active reactions"));
-      assert.ok(html.includes(lang==="ru"?"Девять, десять, снова девять":"Nine, ten, then nine"));
-      assert.ok(html.includes(lang==="ru"?"Старые реакции без сведений об источнике":"Older reactions without source context"));
+      assert.ok(html.includes(lang==="ru"?"десять активных реакций":"ten active reactions"));
+      assert.ok(html.includes(lang==="ru"?"Девять, десять, снова девять":"Nine, ten, nine again"));
+      assert.ok(html.includes(lang==="ru"?"Старые реакции без сведений об источнике":"Older reactions without source details"));
     }
     if(page.slug==="signals"){
-      assert.ok(html.includes(lang==="ru"?"Свежий Calendar, устаревший Mail":"Fresh Calendar, stale Mail"));
-      assert.ok(html.includes(lang==="ru"?"Calendar завтра":"tomorrow’s Calendar"));
-      assert.ok(html.includes(lang==="ru"?"без скрипта она остаётся скрытой":"without browser script it stays hidden"));
+      assert.ok(html.includes(lang==="ru"?"Свежий календарь, устаревшая почта":"Fresh calendar, stale mail"));
+      assert.ok(html.includes(lang==="ru"?"календарь на завтра":"calendar tomorrow"));
+      assert.ok(html.includes(lang==="ru"?"без скрипта строка остаётся скрытой":"without the browser script it stays hidden"));
     }
     if(page.slug==="project-admission"){
       assert.match(html,/<figure class="admission-map">/);

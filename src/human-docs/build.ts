@@ -1,4 +1,4 @@
-import {cpSync,existsSync,mkdirSync,rmSync,writeFileSync} from "node:fs";
+import {cpSync,existsSync,mkdirSync,readdirSync,rmSync,writeFileSync} from "node:fs";
 import {execFileSync} from "node:child_process";
 import {resolve,dirname} from "node:path";
 import {fileURLToPath} from "node:url";
@@ -46,6 +46,7 @@ cpSync(resolve(siteRoot,"kurami-fox-transparent.png"),resolve(output,"assets/fox
 cpSync(resolve(siteRoot,"kurami-favicon.svg"),resolve(output,"assets/favicon.svg"));
 for(const font of fontFiles)cpSync(resolve(root,"src/ui-library/assets/fonts",font.file),resolve(output,"assets",font.file));
 for(const lang of ["en","ru"])for(const diagram of ["system-map","daily-publication","project-run-state","recovery-topology","project-path"])cpSync(resolve(root,"src/human-docs/assets",`${diagram}-${lang}.svg`),resolve(output,"assets",`${diagram}-${lang}.svg`));
+for(const file of readdirSync(resolve(root,"src/human-docs/assets")))if(/^shot-[a-z0-9-]+\.png$/.test(file))cpSync(resolve(root,"src/human-docs/assets",file),resolve(output,"assets",file));
 writeFileSync(resolve(output,"assets/docs.css"),DOCS_STYLES);
 writeFileSync(resolve(output,"assets/theme.js"),THEME_RUNTIME_JS);
 writeFileSync(resolve(output,"build.json"),JSON.stringify({revision:revision??null,docsSha,mode:isPreview?"preview":"release",pages:rendered.length},null,2));

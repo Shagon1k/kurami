@@ -27,6 +27,7 @@ export type HumanDocsBlock=
   | {type:"callout";tone:"note"|"limit"|"warning";title:Localized<string>;body:Localized<string>}
   | {type:"example";synthetic:true;title:Localized<string>;body:Localized<string>}
   | {type:"technical";summary:Localized<string>;body:Localized<string>;code?:Localized<string>}
+  | {type:"screenshot";file:string;alt:Localized<string>;caption:Localized<string>}
   | {type:"source-links";paths:string[]};
 
 export type HumanDocsPage={
@@ -87,6 +88,11 @@ export function assertContent(pages:readonly HumanDocsPage[],root?:string):void 
           if(block.type==="technical"&&block.code&&!block.code[lang]?.trim())throw new Error(`Empty technical code in ${context}`);
           if(block.type==="callout"&&!(["note","limit","warning"] as string[]).includes(block.tone))throw new Error(`Invalid callout tone in ${context}`);
           if(block.type==="example"&&block.synthetic!==true)throw new Error(`Docs example must be synthetic in ${context}`);
+        }else if(block.type==="screenshot"){
+          if(!/^shot-[a-z0-9-]+\.png$/.test(block.file))throw new Error(`Invalid screenshot file in ${context}`);
+          if(root&&!existsSync(resolve(root,"src/human-docs/assets",block.file)))throw new Error(`Missing screenshot ${block.file}`);
+          assertPlain(block.alt[lang],`screenshot alt in ${context}`);
+          assertPlain(block.caption[lang],`screenshot caption in ${context}`);
         }else if(block.type!=="source-links")throw new Error(`Unknown docs block in ${page.slug}/${index}`);
       }
     }
