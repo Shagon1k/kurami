@@ -82,7 +82,7 @@ ${DISCLOSURE_CSS}
 .agenda-row, .mail-row { min-height: 76px; display: grid; align-items: start; gap: 14px; padding: 17px 0; border-bottom: 1px solid var(--border-default); }
 .agenda-row:last-child, .mail-row:last-child { border-bottom: 0; }
 .agenda-row { grid-template-columns: 58px minmax(0, 1fr) auto; }
-.agenda-row__time { padding-top: 2px; color: var(--accent-primary); font: 600 .75rem/1.4 var(--font-mono); }
+.agenda-row__time { padding-top: 2px; color: var(--text-accent); font: 600 .75rem/1.4 var(--font-mono); }
 .agenda-row__copy, .mail-row__copy { min-width: 0; display: grid; gap: 4px; }
 .agenda-row__copy strong, .mail-row__top strong { font-size: .8125rem; font-weight: 600; line-height: 1.35; }
 .agenda-row__copy span, .mail-row__copy span { color: var(--text-muted); font-size: .625rem; }
@@ -115,7 +115,7 @@ ${DISCLOSURE_CSS}
 .mail-row__badges > :only-child { grid-column: 2; }
 .mail-row__class { width: 72px; min-height: 22px; display: inline-flex; align-items: center; justify-content: center; padding: 2px 6px; color: var(--text-muted); border: 1px solid currentColor; border-radius: var(--radius-md); font: 600 .5625rem/1 var(--font-mono); }
 .mail-row__demo { width: 72px; }
-.mail-row[data-mail-class="action"] .mail-row__class { color: var(--accent-primary); }
+.mail-row[data-mail-class="action"] .mail-row__class { color: var(--text-accent); }
 .mail-row[data-mail-class="important"] .mail-row__class { color: var(--status-warning); }
 .mail-row__copy strong a { text-decoration-thickness: 1px; text-underline-offset: 3px; }
 .mail-row__copy p { display: -webkit-box; overflow: hidden; -webkit-box-orient: vertical; -webkit-line-clamp: 2; margin: 4px 0 0; color: var(--text-muted); font-size: .6875rem; line-height: 1.5; }
@@ -233,7 +233,7 @@ ${DISCLOSURE_CSS}
 .cinema-signals article { min-height: 124px; display: grid; align-content: space-between; gap: 5px; padding: 16px; background: var(--surface-raised); border: 1px solid var(--border-default); border-radius: var(--radius-sm); }
 .cinema-signals span { color: var(--text-muted); font-size: .625rem; }
 .cinema-signals strong { font-size: .875rem; line-height: 1.25; }
-.cinema-signals b { color: var(--accent-primary); font: 500 .875rem/1 var(--font-mono); }
+.cinema-signals b { color: var(--text-accent); font: 500 .875rem/1 var(--font-mono); }
 .cinema-rank header { display: flex; justify-content: space-between; gap: 20px; }
 .cinema-rank header span { color: var(--text-muted); font: 400 .5625rem/1.3 var(--font-mono); text-transform: uppercase; }
 .cinema-rank h3 { margin: 5px 0 0; font-size: 1rem; line-height: 1.2; }
@@ -255,7 +255,7 @@ ${DISCLOSURE_CSS}
 .cinema-rank thead th { color: var(--text-muted); font: 400 .5625rem/1 var(--font-mono); border-top: 0; }
 .cinema-rank__extra { display: none; }
 .cinema-rank:has(.cinema-rank__more[open]) .cinema-rank__extra { display: table-row; }
-.cinema-rank__more { margin-top: 8px; color: var(--accent-primary); font-size: .625rem; font-weight: 600; }
+.cinema-rank__more { margin-top: 8px; color: var(--text-accent); font-size: .625rem; font-weight: 600; }
 .cinema-rank__more summary { width: max-content; cursor: pointer; }
 .cinema-trailer-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; }
 .cinema-trailer, .cinema-premiere { min-width: 0; overflow: hidden; color: var(--text-primary); background: var(--surface-raised); border: 1px solid var(--border-default); border-radius: var(--radius-sm); text-decoration: none; transition: border-color 160ms ease, transform 160ms ease, box-shadow 160ms ease; }
@@ -282,7 +282,7 @@ ${DISCLOSURE_CSS}
 .cinema-news-list { overflow: hidden; background: var(--surface-raised); border: 1px solid var(--border-default); border-radius: var(--radius-sm); }
 .cinema-news { display: grid; grid-template-columns: 30px 150px minmax(0, 1fr) 44px; gap: 16px; align-items: start; padding: 20px; border-bottom: 1px solid var(--border-default); }
 .cinema-news:last-child { border-bottom: 0; }
-.cinema-news > span { color: var(--accent-primary); font: 400 .625rem/1.4 var(--font-mono); }
+.cinema-news > span { color: var(--text-accent); font: 400 .625rem/1.4 var(--font-mono); }
 .cinema-news__image { aspect-ratio: 16 / 10; display: block; overflow: hidden; background: linear-gradient(135deg, var(--surface-panel), color-mix(in srgb, var(--text-primary) 7%, var(--surface-panel))); border: 1px solid var(--border-default); border-radius: var(--radius-sm); }
 .cinema-news__image img { width: 100%; height: 100%; display: block; object-fit: cover; }
 .cinema-news__copy { min-width: 0; position: relative; }

@@ -45,7 +45,7 @@ const updated=injectSiteNavigation(original,input.links,"daily");
 assert.match(updated,/href="\/weekly"/);
 assert(updated.includes("<h1>Содержание не меняется</h1>"));
 assert.equal(injectSiteNavigation(updated,input.links,"daily"),updated);
-const asset=await readFile(resolve(root,"integrations/hermes/skills/kurami-ui-preview-language/assets/kurami-fox-transparent.png"));
+const asset=await readFile(resolve(root,"src/ui-library/assets/brand/kurami-fox-transparent.png"));
 assert.equal(asset.subarray(1,4).toString(),"PNG");assert.equal(asset[25],6,"RGBA PNG required");
 const app=await createBriefingServer(paths,{mailActionExecutor:null});
 app.listen(0,"127.0.0.1");await once(app,"listening");

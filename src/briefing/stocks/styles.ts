@@ -58,7 +58,7 @@ export const STOCKS_STYLES=`
 .stock-load-status:not(:empty) { padding:16px 20px; }
 .stock-change { white-space:nowrap; font-variant-numeric:tabular-nums; }
 .stock-change.is-up { color:var(--status-success); }
-.stock-change.is-down { color:var(--accent-primary); }
+.stock-change.is-down { color:var(--text-accent); }
 .stocks-warning { color:var(--status-warning); }
 .stocks-footnote { margin:16px 0 0; color:var(--text-muted); font-size:.75rem; line-height:1.6; }
 .stocks-observations { padding:0 0 28px; }

@@ -19,6 +19,7 @@ import {renderTable,TABLE_CSS} from "../../src/ui-library/components/table.ts";
 import {renderCallout,CALLOUT_CSS} from "../../src/ui-library/components/callout.ts";
 import {renderDisclosure,DISCLOSURE_CSS} from "../../src/ui-library/components/disclosure.ts";
 import {inlineDiagram} from "../../src/ui-library/foundations/diagram.ts";
+import {exportBundle,exportDirectory} from "../../src/ui-library/export.ts";
 import {readFileSync,readdirSync} from "node:fs";
 
 const root=resolve(import.meta.dirname,"../..");
@@ -124,5 +125,20 @@ for(const file of scenes){
 }
 assert.throws(()=>inlineDiagram('<svg><rect fill="#123456"/></svg>',{id:"x",label:"x"}),/outside the diagram palette/);
 assert.throws(()=>inlineDiagram('<svg onload="x()"></svg>',{id:"x",label:"x"}),/Unsafe diagram/);
+
+// The UI-language skill points at the real library: generated bundle is fresh, named parts exist,
+// and it carries no second copy of colours, fonts or reference templates.
+for(const [file,content] of Object.entries(exportBundle()))assert.equal(readFileSync(resolve(exportDirectory,file),"utf8"),content,`${file} is stale: run npm run ui:export`);
+const skillRoot=resolve(root,"integrations/hermes/skills/kurami-ui-preview-language");
+const skillText=[resolve(skillRoot,"SKILL.md"),...readdirSync(resolve(skillRoot,"references")).map(file=>resolve(skillRoot,"references",file))].map(file=>readFileSync(file,"utf8")).join("\n");
+assert.ok(!existsSync(resolve(skillRoot,"templates")),"reference templates removed");
+assert.doesNotMatch(skillText,/#[0-9a-fA-F]{6}\b|fonts\.googleapis|templates\//,"skill restates no colours, Google Fonts or templates");
+// Named functions must exist in the library or in Digest's canonical components.
+const exported=new Set<string>();
+for(const dir of ["src/ui-library","src/briefing"])for(const file of readdirSync(resolve(root,dir),{recursive:true,encoding:"utf8"}))if(file.endsWith(".ts"))for(const match of readFileSync(resolve(root,dir,file),"utf8").matchAll(/export (?:async )?(?:function|const) ([A-Za-z_]+)/g))exported.add(match[1]);
+const named=[...new Set(skillText.match(/\b(?:render[A-Z][A-Za-z]+|inlineDiagram|[A-Z][A-Z_]+_CSS|THEME_RUNTIME_JS)\b/g))];
+assert.ok(named.length>=10,"skill names real functions");
+for(const name of named)assert.ok(exported.has(name),`skill names ${name}, which no module exports`);
+for(const path of new Set(skillText.match(/src\/ui-library\/[a-z0-9/._-]+[a-z0-9]/g)))assert.ok(existsSync(resolve(root,path)),`skill path ${path} exists`);
 
 console.log(`UI library theme contract verified: ${colorRoles.length} colour roles × 2 modes, ${scaleRoles.length} scale roles, no retired or undefined tokens`);

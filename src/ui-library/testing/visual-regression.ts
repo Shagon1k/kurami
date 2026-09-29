@@ -9,18 +9,20 @@ import {tmpdir} from "node:os";
 import {isAbsolute,join,resolve,sep} from "node:path";
 import {setTimeout as delay} from "node:timers/promises";
 import {findBrowser,launchBrowser} from "./devtools.ts";
-import {syntheticDaily,syntheticStocksEmpty} from "./fixtures.ts";
+import {librarySubsite,syntheticDaily,syntheticStocksEmpty} from "./fixtures.ts";
 import {changedShare,decodePng} from "./png.ts";
+import {AUDIT_EXPRESSION} from "./audit.ts";
 import {injectRuntime} from "../../briefing/server.ts";
 import type {Devtools} from "./devtools.ts";
 
 const root=resolve(import.meta.dirname,"../../..");
-const brandAssets=resolve(root,"integrations/hermes/skills/kurami-ui-preview-language/assets");
+const brandAssets=resolve(root,"src/ui-library/assets/brand");
 const widths=[390,1280] as const;
 const themes=["light","dark"] as const;
 const pages:Record<string,string>={
   "digest-daily":"/digest/daily.html",
   "digest-stocks-empty":"/digest/stocks.html",
+  "library-subsite":"/lab/index.html",
   "docs-home-en":"/en/",
   "docs-overview-ru":"/ru/what-is-kurami/",
   "docs-state-table-en":"/en/reading-state/",
@@ -43,6 +45,8 @@ function site():string {
   // Digest pages pass through the same serve-time injection as production.
   writeFileSync(join(served,"digest/daily.html"),injectRuntime(syntheticDaily()));
   writeFileSync(join(served,"digest/stocks.html"),injectRuntime(syntheticStocksEmpty()));
+  mkdirSync(join(served,"lab"),{recursive:true});
+  writeFileSync(join(served,"lab/index.html"),librarySubsite());
   cpSync(join(brandAssets,"kurami-fox-transparent.png"),join(served,"assets/kurami-fox.png"));
   cpSync(join(brandAssets,"kurami-favicon.svg"),join(served,"favicon.svg"));
   return served;
@@ -101,14 +105,17 @@ async function main(){
   const port=(server.address() as {port:number}).port;
   const {devtools,close}=await launchBrowser(findBrowser(args.find(arg=>isAbsolute(arg))));
   const manifest:Record<string,string>={};
+  const audit:Record<string,string[]>={};
   try{
     await devtools.call("Page.enable");
-    for(const path of ["/digest/daily.html","/en/reading-state/"])await checkThemeRuntime(devtools,`http://127.0.0.1:${port}`,path);
+    for(const path of ["/digest/daily.html","/en/reading-state/","/lab/index.html"])await checkThemeRuntime(devtools,`http://127.0.0.1:${port}`,path);
     for(const [name,path] of Object.entries(pages))for(const width of widths)for(const theme of themes){
       await devtools.call("Emulation.setDeviceMetricsOverride",{width,height:900,deviceScaleFactor:1,mobile:width<600});
       await open(devtools,`http://127.0.0.1:${port}${path}`);
-      await devtools.evaluate(`(()=>{const style=document.createElement('style');style.textContent='*,*::before,*::after{transition:none!important;animation:none!important;caret-color:transparent!important}';document.head.append(style);document.documentElement.dataset.theme=${JSON.stringify(theme)};return document.fonts.ready.then(()=>true)})()`);
+      await devtools.evaluate(`(()=>{const style=document.createElement('style');style.textContent='*,*::before,*::after{transition:none!important;animation:none!important;caret-color:transparent!important}';document.head.append(style);if(document.documentElement.dataset.theme!==${JSON.stringify(theme)})document.querySelector('[data-theme-toggle]').click();return document.fonts.ready.then(()=>true)})()`);
       await delay(150);
+      const issues=await devtools.evaluate<string[]>(AUDIT_EXPRESSION);
+      if(issues.length)audit[`${name}-${width}-${theme}`]=issues;
       const shot=await devtools.call<{data:string}>("Page.captureScreenshot",{format:"png",captureBeyondViewport:true});
       const file=`${name}-${width}-${theme}.png`;
       const png=Buffer.from(shot.data,"base64");
@@ -117,6 +124,7 @@ async function main(){
     }
   }finally{close();server.close();rmSync(served,{recursive:true,force:true});}
   writeFileSync(join(output,"manifest.json"),JSON.stringify(manifest,null,2));
+  if(Object.keys(audit).length){console.log(JSON.stringify({ok:false,audit},null,1));process.exitCode=1;return;}
   if(!compare){console.log(JSON.stringify({ok:true,themeRuntime:"verified",screenshots:Object.keys(manifest).length,out:output}));return;}
   const baseline=JSON.parse(readFileSync(resolve(compare,"manifest.json"),"utf8")) as Record<string,string>;
   const changed:Record<string,string>={};

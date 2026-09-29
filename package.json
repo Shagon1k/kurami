@@ -26,6 +26,7 @@
     "check": "tsc --noEmit",
     "test:ui-library": "node tests/ui-library/verify.ts",
     "test:ui-browser": "node src/ui-library/testing/visual-regression.ts --out=dist/ui-browser",
+    "ui:export": "node src/ui-library/export.ts --write",
     "docs:build": "node src/human-docs/build.ts --preview",
     "test:docs:browser-daily": "node tests/human-docs/browser-preview.ts",
     "test:docs:browser-weekly": "node tests/human-docs/browser-preview.ts --routes=weekly-cinema,weekly,cinema",

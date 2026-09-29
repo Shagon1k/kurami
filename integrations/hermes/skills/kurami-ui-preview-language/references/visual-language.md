@@ -6,7 +6,7 @@ Kurami UI combines a calm editorial page with utilitarian product controls and a
 
 ## Brand mark
 
-The canonical browser mark is `../assets/kurami-favicon.svg`: a broad digital
+The canonical browser mark is `src/ui-library/assets/brand/kurami-favicon.svg`: a broad digital
 fox head in black, fox orange, and white on the warm paper surface. It is one
 shared asset for Daily, Cinema, previews, and empty runtime states.
 
@@ -19,7 +19,7 @@ shared asset for Daily, Cinema, previews, and empty runtime states.
 - The thin square frame is part of the favicon asset and its silhouette fills
   the canvas deliberately so the fox stays legible at 16px.
 
-The header uses the sibling `../assets/kurami-fox-transparent.png`, extracted
+The header uses the sibling `kurami-fox-transparent.png` in the same directory, extracted
 from Alex's approved fox artwork. Its exterior is transparent; the black
 outline, orange areas and white cheeks remain opaque. Do not replace white
 cheeks with transparency. The framed favicon and unframed header asset have
@@ -47,59 +47,43 @@ Recommended fluid sizes:
 | Metadata | `0.75rem–0.875rem` | `1.3–1.5` |
 | Kurami Note | `1.25rem–1.625rem` | `1` |
 
-## Color tokens
+## Colour roles
 
-Use semantic CSS custom properties. These approved values are the baseline.
+Colours are semantic roles defined in `src/ui-library/tokens/index.ts`; the
+Kurami light and dark values live in `src/ui-library/themes/kurami.ts`. Read
+values there, never copy them into a page.
 
-### Light
-
-```css
---paper: #fbfbf8;
---surface: #ffffff;
---section: #f1eee5;
---panel: #faf8f2;
---ink: #0b0b0b;
---muted: #5e5e59;
---signal: #e21b16;
---line: #c9c3b7;
---grid: #d8d8d1;
---signal-soft: #fff0ed;
---section-shadow: #d9d4c9;
-```
-
-### Dark
-
-```css
---paper: #0a0a0a;
---surface: #111110;
---section: #171714;
---panel: #1d1d19;
---ink: #f7f7f3;
---muted: #aaa9a2;
---signal: #ff4b45;
---line: #44443e;
---grid: #292927;
---signal-soft: #2a1110;
---semantic-red: #ff7771;
---semantic-green: #67e5a0;
---semantic-amber: #ffd06e;
-```
+| Role | Purpose |
+|---|---|
+| `surface-page` | Page background: near-white paper in light, near-black in dark |
+| `surface-raised` | Quiet rows, inputs and buttons on the page |
+| `surface-panel` | Warm grouping surface for callouts, disclosures and small panels |
+| `surface-section` | Warmer framed section behind selected structural blocks |
+| `text-primary` / `text-muted` | Ink and secondary text |
+| `text-accent` | Accent-coloured text that must still pass AA on light surfaces |
+| `text-on-accent` | Label on an accent fill |
+| `border-default` / `border-subtle` | 1px rules and quieter grid lines |
+| `accent-primary` / `accent-soft` | The red signal and its tinted background |
+| `status-success` / `status-warning` / `status-failure` | Semantic state; always paired with text or an icon |
+| `shadow-offset`, `focus-ring` | Offset shadow colour and keyboard focus |
+| `chart-1` … `chart-5` | Chart series in order |
+| `diagram-*` | The six-colour palette of explanatory diagrams |
 
 Do not lower semantic alert text to decorative opacity. Backgrounds may be subtle; the label and message must remain readable.
 
 ## Surfaces and geometry
 
 - Page background is near-white in light mode, not beige everywhere.
-- Use the warmer `--section` and `--panel` colors to group sections.
-- Default borders are 1px solid `--line`.
-- Default radius is 0–4px. Badges may use 5px. Search fields, filters, and compact segmented controls may be pills when ergonomically useful.
-- Use an understated 3–5px offset shadow in `--section-shadow` for selected paper blocks only. A typical briefing should have no more than two or three shadowed structural blocks.
+- Use the warmer `--surface-section` and `--surface-panel` roles to group sections.
+- Default borders are 1px solid `--border-default`.
+- Use `--radius-sm`, `--radius` or `--radius-md` (2–4px). Badges may use 5px. Search fields, filters, and compact segmented controls may be pills when ergonomically useful.
+- Use `--shadow-card` (or `--shadow-card-sm`) for selected paper blocks only. A typical briefing should have no more than two or three shadowed structural blocks.
 - Prefer whitespace and block contrast to repeated horizontal rules.
 - Open editorial sections, compact strips, lists, and split panels may use no outer card at all.
 
 ## Spacing and layout
 
-- Use a 4px base unit with a practical spacing sequence of 4, 8, 12, 16, 24, 32, 48, 64, and 96px.
+- Use a 4px base unit: `--space-1` … `--space-10` cover 4–40px; larger editorial gaps continue with 48, 64 and 96px.
 - Keep the page reading width around 1200–1360px with responsive outer gutters.
 - Use 16–24px gaps inside dense controls and 24–48px between content groups.
 - Allow 48–96px between major editorial sections.
@@ -116,7 +100,7 @@ Do not lower semantic alert text to decorative opacity. Backgrounds may be subtl
 
 ## Motion
 
-- Motion is functional and brief: 120–200ms for color, border, transform, and opacity.
+- Motion is functional and brief: `--duration-fast` (150ms) or `--duration-base` (220ms) for colour, border, transform, and opacity.
 - Avoid decorative looping animation.
 - Respect `prefers-reduced-motion`.
 - Chart points grow from 3px to 6px on hover/focus and expose a value tooltip.

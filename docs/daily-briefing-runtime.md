@@ -1,7 +1,7 @@
 # Kurami Daily Briefing runtime
 
 The shared renderer serves the canonical fox favicon from
-`integrations/hermes/skills/kurami-ui-preview-language/assets/kurami-favicon.svg`
+`src/ui-library/assets/brand/kurami-favicon.svg`
 at `/favicon.svg`. Daily, Cinema, staging previews, and the empty home state all
 reference this one asset, so add-ons must not ship their own page-specific
 favicon.

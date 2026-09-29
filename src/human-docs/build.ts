@@ -22,7 +22,7 @@ if(!isPreview && execFileSync("git",["status","--porcelain"],{cwd:root,encoding:
 const docsSha=isPreview?null:execFileSync("git",["rev-parse","HEAD"],{cwd:root,encoding:"utf8"}).trim();
 const sourceSha=revision??docsSha??execFileSync("git",["rev-parse","HEAD"],{cwd:root,encoding:"utf8"}).trim();
 const output=resolve(root,"dist/human-docs");
-const siteRoot=resolve(root,"integrations/hermes/skills/kurami-ui-preview-language/assets");
+const siteRoot=resolve(root,"src/ui-library/assets/brand");
 assertContent(pages,root);
 const paths=new Set(pages.map(page=>page.slug));
 const changes=revision?({en:changesForDeployedSha(revision,"en"),ru:changesForDeployedSha(revision,"ru")}):{en:[],ru:[]};
