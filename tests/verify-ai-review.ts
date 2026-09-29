@@ -321,45 +321,96 @@ index aaaaaaa..bbbbbbb 100644
 
     const fakeCodex = resolve(home, "fake-codex-review.mjs");
     const archiveLog = resolve(home, "review-archives.log");
+    const requestLog = resolve(home, "review-request.log");
     await writeFile(
       fakeCodex,
-      `#!${process.execPath}\nimport { appendFileSync } from "node:fs";\nimport { createInterface } from "node:readline";\nfor (const name of ["GH_TOKEN", "GITHUB_TOKEN", "KURAMI_TEST_API_TOKEN", "KURAMI_TEST_PRIVATE_KEY"]) {\n  if (process.env[name]) throw new Error("Reviewer received secret environment material");\n}\nconst lines = createInterface({ input: process.stdin });\nfor await (const line of lines) {\n  const message = JSON.parse(line);\n  let result = {};\n  if (message.method === "thread/start") result = { thread: { id: "parent-review-thread" } };\n  if (message.method === "review/start") result = { turn: { id: "review-turn", status: "inProgress", items: [] }, reviewThreadId: "detached-review-thread" };\n  if (message.method === "thread/archive") appendFileSync(process.env.FAKE_REVIEW_ARCHIVE_LOG, message.params.threadId + "\\n");\n  if (typeof message.id === "number") process.stdout.write(JSON.stringify({ id: message.id, result }) + "\\n");\n  if (message.method === "review/start") process.stdout.write(JSON.stringify({ method: "turn/completed", params: { threadId: "detached-review-thread", turn: { id: "review-turn", status: "completed", error: null, items: [{ type: "exitedReviewMode", review: "{\\\"summary\\\":\\\"Clean\\\",\\\"findings\\\":[]}" }] } } }) + "\\n");\n}\n`,
+      `#!${process.execPath}
+import { appendFileSync } from "node:fs";
+import { createInterface } from "node:readline";
+for (const name of ["GH_TOKEN", "GITHUB_TOKEN", "KURAMI_TEST_API_TOKEN", "KURAMI_TEST_PRIVATE_KEY"]) {
+  if (process.env[name]) throw new Error("Reviewer received secret environment material");
+}
+const lines = createInterface({ input: process.stdin });
+for await (const line of lines) {
+  const message = JSON.parse(line);
+  let result = {};
+  if (message.method === "thread/start") {
+    if (message.params.approvalPolicy !== "never" || message.params.sandbox !== "read-only") throw new Error("Review isolation was weakened");
+    result = { thread: { id: "review-thread" } };
+  }
+  if (message.method === "thread/name/set" && (message.params.threadId !== "review-thread" || message.params.name !== "AI review test")) throw new Error("Review thread was not named");
+  if (message.method === "review/start") {
+    appendFileSync(process.env.FAKE_REVIEW_REQUEST_LOG, JSON.stringify(message.params) + "\\n");
+    if (message.params.delivery === "detached") {
+      process.stdout.write(JSON.stringify({ id: message.id, error: { code: -32600, message: "paginated threads do not support detached review" } }) + "\\n");
+      continue;
+    }
+    if (message.params.delivery !== "inline" || message.params.threadId !== "review-thread") throw new Error("Review did not use its dedicated thread");
+    result = { turn: { id: "review-turn", status: "inProgress", items: [] }, reviewThreadId: "review-thread" };
+  }
+  if (message.method === "thread/archive") appendFileSync(process.env.FAKE_REVIEW_ARCHIVE_LOG, message.params.threadId + "\\n");
+  if (typeof message.id === "number") process.stdout.write(JSON.stringify({ id: message.id, result }) + "\\n");
+  if (message.method === "review/start") {
+    process.stdout.write(JSON.stringify({ method: "item/completed", params: { threadId: "review-thread", turnId: "review-turn", item: { type: "exitedReviewMode", review: JSON.stringify({ summary: "Clean", findings: [] }) } } }) + "\\n");
+    process.stdout.write(JSON.stringify({ method: "turn/completed", params: { threadId: "review-thread", turn: { id: "review-turn", status: "completed", error: null, items: [] } } }) + "\\n");
+  }
+}
+`,
       { mode: 0o700 },
     );
     process.env.FAKE_REVIEW_ARCHIVE_LOG = archiveLog;
+    process.env.FAKE_REVIEW_REQUEST_LOG = requestLog;
     process.env.GH_TOKEN = "must-not-reach-reviewer";
     process.env.GITHUB_TOKEN = "must-not-reach-reviewer";
     process.env.KURAMI_TEST_API_TOKEN = "must-not-reach-reviewer";
     process.env.KURAMI_TEST_PRIVATE_KEY = "must-not-reach-reviewer";
+    let startedIdentity: [string, string] | undefined;
     const detached = await runDetachedReview(fakeCodex, {
       cwd: home,
       title: "AI review test",
       instructions: "Review exact fixture SHA and return JSON.",
       timeoutMs: 5_000,
+      onStarted: (threadId, turnId) => {
+        startedIdentity = [threadId, turnId];
+      },
     });
     delete process.env.FAKE_REVIEW_ARCHIVE_LOG;
+    delete process.env.FAKE_REVIEW_REQUEST_LOG;
     delete process.env.GH_TOKEN;
     delete process.env.GITHUB_TOKEN;
     delete process.env.KURAMI_TEST_API_TOKEN;
     delete process.env.KURAMI_TEST_PRIVATE_KEY;
     assert(
-      detached.parentThreadId === "parent-review-thread" &&
-        detached.reviewThreadId === "detached-review-thread" &&
+      detached.parentThreadId === "review-thread" &&
+        detached.reviewThreadId === "review-thread" &&
+        startedIdentity?.[0] === "review-thread" &&
+        startedIdentity?.[1] === "review-turn" &&
         parseReviewResult(detached.review).findings.length === 0,
-      "Detached Codex review lifecycle was not completed",
+      "Isolated Codex review lifecycle was not completed",
+    );
+    const reviewRequest = JSON.parse(await readFile(requestLog, "utf8")) as {
+      delivery?: string;
+      threadId?: string;
+      target?: { type?: string; instructions?: string };
+    };
+    assert(
+      reviewRequest.delivery === "inline" &&
+        reviewRequest.threadId === "review-thread" &&
+        reviewRequest.target?.type === "custom" &&
+        reviewRequest.target.instructions === "Review exact fixture SHA and return JSON.",
+      "Review did not avoid the paginated detached-review RPC failure",
     );
     const archived = (await readFile(archiveLog, "utf8")).trim().split("\n");
     assert(
-      archived.includes("parent-review-thread") &&
-        archived.includes("detached-review-thread"),
-      "Technical review tasks were not archived",
+      archived.length === 1 && archived[0] === "review-thread",
+      "Technical review task was not archived exactly once",
     );
 
     const approvalCodex = resolve(home, "fake-codex-review-approval.mjs");
     const approvalLog = resolve(home, "review-approval-response.log");
     await writeFile(
       approvalCodex,
-      `#!${process.execPath}\nimport { appendFileSync } from "node:fs";\nimport { createInterface } from "node:readline";\nconst lines = createInterface({ input: process.stdin });\nfor await (const line of lines) {\n  const message = JSON.parse(line);\n  if (message.id === 900) {\n    appendFileSync(process.env.FAKE_REVIEW_APPROVAL_LOG, JSON.stringify(message) + "\\n");\n    continue;\n  }\n  let result = {};\n  if (message.method === "thread/start") result = { thread: { id: "approval-parent-thread" } };\n  if (message.method === "review/start") result = { turn: { id: "approval-turn", status: "inProgress", items: [] }, reviewThreadId: "approval-review-thread" };\n  if (typeof message.id === "number") process.stdout.write(JSON.stringify({ id: message.id, result }) + "\\n");\n  if (message.method === "review/start") process.stdout.write(JSON.stringify({ method: "item/commandExecution/requestApproval", id: 900, params: { threadId: "approval-review-thread", turnId: "approval-turn", itemId: "approval-item", reason: "network" } }) + "\\n");\n}\n`,
+      `#!${process.execPath}\nimport { appendFileSync } from "node:fs";\nimport { createInterface } from "node:readline";\nconst lines = createInterface({ input: process.stdin });\nfor await (const line of lines) {\n  const message = JSON.parse(line);\n  if (message.id === 900) {\n    appendFileSync(process.env.FAKE_REVIEW_APPROVAL_LOG, JSON.stringify(message) + "\\n");\n    continue;\n  }\n  let result = {};\n  if (message.method === "thread/start") result = { thread: { id: "approval-parent-thread" } };\n  if (message.method === "review/start") result = { turn: { id: "approval-turn", status: "inProgress", items: [] }, reviewThreadId: "approval-parent-thread" };\n  if (typeof message.id === "number") process.stdout.write(JSON.stringify({ id: message.id, result }) + "\\n");\n  if (message.method === "review/start") process.stdout.write(JSON.stringify({ method: "item/commandExecution/requestApproval", id: 900, params: { threadId: "approval-parent-thread", turnId: "approval-turn", itemId: "approval-item", reason: "network" } }) + "\\n");\n}\n`,
       { mode: 0o700 },
     );
     process.env.FAKE_REVIEW_APPROVAL_LOG = approvalLog;

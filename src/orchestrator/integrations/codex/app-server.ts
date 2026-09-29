@@ -238,6 +238,23 @@ class AppServerClient {
     });
   }
 
+  completedReview(threadId: string, turnId: string): string | undefined {
+    for (let index = this.#notifications.length - 1; index >= 0; index -= 1) {
+      const message = this.#notifications[index];
+      if (message.method !== "item/completed") continue;
+      const params = message.params as
+        | { threadId?: string; turnId?: string; item?: { type?: string; review?: string } }
+        | undefined;
+      if (
+        params?.threadId === threadId &&
+        params.turnId === turnId &&
+        params.item?.type === "exitedReviewMode" &&
+        typeof params.item.review === "string"
+      ) return params.item.review;
+    }
+    return undefined;
+  }
+
   close(): void {
     this.#child.stdin.end();
     this.#child.kill("SIGTERM");
@@ -294,21 +311,19 @@ export async function runDetachedReview(
     if (!parentThreadId) throw new Error("Codex returned no review parent thread ID");
     await client.request("thread/name/set", {
       threadId: parentThreadId,
-      name: `${options.title} · review bootstrap`,
+      name: options.title,
     });
     const reviewStarted = (await client.request("review/start", {
       threadId: parentThreadId,
       target: { type: "custom", instructions: options.instructions },
-      delivery: "detached",
+      // This thread exists only for this review. Inline delivery keeps the
+      // review isolated without the unsupported paginated detached-review fork.
+      delivery: "inline",
     })) as ReviewStartResponse;
     reviewThreadId = reviewStarted.reviewThreadId ?? null;
     const turnId = reviewStarted.turn?.id;
-    if (!reviewThreadId || !turnId)
-      throw new Error("Codex returned no detached review task identity");
-    await client.request("thread/name/set", {
-      threadId: reviewThreadId,
-      name: options.title,
-    });
+    if (reviewThreadId !== parentThreadId || !turnId)
+      throw new Error("Codex returned an unexpected review task identity");
     options.onStarted?.(reviewThreadId, turnId);
     const notification = await client.waitForNotification((message) => {
       if (message.method !== "turn/completed") return false;
@@ -323,6 +338,7 @@ export async function runDetachedReview(
         `Codex review did not complete: ${turn.status}${turn.error?.message ? ` (${turn.error.message})` : ""}`,
       );
     const review =
+      client.completedReview(reviewThreadId, turnId) ??
       turn.items
         ?.filter(
           (item): item is { type: "exitedReviewMode"; review: string } =>
@@ -343,7 +359,7 @@ export async function runDetachedReview(
       review: review.trim(),
     };
   } finally {
-    for (const threadId of [reviewThreadId, parentThreadId]) {
+    for (const threadId of new Set([reviewThreadId, parentThreadId])) {
       if (!threadId) continue;
       try {
         await client.request("thread/archive", { threadId });
