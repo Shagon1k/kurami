@@ -7,11 +7,7 @@
       "src/briefing/providers/composio-calendar.ts": 1,
       "src/briefing/server.ts": 1,
       "src/briefing/ui/components/company-avatar.ts": 1,
-      "src/briefing/ui/styles.ts": 20,
-      "src/human-docs/diagrams/build-daily-publication.ts": 16,
-      "src/human-docs/diagrams/build-project-run-state.ts": 16,
-      "src/human-docs/diagrams/build-recovery-topology.ts": 16,
-      "src/human-docs/diagrams/build-system-map.ts": 18
+      "src/briefing/ui/styles.ts": 20
     },
     "markup:theme-toggle": {
       "src/briefing/html-artifacts.ts": 1

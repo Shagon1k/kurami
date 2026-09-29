@@ -38,14 +38,14 @@ for(const [path,html] of rendered){
   const links=[...html.matchAll(/href\s*=\s*["']\/(en|ru)\/([a-z0-9/-]*)["']/g)];
   for(const [, ,slug] of links)if(slug&&slug!=="changelog/"&&!paths.has(slug.replace(/\/$/,"")))throw new Error(`Broken internal route ${slug} in ${path}`);
 }
-for(const lang of ["en","ru"])for(const diagram of ["system-map","daily-publication","project-run-state","recovery-topology"])if(!existsSync(resolve(root,"src/human-docs/assets",`${diagram}-${lang}.svg`)))throw new Error(`Missing ${lang} ${diagram} SVG`);
+for(const lang of ["en","ru"])for(const diagram of ["system-map","daily-publication","project-run-state","recovery-topology","project-path"])if(!existsSync(resolve(root,"src/human-docs/assets",`${diagram}-${lang}.svg`)))throw new Error(`Missing ${lang} ${diagram} SVG`);
 rmSync(output,{recursive:true,force:true});
 mkdirSync(resolve(output,"assets"),{recursive:true});
 for(const [path,html] of rendered){const destination=resolve(output,path);mkdirSync(dirname(destination),{recursive:true});writeFileSync(destination,html);}
 cpSync(resolve(siteRoot,"kurami-fox-transparent.png"),resolve(output,"assets/fox.png"));
 cpSync(resolve(siteRoot,"kurami-favicon.svg"),resolve(output,"assets/favicon.svg"));
 for(const font of fontFiles)cpSync(resolve(root,"src/ui-library/assets/fonts",font.file),resolve(output,"assets",font.file));
-for(const lang of ["en","ru"])for(const diagram of ["system-map","daily-publication","project-run-state","recovery-topology"])cpSync(resolve(root,"src/human-docs/assets",`${diagram}-${lang}.svg`),resolve(output,"assets",`${diagram}-${lang}.svg`));
+for(const lang of ["en","ru"])for(const diagram of ["system-map","daily-publication","project-run-state","recovery-topology","project-path"])cpSync(resolve(root,"src/human-docs/assets",`${diagram}-${lang}.svg`),resolve(output,"assets",`${diagram}-${lang}.svg`));
 writeFileSync(resolve(output,"assets/docs.css"),DOCS_STYLES);
 writeFileSync(resolve(output,"assets/theme.js"),THEME_RUNTIME_JS);
 writeFileSync(resolve(output,"build.json"),JSON.stringify({revision:revision??null,docsSha,mode:isPreview?"preview":"release",pages:rendered.length},null,2));
