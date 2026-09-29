@@ -340,7 +340,7 @@ for(const page of pages){
     }
     if(page.slug==="scheduling"){
       assert.match(html,/<figure class="schedule-evidence">/);
-      assert.equal((html.match(/<th scope="row">/g)??[]).length,4);
+      assert.equal((html.match(/<th scope="row">/g)??[]).length,5);
       assert.ok(html.includes(lang==="ru"?"Таймер сработал, копия не готова":"The timer fired, the backup did not finish"));
     }
     if(page.slug==="maintenance"){

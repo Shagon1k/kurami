@@ -11,6 +11,7 @@ SQLite and GitHub.
 | Run starter and dashboard | `src/orchestrator/controls/discord.ts` | `run_discord_surfaces` |
 | Run timeline event | `src/orchestrator/controls/discord.ts` | `run_discord_event_deliveries` |
 | Project digest | `src/orchestrator/projects/digest/discord.ts` | `project_discord_digest_surfaces` |
+| Docs proposal card (`#updates`) | `src/human-docs/approval/card.ts` | `state/human-docs/proposals.db` |
 | Components V2 primitives | `src/discord/ui.ts` | None |
 | Owner interactions | `integrations/hermes/plugins/kurami-discord-controls/` | Control request tables |
 
