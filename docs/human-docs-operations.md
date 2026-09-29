@@ -60,7 +60,34 @@ The installed configuration has these boundaries:
 
 On the due tick, the wrapper fetches and fast-forwards only its marked clone from `origin/main` before running the read-only inventory. It never updates the canonical application checkout. A divergent or unreachable remote fails the pre-run script; Hermes passes that failure to the agent as an error for reporting, rather than silently treating it as a successful audit. Git read access passed with the scheduler's sanitized subprocess environment. Live delivery still needs the first scheduled smoke. Do not point the job at an active development worktree.
 
-No separate drafting worktree is assigned yet, so the installed task reports proposed EN/RU edits and classifications; it does not change files. A reviewer or equivalent release gate must settle ambiguous behavior, private-data risk, diagram changes and unsupported runtime claims before promotion. No significant change means no changelog entry. The task requests a concise `#updates` report even for an empty successful audit, distinguishing checked, drafted, published and awaiting-owner states. Do not send a public release announcement merely because the audit ran. The owner chose Monday at 06:00 local time to keep the report separate from Daily at 09:00. Changelog day headings use the Git committer's calendar date and say so explicitly; they are not deployment or docs-publication dates. Keep `#maintenance` for backup and housekeeping reports.
+The task requests a concise `#updates` report even for an empty successful audit, distinguishing checked, drafted and awaiting-owner states. Do not send a public release announcement merely because the audit ran. The owner chose Monday at 06:00 local time to keep the report separate from Daily at 09:00. Changelog day headings use the Git committer's calendar date and say so explicitly; they are not deployment or docs-publication dates. Keep `#maintenance` for backup and housekeeping reports.
+
+### Owner-approved proposals
+
+The audit no longer stops at a report. `cron-payload.ts` asks `src/human-docs/approval/prepare.ts` for a draft: a linked worktree of the audit clone on its own `docs/weekly-<date>-<id>` branch under `state/human-docs/drafts/<id>/`, recorded as `drafting` in `state/human-docs/proposals.db`. While another proposal is `drafting`, `ready`, `revising` or `publishing`, no draft is created and the payload says which one blocks it. The agent edits only that worktree and, last, writes `summary.json` next to it.
+
+The worker `src/human-docs/approval/worker.ts` runs every minute through the Hermes `no_agent` job `kurami-docs-approval` (`integrations/hermes/scripts/kurami-docs-approval.sh` → `run-docs-approval.sh`, `flock`-guarded; a busy tick exits silently). Per proposal:
+
+| State | Worker step |
+| --- | --- |
+| `drafting` | Waits until the summary is two minutes old (or four hours pass). No change → `empty`, no card. Otherwise drops paths outside the allowlist (`src/human-docs/content/*.ts` except `schema.ts`, `src/human-docs/changelog.json`, `tests/human-docs/verify.ts`, `docs/human-docs-coverage-audit.md`), runs `tests/human-docs/verify.ts`, commits, pushes, opens a PR and posts the card to the audit job's Discord destination → `ready`. Failed checks → `failed` with a card offering Discuss and Reject. |
+| `revising` | Reads the discussion thread after the stored cursor, keeps only the single allowed owner's non-bot messages, runs `codex exec` in the draft with `workspace-write` sandbox and an output schema, then applies the same allowlist and checks. Failure resets the branch to the last good head and says why in the thread. |
+| `publishing` | Requires the PR head to equal the head the card showed and every PR file to be allowlisted, squash-merges with `--match-head-commit`, builds `--docs-release` from `origin/main` in a throwaway detached worktree, swaps it into `release/` with the previous release kept as `rollback-<docsSha>`, restarts `kurami-human-docs` and requests `/en/` and `/ru/what-is-kurami/`. A failed smoke check puts the previous release back. A merge whose release failed shows only a release retry. |
+| `published`, `rejected`, `empty` | Closes a rejected PR (the branch stays on GitHub), removes the draft worktree and local branch. |
+
+Owner clicks arrive through the Discord plugin (`kurami:docs_(discuss|revise|publish|reject):dp_<12 hex>`, owner-only) and `src/human-docs/approval/controls.ts`, which only performs a guarded state change and refreshes the card. A click on a stale card is refused. The worker never deploys application code, never publishes without a Publish click, and a docs-only release still leaves the application changelog empty until a trusted deployment manifest exists.
+
+Install after the change is on the live checkout:
+
+```bash
+bash bin/sync-hermes-plugin.sh --apply
+systemctl --user restart hermes-gateway
+install -m 0755 integrations/hermes/scripts/kurami-docs-approval.sh /home/shagon1k/_hermes/_core/scripts/
+hermes cron create '* * * * *' --name kurami-docs-approval --script kurami-docs-approval.sh --no-agent --deliver local
+python3 bin/sync-docs-audit-cron.py --apply --expect-job-id <kurami-docs-freshness id>
+```
+
+The worker log is `logs/docs-approval.log`. Pause `kurami-docs-approval` to stop all proposal activity; state stays in `proposals.db`.
 
 ## Publication — localhost origin
 
