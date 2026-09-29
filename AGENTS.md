@@ -16,8 +16,14 @@ Every Kurami site (Digest, human docs, any new sub-site) renders through the sha
   product needs the same look or control, move it into `src/ui-library` with tests and use it from
   both; do not copy CSS or markup between products.
 - A new page type needs a synthetic fixture in `src/ui-library/testing/fixtures.ts`.
+- A new element that needs buttons renders them with `renderButton` (variants, `className`,
+  `data-*`/`aria-*` attributes); its own layout CSS uses roles. That passes every check as is.
+- If no button variant fits, extend the library first (a new variant or custom property on
+  `.button`) and declare `UI-Library: extended`.
+- Only a genuinely product-specific control may be hand-written: record it with
+  `node tests/ui-library/guard.ts --accept="<why no library part fits>"`, add its selector to
+  `productControls` in `src/ui-library/testing/audit.ts`, and declare `UI-Library: exception` with a
+  `UI-Reason:` in the PR. Reviewers see the reason in `guard-baseline.json`.
 - Run `npm run test:ui-library`, `npm run test:ui-guard` and `npm run test:ui-browser` for UI
-  changes. The guard freezes existing exceptions; if you reduce them, record it with
-  `node tests/ui-library/guard.ts --update`. Growing them needs `UI-Library: exception` and a
-  `UI-Reason:` in the PR body.
+  changes. When you remove an exception, record it with `node tests/ui-library/guard.ts --update`.
 - After changing the library, run `npm run ui:export` so the UI-language skill bundle stays current.
