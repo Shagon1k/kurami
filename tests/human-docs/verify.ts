@@ -315,7 +315,7 @@ for(const page of pages){
       assert.equal((html.match(/<th scope="row">/g)??[]).length,4);
     }
     if(page.slug==="health"){
-      assert.ok(html.includes('src="/assets/shot-health-card.png"')&&html.includes('src="/assets/shot-health-runs.png"'));
+      assert.ok(html.includes('src="/assets/shot-health-card.png"')&&html.includes('src="/assets/shot-health-alert.png"'));
       assert.equal((html.match(/<th scope="row">/g)??[]).length,3);
       assert.ok(html.includes(lang==="ru"?"три неудачные проверки подряд":"three consecutive failing checks"));
       assert.ok(html.includes("System Health Alert"));
