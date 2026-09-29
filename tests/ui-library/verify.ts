@@ -161,5 +161,6 @@ const frozenBaseline=JSON.stringify({counts:{"css:radius":{"a.ts":2}},duplicates
 assert.equal(baselineGrew(frozenBaseline,JSON.stringify({counts:{"css:radius":{"a.ts":1}},duplicates:{}})),false);
 assert.equal(baselineGrew(frozenBaseline,JSON.stringify({counts:{"css:radius":{"a.ts":3}},duplicates:{}})),true);
 assert.equal(baselineGrew(frozenBaseline,JSON.stringify({counts:{},duplicates:{abc:".x"}})),true);
+assert.equal(baselineGrew(null,frozenBaseline),false,"introducing the baseline freezes, it does not grow");
 
 console.log(`UI library theme contract verified: ${colorRoles.length} colour roles × 2 modes, ${scaleRoles.length} scale roles, no retired or undefined tokens`);
