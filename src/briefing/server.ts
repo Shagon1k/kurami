@@ -39,6 +39,7 @@ import { loadBriefingRuntimeConfig } from "./runtime-config.ts";
 import { latestBriefingAttempt } from "./run-attempt.ts";
 import { parseBriefingPayload } from "./model.ts";
 import { section } from "./addons/envelopes.ts";
+import { FONT_FACES, fontFiles } from "../ui-library/foundations/fonts.ts";
 import { buildInterestProfile, personalizedNewsOrder } from "./interest-profile.ts";
 import { loadTopicPolicy } from "./editorial-validation.ts";
 
@@ -50,6 +51,8 @@ const FOX_LOGO_PATH = new URL(
   "../../integrations/hermes/skills/kurami-ui-preview-language/assets/kurami-fox-transparent.png",
   import.meta.url,
 );
+const FONT_DIRECTORY = new URL("../../src/ui-library/assets/fonts/", import.meta.url);
+const GOOGLE_FONTS = /<link\b[^>]*fonts\.(?:googleapis|gstatic)\.com[^>]*>\s*/gi;
 
 export { removeArchivedMailFromRetainedEditions } from "./addons/mail/actions.ts";
 import { removeArchivedMailFromRetainedEditions } from "./addons/mail/actions.ts";
@@ -60,14 +63,14 @@ const CSP = [
   "default-src 'self'",
   "base-uri 'none'",
   "connect-src 'self'",
-  "font-src 'self' data: https://fonts.gstatic.com",
+  "font-src 'self' data:",
   "form-action 'none'",
   "frame-ancestors 'none'",
   "img-src 'self' data: https:",
   "media-src 'self'",
   "object-src 'none'",
   "script-src 'self'",
-  "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
+  "style-src 'self' 'unsafe-inline'",
 ].join("; ");
 
 const CLIENT_SCRIPT = `(() => {
@@ -567,6 +570,8 @@ function stateTag(items: ClientItemState[]): string {
 }
 
 export function injectRuntime(html: string, items: ClientItemState[] = []): string {
+  // Editions frozen before self-hosted fonts still link Google Fonts; serve the same faces locally.
+  if (html.includes("fonts.googleapis.com")) html = html.replace(GOOGLE_FONTS, "").replace(/<\/head>/i, `<style>${FONT_FACES}</style></head>`);
   const favicon = '<link rel="icon" type="image/svg+xml" href="/favicon.svg">';
   const themeColor = '<meta name="theme-color" content="#fbfbf8">';
   const branded = html.includes('href="/favicon.svg"')
@@ -745,6 +750,7 @@ export async function createBriefingServer(
   await initializeBriefingStore(paths);
   const favicon = await readFile(FAVICON_PATH, "utf8");
   const foxLogo = await readFile(FOX_LOGO_PATH);
+  const fonts = new Map<string, Buffer>(await Promise.all(fontFiles.map(async font => [`/assets/${font.file}`, await readFile(new URL(font.file, FONT_DIRECTORY))] as const)));
   const database = openBriefingDatabase(paths);
   const runtimeConfig = options.mailActionExecutor === undefined
     ? await loadBriefingRuntimeConfig(paths)
@@ -819,6 +825,16 @@ export async function createBriefingServer(
         response.setHeader("x-content-type-options","nosniff");
         response.setHeader("content-length",String(foxLogo.length));
         response.end(request.method==="HEAD"?undefined:foxLogo);
+        return;
+      }
+      if ((request.method === "GET" || request.method === "HEAD") && fonts.has(url.pathname)) {
+        const font = fonts.get(url.pathname)!;
+        response.statusCode = 200;
+        response.setHeader("content-type", "font/woff2");
+        response.setHeader("cache-control", "public, max-age=86400");
+        response.setHeader("x-content-type-options", "nosniff");
+        response.setHeader("content-length", String(font.length));
+        response.end(request.method === "HEAD" ? undefined : font);
         return;
       }
       if ((request.method === "GET" || request.method === "HEAD") && url.pathname.startsWith("/media/")) {

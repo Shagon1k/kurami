@@ -4,19 +4,15 @@ import {STOCKS_STYLES} from "../stocks/styles.ts";
 import {COMPANY_AVATAR_STYLES} from "./components/company-avatar.ts";
 import {KURAMI_COMMENT_STYLES} from "./components/kurami-comment.ts";
 import {THEME_CSS} from "../../ui-library/themes/index.ts";
+import {FOUNDATION_CSS} from "../../ui-library/foundations/index.ts";
 export const BRIEFING_STYLES = `
 ${THEME_CSS}
+${FOUNDATION_CSS}
 :root {
   --header-offset: 104px;
+  --container-max: 1320px;
 }
 
-* { box-sizing: border-box; }
-[hidden] { display: none !important; }
-html { scroll-behavior: smooth; }
-body { margin: 0; color: var(--text-primary); background: var(--surface-page); font: 400 16px/1.5 var(--font-sans); text-rendering: optimizeLegibility; }
-button, a { -webkit-tap-highlight-color: transparent; }
-button { font: inherit; }
-a { color: inherit; }
 .button { --button-busy-color: var(--text-primary); min-height: 44px; position: relative; display: inline-flex; align-items: center; justify-content: center; gap: 8px; padding: 0 16px; color: var(--text-primary); background: var(--surface-raised); border: 1px solid var(--text-primary); border-radius: 3px; cursor: pointer; font: 600 .75rem/1 var(--font-sans); text-decoration: none; transition: color 160ms ease, background 160ms ease, border-color 160ms ease, transform 160ms ease, opacity 160ms ease; }
 .button:hover:not(:disabled):not([aria-busy="true"]) { color: var(--surface-page); background: var(--text-primary); border-color: var(--text-primary); }
 .button:active:not(:disabled):not([aria-busy="true"]) { transform: translateY(1px); }
@@ -33,10 +29,6 @@ a { color: inherit; }
 .button--icon { inline-size: 44px; block-size: 44px; padding: 0; background: var(--surface-panel); border-color: var(--border-default); }
 .button--icon:hover:not(:disabled):not([aria-busy="true"]) { color: var(--text-primary); background: var(--accent-soft); border-color: var(--accent-primary); }
 .button__icon { display: inline-grid; place-items: center; font-size: 1.125rem; line-height: 1; }
-.page-shell { width: min(1320px, calc(100% - 48px)); margin-inline: auto; }
-.skip-link { position: fixed; left: 16px; top: -80px; z-index: 50; padding: 10px 14px; color: #fff; background: var(--accent-primary); }
-.skip-link:focus { top: 16px; }
-.sr-only { position: absolute !important; width: 1px !important; height: 1px !important; padding: 0 !important; margin: -1px !important; overflow: hidden !important; clip: rect(0, 0, 0, 0) !important; white-space: nowrap !important; border: 0 !important; }
 
 .utility-header { position: sticky; top: 0; z-index: 30; width: 100%; color: var(--text-primary); background: color-mix(in srgb, var(--surface-page) 94%, transparent); border-bottom: 1px solid var(--border-default); backdrop-filter: blur(14px); transition: box-shadow 160ms ease, border-color 160ms ease, background 160ms ease; }
 .utility-header.is-scrolled { background: color-mix(in srgb, var(--surface-page) 97%, transparent); border-bottom-color: color-mix(in srgb, var(--border-default) 72%, var(--text-primary)); box-shadow: 0 8px 22px color-mix(in srgb, var(--text-primary) 10%, transparent); }
@@ -360,7 +352,6 @@ a { color: inherit; }
 }
 
 @media (max-width: 620px) {
-  .page-shell { width: min(100% - 28px, 1320px); }
   :root { --header-offset:148px; }
   .utility-header__inner { min-height:72px; grid-template-columns:minmax(0,1fr) auto; grid-template-areas:"brand theme" "nav nav"; column-gap:12px; row-gap:4px; padding-block:10px 6px; }
   .utility-brand { gap:9px; }
@@ -427,10 +418,6 @@ a { color: inherit; }
   .story-media__grid { grid-template-columns: 1fr; }
 }
 
-@media (prefers-reduced-motion: reduce) {
-  html { scroll-behavior: auto; }
-  * { transition-duration: 0.01ms !important; }
-}
 ${CHART_STYLES}
 ${WEEKLY_STYLES}
 ${STOCKS_STYLES}

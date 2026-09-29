@@ -81,7 +81,7 @@ async function pressTab(devtools:Devtools){
 async function checkKeyboard(devtools:Devtools,navScreenshotPath?:string){
   await devtools.call("Page.bringToFront");
   await devtools.call("Emulation.setFocusEmulationEnabled",{enabled:true});
-  const skip=await devtools.evaluate<boolean>(`(()=>{const target=document.querySelector('.skip');target?.focus();return document.activeElement===target&&target?.getAttribute('href')==='#main'})()`);
+  const skip=await devtools.evaluate<boolean>(`(()=>{const target=document.querySelector('.skip-link');target?.focus();return document.activeElement===target&&target?.getAttribute('href')==='#main'})()`);
   if(!skip)throw new Error("Skip link cannot take focus or has no main target");
   await pressEnter(devtools);
   const skipped=await devtools.evaluate<boolean>(`document.activeElement?.id==='main'`);
@@ -133,7 +133,7 @@ async function auditAccessibility(devtools:Devtools,context:string){
       if(!name)issues.push('Unnamed '+control.tagName.toLowerCase());
       if(control.getAttribute('aria-current')==='page'&&new URL(control.getAttribute('href'),location.href).pathname!==location.pathname)issues.push('False current-page link: '+control.getAttribute('href'));
     }
-    if(!document.querySelector('main#main[tabindex="-1"]')||document.querySelector('.skip')?.getAttribute('href')!=='#main')issues.push('Missing skip target');
+    if(!document.querySelector('main#main[tabindex="-1"]')||document.querySelector('.skip-link')?.getAttribute('href')!=='#main')issues.push('Missing skip target');
     const theme=document.querySelector('[data-theme-toggle]');
     if(theme?.getAttribute('aria-pressed')!==String(document.documentElement.dataset.theme==='dark'))issues.push('Theme state not exposed');
     const color=raw=>{const match=raw.match(/^rgba?\\(([^)]+)\\)$/);if(!match)return null;const parts=match[1].split(/[ ,/]+/).filter(Boolean).map(Number);return parts.length>=3&&parts.slice(0,3).every(Number.isFinite)?parts:null};

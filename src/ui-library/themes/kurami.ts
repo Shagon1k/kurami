@@ -30,7 +30,7 @@ export const kuramiTheme:Theme={
     "text-primary":"#f7f7f3",
     "text-muted":"#aaa9a2",
     "text-accent":"#ff4b45",
-    "text-on-accent":"#ffffff",
+    "text-on-accent":"#0a0a0a",
     "border-default":"#44443e",
     "border-subtle":"#292927",
     "accent-primary":"#ff4b45",

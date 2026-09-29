@@ -21,7 +21,7 @@ export function renderSiteNavigation(links:readonly SiteLink[],current:SiteSecti
 export function renderSiteHeader(input:{section:SiteSection;label?:string;date:string;dateLabel:string;links?:readonly SiteLink[]}):string {
   if(!Object.hasOwn(destinations,input.section))throw new Error("Invalid site section");
   return `<header class="utility-header" data-utility-header data-site-section="${input.section}" aria-label="${escapeHtml(input.label??"Kurami")}">
-    <div class="utility-header__inner page-shell">
+    <div class="utility-header__inner container">
       <a class="utility-brand" href="/" aria-label="Kurami — последний дневной выпуск">
         <img class="utility-brand__fox" src="/assets/kurami-fox.png" width="48" height="48" alt="" decoding="async">
         <span class="utility-brand__copy"><span class="utility-brand__name">Kurami<span class="utility-brand__dot" aria-hidden="true">.</span></span>

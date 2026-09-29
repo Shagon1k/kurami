@@ -15,16 +15,13 @@ export function renderPageShell(input:{title:string;brand:string;section?:SiteSe
   <meta name="theme-color" content="#fbfbf8">
   <title>${escapeHtml(input.title)} · Kurami</title>
   <link rel="icon" type="image/svg+xml" href="/favicon.svg">
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Caveat:wght@600&family=Fragment+Mono&family=Onest:wght@400;500;600;700&display=swap" rel="stylesheet">
   <style>${BRIEFING_STYLES}</style>
 </head>
 <body>
   <a class="skip-link" href="#main">К содержанию</a>
   ${renderSiteHeader({section:input.section??"daily",label:input.brand,date:input.date,dateLabel:input.dateLabel})}
-  <main id="main" class="page-shell">${input.content}</main>
-  <footer class="page-footer page-shell"><span>Kurami · ${escapeHtml(input.date)}</span>${credit}<span>Собрано в ${escapeHtml(input.generated)} · ${escapeHtml(input.timezone)}</span></footer>
+  <main id="main" class="container">${input.content}</main>
+  <footer class="page-footer container"><span>Kurami · ${escapeHtml(input.date)}</span>${credit}<span>Собрано в ${escapeHtml(input.generated)} · ${escapeHtml(input.timezone)}</span></footer>
   <dialog class="media-lightbox" data-media-dialog aria-label="Просмотр изображения"><button class="media-lightbox__close" type="button" data-media-close aria-label="Закрыть">×</button><img data-media-dialog-image alt=""></dialog>
 </body>
 </html>`;

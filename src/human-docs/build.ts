@@ -7,6 +7,7 @@ import {assertContent} from "./content/schema.ts";
 import {readDeploymentManifest,changesForDeployedSha,assertDocsSourceMatchesDeployment,type Language} from "./changelog.ts";
 import {renderArticle,renderChangelog,renderHome} from "./render.ts";
 import {DOCS_STYLES} from "./styles.ts";
+import {fontFiles} from "../ui-library/foundations/fonts.ts";
 
 const root=resolve(dirname(fileURLToPath(import.meta.url)),"../..");
 const args=process.argv.slice(2);
@@ -42,7 +43,7 @@ mkdirSync(resolve(output,"assets"),{recursive:true});
 for(const [path,html] of rendered){const destination=resolve(output,path);mkdirSync(dirname(destination),{recursive:true});writeFileSync(destination,html);}
 cpSync(resolve(siteRoot,"kurami-fox-transparent.png"),resolve(output,"assets/fox.png"));
 cpSync(resolve(siteRoot,"kurami-favicon.svg"),resolve(output,"assets/favicon.svg"));
-for(const font of ["onest-latin.woff2","onest-cyrillic.woff2","fragment-mono-latin.woff2"])cpSync(resolve(root,"src/human-docs/assets",font),resolve(output,"assets",font));
+for(const font of fontFiles)cpSync(resolve(root,"src/ui-library/assets/fonts",font.file),resolve(output,"assets",font.file));
 for(const lang of ["en","ru"])for(const diagram of ["system-map","daily-publication","project-run-state","recovery-topology"])cpSync(resolve(root,"src/human-docs/assets",`${diagram}-${lang}.svg`),resolve(output,"assets",`${diagram}-${lang}.svg`));
 writeFileSync(resolve(output,"assets/docs.css"),DOCS_STYLES);
 writeFileSync(resolve(output,"assets/theme.js"),`try{document.documentElement.dataset.theme=localStorage.getItem('kurami-theme')==='dark'?'dark':'light'}catch{}document.addEventListener('DOMContentLoaded',()=>{const button=document.querySelector('[data-theme-toggle]');if(!button)return;const update=()=>button.setAttribute('aria-pressed',String(document.documentElement.dataset.theme==='dark'));update();button.addEventListener('click',()=>{const root=document.documentElement;const theme=root.dataset.theme==='dark'?'light':'dark';root.dataset.theme=theme;update();try{localStorage.setItem('kurami-theme',theme)}catch{}})});`);

@@ -18,3 +18,6 @@ export const typeface={
   "font-mono":'"Fragment Mono", ui-monospace, SFMono-Regular, Menlo, monospace',
   "font-note":'"Caveat", "Segoe Print", cursive',
 } as const;
+
+// Layout breakpoints in px (max-width queries). Custom properties cannot drive media queries, so these are TS constants.
+export const breakpoints={phone:620,tablet:900} as const;

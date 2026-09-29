@@ -1,19 +1,12 @@
 import {THEME_CSS} from "../ui-library/themes/index.ts";
+import {FOUNDATION_CSS} from "../ui-library/foundations/index.ts";
 
-export const DOCS_STYLES = `${THEME_CSS}
-@font-face { font-family: Onest; font-style: normal; font-weight: 400 700; font-display: swap; src: url('/assets/onest-latin.woff2') format('woff2'); unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215; }
-@font-face { font-family: Onest; font-style: normal; font-weight: 400 700; font-display: swap; src: url('/assets/onest-cyrillic.woff2') format('woff2'); unicode-range: U+0301, U+0400-045F, U+0490-0491, U+04B0-04B1, U+2116; }
-@font-face { font-family: 'Fragment Mono'; font-style: normal; font-weight: 400; font-display: swap; src: url('/assets/fragment-mono-latin.woff2') format('woff2'); }
-* { box-sizing: border-box; }
-html { scroll-behavior: smooth; }
-body { margin: 0; color: var(--text-primary); background: var(--surface-page); font: 400 16px/1.55 var(--font-sans); }
-a { color: inherit; text-decoration-thickness: 1px; text-underline-offset: 4px; }
+export const DOCS_STYLES = `${THEME_CSS}${FOUNDATION_CSS}
+:root { --container-max: 1180px; }
+body { line-height: 1.55; }
+a { text-decoration-thickness: 1px; text-underline-offset: 4px; }
 a:hover { color: var(--accent-primary); }
-a:focus-visible, button:focus-visible, summary:focus-visible { outline: 3px solid var(--accent-primary); outline-offset: 3px; }
-button { font: inherit; cursor: pointer; }
-.skip { position: absolute; left: 12px; top: -90px; background: var(--accent-primary); color: var(--surface-page); padding: 12px; z-index: 10; }
-.skip:focus { top: 12px; }
-.frame { width: min(1180px, calc(100% - 48px)); margin: auto; }
+button { cursor: pointer; }
 .site-header { position: sticky; top: 0; z-index: 5; background: color-mix(in srgb, var(--surface-page) 94%, transparent); backdrop-filter: blur(14px); border-bottom: 1px solid var(--border-default); }
 .site-header__inner { display: flex; align-items: center; gap: 12px 28px; min-height: 76px; padding: 10px 0; position: relative; }
 .brand { display: inline-flex; align-items: center; gap: 10px; white-space: nowrap; text-decoration: none; font-size: 1.22rem; font-weight: 700; letter-spacing: -.04em; }
@@ -311,7 +304,6 @@ h3 { font-size: 1rem; line-height: 1.25; }
   .health-map__path { gap: 18px; }
   .health-map__path li:not(:last-child)::after { content: '↓'; top: auto; bottom: -17px; right: calc(50% - 11px); }
   .recovery-matrix__row dl { grid-template-columns: 1fr; gap: 10px; }
-  .frame { width: min(100% - 28px, 1180px); } .site-header__inner { gap: 6px; } .brand { gap: 6px; font-size: 1rem; } .brand img { width: 34px; height: 34px; } .actions { gap: 4px; } .mobile-menu nav { grid-template-columns: 1fr; } .sections, .system-map__paths, .system-map__products, .roles-map__grid, .state-legend dl, .comparison-map__grid, .order-map__grid, .admission-map__status, .admission-map__gates, .project-digest-map__paths, .project-cards__grid, .sample-run-card dl { grid-template-columns: 1fr; } .system-map__junction::before { left: calc(50% - 5px); } .system-map__junction::after { display: none; } .route { min-height: 135px; padding: 18px; } .side-mobile nav { grid-template-columns: 1fr; } .flow { grid-template-columns: 1fr 1fr; } .flow__step { min-height: 98px; } .page { padding-top: 32px; } .visual, .system-map, .roles-map, .state-legend, .comparison-map, .order-map, .admission-map, .project-digest-map, .project-cards, .sample-run-card, .health-map, .recovery-matrix, .boundary-map { padding: 14px; } .sample-run-card__window { padding: 14px; } }
+  .site-header__inner { gap: 6px; } .brand { gap: 6px; font-size: 1rem; } .brand img { width: 34px; height: 34px; } .actions { gap: 4px; } .mobile-menu nav { grid-template-columns: 1fr; } .sections, .system-map__paths, .system-map__products, .roles-map__grid, .state-legend dl, .comparison-map__grid, .order-map__grid, .admission-map__status, .admission-map__gates, .project-digest-map__paths, .project-cards__grid, .sample-run-card dl { grid-template-columns: 1fr; } .system-map__junction::before { left: calc(50% - 5px); } .system-map__junction::after { display: none; } .route { min-height: 135px; padding: 18px; } .side-mobile nav { grid-template-columns: 1fr; } .flow { grid-template-columns: 1fr 1fr; } .flow__step { min-height: 98px; } .page { padding-top: 32px; } .visual, .system-map, .roles-map, .state-legend, .comparison-map, .order-map, .admission-map, .project-digest-map, .project-cards, .sample-run-card, .health-map, .recovery-matrix, .boundary-map { padding: 14px; } .sample-run-card__window { padding: 14px; } }
 @media (max-width: 360px) { .brand { font-size: .86rem; } .brand img { width: 30px; height: 30px; } }
-@media (prefers-reduced-motion: reduce) { html { scroll-behavior: auto; } }
 `;
