@@ -49,7 +49,7 @@ const root=resolve(import.meta.dirname,"../..");
 assert.doesNotThrow(()=>assertContent(pages,root));
 assert.ok(readFileSync(resolve(root,"docs/interest-profile-v1.md"),"utf8")
   .includes(`base = -${INTEREST_POLICY.positionStep} × zero-based index`));
-assert.equal(pages.length,35);
+assert.equal(pages.length,38);
 // Navigation: every page sits in exactly one menu group of its own section, or is an explicit unlisted route.
 const listed=Object.entries(navigation).flatMap(([section,groups])=>groups.flatMap(group=>group.slugs.map(slug=>({section,slug}))));
 assert.equal(new Set(listed.map(item=>item.slug)).size,listed.length,"a page appears in one menu group");
@@ -315,11 +315,10 @@ for(const page of pages){
       assert.equal((html.match(/<th scope="row">/g)??[]).length,4);
     }
     if(page.slug==="health"){
-      assert.match(html,/<figure class="health-map">/);
-      assert.ok(html.includes(lang==="ru"?"Вымышленная карточка System Health":"Synthetic System Health card"));
-      assert.equal((html.match(/class="health-map__groups"/g)??[]).length,1);
+      assert.ok(html.includes('src="/assets/shot-health-card.png"')&&html.includes('src="/assets/shot-health-runs.png"'));
       assert.equal((html.match(/<th scope="row">/g)??[]).length,3);
-      assert.ok(html.includes(lang==="ru"?"три последовательные":"three consecutive"));
+      assert.ok(html.includes(lang==="ru"?"три неудачные проверки подряд":"three consecutive failing checks"));
+      assert.ok(html.includes("System Health Alert"));
     }
     if(page.slug==="recovery"){
       assert.match(html,new RegExp(`<figure class="scene-map">[\\s\\S]*?<svg class="diagram" aria-label="[^"]+"[^>]*role="img"[\\s\\S]*?id="recovery-topology-${lang}-tip"`));
@@ -331,18 +330,18 @@ for(const page of pages){
       assert.ok(scene.elements.some((element:{id?:string})=>element.id==="backup-offsite"));
       assert.ok(scene.elements.some((element:{id?:string})=>element.id==="backup-host"));
       assert.ok(svg.includes(lang==="ru"?"Не копируется":"Not copied"));
-      assert.ok(html.includes(lang==="ru"?"Локальный зашифрованный архив":"A local encrypted bundle alone"));
+      assert.ok(html.includes(lang==="ru"?"Один локальный зашифрованный архив":"A local encrypted archive alone"));
     }
     if(page.slug==="automation-boundaries"){
       assert.match(html,/<figure class="boundary-map">/);
       assert.equal((html.match(/class="boundary-map__card"/g)??[]).length,3);
       assert.equal((html.match(/<th scope="row">/g)??[]).length,4);
-      assert.ok(html.includes(lang==="ru"?"данными, а не инструкциями":"data, not instructions"));
+      assert.ok(html.includes(lang==="ru"?"это данные, а не инструкции":"data, never instructions"));
     }
     if(page.slug==="scheduling"){
       assert.match(html,/<figure class="schedule-evidence">/);
       assert.equal((html.match(/<th scope="row">/g)??[]).length,4);
-      assert.ok(html.includes(lang==="ru"?"Таймер сработал, но копия не завершена":"The timer ran; the backup did not finish"));
+      assert.ok(html.includes(lang==="ru"?"Таймер сработал, копия не готова":"The timer fired, the backup did not finish"));
     }
     if(page.slug==="maintenance"){
       assert.match(html,/<figure class="maintenance-scope">/);
@@ -354,7 +353,17 @@ for(const page of pages){
       assert.match(html,/<figure class="connector-contours">/);
       assert.equal((html.match(/<th scope="row">/g)??[]).length,3);
       for(const contour of ["composio-read","composio-automation","composio"])assert.ok(html.includes(contour));
-      assert.ok(html.includes(lang==="ru"?"Hosted MCP сам не проверяет":"Hosted MCP does not enforce"));
+      assert.ok(html.includes(lang==="ru"?"Hosted MCP сам этот более узкий набор аргументов не проверяет":"Hosted MCP does not check this narrower argument set itself"));
+    }
+    if(page.slug==="access"){
+      assert.equal((html.match(/<th scope="row">/g)??[]).length,4);
+      assert.ok(html.includes("Cloudflare Access")&&!/\b[a-z0-9-]+\.shagon1k\.win\b/.test(html),"access page names no hostnames");
+    }
+    if(page.slug==="docs-process"){
+      assert.ok(html.includes("Docs-Impact")&&html.includes("UI-Library")&&html.includes("#updates"));
+    }
+    if(page.slug==="docs-releases"){
+      assert.ok(html.includes("revision: null")&&html.includes(`/${lang}/changelog/`));
     }
   }
 }
