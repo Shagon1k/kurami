@@ -13,6 +13,7 @@ export const visualIds=[
   "project-architecture","project-digest","project-admission","project-flow","project-run-state","engineering-evidence",
   "owner-controls","health-map","schedule-evidence","recovery-topology","recovery-matrix",
   "maintenance-scope","connector-contours","automation-boundaries",
+  "ui-layers",
 ] as const;
 export type VisualId=typeof visualIds[number];
 

@@ -43,13 +43,33 @@ One route has one clear subject. Questions can guide an explanation, but section
 
 Small pages should not be padded to fill a template. A page whose subject is only two sentences may link to a neighboring flow. Avoid copying the existing technical reference wholesale; it is an evidence source, not reader-facing copy.
 
-## Page pattern: one screen first, details in place
+## Writing: explain, then bound
 
-1. **Answer:** a one- or two-sentence response to the page's question.
-2. **Picture:** one purposeful visual (diagram, comparison, or screenshot), with a text alternative. On mobile, it must remain legible without horizontal panning as the only way to read it.
-3. **What happens:** up to four labeled steps or a short state legend.
-4. **Boundary / current limit:** one precise paragraph, if a limitation matters.
-5. **Technical lens (optional):** an inline disclosure explaining a verified state boundary or a narrowly relevant source link. Prefer real invariants and ownership to invented APIs or repeated disclaimers. A tutorial or reference page may need another pattern; don't force every topic into these five slots.
+The first published copy read like a specification: every sentence was a separate invariant, limits came before the thing being limited, and internal terms appeared unexplained. The owner found it hard to follow. These rules replace the earlier "answer in one or two sentences" pattern. They apply to every page and to automated drafts (the weekly audit prompt points here).
+
+**Voice.** Write to the owner as "you" / «ты». Use a calm, concrete, spoken register: short paragraphs of connected sentences, not lists of assertions. Russian and English are written separately; Russian must read as if it were written in Russian first (no calques such as «доказательство слияния», «сохраняемая попытка», «не служит источником истины»).
+
+**Order inside a page.**
+
+1. **Orientation (1–2 sentences):** what this page is about and why the reader would care.
+2. **How it works, as a story:** follow one concrete case from start to finish ("You move an issue into the active status. Kurami notices…"). Name the actor at every step. Connect steps with "then", "because", "so", "if … then".
+3. **Picture:** a diagram, comparison or screenshot that shows the same story, with the prose above as its text alternative.
+4. **What can go wrong and what you do:** failure and stale paths, and the owner action for each.
+5. **Limits:** what the system deliberately does not do, stated once, after the reader understands what it does. Prefer one positive sentence plus the exception to a chain of negations.
+6. **Details (optional disclosure):** exact states, SHAs, stores and source links for readers who want to verify.
+7. **Next:** one or two links to the natural following page.
+
+A page may drop steps it does not need, but never starts with limits and never consists only of limits.
+
+**Terms.** Explain every internal term the first time it appears on a page, in plain words, and link the glossary. Keep one name per concept across pages. Product names (Digest, Project Orchestrator, Hermes, Codex) stay in Latin in both languages; ordinary words are translated (a "run" is «запуск», "admission" is «допуск», "worktree" is «рабочая копия (worktree)» on first use).
+
+**Negation budget.** At most one "not / never / does not" sentence per paragraph. If a boundary matters, say what happens instead ("Kurami stops and asks you" rather than "Kurami does not guess").
+
+**Length.** Clarity beats brevity: a page may be three times longer than the old copy if every added sentence connects or explains. Cut repetition, not reasons. Stop when a first-time reader could retell the page.
+
+**Accuracy.** Every claim still traces to code, a test, an internal reference or verified runtime state, and each page keeps its source links. Rewriting for readability never adds capabilities, schedules or promises.
+
+**Check before publishing.** Read the page aloud in both languages. If a sentence only makes sense to someone who has read the code, rewrite it or move it into the details disclosure.
 
 Use the Kurami visual language, not Digest's whole page renderer. First share semantic color/typography/theme tokens and reusable primitives that are truly generic; keep news-specific components where they are. Test light/dark and mobile together. Prefer Excalidraw-authored static SVG with the editable source in the repo; no production editor dependency. Diagram text must have an accessible prose equivalent. Live screenshots require data review/redaction before they enter Git; fixtures are safer where real content is private.
 
