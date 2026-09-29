@@ -9,6 +9,10 @@ import {FOUNDATION_CSS,fontFiles} from "../../src/ui-library/foundations/index.t
 import {injectRuntime} from "../../src/briefing/server.ts";
 import {renderPageShell} from "../../src/briefing/ui/page-shell.ts";
 import {existsSync} from "node:fs";
+import {THEME_RUNTIME_JS,THEME_SCRIPT_TAG} from "../../src/ui-library/runtime/theme.ts";
+import {renderThemeSwitch} from "../../src/ui-library/components/theme-switch.ts";
+import {renderLinkButton} from "../../src/ui-library/components/button.ts";
+import {validateRenderedHtml} from "../../src/briefing/html-artifacts.ts";
 
 const root=resolve(import.meta.dirname,"../..");
 
@@ -51,5 +55,25 @@ const served=injectRuntime(frozen);
 assert.doesNotMatch(served,/fonts\.googleapis\.com/,"older editions stop requesting Google Fonts");
 assert.ok(served.includes('url("/assets/onest-latin.woff2")'),"older editions get self-hosted faces");
 assert.equal(injectRuntime(page).includes("@font-face"),page.includes("@font-face"),"current pages are not given a second copy");
+
+// Theme runtime: valid browser JS without TS residue; injected once per served Digest page, never frozen into artifacts.
+assert.doesNotThrow(()=>new Function(THEME_RUNTIME_JS),"runtime parses as JavaScript");
+assert.match(THEME_RUNTIME_JS,/prefers-color-scheme: dark/);
+assert.doesNotMatch(page,/<script/,"rendered Digest HTML stays script-free");
+assert.doesNotThrow(()=>validateRenderedHtml(page),"page passes the artifact validator");
+const injected=injectRuntime(page);
+assert.equal(injected.split(THEME_SCRIPT_TAG).length,2,"one theme script");
+assert.ok(injected.indexOf(THEME_SCRIPT_TAG)<injected.indexOf("</head>"),"theme script runs in head");
+assert.equal(injectRuntime(injected).split(THEME_SCRIPT_TAG).length,2,"injection is idempotent");
+// One switch markup for every site: constant accessible name, state in aria-pressed.
+for(const [lang,name] of [["ru","Тёмная тема"],["en","Dark theme"]] as const){
+  const button=renderThemeSwitch(lang);
+  assert.match(button,/data-theme-toggle[^>]*aria-pressed="false"/);
+  assert.match(button,new RegExp(`<span class="sr-only">${name}</span>`));
+  assert.match(button,/data-theme-icon/);
+}
+assert.match(renderLinkButton({label:"RU",href:"/ru/",variant:"icon",attributes:{hreflang:"ru"}}),/^<a class="button button--icon" href="\/ru\/" hreflang="ru">RU<\/a>$/);
+assert.throws(()=>renderLinkButton({label:"x",href:"javascript:alert(1)",variant:"icon"}),/Unsafe link/);
+assert.throws(()=>renderLinkButton({label:"x",href:"//evil.example",variant:"icon"}),/Unsafe link/);
 
 console.log(`UI library theme contract verified: ${colorRoles.length} roles × 2 modes, no retired or undefined tokens`);

@@ -1,5 +1,5 @@
 import {escapeHtml} from "../html.ts";
-import {renderThemeToggle} from "./theme-toggle.ts";
+import {renderThemeSwitch} from "../../../ui-library/components/theme-switch.ts";
 
 export type SiteSection="daily"|"cinema"|"weekly"|"stocks";
 export type SiteLink={section:SiteSection;date?:string};
@@ -28,7 +28,7 @@ export function renderSiteHeader(input:{section:SiteSection;label?:string;date:s
         <time class="utility-meta" datetime="${escapeHtml(input.date)}">${escapeHtml(input.dateLabel)}</time></span>
       </a>
       ${renderSiteNavigation(input.links??[],input.section)}
-      <div class="utility-actions">${renderThemeToggle()}</div>
+      <div class="utility-actions">${renderThemeSwitch("ru")}</div>
     </div>
   </header>`;
 }

@@ -1,7 +1,7 @@
 import { section } from "../../addons/envelopes.ts";
 import type { BriefingPayload } from "../../model.ts";
 import { displayString, escapeHtml, externalUrl } from "../html.ts";
-import { renderButton } from "./button.ts";
+import { renderButton } from "../../../ui-library/components/button.ts";
 import { renderSelectionControl } from "./selection-control.ts";
 import { renderKuramiNote } from "./kurami-note.ts";
 

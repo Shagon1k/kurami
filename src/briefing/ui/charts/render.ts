@@ -1,5 +1,5 @@
 import { escapeHtml as escape } from "../html.ts";
-import { renderButton } from "../components/button.ts";
+import { renderButton } from "../../../ui-library/components/button.ts";
 import { createChartEngine } from "./engine.ts";
 import type { ChartInput, ChartSpec } from "./model.ts";
 

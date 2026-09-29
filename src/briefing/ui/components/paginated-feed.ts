@@ -3,7 +3,7 @@ import type { BriefingPayload } from "../../model.ts";
 import { escapeHtml } from "../html.ts";
 import { renderKuramiNote } from "./kurami-note.ts";
 import { renderNewsStory } from "./news-story.ts";
-import { renderButton } from "./button.ts";
+import { renderButton } from "../../../ui-library/components/button.ts";
 import { renderFeedOrderControl } from "./feed-order-control.ts";
 
 export function renderPaginatedFeed(payload: BriefingPayload): string {

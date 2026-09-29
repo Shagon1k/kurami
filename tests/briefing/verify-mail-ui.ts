@@ -4,7 +4,7 @@ import {
   MAIL_AUTOMATION_MAX_ATTEMPTS,
   mailAutomationFailureKind,
 } from "../../src/briefing/server.ts";
-import { renderButton } from "../../src/briefing/ui/components/button.ts";
+import { renderButton } from "../../src/ui-library/components/button.ts";
 import { renderMailSection } from "../../src/briefing/ui/components/mail-section.ts";
 import { renderSelectionControl } from "../../src/briefing/ui/components/selection-control.ts";
 import { BRIEFING_STYLES } from "../../src/briefing/ui/styles.ts";

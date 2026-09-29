@@ -1,4 +1,4 @@
-import { renderButton } from "./button.ts";
+import { renderButton } from "../../../ui-library/components/button.ts";
 
 /** Shared deterministic control; order and evidence are supplied by the runtime. */
 export function renderFeedOrderControl(): string {

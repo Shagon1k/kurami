@@ -1,7 +1,7 @@
 import { escapeHtml } from "../html.ts";
 import type { StoryMedia } from "../../model.ts";
 import { renderStoryMediaGallery } from "./story-media.ts";
-import { renderButton } from "./button.ts";
+import { renderButton } from "../../../ui-library/components/button.ts";
 
 function panelId(itemId: string): string {
   return `story-details-${itemId.replaceAll(/[^A-Za-z0-9_-]/g, "-")}`;

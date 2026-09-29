@@ -1,7 +1,10 @@
 import {THEME_CSS} from "../ui-library/themes/index.ts";
 import {FOUNDATION_CSS} from "../ui-library/foundations/index.ts";
+import {BUTTON_CSS} from "../ui-library/components/button.ts";
+import {THEME_SWITCH_CSS} from "../ui-library/components/theme-switch.ts";
 
-export const DOCS_STYLES = `${THEME_CSS}${FOUNDATION_CSS}
+export const DOCS_STYLES = `${THEME_CSS}${FOUNDATION_CSS}${BUTTON_CSS}
+${THEME_SWITCH_CSS}
 :root { --container-max: 1180px; }
 body { line-height: 1.55; }
 a { text-decoration-thickness: 1px; text-underline-offset: 4px; }
@@ -18,8 +21,6 @@ html[data-theme=dark] .brand img { filter: drop-shadow(0 0 1px #ffffff88); }
 .topnav a[aria-current], .topnav a:hover { color: var(--text-primary); box-shadow: inset 0 -2px var(--accent-primary); }
 .mobile-menu { display: none; }
 .actions { display: flex; align-items: center; gap: 6px; margin-left: auto; flex-shrink: 0; }
-.actions a, .actions button { min-width: 44px; min-height: 44px; display: inline-grid; place-items: center; padding: 0 10px; background: var(--surface-panel); color: var(--text-primary); border: 1px solid var(--border-default); border-radius: 3px; font-size: .78rem; font-weight: 600; text-decoration: none; }
-.actions a[aria-current] { border-color: var(--accent-primary); }
 .page { padding: clamp(38px, 6vw, 76px) 0 110px; scroll-margin-top: 76px; }
 .eyebrow, .folio { color: var(--text-accent); font: 500 .72rem/1.4 var(--font-mono); letter-spacing: .075em; text-transform: uppercase; }
 h1,h2,h3,p { margin-top: 0; }
