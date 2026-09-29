@@ -3,7 +3,7 @@ import type {HumanDocsPage} from "./schema.ts";
 
 export const startPages:HumanDocsPage[]=[
   {
-    slug: 'what-is-kurami', section: 'start',
+    slug: 'what-is-kurami', section: 'basics',
     title: { en: "Kurami at a glance", ru: "Курами: главное" },
     navTitle: { en: "Overview", ru: "Обзор" },
     summary: { en: "Your private agent system: it assembles your daily digest, runs engineering tasks and watches the server — and leaves the important decisions to you.", ru: "Твоя личная агентная система: собирает дневной выпуск, ведёт инженерные задачи и следит за сервером, а важные решения оставляет тебе." },
@@ -17,7 +17,7 @@ export const startPages:HumanDocsPage[]=[
     next: 'who-does-what',
   },
   {
-    slug: 'who-does-what', section: 'start',
+    slug: 'who-does-what', section: 'basics',
     title: { en: "Kurami, Hermes, Codex", ru: "Курами, Hermes, Codex" },
     navTitle: { en: "Roles", ru: "Роли" },
     summary: { en: "Hermes runs the agents, Kurami sets the rules and keeps the state, Codex writes code in admitted tasks.", ru: "Hermes запускает агентов, Курами задаёт правила и хранит состояние, Codex пишет код в допущенных задачах." },

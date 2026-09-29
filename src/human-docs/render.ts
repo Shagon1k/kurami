@@ -1,6 +1,6 @@
 import type {Change,Language} from "./changelog.ts";
 import {pages,type HumanDocsPage} from "./content.ts";
-import {digestNavigation} from "./content/digest.ts";
+import {navigation,sectionLabels,groupOf} from "./content/navigation.ts";
 import {assertSafeMarkup,assertSourcePath,type VisualId} from "./content/schema.ts";
 import {renderLinkButton} from "../ui-library/components/button.ts";
 import {renderThemeSwitch} from "../ui-library/components/theme-switch.ts";
@@ -14,22 +14,24 @@ import {readFileSync} from "node:fs";
 
 const escape = (s:string) => s.replaceAll("&","&amp;").replaceAll("<","&lt;").replaceAll(">","&gt;").replaceAll('"',"&quot;");
 const labels = {
-  en: {start:"Start",understand:"Understand",digest:"Digest",projects:"Projects",operations:"Operations",changelog:"Changelog",home:"Home",skip:"Skip to content",choose:"Switch to Russian",primaryNav:"Primary navigation",articleNav:"Documentation sections",latest:"Changes verified for deployed revision",unpublished:"No deployment revision was supplied. Changes are not claimed as live.",awaiting:"Docs are published; no verified application deployment revision has been supplied. Changes are not claimed as live.",source:"Commit",next:"Explore",flow:"How it moves",bounded:"Actions remain bounded by their own rules",current:"Current state"},
-  ru: {start:"Начать",understand:"Устройство",digest:"Digest",projects:"Проекты",operations:"Эксплуатация",changelog:"Изменения",home:"Главная",skip:"К содержанию",choose:"Переключить на английский",primaryNav:"Основная навигация",articleNav:"Разделы документации",latest:"Изменения подтверждены для развёрнутой версии",unpublished:"Версия развёртывания не указана. Изменения не объявлены опубликованными.",awaiting:"Документация опубликована, но подтверждённая версия приложения не передана. Изменения не объявлены опубликованными.",source:"Коммит",next:"Разделы",flow:"Как это движется",bounded:"Для каждого действия действуют свои границы",current:"Текущее состояние"}
+  en: {changelog:"Changelog",home:"Home",skip:"Skip to content",choose:"Switch to Russian",primaryNav:"Primary navigation",articleNav:"Documentation sections",latest:"Changes verified for deployed revision",unpublished:"No deployment revision was supplied. Changes are not claimed as live.",awaiting:"Docs are published; no verified application deployment revision has been supplied. Changes are not claimed as live.",source:"Commit",next:"Explore",flow:"How it moves",bounded:"Actions remain bounded by their own rules",current:"Current state"},
+  ru: {changelog:"Изменения",home:"Главная",skip:"К содержанию",choose:"Переключить на английский",primaryNav:"Основная навигация",articleNav:"Разделы документации",latest:"Изменения подтверждены для развёрнутой версии",unpublished:"Версия развёртывания не указана. Изменения не объявлены опубликованными.",awaiting:"Документация опубликована, но подтверждённая версия приложения не передана. Изменения не объявлены опубликованными.",source:"Коммит",next:"Разделы",flow:"Как это движется",bounded:"Для каждого действия действуют свои границы",current:"Текущее состояние"}
 } as const;
 const diagramAssets=new URL("./assets/",import.meta.url);
 // Scenes are inlined so they follow the active theme and page fonts; the static SVGs stay the editable export.
 const diagram=(name:string,lang:Language,label:string)=>inlineDiagram(readFileSync(new URL(`${name}-${lang}.svg`,diagramAssets),"utf8"),{id:`${name}-${lang}`,label});
 type Section = HumanDocsPage["section"];
-const sections: Section[] = ["start","understand","digest","projects","operations"];
+const sections=Object.keys(navigation) as Section[];
+const firstSlug=(section:Section)=>navigation[section][0]!.slugs[0]!;
 const url = (lang:Language, slug:string) => `/${lang}/${slug ? slug+"/" : ""}`;
 function shell(lang:Language, title:string, description:string, body:string, active?:string, alternateSlug="") {
   const t=labels[lang], other:Language=lang==="en"?"ru":"en";
   const alternate=url(other,alternateSlug);
   const current=url(lang,alternateSlug);
-  const links=(["start","digest","projects","operations","changelog"] as const).map(s=>{
-    const destination=s==="changelog"?url(lang,"changelog"):s==="start"?url(lang,""):url(lang,pages.find(p=>p.section===s)?.slug??"");
-    return {href:destination,label:t[s],current:active===s?destination===current?"page" as const:"location" as const:undefined};
+  const links=[...sections,"changelog" as const].map(s=>{
+    const destination=s==="changelog"?url(lang,"changelog"):url(lang,firstSlug(s));
+    const label=s==="changelog"?t.changelog:sectionLabels[s][lang];
+    return {href:destination,label,current:active===s?destination===current?"page" as const:"location" as const:undefined};
   });
   return renderDocument({
     lang,title:`${title} · Kurami docs`,description,favicon:"/assets/favicon.svg",styles:{href:"/assets/docs.css"},themeScript:true,skipLabel:t.skip,
@@ -279,17 +281,16 @@ function systemMap(lang:Language) {
   return `<figure class="system-map"><figcaption>${ru?"Два входных пути, отдельные процессы и видимый результат":"Two entry paths, separate workflows and visible outcomes"}</figcaption><div class="system-map__paths">${paths.map(([title,detail],index)=>`<div class="system-map__path"><span class="folio">0${index+1}</span><strong>${escape(title)}</strong><p>${escape(detail)}</p></div>`).join("")}</div><div class="system-map__junction"><strong>${ru?"Курами: правила, проверки и долговременное состояние":"Kurami: policy, gates and durable state"}</strong><p>${ru?"Каждый процесс допускает только разрешённое действие и сохраняет собственные подтверждения.":"Each workflow admits only allowed actions and records its own evidence."}</p></div><div class="system-map__products">${products.map(([title,detail])=>`<div><strong>${escape(title)}</strong><p>${escape(detail)}</p></div>`).join("")}</div><div class="system-map__evidence"><strong>${ru?"Результат":"Outcome"}</strong><p>${ru?"Показан результат, явный сбой или ожидание владельца. Состояния разных продуктов не смешиваются.":"The system shows a result, a visible failure or an owner decision. Product state machines remain separate."}</p></div><div class="system-map__owner"><strong>${ru?"Решение владельца":"Owner decision"}</strong><p>${ru?"Принять, направить, остановить или разрешить действие, которое не было делегировано автоматике.":"Accept, steer, stop or authorize an action that was not delegated to automation."}</p></div></figure>`;
 }
 function side(lang:Language,active:string) {
-  const link=(page:HumanDocsPage)=>`<li><a href="${url(lang,page.slug)}"${active===page.slug?' aria-current="page"':''}>${escape(page.navTitle[lang])}</a></li>`;
-  const digestPages=new Map(pages.filter(page=>page.section==="digest").map(page=>[page.slug,page]));
-  const digestItems=digestNavigation.map(group=>`<div class="side-group${group.heading?"":" side-group--solo"}">${group.heading?`<h3>${escape(group.heading[lang])}</h3>`:""}<ul>${group.slugs.map(slug=>{
-    const page=digestPages.get(slug);
-    if(!page)throw new Error(`Missing Digest navigation route: ${slug}`);
-    return link(page);
-  }).join("")}</ul></div>`).join("");
-  const items=sections.map(section=>section==="digest"
-    ?`<div class="side-section side-section--digest"><h2>${labels[lang][section]}</h2><div class="side-groups">${digestItems}</div></div>`
-    :`<div class="side-section"><h2>${labels[lang][section]}</h2><ul>${pages.filter(page=>page.section===section).map(link).join("")}</ul></div>`).join("");
-  return `<nav class="side" aria-label="${labels[lang].articleNav}">${items}</nav><details class="side-mobile"><summary>${labels[lang].next}</summary><nav aria-label="${labels[lang].articleNav}">${items}</nav></details>`;
+  const link=(slug:string)=>{
+    const page=pages.find(item=>item.slug===slug);
+    if(!page)throw new Error(`Missing navigation route: ${slug}`);
+    return `<li><a href="${url(lang,slug)}"${active===slug?' aria-current="page"':''}>${escape(page.navTitle[lang])}</a></li>`;
+  };
+  const section=groupOf(active)?.section??pages.find(page=>page.slug===active)?.section;
+  const items=section
+    ?`<p class="side__section">${escape(sectionLabels[section][lang])}</p>${navigation[section].map(group=>`<div class="side-group"><h3>${escape(group.heading[lang])}</h3><ul>${group.slugs.map(link).join("")}</ul></div>`).join("")}`
+    :`<p class="side__section">${lang==="ru"?"Разделы":"Sections"}</p><div class="side-group"><ul>${sections.map(item=>`<li><a href="${url(lang,firstSlug(item))}">${escape(sectionLabels[item][lang])}</a></li>`).join("")}</ul></div>`;
+  return `<nav class="side" aria-label="${labels[lang].articleNav}">${items}</nav><details class="side-mobile"><summary>${section?escape(sectionLabels[section][lang]):labels[lang].next}</summary><nav aria-label="${labels[lang].articleNav}">${items}</nav></details>`;
 }
 function safeBlocks(page:HumanDocsPage,lang:Language,sourceSha?:string,deployed=false) {
   return page.blocks.map(block=>{
@@ -323,17 +324,17 @@ function nextLink(page:HumanDocsPage,lang:Language):string {
 export function renderArticle(page:HumanDocsPage,lang:Language,sourceSha?:string,deployed=false) {
   const active=page.section;
   const inlineSources=page.blocks.some(block=>block.type==="source-links");
-  const body=`<div class="layout">${side(lang,page.slug)}<article class="article" data-page="${escape(page.slug)}"><header class="intro"><p class="eyebrow">${labels[lang][active]}</p><h1>${escape(page.title[lang])}</h1><p class="lede">${escape(page.summary[lang])}</p></header>${safeBlocks(page,lang,sourceSha,deployed)}${nextLink(page,lang)}${inlineSources?"":sourceNotes(page.sources??[],lang,sourceSha,deployed)}</article></div>`;
+  const body=`<div class="layout">${side(lang,page.slug)}<article class="article" data-page="${escape(page.slug)}"><header class="intro"><p class="eyebrow">${escape([sectionLabels[active][lang],groupOf(page.slug)?.group.heading[lang]].filter(Boolean).join(" · "))}</p><h1>${escape(page.title[lang])}</h1><p class="lede">${escape(page.summary[lang])}</p></header>${safeBlocks(page,lang,sourceSha,deployed)}${nextLink(page,lang)}${inlineSources?"":sourceNotes(page.sources??[],lang,sourceSha,deployed)}</article></div>`;
   return shell(lang,page.title[lang],page.summary[lang],body,active,page.slug);
 }
 export function renderHome(lang:Language) {
   const ru=lang==="ru", title=ru?"Курами — личная агентная система":"Kurami — a private agent system";
   const description=ru?"Разговоры и явные решения превращаются в ограниченные по правилам действия. Видно, что сделано и что ждёт твоего решения.":"Conversations and explicit decisions become bounded actions. See what ran and what awaits your decision.";
-  const routes=(["understand","digest","projects","operations"] as const).map(section=>{
-    const page=pages.find(p=>p.section===section)!;
-    return `<a class="route" href="${url(lang,page.slug)}"><div><p class="folio">${escape(labels[lang][section])}</p><h2>${escape(page.title[lang])}</h2><p>${escape(page.summary[lang])}</p></div><span class="arrow" aria-hidden="true">↗</span></a>`;
+  const routes=sections.map(section=>{
+    const page=pages.find(p=>p.slug===firstSlug(section))!;
+    return `<a class="route" href="${url(lang,page.slug)}"><div><p class="folio">${escape(sectionLabels[section][lang])}</p><h2>${escape(page.title[lang])}</h2><p>${escape(page.summary[lang])}</p></div><span class="arrow" aria-hidden="true">↗</span></a>`;
   }).join("");
-  return shell(lang,title,description,`<div class="intro"><p class="eyebrow">${ru?"Система, не один сайт":"A system, not a single site"}</p><h1>${title}</h1><p class="lede">${description}</p>${systemMap(lang)}</div><section aria-label="${labels[lang].next}" class="sections">${routes}</section>`,"start");
+  return shell(lang,title,description,`<div class="intro"><p class="eyebrow">${ru?"Система, не один сайт":"A system, not a single site"}</p><h1>${title}</h1><p class="lede">${description}</p>${systemMap(lang)}</div><section aria-label="${labels[lang].next}" class="sections">${routes}</section>`);
 }
 export function renderChangelog(lang:Language,changes:Change[],revision?:string,published=false) {
   const ru=lang==="ru";

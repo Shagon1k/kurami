@@ -4,7 +4,7 @@ import {tmpdir} from "node:os";
 import {join,resolve} from "node:path";
 import {execFileSync} from "node:child_process";
 import {pages} from "../../src/human-docs/content.ts";
-import {digestNavigation} from "../../src/human-docs/content/digest.ts";
+import {navigation,unlistedRoutes} from "../../src/human-docs/content/navigation.ts";
 import {assertContent,type HumanDocsBlock,type HumanDocsPage} from "../../src/human-docs/content/schema.ts";
 import {changesForDeployedSha,readDeploymentManifest,assertDocsSourceMatchesDeployment,onlyDocsPackageScriptsChanged,onlyDocsWorkflowChanged} from "../../src/human-docs/changelog.ts";
 import {renderArticle,renderChangelog,renderHome} from "../../src/human-docs/render.ts";
@@ -50,13 +50,16 @@ assert.doesNotThrow(()=>assertContent(pages,root));
 assert.ok(readFileSync(resolve(root,"docs/interest-profile-v1.md"),"utf8")
   .includes(`base = -${INTEREST_POLICY.positionStep} × zero-based index`));
 assert.equal(pages.length,30);
-assert.deepEqual(pages.filter(page=>page.section==="digest").map(page=>page.slug),[
-  "daily","for-me","daily-addons","signals","daily-lifecycle","weekly","cinema",
-  "stocks","stocks-discovery","investment-review","weekly-cinema","stocks-review",
-]);
-const digestNavSlugs=digestNavigation.flatMap(group=>group.slugs);
-assert.equal(new Set(digestNavSlugs).size,digestNavSlugs.length);
-assert.deepEqual(digestNavSlugs,["daily","for-me","daily-addons","signals","daily-lifecycle","weekly","cinema","stocks","stocks-discovery","investment-review"]);
+// Navigation: every page sits in exactly one menu group of its own section, or is an explicit unlisted route.
+const listed=Object.entries(navigation).flatMap(([section,groups])=>groups.flatMap(group=>group.slugs.map(slug=>({section,slug}))));
+assert.equal(new Set(listed.map(item=>item.slug)).size,listed.length,"a page appears in one menu group");
+for(const page of pages){
+  const entry=listed.find(item=>item.slug===page.slug);
+  if(unlistedRoutes.includes(page.slug)){assert.ok(!entry,`${page.slug} is unlisted`);continue;}
+  assert.ok(entry,`${page.slug} is in the menu`);assert.equal(entry.section,page.section,`${page.slug} is listed under its own section`);
+}
+for(const item of listed)assert.ok(pages.some(page=>page.slug===item.slug),`menu route ${item.slug} exists`);
+assert.deepEqual(navigation.digest.flatMap(group=>group.slugs),["daily","for-me","daily-addons","signals","daily-lifecycle","weekly","cinema","stocks","stocks-discovery","investment-review"]);
 const slugs=new Set(pages.map(p=>p.slug));
 assert.equal(slugs.size,pages.length);
 const validRoutes=new Set(["/en/","/ru/","/en/changelog/","/ru/changelog/",...pages.flatMap(page=>[`/en/${page.slug}/`,`/ru/${page.slug}/`])]);
@@ -81,7 +84,7 @@ assert.throws(()=>assertContent(invalidContent(copy=>{firstHtml(copy).en="<a hre
 assert.throws(()=>assertContent(invalidContent(copy=>{copy[0].sources=["../outside.md"];})),/Invalid docs source path/);
 assert.throws(()=>assertContent(invalidContent(copy=>{copy[0].sources=["docs/not-a-real-doc.md"];}),root),/Missing docs source/);
 const semanticFixture:HumanDocsPage={
-  slug:"semantic-fixture",section:"understand",
+  slug:"semantic-fixture",section:"basics",
   title:{en:"Fixture",ru:"Пример"},navTitle:{en:"Fixture",ru:"Пример"},summary:{en:"Semantic content",ru:"Структурированный контент"},
   blocks:[
     {type:"diagram",visual:"roles",explanation:{en:"The owner keeps the final decision.",ru:"Последнее решение остаётся за владельцем."}},
@@ -382,7 +385,9 @@ for(const lang of ["en","ru"] as const){
   assert.ok(html.includes('id="main" class="container page" tabindex="-1"'));
   assert.ok(html.includes('data-theme-toggle')&&html.includes('aria-pressed="false"'));
   const sectionArticle=renderArticle(pages.find(page=>page.slug==="who-does-what")!,lang);
-  assert.ok(sectionArticle.includes(`href="/${lang}/" aria-current="location"`));
+  assert.ok(sectionArticle.includes(`href="/${lang}/what-is-kurami/" aria-current="location"`),"Basics is the current section");
+  assert.ok(sectionArticle.includes(`<p class="eyebrow">${lang==="ru"?"Основы · Введение":"Basics · Introduction"}</p>`));
+  assert.ok(!sectionArticle.includes(`href="/${lang}/daily/" aria-current`)&&!sectionArticle.includes(`<li><a href="/${lang}/daily/"`),"side menu shows only the current section");
   assert.ok(sectionArticle.includes(`aria-label="${lang==="ru"?"Разделы документации":"Documentation sections"}"`));
   const emptyChangelog=renderChangelog(lang,[]);
   assert.ok(!emptyChangelog.includes("github.com/Shagon1k/kurami/commit/"));

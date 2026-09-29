@@ -1,13 +1,5 @@
 // Authored EN/RU copy for digest; keep both languages in the same block.
-import type {HumanDocsPage,Localized} from "./schema.ts";
-
-// The two older comparison routes remain reachable by URL, but are not menu parents.
-export const digestNavigation:{heading?:Localized<string>;slugs:string[]}[]=[
-  {heading:{en:"Daily",ru:"Daily"},slugs:["daily","for-me","daily-addons","signals","daily-lifecycle"]},
-  {slugs:["weekly"]},
-  {slugs:["cinema"]},
-  {heading:{en:"Markets",ru:"Рынки"},slugs:["stocks","stocks-discovery","investment-review"]},
-];
+import type {HumanDocsPage} from "./schema.ts";
 
 export const digestPages:HumanDocsPage[]=[
   {
@@ -202,6 +194,3 @@ export const digestPages:HumanDocsPage[]=[
   },
 ];
 
-// Navigation follows reader questions, not the order in which articles were drafted.
-const digestNavOrder=[...digestNavigation.flatMap(group=>group.slugs),'weekly-cinema','stocks-review'];
-digestPages.sort((a,b)=>digestNavOrder.indexOf(a.slug)-digestNavOrder.indexOf(b.slug));
