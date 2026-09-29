@@ -23,8 +23,9 @@ export const navigation:Record<Section,NavGroup[]>={
     {heading:{en:"Markets",ru:"Рынки"},slugs:["stocks","stocks-discovery","investment-review"]},
   ],
   projects:[
-    {heading:{en:"Runs",ru:"Запуски"},slugs:["project-orchestrator","project-admission","run-lifecycle"]},
-    {heading:{en:"Review and control",ru:"Проверка и контроль"},slugs:["engineering-evidence","owner-controls"]},
+    {heading:{en:"Runs",ru:"Запуски"},slugs:["project-orchestrator","board-statuses","project-admission","run-lifecycle"]},
+    {heading:{en:"Review and control",ru:"Проверка и контроль"},slugs:["engineering-evidence","previews","human-control","owner-controls"]},
+    {heading:{en:"Setup",ru:"Настройка"},slugs:["project-setup","settings"]},
     {heading:{en:"Planning",ru:"Планирование"},slugs:["project-digest"]},
   ],
   operations:[

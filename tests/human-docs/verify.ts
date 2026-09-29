@@ -49,7 +49,7 @@ const root=resolve(import.meta.dirname,"../..");
 assert.doesNotThrow(()=>assertContent(pages,root));
 assert.ok(readFileSync(resolve(root,"docs/interest-profile-v1.md"),"utf8")
   .includes(`base = -${INTEREST_POLICY.positionStep} × zero-based index`));
-assert.equal(pages.length,30);
+assert.equal(pages.length,35);
 // Navigation: every page sits in exactly one menu group of its own section, or is an explicit unlisted route.
 const listed=Object.entries(navigation).flatMap(([section,groups])=>groups.flatMap(group=>group.slugs.map(slug=>({section,slug}))));
 assert.equal(new Set(listed.map(item=>item.slug)).size,listed.length,"a page appears in one menu group");
@@ -64,7 +64,7 @@ const slugs=new Set(pages.map(p=>p.slug));
 assert.equal(slugs.size,pages.length);
 const validRoutes=new Set(["/en/","/ru/","/en/changelog/","/ru/changelog/",...pages.flatMap(page=>[`/en/${page.slug}/`,`/ru/${page.slug}/`])]);
 for(const page of pages){
-  const visuals=page.blocks.filter(block=>block.type==="diagram"||block.type==="html"&&block.visual).length;
+  const visuals=page.blocks.filter(block=>block.type==="diagram"||block.type==="screenshot"||block.type==="html"&&block.visual).length;
   assert.ok(visuals<=2&&(visuals>=1||page.blocks.some(block=>block.type==="table")),`${page.slug} has one or two explicit visuals (a table-led page may use its table)`);
   const disclosures=page.blocks.filter(block=>block.type==="details"||block.type==="technical").length;
   assert.ok(disclosures===1||disclosures===0&&visuals===0,`${page.slug} has one inline disclosure (a table-led reference page may have none)`);
@@ -130,7 +130,7 @@ for(const page of pages){
     assert.ok(html.includes(`/${lang==="en"?"ru":"en"}/${page.slug}/`));
     assert.ok(!html.includes("data-visual="),`Unrendered visual in ${page.slug}`);
     const rendered=(html.match(/<figure class=/g)??[]).length+(html.match(/<div class="visual">/g)??[]).length;
-    const tableLed=page.blocks.some(block=>block.type==="table")&&!page.blocks.some(block=>block.type==="diagram"||block.type==="html"&&block.visual);
+    const tableLed=page.blocks.some(block=>block.type==="table")&&!page.blocks.some(block=>block.type==="diagram"||block.type==="screenshot"||block.type==="html"&&block.visual);
     assert.ok(rendered>=1&&rendered<=2||tableLed&&rendered===0,`${page.slug}/${lang} must have one or two purposeful visuals`);
     assertInternalLinks(html);
     if(page.slug==="for-me"){
@@ -158,8 +158,8 @@ for(const page of pages){
     if(page.slug==="project-digest"){
       assert.match(html,/<figure class="project-digest-map">/);
       assert.equal((html.match(/class="project-digest-map__paths"/g)??[]).length,1);
-      assert.ok(html.includes(lang==="ru"?"Принятое предложение всё ещё может конфликтовать":"An accepted proposal can still conflict"));
-      assert.ok(html.includes(lang==="ru"?"Accept записывает решение в SQLite":"Accept records your decision in SQLite"));
+      assert.ok(html.includes(lang==="ru"?"остаётся твоё, а конфликт отображается":"yours is kept and the conflict is shown"));
+      assert.ok(html.includes(lang==="ru"?"Accept записывает твоё решение в SQLite":"Accept records your decision in SQLite"));
     }
     if(page.slug==="daily-lifecycle"){
       assert.match(html,new RegExp(`<figure class="scene-map">[\\s\\S]*?<svg class="diagram" aria-label="[^"]+"[^>]*role="img"[\\s\\S]*?id="daily-publication-${lang}-tip"`));
@@ -269,12 +269,13 @@ for(const page of pages){
       assert.equal((html.match(/<li><span class="folio">0[1-4]<\/span>/g)??[]).length,4);
       assert.ok(html.includes(lang==="ru"?"Активная задача — ещё не новое событие":"An active item is not a new event"));
       assert.ok(html.includes("admission_pending"));
-      assert.ok(html.includes(lang==="ru"?"лимит Codex-сессий проверяется при старте":"Codex session capacity is enforced when"));
+      assert.ok(html.includes(lang==="ru"?"лимит сессий Codex проверяется при старте сессии":"the Codex session limit is checked when the session starts"));
     }
     if(page.slug==="run-lifecycle"){
       assert.match(html,new RegExp(`<figure class="scene-map">[\\s\\S]*?<svg class="diagram" aria-label="[^"]+"[^>]*role="img"[\\s\\S]*?id="project-run-state-${lang}-tip"`));
-      assert.equal((html.match(/<th scope="row">/g)??[]).length,4);
-      assert.ok(html.includes(lang==="ru"?"Состояние Review-ready требует освобождения CLI":"Review-ready requires CLI release"));
+      assert.ok(html.includes('src="/assets/shot-run-working.png"'));
+      assert.ok(html.includes(lang==="ru"?"готовым к ревью запуск становится, только когда Codex закончил текущий ход":"the run is ready for review only after Codex has finished its current turn"));
+      assert.ok(html.includes(lang==="ru"?"«нужно внимание»":"\"needs attention\""),"session time limits are explained");
       const svg=readFileSync(resolve(root,`src/human-docs/assets/project-run-state-${lang}.svg`),"utf8");
       const scene=JSON.parse(readFileSync(resolve(root,`src/human-docs/diagrams/project-run-state-${lang}.excalidraw`),"utf8"));
       assert.equal(scene.type,"excalidraw");
@@ -287,15 +288,31 @@ for(const page of pages){
       assert.match(html,/<figure class="project-cards">/);
       assert.equal((html.match(/class="project-cards__card"/g)??[]).length,3);
       assert.ok(html.includes(lang==="ru"?"Не является deploy":"Is not a deployment"));
-      assert.ok(html.includes(lang==="ru"?"Новый коммит — новая проверка":"A new commit changes the question"));
-      assert.ok(html.includes(lang==="ru"?"отметку владельца":"owner’s <strong>Mark reviewed"));
+      assert.ok(html.includes(lang==="ru"?"Почему новый коммит меняет всё":"Why a new commit changes everything"));
+      assert.ok(html.includes("Attempt CI fix")&&html.includes('src="/assets/shot-pr-ai-review.png"'));
     }
     if(page.slug==="owner-controls"){
-      assert.match(html,/<figure class="sample-run-card">/);
-      assert.ok(html.includes(lang==="ru"?"Вымышленная карточка Discord":"Synthetic Discord card"));
-      assert.equal((html.match(/class="sample-run-card__action"/g)??[]).length,1);
+      assert.ok(html.includes('src="/assets/shot-run-ready-review.png"')&&html.includes('src="/assets/shot-run-timeline.png"'));
+      assert.equal((html.match(/<th scope="row">/g)??[]).length,5);
+      assert.ok(html.includes("/kurami status")&&html.includes(lang==="ru"?"не больше четырёх кнопок":"at most four buttons"));
+    }
+    if(page.slug==="board-statuses"){
+      assert.equal((html.match(/<th scope="row">/g)??[]).length,5);
+      assert.ok(html.includes('src="/assets/shot-project-board.png"')&&html.includes("Deferred"));
+    }
+    if(page.slug==="human-control"){
+      assert.ok(html.includes("human-control")&&html.includes("Continue autonomously")&&html.includes("Take control"));
+    }
+    if(page.slug==="previews"){
+      assert.ok(html.includes("preview-required")&&html.includes("Exact preview reviewed"));
+      assert.equal((html.match(/<th scope="row">/g)??[]).length,2);
+    }
+    if(page.slug==="project-setup"){
+      assert.ok(html.includes("npm run readiness")&&["PASS","WARN","FAIL"].every(level=>html.includes(level)));
+    }
+    if(page.slug==="settings"){
+      assert.ok(html.includes("/kurami settings")&&html.includes("Undo last"));
       assert.equal((html.match(/<th scope="row">/g)??[]).length,4);
-      assert.ok(html.includes(lang==="ru"?"Запрос, выполнение и итог — разные события":"Request, execution and result are separate events"));
     }
     if(page.slug==="health"){
       assert.match(html,/<figure class="health-map">/);
