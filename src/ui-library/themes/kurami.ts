@@ -3,6 +3,17 @@ import type {Theme} from "../tokens/index.ts";
 // The Kurami paper-and-signal theme: warm paper surfaces, ink text and one red accent.
 export const kuramiTheme:Theme={
   name:"kurami",
+  scale:{
+    "font-sans":'"Onest", system-ui, -apple-system, "Segoe UI", sans-serif',
+    "font-mono":'"Fragment Mono", ui-monospace, SFMono-Regular, Menlo, monospace',
+    "font-note":'"Caveat", "Segoe Print", cursive',
+    "radius-sm":"2px","radius":"3px","radius-md":"4px",
+    "shadow-card":"4px 4px 0 var(--shadow-offset)",
+    "shadow-card-sm":"3px 3px 0 var(--shadow-offset)",
+    "shadow-raised":"0 8px 22px color-mix(in srgb, var(--text-primary) 10%, transparent)",
+    "duration-fast":"150ms","duration-base":"220ms",
+    "space-1":"4px","space-2":"8px","space-3":"12px","space-4":"16px","space-5":"20px","space-6":"24px","space-8":"32px","space-10":"40px",
+  },
   light:{colorScheme:"light",colors:{
     "surface-page":"#fbfbf8",
     "surface-panel":"#faf8f2",

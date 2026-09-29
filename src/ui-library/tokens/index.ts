@@ -9,15 +9,17 @@ export const colorRoles=[
   "shadow-offset","focus-ring",
 ] as const;
 export type ColorRole=typeof colorRoles[number];
+// Mode-independent roles: typefaces, shape, elevation, motion and spacing. A theme may change them too.
+export const scaleRoles=[
+  "font-sans","font-mono","font-note",
+  "radius-sm","radius","radius-md",
+  "shadow-card","shadow-card-sm","shadow-raised",
+  "duration-fast","duration-base",
+  "space-1","space-2","space-3","space-4","space-5","space-6","space-8","space-10",
+] as const;
+export type ScaleRole=typeof scaleRoles[number];
 export type ThemeMode={colorScheme:"light"|"dark";colors:Record<ColorRole,string>};
-export type Theme={name:string;light:ThemeMode;dark:ThemeMode};
-
-// Mode-independent scales. Values are CSS lengths or font stacks, not colours.
-export const typeface={
-  "font-sans":'"Onest", system-ui, -apple-system, "Segoe UI", sans-serif',
-  "font-mono":'"Fragment Mono", ui-monospace, SFMono-Regular, Menlo, monospace',
-  "font-note":'"Caveat", "Segoe Print", cursive',
-} as const;
+export type Theme={name:string;scale:Record<ScaleRole,string>;light:ThemeMode;dark:ThemeMode};
 
 // Layout breakpoints in px (max-width queries). Custom properties cannot drive media queries, so these are TS constants.
 export const breakpoints={phone:620,tablet:900} as const;

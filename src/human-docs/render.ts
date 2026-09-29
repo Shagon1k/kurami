@@ -6,6 +6,9 @@ import {renderLinkButton} from "../ui-library/components/button.ts";
 import {renderThemeSwitch} from "../ui-library/components/theme-switch.ts";
 import {renderSiteHeader} from "../ui-library/patterns/site-header.ts";
 import {renderDocument} from "../ui-library/patterns/page-shell.ts";
+import {renderTable} from "../ui-library/components/table.ts";
+import {renderCallout} from "../ui-library/components/callout.ts";
+import {renderDisclosure} from "../ui-library/components/disclosure.ts";
 
 const escape = (s:string) => s.replaceAll("&","&amp;").replaceAll("<","&lt;").replaceAll(">","&gt;").replaceAll('"',"&quot;");
 const labels = {
@@ -281,13 +284,13 @@ function safeBlocks(page:HumanDocsPage,lang:Language,sourceSha?:string,deployed=
   return page.blocks.map(block=>{
     if(block.type==="source-links")return sourceNotes(block.paths,lang,sourceSha,deployed);
     if(block.type==="diagram")return `<section class="block diagram-block">${visual(block.visual,lang)}<p class="diagram-block__explanation">${escape(block.explanation[lang])}</p></section>`;
-    if(block.type==="table")return `<section class="block"><div class="data-table"><table><caption>${escape(block.caption[lang])}</caption><thead><tr>${block.columns[lang].map(value=>`<th scope="col">${escape(value)}</th>`).join("")}</tr></thead><tbody>${block.rows[lang].map(row=>`<tr>${row.map((value,index)=>index===0?`<th scope="row">${escape(value)}</th>`:`<td><span class="data-table__label" aria-hidden="true">${escape(block.columns[lang][index])}</span>${escape(value)}</td>`).join("")}</tr>`).join("")}</tbody></table></div></section>`;
-    if(block.type==="callout")return `<aside class="block callout callout--${block.tone}"><strong>${escape(block.title[lang])}</strong><p>${escape(block.body[lang])}</p></aside>`;
+    if(block.type==="table")return `<section class="block">${renderTable({caption:block.caption[lang],columns:block.columns[lang],rows:block.rows[lang],rowHeaders:true,stack:true})}</section>`;
+    if(block.type==="callout")return renderCallout({tone:block.tone,title:block.title[lang],body:block.body[lang],className:"block"});
     if(block.type==="example")return `<section class="block example"><p class="example__label">${lang==="ru"?"Вымышленный пример":"Synthetic example"}</p><h2>${escape(block.title[lang])}</h2><p>${escape(block.body[lang])}</p></section>`;
-    if(block.type==="technical")return `<section class="block"><details class="technical"><summary>${escape(block.summary[lang])}</summary><p>${escape(block.body[lang])}</p>${block.code?`<pre><code>${escape(block.code[lang])}</code></pre>`:""}</details></section>`;
+    if(block.type==="technical")return `<section class="block">${renderDisclosure({summary:block.summary[lang],body:`<p>${escape(block.body[lang])}</p>${block.code?`<pre><code>${escape(block.code[lang])}</code></pre>`:""}`,boxed:true,className:"technical"})}</section>`;
     const raw=block[lang];
     assertSafeMarkup(raw,`${page.slug}/${lang}`);
-    if(block.type==="details")return `<section class="block"><details><summary>${escape(block.summary[lang])}</summary>${raw}</details></section>`;
+    if(block.type==="details")return `<section class="block">${renderDisclosure({summary:block.summary[lang],body:raw,boxed:true})}</section>`;
     return `<section class="block">${block.visual?visual(block.visual,lang):""}${raw}</section>`;
   }).join("");
 }
