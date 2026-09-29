@@ -1,6 +1,7 @@
 // Keeps product code on the UI library. Existing exceptions are frozen per file in guard-baseline.json;
-// a count may only go down. `node tests/ui-library/guard.ts --update` records reductions and refuses
-// to record growth.
+// a count may only go down. `--update` records reductions and refuses growth. A genuine
+// product-specific exception is recorded with `--accept="<why no library part fits>"`, which keeps
+// the reason in the baseline and must be matched by `UI-Library: exception` in the PR.
 import assert from "node:assert/strict";
 import {createHash} from "node:crypto";
 import {execFileSync} from "node:child_process";
@@ -65,7 +66,8 @@ if(process.argv.includes("--init")){
   console.log(JSON.stringify({initialized:true}));
   process.exit(0);
 }
-const baseline=JSON.parse(readFileSync(baselinePath,"utf8")) as ReturnType<typeof measure>;
+type Accepted={reason:string;growth:string[]};
+const baseline=JSON.parse(readFileSync(baselinePath,"utf8")) as ReturnType<typeof measure>&{accepted?:Accepted[]};
 const growth:string[]=[],reductions:string[]=[];
 for(const rule of Object.keys(rules)){
   const before=baseline.counts[rule]??{},after=current.counts[rule]??{};
@@ -78,12 +80,19 @@ for(const rule of Object.keys(rules)){
 for(const [key,selector] of Object.entries(current.duplicates))if(!(key in baseline.duplicates))growth.push(`Duplicate declaration block in Digest and Docs (${selector}). A second product needs this look: move it into src/ui-library and use it from both.`);
 for(const key of Object.keys(baseline.duplicates))if(!(key in current.duplicates))reductions.push(`duplicate ${baseline.duplicates[key]} resolved`);
 
-if(process.argv.includes("--update")){
-  assert.deepEqual(growth,[],`Refusing to record growth:\n${growth.join("\n")}`);
-  writeFileSync(baselinePath,JSON.stringify(current,null,2)+"\n");
+const accept=process.argv.find(arg=>arg.startsWith("--accept="))?.slice(9).trim();
+if(accept!==undefined){
+  assert.ok(accept.length>=25,"--accept needs a specific reason (at least 25 characters)");
+  assert.ok(growth.length,"Nothing to accept: no new exceptions");
+  const accepted=[...(baseline.accepted??[]),{reason:accept,growth:growth.map(line=>line.replace(/\. Instead:.*$/,""))}];
+  writeFileSync(baselinePath,JSON.stringify({...current,accepted},null,2)+"\n");
+  console.log(JSON.stringify({accepted:growth.length,reason:accept}));
+}else if(process.argv.includes("--update")){
+  assert.deepEqual(growth,[],`Refusing to record growth; use --accept="<reason>" for a genuine exception:\n${growth.join("\n")}`);
+  writeFileSync(baselinePath,JSON.stringify({...current,accepted:baseline.accepted},null,2)+"\n");
   console.log(JSON.stringify({updated:true,reductions}));
 }else{
-  assert.deepEqual(growth,[],`UI guard: new code bypasses the UI library.\n${growth.join("\n")}\nIf this is a genuine product-specific component, say why in the PR (UI-Library: exception) and have the baseline updated in review.`);
+  assert.deepEqual(growth,[],`UI guard: new code bypasses the UI library.\n${growth.join("\n")}\nIf no library part fits, prefer extending the library (a variant or custom property). For a genuine product-specific component run node tests/ui-library/guard.ts --accept="<why>" and declare UI-Library: exception with UI-Reason in the PR.`);
   assert.deepEqual(reductions,[],`UI guard: exceptions went down (good). Record it with: node tests/ui-library/guard.ts --update\n${reductions.join("\n")}`);
   const total=Object.values(current.counts).reduce((sum,files)=>sum+Object.values(files).reduce((a,b)=>a+b,0),0);
   console.log(`UI guard: no new hand-written controls, literal colours/shapes, library-class overrides or cross-product duplicates (${total} frozen exceptions, ${Object.keys(current.duplicates).length} frozen duplicates)`);
