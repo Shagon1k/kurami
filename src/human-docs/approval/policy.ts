@@ -79,16 +79,16 @@ export function parseSummary(raw:unknown):ProposalSummary {
   return {summaryRu:text("summaryRu"),summaryEn:text("summaryEn")};
 }
 
-export type PageChange={slug:string;titleRu:string;change:"added"|"changed"|"removed"};
+export type PageChange={slug:string;title:string;change:"added"|"changed"|"removed"};
 
-type PageDigest=Record<string,{titleRu:string;hash:string}>;
+type PageDigest=Record<string,{title:string;hash:string}>;
 
 export function changedPages(before:PageDigest,after:PageDigest):PageChange[] {
   const changes:PageChange[]=[];
   for(const [slug,page] of Object.entries(after)){
-    if(!before[slug])changes.push({slug,titleRu:page.titleRu,change:"added"});
-    else if(before[slug].hash!==page.hash)changes.push({slug,titleRu:page.titleRu,change:"changed"});
+    if(!before[slug])changes.push({slug,title:page.title,change:"added"});
+    else if(before[slug].hash!==page.hash)changes.push({slug,title:page.title,change:"changed"});
   }
-  for(const [slug,page] of Object.entries(before))if(!after[slug])changes.push({slug,titleRu:page.titleRu,change:"removed"});
+  for(const [slug,page] of Object.entries(before))if(!after[slug])changes.push({slug,title:page.title,change:"removed"});
   return changes;
 }

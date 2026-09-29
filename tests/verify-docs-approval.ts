@@ -31,7 +31,7 @@ assert.throws(()=>controlId("publish","dp_x;rm"));
 assert.match(branchName("dp_0123456789ab",new Date("2026-10-05T03:00:00Z")),/^docs\/weekly-2026-10-05-012345$/);
 assert.throws(()=>parseSummary({summaryRu:"short",summaryEn:"x".repeat(20)}));
 assert.equal(parseSummary({summaryRu:"Сводка для <@123> и @everyone.",summaryEn:"A summary for the owner."}).summaryRu.includes("@everyone"),false);
-assert.deepEqual(changedPages({a:{titleRu:"А",hash:"1"},b:{titleRu:"Б",hash:"2"}},{a:{titleRu:"А",hash:"9"},c:{titleRu:"В",hash:"3"}}).map(page=>`${page.slug}:${page.change}`),["a:changed","c:added","b:removed"]);
+assert.deepEqual(changedPages({a:{title:"A",hash:"1"},b:{title:"B",hash:"2"}},{a:{title:"A",hash:"9"},c:{title:"C",hash:"3"}}).map(page=>`${page.slug}:${page.change}`),["a:changed","c:added","b:removed"]);
 
 // --- Fixture: bare remote seeded from this checkout (full history: the docs checks read the changelog baseline)'s main, plus the worker's source clone ------------
 const remote=resolve(scratch,"remote.git");
@@ -171,11 +171,12 @@ try{
   assert.equal(row.state,"ready",row.last_error??"");
   assert.equal(row.pr_number,7);
   assert.deepEqual(JSON.parse(row.pages_json!).map((p:{slug:string})=>p.slug),["docs-process"]);
-  assert.match(row.summary_ru!,/Отброшены правки вне документации: `src\/human-docs\/render\.ts`/);
+  assert.match(row.summary_en!,/Dropped changes outside the docs allowlist: `src\/human-docs\/render\.ts`/);
   assert.equal(sh(source,"git","--git-dir",remote,"diff","--name-only","main",row.branch),"src/human-docs/content/docs.ts");
   const posted=discordCalls.find(call=>call.method==="POST"&&call.path==="/channels/111/messages")!;
   assert.deepEqual(buttonsOf(posted),["kurami:docs_publish","kurami:docs_discuss","kurami:docs_reject"]);
-  assert.match(JSON.stringify(posted.body),/Актуальность — изменена/);
+  assert.match(JSON.stringify(posted.body),/Freshness — changed/);
+  assert.match(JSON.stringify(posted.body),/Clarified what the audit cannot tell/);
 
   // 3. Discuss opens one thread; the intro and the card both offer "Apply remarks".
   const discuss=await runControl(store,"discuss",draft.proposalId,{apply:true},surface);
@@ -193,7 +194,7 @@ try{
   ];
   const headBefore=row.head_sha;
   await runControl(store,"revise",draft.proposalId,{apply:true,actorId:"42"},surface);
-  await assert.rejects(runControl(store,"publish",draft.proposalId,{apply:true},surface),/устарела/);
+  await assert.rejects(runControl(store,"publish",draft.proposalId,{apply:true},surface),/outdated/);
   await tick(config,store,surface);
   row=store.get(draft.proposalId);
   assert.equal(row.state,"ready",row.last_error??"");
@@ -203,7 +204,7 @@ try{
   const prompt=readFileSync(resolve(scratch,"codex-prompt.txt"),"utf8");
   assert.ok(prompt.includes("Сделай формулировку мягче.")&&!prompt.includes("IGNORE RULES")&&!prompt.includes("bot echo"));
   assert.ok(!existsSync(resolve(draft.path,"bin-outside.txt")));
-  assert.ok(discordCalls.some(call=>call.path==="/channels/555/messages"&&JSON.stringify(call.body).includes("Готово, ветка обновлена")));
+  assert.ok(discordCalls.some(call=>call.path==="/channels/555/messages"&&JSON.stringify(call.body).includes("Done, the branch is updated")));
 
   // A second "apply" without new remarks changes nothing.
   await runControl(store,"revise",draft.proposalId,{apply:true},surface);
@@ -223,7 +224,7 @@ try{
   assert.equal(readFileSync(resolve(docsState,`rollback-${"a".repeat(40)}/en/index.html`),"utf8"),"old");
   assert.match(readFileSync(resolve(scratch,"systemctl.log"),"utf8"),/--user restart kurami-human-docs/);
   assert.ok(row.cleaned_at&&!existsSync(draft.path),"published draft must be cleaned up");
-  assert.ok(JSON.stringify(discordCalls.filter(call=>call.method==="PATCH").at(-1)!.body).includes("Опубликовано"));
+  assert.ok(JSON.stringify(discordCalls.filter(call=>call.method==="PATCH").at(-1)!.body).includes("Published."));
 
   // 6. A draft without edits ends quietly; a draft that fails checks gets a card without Publish, then Reject cleans up.
   const quiet=prepareDraft({sourceRoot:source,home,now:new Date(clock)});
@@ -243,9 +244,9 @@ try{
   await tick(config,store,surface);
   row=store.get(broken.proposalId);
   assert.equal(row.state,"failed");
-  assert.match(row.last_error!,/тесты документации/);
+  assert.match(row.last_error!,/docs tests failed/);
   assert.deepEqual(buttonsOf(discordCalls.filter(call=>call.method==="POST"&&call.path==="/channels/111/messages").at(-1)!),["kurami:docs_discuss","kurami:docs_reject"]);
-  await assert.rejects(runControl(store,"publish",broken.proposalId,{apply:true},surface),/устарела/);
+  await assert.rejects(runControl(store,"publish",broken.proposalId,{apply:true},surface),/outdated/);
   await runControl(store,"reject",broken.proposalId,{apply:true},surface);
   await tick(config,store,surface);
   assert.ok(store.get(broken.proposalId).cleaned_at&&!existsSync(broken.path));
@@ -269,7 +270,7 @@ try{
   // 7. A release whose smoke check fails is rolled back to the previous site.
   const liveBefore=readFileSync(resolve(docsState,"release/build.json"),"utf8");
   docsHealthy=false;
-  await assert.rejects(releaseDocs(config,main),/прежняя версия возвращена/);
+  await assert.rejects(releaseDocs(config,main),/the previous release was restored/);
   docsHealthy=true;
   assert.equal(readFileSync(resolve(docsState,"release/build.json"),"utf8"),liveBefore);
 
