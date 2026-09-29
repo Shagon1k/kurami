@@ -13,7 +13,7 @@ export function renderKuramiComment(input:KuramiComment):string {
   </aside>`;
 }
 export const KURAMI_COMMENT_STYLES=`
-.kurami-comment { margin:16px 0; padding:16px 20px; background:var(--panel); color:var(--ink); border-left:2px solid var(--line); border-radius:2px; font-family:var(--font-sans); }
+.kurami-comment { margin:16px 0; padding:16px 20px; background:var(--surface-panel); color:var(--text-primary); border-left:2px solid var(--border-default); border-radius:2px; font-family:var(--font-sans); }
 .kurami-comment .kurami-comment__byline { display:flex; align-items:center; gap:7px; margin:0 0 10px; font-size:.8125rem; font-weight:600; line-height:1.4; }
 .kurami-comment__byline>span { font-size:1.125rem; line-height:1; }
 .kurami-comment .kurami-comment__headline { margin:0 0 12px; font-size:1.125rem; font-weight:600; line-height:1.4; }

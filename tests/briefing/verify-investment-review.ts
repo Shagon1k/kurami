@@ -96,7 +96,7 @@ assert(comments.every(c=>!c.includes("<table")&&!c.includes("Example factual inp
 assert.equal(renderKuramiComment({}),"");
 assert(renderKuramiComment({items:["<script>bad</script>"],ordered:true}).includes("<ol><li>&lt;script&gt;"));
 assert(!renderKuramiComment({headline:'<img src=x onerror=1>'}).includes('<img'));
-assert(KURAMI_COMMENT_STYLES.includes("var(--panel)"));assert(!KURAMI_COMMENT_STYLES.includes("var(--signal)"));
+assert(KURAMI_COMMENT_STYLES.includes("var(--surface-panel)"));assert(!KURAMI_COMMENT_STYLES.includes("var(--accent-primary)"));
 assert(html.includes("Для твоего портфеля:"));assert(html.includes('href="#learn-overlap"'));
 assert.equal((html.match(/id="learn-overlap"/g)??[]).length,1,"One shared learning note, not repeated per position");
 assert(!html.includes('id="learn-overlap" open'));assert(html.includes("Чего из этого не следует:"));
