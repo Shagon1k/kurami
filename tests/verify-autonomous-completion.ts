@@ -75,18 +75,22 @@ case "$1" in
     case "$*" in
       *cx-tt-201-complete*)
         printf '%s\n' 'Implemented and verified the focused change.' \
-          '─ Worked for 2m 10s ─' \
+          'Worked for 5m 53s · 18:24' \
+          '' \
+          '' \
           '› Ask Codex to do anything'
         ;;
       *cx-tt-202-active*)
         printf '%s\n' 'Quoted terminal example:' \
-          '─ Worked for 1m 00s ─' \
+          'Worked for 1m 00s · 18:24' \
+          '' \
           '› Ask Codex to do anything' \
           'Working (12s • esc to interrupt)'
         ;;
       *cx-tt-203-approval*)
         printf '%s\n' 'Implemented and verified the focused change.' \
-          '─ Worked for 1m 00s ─' \
+          'Worked for 1m 00s · 18:24' \
+          '' \
           '› Ask Codex to do anything' \
           'Would you like to run this command?'
         ;;
