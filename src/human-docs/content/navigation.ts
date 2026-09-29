@@ -31,9 +31,10 @@ export const navigation:Record<Section,NavGroup[]>={
   operations:[
     {heading:{en:"Monitoring",ru:"Наблюдение"},slugs:["health","scheduling"]},
     {heading:{en:"Data",ru:"Данные"},slugs:["recovery","maintenance"]},
-    {heading:{en:"Authority",ru:"Полномочия"},slugs:["connector-authority","automation-boundaries"]},
+    {heading:{en:"Authority",ru:"Полномочия"},slugs:["connector-authority","access","automation-boundaries"]},
   ],
   docs:[
+    {heading:{en:"Process",ru:"Процесс"},slugs:["docs-process","docs-releases"]},
     {heading:{en:"Interface",ru:"Интерфейс"},slugs:["ui-library"]},
   ],
 };
