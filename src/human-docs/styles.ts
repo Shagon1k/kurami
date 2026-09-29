@@ -62,6 +62,11 @@ h3 { font-size: 1rem; line-height: 1.25; }
 .example { padding: 16px 20px; border: 1px solid var(--border-default); background: var(--surface-panel); }
 .callout, .example { margin: 22px 0; }
 .example p { margin: 8px 0 0; }
+.next-page { display: grid; gap: var(--space-2); margin: var(--space-8) 0 var(--space-6); padding-top: var(--space-5); border-top: 1px solid var(--border-default); }
+.next-page > span { color: var(--text-accent); font: 500 .72rem/1.4 var(--font-mono); text-transform: uppercase; }
+.next-page a { display: grid; gap: var(--space-1); padding: var(--space-4) var(--space-5); border: 1px solid var(--border-default); background: var(--surface-panel); text-decoration: none; }
+.next-page a:hover strong { color: var(--text-accent); }
+.next-page small { color: var(--text-muted); font-size: .88rem; }
 .example__label { color: var(--text-accent); font: 500 .72rem/1.4 var(--font-mono); text-transform: uppercase; }
 .example h2 { margin: 8px 0 0; font-size: 1.1rem; }
 .scene-map { max-width: 560px; margin: 20px auto 24px; padding: 14px; border: 1px solid var(--border-default); background: var(--diagram-surface); color: var(--text-primary); box-shadow: var(--shadow-card); }

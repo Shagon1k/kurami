@@ -53,7 +53,7 @@ The first published copy read like a specification: every sentence was a separat
 
 1. **Orientation (1–2 sentences):** what this page is about and why the reader would care.
 2. **How it works, as a story:** follow one concrete case from start to finish ("You move an issue into the active status. Kurami notices…"). Name the actor at every step. Connect steps with "then", "because", "so", "if … then".
-3. **Picture:** a diagram, comparison or screenshot that shows the same story, with the prose above as its text alternative.
+3. **Picture:** one or two diagrams, comparisons or screenshots that show the same story, with the prose as their text alternative. Prefer an editable Excalidraw scene when layout or sequence carries meaning; a reference page such as the glossary may let its table be the picture.
 4. **What can go wrong and what you do:** failure and stale paths, and the owner action for each.
 5. **Limits:** what the system deliberately does not do, stated once, after the reader understands what it does. Prefer one positive sentence plus the exception to a chain of negations.
 6. **Details (optional disclosure):** exact states, SHAs, stores and source links for readers who want to verify.
@@ -65,7 +65,7 @@ A page may drop steps it does not need, but never starts with limits and never c
 
 **Negation budget.** At most one "not / never / does not" sentence per paragraph. If a boundary matters, say what happens instead ("Kurami stops and asks you" rather than "Kurami does not guess").
 
-**Length.** Clarity beats brevity: a page may be three times longer than the old copy if every added sentence connects or explains. Cut repetition, not reasons. Stop when a first-time reader could retell the page.
+**Length and density.** Clarity beats brevity, but do not over-explain. The reader is the owner: Discord, GitHub, a PR, CI and a branch need no introduction; Kurami's own terms do. Explain each step once, with its reason, and move on; do not restate the same idea in the next paragraph or in the picture's caption. A page may be longer than the old copy when every added sentence connects or explains. Stop when a first-time reader could retell the page.
 
 **Accuracy.** Every claim still traces to code, a test, an internal reference or verified runtime state, and each page keeps its source links. Rewriting for readability never adds capabilities, schedules or promises.
 

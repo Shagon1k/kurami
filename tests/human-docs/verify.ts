@@ -49,7 +49,7 @@ const root=resolve(import.meta.dirname,"../..");
 assert.doesNotThrow(()=>assertContent(pages,root));
 assert.ok(readFileSync(resolve(root,"docs/interest-profile-v1.md"),"utf8")
   .includes(`base = -${INTEREST_POLICY.positionStep} × zero-based index`));
-assert.equal(pages.length,29);
+assert.equal(pages.length,30);
 assert.deepEqual(pages.filter(page=>page.section==="digest").map(page=>page.slug),[
   "daily","for-me","daily-addons","signals","daily-lifecycle","weekly","cinema",
   "stocks","stocks-discovery","investment-review","weekly-cinema","stocks-review",
@@ -61,8 +61,10 @@ const slugs=new Set(pages.map(p=>p.slug));
 assert.equal(slugs.size,pages.length);
 const validRoutes=new Set(["/en/","/ru/","/en/changelog/","/ru/changelog/",...pages.flatMap(page=>[`/en/${page.slug}/`,`/ru/${page.slug}/`])]);
 for(const page of pages){
-  assert.equal(page.blocks.filter(block=>block.type==="diagram"||block.type==="html"&&block.visual).length,1,`${page.slug} has one explicit visual`);
-  assert.equal(page.blocks.filter(block=>block.type==="details"||block.type==="technical").length,1,`${page.slug} has one inline disclosure`);
+  const visuals=page.blocks.filter(block=>block.type==="diagram"||block.type==="html"&&block.visual).length;
+  assert.ok(visuals<=2&&(visuals>=1||page.blocks.some(block=>block.type==="table")),`${page.slug} has one or two explicit visuals (a table-led page may use its table)`);
+  const disclosures=page.blocks.filter(block=>block.type==="details"||block.type==="technical").length;
+  assert.ok(disclosures===1||disclosures===0&&visuals===0,`${page.slug} has one inline disclosure (a table-led reference page may have none)`);
 }
 const invalidContent=(change:(copy:typeof pages)=>void)=>{
   const copy=structuredClone(pages);
@@ -124,7 +126,9 @@ for(const page of pages){
     if(!["weekly-cinema","stocks-review"].includes(page.slug))assert.ok(html.includes(`/${lang}/${page.slug}/`));
     assert.ok(html.includes(`/${lang==="en"?"ru":"en"}/${page.slug}/`));
     assert.ok(!html.includes("data-visual="),`Unrendered visual in ${page.slug}`);
-    assert.equal((html.match(/<figure class=/g)??[]).length+(html.match(/<div class="visual">/g)??[]).length,1,`${page.slug}/${lang} must have one purposeful visual`);
+    const rendered=(html.match(/<figure class=/g)??[]).length+(html.match(/<div class="visual">/g)??[]).length;
+    const tableLed=page.blocks.some(block=>block.type==="table")&&!page.blocks.some(block=>block.type==="diagram"||block.type==="html"&&block.visual);
+    assert.ok(rendered>=1&&rendered<=2||tableLed&&rendered===0,`${page.slug}/${lang} must have one or two purposeful visuals`);
     assertInternalLinks(html);
     if(page.slug==="for-me"){
       assert.ok(page.navTitle[lang].includes(lang==="ru"?"новости":"news order"));
@@ -172,8 +176,8 @@ for(const page of pages){
       assert.match(html,/<figure class="roles-map">/);
       assert.equal((html.match(/class="roles-map__card"/g)??[]).length,3);
       for(const role of ["Hermes",lang==="ru"?"Курами":"Kurami","Codex"])assert.ok(html.includes(role));
-      assert.ok(html.includes(lang==="ru"?"Вымышленный пример":"Synthetic example"));
-      assert.ok(html.includes(lang==="ru"?"Точный head SHA":"exact head SHA"));
+      assert.match(html,new RegExp(`<figure class="scene-map">[\\s\\S]*?<svg class="diagram"[\\s\\S]*?id="project-path-${lang}-tip"`));
+      assert.ok(html.includes(lang==="ru"?"точному последнему коммиту PR":"PR's exact head commit"));
     }
     if(page.slug==="reading-state"){
       assert.match(html,/<figure class="state-legend">/);

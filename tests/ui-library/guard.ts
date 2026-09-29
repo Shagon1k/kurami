@@ -27,8 +27,11 @@ const rules:Record<string,{pattern:RegExp;advice:string}>={
   "css:library-class":{pattern:new RegExp(`(?:^|[\\s,{}>+~(])\\.(?:${libraryClasses})(?![\\w-])[^{};\`]*\\{`,"gm"),advice:"do not restyle library classes in product CSS; tune them through their custom properties or change the library"},
 };
 
+// Diagram generators author scenes in the light diagram palette on purpose; inlineDiagram() rejects
+// any colour outside it and maps the rest to diagram-* roles.
+const diagramGenerators="src/human-docs/diagrams/";
 function productFiles():string[] {
-  return execFileSync("git",["ls-files","--cached","--others","--exclude-standard","--","src/*.ts"],{cwd:root,encoding:"utf8"}).split("\n").filter(file=>file&&products.some(prefix=>file.startsWith(prefix)));
+  return execFileSync("git",["ls-files","--cached","--others","--exclude-standard","--","src/*.ts"],{cwd:root,encoding:"utf8"}).split("\n").filter(file=>file&&products.some(prefix=>file.startsWith(prefix))&&!file.startsWith(diagramGenerators));
 }
 
 /** Declaration blocks with three or more declarations that appear verbatim in both products. */

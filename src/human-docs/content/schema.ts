@@ -13,7 +13,7 @@ export const visualIds=[
   "project-architecture","project-digest","project-admission","project-flow","project-run-state","engineering-evidence",
   "owner-controls","health-map","schedule-evidence","recovery-topology","recovery-matrix",
   "maintenance-scope","connector-contours","automation-boundaries",
-  "ui-layers",
+  "ui-layers","project-path",
 ] as const;
 export type VisualId=typeof visualIds[number];
 
@@ -37,6 +37,8 @@ export type HumanDocsPage={
   summary:Localized<string>;
   blocks:HumanDocsBlock[];
   sources?:string[];
+  /** Slug of the natural following page, rendered as a "Next" link after the content. */
+  next?:string;
 };
 
 const slugPattern=/^[a-z0-9-]+(?:\/[a-z0-9-]+)*$/;
@@ -96,5 +98,8 @@ export function assertContent(pages:readonly HumanDocsPage[],root?:string):void 
       for(const path of block.paths)assertSourcePath(path,root);
     }
     for(const path of page.sources??[])assertSourcePath(path,root);
+  }
+  for(const page of pages){
+    if(page.next!==undefined&&(!routes.has(page.next)||page.next===page.slug))throw new Error(`Invalid next page for ${page.slug}: ${page.next}`);
   }
 }
