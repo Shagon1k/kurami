@@ -13,7 +13,9 @@ const root = resolve(dirname(fileURLToPath(import.meta.url)), "../..");
 const ledgerPath = resolve(root, "src/human-docs/changelog.json");
 const git = (...args: string[]) => execFileSync("git", args, {cwd: root, encoding: "utf8"}).trim();
 const shaPattern = /^[0-9a-f]{40}$/;
-const docsOnlyPath=/^(?:src\/human-docs\/|tests\/human-docs\/|docs\/human-docs-(?:concept|operations|delivery-plan|coverage-audit|impact-map)\.md$)/;
+// Interest Profile's internal reference was corrected in a docs-only commit;
+// keep this exception exact instead of exempting the whole docs/ directory.
+const docsOnlyPath=/^(?:src\/human-docs\/|tests\/human-docs\/|docs\/(?:human-docs-(?:concept|operations|delivery-plan|coverage-audit|impact-map)|interest-profile-v1)\.md$)/;
 const docsImpactStep="      - if: github.event_name == 'pull_request'\n        run: node tests/human-docs/impact.ts\n";
 
 export function onlyDocsWorkflowChanged(before:string,after:string):boolean {
@@ -25,7 +27,7 @@ export function onlyDocsPackageScriptsChanged(before:unknown,after:unknown):bool
     if(!value||typeof value!=="object"||Array.isArray(value))return null;
     const copy=structuredClone(value) as {scripts?:Record<string,unknown>};
     if(!copy.scripts||typeof copy.scripts!=="object"||Array.isArray(copy.scripts))return null;
-    for(const name of Object.keys(copy.scripts))if(/^(?:docs:|test:docs:)/.test(name))delete copy.scripts[name];
+    for(const name of Object.keys(copy.scripts))if(/^(?:docs:|test:docs(?::|$))/.test(name))delete copy.scripts[name];
     return copy;
   };
   const oldValue=strip(before),newValue=strip(after);

@@ -180,6 +180,20 @@
       "ru": "",
       "exclusionScope": "no-reader-visible-change",
       "exclude": "Split Controller lifecycle and execution modules with planning tests; no intended run-state change."
+    },
+    "85e0bf720af8037a7726109e1c312521f0826fc0": {
+      "category": "operations",
+      "en": "",
+      "ru": "",
+      "exclusionScope": "docs-only",
+      "exclude": "Expanded the bilingual documentation, diagrams, docs audit and docs CI; no application behavior was changed or deployed by this commit."
+    },
+    "5be0c0380121db4b3874d263e0f33b96fbcbe58a": {
+      "category": "operations",
+      "en": "",
+      "ru": "",
+      "exclusionScope": "docs-only",
+      "exclude": "Recorded the installed report-only docs audit in bilingual docs and internal guidance; no application behavior was changed or deployed by this commit."
     }
   }
 }

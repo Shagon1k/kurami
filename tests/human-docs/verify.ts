@@ -23,6 +23,8 @@ assert.match(evaluateDocsImpact(["src/orchestrator/runtime/controller.ts","src/b
 assert.deepEqual(evaluateDocsImpact(["src/human-docs/styles.ts"],""),[]);
 assert.deepEqual(evaluateDocsImpact([".github/workflows/regression.yml"],""),[]);
 assert.equal(onlyDocsPackageScriptsChanged({scripts:{check:"tsc"}},{scripts:{check:"tsc","docs:preview":"node build.ts","test:docs:browser":"node browser.ts"}}),true);
+assert.equal(onlyDocsPackageScriptsChanged({scripts:{"test:docs":"node old.ts",check:"tsc"}},{scripts:{"test:docs":"node new.ts",check:"tsc"}}),true);
+assert.equal(onlyDocsPackageScriptsChanged({scripts:{"test:product":"node old.ts",check:"tsc"}},{scripts:{"test:product":"node new.ts",check:"tsc"}}),false);
 assert.equal(onlyDocsPackageScriptsChanged({scripts:{check:"tsc"}},{scripts:{check:"tsc --noEmit","docs:preview":"node build.ts"}}),false);
 assert.equal(onlyDocsPackageScriptsChanged({scripts:{check:"tsc"},dependencies:{foo:"1"}},{scripts:{check:"tsc"},dependencies:{foo:"2"}}),false);
 const regressionWorkflow="      - run: npm ci\n      - run: npm test";
