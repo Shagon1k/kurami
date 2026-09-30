@@ -7,7 +7,7 @@ export function kuramiSites(current:KuramiSite,lang:"ru"|"en"="ru"):SiteSwitcher
     label:lang==="ru"?"Сайты":"Sites",
     summary:lang==="ru"?"Сайты":"Sites",
     links:[
-      {href:"https://hub.shagon1k.win/",label:"Hub",current:current==="hub"?"location":undefined},
+      {href:`https://hub.shagon1k.win/${lang}/`,label:"Hub",current:current==="hub"?"location":undefined},
       {href:"https://digest.shagon1k.win/",label:"Digest",current:current==="digest"?"location":undefined},
       {href:`https://docs.shagon1k.win/${lang}/`,label:"Docs",current:current==="docs"?"location":undefined},
       {href:"https://projects.shagon1k.win/",label:"Projects",disabled:true,hint:lang==="ru"?"скоро":"soon"},

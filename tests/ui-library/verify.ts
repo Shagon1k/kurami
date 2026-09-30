@@ -106,7 +106,7 @@ assert.throws(()=>renderSiteNav({label:"x",links:[],attributes:{onclick:"x"}}),/
 assert.match(renderSiteNav({label:"x",links:[],hideWhenEmpty:true}),/ hidden>/);
 const sites=renderSiteSwitcher(kuramiSites("docs","en"));
 assert.match(sites,/<summary aria-label="Sites">/);
-assert.match(sites,/href="https:\/\/hub\.shagon1k\.win\/"[^>]*>Hub<\/a>/);
+assert.match(sites,/href="https:\/\/hub\.shagon1k\.win\/en\/"[^>]*>Hub<\/a>/);
 assert.match(sites,/href="https:\/\/docs\.shagon1k\.win\/en\/" aria-current="location">Docs<\/a>/);
 assert.match(sites,/href="https:\/\/hermes\.shagon1k\.win\/"[^>]*>Hermes<\/a>/);
 assert.match(sites,/href="https:\/\/dokploy\.shagon1k\.win\/"[^>]*>Dokploy<\/a>/);

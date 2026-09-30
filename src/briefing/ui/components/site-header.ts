@@ -1,6 +1,9 @@
 import {SITE_HEADER_CSS,renderSiteHeader as renderKuramiHeader,renderSiteNav,renderSiteSwitcher} from "../../../ui-library/patterns/site-header.ts";
 import {kuramiSites} from "../../../ui-library/patterns/kurami-sites.ts";
 import {renderThemeSwitch} from "../../../ui-library/components/theme-switch.ts";
+import {THEME_SWITCH_CSS} from "../../../ui-library/components/theme-switch.ts";
+import {THEME_CSS} from "../../../ui-library/themes/index.ts";
+import {FOUNDATION_CSS} from "../../../ui-library/foundations/index.ts";
 
 export type SiteSection="daily"|"cinema"|"weekly"|"stocks";
 export type SiteLink={section:SiteSection;date?:string};
@@ -21,12 +24,12 @@ function navigation(links:readonly SiteLink[],current:SiteSection) {
 export function renderSiteNavigation(links:readonly SiteLink[],current:SiteSection):string {
   return renderSiteNav(navigation(links,current));
 }
-export function renderSiteHeader(input:{section:SiteSection;label?:string;date:string;dateLabel:string;links?:readonly SiteLink[]}):string {
+export function renderSiteHeader(input:{section:SiteSection;label?:string;date?:string;dateLabel?:string;links?:readonly SiteLink[]}):string {
   if(!Object.hasOwn(destinations,input.section))throw new Error("Invalid site section");
   return renderKuramiHeader({
     label:input.label??"Kurami",
     attributes:{"data-site-section":input.section},
-    brand:{href:"/",ariaLabel:"Kurami — последний дневной выпуск",foxSrc:"/assets/kurami-fox.webp",meta:{label:input.dateLabel,datetime:input.date}},
+    brand:{href:"/",ariaLabel:"Kurami — последний дневной выпуск",foxSrc:"/assets/kurami-fox.webp",meta:input.date&&input.dateLabel?{label:input.dateLabel,datetime:input.date}:undefined},
     nav:navigation(input.links??[],input.section),
     sites:kuramiSites("digest"),
     actions:renderThemeSwitch("ru"),
@@ -36,6 +39,13 @@ export function renderSiteHeader(input:{section:SiteSection;label?:string;date:s
 export function injectSiteNavigation(html:string,links:readonly SiteLink[],current:SiteSection):string {
   const updated=html.replace(/<nav[^>]*data-site-navigation[^>]*>[\s\S]*?<\/nav>/i,()=>renderSiteNavigation(links,current));
   if(updated.includes('class="site-switcher"'))return updated;
+  const legacyHeader=updated.match(/<header class="utility-header"[^>]*>[\s\S]*?<\/header>/i);
+  if(legacyHeader){
+    const meta=legacyHeader[0].match(/<time class="utility-meta" datetime="(\d{4}-\d{2}-\d{2})">([^<]*)<\/time>/i);
+    return updated
+      .replace(legacyHeader[0],renderSiteHeader({section:current,date:meta?.[1],dateLabel:meta?.[2],links}))
+      .replace(/<\/head>/i,`<style>${THEME_CSS}${FOUNDATION_CSS}:root { --container-max: 1320px; }${SITE_HEADER_CSS}${THEME_SWITCH_CSS}</style></head>`);
+  }
   // Published editions keep their HTML snapshot; upgrade the shared header at response time.
   if(!updated.includes('<div class="site-actions">'))return updated;
   return updated

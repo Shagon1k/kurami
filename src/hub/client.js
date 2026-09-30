@@ -1,10 +1,11 @@
 const dashboard=document.getElementById("hub-dashboard");
+const hubLanguage=document.documentElement.lang==="en"?"en":"ru";
 let refreshing=false;
 async function refreshHub(){
   if(!dashboard||refreshing||document.visibilityState!=="visible"||dashboard.contains(document.activeElement))return;
   refreshing=true;
   try {
-    const response=await fetch("/api/fragment",{cache:"no-store",credentials:"same-origin"});
+    const response=await fetch("/api/fragment?lang="+hubLanguage,{cache:"no-store",credentials:"same-origin"});
     if(!response.ok)throw new Error("Hub refresh failed");
     const html=await response.text();
     if(dashboard.innerHTML!==html)dashboard.innerHTML=html;
@@ -12,7 +13,7 @@ async function refreshHub(){
   } catch {
     dashboard.setAttribute("data-disconnected","true");
     const status=dashboard.querySelector(".hub__live");
-    if(status)status.textContent="Нет связи · последние данные";
+    if(status)status.textContent=hubLanguage==="en"?"Offline · last available data":"Нет связи · последние данные";
   }
   finally {refreshing=false;}
 }

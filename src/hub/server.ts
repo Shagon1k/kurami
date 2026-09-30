@@ -7,7 +7,7 @@ import {THEME_RUNTIME_JS} from "../ui-library/runtime/theme.ts";
 import {kuramiTheme} from "../ui-library/themes/index.ts";
 import {HUB_STYLES} from "./styles.ts";
 import {collectHubSnapshot,type HubSnapshot} from "./snapshot.ts";
-import {renderHubDashboard,renderHubOffline,renderHubPage} from "./render.ts";
+import {renderHubDashboard,renderHubOffline,renderHubPage,type HubLanguage} from "./render.ts";
 
 const appRoot=resolve(import.meta.dirname,"../..");
 const assetRoot=resolve(appRoot,"src/ui-library/assets");
@@ -20,8 +20,8 @@ const assets=new Map<string,{body:Buffer|string;type:string;cache:string}>([
   ["/assets/fox.webp",{body:readFileSync(resolve(assetRoot,"brand/kurami-fox-header.webp")),type:"image/webp",cache:"private, max-age=86400"}],
   ["/assets/favicon.svg",{body:readFileSync(resolve(assetRoot,"brand/kurami-favicon.svg")),type:"image/svg+xml",cache:"private, max-age=86400"}],
   ["/sw.js",{body:readFileSync(resolve(hubRoot,"sw.js")),type:"text/javascript; charset=utf-8",cache:"no-cache"}],
-  ["/manifest.webmanifest",{body:JSON.stringify({name:"Kurami Hub",short_name:"Kurami",description:"Личная главная страница Kurami",lang:"ru",start_url:"/",scope:"/",display:"standalone",background_color:kuramiTheme.light.colors["surface-page"],theme_color:kuramiTheme.light.colors["surface-page"],icons:[{src:"/assets/fox.png",sizes:"512x512",type:"image/png",purpose:"any"}]}),type:"application/manifest+json; charset=utf-8",cache:"private, max-age=300"}],
 ]);
+for(const lang of ["ru","en"] as const)assets.set(lang==="ru"?"/manifest.webmanifest":"/en/manifest.webmanifest",{body:JSON.stringify({name:"Kurami Hub",short_name:"Kurami",description:lang==="ru"?"Личная главная страница Kurami":"Kurami personal dashboard",lang,start_url:`/${lang}/`,scope:"/",display:"standalone",background_color:kuramiTheme.light.colors["surface-page"],theme_color:kuramiTheme.light.colors["surface-page"],icons:[{src:"/assets/fox.png",sizes:"512x512",type:"image/png",purpose:"any"}]}),type:"application/manifest+json; charset=utf-8",cache:"private, max-age=300"});
 for(const font of fontFiles)assets.set(`/assets/${font.file}`,{body:readFileSync(resolve(assetRoot,"fonts",font.file)),type:"font/woff2",cache:"private, max-age=86400"});
 
 const securityHeaders={
@@ -45,18 +45,21 @@ export function createHubServer(options:{snapshot?:()=>HubSnapshot}={}):Server {
       response.writeHead(405,{Allow:"GET, HEAD","Cache-Control":"no-store"}).end();return;
     }
     let path:string;
-    try {path=new URL(request.url??"/","http://localhost").pathname;}
+    let lang:HubLanguage;
+    try {const url=new URL(request.url??"/","http://localhost");path=url.pathname;lang=(path.startsWith("/en/")||path==="/en"||path==="/api/fragment"&&url.searchParams.get("lang")==="en")?"en":"ru";}
     catch {response.writeHead(400,{"Cache-Control":"no-store"}).end();return;}
     let body:Buffer|string;
     let type:string;
     let cache:string;
     try {
-      if(path==="/"||path==="/index.html"){
-        body=renderHubPage(current());type="text/html; charset=utf-8";cache="no-store";
+      if(path==="/en"||path==="/ru"){
+        response.writeHead(302,{Location:`/${lang}/`,"Cache-Control":"no-store"}).end();return;
+      } else if(path==="/"||path==="/index.html"||path==="/ru/"||path==="/en/"){
+        body=renderHubPage(current(),lang);type="text/html; charset=utf-8";cache="no-store";
       } else if(path==="/api/fragment"){
-        body=renderHubDashboard(current());type="text/html; charset=utf-8";cache="no-store";
-      } else if(path==="/offline.html"){
-        body=renderHubOffline();type="text/html; charset=utf-8";cache="private, max-age=300";
+        body=renderHubDashboard(current(),lang);type="text/html; charset=utf-8";cache="no-store";
+      } else if(path==="/offline.html"||path==="/en/offline.html"){
+        body=renderHubOffline(lang);type="text/html; charset=utf-8";cache="private, max-age=300";
       } else if(path==="/health"){
         body=JSON.stringify({ok:true});type="application/json; charset=utf-8";cache="no-store";
       } else {

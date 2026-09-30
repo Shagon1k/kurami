@@ -81,7 +81,16 @@ projects:
   assert.match(page,/manifest.webmanifest/);
   assert.match(page,/class="site-switcher"/);
   assert.match(page,/href="https:\/\/docs\.shagon1k\.win\/ru\/"[^>]*>Docs<\/a>/);
+  assert.match(page,/href="\/en\/" aria-label="Переключить на английский" hreflang="en">EN<\/a>/);
   assert.doesNotMatch(page,/\/does\/not\/exist/,"local paths never reach the page");
+  const english=renderHubPage(snapshot,"en");
+  assert.match(english,/<html lang="en"/);
+  assert.match(english,/<h1>Overview<\/h1>/);
+  assert.match(english,/>63% left<\/strong>/);
+  assert.match(english,/href="\/ru\/" aria-label="Switch to Russian" hreflang="ru">RU<\/a>/);
+  assert.match(english,/href="https:\/\/docs\.shagon1k\.win\/en\/"[^>]*>Docs<\/a>/);
+  assert.match(english,/href="https:\/\/hub\.shagon1k\.win\/en\/" aria-current="location">Hub<\/a>/);
+  assert.doesNotMatch(english,/Обзор|Лимиты|Коммиты|нет данных|Сброс/);
 
   const server=createHubServer({snapshot:()=>snapshot});
   await new Promise<void>(done=>server.listen(0,"127.0.0.1",done));
@@ -98,10 +107,17 @@ projects:
     assert.equal(homePage.status,200);
     assert.equal(homePage.headers["cache-control"],"no-store");
     assert.match(homePage.body,/PickFlick/);
+    assert.match((await get("/ru/")).body,/<html lang="ru"/);
+    assert.match((await get("/en/")).body,/<html lang="en"/);
+    assert.equal((await get("/en")).headers.location,"/en/");
     assert.equal((await get("/api/fragment")).status,200);
+    assert.match((await get("/api/fragment?lang=en")).body,/<h1>Overview<\/h1>/);
+    assert.match((await get("/en/offline.html")).body,/<h1>Offline<\/h1>/);
     const manifest=await get("/manifest.webmanifest");
     assert.equal(manifest.status,200);
     assert.deepEqual(JSON.parse(manifest.body).icons,[{src:"/assets/fox.png",sizes:"512x512",type:"image/png",purpose:"any"}]);
+    const enManifest=JSON.parse((await get("/en/manifest.webmanifest")).body);
+    assert.equal(enManifest.lang,"en");assert.equal(enManifest.start_url,"/en/");
     assert.equal((await get("/assets/fox.webp")).headers["content-type"],"image/webp");
     assert.equal((await get("/sw.js")).status,200);
     assert.equal((await get("/assets/hub.css","HEAD")).body,"");

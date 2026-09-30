@@ -1,6 +1,7 @@
 // Synthetic pages for joint Digest/Docs browser regression. No private data; nothing here is fetched.
 import {upgradeLegacyPayload} from "../../briefing/migrations/addon-format.ts";
 import {renderBriefingPage} from "../../briefing/ui/render-page.ts";
+import {injectSiteNavigation} from "../../briefing/ui/components/site-header.ts";
 import {renderStocksPage} from "../../briefing/stocks/render.ts";
 import {renderWeeklyPage} from "../../briefing/weekly/render.ts";
 import {renderInvestmentReview} from "../../briefing/investment-review/render.ts";
@@ -14,7 +15,7 @@ import {CALLOUT_CSS,renderCallout} from "../components/callout.ts";
 import {DISCLOSURE_CSS,renderDisclosure} from "../components/disclosure.ts";
 import {SITE_HEADER_CSS,renderSiteHeader} from "../patterns/site-header.ts";
 import {renderDocument} from "../patterns/page-shell.ts";
-import {renderHubPage} from "../../hub/render.ts";
+import {renderHubPage,type HubLanguage} from "../../hub/render.ts";
 import type {HubSnapshot} from "../../hub/snapshot.ts";
 
 const at="2026-09-16T07:00:00Z";
@@ -42,6 +43,12 @@ export function syntheticDaily():string {
     sourceBatches:[],
     dataQuality:{state:"ready"},
   } as Record<string,unknown>));
+}
+
+/** An archived Cinema header from before the shared site pattern; no edition data is used. */
+export function syntheticLegacyCinema():string {
+  const archived='<!doctype html><html lang="ru" data-theme="light"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><meta name="theme-color" content="#fbfbf8"><title>Кино · Kurami</title></head><body><a class="skip-link" href="#main">К содержанию</a><header class="utility-header" data-utility-header data-site-section="cinema"><div class="utility-header__inner page-shell"><time class="utility-meta" datetime="2026-09-12">12 сентября 2026</time><nav data-site-navigation></nav><div class="utility-actions"></div></div></header><main id="main">Синтетический выпуск</main></body></html>';
+  return injectSiteNavigation(archived,[{section:"daily"},{section:"cinema"},{section:"weekly"}],"cinema");
 }
 
 export function syntheticStocksEmpty():string {
@@ -74,7 +81,7 @@ ${renderDisclosure({summary:"Technical detail",body:"<p>Nothing here is real dat
 }
 
 /** Synthetic Hub page: fixed values keep visual regression independent of private runtime state. */
-export function syntheticHub():string {
+export function syntheticHub(lang:HubLanguage="ru"):string {
   const projects=[
     ["pickflick","PickFlick",3,2,14,18],
     ["tailortales","TailorTales",2,0,8,12],
@@ -92,5 +99,5 @@ export function syntheticHub():string {
       poll:{capturedAt:"2026-09-16T06:58:00Z",state:"fresh" as const},git:{commits7,commits30,latestAt:"2026-09-16T06:30:00Z",state:"available" as const}})),
       {key:"kurami",name:"Kurami",repository:"Shagon1k/Kurami",boardUrl:"https://github.com/Shagon1k/Kurami",managed:false,board:null,runs:null,
         poll:{capturedAt:null,state:"unavailable"},git:{commits7:3,commits30:6,latestAt:"2026-09-16T06:00:00Z",state:"available"}}]};
-  return renderHubPage(snapshot);
+  return renderHubPage(snapshot,lang);
 }

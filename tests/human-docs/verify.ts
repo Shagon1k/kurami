@@ -405,7 +405,7 @@ for(const lang of ["en","ru"] as const){
   assert.ok(html.includes("/assets/theme.js"));
   assert.ok(html.includes('class="site-menu"'));
   assert.ok(html.includes('class="site-switcher"'));
-  assert.ok(html.includes('href="https://hub.shagon1k.win/"'));
+  assert.ok(html.includes(`href="https://hub.shagon1k.win/${lang}/"`));
   assert.ok(html.includes(`href="https://docs.shagon1k.win/${lang}/" aria-current="location"`));
   assert.ok(html.includes('class="site-nav"'));
   assert.ok(html.includes(`aria-label="${lang==="ru"?"Основная навигация":"Primary navigation"}"`));

@@ -11,11 +11,16 @@ stays next to the brand; the theme control remains a shared icon button.
 
 Hub, Docs and Digest also show the shared **Sites** switcher in the header.
 `src/ui-library/patterns/kurami-sites.ts` defines its destinations: Hub,
-Digest, Docs, Hermes and Dokploy. Docs keeps the current language when the
-switcher points back to Docs. Projects is listed as **soon** with its future
+Digest, Docs, Hermes and Dokploy. Hub and Docs preserve `ru` or `en` when
+the switcher points to either bilingual site. Digest remains Russian-only.
+Projects is listed as **soon** with its future
 destination in code, but has no clickable link until the site is available.
 The switcher becomes an icon button on phones; each
 site keeps its own navigation separate from this cross-site menu.
+Hub serves `/ru/` and `/en/` with localized dashboard labels and PWA offline
+pages; `/` remains a Russian alias. The language control links between those
+routes. Digest upgrades retained Daily and legacy Cinema headers when serving
+them, so their Sites control does not depend on republishing old editions.
 
 `site-navigation.ts` reads publication state, not page content. Only current
 complete/partial Daily and Cinema editions qualify; expired Daily, prepared
