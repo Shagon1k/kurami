@@ -8,6 +8,7 @@ const suites = [
   "test:briefing-header",
   "test:ui-library",
   "test:ui-guard",
+  "test:hub",
   "test:briefing-weekly",
   "test:briefing-completion",
   "test:briefing-charts",

@@ -10,6 +10,8 @@ export type DocumentInput = {
   favicon: string;
   /** Inline CSS for self-contained artifacts, or a stylesheet URL. */
   styles: { inline: string } | { href: string };
+  /** Trusted, site-owned tags such as a PWA manifest or deferred script. */
+  head?: string;
   /** Script-free artifacts (Digest) get the runtime injected when served instead. */
   themeScript: boolean;
   skipLabel: string;
@@ -37,7 +39,7 @@ export function renderDocument(input: DocumentInput): string {
   <meta name="theme-color" content="${kuramiTheme.light.colors["surface-page"]}">
   <title>${escapeHtml(input.title)}</title>
   ${description}<link rel="icon" type="image/svg+xml" href="${escapeHtml(input.favicon)}">
-  ${styles}${input.themeScript ? THEME_SCRIPT_TAG : ""}
+  ${styles}${input.themeScript ? THEME_SCRIPT_TAG : ""}${input.head ?? ""}
 </head>
 <body>
   <a class="skip-link" href="#main">${escapeHtml(input.skipLabel)}</a>

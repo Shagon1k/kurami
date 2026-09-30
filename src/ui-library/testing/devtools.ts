@@ -60,5 +60,5 @@ export async function launchBrowser(path:string):Promise<{devtools:Devtools;clos
   const socket=new WebSocket(target);
   await new Promise((resolve,reject)=>{socket.addEventListener("open",resolve,{once:true});socket.addEventListener("error",reject,{once:true});});
   const devtools=new Devtools(socket);
-  return {devtools,close:()=>{devtools.close();browser.kill();rmSync(profile,{recursive:true,force:true});}};
+  return {devtools,close:()=>{devtools.close();browser.kill();rmSync(profile,{recursive:true,force:true,maxRetries:10,retryDelay:100});}};
 }

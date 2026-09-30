@@ -10,7 +10,7 @@ import {resolve} from "node:path";
 
 const root=resolve(import.meta.dirname,"../..");
 const baselinePath=resolve(import.meta.dirname,"guard-baseline.json");
-const products=["src/briefing/","src/human-docs/"];
+const products=["src/briefing/","src/human-docs/","src/hub/"];
 const libraryClasses="button|theme-switch|site-header|site-brand|site-nav|site-menu|site-actions|table|callout|disclosure|diagram|container|skip-link|sr-only";
 
 // What to use instead, shown when a rule catches new code.

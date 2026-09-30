@@ -14,6 +14,8 @@ import {CALLOUT_CSS,renderCallout} from "../components/callout.ts";
 import {DISCLOSURE_CSS,renderDisclosure} from "../components/disclosure.ts";
 import {SITE_HEADER_CSS,renderSiteHeader} from "../patterns/site-header.ts";
 import {renderDocument} from "../patterns/page-shell.ts";
+import {renderHubPage} from "../../hub/render.ts";
+import type {HubSnapshot} from "../../hub/snapshot.ts";
 
 const at="2026-09-16T07:00:00Z";
 const story=(index:number,headline:string,summary:string)=>({
@@ -69,4 +71,26 @@ ${renderDisclosure({summary:"Technical detail",body:"<p>Nothing here is real dat
     mainClass:"page",
     footer:`<footer class="container"><p>Kurami lab · synthetic</p></footer>`,
   });
+}
+
+/** Synthetic Hub page: fixed values keep visual regression independent of private runtime state. */
+export function syntheticHub():string {
+  const projects=[
+    ["pickflick","PickFlick",3,2,14,18],
+    ["tailortales","TailorTales",2,0,8,12],
+    ["ahurynovich-cv","AHurynovich-CV",1,1,4,6],
+  ] as const;
+  const snapshot:HubSnapshot={generatedAt:"2026-09-16T07:00:00Z",sources:{orchestrator:"available",git:"available"},
+    codex:{state:"available",tokens7:3812400,tokens30:14268300,cached30:12876100,output30:361200,sessions30:39,coverage:"complete",
+      models:[{name:"gpt-6-sol",sessions:27},{name:"gpt-6-luna",sessions:9},{name:"gpt-6-astra",sessions:3}],
+      limits:[{name:"primary",usedPercent:42,remainingPercent:58,windowMinutes:10080,resetsAt:"2026-09-20T10:00:00Z",observedAt:"2026-09-16T06:59:00Z"},
+        {name:"secondary",usedPercent:18,remainingPercent:82,windowMinutes:300,resetsAt:"2026-09-16T09:00:00Z",observedAt:"2026-09-16T06:59:00Z"}],updatedAt:"2026-09-16T06:59:00Z"},
+    totals:{working:2,review:3,attention:1,commits30:42},
+    weeks:Array.from({length:12},(_,index)=>({start:new Date(Date.UTC(2026,5,29+index*7)).toISOString().slice(0,10),count:[0,2,1,4,3,6,8,11,7,13,4,9][index]!})),
+    projects:[...projects.map(([key,name,number,review,commits7,commits30])=>({key,name,repository:`Shagon1k/${name}`,boardUrl:`https://github.com/users/Shagon1k/projects/${number}`,managed:true,
+      board:{backlog:12,active:1,review,done:20,deferred:2},runs:{working:key==="pickflick"?2:0,attention:key==="pickflick"?1:0,ciFailed:0},
+      poll:{capturedAt:"2026-09-16T06:58:00Z",state:"fresh" as const},git:{commits7,commits30,latestAt:"2026-09-16T06:30:00Z",state:"available" as const}})),
+      {key:"kurami",name:"Kurami",repository:"Shagon1k/Kurami",boardUrl:"https://github.com/Shagon1k/Kurami",managed:false,board:null,runs:null,
+        poll:{capturedAt:null,state:"unavailable"},git:{commits7:3,commits30:6,latestAt:"2026-09-16T06:00:00Z",state:"available"}}]};
+  return renderHubPage(snapshot);
 }

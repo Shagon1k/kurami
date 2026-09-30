@@ -10,7 +10,8 @@ import {tmpdir} from "node:os";
 import {isAbsolute,join,resolve,sep} from "node:path";
 import {setTimeout as delay} from "node:timers/promises";
 import {findBrowser,launchBrowser} from "./devtools.ts";
-import {librarySubsite,syntheticDaily,syntheticInvestmentReview,syntheticStocksEmpty,syntheticWeeklyEmpty} from "./fixtures.ts";
+import {librarySubsite,syntheticDaily,syntheticHub,syntheticInvestmentReview,syntheticStocksEmpty,syntheticWeeklyEmpty} from "./fixtures.ts";
+import {HUB_STYLES} from "../../hub/styles.ts";
 import {changedShare,decodePng} from "./png.ts";
 import {AUDIT_EXPRESSION,inventoryExpression} from "./audit.ts";
 import {pages as docsPages} from "../../human-docs/content.ts";
@@ -28,6 +29,7 @@ const pages:Record<string,string>={
   "digest-weekly-empty":"/digest/weekly.html",
   "digest-investment-review":"/digest/review.html",
   "library-subsite":"/lab/index.html",
+  "hub-home":"/hub/index.html",
   "docs-home-en":"/en/",
   "docs-overview-ru":"/ru/what-is-kurami/",
   "docs-state-table-en":"/en/reading-state/",
@@ -54,6 +56,10 @@ function site():string {
   writeFileSync(join(served,"digest/review.html"),injectRuntime(syntheticInvestmentReview()));
   mkdirSync(join(served,"lab"),{recursive:true});
   writeFileSync(join(served,"lab/index.html"),librarySubsite());
+  mkdirSync(join(served,"hub"),{recursive:true});
+  writeFileSync(join(served,"hub/index.html"),syntheticHub());
+  writeFileSync(join(served,"assets/hub.css"),HUB_STYLES);
+  cpSync(join(root,"src/hub/client.js"),join(served,"assets/hub.js"));
   cpSync(join(brandAssets,"kurami-fox-transparent.png"),join(served,"assets/kurami-fox.png"));
   cpSync(join(brandAssets,"kurami-favicon.svg"),join(served,"favicon.svg"));
   return served;
@@ -116,7 +122,7 @@ async function main(){
   let auditedCount=0;
   try{
     await devtools.call("Page.enable");
-    for(const path of ["/digest/daily.html","/en/reading-state/","/lab/index.html"])await checkThemeRuntime(devtools,`http://127.0.0.1:${port}`,path);
+    for(const path of ["/digest/daily.html","/en/reading-state/","/lab/index.html","/hub/index.html"])await checkThemeRuntime(devtools,`http://127.0.0.1:${port}`,path);
     const audited:Record<string,string>={...pages};
     for(const lang of ["en","ru"])for(const route of ["","changelog",...docsPages.map(page=>page.slug)])audited[`docs-${lang}-${route||"home"}`]??=`/${lang}/${route?route+"/":""}`;
     for(const [name,path] of Object.entries(audited))if(!Object.values(pages).includes(path)||name in pages)for(const width of widths)for(const theme of themes){

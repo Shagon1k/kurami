@@ -1,0 +1,26 @@
+[Unit]
+Description=Kurami Hub private origin
+After=default.target
+ConditionPathExists=/home/shagon1k/_hermes/_kurami/state/orchestrator.db
+
+[Service]
+Type=simple
+ExecStart=/home/shagon1k/_hermes/_kurami/runtime/node/bin/node /home/shagon1k/_hermes/_kurami/app/src/hub/server.ts
+Environment=HUB_PORT=8800
+Environment=HUB_CODEX_HOME=/home/shagon1k/.codex
+WorkingDirectory=/home/shagon1k/_hermes/_kurami/app
+Restart=on-failure
+RestartSec=3s
+UMask=0077
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=read-only
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6
+RestrictNamespaces=true
+RestrictSUIDSGID=true
+LockPersonality=true
+SystemCallArchitectures=native
+
+[Install]
+WantedBy=default.target
