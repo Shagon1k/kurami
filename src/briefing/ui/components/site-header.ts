@@ -1,4 +1,5 @@
 import {renderSiteHeader as renderKuramiHeader,renderSiteNav} from "../../../ui-library/patterns/site-header.ts";
+import {kuramiSites} from "../../../ui-library/patterns/kurami-sites.ts";
 import {renderThemeSwitch} from "../../../ui-library/components/theme-switch.ts";
 
 export type SiteSection="daily"|"cinema"|"weekly"|"stocks";
@@ -25,8 +26,9 @@ export function renderSiteHeader(input:{section:SiteSection;label?:string;date:s
   return renderKuramiHeader({
     label:input.label??"Kurami",
     attributes:{"data-site-section":input.section},
-    brand:{href:"/",ariaLabel:"Kurami — последний дневной выпуск",foxSrc:"/assets/kurami-fox.png",meta:{label:input.dateLabel,datetime:input.date}},
+    brand:{href:"/",ariaLabel:"Kurami — последний дневной выпуск",foxSrc:"/assets/kurami-fox.webp",meta:{label:input.dateLabel,datetime:input.date}},
     nav:navigation(input.links??[],input.section),
+    sites:kuramiSites("digest"),
     actions:renderThemeSwitch("ru"),
   });
 }

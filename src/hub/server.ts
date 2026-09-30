@@ -17,9 +17,10 @@ const assets=new Map<string,{body:Buffer|string;type:string;cache:string}>([
   ["/assets/theme.js",{body:THEME_RUNTIME_JS,type:"text/javascript; charset=utf-8",cache:"private, max-age=300"}],
   ["/assets/hub.js",{body:readFileSync(resolve(hubRoot,"client.js")),type:"text/javascript; charset=utf-8",cache:"private, max-age=300"}],
   ["/assets/fox.png",{body:readFileSync(resolve(assetRoot,"brand/kurami-fox-transparent.png")),type:"image/png",cache:"private, max-age=86400"}],
+  ["/assets/fox.webp",{body:readFileSync(resolve(assetRoot,"brand/kurami-fox-header.webp")),type:"image/webp",cache:"private, max-age=86400"}],
   ["/assets/favicon.svg",{body:readFileSync(resolve(assetRoot,"brand/kurami-favicon.svg")),type:"image/svg+xml",cache:"private, max-age=86400"}],
   ["/sw.js",{body:readFileSync(resolve(hubRoot,"sw.js")),type:"text/javascript; charset=utf-8",cache:"no-cache"}],
-  ["/manifest.webmanifest",{body:JSON.stringify({name:"Kurami Hub",short_name:"Kurami",description:"Личная главная страница Kurami",lang:"ru",start_url:"/",scope:"/",display:"standalone",background_color:kuramiTheme.light.colors["surface-page"],theme_color:kuramiTheme.light.colors["surface-page"],icons:[{src:"/assets/fox.png",sizes:"1254x1254",type:"image/png",purpose:"any"}]}),type:"application/manifest+json; charset=utf-8",cache:"private, max-age=300"}],
+  ["/manifest.webmanifest",{body:JSON.stringify({name:"Kurami Hub",short_name:"Kurami",description:"Личная главная страница Kurami",lang:"ru",start_url:"/",scope:"/",display:"standalone",background_color:kuramiTheme.light.colors["surface-page"],theme_color:kuramiTheme.light.colors["surface-page"],icons:[{src:"/assets/fox.png",sizes:"512x512",type:"image/png",purpose:"any"}]}),type:"application/manifest+json; charset=utf-8",cache:"private, max-age=300"}],
 ]);
 for(const font of fontFiles)assets.set(`/assets/${font.file}`,{body:readFileSync(resolve(assetRoot,"fonts",font.file)),type:"font/woff2",cache:"private, max-age=86400"});
 

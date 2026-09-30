@@ -79,6 +79,8 @@ projects:
   assert.match(page,/Git · нет данных/,"missing Git data is not rendered as a zero trend");
   assert.doesNotMatch(page,/Твоя система|Источник ещё не подключён|Это активность в Git/);
   assert.match(page,/manifest.webmanifest/);
+  assert.match(page,/class="site-switcher"/);
+  assert.match(page,/href="https:\/\/docs\.shagon1k\.win\/ru\/"[^>]*>Docs<\/a>/);
   assert.doesNotMatch(page,/\/does\/not\/exist/,"local paths never reach the page");
 
   const server=createHubServer({snapshot:()=>snapshot});
@@ -97,7 +99,10 @@ projects:
     assert.equal(homePage.headers["cache-control"],"no-store");
     assert.match(homePage.body,/PickFlick/);
     assert.equal((await get("/api/fragment")).status,200);
-    assert.equal((await get("/manifest.webmanifest")).status,200);
+    const manifest=await get("/manifest.webmanifest");
+    assert.equal(manifest.status,200);
+    assert.deepEqual(JSON.parse(manifest.body).icons,[{src:"/assets/fox.png",sizes:"512x512",type:"image/png",purpose:"any"}]);
+    assert.equal((await get("/assets/fox.webp")).headers["content-type"],"image/webp");
     assert.equal((await get("/sw.js")).status,200);
     assert.equal((await get("/assets/hub.css","HEAD")).body,"");
     assert.equal((await get("/state/orchestrator.db")).status,404);

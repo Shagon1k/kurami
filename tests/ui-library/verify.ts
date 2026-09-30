@@ -11,9 +11,10 @@ import {renderPageShell} from "../../src/briefing/ui/page-shell.ts";
 import {existsSync} from "node:fs";
 import {THEME_RUNTIME_JS,THEME_SCRIPT_TAG} from "../../src/ui-library/runtime/theme.ts";
 import {renderThemeSwitch} from "../../src/ui-library/components/theme-switch.ts";
-import {renderLinkButton} from "../../src/ui-library/components/button.ts";
+import {renderButton,renderLinkButton} from "../../src/ui-library/components/button.ts";
 import {validateRenderedHtml} from "../../src/briefing/html-artifacts.ts";
-import {renderSiteHeader,renderSiteNav,SITE_HEADER_CSS} from "../../src/ui-library/patterns/site-header.ts";
+import {renderSiteHeader,renderSiteNav,renderSiteSwitcher,SITE_HEADER_CSS} from "../../src/ui-library/patterns/site-header.ts";
+import {kuramiSites} from "../../src/ui-library/patterns/kurami-sites.ts";
 import {renderDocument} from "../../src/ui-library/patterns/page-shell.ts";
 import {renderTable,TABLE_CSS} from "../../src/ui-library/components/table.ts";
 import {renderCallout,CALLOUT_CSS} from "../../src/ui-library/components/callout.ts";
@@ -86,12 +87,16 @@ for(const [lang,name] of [["ru","Тёмная тема"],["en","Dark theme"]] as
   assert.match(button,/data-theme-icon/);
 }
 assert.match(renderLinkButton({label:"RU",href:"/ru/",variant:"icon",attributes:{hreflang:"ru"}}),/^<a class="button button--icon" href="\/ru\/" hreflang="ru">RU<\/a>$/);
+const svgButton=renderButton({label:"Больше такого",variant:"icon",iconPath:"M12 19V5 M6 11l6-6 6 6"});
+assert.match(svgButton,/<button[^>]*aria-label="Больше такого"[^>]*><svg class="button__svg"[^>]*><path d="M12 19V5 M6 11l6-6 6 6"\/><\/svg><\/button>/);
+assert.doesNotMatch(svgButton,/<span|🔔/);
+assert.throws(()=>renderButton({label:"x",variant:"icon",icon:"x",iconPath:"M0 0"}),/both text and SVG/);
 assert.throws(()=>renderLinkButton({label:"x",href:"javascript:alert(1)",variant:"icon"}),/Unsafe link/);
 assert.throws(()=>renderLinkButton({label:"x",href:"//evil.example",variant:"icon"}),/Unsafe link/);
 
 // Header and document patterns: one implementation for both sites, escaped input, safe links.
 for(const [site,css] of [["Digest",BRIEFING_STYLES],["Docs",DOCS_STYLES]] as const)assert.equal(css.split(SITE_HEADER_CSS).length,2,`${site} includes the header pattern once`);
-const header=renderSiteHeader({brand:{href:"/",ariaLabel:"Kurami",foxSrc:"/assets/fox.png",suffix:"docs",meta:{label:"<b>x</b>"}},nav:{label:"Sections",links:[{href:"/a/",label:"A",current:"page"},{href:"/b/",label:"B"}],collapse:{label:"Menu"}},actions:renderThemeSwitch("en")});
+const header=renderSiteHeader({brand:{href:"/",ariaLabel:"Kurami",foxSrc:"/assets/fox.webp",suffix:"docs",meta:{label:"<b>x</b>"}},nav:{label:"Sections",links:[{href:"/a/",label:"A",current:"page"},{href:"/b/",label:"B"}],collapse:{label:"Menu"}},actions:renderThemeSwitch("en")});
 assert.match(header,/class="site-header site-header--collapsible" data-site-header/);
 assert.match(header,/<a class="site-nav__link" href="\/a\/" aria-current="page">A<\/a>/);
 assert.equal((header.match(/aria-label="Sections"/g)??[]).length,2,"inline and collapsed navigation");
@@ -99,6 +104,16 @@ assert.match(header,/&lt;b&gt;x&lt;\/b&gt;/);
 assert.throws(()=>renderSiteNav({label:"x",links:[{href:"javascript:alert(1)",label:"x"}]}),/Unsafe navigation href/);
 assert.throws(()=>renderSiteNav({label:"x",links:[],attributes:{onclick:"x"}}),/Unsafe header attribute/);
 assert.match(renderSiteNav({label:"x",links:[],hideWhenEmpty:true}),/ hidden>/);
+const sites=renderSiteSwitcher(kuramiSites("docs","en"));
+assert.match(sites,/<summary aria-label="Sites">/);
+assert.match(sites,/href="https:\/\/hub\.shagon1k\.win\/"[^>]*>Hub<\/a>/);
+assert.match(sites,/href="https:\/\/docs\.shagon1k\.win\/en\/" aria-current="location">Docs<\/a>/);
+assert.match(sites,/href="https:\/\/hermes\.shagon1k\.win\/"[^>]*>Hermes<\/a>/);
+assert.match(sites,/href="https:\/\/dokploy\.shagon1k\.win\/"[^>]*>Dokploy<\/a>/);
+assert.match(sites,/<span class="site-nav__link site-nav__link--disabled" aria-disabled="true">Projects<small class="site-nav__hint">soon<\/small><\/span>/);
+assert.doesNotMatch(sites,/href="https:\/\/projects\.shagon1k\.win\/"/);
+assert.equal((sites.match(/class="site-nav__link"/g)??[]).length,5);
+assert.doesNotMatch(renderSiteSwitcher(kuramiSites("hub")),/href="https:\/\/docs\.shagon1k\.win\/en\/"/);
 const documentHtml=renderDocument({lang:"en",title:"T",favicon:"/f.svg",styles:{href:"/s.css"},themeScript:true,skipLabel:"Skip",header,main:"<p>m</p>",footer:"<footer></footer>"});
 assert.match(documentHtml,/<a class="skip-link" href="#main">Skip<\/a>/);
 assert.match(documentHtml,/<main id="main" class="container" tabindex="-1">/);

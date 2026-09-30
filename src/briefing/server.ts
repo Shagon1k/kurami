@@ -52,6 +52,10 @@ const FOX_LOGO_PATH = new URL(
   "../../src/ui-library/assets/brand/kurami-fox-transparent.png",
   import.meta.url,
 );
+const FOX_HEADER_PATH = new URL(
+  "../../src/ui-library/assets/brand/kurami-fox-header.webp",
+  import.meta.url,
+);
 const FONT_DIRECTORY = new URL("../../src/ui-library/assets/fonts/", import.meta.url);
 const GOOGLE_FONTS = /<link\b[^>]*fonts\.(?:googleapis|gstatic)\.com[^>]*>\s*/gi;
 
@@ -733,6 +737,7 @@ export async function createBriefingServer(
   await initializeBriefingStore(paths);
   const favicon = await readFile(FAVICON_PATH, "utf8");
   const foxLogo = await readFile(FOX_LOGO_PATH);
+  const foxHeader = await readFile(FOX_HEADER_PATH);
   const fonts = new Map<string, Buffer>(await Promise.all(fontFiles.map(async font => [`/assets/${font.file}`, await readFile(new URL(font.file, FONT_DIRECTORY))] as const)));
   const database = openBriefingDatabase(paths);
   const runtimeConfig = options.mailActionExecutor === undefined
@@ -814,6 +819,15 @@ export async function createBriefingServer(
         response.setHeader("x-content-type-options","nosniff");
         response.setHeader("content-length",String(foxLogo.length));
         response.end(request.method==="HEAD"?undefined:foxLogo);
+        return;
+      }
+      if ((request.method === "GET" || request.method === "HEAD") && url.pathname === "/assets/kurami-fox.webp") {
+        response.statusCode=200;
+        response.setHeader("content-type","image/webp");
+        response.setHeader("cache-control","public, max-age=86400");
+        response.setHeader("x-content-type-options","nosniff");
+        response.setHeader("content-length",String(foxHeader.length));
+        response.end(request.method==="HEAD"?undefined:foxHeader);
         return;
       }
       if ((request.method === "GET" || request.method === "HEAD") && fonts.has(url.pathname)) {

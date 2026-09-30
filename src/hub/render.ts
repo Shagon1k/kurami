@@ -1,6 +1,7 @@
 import {escapeHtml} from "../ui-library/foundations/html.ts";
 import {renderDocument} from "../ui-library/patterns/page-shell.ts";
 import {renderSiteHeader} from "../ui-library/patterns/site-header.ts";
+import {kuramiSites} from "../ui-library/patterns/kurami-sites.ts";
 import {renderThemeSwitch} from "../ui-library/components/theme-switch.ts";
 import {renderTable} from "../ui-library/components/table.ts";
 import type {CodexLimit,CodexSnapshot} from "./codex.ts";
@@ -97,14 +98,14 @@ export function renderHubDashboard(snapshot:HubSnapshot):string {
 export function renderHubPage(snapshot:HubSnapshot):string {
   return renderDocument({lang:"ru",title:"Hub · Kurami",description:"Личный дашборд Kurami.",favicon:"/assets/favicon.svg",styles:{href:"/assets/hub.css"},themeScript:true,skipLabel:"К содержимому",
     head:'<link rel="manifest" href="/manifest.webmanifest"><script src="/assets/hub.js" defer></script>',
-    header:renderSiteHeader({brand:{href:"/",ariaLabel:"Kurami Hub — главная",foxSrc:"/assets/fox.png",suffix:"hub"},nav:{label:"Разделы Kurami",links:[{href:"/",label:"Обзор",current:"page"},{href:"https://digest.shagon1k.win/",label:"Digest"},{href:"https://docs.shagon1k.win/ru/",label:"Docs"}],collapse:{label:"Открыть разделы"}},actions:renderThemeSwitch("ru")}),
+    header:renderSiteHeader({brand:{href:"/",ariaLabel:"Kurami Hub — главная",foxSrc:"/assets/fox.webp",suffix:"hub"},nav:{label:"Разделы Hub",links:[],hideWhenEmpty:true},sites:kuramiSites("hub"),actions:renderThemeSwitch("ru")}),
     main:`<div id="hub-dashboard" class="hub" aria-live="off">${renderHubDashboard(snapshot)}</div>`,
     footer:'<footer class="hub-footer container">Kurami Hub · Europe/Vilnius</footer>'});
 }
 
 export function renderHubOffline():string {
   return renderDocument({lang:"ru",title:"Нет связи · Kurami Hub",favicon:"/assets/favicon.svg",styles:{href:"/assets/hub.css"},themeScript:true,skipLabel:"К содержимому",
-    header:renderSiteHeader({brand:{href:"/",ariaLabel:"Kurami Hub — главная",foxSrc:"/assets/fox.png",suffix:"hub"},nav:{label:"Разделы Kurami",links:[],hideWhenEmpty:true},actions:renderThemeSwitch("ru")}),
+    header:renderSiteHeader({brand:{href:"/",ariaLabel:"Kurami Hub — главная",foxSrc:"/assets/fox.webp",suffix:"hub"},nav:{label:"Разделы Hub",links:[],hideWhenEmpty:true},sites:kuramiSites("hub"),actions:renderThemeSwitch("ru")}),
     main:'<div class="hub"><div class="hub__topline"><h1>Нет связи</h1></div></div>',
     footer:'<footer class="hub-footer container">Kurami Hub</footer>'});
 }

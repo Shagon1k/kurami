@@ -3,13 +3,15 @@
 import { escapeHtml } from "../foundations/html.ts";
 import { breakpoints } from "../tokens/index.ts";
 
-export type NavLink = { href: string; label: string; current?: "page" | "location"; title?: string };
+export type NavLink = { href: string; label: string; current?: "page" | "location"; title?: string; disabled?: boolean; hint?: string };
 export type SiteNavInput = { label: string; links: readonly NavLink[]; attributes?: Record<string, true | string>; hideWhenEmpty?: boolean };
+export type SiteSwitcherInput = { label: string; summary: string; links: readonly NavLink[] };
 export type SiteHeaderInput = {
   label?: string;
   attributes?: Record<string, string>;
   brand: { href: string; ariaLabel: string; foxSrc: string; suffix?: string; meta?: { label: string; datetime?: string } };
   nav: SiteNavInput & { collapse?: { label: string } };
+  sites?: SiteSwitcherInput;
   /** Trusted HTML from library components, e.g. renderThemeSwitch(). */
   actions: string;
 };
@@ -27,9 +29,17 @@ function safeHref(href: string): string {
 }
 
 export function renderSiteNav(input: SiteNavInput, className = "site-nav"): string {
-  const links = input.links.map(link => `<a class="site-nav__link" href="${safeHref(link.href)}"${link.current ? ` aria-current="${link.current}"` : ""}${link.title ? ` title="${escapeHtml(link.title)}"` : ""}>${escapeHtml(link.label)}</a>`).join("");
+  const links = input.links.map(link => {
+    const href=safeHref(link.href);
+    if(link.disabled)return `<span class="site-nav__link site-nav__link--disabled" aria-disabled="true"${link.title ? ` title="${escapeHtml(link.title)}"` : ""}>${escapeHtml(link.label)}${link.hint ? `<small class="site-nav__hint">${escapeHtml(link.hint)}</small>` : ""}</span>`;
+    return `<a class="site-nav__link" href="${href}"${link.current ? ` aria-current="${link.current}"` : ""}${link.title ? ` title="${escapeHtml(link.title)}"` : ""}>${escapeHtml(link.label)}</a>`;
+  }).join("");
   const hidden = input.hideWhenEmpty && !links ? " hidden" : "";
   return `<nav class="${className}"${attributes(input.attributes)} aria-label="${escapeHtml(input.label)}"${hidden}>${links}</nav>`;
+}
+
+export function renderSiteSwitcher(input: SiteSwitcherInput): string {
+  return `<details class="site-switcher"><summary aria-label="${escapeHtml(input.label)}"><span class="site-switcher__icon" aria-hidden="true"></span><span class="site-switcher__title">${escapeHtml(input.summary)}</span></summary>${renderSiteNav({label:input.label,links:input.links},"site-switcher__nav")}</details>`;
 }
 
 export function renderSiteHeader(input: SiteHeaderInput): string {
@@ -48,7 +58,7 @@ export function renderSiteHeader(input: SiteHeaderInput): string {
         <span class="site-brand__copy"><span class="site-brand__name">Kurami<span class="site-brand__dot" aria-hidden="true">.</span>${suffix}</span>${meta}</span>
       </a>
       ${renderSiteNav(nav)}${menu}
-      <div class="site-actions">${input.actions}</div>
+      <div class="site-actions">${input.sites ? renderSiteSwitcher(input.sites) : ""}${input.actions}</div>
     </div>
   </header>`;
 }
@@ -69,11 +79,24 @@ export const SITE_HEADER_CSS = `
 .site-brand:focus-visible, .site-nav__link:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 4px; }
 .site-nav { grid-area: nav; display: flex; align-items: center; gap: 6px; }
 .site-nav__link { position: relative; display: inline-flex; align-items: center; justify-content: center; min-height: 44px; padding: 10px 16px; color: var(--text-muted); font-size: .8125rem; font-weight: 600; text-decoration: none; white-space: nowrap; border-radius: var(--radius); transition: background 140ms ease, color 140ms ease; }
-.site-nav__link:hover { color: var(--text-primary); background: var(--surface-section); }
-.site-nav__link:active { background: var(--surface-panel); }
+.site-nav__link:not(.site-nav__link--disabled):hover { color: var(--text-primary); background: var(--surface-section); }
+.site-nav__link:not(.site-nav__link--disabled):active { background: var(--surface-panel); }
+.site-nav__link--disabled { cursor: default; }
+.site-nav__hint { margin-left: auto; padding-left: 12px; color: var(--text-muted); font-size: .6875rem; font-weight: 400; }
 .site-nav__link[aria-current] { color: var(--text-primary); background: var(--surface-section); }
 .site-nav__link[aria-current]::after { content: ""; position: absolute; height: 2px; background: var(--accent-primary); bottom: 0; left: 16px; right: 16px; }
+.site-nav[hidden] { display: none; }
 .site-actions { grid-area: actions; justify-self: end; display: flex; align-items: center; gap: 6px; padding-left: 20px; border-left: 1px solid var(--border-default); }
+.site-switcher { position: relative; }
+.site-switcher summary { min-height: 44px; display: inline-flex; align-items: center; gap: 12px; padding: 0 12px; border: 1px solid var(--border-default); border-radius: var(--radius); background: var(--surface-panel); color: var(--text-primary); cursor: pointer; list-style: none; font-size: .8125rem; font-weight: 600; white-space: nowrap; }
+.site-switcher summary::-webkit-details-marker { display: none; }
+.site-switcher summary:hover, .site-switcher[open] summary { border-color: var(--accent-primary); }
+.site-switcher summary:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 4px; }
+.site-switcher__icon { width: 5px; height: 5px; margin: 0 9px 9px 0; flex: none; background: currentColor; box-shadow: 9px 0 currentColor, 0 9px currentColor, 9px 9px currentColor; }
+.site-switcher__nav { position: absolute; top: calc(100% + 8px); right: 0; z-index: 2; min-width: 164px; display: grid; gap: 2px; padding: 6px; border: 1px solid var(--border-default); border-radius: var(--radius); background: var(--surface-raised); box-shadow: var(--shadow-card); }
+.site-switcher__nav .site-nav__link { justify-content: flex-start; min-height: 44px; }
+.site-switcher__nav .site-nav__link[aria-current] { color: var(--text-accent); }
+.site-switcher__nav .site-nav__link[aria-current]::after { left: 0; right: auto; top: 12px; bottom: 12px; width: 2px; height: auto; }
 .site-menu { display: none; }
 @media (max-width: ${breakpoints.tablet}px) {
   .site-header--collapsible .site-header__inner { grid-template-areas: "brand menu actions"; gap: 8px; }
@@ -101,6 +124,8 @@ export const SITE_HEADER_CSS = `
   .site-brand__fox { width: 42px; height: 42px; }
   .site-brand__name { font-size: 1.25rem; }
   .site-actions { border-left: 0; padding-left: 0; }
+  .site-switcher summary { width: 44px; justify-content: center; padding: 0; }
+  .site-switcher__title { display: none; }
   .site-nav { justify-self: stretch; gap: 4px; border-top: 1px solid var(--border-default); padding-top: 4px; }
   .site-nav__link { flex: 1; padding-inline: 10px; }
   .site-menu__nav { grid-template-columns: 1fr; }

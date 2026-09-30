@@ -357,7 +357,8 @@ for(const page of pages){
     }
     if(page.slug==="access"){
       assert.equal((html.match(/<th scope="row">/g)??[]).length,4);
-      assert.ok(html.includes("Cloudflare Access")&&!/\b[a-z0-9-]+\.shagon1k\.win\b/.test(html),"access page names no hostnames");
+      const article=html.slice(html.indexOf("<article"),html.indexOf("</article>")+10);
+      assert.ok(article.includes("Cloudflare Access")&&!/\b[a-z0-9-]+\.shagon1k\.win\b/.test(article),"access article names no hostnames");
     }
     if(page.slug==="docs-process"){
       assert.ok(html.includes("Docs-Impact")&&html.includes("UI-Library")&&html.includes("#updates"));
@@ -403,6 +404,9 @@ for(const lang of ["en","ru"] as const){
   assert.ok(html.includes(lang==="ru"?"Решение владельца":"Owner decision"));
   assert.ok(html.includes("/assets/theme.js"));
   assert.ok(html.includes('class="site-menu"'));
+  assert.ok(html.includes('class="site-switcher"'));
+  assert.ok(html.includes('href="https://hub.shagon1k.win/"'));
+  assert.ok(html.includes(`href="https://docs.shagon1k.win/${lang}/" aria-current="location"`));
   assert.ok(html.includes('class="site-nav"'));
   assert.ok(html.includes(`aria-label="${lang==="ru"?"Основная навигация":"Primary navigation"}"`));
   assert.ok(html.includes('id="main" class="container page" tabindex="-1"'));

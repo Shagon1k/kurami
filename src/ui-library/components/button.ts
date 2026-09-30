@@ -13,6 +13,7 @@ export type ButtonInput = {
   disabled?: boolean;
   busyLabel?: string;
   icon?: string;
+  iconPath?: string;
   ariaLabel?: string;
   attributes?: Record<string, AttributeValue>;
   labelAttributes?: Record<string, AttributeValue>;
@@ -48,22 +49,27 @@ export const BUTTON_CSS = `
 .button--icon { inline-size: 44px; block-size: 44px; padding: 0; background: var(--surface-panel); border-color: var(--border-default); }
 .button--icon:hover:not(:disabled):not([aria-busy="true"]) { color: var(--text-primary); background: var(--accent-soft); border-color: var(--accent-primary); }
 .button__icon { display: inline-grid; place-items: center; font-size: 1.125rem; line-height: 1; }
+.button__svg { inline-size: 22px; block-size: 22px; display: block; fill: none; stroke: currentColor; stroke-width: 2.2; stroke-linecap: square; stroke-linejoin: miter; pointer-events: none; }
 `;
 
 export function renderButton(input: ButtonInput): string {
   if (input.className && !SAFE_CLASS_LIST.test(input.className)) {
     throw new Error("Unsafe button class list");
   }
+  if (input.icon && input.iconPath) throw new Error("Button cannot have both text and SVG icons");
   const classes = ["button", `button--${input.variant}`, input.className].filter(Boolean).join(" ");
   const type = input.type ?? "button";
-  const ariaLabel = input.ariaLabel ? ` aria-label="${escapeHtml(input.ariaLabel)}"` : "";
+  const accessibleLabel = input.ariaLabel ?? (input.iconPath ? input.label : undefined);
+  const ariaLabel = accessibleLabel ? ` aria-label="${escapeHtml(accessibleLabel)}"` : "";
   const busyLabel = input.busyLabel
     ? ` data-busy-label="${escapeHtml(input.busyLabel)}"`
     : "";
   const attributes = renderAttributes(input.attributes);
   const disabled = input.disabled ? " disabled" : "";
   const labelAttributes = renderAttributes(input.labelAttributes);
-  const content = input.icon
+  const content = input.iconPath
+    ? `<svg class="button__svg" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="${escapeHtml(input.iconPath)}"/></svg>`
+    : input.icon
     ? `<span class="button__icon" aria-hidden="true">${escapeHtml(input.icon)}</span><span class="sr-only"${labelAttributes}>${escapeHtml(input.label)}</span>`
     : input.labelAttributes
       ? `<span${labelAttributes}>${escapeHtml(input.label)}</span>`

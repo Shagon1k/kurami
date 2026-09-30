@@ -62,7 +62,7 @@ export function librarySubsite():string {
     ".page { padding-block: var(--space-10); display: grid; gap: var(--space-6); max-width: 760px; } .page h1 { margin: 0; font-size: clamp(2rem, 5vw, 3.25rem); line-height: 1.05; letter-spacing: -.04em; }"].join("\n");
   return renderDocument({
     lang:"en",title:"Library sub-site · Kurami",favicon:"/favicon.svg",styles:{inline:styles},themeScript:true,skipLabel:"Skip to content",
-    header:renderSiteHeader({brand:{href:"/",ariaLabel:"Kurami — home",foxSrc:"/assets/kurami-fox.png",suffix:"lab"},nav:{label:"Sections",links:[{href:"/lab/",label:"Overview",current:"page"},{href:"/lab/runs/",label:"Runs"},{href:"/lab/notes/",label:"Notes"}],collapse:{label:"Sections"}},actions:renderLinkButton({label:"RU",href:"/ru/",variant:"icon",ariaLabel:"Switch to Russian"})+renderThemeSwitch("en")}),
+    header:renderSiteHeader({brand:{href:"/",ariaLabel:"Kurami — home",foxSrc:"/assets/kurami-fox.webp",suffix:"lab"},nav:{label:"Sections",links:[{href:"/lab/",label:"Overview",current:"page"},{href:"/lab/runs/",label:"Runs"},{href:"/lab/notes/",label:"Notes"}],collapse:{label:"Sections"}},actions:renderLinkButton({label:"RU",href:"/ru/",variant:"icon",ariaLabel:"Switch to Russian"})+renderThemeSwitch("en")}),
     main:`<h1>A new Kurami sub-site</h1>
 ${renderCallout({tone:"note",title:"Built from the library",body:"Header, buttons, table, callout and disclosure come from src/ui-library; this page adds only its own layout."})}
 ${renderTable({caption:"Synthetic runs",columns:["Run","Duration","Checks"],rows:[["alpha","12 min","4/4"],["beta","7 min","3/4"]],rowHeaders:true,numeric:true,stack:true})}

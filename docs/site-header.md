@@ -9,6 +9,14 @@ Docs use the same pattern with a collapsible menu below tablet width.
 The transparent fox and wordmark replace the old boxed K. The edition date
 stays next to the brand; the theme control remains a shared icon button.
 
+Hub, Docs and Digest also show the shared **Sites** switcher in the header.
+`src/ui-library/patterns/kurami-sites.ts` defines its destinations: Hub,
+Digest, Docs, Hermes and Dokploy. Docs keeps the current language when the
+switcher points back to Docs. Projects is listed as **soon** with its future
+destination in code, but has no clickable link until the site is available.
+The switcher becomes an icon button on phones; each
+site keeps its own navigation separate from this cross-site menu.
+
 `site-navigation.ts` reads publication state, not page content. Only current
 complete/partial Daily and Cinema editions qualify; expired Daily, prepared
 previews and empty Weekly snapshots do not. Weekly must also be enabled.
@@ -26,10 +34,11 @@ shared; the logo has a subtle dark-theme edge treatment without a background box
 ## Brand assets
 
 - Browser favicon: existing `kurami-favicon.svg`, unchanged.
-- Header: `src/ui-library/assets/brand/kurami-fox-transparent.png`.
-- Server asset URL: `/assets/kurami-fox.png` (GET/HEAD, cached).
+- Header: `src/ui-library/assets/brand/kurami-fox-header.webp` (256 × 256, transparent).
+- Server asset URL: `/assets/kurami-fox.webp` (GET/HEAD, cached).
+- The 512 × 512 PNG remains at `/assets/kurami-fox.png` for older pages and the Hub app icon.
 
-The header PNG was produced with built-in ImageGen, editing the user-approved
+The original header PNG was produced with built-in ImageGen, editing the user-approved
 fox artwork. Alpha was verified to range from 0 to 255; the outer corner is
 fully transparent and the white cheeks remain filled. The image generation
 was an implementation-time edit only, never part of the digest pipeline.

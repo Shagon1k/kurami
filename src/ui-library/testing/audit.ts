@@ -46,7 +46,7 @@ export function inventoryExpression(allowed = productControls): string {
     const issues = [];
     for (const element of document.querySelectorAll('button, [role="button"]')) if (visible(element) && !element.matches('.button') && !listed(element, 'button')) issues.push('Unlisted button ' + describe(element));
     for (const element of document.querySelectorAll('table')) if (visible(element) && !element.closest('.table') && !listed(element, 'table')) issues.push('Unlisted table ' + describe(element));
-    for (const element of document.querySelectorAll('details')) if (visible(element) && !element.matches('.disclosure, .site-menu') && !listed(element, 'details')) issues.push('Unlisted disclosure ' + describe(element));
+    for (const element of document.querySelectorAll('details')) if (visible(element) && !element.matches('.disclosure, .site-menu, .site-switcher') && !listed(element, 'details')) issues.push('Unlisted disclosure ' + describe(element));
     for (const element of document.querySelectorAll('[data-theme-toggle]')) if (!element.matches('.theme-switch')) issues.push('Theme control outside the library ' + describe(element));
     const banner = document.querySelector('body > header');
     if (banner && !banner.matches('.site-header')) issues.push('Page header outside the library ' + describe(banner));

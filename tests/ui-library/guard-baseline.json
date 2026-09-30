@@ -7,7 +7,7 @@
       "src/briefing/providers/composio-calendar.ts": 1,
       "src/briefing/server.ts": 1,
       "src/briefing/ui/components/company-avatar.ts": 1,
-      "src/briefing/ui/styles.ts": 20
+      "src/briefing/ui/styles.ts": 19
     },
     "markup:theme-toggle": {
       "src/briefing/html-artifacts.ts": 1

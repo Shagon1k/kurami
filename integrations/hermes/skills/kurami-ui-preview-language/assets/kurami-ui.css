@@ -50,6 +50,7 @@ button, a { -webkit-tap-highlight-color: transparent; }
 .button--icon { inline-size: 44px; block-size: 44px; padding: 0; background: var(--surface-panel); border-color: var(--border-default); }
 .button--icon:hover:not(:disabled):not([aria-busy="true"]) { color: var(--text-primary); background: var(--accent-soft); border-color: var(--accent-primary); }
 .button__icon { display: inline-grid; place-items: center; font-size: 1.125rem; line-height: 1; }
+.button__svg { inline-size: 22px; block-size: 22px; display: block; fill: none; stroke: currentColor; stroke-width: 2.2; stroke-linecap: square; stroke-linejoin: miter; pointer-events: none; }
 
 .theme-switch .button__icon { font-size: 19px; }
 
@@ -68,11 +69,24 @@ button, a { -webkit-tap-highlight-color: transparent; }
 .site-brand:focus-visible, .site-nav__link:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 4px; }
 .site-nav { grid-area: nav; display: flex; align-items: center; gap: 6px; }
 .site-nav__link { position: relative; display: inline-flex; align-items: center; justify-content: center; min-height: 44px; padding: 10px 16px; color: var(--text-muted); font-size: .8125rem; font-weight: 600; text-decoration: none; white-space: nowrap; border-radius: var(--radius); transition: background 140ms ease, color 140ms ease; }
-.site-nav__link:hover { color: var(--text-primary); background: var(--surface-section); }
-.site-nav__link:active { background: var(--surface-panel); }
+.site-nav__link:not(.site-nav__link--disabled):hover { color: var(--text-primary); background: var(--surface-section); }
+.site-nav__link:not(.site-nav__link--disabled):active { background: var(--surface-panel); }
+.site-nav__link--disabled { cursor: default; }
+.site-nav__hint { margin-left: auto; padding-left: 12px; color: var(--text-muted); font-size: .6875rem; font-weight: 400; }
 .site-nav__link[aria-current] { color: var(--text-primary); background: var(--surface-section); }
 .site-nav__link[aria-current]::after { content: ""; position: absolute; height: 2px; background: var(--accent-primary); bottom: 0; left: 16px; right: 16px; }
+.site-nav[hidden] { display: none; }
 .site-actions { grid-area: actions; justify-self: end; display: flex; align-items: center; gap: 6px; padding-left: 20px; border-left: 1px solid var(--border-default); }
+.site-switcher { position: relative; }
+.site-switcher summary { min-height: 44px; display: inline-flex; align-items: center; gap: 12px; padding: 0 12px; border: 1px solid var(--border-default); border-radius: var(--radius); background: var(--surface-panel); color: var(--text-primary); cursor: pointer; list-style: none; font-size: .8125rem; font-weight: 600; white-space: nowrap; }
+.site-switcher summary::-webkit-details-marker { display: none; }
+.site-switcher summary:hover, .site-switcher[open] summary { border-color: var(--accent-primary); }
+.site-switcher summary:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 4px; }
+.site-switcher__icon { width: 5px; height: 5px; margin: 0 9px 9px 0; flex: none; background: currentColor; box-shadow: 9px 0 currentColor, 0 9px currentColor, 9px 9px currentColor; }
+.site-switcher__nav { position: absolute; top: calc(100% + 8px); right: 0; z-index: 2; min-width: 164px; display: grid; gap: 2px; padding: 6px; border: 1px solid var(--border-default); border-radius: var(--radius); background: var(--surface-raised); box-shadow: var(--shadow-card); }
+.site-switcher__nav .site-nav__link { justify-content: flex-start; min-height: 44px; }
+.site-switcher__nav .site-nav__link[aria-current] { color: var(--text-accent); }
+.site-switcher__nav .site-nav__link[aria-current]::after { left: 0; right: auto; top: 12px; bottom: 12px; width: 2px; height: auto; }
 .site-menu { display: none; }
 @media (max-width: 900px) {
   .site-header--collapsible .site-header__inner { grid-template-areas: "brand menu actions"; gap: 8px; }
@@ -100,6 +114,8 @@ button, a { -webkit-tap-highlight-color: transparent; }
   .site-brand__fox { width: 42px; height: 42px; }
   .site-brand__name { font-size: 1.25rem; }
   .site-actions { border-left: 0; padding-left: 0; }
+  .site-switcher summary { width: 44px; justify-content: center; padding: 0; }
+  .site-switcher__title { display: none; }
   .site-nav { justify-self: stretch; gap: 4px; border-top: 1px solid var(--border-default); padding-top: 4px; }
   .site-nav__link { flex: 1; padding-inline: 10px; }
   .site-menu__nav { grid-template-columns: 1fr; }

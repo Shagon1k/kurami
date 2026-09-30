@@ -5,6 +5,7 @@ import {assertSafeMarkup,assertSourcePath,type VisualId} from "./content/schema.
 import {renderLinkButton} from "../ui-library/components/button.ts";
 import {renderThemeSwitch} from "../ui-library/components/theme-switch.ts";
 import {renderSiteHeader} from "../ui-library/patterns/site-header.ts";
+import {kuramiSites} from "../ui-library/patterns/kurami-sites.ts";
 import {renderDocument} from "../ui-library/patterns/page-shell.ts";
 import {renderTable} from "../ui-library/components/table.ts";
 import {renderCallout} from "../ui-library/components/callout.ts";
@@ -36,8 +37,9 @@ function shell(lang:Language, title:string, description:string, body:string, act
   return renderDocument({
     lang,title:`${title} · Kurami docs`,description,favicon:"/assets/favicon.svg",styles:{href:"/assets/docs.css"},themeScript:true,skipLabel:t.skip,
     header:renderSiteHeader({
-      brand:{href:url(lang,""),ariaLabel:lang==="ru"?"Kurami docs — главная":"Kurami docs — home",foxSrc:"/assets/fox.png",suffix:"docs"},
+      brand:{href:url(lang,""),ariaLabel:lang==="ru"?"Kurami docs — главная":"Kurami docs — home",foxSrc:"/assets/fox.webp",suffix:"docs"},
       nav:{label:t.primaryNav,links,collapse:{label:lang==="ru"?"Разделы":"Sections"}},
+      sites:kuramiSites("docs",lang),
       actions:renderLinkButton({label:other.toUpperCase(),href:alternate,variant:"icon",ariaLabel:t.choose,attributes:{hreflang:other}})+renderThemeSwitch(lang),
     }),
     main:body,mainClass:"page",

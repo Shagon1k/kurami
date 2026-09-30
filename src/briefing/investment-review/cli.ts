@@ -13,11 +13,11 @@ import {mergeCollectedEvidence} from "./collect.ts";
 /** The report is a standalone private file: brand assets and fonts travel inside it. */
 export async function standaloneReportHtml(html:string):Promise<string> {
   const assets=new URL("../../../src/ui-library/assets/brand/",import.meta.url);
-  const [fox,favicon]=await Promise.all([readFile(new URL("kurami-fox-transparent.png",assets)),readFile(new URL("kurami-favicon.svg",assets))]);
+  const [fox,favicon]=await Promise.all([readFile(new URL("kurami-fox-header.webp",assets)),readFile(new URL("kurami-favicon.svg",assets))]);
   const fontDirectory=new URL("../../../src/ui-library/assets/fonts/",import.meta.url);
   const fonts=new Map<string,string>(await Promise.all(fontFiles.map(async font=>[font.file,(await readFile(new URL(font.file,fontDirectory))).toString("base64")] as const)));
   return html
-    .replace('src="/assets/kurami-fox.png"','src="data:image/png;base64,'+fox.toString("base64")+'"')
+    .replace('src="/assets/kurami-fox.webp"','src="data:image/webp;base64,'+fox.toString("base64")+'"')
     .replace('href="/favicon.svg"','href="data:image/svg+xml;base64,'+favicon.toString("base64")+'"')
     .replace('href="/"','href="https://digest.shagon1k.win/"')
     .replace(/url\("\/assets\/([a-z0-9-]+\.woff2)"\)/g,(_match,file:string)=>{

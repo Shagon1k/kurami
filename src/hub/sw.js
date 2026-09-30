@@ -1,5 +1,5 @@
-const CACHE="kurami-hub-static-v1";
-const STATIC=["/offline.html","/assets/hub.css","/assets/theme.js","/assets/fox.png","/assets/favicon.svg"];
+const CACHE="kurami-hub-static-v2";
+const STATIC=["/offline.html","/assets/hub.css","/assets/theme.js","/assets/fox.webp","/assets/favicon.svg"];
 self.addEventListener("install",event=>{
   event.waitUntil(caches.open(CACHE).then(cache=>cache.addAll(STATIC)).then(()=>self.skipWaiting()));
 });
