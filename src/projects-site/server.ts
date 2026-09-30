@@ -9,6 +9,7 @@ import { collectProjectsSnapshot } from "./snapshot.ts";
 import { renderProjectsDashboard, renderProjectsPage } from "./render.ts";
 import { PROJECTS_STYLES } from "./styles.ts";
 import type { ProjectsSnapshot } from "./model.ts";
+import { requestProjectsReview, ProjectsActionError, type ReviewResult } from "./actions.ts";
 
 const assetRoot = resolve(import.meta.dirname, "../ui-library/assets");
 const assets = new Map<string, { body: Buffer | string; type: string }>([
@@ -24,10 +25,13 @@ export function createProjectsServer(options: {
   snapshot?: () => ProjectsSnapshot;
   authorize?: (request: IncomingMessage) => Promise<string | null>;
   cacheMs?: number;
+  review?: (input: unknown, actor: string) => ReviewResult;
+  origin?: string;
 } = {}): Server {
   const access = new ProjectsAccess({ team: process.env.PROJECTS_ACCESS_TEAM ?? "", audience: process.env.PROJECTS_ACCESS_AUDIENCE ?? "", ownerEmail: process.env.PROJECTS_OWNER_EMAIL ?? "" });
   const authorize = options.authorize ?? (request => access.authorize(request));
   const snapshot = options.snapshot ?? collectProjectsSnapshot;
+  const review = options.review ?? (process.env.PROJECTS_CONTROLS_ENABLED === "1" ? requestProjectsReview : null);
   let cached: { at: number; value: ProjectsSnapshot } | null = null;
   function current(): ProjectsSnapshot {
     const now = Date.now();
@@ -47,7 +51,8 @@ export function createProjectsServer(options: {
       response.writeHead(status, { "Content-Type": type, "Content-Length": Buffer.byteLength(body) });
       response.end(request.method === "HEAD" ? undefined : body);
     };
-    if (request.method !== "GET" && request.method !== "HEAD") {
+    const reviewRoute = request.method === "POST" && request.url === "/api/ai-review" && review;
+    if (request.method !== "GET" && request.method !== "HEAD" && !reviewRoute) {
       response.setHeader("Allow", "GET, HEAD");
       send(405, "text/plain; charset=utf-8", "Method not allowed"); return;
     }
@@ -59,6 +64,28 @@ export function createProjectsServer(options: {
     if (url.pathname === "/robots.txt") { send(200, "text/plain; charset=utf-8", "User-agent: *\nDisallow: /\n"); return; }
     const identity = await authorize(request).catch(() => null);
     if (!identity) { send(403, "text/plain; charset=utf-8", "Доступ разрешён только владельцу через Cloudflare Access."); return; }
+    if (reviewRoute && review) {
+      if (request.headers.origin !== (options.origin ?? "https://projects.shagon1k.win") ||
+        request.headers["content-type"] !== "application/json" ||
+        request.headers["sec-fetch-site"] && request.headers["sec-fetch-site"] !== "same-origin") {
+        send(403, "application/json", JSON.stringify({ error: "Запрос разрешён только со страницы Projects." })); return;
+      }
+      try {
+        const body = await new Promise<string>((done, reject) => {
+          let size = 0; const chunks: Buffer[] = [];
+          request.on("data", (chunk: Buffer) => { size += chunk.length; if (size > 4096) reject(new ProjectsActionError(413, "Запрос слишком большой.")); else chunks.push(chunk); });
+          request.on("end", () => done(Buffer.concat(chunks).toString("utf8"))); request.on("error", reject);
+        });
+        let input: unknown;
+        try { input = JSON.parse(body); } catch { throw new ProjectsActionError(400, "Некорректный запрос."); }
+        const result = review(input, identity); cached = null;
+        send(result.state === "created" ? 202 : 200, "application/json; charset=utf-8", JSON.stringify(result));
+      } catch (error) {
+        send(error instanceof ProjectsActionError ? error.status : 503, "application/json; charset=utf-8",
+          JSON.stringify({ error: error instanceof ProjectsActionError ? error.message : "AI Review временно недоступно." }));
+      }
+      return;
+    }
     try {
       if (url.pathname === "/") send(200, "text/html; charset=utf-8", renderProjectsPage(current(), url.searchParams));
       else if (url.pathname === "/api/fragment") send(200, "text/html; charset=utf-8", renderProjectsDashboard(current(), url.searchParams));

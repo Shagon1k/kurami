@@ -1,3 +1,4 @@
+import { reviewContextMatches } from "../../controls/ai-review.ts";
 import { execFileSync, spawnSync } from "node:child_process";
 import { readFile, realpath, stat } from "node:fs/promises";
 import { relative, resolve } from "node:path";
@@ -242,6 +243,8 @@ export async function runReviewManagerCli(): Promise<void> {
       fail("AI review requires a clean managed worktree");
     const pull = discoverPull(run, project);
     const head = git(worktree, ["rev-parse", "HEAD"]);
+    if (!reviewContextMatches(database, args.requestId, head, pull.url))
+      fail("Projects review request refers to a different pull request or commit; refresh and request again");
     if (head !== pull.headRefOid)
       fail(`AI review exact SHA mismatch: worktree=${head}, pull=${pull.headRefOid}`);
     if (

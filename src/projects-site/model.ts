@@ -10,6 +10,8 @@ export type ProjectItem = {
   ci: Signal; review: Signal & { critical: number; important: number; suggestions: number };
   preview: Signal & { expiresAt: string | null; reviewed: boolean };
   attention: ProjectAttention[];
+  aiReview?: { enabled: boolean; reason: string; head: string | null };
+  reviewRequestFailed?: boolean;
   links: { issue: string | null; pr: string | null; discord: string | null; review: string | null; preview: string | null };
 };
 export type ProjectsSnapshot = { generatedAt: string; available: boolean; projects: ProjectSummary[]; items: ProjectItem[] };

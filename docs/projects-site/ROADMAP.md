@@ -13,16 +13,18 @@ workflow. The long-term goal includes all owner actions currently used in Discor
 
 | Phase | Outcome | Dependency | Acceptance and evidence |
 | --- | --- | --- | --- |
-| 1 — current | Owner can inspect tasks across projects | Existing Run Store and registry | Real-schema read-only tests; owner-only HTTP tests; table/detail/filter browser checks; joint UI checks |
-| 2 — next | Owner can request AI Review from Projects | Phase 1 and shared control policy | One durable exact-SHA request; duplicate and stale requests rejected; both interfaces show the same result |
-| 3 | Owner can change Project status | Phase 1 and guarded GitHub writes | The normal poller observes the transition exactly once; conflict and failure states are visible |
+| 1 — implemented | Owner can inspect tasks across projects | Existing Run Store and registry | Real-schema read-only tests; owner-only HTTP tests; table/detail/filter browser checks; joint UI checks |
+| 2 — implemented | Owner can request AI Review from Projects | Phase 1 and shared control policy | One durable exact-SHA request; duplicate and stale requests rejected; both interfaces show the same result |
+| 3 — next | Owner can change Project status | Phase 1 and guarded GitHub writes | The normal poller observes the transition exactly once; conflict and failure states are visible |
 | 4 | Owner can use the remaining Kurami actions | Phase 2 | Parity with current Discord eligibility and confirmation rules; shared request results |
 | 5 | Owner can manage order and metadata | Phases 3–4 | Each supported field has an explicit authority and conflict policy |
 
 Phase 1 includes the server, read model, table, task panel, filters, freshness,
-owner access validation, and an inactive deployment unit for port 8777. The
-service exposes no mutation route. Its initial release is the inspection slice,
-before the writable first-release scope agreed in the questionnaire is complete.
+owner access validation, and an inactive deployment unit for port 8777.
+Controls remain disabled by default. Phase 2 adds a guarded AI Review request
+through the existing control queue, an explicit Projects source, and a PR/SHA
+context validated before the worker starts. The writable first-release scope
+also requires phase 3 and the remaining controls.
 
 Elaborate the active and next phase as work approaches. Later phases describe
 capabilities and dependencies; their endpoint and migration details stay open.
@@ -30,6 +32,10 @@ If temporary phase notes are needed, link them here while active, consolidate
 durable facts into this plan and [architecture](ARCHITECTURE.md), then remove them.
 
 ## Release boundaries
+
+The owner requested a compact working screen, small thematic icons and removal
+of empty introductory copy. The first implementation is committed as `40fa422`;
+the interface revision and AI Review capability follow that baseline.
 
 Code readiness requires passing automated checks. The owner then reviews the
 synthetic interface and the proposed release scope. Commit, push and production
@@ -39,15 +45,16 @@ and verifying the protected hostname are separate from code readiness.
 Before publication, resolve the Projects-specific Cloudflare Access audience,
 team and owner identity. Verify that unauthenticated requests disclose no task
 data, the origin is loopback-only, and the tunnel routes to port 8777. The owner
-controls that release decision. The service adds no durable data to back up;
-existing Run Store recovery remains applicable.
+controls that release decision. Control requests and their PR/SHA context live in the existing Run Store; its
+backup and recovery cover these records.
 
 ## Open and deferred decisions
 
 - Cloudflare Access is the implemented access path; live application configuration
   and owner allowlist are pending before deployment. Secrets stay outside Git.
-- Mutation rollout and web request provenance require a later shared control
-  boundary and additive migration. Do not label site requests as Discord or CLI.
+- AI Review rollout requires schema 33 and the optional controls service drop-in.
+  Requests record Projects provenance and the displayed PR/SHA. Changing GitHub
+  status remains the next capability.
 - Priority, Effort, card order, issue text, comments, bulk edits and a board view
   are deferred until the table and core actions have been exercised.
 - Public access, billing, uploads, browser push and offline copies are outside the

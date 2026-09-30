@@ -50,6 +50,8 @@ button, a { -webkit-tap-highlight-color: transparent; }
 .button--subtle:hover:not(:disabled):not([aria-busy="true"]) { color: var(--text-primary); background: var(--surface-section); border-color: var(--text-muted); }
 .button--quiet { min-height: 40px; padding-inline: 11px; background: transparent; border-color: transparent; }
 .button--quiet:hover:not(:disabled):not([aria-busy="true"]) { color: var(--text-primary); background: var(--surface-panel); border-color: var(--border-default); }
+.button--text { min-height: 0; padding: 0; border: 0; background: transparent; font: inherit; line-height: inherit; text-align: start; justify-content: start; }
+.button--text:hover:not(:disabled):not([aria-busy="true"]) { color: var(--text-primary); background: transparent; text-decoration: underline; text-underline-offset: .2em; }
 .button--icon { inline-size: 44px; block-size: 44px; padding: 0; background: var(--surface-panel); border-color: var(--border-default); }
 .button--icon:hover:not(:disabled):not([aria-busy="true"]) { color: var(--text-primary); background: var(--accent-soft); border-color: var(--accent-primary); }
 .button__icon { display: inline-grid; place-items: center; font-size: 1.125rem; line-height: 1; }
@@ -136,6 +138,7 @@ button, a { -webkit-tap-highlight-color: transparent; }
 .table table { width: 100%; border-collapse: collapse; font-size: var(--table-font-size, .84rem); }
 .table caption { margin-bottom: var(--space-3); color: var(--text-accent); font-weight: 600; text-align: left; }
 .table th, .table td { padding: var(--table-cell-padding, 12px 8px); border-bottom: 1px solid var(--border-default); text-align: left; vertical-align: top; }
+.table thead { background: var(--table-head-background, transparent); }
 .table th[scope="row"] { font-weight: 600; }
 .table--numeric th:not(:first-child), .table--numeric td:not(:first-child) { text-align: right; white-space: nowrap; }
 .table__label { display: none; }
@@ -163,10 +166,17 @@ button, a { -webkit-tap-highlight-color: transparent; }
 .disclosure[open] > summary { margin-bottom: var(--space-2); }
 
 
+.ui-icon { width: 18px; height: 18px; flex: none; fill: none; stroke: currentColor; stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round; }
 .form-field { display: grid; align-content: start; gap: var(--space-2); min-width: 0; font-size: .8rem; }
 .form-field > span { color: var(--text-muted); }
-.form-field > :is(input,select) { width: 100%; min-width: 0; min-height: 44px; padding: var(--space-2) var(--space-3); border: 1px solid var(--border-default); border-radius: var(--radius); color: var(--text-primary); background: var(--surface-page); font: inherit; }
-.form-field > :disabled { color: var(--text-muted); cursor: not-allowed; }
+.form-field :is(input,select) { width: 100%; min-width: 0; min-height: 44px; padding: var(--space-2) var(--space-3); border: 1px solid var(--border-default); border-radius: var(--radius); color: var(--text-primary); background: var(--surface-raised); font: inherit; transition: border-color var(--duration-fast), background var(--duration-fast); }
+.form-field :is(input,select):hover:not(:disabled) { border-color: var(--text-muted); }
+.form-select { position: relative; display: block; }
+.form-select select { appearance: none; padding-inline-end: calc(var(--space-3) * 2 + 18px); cursor: pointer; }
+.form-select .ui-icon { position: absolute; inset-inline-end: var(--space-3); top: 50%; transform: translateY(-50%); pointer-events: none; color: var(--text-muted); }
+.form-field :disabled { color: var(--text-muted); background: var(--surface-panel); cursor: not-allowed; }
+.form-select:has(:disabled) .ui-icon { opacity: .5; }
+@media (forced-colors: active) { .form-select select { appearance: auto; padding-inline-end: var(--space-3); } .form-select .ui-icon { display: none; } }
 
 
 .dialog { width: min(620px,calc(100% - 28px)); max-height: calc(100dvh - 40px); padding: var(--space-5); color: var(--text-primary); background: var(--surface-page); border: 1px solid var(--border-default); border-radius: var(--radius); box-shadow: var(--shadow-raised); }

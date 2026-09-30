@@ -13,6 +13,7 @@ export type TableInput = {
   numeric?: boolean;
   stack?: boolean;
   className?: string;
+  rowClassNames?: readonly string[];
 };
 
 const cell = (value: TableCell) => typeof value === "string" ? escapeHtml(value) : value.html;
@@ -20,10 +21,11 @@ const cell = (value: TableCell) => typeof value === "string" ? escapeHtml(value)
 export function renderTable(input: TableInput): string {
   if (input.className && !/^[a-z0-9_-]+(?: [a-z0-9_-]+)*$/.test(input.className)) throw new Error("Unsafe table class");
   if (input.rows.some(row => row.length !== input.columns.length)) throw new Error("Table row does not match its columns");
+  if (input.rowClassNames && (input.rowClassNames.length !== input.rows.length || input.rowClassNames.some(value => !/^[a-z0-9_-]+(?: [a-z0-9_-]+)*$/.test(value)))) throw new Error("Invalid table row classes");
   const classes = ["table", input.numeric && "table--numeric", input.stack && "table--stack", input.className].filter(Boolean).join(" ");
   const caption = input.caption ? `<caption>${escapeHtml(input.caption)}</caption>` : "";
   const head = `<thead><tr>${input.columns.map(column => `<th scope="col">${escapeHtml(column)}</th>`).join("")}</tr></thead>`;
-  const body = input.rows.map(row => `<tr>${row.map((value, index) => index === 0 && input.rowHeaders
+  const body = input.rows.map((row,rowIndex) => `<tr${input.rowClassNames ? ` class="${input.rowClassNames[rowIndex]}"` : ""}>${row.map((value, index) => index === 0 && input.rowHeaders
     ? `<th scope="row">${cell(value)}</th>`
     : `<td>${input.stack ? `<span class="table__label" aria-hidden="true">${escapeHtml(input.columns[index])}</span>` : ""}${cell(value)}</td>`).join("")}</tr>`).join("");
   return `<div class="${classes}"><table>${caption}${head}<tbody>${body}</tbody></table></div>`;
@@ -35,6 +37,7 @@ export const TABLE_CSS = `
 .table table { width: 100%; border-collapse: collapse; font-size: var(--table-font-size, .84rem); }
 .table caption { margin-bottom: var(--space-3); color: var(--text-accent); font-weight: 600; text-align: left; }
 .table th, .table td { padding: var(--table-cell-padding, 12px 8px); border-bottom: 1px solid var(--border-default); text-align: left; vertical-align: top; }
+.table thead { background: var(--table-head-background, transparent); }
 .table th[scope="row"] { font-weight: 600; }
 .table--numeric th:not(:first-child), .table--numeric td:not(:first-child) { text-align: right; white-space: nowrap; }
 .table__label { display: none; }

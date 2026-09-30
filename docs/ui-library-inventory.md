@@ -58,6 +58,12 @@ Tokens, Models, commits and Usage reuse it. Products own period persistence and
 data selection; the component supplies escaped markup and CSS. Its CSS is also
 included in the generated UI-preview bundle. UI-Library: extended.
 
+Projects reuses the small line-icon API introduced alongside Hub. Forms keep
+native select behavior with a decorative, pointer-transparent chevron and
+consistent padding; forced-colour mode restores the native arrow. The button
+library adds a `text` variant for task navigation, and tables accept validated
+row classes plus `--table-head-background`. UI-Library: extended.
+
 ## Proposed structure
 
 ```

@@ -1,7 +1,7 @@
 // Kurami button: shared variants, regular/compact sizes, busy state and a link form.
 import { escapeHtml } from "../foundations/html.ts";
 
-export type ButtonVariant = "primary" | "secondary" | "subtle" | "quiet" | "icon";
+export type ButtonVariant = "primary" | "secondary" | "subtle" | "quiet" | "icon" | "text";
 export type ButtonSize = "regular" | "compact";
 
 type AttributeValue = string | number | boolean | undefined;
@@ -50,6 +50,8 @@ export const BUTTON_CSS = `
 .button--subtle:hover:not(:disabled):not([aria-busy="true"]) { color: var(--text-primary); background: var(--surface-section); border-color: var(--text-muted); }
 .button--quiet { min-height: 40px; padding-inline: 11px; background: transparent; border-color: transparent; }
 .button--quiet:hover:not(:disabled):not([aria-busy="true"]) { color: var(--text-primary); background: var(--surface-panel); border-color: var(--border-default); }
+.button--text { min-height: 0; padding: 0; border: 0; background: transparent; font: inherit; line-height: inherit; text-align: start; justify-content: start; }
+.button--text:hover:not(:disabled):not([aria-busy="true"]) { color: var(--text-primary); background: transparent; text-decoration: underline; text-underline-offset: .2em; }
 .button--icon { inline-size: 44px; block-size: 44px; padding: 0; background: var(--surface-panel); border-color: var(--border-default); }
 .button--icon:hover:not(:disabled):not([aria-busy="true"]) { color: var(--text-primary); background: var(--accent-soft); border-color: var(--accent-primary); }
 .button__icon { display: inline-grid; place-items: center; font-size: 1.125rem; line-height: 1; }

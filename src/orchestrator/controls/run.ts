@@ -1,3 +1,4 @@
+import { aiReviewStable } from "./ai-review.ts";
 import { createHash, randomUUID } from "node:crypto";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
@@ -691,16 +692,7 @@ function request(
         active_repair_count: number;
         active_review_count: number;
       };
-      if (
-        run.state !== "parked_review" ||
-        run.owner_state !== "none" ||
-        eligibility.resource_state !== "provisioned" ||
-        eligibility.tmux_session_name !== null ||
-        !eligibility.worktree_path ||
-        !eligibility.branch_name ||
-        eligibility.active_repair_count !== 0 ||
-        eligibility.active_review_count !== 0
-      )
+      if (!aiReviewStable({ ...eligibility, state: run.state, owner_state: run.owner_state }))
         fail("Run is not eligible for AI Code Review");
     }
     if (action === "review_fix") {

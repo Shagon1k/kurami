@@ -1,3 +1,4 @@
+import { inspectAiReview } from "../orchestrator/controls/ai-review.ts";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { DatabaseSync } from "node:sqlite";
@@ -11,12 +12,12 @@ type ItemRow = ProjectRunFacts & {
   item_id: string; project: string; issue_number: number | null; title: string | null; content_type: string | null;
   status: string | null; last_seen_at: string; url: string | null; run_id: string | null; run_updated_at: string | null;
   detail: string | null; owner_state: string | null; pull_request_url: string | null; review_url: string | null;
-  review_pending: number; preview_state: string | null; preview_hostname: string | null; preview_expires_at: string | null;
+  review_pending: number; review_request_failed: number | null; preview_state: string | null; preview_hostname: string | null; preview_expires_at: string | null;
   preview_reviewed_at: string | null; preview_head: string | null;
   guild_id: string | null; parent_channel_id: string | null; thread_id: string | null;
 };
 
-function registry(path: string): Record<string, Config> {
+export function projectsRegistry(path: string): Record<string, Config> {
   const value = parse(readFileSync(path, "utf8")) as { projects?: Record<string, Config> };
   if (!value?.projects || typeof value.projects !== "object") throw new Error("Invalid projects registry");
   for (const [key, config] of Object.entries(value.projects)) {
@@ -43,7 +44,7 @@ function githubUrl(raw: string | null, repository: string, kind: "issues" | "pul
 function itemFromRow(row: ItemRow, config: Config, now: Date): ProjectItem {
   const run = row.run_id ? projectRunStatus(row) : null;
   const reviewStale = Boolean(row.ai_review_head_sha && row.ci_head_sha && row.ai_review_head_sha !== row.ci_head_sha);
-  const reviewState = row.review_pending > 0 ? "queued" : reviewStale ? "outdated" : row.ai_review_state === "ready" && !row.ci_head_sha ? "unverified" : row.ai_review_state ?? "none";
+  const reviewState = row.review_pending > 0 ? "queued" : row.review_request_failed ? "request_failed" : reviewStale ? "outdated" : row.ai_review_state === "ready" && !row.ci_head_sha ? "unverified" : row.ai_review_state ?? "none";
   const previewExpired = !Number.isFinite(Date.parse(row.preview_expires_at ?? "")) || Date.parse(row.preview_expires_at!) <= now.getTime();
   const previewState = row.preview_state === "running" && previewExpired ? "expired" : row.preview_state === "running" &&
     row.preview_head !== row.ci_head_sha ? "outdated" : row.preview_state ?? "none";
@@ -56,7 +57,8 @@ function itemFromRow(row: ItemRow, config: Config, now: Date): ProjectItem {
     status: row.status, observedAt: row.last_seen_at, runUpdatedAt: row.run_updated_at, runId: row.run_id, runState: row.run_id ? row.run_state : null,
     stage: row.stage ?? null, detail: row.detail, owner: row.owner_state,
     ci: { state: row.ci_aggregate_state ?? "none", tone: row.ci_aggregate_state === "passed" ? "success" : ["failed", "missing"].includes(row.ci_aggregate_state ?? "") ? "failure" : "neutral", head: row.ci_head_sha },
-    review: { state: reviewState, tone: ["outdated", "superseded", "unverified"].includes(reviewState) ? "warning" : reviewState === "failed" ? "failure" : reviewState === "ready" ? (run?.majorFindings ? "warning" : "success") : "neutral",
+    reviewRequestFailed: Boolean(row.review_request_failed),
+    review: { state: reviewState, tone: ["outdated", "superseded", "unverified"].includes(reviewState) ? "warning" : ["failed","request_failed"].includes(reviewState) ? "failure" : reviewState === "ready" ? (run?.majorFindings ? "warning" : "success") : "neutral",
       head: row.ai_review_head_sha, critical: row.ai_review_critical_count, important: row.ai_review_important_count, suggestions: row.ai_review_suggestion_count },
     preview: { state: previewState, tone: ["outdated", "expired"].includes(previewState) ? "warning" : previewState === "failed" ? "failure" : previewUrl ? "success" : "neutral",
       head: row.preview_head, expiresAt: row.preview_expires_at, reviewed: Boolean(row.preview_reviewed_at) },
@@ -67,13 +69,13 @@ function itemFromRow(row: ItemRow, config: Config, now: Date): ProjectItem {
 }
 
 /** Reads one SQLite snapshot; never initializes the store or contacts GitHub/Discord. */
-export function collectProjectsSnapshot(options: { home?: string; now?: Date } = {}): ProjectsSnapshot {
+export function collectProjectsSnapshot(options: { home?: string; now?: Date; controlsEnabled?: boolean } = {}): ProjectsSnapshot {
   const home = options.home ?? resolveKuramiHome(resolve(import.meta.dirname, "../../.."));
   const now = options.now ?? new Date();
   const unavailable: ProjectsSnapshot = { generatedAt: now.toISOString(), available: false, projects: [], items: [] };
   let database: DatabaseSync | undefined;
   try {
-    const configs = registry(resolve(home, "config/projects.yaml"));
+    const configs = projectsRegistry(resolve(home, "config/projects.yaml"));
     unavailable.projects = Object.entries(configs).map(([key, config]) => ({ key, name: config.repository.split("/")[1]!, repository: config.repository,
       boardUrl: `https://github.com/users/${config.owner}/projects/${config.project_number}`, statuses: config.statuses, capturedAt: null, freshness: "unavailable" }));
     database = new DatabaseSync(resolve(home, "state/orchestrator.db"), { readOnly: true, timeout: 1_000 });
@@ -84,6 +86,7 @@ export function collectProjectsSnapshot(options: { home?: string; now?: Date } =
       ci.head_sha AS ci_head_sha,ci.aggregate_state AS ci_aggregate_state,ci.pull_request_url,${PROJECT_RUN_FACTS_SQL},
       (SELECT github_review_url FROM run_ai_reviews a WHERE a.run_id=r.run_id ORDER BY a.review_number DESC LIMIT 1) AS review_url,
       (SELECT COUNT(*) FROM run_control_requests q WHERE q.run_id=r.run_id AND q.action='ai_review' AND q.request_state IN ('pending','processing')) AS review_pending,
+      (SELECT q.request_state IN ('failed','rejected') FROM run_control_requests q WHERE q.run_id=r.run_id AND q.action='ai_review' ORDER BY q.rowid DESC LIMIT 1) AS review_request_failed,
       pl.state AS preview_state,ps.hostname AS preview_hostname,pl.expires_at AS preview_expires_at,pl.reviewed_at AS preview_reviewed_at,pl.verified_head_sha AS preview_head,
       ds.guild_id,ds.parent_channel_id,ds.thread_id
       FROM project_items p LEFT JOIN runs r ON r.project=p.project AND r.item_id=p.item_id
@@ -92,6 +95,8 @@ export function collectProjectsSnapshot(options: { home?: string; now?: Date } =
       LEFT JOIN preview_leases pl ON pl.run_id=r.run_id AND pl.state<>'released'
       LEFT JOIN preview_slots ps ON ps.slot_number=pl.slot_number LEFT JOIN run_discord_surfaces ds ON ds.run_id=r.run_id
       WHERE p.present=1 ORDER BY p.project,p.issue_number,p.item_id`).all() as ItemRow[];
+    const controls = new Map<string, ReturnType<typeof inspectAiReview>>();
+    if (options.controlsEnabled ?? process.env.PROJECTS_CONTROLS_ENABLED === "1") for (const row of rows) if (row.run_id && configs[row.project]) controls.set(row.run_id, inspectAiReview(database, row.run_id));
     database.exec("COMMIT");
     const projects = unavailable.projects.map(project => {
       const poll = polls.find(poll => poll.project === project.key);
@@ -100,6 +105,13 @@ export function collectProjectsSnapshot(options: { home?: string; now?: Date } =
         poll.last_attempt_state === "succeeded" && Number.isFinite(ms) && now.getTime() - ms >= 0 && now.getTime() - ms < PROJECTS_STALE_AFTER_MS ? "fresh" as const : "stale" as const };
     });
     const items = rows.filter(row => configs[row.project]).map(row => itemFromRow(row, configs[row.project]!, now));
+    for (const item of items) {
+      const control = item.runId ? controls.get(item.runId) : null;
+      if (control) {
+        const fresh = projects.find(project => project.key === item.project)?.freshness === "fresh";
+        item.aiReview = { enabled: control.eligible && fresh, reason: fresh ? control.reason : "stale", head: control.head };
+      }
+    }
     items.sort((a, b) => Number(needsOwner(b, projects.find(p => p.key === b.project)!)) - Number(needsOwner(a, projects.find(p => p.key === a.project)!)));
     return { generatedAt: now.toISOString(), available: true, projects, items };
   } catch { return unavailable; }
