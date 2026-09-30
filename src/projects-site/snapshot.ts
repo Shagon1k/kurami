@@ -1,3 +1,4 @@
+import { observedStatusRequest, type StatusRequestRow } from "./status-state.ts";
 import { inspectAiReview } from "../orchestrator/controls/ai-review.ts";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
@@ -7,7 +8,7 @@ import { resolveKuramiHome } from "../core/kurami-home.ts";
 import { PROJECT_RUN_FACTS_SQL, projectRunStatus, type ProjectRunFacts, type ProjectStatuses } from "../orchestrator/projects/status-read-model.ts";
 import { PROJECTS_STALE_AFTER_MS, needsOwner, type ProjectItem, type ProjectsSnapshot } from "./model.ts";
 
-type Config = { owner: string; project_number: number; repository: string; statuses: ProjectStatuses; discord?: { guild_id: string; channel_id: string } };
+type Config = { owner: string; project_number: number; status_field?: string; repository: string; statuses: ProjectStatuses; discord?: { guild_id: string; channel_id: string } };
 type ItemRow = ProjectRunFacts & {
   item_id: string; project: string; issue_number: number | null; title: string | null; content_type: string | null;
   status: string | null; last_seen_at: string; url: string | null; run_id: string | null; run_updated_at: string | null;
@@ -69,7 +70,7 @@ function itemFromRow(row: ItemRow, config: Config, now: Date): ProjectItem {
 }
 
 /** Reads one SQLite snapshot; never initializes the store or contacts GitHub/Discord. */
-export function collectProjectsSnapshot(options: { home?: string; now?: Date; controlsEnabled?: boolean } = {}): ProjectsSnapshot {
+export function collectProjectsSnapshot(options: { home?: string; now?: Date; controlsEnabled?: boolean; statusEnabled?: boolean } = {}): ProjectsSnapshot {
   const home = options.home ?? resolveKuramiHome(resolve(import.meta.dirname, "../../.."));
   const now = options.now ?? new Date();
   const unavailable: ProjectsSnapshot = { generatedAt: now.toISOString(), available: false, projects: [], items: [] };
@@ -97,6 +98,9 @@ export function collectProjectsSnapshot(options: { home?: string; now?: Date; co
       WHERE p.present=1 ORDER BY p.project,p.issue_number,p.item_id`).all() as ItemRow[];
     const controls = new Map<string, ReturnType<typeof inspectAiReview>>();
     if (options.controlsEnabled ?? process.env.PROJECTS_CONTROLS_ENABLED === "1") for (const row of rows) if (row.run_id && configs[row.project]) controls.set(row.run_id, inspectAiReview(database, row.run_id));
+    const statusEnabled = options.statusEnabled ?? process.env.PROJECTS_STATUS_ENABLED === "1";
+    const statusReady = statusEnabled && Boolean(database.prepare("SELECT 1 FROM sqlite_master WHERE type='table' AND name='project_status_requests'").get());
+    const statusRequests = statusReady ? database.prepare(`SELECT q.* FROM project_status_requests q WHERE NOT EXISTS(SELECT 1 FROM project_status_requests n WHERE n.project=q.project AND n.item_id=q.item_id AND n.rowid>q.rowid)`).all() as StatusRequestRow[] : [];
     database.exec("COMMIT");
     const projects = unavailable.projects.map(project => {
       const poll = polls.find(poll => poll.project === project.key);
@@ -107,6 +111,24 @@ export function collectProjectsSnapshot(options: { home?: string; now?: Date; co
     const items = rows.filter(row => configs[row.project]).map(row => itemFromRow(row, configs[row.project]!, now));
     for (const item of items) {
       const control = item.runId ? controls.get(item.runId) : null;
+      if (statusEnabled) {
+        const config = configs[item.project]!;
+        const fresh = projects.find(project => project.key === item.project)?.freshness === "fresh";
+        const latest = statusRequests.find(request => request.project === item.project && request.item_id === item.id);
+        const state = latest ? observedStatusRequest(latest,item.status,item.observedAt) : null;
+        const pending = ["checking","writing","awaiting_sync","uncertain"].includes(state ?? "");
+        const hints: Record<string,string> = item.kind === "Issue" ? {
+          active: "Kurami обработает запуск задачи после синхронизации.",
+          review: "Kurami обработает переход к проверке после синхронизации.",
+          done: "Kurami проверит условия завершения, включая обязательное превью.",
+          ...([config.statuses.active,config.statuses.review].includes(item.status ?? "") ? { backlog: "Текущая работа будет остановлена с сохранением результата.", deferred: "Текущая работа будет остановлена с сохранением результата." } : {}),
+        } : {};
+        item.statusChange = { enabled: statusReady && fresh && Boolean(config.status_field) && !pending,
+          reason: !statusReady ? "unavailable" : !config.status_field ? "unsupported" : !fresh ? "stale" : pending ? "pending" : "eligible",
+          choices: Object.entries(config.statuses).map(([role,value]) => ({value,label:value,hint:hints[role] ?? ""})),
+          ...(latest && state && state !== "synced" ? { request: {state,target:latest.to_status,from:latest.from_status,key:latest.client_key,checkAvailable: ["checking","writing","uncertain"].includes(state) && now.getTime()-Date.parse(latest.updated_at) >= 30_000} } : {}),
+        };
+      }
       if (control) {
         const fresh = projects.find(project => project.key === item.project)?.freshness === "fresh";
         item.aiReview = { enabled: control.eligible && fresh, reason: fresh ? control.reason : "stale", head: control.head };

@@ -17,6 +17,7 @@ export function syntheticProjectsSnapshot(): ProjectsSnapshot {
   snapshot.items = [
     item(12, { title: "Обновить экран поиска и проверить пустое состояние", status: "Human Review", runId: "r_review", runState: "parked_review", stage: "review_ready", runUpdatedAt: snapshot.generatedAt,
       aiReview: { enabled: true, reason: "eligible", head: "abcdef0123456789" },
+      statusChange: { enabled: true, reason: "eligible", choices: Object.entries(statuses).map(([role,value]) => ({value,label:value,hint:role === "done" ? "Kurami проверит условия завершения, включая обязательное превью." : ""})) },
       detail: "Изменения готовы. Проверьте PR и текущий коммит перед запуском нового ревью.",
       ci: { state: "passed", tone: "success", head: "abcdef0123456789" },
       review: { state: "outdated", tone: "warning", head: "1234567890abcdef", critical: 0, important: 1, suggestions: 2 },

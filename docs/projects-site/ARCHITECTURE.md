@@ -3,8 +3,9 @@
 `src/projects-site/server.ts` serves a standalone Node origin on loopback port
 8777. The Cloudflare hostname is intended to route to this origin. The service
 reads the existing registry and Run Store. Its optional AI Review action writes
-a guarded request to the existing queue. It does not
-poll GitHub or deliver Discord messages.
+a guarded request to the existing queue. Its optional status action writes the
+configured GitHub Project field. It does not run a background poller or deliver
+Discord messages.
 
 ## Data and trust boundaries
 
@@ -51,6 +52,7 @@ uses the existing two-minute admission boundary. These intervals do not change
 the existing one-minute GitHub poller.
 
 HTTP supports `GET` and `HEAD` for `/`, `/api/fragment`, and exact asset paths.
+With `PROJECTS_STATUS_ENABLED=1`, `POST /api/status` accepts a status request.
 Other mutation routes are rejected. With `PROJECTS_CONTROLS_ENABLED=1`,
 `POST /api/ai-review` accepts an authenticated JSON request from the exact Projects
 origin. Missing or cross-site Origin, other content types and bodies over 4 KiB
@@ -86,6 +88,47 @@ and permits writes only under the state directory. Avoid overriding its enable
 flag in the environment file. Removing the drop-in restores inspection mode.
 Queued requests retain their existing controller lifecycle.
 
+## Project status requests
+
+`status.ts` validates the displayed status, registry allowlist, current item and
+successful source observation under the two-minute freshness boundary. A short
+`BEGIN IMMEDIATE` transaction records the actor, nonce and intended transition
+in migration 34's `project_status_requests`. One active request per item prevents
+concurrent browser requests from issuing multiple writes. No network operation
+runs inside the transaction.
+
+`integrations/github/project-fields.ts` resolves the personal Project, its
+configured single-select field and the target option through `gh api graphql`.
+The action checks live item membership, repository or draft identity, archive
+state and the previous status. It writes once, verifies the resulting field,
+then waits for the normal GitHub poller. Only that poller updates `project_items`
+and produces `project_events`; Discord and the controller consume their existing
+flow. The site never changes the local item snapshot to simulate success.
+
+A failed preflight creates no GitHub write. A lost write reply becomes
+`uncertain`. After 30 seconds, checking the durable request reads GitHub and
+resolves it without replaying the mutation. A new deliberate attempt uses a new
+nonce after the prior operation has resolved. Pending intent survives a service
+restart; stale checking/writing requests use the same read-only recovery.
+`clientMutationId` verifies response identity and is not an idempotency guarantee.
+
+GitHub's [status mutation input](https://docs.github.com/en/graphql/reference/projects#updateprojectv2itemfieldvalueinput)
+has no expected previous value or conditional version. Preflight and subsequent
+verification detect conflicts before and after a write, but cannot prevent an
+external change in the interval between checking and writing from being
+overwritten. A later conflicting edit is reported and is never rolled back.
+Minute polling also observes snapshots, so rapid intermediate status changes
+may not each become an event. The stable-transition test exercises the actual
+poller twice and verifies one event for the requested change.
+
+Status writes default to disabled independently of AI Review. After applying
+schema 34 through the existing migration workflow, install the optional
+`deploy/systemd/kurami-projects.service.d/status.conf` drop-in and provide the
+service with authenticated GitHub CLI access to the configured Projects.
+The drop-in enables status writes and grants access only to the state directory.
+Removing it restores inspection-only status behavior. The origin never migrates
+the Run Store. Status intent uses its existing backup and recovery.
+
 ## Delivery and recovery
 
 The unit is prepared but not installed by this phase. Production requires the
@@ -93,8 +136,5 @@ Access application, owner policy, tunnel route and explicit release approval.
 Stopping only the Projects service rolls back this interface. The existing
 GitHub/Discord process and Run Store continue to provide their normal workflow.
 
-Additional actions must use shared eligibility and request boundaries. Project
-status changes must
-write through GitHub and allow normal observation to create the transition;
-updating the local item snapshot first could suppress that event. These changes
-belong to the later phases in [delivery](ROADMAP.md).
+Additional actions must use shared eligibility and request boundaries. Remaining
+Kurami controls and metadata management follow [delivery](ROADMAP.md).

@@ -3,6 +3,8 @@ import type { ProjectAttention, ProjectStatuses } from "../orchestrator/projects
 export type Freshness = "fresh" | "stale" | "unavailable";
 export type Signal = { state: string; tone: "neutral" | "success" | "warning" | "failure"; head: string | null };
 export type ProjectSummary = { key: string; name: string; repository: string; boardUrl: string; statuses: ProjectStatuses; capturedAt: string | null; freshness: Freshness };
+export type StatusChange = { enabled: boolean; reason: "eligible" | "stale" | "unsupported" | "unavailable" | "pending"; choices: {value: string; label: string; hint: string}[];
+  request?: {state: import("./status-state.ts").StatusRequestState; target: string; from: string | null; key: string; checkAvailable: boolean}; };
 export type ProjectItem = {
   id: string; project: string; number: number | null; title: string; kind: string; status: string | null;
   observedAt: string; runUpdatedAt: string | null; runId: string | null; runState: string | null;
@@ -12,6 +14,7 @@ export type ProjectItem = {
   attention: ProjectAttention[];
   aiReview?: { enabled: boolean; reason: string; head: string | null };
   reviewRequestFailed?: boolean;
+  statusChange?: StatusChange;
   links: { issue: string | null; pr: string | null; discord: string | null; review: string | null; preview: string | null };
 };
 export type ProjectsSnapshot = { generatedAt: string; available: boolean; projects: ProjectSummary[]; items: ProjectItem[] };

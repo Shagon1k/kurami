@@ -9,11 +9,16 @@ import { AUDIT_EXPRESSION, inventoryExpression } from "../../src/ui-library/test
 import { syntheticProjectsSnapshot } from "./fixture.ts";
 
 let unavailable = false;
+let statusRequest: {state:"awaiting_sync";target:string;from:string;key:string} | null = null; let statusSynced = false; let statusConflict = false; const statusKeys: string[] = [];
 let accepted = false; let failReview = false; const requestKeys: string[] = [];
 const serverOptions = { snapshot: () => {
   if (unavailable) throw new Error("fixture failure");
   const snapshot = syntheticProjectsSnapshot();
   if (accepted) { snapshot.items[0]!.review.state = "queued"; snapshot.items[0]!.review.tone = "neutral"; snapshot.items[0]!.aiReview = { enabled: false, reason: "pending", head: "abcdef0123456789" }; }
+  if (statusRequest) {
+    if (statusSynced) snapshot.items[0]!.status = statusRequest.target;
+    else snapshot.items[0]!.statusChange = { ...snapshot.items[0]!.statusChange!, enabled: false, reason: "pending", request: {...statusRequest,checkAvailable:false} };
+  }
   return snapshot;
 }, cacheMs: 0, authorize: async () => "fixture-owner", origin: "", review: (value: unknown) => {
   const input = value as { head: string; key: string };
@@ -21,10 +26,18 @@ const serverOptions = { snapshot: () => {
   if (failReview) throw new ProjectsActionError(503,"Ревью временно недоступно.");
   accepted = true; return { state: "created" as const, requestId: "fixture", requestState: "pending" };
 } };
-const server = createProjectsServer(serverOptions);
+const completeOptions = { ...serverOptions, statusChange: async (value: unknown) => {
+  const input = value as {from:string;target:string;key:string;itemId:string};
+  assert.equal(input.from,"Human Review"); assert.equal(input.itemId,"item-12"); assert.equal(input.target,"Done");
+  statusKeys.push(input.key);
+  if (statusConflict) throw new ProjectsActionError(409,"Статус изменился. Обновите страницу.");
+  statusRequest = {state:"awaiting_sync",target:input.target,from:input.from,key:input.key};
+  return {state:"awaiting_sync" as const,requestId:"fixture-status",target:input.target};
+} };
+const server = createProjectsServer(completeOptions);
 await new Promise<void>(done => server.listen(0, "127.0.0.1", done));
 const base = `http://127.0.0.1:${(server.address() as { port: number }).port}`;
-serverOptions.origin = base;
+completeOptions.origin = base;
 const browser = await launchBrowser(findBrowser());
 const { devtools } = browser;
 const out = resolve(import.meta.dirname, "../../dist/projects-browser");
@@ -101,6 +114,30 @@ try {
   assert.equal(await devtools.evaluate("document.querySelector('[data-review-run]').disabled"),true);
   assert.match(await devtools.evaluate<string>("document.querySelector('#project-details').textContent"),/В очереди/);
   await audit();
+  await devtools.evaluate("const field=document.querySelector('[data-status-form] select');field.value='Done';field.dispatchEvent(new Event('change',{bubbles:true}));field.focus()");
+  assert.equal(await devtools.evaluate("document.querySelector('[data-status-submit]').disabled"),false);
+  assert.match(await devtools.evaluate<string>("document.querySelector('[data-status-note]').textContent"),/условия завершения/);
+  await devtools.evaluate("document.dispatchEvent(new Event('visibilitychange'))");
+  await wait("!document.querySelector('[data-projects-refresh]').hasAttribute('aria-busy')");
+  assert.equal(await devtools.evaluate("document.querySelector('[data-status-form] select').value"),"Done","background refresh preserves unsent status choice");
+  assert.equal(await devtools.evaluate("document.activeElement.name"),"target");
+  statusConflict = true;
+  await devtools.evaluate("document.querySelector('[data-status-submit]').click()");
+  await wait("document.querySelector('[data-refresh-status]').textContent.includes('Статус изменился')");
+  assert.equal(await devtools.evaluate("document.querySelector('[data-status-form] select').value"),"Done");
+  statusConflict = false;
+  await devtools.evaluate("document.querySelector('[data-status-submit]').click()");
+  await wait("document.querySelector('[data-refresh-status]').textContent.includes('Ждём синхронизации')");
+  assert.equal(statusKeys.length,2);
+  assert.equal(await devtools.evaluate("document.querySelector('[data-status-form] select').disabled"),true);
+  assert.match(await devtools.evaluate<string>("document.querySelector('.projects-table tbody tr').textContent"),/Human Review/);
+  await audit();
+  statusSynced = true;
+  await devtools.evaluate("document.querySelector('[data-projects-refresh]').click()");
+  await wait("!document.querySelector('[data-projects-refresh]').hasAttribute('aria-busy')");
+  assert.equal(await devtools.evaluate("document.querySelector('[data-status-form] select').value"),"Done");
+  assert.equal(await devtools.evaluate("document.querySelector('[data-status-form] select').disabled"),false);
+  assert.match(await devtools.evaluate<string>("document.querySelector('.projects-table tbody tr').textContent"),/Done/);
   unavailable = true;
   await devtools.evaluate("document.querySelector('[data-projects-refresh]').click()");
   await wait("document.querySelector('[data-refresh-status]').textContent.includes('Не удалось')");

@@ -66,7 +66,7 @@ export function renderProjectsDashboard(snapshot: ProjectsSnapshot, params = new
       const identifier = item.number ? `#${item.number}` : item.kind === "DraftIssue" ? "Черновик" : item.kind;
       const checks = [item.ci.state !== "none" ? check("CI", "ci", item.ci) : "", item.review.state !== "none" ? check("Review", "review", item.review) : "", item.preview.state !== "none" ? check("Превью", "preview", item.preview) : ""].join("");
       return [{ html: `<div class="projects-task" data-search="${escape(`${project.name} ${identifier} ${item.title} ${item.status ?? ""}`.toLowerCase())}"><div class="projects-task-meta">${renderIcon("project")}<span>${escape(project.name)}</span><span class="projects-task-id">${escape(identifier)}</span>${needsOwner(item, project) ? `<span class="projects-attention" title="Ждёт вашего решения">${renderIcon("alert")}<span class="sr-only">Ждёт вашего решения</span></span>` : ""}</div>${renderLinkButton({ label: item.title, ariaLabel: `Открыть ${identifier}: ${item.title}`, href: itemUrl(params, item.id), variant: "text", attributes: { "data-item-link": item.id } })}</div>` },
-        { html: `<span class="projects-status">${escape(item.status ?? "Без статуса")}</span>` },
+        { html: `<span class="projects-status">${escape(item.status ?? "Без статуса")}</span>${item.statusChange?.request && ["checking","writing","awaiting_sync","uncertain"].includes(item.statusChange.request.state) ? `<small class="projects-status-pending">${renderIcon("refresh")}${escape(item.statusChange.request.target)}</small>` : ""}` },
         { html: `<div class="projects-stage"><span>${escape(label(item.stage ?? item.runState))}</span>${item.owner === "cli" ? `<small>${renderIcon("cpu")}AI Agent</small>` : item.owner === "remote" ? "<small>Управляете вы</small>" : ""}</div>` },
         { html: checks ? `<div class="projects-checks">${checks}</div>` : '<span class="projects-signal projects-signal--neutral">—</span>' }];
     }) }) : renderCallout({ tone: "note", title: snapshot.available ? "Подходящих задач нет" : "Таблица недоступна", body: snapshot.available ? "Выберите другой проект или фильтр." : "Последний снимок задач сейчас прочитать не удалось." });
@@ -80,6 +80,7 @@ function detail(item: ProjectItem, params: URLSearchParams, projectName: string)
   const links = navigation("Issue", item.links.issue) + navigation("PR", item.links.pr) + navigation("Discord", item.links.discord) + navigation("Review", item.links.review) + navigation("Preview", item.links.preview);
   const reviewReasons: Record<string, string> = { pending: "Ревью или другое действие уже в работе.", unstable: "Ревью доступно после завершения текущей работы.", no_head: "Текущий коммит PR ещё не подтверждён.", ready: "Ревью этого коммита уже готово.", stale: "Дождитесь свежих данных синхронизации.", superseded: "Этот запуск больше не актуален." };
   const action = item.aiReview && item.runId ? `<div class="projects-review-action">${renderButton({ label: "AI Review", variant: "primary", disabled: !item.aiReview.enabled, busyLabel: "Отправляем…", attributes: { "data-review-run": item.runId, "data-review-project": item.project, "data-review-item": item.id, "data-review-head": item.aiReview.head ?? "", "data-review-key": randomUUID() } })}<p>${item.aiReview.enabled ? `Для коммита <code>${escape(item.aiReview.head?.slice(0,12) ?? "")}</code>` : escape(reviewReasons[item.aiReview.reason] ?? "Ревью сейчас недоступно.")}</p></div>` : "";
+  const statusControl = statusForm(item);
   return `<aside class="projects-detail" id="project-details" aria-labelledby="project-details-title" tabindex="-1"><p class="projects-detail-meta">${renderIcon("project")}${escape(projectName)} · ${item.number ? `#${item.number}` : "Черновик"}</p><div class="projects-detail-heading"><h2 id="project-details-title">${escape(item.title)}</h2>${renderLinkButton({ label: "Закрыть", href: itemUrl(params), variant: "subtle", size: "compact", attributes: { "data-item-close": true } })}</div>
     <dl><dt>Статус</dt><dd>${escape(item.status ?? "Без статуса")}</dd><dt>Kurami</dt><dd>${escape(label(item.stage ?? item.runState))}</dd>
       <dt>${renderIcon("ci")}CI</dt><dd>${signal(item.ci)}</dd><dt>${renderIcon("review")}AI Review</dt><dd>${signal(item.review)}</dd><dt>${renderIcon("preview")}Превью</dt><dd>${signal(item.preview)}</dd>
@@ -87,7 +88,25 @@ function detail(item: ProjectItem, params: URLSearchParams, projectName: string)
       ${item.review.head ? `<dt>Коммит ревью</dt><dd><code>${escape(item.review.head.slice(0, 12))}</code></dd>` : ""}
       ${item.preview.expiresAt ? `<dt>Превью до</dt><dd>${escape(localTime(item.preview.expiresAt))}</dd>` : ""}
     </dl>${item.detail ? `<p>${escape(item.detail)}</p>` : ""}${item.review.state === "ready" ? `<p>Замечания: ${item.review.critical} критических, ${item.review.important} важных, ${item.review.suggestions} предложений.</p>` : ""}
-    ${item.reviewRequestFailed ? renderCallout({ tone: "warning", title: "AI Review не запустилось", body: "Обновите данные и повторите запрос для текущего коммита PR." }) : ""}${action}<div class="projects-links">${links}</div>${item.runUpdatedAt ? `<p class="projects-update">Состояние запуска: ${escape(localTime(item.runUpdatedAt))}</p>` : ""}</aside>`;
+    ${item.reviewRequestFailed ? renderCallout({ tone: "warning", title: "AI Review не запустилось", body: "Обновите данные и повторите запрос для текущего коммита PR." }) : ""}${statusControl}${action}<div class="projects-links">${links}</div>${item.runUpdatedAt ? `<p class="projects-update">Состояние запуска: ${escape(localTime(item.runUpdatedAt))}</p>` : ""}</aside>`;
+}
+
+function statusForm(item: ProjectItem): string {
+  const control = item.statusChange;
+  if (!control) return "";
+  const messages: Record<string,string> = { stale:"Дождитесь свежих данных синхронизации.",unsupported:"Поле статуса проекта не настроено.",unavailable:"Изменение статуса пока недоступно.",
+    checking:"Проверяем актуальный статус в GitHub.",writing:"Сохраняем статус в GitHub.",awaiting_sync:"GitHub обновлён. Ждём синхронизации Kurami.",
+    uncertain:"Результат записи не подтверждён. Проверьте его перед повторным изменением.",conflict:"Статус изменился в GitHub. Проверьте текущее состояние.",failed:"Изменение статуса не подтверждено. Можно повторить запрос." };
+  const pending = control.reason === "pending";
+  const request = control.request;
+  const from = pending && request ? request.from : item.status;
+  const selected = pending && request ? request.target : item.status ?? "";
+  const choices = [{value:item.status ?? "",label:item.status ?? "Без статуса"},...control.choices.filter(choice => choice.value !== item.status)];
+  if (pending && !choices.some(choice => choice.value === selected)) choices.push({value:selected,label:selected});
+  const note = messages[request?.state ?? control.reason] ?? "";
+  return `<form class="projects-status-form" method="post" action="/api/status" data-status-form data-project="${escape(item.project)}" data-item="${escape(item.id)}" data-from="${escape(JSON.stringify(from))}" data-observed-at="${escape(item.observedAt)}" data-key="${pending && request ? escape(request.key) : randomUUID()}" data-check="${pending}" data-target="${escape(selected)}" data-hints="${escape(JSON.stringify(Object.fromEntries(control.choices.map(choice => [choice.value,choice.hint]))))}">
+    <div class="projects-status-controls">${renderSelectField({name:"target",label:"Статус GitHub",value:selected,options:choices,disabled:!control.enabled})}${renderButton({label:pending ? "Проверить" : "Сохранить",variant:"subtle",type:"submit",disabled:pending ? !request?.checkAvailable : true,busyLabel:"…",attributes:{"data-status-submit":true}})}</div>
+    <p class="projects-status-note" data-status-note data-default-note="${escape(note)}"${control.enabled && !request ? " hidden" : ""}>${escape(note)}</p></form>`;
 }
 
 export function renderProjectsPage(snapshot: ProjectsSnapshot, params = new URLSearchParams()): string {

@@ -35,6 +35,11 @@ export const PROJECTS_STYLES = [THEME_CSS, FOUNDATION_CSS, BUTTON_CSS, TABLE_CSS
 .projects-task-id { font-family: var(--font-mono); }
 .projects-attention { display: inline-flex; color: var(--status-warning); }
 .projects-status { display: inline-block; padding: var(--space-1) var(--space-2); background: var(--surface-section); border-radius: var(--radius-sm); font-size: .73rem; white-space: nowrap; }
+.projects-status-pending { display: flex; align-items: center; gap: var(--space-1); margin-top: var(--space-2); color: var(--text-muted); font-size: .7rem; }
+.projects-status-pending .ui-icon { width: 14px; height: 14px; }
+.projects-status-form { padding-bottom: var(--space-4); margin-bottom: var(--space-4); border-bottom: 1px solid var(--border-subtle); }
+.projects-status-controls { display: grid; grid-template-columns: minmax(0,1fr) auto; align-items: end; gap: var(--space-2); }
+.projects-status-note { color: var(--text-muted); font-size: .75rem; line-height: 1.5; margin: var(--space-2) 0 0; }
 .projects-stage { display: grid; gap: var(--space-2); min-width: 100px; max-width: 170px; line-height: 1.4; }
 .projects-stage small { display: flex; align-items: center; gap: var(--space-1); color: var(--text-muted); font-size: .72rem; }
 .projects-stage .ui-icon { width: 14px; height: 14px; }

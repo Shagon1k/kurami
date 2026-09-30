@@ -23,7 +23,14 @@ run evidence and navigation to GitHub, Discord and running previews when their
 identities have been verified. With controls enabled, the panel offers AI Review
 for the displayed commit. Unavailable actions have a specific reason; queued
 requests disable the button. Network retries preserve the original request nonce.
-Other owner actions still use the existing interfaces.
+
+With status writes enabled, the panel also offers a GitHub status selector and
+Save. Selecting a status shows the relevant Kurami consequence, such as starting
+work or checking completion requirements. Pending writes disable the selector;
+the table retains its observed status and shows the requested destination until
+the normal poller confirms it. Unconfirmed writes offer a result check after
+30 seconds. Conflict and failure messages remain visible. Other owner actions
+still use the existing interfaces.
 
 Each project exposes its last successful observation and a textual freshness
 state. An unavailable store has an explicit unavailable presentation. A failed
@@ -40,7 +47,9 @@ separate product theme is introduced.
 
 Mobile tables stack cells with column labels. Every state uses text as well as
 colour. The details panel gets keyboard focus when opened; routine refreshes
-preserve search and panel/control focus. A text selection pauses automatic
+preserve search, panel/control focus and an unsent status choice while its
+observed source status remains unchanged. A changed source invalidates that
+choice and asks the owner to inspect the new state. A text selection pauses automatic
 replacement while it is being read or copied. Browser verification covers
 320, 390 and 1280 pixel widths in both themes, contrast, overflow, accessible
 control names, filters, panel navigation and refresh failure.

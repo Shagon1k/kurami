@@ -10,6 +10,7 @@ import { renderProjectsDashboard, renderProjectsPage } from "./render.ts";
 import { PROJECTS_STYLES } from "./styles.ts";
 import type { ProjectsSnapshot } from "./model.ts";
 import { requestProjectsReview, ProjectsActionError, type ReviewResult } from "./actions.ts";
+import { requestProjectStatus, type StatusResult } from "./status.ts";
 
 const assetRoot = resolve(import.meta.dirname, "../ui-library/assets");
 const assets = new Map<string, { body: Buffer | string; type: string }>([
@@ -26,12 +27,14 @@ export function createProjectsServer(options: {
   authorize?: (request: IncomingMessage) => Promise<string | null>;
   cacheMs?: number;
   review?: (input: unknown, actor: string) => ReviewResult;
+  statusChange?: (input: unknown, actor: string) => Promise<StatusResult>;
   origin?: string;
 } = {}): Server {
   const access = new ProjectsAccess({ team: process.env.PROJECTS_ACCESS_TEAM ?? "", audience: process.env.PROJECTS_ACCESS_AUDIENCE ?? "", ownerEmail: process.env.PROJECTS_OWNER_EMAIL ?? "" });
   const authorize = options.authorize ?? (request => access.authorize(request));
   const snapshot = options.snapshot ?? collectProjectsSnapshot;
   const review = options.review ?? (process.env.PROJECTS_CONTROLS_ENABLED === "1" ? requestProjectsReview : null);
+  const statusChange = options.statusChange ?? (process.env.PROJECTS_STATUS_ENABLED === "1" ? requestProjectStatus : null);
   let cached: { at: number; value: ProjectsSnapshot } | null = null;
   function current(): ProjectsSnapshot {
     const now = Date.now();
@@ -52,7 +55,8 @@ export function createProjectsServer(options: {
       response.end(request.method === "HEAD" ? undefined : body);
     };
     const reviewRoute = request.method === "POST" && request.url === "/api/ai-review" && review;
-    if (request.method !== "GET" && request.method !== "HEAD" && !reviewRoute) {
+    const statusRoute = request.method === "POST" && request.url === "/api/status" && statusChange;
+    if (request.method !== "GET" && request.method !== "HEAD" && !reviewRoute && !statusRoute) {
       response.setHeader("Allow", "GET, HEAD");
       send(405, "text/plain; charset=utf-8", "Method not allowed"); return;
     }
@@ -64,7 +68,7 @@ export function createProjectsServer(options: {
     if (url.pathname === "/robots.txt") { send(200, "text/plain; charset=utf-8", "User-agent: *\nDisallow: /\n"); return; }
     const identity = await authorize(request).catch(() => null);
     if (!identity) { send(403, "text/plain; charset=utf-8", "Доступ разрешён только владельцу через Cloudflare Access."); return; }
-    if (reviewRoute && review) {
+    if (reviewRoute || statusRoute) {
       if (request.headers.origin !== (options.origin ?? "https://projects.shagon1k.win") ||
         request.headers["content-type"] !== "application/json" ||
         request.headers["sec-fetch-site"] && request.headers["sec-fetch-site"] !== "same-origin") {
@@ -78,11 +82,17 @@ export function createProjectsServer(options: {
         });
         let input: unknown;
         try { input = JSON.parse(body); } catch { throw new ProjectsActionError(400, "Некорректный запрос."); }
-        const result = review(input, identity); cached = null;
-        send(result.state === "created" ? 202 : 200, "application/json; charset=utf-8", JSON.stringify(result));
+        if (statusRoute && statusChange) {
+          const result = await statusChange(input, identity); cached = null;
+          const code = result.state === "synced" ? 200 : result.state === "conflict" ? 409 : result.state === "failed" ? 503 : 202;
+          send(code,"application/json; charset=utf-8",JSON.stringify(result));
+        } else if (review) {
+          const result = review(input, identity); cached = null;
+          send(result.state === "created" ? 202 : 200, "application/json; charset=utf-8", JSON.stringify(result));
+        }
       } catch (error) {
         send(error instanceof ProjectsActionError ? error.status : 503, "application/json; charset=utf-8",
-          JSON.stringify({ error: error instanceof ProjectsActionError ? error.message : "AI Review временно недоступно." }));
+          JSON.stringify({ error: error instanceof ProjectsActionError ? error.message : statusRoute ? "Изменение статуса временно недоступно." : "AI Review временно недоступно." }));
       }
       return;
     }

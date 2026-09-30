@@ -5,7 +5,7 @@
   "main": "index.js",
   "scripts": {
     "projects:serve": "node src/projects-site/server.ts",
-    "test:projects-site": "node tests/projects-site/verify.ts && node tests/projects-site/controls.ts",
+    "test:projects-site": "node tests/projects-site/verify.ts && node tests/projects-site/controls.ts && node tests/projects-site/status.ts",
     "test:projects-browser": "node tests/projects-site/browser.ts",
     "test:investment-review": "node tests/briefing/verify-investment-review.ts && node tests/briefing/verify-investment-primary.ts && node tests/briefing/verify-investment-vanguard.ts && node tests/briefing/verify-investment-review-automation.ts && python3 tests/briefing/verify-investment-review-trial.py",
     "investment-review:weekly": "node src/briefing/investment-review/automation.ts run",
