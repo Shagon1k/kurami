@@ -11,6 +11,7 @@ import {SITE_HEADER_CSS} from "../../ui-library/patterns/site-header.ts";
 import {TABLE_CSS} from "../../ui-library/components/table.ts";
 import {CALLOUT_CSS} from "../../ui-library/components/callout.ts";
 import {DISCLOSURE_CSS} from "../../ui-library/components/disclosure.ts";
+import {SELECTION_CONTROL_CSS} from "../../ui-library/components/selection-control.ts";
 export const BRIEFING_STYLES = `
 ${THEME_CSS}
 ${FOUNDATION_CSS}
@@ -25,6 +26,7 @@ ${SITE_HEADER_CSS}
 ${TABLE_CSS}
 ${CALLOUT_CSS}
 ${DISCLOSURE_CSS}
+${SELECTION_CONTROL_CSS}
 
 #main,h2[id],section[id] { scroll-margin-top:var(--header-offset); }
 .story-toggle:active, .pagination__button:active { transform: translateY(1px); }
@@ -91,19 +93,6 @@ ${DISCLOSURE_CSS}
 .agenda-row__badge, .mail-row__demo { min-height: 22px; display: inline-flex; align-items: center; justify-content: center; padding: 2px 6px; color: var(--text-muted); border: 1px solid currentColor; border-radius: var(--radius-md); font: 600 .5625rem/1 var(--font-mono); }
 .agenda-row__badge.is-demo, .mail-row__demo { color: var(--status-warning); }
 .mail-row { grid-template-columns: 30px minmax(0, 1fr) 154px; align-items: center; }
-[data-selection-control] { min-height: 24px; position: relative; display: inline-flex; align-items: center; gap: 8px; color: var(--text-muted); cursor: pointer; font-size: .6875rem; line-height: 1.25; }
-.selection-control__input { position: absolute; inset-inline-start: 0; top: 50%; z-index: 2; width: 24px; height: 24px; margin: 0; appearance: none; opacity: 0; cursor: pointer; transform: translateY(-50%); }
-.selection-control__box { inline-size: 24px; block-size: 24px; position: relative; flex: 0 0 24px; display: inline-grid; place-items: center; background: var(--surface-panel); border: 1px solid var(--border-default); border-radius: var(--radius); transition: color 150ms ease, background 150ms ease, border-color 150ms ease, transform 150ms ease; }
-.selection-control__box::after { content: ""; color: var(--accent-primary); pointer-events: none; }
-.selection-control__input:checked + .selection-control__box { background: color-mix(in srgb, var(--accent-primary) 10%, var(--surface-panel)); border-color: var(--accent-primary); }
-.selection-control__input:checked + .selection-control__box::after { content: "✓"; font: 600 1.15rem/1 var(--font-note); transform: rotate(-7deg); }
-.selection-control__input:indeterminate + .selection-control__box { background: color-mix(in srgb, var(--accent-primary) 10%, var(--surface-panel)); border-color: var(--accent-primary); }
-.selection-control__input:indeterminate + .selection-control__box::after { content: "−"; font: 600 .875rem/1 var(--font-sans); }
-[data-selection-control]:hover .selection-control__input:not(:disabled) + .selection-control__box { border-color: var(--accent-primary); transform: translateY(-1px); }
-.selection-control__input:focus-visible + .selection-control__box { outline: 3px solid var(--accent-primary); outline-offset: 3px; }
-[data-selection-control].is-disabled, [data-selection-control]:has(.selection-control__input:disabled) { cursor: not-allowed; opacity: .55; }
-.selection-control__input:disabled { cursor: not-allowed; }
-.selection-control__label { color: var(--text-muted); }
 .mail-row__select { width: 24px; align-self: center; }
 .mail-row__select-placeholder { width: 24px; height: 24px; align-self: center; }
 .mail-row__content { min-width: 0; display: grid; gap: 5px; }

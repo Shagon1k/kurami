@@ -5,7 +5,7 @@ import {scanFile,pruneUsageCache,type CodexLimit} from "../core/codex-usage.ts";
 export type {CodexLimit} from "../core/codex-usage.ts";
 import type {CodexAccountSnapshot} from "./codex-account.ts";
 import {summarizeModelUsage,type ModelUsage,type ApiEquivalent,type UsageSample} from "../core/api-equivalent.ts";
-import {dailyLimitHistory,type LimitDay} from "./limit-history.ts";
+import {dailyLimitHistory,dailyLimitUsage,type LimitDay,type LimitUsageDay} from "./limit-history.ts";
 import type {LimitObservation} from "../core/codex-usage.ts";
 
 type ThreadRow={created_at:number;updated_at:number;model:string|null;rollout_path:string|null};
@@ -17,6 +17,7 @@ export type CodexSnapshot={
   coverage:"complete"|"partial"|"unavailable";
   account?:CodexAccountSnapshot;
   limitHistory?:LimitDay[];
+  limitUsage?:LimitUsageDay[];
   periods?:Record<7|30,{tokens:number|null;cached:number|null;output:number|null;sessions:number;models:{name:string;sessions:number}[];modelUsage?:ModelUsage[];equivalent?:ApiEquivalent}>;
 };
 
@@ -53,11 +54,13 @@ export function collectCodexSnapshot(options:{home?:string;now?:Date}={}):CodexS
     let newest:{at:number;limits:CodexLimit[]}|null=null;
     const samples:UsageSample[]=[];
     const limitsByDay:LimitObservation[]=[];
+    const limitSamples:LimitObservation[]=[];
     for(const row of rows){
       const file=row.rollout_path?scanFile(row.rollout_path,home):null;
       if(!file){missing++;continue;}
       scanned++;
       limitsByDay.push(...[...file.limitDays.values()].filter(sample=>sample.at>=cutoff30&&sample.at<=now.getTime()));
+      limitSamples.push(...[...file.limitSamples.values()].filter(sample=>sample.at>=cutoff30-86400_000&&sample.at<=now.getTime()));
       const events=file.events.length?file.events:file.recordEvents;
       if(!events.length&&row.created_at*1000>=cutoff30)missing++;
       for(const event of events){
@@ -73,7 +76,7 @@ export function collectCodexSnapshot(options:{home?:string;now?:Date}={}):CodexS
     const hasUsage=scanned>0&&foundEvents>0;
     pruneUsageCache();
     return {state:"available",tokens7:hasUsage?total7:null,tokens30:hasUsage?total30:null,cached30:hasUsage?cached30:null,output30:hasUsage?output30:null,
-      sessions30:sessions.length,models,limits:newest?.limits.filter(limit=>Date.parse(limit.resetsAt)>now.getTime())??[],limitHistory:dailyLimitHistory(limitsByDay,now),updatedAt:latest,
+      sessions30:sessions.length,models,limits:newest?.limits.filter(limit=>Date.parse(limit.resetsAt)>now.getTime())??[],limitHistory:dailyLimitHistory(limitsByDay,now),limitUsage:dailyLimitUsage(limitSamples,now),updatedAt:latest,
       coverage:hasUsage?(missing||rows.length===3000?"partial":"complete"):"unavailable",
       periods:Object.fromEntries(([7,30] as const).map(days=>{
         const selected=sessions.filter(row=>row.created_at*1000>=now.getTime()-days*86_400_000);

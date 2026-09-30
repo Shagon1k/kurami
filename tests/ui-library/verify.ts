@@ -22,6 +22,8 @@ import {renderDisclosure,DISCLOSURE_CSS} from "../../src/ui-library/components/d
 import {renderNumberField,renderSelectField,renderCheckbox} from "../../src/ui-library/components/form.ts";
 import {renderStatCard,renderMeter} from "../../src/ui-library/components/stat-card.ts";
 import {renderIcon,iconPath} from "../../src/ui-library/components/icon.ts";
+import {renderSelectionControl,SELECTION_CONTROL_CSS} from "../../src/ui-library/components/selection-control.ts";
+import {renderPopover} from "../../src/ui-library/components/popover.ts";
 import {renderDialog} from "../../src/ui-library/components/dialog.ts";
 import {renderPeriodSwitch} from "../../src/ui-library/components/period-switch.ts";
 import {inlineDiagram} from "../../src/ui-library/foundations/diagram.ts";
@@ -114,6 +116,9 @@ assert.match(header,/class="site-header site-header--collapsible" data-site-head
 assert.match(header,/<a class="site-nav__link" href="\/a\/" aria-current="page">A<\/a>/);
 assert.equal((header.match(/aria-label="Sections"/g)??[]).length,2,"inline and collapsed navigation");
 assert.match(header,/&lt;b&gt;x&lt;\/b&gt;/);
+assert.doesNotMatch(header,/site-header__utility/);
+assert.match(renderSiteHeader({brand:{href:"/",ariaLabel:"Hub",foxSrc:"/fox.webp"},nav:{label:"Sections",links:[],hideWhenEmpty:true},actions:"",utility:renderPeriodSwitch({key:"global",lang:"en",label:"All statistics"})}),/class="site-header__utility"><div class="period-switch"/);
+assert.match(renderButton({label:"<Models>",variant:"quiet",iconPath:"M0 0",visibleLabel:true}),/<\/svg><span>&lt;Models&gt;<\/span>/);
 assert.throws(()=>renderSiteNav({label:"x",links:[{href:"javascript:alert(1)",label:"x"}]}),/Unsafe navigation href/);
 assert.throws(()=>renderSiteNav({label:"x",links:[],attributes:{onclick:"x"}}),/Unsafe header attribute/);
 assert.match(renderSiteNav({label:"x",links:[],hideWhenEmpty:true}),/ hidden>/);
@@ -146,6 +151,15 @@ assert.match(renderSelectField({label:"<label>",name:"model",value:"a",options:[
 assert.match(renderSelectField({label:"Model",name:"model",value:"a",options:[{value:"a",label:"A"}]}),/value="a" selected>A<\/option>/);
 assert.match(renderNumberField({label:"WIP",name:"wip",value:2,min:1,max:3}),/name="wip" type="number" value="2" min="1" max="3"/);
 assert.match(renderCheckbox({name:"repo",label:"<Repo>",value:'a"b',checked:true}),/value="a&quot;b" checked/);
+assert.match(renderCheckbox({name:"repo",label:"Kurami",value:"kurami"}),/data-selection-variant="data"/);
+assert.match(renderSelectionControl({label:"<Mail>",disabled:true}),/ disabled/);
+assert.match(renderSelectionControl({label:"<Mail>"}),/&lt;Mail&gt;/);
+assert.throws(()=>renderSelectionControl({label:"Mail",attributes:{onclick:"bad"}}),/Unsafe selection attribute/);
+assert.throws(()=>renderSelectionControl({label:"Mail",className:'bad"class'}),/Unsafe selection class/);
+assert.equal(BRIEFING_STYLES.split(SELECTION_CONTROL_CSS).length,2,"Digest selection CSS has one shared source");
+assert.match(renderDisclosure({summary:"Events",body:"",variant:"inline"}),/disclosure--inline/);
+assert.match(renderPopover({id:"controls",label:"<Controls>",body:"<p>content</p>"}),/popover="auto" aria-label="&lt;Controls&gt;"/);
+assert.throws(()=>renderPopover({id:'bad"id',label:"Controls",body:""}),/Invalid popover ID/);
 assert.match(renderStatCard({label:"<Tokens>",value:"1M",full:'1"000',tone:"info",icon:"tokens"}),/data-tone="info"/);
 assert.match(renderStatCard({label:"<Tokens>",value:"1M",full:'1"000'}),/title="1&quot;000"/);
 assert.match(renderStatCard({label:"<Tokens>",value:"1M"}),/&lt;Tokens&gt;/);

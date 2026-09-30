@@ -95,7 +95,8 @@ projects:
   assert.doesNotMatch(english,/>Breakdown</);
   assert.match(english,/>Cached input</);
   assert.match(english,/>Output</);
-  assert.match(english,/data-period-key="tokens" data-period-days="30" aria-pressed="true"/);
+  assert.match(english,/data-period-key="global" data-period-days="30" aria-pressed="true"/);
+  assert.equal((english.match(/class="period-switch"/g)??[]).length,1,"only the sticky header contains a period selector");
   assert.match(english,/title="1,000" aria-label="1,000">1K</);
   assert.equal(compactNumber(3812400),"3.8M");
   assert.equal(compactNumber(1426830000),"1.4B");
@@ -112,14 +113,14 @@ projects:
   assert.doesNotMatch(hiddenPage,/codex-auto-review/);
   assert.match(hiddenPage,/>14.3M</,"hiding a model does not remove overall token totals");
   const weekly=syntheticHubSnapshot();
-  weekly.codex.limitHistory!.at(-1)!.windows[300]=90;
+  weekly.codex.limitUsage!.at(-1)!.windows[300]=90;
   const weeklyPage=renderHubDashboard(weekly,"en");
   assert.doesNotMatch(weeklyPage,/>5h</,"retired windows in historical logs are not a live account series");
   assert.doesNotMatch(weeklyPage,/>5 hours</);
   assert.match(weeklyPage,/>7d</);
   const hour={...weekly.codex.limits[0]!,windowMinutes:60};
   weekly.codex.account!.limits=[hour];weekly.codex.limits=[hour];
-  weekly.codex.limitHistory!.at(-1)!.windows[60]=25;
+  weekly.codex.limitUsage!.at(-1)!.windows[60]=25;
   const hourPage=renderHubDashboard(weekly,"en");
   assert.match(hourPage,/class="limit-history__legend"><span data-series="0">1h<\/span><\/div>/,"only the observed active window appears in the legend");
 

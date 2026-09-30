@@ -6,8 +6,8 @@ type Window={used_percent:number;window_minutes:number;resets_at:number};
 type RateLimits={primary:Window|null;secondary:Window|null};
 export type UsageEvent={at:number;input:number;cached:number;output:number;total:number;model:string|null;cacheWrite:number|null;requestInput:number|null};
 type UsageTotals={input:number;cached:number;output:number;total:number;cacheWrite:number|null};
-export type LimitObservation={date:string;windowMinutes:number;usedPercent:number;at:number};
-type FileCache={size:number;mtimeMs:number;ino:number;pending:string;events:UsageEvent[];recordEvents:UsageEvent[];activity:{at:number;event:string}[];previousTotals:UsageTotals|null;currentModel:string|null;limit:{at:number;limits:CodexLimit[]}|null;limitDays:Map<string,LimitObservation>;lastSeen:number};
+export type LimitObservation={date:string;windowMinutes:number;usedPercent:number;at:number;resetsAt?:number};
+type FileCache={size:number;mtimeMs:number;ino:number;pending:string;events:UsageEvent[];recordEvents:UsageEvent[];activity:{at:number;event:string}[];previousTotals:UsageTotals|null;currentModel:string|null;limit:{at:number;limits:CodexLimit[]}|null;limitDays:Map<string,LimitObservation>;limitSamples:Map<string,LimitObservation>;lastSeen:number};
 type TokenCounts={input_tokens?:number;cached_input_tokens?:number;cache_write_input_tokens?:number;output_tokens?:number;total_tokens?:number};
 
 export type CodexLimit={name:string;usedPercent:number;remainingPercent:number;windowMinutes:number;resetsAt:string;observedAt:string};
@@ -80,6 +80,12 @@ function parseLine(line:string,cache:FileCache):void {
         const date=localDay(at),key=`${date}:${window.window_minutes}:${window.used_percent}`;
         const previous=cache.limitDays.get(key);
         if(!previous||at<previous.at)cache.limitDays.set(key,{date,windowMinutes:window.window_minutes,usedPercent:window.used_percent,at});
+        const sample={date,windowMinutes:window.window_minutes,usedPercent:window.used_percent,at,resetsAt:window.resets_at*1000};
+        const sampleKey=`${date}:${window.window_minutes}:${window.resets_at}:${window.used_percent}`;
+        for(const edge of ["first","last"] as const){
+          const edgeKey=`${sampleKey}:${edge}`,previous=cache.limitSamples.get(edgeKey);
+          if(!previous||(edge==="first"?at<previous.at:at>previous.at))cache.limitSamples.set(edgeKey,sample);
+        }
         limits.push({name,usedPercent:window.used_percent,remainingPercent:Math.max(0,100-window.used_percent),
           windowMinutes:window.window_minutes,resetsAt:new Date(window.resets_at*1000).toISOString(),observedAt:new Date(at).toISOString()});
       }
@@ -100,7 +106,7 @@ export function scanFile(path:string,codexHome:string):FileCache|null {
     const previous=fileCache.get(actual);
     if(previous&&previous.size===stat.size&&previous.mtimeMs===stat.mtimeMs&&previous.ino===stat.ino){previous.lastSeen=Date.now();return previous;}
     const appended=previous&&previous.ino===stat.ino&&previous.size<stat.size;
-    const cache:FileCache=appended?previous:{size:0,mtimeMs:0,ino:stat.ino,pending:"",events:[],recordEvents:[],activity:[],previousTotals:null,currentModel:null,limit:null,limitDays:new Map(),lastSeen:Date.now()};
+    const cache:FileCache=appended?previous:{size:0,mtimeMs:0,ino:stat.ino,pending:"",events:[],recordEvents:[],activity:[],previousTotals:null,currentModel:null,limit:null,limitDays:new Map(),limitSamples:new Map(),lastSeen:Date.now()};
     let position=appended?cache.size:0;
     const buffer=Buffer.alloc(64*1024);
     const decoder=new StringDecoder("utf8");

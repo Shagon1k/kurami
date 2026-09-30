@@ -83,6 +83,7 @@ ${renderCheckbox({name:"synthetic-repo",label:"Kurami",value:"kurami",checked:tr
 ${renderCallout({tone:"note",title:"Built from the library",body:"Header, buttons, table, callout and disclosure come from src/ui-library; this page adds only its own layout."})}
 ${renderTable({caption:"Synthetic runs",columns:["Run","Duration","Checks"],rows:[["alpha","12 min","4/4"],["beta","7 min","3/4"]],rowHeaders:true,numeric:true,stack:true})}
 ${renderDisclosure({summary:"Technical detail",body:"<p>Nothing here is real data.</p>",boxed:true})}
+${renderDisclosure({summary:"Events · 3",body:"<p>Shared inline disclosure.</p>",variant:"inline"})}
 <p>${renderButton({label:"Primary action",variant:"primary"})} ${renderButton({label:"Secondary",variant:"secondary"})}</p>`,
     mainClass:"page",
     footer:`<footer class="container"><p>Kurami lab · synthetic</p></footer>`,
@@ -134,6 +135,7 @@ export function syntheticHubSnapshot():HubSnapshot {
   allocate(0,23,[4,4,2,3]);allocate(23,30,[14,8,4,3]);
   snapshot.codex.account!.limits=snapshot.codex.limits;
   snapshot.codex.limitHistory=snapshot.commitDays.map((day,index)=>({date:day.start.slice(0,10),windows:index%9===0?{}:{"10080":(index*7)%90}}));
+  snapshot.codex.limitUsage=snapshot.commitDays.map((day,index)=>({date:day.start.slice(0,10),windows:index%9===0?{}:{"10080":(index*3)%22},partial:index%7===0?{"10080":true}:{}}));
   snapshot.operations!.activity=Array.from({length:25},(_,index)=>{
     const project=snapshot.projects[index%4]!;
     return {id:`work-${index}`,group:`task:${project.key}:${123+index}`,project:project.key,agent:index%3===0?"Hermes":"Codex",at:new Date(Date.parse(at)-index*600_000-120_000).toISOString(),source:"Projects",subject:index===0?"Update watchlist":`Task #${123+index}`,event:index%4===0?"running":"parked_review",href:`https://github.com/${project.repository}/pull/${123+index}`};

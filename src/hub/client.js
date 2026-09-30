@@ -2,13 +2,39 @@ const dashboard=document.getElementById("hub-dashboard");
 const hubLanguage=document.documentElement.lang==="en"?"en":"ru";
 let refreshing=false;
 const dialog=document.getElementById("hub-control-dialog");
+const controlsPopover=document.getElementById("hub-controls-popover");
+const controlsTrigger=document.querySelector('header [data-hub-control="menu"]');
+const nativePopoverOpen=()=>typeof controlsPopover?.showPopover==='function'&&controlsPopover.matches(':popover-open');
+const popoverOpen=()=>nativePopoverOpen()||controlsPopover?.classList.contains('is-open');
+function hideControls(){
+  if(nativePopoverOpen())controlsPopover.hidePopover();
+  controlsPopover?.classList.remove('is-open');controlsTrigger?.setAttribute('aria-expanded','false');
+}
+function positionControls(){
+  if(!controlsPopover||!controlsTrigger)return;
+  const rect=controlsTrigger.getBoundingClientRect(),width=Math.min(264,innerWidth-16);
+  controlsPopover.style.setProperty('--popover-left',Math.max(8,Math.min(innerWidth-width-8,rect.right-width))+'px');
+  controlsPopover.style.setProperty('--popover-top',Math.max(8,Math.min(rect.bottom+8,innerHeight-264))+'px');
+}
+function toggleControls(){
+  if(!controlsPopover)return;
+  if(popoverOpen()){hideControls();controlsTrigger?.focus();return;}
+  if(dialog?.open)dialog.close();positionControls();
+  if(controlsPopover.showPopover)controlsPopover.showPopover();else controlsPopover.classList.add('is-open');
+  controlsTrigger?.setAttribute('aria-expanded','true');
+  controlsPopover.querySelector('button')?.focus();
+}
+controlsPopover?.addEventListener('toggle',event=>controlsTrigger?.setAttribute('aria-expanded',String(event.newState==='open')));
+addEventListener('resize',()=>{if(popoverOpen())positionControls();});
+document.addEventListener('keydown',event=>{if(event.key==='Escape'&&popoverOpen()){event.preventDefault();hideControls();controlsTrigger?.focus();}});
+document.addEventListener('click',event=>{if(controlsPopover?.classList.contains('is-open')&&!controlsPopover.contains(event.target)&&!controlsTrigger?.contains(event.target))hideControls();});
 const controlContent=document.getElementById("hub-control-content");
 const confirmation=document.getElementById("hub-control-confirm");
 const controlResult=document.getElementById("hub-control-result");
 const csrf=document.querySelector('meta[name="hub-control-token"]')?.content??"";
 const text=(ru,en)=>hubLanguage==="ru"?ru:en;
 let pending=null,controlView=null,controlBusy=false,opener=null;
-const periodChoices=new Map();
+let selectedPeriod=null;
 const workFilters={project:'all',agent:'all'};
 let selectedRepositories=null;
 function applyWorkFilters(){
@@ -64,17 +90,15 @@ function initializeFilters(){
   applyWorkFilters();applyRepositoryFilter();
 }
 function setPeriod(key,days){
-  if(!dashboard||!['7','30'].includes(days)||!/^[a-z][a-z0-9-]*$/.test(key))return;
-  periodChoices.set(key,days);
-  for(const panel of dashboard.querySelectorAll(`[data-period-panel="${key}"]`))panel.hidden=panel.dataset.periodDays!==days;
-  for(const button of dashboard.querySelectorAll(`[data-period-key="${key}"]`))button.setAttribute('aria-pressed',String(button.dataset.periodDays===days));
+  if(!dashboard||key!=='global'||!['7','30'].includes(days))return;
+  selectedPeriod=days;
+  for(const panel of dashboard.querySelectorAll('[data-period-panel]'))panel.hidden=panel.dataset.periodDays!==days;
+  for(const button of document.querySelectorAll('[data-period-key="global"]'))button.setAttribute('aria-pressed',String(button.dataset.periodDays===days));
 }
 function initializePeriods(){
-  for(const key of new Set([...dashboard.querySelectorAll('[data-period-key]')].map(button=>button.dataset.periodKey))){
-    let days=periodChoices.get(key);
-    if(!days){try{days=localStorage.getItem('kurami-hub-period-'+key);}catch{}}
-    setPeriod(key,['7','30'].includes(days)?days:'30');
-  }
+  let days=selectedPeriod;
+  if(!days){try{days=localStorage.getItem('kurami-hub-period-global')||localStorage.getItem('kurami-hub-period-commits');}catch{}}
+  setPeriod('global',['7','30'].includes(days)?days:'30');
 }
 if(dashboard){initializePeriods();initializeFilters();}
 document.addEventListener('change',event=>{
@@ -84,7 +108,7 @@ document.addEventListener('change',event=>{
 });
 document.addEventListener('click',event=>{
   const button=event.target.closest?.('[data-period-key]');
-  if(!button||!dashboard?.contains(button))return;
+  if(!button||button.dataset.periodKey!=='global'||!dashboard)return;
   const {periodKey:key,periodDays:days}=button.dataset;
   setPeriod(key,days);
   try{localStorage.setItem('kurami-hub-period-'+key,days);}catch{}
@@ -130,7 +154,8 @@ async function api(action,payload){
 }
 function showDialog(button){
   if(!dialog)return;
-  if(!dialog.open)opener=button;controlResult.textContent="";
+  if(!dialog.open)opener=controlsPopover?.contains(button)?controlsTrigger:button;
+  hideControls();controlResult.textContent="";
   if(!dialog.open)dialog.showModal();
 }
 function confirmAction(action,payload,message){
@@ -140,7 +165,6 @@ function confirmAction(action,payload,message){
   dialog.querySelector("[data-hub-confirm]").focus();
 }
 async function loadControl(action){
-  if(action==='menu'){controlView=null;pending=null;confirmation.hidden=true;controlContent.hidden=false;controlContent.innerHTML=document.getElementById('hub-controls-menu').innerHTML;return;}
   controlView=action;pending=null;confirmation.hidden=true;controlContent.hidden=false;
   controlContent.textContent=text("Загрузка…","Loading…");
   try{const result=await api(action);controlContent.innerHTML=document.getElementById('hub-control-back').innerHTML+result.html;}
@@ -155,9 +179,10 @@ document.addEventListener("click",event=>{
     if(!controlView)dialog.close();return;
   }
   if(button.hasAttribute("data-hub-confirm")){void performAction(button);return;}
+  if(button.dataset.hubControl==='menu'){toggleControls();return;}
   showDialog(button);
   const action=button.dataset.hubControl;
-  if(["menu","models","settings","composio-check"].includes(action)){void loadControl(action);return;}
+  if(["models","settings","composio-check"].includes(action)){void loadControl(action);return;}
   if(action==="codex-reset"){
     controlView=null;
     let key=sessionStorage.getItem("kurami-reset-attempt");
@@ -212,4 +237,4 @@ async function performAction(button){
   finally{controlBusy=false;button.removeAttribute("aria-busy");}
 }
 dialog?.addEventListener("cancel",event=>{if(controlBusy)event.preventDefault();});
-dialog?.addEventListener("close",()=>{pending=null;opener?.focus();});
+dialog?.addEventListener("close",()=>{pending=null;if(!popoverOpen())opener?.focus();});

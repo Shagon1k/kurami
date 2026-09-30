@@ -4,7 +4,7 @@ export const colorRoles=[
   "surface-page","surface-panel","surface-raised","surface-section",
   "text-primary","text-muted","text-accent","text-on-accent",
   "border-default","border-subtle",
-  "accent-primary","accent-soft",
+  "accent-primary","accent-soft","accent-data",
   "status-success","status-warning","status-failure","status-info",
   "shadow-offset","focus-ring",
   "chart-1","chart-2","chart-3","chart-4","chart-5",
