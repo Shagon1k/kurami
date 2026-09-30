@@ -29,7 +29,11 @@ try {
   db.prepare("INSERT INTO run_ci_repair_attempts VALUES(?,?,?,?,?)").run("repairing","current-head","running",1,null);
   db.prepare("INSERT INTO run_ci_repair_attempts VALUES(?,?,?,?,?)").run("broken","old-head","running",1,null);
   db.prepare("INSERT INTO run_ai_reviews VALUES(?,?,?,?,?,?,?,?,?,?,?)").run("review1","broken","old-head","ready",1,1,0,0,at,"https://github.com/Shagon1k/PickFlick/pull/1",1);
-  db.prepare("INSERT INTO run_state_history VALUES(?,?,?,?)").run(1,"new",at,"running");db.close();
+  db.prepare("INSERT INTO run_state_history VALUES(?,?,?,?)").run(1,"new",at,"running");
+  db.exec("ALTER TABLE project_items ADD COLUMN title TEXT; ALTER TABLE run_ci_snapshots ADD COLUMN pull_request_number INTEGER; ALTER TABLE run_ci_snapshots ADD COLUMN checks_json TEXT; CREATE TABLE run_resources(run_id TEXT,codex_thread_id TEXT,previous_codex_thread_id TEXT)");
+  db.prepare("UPDATE project_items SET title=? WHERE item_id=?").run("Fix watchlist","item-4");
+  db.prepare("UPDATE run_ci_snapshots SET checks_json=?").run(JSON.stringify([{name:"unit-tests",state:"failed"}]));
+  db.prepare("INSERT INTO run_resources VALUES(?,?,NULL)").run("new","thread-1");db.close();
   const rollout=join(home,"codex/sessions/thread.jsonl");
   writeFileSync(rollout,[
     JSON.stringify({type:"event_msg",timestamp:at,payload:{type:"task_started"}}),
@@ -42,8 +46,16 @@ try {
   assert.equal(snapshot.health?.server.cpuUsedPercent,health.server.cpuUsedPercent);
   assert.equal(snapshot.healthStale,false);
   assert.deepEqual(snapshot.alerts.map(alert=>alert.id),["ci-broken"],"current repair suppresses CI alerts; Done, superseded runs and stale review heads are excluded");
+  assert.equal(snapshot.alerts[0]!.actor,"owner");assert.equal(snapshot.alerts[0]!.next,"inspect_task","stale busy repair needs inspection, not a second repair");
+  assert.equal(snapshot.alerts[0]!.detail,"unit-tests");
   assert.equal(snapshot.activity.find(event=>event.source==="CI")?.at,at,"poll timestamps never masquerade as CI transitions");
   assert(snapshot.activity.some(event=>event.event==="task_started"),"new turns in older sessions appear in activity");
+  const turn=snapshot.activity.find(event=>event.event==="task_started")!;
+  assert.equal(turn.group,"task:pickflick:4");assert.equal(turn.subject,"Fix watchlist");
+  const ambiguous=new DatabaseSync(join(home,"state/orchestrator.db"));
+  ambiguous.prepare("INSERT INTO run_resources VALUES(?,?,NULL)").run("broken","thread-1");ambiguous.close();
+  const unowned=collectHubOperations(home,join(home,"codex"),join(home,"hermes"),now).activity.find(event=>event.event==="task_started")!;
+  assert.equal(unowned.group,"codex:thread-1","ambiguous session mappings never invent task ownership");
   assert(!JSON.stringify(snapshot).includes("PRIVATE_TRANSCRIPT_SENTINEL"));
   await recordSystemActivity(home,"Cinema","2026-09-30","collect_started");
   assert.equal(readSystemActivity(home,new Date(now.getTime()-86400_000).toISOString())[0]?.event,"collect_started");

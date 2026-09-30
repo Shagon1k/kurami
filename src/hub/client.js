@@ -9,6 +9,60 @@ const csrf=document.querySelector('meta[name="hub-control-token"]')?.content??""
 const text=(ru,en)=>hubLanguage==="ru"?ru:en;
 let pending=null,controlView=null,controlBusy=false,opener=null;
 const periodChoices=new Map();
+const workFilters={project:'all',agent:'all'};
+let selectedRepositories=null;
+function applyWorkFilters(){
+  const activity=dashboard?.querySelector('.activity');if(!activity)return;
+  for(const key of ['project','agent']){
+    const select=activity.querySelector(`[name="activity-${key}"]`);if(!select)continue;
+    if(![...select.options].some(option=>option.value===workFilters[key]))workFilters[key]='all';
+    select.value=workFilters[key];
+  }
+  const rows=[...activity.querySelectorAll('[data-work-id]')].sort((a,b)=>Date.parse(b.dataset.workAt)-Date.parse(a.dataset.workAt));
+  const main=activity.querySelector('.activity-list'),more=activity.querySelector('.activity-more'),moreList=more.querySelector('ol');
+  let count=0;
+  for(const row of rows){
+    const match=(workFilters.project==='all'||row.dataset.workProject===workFilters.project)&&(workFilters.agent==='all'||row.dataset.workAgent===workFilters.agent);
+    row.hidden=!match||count>=20;
+    if(match&&count>=5&&count<20)moreList.append(row);else main.append(row);
+    if(match)count++;
+  }
+  more.hidden=count<=5;
+  more.querySelector('summary').textContent=text('Ещё','More')+' · '+Math.min(15,Math.max(0,count-5));
+  activity.querySelector('.activity-empty').hidden=count>0;
+}
+function applyRepositoryFilter(){
+  const source=dashboard?.querySelector('[data-commit-repositories]');if(!source)return;
+  const data=JSON.parse(source.dataset.commitRepositories),unavailable=JSON.parse(source.dataset.commitUnavailable);
+  const inputs=[...dashboard.querySelectorAll('[name="commit-repository"]')];
+  if(selectedRepositories===null)selectedRepositories=new Set(inputs.map(input=>input.value));
+  for(const input of inputs)input.checked=selectedRepositories.has(input.value);
+  if(!Object.keys(data).length)return;
+  const selected=inputs.filter(input=>input.checked);
+  const partial=selected.some(input=>unavailable.includes(input.value));
+  const coverage=dashboard.querySelector('[data-commit-coverage]');
+  if(coverage)coverage.textContent=partial?text('Git · частичные данные','Git · partial data'):text('Git · выбрано ','Git · selected ')+selected.length+'/'+inputs.length;
+  for(const label of dashboard.querySelectorAll('.period-metric .metric__label'))for(const node of label.childNodes)if(node.nodeType===Node.TEXT_NODE)node.textContent=text('Коммиты','Commits')+' · '+label.closest('[data-period-panel]').dataset.periodDays+text(' дней',' days')+(partial?text(' · частично',' · partial'):'');
+  for(const panel of source.querySelectorAll('[data-period-panel=commits]')){
+    const days=Number(panel.dataset.periodDays),chart=panel.querySelector('.trend__chart');if(!chart)continue;
+    const bars=[...chart.children];
+    const counts=bars.map((_,index)=>inputs.filter(input=>input.checked).reduce((sum,input)=>sum+(data[input.value]?.slice(-days)[index]?.count??0),0));
+    const missing=inputs.filter(input=>input.checked).length>0&&inputs.filter(input=>input.checked).every(input=>unavailable.includes(input.value));
+    const max=Math.max(1,...counts),total=counts.reduce((sum,count)=>sum+count,0);
+    panel.querySelector('[data-commit-total]').textContent=missing?'—':String(total);
+    const metric=dashboard.querySelector(`.period-metric [data-period-days="${days}"] .metric__value`);if(metric)metric.textContent=missing?'—':new Intl.NumberFormat(hubLanguage).format(total);
+    bars.forEach((bar,index)=>{
+      bar.querySelector('.trend__count').textContent=String(counts[index]);bar.querySelector('.trend__bar').style.setProperty('--bar-height',Math.round(100*counts[index]/max)+'%');
+      bar.setAttribute('aria-label',bar.getAttribute('aria-label').replace(/: \d+ /,': '+counts[index]+' '));
+    });
+    chart.hidden=missing;
+  }
+}
+function initializeFilters(){
+  for(const key of ['project','agent']){try{workFilters[key]=localStorage.getItem('kurami-hub-activity-'+key)||workFilters[key];}catch{}}
+  if(selectedRepositories===null){try{const saved=JSON.parse(localStorage.getItem('kurami-hub-repositories'));if(Array.isArray(saved))selectedRepositories=new Set(saved);}catch{}}
+  applyWorkFilters();applyRepositoryFilter();
+}
 function setPeriod(key,days){
   if(!dashboard||!['7','30'].includes(days)||!/^[a-z][a-z0-9-]*$/.test(key))return;
   periodChoices.set(key,days);
@@ -22,7 +76,12 @@ function initializePeriods(){
     setPeriod(key,['7','30'].includes(days)?days:'30');
   }
 }
-if(dashboard)initializePeriods();
+if(dashboard){initializePeriods();initializeFilters();}
+document.addEventListener('change',event=>{
+  const input=event.target;
+  if(input.matches?.('[name="commit-repository"]')){selectedRepositories=new Set([...dashboard.querySelectorAll('[name="commit-repository"]:checked')].map(input=>input.value));try{localStorage.setItem('kurami-hub-repositories',JSON.stringify([...selectedRepositories]));}catch{}applyRepositoryFilter();}
+  if(input.matches?.('[name="activity-project"],[name="activity-agent"]')){const key=input.name.slice(9);workFilters[key]=input.value;try{localStorage.setItem('kurami-hub-activity-'+key,input.value);}catch{}applyWorkFilters();}
+});
 document.addEventListener('click',event=>{
   const button=event.target.closest?.('[data-period-key]');
   if(!button||!dashboard?.contains(button))return;
@@ -38,10 +97,12 @@ async function refreshHub(force=false){
     if(!response.ok)throw new Error("Hub refresh failed");
     const html=await response.text();
     if(dashboard.innerHTML!==html){
-      const opened=new Set([...dashboard.querySelectorAll("details[open]")].map(element=>element.querySelector("summary")?.textContent));
+      const disclosureKey=element=>element.dataset.disclosureKey??element.querySelector("summary")?.textContent;
+      const opened=new Set([...dashboard.querySelectorAll("details[open]")].map(disclosureKey));
       dashboard.innerHTML=html;
       initializePeriods();
-      for(const element of dashboard.querySelectorAll("details"))if(opened.has(element.querySelector("summary")?.textContent))element.open=true;
+      initializeFilters();
+      for(const element of dashboard.querySelectorAll("details"))if(opened.has(disclosureKey(element)))element.open=true;
     }
     dashboard.removeAttribute("data-disconnected");
   } catch {
@@ -79,9 +140,10 @@ function confirmAction(action,payload,message){
   dialog.querySelector("[data-hub-confirm]").focus();
 }
 async function loadControl(action){
+  if(action==='menu'){controlView=null;pending=null;confirmation.hidden=true;controlContent.hidden=false;controlContent.innerHTML=document.getElementById('hub-controls-menu').innerHTML;return;}
   controlView=action;pending=null;confirmation.hidden=true;controlContent.hidden=false;
   controlContent.textContent=text("Загрузка…","Loading…");
-  try{const result=await api(action);controlContent.innerHTML=result.html;}
+  try{const result=await api(action);controlContent.innerHTML=document.getElementById('hub-control-back').innerHTML+result.html;}
   catch(error){controlContent.textContent=error.message;}
 }
 document.addEventListener("click",event=>{
@@ -95,7 +157,7 @@ document.addEventListener("click",event=>{
   if(button.hasAttribute("data-hub-confirm")){void performAction(button);return;}
   showDialog(button);
   const action=button.dataset.hubControl;
-  if(["models","settings","composio-check"].includes(action)){void loadControl(action);return;}
+  if(["menu","models","settings","composio-check"].includes(action)){void loadControl(action);return;}
   if(action==="codex-reset"){
     controlView=null;
     let key=sessionStorage.getItem("kurami-reset-attempt");

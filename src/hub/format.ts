@@ -8,6 +8,6 @@ export function compactNumber(amount:number|null|undefined):string {
 
 export function estimatedUsd(amount:number|null|undefined):string {
   if(amount==null||!Number.isFinite(amount))return "—";
-  if(amount>0&&amount<.01)return "~ <$0.01";
-  return "~ "+new Intl.NumberFormat("en-US",{style:"currency",currency:"USD",maximumFractionDigits:2}).format(amount);
+  if(amount>0&&amount<.01)return "<$0.01";
+  return new Intl.NumberFormat("en-US",{style:"currency",currency:"USD",maximumFractionDigits:2}).format(amount);
 }

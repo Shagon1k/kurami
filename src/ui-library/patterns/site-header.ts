@@ -126,6 +126,8 @@ export const SITE_HEADER_CSS = `
   .site-actions { border-left: 0; padding-left: 0; }
   .site-switcher summary { width: 44px; justify-content: center; padding: 0; }
   .site-switcher__title { display: none; }
+  .site-switcher { position: static; }
+  .site-switcher__nav { top: calc(100% + 4px); right: 0; }
   .site-nav { justify-self: stretch; gap: 4px; border-top: 1px solid var(--border-default); padding-top: 4px; }
   .site-nav__link { flex: 1; padding-inline: 10px; }
   .site-menu__nav { grid-template-columns: 1fr; }

@@ -27,7 +27,7 @@
     "test:ui-library": "node tests/ui-library/verify.ts",
     "test:ui-guard": "node tests/ui-library/guard.ts",
     "test:ui-browser": "node src/ui-library/testing/visual-regression.ts --out=dist/ui-browser",
-    "test:hub": "node tests/hub/verify.ts && node tests/hub/controls.ts && node tests/hub/operations.ts",
+    "test:hub": "node tests/hub/verify.ts && node tests/hub/controls.ts && node tests/hub/operations.ts && node tests/hub/work-feed.ts && node tests/hub/limit-history.ts",
     "test:hub-browser": "node tests/hub/browser.ts",
     "hub:serve": "node src/hub/server.ts",
     "ui:export": "node src/ui-library/export.ts --write",

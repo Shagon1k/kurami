@@ -58,6 +58,14 @@ Tokens, Models, commits and Usage reuse it. Products own period persistence and
 data selection; the component supplies escaped markup and CSS. Its CSS is also
 included in the generated UI-preview bundle. UI-Library: extended.
 
+The Hub refresh adds `components/icon.ts` (decorative line icons) and
+`components/stat-card.ts` (centered/start-aligned metrics and accessible load meters).
+They use a new semantic `status-info` role, with values in the light/dark theme.
+Forms now include `renderCheckbox`; disclosures accept a stable optional key for
+preserving the correct disclosure across fragment refreshes. A library-only
+fixture covers these primitives. Hub-specific history charts, problem grouping,
+work-feed filters and persistence remain in Hub. UI-Library: extended.
+
 ## Proposed structure
 
 ```

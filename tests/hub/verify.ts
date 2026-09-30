@@ -6,9 +6,10 @@ import {join} from "node:path";
 import {DatabaseSync} from "node:sqlite";
 import {collectHubSnapshot} from "../../src/hub/snapshot.ts";
 import {createHubServer} from "../../src/hub/server.ts";
-import {renderHubPage} from "../../src/hub/render.ts";
+import {renderHubPage,renderHubDashboard} from "../../src/hub/render.ts";
 import {compactNumber} from "../../src/hub/format.ts";
 import {createProjectStore} from "./project-store.ts";
+import {syntheticHubSnapshot} from "../../src/ui-library/testing/fixtures.ts";
 
 const home=mkdtempSync(join(tmpdir(),"kurami-hub-test-"));
 try {
@@ -91,7 +92,9 @@ projects:
   assert.match(english,/<html lang="en"/);
   assert.match(english,/<h1 class="sr-only">Kurami Hub<\/h1>/);
   assert.doesNotMatch(english,/>Overview</);
-  assert.match(english,/>Breakdown</);
+  assert.doesNotMatch(english,/>Breakdown</);
+  assert.match(english,/>Cached input</);
+  assert.match(english,/>Output</);
   assert.match(english,/data-period-key="tokens" data-period-days="30" aria-pressed="true"/);
   assert.match(english,/title="1,000" aria-label="1,000">1K</);
   assert.equal(compactNumber(3812400),"3.8M");
@@ -103,6 +106,22 @@ projects:
   assert.match(english,/href="https:\/\/docs\.shagon1k\.win\/en\/"[^>]*>Docs<\/a>/);
   assert.match(english,/href="https:\/\/hub\.shagon1k\.win\/en\/" aria-current="location">Hub<\/a>/);
   assert.doesNotMatch(english,/Обзор|Лимиты|Коммиты|нет данных|Сброс/);
+  const hiddenModel=syntheticHubSnapshot();
+  hiddenModel.codex.periods![30].modelUsage!.push({...hiddenModel.codex.periods![30].modelUsage![0]!,name:"codex-auto-review"});
+  const hiddenPage=renderHubPage(hiddenModel,"en");
+  assert.doesNotMatch(hiddenPage,/codex-auto-review/);
+  assert.match(hiddenPage,/>14.3M</,"hiding a model does not remove overall token totals");
+  const weekly=syntheticHubSnapshot();
+  weekly.codex.limitHistory!.at(-1)!.windows[300]=90;
+  const weeklyPage=renderHubDashboard(weekly,"en");
+  assert.doesNotMatch(weeklyPage,/>5h</,"retired windows in historical logs are not a live account series");
+  assert.doesNotMatch(weeklyPage,/>5 hours</);
+  assert.match(weeklyPage,/>7d</);
+  const hour={...weekly.codex.limits[0]!,windowMinutes:60};
+  weekly.codex.account!.limits=[hour];weekly.codex.limits=[hour];
+  weekly.codex.limitHistory!.at(-1)!.windows[60]=25;
+  const hourPage=renderHubDashboard(weekly,"en");
+  assert.match(hourPage,/class="limit-history__legend"><span data-series="0">1h<\/span><\/div>/,"only the observed active window appears in the legend");
 
   const server=createHubServer({snapshot:()=>snapshot});
   await new Promise<void>(done=>server.listen(0,"127.0.0.1",done));

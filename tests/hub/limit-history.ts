@@ -1,0 +1,31 @@
+import assert from "node:assert/strict";
+import {mkdtempSync,mkdirSync,writeFileSync,appendFileSync,rmSync} from "node:fs";
+import {join} from "node:path";
+import {tmpdir} from "node:os";
+import {dailyLimitHistory} from "../../src/hub/limit-history.ts";
+import {localDay,scanFile,type LimitObservation} from "../../src/core/codex-usage.ts";
+const now=new Date("2026-09-30T10:00:00Z");
+const sample=(at:string,usedPercent:number,windowMinutes=300):LimitObservation=>({at:Date.parse(at),date:localDay(Date.parse(at)),usedPercent,windowMinutes});
+const history=dailyLimitHistory([sample("2026-09-30T08:00:00Z",20),sample("2026-09-30T09:00:00Z",5),sample("2026-09-30T09:30:00Z",40),sample("2026-09-30T09:35:00Z",55,10080),sample("2026-09-30T11:00:00Z",100),sample("2026-08-29T09:00:00Z",100),sample("2026-09-29T09:00:00Z",0)],now);
+assert.equal(history.length,30);assert.equal(history[0]!.date,"2026-09-01");
+assert.deepEqual(history.at(-1),{date:"2026-09-30",windows:{"300":40,"10080":55}},"reset percentages are not added, future observations excluded");
+assert.deepEqual(history.at(-2),{date:"2026-09-29",windows:{"300":0}});
+assert.deepEqual(history.at(-3),{date:"2026-09-28",windows:{}},"gaps are not zeros");
+assert.equal(dailyLimitHistory([sample("2026-09-30T09:00:00Z",42,60)],now).at(-1)!.windows[60],42,"window durations are not hard-coded");
+assert.equal(localDay(Date.parse("2026-09-29T22:00:00Z")),"2026-09-30","Vilnius calendar boundaries");
+const dst=dailyLimitHistory([],new Date("2026-10-25T10:00:00Z"));
+assert.equal(new Set(dst.map(day=>day.date)).size,30);assert.equal(dst.at(-1)!.date,"2026-10-25");
+const home=mkdtempSync(join(tmpdir(),"kurami-limit-history-"));
+try{
+  mkdirSync(join(home,"sessions"));
+  const file=join(home,"sessions/log.jsonl");
+  const line=(at:string,percent:number)=>JSON.stringify({timestamp:at,type:"event_msg",payload:{type:"token_count",rate_limits:{primary:{used_percent:percent,window_minutes:300,resets_at:1790812800}}}})+"\n";
+  writeFileSync(file,line("2026-09-30T08:00:00Z",60)+line("2026-09-30T09:00:00Z",10));
+  let scanned=scanFile(file,home)!;
+  assert.equal(dailyLimitHistory(scanned.limitDays.values(),now).at(-1)!.windows[300],60);
+  appendFileSync(file,line("2026-09-30T09:30:00Z",70)+line("2026-09-30T11:00:00Z",90));
+  scanned=scanFile(file,home)!;
+  assert.equal(dailyLimitHistory(scanned.limitDays.values(),now).at(-1)!.windows[300],70,"future peaks do not mask earlier valid observations");
+  assert.equal(dailyLimitHistory(scanFile(file,home)!.limitDays.values(),now).at(-1)!.windows[300],70,"cached rereads do not sum observations");
+}finally{rmSync(home,{recursive:true,force:true});}
+console.log("Hub limit peaks, reset handling, gaps, time zone and incremental scans verified");

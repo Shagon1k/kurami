@@ -5,7 +5,7 @@ export const colorRoles=[
   "text-primary","text-muted","text-accent","text-on-accent",
   "border-default","border-subtle",
   "accent-primary","accent-soft",
-  "status-success","status-warning","status-failure",
+  "status-success","status-warning","status-failure","status-info",
   "shadow-offset","focus-ring",
   "chart-1","chart-2","chart-3","chart-4","chart-5",
   "diagram-surface","diagram-panel","diagram-ink","diagram-muted","diagram-accent","diagram-accent-soft",

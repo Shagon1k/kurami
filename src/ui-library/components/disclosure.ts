@@ -2,10 +2,10 @@
 import { escapeHtml } from "../foundations/html.ts";
 
 /** `body` is trusted markup from a product renderer; the summary is escaped. */
-export function renderDisclosure(input: { summary: string; body: string; boxed?: boolean; open?: boolean; className?: string }): string {
+export function renderDisclosure(input: { summary: string; body: string; boxed?: boolean; open?: boolean; className?: string; key?:string }): string {
   if (input.className && !/^[a-z0-9_-]+(?: [a-z0-9_-]+)*$/.test(input.className)) throw new Error("Unsafe disclosure class");
   const classes = ["disclosure", input.boxed && "disclosure--boxed", input.className].filter(Boolean).join(" ");
-  return `<details class="${classes}"${input.open ? " open" : ""}><summary>${escapeHtml(input.summary)}</summary>${input.body}</details>`;
+  return `<details class="${classes}"${input.key?` data-disclosure-key="${escapeHtml(input.key)}"`:""}${input.open ? " open" : ""}><summary>${escapeHtml(input.summary)}</summary>${input.body}</details>`;
 }
 
 export const DISCLOSURE_CSS = `

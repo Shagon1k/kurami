@@ -6,12 +6,18 @@ type Window={used_percent:number;window_minutes:number;resets_at:number};
 type RateLimits={primary:Window|null;secondary:Window|null};
 export type UsageEvent={at:number;input:number;cached:number;output:number;total:number;model:string|null;cacheWrite:number|null;requestInput:number|null};
 type UsageTotals={input:number;cached:number;output:number;total:number;cacheWrite:number|null};
-type FileCache={size:number;mtimeMs:number;ino:number;pending:string;events:UsageEvent[];recordEvents:UsageEvent[];activity:{at:number;event:string}[];previousTotals:UsageTotals|null;currentModel:string|null;limit:{at:number;limits:CodexLimit[]}|null;lastSeen:number};
+export type LimitObservation={date:string;windowMinutes:number;usedPercent:number;at:number};
+type FileCache={size:number;mtimeMs:number;ino:number;pending:string;events:UsageEvent[];recordEvents:UsageEvent[];activity:{at:number;event:string}[];previousTotals:UsageTotals|null;currentModel:string|null;limit:{at:number;limits:CodexLimit[]}|null;limitDays:Map<string,LimitObservation>;lastSeen:number};
 type TokenCounts={input_tokens?:number;cached_input_tokens?:number;cache_write_input_tokens?:number;output_tokens?:number;total_tokens?:number};
 
 export type CodexLimit={name:string;usedPercent:number;remainingPercent:number;windowMinutes:number;resetsAt:string;observedAt:string};
 
 const fileCache=new Map<string,FileCache>();
+const dayFormatter=new Intl.DateTimeFormat("en-CA",{timeZone:"Europe/Vilnius",year:"numeric",month:"2-digit",day:"2-digit"});
+export function localDay(at:number):string {
+  const parts=dayFormatter.formatToParts(at);
+  return ["year","month","day"].map(type=>parts.find(part=>part.type===type)!.value).join("-");
+}
 
 function isWindow(value:unknown):value is Window {
   if(!value||typeof value!=="object")return false;
@@ -71,6 +77,9 @@ function parseLine(line:string,cache:FileCache):void {
       const limits:CodexLimit[]=[];
       for(const [name,window] of [["primary",rate.primary],["secondary",rate.secondary]] as const){
         if(!isWindow(window))continue;
+        const date=localDay(at),key=`${date}:${window.window_minutes}:${window.used_percent}`;
+        const previous=cache.limitDays.get(key);
+        if(!previous||at<previous.at)cache.limitDays.set(key,{date,windowMinutes:window.window_minutes,usedPercent:window.used_percent,at});
         limits.push({name,usedPercent:window.used_percent,remainingPercent:Math.max(0,100-window.used_percent),
           windowMinutes:window.window_minutes,resetsAt:new Date(window.resets_at*1000).toISOString(),observedAt:new Date(at).toISOString()});
       }
@@ -91,7 +100,7 @@ export function scanFile(path:string,codexHome:string):FileCache|null {
     const previous=fileCache.get(actual);
     if(previous&&previous.size===stat.size&&previous.mtimeMs===stat.mtimeMs&&previous.ino===stat.ino){previous.lastSeen=Date.now();return previous;}
     const appended=previous&&previous.ino===stat.ino&&previous.size<stat.size;
-    const cache:FileCache=appended?previous:{size:0,mtimeMs:0,ino:stat.ino,pending:"",events:[],recordEvents:[],activity:[],previousTotals:null,currentModel:null,limit:null,lastSeen:Date.now()};
+    const cache:FileCache=appended?previous:{size:0,mtimeMs:0,ino:stat.ino,pending:"",events:[],recordEvents:[],activity:[],previousTotals:null,currentModel:null,limit:null,limitDays:new Map(),lastSeen:Date.now()};
     let position=appended?cache.size:0;
     const buffer=Buffer.alloc(64*1024);
     const decoder=new StringDecoder("utf8");

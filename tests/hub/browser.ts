@@ -25,6 +25,7 @@ const browser=await launchBrowser(findBrowser());const {devtools}=browser;
 const output=resolve(import.meta.dirname,"../../dist/hub-browser");mkdirSync(output,{recursive:true});
 async function wait(expression:string){for(let attempt=0;attempt<100;attempt++){if(await devtools.evaluate<boolean>(expression))return;await delay(100);}throw new Error("Browser condition timed out: "+expression);}
 async function screenshot(name:string,selector?:string){
+  if(!selector){await devtools.evaluate("window.scrollTo(0,0)");await delay(80);}
   const clip=selector?await devtools.evaluate(`(()=>{const r=document.querySelector(${JSON.stringify(selector)}).getBoundingClientRect();return {x:r.x+scrollX,y:r.y+scrollY,width:r.width,height:r.height,scale:1};})()`):undefined;
   const result=await devtools.call<{data:string}>("Page.captureScreenshot",{format:"png",captureBeyondViewport:true,...(clip?{clip}:{})});writeFileSync(resolve(output,name+".png"),Buffer.from(result.data,"base64"));
 }
@@ -38,7 +39,13 @@ try {
     const heights=await devtools.evaluate<number[]>("[...document.querySelector('.codex-grid').children].map(el=>el.getBoundingClientRect().height)");
     assert(Math.max(...heights)-Math.min(...heights)<1,"Codex panels share one row height");
     assert.equal(await devtools.evaluate("document.querySelector('[data-period-panel=tokens]:not([hidden]) .metric__value').title"),lang==="en"?"14,268,300":"3 812 400","30 days is the default; selections persist across languages");
-    assert.equal(await devtools.evaluate("document.querySelector('.activity').open"),false);
+    assert.equal(await devtools.evaluate("document.querySelector('.activity').tagName"),"SECTION");
+    assert.equal(await devtools.evaluate("document.querySelectorAll('.activity-list > [data-work-id]:not([hidden])').length"),5,"five work items are always visible");
+    assert.equal(await devtools.evaluate("document.querySelectorAll('.problem').length"),1,"CI and review are one problem object");
+    assert.equal(await devtools.evaluate("document.querySelector('.problem__reasons').children.length"),2);
+    assert.equal(await devtools.evaluate("document.querySelector('.limit-history__legend').textContent"),"7d","Pro-style weekly-only account has no phantom 5h series");
+    assert.equal(await devtools.evaluate("document.querySelector('[data-period-panel=limits]:not([hidden]) table thead tr').children.length"),2);
+    assert.equal(await devtools.evaluate("document.querySelector('.work-item__meta').textContent.includes('Running')"),lang==="en","ending a Codex turn does not complete the task");
     assert.equal(await devtools.evaluate("[...document.querySelectorAll('#hub-dashboard [data-hub-control]')].every(el=>getComputedStyle(el).borderTopStyle==='solid' && getComputedStyle(el).borderTopColor!=='rgba(0, 0, 0, 0)' && el.getBoundingClientRect().height>=(el.classList.contains('button--compact')&&!matchMedia('(pointer: coarse)').matches?32:44))"),true,"dashboard controls have visible borders and appropriate touch targets");
     assert.equal(await devtools.evaluate("document.querySelector('[data-hub-control=codex-reset]').classList.contains('button--subtle') && document.querySelector('[data-hub-control=codex-reset]').getBoundingClientRect().height===32"),true,"Reset uses a compact, understated button on desktop");
     assert.deepEqual(await devtools.evaluate(AUDIT_EXPRESSION),[]);
@@ -50,7 +57,7 @@ try {
     await devtools.evaluate("document.querySelector('[data-period-key=models][data-period-days=\"7\"]').focus(); document.activeElement.click()");
     assert.equal(await devtools.evaluate("document.activeElement.getAttribute('aria-pressed')"),"true","period selection keeps keyboard focus");
     assert.equal(await devtools.evaluate("document.querySelector('[data-period-panel=models]:not([hidden]) td').textContent"),"3M");
-    assert.match(await devtools.evaluate<string>("document.querySelector('[data-period-panel=tokens]:not([hidden]) .api-equivalent dd').textContent"),/^~ \$/,"API equivalent is visibly an estimate");
+    assert.match(await devtools.evaluate<string>("document.querySelector('[data-period-panel=tokens]:not([hidden]) .token-cost strong').textContent"),/^\$/,"API equivalent has no tilde prefix");
     await devtools.evaluate("document.querySelector('[data-period-panel=models]:not([hidden]) .model-breakdown > summary').click()");
     assert.equal(await devtools.evaluate("document.querySelector('[data-period-panel=models]:not([hidden]) .model-breakdown').open"),true);
     assert.equal(await devtools.evaluate("document.querySelector('[data-period-panel=models]:not([hidden]) .model-detail-table thead tr').children.length"),6);
@@ -62,12 +69,35 @@ try {
     assert.equal(await devtools.evaluate("document.querySelector('[data-period-panel=commits]:not([hidden]) .project-table td:nth-child(4)').textContent"),"14");
     assert.equal(await devtools.evaluate("document.querySelector('.trend__chart[style=\"--trend-columns:7\"]').children.length"),7);
     assert.equal(await devtools.evaluate("[...document.querySelectorAll('[data-period-key=commits][data-period-days=\"7\"]')].every(button=>button.getAttribute('aria-pressed')==='true')"),true,"commit selectors share one period");
+    assert.equal(await devtools.evaluate("document.querySelectorAll('[name=commit-repository]:checked').length"),4);
+    await devtools.evaluate("document.querySelector('[name=commit-repository][value=pickflick]').click()");
+    assert.equal(await devtools.evaluate("document.querySelector('.period-metric [data-period-days=\"7\"] .metric__value').textContent"),"15","repository selection recomputes totals");
+    await devtools.evaluate("[...document.querySelectorAll('[name=commit-repository]:checked')].forEach(input=>input.click())");
+    assert.equal(await devtools.evaluate("document.querySelector('.period-metric [data-period-days=\"7\"] .metric__value').textContent"),"0","empty repository selection is intentional zero");
+    await devtools.evaluate("[...document.querySelectorAll('[name=commit-repository]')].forEach(input=>input.click())");
+    await devtools.evaluate("const p=document.querySelector('[name=activity-project]');p.value='tailortales';p.dispatchEvent(new Event('change',{bubbles:true}))");
+    assert.equal(await devtools.evaluate("document.querySelectorAll('.activity-list > [data-work-id]:not([hidden])').length"),5);
+    assert.equal(await devtools.evaluate("document.querySelectorAll('.activity-more-list > [data-work-id]:not([hidden])').length"),1);
+    await devtools.evaluate("const a=document.querySelector('[name=activity-agent]');a.value='Codex';a.dispatchEvent(new Event('change',{bubbles:true}))");
+    assert.equal(await devtools.evaluate("document.querySelectorAll('.activity-list > [data-work-id]:not([hidden])').length"),4);
+    assert.equal(await devtools.evaluate("document.querySelector('.activity-more').hidden"),true);
+    await devtools.evaluate("[...document.querySelectorAll('.activity-filters select')].forEach(s=>{s.value='all';s.dispatchEvent(new Event('change',{bubbles:true}))})");
+    await devtools.evaluate("document.querySelector('[data-period-key=limits][data-period-days=\"7\"]').click()");
+    assert.equal(await devtools.evaluate("document.querySelector('[data-period-panel=limits]:not([hidden]) table tbody').children.length"),7);
+    await devtools.evaluate("document.querySelector('.activity-list > [data-work-id]:not([hidden]) .work-events > summary').click()");
     await devtools.evaluate("document.querySelector('.usage > summary').click();document.querySelector('[data-period-key=usage][data-period-days=\"7\"]').click()");
     assert.equal(await devtools.evaluate("document.querySelector('[data-period-panel=usage]:not([hidden]) .metric__value').textContent"),"6");
     assert.equal(await devtools.evaluate("document.querySelector('[data-period-panel=usage]:not([hidden]) .usage-coverage').textContent"),lang==="en"?"Logs 5/6":"Логи 5/6");
     assert.deepEqual(await devtools.evaluate(AUDIT_EXPRESSION),[],"expanded Usage and selected period are accessible");
     if(lang==="en")await screenshot("hub-usage",".usage");
-    await devtools.evaluate("document.querySelector('[data-hub-control=models]').click()");await wait("!!document.querySelector('form[data-target=codex]')");
+    const menuActions=actions.length;
+    await devtools.evaluate("document.querySelector('header [data-hub-control=menu]').click()");
+    assert.equal(actions.length,menuActions,"opening the Controls menu does not mutate state");
+    await devtools.call("Input.dispatchKeyEvent",{type:"keyDown",key:"Escape",code:"Escape",windowsVirtualKeyCode:27,nativeVirtualKeyCode:27});
+    await devtools.call("Input.dispatchKeyEvent",{type:"keyUp",key:"Escape",code:"Escape",windowsVirtualKeyCode:27,nativeVirtualKeyCode:27});
+    await wait("!document.querySelector('dialog').open");
+    assert.equal(await devtools.evaluate("document.activeElement.dataset.hubControl"),"menu","Escape restores focus to the header");
+    await devtools.evaluate("document.querySelector('header [data-hub-control=menu]').click();document.querySelector('[data-hub-control=models]').click()");await wait("!!document.querySelector('form[data-target=codex]')");
     await devtools.evaluate("document.querySelector('form[data-target=codex] select').value='gpt-6-astra';document.querySelector('form[data-target=codex]').requestSubmit()");
     const before=actions.length;assert.equal(await devtools.evaluate("document.querySelector('#hub-control-confirm').hidden"),false);
     await delay(100);assert.equal(actions.length,before,"opening confirmation never applies a model");
@@ -77,12 +107,15 @@ try {
       assert.equal(actions.at(-1),"model-apply");
       assert.equal(await devtools.evaluate("document.querySelector('[data-period-key=tokens][data-period-days=\"7\"]').getAttribute('aria-pressed')"),"true","refresh preserves period selection");
       assert.equal(await devtools.evaluate("document.querySelector('.usage').open"),true,"refresh preserves open Usage");
+      assert.equal(await devtools.evaluate("document.querySelector('.activity-list > [data-work-id]:not([hidden]) .work-events').open"),true,"refresh preserves the selected work item's events");
+      assert.equal(await devtools.evaluate("[...document.querySelectorAll('.work-events[open]')].length"),1,"identical disclosure labels do not open unrelated work items");
+      assert.equal(await devtools.evaluate("document.querySelector('[name=commit-repository][value=pickflick]').checked"),true,"refresh preserves repository selection");
     }else await devtools.evaluate("document.querySelector('[data-hub-cancel]').click()");
     await devtools.evaluate("document.querySelector('[data-dialog-close]').click()");
     await devtools.evaluate("document.querySelector('[data-hub-control=codex-reset]').click()");
     assert.equal(actions.length,before+(lang==="en"?1:0),"reset waits for confirmation");
     await devtools.evaluate("document.querySelector('[data-hub-cancel]').click()");
-    await devtools.evaluate("document.querySelector('[data-hub-control=settings]').click()");await wait("!!document.querySelector('[data-hub-submit=settings-apply]')");
+    await devtools.evaluate("document.querySelector('header [data-hub-control=menu]').click();document.querySelector('[data-hub-control=settings]').click()");await wait("!!document.querySelector('[data-hub-submit=settings-apply]')");
     assert.equal(await devtools.evaluate("[...document.querySelectorAll('dialog button')].every(el=>!el.classList.contains('button--quiet'))"),true,"dialog actions look like buttons");
     for(const width of [320,390,1280]){
       await devtools.call("Emulation.setTouchEmulationEnabled",{enabled:width<500,maxTouchPoints:1});
@@ -102,8 +135,9 @@ try {
     await devtools.evaluate("document.querySelector('[data-period-panel=models]:not([hidden]) .model-breakdown > summary').click()");
     assert.deepEqual(await devtools.evaluate(AUDIT_EXPRESSION),[],"expanded model detail fits the phone viewport");
     await devtools.evaluate("document.querySelector('[data-period-panel=models]:not([hidden]) .model-breakdown > summary').click()");
-    await devtools.evaluate("document.querySelector('.activity > summary').click()");
-    assert.equal(await devtools.evaluate("document.querySelector('.activity').open"),true);
+    await devtools.evaluate("document.querySelector('.activity-more > summary').click()");
+    assert.equal(await devtools.evaluate("document.querySelector('.activity-more').open"),true);
+    assert.equal(await devtools.evaluate("document.querySelectorAll('.activity-more-list > [data-work-id]:not([hidden])').length"),15);
     await devtools.evaluate("document.querySelector('[data-theme-toggle]').click()");
     await delay(250);
     assert.deepEqual(await devtools.evaluate(AUDIT_EXPRESSION),[]);
