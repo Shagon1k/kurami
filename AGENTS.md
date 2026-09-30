@@ -27,3 +27,12 @@ Every Kurami site (Digest, human docs, any new sub-site) renders through the sha
 - Run `npm run test:ui-library`, `npm run test:ui-guard` and `npm run test:ui-browser` for UI
   changes. When you remove an exception, record it with `node tests/ui-library/guard.ts --update`.
 - After changing the library, run `npm run ui:export` so the UI-language skill bundle stays current.
+
+## Docs site: pages are Markdown in `src/human-docs/content/pages/`
+
+- A change to reader- or operator-visible behaviour updates the matching page in both languages
+  (`<slug>.ru.md` and `<slug>.en.md`); `docs/human-docs-impact-map.md` says which section, and
+  `docs/human-docs-concept.md` is the writing and format contract (page types, style, blocks, diagram DSL).
+- Diagrams are ```` ```diagram ```` blocks drawn by `src/human-docs/diagrams/kit.ts`; never add image files for diagrams.
+- A new SQLite table needs a one-line description in `src/human-docs/reference-notes.ts`, or the docs build fails.
+- Check pages with `node src/human-docs/tools/check-pages.ts <slug> --shots=<dir>` and `npm run test:docs`.

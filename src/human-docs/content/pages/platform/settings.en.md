@@ -1,0 +1,68 @@
+---
+title: Settings
+nav: Settings
+summary: The /kurami settings command: which limits you can change from Discord, within what ranges, why changes are blocked while Kurami is busy and how to go back.
+section: platform
+group: guide
+order: 20
+next: health
+---
+
+The `/kurami settings` command opens a Discord panel with the limits Kurami applies while it works. Only you see the panel: the command accepts the single owner and only inside a project server. Pick a section, change a value in its form and press **Apply**.
+
+::shot{file="shot-kurami-settings.png" size="card" alt="Kurami settings panel, revision 4: check interval, capacity, AI triage and previews; changes locked because of active runs" caption="Current values and the lock line: it lists everything that is still running."}
+
+## What you can change
+
+| Section | Setting | Range | What it is |
+|---|---|---|---|
+| System Health | Check interval | 5, 10, 12, 15, 20, 30 or 60 minutes | How often the server health check runs. Works even while runs are active |
+| Capacity & WIP | Concurrent LLM | 1–3 | How many Codex tasks and AI reviews run at once |
+| Capacity & WIP | Global WIP | 1–6 | How many runs may be in progress across all projects |
+| Capacity & WIP | Project WIP | 1–3 per project | A project's ceiling inside the global WIP |
+| AI triage | AI triage/day | 0–40 | How many issues per day the AI assesses for priority and effort |
+| Previews | Active previews | 1–6 | How many previews live at once |
+| Previews | Concurrent preview builds | 1–2 | How many previews build at once |
+| Previews | Preview lifetime | 6–72 hours | After how many hours a preview is removed |
+
+Checks tie the values together. Codex tasks cannot exceed tmux sessions (three). Global WIP cannot exceed the number of working copies (six). Project WIP cannot exceed the global WIP or the per-project working-copy limit (four). Builds cannot exceed previews. Preview lifetime must exceed the expiry warning window (two hours). Project WIP is a ceiling, not a reservation: projects share one pool.
+
+Disks, channels, paths, secrets and physical limits are not in the panel: they live in the deployment configuration.
+
+## Why changes are blocked
+
+Limits change only while Kurami is idle. If a new limit took effect mid-run, part of the work would follow the old rules and part the new ones. The panel shows a lock line with everything still running:
+
+- unfinished runs and managed resources;
+- active previews;
+- pending commands and unprocessed board events;
+- AI reviews, CI and review fixes, continuations and metadata assessments;
+- managed tmux sessions.
+
+Wait until the list is empty and press **Apply** again.
+
+## Revisions, Undo and Reset
+
+Every apply creates a new revision: the number grows, and the values, the previous values and the author's Discord id are stored in the database with a checksum. The panel remembers the revision it opened with. If someone changed the settings meanwhile, the panel refuses and asks you to reopen it.
+
+| Button | What it does |
+|---|---|
+| **Apply** | Validates the values and creates a new revision |
+| **Undo last** | Restores the values of the previous revision, as another new revision |
+| **Reset defaults** | Restores the values from `orchestrator.yaml` |
+
+If the values did not change, no revision is created. The values are read by [Admission](@project-admission) (WIP), the [Controller](@controller) (the Codex limit), [previews](@previews) and [Projects Digest](@project-digest) (AI assessment).
+
+:::guarantees
+- Limits change only while Kurami is idle.
+- Every change is a separate revision with an author and a checksum; any change can be rolled back.
+- Physical limits, disks, channels, paths and secrets cannot be changed from Discord.
+:::
+
+:::code-map
+- `src/orchestrator/settings/runtime-settings.ts` — ranges, consistency checks and the idle check
+- `src/orchestrator/settings/orchestrator-settings.ts` — applying, resetting and rolling back revisions
+- `integrations/hermes/plugins/kurami-discord-controls/settings_handler.py` — the panel and forms in Discord
+- `migrations/030_runtime_settings.sql` — the revisions table
+- `deploy/config/orchestrator.yaml` — default values
+:::

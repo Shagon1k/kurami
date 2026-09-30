@@ -7,11 +7,12 @@ import {baselineGrew,evaluateUiImpact} from "../../src/ui-library/testing/impact
 type Area="digest"|"projects"|"operations"|"understand"|"site";
 const root=resolve(import.meta.dirname,"../..");
 const shaPattern=/^[0-9a-f]{40}$/;
+const pagesOf=(section:string)=>(path:string)=>path.startsWith(`src/human-docs/content/pages/${section}/`);
 const contentByArea:Record<Area,(path:string)=>boolean>={
-  digest:path=>path==="src/human-docs/content/digest.ts",
-  projects:path=>path==="src/human-docs/content/projects.ts",
-  operations:path=>path==="src/human-docs/content/operations.ts",
-  understand:path=>["src/human-docs/content/start.ts","src/human-docs/content/understand.ts"].includes(path),
+  digest:pagesOf("digest"),
+  projects:pagesOf("projects"),
+  operations:path=>pagesOf("platform")(path)||pagesOf("reference")(path),
+  understand:path=>pagesOf("basics")(path)||/^src\/human-docs\/content\/pages\/home\.(ru|en)\.md$/.test(path),
   site:path=>path.startsWith("src/human-docs/")||path.startsWith("docs/human-docs-"),
 };
 
@@ -20,7 +21,7 @@ function areaFor(path:string):Area|undefined {
   if(path===".github/workflows/regression.yml")return undefined;
   if(path.startsWith("src/briefing/")||path.startsWith("integrations/hermes/skills/kurami-daily-briefing/")||path==="bin/sync-briefing-cron.py"||path.startsWith("deploy/config/briefing"))return "digest";
   if(path.startsWith("src/orchestrator/")||path.startsWith("src/discord/")||path.startsWith("integrations/hermes/plugins/kurami-discord-controls/"))return "projects";
-  if(path.startsWith("src/connectors/")||path.startsWith("src/system/")||path.startsWith("deploy/")||path.startsWith("bin/")||path.startsWith(".github/workflows/"))return "operations";
+  if(path.startsWith("src/connectors/")||path.startsWith("src/system/")||path.startsWith("src/hub/")||path.startsWith("deploy/")||path.startsWith("bin/")||path.startsWith(".github/workflows/"))return "operations";
   if(path.startsWith("src/core/"))return "understand";
   if(path.startsWith("src/")||path.startsWith("integrations/")||path==="package.json"||path==="package-lock.json")return "site";
   return undefined;

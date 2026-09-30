@@ -20,11 +20,12 @@ const scratch=mkdtempSync(resolve(tmpdir(),"kurami-docs-approval-"));
 const sh=(cwd:string,command:string,...args:string[])=>execFileSync(command,args,{cwd,encoding:"utf8",stdio:["ignore","pipe","pipe"]}).trim();
 
 // --- Pure policy -----------------------------------------------------------------------------------
-assert.ok(isAllowedProposalPath("src/human-docs/content/docs.ts"));
+assert.ok(isAllowedProposalPath("src/human-docs/content/pages/platform/docs-process.ru.md"));
+assert.ok(isAllowedProposalPath("src/human-docs/content/pages/home.en.md"));
 assert.ok(isAllowedProposalPath("src/human-docs/changelog.json"));
-for(const path of ["src/human-docs/content/schema.ts","src/human-docs/render.ts","src/orchestrator/controls/run.ts","package.json","src/human-docs/content/../build.ts"])
+for(const path of ["src/human-docs/content/schema.ts","src/human-docs/content/site.ts","src/human-docs/render.ts","src/orchestrator/controls/run.ts","package.json","src/human-docs/content/pages/../../build.ts","src/human-docs/content/pages/platform/x.md"])
   assert.ok(!isAllowedProposalPath(path),`${path} must stay outside docs proposals`);
-assert.deepEqual(disallowedPaths(["src/human-docs/content/docs.ts","bin/x.sh"]),["bin/x.sh"]);
+assert.deepEqual(disallowedPaths(["src/human-docs/content/pages/platform/docs-process.ru.md","bin/x.sh"]),["bin/x.sh"]);
 assert.ok(acceptsAction("ready","publish")&&!acceptsAction("revising","publish")&&!acceptsAction("published","reject"));
 assert.ok(acceptsAction("failed","publish",true)&&!acceptsAction("failed","reject",true),"after a merge only the release retry remains");
 assert.throws(()=>controlId("publish","dp_x;rm"));
@@ -35,7 +36,9 @@ assert.deepEqual(changedPages({a:{title:"A",hash:"1"},b:{title:"B",hash:"2"}},{a
 
 // --- Fixture: bare remote seeded from this checkout (full history: the docs checks read the changelog baseline)'s main, plus the worker's source clone ------------
 const remote=resolve(scratch,"remote.git");
-sh(scratch,"git","clone","--quiet","--bare","--branch","main",`file://${appRoot}`,remote);
+sh(scratch,"git","clone","--quiet","--bare",`file://${appRoot}`,remote);
+// Seed main with the commit under test, so the fixture sees the same docs structure as this checkout.
+sh(appRoot,"git","push","--quiet","--force",remote,"HEAD:refs/heads/main");
 const home=resolve(scratch,"kurami");
 const docsState=resolve(home,"state/human-docs");
 mkdirSync(docsState,{recursive:true});
@@ -133,8 +136,8 @@ const args=process.argv.slice(2);
 const dir=args[args.indexOf("-C")+1];
 const prompt=readFileSync(0,"utf8");
 writeFileSync(${JSON.stringify(resolve(scratch,"codex-prompt.txt"))},prompt);
-const file=resolve(dir,"src/human-docs/content/docs.ts");
-writeFileSync(file,readFileSync(file,"utf8")+"\\n// Owner remark applied.\\n");
+const file=resolve(dir,"src/human-docs/content/pages/platform/docs-process.ru.md");
+writeFileSync(file,readFileSync(file,"utf8")+"\\nЗамечание владельца учтено.\\n");
 writeFileSync(resolve(dir,"bin-outside.txt"),"must be dropped");
 writeFileSync(args[args.indexOf("-o")+1],JSON.stringify({summaryRu:"Страница об актуальности уточнена по замечанию.",summaryEn:"The freshness page is clarified after the owner's remark.",reply:"Уточнил формулировку."}));
 `);
@@ -159,8 +162,8 @@ try{
   assert.ok("blockedBy" in blocked&&blocked.blockedBy===draft.proposalId);
 
   // 2. The agent edits a page, strays outside docs, then writes its summary. Nothing happens until it settles.
-  const page=resolve(draft.path,"src/human-docs/content/docs.ts");
-  writeFileSync(page,readFileSync(page,"utf8").replace("Чего аудит не скажет","Чего аудит не знает"));
+  const page=resolve(draft.path,"src/human-docs/content/pages/platform/docs-process.ru.md");
+  writeFileSync(page,readFileSync(page,"utf8")+"\nЕщё одно уточнение для проверки.\n");
   writeFileSync(resolve(draft.path,"src/human-docs/render.ts"),"// stray edit\n",{flag:"a"});
   writeFileSync(draft.summaryPath,JSON.stringify({summaryRu:"Уточнён раздел о границах аудита.",summaryEn:"Clarified what the audit cannot tell."}));
   await tick(config,store,surface);
@@ -172,10 +175,11 @@ try{
   assert.equal(row.pr_number,7);
   assert.deepEqual(JSON.parse(row.pages_json!).map((p:{slug:string})=>p.slug),["docs-process"]);
   assert.match(row.summary_en!,/Dropped changes outside the docs allowlist: `src\/human-docs\/render\.ts`/);
-  assert.equal(sh(source,"git","--git-dir",remote,"diff","--name-only","main",row.branch),"src/human-docs/content/docs.ts");
+  assert.equal(sh(source,"git","--git-dir",remote,"diff","--name-only","main",row.branch),"src/human-docs/content/pages/platform/docs-process.ru.md");
   const posted=discordCalls.find(call=>call.method==="POST"&&call.path==="/channels/111/messages")!;
   assert.deepEqual(buttonsOf(posted),["kurami:docs_publish","kurami:docs_discuss","kurami:docs_reject"]);
-  assert.match(JSON.stringify(posted.body),/Freshness — changed/);
+  const docsProcessTitle=readFileSync(resolve(appRoot,"src/human-docs/content/pages/platform/docs-process.en.md"),"utf8").match(/^title:\s*(.+)$/m)![1]!.trim();
+  assert.ok(JSON.stringify(posted.body).includes(`${docsProcessTitle} — changed`),"the card names the changed page");
   assert.match(JSON.stringify(posted.body),/Clarified what the audit cannot tell/);
 
   // 3. Discuss opens one thread; the intro and the card both offer "Apply remarks".
@@ -220,7 +224,7 @@ try{
   const main=sh(source,"git","--git-dir",remote,"rev-parse","refs/heads/main");
   assert.equal(row.published_docs_sha,main);
   assert.equal(JSON.parse(readFileSync(resolve(docsState,"release/build.json"),"utf8")).docsSha,main);
-  assert.ok(readFileSync(resolve(docsState,"release/ru/docs-process/index.html"),"utf8").includes("Чего аудит не знает"));
+  assert.ok(readFileSync(resolve(docsState,"release/ru/docs-process/index.html"),"utf8").includes("Ещё одно уточнение для проверки."));
   assert.equal(readFileSync(resolve(docsState,`rollback-${"a".repeat(40)}/en/index.html`),"utf8"),"old");
   assert.match(readFileSync(resolve(scratch,"systemctl.log"),"utf8"),/--user restart kurami-human-docs/);
   assert.ok(row.cleaned_at&&!existsSync(draft.path),"published draft must be cleaned up");
@@ -238,7 +242,7 @@ try{
 
   const broken=prepareDraft({sourceRoot:source,home,now:new Date(clock)});
   assert.ok("path" in broken);
-  writeFileSync(resolve(broken.path,"src/human-docs/content/docs.ts"),"export const docsPages=[;\n");
+  writeFileSync(resolve(broken.path,"src/human-docs/content/pages/platform/docs-process.ru.md"),"no frontmatter, so the docs tests fail\n");
   writeFileSync(broken.summaryPath,JSON.stringify({summaryRu:"Сломанный черновик для проверки.",summaryEn:"A broken draft for the test."}));
   utimesSync(broken.summaryPath,new Date(clock-5*60_000),new Date(clock-5*60_000));
   await tick(config,store,surface);
@@ -254,8 +258,8 @@ try{
   // An agent that commits despite instructions still yields a normal, checked proposal.
   const committed=prepareDraft({sourceRoot:source,home,now:new Date(clock)});
   assert.ok("path" in committed);
-  const committedPage=resolve(committed.path,"src/human-docs/content/docs.ts");
-  writeFileSync(committedPage,readFileSync(committedPage,"utf8")+"\n// Committed by the agent.\n");
+  const committedPage=resolve(committed.path,"src/human-docs/content/pages/platform/docs-process.ru.md");
+  writeFileSync(committedPage,readFileSync(committedPage,"utf8")+"\nАгент закоммитил это сам.\n");
   sh(committed.path,"git","commit","--quiet","-am","agent commit");
   writeFileSync(committed.summaryPath,JSON.stringify({summaryRu:"Черновик, который агент закоммитил сам.",summaryEn:"A draft the agent committed itself."}));
   utimesSync(committed.summaryPath,new Date(clock-5*60_000),new Date(clock-5*60_000));

@@ -26,7 +26,7 @@ export function createDocsServer(root: string): Server {
     catch {response.writeHead(400).end();return;}
     if(pathname==="/"||pathname==="/index.html") {response.writeHead(302,{Location:"/en/"}).end();return;}
     // Only generated public routes/assets; never expose build metadata or source paths.
-    if(!/^\/(?:|(?:en|ru)\/(?:|(?:[a-z0-9-]+\/)*)(?:index\.html)?|assets\/[a-z0-9-]+\.(?:css|js|svg|png|woff2))$/.test(pathname)) {
+    if(!/^\/(?:|(?:en|ru)\/(?:|(?:[a-z0-9-]+\/)*)(?:index\.html)?|assets\/(?:diagrams\/)?[a-z0-9-]+\.(?:css|js|svg|png|woff2))$/.test(pathname)) {
       response.writeHead(404).end();return;
     }
     const relative=pathname.endsWith("/")?`${pathname}index.html`:pathname;
