@@ -16,7 +16,7 @@ A connector is an external set of tools through which an agent or a Kurami scrip
 - Who calls: polls and Daily — `read`; the "Прочитать и архивировать" (Read and archive) button — `automation`; you in chat — `composio`
 - Drift check: the `/kurami composio-check` command in Discord
 - A fourth connector: Telegram MCP — the news source for Daily
-- Secrets: separate `.env` directories with mode 0600, never in Git
+- Secrets: separate `.env` directories with mode 0600, kept out of Git
 :::
 
 ## Three levels
@@ -51,6 +51,8 @@ edge hermes -> composio "MCP"
 
 The `composio-read` tools: `GMAIL_FETCH_EMAILS`, `GMAIL_FETCH_MESSAGE_BY_MESSAGE_ID`, `GOOGLECALENDAR_EVENTS_LIST` and four YouTube tools. In the broad session Hermes sees only three service tools: search, schemas and multi-execute.
 
+`untrusted` means Hermes asks for confirmation before a call with side effects; `full` means it does not.
+
 ## Two lists must agree
 
 Access is limited twice, and the two limits are independent. The first is the session policy that Composio reads: which tools are enabled, which tags are forbidden (`destructiveHint` is forbidden everywhere), whether connection management and the workbench are off. The second is the `tools.include` list in Hermes's configuration, written by the `install-hermes-*` command. If someone adds a write tool on one side, the other list will not let it through.
@@ -66,7 +68,7 @@ The `GMAIL_BATCH_MODIFY_MESSAGES` tool can both add and remove any labels, and t
 - `removeLabelIds` is a non-empty subset of `INBOX` and `UNREAD`;
 - the identifiers come from a stored read result, not from the text of a message or a model answer.
 
-So the "Прочитать и архивировать" button removes the `UNREAD` and `INBOX` labels but cannot delete a message, send a reply or add a label. If a check on the tool side is ever needed, it takes a local adapter with a fixed operation.
+So the "Прочитать и архивировать" button removes the `UNREAD` and `INBOX` labels but cannot delete a message, send a reply or add a label.
 
 ## Reconciling: `/kurami composio-check`
 

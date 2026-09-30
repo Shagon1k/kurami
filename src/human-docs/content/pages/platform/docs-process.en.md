@@ -5,9 +5,10 @@ summary: Once a week an agent compares the site with the code and proposes edits
 section: platform
 group: guide
 order: 90
+next: hermes-integration
 ---
 
-The documentation never publishes itself. Every Monday Kurami prepares a proposal of edits, opens a PR for it and posts a "Docs proposal" card to the `#updates` channel. The site changes only after you click **Publish**. If you press nothing, the site stays as it was and the card waits.
+The documentation does not publish itself. Every Monday Kurami prepares a proposal of edits, opens a PR for it and posts a "Docs proposal" card to the `#updates` channel. The site changes only after you click **Publish**. If you press nothing, the site stays as it was and the card waits.
 
 ## The documentation week
 

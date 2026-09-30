@@ -8,7 +8,7 @@ order: 50
 next: maintenance
 ---
 
-Kurami backs up in three tiers, and each one guards against a heavier loss. A snapshot on the same disk saves you from a broken database. An encrypted bundle holds the secrets needed to rebuild the server. A copy in external storage survives losing the server itself. The job runs at 03:15 UTC on every third day of the month, and the result arrives in the maintenance channel.
+Kurami backs up in three tiers, and each one guards against a heavier loss. A snapshot on the same disk saves you from a broken database. An encrypted bundle holds the secrets needed to rebuild the server. A copy in external storage survives losing the server itself. The job runs at 03:15 UTC on days 1, 4, 7 … of the month, so runs are at most 72 hours apart, and the result arrives in the maintenance channel.
 
 ## Three tiers
 

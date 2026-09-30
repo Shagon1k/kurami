@@ -8,7 +8,7 @@ order: 80
 next: docs-process
 ---
 
-There is one way to Kurami's sites: Cloudflare Tunnel delivers a request to the server, Cloudflare Access first checks that it is you, and only then does the request reach a local port. The services themselves check nothing — they listen on `127.0.0.1` and assume that an already verified request has reached them. An anonymous visitor is redirected to the Access login and never gets to the service.
+There is one way to Kurami's sites: Cloudflare Tunnel delivers a request to the server, Cloudflare Access first checks that it is you, and only then does the request reach a local port. The services themselves check nothing — they listen on `127.0.0.1` and assume that an already verified request has reached them. An anonymous visitor is redirected to the Access login and does not reach the service.
 
 ```diagram
 kind: graph
@@ -38,7 +38,7 @@ edge caddy -> preview "running only"
 |---|---|---|
 | Digest | `127.0.0.1:8787` | Cloudflare Access |
 | This documentation, `docs.shagon1k.win` | `127.0.0.1:8799` | Cloudflare Access; `/` redirects to `/en/` |
-| Hub | `127.0.0.1:8800` | Cloudflare Access; no login of its own |
+| Hub | `127.0.0.1:8800` | Cloudflare Access |
 | Project previews, `preview-N.shagon1k.win` (N from 1 to 6) | through Caddy, `127.0.0.1:9180` | Cloudflare Access plus a 404 for any address without a running preview |
 | The "Open in Codex" link | through Caddy | no Access: a redirect by exact task identifier |
 

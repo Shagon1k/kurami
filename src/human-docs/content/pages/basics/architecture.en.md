@@ -11,7 +11,7 @@ Kurami is not one application but around twenty short scripts and a few long-run
 
 :::glance
 - Server: one VPS; every service listens on `127.0.0.1` only
-- Scheduler: Hermes (12 cron jobs) plus three systemd timers and daemons
+- Scheduler: Hermes (12 cron jobs) plus two systemd timers
 - Long-running services: the Digest site, the docs site, Hub, Caddy for previews, the CPU sampler
 - State: `$KURAMI_HOME/state` — SQLite databases and JSON files
 - Access from outside: Cloudflare Tunnel and Cloudflare Access, owner only
@@ -59,7 +59,7 @@ Top to bottom: the outside world, Hermes, Kurami's processes, state. Hermes is a
 | `hermes-gateway` | systemd, always restarted | cron ticker, Discord buttons through the Kurami plugin, agent sessions, MCP servers |
 | Project polls (×3) | Hermes cron, every minute | the Project Orchestrator cycle for each project |
 | Docs proposal worker | Hermes cron, every minute | turns the weekly docs draft into a PR and a card |
-| Server health | Hermes cron, every 10 minutes | updates the health card and sends alerts |
+| Server health | Hermes cron, at the configured interval (5–60 minutes) | updates the health card and sends alerts |
 | Daily | Hermes cron, agent job | the Digest morning edition |
 | Projects Digest, backup, maintenance, Investment Review, docs audit, network speed | Hermes cron, on schedule | see [the schedule](@scheduling) |
 | `kurami-briefing` | systemd, always on | the Digest site |
@@ -109,7 +109,7 @@ There is no automatic deploy. GitHub Actions runs the checks on every PR: types,
 
 :::guarantees
 - Services listen only on the local address; the only way in from outside goes through Cloudflare Access.
-- Secrets never reach Git, logs or ordinary backups; the only copy of secrets is the encrypted recovery archive.
+- Secrets never reach Git, logs or ordinary backups; the only place some of them are copied to is the encrypted recovery archive.
 - Every button action passes the same checks as an automatic one and leaves a record in the database.
 - Deploying new code is a manual step; the system never updates itself.
 :::

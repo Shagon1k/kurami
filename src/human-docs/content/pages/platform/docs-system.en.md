@@ -8,7 +8,7 @@ order: 70
 next: ui-library
 ---
 
-The documentation is a static site built from Markdown files in the repository and published only after checks and your decision.
+The documentation is a static site built from Markdown files in the repository and published only after checks and your decision. The owner's weekly view is in [How the docs are updated](@docs-process).
 
 :::glance
 - What it does: builds the pages in Russian and English into HTML, draws the diagrams and reference tables, and serves them from a localhost server
@@ -75,7 +75,7 @@ The ledger `changelog.json` is a list of Russian and English explanations keyed 
 
 ## The weekly proposal
 
-A proposal of edits is a record in `proposals.db` and a working copy of the docs on its own branch. The Monday audit creates a `drafting` record, the agent edits the working copy, and every minute the worker moves the record through the state machine and updates the card. The worker edits only an allowlist: pages in `content/pages/`, `changelog.json`, `tests/human-docs/verify.ts` and `docs/human-docs-coverage-audit.md`. It drops everything else before committing and rechecks before merging. Button clicks are validated and recorded atomically: two simultaneous clicks cannot both run.
+A proposal of edits is a record in `proposals.db` and a working copy of the docs on its own branch. The Monday audit creates a `drafting` record, the agent edits the working copy, and every minute the worker moves the record through the state machine and updates the card. The worker edits only an allowlist of files, described in [How the docs are updated](@docs-process), drops everything else before committing and rechecks before merging. Button clicks are validated and recorded atomically: two simultaneous clicks cannot both run.
 
 ```diagram
 kind: graph

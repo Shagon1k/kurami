@@ -7,7 +7,7 @@ group: reference
 order: 40
 ---
 
-Справочник показывает, что запускается на сервере и когда. Расписание Hermes и сервера задано в UTC. Местное время: лето = UTC+3, зима = UTC+2. Как система переживает перевод часов, объясняет [Расписание](@scheduling), а как Hermes запускает задания — [Kurami и Hermes](@hermes-integration). Вывод «local» означает, что Hermes ничего не отправляет: скрипт пишет в Discord сам, если нужно.
+Справочник показывает, что запускается на сервере и когда: двенадцать заданий Hermes (десять скриптовых и два агентных), два таймера systemd и постоянные сервисы. Расписание Hermes и сервера задано в UTC. Местное время: лето = UTC+3, зима = UTC+2. Как система переживает перевод часов, объясняет [Расписание](@scheduling), а как Hermes запускает задания — [Kurami и Hermes](@hermes-integration). Вывод «local» означает, что Hermes ничего не отправляет: скрипт пишет в Discord сам, если нужно.
 
 ## Задания Hermes
 
@@ -16,8 +16,8 @@ order: 40
 | `kurami-tailortales-poller` | скриптовое | `* * * * *` | каждую минуту | цикл Project Orchestrator для TailorTales | `local`; карточки Discord пишет контроллер |
 | `kurami-pickflick-poller` | скриптовое | `* * * * *` | каждую минуту | то же для PickFlick | `local` |
 | `kurami-<проект>-poller` (третий) | скриптовое | `* * * * *` | каждую минуту | то же для третьего проекта | `local` |
-| `kurami-docs-approval` | скриптовое | `* * * * *` | каждую минуту | шаг работника предложений документации | `local`; журнал `logs/docs-approval.log` |
-| `kurami-system-health` | скриптовое | `*/10 * * * *` (меняется в `/kurami settings`) | каждые 10 минут | проверка здоровья, карточка и тревоги | `local`; Discord по REST |
+| `kurami-docs-approval` | скриптовое | `* * * * *` | каждую минуту | шаг воркера предложений документации | `local`; журнал `logs/docs-approval.log` |
+| `kurami-system-health` | скриптовое | `*/10 * * * *` (задаётся интервалом в `/kurami settings`; сейчас 10 минут) | каждые 10 минут | проверка здоровья, карточка и тревоги | `local`; Discord по REST |
 | `kurami-network-speed` | скриптовое | `7 */6 * * *` | 03:07, 09:07, 15:07, 21:07 / 02:07, 08:07, 14:07, 20:07 | замер скорости LibreSpeed | `local`; `state/network-speed.json` |
 | `kurami-projects-digest` | скриптовое | `45 6 * * *` | 09:45 / 08:45 | ежедневный Projects Digest | `local`; Discord по REST |
 | `kurami-daily-briefing` | агентное, скилл `kurami-daily-briefing` | `0 6,7,8 * * *` | 09:00, 10:00, 11:00 / 08:00, 09:00, 10:00 (рабочие окна: 09 и 10 часов) | утренний выпуск Daily; по субботам Cinema, по воскресеньям Weekly | `local`; карточку ведёт runtime |
@@ -57,6 +57,6 @@ order: 40
 - `deploy/systemd/` — таймеры и сервисы
 - `run-project-poller.sh` — цикл опроса проектов
 - `run-projects-digest.sh` — Projects Digest
-- `run-docs-approval.sh` — шаг работника документации
+- `run-docs-approval.sh` — шаг воркера документации
 - `src/briefing/run-attempt.ts` — окна Daily
 :::

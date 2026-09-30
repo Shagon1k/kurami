@@ -49,7 +49,7 @@ edge platform -> files
 :::steps
 - **Night** — every three days Kurami makes a verified copy of the Project Orchestrator database and configuration, and, when configured, an encrypted archive off the server.
 - **Every minute** — the GitHub boards are polled: if you moved an issue, Kurami notices and starts work.
-- **Every 10 minutes** — a server health check. The Discord card updates, and an alert arrives only when a problem persists for several checks in a row.
+- **Every few minutes** — a server health check, at the interval you choose in settings. The Discord card updates, and an alert arrives only when a problem persists for several checks in a row.
 - **09:00 local time** — Digest builds the edition. The agent writes the text, code checks and publishes it, and a notice appears in Discord. If there is no edition by 10:00, a recovery run starts.
 - **Every hour** — mail, calendar and weather refresh in the published edition. The news stays the same.
 - **Whenever it suits you** — you read the PRs Codex prepared and decide what to merge.

@@ -16,7 +16,7 @@ The `/kurami settings` command opens a Discord panel with the limits Kurami appl
 
 | Section | Setting | Range | What it is |
 |---|---|---|---|
-| System Health | Check interval | 5, 10, 12, 15, 20, 30 or 60 minutes | How often the server health check runs. Works even while runs are active |
+| System Health | Check interval | 5, 10, 12, 15, 20, 30 or 60 minutes | How often the [server health check](@health) runs. Works even while runs are active |
 | Capacity & WIP | Concurrent LLM | 1–3 | How many Codex tasks and AI reviews run at once |
 | Capacity & WIP | Global WIP | 1–6 | How many runs may be in progress across all projects |
 | Capacity & WIP | Project WIP | 1–3 per project | A project's ceiling inside the global WIP |

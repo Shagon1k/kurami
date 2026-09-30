@@ -14,8 +14,8 @@ Every Kurami job runs by the clock, but Hermes and you use different clocks. Her
 
 | When (local, summer) | What | Where to look |
 |---|---|---|
-| Every minute | three project polls and the docs-changes worker | run cards; silent when there is nothing to report |
-| Every 10 minutes | health check | the health card and the alerts channel |
+| Every minute | three project polls and the docs proposal worker | run cards; silent when there is nothing to report |
+| At the set interval (10 minutes now) | health check | the health card and the alerts channel |
 | Every hour at :37 | refresh of Digest live blocks (mail, calendar, weather) | the update time on the edition page |
 | 03:07, 09:07, 15:07, 21:07 | network speed sample | the Network line on the health card |
 | 09:00 (and 10:00) | Daily: the primary window and the recovery window | the Daily card in Discord |
@@ -35,7 +35,8 @@ The Hermes schedule is a cron expression in UTC, with no time zone. A clock chan
 | Daily | 06:00, 07:00, 08:00 | the Digest runtime: local hour 9 is the primary window, 10 the recovery window, any other is a silent skip |
 | Documentation audit | Monday 03:00 and 04:00 | the script: checks that the local day is Monday and the hour is 06; exactly one of the two firings fits |
 | Investment Review | Sunday 07:00 | the runtime: runs only if the local day is Sunday and there was no attempt today |
-| Daily guard, backup, maintenance | — | the systemd timer is set in local time; the others just follow UTC |
+| Daily guard | — | a systemd timer set in local time, so it needs no check |
+| Backup, maintenance | fixed UTC times | no check: in winter they fall an hour earlier in local time (05:15 and 06:15) |
 
 In summer Daily wakes at 09:00, 10:00 and 11:00 local: the first two firings work, the third is skipped silently. In winter the same 06:00, 07:00 and 08:00 UTC are 08:00, 09:00 and 10:00 local: the first is skipped. The price of this scheme is one or two idle firings a day.
 

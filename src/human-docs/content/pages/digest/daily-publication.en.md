@@ -8,13 +8,13 @@ order: 20
 next: news-selection
 ---
 
-Publication is the tail of the attempt: seven states from `prepared` to `notified`, passed by one tool, `finish_daily_briefing`. If the tail breaks, the same attempt resumes from the last state it reached and collects nothing again. An edition counts as done only when it is published *and* a receipt for the Discord notification is saved.
+Publication is the tail of the attempt: six states from `prepared` to `notified`, passed by one tool, `finish_daily_briefing`. If the tail breaks, the same attempt resumes from the last state it reached and collects nothing again. An edition counts as done only when it is published *and* a receipt for the Discord notification is saved. The card and its buttons are described in [The morning edition](@daily).
 
 :::glance
 - What it does: takes an accepted edition to a page, marks the Telegram channels read and announces the edition in Discord
 - Started by: the agent calling `finish_daily_briefing`; a systemd guard backs it up
-- Where it runs: inside the Telegram MCP process, under the lock `completion.lock`, with a 900-second budget
-- State: `briefing_run_attempts`, stage receipts, `telegram_validation_receipts`, `release_notification_receipts`
+- Where it runs: inside the Telegram MCP process, under a lock, with a 900-second budget
+- State: the attempt in `briefing_run_attempts` and stage receipts: the capture check and the notification
 - Result for you: an edition `complete` or `partial` and the card "Выпуск опубликован" (edition published)
 :::
 
@@ -49,28 +49,28 @@ edge editorialized <-> failed "failure / recovery" accent
 
 ## The tail of the attempt
 
-The tail has eight steps, and code performs them, not the agent. The agent passes the tool only the edition id and the attempt id: it cannot supply paths, tools or boundaries. This is deliberate. The tool runs inside the Telegram MCP process because the only Telegram session already lives there, and a second client must not be created.
+The tail has eight steps, and code performs them, not the agent. The agent passes the tool only the edition id and the attempt id: it cannot supply paths, tools or boundaries. The tool runs inside the Telegram MCP process because the only Telegram session lives there, and a second client must not be created.
 
-1. **Page.** `render-preview` draws the HTML and stores the edition in state `prepared`. The page is validated: no scripts or forms, a theme switch, every story present.
-2. **Images.** The tool downloads images in batches of at most 12, up to three passes. Successful downloads are written to `completion-downloads.json` after each batch. If an image fails to download, publication does not go ahead: an edition missing some images does not go out.
-3. **Live data refresh.** If mail, calendar or weather is older than 15 minutes, `refresh-before-publish` reads it again and recomputes Signals. On Sunday the Weekly add-on is attached when it is on, and the Stocks teaser when Stocks is on.
-4. **Validation and plan.** `validate-telegram-batch` binds the capture check to the exact content of the edition, and `telegram-commit-plan` builds the plan: for each channel with posts, its id and upper boundary.
-5. **Marking read.** `mark_read_through_batch` executes exactly that plan.
-6. **Publication.** `finalize` marks the edition `complete` or `partial` in one transaction and makes it current.
-7. **Notification.** `notify-release` edits the card and saves the receipt.
-8. **Check.** `assert-complete` confirms the attempt is `notified`, the edition is published and the receipt exists.
+1. **Page.** Kurami draws the HTML and stores the edition in state `prepared`. The page is validated: no scripts or forms, a theme switch, every story present.
+2. **Images.** The tool downloads images in batches of at most 12, up to three passes, and remembers the successful downloads after each batch. If an image fails to download, publication does not go ahead: an edition missing some images does not go out.
+3. **Live data.** If mail, calendar or weather is older than 15 minutes, Kurami reads it again and recomputes Signals. The teasers of add-ons are attached here too: Weekly (on Sunday) and Stocks, when they are on.
+4. **Validation and plan.** Kurami binds the capture check to the exact content of the edition and builds the plan: for each channel with posts, its id and upper boundary.
+5. **Marking read.** The tool executes exactly that plan.
+6. **Publication.** One transaction marks the edition `complete` or `partial` and makes it current.
+7. **Notification.** Kurami edits the card and saves the receipt.
+8. **Check.** Kurami confirms the attempt is `notified`, the edition is published and the receipt exists.
 
-The check in step 4 is bound to content because any change to the edition — an image import, a data refresh — erases the saved `telegram_validation_receipts` receipt. An old plan cannot be used for new content: the tail validates and plans again.
+The check in step 4 is bound to content because any change to the edition — an image import, a data refresh — erases the saved capture-check receipt. An old plan cannot be used for new content: the tail validates and plans again.
 
 ## Marking read
 
-Marking read is the only thing Kurami changes in Telegram, and it happens only after the page and images are ready. For each channel the tool calls `send_read_acknowledge` with the upper-boundary id, so it closes the batch up to the capture boundary and no further. Posts that arrived after the capture stay unread. The tool checks the request against the saved plan, and `planDigest` protects against a foreign or stale plan.
+Marking read is the only thing Kurami changes in Telegram, and it happens only after the page and images are ready. For each channel the tool closes the batch up to the upper-boundary id and no further. Posts that arrived after the capture stay unread. The tool checks the request against the saved plan and refuses a foreign or stale one.
 
-The result per channel is `committed` or `failed`. If at least one channel could not be marked, the edition is published as `partial`: its posts stay unread in Telegram and reappear tomorrow. Results are stored in `completion-commits.json`, so after a failure between marking and publication the tail repeats the same bounded call instead of building a new one.
+The result per channel is `committed` or `failed`. If at least one channel could not be marked, the edition is published as `partial`: its posts stay unread in Telegram and reappear tomorrow. Results are saved, so after a failure between marking and publication the tail repeats the same call instead of building a new one.
 
 ## Windows and the guard
 
-The morning has two windows of one job. The primary window is 09:00 local time, the recovery window is 10:00. The Hermes job fires at 06:00, 07:00 and 08:00 UTC, so it hits 09:00 and 10:00 in both summer and winter time. The agent does not check the clock: the only judge is the `start-attempt` command.
+The morning has two windows of one job: the primary window at 09:00 local time and the recovery window at 10:00. The Hermes job fires at 06:00, 07:00 and 08:00 UTC, so it hits 09:00 and 10:00 in both summer and winter time. The agent does not check the clock: the only judge is the `start-attempt` command.
 
 | Local hour | No attempt yet | Attempt unfinished | Attempt finished |
 |---|---|---|---|
@@ -91,7 +91,7 @@ The guard is a separate systemd check that does not run a model. While the agent
 ```diagram
 kind: timeline
 title: The morning in local time (summer example)
-desc: The Hermes job fires at 09:00 and 10:00. The guard checks every five minutes and has deadlines at 09:50 and 10:50. The poller refreshes live sections every hour at :37.
+desc: The Hermes job fires at 09:00 and 10:00. The guard checks every five minutes and has deadlines at 09:50 and 10:50. The poller refreshes live blocks every hour at :37.
 lane cron "Hermes job"
 lane guard "Guard"
 lane poller "Poller"
@@ -101,7 +101,7 @@ span guard 09:05-09:45 "checks every 5 min"
 at guard 09:50 "deadline 1" accent
 span guard 10:05-10:40 "checks"
 at guard 10:50 "deadline 2" accent
-every poller 60m "live sections" from 08:37
+every poller 60m "live blocks" from 08:37
 range 08:30-12:00
 ```
 
@@ -113,12 +113,12 @@ The operator has two manual commands. `resume-completion` returns a failed attem
 
 ::::example The tail of the attempt for 2026-10-01
 :::steps
-- **Agent** — at 09:13 calls `finish_daily_briefing`. The tool takes the lock `completion.lock` and renders the page `daily-2026-10-01.html` — state `prepared`.
+- **Agent** — at 09:13 calls `finish_daily_briefing`. The tool takes the lock and draws the edition page — state `prepared`.
 - **Tool** — downloads 58 images in five batches: 12, 12, 12, 12 and 10. State `media-ready`.
 - **Tool** — live data from 09:00:20 is older than 15 minutes, so it reads it again.
 - **Tool** — builds the plan for 11 channels, for example `space-news` with boundary 48211, and marks all 11 read.
-- **Runtime** — `finalize` makes the edition `complete` and current on the home page. Then it edits the card, and the attempt gets `notified`.
-- **Agent** — `assert-complete` passes and it answers `[SILENT]`. At 09:50 the guard sees `notified` and does nothing.
+- **Runtime** — publishes the edition: it becomes `complete` and current on the home page. Then the runtime edits the card, and the attempt gets `notified`.
+- **Agent** — the final check passes and it answers `[SILENT]`. At 09:50 the guard sees `notified` and does nothing.
 :::
 ::::
 
@@ -136,7 +136,7 @@ The operator has two manual commands. `resume-completion` returns a failed attem
 | Situation | What Kurami does | What you do |
 |---|---|---|
 | An image failed after three passes | `failed: completion_media_incomplete`, downloaded files are kept; the retry reuses them | Nothing, or `resume-completion` |
-| The tail ran out of its 900 seconds | Records the stage in `completion-progress.json` and `failed: completion_<stage>_failed` if the edition is not yet published | `resume-completion`, then the same call |
+| The tail ran out of its 900 seconds | Records the stage and `failed: completion_<stage>_failed` if the edition is not yet published | `resume-completion`, then the same call |
 | A second `finish_daily_briefing` call | Answers `completion_already_running` | Nothing |
 | Some channels could not be marked read | Publishes `partial`; those posts are unread again tomorrow | Nothing |
 | A failure between marking and publication | Repeats the same marking from the saved plan, then publishes | Nothing |
@@ -154,9 +154,9 @@ The operator has two manual commands. `resume-completion` returns a failed attem
 
 :::code-map
 - `src/briefing/run-attempt.ts` — states, `start-attempt`, the reopening at 10:00
-- `integrations/hermes/connectors/briefing_completion.py` — the tail of the attempt step by step
-- `integrations/hermes/connectors/telegram_stdio_wrapper.py` — `finish_daily_briefing` and `mark_read_through_batch`
-- `src/briefing/telegram-commit-store.ts` — capture validation and the marking plan
+- `integrations/hermes/connectors/briefing_completion.py` — the tail step by step: `render-preview`, `refresh-before-publish`, `telegram-commit-plan`, `finalize`, `notify-release`; progress files `completion-*.json`
+- `integrations/hermes/connectors/telegram_stdio_wrapper.py` — `finish_daily_briefing`, `mark_read_through_batch`, the `completion.lock` lock
+- `src/briefing/telegram-commit-store.ts` — capture validation and the marking plan (`planDigest`)
 - `src/briefing/finalization-store.ts` — publication in one transaction
 - `src/briefing/release-notifier.ts` — the Discord card and the receipt
 - `src/briefing/run-guard.ts` — the guard and its deadlines

@@ -50,9 +50,9 @@ Each decision is written in one format: **Context** — what was needed, **Decis
 
 ## The news is frozen, the rest is live, and writes go by digest
 
-**Context.** The morning snapshot must be reproducible, while mail, calendar and weather go stale within an hour. A refresh without an agent must not spoil the page.
+**Context.** The morning edition must be reproducible, while mail, calendar and weather go stale within an hour. A refresh without an agent must not spoil the page.
 
-**Decision.** Once an hour code rewrites the live sections of all saved editions, but writes the result only if the row's `content_digest` is unchanged and the frozen news matches the previous one.
+**Decision.** Once an hour code rewrites the live blocks of all saved editions, but writes the result only if the row's `content_digest` is unchanged and the frozen news matches the previous one.
 
 **Why.** It is cheaper than locking the database while a file is written, and any conflict — with mail archiving or a text fix — is safely put off for an hour.
 
@@ -117,3 +117,13 @@ Each decision is written in one format: **Context** — what was needed, **Decis
 **Why.** It is better to keep the previous report than to accept a wrong one. A retry after a failure would hide the cause.
 
 **Trade-off.** Any failure means a week without a new report.
+
+## Read next
+
+:::cards
+- [Digest](@digest) — the whole section in one picture
+- [How Daily is built](@daily-pipeline) — the mechanics of the morning build
+- [Add-ons: the shared contract](@addons) — the registry, failure modes, frozen teasers
+- [Market data](@markets-internals) — quotas and the portfolio report
+- [Principles](@principles) — the system-wide principles
+:::

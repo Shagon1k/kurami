@@ -8,11 +8,11 @@ order: 30
 next: backup-internals
 ---
 
-Monitoring is a short script that collects the server's state every few minutes, compares it with the previous check and writes to Discord only as a result of that comparison.
+Monitoring is a short script that collects the server's state every few minutes, compares it with the previous check and writes to Discord only as a result of that comparison. What the card and messages look like is on [Server health](@health).
 
 :::glance
 - What it does: collects metrics, keeps a streak for each problem and decides whether to send an alert, a reminder or a recovery message
-- Triggered by: the Hermes job `kurami-system-health`, every 20 minutes by default; you change the interval
+- Triggered by: the Hermes job `kurami-system-health`, at the configured interval (built-in default 20 minutes), which you change in `/kurami settings`
 - Runs where: the script `kurami-runtime-health.sh`, with no agent and no LLM; it writes to Discord itself, directly
 - State: four JSON files in `$KURAMI_HOME/state` — streaks, the OOM counter, history, the card id
 - What you see: one card edited in place and separate messages in the alerts channel
@@ -55,9 +55,7 @@ Every violation becomes a *problem* with three fields: a key, a severity and the
 
 | Problem | Severity | Checks in a row |
 |---|---|---|
-| CPU from 85% / from 95% | warning / critical | 3 / 2 |
-| RAM from 80% / from 90% | warning / critical | 3 / 2 |
-| Network: 1–2 of 3 probes answer / none | warning / critical | 3 / 2 |
+| CPU, RAM, network: thresholds as on [Server health](@health) | warning / critical | 3 / 2 |
 | OOM killer killed a process since the last check | critical | 1 |
 | `quick_check` not `ok`, Docker not rootless, unhealthy containers | critical | 1 |
 | Backup older than 84 hours (limit configurable from 24 to 168) or missing | critical | 1 |
@@ -102,7 +100,7 @@ The recovery arrives at the *first* clean check, with no delay. This is delibera
 | `system-health-discord.json` | channel and message id of the card | the next check, to edit the same message |
 | `health-settings.json` | interval, revision, who changed it and when | the settings form and the interval command |
 
-All files are written atomically: a temporary file first, then a rename. So a crash mid-write never leaves half a JSON.
+All files are written atomically: a temporary file first, then a rename. So a crash mid-write leaves no half-written JSON.
 
 ## Delivery to Discord
 

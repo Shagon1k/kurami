@@ -144,7 +144,7 @@ function container(block:Extract<Block,{type:"container"}>,context:Context):stri
 function leaf(block:Extract<Block,{type:"leaf"}>,context:Context):string {
   if(block.name==="shot"){
     const {file,size,alt,caption}=block.attrs;
-    return `<figure class="shot shot--${escape(size!)}"><a href="/assets/${escape(file!)}" class="shot__frame"><img src="/assets/${escape(file!)}" alt="${escape(alt!)}" loading="lazy" decoding="async"></a><figcaption>${escape(caption!)}</figcaption></figure>`;
+    return `<figure class="shot shot--${escape(size!)}"><a href="/assets/${escape(file!)}" class="shot__frame" aria-label="${escape(`${alt}. ${labels[context.lang].open}`)}"><img src="/assets/${escape(file!)}" alt="${escape(alt!)}" loading="lazy" decoding="async"></a><figcaption>${escape(caption!)}</figcaption></figure>`;
   }
   if(block.name==="generated")return `<div class="block generated">${generatedReference(block.attrs.name??"",context.lang)}</div>`;
   throw new Error(`${context.page.slug}: unknown directive ::${block.name}`);
@@ -155,7 +155,7 @@ function diagramHtml(source:string,context:Context):string {
   try{rendered=renderDiagram(source);}catch(error){throw new Error(`${context.page.slug}/${context.lang}: ${(error as Error).message}`);}
   const id=`${context.page.slug}-${context.diagrams.length+1}-${context.lang}`;
   context.diagrams.push({id,svg:rendered.svg,excalidraw:rendered.excalidraw});
-  return `<figure class="figure">${rendered.title?`<figcaption class="figure__title">${escape(rendered.title)}</figcaption>`:""}<div class="figure__scroll"><div class="figure__canvas" style="--figure-width:${Math.ceil(rendered.width)}">${inlineDiagram(rendered.svg,{id,label:rendered.desc})}</div></div><p class="figure__desc">${escape(rendered.desc)} <a href="/assets/diagrams/${id}.svg">${escape(labels[context.lang].open)}</a></p></figure>`;
+  return `<figure class="figure">${rendered.title?`<figcaption class="figure__title">${escape(rendered.title)}</figcaption>`:""}<div class="figure__scroll" role="region" tabindex="0" aria-label="${escape(rendered.title||rendered.desc.slice(0,80))}"><div class="figure__canvas" style="--figure-width:${Math.ceil(rendered.width)}">${inlineDiagram(rendered.svg,{id,label:rendered.desc})}</div></div><p class="figure__desc">${escape(rendered.desc)} <a href="/assets/diagrams/${id}.svg">${escape(labels[context.lang].open)}</a></p></figure>`;
 }
 
 function blocksHtml(blocks:Block[],context:Context):string {

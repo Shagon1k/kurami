@@ -8,7 +8,7 @@ order: 60
 next: weekly-internals
 ---
 
-An add-on is an optional Digest module with its own data, schedule, page and failure rule. All add-ons obey one contract: an add-on failure does not stop the edition, and a failed new attempt does not replace the last good one. That is why Weekly, Cinema, Stocks and Investment Review can be switched off, broken and repaired without touching the morning build.
+An add-on is an optional Digest module with its own data, schedule, page and failure rule. All add-ons obey one contract: an add-on failure does not stop the edition, and a failed new attempt does not replace the last good one. That is why [Weekly](@weekly), [Cinema](@cinema), [Stocks](@stocks) and [Investment Review](@investment-review) can be switched off, broken and repaired without touching the morning build.
 
 :::glance
 - What it does: plugs modules into the edition through a static registry and decides what on the page is live and what is frozen
@@ -48,14 +48,14 @@ edge editions -> daily "page"
 
 ## The registry and failure modes
 
-The registry is a static array `BRIEFING_ADDONS` of eight modules: mail, calendar, news, weather, cinema, signals, weekly, stocks. It sets the order of blocks on the page, the slots (`after-metrics`, `after-main` and others) and the failure rule. The array is static on purpose: order and id uniqueness are checked at load time, and dynamic plugin loading is not needed for one owner.
+The registry is a static list of eight modules: mail, calendar, news, weather, cinema, signals, weekly, stocks. It sets the order of blocks on the page, their places (slots) and the failure rule. The list is static on purpose: order and id uniqueness are checked at load time, and dynamic plugin loading is not needed for one owner.
 
 | Mode | Who | What happens on an error |
 |---|---|---|
 | `propagate` | mail, calendar, news, weather | The error rises and stops publication: this is the core content of the edition |
 | `isolate` | cinema, signals, weekly, stocks | The block is replaced by fallback markup or disappears, the page stays |
 
-Teasers sit in the `after-main` slot in the order Stocks (5), Cinema (10), Weekly (20). Signals sit higher, in `after-metrics`.
+Teasers sit under the news in the order Stocks, Cinema, Weekly. Signals sit higher, under the figures at the top of the page.
 
 ## Four kinds of add-on
 
@@ -68,11 +68,11 @@ The kind of an add-on determines who updates it and when. That is why one module
 | Attached | Cinema, the Weekly review, Stocks | Their own collection; a copy goes into the edition at publication | Frozen |
 | Independent | Discovery, logos, Investment Review | The poll or the Sunday job | Not included |
 
-Live add-ons read providers: web sources in parallel, Composio calls one at a time over a single connection. One failure does not hinder the others: a section keeps its previous value with the status `stale`. Derived add-ons do not call providers; they compute from their neighbours' data.
+Live add-ons read providers: web sources in parallel, Composio calls one at a time over a single connection. One failure does not hinder the others: a block keeps its previous value with the status `stale`. Derived add-ons do not call providers; they compute from their neighbours' data.
 
 ## The envelope and the snapshot table
 
-Each add-on is stored in the edition as an *envelope* `addons.<id>` with a version, a state, a snapshot time and data. The state is one of `ready`, `empty`, `partial`, `stale`, `failed`. There are no root fields, records live only in the envelope: this keeps one copy of the truth and needs no reader for the old format.
+Each add-on is stored in the edition as an *envelope* `addons.<id>` with a version, a state, a snapshot time and data. The state is one of `ready`, `empty`, `partial`, `stale`, `failed`. There are no root fields: data lives only in the envelope, so there is one copy of the truth.
 
 The `addon_snapshots` table is the "last good snapshot" of an add-on: one row each for `cinema`, `weekly`, `stocks`, `stocks-discovery`, `stock-logos`. A row holds the data JSON in canonical form (keys sorted) and its sha256. The pages `/cinema`, `/weekly`, `/stocks` read this table, not the edition; so they show fresher data than the teaser in the edition.
 
@@ -100,7 +100,7 @@ note poller "Stocks stays as is"
 ```
 :::steps
 - **Build** — at 09:00 creates the edition; the derived Weekly module puts the marker `addons.weekly` with state `empty`.
-- **Pre-publication step** — builds the review for 27 September to 3 October, puts `addons.weekly` (`partial`, calendar 5/7) into the edition, and a copy of the stocks cache `addons.stocks` (VUAA and three notable securities).
+- **Pre-publication step** — builds the review for 27 September to 3 October, puts `addons.weekly` (`partial`, calendar 5/7) into the edition, and a copy of the stocks cache `addons.stocks` (the whole list and three notable securities).
 - **Publication** — in one transaction marks the edition `complete` and writes the row `addon_snapshots.weekly`.
 - **Poll** — at 09:37 refreshes mail, calendar and weather. The `stocks` envelope stays as it was: a write that changes it is rejected.
 - **You** — on Monday the edition `daily:2026-10-05` has only the empty Weekly marker, while `/weekly` still shows the Sunday review.
@@ -126,7 +126,7 @@ The data is invented; state and table names are taken from the code.
 :::
 
 :::code-map
-- `src/briefing/addons/registry.ts` — the add-on array, slots, error isolation
+- `src/briefing/addons/registry.ts` — the `BRIEFING_ADDONS` array, slots (`after-metrics`, `after-main`), error isolation
 - `src/briefing/addons/types.ts` — the `BriefingAddon` contract
 - `src/briefing/addons/live.ts` — collecting and applying live add-ons
 - `src/briefing/addons/derived.ts` — recomputing derived add-ons

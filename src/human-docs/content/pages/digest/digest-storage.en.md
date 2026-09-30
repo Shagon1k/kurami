@@ -1,6 +1,6 @@
 ---
-title: Storage and live sections
-nav: Storage and live sections
+title: Storage and live blocks
+nav: Storage and live blocks
 summary: Where an edition lives, how it enters the database in one transaction in the morning, how mail, calendar and weather refresh every hour and how long everything is kept.
 section: digest
 group: internals
@@ -48,20 +48,20 @@ An edition is one `editions` row plus one HTML file. The row holds the whole edi
 
 ## Publication in one transaction
 
-Publication moves an edition from `prepared` to `complete` or `partial` in a single SQLite transaction. `finalizeEdition` checks `planDigest`, capture completeness and post coverage, then in one transaction marks `source_batches` as `committed` or `failed`, records channel checkpoints, sets the edition state, clears `is_current` on the previous one and sets it on the new one. If any step fails, everything rolls back and the home page keeps the previous edition. State `partial` means a published edition with a caveat — for example, a channel could not be marked read.
+Publication moves an edition from `prepared` to `complete` or `partial` in a single SQLite transaction. It checks the marking plan, capture completeness and post coverage, then in the same transaction marks the batch boundaries as `committed` or `failed`, records channel checkpoints, sets the edition state and moves the current flag to the new edition. If any step fails, everything rolls back and the home page keeps the previous edition. State `partial` means a published edition with a caveat — for example, a channel could not be marked read. How the tail of the attempt prepares this transaction is described in [Publication and recovery](@daily-publication).
 
 ## The hourly refresh
 
 The poller re-reads mail, calendar and weather once an hour and rewrites the pages of all saved editions. A systemd timer starts it at :37 and it runs as plain code, without an agent. One call reads Gmail, each calendar and the weather for all dates of the kept editions at once and sorts events by date.
 
-1. The poller takes the lock `.central-poller.lock`; if the previous poll is still running, it exits without error.
+1. The poller takes a lock; if the previous poll is still running, it exits without error.
 2. It reads up to seven editions and remembers each `content_digest`.
 3. It collects data only for enabled sources that appear in at least one edition.
 4. For every edition it applies the new data, recomputes Signals and the quality strip, and renders the page.
 5. It writes the result only if the digest is unchanged and the frozen news, batch boundaries and stocks snapshot match the previous ones.
 6. At the end it deletes editions past their retention time.
 
-A failure of one source does not affect the others: the section keeps its last good value, gets status `stale` and a `staleAt` time. The `lastSuccessAt` mark moves only after a fully successful refresh. If an edition's write fails, the poller marks it `skipped`, the other editions are refreshed, and the process exits with code 1.
+A failure of one source does not affect the others: the block keeps its last good value, gets status `stale` and a `staleAt` time. The `lastSuccessAt` mark moves only after a fully successful refresh. If an edition's write fails, the poller marks it `skipped`, the other editions are refreshed, and the process exits with code 1.
 
 ```diagram
 kind: sequence
@@ -83,7 +83,7 @@ note poller "edition skipped until :37"
 
 ## Frozen and live
 
-The news is what is frozen in an edition: the stories, capture boundaries, post ownership and images. The poller compares the digest of that part before and after the refresh and refuses to write if it changed. Mail, calendar, weather, Signals and the quality strip stay live. Reactions and "read" marks are not part of the page at all: the site mixes them in from `edition_items` on every response. Mail rows in `edition_items` are recreated on every refresh, while `read_at` is preserved.
+The news is what is frozen in an edition: the stories, capture boundaries, post ownership and images. The poller compares the digest of that part before and after the refresh and refuses to write if it changed. Mail, calendar, weather, Signals and the quality strip stay live. Reactions and "read" marks are not part of the page at all: the site mixes them in from `edition_items` on every response. Mail rows in `edition_items` are recreated on every refresh, while `read_at` is preserved. What you see of all this is described in [The morning edition](@daily).
 
 ## Retention
 
@@ -114,7 +114,7 @@ The site is the process `kurami-briefing.service` on a local port. It reads the 
 ::::example A conflict at 10:37
 :::steps
 - **Poller** — reads edition `daily:2026-10-01` with digest `9c1e…` and asks the providers for data.
-- **Poller** — Gmail answers with an error three times in a row: the mail section gets `stale`, the 37 emails stay, the success time stays 09:37.
+- **Poller** — Gmail answers with an error three times in a row: the mail block gets `stale`, the 37 emails stay, the success time stays 09:37.
 - **You** — at 10:37:30 archive 4 emails: the edition's digest changes.
 - **Poller** — the write is rejected: "lost its optimistic edition lock". The edition is marked `skipped` and the process exits with code 1.
 - **Poller** — at 11:37 reads the new digest, sees 33 emails and updates the page.
@@ -126,7 +126,7 @@ The data is invented; the behaviour comes from the code.
 
 | Situation | What Kurami does | What you do |
 |---|---|---|
-| A provider did not answer during a refresh | The section keeps old data with the `stale` mark | Nothing |
+| A provider did not answer during a refresh | The block keeps old data with the `stale` mark | Nothing |
 | A write conflicts with archiving or a text fix | That edition is skipped for an hour | Nothing |
 | Two polls overlapped | The second exits with code 0 | Nothing |
 | No `poller.js` build or Composio access | The script exits with code 78, no agent is started | You repair the deployment |
@@ -144,7 +144,7 @@ The data is invented; the behaviour comes from the code.
 
 :::code-map
 - `src/briefing/store.ts` — the database, preparation, published editions
-- `src/briefing/finalization-store.ts` — publication in one transaction
+- `src/briefing/finalization-store.ts` — `finalizeEdition`: publication in one transaction
 - `src/briefing/published-edition-store.ts` — live section refresh and text revision
 - `src/briefing/poller.ts` — the hourly poll
 - `src/briefing/retention-store.ts` — seven editions and cleanup

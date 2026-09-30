@@ -101,7 +101,7 @@ for(const page of pages)for(const lang of ["en","ru"] as const){
   if(page.group==="start"){
     assert.equal(count(page,lang,container("glance")),1,`${page.slug}/${lang}: an overview has a glance block`);
     assert.ok(count(page,lang,diagram)>=1,`${page.slug}/${lang}: an overview has a diagram`);
-    assert.equal(count(page,lang,container("cards")),1,`${page.slug}/${lang}: an overview links deeper`);
+    assert.ok(count(page,lang,container("cards"))>=1,`${page.slug}/${lang}: an overview links deeper`);
   }
   assert.ok(count(page,lang,container("guarantees"))<=1,`${page.slug}/${lang}: guarantees appear once at most`);
   assert.ok(count(page,lang,block=>block.type==="leaf"&&block.name==="shot")<=2,`${page.slug}/${lang}: at most two screenshots`);

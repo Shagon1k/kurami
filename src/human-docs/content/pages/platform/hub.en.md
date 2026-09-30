@@ -8,7 +8,7 @@ order: 70
 next: access
 ---
 
-Hub is one "how is the whole system doing" page. It only reads: it opens the Project Orchestrator database and the local repositories for reading, does not call GitHub and starts nothing. The `kurami-hub` service listens only on `127.0.0.1:8800`, and Cloudflare Access is what must expose it — Hub has no login of its own ([External access](@access)). The page is installed as an app (PWA) but does not cache data: offline it shows only a "No connection" placeholder.
+Hub is one "how is the whole system doing" page. It only reads: it opens the Project Orchestrator database and the local repositories for reading, does not call GitHub and starts nothing. The `kurami-hub` service listens only on `127.0.0.1:8800`, and Cloudflare Access guards the way in ([External access](@access)). The page is installed as an app (PWA) but does not cache data: offline it shows only a "No connection" placeholder.
 
 ## What is on the page
 
@@ -39,7 +39,7 @@ From the Codex logs it takes each session's cumulative token counter and the dif
 
 Board numbers come from the last successful poll. Hub marks a project "Project · актуально" (fresh) if the attempt succeeded and the snapshot is under 15 minutes old, and "Project · устарело" (stale) otherwise. The server caches a snapshot for 45 seconds, and the browser requests a new fragment every minute while the tab is open and the focus is not inside a block.
 
-When a source is missing, Hub writes "—", "Git · нет данных" (no data) or "Частичные логи" (partial logs) and never substitutes zero: zero would say there is no work, while "—" says we do not know. If a refresh fails, the browser keeps the previous values and writes "Нет связи · последние данные" (No connection · last data).
+When a source is missing, Hub writes "—", "Git · нет данных" (no data) or "Частичные логи" (partial logs) and does not substitute zero: zero would say there is no work, while "—" says we do not know. If a refresh fails, the browser keeps the previous values and writes "Нет связи · последние данные" (No connection · last data).
 
 | What you see | What it means |
 |---|---|
@@ -51,7 +51,7 @@ When a source is missing, Hub writes "—", "Git · нет данных" (no dat
 
 ## What Hub does not do
 
-Hub does not calculate money cost or the number of closed PRs. It does not serve Codex logs or prompts and does not show local paths: the page only receives numbers and names. Inside, Hub has no login: anyone who reaches the port sees everything, which is why the port is open to `127.0.0.1` only. Implementation details are in [Directories, processes and deploys](@runtime-layout).
+Hub does not calculate money cost or the number of closed PRs. It does not serve Codex logs or prompts and does not show local paths: the page only receives numbers and names. Inside, Hub has no login: anyone who reaches the port sees everything, which is why the port is open to `127.0.0.1` only. How the service is locked down is in [Directories, processes and deploys](@runtime-layout).
 
 :::code-map
 - `src/hub/server.ts` — the HTTP server: routes, headers, the 45-second snapshot cache

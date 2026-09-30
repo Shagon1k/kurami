@@ -12,7 +12,7 @@ News selection is a set of checks and formulas that turn the agent's draft into 
 
 :::glance
 - What it does: checks the draft, polices topics, computes the "Обзор" (overview) order and the "Для меня" (for me) order
-- Started by: `rank-preview` and `compose` in the morning; `GET /api/news/order` when you press "Для меня"
+- Started by: the edition build in the morning; a press of "Для меня" on the page
 - Where it runs: the runtime and the Digest site, in TypeScript, without a model
 - State: `topic_registry`, `reaction_events`, the `rank` field of every story
 - Result for you: a feed where every post is accounted for, topics are valid and the order is explainable
@@ -43,7 +43,7 @@ edge profile -> forme "adjustments"
 
 ## Draft checks
 
-The checks keep weak texts out of the edition, because rejecting a bad draft is easier than repairing a finished page. They run three times — in `rank-preview`, in `compose` and when the page is prepared. A draft must pass every check at once.
+The checks keep weak texts out of the edition, because rejecting a bad draft is easier than repairing a finished page. They run three times: in the trial ranking, in the build and when the page is prepared. A draft must pass every check at once.
 
 | Area | Rule |
 |---|---|
@@ -62,7 +62,7 @@ Coverage guarantees that no captured post is lost. Every post of the batch has e
 
 ## Topics
 
-Every story gets topics from one shared registry, and the registry has rules. The registry is the seed `briefing-topics.yaml` with about seventy topics plus the `topic_registry` table. A topic has an English id and label, plus Russian and English synonyms.
+Every story gets topics from one shared registry, and the registry has rules. The registry is a starting list of about seventy topics plus the `topic_registry` table. A topic has an English id and label, plus Russian and English synonyms.
 
 - A known topic must be given with its canonical label, without extra fields.
 - A new topic is declared by the agent as `proposed`: an English id, a label of at most 48 characters without Cyrillic, synonyms. If it matches an existing topic, the draft is rejected.
@@ -87,7 +87,7 @@ Stories are sorted by the sum, then by the post's time, then by place in the dra
 
 ## The "Для меня" interest profile
 
-The profile turns your reactions into weights of topics and sources. Only the latest reaction per story counts; a repeat does not double the weight, and clearing removes it. The profile switches on when there are 10 active reactions on different stories.
+The profile turns your reactions into weights of topics and sources. Only the latest reaction per story counts; a repeat does not double the weight, and clearing removes it. The profile switches on when there are 10 active reactions on different stories. How this looks on the page is described in [For me](@for-me).
 
 A story has features of five kinds: broad topic, narrow topic, geography, topic pair and source. A feature's weight is `(likes − dislikes) / (n + 4)`, where `n` is the number of reactions with that feature; with fewer than three reactions the weight is zero. The 4 in the denominator softens rare cases: three reactions give a weight below 0.43, not 1.
 

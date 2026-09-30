@@ -5,6 +5,7 @@ summary: Общий набор тем, кнопок, таблиц и оболо�
 section: platform
 group: internals
 order: 80
+next: platform-decisions
 ---
 
 Библиотека интерфейса — это общий слой `src/ui-library/`, через который рисуются все сайты Kurami, чтобы они выглядели и вели себя одинаково.

@@ -8,7 +8,7 @@ order: 20
 next: health-internals
 ---
 
-All of Kurami lives in one directory, `$KURAMI_HOME`, and everything that belongs to Hermes lies next to it in `$HERMES_HOME`. One reference point exists so that you never have to guess which copy of code and state is the real one: the directory must be a real directory, not a link, and it is determined in one place, `src/core/kurami-home.ts`.
+All of Kurami lives in one directory, `$KURAMI_HOME`, and everything that belongs to Hermes lies next to it in `$HERMES_HOME`. One reference point exists so that you do not have to guess which copy of code and state is the real one: the directory must be a real directory, not a link, and it is determined in one place in the code.
 
 :::glance
 - Root: `$KURAMI_HOME`; if the variable is unset, the parent of the `app/` directory is used
@@ -61,10 +61,7 @@ The JSON files are small and written atomically (a temporary file, then a rename
 | `caddy/routes.caddy` | preview routes | route builder | Caddy |
 | `cpu-statistics.json` | up to 1440 CPU samples | the sampler | the health check |
 | `network-speed.json` | the latest speed sample | the speed job | the health check |
-| `runtime-health-alert.json` | streaks, active alerts, time of last message | the health check | itself |
-| `system-health-discord.json` | the identifier of the persistent card | the health check | itself |
-| `system-health-history.json` | the last 10 checks | the health check | the plugin, on a list choice |
-| `health-settings.json` | the check interval and revision | `/kurami settings` | the plugin |
+| `runtime-health-*.json`, `system-health-*.json`, `health-settings.json` | streaks, the card id, the last 10 checks, the check interval | the health check; the interval by `/kurami settings` | the health check and the plugin (details in [How monitoring works](@health-internals)) |
 | `*.lock` | job locks | wrappers via `flock` | themselves |
 
 A lock is an empty file: a script takes it with `flock` without waiting and, if it is taken, quietly exits. That is how overlapping runs stay out of each other's way. The shared lock `project-event-consumer.lock` is held for the whole "events, controller, notifications" pass, while the poll and Projects Digest locks are their own.
@@ -92,7 +89,7 @@ The restrictions are common: `ProtectSystem=strict` (the filesystem is read-only
 ```diagram
 kind: graph
 title: What to restart after an edit
-desc: A change to Digest code needs a build and a service restart. A change to other scripts takes effect at the next run, and a permanent service needs a restart. The Discord plugin and skills are copied by sync scripts, and the plugin needs a gateway restart.
+desc: A change to Digest code needs a build and a service restart. A change to other scripts takes effect at the next run, and a permanent service needs a restart.
 node q1 "What changed?" decision at 1,0
 node digest "Digest" "npm run briefing:build" at 0,1
 node restartD "Restart kurami-briefing" at 0,2
@@ -111,11 +108,9 @@ edge svc -> restartS
 | What changed | Command | Takes effect |
 |---|---|---|
 | Digest (`src/briefing`, `src/core`) | `npm run briefing:build`, `systemctl --user restart kurami-briefing` | after the restart; the guard, the poll and Investment Review use the same `dist/` |
-| A Hermes job script | copy into `$HERMES_HOME/scripts/` | at the job's next run |
+| A Hermes job script, the Discord plugin or skills | copied by hand or by the sync scripts, see [Kurami and Hermes](@hermes-integration) | scripts at the next run, skills in the next agent session, the plugin after a `hermes-gateway` restart |
 | Code the jobs call (health, backup, controller) | update the checkout | at the next run |
 | Hub, documentation, the CPU sampler | update the checkout and `systemctl --user restart <service>` | after the restart |
-| The Discord plugin | `bin/sync-hermes-plugin.sh --apply`, restart `hermes-gateway` | after the gateway restart |
-| Skills | `bin/sync-hermes-skills.sh --apply` | from the next agent session |
 | The documentation site | a `docs-release` build and promotion into `release/` (usually through a proposal card) | after restarting `kurami-human-docs` |
 | The UI library | `npm run ui:export` | refreshes the skill bundle |
 

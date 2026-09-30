@@ -66,7 +66,7 @@ Notice that Kurami and Codex hardly talk to each other directly. Kurami gives Co
 | An issue's board column | you; Kurami only to Human Review after Codex's work and to Backlog after a cancellation | status writes live in one module, and only the controller calls it |
 | Project code | Codex in its own branch | a separate working copy per run; merging is manual only |
 | A Digest edition | Digest code, from the result of one agent step | text and coverage checks before publishing; published news never changes |
-| Limit settings | you, with a button in `/kurami settings` | only while Project Orchestrator is idle; every change is a revision you can roll back |
+| Settings | you, with a button in `/kurami settings` | Project Orchestrator limits only while it is idle, each change a revision you can roll back; the health check interval at any time |
 | Documentation | the weekly agent drafts, you publish | a file allowlist, tests, the Publish button |
 | Mail | only removing the "inbox" and "unread" labels | a separate connector contour with one allowed tool |
 

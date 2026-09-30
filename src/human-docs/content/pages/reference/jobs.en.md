@@ -7,7 +7,7 @@ group: reference
 order: 40
 ---
 
-This reference shows what runs on the server and when. The Hermes and server schedules are set in UTC. Local time: summer = UTC+3, winter = UTC+2. How the system survives a clock change is explained in [Schedule](@scheduling), and how Hermes runs jobs in [Kurami and Hermes](@hermes-integration). Output "local" means Hermes sends nothing: the script writes to Discord itself when needed.
+This reference shows what runs on the server and when: twelve Hermes jobs (ten script jobs and two agent jobs), two systemd timers and the permanent services. The Hermes and server schedules are set in UTC. Local time: summer = UTC+3, winter = UTC+2. How the system survives a clock change is explained in [Schedule](@scheduling), and how Hermes runs jobs in [Kurami and Hermes](@hermes-integration). Output "local" means Hermes sends nothing: the script writes to Discord itself when needed.
 
 ## Hermes jobs
 
@@ -17,7 +17,7 @@ This reference shows what runs on the server and when. The Hermes and server sch
 | `kurami-pickflick-poller` | script | `* * * * *` | every minute | the same for PickFlick | `local` |
 | `kurami-<project>-poller` (third) | script | `* * * * *` | every minute | the same for the third project | `local` |
 | `kurami-docs-approval` | script | `* * * * *` | every minute | a step of the documentation proposal worker | `local`; log `logs/docs-approval.log` |
-| `kurami-system-health` | script | `*/10 * * * *` (changed in `/kurami settings`) | every 10 minutes | the health check, card and alerts | `local`; Discord over REST |
+| `kurami-system-health` | script | `*/10 * * * *` (set by the interval in `/kurami settings`; 10 minutes now) | every 10 minutes | the health check, card and alerts | `local`; Discord over REST |
 | `kurami-network-speed` | script | `7 */6 * * *` | 03:07, 09:07, 15:07, 21:07 / 02:07, 08:07, 14:07, 20:07 | a LibreSpeed speed sample | `local`; `state/network-speed.json` |
 | `kurami-projects-digest` | script | `45 6 * * *` | 09:45 / 08:45 | the daily Projects Digest | `local`; Discord over REST |
 | `kurami-daily-briefing` | agent, skill `kurami-daily-briefing` | `0 6,7,8 * * *` | 09:00, 10:00, 11:00 / 08:00, 09:00, 10:00 (working windows: hours 9 and 10) | the morning Daily edition; Cinema on Saturdays, Weekly on Sundays | `local`; the runtime maintains the card |

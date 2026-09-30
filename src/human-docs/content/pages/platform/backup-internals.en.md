@@ -1,6 +1,6 @@
 ---
 title: How backups work
-nav: Backups
+nav: Backup stages
 summary: Three stages of one script — a database snapshot, an encrypted bundle and an off-site copy — and the checks that stop an empty or broken file from counting as a backup.
 section: platform
 group: internals
@@ -8,7 +8,7 @@ order: 40
 next: connector-authority
 ---
 
-A Kurami backup is a chain of three stages in one shell script, where each stage checks the result of the previous one and fails loudly when in doubt.
+A Kurami backup is a chain of three stages in one shell script, where each stage checks the result of the previous one and fails loudly when in doubt. What is copied and how to restore is in [Backups and recovery](@recovery).
 
 :::glance
 - What it does: copies the Run Store database and configuration, encrypts a bundle for rebuilding the server and puts it in external storage
@@ -21,7 +21,7 @@ A Kurami backup is a chain of three stages in one shell script, where each stage
 ```diagram
 kind: graph
 title: The three backup stages
-desc: The script copies the Run Store database with VACUUM INTO and three configuration files into a snapshot directory. If a public key is set, it builds a bundle from the snapshot and four secret files, encrypts it with age and stores it in the recovery directory. If a bucket is set, it uploads the bundle to S3 and reads the result back.
+desc: The script copies the Run Store database with VACUUM INTO and three configuration files into a snapshot directory. If a public key is set, it builds a bundle from the snapshot, three secret files and the cron registry, encrypts it with age and stores it in the recovery directory. If a bucket is set, it uploads the bundle to S3 and reads the result back.
 node job "Hermes job" "03:15 UTC, */3" at 0,0
 node db "orchestrator.db" "live database" store at 1,0
 node snap "1. Snapshot" "VACUUM INTO, manifest" at 1,1
@@ -43,7 +43,7 @@ edge s3 -> bucket "PUT and check"
 
 ## Stage 1: the snapshot
 
-The first stage copies what the Run Store cannot be rebuilt without, and does it without stopping the system. The script opens the live database read-only, runs `PRAGMA quick_check` and executes `VACUUM INTO` into `backups/backup-<UTC time>/`. This SQLite command produces a consistent copy even while the database is being written to: copying the file the ordinary way could catch half a transaction. After copying, the script checks the copy itself.
+The first stage copies what the Run Store cannot be rebuilt without, and does it without stopping the system. The script opens the live database read-only, runs `PRAGMA quick_check` and executes `VACUUM INTO` into `backups/backup-<UTC time>/`. This SQLite command produces a consistent copy even while the database is being written to: copying the file the ordinary way could catch half a transaction. After copying, the script checks the copy itself. The Digest database `briefing.db` is not part of the snapshot.
 
 `orchestrator.yaml`, `projects.yaml` and `Caddyfile` are placed beside it; the script rejects links instead of files. `manifest.json` is written last, listing every file with its size and SHA-256 and marked `secretsIncluded: false`. Then the script keeps the 14 latest snapshots (`KURAMI_BACKUP_RETENTION`, from 2 to 90). If any part fails, the half-made directory is deleted: a snapshot is either whole or absent.
 
@@ -55,7 +55,7 @@ Before packing, the script checks the inputs. The snapshot must have a manifest 
 
 ## Stage 3: upload with read-back
 
-The third stage counts an upload as successful only after it has read the result back itself. The script verifies the local checksum, then sends the bundle and the `.sha256` file through `curl` with an AWS SigV4 signature. It passes the access keys through standard input so they never appear in the process list. After that the script runs a chain of checks.
+The third stage counts an upload as successful only after it has read the result back itself. The script verifies the local checksum, then sends the bundle and the `.sha256` file through `curl` with an AWS SigV4 signature. It passes the access keys through standard input so they do not appear in the process list. After that the script runs a chain of checks.
 
 ```diagram
 kind: sequence
@@ -85,7 +85,7 @@ The `*/3` step in the day-of-month field means days 1, 4, 7, …, 31, not "every
 | 29 days | the 28th | 2 days |
 | 28 days | the 28th | 1 day |
 
-The longest gap is three days, or 72 hours. The health check limit is 84 hours, so the schedule never causes a false alert about an old backup.
+The longest gap is three days, or 72 hours. The health check limit is 84 hours, so the schedule cannot cause a false alert about an old backup.
 
 ::::example The backup of 4 October (invented data)
 :::steps

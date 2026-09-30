@@ -50,7 +50,7 @@ The split rule: if any Hermes-based system needs a function, Hermes provides it;
 
 ## Kinds of jobs
 
-A job is a `jobs.json` record with a cron schedule. Once a minute the ticker inside `hermes-gateway` takes the jobs that are due and runs them.
+A job is a `jobs.json` record with a cron schedule. Once a minute the ticker inside `hermes-gateway` takes the jobs that are due and runs them. All twelve are listed in [Jobs and schedule](@jobs); why the schedule is in UTC is in [Schedule](@scheduling).
 
 | Kind | What runs | Who decides what to report | Used for |
 |---|---|---|---|
@@ -96,7 +96,7 @@ An MCP server is an external set of tools that Hermes connects to itself. Each h
 | `composio-read` | 7 read tools | untrusted | automatic reading of Gmail, Calendar, YouTube |
 | `composio-automation` | one tool, `GMAIL_BATCH_MODIFY_MESSAGES` | full | automatic "mark read and archive" |
 
-"Untrusted" means a call with side effects needs confirmation; "full" means it does not, because a list of one or two exact tools is the decision. More in [Connector authority](@connector-authority).
+What the trust levels mean and why the lists are drawn this way is in [Connector authority](@connector-authority).
 
 ## How code gets into Hermes
 
@@ -114,7 +114,7 @@ Both sync scripts refuse to work if the source contains `.env`, `*.db`, `*.pem` 
 
 ::::example The health check at 10:30 (invented data)
 :::steps
-- **Hermes ticker** — at 10:30 finds the job `kurami-system-health` (id `a1b2c3d4e5f6`, expression `*/10 * * * *`, script job, `deliver: local`).
+- **Hermes ticker** — at 10:30 finds the job `kurami-system-health` (id `a1b2c3d4e5f6`, expression `*/10 * * * *` set by the interval setting, script job, `deliver: local`).
 - **Hermes** — runs `$HERMES_HOME/scripts/kurami-runtime-health.sh` with the pinned Node.
 - **The script** — calls `system-health-discord.ts --run`, which collects metrics, evaluates alerts and edits one card.
 - **Kurami code** — calls Discord REST itself: updates the card and, if needed, sends an alert to the alerts channel.
@@ -122,8 +122,6 @@ Both sync scripts refuse to work if the source contains `.env`, `*.db`, `*.pem` 
 - **Hermes** — records `last_status: ok` and increments the run counter.
 :::
 ::::
-
-If the script fails while collecting metrics, `last_status` becomes an error and the error message stays in the log: nothing arrives in Discord. You would notice only from the stale "Updated" time on the card.
 
 ## What can go wrong
 

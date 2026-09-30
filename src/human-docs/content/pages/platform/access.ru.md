@@ -38,7 +38,7 @@ edge caddy -> preview "только работающие"
 |---|---|---|
 | Digest | `127.0.0.1:8787` | Cloudflare Access |
 | Эта документация, `docs.shagon1k.win` | `127.0.0.1:8799` | Cloudflare Access; `/` перенаправляет на `/en/` |
-| Hub | `127.0.0.1:8800` | Cloudflare Access; собственного входа нет |
+| Hub | `127.0.0.1:8800` | Cloudflare Access |
 | Превью проектов, `preview-N.shagon1k.win` (N от 1 до 6) | через Caddy, `127.0.0.1:9180` | Cloudflare Access плюс ответ 404 для любого адреса без работающего превью |
 | Ссылка «Open in Codex» | через Caddy | без Access: переход по точному идентификатору задачи |
 

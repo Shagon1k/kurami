@@ -55,7 +55,7 @@ A message lists the active checks, "Top consumers at alert time" — the hungrie
 | Backup | — | older than 84 hours or missing | 1 |
 | OOM killer, SQLite, Docker, previews | — | any violation | 1 |
 
-The pair "3 / 2" is how many checks in a row a warning and a critical problem need. The CPU and RAM thresholds and the check counts live in the `server_health` section of `orchestrator.yaml`; the rest are fixed in code.
+The pair "3 / 2" is how many checks in a row a warning and a critical problem need. The thresholds and check counts live in `orchestrator.yaml` (sections `server_health` and `limits`); the backup age limit is the `KURAMI_BACKUP_MAX_AGE_HOURS` variable. See [Configuration](@config).
 
 ## The last ten checks
 
@@ -63,7 +63,7 @@ Under the card sits a picker, "Inspect one of the last 10 runs…". Each option 
 
 ## How often to check
 
-You change the check interval. Open `/kurami settings`, choose the **System Health** section and enter a number of minutes in the "Check interval (minutes)" field. The allowed values are 5, 10, 12, 15, 20, 30 and 60; the default is 20. Kurami rewrites the job's schedule in Hermes and posts a line to the maintenance channel. The settings form itself is covered on the [Settings](@settings) page.
+You change the check interval in `/kurami settings`, section **System Health**. The allowed values are 5, 10, 12, 15, 20, 30 and 60 minutes; the built-in default is 20. Kurami rewrites the job's schedule in Hermes and posts a line to the maintenance channel. The form is described on [Settings](@settings).
 
 If the "Updated" time in the card footer has stopped moving, the check itself is not running, and no alert says so: the thing that would report the failure is the thing that broke. Look at the state of Hermes; details are in [How monitoring works](@health-internals).
 

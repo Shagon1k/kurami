@@ -47,12 +47,12 @@ edge irrev -> owner "yes"
 | Codex | writes code in its own working copy, opens a PR; fixes CI and review on a button | everything outside the copy | works only in its own working copy and branch |
 | Daily | collects, checks and publishes the edition, notifies | rewriting an accepted edition — an operator, not automation | a frozen edition is the record of the morning |
 | Digest, live blocks | refreshes mail, calendar, weather hourly | archiving mail — by a press | writing to mail changes the outside world |
-| Health | checks, edits the card, sends an alert | repairing: stopping a preview, removing a resource | a person must confirm the cause of a failure |
-| Backup | takes a copy, encrypts, uploads | restoring | overwriting live state is irreversible |
-| Maintenance | deletes old logs and unused Docker images | containers, volumes, working copies, previews | a running run may need them |
-| Documentation audit | prepares a draft in an isolated copy | publishing: the Publish button | others read the site, changes must be read first |
-| Connectors | reads; removes `INBOX` and `UNREAD` by stored identifiers | any other write | the action list is closed and checked |
-| Hub | reads and shows | — | has no write at all |
+| [Health](@health) | checks, edits the card, sends an alert | repairing: stopping a preview, removing a resource | a person must confirm the cause of a failure |
+| [Backup](@recovery) | takes a copy, encrypts, uploads | restoring | overwriting live state is irreversible |
+| [Maintenance](@maintenance) | deletes old logs and unused Docker images | containers, volumes, working copies, previews | a running run may need them |
+| [Documentation audit](@docs-process) | prepares a draft in an isolated copy | publishing: the Publish button | others read the site, changes must be read first |
+| [Connectors](@connector-authority) | reads; removes `INBOX` and `UNREAD` by stored identifiers | any other write | the action list is closed and checked |
+| [Hub](@hub) | reads and shows | — | has no write at all |
 
 The last column is not a caveat but the logic itself. Each line has one reason: either the action cannot be undone, or Kurami cannot prove the resource is its own. In the second case it preserves and waits: a resource without a confirmed owner is not deleted but blocks the admission of new tasks.
 
@@ -60,13 +60,13 @@ The last column is not a caveat but the logic itself. Each line has one reason: 
 
 Automation does not replace a refusal with a quiet attempt. When a check fails, the process records the reason and stops. The poll does not start a run for a card that was already in In progress at the first read. The health check does not delete a lost preview but reports it. Publishing documentation does not go ahead without a Publish press on a card with the commit that you saw.
 
-::::example A documentation-changes proposal (invented data)
+::::example An unknown working copy (invented data)
 :::steps
-- **Schedule** — on Monday at 06:00 local time starts the audit; the script confirms the day and hour.
-- **Agent** — edits pages in the draft copy `dp_3fa91c07d2e4` and writes a short description. An edit outside the allowed paths is dropped.
-- **Worker** — runs the tests, opens a PR and posts a card with the buttons Publish, Discuss, Reject.
-- **You** — read the PR and press Publish.
-- **Worker** — merges the PR only with the commit that is on the card, builds the release and checks the site; on a failure it puts the previous release back.
+- **Resource guard** — in an ordinary cycle finds a working-copy directory that belongs to no run and starts a 30-minute wait.
+- **Resource guard** — after the wait puts the directory into quarantine. It deletes nothing.
+- **Kurami** — holds back admission of new runs with the reason "Active resource quarantines: 1"; the health card shows a critical problem.
+- **You** — inspect the directory and decide whether it is junk or work worth keeping.
+- **Kurami** — if there is no decision within 7 days, adds a warning that asks for your review.
 :::
 ::::
 

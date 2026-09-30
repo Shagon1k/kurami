@@ -5,6 +5,7 @@ summary: The shared set of themes, buttons, tables and page shells that Digest, 
 section: platform
 group: internals
 order: 80
+next: platform-decisions
 ---
 
 The UI library is the shared layer `src/ui-library/` through which every Kurami site is drawn, so that they look and behave the same.
@@ -43,7 +44,7 @@ group themes "Themes and tokens" theme roles band
 
 The layers run from values up to finished pages, and each one knows only about those below it. At the bottom sit *roles*: not "red #e21b16" but "the accent colour" (`--accent-primary`). There are 30 colour roles and 19 others — fonts, radii, shadows, spacing and durations. The Kurami theme sets the role values in a light and a dark form, and the breakpoints for phone and tablet — 620 and 900 pixels — live in constants because `@media` cannot read variables.
 
-Foundations: the style reset, typography, the focus ring, accessibility utilities, the container, the Onest, Fragment Mono and Caveat fonts that sit in the repository together with their OFL licences, and the `inlineDiagram` function that paints diagrams with theme roles. Components are the button, the theme switch, the table, the callout and the disclosure block. Patterns are the site header and the page shell `renderDocument`, which assembles the `<head>`, the skip link, the header, the main content and the footer. A separate runtime reads the stored theme choice or the system setting and applies it before first paint, so the dark theme never flashes light.
+Foundations: the style reset, typography, the focus ring, accessibility utilities, the container, the Onest, Fragment Mono and Caveat fonts that sit in the repository together with their OFL licences, and the `inlineDiagram` function that paints diagrams with theme roles. Components are the button, the theme switch, the table, the callout and the disclosure block. Patterns are the site header and the page shell `renderDocument`, which assembles the `<head>`, the skip link, the header, the main content and the footer. A separate runtime reads the stored theme choice or the system setting and applies it before first paint, so the dark theme does not flash light.
 
 ## Rules
 

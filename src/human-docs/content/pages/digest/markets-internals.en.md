@@ -5,14 +5,15 @@ summary: How Kurami protects the free quote quota once a day, selects the Discov
 section: digest
 group: internals
 order: 90
+next: digest-decisions
 ---
 
-Market data lives apart from the edition: only the hourly poll and the Sunday job collect it, and the pages read a finished cache. So opening `/stocks` makes no provider request at all, and a failure of the quote provider does not touch the morning build. The main concern of this part is the free EODHD key with 20 requests a day: quotes, Discovery and any future consumer share it.
+Market data lives apart from the edition: only the hourly poll and the Sunday job collect it, and the pages read a finished cache. So opening `/stocks` makes no provider request at all, and a failure of the quote provider does not touch the morning build. The main concern of this part is the free EODHD key with 20 requests a day: quotes, Discovery and any future consumer share it. What you see is on the [Stocks and Discovery](@stocks) and [Investment Review](@investment-review) pages.
 
 :::glance
 - What it does: once a day refreshes the watchlist quotes, checks the Discovery candidates and once a week prepares a portfolio report
 - Started by: the poll at :37 (the first attempt after 05:00 UTC) and the Hermes Sunday job at 07:00 UTC
-- Runs where: the Digest runtime; the report is the script `kurami-investment-review-weekly.sh` and a Hermes subprocess without tools
+- Runs where: the Digest runtime; the report is a Sunday script and a Hermes subprocess without tools
 - State: `stocks_refresh_days`, `stocks_discovery_days`, the rows `stocks`, `stocks-discovery`, `stock-logos` in `addon_snapshots`; the private `portfolio/` directory
 - What you see: the `/stocks` page, the "Stocks" teaser in the edition, the "Portfolio review" block, a Discord message
 :::
@@ -45,7 +46,7 @@ A list of twelve securities takes fifteen requests: the plan check, the US catal
 
 ## The frozen teaser
 
-At 09:00 the pre-publication step copies the cache into the edition as `addons.stocks`, cutting off points dated the edition date or later. So the morning teaser shows the last completed session. After that the edition write compares the sha256 of this envelope and rejects any change: the `/stocks` page moves forward, the edition stays a record of the morning. More in [Add-ons: the shared contract](@addons).
+At 09:00 the pre-publication step copies the cache into the edition, cutting off points dated the edition date or later. So the teaser shows the last completed session and does not change afterwards: the `/stocks` page moves forward, the edition stays a record of the morning. The reason and the mechanics are in [Add-ons: the shared contract](@addons).
 
 ## Discovery: selection and verification
 
@@ -68,7 +69,7 @@ Logos are decoration, and their failure blocks nothing. Pinned "ticker + ISIN" p
 
 ## The portfolio report: the pipeline
 
-The Hermes Sunday job runs `automation.js run`; the weekday and the claimed date are checked inside the code, so cron stays simple. The pipeline passes fixed gates, and every "no" leaves the previous accepted report.
+The Hermes Sunday job runs the pipeline; the weekday and the claimed date are checked inside the code, so cron stays simple. The pipeline passes fixed gates, and every "no" leaves the previous accepted report.
 
 ```diagram
 kind: graph
@@ -97,7 +98,7 @@ edge valid -> accept "yes"
 edge valid -> keep "no"
 ```
 
-Collection goes in this order: a snapshot of the quote cache (all securities on one session) and the ECB rate; the full VUAA fund composition from the Vanguard site; SEC company metrics (at most 15 tickers and 16 requests). For companies where metrics are not enough, the job downloads their reports from the SEC archive (up to eight companies and 64 requests). Then a model without tools extracts facts, a second call checks them independently, and a third writes the report draft. If the metrics are complete, there is one call. In all, at most three calls of five minutes each, with no retries. Code assigns the fragment identifiers so that the model does not retype quotations itself.
+Collection goes in this order: a snapshot of the quote cache (all securities on one session) and the ECB rate; the full composition of the portfolio's fund from the Vanguard site; SEC company metrics (at most 15 tickers and 16 requests). For companies where metrics are not enough, the job downloads their reports from the SEC archive (up to eight companies and 64 requests). Then a model without tools extracts facts, a second call checks them independently, and a third writes the report draft. If the metrics are complete, there is one call. In all, at most three calls of five minutes each, with no retries. Code assigns the fragment identifiers so that the model does not retype quotations itself.
 
 The draft check binds it to the hash of the input data, verifies the fact references and forbids orders: the `proposedOrders` field must be empty. Acceptance is a separate step: the report is written as a file named by the sha256 of its content, then the pointer `latest-weekly.json` is switched atomically. The `accept.lock` lock protects against parallel writes. An old date cannot replace a new one.
 

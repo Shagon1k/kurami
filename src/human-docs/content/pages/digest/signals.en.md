@@ -37,5 +37,5 @@ Thresholds, the number of hints (1 to 3), the freshness limit and the rule switc
 
 :::cards
 - [The morning edition](@daily) — where the strip sits on the page
-- [Digest add-ons](@addons) — how Signals attaches to the edition
+- [Add-ons: the shared contract](@addons) — how Signals attaches to the edition
 :::

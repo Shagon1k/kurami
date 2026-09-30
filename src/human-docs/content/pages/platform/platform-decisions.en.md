@@ -117,3 +117,14 @@ Each decision is written in one format: **Context** — what was needed, **Decis
 **Why.** Banning everything at once is impossible: old code breaks the rules. A freeze stops the debt from growing today and makes every exception visible to the reviewer.
 
 **Trade-off.** Every new part needs a decision: use, extend the library or justify an exception.
+
+:::cards
+- [Kurami and Hermes](@hermes-integration) — the job kinds and the plugin
+- [Schedule](@scheduling) — UTC cron and local-time checks in practice
+- [Connector authority](@connector-authority) — the three levels and the argument rules
+- [Hub](@hub) — what it reads and shows
+- [How monitoring works](@health-internals) — streaks, the card and the alerts
+- [How backups work](@backup-internals) — the three tiers in detail
+- [How the docs are updated](@docs-process) — the Publish click
+- [UI library](@ui-library) — the guard and the baseline
+:::
