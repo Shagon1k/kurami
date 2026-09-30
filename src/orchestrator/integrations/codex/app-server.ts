@@ -64,7 +64,7 @@ export function detachedCodexEnvironment(
   return result;
 }
 
-class AppServerClient {
+export class AppServerClient {
   readonly #child;
   readonly #pending = new Map<number, PendingRequest>();
   readonly #stderr: string[] = [];
@@ -95,6 +95,15 @@ class AppServerClient {
       const error = new Error(
         `Codex app-server exited before completing requests: code=${code ?? "none"}, signal=${signal ?? "none"}${details ? `; ${details}` : ""}`,
       );
+      this.#recordFatal(error);
+      for (const pending of this.#pending.values()) {
+        clearTimeout(pending.timer);
+        pending.reject(error);
+      }
+      this.#pending.clear();
+    });
+    this.#child.on("error", (error) => {
+      this.#recordFatal(error);
       for (const pending of this.#pending.values()) {
         clearTimeout(pending.timer);
         pending.reject(error);
@@ -179,6 +188,7 @@ class AppServerClient {
   }
 
   async request(method: string, params: unknown = {}): Promise<unknown> {
+    if (this.#fatalError) throw this.#fatalError;
     const id = this.#nextId;
     this.#nextId += 1;
     const promise = new Promise<unknown>((resolve, reject) => {
@@ -187,8 +197,14 @@ class AppServerClient {
         reject(new Error(`Codex app-server request timed out: ${method}`));
       }, 10_000);
       this.#pending.set(id, { resolve, reject, timer });
+      try {
+        this.#send({ method, id, params });
+      } catch (error) {
+        clearTimeout(timer);
+        this.#pending.delete(id);
+        reject(error instanceof Error ? error : new Error("Codex app-server send failed"));
+      }
     });
-    this.#send({ method, id, params });
     return promise;
   }
 

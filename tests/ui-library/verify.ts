@@ -19,12 +19,21 @@ import {renderDocument} from "../../src/ui-library/patterns/page-shell.ts";
 import {renderTable,TABLE_CSS} from "../../src/ui-library/components/table.ts";
 import {renderCallout,CALLOUT_CSS} from "../../src/ui-library/components/callout.ts";
 import {renderDisclosure,DISCLOSURE_CSS} from "../../src/ui-library/components/disclosure.ts";
+import {renderNumberField,renderSelectField} from "../../src/ui-library/components/form.ts";
+import {renderDialog} from "../../src/ui-library/components/dialog.ts";
+import {renderPeriodSwitch} from "../../src/ui-library/components/period-switch.ts";
 import {inlineDiagram} from "../../src/ui-library/foundations/diagram.ts";
 import {exportBundle,exportDirectory} from "../../src/ui-library/export.ts";
 import {baselineGrew,evaluateUiImpact,touchesUi} from "../../src/ui-library/testing/impact.ts";
 import {readFileSync,readdirSync} from "node:fs";
 
 const root=resolve(import.meta.dirname,"../..");
+const periodControl=renderPeriodSwitch({key:"usage",lang:"en",label:"Usage period"});
+assert.match(periodControl,/role="group" aria-label="Usage period"/);
+assert.match(periodControl,/data-period-days="30" aria-pressed="true"/);
+assert.match(periodControl,/data-period-days="7" aria-pressed="false"/);
+assert.match(renderPeriodSwitch({key:"usage",lang:"ru",selected:7,label:"Расход"}),/>7д</);
+assert.throws(()=>renderPeriodSwitch({key:'bad"key',lang:"en",label:"Usage"}),/Invalid period key/);
 
 // Every role is declared once per mode; light is the root mode.
 for(const role of colorRoles){
@@ -87,6 +96,8 @@ for(const [lang,name] of [["ru","Тёмная тема"],["en","Dark theme"]] as
   assert.match(button,/data-theme-icon/);
 }
 assert.match(renderLinkButton({label:"RU",href:"/ru/",variant:"icon",attributes:{hreflang:"ru"}}),/^<a class="button button--icon" href="\/ru\/" hreflang="ru">RU<\/a>$/);
+assert.match(renderButton({label:"Reset",variant:"subtle",size:"compact"}),/^<button class="button button--subtle button--compact" type="button">Reset<\/button>$/);
+assert.match(renderLinkButton({label:"More",href:"/more/",variant:"subtle",size:"compact"}),/^<a class="button button--subtle button--compact"/);
 const svgButton=renderButton({label:"Больше такого",variant:"icon",iconPath:"M12 19V5 M6 11l6-6 6 6"});
 assert.match(svgButton,/<button[^>]*aria-label="Больше такого"[^>]*><svg class="button__svg"[^>]*><path d="M12 19V5 M6 11l6-6 6 6"\/><\/svg><\/button>/);
 assert.doesNotMatch(svgButton,/<span|🔔/);
@@ -129,6 +140,12 @@ assert.throws(()=>renderTable({columns:["a","b"],rows:[["only one"]]}),/does not
 assert.match(renderCallout({tone:"warning",title:"T",body:"<x>"}),/^<aside class="callout callout--warning"><strong>T<\/strong><p>&lt;x&gt;<\/p><\/aside>$/);
 assert.throws(()=>renderCallout({tone:"loud" as "note",body:"x"}),/Invalid callout tone/);
 assert.match(renderDisclosure({summary:"<s>",body:"<p>b</p>",boxed:true,open:true}),/^<details class="disclosure disclosure--boxed" open><summary>&lt;s&gt;<\/summary><p>b<\/p><\/details>$/);
+assert.match(renderSelectField({label:"<label>",name:"model",value:"a",options:[{value:"a",label:'<option>"'}]}),/&lt;label&gt;/);
+assert.match(renderSelectField({label:"Model",name:"model",value:"a",options:[{value:"a",label:"A"}]}),/value="a" selected>A<\/option>/);
+assert.match(renderNumberField({label:"WIP",name:"wip",value:2,min:1,max:3}),/name="wip" type="number" value="2" min="1" max="3"/);
+assert.match(renderDialog({id:"test-dialog",title:"<title>",closeLabel:"Close",body:"<p>Trusted</p>"}),/aria-labelledby="test-dialog-title"/);
+assert.match(renderDialog({id:"test-dialog",title:"<title>",closeLabel:"Close",body:""}),/&lt;title&gt;/);
+assert.throws(()=>renderDialog({id:'bad"id',title:"T",closeLabel:"Close",body:""}),/Invalid dialog ID/);
 
 // Diagrams: every shipped scene stays inside the palette and becomes theme-aware when inlined.
 const scenes=readdirSync(resolve(root,"src/human-docs/assets")).filter(file=>file.endsWith(".svg"));

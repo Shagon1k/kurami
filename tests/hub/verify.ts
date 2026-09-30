@@ -7,6 +7,8 @@ import {DatabaseSync} from "node:sqlite";
 import {collectHubSnapshot} from "../../src/hub/snapshot.ts";
 import {createHubServer} from "../../src/hub/server.ts";
 import {renderHubPage} from "../../src/hub/render.ts";
+import {compactNumber} from "../../src/hub/format.ts";
+import {createProjectStore} from "./project-store.ts";
 
 const home=mkdtempSync(join(tmpdir(),"kurami-hub-test-"));
 try {
@@ -21,13 +23,10 @@ projects:
     workspace: {canonical_repository: /does/not/exist, base_branch: main}
 `);
   const db=new DatabaseSync(join(home,"state/orchestrator.db"));
-  db.exec(`CREATE TABLE project_items(project TEXT,status TEXT,present INTEGER);
-    CREATE TABLE runs(run_id TEXT,project TEXT,state TEXT);
-    CREATE TABLE run_ci_snapshots(run_id TEXT,aggregate_state TEXT);
-    CREATE TABLE project_poll_state(project TEXT,last_captured_at TEXT,last_attempt_state TEXT);
-    INSERT INTO project_items VALUES('pickflick','Backlog',1),('pickflick','Human Review',1),('pickflick','Done',0);
-    INSERT INTO runs VALUES('run1','pickflick','running'),('run2','pickflick','waiting_human');
-    INSERT INTO run_ci_snapshots VALUES('run1','passed');
+  createProjectStore(db);
+  db.exec(`INSERT INTO project_items VALUES('pickflick','item1','Backlog',1),('pickflick','item2','Human Review',1),('pickflick','item3','Done',0);
+    INSERT INTO runs VALUES('run1','pickflick',1,'Shagon1k/PickFlick','item1','running','2026-09-29T20:59:00Z'),('run2','pickflick',2,'Shagon1k/PickFlick','item2','waiting_human','2026-09-29T20:59:00Z');
+    INSERT INTO run_ci_snapshots(run_id,aggregate_state) VALUES('run1','passed');
     INSERT INTO project_poll_state VALUES('pickflick','2026-09-29T20:59:00Z','succeeded');`);
   db.close();
   const codexHome=join(home,"codex");
@@ -63,6 +62,10 @@ projects:
   assert.equal(snapshot.codex.cached30,500);
   assert.equal(snapshot.codex.output30,400);
   assert.equal(snapshot.codex.sessions30,2);
+  assert.equal(snapshot.codex.periods?.[7].cached,300);
+  assert.equal(snapshot.codex.periods?.[7].output,300);
+  assert.equal(snapshot.codex.periods?.[7].sessions,1);
+  assert.deepEqual(snapshot.codex.periods?.[7].models,[{name:"gpt-6-sol",sessions:1}]);
   assert.equal(snapshot.codex.coverage,"complete");
   assert.equal(snapshot.codex.limits[0]?.remainingPercent,63);
   assert.equal(snapshot.codex.limits[1]?.windowMinutes,10080);
@@ -86,7 +89,15 @@ projects:
   assert.doesNotMatch(page,/\/does\/not\/exist/,"local paths never reach the page");
   const english=renderHubPage(snapshot,"en");
   assert.match(english,/<html lang="en"/);
-  assert.match(english,/<h1>Overview<\/h1>/);
+  assert.match(english,/<h1 class="sr-only">Kurami Hub<\/h1>/);
+  assert.doesNotMatch(english,/>Overview</);
+  assert.match(english,/>Breakdown</);
+  assert.match(english,/data-period-key="tokens" data-period-days="30" aria-pressed="true"/);
+  assert.match(english,/title="1,000" aria-label="1,000">1K</);
+  assert.equal(compactNumber(3812400),"3.8M");
+  assert.equal(compactNumber(1426830000),"1.4B");
+  assert.equal(compactNumber(999999),"1M");
+  assert.equal(compactNumber(null),"—");
   assert.match(english,/>63% left<\/strong>/);
   assert.match(english,/href="\/ru\/" aria-label="Switch to Russian" hreflang="ru">RU<\/a>/);
   assert.match(english,/href="https:\/\/docs\.shagon1k\.win\/en\/"[^>]*>Docs<\/a>/);
@@ -114,9 +125,9 @@ projects:
     assert.equal((await get("/en")).headers.location,"/en/");
     assert.equal((await get("/ru")).headers.location,"/ru/");
     assert.equal((await get("/api/fragment")).status,200);
-    assert.match((await get("/api/fragment")).body,/<h1>Overview<\/h1>/);
-    assert.match((await get("/api/fragment?lang=ru")).body,/<h1>Обзор<\/h1>/);
-    assert.match((await get("/api/fragment?lang=en")).body,/<h1>Overview<\/h1>/);
+    assert.match((await get("/api/fragment")).body,/<h1 class="sr-only">Kurami Hub<\/h1>/);
+    assert.match((await get("/api/fragment?lang=ru")).body,/>Токены</);
+    assert.match((await get("/api/fragment?lang=en")).body,/>Tokens</);
     assert.match((await get("/en/offline.html")).body,/<h1>Offline<\/h1>/);
     assert.equal((await get("/offline.html")).headers.location,"/en/offline.html");
     assert.equal((await get("/ru/offline.html")).status,200);

@@ -10,6 +10,9 @@ import {THEME_SWITCH_CSS} from "./components/theme-switch.ts";
 import {TABLE_CSS} from "./components/table.ts";
 import {CALLOUT_CSS} from "./components/callout.ts";
 import {DISCLOSURE_CSS} from "./components/disclosure.ts";
+import {FORM_CSS} from "./components/form.ts";
+import {DIALOG_CSS} from "./components/dialog.ts";
+import {PERIOD_SWITCH_CSS} from "./components/period-switch.ts";
 import {SITE_HEADER_CSS} from "./patterns/site-header.ts";
 import {THEME_RUNTIME_JS} from "./runtime/theme.ts";
 
@@ -18,7 +21,7 @@ const banner="Generated from src/ui-library by `npm run ui:export`. Do not edit;
 
 export function exportBundle():Record<"kurami-ui.css"|"kurami-theme.js",string> {
   // Fonts are copied beside the stylesheet as ./fonts/ by the consuming project.
-  const css=[THEME_CSS,FOUNDATION_CSS.replaceAll('url("/assets/','url("fonts/'),BUTTON_CSS,THEME_SWITCH_CSS,SITE_HEADER_CSS,TABLE_CSS,CALLOUT_CSS,DISCLOSURE_CSS,DIAGRAM_CSS].join("\n");
+  const css=[THEME_CSS,FOUNDATION_CSS.replaceAll('url("/assets/','url("fonts/'),BUTTON_CSS,THEME_SWITCH_CSS,SITE_HEADER_CSS,TABLE_CSS,CALLOUT_CSS,DISCLOSURE_CSS,FORM_CSS,DIALOG_CSS,PERIOD_SWITCH_CSS,DIAGRAM_CSS].join("\n");
   return {"kurami-ui.css":`/* ${banner} */\n${css}`,"kurami-theme.js":`// ${banner}\n${THEME_RUNTIME_JS}`};
 }
 

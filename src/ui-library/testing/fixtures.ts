@@ -9,6 +9,7 @@ import {input as reviewInput,draft as reviewDraft} from "../../../tests/fixtures
 import {THEME_CSS} from "../themes/index.ts";
 import {FOUNDATION_CSS} from "../foundations/index.ts";
 import {BUTTON_CSS,renderButton,renderLinkButton} from "../components/button.ts";
+import {PERIOD_SWITCH_CSS,renderPeriodSwitch} from "../components/period-switch.ts";
 import {THEME_SWITCH_CSS,renderThemeSwitch} from "../components/theme-switch.ts";
 import {TABLE_CSS,renderTable} from "../components/table.ts";
 import {CALLOUT_CSS,renderCallout} from "../components/callout.ts";
@@ -17,6 +18,7 @@ import {SITE_HEADER_CSS,renderSiteHeader} from "../patterns/site-header.ts";
 import {renderDocument} from "../patterns/page-shell.ts";
 import {renderHubPage,type HubLanguage} from "../../hub/render.ts";
 import type {HubSnapshot} from "../../hub/snapshot.ts";
+import {summarizeModelUsage,type UsageSample} from "../../core/api-equivalent.ts";
 
 const at="2026-09-16T07:00:00Z";
 const story=(index:number,headline:string,summary:string)=>({
@@ -65,12 +67,13 @@ export function syntheticInvestmentReview():string {
 
 /** A sub-site assembled only from the library: proves a new site needs no Digest or Docs CSS. */
 export function librarySubsite():string {
-  const styles=[THEME_CSS,FOUNDATION_CSS,BUTTON_CSS,THEME_SWITCH_CSS,SITE_HEADER_CSS,TABLE_CSS,CALLOUT_CSS,DISCLOSURE_CSS,
+  const styles=[THEME_CSS,FOUNDATION_CSS,BUTTON_CSS,THEME_SWITCH_CSS,SITE_HEADER_CSS,TABLE_CSS,CALLOUT_CSS,DISCLOSURE_CSS,PERIOD_SWITCH_CSS,
     ".page { padding-block: var(--space-10); display: grid; gap: var(--space-6); max-width: 760px; } .page h1 { margin: 0; font-size: clamp(2rem, 5vw, 3.25rem); line-height: 1.05; letter-spacing: -.04em; }"].join("\n");
   return renderDocument({
     lang:"en",title:"Library sub-site · Kurami",favicon:"/favicon.svg",styles:{inline:styles},themeScript:true,skipLabel:"Skip to content",
     header:renderSiteHeader({brand:{href:"/",ariaLabel:"Kurami — home",foxSrc:"/assets/kurami-fox.webp",suffix:"lab"},nav:{label:"Sections",links:[{href:"/lab/",label:"Overview",current:"page"},{href:"/lab/runs/",label:"Runs"},{href:"/lab/notes/",label:"Notes"}],collapse:{label:"Sections"}},actions:renderLinkButton({label:"RU",href:"/ru/",variant:"icon",ariaLabel:"Switch to Russian"})+renderThemeSwitch("en")}),
     main:`<h1>A new Kurami sub-site</h1>
+${renderPeriodSwitch({key:"synthetic-usage",lang:"en",label:"Usage period"})}
 ${renderCallout({tone:"note",title:"Built from the library",body:"Header, buttons, table, callout and disclosure come from src/ui-library; this page adds only its own layout."})}
 ${renderTable({caption:"Synthetic runs",columns:["Run","Duration","Checks"],rows:[["alpha","12 min","4/4"],["beta","7 min","3/4"]],rowHeaders:true,numeric:true,stack:true})}
 ${renderDisclosure({summary:"Technical detail",body:"<p>Nothing here is real data.</p>",boxed:true})}
@@ -81,7 +84,7 @@ ${renderDisclosure({summary:"Technical detail",body:"<p>Nothing here is real dat
 }
 
 /** Synthetic Hub page: fixed values keep visual regression independent of private runtime state. */
-export function syntheticHub(lang:HubLanguage="ru"):string {
+export function syntheticHubSnapshot():HubSnapshot {
   const projects=[
     ["pickflick","PickFlick",3,2,14,18],
     ["tailortales","TailorTales",2,0,8,12],
@@ -91,7 +94,13 @@ export function syntheticHub(lang:HubLanguage="ru"):string {
     codex:{state:"available",tokens7:3812400,tokens30:14268300,cached30:12876100,output30:361200,sessions30:39,coverage:"complete",
       models:[{name:"gpt-6-sol",sessions:27},{name:"gpt-6-luna",sessions:9},{name:"gpt-6-astra",sessions:3}],
       limits:[{name:"primary",usedPercent:42,remainingPercent:58,windowMinutes:10080,resetsAt:"2026-09-20T10:00:00Z",observedAt:"2026-09-16T06:59:00Z"},
-        {name:"secondary",usedPercent:18,remainingPercent:82,windowMinutes:300,resetsAt:"2026-09-16T09:00:00Z",observedAt:"2026-09-16T06:59:00Z"}],updatedAt:"2026-09-16T06:59:00Z"},
+        {name:"secondary",usedPercent:18,remainingPercent:82,windowMinutes:300,resetsAt:"2026-09-16T09:00:00Z",observedAt:"2026-09-16T06:59:00Z"}],updatedAt:"2026-09-16T06:59:00Z",account:{state:"live",resetCredits:2,observedAt:"2026-09-16T06:59:00Z",limits:[]}},
+    operations:{healthStale:false,health:{version:1,checkedAt:"2026-09-16T06:59:00Z",ok:true,
+      server:{hostname:"shagserv",cpuUsedPercent:12.3,cpuCores:8,loadAverage:[.8,.9,1.1],memoryUsedPercent:36.7,memoryUsedGiB:8.4,memoryTotalGiB:22.9,memoryAvailableGiB:14.5,swapUsedGiB:0,swapTotalGiB:0,uptimeSeconds:864000},
+      cpuStatistics:{windowMinutes:8,sampleCount:32,averagePercent:10.2,peakPercent:28.1},network:{status:"online",latencyMs:18.4},speed:{downloadMbps:1202.9,uploadMbps:85.1,checkedAt:"2026-09-16T06:00:00Z"},disk:{usedPercent:18,availableGiB:158.1,state:"normal"},
+      orchestrator:{database:"ok",containers:{total:12,running:12,unhealthy:0},previews:2,worktrees:3,worktreeLimit:6,quarantined:0,backupAgeHours:8.2,backupMaxAgeHours:84,backupFresh:true},issues:[]},
+      alerts:[{id:"sample-ci",severity:"warning",code:"ci_unrepaired",subject:"PickFlick #123",href:"https://github.com/Shagon1k/PickFlick/pull/123"}],
+      activity:[{id:"sample-run",at:"2026-09-16T06:58:00Z",source:"Projects",subject:"PickFlick #123",event:"running"},{id:"sample-codex",at:"2026-09-16T06:55:00Z",source:"Codex",subject:"Update watchlist",event:"session_started"}]},
     totals:{working:2,review:3,attention:1,commits30:42},
     weeks:Array.from({length:12},(_,index)=>({start:new Date(Date.UTC(2026,5,29+index*7)).toISOString().slice(0,10),count:[0,2,1,4,3,6,8,11,7,13,4,9][index]!})),
     projects:[...projects.map(([key,name,number,review,commits7,commits30])=>({key,name,repository:`Shagon1k/${name}`,boardUrl:`https://github.com/users/Shagon1k/projects/${number}`,managed:true,
@@ -99,5 +108,16 @@ export function syntheticHub(lang:HubLanguage="ru"):string {
       poll:{capturedAt:"2026-09-16T06:58:00Z",state:"fresh" as const},git:{commits7,commits30,latestAt:"2026-09-16T06:30:00Z",state:"available" as const}})),
       {key:"kurami",name:"Kurami",repository:"Shagon1k/Kurami",boardUrl:"https://github.com/Shagon1k/Kurami",managed:false,board:null,runs:null,
         poll:{capturedAt:null,state:"unavailable"},git:{commits7:3,commits30:6,latestAt:"2026-09-16T06:00:00Z",state:"available"}}]};
-  return renderHubPage(snapshot,lang);
+  snapshot.codex.periods={7:{tokens:3812400,cached:3215000,output:104800,sessions:12,models:[{name:"gpt-6-sol",sessions:10},{name:"gpt-6-luna",sessions:2}]},30:{tokens:14268300,cached:12876100,output:361200,sessions:39,models:snapshot.codex.models}};
+  const sample=(model:string|null,input:number,cached:number,cacheWrite:number,output:number):UsageSample=>({session:model??"unknown",event:{at:0,model,input,cached,cacheWrite,output,total:input+output,requestInput:200_000}});
+  const recent=[sample("gpt-6-sol",2_900_000,2_600_000,100_000,100_000),sample("gpt-6-luna",807_600,615_000,50_000,4800)];
+  const older=[sample("gpt-6-astra",90_000,80_000,1000,10_000),sample("gpt-6.1-sol",9_009_500,8_711_100,50_000,246_400),sample(null,1_100_000,870_000,49_000,0)];
+  for(const days of [7,30] as const){
+    const summary=summarizeModelUsage(days===7?recent:[...recent,...older]);
+    Object.assign(snapshot.codex.periods[days],{modelUsage:summary.models,equivalent:summary.equivalent});
+  }
+  snapshot.commitDays=Array.from({length:30},(_,index)=>({start:new Date(Date.UTC(2026,7,17+index)).toISOString(),count:index<23?(index<13?1:0):[0,2,1,4,3,8,11][index-23]!}));
+  snapshot.usage={available:true,periods:{7:{completed:6,measured:5,medianTokens:821400,reworkPercent:12.5},30:{completed:18,measured:16,medianTokens:956700,reworkPercent:18.2}},projects:Object.fromEntries(projects.map(([key],index)=>[key,{7:{completed:2,measured:index===2?1:2,medianTokens:[741200,821400,932000][index]!,reworkPercent:[8.4,12.5,20.3][index]!},30:{completed:6,measured:index===2?6:5,medianTokens:[903600,956700,1042700][index]!,reworkPercent:[15.2,18.2,20.7][index]!}}]))};
+  return snapshot;
 }
+export function syntheticHub(lang:HubLanguage="ru"):string {return renderHubPage(syntheticHubSnapshot(),lang);}

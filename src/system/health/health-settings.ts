@@ -2,6 +2,7 @@ import { spawnSync } from "node:child_process";
 import { mkdir, readFile, rename, writeFile } from "node:fs/promises";
 import { dirname, resolve } from "node:path";
 import { resolveKuramiHome } from "../../core/kurami-home.ts";
+import {settingsSchema} from "../../orchestrator/settings/settings-schema.ts";
 
 process.umask(0o077);
 
@@ -13,8 +14,8 @@ type HealthSettingsState = {
   appliedAt: string;
 };
 
-const allowedIntervals = new Set([5, 10, 12, 15, 20, 30, 60]);
-const defaultIntervalMinutes = 20;
+const allowedIntervals = new Set(settingsSchema.health.allowedIntervals);
+const defaultIntervalMinutes = settingsSchema.health.defaultIntervalMinutes;
 const defaultHealthJobId = "ee530a53db44";
 
 function fail(message: string): never {
@@ -129,7 +130,7 @@ export async function runHealthSettingsCli(): Promise<void> {
     expectedRevision === null ||
     !actorId
   ) {
-    fail("Health interval must be one of 5, 10, 12, 15, 20, 30, or 60 minutes");
+    fail(`Health interval must be one of ${settingsSchema.health.allowedIntervals.join(", ")} minutes`);
   }
   const currentRevision = previous?.revision ?? 0;
   if (expectedRevision !== currentRevision) {

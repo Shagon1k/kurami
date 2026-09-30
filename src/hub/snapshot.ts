@@ -1,10 +1,14 @@
 import {execFileSync} from "node:child_process";
 import {existsSync,readFileSync} from "node:fs";
 import {resolve} from "node:path";
-import {DatabaseSync} from "node:sqlite";
+import {homedir} from "node:os";
+import {collectHubOperations,type HubOperations} from "./operations.ts";
 import {parse} from "yaml";
 import {resolveKuramiHome} from "../core/kurami-home.ts";
 import {collectCodexSnapshot,type CodexSnapshot} from "./codex.ts";
+import {readProjectStatus} from "../orchestrator/projects/status-read-model.ts";
+import {readProjectUsage,type ProjectUsage} from "../orchestrator/projects/usage-read-model.ts";
+import {readThreadUsage} from "../core/codex-usage.ts";
 
 type ProjectConfig={
   owner:string;project_number:number;repository:string;
@@ -12,10 +16,6 @@ type ProjectConfig={
   workspace:{canonical_repository:string;base_branch:string};
 };
 type Registry={projects:Record<string,ProjectConfig>};
-type PollRow={project:string;last_captured_at:string;last_attempt_state:string|null};
-type CountRow={project:string;status:string|null;n:number};
-type RunRow={project:string;state:string;n:number};
-type CiRow={project:string;aggregate_state:string;n:number};
 
 export type Week={start:string;count:number};
 export type HubProject={
@@ -28,6 +28,9 @@ export type HubProject={
 export type HubSnapshot={
   generatedAt:string;projects:HubProject[];weeks:Week[];
   codex:CodexSnapshot;
+  operations?:HubOperations;
+  usage?:ProjectUsage;
+  commitDays?:Week[];
   totals:{working:number;review:number;attention:number;commits30:number};
   sources:{orchestrator:"available"|"unavailable";git:"available"|"partial"|"unavailable"};
 };
@@ -85,57 +88,22 @@ export function collectHubSnapshot(options:{home?:string;appRepository?:string;c
     const ai=order.indexOf(a),bi=order.indexOf(b);
     return (ai<0?order.length:ai)-(bi<0?order.length:bi)||a.localeCompare(b);
   });
-  const counts=new Map<string,Map<string,number>>();
-  const runs=new Map<string,Map<string,number>>();
-  const ci=new Map<string,Map<string,number>>();
-  const polls=new Map<string,PollRow>();
-  let orchestrator:"available"|"unavailable"="unavailable";
   const dbPath=resolve(home,"state/orchestrator.db");
-  if(existsSync(dbPath)) {
-    try {
-      const db=new DatabaseSync(dbPath,{readOnly:true,timeout:1_000});
-      try {
-        for(const row of db.prepare("SELECT project,status,count(*) n FROM project_items WHERE present=1 GROUP BY project,status").all() as CountRow[]){
-          const values=counts.get(row.project)??new Map();values.set(row.status??"",row.n);counts.set(row.project,values);
-        }
-        for(const row of db.prepare("SELECT project,state,count(*) n FROM runs GROUP BY project,state").all() as RunRow[]){
-          const values=runs.get(row.project)??new Map();values.set(row.state,row.n);runs.set(row.project,values);
-        }
-        for(const row of db.prepare("SELECT runs.project project,ci.aggregate_state aggregate_state,count(*) n FROM run_ci_snapshots ci JOIN runs USING(run_id) GROUP BY runs.project,ci.aggregate_state").all() as CiRow[]){
-          const values=ci.get(row.project)??new Map();values.set(row.aggregate_state,row.n);ci.set(row.project,values);
-        }
-        for(const row of db.prepare("SELECT project,last_captured_at,last_attempt_state FROM project_poll_state").all() as PollRow[])polls.set(row.project,row);
-        orchestrator="available";
-      } finally {db.close();}
-    } catch {orchestrator="unavailable";}
-  }
+  const projectStatus=readProjectStatus(dbPath,config,now);
+  const orchestrator=projectStatus.available?"available":"unavailable";
   const allDates:number[]=[];
   const projects:HubProject[]=keys.map(key=>{
     const item=config[key]!;
-    const status=counts.get(key);
-    const states=runs.get(key);
-    const poll=polls.get(key);
-    const capturedAt=poll?.last_captured_at??null;
-    const capturedMs=dateMs(capturedAt);
-    const pollState=orchestrator==="unavailable"||!poll?"unavailable":
-      poll.last_attempt_state==="succeeded"&&capturedMs!==null&&now.getTime()-capturedMs<15*60_000?"fresh":"stale";
+    const status=projectStatus.projects[key];
     const git=gitHistory(item.workspace.canonical_repository,item.workspace.base_branch,now);
     allDates.push(...git.dates);
     return {
       key,name:displayNames[key]??key,repository:item.repository,
       boardUrl:`https://github.com/users/${encodeURIComponent(item.owner)}/projects/${item.project_number}`,
       managed:true,
-      board:orchestrator==="available"&&poll?{
-        backlog:status?.get(item.statuses.backlog)??0,active:status?.get(item.statuses.active)??0,
-        review:status?.get(item.statuses.review)??0,done:status?.get(item.statuses.done)??0,
-        deferred:status?.get(item.statuses.deferred)??0,
-      }:null,
-      runs:orchestrator==="available"?{
-        working:["starting","running","handoff_pending","remote_owned"].reduce((sum,state)=>sum+(states?.get(state)??0),0),
-        attention:["waiting_human","needs_attention"].reduce((sum,state)=>sum+(states?.get(state)??0),0),
-        ciFailed:(ci.get(key)?.get("failed")??0)+(ci.get(key)?.get("missing")??0),
-      }:null,
-      poll:{capturedAt,state:pollState},
+      board:status&&status.poll.state!=="unavailable"?status.board:null,
+      runs:status?.runs??null,
+      poll:status?.poll??{capturedAt:null,state:"unavailable"},
       git:{commits7:git.dates.filter(value=>value>=now.getTime()-7*86_400_000).length,
         commits30:git.dates.filter(value=>value>=now.getTime()-30*86_400_000).length,
         latestAt:git.latestAt,state:git.state},
@@ -156,7 +124,16 @@ export function collectHubSnapshot(options:{home?:string;appRepository?:string;c
     return {start:week.toISOString().slice(0,10),count:allDates.filter(value=>value>=week.getTime()&&value<next.getTime()).length};
   });
   const availableGit=projects.filter(project=>project.git.state==="available").length;
-  return {generatedAt:now.toISOString(),projects,weeks,codex:collectCodexSnapshot({home:options.codexHome,now}),
+  const codexHome=options.codexHome??process.env.HUB_CODEX_HOME??process.env.CODEX_HOME??resolve(homedir(),".codex");
+  const operations=collectHubOperations(home,codexHome,process.env.HERMES_HOME??"/home/shagon1k/_hermes/_core",now,projectStatus);
+  for(const project of projects.filter(project=>project.managed&&project.poll.state!=="fresh"))operations.alerts.push({id:`poll-${project.key}`,severity:"warning",code:"poll_stale",subject:project.name,href:project.boardUrl});
+  const cutoff=now.getTime()-30*86_400_000;
+  const commitDays=Array.from({length:30},(_,index)=>{
+    const start=cutoff+index*86_400_000,end=start+86_400_000;
+    return {start:new Date(start).toISOString(),count:allDates.filter(at=>at>=start&&(index===29?at<=end:at<end)).length};
+  });
+  const usage=readProjectUsage(dbPath,keys,now,(ids,until)=>readThreadUsage(codexHome,ids,until));
+  return {generatedAt:now.toISOString(),projects,weeks,commitDays,usage,codex:collectCodexSnapshot({home:codexHome,now}),operations,
     totals:{working:projects.reduce((sum,project)=>sum+(project.runs?.working??0),0),
       review:projects.reduce((sum,project)=>sum+(project.board?.review??0),0),
       attention:projects.reduce((sum,project)=>sum+(project.runs?.attention??0),0),

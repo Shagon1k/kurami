@@ -166,10 +166,43 @@ export async function createBackup(
 
     await chmod(databaseBackupPath, 0o600);
     const copiedFiles: string[] = ["orchestrator.db"];
+    for (const [relativePath, name] of [
+      ["state/system-health.db", "system-health.db"],
+      ["state/briefing/briefing.db", "briefing.db"],
+    ] as const) {
+      const source = resolve(home, relativePath);
+      try {
+        const metadata = await lstat(source);
+        if (metadata.isSymbolicLink() || !metadata.isFile()) {
+          fail(`Refusing unsafe backup source: ${source}`);
+        }
+      } catch (error) {
+        if ((error as NodeJS.ErrnoException).code === "ENOENT") continue;
+        throw error;
+      }
+      const destination = resolve(directory, name);
+      const database = new DatabaseSync(source, { readOnly: true, timeout: 10_000 });
+      try {
+        assertDatabaseIntegrity(database);
+        database.prepare("VACUUM INTO ?").run(destination);
+      } finally {
+        database.close();
+      }
+      await chmod(destination, 0o600);
+      const verified = new DatabaseSync(destination, { readOnly: true });
+      try {
+        assertDatabaseIntegrity(verified);
+      } finally {
+        verified.close();
+      }
+      copiedFiles.push(name);
+    }
     for (const relativePath of [
       "config/orchestrator.yaml",
       "config/projects.yaml",
       "config/Caddyfile",
+      "config/briefing.yaml",
+      "config/briefing-topics.yaml",
     ]) {
       const source = resolve(home, relativePath);
       try {

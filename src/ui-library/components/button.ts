@@ -1,13 +1,15 @@
-// Kurami button: primary/secondary/quiet/icon variants, busy state and a link form.
+// Kurami button: shared variants, regular/compact sizes, busy state and a link form.
 import { escapeHtml } from "../foundations/html.ts";
 
-export type ButtonVariant = "primary" | "secondary" | "quiet" | "icon";
+export type ButtonVariant = "primary" | "secondary" | "subtle" | "quiet" | "icon";
+export type ButtonSize = "regular" | "compact";
 
 type AttributeValue = string | number | boolean | undefined;
 
 export type ButtonInput = {
   label: string;
   variant: ButtonVariant;
+  size?: ButtonSize;
   className?: string;
   type?: "button" | "submit";
   disabled?: boolean;
@@ -44,12 +46,16 @@ export const BUTTON_CSS = `
 .button--primary:hover:not(:disabled):not([aria-busy="true"]) { color: var(--text-on-accent); background: color-mix(in srgb, var(--accent-primary) 82%, var(--text-primary)); border-color: color-mix(in srgb, var(--accent-primary) 82%, var(--text-primary)); }
 .button--primary[aria-busy="true"] { background: var(--accent-primary); border-color: var(--accent-primary); }
 .button--secondary { color: var(--text-primary); background: var(--surface-raised); border-color: var(--text-primary); }
+.button--subtle { color: var(--text-primary); background: var(--surface-panel); border-color: var(--border-default); }
+.button--subtle:hover:not(:disabled):not([aria-busy="true"]) { color: var(--text-primary); background: var(--surface-section); border-color: var(--text-muted); }
 .button--quiet { min-height: 40px; padding-inline: 11px; background: transparent; border-color: transparent; }
 .button--quiet:hover:not(:disabled):not([aria-busy="true"]) { color: var(--text-primary); background: var(--surface-panel); border-color: var(--border-default); }
 .button--icon { inline-size: 44px; block-size: 44px; padding: 0; background: var(--surface-panel); border-color: var(--border-default); }
 .button--icon:hover:not(:disabled):not([aria-busy="true"]) { color: var(--text-primary); background: var(--accent-soft); border-color: var(--accent-primary); }
 .button__icon { display: inline-grid; place-items: center; font-size: 1.125rem; line-height: 1; }
 .button__svg { inline-size: 22px; block-size: 22px; display: block; fill: none; stroke: currentColor; stroke-width: 2.2; stroke-linecap: square; stroke-linejoin: miter; pointer-events: none; }
+.button--compact { min-height: 32px; padding-inline: 10px; font-size: .7rem; font-weight: 500; }
+@media (pointer: coarse) { .button--compact { min-height: 44px; } }
 `;
 
 export function renderButton(input: ButtonInput): string {
@@ -57,7 +63,7 @@ export function renderButton(input: ButtonInput): string {
     throw new Error("Unsafe button class list");
   }
   if (input.icon && input.iconPath) throw new Error("Button cannot have both text and SVG icons");
-  const classes = ["button", `button--${input.variant}`, input.className].filter(Boolean).join(" ");
+  const classes = ["button", `button--${input.variant}`, input.size === "compact" ? "button--compact" : undefined, input.className].filter(Boolean).join(" ");
   const type = input.type ?? "button";
   const accessibleLabel = input.ariaLabel ?? (input.iconPath ? input.label : undefined);
   const ariaLabel = accessibleLabel ? ` aria-label="${escapeHtml(accessibleLabel)}"` : "";
@@ -78,8 +84,8 @@ export function renderButton(input: ButtonInput): string {
 }
 
 /** Navigation that looks like a button; `href` must be a site-relative or https URL. */
-export function renderLinkButton(input: { label: string; href: string; variant: ButtonVariant; ariaLabel?: string; attributes?: Record<string, AttributeValue> }): string {
+export function renderLinkButton(input: { label: string; href: string; variant: ButtonVariant; size?: ButtonSize; ariaLabel?: string; attributes?: Record<string, AttributeValue> }): string {
   if (!/^(?:\/(?!\/)|https:\/\/)/.test(input.href)) throw new Error("Unsafe link button href");
   const ariaLabel = input.ariaLabel ? ` aria-label="${escapeHtml(input.ariaLabel)}"` : "";
-  return `<a class="button button--${input.variant}" href="${escapeHtml(input.href)}"${ariaLabel}${renderAttributes(input.attributes)}>${escapeHtml(input.label)}</a>`;
+  return `<a class="button button--${input.variant}${input.size === "compact" ? " button--compact" : ""}" href="${escapeHtml(input.href)}"${ariaLabel}${renderAttributes(input.attributes)}>${escapeHtml(input.label)}</a>`;
 }

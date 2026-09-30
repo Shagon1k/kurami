@@ -3,6 +3,9 @@ import { mkdir, readFile, rename, writeFile } from "node:fs/promises";
 import { dirname, resolve } from "node:path";
 import { resolveKuramiHome } from "../../core/kurami-home.ts";
 import { parse } from "yaml";
+import { collectHealthCycle, readHealthCycle, deliverHealthNotifications } from "./health-cycle.ts";
+import type { HealthHistoryEntry } from "./health-history.ts";
+export { readHealthHistory, recordHealthHistory, type HealthHistoryEntry } from "./health-history.ts";
 import {
   actionRow,
   componentMessage,
@@ -14,16 +17,9 @@ import {
 } from "../../discord/ui.ts";
 import {
   formatUptime,
-  evaluateHealthAlerts,
-  readHealthAlertState,
-  writeHealthAlertState,
   type HealthAlertDecision,
 } from "./server-health.ts";
-import {
-  inspectRuntimeHealth,
-  writeRuntimeHealthCounterState,
-  type RuntimeHealthResult,
-} from "../../orchestrator/health/runtime.ts";
+import type { RuntimeHealthResult } from "../../orchestrator/health/runtime.ts";
 
 process.umask(0o077);
 
@@ -39,26 +35,6 @@ type HealthSurfaceState = {
   version: 1;
   channelId: string;
   messageId: string;
-};
-
-export type HealthHistoryEntry = {
-  id: string;
-  checkedAt: string;
-  ok: boolean;
-  cpuPercent: number;
-  memoryPercent: number;
-  diskPercent: number;
-  networkStatus: "online" | "degraded" | "offline";
-  networkLatencyMs: number | null;
-  downloadMbps: number | null;
-  uploadMbps: number | null;
-  runningContainers: number;
-  unhealthyContainers: number;
-};
-
-type HealthHistoryState = {
-  version: 1;
-  entries: HealthHistoryEntry[];
 };
 
 type DiscordDeliveryOptions = {
@@ -386,6 +362,7 @@ async function discordRequest(
   const apiBase = options.apiBase.replace(/\/$/u, "");
   for (let attempt = 0; attempt < 3; attempt += 1) {
     const response = await fetch(`${apiBase}${path}`, {
+      signal: AbortSignal.timeout(15_000),
       method,
       headers: {
         authorization: `Bot ${options.token}`,
@@ -442,69 +419,6 @@ async function writeHealthSurfaceState(
   const temporary = `${path}.${process.pid}.tmp`;
   await writeFile(temporary, `${JSON.stringify(state)}\n`, { mode: 0o600 });
   await rename(temporary, path);
-}
-
-function validHistoryEntry(value: unknown): value is HealthHistoryEntry {
-  if (!value || typeof value !== "object") return false;
-  const entry = value as Partial<HealthHistoryEntry>;
-  return (
-    typeof entry.id === "string" &&
-    /^\d{10,20}$/u.test(entry.id) &&
-    typeof entry.checkedAt === "string" &&
-    Number.isFinite(Date.parse(entry.checkedAt)) &&
-    typeof entry.ok === "boolean" &&
-    [entry.cpuPercent, entry.memoryPercent, entry.diskPercent].every(
-      (number) => typeof number === "number" && Number.isFinite(number),
-    ) &&
-    ["online", "degraded", "offline"].includes(entry.networkStatus ?? "") &&
-    (entry.networkLatencyMs === null || typeof entry.networkLatencyMs === "number") &&
-    (entry.downloadMbps === null || typeof entry.downloadMbps === "number") &&
-    (entry.uploadMbps === null || typeof entry.uploadMbps === "number") &&
-    Number.isInteger(entry.runningContainers) &&
-    Number.isInteger(entry.unhealthyContainers)
-  );
-}
-
-export async function readHealthHistory(path: string): Promise<HealthHistoryEntry[]> {
-  try {
-    const value = JSON.parse(await readFile(path, "utf8")) as Partial<HealthHistoryState>;
-    if (value.version !== 1 || !Array.isArray(value.entries)) return [];
-    return value.entries.filter(validHistoryEntry).slice(0, 10);
-  } catch (error) {
-    if ((error as NodeJS.ErrnoException).code === "ENOENT") return [];
-    throw error;
-  }
-}
-
-export async function recordHealthHistory(
-  path: string,
-  result: RuntimeHealthResult,
-): Promise<HealthHistoryEntry[]> {
-  const previous = await readHealthHistory(path);
-  const entry: HealthHistoryEntry = {
-    id: String(Date.parse(result.checkedAt)),
-    checkedAt: result.checkedAt,
-    ok: result.ok,
-    cpuPercent: result.server.cpuUsedPercent,
-    memoryPercent: result.server.memoryUsedPercent,
-    diskPercent: result.resourceGuard.disk.usedPercent,
-    networkStatus: result.networkConnectivity.status,
-    networkLatencyMs: result.networkConnectivity.latencyMs,
-    downloadMbps: result.networkSpeed?.downloadMbps ?? null,
-    uploadMbps: result.networkSpeed?.uploadMbps ?? null,
-    runningContainers: result.containerRuntime.running,
-    unhealthyContainers: result.containerRuntime.unhealthy,
-  };
-  const entries = [entry, ...previous.filter((item) => item.id !== entry.id)].slice(0, 10);
-  await mkdir(dirname(path), { recursive: true });
-  const temporary = `${path}.${process.pid}.tmp`;
-  await writeFile(
-    temporary,
-    `${JSON.stringify({ version: 1, entries } satisfies HealthHistoryState)}\n`,
-    { mode: 0o600 },
-  );
-  await rename(temporary, path);
-  return entries;
 }
 
 export async function reconcileSystemHealthCard(
@@ -637,26 +551,30 @@ export async function sendSystemHealthAlert(
 
 function parseMode(
   args: string[],
-): "run" | "heartbeat" | "alerts" | "cleanup-health-channel" {
+): "run" | "heartbeat" | "alerts" | "deliver" | "cleanup-health-channel" {
   if (args.length === 1 && args[0] === "--run") return "run";
   if (args.length === 1 && args[0] === "--heartbeat") return "heartbeat";
   if (args.length === 1 && args[0] === "--alerts") return "alerts";
+  if (args.length === 1 && args[0] === "--deliver") return "deliver";
   if (args.length === 1 && args[0] === "--cleanup-health-channel") {
     return "cleanup-health-channel";
   }
   fail(
-    "Usage: system-health-discord.ts [--run | --heartbeat | --alerts | --cleanup-health-channel]",
+    "Usage: system-health-discord.ts [--run | --heartbeat | --alerts | --deliver | --cleanup-health-channel]",
   );
 }
 
-export async function runSystemHealthDiscordCli(): Promise<void> {
-  const mode = parseMode(process.argv.slice(2));
+export async function runSystemHealthDiscordCli(args = process.argv.slice(2), collect = collectHealthCycle): Promise<void> {
+  const mode = parseMode(args);
   const kuramiHome = resolveKuramiHome(
     resolve(import.meta.dirname, "../../../.."),
   );
   const hermesHome = resolve(
     process.env.HERMES_HOME ?? "/home/shagon1k/_hermes/_core",
   );
+  const cycle = mode === "cleanup-health-channel" ? null : mode === "deliver"
+    ? readHealthCycle(kuramiHome) : await collect(kuramiHome);
+  if (mode !== "cleanup-health-channel" && !cycle) fail("No collected Health cycle is available");
   const config = parse(
     await readFile(resolve(kuramiHome, "config/orchestrator.yaml"), "utf8"),
   ) as HealthDiscordConfig;
@@ -681,43 +599,22 @@ export async function runSystemHealthDiscordCli(): Promise<void> {
     return;
   }
 
-  const result = await inspectRuntimeHealth(kuramiHome);
+  const {result, history} = cycle!;
 
   const deliverAlerts = async (): Promise<Record<string, unknown>> => {
     const alertsChannelId = validateChannelId(
       config.discord?.alerts_channel_id,
       "discord.alerts_channel_id",
     );
-    const alertStatePath = resolve(kuramiHome, "state/runtime-health-alert.json");
-    const counterStatePath = resolve(kuramiHome, "state/runtime-health-counters.json");
-    const previous = await readHealthAlertState(alertStatePath);
-    const decision = evaluateHealthAlerts(
-      previous,
-      result.alertIssues,
-      new Date(result.checkedAt),
-      result.serverHealthConfig.alert_reminder_minutes,
-    );
-    let messageId: string | null = null;
-    if (decision.kind) {
-      const fingerprint = Object.entries(decision.active)
-        .sort(([left], [right]) => left.localeCompare(right))
-        .map(([key, issue]) => `${key}:${issue.severity}`)
-        .join("|");
-      messageId = await sendSystemHealthAlert({
+    const delivery = await deliverHealthNotifications(kuramiHome, notification => sendSystemHealthAlert({
         token,
         channelId: alertsChannelId,
         apiBase,
-        result,
-        decision,
-        nonceSeed: `${decision.kind}:${previous.lastNotifiedAt ?? "initial"}:${fingerprint}`,
-      });
-    }
-    await writeHealthAlertState(alertStatePath, decision.state);
-    await writeRuntimeHealthCounterState(counterStatePath, result.oomKillCount);
+        ...notification,
+      }));
     return {
       channelId: alertsChannelId,
-      delivered: messageId !== null,
-      ...(messageId ? { messageId } : {}),
+      ...delivery,
     };
   };
 
@@ -725,10 +622,6 @@ export async function runSystemHealthDiscordCli(): Promise<void> {
     const healthChannelId = validateChannelId(
       config.discord?.health_channel_id,
       "discord.health_channel_id",
-    );
-    const history = await recordHealthHistory(
-      resolve(kuramiHome, "state/system-health-history.json"),
-      result,
     );
     const delivery = await reconcileSystemHealthCard({
       token,
@@ -749,8 +642,7 @@ export async function runSystemHealthDiscordCli(): Promise<void> {
     process.stdout.write(`${JSON.stringify({ ok: true, mode, ...(await updateHeartbeat()) })}\n`);
     return;
   }
-  const alerts = await deliverAlerts();
-  const heartbeat = await updateHeartbeat();
+  const [alerts, heartbeat] = await Promise.all([deliverAlerts(), updateHeartbeat()]);
   process.stdout.write(`${JSON.stringify({ ok: true, mode, alerts, heartbeat })}\n`);
 }
 

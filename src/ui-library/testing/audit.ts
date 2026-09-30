@@ -2,7 +2,7 @@
 // names, theme-switch state and WCAG AA text contrast against the nearest opaque background.
 export const AUDIT_EXPRESSION = `(() => {
   const issues = [];
-  const visible = element => { const style = getComputedStyle(element), box = element.getBoundingClientRect(); return style.display !== 'none' && style.visibility !== 'hidden' && box.width > 0 && box.height > 0; };
+  const visible = element => { for (let parent = element.parentElement; parent; parent = parent.parentElement) if (parent.matches('details:not([open])') && !parent.querySelector(':scope > summary')?.contains(element)) return false; const style = getComputedStyle(element), box = element.getBoundingClientRect(); return style.display !== 'none' && style.visibility !== 'hidden' && box.width > 0 && box.height > 0; };
   if (document.documentElement.scrollWidth > document.documentElement.clientWidth + 1) issues.push('Horizontal page overflow');
   for (const image of document.images) if (!image.hasAttribute('alt')) issues.push('Image without alt');
   for (const control of document.querySelectorAll('a[href], button, summary')) if (visible(control) && !(control.getAttribute('aria-label')?.trim() || control.textContent?.trim())) issues.push('Unnamed ' + control.tagName.toLowerCase());
@@ -40,7 +40,7 @@ export const productControls = {
 export function inventoryExpression(allowed = productControls): string {
   return `(() => {
     const allowed = ${JSON.stringify(allowed)};
-    const visible = element => { const style = getComputedStyle(element), box = element.getBoundingClientRect(); return style.display !== 'none' && style.visibility !== 'hidden' && box.width > 0 && box.height > 0; };
+    const visible = element => { for (let parent = element.parentElement; parent; parent = parent.parentElement) if (parent.matches('details:not([open])') && !parent.querySelector(':scope > summary')?.contains(element)) return false; const style = getComputedStyle(element), box = element.getBoundingClientRect(); return style.display !== 'none' && style.visibility !== 'hidden' && box.width > 0 && box.height > 0; };
     const listed = (element, kind) => allowed[kind].some(selector => element.matches(selector) || element.closest(selector));
     const describe = element => element.tagName.toLowerCase() + (element.className ? '.' + String(element.className).trim().split(/\\s+/).join('.') : '');
     const issues = [];

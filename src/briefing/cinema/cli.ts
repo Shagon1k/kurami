@@ -1,6 +1,7 @@
 import { createHash } from "node:crypto";
 import { chmod, mkdir, readFile, rename, writeFile } from "node:fs/promises";
 import { dirname, resolve } from "node:path";
+import {recordSystemActivity} from "../../core/activity.ts";
 import { collectCinemaCandidate } from "./collector.ts";
 import type { CinemaCollectionCandidate } from "./collector.ts";
 import { composeCinemaEnvelope, composeCinemaFallbackEnvelope, type CinemaMediaMap } from "./composer.ts";
@@ -261,9 +262,15 @@ export async function runCinemaCli(argv = process.argv.slice(2), environment = p
 }
 
 if (import.meta.main) {
-  runCinemaCli().then((result) => {
+  const args=parseArguments([...process.argv.slice(2)]);
+  const home=briefingPaths().home;
+  const report=(event:string)=>recordSystemActivity(home,"Cinema",args.date??"",`${args.command}_${event}`).catch(()=>{});
+  await report("started");
+  runCinemaCli().then(async(result) => {
+    await report("completed");
     process.stdout.write(`${JSON.stringify(result)}\n`);
-  }).catch((error: unknown) => {
+  }).catch(async(error: unknown) => {
+    await report("failed");
     process.stderr.write(`${JSON.stringify({ ok: false, error: error instanceof Error ? error.message : String(error) })}\n`);
     process.exitCode = 1;
   });

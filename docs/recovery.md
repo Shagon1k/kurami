@@ -44,6 +44,12 @@ bundle containing only:
 - GitHub and TailorTales preview env files;
 - the Hermes `cron/jobs.json` registry.
 
+The SQLite snapshot includes `orchestrator.db` and, when present,
+`system-health.db` and `briefing.db`. The Digest database preserves editions,
+Weekly observations, and reaction history used by “For me”. Each database is
+snapshotted with committed WAL data and checked for integrity. Digest configuration
+is included as `config__briefing.yaml` and `config__briefing-topics.yaml` when present.
+
 Application code remains in the private GitHub repository. Logs, Docker data,
 Codex sessions, canonical clones, worktrees, temporary files, and runtime
 binaries are not copied. Local encrypted retention is three bundles; the
@@ -120,6 +126,17 @@ restoration remains an explicit operator action following the order below.
 5. Restore secrets with mode `0600` and owner `shagon1k:shagon1k`.
 6. Restore the newest verified SQLite backup. Run `npm run db:init` instead only
    when historical run state is intentionally discarded.
+   Restore `orchestrator.db` to `state/orchestrator.db` and, when included,
+   `system-health.db` to `state/system-health.db` and `briefing.db` to
+   `state/briefing/briefing.db`, with mode `0600`. Restore
+   databases only while their services and jobs are stopped; do not leave WAL
+   or SHM files from a different database generation beside them. The Health
+   snapshot preserves alert history and pending notifications. Older backups
+   without it remain valid; the next collection initializes Health state from
+   available legacy projections or a fresh cycle.
+   Restore `config__briefing.yaml` and `config__briefing-topics.yaml` to
+   `config/briefing.yaml` and `config/briefing-topics.yaml` when included.
+   Older backups without `briefing.db` cannot restore Digest history.
 7. Restore canonical project clones and verify every repository/path in
    `config/projects.yaml`.
 8. Enable rootless Docker, Hermes Gateway, and preview ingress. Run

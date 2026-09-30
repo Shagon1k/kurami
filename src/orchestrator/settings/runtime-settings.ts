@@ -5,6 +5,7 @@ import { readFile } from "node:fs/promises";
 import { resolve } from "node:path";
 import { DatabaseSync } from "node:sqlite";
 import { parse } from "yaml";
+import {settingsSchema,settingsInteger,validateSettingsRelations} from "./settings-schema.ts";
 
 export type RuntimeSettings = {
   version: 1;
@@ -168,19 +169,12 @@ export function normalizeRuntimeSettings(
   const defaultProjectWip = integer(
     base.limits.max_active_per_project,
     "limits.max_active_per_project",
-    1,
-    3,
+    settingsSchema.projectWip.min,
+    settingsSchema.projectWip.max,
   );
   const settings: RuntimeSettings = {
     version: 1,
-    max_llm_running_global: integer(raw.max_llm_running_global, "max_llm_running_global", 1, 3),
-    ai_triage_daily: integer(
-      raw.ai_triage_daily ?? base.limits.ai_triage_daily,
-      "ai_triage_daily",
-      0,
-      40,
-    ),
-    max_active_global: integer(raw.max_active_global, "max_active_global", 1, 6),
+    ...Object.fromEntries(settingsSchema.fields.map(field=>[field.name,settingsInteger(raw[field.name]??(field.name==="ai_triage_daily"?base.limits.ai_triage_daily:undefined),field)])) as Omit<RuntimeSettings,"version"|"project_wip">,
     project_wip: Object.fromEntries(
       names.map((name) => {
         const candidate = projectWipValues[name];
@@ -188,18 +182,10 @@ export function normalizeRuntimeSettings(
           name,
           candidate === undefined
             ? defaultProjectWip
-            : integer(candidate, `project_wip.${name}`, 1, 3),
+            : settingsInteger(candidate,{...settingsSchema.projectWip,name:`project_wip.${name}`}),
         ];
       }),
     ),
-    max_previews_global: integer(raw.max_previews_global, "max_previews_global", 1, 6),
-    max_preview_builds_global: integer(
-      raw.max_preview_builds_global,
-      "max_preview_builds_global",
-      1,
-      2,
-    ),
-    preview_ttl_hours: integer(raw.preview_ttl_hours, "preview_ttl_hours", 6, 72),
   };
   validateRuntimeSettings(settings, base, names);
   return settings;
@@ -211,6 +197,7 @@ export function validateRuntimeSettings(
   projectNames: readonly string[],
 ): void {
   const names = sortedProjectNames(projectNames);
+  validateSettingsRelations(settings);
   if (settings.max_llm_running_global > base.limits.max_tmux_sessions_global) {
     fail("LLM limit cannot exceed managed tmux capacity");
   }
@@ -219,16 +206,10 @@ export function validateRuntimeSettings(
   }
   for (const name of names) {
     const value = settings.project_wip[name];
-    integer(value, `project_wip.${name}`, 1, 3);
-    if (value > settings.max_active_global) {
-      fail(`Project WIP for ${name} cannot exceed Global WIP`);
-    }
+    settingsInteger(value,{...settingsSchema.projectWip,name:`project_wip.${name}`});
     if (value > base.limits.max_managed_worktrees_per_project) {
       fail(`Project WIP for ${name} cannot exceed per-project worktree capacity`);
     }
-  }
-  if (settings.max_preview_builds_global > settings.max_previews_global) {
-    fail("Concurrent preview builds cannot exceed active previews");
   }
   if (settings.preview_ttl_hours <= base.limits.preview_expiry_warning_hours) {
     fail("Preview lifetime must exceed its expiry warning window");

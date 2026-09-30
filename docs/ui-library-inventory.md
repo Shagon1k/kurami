@@ -52,6 +52,12 @@ The only code shared today is `src/shared-ui/tokens.ts`: fifteen colour variable
 
 Status badges have no shared primitive yet: each product styles its own status text. After the docs rework, Docs state legends and Digest stale markers become the two consumers that justify one.
 
+Hub adds `components/period-switch.ts`: a compact 7/30-day button group composed
+from shared buttons, with `aria-pressed`, theme roles and 44px touch targets.
+Tokens, Models, commits and Usage reuse it. Products own period persistence and
+data selection; the component supplies escaped markup and CSS. Its CSS is also
+included in the generated UI-preview bundle. UI-Library: extended.
+
 ## Proposed structure
 
 ```
@@ -123,3 +129,9 @@ Implemented in seven commits, one per migration step. Each step kept Digest pixe
 Fixes found along the way: the Digest pagination input had no focus ring (undefined `--focus`); white on the dark accent was 3.3:1, so dark primary buttons now use near-black text; small red text on warm sections was 4.1:1 and now uses `text-accent`; dark-mode Digest flashed light before its deferred theme script; diagrams were white slabs in dark mode; Lithuanian and arrow glyphs fell back to system fonts.
 
 Deploying needs `npm run briefing:build`, a `kurami-briefing` restart, a docs release and `bin/sync-hermes-skills.sh --apply` for the rewritten skill. The stale `dist/shared-ui/` directory can be removed after the build.
+
+## Hub controls additions
+
+Hub owner controls add two shared primitives: `components/form.ts` exports labelled select and numeric fields; `components/dialog.ts` exports a labelled native dialog with the shared close button. Their CSS uses theme roles. `foundations/index.ts` supplies `.list-reset` for lists without markers. `npm run ui:export` includes these additions in the generated UI bundle.
+
+`npm run test:hub-browser` exercises the controls with synthetic data and mocked actions in EN/RU at 320–1280 px. It checks confirmation, cancellation, contrast, overflow and shared-component use. The joint browser audit excludes the hidden contents of closed disclosures; the Hub check also opens the Sites menu after a theme change.

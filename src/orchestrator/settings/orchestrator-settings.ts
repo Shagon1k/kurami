@@ -1,6 +1,7 @@
 import { resolve } from "node:path";
 import { resolveKuramiHome } from "../../core/kurami-home.ts";
 import { DatabaseSync } from "node:sqlite";
+import {settingsSchema,type SettingsSchema} from "./settings-schema.ts";
 import {
   canonicalRuntimeSettings,
   currentRuntimeSettings,
@@ -38,6 +39,7 @@ type SettingsResponse = {
   maintenanceChannelId: string;
   allowedGuildIds: string[];
   appliedAt: string | null;
+  schema: SettingsSchema;
 };
 
 function fail(message: string): never {
@@ -75,27 +77,14 @@ function parseArguments(args: string[]): Arguments {
     } else if (flag === "--via") {
       if (value !== "discord" && value !== "cli") fail("Invalid settings source");
       parsed.via = value;
-    } else if (flag === "--max-llm") {
-      parsed.values.max_llm_running_global = parseInteger(value, "max LLM");
-    } else if (flag === "--ai-triage-daily") {
-      parsed.values.ai_triage_daily = parseInteger(value, "AI triage/day");
-    } else if (flag === "--global-wip") {
-      parsed.values.max_active_global = parseInteger(value, "Global WIP");
-    } else if (flag === "--project-wip") {
+    } else if (flag === settingsSchema.projectWip.flag) {
       const match = value?.match(/^([a-z0-9-]+)=(\d+)$/u);
       if (!match) fail("Invalid project WIP override");
       parsed.projectWip[match[1]!] = Number(match[2]);
-    } else if (flag === "--max-previews") {
-      parsed.values.max_previews_global = parseInteger(value, "max previews");
-    } else if (flag === "--max-preview-builds") {
-      parsed.values.max_preview_builds_global = parseInteger(
-        value,
-        "max preview builds",
-      );
-    } else if (flag === "--preview-ttl-hours") {
-      parsed.values.preview_ttl_hours = parseInteger(value, "preview lifetime");
     } else {
-      fail(`Unknown settings argument: ${flag ?? "missing"}`);
+      const field = settingsSchema.fields.find(field => field.flag === flag);
+      if (!field) fail(`Unknown settings argument: ${flag ?? "missing"}`);
+      parsed.values[field.name as keyof Arguments["values"]] = parseInteger(value, field.name);
     }
     index += 1;
   }
@@ -124,14 +113,7 @@ function changes(
   after: RuntimeSettings,
 ): Array<{ name: string; before: number; after: number }> {
   const result: Array<{ name: string; before: number; after: number }> = [];
-  const scalars: Array<keyof Omit<RuntimeSettings, "version" | "project_wip">> = [
-    "max_llm_running_global",
-    "ai_triage_daily",
-    "max_active_global",
-    "max_previews_global",
-    "max_preview_builds_global",
-    "preview_ttl_hours",
-  ];
+  const scalars=settingsSchema.fields.map(field=>field.name as keyof Omit<RuntimeSettings,"version"|"project_wip">);
   for (const name of scalars) {
     if (before[name] !== after[name]) {
       result.push({ name, before: before[name], after: after[name] });
@@ -174,6 +156,7 @@ function response(
     maintenanceChannelId: maintenanceChannelId(base),
     allowedGuildIds,
     appliedAt: snapshot.appliedAt,
+    schema: settingsSchema,
   };
 }
 

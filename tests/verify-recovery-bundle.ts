@@ -121,6 +121,13 @@ cp "$input" "$output"
     INSERT INTO evidence (value) VALUES ('recovery-ready');
   `);
   database.close();
+  const health = new DatabaseSync(resolve(orchestratorHome, "state/system-health.db"));
+  health.exec("CREATE TABLE cycles(value TEXT); INSERT INTO cycles VALUES('health-recovery-ready')");
+  health.close();
+  await mkdir(resolve(orchestratorHome, "state/briefing"), { mode: 0o700 });
+  const briefing = new DatabaseSync(resolve(orchestratorHome, "state/briefing/briefing.db"));
+  briefing.exec("CREATE TABLE editions(value TEXT); INSERT INTO editions VALUES('digest-recovery-ready')");
+  briefing.close();
   await createBackup(orchestratorHome, new Date("2026-08-21T13:00:00Z"), 2);
 
   let latestBundle = "";
@@ -150,7 +157,7 @@ cp "$input" "$output"
   if (
     verification.databaseIntegrity !== "ok" ||
     verification.sourceBackup !== "backup-20260821T130000Z" ||
-    verification.files !== 9
+    verification.files !== 11
   ) {
     fail(`Unexpected recovery verification: ${JSON.stringify(verification)}`);
   }
