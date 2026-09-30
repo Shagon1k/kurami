@@ -1,5 +1,9 @@
 import {escapeHtml} from "../foundations/html.ts";
 
+export function renderSearchField(input:{name:string;label:string;value?:string;placeholder?:string}):string {
+  return `<label class="form-field"><span>${escapeHtml(input.label)}</span><input name="${escapeHtml(input.name)}" type="search" value="${escapeHtml(input.value??"")}"${input.placeholder?` placeholder="${escapeHtml(input.placeholder)}"`:""}></label>`;
+}
+
 export function renderSelectField(input:{name:string;label:string;value:string;options:{value:string;label:string}[];disabled?:boolean}):string {
   return `<label class="form-field"><span>${escapeHtml(input.label)}</span><select name="${escapeHtml(input.name)}"${input.disabled?" disabled":""}>${input.options.map(option=>`<option value="${escapeHtml(option.value)}"${option.value===input.value?" selected":""}>${escapeHtml(option.label)}</option>`).join("")}</select></label>`;
 }

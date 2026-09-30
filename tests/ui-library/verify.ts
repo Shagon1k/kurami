@@ -19,7 +19,7 @@ import {renderDocument} from "../../src/ui-library/patterns/page-shell.ts";
 import {renderTable,TABLE_CSS} from "../../src/ui-library/components/table.ts";
 import {renderCallout,CALLOUT_CSS} from "../../src/ui-library/components/callout.ts";
 import {renderDisclosure,DISCLOSURE_CSS} from "../../src/ui-library/components/disclosure.ts";
-import {renderNumberField,renderSelectField} from "../../src/ui-library/components/form.ts";
+import {renderNumberField,renderSelectField,renderSearchField} from "../../src/ui-library/components/form.ts";
 import {renderDialog} from "../../src/ui-library/components/dialog.ts";
 import {renderPeriodSwitch} from "../../src/ui-library/components/period-switch.ts";
 import {inlineDiagram} from "../../src/ui-library/foundations/diagram.ts";
@@ -141,6 +141,7 @@ assert.match(renderCallout({tone:"warning",title:"T",body:"<x>"}),/^<aside class
 assert.throws(()=>renderCallout({tone:"loud" as "note",body:"x"}),/Invalid callout tone/);
 assert.match(renderDisclosure({summary:"<s>",body:"<p>b</p>",boxed:true,open:true}),/^<details class="disclosure disclosure--boxed" open><summary>&lt;s&gt;<\/summary><p>b<\/p><\/details>$/);
 assert.match(renderSelectField({label:"<label>",name:"model",value:"a",options:[{value:"a",label:'<option>"'}]}),/&lt;label&gt;/);
+assert.match(renderSearchField({label:"Поиск",name:"q",value:'<unsafe>"',placeholder:'"find"'}),/type="search" value="&lt;unsafe&gt;&quot;" placeholder="&quot;find&quot;"/);
 assert.match(renderSelectField({label:"Model",name:"model",value:"a",options:[{value:"a",label:"A"}]}),/value="a" selected>A<\/option>/);
 assert.match(renderNumberField({label:"WIP",name:"wip",value:2,min:1,max:3}),/name="wip" type="number" value="2" min="1" max="3"/);
 assert.match(renderDialog({id:"test-dialog",title:"<title>",closeLabel:"Close",body:"<p>Trusted</p>"}),/aria-labelledby="test-dialog-title"/);

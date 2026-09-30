@@ -4,6 +4,7 @@
 /** Paths that render HTML or CSS for a Kurami site. */
 export function touchesUi(path:string):boolean {
   return path.startsWith("src/ui-library/")
+    ||path.startsWith("src/projects-site/")
     ||path.startsWith("src/briefing/ui/")
     ||path.startsWith("integrations/hermes/skills/kurami-ui-preview-language/")
     ||path==="tests/ui-library/guard-baseline.json"

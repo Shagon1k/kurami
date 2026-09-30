@@ -19,6 +19,12 @@ import {renderDocument} from "../patterns/page-shell.ts";
 import {renderHubPage,type HubLanguage} from "../../hub/render.ts";
 import type {HubSnapshot} from "../../hub/snapshot.ts";
 import {summarizeModelUsage,type UsageSample} from "../../core/api-equivalent.ts";
+import {renderProjectsPage} from "../../projects-site/render.ts";
+import {syntheticProjectsSnapshot} from "../../../tests/projects-site/fixture.ts";
+
+export function syntheticProjects():string {
+  return renderProjectsPage(syntheticProjectsSnapshot());
+}
 
 const at="2026-09-16T07:00:00Z";
 const story=(index:number,headline:string,summary:string)=>({

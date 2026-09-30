@@ -1,0 +1,125 @@
+import assert from "node:assert/strict";
+import { createHash, generateKeyPairSync, sign } from "node:crypto";
+import { mkdtempSync, mkdirSync, readFileSync, readdirSync, rmSync, writeFileSync, existsSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { resolve, join } from "node:path";
+import type { IncomingMessage } from "node:http";
+import { DatabaseSync } from "node:sqlite";
+import { collectProjectsSnapshot } from "../../src/projects-site/snapshot.ts";
+import { ProjectsAccess } from "../../src/projects-site/access.ts";
+import { createProjectsServer } from "../../src/projects-site/server.ts";
+import { renderProjectsPage } from "../../src/projects-site/render.ts";
+import { parseFilters, selectItems } from "../../src/projects-site/model.ts";
+import { syntheticProjectsSnapshot } from "./fixture.ts";
+
+const home = mkdtempSync(join(tmpdir(), "kurami-projects-"));
+const at = "2026-09-30T10:00:00Z";
+try {
+  mkdirSync(join(home, "config")); mkdirSync(join(home, "state"));
+  const config = { projects: { alpha: { owner: "Example", project_number: 1, repository: "Example/Alpha", statuses: { backlog: "Todo", active: "Doing", review: "Review", done: "Closed", deferred: "Later" }, discord: { guild_id: "100", channel_id: "101" } } } };
+  writeFileSync(join(home, "config/projects.yaml"), JSON.stringify(config));
+  const dbPath = join(home, "state/orchestrator.db");
+  const missing = collectProjectsSnapshot({ home, now: new Date(at) });
+  assert.equal(missing.available, false); assert.equal(missing.projects.length, 1); assert.equal(existsSync(dbPath), false, "read-only snapshot never initializes a missing store");
+  const database = new DatabaseSync(dbPath);
+  database.exec("PRAGMA foreign_keys=ON");
+  const migrations = resolve(import.meta.dirname, "../../migrations");
+  for (const migration of readdirSync(migrations).filter(name => /^\d+_.*\.sql$/.test(name)).sort()) database.exec(readFileSync(join(migrations, migration), "utf8"));
+  function item(id: string, status: string, present = 1, project = "alpha", kind = "Issue") {
+    database.prepare("INSERT INTO project_items(project,item_id,content_type,repository,issue_number,title,url,status,present,first_seen_at,last_seen_at) VALUES(?,?,?,?,?,?,?,?,?,?,?)")
+      .run(project, id, kind, "Example/Alpha", kind === "DraftIssue" ? null : 12, `Task ${id}`, "https://github.com/Example/Alpha/issues/12", status, present, at, at);
+  }
+  item("review", "Review"); item("backlog", "Todo"); item("absent", "Doing", 0); item("private", "Doing", 1, "other"); item("draft", "Todo", 1, "alpha", "DraftIssue");
+  function run(id: string, state: string) {
+    database.prepare("INSERT INTO project_events(event_id,observed_at,project,item_id,content_id,content_type,payload_json) VALUES(?,?,?,?,?,?,?)").run(`e_${id}`, at, "alpha", "review", "issue12", "Issue", "{}");
+    database.prepare("INSERT INTO runs(run_id,trigger_event_id,project,item_id,content_id,repository,issue_number,interaction_policy,state) VALUES(?,?,?,?,?,?,?,?,?)").run(id, `e_${id}`, "alpha", "review", "issue12", "Example/Alpha", 12, "autonomous", state);
+  }
+  run("r_old", "cancelled"); run("r_current", "parked_review");
+  database.prepare("INSERT INTO run_progress_cards(run_id,stage,detail,content_digest) VALUES(?,?,?,?)").run("r_current", "review_ready", "Ready for owner", "digest");
+  database.prepare("INSERT INTO run_ci_snapshots(run_id,repository,pull_request_url,head_sha,aggregate_state,checks_json,content_digest,first_observed_at,last_observed_at,completed_at) VALUES(?,?,?,?,?,?,?,?,?,?)")
+    .run("r_current", "Example/Alpha", "https://github.com/Example/Alpha/pull/20", "current-head", "passed", "[]", "digest", at, at, at);
+  database.prepare("INSERT INTO run_control_requests(request_id,run_id,action,requested_via,idempotency_key,request_state) VALUES(?,?,?,?,?,?)").run("q_review", "r_current", "ai_review", "discord", "review1", "applied");
+  database.prepare("INSERT INTO run_ai_reviews(review_id,run_id,request_id,review_number,review_state,repository,pull_request_number,pull_request_url,base_ref,base_sha,head_sha,tmux_session_name,important_count,github_review_url) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?)")
+    .run("ar_1", "r_current", "q_review", 1, "ready", "Example/Alpha", 20, "https://github.com/Example/Alpha/pull/20", "main", "base-head", "old-head", "test-review", 2, "https://github.com/Example/Alpha/pull/20#pullrequestreview-1");
+  database.prepare("INSERT INTO project_poll_state(project,initialized_at,last_captured_at,item_count,last_attempt_state) VALUES(?,?,?,?,?)").run("alpha", at, at, 3, "succeeded");
+  database.prepare("INSERT INTO run_discord_surfaces(run_id,guild_id,parent_channel_id,thread_id) VALUES(?,?,?,?)").run("r_current", "100", "101", "200");
+  database.prepare("INSERT INTO preview_leases(lease_id,run_id,slot_number,state,compose_project_name,expires_at,verified_head_sha) VALUES(?,?,?,?,?,?,?)")
+    .run("pl_1", "r_current", 1, "running", "fixture-preview", "2026-10-01T10:00:00Z", "current-head");
+  const before = createHash("sha256").update(readFileSync(dbPath)).digest("hex");
+  const snapshot = collectProjectsSnapshot({ home, now: new Date(at) });
+  assert.equal(snapshot.available, true, "real deployed migration schema can be read");
+  assert.equal(snapshot.items.length, 3, "absent and unconfigured items are excluded; drafts and unstarted issues remain visible");
+  const current = snapshot.items.find(item => item.id === "review")!;
+  assert.equal(current.runId, "r_current", "only the latest attempt is joined");
+  assert.equal(current.review.state, "outdated"); assert.equal(current.review.important, 2);
+  assert.equal(current.attention.length, 0, "findings on an old commit never raise current repair alerts");
+  assert.equal(current.links.discord, "https://discord.com/channels/100/200");
+  assert.equal(current.links.preview, "https://preview-1.shagon1k.win/");
+  assert.equal(current.links.review, "https://github.com/Example/Alpha/pull/20#pullrequestreview-1");
+  assert.equal(snapshot.projects[0]!.freshness, "fresh");
+  assert.equal(collectProjectsSnapshot({ home, now: new Date("2026-09-30T10:02:00Z") }).projects[0]!.freshness, "stale");
+  assert.equal(collectProjectsSnapshot({ home, now: new Date("2026-10-01T10:01:00Z") }).items.find(item => item.id === "review")!.links.preview, null, "expired previews never produce navigation");
+  assert.equal(createHash("sha256").update(readFileSync(dbPath)).digest("hex"), before, "snapshot does not mutate the Run Store");
+  database.exec("UPDATE preview_leases SET verified_head_sha='previous-head'");
+  assert.equal(collectProjectsSnapshot({ home, now: new Date(at) }).items[0]!.preview.state, "outdated", "old preview evidence cannot appear current");
+  database.exec("UPDATE run_ci_snapshots SET head_sha=NULL; UPDATE run_ai_reviews SET head_sha='current-head'");
+  assert.equal(collectProjectsSnapshot({ home, now: new Date(at) }).items[0]!.review.state, "unverified", "a result without a known current head is not marked valid");
+  database.prepare("INSERT INTO run_control_requests(request_id,run_id,action,requested_via,idempotency_key) VALUES(?,?,?,?,?)").run("q_new", "r_current", "ai_review", "discord", "review2");
+  assert.equal(collectProjectsSnapshot({ home, now: new Date(at) }).items[0]!.review.state, "queued", "a new request takes precedence over an older result");
+  database.exec("UPDATE project_poll_state SET last_attempt_state='failed'; UPDATE run_discord_surfaces SET parent_channel_id='999'; UPDATE project_items SET url='javascript:alert(1)',title='<script>alert(1)</script>' WHERE item_id='review'");
+  const changed = collectProjectsSnapshot({ home, now: new Date(at) });
+  assert.equal(changed.projects[0]!.freshness, "stale");
+  assert.equal(changed.items[0]!.links.discord, null); assert.equal(changed.items[0]!.links.issue, null);
+  const html = renderProjectsPage(changed);
+  assert.match(html, /&lt;script&gt;alert\(1\)&lt;\/script&gt;/); assert.doesNotMatch(html, /javascript:|<script>alert/);
+  assert.doesNotMatch(html, /orchestrator\.db|compose_project_name|worktree/);
+  database.close();
+  writeFileSync(dbPath, "not sqlite");
+  assert.equal(collectProjectsSnapshot({ home }).available, false, "corrupt store produces unavailable state, never fake zero tasks");
+} finally { rmSync(home, { recursive: true, force: true }); }
+
+const pair = generateKeyPairSync("rsa", { modulusLength: 2048 });
+const key = { ...pair.publicKey.export({ format: "jwk" }), kid: "fixture" };
+const now = Date.parse(at);
+const claims = { iss: "https://example.cloudflareaccess.com", aud: ["projects-audience"], sub: "owner", type: "app", email: "owner@example.test", exp: now / 1000 + 60, nbf: now / 1000 - 1 };
+function token(fields = {}, algorithm = "RS256"): string {
+  const unsigned = [JSON.stringify({ alg: algorithm, kid: "fixture" }), JSON.stringify({ ...claims, ...fields })].map(value => Buffer.from(value).toString("base64url")).join(".");
+  return unsigned + "." + sign("RSA-SHA256", Buffer.from(unsigned), pair.privateKey).toString("base64url");
+}
+function request(assertion: string): Pick<IncomingMessage, "headers"> { return { headers: { "cf-access-jwt-assertion": assertion } }; }
+let fetches = 0;
+const access = new ProjectsAccess({ team: claims.iss, audience: "projects-audience", ownerEmail: "owner@example.test", now: () => now,
+  fetchKeys: (async () => { fetches++; return new Response(JSON.stringify({ keys: [key] })); }) as typeof fetch });
+assert.equal(await access.authorize(request(token())), "owner");
+assert.equal(await access.authorize(request(token())), "owner"); assert.equal(fetches, 1, "public keys are cached");
+for (const invalid of [{ email: "other@example.test" }, { aud: ["hub-audience"] }, { iss: "https://evil.example" }, { exp: now / 1000 }, { nbf: now / 1000 + 10 }, { type: "service" }, { sub: "" }])
+  assert.equal(await access.authorize(request(token(invalid))), null);
+assert.equal(await access.authorize(request(token({}, "none"))), null);
+const tampered = token().split("."); tampered[1] = Buffer.from(JSON.stringify({ ...claims, sub: "forged" })).toString("base64url");
+assert.equal(await access.authorize(request(tampered.join("."))), null, "unverified forwarded identity is rejected");
+assert.equal(await new ProjectsAccess({ team: "", audience: "", ownerEmail: "" }).authorize(request(token())), null);
+
+const fixture = syntheticProjectsSnapshot();
+assert.equal(selectItems(fixture, parseFilters(new URLSearchParams("project=beta"))).length, 2);
+assert.equal(selectItems(fixture, parseFilters(new URLSearchParams("view=attention"))).length, 2);
+let authorized = false; let reads = 0;
+const server = createProjectsServer({ snapshot: () => { reads++; return fixture; }, authorize: async () => authorized ? "owner" : null });
+await new Promise<void>(done => server.listen(0, "127.0.0.1", done));
+const base = `http://127.0.0.1:${(server.address() as { port: number }).port}`;
+try {
+  for (const path of ["/", "/api/fragment", "/assets/projects.css"]) assert.equal((await fetch(base + path)).status, 403);
+  assert.equal(reads, 0, "authorization precedes any private snapshot read");
+  assert.equal((await fetch(base + "/health")).status, 200);
+  assert.equal((await fetch(base, { method: "POST" })).status, 405);
+  authorized = true;
+  const page = await fetch(base);
+  assert.equal(page.status, 200); assert.match(page.headers.get("cache-control")!, /no-store/);
+  assert.match(page.headers.get("content-security-policy")!, /form-action 'self'/);
+  assert.match(await page.text(), /Alpha/);
+  assert.match(await (await fetch(base + "/api/fragment?project=beta")).text(), /Beta/);
+  assert.equal((await fetch(base, { method: "HEAD" })).status, 200);
+  assert.equal(await (await fetch(base, { method: "HEAD" })).text(), "");
+  assert.equal((await fetch(base + "/config/projects.yaml")).status, 404);
+  assert.equal((await fetch(base + "/api/actions", { method: "POST" })).status, 405);
+} finally { await new Promise<void>((done, reject) => server.close(error => error ? reject(error) : done())); }
+console.log("Projects: real schema, read-only access, current attempts/SHA, stale data, safe links, signed owner authorization and HTTP boundaries verified");

@@ -56,6 +56,7 @@ tasks. The primary owner entry points are:
 - [Stocks add-on](docs/stocks-addon.md)
 - [Investment Review — manual prototype](docs/investment-review.md)
 - [Shared site header](docs/site-header.md)
+- [Projects site delivery](docs/projects-site/ROADMAP.md)
 - [Cinema add-on v1 contract](docs/cinema-addon-v1.md)
 - [Project Orchestrator guide — RU](docs/guide.html)
 - [Project Orchestrator guide — EN](docs/guide.en.html)

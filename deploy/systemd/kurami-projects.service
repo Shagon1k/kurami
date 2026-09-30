@@ -1,0 +1,27 @@
+[Unit]
+Description=Kurami Projects private origin
+After=default.target
+ConditionPathExists=/home/shagon1k/_hermes/_kurami/state/orchestrator.db
+
+[Service]
+Type=simple
+ExecStart=/home/shagon1k/_hermes/_kurami/runtime/node/bin/node /home/shagon1k/_hermes/_kurami/app/src/projects-site/server.ts
+Environment=PROJECTS_PORT=8777
+Environment=KURAMI_HOME=/home/shagon1k/_hermes/_kurami
+EnvironmentFile=/home/shagon1k/_hermes/_kurami/secrets/projects-site.env
+WorkingDirectory=/home/shagon1k/_hermes/_kurami/app
+Restart=on-failure
+RestartSec=3s
+UMask=0077
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=read-only
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6
+RestrictNamespaces=true
+RestrictSUIDSGID=true
+LockPersonality=true
+SystemCallArchitectures=native
+
+[Install]
+WantedBy=default.target
