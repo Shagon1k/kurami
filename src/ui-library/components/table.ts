@@ -7,6 +7,8 @@ import { breakpoints } from "../tokens/index.ts";
 export type TableCell = string | { html: string };
 export type TableInput = {
   caption?: string;
+  /** Keeps the caption for assistive technology only, when a visible heading already names the table. */
+  captionHidden?: boolean;
   columns: readonly string[];
   rows: readonly (readonly TableCell[])[];
   rowHeaders?: boolean;
@@ -21,7 +23,7 @@ export function renderTable(input: TableInput): string {
   if (input.className && !/^[a-z0-9_-]+(?: [a-z0-9_-]+)*$/.test(input.className)) throw new Error("Unsafe table class");
   if (input.rows.some(row => row.length !== input.columns.length)) throw new Error("Table row does not match its columns");
   const classes = ["table", input.numeric && "table--numeric", input.stack && "table--stack", input.className].filter(Boolean).join(" ");
-  const caption = input.caption ? `<caption>${escapeHtml(input.caption)}</caption>` : "";
+  const caption = input.caption ? `<caption${input.captionHidden ? ' class="sr-only"' : ""}>${escapeHtml(input.caption)}</caption>` : "";
   const head = `<thead><tr>${input.columns.map(column => `<th scope="col">${escapeHtml(column)}</th>`).join("")}</tr></thead>`;
   const body = input.rows.map(row => `<tr>${row.map((value, index) => index === 0 && input.rowHeaders
     ? `<th scope="row">${cell(value)}</th>`

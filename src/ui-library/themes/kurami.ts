@@ -33,7 +33,7 @@ export const kuramiTheme:Theme={
     "shadow-offset":"#d9d4c9",
     "focus-ring":"#e21b16",
     "chart-1":"#0b0b0b","chart-2":"#e21b16","chart-3":"#147844","chart-4":"#9b5b00","chart-5":"#5e5e59",
-    "diagram-surface":"#ffffff","diagram-panel":"#faf8f2","diagram-ink":"#0b0b0b","diagram-muted":"#5e5e59","diagram-accent":"#e21b16","diagram-accent-soft":"#fff0ed",
+    "diagram-surface":"#ffffff","diagram-panel":"#faf8f2","diagram-ink":"#0b0b0b","diagram-muted":"#5e5e59","diagram-accent":"#e21b16","diagram-accent-soft":"#fff0ed","diagram-success":"#147844","diagram-warning":"#9b5b00",
   }},
   dark:{colorScheme:"dark",colors:{
     "surface-page":"#0a0a0a",
@@ -54,6 +54,6 @@ export const kuramiTheme:Theme={
     "shadow-offset":"#050505",
     "focus-ring":"#ff4b45",
     "chart-1":"#f7f7f3","chart-2":"#ff4b45","chart-3":"#67e5a0","chart-4":"#ffd06e","chart-5":"#aaa9a2",
-    "diagram-surface":"#111110","diagram-panel":"#1d1d19","diagram-ink":"#f7f7f3","diagram-muted":"#aaa9a2","diagram-accent":"#ff4b45","diagram-accent-soft":"#2a1110",
+    "diagram-surface":"#111110","diagram-panel":"#1d1d19","diagram-ink":"#f7f7f3","diagram-muted":"#aaa9a2","diagram-accent":"#ff4b45","diagram-accent-soft":"#2a1110","diagram-success":"#67e5a0","diagram-warning":"#ffd06e",
   }},
 };
