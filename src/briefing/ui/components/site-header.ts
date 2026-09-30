@@ -1,4 +1,4 @@
-import {renderSiteHeader as renderKuramiHeader,renderSiteNav} from "../../../ui-library/patterns/site-header.ts";
+import {SITE_HEADER_CSS,renderSiteHeader as renderKuramiHeader,renderSiteNav,renderSiteSwitcher} from "../../../ui-library/patterns/site-header.ts";
 import {kuramiSites} from "../../../ui-library/patterns/kurami-sites.ts";
 import {renderThemeSwitch} from "../../../ui-library/components/theme-switch.ts";
 
@@ -34,5 +34,12 @@ export function renderSiteHeader(input:{section:SiteSection;label?:string;date:s
 }
 /** Availability is injected at request time, never frozen into a Daily snapshot. */
 export function injectSiteNavigation(html:string,links:readonly SiteLink[],current:SiteSection):string {
-  return html.replace(/<nav[^>]*data-site-navigation[^>]*>[\s\S]*?<\/nav>/i,()=>renderSiteNavigation(links,current));
+  const updated=html.replace(/<nav[^>]*data-site-navigation[^>]*>[\s\S]*?<\/nav>/i,()=>renderSiteNavigation(links,current));
+  if(updated.includes('class="site-switcher"'))return updated;
+  // Published editions keep their HTML snapshot; upgrade the shared header at response time.
+  if(!updated.includes('<div class="site-actions">'))return updated;
+  return updated
+    .replace('<div class="site-actions">',`<div class="site-actions">${renderSiteSwitcher(kuramiSites("digest"))}`)
+    .replace(/(<img class="site-brand__fox" src=")\/assets\/kurami-fox\.png(?=")/,'$1/assets/kurami-fox.webp')
+    .replace(/<\/head>/i,`<style>${SITE_HEADER_CSS}</style></head>`);
 }

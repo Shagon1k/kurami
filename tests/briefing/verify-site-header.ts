@@ -47,6 +47,14 @@ const updated=injectSiteNavigation(original,input.links,"daily");
 assert.match(updated,/href="\/weekly"/);
 assert(updated.includes("<h1>Содержание не меняется</h1>"));
 assert.equal(injectSiteNavigation(updated,input.links,"daily"),updated);
+const frozen=original.replace(/<details class="site-switcher">[\s\S]*?<\/details>/,"")
+  .replace('/assets/kurami-fox.webp','/assets/kurami-fox.png');
+const refreshed=injectSiteNavigation(frozen,input.links,"daily");
+assert.match(refreshed,/class="site-switcher"/);
+assert.match(refreshed,/Projects<small class="site-nav__hint">скоро<\/small><\/span>/);
+assert.match(refreshed,/src="\/assets\/kurami-fox.webp"/);
+assert.match(refreshed,/<style>\s*\.site-header \{/);
+assert.equal(injectSiteNavigation(refreshed,input.links,"daily"),refreshed);
 const asset=await readFile(resolve(root,"src/ui-library/assets/brand/kurami-fox-transparent.png"));
 assert.equal(asset.subarray(1,4).toString(),"PNG");assert.equal(asset[25],6,"RGBA PNG required");
 assert.equal(asset.readUInt32BE(16),512);assert.equal(asset.readUInt32BE(20),512);
