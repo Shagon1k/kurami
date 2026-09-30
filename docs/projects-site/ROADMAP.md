@@ -1,7 +1,7 @@
 # Projects delivery
 
 Projects provides the owner with one table across configured GitHub Projects,
-task details, and eventually the existing Kurami controls. The entry screen is
+task details, and the existing Kurami run controls. The entry screen is
 the table. Discord remains the main notification channel. GitHub remains the
 authority for work intent and delivery status; the Run Store owns execution.
 
@@ -16,8 +16,8 @@ workflow. The long-term goal includes all owner actions currently used in Discor
 | 1 — implemented | Owner can inspect tasks across projects | Existing Run Store and registry | Real-schema read-only tests; owner-only HTTP tests; table/detail/filter browser checks; joint UI checks |
 | 2 — implemented | Owner can request AI Review from Projects | Phase 1 and shared control policy | One durable exact-SHA request; duplicate and stale requests rejected; both interfaces show the same result |
 | 3 — implemented | Owner can change Project status | Phase 1 and guarded GitHub writes | A stable transition produces one normal poller event; concurrent requests, conflicts and lost replies have explicit outcomes |
-| 4 — next | Owner can use the remaining Kurami actions | Phase 2 | Parity with current Discord eligibility and confirmation rules; shared request results |
-| 5 | Owner can manage order and metadata | Phases 3–4 | Each supported field has an explicit authority and conflict policy |
+| 4 — implemented | Owner can use the remaining Kurami actions | Phase 2 | Shared queue admission and request results; displayed-run checks; exact-SHA fix workers; explicit discard confirmation; preview acknowledgement provenance |
+| 5 — next | Owner can manage order and metadata | Phases 3–4 | Each supported field has an explicit authority and conflict policy |
 
 Phase 1 includes the server, read model, table, task panel, filters, freshness,
 owner access validation, and an inactive deployment unit for port 8777.
@@ -25,7 +25,8 @@ Controls remain disabled by default. Phase 2 adds a guarded AI Review request
 through the existing control queue, an explicit Projects source, and a PR/SHA
 context validated before the worker starts. Phase 3 adds a guarded status selector,
 durable write intent and read-only recovery for uncertain GitHub replies. The
-writable first-release scope still requires the remaining controls.
+writable first-release scope is implemented. Phase 4 adds the remaining run
+actions and exact-preview acknowledgement. Production acceptance remains pending.
 
 Elaborate the active and next phase as work approaches. Later phases describe
 capabilities and dependencies; their endpoint and migration details stay open.
@@ -36,7 +37,8 @@ durable facts into this plan and [architecture](ARCHITECTURE.md), then remove th
 
 The owner requested a compact working screen, small thematic icons and removal
 of empty introductory copy. The first implementation is committed as `40fa422`;
-the interface revision and AI Review capability are committed as `650a829`.
+the interface revision and AI Review capability are committed as `650a829`,
+and status changes as `d2a7afd`.
 
 Code readiness requires passing automated checks. The owner then reviews the
 synthetic interface and the proposed release scope. Commit, push and production
@@ -55,7 +57,8 @@ backup and recovery cover these records.
   and owner allowlist are pending before deployment. Secrets stay outside Git.
 - AI Review rollout requires schema 33 and the optional controls service drop-in.
   Status writes additionally require schema 34, GitHub CLI credentials and the
-  separate status drop-in. Both capabilities default to disabled.
+  separate status drop-in. Remaining run actions and Projects preview
+  acknowledgement require schema 35. Both write flags default to disabled.
 - GitHub has no conditional status mutation. The implementation checks before
   and after writing, but a simultaneous external edit can still be overwritten
   between those checks. See [architecture](ARCHITECTURE.md#project-status-requests).

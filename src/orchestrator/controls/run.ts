@@ -17,7 +17,7 @@ import {
 
 process.umask(0o077);
 
-type Action =
+export type Action =
   | "take_control"
   | "preview_start"
   | "preview_stop"
@@ -29,7 +29,7 @@ type Action =
   | "review_fix"
   | "recover_managed_task";
 type Command = "status" | "request" | "controls";
-type RequestSource = "telegram" | "discord" | "cli";
+export type RequestSource = "telegram" | "discord" | "cli" | "projects";
 
 const pendingPresentations: Partial<
   Record<Action, { stage: string; detail: string }>
@@ -81,8 +81,6 @@ const orchestratorHome = resolveKuramiHome(
   resolve(import.meta.dirname, "../../../.."),
 );
 const databasePath = resolve(orchestratorHome, "state/orchestrator.db");
-const projectsPath = resolve(orchestratorHome, "config/projects.yaml");
-const configPath = resolve(orchestratorHome, "config/orchestrator.yaml");
 
 type ProjectsRegistry = {
   projects: Record<
@@ -99,21 +97,21 @@ type OrchestratorConfig = {
   limits: { preview_expiry_warning_hours: number };
 };
 
-function previewExtensionAvailable(expiresAt: unknown): boolean {
+function previewExtensionAvailable(expiresAt: unknown, home = orchestratorHome, now = Date.now()): boolean {
   if (typeof expiresAt !== "string") return false;
-  const config = parse(readFileSync(configPath, "utf8")) as OrchestratorConfig;
+  const config = parse(readFileSync(resolve(home,"config/orchestrator.yaml"), "utf8")) as OrchestratorConfig;
   const expiry = Date.parse(expiresAt);
   return (
     Number.isFinite(expiry) &&
-    expiry > Date.now() &&
-    expiry - Date.now() <=
+    expiry > now &&
+    expiry - now <=
       config.limits.preview_expiry_warning_hours * 60 * 60 * 1_000
   );
 }
 
-function projectSupportsPreview(project: string): boolean {
+function projectSupportsPreview(project: string, home = orchestratorHome): boolean {
   const registry = parse(
-    readFileSync(projectsPath, "utf8"),
+    readFileSync(resolve(home,"config/projects.yaml"), "utf8"),
   ) as ProjectsRegistry;
   return Boolean(registry.projects?.[project]?.preview);
 }
@@ -233,14 +231,14 @@ function parseArguments(): {
   };
 }
 
-function status(
+export function runControlStatus(
   database: DatabaseSync,
   runId: string,
 ): Record<string, unknown> {
   const run = database
     .prepare(
       `
-    SELECT r.run_id, r.project, r.repository, r.issue_number,
+    SELECT r.run_id, r.project, r.item_id, r.repository, r.issue_number,
            pe.title, pe.url AS issue_url, r.interaction_policy,
            r.execution_mode,
            r.state, r.owner_state, r.stop_reason,
@@ -273,6 +271,7 @@ function status(
             WHERE successor_active.run_id = r.run_id
               AND successor_active.succession_state IN ('starting','running'))
              AS autonomous_successor_active,
+           pl.lease_id AS preview_lease_id,
            ps.hostname AS preview_hostname,
            pl.state AS preview_state,
            pl.expires_at AS preview_expires_at,
@@ -446,14 +445,18 @@ function presentPendingRequest(
     .run(runId, presentation.stage, presentation.detail, digest);
 }
 
-function request(
+export function requestRunControl(
   database: DatabaseSync,
   runId: string,
   action: Action,
   via: RequestSource,
   apply: boolean,
+  options: { home?: string; idempotencyKey?: string } = {},
 ): Record<string, unknown> {
-  database.exec("BEGIN IMMEDIATE");
+  const ownsTransaction = !database.isTransaction;
+  if (ownsTransaction) database.exec("BEGIN IMMEDIATE");
+  const home = options.home ?? orchestratorHome;
+  const projectsPath = resolve(home,"config/projects.yaml");
   try {
     const run = database
       .prepare(
@@ -614,7 +617,7 @@ function request(
     }
     if (
       ["preview_start", "preview_stop"].includes(action) &&
-      !projectSupportsPreview(run.project)
+      !projectSupportsPreview(run.project,home)
     ) {
       fail(`Preview is not configured for project: ${run.project}`);
     }
@@ -765,7 +768,7 @@ function request(
       | undefined;
     if (existing) {
       if (apply) presentPendingRequest(database, runId, action);
-      database.exec("COMMIT");
+      if (ownsTransaction) database.exec("COMMIT");
       return {
         action: "existing",
         runId,
@@ -775,7 +778,7 @@ function request(
       };
     }
 
-    const idempotencyKey = `${via}:${runId}:${action}:${randomUUID()}`;
+    const idempotencyKey = options.idempotencyKey ?? `${via}:${runId}:${action}:${randomUUID()}`;
     const plan = {
       requestId: `rq_${randomUUID().replaceAll("-", "")}`,
       runId,
@@ -784,7 +787,7 @@ function request(
       idempotencyKey,
     };
     if (!apply) {
-      database.exec("ROLLBACK");
+      if (ownsTransaction) database.exec("ROLLBACK");
       return {
         action: "create",
         ...plan,
@@ -810,7 +813,7 @@ function request(
       )
       .get(idempotencyKey) as { request_id: string; request_state: string };
     presentPendingRequest(database, runId, action);
-    database.exec("COMMIT");
+    if (ownsTransaction) database.exec("COMMIT");
     return {
       action: stored.request_id === plan.requestId ? "created" : "existing",
       runId,
@@ -820,7 +823,7 @@ function request(
       requestState: stored.request_state,
     };
   } catch (error) {
-    database.exec("ROLLBACK");
+    if (ownsTransaction) database.exec("ROLLBACK");
     throw error;
   }
 }
@@ -867,7 +870,15 @@ function controls(
     fail(
       "Multiple eligible runs match; provide project, issue, or Discord thread",
     );
-  const selected = status(database, rows[0]!.run_id);
+  return availableRunControls(database,rows[0]!.run_id);
+}
+
+/** The existing control menu, reusable by owner interfaces without starting a CLI. */
+export function availableRunControls(database: DatabaseSync, runId: string, options: {home?:string;now?:number} = {}): Record<string,unknown> {
+  const selected = runControlStatus(database,runId);
+  if (["rejected","cancelled","archived","failed"].includes(String(selected.state))) return {...selected,available_actions:["status"]};
+  const home = options.home ?? orchestratorHome;
+  const projectsPath = resolve(home,"config/projects.yaml");
   const runState = String(selected.state);
   const ownerState = String(selected.owner_state);
   const threadReady = Boolean(selected.codex_thread_id);
@@ -926,13 +937,13 @@ function controls(
   )
     if (!pendingActions.has("take_control"))
       availableActions.push("take_control");
-  if (projectSupportsPreview(String(selected.project))) {
+  if (projectSupportsPreview(String(selected.project),home)) {
     if (!reviewFixBusy && previewState && !pendingActions.has("preview_stop"))
       availableActions.push("preview_stop");
     if (
       !reviewFixBusy &&
       previewState === "running" &&
-      previewExtensionAvailable(selected.preview_expires_at) &&
+      previewExtensionAvailable(selected.preview_expires_at,home,options.now) &&
       !pendingActions.has("preview_start")
     )
       availableActions.push("preview_start");
@@ -996,7 +1007,8 @@ function controls(
     availableActions.push("review_fix");
   if (!cancellationStarted && !pendingActions.has("stop"))
     availableActions.push("stop");
-  return { ...selected, available_actions: availableActions };
+  return { ...selected, available_actions: availableActions,
+    take_control_autonomous: (ownerState === "remote" && runState === "remote_owned") || failedSuccessorRecovery };
 }
 
 export function runRunControlsCli(): void {
@@ -1006,14 +1018,14 @@ export function runRunControlsCli(): void {
     database.exec("PRAGMA foreign_keys = ON; PRAGMA busy_timeout = 5000;");
     const result =
       args.command === "status"
-        ? status(database, args.runId!)
+        ? runControlStatus(database, args.runId!)
         : args.command === "controls"
           ? controls(database, {
               project: args.project,
               issue: args.issue,
               discordThreadId: args.discordThreadId,
             })
-          : request(database, args.runId!, args.action!, args.via, args.apply);
+          : requestRunControl(database, args.runId!, args.action!, args.via, args.apply);
     process.stdout.write(`${JSON.stringify({ ok: true, ...result })}\n`);
   } finally {
     database.close();

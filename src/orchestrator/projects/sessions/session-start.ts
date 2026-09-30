@@ -1,3 +1,4 @@
+import { reviewContextMatches } from "../../controls/ai-review.ts";
 import { mkdir, realpath, stat, writeFile } from "node:fs/promises";
 import { writeSync } from "node:fs";
 import { relative, resolve } from "node:path";
@@ -79,6 +80,8 @@ export function loadRepairContext(
     !snapshot.pull_request_url
   )
     fail("Run has no exact failed CI snapshot eligible for repair");
+  if (!reviewContextMatches(database,requestId,snapshot.head_sha,snapshot.pull_request_url))
+    fail("Projects CI repair request refers to a different PR or commit");
   const active = database
     .prepare(
       `SELECT 1 FROM run_ci_repair_attempts
@@ -147,6 +150,8 @@ export async function loadReviewFixContext(
     | undefined;
   if (!snapshot?.pull_request_number || !snapshot.pull_request_url || !snapshot.head_sha)
     fail("Run has no exact pull request snapshot eligible for review fixes");
+  if (!reviewContextMatches(database,requestId,snapshot.head_sha,snapshot.pull_request_url))
+    fail("Projects review fix request refers to a different PR or commit");
   const readyReviews = database
     .prepare(
       `SELECT review_id, github_review_id FROM run_ai_reviews

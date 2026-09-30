@@ -11,6 +11,7 @@ import { syntheticProjectsSnapshot } from "./fixture.ts";
 let unavailable = false;
 let statusRequest: {state:"awaiting_sync";target:string;from:string;key:string} | null = null; let statusSynced = false; let statusConflict = false; const statusKeys: string[] = [];
 let accepted = false; let failReview = false; const requestKeys: string[] = [];
+let failAction=false,actionAccepted=false,cancellation=false,discarded=false;const actionKeys:string[]=[];
 const serverOptions = { snapshot: () => {
   if (unavailable) throw new Error("fixture failure");
   const snapshot = syntheticProjectsSnapshot();
@@ -19,6 +20,8 @@ const serverOptions = { snapshot: () => {
     if (statusSynced) snapshot.items[0]!.status = statusRequest.target;
     else snapshot.items[0]!.statusChange = { ...snapshot.items[0]!.statusChange!, enabled: false, reason: "pending", request: {...statusRequest,checkAvailable:false} };
   }
+  if(actionAccepted) snapshot.items[0]!.runActions!.actions=snapshot.items[0]!.runActions!.actions.map(action=>action.action==="preview_start"?{...action,enabled:false,state:"pending"}:action);
+  if(cancellation) snapshot.items[0]!.runActions!.actions=[{action:"discard_local",label:"Удалить локальную работу",enabled:!discarded,confirmation:"Удалить сохранённую локальную работу? Это действие нельзя отменить.",hint:null,state:discarded?"pending":null}];
   return snapshot;
 }, cacheMs: 0, authorize: async () => "fixture-owner", origin: "", review: (value: unknown) => {
   const input = value as { head: string; key: string };
@@ -26,7 +29,12 @@ const serverOptions = { snapshot: () => {
   if (failReview) throw new ProjectsActionError(503,"Ревью временно недоступно.");
   accepted = true; return { state: "created" as const, requestId: "fixture", requestState: "pending" };
 } };
-const completeOptions = { ...serverOptions, statusChange: async (value: unknown) => {
+const completeOptions = { ...serverOptions, runAction:(value:unknown)=>{
+  const input=value as {action:string;key:string;confirmed:boolean};actionKeys.push(input.key);
+  if(input.action==="discard_local") {assert.equal(input.confirmed,true);discarded=true;}
+  else {assert.equal(input.action,"preview_start");assert.equal(input.confirmed,false);if(failAction) throw new ProjectsActionError(503,"Действие временно недоступно.");actionAccepted=true;}
+  return {state:"created" as const,requestId:"fixture-action",requestState:"pending"};
+},statusChange: async (value: unknown) => {
   const input = value as {from:string;target:string;key:string;itemId:string};
   assert.equal(input.from,"Human Review"); assert.equal(input.itemId,"item-12"); assert.equal(input.target,"Done");
   statusKeys.push(input.key);
@@ -74,6 +82,7 @@ try {
       await devtools.evaluate("document.dispatchEvent(new Event('visibilitychange'))");
       await wait("!document.querySelector('[data-projects-refresh]').hasAttribute('aria-busy')");
       assert.equal(await devtools.evaluate("document.activeElement.id"), "project-details", "background refresh preserves panel focus");
+      await devtools.evaluate("document.querySelector('.projects-run-actions').open=true");
       await audit();
       if (width === 1280 && theme === "light") {
         await devtools.evaluate("scrollTo(0,0)");
@@ -138,6 +147,33 @@ try {
   assert.equal(await devtools.evaluate("document.querySelector('[data-status-form] select').value"),"Done");
   assert.equal(await devtools.evaluate("document.querySelector('[data-status-form] select').disabled"),false);
   assert.match(await devtools.evaluate<string>("document.querySelector('.projects-table tbody tr').textContent"),/Done/);
+  await devtools.evaluate("document.querySelector('.projects-run-actions').open=true");
+  failAction=true;
+  await devtools.evaluate("document.querySelector('[data-run-action=preview_start]').click()");
+  await wait("document.querySelector('[data-refresh-status]').textContent.includes('Действие временно недоступно')");
+  assert.equal(await devtools.evaluate("document.querySelector('[data-run-action=preview_start]').disabled"),false);
+  failAction=false;
+  await devtools.evaluate("document.querySelector('[data-run-action=preview_start]').click()");
+  await wait("document.querySelector('[data-refresh-status]').textContent.includes('поставлено в очередь Kurami')");
+  assert.equal(actionKeys.length,2);
+  assert.equal(await devtools.evaluate("document.querySelector('[data-run-action=preview_start]').disabled"),true);
+  assert.match(await devtools.evaluate<string>("document.querySelector('.projects-run-actions').textContent"),/В очереди/);
+  cancellation=true;
+  await devtools.evaluate("document.querySelector('[data-projects-refresh]').click()");
+  await wait("!!document.querySelector('[data-run-action=discard_local]')");
+  await devtools.evaluate("document.querySelector('[data-run-action=discard_local]').click()");
+  assert.equal(actionKeys.length,2,"opening destructive confirmation never writes");
+  assert.equal(await devtools.evaluate("document.activeElement.hasAttribute('data-run-confirm')"),true);
+  await devtools.evaluate("document.querySelector('[data-run-confirm-panel] p').click();document.dispatchEvent(new Event('visibilitychange'))");
+  assert.equal(actionKeys.length,2,"explanatory text is not a confirmation control");
+  assert.equal(await devtools.evaluate("document.querySelector('[data-run-confirm-panel]').hidden"),false,"confirmation pauses background replacement");
+  await devtools.evaluate("document.activeElement.dispatchEvent(new KeyboardEvent('keydown',{key:'Escape',bubbles:true}))");
+  assert.equal(await devtools.evaluate("document.querySelector('[data-run-confirm-panel]').hidden"),true);
+  assert.equal(actionKeys.length,2);
+  await devtools.evaluate("document.querySelector('[data-run-action=discard_local]').click();document.querySelector('[data-run-confirm]').click()");
+  await wait("document.querySelector('[data-refresh-status]').textContent.includes('поставлено в очередь Kurami')");
+  assert.equal(actionKeys.length,3);
+  await audit();
   unavailable = true;
   await devtools.evaluate("document.querySelector('[data-projects-refresh]').click()");
   await wait("document.querySelector('[data-refresh-status]').textContent.includes('Не удалось')");

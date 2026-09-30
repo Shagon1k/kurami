@@ -1,4 +1,5 @@
 import { observedStatusRequest, type StatusRequestRow } from "./status-state.ts";
+import { projectRunActions } from "./run-actions.ts";
 import { inspectAiReview } from "../orchestrator/controls/ai-review.ts";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
@@ -97,7 +98,12 @@ export function collectProjectsSnapshot(options: { home?: string; now?: Date; co
       LEFT JOIN preview_slots ps ON ps.slot_number=pl.slot_number LEFT JOIN run_discord_surfaces ds ON ds.run_id=r.run_id
       WHERE p.present=1 ORDER BY p.project,p.issue_number,p.item_id`).all() as ItemRow[];
     const controls = new Map<string, ReturnType<typeof inspectAiReview>>();
+    const runActions = new Map<string, ReturnType<typeof projectRunActions>>();
     if (options.controlsEnabled ?? process.env.PROJECTS_CONTROLS_ENABLED === "1") for (const row of rows) if (row.run_id && configs[row.project]) controls.set(row.run_id, inspectAiReview(database, row.run_id));
+    if (options.controlsEnabled ?? process.env.PROJECTS_CONTROLS_ENABLED === "1") for (const row of rows) if (row.run_id && configs[row.project]) {
+      try { runActions.set(row.run_id,projectRunActions(database,row.run_id,home,now,true)); }
+      catch { runActions.set(row.run_id,{fingerprint:"",reason:"unavailable",actions:[]}); }
+    }
     const statusEnabled = options.statusEnabled ?? process.env.PROJECTS_STATUS_ENABLED === "1";
     const statusReady = statusEnabled && Boolean(database.prepare("SELECT 1 FROM sqlite_master WHERE type='table' AND name='project_status_requests'").get());
     const statusRequests = statusReady ? database.prepare(`SELECT q.* FROM project_status_requests q WHERE NOT EXISTS(SELECT 1 FROM project_status_requests n WHERE n.project=q.project AND n.item_id=q.item_id AND n.rowid>q.rowid)`).all() as StatusRequestRow[] : [];
@@ -132,6 +138,11 @@ export function collectProjectsSnapshot(options: { home?: string; now?: Date; co
       if (control) {
         const fresh = projects.find(project => project.key === item.project)?.freshness === "fresh";
         item.aiReview = { enabled: control.eligible && fresh, reason: fresh ? control.reason : "stale", head: control.head };
+      }
+      const actions = item.runId ? runActions.get(item.runId) : undefined;
+      if (actions) {
+        const fresh = projects.find(project => project.key === item.project)?.freshness === "fresh";
+        item.runActions = {...actions,reason:fresh ? actions.reason : "stale",actions:actions.actions.map(action => ({...action,enabled:action.enabled && fresh}))};
       }
     }
     items.sort((a, b) => Number(needsOwner(b, projects.find(p => p.key === b.project)!)) - Number(needsOwner(a, projects.find(p => p.key === a.project)!)));

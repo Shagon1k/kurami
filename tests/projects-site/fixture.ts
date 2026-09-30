@@ -18,6 +18,11 @@ export function syntheticProjectsSnapshot(): ProjectsSnapshot {
     item(12, { title: "Обновить экран поиска и проверить пустое состояние", status: "Human Review", runId: "r_review", runState: "parked_review", stage: "review_ready", runUpdatedAt: snapshot.generatedAt,
       aiReview: { enabled: true, reason: "eligible", head: "abcdef0123456789" },
       statusChange: { enabled: true, reason: "eligible", choices: Object.entries(statuses).map(([role,value]) => ({value,label:value,hint:role === "done" ? "Kurami проверит условия завершения, включая обязательное превью." : ""})) },
+      runActions: {fingerprint:"a".repeat(64),reason:"eligible",actions:[
+        {action:"take_control",label:"Продолжить в Codex",enabled:true,confirmation:null,hint:null,state:null},
+        {action:"preview_start",label:"Запустить превью",enabled:true,confirmation:null,hint:null,state:null},
+        {action:"stop",label:"Отменить запуск",enabled:true,confirmation:null,hint:null,state:null},
+      ]},
       detail: "Изменения готовы. Проверьте PR и текущий коммит перед запуском нового ревью.",
       ci: { state: "passed", tone: "success", head: "abcdef0123456789" },
       review: { state: "outdated", tone: "warning", head: "1234567890abcdef", critical: 0, important: 1, suggestions: 2 },

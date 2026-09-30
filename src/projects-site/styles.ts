@@ -40,6 +40,10 @@ export const PROJECTS_STYLES = [THEME_CSS, FOUNDATION_CSS, BUTTON_CSS, TABLE_CSS
 .projects-status-form { padding-bottom: var(--space-4); margin-bottom: var(--space-4); border-bottom: 1px solid var(--border-subtle); }
 .projects-status-controls { display: grid; grid-template-columns: minmax(0,1fr) auto; align-items: end; gap: var(--space-2); }
 .projects-status-note { color: var(--text-muted); font-size: .75rem; line-height: 1.5; margin: var(--space-2) 0 0; }
+.projects-run-actions { margin-bottom: var(--space-4); }
+.projects-run-action { margin-bottom: var(--space-3); }
+.projects-action-note { color: var(--text-muted); font-size: .75rem; line-height: 1.5; margin: var(--space-2) 0 0; }
+.projects-confirm-buttons { display: flex; flex-wrap: wrap; gap: var(--space-2); margin-top: var(--space-2); }
 .projects-stage { display: grid; gap: var(--space-2); min-width: 100px; max-width: 170px; line-height: 1.4; }
 .projects-stage small { display: flex; align-items: center; gap: var(--space-1); color: var(--text-muted); font-size: .72rem; }
 .projects-stage .ui-icon { width: 14px; height: 14px; }

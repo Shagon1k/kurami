@@ -29,8 +29,20 @@ Save. Selecting a status shows the relevant Kurami consequence, such as starting
 work or checking completion requirements. Pending writes disable the selector;
 the table retains its observed status and shows the requested destination until
 the normal poller confirms it. Unconfirmed writes offer a result check after
-30 seconds. Conflict and failure messages remain visible. Other owner actions
-still use the existing interfaces.
+30 seconds. Conflict and failure messages remain visible.
+
+A compact “Действия Kurami” disclosure contains eligible run actions: take
+control or continue work, start/extend/remove preview, acknowledge its review,
+fix CI or review findings, recover a delivered fix, cancel the run and discard
+preserved work. Each action exposes its queued, processing or failed state.
+The continuation label follows the current owner. Continuing a Remote task
+explains that the click confirms that task is finished.
+
+Discarding local or published work opens an inline confirmation with its
+consequence and explicit Confirm/Cancel buttons. Escape cancels and restores
+focus. Automatic replacement pauses while confirmation is open. Confirmation
+never writes by itself; the server rejects actions if the displayed run or
+preview identity has changed. Existing links provide full run status and context.
 
 Each project exposes its last successful observation and a textual freshness
 state. An unavailable store has an explicit unavailable presentation. A failed

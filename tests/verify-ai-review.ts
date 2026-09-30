@@ -1,3 +1,4 @@
+import { setTimeout as delay } from "node:timers/promises";
 import { execFileSync } from "node:child_process";
 import { generateKeyPairSync, verify as verifySignature } from "node:crypto";
 import { copyFile, mkdir, mkdtemp, readFile, readdir, realpath, rm, writeFile } from "node:fs/promises";
@@ -421,7 +422,7 @@ for await (const line of lines) {
     const approvalLog = resolve(home, "review-approval-response.log");
     await writeFile(
       approvalCodex,
-      `#!${process.execPath}\nimport { appendFileSync } from "node:fs";\nimport { createInterface } from "node:readline";\nconst lines = createInterface({ input: process.stdin });\nfor await (const line of lines) {\n  const message = JSON.parse(line);\n  if (message.id === 900) {\n    appendFileSync(process.env.FAKE_REVIEW_APPROVAL_LOG, JSON.stringify(message) + "\\n");\n    continue;\n  }\n  let result = {};\n  if (message.method === "thread/start") result = { thread: { id: "approval-parent-thread" } };\n  if (message.method === "turn/start") result = { turn: { id: "approval-turn", status: "inProgress", items: [] } };\n  if (typeof message.id === "number") process.stdout.write(JSON.stringify({ id: message.id, result }) + "\\n");\n  if (message.method === "turn/start") process.stdout.write(JSON.stringify({ method: "item/commandExecution/requestApproval", id: 900, params: { threadId: "approval-parent-thread", turnId: "approval-turn", itemId: "approval-item", reason: "network" } }) + "\\n");\n}\n`,
+      `#!${process.execPath}\nimport { appendFileSync } from "node:fs";\nimport { createInterface } from "node:readline";\n// stdin closes after the decline; drain it before this fixture exits.\nprocess.on("SIGTERM", () => {});\nconst lines = createInterface({ input: process.stdin });\nfor await (const line of lines) {\n  const message = JSON.parse(line);\n  if (message.id === 900) {\n    appendFileSync(process.env.FAKE_REVIEW_APPROVAL_LOG, JSON.stringify(message) + "\\n");\n    continue;\n  }\n  let result = {};\n  if (message.method === "thread/start") result = { thread: { id: "approval-parent-thread" } };\n  if (message.method === "turn/start") result = { turn: { id: "approval-turn", status: "inProgress", items: [] } };\n  if (typeof message.id === "number") process.stdout.write(JSON.stringify({ id: message.id, result }) + "\\n");\n  if (message.method === "turn/start") process.stdout.write(JSON.stringify({ method: "item/commandExecution/requestApproval", id: 900, params: { threadId: "approval-parent-thread", turnId: "approval-turn", itemId: "approval-item", reason: "network" } }) + "\\n");\n}\n`,
       { mode: 0o700 },
     );
     process.env.FAKE_REVIEW_APPROVAL_LOG = approvalLog;
@@ -445,9 +446,13 @@ for await (const line of lines) {
       ),
       "Detached review did not fail immediately on an unexpected approval request",
     );
-    const approvalResponse = JSON.parse(
-      (await readFile(approvalLog, "utf8")).trim(),
-    ) as { result?: { decision?: string } };
+    // Client shutdown does not await the fixture's exit or filesystem write.
+    let approvalResponse: { result?: { decision?: string } } | undefined;
+    for (let attempt = 0; attempt < 100; attempt++) {
+      try { approvalResponse = JSON.parse((await readFile(approvalLog, "utf8")).trim()); break; }
+      catch { await delay(10); }
+    }
+    assert(approvalResponse, "Approval fixture did not record the decline before exiting");
     assert(
       approvalResponse.result?.decision === "decline",
       "Detached review did not explicitly decline the approval request",

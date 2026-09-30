@@ -262,13 +262,15 @@ function leaseView(lease: LeaseRecord): Record<string, unknown> {
   };
 }
 
-function review(
+export function acknowledgePreview(
   database: DatabaseSync,
   runId: string,
   reviewedBy: string,
   apply: boolean,
-): void {
-  database.exec("BEGIN IMMEDIATE");
+  options: { now?: number } = {},
+): Record<string,unknown> {
+  const ownsTransaction = !database.isTransaction;
+  if (ownsTransaction) database.exec("BEGIN IMMEDIATE");
   try {
     const run = runRecord(database, runId);
     const lease = activeLeaseForRun(database, runId);
@@ -276,28 +278,23 @@ function review(
     if (lease.state !== "running" || !lease.expires_at) {
       fail(`Preview is not reviewable: state=${lease.state}`);
     }
-    if (Date.parse(lease.expires_at) <= Date.now()) {
+    if (Date.parse(lease.expires_at) <= (options.now ?? Date.now())) {
       fail("Preview has expired and cannot be marked as reviewed");
     }
     if (lease.reviewed_at) {
-      database.exec("COMMIT");
-      process.stdout.write(
-        `${JSON.stringify({ ok: true, apply, action: "already_reviewed", ...leaseView(lease) })}\n`,
-      );
-      return;
+      if (ownsTransaction) database.exec("COMMIT");
+      return { ok: true, apply, action: "already_reviewed", ...leaseView(lease) };
     }
-    const reviewedVia = reviewedBy.startsWith("discord:") ? "discord" : "cli";
+    if (!/^(?:discord:\d{1,30}|cli:owner|projects:[A-Za-z0-9_-]{1,200})$/.test(reviewedBy)) fail("Invalid preview review actor");
+    const reviewedVia = reviewedBy.startsWith("discord:") ? "discord" : reviewedBy.startsWith("projects:") ? "projects" : "cli";
     const plan = {
       ...leaseView(lease),
       reviewedBy,
       reviewedVia,
     };
     if (!apply) {
-      database.exec("ROLLBACK");
-      process.stdout.write(
-        `${JSON.stringify({ ok: true, apply: false, action: "review", plan })}\n`,
-      );
-      return;
+      if (ownsTransaction) database.exec("ROLLBACK");
+      return { ok: true, apply: false, action: "review", plan };
     }
     const changed = database
       .prepare(`
@@ -346,12 +343,10 @@ function review(
           verifiedHeadSha: updated.verified_head_sha,
         }),
       );
-    database.exec("COMMIT");
-    process.stdout.write(
-      `${JSON.stringify({ ok: true, apply: true, action: "reviewed", ...leaseView(updated) })}\n`,
-    );
+    if (ownsTransaction) database.exec("COMMIT");
+    return { ok: true, apply: true, action: "reviewed", ...leaseView(updated) };
   } catch (error) {
-    database.exec("ROLLBACK");
+    if (ownsTransaction) database.exec("ROLLBACK");
     throw error;
   }
 }
@@ -773,7 +768,8 @@ export async function runPreviewManagerCli(): Promise<void> {
     } else if (args.command === "reconcile-orphan-runtime") {
       await reconcileOrphanRuntime(database, args.runId!, args.apply);
     } else {
-      review(database, args.runId!, args.reviewedBy!, args.apply);
+      const result = acknowledgePreview(database, args.runId!, args.reviewedBy!, args.apply);
+      process.stdout.write(`${JSON.stringify(result)}\n`);
     }
   } finally {
     database.close();

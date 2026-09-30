@@ -88,7 +88,15 @@ function detail(item: ProjectItem, params: URLSearchParams, projectName: string)
       ${item.review.head ? `<dt>Коммит ревью</dt><dd><code>${escape(item.review.head.slice(0, 12))}</code></dd>` : ""}
       ${item.preview.expiresAt ? `<dt>Превью до</dt><dd>${escape(localTime(item.preview.expiresAt))}</dd>` : ""}
     </dl>${item.detail ? `<p>${escape(item.detail)}</p>` : ""}${item.review.state === "ready" ? `<p>Замечания: ${item.review.critical} критических, ${item.review.important} важных, ${item.review.suggestions} предложений.</p>` : ""}
-    ${item.reviewRequestFailed ? renderCallout({ tone: "warning", title: "AI Review не запустилось", body: "Обновите данные и повторите запрос для текущего коммита PR." }) : ""}${statusControl}${action}<div class="projects-links">${links}</div>${item.runUpdatedAt ? `<p class="projects-update">Состояние запуска: ${escape(localTime(item.runUpdatedAt))}</p>` : ""}</aside>`;
+    ${item.reviewRequestFailed ? renderCallout({ tone: "warning", title: "AI Review не запустилось", body: "Обновите данные и повторите запрос для текущего коммита PR." }) : ""}${statusControl}${action}${runActionControls(item)}<div class="projects-links">${links}</div>${item.runUpdatedAt ? `<p class="projects-update">Состояние запуска: ${escape(localTime(item.runUpdatedAt))}</p>` : ""}</aside>`;
+}
+
+function runActionControls(item: ProjectItem): string {
+  if (!item.runActions || !item.runId) return "";
+  if (item.runActions.reason === "unavailable") return '<p class="projects-action-note">Управление запуском пока недоступно.</p>';
+  const states: Record<string,string> = {pending:"В очереди",processing:"Выполняется",failed:"Не выполнено — проверьте состояние",rejected:"Отклонено — проверьте состояние"};
+  const body = item.runActions.actions.map(action => `<div class="projects-run-action">${renderButton({label:action.label,variant:"subtle",disabled:!action.enabled,busyLabel:"Отправляем…",attributes:{"data-run-action":action.action,"data-run-id":item.runId!,"data-run-project":item.project,"data-run-item":item.id,"data-run-fingerprint":item.runActions!.fingerprint,"data-run-key":randomUUID(),...(action.confirmation ? {"data-run-confirmation":action.confirmation} : {})}})}${action.state ? `<p class="projects-action-note">${escape(states[action.state] ?? "")}</p>` : ""}${action.hint ? `<p class="projects-action-note">${escape(action.hint)}</p>` : ""}${action.confirmation ? `<div data-run-confirm-panel hidden><p class="projects-action-note">${escape(action.confirmation)}</p><div class="projects-confirm-buttons">${renderButton({label:"Подтвердить удаление",variant:"primary",attributes:{"data-run-confirm":true}})}${renderButton({label:"Отмена",variant:"subtle",attributes:{"data-run-dismiss":true}})}</div></div>` : ""}</div>`).join("");
+  return body ? renderDisclosure({summary:"Действия Kurami",body:(item.runActions.reason === "stale" ? '<p class="projects-action-note">Дождитесь свежих данных синхронизации.</p>' : "")+body,className:"projects-run-actions"}) : "";
 }
 
 function statusForm(item: ProjectItem): string {

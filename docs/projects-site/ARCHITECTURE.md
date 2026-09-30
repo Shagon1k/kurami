@@ -53,7 +53,8 @@ the existing one-minute GitHub poller.
 
 HTTP supports `GET` and `HEAD` for `/`, `/api/fragment`, and exact asset paths.
 With `PROJECTS_STATUS_ENABLED=1`, `POST /api/status` accepts a status request.
-Other mutation routes are rejected. With `PROJECTS_CONTROLS_ENABLED=1`,
+With `PROJECTS_CONTROLS_ENABLED=1`, `POST /api/run-action` accepts other run
+controls. Other mutation routes are rejected. With `PROJECTS_CONTROLS_ENABLED=1`,
 `POST /api/ai-review` accepts an authenticated JSON request from the exact Projects
 origin. Missing or cross-site Origin, other content types and bodies over 4 KiB
 are rejected before the write adapter is called. Missing or incompatible SQLite state produces a
@@ -129,6 +130,43 @@ The drop-in enables status writes and grants access only to the state directory.
 Removing it restores inspection-only status behavior. The origin never migrates
 the Run Store. Status intent uses its existing backup and recovery.
 
+## Remaining run actions
+
+`run-actions.ts` uses the existing control menu and `requestRunControl` admission
+policy exported from `controls/run.ts`. The CLI still uses these functions, with
+its existing source allowlist and defaults. Projects contributes its signed actor,
+durable nonce and fingerprint of the displayed run, resources, PR/SHA and preview
+lease. Fresh source data, item presence, configured repository and latest run
+are revalidated in one `BEGIN IMMEDIATE` transaction. A different fingerprint
+requires refreshing before a new action. Existing pending requests from Discord
+are reused, and retries of completed nonces return the stored result.
+
+Migration 35 adds `project_action_requests` for this audit evidence. Queue actions
+are inserted through the shared request function inside the same transaction,
+including its pending progress-card presentation. The controller and Discord
+continue their normal reconciliation. CI repair and Fix Review also record the
+displayed PR/SHA in `run_control_project_context`; session startup validates that
+context before capturing a repair or fetching actionable review threads.
+
+Preview review is a direct acknowledgement through the existing preview manager
+function, not a worker launch. Projects additionally requires an unexpired
+running lease for the currently observed commit. The migration rebuilds
+`preview_leases` to add `projects` to its review-source allowlist, preserving all
+leases, static metadata, indexes and triggers. Acknowledgement, required-preview
+satisfaction, history and owner audit commit together. The lease stores a hash
+of the actor with Projects provenance; the audit stores the signed subject.
+Existing Discord/CLI acknowledgement behavior and output remain unchanged.
+
+Local and published discard require explicit confirmation in the browser and
+`confirmed: true` on the authenticated request. Shared cancellation resolution
+still validates the preserved work and live draft PR before cleanup. Projects
+does not delete worktrees, stop processes or close PRs itself.
+
+Apply schema 35 before offering these controls with the existing optional
+controls drop-in. Older schemas keep the overview and AI Review available and
+show that additional run actions are unavailable. No extra writable filesystem
+paths or production services are required.
+
 ## Delivery and recovery
 
 The unit is prepared but not installed by this phase. Production requires the
@@ -136,5 +174,5 @@ Access application, owner policy, tunnel route and explicit release approval.
 Stopping only the Projects service rolls back this interface. The existing
 GitHub/Discord process and Run Store continue to provide their normal workflow.
 
-Additional actions must use shared eligibility and request boundaries. Remaining
-Kurami controls and metadata management follow [delivery](ROADMAP.md).
+Metadata management follows [delivery](ROADMAP.md). It must retain explicit
+field authority and shared eligibility/request boundaries.

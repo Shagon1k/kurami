@@ -15,6 +15,7 @@ export type ProjectItem = {
   aiReview?: { enabled: boolean; reason: string; head: string | null };
   reviewRequestFailed?: boolean;
   statusChange?: StatusChange;
+  runActions?: import("./run-actions.ts").RunActionView;
   links: { issue: string | null; pr: string | null; discord: string | null; review: string | null; preview: string | null };
 };
 export type ProjectsSnapshot = { generatedAt: string; available: boolean; projects: ProjectSummary[]; items: ProjectItem[] };
