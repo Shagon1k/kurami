@@ -113,6 +113,7 @@ export type CinemaNewsStory = {
   id: string;
   headline: string;
   summary: string;
+  en?: {headline:string;summary:string};
   publisher: string;
   publishedAt: string;
   sourceUrl: string;
@@ -132,6 +133,7 @@ export type CinemaNote = {
   id: string;
   target: string;
   text: string;
+  enText?: string;
   mark: "arrow-down" | "arrow-down-left" | "arrow-down-right" | "arrow-right";
 };
 
@@ -455,6 +457,7 @@ function newsStory(value: unknown, label: string): CinemaNewsStory {
     id: safeId(raw.id, `${label}.id`),
     headline: text(raw.headline, `${label}.headline`, 220),
     summary: text(raw.summary, `${label}.summary`, 600),
+    ...(raw.en===undefined?{}:{en:(()=>{const en=object(raw.en,`${label}.en`);return {headline:text(en.headline,`${label}.en.headline`,220),summary:text(en.summary,`${label}.en.summary`,600)};})()}),
     publisher: text(raw.publisher, `${label}.publisher`, 120),
     publishedAt: timestamp(raw.publishedAt, `${label}.publishedAt`),
     sourceUrl: httpsUrl(raw.sourceUrl, `${label}.sourceUrl`),
@@ -489,6 +492,7 @@ function note(value: unknown, label: string): CinemaNote {
     id: safeId(raw.id, `${label}.id`),
     target: safeId(raw.target, `${label}.target`),
     text: noteText,
+    ...(raw.enText===undefined?{}:{enText:text(raw.enText,`${label}.enText`,48)}),
     mark: enumeration(raw.mark, `${label}.mark`, ["arrow-down", "arrow-down-left", "arrow-down-right", "arrow-right"] as const),
   };
 }

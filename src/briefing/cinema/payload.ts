@@ -22,6 +22,7 @@ export function cinemaEnvelopeToBriefingPayload(value: unknown): BriefingPayload
     hero: {
       title: "Кино за неделю",
       subtitle: "Прокат, свежие трейлеры, премьеры и то, что стоило заметить.",
+      en:{title:"Cinema this week",subtitle:"Box office, new trailers, premieres and notable stories."},
     },
     dataQuality: { state, summary: envelope.data.quality.summary },
     addons: { cinema: envelope },

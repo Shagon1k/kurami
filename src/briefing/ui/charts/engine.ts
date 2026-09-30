@@ -3,7 +3,8 @@ import type { ChartSpec, ChartUnit } from "./model.ts";
 /** Self-contained shared engine: the same function is embedded in the browser bundle.
  * Keep runtime helpers inside this closure; there are no DOM, Node or provider dependencies.
  */
-export function createChartEngine() {
+export function createChartEngine(language?:"ru"|"en") {
+  const english=(language??(typeof document!=="undefined"&&document.documentElement.lang==="en"?"en":"ru"))==="en";
   const canvas = { width: 720, height: 290, left: 88, right: 694, top: 26, bottom: 220 };
   const key = /^[a-zA-Z0-9][a-zA-Z0-9._:-]{0,159}$/;
   const text = (value: unknown, name: string, maximum = 160): string => {
@@ -63,7 +64,7 @@ export function createChartEngine() {
       ...(compact ? {maximumFractionDigits:3} : {maximumSignificantDigits:17}),
       ...(unit.kind === "currency" ? {style:"currency",currency:unit.currency,minimumFractionDigits:0} : {}),
     };
-    return new Intl.NumberFormat("ru-RU", options).format(value)
+    return new Intl.NumberFormat(english?"en-US":"ru-RU", options).format(value)
       + (unit.kind==="percent" ? "%" : unit.kind==="number" && unit.suffix ? " "+unit.suffix : "");
   }
   function layout(spec: ChartSpec, options: { visible?: number[]; windowSize?: number } = {}) {
@@ -106,7 +107,7 @@ export function createChartEngine() {
         index:start+index,seriesIndex,value,x:x(index),y:y(value),
         label:spec.categories[start+index]!.label,partial:spec.categories[start+index]!.partial===true,
         text:item.label+" · "+spec.categories[start+index]!.label+" · "+format(value,spec.unit)
-          +(spec.categories[start+index]!.partial?" · неполный период":""),
+          +(spec.categories[start+index]!.partial?english?" · incomplete period":" · неполный период":""),
         valueLabel:format(value,spec.unit,true)+(spec.categories[start+index]!.partial?"*":""),
       });
       const segments:Array<Array<NonNullable<typeof points[number]>>>=[];

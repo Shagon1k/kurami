@@ -10,6 +10,8 @@ import {loadReview,type StoredReview} from "./investment-review/store.ts";
 import {publishedSiteLinks} from "./site-navigation.ts";
 import {injectSiteNavigation} from "./ui/components/site-header.ts";
 import {renderPageShell} from "./ui/page-shell.ts";
+import {renderBriefingPage} from "./ui/render-page.ts";
+import {digestText as t,withDigestLanguage,type DigestLanguage} from "./i18n.ts";
 import {renderWeeklyPage} from "./weekly/render.ts";
 import {loadWeeklyReview} from "./weekly/lifecycle.ts";
 import {buildWeeklyReview} from "./weekly/build.ts";
@@ -79,6 +81,9 @@ const CSP = [
 ].join("; ");
 
 const CLIENT_SCRIPT = `(() => {
+  const english = document.documentElement.lang === 'en';
+  const tr = (ru, en) => english ? en : ru;
+  const locale = english ? 'en-GB' : 'ru-RU';
   const request = async (path, body) => {
     const response = await fetch(path, {
       method: 'POST',
@@ -104,7 +109,7 @@ const CLIENT_SCRIPT = `(() => {
     document.querySelectorAll('[data-live-clock]').forEach((clock) => {
       const timeZone = clock.getAttribute('data-timezone') || 'Europe/Vilnius';
       try {
-        clock.textContent = new Intl.DateTimeFormat('ru-RU', {
+        clock.textContent = new Intl.DateTimeFormat(locale, {
           hour: '2-digit',
           minute: '2-digit',
           timeZone,
@@ -176,16 +181,16 @@ const CLIENT_SCRIPT = `(() => {
             if (toggle) {
               toggle.setAttribute('aria-expanded', 'false');
               const label = toggle.querySelector('[data-disclosure-label]');
-              if (label) label.textContent = 'Читать';
+              if (label) label.textContent = tr('Читать', 'Read');
             }
             item.classList.remove('is-expanded');
           }
         });
         feed.querySelectorAll('[data-page-status]').forEach((status) => {
-          status.textContent = 'Страница ' + page + ' из ' + totalPages;
+          status.textContent = tr('Страница ', 'Page ') + page + tr(' из ', ' of ') + totalPages;
         });
         feed.querySelectorAll('[data-page-range]').forEach((range) => {
-          range.textContent = (first + 1) + '–' + Math.min(last, items.length) + ' из ' + items.length;
+          range.textContent = (first + 1) + '–' + Math.min(last, items.length) + tr(' из ', ' of ') + items.length;
         });
         feed.querySelectorAll('[data-page-prev]').forEach((button) => {
           button.disabled = page <= 1;
@@ -199,7 +204,7 @@ const CLIENT_SCRIPT = `(() => {
         });
         feed.querySelectorAll('[data-page-input]').forEach((input) => {
           input.value = String(page);
-          input.setAttribute('aria-label', 'Номер страницы ' + page + ' из ' + totalPages);
+          input.setAttribute('aria-label', tr('Номер страницы ', 'Page number ') + page + tr(' из ', ' of ') + totalPages);
         });
         const nextQuery = new URLSearchParams(location.search);
         if (page === 1) nextQuery.delete(parameter);
@@ -246,7 +251,7 @@ const CLIENT_SCRIPT = `(() => {
       const evidence = feed.querySelector('[data-interest-weights]');
       const applyOrder = async (requested, resetPage = true) => {
         orderButtons.forEach(button => { button.disabled = true; button.setAttribute('aria-busy', 'true'); });
-        if (interestStatus) interestStatus.textContent = 'Загружаю профиль интересов…';
+        if (interestStatus) interestStatus.textContent = tr('Загружаю профиль интересов…', 'Loading interest profile…');
         try {
           const editionId = feed.getAttribute('data-edition-id');
           const response = await fetch('/api/news/order?editionId=' + encodeURIComponent(editionId || '') + '&mode=' + encodeURIComponent(requested));
@@ -265,8 +270,8 @@ const CLIENT_SCRIPT = `(() => {
             if (reason) {
               reason.hidden = result.mode !== 'for-you' || (!detail?.protected && !detail?.reasons.length);
               const main = detail?.reasons[0];
-              reason.textContent = detail?.protected ? 'Важное — приоритет сохранён'
-                : main ? (main.points > 0 ? 'Больше такого: ' : 'Меньше такого: ') + main.label : '';
+              reason.textContent = detail?.protected ? tr('Важное — приоритет сохранён', 'Important story — priority preserved')
+                : main ? (main.points > 0 ? tr('Больше такого: ', 'More like this: ') : tr('Меньше такого: ', 'Less like this: ')) + main.label : '';
             }
           });
           orderButtons.forEach(button => button.setAttribute('aria-pressed', String(button.getAttribute('data-news-order') === result.mode)));
@@ -278,27 +283,27 @@ const CLIENT_SCRIPT = `(() => {
           renderPage(false);
           const count = result.profile.reactions;
           const coverage = feed.querySelector('[data-interest-coverage]');
-          if (coverage) coverage.textContent = 'Источник известен для ' + result.profile.withSourceContext + ' из ' + count + ' реакций. Остальные учитываются по сохранённым темам.';
+          if (coverage) coverage.textContent = tr('Источник известен для ', 'Source known for ') + result.profile.withSourceContext + tr(' из ', ' of ') + count + tr(' реакций. Остальные учитываются по сохранённым темам.', ' reactions. The rest use saved topics.');
           if (interestStatus) interestStatus.textContent = !result.profile.ready
-            ? 'Пока обычный обзор: ' + count + ' из ' + result.profile.policy.minimumReactions + ' реакций для персонализации. Все сюжеты доступны.'
-            : (result.mode === 'for-you' ? 'Порядок для вас' : 'Утренний порядок') + ' · учтено реакций: ' + count + '. Все сюжеты доступны.';
+            ? tr('Пока обычный обзор: ', 'Briefing order for now: ') + count + tr(' из ', ' of ') + result.profile.policy.minimumReactions + tr(' реакций для персонализации. Все сюжеты доступны.', ' reactions needed for personalization. All stories remain available.')
+            : (result.mode === 'for-you' ? tr('Порядок для вас', 'For you order') : tr('Утренний порядок', 'Morning order')) + tr(' · учтено реакций: ', ' · reactions counted: ') + count + tr('. Все сюжеты доступны.', '. All stories remain available.');
           if (evidence) {
             evidence.replaceChildren();
             result.profile.weights.filter(value => value.weight !== 0).slice(0, 8).forEach(value => {
               const row = document.createElement('li');
-              row.textContent = value.label + ': ' + (value.weight > 0 ? '+' : '') + value.weight.toLocaleString('ru-RU', { maximumFractionDigits: 2 }) + ' · реакций: ' + value.evidence;
+              row.textContent = value.label + ': ' + (value.weight > 0 ? '+' : '') + value.weight.toLocaleString(locale, { maximumFractionDigits: 2 }) + tr(' · реакций: ', ' · reactions: ') + value.evidence;
               evidence.append(row);
             });
           }
         } catch {
-          if (interestStatus) interestStatus.textContent = 'Не удалось обновить профиль. Текущий порядок сохранён; можно повторить.';
+          if (interestStatus) interestStatus.textContent = tr('Не удалось обновить профиль. Текущий порядок сохранён; можно повторить.', 'Could not refresh the profile. The current order is unchanged; you can retry.');
         } finally {
           orderButtons.forEach(button => { button.disabled = false; button.removeAttribute('aria-busy'); });
         }
       };
       orderButtons.forEach(button => button.addEventListener('click', () => applyOrder(button.getAttribute('data-news-order'))));
       feed.addEventListener('kurami:reaction-saved', () => {
-        if (interestStatus) interestStatus.textContent = 'Реакция сохранена. Нажмите «Для меня», чтобы обновить порядок.';
+        if (interestStatus) interestStatus.textContent = tr('Реакция сохранена. Нажмите «Для меня», чтобы обновить порядок.', 'Reaction saved. Choose “For me” to update the order.');
       });
       renderPage(false);
       if (orderButtons.length) applyOrder(query.get('newsOrder') === 'for-you' ? 'for-you' : 'briefing', false);
@@ -339,7 +344,7 @@ ${COMPANY_AVATAR_CLIENT_SCRIPT}
       selectAll.closest('[data-selection-control]')?.classList.toggle('is-disabled', choices.length === 0);
     }
     const count = section.querySelector('[data-mail-selection]');
-    if (count) count.textContent = selected.length + ' выбрано';
+    if (count) count.textContent = selected.length + tr(' выбрано', ' selected');
     const action = section.querySelector('[data-mail-archive]');
     if (action) action.disabled = selected.length === 0;
   };
@@ -369,7 +374,7 @@ ${COMPANY_AVATAR_CLIENT_SCRIPT}
       const status = section.querySelector('[data-mail-status]');
       target.disabled = true;
       target.setAttribute('aria-busy', 'true');
-      if (status) status.textContent = 'Обрабатываю…';
+      if (status) status.textContent = tr('Обрабатываю…', 'Processing…');
       try {
         const result = await request('/api/mail/read-and-archive', { editionId, itemIds });
         itemIds.forEach((itemId) => {
@@ -381,10 +386,10 @@ ${COMPANY_AVATAR_CLIENT_SCRIPT}
           }
           row?.classList.add('is-archived');
         });
-        if (status) status.textContent = result.alreadyComplete ? 'Уже обработано' : 'Прочитано и отправлено в архив';
+        if (status) status.textContent = result.alreadyComplete ? tr('Уже обработано', 'Already processed') : tr('Прочитано и отправлено в архив', 'Read and archived');
         refreshMailSelection(section);
       } catch {
-        if (status) status.textContent = 'Не удалось обработать. Письма оставлены без изменений.';
+        if (status) status.textContent = tr('Не удалось обработать. Письма оставлены без изменений.', 'Could not process mail. Messages were left unchanged.');
         target.disabled = false;
       } finally {
         target.removeAttribute('aria-busy');
@@ -420,7 +425,7 @@ ${COMPANY_AVATAR_CLIENT_SCRIPT}
           if (otherToggle) {
             otherToggle.setAttribute('aria-expanded', 'false');
             const otherLabel = otherToggle.querySelector('[data-disclosure-label]');
-            if (otherLabel) otherLabel.textContent = 'Читать';
+            if (otherLabel) otherLabel.textContent = tr('Читать', 'Read');
           }
           other.closest('[data-feed-item]')?.classList.remove('is-expanded');
         });
@@ -428,7 +433,7 @@ ${COMPANY_AVATAR_CLIENT_SCRIPT}
       panel.hidden = !willOpen;
       target.setAttribute('aria-expanded', String(willOpen));
       const label = target.querySelector('[data-disclosure-label]');
-      if (label) label.textContent = willOpen ? 'Свернуть' : 'Читать';
+      if (label) label.textContent = willOpen ? tr('Свернуть', 'Collapse') : tr('Читать', 'Read');
       target.closest('[data-feed-item]')?.classList.toggle('is-expanded', willOpen);
       if (!willOpen) return;
       const editionId = panel.dataset.editionId;
@@ -464,7 +469,7 @@ ${COMPANY_AVATAR_CLIENT_SCRIPT}
       target.closest('[data-paginated-feed]')?.dispatchEvent(new CustomEvent('kurami:reaction-saved'));
     } catch {
       const status = target.closest('[data-paginated-feed]')?.querySelector('[data-interest-status]');
-      if (status) status.textContent = 'Не удалось сохранить реакцию. Попробуйте ещё раз.';
+      if (status) status.textContent = tr('Не удалось сохранить реакцию. Попробуйте ещё раз.', 'Could not save the reaction. Try again.');
     } finally {
       target.removeAttribute('aria-busy');
       group.forEach(button => { button.disabled = false; });
@@ -700,9 +705,9 @@ function routeEdition(database: DatabaseSync, pathname: string): EditionRow | nu
 }
 
 function emptyPage(): string {
-  return renderPageShell({title:"Briefing ещё не опубликован",brand:"Kurami",section:"daily",
-    date:new Date().toISOString().slice(0,10),dateLabel:"Дневной обзор",generated:"—",timezone:"Europe/Vilnius",
-    content:'<section class="hero"><div><p class="hero__eyebrow">Daily Briefing</p><h1>Briefing ещё не опубликован</h1><p class="hero__subtitle">Здесь появится следующий готовый выпуск. Доступные обзоры можно открыть через навигацию.</p></div></section>'});
+  return renderPageShell({title:t("Briefing ещё не опубликован","Briefing not published yet"),brand:"Kurami",section:"daily",
+    date:new Date().toISOString().slice(0,10),dateLabel:t("Дневной обзор","Daily briefing"),generated:"—",timezone:"Europe/Vilnius",
+    content:`<section class="hero"><div><p class="hero__eyebrow">Daily Briefing</p><h1>${t("Briefing ещё не опубликован","Briefing not published yet")}</h1><p class="hero__subtitle">${t("Здесь появится следующий готовый выпуск. Доступные обзоры можно открыть через навигацию.","The next completed edition will appear here. Available reviews are in the navigation.")}</p></div></section>`});
 }
 
 async function serveEdition(
@@ -713,6 +718,8 @@ async function serveEdition(
   allowEmpty: boolean,
   weeklyEnabled = false,
   stocksEnabled = false,
+  language:DigestLanguage = "ru",
+  requestedPath = "/",
 ): Promise<void> {
   if (!edition) {
     if (!allowEmpty) {
@@ -721,13 +728,15 @@ async function serveEdition(
     }
     sendHeaders(response, "text/html; charset=utf-8");
     response.statusCode = 200;
-    response.end(injectRuntime(injectSiteNavigation(emptyPage(),publishedSiteLinks(database,weeklyEnabled,new Date().toISOString(),stocksEnabled),"daily")));
+    response.end(injectRuntime(injectSiteNavigation(emptyPage(),publishedSiteLinks(database,weeklyEnabled,new Date().toISOString(),stocksEnabled),"daily",requestedPath)));
     return;
   }
-  const html = await readEditionHtml(edition, paths);
+  const html = language === "en"
+    ? renderBriefingPage(parseBriefingPayload(JSON.parse(edition.payload_json)))
+    : await readEditionHtml(edition, paths);
   sendHeaders(response, "text/html; charset=utf-8");
   response.statusCode = 200;
-  response.end(injectRuntime(injectSiteNavigation(html,publishedSiteLinks(database,weeklyEnabled,new Date().toISOString(),stocksEnabled),edition.edition_type), editionClientState(database, edition.id)));
+  response.end(injectRuntime(injectSiteNavigation(html,publishedSiteLinks(database,weeklyEnabled,new Date().toISOString(),stocksEnabled),edition.edition_type,requestedPath), editionClientState(database, edition.id)));
 }
 
 export async function createBriefingServer(
@@ -951,10 +960,26 @@ export async function createBriefingServer(
           if(!(options.stocks??runtimeConfig?.stocks.enabled??false)){text(response,404,"Not found\n");return;}
           const snapshot=loadStocksCache(database);
           if(!snapshot){text(response,503,"Stocks cache unavailable\n");return;}
-          const html=renderStockDetails(snapshot,url.searchParams);
+          const language=url.searchParams.get("lang")==="en"?"en":"ru";
+          const html=withDigestLanguage(language,()=>renderStockDetails(snapshot,url.searchParams));
           sendHeaders(response,"text/html; charset=utf-8");response.statusCode=200;response.end(html);return;
         }
-        if(url.pathname==="/stocks") {
+        const route=url.pathname.match(/^\/(en|ru)(?=\/|$)/);
+        if(url.pathname==="/"||url.pathname==="/index.html") {
+          response.writeHead(302,{Location:`/en/${url.search}`,"cache-control":"no-store"}).end();return;
+        }
+        if(url.pathname==="/en"||url.pathname==="/ru") {
+          response.writeHead(302,{Location:`${url.pathname}/${url.search}`,"cache-control":"no-store"}).end();return;
+        }
+        if(!route&&/^(?:\/cinema|\/weekly|\/stocks|\/daily\/\d{4}-\d{2}-\d{2}|\/preview\/(?:weekly|(?:daily|cinema)\/\d{4}-\d{2}-\d{2}))$/.test(url.pathname)) {
+          response.writeHead(302,{Location:`/en${url.pathname}${url.search}`,"cache-control":"no-store"}).end();return;
+        }
+        if(!route){text(response,404,"Not found\n");return;}
+        const language=route[1] as DigestLanguage;
+        const pathname=url.pathname.slice(3)||"/";
+        const requestedPath=url.pathname+url.search;
+        await withDigestLanguage(language,async()=>{
+        if(pathname==="/stocks") {
           if(!(options.stocks??runtimeConfig?.stocks.enabled??false)){text(response,404,"Not found\n");return;}
           let reviews:Array<StoredReview|null>=[];
           if(options.investmentReview??runtimeConfig?.investmentReview??false){
@@ -965,21 +990,22 @@ export async function createBriefingServer(
             (options.stocksDiscovery??runtimeConfig?.stocksDiscovery??false)?loadDiscovery(database):null,
             (options.stocksLogos??runtimeConfig?.stocksLogos??false)?loadCompanyLogoDomains(database):undefined,reviews);
           sendHeaders(response,"text/html; charset=utf-8");response.statusCode=200;
-          response.end(injectRuntime(injectSiteNavigation(html,publishedSiteLinks(database,options.weekly??runtimeConfig?.weekly.enabled??false,new Date().toISOString(),true),"stocks")));
+          response.end(injectRuntime(injectSiteNavigation(html,publishedSiteLinks(database,options.weekly??runtimeConfig?.weekly.enabled??false,new Date().toISOString(),true),"stocks",requestedPath)));
           return;
         }
-        if(url.pathname==="/weekly" || url.pathname==="/preview/weekly") {
+        if(pathname==="/weekly" || pathname==="/preview/weekly") {
           if(!(options.weekly??runtimeConfig?.weekly.enabled??false)) {text(response,404,"Not found\n");return;}
           const timezone=runtimeConfig?.timeZone??"Europe/Vilnius";
-          const preview=url.pathname==="/preview/weekly";
+          const preview=pathname==="/preview/weekly";
           const review=preview?buildWeeklyReview(database,weeklyLocalDate(new Date().toISOString(),timezone),timezone):loadWeeklyReview(database);
           sendHeaders(response,"text/html; charset=utf-8");
           response.statusCode=200;
-          response.end(injectRuntime(injectSiteNavigation(renderWeeklyPage(review,preview),publishedSiteLinks(database,true,new Date().toISOString(),options.stocks??runtimeConfig?.stocks.enabled??false),"weekly")));
+          response.end(injectRuntime(injectSiteNavigation(renderWeeklyPage(review,preview),publishedSiteLinks(database,true,new Date().toISOString(),options.stocks??runtimeConfig?.stocks.enabled??false),"weekly",requestedPath)));
           return;
         }
-        const edition = routeEdition(database, url.pathname);
-        await serveEdition(response, database, edition, paths, url.pathname === "/",options.weekly??runtimeConfig?.weekly.enabled??false,options.stocks??runtimeConfig?.stocks.enabled??false);
+        const edition = routeEdition(database, pathname);
+        await serveEdition(response, database, edition, paths, pathname === "/",options.weekly??runtimeConfig?.weekly.enabled??false,options.stocks??runtimeConfig?.stocks.enabled??false,language,requestedPath);
+        });
         return;
       }
       text(response, 404, "Not found\n");

@@ -96,10 +96,11 @@ await assert.rejects(importDiscoveryProbe(resolve(seedHome,"source.json"),resolv
 const seedDB=openBriefingDatabase(seedPaths);assert.equal(loadDiscovery(seedDB)!.data.cards[0]!.points.length,0,"Bootstrap must not invent chart points");seedDB.close();
 const server=await createBriefingServer(paths,{mailActionExecutor:null,stocks:true,stocksDiscovery:true});server.listen(0,"127.0.0.1");await once(server,"listening");
 const base="http://127.0.0.1:"+(server.address() as {port:number}).port;
-assert.match(await (await fetch(base+"/stocks")).text(),/Вне твоего списка/);
-assert(!(await (await fetch(base+"/")).text()).includes("Вне твоего списка"));
+assert.match(await (await fetch(base+"/ru/stocks")).text(),/Вне твоего списка/);
+assert.match(await (await fetch(base+"/en/stocks")).text(),/Outside your watchlist/);
+assert(!(await (await fetch(base+"/ru/")).text()).includes("Вне твоего списка"));
 await new Promise<void>(resolve=>server.close(()=>resolve()));
 const disabled=await createBriefingServer(paths,{mailActionExecutor:null,stocks:true,stocksDiscovery:false});disabled.listen(0,"127.0.0.1");await once(disabled,"listening");
-assert(!(await (await fetch("http://127.0.0.1:"+(disabled.address() as {port:number}).port+"/stocks")).text()).includes("Вне твоего списка"));
+assert(!(await (await fetch("http://127.0.0.1:"+(disabled.address() as {port:number}).port+"/ru/stocks")).text()).includes("Вне твоего списка"));
 await new Promise<void>(resolve=>disabled.close(()=>resolve()));
 db.close();console.log("Discovery: quota priority, three-card cap, strict history verification, deduplication, cooldown, stale/empty/failure and stocks-only routing verified.");

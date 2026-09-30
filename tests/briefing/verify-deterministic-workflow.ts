@@ -16,6 +16,8 @@ import {
   openBriefingDatabase,
 } from "../../src/briefing/store.ts";
 import type { NewsItem } from "../../src/briefing/model.ts";
+import {withDigestLanguage} from "../../src/briefing/i18n.ts";
+import {renderBriefingPage} from "../../src/briefing/ui/render-page.ts";
 
 const root = resolve(import.meta.dirname, "../..");
 const home = await mkdtemp(resolve(tmpdir(), "kurami-deterministic-workflow-"));
@@ -197,10 +199,12 @@ await writeFile(livePath, JSON.stringify({
 await writeFile(draftPath, JSON.stringify({
   editionId: "daily:2026-09-01",
   generatedAt: "2026-09-01T06:01:00Z",
+  localeVersion: 2,
   notes: [{
     id: "note:story",
     target: "story-source:telegram:test:10",
     text: "точно в цель",
+    enText: "Right on target",
     role: "context",
     tone: "signal",
     rotation: "negative",
@@ -211,6 +215,7 @@ await writeFile(draftPath, JSON.stringify({
     headline: "Новый факт без копирования provider title",
     summary: "Самостоятельное краткое описание события.",
     details: ["Полный полезный контекст сообщения без искусственного обрезания."],
+    en: {headline:"A new fact, not copied from the provider title",summary:"An independently written summary of the event.",details:["Complete useful context without artificial clipping."]},
     topics: [
       { id: "technology", label: "Technology" },
       { id: "policy", label: "Policy" },
@@ -239,6 +244,17 @@ assert.equal(newsBatches(composed.payload)?.[0]!.maxItemId, "10");
 assert.equal(section(composed.payload, "news").items[0]!.rankingPolicy, "deterministic-v1");
 assert.equal(composed.payload.notes?.[0]?.target, `story:${section(composed.payload, "news").items[0]!.id}`);
 assert.equal(composed.payload.notes?.[0]?.mark, "arrow-down-left");
+assert.equal(composed.payload.notes?.[0]?.enText,"Right on target");
+assert.equal(section(composed.payload,"news").items[0]?.en?.headline,"A new fact, not copied from the provider title");
+const englishHtml=withDigestLanguage("en",()=>renderBriefingPage(composed.payload));
+assert.match(englishHtml,/<html lang="en"/);
+assert.match(englishHtml,/A new fact, not copied from the provider title/);
+assert.doesNotMatch(englishHtml,/Archived editorial text is available only/);
+const archivedPayload=structuredClone(composed.payload);
+delete section(archivedPayload,"news").items[0]!.en;
+const archivedHtml=withDigestLanguage("en",()=>renderBriefingPage(archivedPayload));
+assert.match(archivedHtml,/Archived editorial text is available only in its original Russian/);
+assert.match(archivedHtml,/<h3 lang="ru">/);
 assert.equal(section(composed.payload, "weather")?.temperatureC, 18);
 assert.deepEqual(Object.keys(composed.payload.addons ?? {}).sort(), [
   "calendar",
@@ -254,6 +270,9 @@ assert.equal(await readFile(outputPath, "utf8"), `${JSON.stringify(composed.payl
 // A structurally valid draft that silently omits one captured source item
 // must fail before a rank preview or editorialized output is accepted.
 const completeDraft = JSON.parse(await readFile(draftPath, "utf8"));
+await writeFile(draftPath,JSON.stringify({...completeDraft,stories:[{...completeDraft.stories[0],en:undefined}]}));
+await assert.rejects(composeBriefingPayload({draftPath,livePath,configPath,rawPath,normalizedPath}),/en is required for bilingual editions/);
+await writeFile(draftPath,JSON.stringify(completeDraft));
 await writeFile(draftPath, JSON.stringify({ ...completeDraft, stories: [], notes: [] }));
 const incompleteOutputPath = resolve(home, "incomplete-payload.json");
 await assert.rejects(

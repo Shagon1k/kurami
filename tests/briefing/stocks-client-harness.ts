@@ -34,7 +34,7 @@ export async function verifyStockClient():Promise<void>{
     row.children=[new Node(),new Node()];row.children[0]!.dataset.stockLoaded="";return row;
   });
   let fail=false,requests=0;const urls:string[]=[];
-  const doc={querySelector:()=>root,querySelectorAll:()=>[],dispatchEvent:()=>{},activeElement:null,
+  const doc={documentElement:{lang:"ru"},querySelector:()=>root,querySelectorAll:()=>[],dispatchEvent:()=>{},activeElement:null,
     importNode:(n:Node)=>n,createTextNode:(text:string)=>{const n=new Node();n.textContent=text;return n;},createElement:()=>new Node()};
   class Parser {parseFromString(html:string){const content=new Node();content.dataset.period=JSON.parse(html).period;return {querySelector:(selector:string)=>selector==="[data-stock-detail-content]"?content:null};}}
   runInNewContext(STOCKS_CLIENT_SCRIPT,{document:doc,Element:Node,DOMParser:Parser,Event,URL,URLSearchParams,AbortSignal,

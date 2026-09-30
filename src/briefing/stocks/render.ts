@@ -13,6 +13,7 @@ import type {DiscoverySnapshot} from "./discovery-model.ts";
 import type {CompanyLogoDomains} from "./logo-registry.ts";
 import {renderReviewPanel,REVIEW_PANEL_STYLES} from "../investment-review/panel.ts";
 import type {StoredReview} from "../investment-review/store.ts";
+import {digestLanguage,digestText as t} from "../i18n.ts";
 const href=(ids:string[],period:StockPeriod,anchor=true)=>"/stocks?"+new URLSearchParams({symbols:ids.join(","),period}).toString()+(anchor?"#stock-"+ids[0]:"");
 
 export function renderStocksTeaser(payload:BriefingPayload):string {
@@ -23,45 +24,48 @@ export function renderStocksTeaser(payload:BriefingPayload):string {
   const movers=ready.filter(q=>q.asset.id!==brief.data.benchmark&&q.day!==null&&Math.abs(q.day)>=brief.data.threshold)
     .sort((a,b)=>Math.abs(b.day!)-Math.abs(a.day!)||a.asset.id.localeCompare(b.asset.id)).slice(0,3);
   const dates=[...new Set(quotes.flatMap(q=>q.date?[q.date]:[]))].sort();
-  const overview=dates.length?dates.map(shortDate).join(" / "):"даты пока недоступны";
+  const overview=dates.length?dates.map(shortDate).join(" / "):t("даты пока недоступны","dates unavailable");
   return `<section class="stocks-teaser" aria-labelledby="stocks-heading">
-    <header><div><p class="hero__eyebrow">Закрытие сессии · ${e(overview)}</p><h2 id="stocks-heading">Акции</h2></div>
-    <a class="button button--secondary" href="/stocks">Открыть обзор →</a></header>
+    <header><div><p class="hero__eyebrow">${t("Закрытие сессии","Session close")} · ${e(overview)}</p><h2 id="stocks-heading">${t("Акции","Stocks")}</h2></div>
+    <a class="button button--secondary" href="/stocks">${t("Открыть обзор","Open overview")} →</a></header>
     <div class="stocks-teaser__body">
-      ${benchmark?`<div class="stocks-benchmark"><span>${e(benchmark.asset.id)} · S&P 500 ETF</span><strong>${e(money(benchmark))}</strong>${delta(benchmark.day)}<small>${benchmark.state==="ready"?"за последнюю сессию":"последние доступные данные"}</small></div>`:""}
+      ${benchmark?`<div class="stocks-benchmark"><span>${e(benchmark.asset.id)} · S&P 500 ETF</span><strong>${e(money(benchmark))}</strong>${delta(benchmark.day)}<small>${benchmark.state==="ready"?t("за последнюю сессию","latest session"):t("последние доступные данные","last available data")}</small></div>`:""}
       <div class="stocks-movers">${movers.length?`<ul>${movers.map(q=>`<li><a href="${e(href([q.asset.id],"1m"))}">${e(q.asset.id)} <span>${e(q.asset.name)}</span></a>${delta(q.day)}</li>`).join("")}</ul>`
-        :`<p>${ready.length?"Среди обновлённых акций нет движения от "+brief.data.threshold+"% за сессию.":"Свежие котировки пока недоступны. Дайджест продолжает работать."}</p>`}
-      ${ready.length<quotes.length?`<small class="stocks-warning">Свежие данные: ${ready.length}/${quotes.length}. Остальные не участвуют в подборке движений.</small>`:""}</div>
-    </div><p class="stocks-footnote">Проценты учитывают сплиты и дивиденды. Это утренний срез списка наблюдения, не доходность портфеля.</p>
+        :`<p>${ready.length?t("Среди обновлённых акций нет движения от ","No refreshed stock moved at least ")+brief.data.threshold+t("% за сессию.","% in the session."):t("Свежие котировки пока недоступны. Дайджест продолжает работать.","Fresh quotes are unavailable. The digest continues to work.")}</p>`}
+      ${ready.length<quotes.length?`<small class="stocks-warning">${t("Свежие данные","Fresh data")}: ${ready.length}/${quotes.length}. ${t("Остальные не участвуют в подборке движений.","The others are excluded from the move selection.")}</small>`:""}</div>
+    </div><p class="stocks-footnote">${t("Проценты учитывают сплиты и дивиденды. Это утренний срез списка наблюдения, не доходность портфеля.","Percentages account for splits and dividends. This is a morning watchlist snapshot, not portfolio performance.")}</p>
   </section>`;
 }
 
 export function renderStocksPage(value:StocksSnapshot|null,params=new URLSearchParams(),at=new Date().toISOString(),discovery?:DiscoverySnapshot|null,logos?:CompanyLogoDomains,reviews:Array<StoredReview|null>=[]):string {
   const snapshot=value?parseStocksSnapshot(value):null;
   const timezone="Europe/Vilnius",date=at.slice(0,10);
-  if(!snapshot)return renderPageShell({title:"Мои акции",brand:"Kurami Stocks",section:"stocks",date,dateLabel:"Список наблюдения",generated:"—",timezone,
-    content:'<section class="hero stocks-hero"><div><p class="hero__eyebrow">Акции</p><h1>Котировки готовятся.</h1><p class="hero__subtitle">Пока нет сохранённого среза. Остальные разделы работают независимо.</p><a href="/">← К Daily</a></div></section>'});
+  if(!snapshot)return renderPageShell({title:t("Мои акции","My stocks"),brand:"Kurami Stocks",section:"stocks",date,dateLabel:t("Список наблюдения","Watchlist"),generated:"—",timezone,
+    content:`<section class="hero stocks-hero"><div><p class="hero__eyebrow">${t("Акции","Stocks")}</p><h1>${t("Котировки готовятся.","Quotes are being prepared.")}</h1><p class="hero__subtitle">${t("Пока нет сохранённого среза. Остальные разделы работают независимо.","No saved snapshot yet. Other sections work independently.")}</p><a href="/">← ${t("К Daily","Daily")}</a></div></section>`});
   const selection=stockSelection(snapshot,params),brief=stocksBrief(snapshot,snapshot.data.policy,at),quotes=brief.data.quotes;
   const ready=quotes.filter(q=>q.state==="ready").length;
   // Previously shared comparison URLs still open their first symbol; no selection UI.
   const selected=params.has("symbols")?selection.ids[0]:null;
   const rows=quotes.map((quote,index)=>renderStockRow(snapshot,quote.asset.id,selection.period,quote.asset.id===selected,at,index,logos)).join("");
   const insights=stockInsights(snapshot,at);
-  const observations=insights.length?`<section class="stocks-observations" aria-labelledby="stocks-observations-heading"><h2 id="stocks-observations-heading">Что изменилось</h2><ul>${insights.map(item=>`<li><a href="${e(stockHref(item.symbol,selection.period))}" data-stock-open="${e(item.symbol)}"><strong>${e(item.symbol)}</strong> ${item.kind==="high"?"Новый максимум закрытия за 3 месяца":formatStockPercent(item.value)+(item.kind==="week"?" за 7 дней":" за сессию")} <span aria-hidden="true">↗</span></a><small>На ${e(shortDate(item.date))}</small></li>`).join("")}</ul></section>`:"";
-  const updated=new Intl.DateTimeFormat("ru-RU",{timeZone:timezone,day:"numeric",month:"long",hour:"2-digit",minute:"2-digit"}).format(new Date(snapshot.capturedAt));
-  const content=`<section class="hero stocks-hero"><div><p class="hero__eyebrow">Твой список наблюдения</p><h1>Мои акции</h1>
-    <p class="hero__subtitle">${quotes.length} акций и ETF · раскрой строку, чтобы посмотреть динамику</p></div></section>
-    <div class="stocks-status"><span>Получено: ${e(updated)}</span><span>Источник: <a href="https://eodhd.com/" target="_blank" rel="noopener noreferrer">EODHD</a> · обновление раз в сутки</span></div>
-    ${ready<quotes.length?`<aside class="callout callout--warning stocks-notice">Свежие котировки: ${ready}/${quotes.length}. Даты и состояние сохранённых котировок указаны в строках.</aside>`:""}
+  const observations=insights.length?`<section class="stocks-observations" aria-labelledby="stocks-observations-heading"><h2 id="stocks-observations-heading">${t("Что изменилось","What changed")}</h2><ul>${insights.map(item=>`<li><a href="${e(stockHref(item.symbol,selection.period))}" data-stock-open="${e(item.symbol)}"><strong>${e(item.symbol)}</strong> ${item.kind==="high"?t("Новый максимум закрытия за 3 месяца","New 3-month closing high"):formatStockPercent(item.value)+(item.kind==="week"?t(" за 7 дней"," over 7 days"):t(" за сессию"," in the session"))} <span aria-hidden="true">↗</span></a><small>${t("На","As of")} ${e(shortDate(item.date))}</small></li>`).join("")}</ul></section>`:"";
+  const updated=new Intl.DateTimeFormat(digestLanguage()==="en"?"en-GB":"ru-RU",{timeZone:timezone,day:"numeric",month:"long",hour:"2-digit",minute:"2-digit"}).format(new Date(snapshot.capturedAt));
+  const reviewPanel=digestLanguage()==="en"&&reviews.some(Boolean)
+    ? `<aside class="callout callout--warning stocks-notice">Portfolio reviews are currently available in Russian. <a href="/ru/stocks">Open the original</a>.</aside>`
+    : renderReviewPanel(reviews,at);
+  const content=`<section class="hero stocks-hero"><div><p class="hero__eyebrow">${t("Твой список наблюдения","Your watchlist")}</p><h1>${t("Мои акции","My stocks")}</h1>
+    <p class="hero__subtitle">${quotes.length} ${t("акций и ETF · раскрой строку, чтобы посмотреть динамику","stocks and ETFs · expand a row to view performance")}</p></div></section>
+    <div class="stocks-status"><span>${t("Получено","Retrieved")}: ${e(updated)}</span><span>${t("Источник","Source")}: <a href="https://eodhd.com/" target="_blank" rel="noopener noreferrer">EODHD</a> · ${t("обновление раз в сутки","updated daily")}</span></div>
+    ${ready<quotes.length?`<aside class="callout callout--warning stocks-notice">${t("Свежие котировки","Fresh quotes")}: ${ready}/${quotes.length}. ${t("Даты и состояние сохранённых котировок указаны в строках.","Dates and the status of saved quotes are shown in each row.")}</aside>`:""}
     ${observations}
-    ${renderReviewPanel(reviews,at)}
+    ${reviewPanel}
     <section class="stocks-watchlist" aria-labelledby="stocks-list-heading" data-stock-list data-stock-period="${selection.period}">
-      <header class="stocks-section-heading"><div><h2 id="stocks-list-heading">В твоём списке</h2><p>Цена закрытия и изменение за сессию</p></div>
-        <label class="stocks-sort">Порядок<select data-stock-sort><option value="original">Мой порядок</option><option value="moves">Заметные движения</option></select></label>
+      <header class="stocks-section-heading"><div><h2 id="stocks-list-heading">${t("В твоём списке","In your watchlist")}</h2><p>${t("Цена закрытия и изменение за сессию","Closing price and session change")}</p></div>
+        <label class="stocks-sort">${t("Порядок","Order")}<select data-stock-sort><option value="original">${t("Мой порядок","My order")}</option><option value="moves">${t("Заметные движения","Notable moves")}</option></select></label>
       </header>
       <div data-stock-rows>${rows}</div>
     </section>
     ${renderStocksDiscovery(discovery,at,new Set(quotes.map(q=>q.asset.id)),logos)}`;
-  return renderPageShell({title:"Мои акции",brand:"Kurami Stocks",section:"stocks",date,dateLabel:"Цены закрытия · "+ready+"/"+quotes.length+" актуальных",generated:updated,timezone,content,
+  return renderPageShell({title:t("Мои акции","My stocks"),brand:"Kurami Stocks",section:"stocks",date,dateLabel:t("Цены закрытия · ","Closing prices · ")+ready+"/"+quotes.length+t(" актуальных"," current"),generated:updated,timezone,content,
     ...(logos?.size?{footerLink:{label:"Logos by AllInvestView",href:"https://www.allinvestview.com/tools/ticker-logos/"}}:{})}).replace("</style>",REVIEW_PANEL_STYLES+"</style>");
 }

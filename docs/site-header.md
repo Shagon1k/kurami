@@ -11,15 +11,19 @@ stays next to the brand; the theme control remains a shared icon button.
 
 Hub, Docs and Digest also show the shared **Sites** switcher in the header.
 `src/ui-library/patterns/kurami-sites.ts` defines its destinations: Hub,
-Digest, Docs, Hermes and Dokploy. Hub and Docs preserve `ru` or `en` when
-the switcher points to either bilingual site. Digest remains Russian-only.
+Digest, Docs, Hermes and Dokploy. Hub, Docs and Digest preserve `ru` or `en`
+when switching sites. Digest localizes Daily, Cinema, Weekly and Stocks;
+source names and original titles remain in their original language. Older
+Daily and Cinema editions without English editorial copy show an explicit
+original-language notice.
 Projects is listed as **soon** with its future
 destination in code, but has no clickable link until the site is available.
 The switcher becomes an icon button on phones; each
 site keeps its own navigation separate from this cross-site menu.
 Hub serves `/ru/` and `/en/` with localized dashboard labels and PWA offline
-pages; `/` remains a Russian alias. The language control links between those
-routes. Digest upgrades retained Daily and legacy Cinema headers when serving
+pages. Hub, Docs and Digest redirect their root URL to `/en/`; the language
+control links between explicit `/en/` and `/ru/` routes. Digest upgrades
+retained Daily and legacy Cinema headers when serving
 them, so their Sites control does not depend on republishing old editions.
 
 `site-navigation.ts` reads publication state, not page content. Only current
@@ -29,8 +33,10 @@ The server injects the small navigation fragment into each response, so an old
 Daily automatically gains the Weekly link when the first review is promoted.
 This does not change the stored edition payload, source data or content digest.
 
-Labels are День, Кино and Неделя. Links target the latest snapshots at `/`,
-`/cinema` and `/weekly`. The current section is indicated by both
+Labels are Daily, Cinema, Weekly and Stocks in English, and День, Кино,
+Неделя and Акции in Russian. Links target the latest snapshots under the
+selected locale prefix. Legacy unprefixed URLs redirect to English. The
+current section is indicated by both
 `aria-current="location"` and a red underline. Mobile retains all available
 links in a second row without a menu. A ResizeObserver measures actual sticky
 header height for anchor offsets. Focus/hover states and light/dark tokens are

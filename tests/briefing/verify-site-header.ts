@@ -11,6 +11,7 @@ import {renderPageShell} from "../../src/briefing/ui/page-shell.ts";
 import {createBriefingServer,injectRuntime} from "../../src/briefing/server.ts";
 import {buildWeeklyReview} from "../../src/briefing/weekly/build.ts";
 import type {BriefingAddonEnvelope} from "../../src/briefing/model.ts";
+import {withDigestLanguage,localizeDigestLinks} from "../../src/briefing/i18n.ts";
 
 const root=resolve(import.meta.dirname,"../.."),home=await mkdtemp(resolve(tmpdir(),"kurami-header-"));
 const paths=briefingPaths({KURAMI_HOME:home,BRIEFING_MIGRATIONS_DIR:resolve(root,"migrations/briefing")});
@@ -35,16 +36,22 @@ assert.deepEqual(publishedSiteLinks(database,true,"2026-10-01T00:00:00Z").map(x=
 const input={section:"cinema" as const,date:"2026-09-12",dateLabel:"12 сентября 2026",links:publishedSiteLinks(database,true,at)};
 const header=renderSiteHeader(input);
 assert.match(header,/kurami-fox.webp/);assert(!header.includes(">K</span>"));
-assert.match(header,/href="\/cinema" aria-current="location"/);
+assert.match(header,/href="\/ru\/cinema" aria-current="location"/);
 assert.match(header,/aria-label="Разделы Kurami"/);
 assert.match(header,/class="site-switcher"/);
 assert.match(header,/href="https:\/\/hub\.shagon1k\.win\/ru\/"[^>]*>Hub<\/a>/);
+const englishHeader=withDigestLanguage("en",()=>renderSiteHeader({...input,path:"/en/cinema?view=week"}));
+assert.match(englishHeader,/href="\/en\/cinema" aria-current="location"/);
+assert.match(englishHeader,/href="\/ru\/cinema\?view=week"/);
+assert.match(englishHeader,/href="https:\/\/hub\.shagon1k\.win\/en\/"[^>]*>Hub<\/a>/);
+assert.equal(withDigestLanguage("en",()=>localizeDigestLinks('<a href="/cinema">Cinema</a><a href="https://source.example/story">Source</a>')),
+  '<a href="/en/cinema">Cinema</a><a href="https://source.example/story">Source</a>');
 assert.match(renderSiteHeader({...input,dateLabel:'<script>"test"</script>'}),/&lt;script&gt;/);
 assert.throws(()=>renderSiteNavigation([{section:"__proto__" as SiteSection}],"daily"));
 assert.throws(()=>renderSiteNavigation([{section:"daily"},{section:"daily"}],"daily"));
 const original=renderPageShell({title:"Тест",brand:"Kurami",section:"daily",date:"2026-09-17",dateLabel:"четверг, 17 сентября 2026 г.",generated:"09:00",timezone:"Europe/Vilnius",content:"<h1>Содержание не меняется</h1>"});
 const updated=injectSiteNavigation(original,input.links,"daily");
-assert.match(updated,/href="\/weekly"/);
+assert.match(updated,/href="\/ru\/weekly"/);
 assert(updated.includes("<h1>Содержание не меняется</h1>"));
 assert.equal(injectSiteNavigation(updated,input.links,"daily"),updated);
 const frozen=original.replace(/<details class="site-switcher">[\s\S]*?<\/details>/,"")
@@ -59,7 +66,7 @@ const legacyCinema=`<!doctype html><html lang="ru"><head></head><body><header cl
 const upgradedCinema=injectSiteNavigation(legacyCinema,input.links,"cinema");
 assert.match(upgradedCinema,/class="site-header" data-site-header data-site-section="cinema"/);
 assert.match(upgradedCinema,/class="site-switcher"/);
-assert.match(upgradedCinema,/href="\/cinema" aria-current="location"/);
+assert.match(upgradedCinema,/href="\/ru\/cinema" aria-current="location"/);
 assert.match(upgradedCinema,/datetime="2026-09-12">12 сентября 2026<\/time>/);
 assert.match(upgradedCinema,/--container-max: 1320px/);
 assert(!upgradedCinema.includes('class="utility-header"'));
@@ -84,7 +91,12 @@ const font=await fetch(appBase+"/assets/onest-cyrillic.woff2");
 assert.equal(font.status,200);assert.equal(font.headers.get("content-type"),"font/woff2");
 assert.deepEqual(Buffer.from(await font.arrayBuffer()),await readFile(resolve(root,"src/ui-library/assets/fonts/onest-cyrillic.woff2")));
 assert.equal((await fetch(appBase+"/assets/unknown.woff2")).status,404);
-assert.match(String((await fetch(appBase+"/")).headers.get("content-security-policy")),/font-src 'self' data:;/);
+assert.equal((await fetch(appBase+"/",{redirect:"manual"})).headers.get("location"),"/en/");
+assert.equal((await fetch(appBase+"/cinema",{redirect:"manual"})).headers.get("location"),"/en/cinema");
+database.prepare("UPDATE editions SET is_current=0 WHERE edition_type='daily'").run();
+assert.match(await(await fetch(appBase+"/en/")).text(),/<html lang="en"/);
+assert.match(await(await fetch(appBase+"/ru/")).text(),/<html lang="ru"/);
+assert.match(String((await fetch(appBase+"/en/")).headers.get("content-security-policy")),/font-src 'self' data:;/);
 console.log("Site header: published-only navigation, empty/disabled states, immutable content, accessible active section and transparent asset and self-hosted fonts verified.");
 if(process.env.HEADER_PREVIEW_PORT) {
   const server=createServer(async(request,response)=>{

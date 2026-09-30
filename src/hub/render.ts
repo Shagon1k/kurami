@@ -82,7 +82,7 @@ function renderTrend(snapshot:HubSnapshot,lang:HubLanguage):string {
   return `<section class="section" aria-labelledby="trend-title"><div class="section-heading"><h2 id="trend-title">${tr(lang,"Коммиты по неделям","Commits by week")}</h2><span>${coverage}</span></div><div class="trend"><ol class="trend__chart" aria-label="${tr(lang,"Коммиты за последние 12 недель","Commits over the last 12 weeks")}">${bars}</ol></div></section>`;
 }
 
-export function renderHubDashboard(snapshot:HubSnapshot,lang:HubLanguage="ru"):string {
+export function renderHubDashboard(snapshot:HubSnapshot,lang:HubLanguage="en"):string {
   const orchestratorAvailable=snapshot.sources.orchestrator==="available";
   const commitsLabel=snapshot.sources.git==="partial"?tr(lang,"Коммиты · 30 дн. · частично","Commits · 30 days · partial"):tr(lang,"Коммиты · 30 дн.","Commits · 30 days");
   return `<div class="hub__topline"><h1>${tr(lang,"Обзор","Overview")}</h1><p class="hub__live">${escapeHtml(formatTime(snapshot.generatedAt,lang))}</p></div>
@@ -94,8 +94,7 @@ export function renderHubDashboard(snapshot:HubSnapshot,lang:HubLanguage="ru"):s
     </section>
     ${renderCodex(snapshot.codex,lang)}
     <section class="section" aria-labelledby="projects-title"><div class="section-heading"><h2 id="projects-title">${tr(lang,"Проекты","Projects")}</h2><span>3 Project + Kurami</span></div>${projectRows(snapshot.projects,lang)}</section>
-    ${renderTrend(snapshot,lang)}
-    <nav class="section links" aria-label="${tr(lang,"Ресурсы","Resources")}"><a href="https://digest.shagon1k.win/">Digest ↗</a><a href="https://docs.shagon1k.win/${lang}/">Docs ↗</a></nav>`;
+    ${renderTrend(snapshot,lang)}`;
 }
 
 function hubHeader(lang:HubLanguage):string {
@@ -103,15 +102,15 @@ function hubHeader(lang:HubLanguage):string {
   return renderSiteHeader({brand:{href:`/${lang}/`,ariaLabel:tr(lang,"Kurami Hub — главная","Kurami Hub — home"),foxSrc:"/assets/fox.webp",suffix:"hub"},nav:{label:tr(lang,"Разделы Hub","Hub sections"),links:[],hideWhenEmpty:true},sites:kuramiSites("hub",lang),actions:renderLinkButton({label:other.toUpperCase(),href:`/${other}/`,variant:"icon",ariaLabel:tr(lang,"Переключить на английский","Switch to Russian"),attributes:{hreflang:other}})+renderThemeSwitch(lang)});
 }
 
-export function renderHubPage(snapshot:HubSnapshot,lang:HubLanguage="ru"):string {
+export function renderHubPage(snapshot:HubSnapshot,lang:HubLanguage="en"):string {
   return renderDocument({lang,title:"Hub · Kurami",description:tr(lang,"Личный дашборд Kurami.","Kurami personal dashboard."),favicon:"/assets/favicon.svg",styles:{href:"/assets/hub.css"},themeScript:true,skipLabel:tr(lang,"К содержимому","Skip to content"),
-    head:`<link rel="manifest" href="${lang==="en"?"/en/manifest.webmanifest":"/manifest.webmanifest"}"><script src="/assets/hub.js" defer></script>`,
+    head:`<link rel="manifest" href="/${lang}/manifest.webmanifest"><script src="/assets/hub.js" defer></script>`,
     header:hubHeader(lang),
     main:`<div id="hub-dashboard" class="hub" aria-live="off">${renderHubDashboard(snapshot,lang)}</div>`,
     footer:'<footer class="hub-footer container">Kurami Hub · Europe/Vilnius</footer>'});
 }
 
-export function renderHubOffline(lang:HubLanguage="ru"):string {
+export function renderHubOffline(lang:HubLanguage="en"):string {
   return renderDocument({lang,title:`${tr(lang,"Нет связи","Offline")} · Kurami Hub`,favicon:"/assets/favicon.svg",styles:{href:"/assets/hub.css"},themeScript:true,skipLabel:tr(lang,"К содержимому","Skip to content"),
     header:hubHeader(lang),
     main:`<div class="hub"><div class="hub__topline"><h1>${tr(lang,"Нет связи","Offline")}</h1></div></div>`,

@@ -19,7 +19,7 @@ export async function standaloneReportHtml(html:string):Promise<string> {
   return html
     .replace('src="/assets/kurami-fox.webp"','src="data:image/webp;base64,'+fox.toString("base64")+'"')
     .replace('href="/favicon.svg"','href="data:image/svg+xml;base64,'+favicon.toString("base64")+'"')
-    .replace('href="/"','href="https://digest.shagon1k.win/"')
+    .replace(/href="\/(?!\/)([^"]*)"/g,(_match,path:string)=>`href="https://digest.shagon1k.win/${path}"`)
     .replace(/url\("\/assets\/([a-z0-9-]+\.woff2)"\)/g,(_match,file:string)=>{
       const font=fonts.get(file);
       if(!font)throw new Error(`Unknown report font: ${file}`);

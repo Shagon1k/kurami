@@ -1,8 +1,10 @@
 # Editorial policy
 
-Write the reader-facing briefing in Russian. Preserve original names, titles,
-and entities when translating them is misleading. Canonical topic IDs and
-labels are English.
+Write reader-facing editorial copy in Russian and English. Each story's `en`
+fields must convey the same facts as the Russian headline, summary, and
+details. Preserve original names, source titles, quotations, and entities
+when translating them would be misleading. Do not relabel Russian editorial
+copy as English. Canonical topic IDs and labels are English.
 
 ## Process all inputs
 
@@ -45,6 +47,8 @@ confident source erase uncertainty in the others.
   must name the actual event and distinguishing fact; never copy the first
   source sentence, reuse a channel caption, or cut an excerpt at a character
   limit.
+- Apply the same editorial standards to the English `en` headline, summary,
+  and details. They are authored copy, not clipped translations.
 - Keep the headline within 120 characters and normally within 18 words. Do not
   prefix it with labels such as `Что произошло:`, `Главное:`, or `Новость:`.
   These labels waste scan space and turn every card into the same template.
@@ -135,6 +139,8 @@ Inspect the retained seven-day note history and write new copy. Do not choose
 from a fixed pool, rotate stock phrases, paraphrase yesterday's line, or add a
 generic phrase merely to fill a slot. Prefer item-level targets when a calendar
 event, mail item, story, or live metric is the actual subject.
+Supply a matching English `enText` for every note; keep it to one to four
+words and preserve the same target, intent, and tone.
 
 For a note attached to an individual news story, target the story itself and
 use `arrow-down-left`. The runtime normalizes story-note marks to this value and

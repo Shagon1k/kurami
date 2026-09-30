@@ -4,10 +4,12 @@ export type CinemaEditorialNews = {
   candidateId: string;
   headline: string;
   summary: string;
+  en?: {headline:string;summary:string};
 };
 
 export type CinemaEditorialDraft = {
   version: 1;
+  localeVersion?: 2;
   localDate: string;
   news: CinemaEditorialNews[];
   notes: CinemaNote[];
@@ -48,6 +50,7 @@ function russianEditorial(value: unknown, label: string, minimum: number, maximu
 export function parseCinemaEditorialDraft(value: unknown): CinemaEditorialDraft {
   const root = record(value, "Cinema editorial draft");
   if (root.version !== 1) throw new Error("Cinema editorial draft.version must equal 1");
+  if (root.localeVersion !== undefined && root.localeVersion !== 2) throw new Error("Cinema editorial draft.localeVersion must be 2");
   const localDate = text(root.localDate, "Cinema editorial draft.localDate", 10, 10);
   if (!LOCAL_DATE.test(localDate)) throw new Error("Cinema editorial draft.localDate must be YYYY-MM-DD");
   if (!Array.isArray(root.news) || root.news.length > 15) {
@@ -55,6 +58,7 @@ export function parseCinemaEditorialDraft(value: unknown): CinemaEditorialDraft 
   }
   const news = root.news.map((value, index): CinemaEditorialNews => {
     const item = record(value, `Cinema editorial draft.news[${index}]`);
+    if(root.localeVersion===2 && item.en===undefined)throw new Error(`Cinema editorial draft.news[${index}].en is required for bilingual editions`);
     const headline = russianEditorial(item.headline, `Cinema editorial draft.news[${index}].headline`, 12, 150);
     const summary = russianEditorial(item.summary, `Cinema editorial draft.news[${index}].summary`, 45, 420);
     if (headline.toLocaleLowerCase("ru-RU") === summary.toLocaleLowerCase("ru-RU")) {
@@ -64,6 +68,10 @@ export function parseCinemaEditorialDraft(value: unknown): CinemaEditorialDraft 
       candidateId: safeId(item.candidateId, `Cinema editorial draft.news[${index}].candidateId`),
       headline,
       summary,
+      ...(item.en!==undefined?{en:(()=>{const en=record(item.en,`Cinema editorial draft.news[${index}].en`);return {
+        headline:text(en.headline,`Cinema editorial draft.news[${index}].en.headline`,12,150),
+        summary:text(en.summary,`Cinema editorial draft.news[${index}].en.summary`,45,420),
+      };})()}:{}),
     };
   });
   if (new Set(news.map((item) => item.candidateId)).size !== news.length) {
@@ -74,6 +82,7 @@ export function parseCinemaEditorialDraft(value: unknown): CinemaEditorialDraft 
   }
   const notes = root.notes.map((value, index): CinemaNote => {
     const item = record(value, `Cinema editorial draft.notes[${index}]`);
+    if(root.localeVersion===2 && item.enText===undefined)throw new Error(`Cinema editorial draft.notes[${index}].enText is required for bilingual editions`);
     const note = russianEditorial(item.text, `Cinema editorial draft.notes[${index}].text`, 2, 48);
     if (note.split(/\s+/u).length > 4) throw new Error(`Cinema editorial draft.notes[${index}].text exceeds four words`);
     if (typeof item.mark !== "string" || !MARKS.has(item.mark as CinemaNote["mark"])) {
@@ -83,11 +92,12 @@ export function parseCinemaEditorialDraft(value: unknown): CinemaEditorialDraft 
       id: safeId(item.id, `Cinema editorial draft.notes[${index}].id`),
       target: safeId(item.target, `Cinema editorial draft.notes[${index}].target`),
       text: note,
+      ...(item.enText!==undefined?{enText:text(item.enText,`Cinema editorial draft.notes[${index}].enText`,2,48)}:{}),
       mark: item.mark as CinemaNote["mark"],
     };
   });
   if (new Set(notes.map((item) => item.id)).size !== notes.length) {
     throw new Error("Cinema editorial draft.note IDs must be unique");
   }
-  return { version: 1, localDate, news, notes };
+  return { version: 1, ...(root.localeVersion===2?{localeVersion:2 as const}:{}), localDate, news, notes };
 }

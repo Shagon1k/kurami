@@ -8,7 +8,8 @@ normal Daily workflow, Telegram acknowledgement, or the previous successful
 The deterministic runtime owns collection windows, provider calls, source
 validation, candidate scores, deduplication, facts, ordering after selection,
 media safety, rendering, and atomic promotion. Kurami owns only the bounded
-news selection, Russian editorial copy, and grounded notes described below.
+news selection, bilingual Russian/English editorial copy, and grounded notes
+described below.
 
 Use the production Cinema CLI:
 
@@ -36,12 +37,17 @@ CINEMA_CLI=/home/shagon1k/_hermes/_kurami/app/dist/briefing/cinema/cli.js
    ```json
    {
      "version": 1,
+     "localeVersion": 2,
      "localDate": "YYYY-MM-DD",
      "news": [
        {
          "candidateId": "an exact candidate ID",
          "headline": "Новый самостоятельный заголовок на русском",
-         "summary": "Краткий фактический пересказ новости на русском без воды и домыслов."
+         "summary": "Краткий фактический пересказ новости на русском без воды и домыслов.",
+         "en": {
+           "headline": "Independent English editorial headline",
+           "summary": "A factual English summary of the same verified cinema news."
+         }
        }
      ],
      "notes": [
@@ -49,13 +55,17 @@ CINEMA_CLI=/home/shagon1k/_hermes/_kurami/app/dist/briefing/cinema/cli.js
          "id": "note:stable-id",
          "target": "news:an-exact-selected-candidate-id",
          "text": "короткая живая пометка",
+         "enText": "Brief grounded note",
          "mark": "arrow-down-left"
        }
      ]
    }
    ```
 
-4. Select at most 15 news candidates. Prefer the highest deterministic scores,
+4. Set `localeVersion: 2`; the runtime rejects selected news or notes without
+   matching English editorial copy. Keep original film titles, publisher names,
+   source headlines, and quotations in their original language. Select at most
+   15 news candidates. Prefer the highest deterministic scores,
    but use the permitted score band for editorial relevance and source
    diversity. Do not select more than roughly 40% from one publisher when
    qualified alternatives exist. A headline is a complete Russian phrase, not
@@ -101,7 +111,8 @@ CINEMA_CLI=/home/shagon1k/_hermes/_kurami/app/dist/briefing/cinema/cli.js
    `prepare` cannot move `/cinema`. `promote` atomically finalizes the prepared
    `cinema:YYYY-MM-DD` edition and updates the current Cinema snapshot. A
    rejected promotion leaves the previous snapshot and route unchanged.
-   `/cinema` is the only production Cinema route: do not publish or announce a
+   `/en/cinema` and `/ru/cinema` are the language routes. Legacy `/cinema`
+   redirects to English. Do not publish or announce a
    dated Cinema URL. Dated `/preview/cinema/YYYY-MM-DD` routes are staging-only.
    When a same-Saturday edition is already current, `prepare` validates the
    complete replacement without moving the live page and `promote` atomically

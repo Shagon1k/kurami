@@ -27,3 +27,9 @@ Every Kurami site (Digest, human docs, any new sub-site) renders through the sha
 - Run `npm run test:ui-library`, `npm run test:ui-guard` and `npm run test:ui-browser` for UI
   changes. When you remove an exception, record it with `node tests/ui-library/guard.ts --update`.
 - After changing the library, run `npm run ui:export` so the UI-language skill bundle stays current.
+
+## Delivery
+
+After a change, offer a scoped commit, push, and deployment when relevant. Stage,
+commit, push, or deploy only after the owner explicitly approves that release;
+approval never covers unrelated worktrees or other sites' pending changes.

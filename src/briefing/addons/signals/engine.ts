@@ -65,7 +65,8 @@ export function deriveSignals(payload: BriefingPayload, config: SignalsConfig, e
         if(minutes>=config.overlapMinutes) {overlaps++;longest=Math.max(longest,minutes);expiresAt=Math.min(expiresAt,events[i]!.end,events[j]!.end);}
       }
       if(overlaps) add({id:"calendar-overlap",group:"calendar-today",priority:10,severity:"attention",
-        title:"Встречи пересекаются",detail:`Пересечений: ${overlaps}. Самое длинное — ${duration(longest)}.`,href:"#calendar-heading",expiresAt:new Date(expiresAt).toISOString()});
+        title:"Встречи пересекаются",detail:`Пересечений: ${overlaps}. Самое длинное — ${duration(longest)}.`,
+        enTitle:"Meetings overlap",enDetail:`Overlaps: ${overlaps}. Longest: ${Math.round(longest)} min.`,href:"#calendar-heading",expiresAt:new Date(expiresAt).toISOString()});
     }
     if (rules.denseDay) {
       let occupied=0, until=0, chain=0, maxChain=0, chainEnd=0;
@@ -78,13 +79,15 @@ export function deriveSignals(payload: BriefingPayload, config: SignalsConfig, e
       if(occupied>=config.busyMinutes*60_000 || maxChain>=config.chainCount) add({
         id:"calendar-dense",group:"calendar-today",priority:30,severity:"attention",title:"Плотное расписание",
         detail:occupied>=config.busyMinutes*60_000 ? `До конца дня встречами занято ещё ${duration(occupied/60_000)}.`
-          : `Цепочка из ${maxChain} встреч с перерывами менее ${config.gapMinutes} мин.`,href:"#calendar-heading",expiresAt:new Date(Math.min(...events.map(event=>event.end))).toISOString()});
+          : `Цепочка из ${maxChain} встреч с перерывами менее ${config.gapMinutes} мин.`,
+        enTitle:"Busy schedule",enDetail:occupied>=config.busyMinutes*60_000?`${Math.round(occupied/60_000)} meeting minutes remain today.`:`${maxChain} meetings in a chain with gaps under ${config.gapMinutes} min.`,href:"#calendar-heading",expiresAt:new Date(Math.min(...events.map(event=>event.end))).toISOString()});
     }
     if(rules.longMeeting) {
       const longest=events.filter(event=>(event.end-event.start)>=config.longMeetingMinutes*60_000)
         .sort((a,b)=>(b.end-b.start)-(a.end-a.start) || a.start-b.start)[0];
       if(longest) add({id:"calendar-long",group:"calendar-today",priority:31,severity:"info",title:"Длинная встреча",
-        detail:`${clock(longest.start,timezone)}–${clock(longest.end,timezone)} · ${duration((longest.end-longest.start)/60_000)} в календаре.`,href:"#calendar-heading",expiresAt:new Date(longest.end).toISOString()});
+        detail:`${clock(longest.start,timezone)}–${clock(longest.end,timezone)} · ${duration((longest.end-longest.start)/60_000)} в календаре.`,
+        enTitle:"Long meeting",enDetail:`${clock(longest.start,timezone)}–${clock(longest.end,timezone)} · ${Math.round((longest.end-longest.start)/60_000)} calendar min.`,href:"#calendar-heading",expiresAt:new Date(longest.end).toISOString()});
     }
     if(rules.earlyTomorrow) {
       const tomorrow = calendar.tomorrow as {localDate?:string;state?:string;events?:unknown}|undefined;
@@ -92,7 +95,7 @@ export function deriveSignals(payload: BriefingPayload, config: SignalsConfig, e
         const first=timedEvents(tomorrow.events).filter(event=>localDate(event.start,timezone)===tomorrow.localDate)[0];
         if(first && Number(clock(first.start,timezone).split(":")[0])<config.earlyBeforeHour) add({
           id:"calendar-early",group:"calendar-tomorrow",priority:35,severity:"info",title:"Завтра ранний старт",
-          detail:`Первая встреча завтра в ${clock(first.start,timezone)}.`});
+          detail:`Первая встреча завтра в ${clock(first.start,timezone)}.`,enTitle:"Early start tomorrow",enDetail:`First meeting tomorrow at ${clock(first.start,timezone)}.`});
       } else data.unavailable.push("calendar_tomorrow_missing");
     }
   }
@@ -102,9 +105,10 @@ export function deriveSignals(payload: BriefingPayload, config: SignalsConfig, e
     if(rules.oldActionMail && old.length) {
       const age=Math.floor((at-Math.min(...old.map(item=>timestamp(item.receivedAt))))/3_600_000);
       add({id:"mail-old-action",group:"mail",priority:20,severity:"attention",title:"Письмо ждёт действия",
-        detail:`Непрочитанных ACTION старше ${config.oldActionHours} ч: ${old.length}. Самому старому — ${age} ч.`,href:"#mail-heading"});
+        detail:`Непрочитанных ACTION старше ${config.oldActionHours} ч: ${old.length}. Самому старому — ${age} ч.`,
+        enTitle:"Mail awaiting action",enDetail:`Unread ACTION mail older than ${config.oldActionHours} h: ${old.length}. Oldest: ${age} h.`,href:"#mail-heading"});
     } else if(rules.actionMail && action.length) add({id:"mail-action",group:"mail",priority:21,severity:"info",
-      title:"Почта с действием",detail:`Писем с пометкой ACTION: ${action.length}.`,href:"#mail-heading"});
+      title:"Почта с действием",detail:`Писем с пометкой ACTION: ${action.length}.`,enTitle:"Action mail",enDetail:`Messages marked ACTION: ${action.length}.`,href:"#mail-heading"});
   }
   if ((rules.weather || rules.coolingTomorrow) && fresh("weather")) {
     const days=records(section(payload,"weather").dailyForecast);
@@ -117,13 +121,19 @@ export function deriveSignals(payload: BriefingPayload, config: SignalsConfig, e
         if(finite(today.maximumCelsius) && today.maximumCelsius>=config.hotFromC) parts.push(`максимум ${numberText(today.maximumCelsius)} °C`);
         if(["minimumCelsius","maximumCelsius","precipitationProbabilityPercent"].some(key=>!finite(today[key]))) data.unavailable.push("weather_today_incomplete");
       } else data.unavailable.push("weather_today_missing");
-      if(parts.length) add({id:"weather-today",group:"weather",priority:40,severity:"info",title:"Погода сегодня",detail:parts.join(" · ")+ "."});
+      if(parts.length) add({id:"weather-today",group:"weather",priority:40,severity:"info",title:"Погода сегодня",detail:parts.join(" · ")+ ".",
+        enTitle:"Weather today",enDetail:[
+          today&&finite(today.precipitationProbabilityPercent)&&today.precipitationProbabilityPercent>=config.rainPercent?`precipitation chance up to ${today.precipitationProbabilityPercent}%`:"",
+          today&&finite(today.minimumCelsius)&&today.minimumCelsius<config.coldBelowC?`low ${today.minimumCelsius} °C`:"",
+          today&&finite(today.maximumCelsius)&&today.maximumCelsius>=config.hotFromC?`high ${today.maximumCelsius} °C`:"",
+        ].filter(Boolean).join(" · ")+"."});
     }
     if(rules.coolingTomorrow) {
       if(finite(today?.maximumCelsius) && finite(tomorrow?.maximumCelsius)) {
         const drop=today.maximumCelsius-tomorrow.maximumCelsius;
         if(drop>=config.coolingC) add({id:"weather-cooling",group:"weather",priority:41,severity:"info",title:"Завтра заметно холоднее",
-          detail:`Максимум снизится с ${numberText(today.maximumCelsius)} до ${numberText(tomorrow.maximumCelsius)} °C — на ${numberText(drop)} °C.`});
+          detail:`Максимум снизится с ${numberText(today.maximumCelsius)} до ${numberText(tomorrow.maximumCelsius)} °C — на ${numberText(drop)} °C.`,
+          enTitle:"Noticeably cooler tomorrow",enDetail:`High drops from ${today.maximumCelsius} to ${tomorrow.maximumCelsius} °C — by ${drop} °C.`});
       } else data.unavailable.push("weather_tomorrow_missing");
     }
   }

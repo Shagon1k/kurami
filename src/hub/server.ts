@@ -21,7 +21,7 @@ const assets=new Map<string,{body:Buffer|string;type:string;cache:string}>([
   ["/assets/favicon.svg",{body:readFileSync(resolve(assetRoot,"brand/kurami-favicon.svg")),type:"image/svg+xml",cache:"private, max-age=86400"}],
   ["/sw.js",{body:readFileSync(resolve(hubRoot,"sw.js")),type:"text/javascript; charset=utf-8",cache:"no-cache"}],
 ]);
-for(const lang of ["ru","en"] as const)assets.set(lang==="ru"?"/manifest.webmanifest":"/en/manifest.webmanifest",{body:JSON.stringify({name:"Kurami Hub",short_name:"Kurami",description:lang==="ru"?"Личная главная страница Kurami":"Kurami personal dashboard",lang,start_url:`/${lang}/`,scope:"/",display:"standalone",background_color:kuramiTheme.light.colors["surface-page"],theme_color:kuramiTheme.light.colors["surface-page"],icons:[{src:"/assets/fox.png",sizes:"512x512",type:"image/png",purpose:"any"}]}),type:"application/manifest+json; charset=utf-8",cache:"private, max-age=300"});
+for(const lang of ["ru","en"] as const)assets.set(`/${lang}/manifest.webmanifest`,{body:JSON.stringify({name:"Kurami Hub",short_name:"Kurami",description:lang==="ru"?"Личная главная страница Kurami":"Kurami personal dashboard",lang,start_url:`/${lang}/`,scope:"/",display:"standalone",background_color:kuramiTheme.light.colors["surface-page"],theme_color:kuramiTheme.light.colors["surface-page"],icons:[{src:"/assets/fox.png",sizes:"512x512",type:"image/png",purpose:"any"}]}),type:"application/manifest+json; charset=utf-8",cache:"private, max-age=300"});
 for(const font of fontFiles)assets.set(`/assets/${font.file}`,{body:readFileSync(resolve(assetRoot,"fonts",font.file)),type:"font/woff2",cache:"private, max-age=86400"});
 
 const securityHeaders={
@@ -46,19 +46,22 @@ export function createHubServer(options:{snapshot?:()=>HubSnapshot}={}):Server {
     }
     let path:string;
     let lang:HubLanguage;
-    try {const url=new URL(request.url??"/","http://localhost");path=url.pathname;lang=(path.startsWith("/en/")||path==="/en"||path==="/api/fragment"&&url.searchParams.get("lang")==="en")?"en":"ru";}
+    try {const url=new URL(request.url??"/","http://localhost");path=url.pathname;lang=(path.startsWith("/ru/")||path==="/ru"||path==="/api/fragment"&&url.searchParams.get("lang")==="ru")?"ru":"en";}
     catch {response.writeHead(400,{"Cache-Control":"no-store"}).end();return;}
     let body:Buffer|string;
     let type:string;
     let cache:string;
     try {
-      if(path==="/en"||path==="/ru"){
+      if(path==="/"||path==="/index.html"||path==="/offline.html"||path==="/manifest.webmanifest"){
+        const suffix=path==="/"||path==="/index.html"?"/":path;
+        response.writeHead(302,{Location:`/en${suffix}`,"Cache-Control":"no-store"}).end();return;
+      } else if(path==="/en"||path==="/ru"){
         response.writeHead(302,{Location:`/${lang}/`,"Cache-Control":"no-store"}).end();return;
-      } else if(path==="/"||path==="/index.html"||path==="/ru/"||path==="/en/"){
+      } else if(path==="/ru/"||path==="/en/"){
         body=renderHubPage(current(),lang);type="text/html; charset=utf-8";cache="no-store";
       } else if(path==="/api/fragment"){
         body=renderHubDashboard(current(),lang);type="text/html; charset=utf-8";cache="no-store";
-      } else if(path==="/offline.html"||path==="/en/offline.html"){
+      } else if(path==="/ru/offline.html"||path==="/en/offline.html"){
         body=renderHubOffline(lang);type="text/html; charset=utf-8";cache="private, max-age=300";
       } else if(path==="/health"){
         body=JSON.stringify({ok:true});type="application/json; charset=utf-8";cache="no-store";

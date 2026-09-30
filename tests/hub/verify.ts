@@ -72,7 +72,7 @@ projects:
   assert.equal(incremental.codex.cached30,520);
   const stale=collectHubSnapshot({home,appRepository:join(home,"missing"),codexHome,now:new Date("2026-09-29T21:20:00Z")});
   assert.equal(stale.projects[0]?.poll.state,"stale");
-  const page=renderHubPage(snapshot);
+  const page=renderHubPage(snapshot,"ru");
   assert.match(page,/Kurami Hub/);
   assert.match(page,/37% использовано/);
   assert.match(page,/63% осталось/);
@@ -82,6 +82,7 @@ projects:
   assert.match(page,/class="site-switcher"/);
   assert.match(page,/href="https:\/\/docs\.shagon1k\.win\/ru\/"[^>]*>Docs<\/a>/);
   assert.match(page,/href="\/en\/" aria-label="Переключить на английский" hreflang="en">EN<\/a>/);
+  assert.doesNotMatch(page,/class="section links"|aria-label="Ресурсы"/);
   assert.doesNotMatch(page,/\/does\/not\/exist/,"local paths never reach the page");
   const english=renderHubPage(snapshot,"en");
   assert.match(english,/<html lang="en"/);
@@ -104,18 +105,26 @@ projects:
   }
   try {
     const homePage=await get("/");
-    assert.equal(homePage.status,200);
+    assert.equal(homePage.status,302);
+    assert.equal(homePage.headers.location,"/en/");
     assert.equal(homePage.headers["cache-control"],"no-store");
-    assert.match(homePage.body,/PickFlick/);
+    assert.equal((await get("/index.html")).headers.location,"/en/");
     assert.match((await get("/ru/")).body,/<html lang="ru"/);
     assert.match((await get("/en/")).body,/<html lang="en"/);
     assert.equal((await get("/en")).headers.location,"/en/");
+    assert.equal((await get("/ru")).headers.location,"/ru/");
     assert.equal((await get("/api/fragment")).status,200);
+    assert.match((await get("/api/fragment")).body,/<h1>Overview<\/h1>/);
+    assert.match((await get("/api/fragment?lang=ru")).body,/<h1>Обзор<\/h1>/);
     assert.match((await get("/api/fragment?lang=en")).body,/<h1>Overview<\/h1>/);
     assert.match((await get("/en/offline.html")).body,/<h1>Offline<\/h1>/);
-    const manifest=await get("/manifest.webmanifest");
+    assert.equal((await get("/offline.html")).headers.location,"/en/offline.html");
+    assert.equal((await get("/ru/offline.html")).status,200);
+    assert.equal((await get("/manifest.webmanifest")).headers.location,"/en/manifest.webmanifest");
+    const manifest=await get("/ru/manifest.webmanifest");
     assert.equal(manifest.status,200);
     assert.deepEqual(JSON.parse(manifest.body).icons,[{src:"/assets/fox.png",sizes:"512x512",type:"image/png",purpose:"any"}]);
+    assert.equal(JSON.parse(manifest.body).lang,"ru");
     const enManifest=JSON.parse((await get("/en/manifest.webmanifest")).body);
     assert.equal(enManifest.lang,"en");assert.equal(enManifest.start_url,"/en/");
     assert.equal((await get("/assets/fox.webp")).headers["content-type"],"image/webp");

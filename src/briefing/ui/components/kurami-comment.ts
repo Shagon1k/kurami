@@ -1,12 +1,13 @@
 import {escapeHtml as e} from "../html.ts";
+import {digestText as t} from "../../i18n.ts";
 
 export type KuramiComment={context?:string;headline?:string;paragraphs?:Array<{label?:string;text:string}>;items?:string[];ordered?:boolean};
 /** Caller classifies commentary. Never infer it from keywords or wrap source data automatically. */
 export function renderKuramiComment(input:KuramiComment):string {
   if(!input.headline&&!input.paragraphs?.length&&!input.items?.length)return "";
   const list=input.ordered?"ol":"ul";
-  return `<aside class="kurami-comment" data-kurami-comment aria-label="${e(input.context?"Комментарий AI — Курами: "+input.context:"Комментарий AI — Курами")}">
-    <p class="kurami-comment__byline"><span aria-hidden="true">🦊</span> Курами:</p>
+  return `<aside class="kurami-comment" data-kurami-comment aria-label="${e(input.context?t("Комментарий AI — Курами: ","AI commentary — Kurami: ")+input.context:t("Комментарий AI — Курами","AI commentary — Kurami"))}">
+    <p class="kurami-comment__byline"><span aria-hidden="true">🦊</span> ${t("Курами","Kurami")}:</p>
     ${input.headline?`<h3 class="kurami-comment__headline">${e(input.headline)}</h3>`:""}
     ${input.paragraphs?.map(p=>`<p>${p.label?`<strong>${e(p.label)}:</strong> `:""}${e(p.text)}</p>`).join("")??""}
     ${input.items?.length?`<${list}>${input.items.map(item=>`<li>${e(item)}</li>`).join("")}</${list}>`:""}

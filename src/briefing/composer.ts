@@ -56,6 +56,7 @@ export async function composeBriefingPayload(input: {
     hero: {
       title: draft.hero?.title ?? "Утренний обзор",
       subtitle: draft.hero?.subtitle ?? "Главное к началу дня.",
+      ...(draft.hero?.en ? { en: draft.hero.en } : {}),
     },
     ...(notes ? { notes } : {}),
     dataQuality: { state: "ready", summary: "" },

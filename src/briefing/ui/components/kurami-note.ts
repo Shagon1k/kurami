@@ -1,5 +1,6 @@
 import type { KuramiNote } from "../../model.ts";
 import { escapeHtml } from "../html.ts";
+import {digestLanguage} from "../../i18n.ts";
 
 function noteMark(mark: KuramiNote["mark"]): string {
   if (mark === "arrow-down") return "↓";
@@ -12,5 +13,5 @@ function noteMark(mark: KuramiNote["mark"]): string {
 export function renderKuramiNote(note: KuramiNote | undefined, placementClass: string): string {
   if (!note) return "";
   const mark = noteMark(note.mark);
-  return `<span class="kurami-note ${placementClass} kurami-note--${escapeHtml(note.rotation)}" data-note-id="${escapeHtml(note.id)}">${escapeHtml(note.text)}${mark ? ` <span aria-hidden="true">${mark}</span>` : ""}</span>`;
+  return `<span class="kurami-note ${placementClass} kurami-note--${escapeHtml(note.rotation)}" data-note-id="${escapeHtml(note.id)}"${digestLanguage()==="en"&&!note.enText?' lang="ru"':''}>${escapeHtml(digestLanguage()==="en"?note.enText??note.text:note.text)}${mark ? ` <span aria-hidden="true">${mark}</span>` : ""}</span>`;
 }

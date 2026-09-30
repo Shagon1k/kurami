@@ -1,10 +1,11 @@
 import {escapeHtml} from "../html.ts";
+import {digestText as t} from "../../i18n.ts";
 
 /** Small, non-interactive overview. Nulls break lines; each row has its own scale. */
 export function renderSparkline(values:readonly (number|null)[],label:string):string {
   if(values.length>120||values.some(v=>v!==null&&!Number.isFinite(v)))throw new Error("Invalid sparkline values");
   const known=values.filter((v):v is number=>v!==null);
-  if(known.length<2)return `<span class="sparkline-empty">Недостаточно истории</span>`;
+  if(known.length<2)return `<span class="sparkline-empty">${t("Недостаточно истории","Not enough history")}</span>`;
   const low=Math.min(...known),high=Math.max(...known),range=high-low;
   const segments:string[][]=[];let current:string[]=[];
   values.forEach((value,index)=>{

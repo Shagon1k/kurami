@@ -3,6 +3,7 @@ import { createChartEngine } from "./engine.ts";
 /** Serialized as static application code, never eval'd from chart data. */
 function initializeCharts(factory: typeof createChartEngine): void {
   const engine=factory(), ns="http://www.w3.org/2000/svg";
+  const english=document.documentElement.lang==="en",t=(ru:string,en:string)=>english?en:ru;
   const node=(name:string,attributes:Record<string,string|number>={})=>{
     const element=document.createElementNS(ns,name);
     for(const [key,value] of Object.entries(attributes))element.setAttribute(key,String(value));
@@ -38,8 +39,8 @@ function initializeCharts(factory: typeof createChartEngine): void {
         hideTip();
         const layout=engine.layout(spec,{visible:[...visible],windowSize}),p=layout.plot;
         plotNode.hidden=layout.empty;empty.hidden=!layout.empty;
-        empty.textContent=visible.size===0 && spec.series.length ? "Выберите ряд в легенде."
-          : spec.state==="unavailable" ? spec.message ?? "Данные временно недоступны" : "Нет данных за выбранные периоды";
+        empty.textContent=visible.size===0 && spec.series.length ? t("Выберите ряд в легенде.","Select a series in the legend.")
+          : spec.state==="unavailable" ? spec.message ?? t("Данные временно недоступны","Data temporarily unavailable") : t("Нет данных за выбранные периоды","No data for the selected periods");
         const svg=node("svg",{viewBox:"0 0 "+p.width+" "+p.height,role:"group","aria-label":spec.title,"aria-describedby":spec.id+"-help"});
         const grid=node("g",{class:"chart__grid"}),yLabels=node("g",{class:"chart__labels"});
         for(const tick of layout.ticks) {
@@ -84,11 +85,11 @@ function initializeCharts(factory: typeof createChartEngine): void {
         } else visible.add(index);
         button.setAttribute("aria-pressed",String(visible.has(index)));
         draw();
-        if(status)status.textContent="Показано рядов: "+visible.size+" из "+spec.series.length+".";
+        if(status)status.textContent=t("Показано рядов: ","Series shown: ")+visible.size+t(" из "," of ")+spec.series.length+".";
       }));
       const zoom=(direction:number)=>{
         windowSize=Math.max(Math.min(3,spec.categories.length),Math.min(spec.categories.length,windowSize+direction));
-        draw();if(status)status.textContent="Показаны последние "+windowSize+" периодов из "+spec.categories.length+".";
+        draw();if(status)status.textContent=t("Показаны последние ","Showing latest ")+windowSize+t(" периодов из "," periods of ")+spec.categories.length+".";
       };
       root.querySelector("[data-chart-zoom-in]")?.addEventListener("click",()=>zoom(-1));
       root.querySelector("[data-chart-zoom-out]")?.addEventListener("click",()=>zoom(1));
@@ -127,7 +128,7 @@ function initializeCharts(factory: typeof createChartEngine): void {
         }
       });
       draw();
-    } catch {if(status)status.textContent="Не удалось включить интерактивный график. Значения доступны в таблице.";}
+    } catch {if(status)status.textContent=t("Не удалось включить интерактивный график. Значения доступны в таблице.","Could not enable the interactive chart. Values remain available in the table.");}
   });
 }
 
