@@ -116,6 +116,16 @@ function progressFor(
     };
   }
   if (
+    run.run_state === "needs_attention" &&
+    run.stop_reason === "completed" &&
+    run.latest_attention_reason === "completion_waiting_for_merge"
+  ) {
+    return {
+      stage: "needs_attention",
+      detail: "Done has no verified merge. Work is preserved; merge the pull request or cancel the run.",
+    };
+  }
+  if (
     run.preview_required === 1 &&
     run.completion_requested_at !== null &&
     !previewEvidenceCurrent(run)

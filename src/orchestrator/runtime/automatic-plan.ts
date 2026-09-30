@@ -203,8 +203,10 @@ export function planAutomatic(
   }
   const retryMergedRelease =
     run.run_state === "needs_attention" &&
-    run.stop_reason === "cancelled" &&
-    run.latest_attention_reason === "worktree_release_blocked";
+    ((run.stop_reason === "cancelled" &&
+      run.latest_attention_reason === "worktree_release_blocked") ||
+      (run.stop_reason === "completed" &&
+        run.latest_attention_reason === "completion_waiting_for_merge"));
   if (
     (run.run_state === "stopping" || retryMergedRelease) &&
     run.tmux_session_name === null &&

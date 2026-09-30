@@ -116,7 +116,12 @@ function buildPlans(
                AND (SELECT reason FROM run_state_history attention_latest
                     WHERE attention_latest.run_id = r.run_id
                       AND attention_latest.to_state = 'needs_attention'
-                    ORDER BY attention_latest.sequence DESC LIMIT 1) = 'worktree_release_blocked'))
+                    ORDER BY attention_latest.sequence DESC LIMIT 1) = 'worktree_release_blocked')
+           OR (r.stop_reason = 'completed'
+               AND (SELECT reason FROM run_state_history attention_latest
+                    WHERE attention_latest.run_id = r.run_id
+                      AND attention_latest.to_state = 'needs_attention'
+                    ORDER BY attention_latest.sequence DESC LIMIT 1) = 'completion_waiting_for_merge'))
       AND (r.state <> 'archived'
            OR rr.previous_codex_thread_id IS NOT NULL)
     ORDER BY r.created_at, r.run_id

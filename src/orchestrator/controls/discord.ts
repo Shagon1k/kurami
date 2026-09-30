@@ -1304,7 +1304,8 @@ export function controlComponents(
       );
     const cancellationStarted =
       card.stop_reason === "cancelled" ||
-      ["stopping", "discarding_cancelled"].includes(card.stage);
+      (card.stage === "stopping" && card.stop_reason !== "completed") ||
+      card.stage === "discarding_cancelled";
     if (preservedCancellation && !publishedCancellation) {
       controls.push(
         button(
