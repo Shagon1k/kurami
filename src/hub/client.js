@@ -114,7 +114,7 @@ async function refreshHub(force=false){
 }
 setInterval(refreshHub,60_000);
 document.addEventListener("visibilitychange",()=>{if(document.visibilityState==="visible")void refreshHub();});
-if("serviceWorker" in navigator)window.addEventListener("load",()=>{void navigator.serviceWorker.register("/sw.js").catch(()=>{});});
+if("serviceWorker" in navigator)window.addEventListener("load",()=>{void navigator.serviceWorker.register("/sw.js",{updateViaCache:"none"}).catch(()=>{});});
 
 const errors={controls_unavailable:["Управление ещё не подключено","Controls are not connected"],unauthorized:["Нет доступа. Обнови страницу и войди снова","Access denied. Reload and sign in again"],invalid_origin:["Обнови страницу перед повтором","Reload the page before retrying"],stale_settings:["Данные изменились. Открой настройки заново","Values changed. Reopen the settings"],action_in_progress:["Другое действие ещё выполняется","Another action is still running"],command_failed:["Команда отклонена. Обнови состояние и повтори","Command rejected. Refresh the state and retry"],provider_unsupported:["Этот provider настраивается в Hermes","Configure this provider in Hermes"],noCredit:["Нет доступных сбросов","No resets available"],nothingToReset:["Нет лимита для сброса","No eligible limit to reset"]};
 function errorText(code){const pair=errors[code];return pair?text(...pair):text("Действие не выполнено","Action did not complete");}

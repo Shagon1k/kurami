@@ -159,6 +159,13 @@ projects:
     assert.equal(enManifest.lang,"en");assert.equal(enManifest.start_url,"/en/");
     assert.equal((await get("/assets/fox.webp")).headers["content-type"],"image/webp");
     assert.equal((await get("/sw.js")).status,200);
+    const assetPage=(await get("/en/")).body;
+    for(const path of ["hub.css","hub.js"]){
+      const versioned=assetPage.match(new RegExp(`/assets/${path.replace(".","\\.")}\\?v=[a-f0-9]{16}`))?.[0];
+      assert(versioned,"HTML uses a content-versioned "+path);
+      assert.equal((await get(versioned)).status,200);
+    }
+    assert.equal((await get("/assets/theme.js")).headers["cache-control"],"private, no-cache");
     assert.equal((await get("/assets/hub.css","HEAD")).body,"");
     assert.equal((await get("/state/orchestrator.db")).status,404);
     assert.equal((await get("/", "POST")).status,405);
