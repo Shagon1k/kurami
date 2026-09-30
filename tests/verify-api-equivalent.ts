@@ -33,7 +33,7 @@ assert.equal(grouped.equivalent.unpricedTokens,1_100_000);
 assert.equal(grouped.equivalent.uncertainTokens,1_100_000);
 assert.equal(grouped.equivalent.pricedTokens,3_300_000);
 assert.equal(summarizeModelUsage([]).equivalent.usd,null);
-assert.equal(estimatedUsd(null),"—");assert.equal(estimatedUsd(.001),"~ <$0.01");
+assert.equal(estimatedUsd(null),"—");assert.equal(estimatedUsd(.001),"<$0.01");
 
 const home=mkdtempSync(join(tmpdir(),"kurami-api-equivalent-"));
 try {

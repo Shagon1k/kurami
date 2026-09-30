@@ -16,6 +16,7 @@ export type ButtonInput = {
   busyLabel?: string;
   icon?: string;
   iconPath?: string;
+  visibleLabel?: boolean;
   ariaLabel?: string;
   attributes?: Record<string, AttributeValue>;
   labelAttributes?: Record<string, AttributeValue>;
@@ -35,7 +36,7 @@ function renderAttributes(attributes: Record<string, AttributeValue> | undefined
 }
 
 export const BUTTON_CSS = `
-.button { --button-busy-color: var(--text-primary); min-height: 44px; position: relative; display: inline-flex; align-items: center; justify-content: center; gap: 8px; padding: 0 16px; color: var(--text-primary); background: var(--surface-raised); border: 1px solid var(--text-primary); border-radius: var(--radius); cursor: pointer; font: 600 .75rem/1 var(--font-sans); text-decoration: none; transition: color 160ms ease, background 160ms ease, border-color 160ms ease, transform 160ms ease, opacity 160ms ease; }
+.button { --button-busy-color: var(--text-primary); min-height: 44px; position: relative; display: inline-flex; align-items: center; justify-content: var(--button-justify,center); gap: 8px; padding: 0 16px; color: var(--text-primary); background: var(--surface-raised); border: 1px solid var(--text-primary); border-radius: var(--radius); cursor: pointer; font: 600 .75rem/1 var(--font-sans); text-decoration: none; transition: color 160ms ease, background 160ms ease, border-color 160ms ease, transform 160ms ease, opacity 160ms ease; }
 .button:hover:not(:disabled):not([aria-busy="true"]) { color: var(--surface-page); background: var(--text-primary); border-color: var(--text-primary); }
 .button:active:not(:disabled):not([aria-busy="true"]) { transform: translateY(1px); }
 .button:focus-visible { outline: 3px solid var(--accent-primary); outline-offset: 3px; }
@@ -76,7 +77,7 @@ export function renderButton(input: ButtonInput): string {
   const disabled = input.disabled ? " disabled" : "";
   const labelAttributes = renderAttributes(input.labelAttributes);
   const content = input.iconPath
-    ? `<svg class="button__svg" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="${escapeHtml(input.iconPath)}"/></svg>`
+    ? `<svg class="button__svg" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="${escapeHtml(input.iconPath)}"/></svg>${input.visibleLabel?`<span${labelAttributes}>${escapeHtml(input.label)}</span>`:""}`
     : input.icon
     ? `<span class="button__icon" aria-hidden="true">${escapeHtml(input.icon)}</span><span class="sr-only"${labelAttributes}>${escapeHtml(input.label)}</span>`
     : input.labelAttributes

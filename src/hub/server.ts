@@ -12,6 +12,7 @@ import {fontFiles} from "../ui-library/foundations/fonts.ts";
 import {THEME_RUNTIME_JS} from "../ui-library/runtime/theme.ts";
 import {kuramiTheme} from "../ui-library/themes/index.ts";
 import {HUB_STYLES} from "./styles.ts";
+import {HUB_CLIENT_JS} from "./assets.ts";
 import {collectHubSnapshot,type HubSnapshot} from "./snapshot.ts";
 import {renderHubDashboard,renderHubOffline,renderHubPage,type HubLanguage} from "./render.ts";
 
@@ -20,8 +21,8 @@ const assetRoot=resolve(appRoot,"src/ui-library/assets");
 const hubRoot=resolve(appRoot,"src/hub");
 const assets=new Map<string,{body:Buffer|string;type:string;cache:string}>([
   ["/assets/hub.css",{body:HUB_STYLES,type:"text/css; charset=utf-8",cache:"private, max-age=300"}],
-  ["/assets/theme.js",{body:THEME_RUNTIME_JS,type:"text/javascript; charset=utf-8",cache:"private, max-age=300"}],
-  ["/assets/hub.js",{body:readFileSync(resolve(hubRoot,"client.js")),type:"text/javascript; charset=utf-8",cache:"private, max-age=300"}],
+  ["/assets/theme.js",{body:THEME_RUNTIME_JS,type:"text/javascript; charset=utf-8",cache:"private, no-cache"}],
+  ["/assets/hub.js",{body:HUB_CLIENT_JS,type:"text/javascript; charset=utf-8",cache:"private, max-age=300"}],
   ["/assets/fox.png",{body:readFileSync(resolve(assetRoot,"brand/kurami-fox-transparent.png")),type:"image/png",cache:"private, max-age=86400"}],
   ["/assets/fox.webp",{body:readFileSync(resolve(assetRoot,"brand/kurami-fox-header.webp")),type:"image/webp",cache:"private, max-age=86400"}],
   ["/assets/favicon.svg",{body:readFileSync(resolve(assetRoot,"brand/kurami-favicon.svg")),type:"image/svg+xml",cache:"private, max-age=86400"}],

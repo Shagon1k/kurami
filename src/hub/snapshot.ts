@@ -31,6 +31,7 @@ export type HubSnapshot={
   operations?:HubOperations;
   usage?:ProjectUsage;
   commitDays?:Week[];
+  commitRepositories?:Record<string,Week[]>;
   totals:{working:number;review:number;attention:number;commits30:number};
   sources:{orchestrator:"available"|"unavailable";git:"available"|"partial"|"unavailable"};
 };
@@ -92,11 +93,13 @@ export function collectHubSnapshot(options:{home?:string;appRepository?:string;c
   const projectStatus=readProjectStatus(dbPath,config,now);
   const orchestrator=projectStatus.available?"available":"unavailable";
   const allDates:number[]=[];
+  const repositoryDates:Record<string,number[]>={};
   const projects:HubProject[]=keys.map(key=>{
     const item=config[key]!;
     const status=projectStatus.projects[key];
     const git=gitHistory(item.workspace.canonical_repository,item.workspace.base_branch,now);
     allDates.push(...git.dates);
+    repositoryDates[key]=git.dates;
     return {
       key,name:displayNames[key]??key,repository:item.repository,
       boardUrl:`https://github.com/users/${encodeURIComponent(item.owner)}/projects/${item.project_number}`,
@@ -111,6 +114,7 @@ export function collectHubSnapshot(options:{home?:string;appRepository?:string;c
   });
   const kuramiGit=gitHistory(options.appRepository??appRoot,"main",now);
   allDates.push(...kuramiGit.dates);
+  repositoryDates.kurami=kuramiGit.dates;
   projects.push({key:"kurami",name:"Kurami",repository:"Shagon1k/Kurami",boardUrl:"https://github.com/Shagon1k/Kurami",
     managed:false,board:null,runs:null,poll:{capturedAt:null,state:"unavailable"},
     git:{commits7:kuramiGit.dates.filter(value=>value>=now.getTime()-7*86_400_000).length,
@@ -128,12 +132,13 @@ export function collectHubSnapshot(options:{home?:string;appRepository?:string;c
   const operations=collectHubOperations(home,codexHome,process.env.HERMES_HOME??"/home/shagon1k/_hermes/_core",now,projectStatus);
   for(const project of projects.filter(project=>project.managed&&project.poll.state!=="fresh"))operations.alerts.push({id:`poll-${project.key}`,severity:"warning",code:"poll_stale",subject:project.name,href:project.boardUrl});
   const cutoff=now.getTime()-30*86_400_000;
-  const commitDays=Array.from({length:30},(_,index)=>{
+  const dailyCounts=(dates:number[])=>Array.from({length:30},(_,index)=>{
     const start=cutoff+index*86_400_000,end=start+86_400_000;
-    return {start:new Date(start).toISOString(),count:allDates.filter(at=>at>=start&&(index===29?at<=end:at<end)).length};
+    return {start:new Date(start).toISOString(),count:dates.filter(at=>at>=start&&(index===29?at<=end:at<end)).length};
   });
+  const commitDays=dailyCounts(allDates),commitRepositories=Object.fromEntries(Object.entries(repositoryDates).map(([key,dates])=>[key,dailyCounts(dates)]));
   const usage=readProjectUsage(dbPath,keys,now,(ids,until)=>readThreadUsage(codexHome,ids,until));
-  return {generatedAt:now.toISOString(),projects,weeks,commitDays,usage,codex:collectCodexSnapshot({home:codexHome,now}),operations,
+  return {generatedAt:now.toISOString(),projects,weeks,commitDays,commitRepositories,usage,codex:collectCodexSnapshot({home:codexHome,now}),operations,
     totals:{working:projects.reduce((sum,project)=>sum+(project.runs?.working??0),0),
       review:projects.reduce((sum,project)=>sum+(project.board?.review??0),0),
       attention:projects.reduce((sum,project)=>sum+(project.runs?.attention??0),0),

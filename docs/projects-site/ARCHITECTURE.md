@@ -169,8 +169,18 @@ paths or production services are required.
 
 ## Delivery and recovery
 
-The unit is prepared but not installed by this phase. Production requires the
-Access application, owner policy, tunnel route and explicit release approval.
+The service unit is `deploy/systemd/kurami-projects.service`. Production requires
+the Access application, owner policy, tunnel route and explicit release approval.
+Route `projects.shagon1k.win` to `http://127.0.0.1:8777`. In
+`$KURAMI_HOME/secrets/projects-site.env` (mode `0600`), set
+`PROJECTS_ACCESS_TEAM`, the dedicated Projects application
+`PROJECTS_ACCESS_AUDIENCE`, and `PROJECTS_OWNER_EMAIL`. Do not reuse the Hub
+audience. Missing values deny all task pages, assets and controls.
+
+After changing these values, run `systemctl --user restart
+kurami-projects.service`. `curl http://127.0.0.1:8777/health` checks liveness;
+opening the hostname through owner Access checks authentication and the
+dashboard. The health endpoint does not verify Access or database readiness.
 Stopping only the Projects service rolls back this interface. The existing
 GitHub/Discord process and Run Store continue to provide their normal workflow.
 

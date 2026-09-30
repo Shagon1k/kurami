@@ -63,6 +63,26 @@ native select behavior with a decorative, pointer-transparent chevron and
 consistent padding; forced-colour mode restores the native arrow. The button
 library adds a `text` variant for task navigation, and tables accept validated
 row classes plus `--table-head-background`. UI-Library: extended.
+The Hub refresh adds `components/icon.ts` (decorative line icons) and
+`components/stat-card.ts` (centered/start-aligned metrics and accessible load meters).
+They use a new semantic `status-info` role, with values in the light/dark theme.
+Forms now include `renderCheckbox`; disclosures accept a stable optional key for
+preserving the correct disclosure across fragment refreshes. A library-only
+fixture covers these primitives. Hub-specific history charts, problem grouping,
+work-feed filters and persistence remain in Hub. UI-Library: extended.
+
+The next Hub pass moves Digest's mail checkbox into
+`components/selection-control.ts`, including checked, indeterminate, disabled
+and focus states. Digest keeps a compatibility re-export and the original
+signal variant; Hub's `renderCheckbox` uses the data variant. The semantic
+`accent-data` role supplies muted ochre in light mode and wheat in dark mode,
+without changing success, warning or failure colours. Stat cards and meters
+accept the same data accent. Disclosures add an inline variant; the shared
+popover primitive supplies an anchored surface for product-owned positioning
+and focus handling. Buttons can display an SVG icon beside a visible label;
+`--button-justify` controls alignment without product overrides. The site header
+accepts an optional utility slot: Hub uses it for one persistent 7/30-day selector.
+Hub owns the log and summary layouts. UI-Library: extended.
 
 ## Proposed structure
 

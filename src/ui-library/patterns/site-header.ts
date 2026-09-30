@@ -14,6 +14,7 @@ export type SiteHeaderInput = {
   sites?: SiteSwitcherInput;
   /** Trusted HTML from library components, e.g. renderThemeSwitch(). */
   actions: string;
+  utility?: string;
 };
 
 const SAFE_ATTRIBUTE = /^(?:data-[a-z][a-z0-9-]*|id)$/;
@@ -57,7 +58,7 @@ export function renderSiteHeader(input: SiteHeaderInput): string {
         <img class="site-brand__fox" src="${safeHref(brand.foxSrc)}" width="48" height="48" alt="" decoding="async">
         <span class="site-brand__copy"><span class="site-brand__name">Kurami<span class="site-brand__dot" aria-hidden="true">.</span>${suffix}</span>${meta}</span>
       </a>
-      ${renderSiteNav(nav)}${menu}
+      ${renderSiteNav(nav)}${menu}${input.utility?`<div class="site-header__utility">${input.utility}</div>`:""}
       <div class="site-actions">${input.sites ? renderSiteSwitcher(input.sites) : ""}${input.actions}</div>
     </div>
   </header>`;
@@ -67,6 +68,7 @@ export const SITE_HEADER_CSS = `
 .site-header { position: sticky; top: 0; z-index: 30; width: 100%; color: var(--text-primary); background: color-mix(in srgb, var(--surface-page) 94%, transparent); border-bottom: 1px solid var(--border-default); backdrop-filter: blur(14px); transition: box-shadow 160ms ease, border-color 160ms ease, background 160ms ease; }
 .site-header.is-scrolled { background: color-mix(in srgb, var(--surface-page) 97%, transparent); border-bottom-color: color-mix(in srgb, var(--border-default) 72%, var(--text-primary)); box-shadow: var(--shadow-raised); }
 .site-header__inner { position: relative; min-height: 84px; display: grid; grid-template-columns: minmax(0,1fr) auto auto; grid-template-areas: "brand nav actions"; align-items: center; gap: 24px; padding-block: 12px; }
+.site-header__utility { grid-area: nav; display: flex; align-items: center; justify-content: flex-end; gap: var(--space-2); }
 .site-brand { grid-area: brand; justify-self: start; min-width: 0; min-height: 48px; display: inline-flex; align-items: center; gap: 12px; color: var(--text-primary); text-decoration: none; white-space: nowrap; border-radius: var(--radius); }
 .site-brand__fox { width: 48px; height: 48px; flex-shrink: 0; object-fit: contain; }
 [data-theme="dark"] .site-brand__fox { filter: drop-shadow(0 0 1px #ffffff8c); }
@@ -126,7 +128,10 @@ export const SITE_HEADER_CSS = `
   .site-actions { border-left: 0; padding-left: 0; }
   .site-switcher summary { width: 44px; justify-content: center; padding: 0; }
   .site-switcher__title { display: none; }
+  .site-switcher { position: static; }
+  .site-switcher__nav { top: calc(100% + 4px); right: 0; }
   .site-nav { justify-self: stretch; gap: 4px; border-top: 1px solid var(--border-default); padding-top: 4px; }
+  .site-header__utility { justify-self: stretch; border-top: 1px solid var(--border-subtle); padding-top: var(--space-1); }
   .site-nav__link { flex: 1; padding-inline: 10px; }
   .site-menu__nav { grid-template-columns: 1fr; }
 }
