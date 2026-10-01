@@ -13,14 +13,14 @@ workflow. The long-term goal includes all owner actions currently used in Discor
 
 | Phase | Outcome | Dependency | Acceptance and evidence |
 | --- | --- | --- | --- |
-| 1 — implemented | Owner can inspect tasks across projects | Existing Run Store and registry | Real-schema read-only tests; owner-only HTTP tests; table/detail/filter browser checks; joint UI checks |
+| 1 — implemented | Owner can inspect tasks across projects | Existing Run Store and registry | Real-schema read-only tests; tunnel-hosting and optional Access HTTP tests; table/detail/filter browser checks; joint UI checks |
 | 2 — implemented | Owner can request AI Review from Projects | Phase 1 and shared control policy | One durable exact-SHA request; duplicate and stale requests rejected; both interfaces show the same result |
 | 3 — implemented | Owner can change Project status | Phase 1 and guarded GitHub writes | A stable transition produces one normal poller event; concurrent requests, conflicts and lost replies have explicit outcomes |
 | 4 — implemented | Owner can use the remaining Kurami actions | Phase 2 | Shared queue admission and request results; displayed-run checks; exact-SHA fix workers; explicit discard confirmation; preview acknowledgement provenance |
 | 5 — next | Owner can manage order and metadata | Phases 3–4 | Each supported field has an explicit authority and conflict policy |
 
 Phase 1 includes the server, read model, table, task panel, filters, freshness,
-owner access validation, and an inactive deployment unit for port 8777.
+optional owner Access validation, and a loopback service for port 8777.
 Controls remain disabled by default. Phase 2 adds a guarded AI Review request
 through the existing control queue, an explicit Projects source, and a PR/SHA
 context validated before the worker starts. Phase 3 adds a guarded status selector,
@@ -43,18 +43,18 @@ and status changes as `d2a7afd`.
 Code readiness requires passing automated checks. The owner then reviews the
 synthetic interface and the proposed release scope. Commit, push and production
 deployment follow the repository's delivery approval rule. Installing the unit
-and verifying the protected hostname are separate from code readiness.
+and verifying the configured hostname are separate from code readiness.
 
-Before publication, resolve the Projects-specific Cloudflare Access audience,
-team and owner identity. Verify that unauthenticated requests disclose no task
-data, the origin is loopback-only, and the tunnel routes to port 8777. The owner
-controls that release decision. Control requests and their PR/SHA context live in the existing Run Store; its
+The owner confirmed that Cloudflare and its Zero Trust policy are configured and
+approved hosting the page and all controls on loopback port 8777. Application
+Access validation is optional; normal tunnel hosting records an origin actor marker.
+Control requests and their PR/SHA context live in the existing Run Store; its
 backup and recovery cover these records.
 
 ## Open and deferred decisions
 
-- Cloudflare Access is the implemented access path; live application configuration
-  and owner allowlist are pending before deployment. Secrets stay outside Git.
+- The existing Zero Trust policy protects the tunnel route. Optional application
+  Access validation requires its own audience and owner allowlist. Secrets stay outside Git.
 - AI Review rollout requires schema 33 and the optional controls service drop-in.
   Status writes additionally require schema 34, GitHub CLI credentials and the
   separate status drop-in. Remaining run actions and Projects preview
@@ -69,4 +69,4 @@ backup and recovery cover these records.
 
 The questionnaire and existing source define the scope. Verification evidence
 is supplied by `test:projects-site`, `test:projects-browser`, and the repository
-UI checks. This phase has not been deployed or accepted by the owner.
+UI checks. The origin and schema 35 are deployed; owner acceptance of the live workflow remains pending.

@@ -1,7 +1,7 @@
 # Projects interface
 
 The owner's questionnaire establishes an overview table as the first screen,
-owner-only access, Discord notifications and visible source freshness. The
+access through the existing Zero Trust policy, Discord notifications and visible source freshness. The
 existing UI library defines typography, theme, header, controls and spacing.
 The implemented table and task panel are the first design draft; owner review
 and production acceptance remain pending.

@@ -1,5 +1,5 @@
 [Unit]
-Description=Kurami Projects private origin
+Description=Kurami Projects origin
 After=default.target
 ConditionPathExists=/home/shagon1k/_hermes/_kurami/state/orchestrator.db
 
@@ -8,7 +8,7 @@ Type=simple
 ExecStart=/home/shagon1k/_hermes/_kurami/runtime/node/bin/node /home/shagon1k/_hermes/_kurami/app/src/projects-site/server.ts
 Environment=PROJECTS_PORT=8777
 Environment=KURAMI_HOME=/home/shagon1k/_hermes/_kurami
-EnvironmentFile=/home/shagon1k/_hermes/_kurami/secrets/projects-site.env
+EnvironmentFile=-/home/shagon1k/_hermes/_kurami/secrets/projects-site.env
 WorkingDirectory=/home/shagon1k/_hermes/_kurami/app
 Restart=on-failure
 RestartSec=3s

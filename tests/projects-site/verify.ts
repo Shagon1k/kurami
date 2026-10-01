@@ -122,4 +122,30 @@ try {
   assert.equal((await fetch(base + "/config/projects.yaml")).status, 404);
   assert.equal((await fetch(base + "/api/actions", { method: "POST" })).status, 405);
 } finally { await new Promise<void>((done, reject) => server.close(error => error ? reject(error) : done())); }
+const savedAccessEnabled = process.env.PROJECTS_ACCESS_ENABLED;
+try {
+  for (const enabled of [undefined, "1"]) {
+    if (enabled === undefined) delete process.env.PROJECTS_ACCESS_ENABLED;
+    else process.env.PROJECTS_ACCESS_ENABLED = enabled;
+    let actor: string | undefined;
+    const runtime = createProjectsServer({ snapshot: () => fixture,
+      review: (_input, identity) => { actor = identity; return { requestId: "fixture-request", requestState: "requested", state: "created" }; } });
+    await new Promise<void>(done => runtime.listen(0, "127.0.0.1", done));
+    const origin = `http://127.0.0.1:${(runtime.address() as { port: number }).port}`;
+    try {
+      for (const path of ["/", "/api/fragment", "/assets/projects.css"])
+        assert.equal((await fetch(origin + path)).status, enabled === "1" ? 403 : 200);
+      const post = (source: string) => fetch(origin + "/api/ai-review", { method: "POST", headers: { "Content-Type": "application/json", Origin: source }, body: "{}" });
+      assert.equal((await post("https://other.example")).status, 403);
+      assert.equal(actor, undefined, "cross-origin requests never enter a control adapter");
+      assert.equal((await post("https://projects.shagon1k.win")).status, enabled === "1" ? 403 : 202);
+      assert.equal(actor, enabled === "1" ? undefined : "projects-origin", "ordinary hosting records origin provenance without claiming a verified owner");
+    } finally { await new Promise<void>((done, reject) => runtime.close(error => error ? reject(error) : done())); }
+  }
+  process.env.PROJECTS_ACCESS_ENABLED = "invalid";
+  assert.throws(() => createProjectsServer(), /Invalid PROJECTS_ACCESS_ENABLED/);
+} finally {
+  if (savedAccessEnabled === undefined) delete process.env.PROJECTS_ACCESS_ENABLED;
+  else process.env.PROJECTS_ACCESS_ENABLED = savedAccessEnabled;
+}
 console.log("Projects: real schema, read-only access, current attempts/SHA, stale data, safe links, signed owner authorization and HTTP boundaries verified");

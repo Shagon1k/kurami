@@ -33,7 +33,11 @@ export function createProjectsServer(options: {
   origin?: string;
 } = {}): Server {
   const access = new ProjectsAccess({ team: process.env.PROJECTS_ACCESS_TEAM ?? "", audience: process.env.PROJECTS_ACCESS_AUDIENCE ?? "", ownerEmail: process.env.PROJECTS_OWNER_EMAIL ?? "" });
-  const authorize = options.authorize ?? (request => access.authorize(request));
+  const accessEnabled = process.env.PROJECTS_ACCESS_ENABLED ?? "0";
+  if (accessEnabled !== "0" && accessEnabled !== "1") throw new Error("Invalid PROJECTS_ACCESS_ENABLED");
+  const authorize = options.authorize ?? (accessEnabled === "1"
+    ? request => access.authorize(request)
+    : async () => "projects-origin");
   const snapshot = options.snapshot ?? collectProjectsSnapshot;
   const review = options.review ?? (process.env.PROJECTS_CONTROLS_ENABLED === "1" ? requestProjectsReview : null);
   const statusChange = options.statusChange ?? (process.env.PROJECTS_STATUS_ENABLED === "1" ? requestProjectStatus : null);

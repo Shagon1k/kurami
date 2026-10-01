@@ -20,14 +20,22 @@ must match the configured guild and parent channel. Preview links require an
 active running lease, an allowed hostname and an unexpired TTL. Rendering
 escapes issue titles, descriptions of run stages and other source text.
 
-All task pages, fragments and assets require a signed Cloudflare Access assertion
-for the configured application audience and owner email. `access.ts` verifies
-issuer, algorithm, time bounds, application type, audience, signature and owner.
-Missing configuration denies access. Public `/health` returns process liveness
-only; `/robots.txt` disallows indexing. Responses are private and are not cached
-by the browser. CSP restricts scripts, styles and connections to the same origin.
+The existing Cloudflare Zero Trust policy controls access to the tunnel route.
+Projects binds to loopback and serves pages, fragments, assets and enabled
+controls without a second application login. Audit records use
+`projects-origin`, which identifies the entry point rather than a verified user.
+Forwarded identity headers are not treated as a verified actor.
 
-The access protocol follows [Cloudflare's JWT validation guidance](https://developers.cloudflare.com/cloudflare-one/access-controls/applications/http-apps/authorization-cookie/validating-json/).
+Set `PROJECTS_ACCESS_ENABLED=1` to additionally require signed Cloudflare Access
+assertions. In that mode, `access.ts` verifies issuer, algorithm, time bounds,
+application type, audience, signature and owner email. Missing configuration
+denies access only when this mode is enabled. The optional validation follows
+[Cloudflare's JWT validation guidance](https://developers.cloudflare.com/cloudflare-one/access-controls/applications/http-apps/authorization-cookie/validating-json/).
+
+Public `/health` returns process liveness only; `/robots.txt` disallows indexing.
+Responses are private and are not cached by the browser. CSP restricts scripts,
+styles and connections to the same origin.
+
 The site has no dependency on Hub's renderer, controls or access module.
 
 ## Runtime and commands
@@ -42,9 +50,10 @@ npm run test:projects-browser
 
 `PROJECTS_PORT` defaults to the reserved port. `KURAMI_HOME` selects the directory
 containing `config/projects.yaml` and `state/orchestrator.db`; set it explicitly
-when running from a worktree. Private runtime variables are
+when running from a worktree. Optional application validation uses `PROJECTS_ACCESS_ENABLED=1`,
 `PROJECTS_ACCESS_TEAM`, `PROJECTS_ACCESS_AUDIENCE`, and `PROJECTS_OWNER_EMAIL`.
-The tracked systemd unit reads these from the untracked Projects environment file.
+The tracked systemd unit reads an optional untracked Projects environment file.
+Normal tunnel hosting does not require this file or the Access variables.
 
 The browser checks SQLite-derived HTML every 30 seconds; this is a proposed UI
 refresh interval. The server caches reads for five seconds. Project freshness
@@ -55,7 +64,7 @@ HTTP supports `GET` and `HEAD` for `/`, `/api/fragment`, and exact asset paths.
 With `PROJECTS_STATUS_ENABLED=1`, `POST /api/status` accepts a status request.
 With `PROJECTS_CONTROLS_ENABLED=1`, `POST /api/run-action` accepts other run
 controls. Other mutation routes are rejected. With `PROJECTS_CONTROLS_ENABLED=1`,
-`POST /api/ai-review` accepts an authenticated JSON request from the exact Projects
+`POST /api/ai-review` accepts a JSON request from the exact Projects
 origin. Missing or cross-site Origin, other content types and bodies over 4 KiB
 are rejected before the write adapter is called. Missing or incompatible SQLite state produces a
 visible unavailable model without initializing a database. Private auth assertions
@@ -71,7 +80,7 @@ already completed review evidence. A client nonce provides durable retry
 identity; an existing pending AI Review request from Discord is reused.
 
 Migration 33 adds `projects` to the source allowlist and a context table with the
-signed actor subject, PR URL and expected SHA. Its table rebuild preserves
+actor marker (or signed subject in Access mode), PR URL and expected SHA. Its table rebuild preserves
 control history, dependent evidence and indexes, including schema 32 recovery
 operations. The origin never applies migrations or starts workers itself.
 
@@ -134,7 +143,7 @@ the Run Store. Status intent uses its existing backup and recovery.
 
 `run-actions.ts` uses the existing control menu and `requestRunControl` admission
 policy exported from `controls/run.ts`. The CLI still uses these functions, with
-its existing source allowlist and defaults. Projects contributes its signed actor,
+its existing source allowlist and defaults. Projects contributes its actor marker,
 durable nonce and fingerprint of the displayed run, resources, PR/SHA and preview
 lease. Fresh source data, item presence, configured repository and latest run
 are revalidated in one `BEGIN IMMEDIATE` transaction. A different fingerprint
@@ -154,7 +163,7 @@ running lease for the currently observed commit. The migration rebuilds
 `preview_leases` to add `projects` to its review-source allowlist, preserving all
 leases, static metadata, indexes and triggers. Acknowledgement, required-preview
 satisfaction, history and owner audit commit together. The lease stores a hash
-of the actor with Projects provenance; the audit stores the signed subject.
+of the actor with Projects provenance; the audit stores the actor marker or signed subject in Access mode.
 Existing Discord/CLI acknowledgement behavior and output remain unchanged.
 
 Local and published discard require explicit confirmation in the browser and
@@ -169,18 +178,20 @@ paths or production services are required.
 
 ## Delivery and recovery
 
-The service unit is `deploy/systemd/kurami-projects.service`. Production requires
-the Access application, owner policy, tunnel route and explicit release approval.
-Route `projects.shagon1k.win` to `http://127.0.0.1:8777`. In
-`$KURAMI_HOME/secrets/projects-site.env` (mode `0600`), set
-`PROJECTS_ACCESS_TEAM`, the dedicated Projects application
-`PROJECTS_ACCESS_AUDIENCE`, and `PROJECTS_OWNER_EMAIL`. Do not reuse the Hub
-audience. Missing values deny all task pages, assets and controls.
+The service unit is `deploy/systemd/kurami-projects.service`. The owner confirmed
+that the Cloudflare route and its Zero Trust policy are configured. The origin
+serves `projects.shagon1k.win` on `http://127.0.0.1:8777`; no separate application
+Access configuration is required.
 
-After changing these values, run `systemctl --user restart
-kurami-projects.service`. `curl http://127.0.0.1:8777/health` checks liveness;
-opening the hostname through owner Access checks authentication and the
-dashboard. The health endpoint does not verify Access or database readiness.
+For optional application validation, set `PROJECTS_ACCESS_ENABLED=1`,
+`PROJECTS_ACCESS_TEAM`, the dedicated Projects application
+`PROJECTS_ACCESS_AUDIENCE`, and `PROJECTS_OWNER_EMAIL` in
+`$KURAMI_HOME/secrets/projects-site.env` (mode `0600`). Do not reuse the Hub audience.
+After changing runtime values, run
+`systemctl --user restart kurami-projects.service`.
+`curl http://127.0.0.1:8777/health` checks liveness; opening the hostname checks
+the Cloudflare route and dashboard. The health endpoint does not verify Access
+or database readiness.
 Stopping only the Projects service rolls back this interface. The existing
 GitHub/Discord process and Run Store continue to provide their normal workflow.
 
