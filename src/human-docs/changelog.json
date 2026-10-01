@@ -264,6 +264,19 @@
       "ru": "",
       "exclusionScope": "docs-only",
       "exclude": "Recorded the preceding Projects counter filter correction in the bilingual changelog; this commit changes only the documentation ledger."
+    },
+    "0373d735ef94a78f0fd8845f87444269c8ad9228": {
+      "category": "improved",
+      "en": "Projects desktop table rows use 16-pixel cell padding for more space around task details.",
+      "ru": "В строках таблицы Projects на компьютере отступы внутри ячеек увеличены до 16 пикселей.",
+      "page": "owner-controls"
+    },
+    "80ae861453ebce96baf304df6b948f04fb1e7225": {
+      "category": "operations",
+      "en": "",
+      "ru": "",
+      "exclusionScope": "docs-only",
+      "exclude": "Recorded the preceding Projects mobile layout correction in the bilingual changelog; this commit changes only the documentation ledger."
     }
   }
 }
