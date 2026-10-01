@@ -14,6 +14,7 @@ import {ProposalStore} from "../src/human-docs/approval/store.ts";
 import {surfaceFor} from "../src/human-docs/approval/surface.ts";
 import {DiscordClient} from "../src/human-docs/approval/discord.ts";
 import {releaseDocs,tick,type WorkerConfig} from "../src/human-docs/approval/worker.ts";
+import {releaseCopiesToPrune} from "../src/human-docs/approval/releases.ts";
 
 const appRoot=resolve(import.meta.dirname,"..");
 const scratch=mkdtempSync(resolve(tmpdir(),"kurami-docs-approval-"));
@@ -33,6 +34,23 @@ assert.match(branchName("dp_0123456789ab",new Date("2026-10-05T03:00:00Z")),/^do
 assert.throws(()=>parseSummary({summaryRu:"short",summaryEn:"x".repeat(20)}));
 assert.equal(parseSummary({summaryRu:"Сводка для <@123> и @everyone.",summaryEn:"A summary for the owner."}).summaryRu.includes("@everyone"),false);
 assert.deepEqual(changedPages({a:{title:"A",hash:"1"},b:{title:"B",hash:"2"}},{a:{title:"A",hash:"9"},c:{title:"C",hash:"3"}}).map(page=>`${page.slug}:${page.change}`),["a:changed","c:added","b:removed"]);
+
+// --- Release copy pruning: newest rollbacks stay, old leftovers go, nothing else is touched ------------
+{
+  const root=mkdtempSync(resolve(tmpdir(),"kurami-docs-prune-"));
+  const day=24*60*60_000,now=Date.now();
+  const copy=(name:string,ageMs:number,release=true)=>{
+    mkdirSync(resolve(root,name),{recursive:true});
+    if(release)writeFileSync(resolve(root,name,"build.json"),JSON.stringify({mode:"release"}));
+    utimesSync(resolve(root,name),new Date(now-ageMs),new Date(now-ageMs));
+  };
+  for(let index=1;index<=5;index+=1)copy(`rollback-r${index}`,index*60_000);
+  copy("failed-old",2*day);copy("failed-new",60_000);copy("stage-old",3*day);
+  copy("rollback-not-a-release",9*day,false);copy("release",0);copy("audit-source",9*day,false);
+  assert.deepEqual(releaseCopiesToPrune(root,{keep:3,now}).sort(),["failed-old","rollback-r4","rollback-r5","stage-old"]);
+  assert.deepEqual(releaseCopiesToPrune(root,{keep:3,now,protect:["rollback-r5"]}).sort(),["failed-old","rollback-r4","stage-old"]);
+  rmSync(root,{recursive:true,force:true});
+}
 
 // --- Fixture: bare remote seeded from this checkout (full history: the docs checks read the changelog baseline)'s main, plus the worker's source clone ------------
 const remote=resolve(scratch,"remote.git");
