@@ -231,6 +231,26 @@
       "en": "Projects adds an Active only toggle beside Sync to show work in progress and tasks awaiting owner attention while hiding backlog, deferred and done cards. The choice persists across search, project changes and refreshes.",
       "ru": "В Projects добавлена кнопка «Только активные» рядом с синхронизацией: она показывает задачи в работе и ожидающие внимания владельца, скрывая Backlog, Deferred и Done. Выбор сохраняется при поиске, смене проекта и обновлении.",
       "page": "owner-controls"
+    },
+    "21641745115427a9b2a4f4a61244dcfdf0492cc0": {
+      "category": "fixed",
+      "en": "Projects uses matching counts and filters for active tasks and tasks needing your attention. Both counters are compact toggle buttons beside the task total; Sync stays on the right.",
+      "ru": "В Projects счётчики активных задач и задач, требующих внимания, совпадают с результатами фильтрации. Оба счётчика стали компактными кнопками рядом с общим числом задач; синхронизация остаётся справа.",
+      "page": "owner-controls"
+    },
+    "f009adf793452eb248e90af9a74bc501268d2eaf": {
+      "category": "operations",
+      "en": "",
+      "ru": "",
+      "exclusionScope": "docs-only",
+      "exclude": "Recorded the preceding Projects and shared controls changes in the bilingual changelog; this commit changes only the documentation ledger."
+    },
+    "97dda239045301bdeadad5bb5b1e68175a33f812": {
+      "category": "operations",
+      "en": "",
+      "ru": "",
+      "exclusionScope": "docs-only",
+      "exclude": "Recorded the preceding Projects and shared controls changes in the bilingual changelog; this commit changes only the documentation ledger."
     }
   }
 }
