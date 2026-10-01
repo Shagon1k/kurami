@@ -1,6 +1,12 @@
 {
   "baseline": "4a38c09",
   "commits": {
+    "d4bfa6653804e4d5fdd27bc8ebb0c778f2c1129d": {
+      "category": "fixed",
+      "en": "Fixed authenticated PWA manifest loading, kept Apps links on the unified Kurami origin, and corrected Digest first-load resources and section navigation. Shared font caching, compact dates, footers and mobile chart/control layout now use common patterns. Android installation acceptance remains separate.",
+      "ru": "Исправлены загрузка manifest PWA после авторизации, переходы Apps внутри единого адреса Kurami и первая загрузка ресурсов и разделов Digest. Кеш шрифтов, компактные даты, футеры и мобильная раскладка графиков и контролов используют общие решения. Приёмка установки на Android остаётся отдельной проверкой.",
+      "page": "access"
+    },
     "cdaf149fb63b6e39e1e0cb156f03acc0049f5f6d": {
       "category": "new",
       "en": "Added a unified private entry for Hub, Digest, Projects and Docs with one Kurami PWA, same-origin Apps navigation and signed Access checks. Native addresses remain available; full visual and phone acceptance are separate.",
