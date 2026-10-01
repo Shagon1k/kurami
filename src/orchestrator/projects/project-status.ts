@@ -108,7 +108,7 @@ function loadRun(database: DatabaseSync, runId: string): RunRow {
              EXISTS (
                SELECT 1 FROM run_state_history completion_history
                WHERE completion_history.run_id = r.run_id
-                 AND completion_history.reason = 'codex_cli_park_completed'
+                 AND completion_history.reason IN ('codex_cli_park_completed','codex_protocol_park_completed')
              ) AS completion_parked,
              EXISTS (
                SELECT 1 FROM run_autonomous_successions successor

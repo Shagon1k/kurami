@@ -137,7 +137,10 @@
     "composio:install-hermes-read": "node src/connectors/composio/cli.ts install-hermes-read",
     "composio:install-hermes-automation": "node src/connectors/composio/cli.ts install-hermes-automation",
     "skills:check": "bash bin/sync-hermes-skills.sh --check",
-    "skills:sync": "bash bin/sync-hermes-skills.sh --apply"
+    "skills:sync": "bash bin/sync-hermes-skills.sh --apply",
+    "test:legacy-ci-timeout-recovery": "node tests/verify-legacy-ci-timeout-recovery.ts",
+    "test:codex-protocol": "node tests/verify-codex-protocol.ts && node tests/verify-protocol-lifecycle.ts",
+    "test:codex-protocol-smoke": "node tests/smoke-codex-protocol.ts"
   },
   "keywords": [],
   "author": "",

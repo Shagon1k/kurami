@@ -670,6 +670,7 @@ esac
     assert(successorCount.count === 1, "Repeated request created a second writer");
 
     const tmuxCalls = await readFile(fakeTmuxLog, "utf8");
+    assert(!tmuxCalls.includes("HERMES_CODEX_TASK_ID="), "Successor must retain TUI execution");
     assert(
       tmuxCalls.includes("HERMES_INITIAL_PROMPT_FILE=") &&
         tmuxCalls.includes(`HERMES_WORKTREE_PATH=${worktree}`),

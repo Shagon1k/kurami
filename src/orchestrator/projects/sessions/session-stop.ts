@@ -1,3 +1,5 @@
+import { taskForSession, protocolTurnSucceeded } from "../../integrations/codex/task-store.ts";
+import { protocolRemoteBlocker, stopProtocolTask, releaseProtocolTask } from "./protocol-session.ts";
 import { mkdir, realpath, stat, writeFile } from "node:fs/promises";
 import { relative, resolve } from "node:path";
 import type { DatabaseSync } from "node:sqlite";
@@ -251,6 +253,20 @@ export async function leaveCliSession(
   apply: boolean,
   targetOwner: "none" | "remote",
 ): Promise<void> {
+  const task = taskForSession(database,run.tmux_session_name);
+  if (task && !task.released_at) {
+    if (apply && run.execution_mode !== "live") fail("Protocol release requires live mode");
+    if (targetOwner === "remote") fail(protocolRemoteBlocker);
+    if (run.owner_state !== "cli" || run.stop_reason !== null ||
+        !["running","parked_review"].includes(run.run_state)) fail("Protocol task is not parkable");
+    if (!protocolTurnSucceeded(database,task.session_name)) fail("Exact protocol turn has not completed successfully with a process stop receipt");
+    const activeFix = database.prepare(`SELECT round_id,round_number,round_state,source_head_sha,codex_thread_id,failure_reason
+      FROM run_review_fix_rounds WHERE round_id=? AND round_state='running'`).get(task.context_id) as ReviewFixDeliveryRound | undefined;
+    if (activeFix) await guardReviewFixDelivery(database,run,registry.projects[run.project]!,activeFix,true,apply);
+    if (apply) releaseProtocolTask(database,task,"parked_review","codex_protocol_park_completed");
+    process.stdout.write(`${JSON.stringify({ok:true,apply,action:"protocol_parked",taskId:task.task_id,turnId:task.turn_id})}\n`);
+    return;
+  }
   if (
     targetOwner === "remote" &&
     run.run_state === "remote_owned" &&
@@ -546,6 +562,17 @@ export async function cancelCliSession(
   run: SessionRun,
   apply: boolean,
 ): Promise<void> {
+  const task = taskForSession(database,run.tmux_session_name);
+  if (task && !task.released_at) {
+    if (apply && run.execution_mode !== "live") fail("Protocol cancellation requires live mode");
+    if (!run.stop_reason || run.owner_state !== "cli") fail("Protocol cancellation has no owner stop intent");
+    if (apply) {
+      const stopped = await stopProtocolTask(database,task,"cancel");
+      releaseProtocolTask(database,stopped,"stopping","codex_protocol_stop_completed");
+    }
+    process.stdout.write(`${JSON.stringify({ok:true,apply,action:"protocol_stopped",taskId:task.task_id})}\n`);
+    return;
+  }
   const stopIntent = run.stop_reason;
   if (
     (stopIntent !== "cancelled" && stopIntent !== "completed") ||

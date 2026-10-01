@@ -1,9 +1,11 @@
 import { spawnSync } from "node:child_process";
+import { transcriptHasCompletedTurn } from "./codex-terminal.ts";
 import { readFile } from "node:fs/promises";
 import { DatabaseSync } from "node:sqlite";
 import { parse } from "yaml";
 import { loadEffectiveOrchestratorConfig } from "../settings/runtime-settings.ts";
-import { transcriptHasCompletedTurn } from "./codex-terminal.ts";
+import { taskForSession, protocolTurnSucceeded } from "../integrations/codex/task-store.ts";
+import { reconcileProtocolTasks } from "../projects/sessions/protocol-session.ts";
 import { planAutomatic } from "./automatic-plan.ts";
 import { baseRunSelect, type RunRow } from "./run-read-model.ts";
 import { planForRequest, type PlannedAction, type RequestRow } from "./request-plan.ts";
@@ -157,7 +159,7 @@ function buildPlans(
   }
   for (const run of automatic) {
     if (requestedRuns.has(run.run_id)) continue;
-    const plan = planAutomatic(run, registry, managedCliTurnCompleted);
+    const plan = planAutomatic(run, registry, (session) => taskForSession(database,session) ? protocolTurnSucceeded(database,session) : managedCliTurnCompleted(session));
     if (plan) plans.push(plan);
   }
   return plans.map((plan) => {
@@ -200,6 +202,7 @@ export async function runOrchestratorControllerCli(): Promise<void> {
   const database = new DatabaseSync(databasePath, { timeout: 5_000 });
   database.exec("PRAGMA foreign_keys = ON; PRAGMA busy_timeout = 5000;");
   if (apply) {
+    await reconcileProtocolTasks(database);
     reconcileBeforePlanning(database, config);
   }
   let llmCount = runningLlmCount(database);
@@ -236,6 +239,10 @@ export async function runOrchestratorControllerCli(): Promise<void> {
       reconcileAfterAppliedAction(database, config);
     } catch (error) {
       const reason = error instanceof Error ? error.message : String(error);
+      if (plan.requestId && reason.includes("protocol_remote_handoff_unverified"))
+        completeRequest(database,plan.requestId,"failed",{
+          action:"protocol_remote_handoff_unverified",reason,
+        });
       if (process.env.CONTROLLER_QUIET === "1") {
         process.stderr.write(
           `${JSON.stringify({

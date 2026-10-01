@@ -2,6 +2,7 @@ import { execFileSync } from "node:child_process";
 import { resolve } from "node:path";
 import { resolveKuramiHome } from "../../../core/kurami-home.ts";
 import { DatabaseSync } from "node:sqlite";
+import { turnFailureCode } from "../../integrations/codex/task-store.ts";
 import { runDetachedReview } from "../../integrations/codex/app-server.ts";
 import {
   createGitHubAppInstallationToken,
@@ -508,14 +509,20 @@ export async function runAiReviewWorkerCli(): Promise<void> {
       title: `PR #${row.pull_request_number} · AI Code Review`,
       instructions: buildReviewInstructions(row, source.context),
       outputSchema: reviewOutputSchema,
-      onStarted: (threadId) => {
+      onCompleted: (threadId,turnId,status,error) => {
+        database.prepare(`UPDATE run_ai_reviews SET codex_turn_status=?,codex_failure_code=?
+          WHERE review_id=? AND codex_thread_id=? AND codex_turn_id=? AND codex_turn_status IS NULL`)
+          .run(status,status === "failed" ? turnFailureCode(error) : status === "interrupted" ? "protocol_turn_interrupted" : null,
+            reviewId,threadId,turnId);
+      },
+      onStarted: (threadId, turnId) => {
         database
           .prepare(
-            `UPDATE run_ai_reviews SET codex_thread_id=?,
+            `UPDATE run_ai_reviews SET codex_thread_id=?, codex_turn_id=?,
                updated_at=strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
              WHERE review_id=? AND review_state='running'`,
           )
-          .run(threadId, reviewId);
+          .run(threadId, turnId, reviewId);
       },
     });
     const parsed = parseReviewResult(result.review);

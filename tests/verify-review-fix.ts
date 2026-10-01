@@ -553,6 +553,9 @@ esac
            '01a-review-fix-completed')`,
       )
       .run(requestId, sourceSha);
+    lifecycleState.exec(`INSERT INTO run_codex_tasks(task_id,run_id,kind,context_id,session_name,thread_id,turn_id,phase,turn_status,stopped_at,worktree_path,branch_name)
+      SELECT 'task-'||f.round_id,f.run_id,'review_fix',f.round_id,rr.tmux_session_name,rr.codex_thread_id,'turn-'||f.round_id,'terminal','completed',strftime('%Y-%m-%dT%H:%M:%fZ','now'),rr.worktree_path,rr.branch_name
+      FROM run_review_fix_rounds f JOIN run_resources rr USING(run_id) WHERE f.round_id='rfr_feedface1234'`);
     lifecycleState.close();
 
     const lifecycleController = runNode(
@@ -789,6 +792,9 @@ esac
         `DELETE FROM run_control_requests WHERE request_id='rq_duplicate_active'`,
       );
     }
+    secondFixState.exec(`INSERT INTO run_codex_tasks(task_id,run_id,kind,context_id,session_name,thread_id,turn_id,phase,turn_status,stopped_at,worktree_path,branch_name)
+      SELECT 'task-'||f.round_id,f.run_id,'review_fix',f.round_id,rr.tmux_session_name,rr.codex_thread_id,'turn-'||f.round_id,'terminal','completed',strftime('%Y-%m-%dT%H:%M:%fZ','now'),rr.worktree_path,rr.branch_name
+      FROM run_review_fix_rounds f JOIN run_resources rr USING(run_id) WHERE f.run_id='r_review_fix' AND f.round_state='running'`);
     secondFixState.close();
     assert(duplicateActiveRejected, "A second active review-fix round was admitted");
 
@@ -1362,6 +1368,9 @@ esac
            'https://example.invalid/pulls/242',?,'[]','01a-review-fix-dirty')`,
       )
       .run(dirtySourceSha);
+    dirtyState.exec(`INSERT INTO run_codex_tasks(task_id,run_id,kind,context_id,session_name,thread_id,turn_id,phase,turn_status,stopped_at,worktree_path,branch_name)
+      SELECT 'task-'||f.round_id,f.run_id,'review_fix',f.round_id,rr.tmux_session_name,rr.codex_thread_id,'turn-'||f.round_id,'terminal','completed',strftime('%Y-%m-%dT%H:%M:%fZ','now'),rr.worktree_path,rr.branch_name
+      FROM run_review_fix_rounds f JOIN run_resources rr USING(run_id) WHERE f.run_id='r_review_fix_dirty' AND f.round_state='running'`);
     dirtyState.close();
 
     const dirtyPark = runNode(
@@ -1401,8 +1410,8 @@ esac
     };
     assert(
       preserved.state === "needs_attention" &&
-        preserved.owner_state === "none" &&
-        preserved.tmux_session_name === null &&
+        preserved.owner_state === "cli" &&
+        preserved.tmux_session_name === "cx-tt-142-review-fix" &&
         preserved.codex_thread_id === "01a-review-fix-dirty" &&
         preserved.previous_codex_thread_id === "01a-primary-dirty" &&
         preserved.round_state === "needs_attention" &&
@@ -1424,7 +1433,7 @@ esac
       lifecycleEnv,
     );
     assert(
-      cleanupFailure.includes("staged or uncommitted work") &&
+      (cleanupFailure.includes("staged or uncommitted work") || cleanupFailure.includes("not ready for review fix cleanup")) &&
         (await readFile(archiveLog, "utf8")).trim().split("\n").join(",") ===
           "01a-review-fix-completed,01a-review-fix-completed-2",
       "Dirty review-fix task was archived during cleanup",

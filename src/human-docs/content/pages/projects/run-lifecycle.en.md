@@ -50,6 +50,8 @@ edge stopping -> cancelled "cancel"
 edge stopping -> attn "blocked" accent
 ```
 
+CI repair and review fix use exact app-server thread and turn receipts plus acknowledged process exit. Primary writers, successors and sessions started before this release keep TUI completion observation, runtime limits and Remote handoff. AI review retains its read-only protocol path. Git, PR and CI results remain separate from task completion; see [Codex session](@codex-sessions).
+
 ## Three fields
 
 `state` says what stage the run is at. `owner_state` says who holds the Codex task now: `none` is nobody, `cli` is a managed Kurami tmux session, `remote` is you in the Codex app. `stop_reason` is the stop intent: empty, `cancelled` (cancellation) or `completed` (Done). Cancellation beats everything: a run with `stop_reason = cancelled` cannot be revived by a move to Human Review or Done, nor by the Take control button. That is why the stop reason is stored apart from the state: after a failure the controller reads it and continues the cancellation.
@@ -82,7 +84,7 @@ The states `handoff_pending`, `waiting_human` and `failed` are allowed by the da
 | → `starting` | Working-copy creation: start | `worktree_provisioning_started` |
 | → `needs_attention` | Working-copy creation: git error | `worktree_provisioning_failed` |
 | `starting` → `running` | Codex start | `codex_initial_turn_started` |
-| `running` → `parked_review` | Session release: turn finished | `codex_cli_park_completed` |
+| `running` → `parked_review` | Session release: turn finished | `codex_cli_park_completed` / `codex_protocol_park_completed` |
 | `running` → `remote_owned` | Handoff | `codex_cli_handoff_completed` |
 | `parked_review` → `remote_owned` | Continue in Codex, no session | `remote_claim_completed` |
 | `remote_owned` → `running` | Continue autonomously: a fresh Codex task | `autonomous_successor_claimed` |

@@ -23,7 +23,7 @@ export function transcriptHasCompletedTurn(transcript: string): boolean {
     /(?:^|\n)\s*─+\s*Worked for[^\n]*─+\s*\n[\s\S]*?^\s*› Ask Codex to do anything\b/imu.test(
       tail,
     ) ||
-    /^[ \t]*Worked for \d+(?:h|m|s)(?: \d+(?:m|s))* · \d{1,2}:\d{2}[ \t]*\n(?:[ \t]*\n)*[ \t]*› Ask Codex to do anything[ \t]*$/mu.test(
+    /^[ \t]*Worked for \d+(?:h|m|s)(?: \d+(?:m|s))* [·•] \d{1,2}:\d{2}[ \t]*\n(?:[ \t]*\n)*[ \t]*› Ask Codex to do anything[ \t]*$/mu.test(
       tail,
     );
   return completed && !transcriptWaitingOnApproval(tail) && !transcriptBusy(tail);

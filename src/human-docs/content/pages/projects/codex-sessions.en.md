@@ -8,180 +8,117 @@ order: 50
 next: engineering-evidence
 ---
 
-A Codex session is an ordinary interactive Codex CLI that Kurami starts in tmux inside a separate working copy (worktree) and supervises until the turn ends.
+Kurami runs CI repair and review-fix tasks through app-server and records exact thread and turn identities in the Run Store.
 
 :::glance
-- What it does: creates a branch and working copy, starts Codex in it, watches the session and releases it when the turn is finished
-- Who starts it: the controller, one step per one-minute cycle
-- Where it runs: the Codex process inside a tmux session `cx-…`; between steps Kurami holds nothing in memory
-- State: `runs` and `run_resources` in the Run Store — session owner, tmux name, Codex thread id
-- Limits: one Codex at a time by default (1 to 3 in settings), at most three tmux sessions
-- What you see: card stages "Codex working", "Finalizing for review", "Needs attention"
+- Protocol scope: CI repair and review fix; AI review retains its read-only protocol
+- Trigger: the controller starts one managed task in its assigned working copy
+- Runtime: a private stdio app-server worker; tmux supervises the process
+- State: task identity, thread id, turn id, completion status and process stop receipt
+- Result: a completed turn can be parked; PR, Git and CI evidence remain separate
+- TUI path: primary writers, successors, human-control and legacy sessions keep completion observation and Remote controls
 :::
 
 ```diagram
 kind: graph
-title: From an admitted run to a working Codex
-desc: The controller calls scripts one after another. The first creates a branch and working copy from the main clone. The second starts a wrapper script in tmux, which starts Codex. A separate call finds the Codex thread through app-server and records its id in the Run Store.
-node controller "Controller" "one step a minute" at 1,0
-node runs "run_resources" "worktree, tmux, thread" store at 0,1
-node provision "Create the copy" "git worktree add" at 1,1
-node repo "Main clone" "source only" external at 2,1
-node worktree "Branch and copy" "TT-42_add-dark-mode-toggle" at 1,2
-node tmux "tmux cx-tt-42-3f9a1c" "launcher script" at 0,3
-node codex "Codex CLI" "workspace-write sandbox" at 1,3
-node appserver "codex app-server" "find and name thread" external at 2,3
-group kurami "Server" controller runs provision repo worktree tmux codex appserver
-edge controller -> provision "creates"
-edge provision -> repo "fetch"
-edge provision -> worktree "adds"
-edge controller -> tmux "starts"
-edge tmux -> codex "exec"
-edge codex -> worktree "writes code"
-edge controller -> appserver "sync"
-edge controller -> runs "records"
+title: Exact execution identity
+desc: The controller claims a task and launches a worker. The worker starts one thread and one turn through app-server. Exact completion events and process stop receipts go to the Run Store. The controller checks these receipts before parking; PR and CI evidence are checked separately.
+node ctl "Controller" "claim and park" at 0,0
+node worker "Managed worker" "tmux supervisor" at 1,0
+node server "app-server" "private stdio" at 2,0
+node store "Run Store" "task, thread, turn, status" store at 1,1
+node worktree "Working copy" "one writer" store at 2,1
+node evidence "Git / PR / CI" "independent outcome" external at 0,1
+edge ctl -> worker "launch"
+edge worker -> server "thread/start, turn/start"
+edge server -> worktree "sandboxed tools"
+edge worker -> store "exact receipts"
+edge ctl -> store "read"
+edge ctl -> evidence "verify"
 ```
 
-## Branch and working copy
+Primary autonomous writers and successors continue to launch through the existing TUI. Human-control and Remote handoff stay on that path. The migration creates no inferred protocol identities for older sessions.
 
-A working copy is a separate directory with its own branch, created from a fresh main clone of the repository. That way Codex edits files without touching the main clone, and two runs do not disturb each other.
+## Working copy and credentials
 
-The controller calls the provisioning script when a run is admitted and the board data is fresh (no older than two minutes). The script first checks that the path lies inside the project's working-copy root, that the main clone's `origin` matches the project repository, and that neither the directory nor a local branch of that name exists. It then moves the run to `starting` in one transaction, runs `git fetch --prune origin main` and creates the branch from the fetched `origin/main` commit. That commit is saved as `base_sha`; later checks use it to confirm the copy has not drifted from its base.
+Kurami creates a separate linked working copy and branch for each admitted run. Before dispatch, it checks the configured root, repository, branch and recorded base commit. The launcher also checks that the working copy belongs to the exact canonical clone and has its own Git directory.
 
-[Admission](@project-admission) chooses the branch and directory names. For the issue "[Feature]: Add dark mode toggle" that is the branch `TT-42_add-dark-mode-toggle` and the directory `…/.worktrees/tailortales/TT-42_add-dark-mode-toggle/TailorTales`. The parent directory is unique per attempt, and the last segment equals the repository name so that the Codex app shows a readable project name.
+The worker uses `workspace-write`, with write access to the copy, its isolated Git directory and the common Git directory. Network access stays enabled for the existing engineering workflow. The canonical source directory is not added as a writable root. The Run Store and prompt directory are outside the model's writable roots.
 
-If anything fails, the run goes to `needs_attention` and the resource to `partial`. Kurami deletes nothing on its own: whatever got created stays.
+The launcher reads the existing writer credential from `secrets/github.env`, which must have private permissions. The prompt file has mode 600 and is deleted after reading. The technical worker receives the writer's `GH_TOKEN`; unrelated secrets and reviewer GitHub App credentials are removed. Credentials, prompts and command payloads are not stored in protocol receipts. Structured AI review keeps its separate read-only app-server path and exact output schema.
 
-## Starting in tmux
+## Starting and completing a task
 
-The controller runs Codex in tmux because you need the same thread: you can open it in the Codex app and continue yourself. There is no separate "agent" process — an ordinary interactive CLI runs, and Kurami looks at its terminal.
+A task claim records the run, task kind, context id and exact supervisor name. A unique active-task constraint prevents two protocol writers for one run. CI repair and review fix also retain their exact source SHA and original evidence snapshot.
 
-The steps: the controller checks that the copy and branch are the expected ones and that `base_sha` is an ancestor of the current HEAD. It picks the session name `cx-tt-42-3f9a1c` (project prefix, issue number, first six characters of the run id) and records it in `run_resources` inside a transaction that also checks the three-session limit. Then it writes the prompt to a file `state/session-prompts/<run>-<time>.b64` (mode 600) and creates a tmux session that executes `bin/launch-codex-session.sh`. The tmux environment holds no secrets.
+The worker records the thread returned by `thread/start`, then records the turn returned by `turn/start`. These replies bind the task directly; protocol tasks do not search for the newest conversation in the working directory. The technical task's thread is also recorded in its repair attempt or review-fix round. The previous main thread stays in `previous_codex_thread_id` until the existing cleanup restores it.
 
-The launcher works like a checkpoint. It refuses to start if `secrets/github.env` is readable by the group or others, or if the working copy is not a linked worktree of exactly the main clone named in the project settings. It then reads and deletes the prompt file, loads `GH_TOKEN` and replaces itself with the Codex process:
+Only `turn/completed` for that exact thread and turn can record terminal status. `completed`, `failed` and `interrupted` are distinct. The first terminal receipt wins; duplicate or conflicting replays do not change it. Events for another thread, an older turn or a released task have no authority.
 
-```text title="Codex flags"
-codex -C <worktree> --sandbox workspace-write
-  --add-dir <worktree git dir> --add-dir <common git dir>
-  -c sandbox_workspace_write.network_access=true
-  --ask-for-approval never -c approvals_reviewer="auto_review"
-  -c projects."<main clone>".trust_level="trusted"  "<prompt>"
-```
+After completion the worker closes app-server and waits for process exit before recording `stopped_at`. The controller parks only a completed turn with no failure code and an acknowledged stop. It then removes the exact supervisor mapping and records `parked_review`, owner `none`. Terminal text has no authority for protocol tasks. TUI sessions still use guarded completion observation, including `Worked for 50s • 09:50` followed by the idle prompt. Busy and approval prompts prevent completion.
 
-The `workspace-write` sandbox allows writing only to the copy and its git directories, the network is on, and Codex is not supposed to ask for approval: the only escalation path is the built-in automatic reviewer. When the Codex process exits, the tmux session disappears with it. A second later the controller checks that the session is alive and moves the run to `running` with owner `cli`.
+A completed turn does not prove that code was committed, pushed, reviewed or accepted by CI. The existing Git and PR checks verify delivery, and CI verifies the exact resulting SHA. Review fixes with undelivered local changes remain preserved for attention. Technical cleanup and review-thread resolution keep their existing evidence checks.
 
-## How Kurami finds the Codex thread
+## Restart, cancellation and limits
 
-Kurami learns the thread id after the start, because the CLI creates the thread itself. On the next minute the controller performs the `sync` step: through `codex app-server` it takes the newest CLI thread whose working directory is this copy, renames it to `[TT-42]: Add dark mode toggle` and records the UUID in `run_resources.codex_thread_id`. Technical tasks get a suffix: ` · CI fix 1/2`, ` · Review fix 1`, ` · Autonomous continuation 1`.
+Controller restarts read the persisted task and completion receipt. If a worker disappears before acknowledging process exit, the controller reads only that exact saved thread and turn from stored protocol history. It does not resume the thread or submit another turn. Even recovered completion does not establish process shutdown: ownership stays fenced in `needs_attention` until the uncertain process state is resolved.
 
-## Who owns the session
+A lost `turn/start` response is an ambiguous dispatch. Kurami records the uncertainty and stops the private process; it does not retry the request. This prevents a restart from silently creating a second turn.
 
-Every working copy has at most one writer, shown by the `owner_state` field. `none` means no writer, `cli` means a managed tmux session owns it, `remote` means the Codex app drives the task. The rule is simple: two processes writing to one branch would corrupt it, and that cannot be detected afterwards.
+For protocol tasks, Cancel run and runtime limits request interruption through `turn/interrupt`, then wait for the exact terminal event and process exit. A missing stop acknowledgement preserves writer ownership. The default time limits remain 240 minutes for the main writer and 90 minutes for technical workers. A structured usage or billing block has its own failure code; it is not reported as a runtime timeout.
 
-```diagram
-kind: graph
-title: Owner of the working copy
-desc: A managed session owns the copy while a turn runs. When the turn is finished Kurami releases the copy and there is no owner. Take control and the human-control label hand the thread to the Codex app; Continue autonomously starts a new thread. A time limit or an approval prompt stops the run in needs_attention.
-node none "owner: none" "nobody writes" state at 0,1
-node cli "owner: cli" "tmux and Codex" state at 1,0
-node remote "owner: remote" "the Codex app" state at 2,1
-node attn "needs_attention" "waits for you" wait at 2,0
-edge none <-> cli "start · turn end"
-edge cli <-> remote "Take control"
-edge cli -> attn "approval, time limit" accent
-```
+Unexpected approval, permission, user-input or unknown server requests fail closed. Command and file approvals are declined, permission grants are empty, and unsupported requests receive an error. The task stops and needs attention; no permission expansion is accepted automatically.
 
-Handing a session to you is the `handoff` step, triggered by the Take control button or the `human-control` label. The controller presses Escape, waits up to ten seconds for the screen to be calm twice in a row, closes Codex and tmux and records the owner `remote`. The thread stays the same; what you see is in [Human control](@human-control).
+## Ownership and Remote
 
-## How Kurami knows the turn has finished
+The owner field keeps the same meanings: `cli` is Kurami's managed writer, `none` has no writer, and `remote` belongs to you in Codex Remote. Continue autonomously from a Remote-owned run still requires your explicit confirmation that the previous task is finished. It creates a fresh task and leaves the Remote thread as history.
 
-Kurami treats a turn as finished when specific lines appear in the terminal, not when the process exits. After its answer Codex stays alive and waits for the next message: the process does not end by itself. The sign of the end is a block `Worked for 32m 8s · 10:37` followed by the prompt `› Ask Codex to do anything`, with neither "Working (" nor an approval question on the screen.
+Take control and Continue in Codex remain in the controls. Primary autonomous writers, fresh successors and human-control sessions retain the existing TUI handoff and Remote flow. Legacy sessions keep their completion path and limits. For an app-server-created thread, both live handoff and a later Remote claim report `protocol_remote_handoff_unverified`. The installed daemon and remote-control commands do not establish a verified transfer from a private stdio worker to the paired mobile host. That integration must be verified before Kurami can record Remote ownership for such a thread.
 
-When an autonomous run shows that sign, the controller performs `park`. It captures the screen once more, saves its tail to `logs/session-handoffs/` (mode 600), sends Codex Ctrl-U and Ctrl-D and waits up to ten seconds for it to exit. If the turn is complete and the process still holds on after a second, the session is killed: nothing is lost, the turn is over. The run then moves to `parked_review`, the owner to `none`, and the tmux name is cleared.
-
-```diagram
-kind: sequence
-desc: The controller captures the tmux screen, sees a finished turn, sends Codex an exit signal, checks that tmux is gone and records the release in the Run Store.
-actor ctl "Controller"
-actor tmux "tmux"
-actor codex "Codex"
-actor db "Run Store"
-self ctl "capture-pane: turn finished?"
-msg ctl -> tmux "Ctrl-U, Ctrl-D"
-msg tmux -> codex "end of input"
-self codex "process exits"
-note tmux "session gone"
-msg ctl -> db "parked_review, owner none"
-```
-
-## The observer and the time limits
-
-The observer is a terminal check at the start of every minute that catches stuck sessions, and the time limit stops sessions that run too long. Both work independently of the controller, so a fault in one does not hide a problem in the other.
-
-The observer looks only at sessions with owner `cli`. It notices five situations:
-
-| What it sees | What the observer does |
-|---|---|
-| Codex asks for approval (`Would you like to run…`, `Press enter to confirm`) | after two checks in a row moves the run to `needs_attention`, rejects a pending Take control and approves nothing; when the question is gone it returns the run to `running` |
-| "Approaching rate limits… Switch to … for lower credit usage?" | presses Enter at once and accepts the switch to the cheaper model |
-| the tmux session is missing | after two checks writes a message to the observer output |
-| the turn was interrupted (`Conversation interrupted`) | after two checks writes a message to the observer output |
-| a textual blocker ("Publishing is blocked", "cannot push", "Re-authenticate with") and a fresh `›` prompt | after two checks writes a message to the observer output |
-
-Only the approval case changes the run state. The other three are messages without a transition: the decision stays with you.
-
-The time limit counts from the start of the task: the main writer gets 240 minutes; technical tasks (CI repair, review fix) and AI review get 90 each. When time is up, Kurami presses Escape, types `/exit` and, if needed, kills the session. The terminal tail goes to `logs/runtime-timeouts/` and the run to `needs_attention`. The branch, working copy and thread stay.
-
-## Technical tasks and the thread swap
-
-A technical task is a fresh Codex started in the same working copy to fix CI or review comments. It gets a narrow prompt with the evidence and knows nothing about the first conversation. The main thread is not lost: Kurami performs a *thread swap*.
-
-When a technical task starts, the controller records `previous_codex_thread_id := codex_thread_id` and clears `codex_thread_id`. The `sync` step finds the new thread and stores it. When the task is done, the controller archives the technical thread through `codex app-server` and restores the main one. While `previous_codex_thread_id` is not empty the cleanup is unfinished, and Take control is unavailable.
-
-A similar device is the *successor*. When you handed the thread to the Codex app and press "Continue autonomously", Kurami does not resume the old thread. It builds a trimmed snapshot (HEAD, `git status`, both diffs up to 24,000 characters, CI and the latest AI review), strips secrets from it and starts a new Codex with the tmux name `…-a1`. The old thread stays as history.
-
-::::example Run TT-42 from the copy to the end of the turn
-The data is invented. Run `r_3f9a1c7e5b2d4a8c6e01`, TailorTales, issue "[Feature]: Add dark mode toggle".
-:::steps
-- **Controller** — 10:01 creates the copy `…/TT-42_add-dark-mode-toggle/TailorTales` from `origin/main` at commit `9c1d4e7`; the run becomes `starting`.
-- **Controller** — 10:02 creates tmux `cx-tt-42-3f9a1c`, the launcher starts Codex. The run is `running`, the owner `cli`.
-- **Controller** — 10:03 performs `sync`: the thread is named `[TT-42]: Add dark mode toggle` and stored in the database.
-- **Codex** — until 10:41 writes code, pushes and opens a draft PR. The screen shows `Worked for 38m 12s · 10:41` and the `›` prompt.
-- **Controller** — 10:42 sees the finished turn and performs `park`. tmux disappears, the run is `parked_review`, the owner `none`.
-- **Observer** — looked at the screen every minute and found nothing: `attention_kind` in `run_attention` is empty.
-:::
+::::example One completed technical turn, no new PR head yet
+Run `r_example42` starts a CI repair task `ct_example42`, thread `thread_example42` and turn `turn_example42`. Its exact completion event reports `completed`; process exit is acknowledged. The next controller cycle parks the run. The PR still has its source SHA, so CI success is not claimed. The repair attempt waits for independent evidence.
 ::::
+
+## A preserved legacy CI timeout
+
+An incident-specific recovery command covers the old CI repair that completed with `Worked for 50s • 09:50` but later timed out. It requires the allowlisted run and original request, task identities, transcript hash, clean linked worktree, unchanged source/PR SHA, fresh failed CI and no live writer or conflicting control. Other attention reasons are refused.
+
+The operator previews with the command below, then repeats it with `--apply` only after approval. Pause concurrent launch activity first. Recovery parks the run and preserves both threads and the original attempt; its billing blocker remains recorded as `legacy_ci_repair_completed_billing_block`. Automatic cleanup remains fenced, and recovery starts no writer or repair retry. Existing explicit cleanup remains a separate owner action before Remote takeover.
+
+```sh
+node src/orchestrator/projects/sessions/recover-legacy-ci-timeout.ts --run-id r_367ac0dcb458a2f56692
+```
+
+The command uses your configured `KURAMI_HOME`. The exact evidence and preconditions are in [the operator recovery procedure](repo:docs/codex-protocol-lifecycle.md).
 
 ## What can go wrong
 
 | Situation | What Kurami does | What you do |
 |---|---|---|
-| The copy cannot be created (fetch, path taken, foreign `origin`) | run to `needs_attention`, resource `partial` | read the cause, cancel the run |
-| tmux dies within a second of the start (permissions on `secrets/github.env`, no `codex`) | session removed, run to `needs_attention` | fix the cause, cancel and start again |
-| Codex asks for approval | after two checks `needs_attention`, nothing approved | open the session and decide, or take control |
-| The tmux session vanished mid-turn | observer message; state unchanged | Take control (works without tmux) or Cancel run |
-| Time is up (240 or 90 minutes) | process stopped, run to `needs_attention`, everything kept | read the terminal tail, take control or cancel |
-| The process crashed between "claim the resource" and "record the result" | the run stays in `starting`, no automatic continuation | cancel the run, check the copy and tmux by hand |
-| Codex did not open a PR | the card stays "Codex working" or "Ready for review" without CI | take control or cancel |
+| Task fails or is interrupted | preserves the copy and records a distinct protocol failure | inspect the cause and decide whether to cancel |
+| Permission request arrives | grants nothing, stops the worker, reports attention | inspect the requested operation |
+| Billing or usage block | records `external_billing_block` | resolve the account limit before starting further work |
+| Worker dies or start reply is lost | reads exact history; does not dispatch again | resolve the uncertain process boundary |
+| Process stop is not acknowledged | preserves the writer fence | check the private worker before releasing resources |
+| Take control targets a protocol thread | reports the explicit Remote integration blocker | keep the copy and use the documented recovery boundary |
+| A legacy TUI session has no protocol identity | keeps guarded TUI completion, runtime and handoff | use the existing controls |
+| Turn completes without a delivered PR or new CI result | waits for independent evidence | inspect the branch and PR |
 
 :::guarantees
-- One working copy is written by one owner: `none`, `cli` or `remote`.
-- The main clone of the repository is not a working directory; the launcher checks this at every start.
-- Kurami does not answer Codex's questions for you. The only automatic keypress is the switch to a cheaper model at the rate limit.
-- Only tmux sessions named `cx-…` (and `rv-…` for reviews) are killed.
-- A time limit keeps the branch, copy, thread and terminal tail.
-- Kurami does not resume a thread a human drove: it starts a new one.
+- One managed writer can own a run at a time.
+- Kurami never resumes or sends input to a Remote-owned thread.
+- Terminal text cannot complete a protocol task; legacy TUI completion remains available.
+- Missing identities, permission requests and unacknowledged stops fail closed.
+- Cancellation and failure preserve the branch, working copy and protocol identities.
 :::
 
 :::code-map
-- `src/orchestrator/projects/worktrees/provision.ts` — creating the branch and working copy
-- `src/orchestrator/projects/sessions/session-start.ts` — checks, session claim and tmux start
-- `bin/launch-codex-session.sh` — secret and copy checks, Codex flags
-- `src/orchestrator/projects/sessions/manager.ts` — `sync`, technical thread cleanup
-- `src/orchestrator/projects/sessions/session-stop.ts` — `park`, `handoff`, cancellation
-- `src/orchestrator/runtime/codex-terminal.ts` — end-of-turn signs in terminal text
-- `src/orchestrator/projects/sessions/observe.ts` — the observer
-- `src/orchestrator/projects/sessions/runtime-budget.ts` — time limits
-- `src/orchestrator/projects/sessions/autonomous-successor.ts` — starting the successor
-- `src/orchestrator/integrations/codex/app-server.ts` — the `codex app-server` client
+- `src/orchestrator/projects/sessions/session-start.ts` — writer and technical-task admission
+- `src/orchestrator/projects/sessions/autonomous-successor.ts` — fresh successor after the explicit Remote boundary
+- `bin/launch-codex-session.sh` — credential and worktree checks
+- `src/orchestrator/integrations/codex/managed-worker.ts` — protocol execution, interruption and shutdown
+- `src/orchestrator/integrations/codex/task-store.ts` — exact identities and deduplicated receipts
+- `src/orchestrator/projects/sessions/protocol-session.ts` — release, recovery and Remote blocker
+- `src/orchestrator/integrations/codex/app-server.ts` — JSON-RPC transport and structured AI review
+- `src/orchestrator/runtime/controller.ts` — completion planning
 :::

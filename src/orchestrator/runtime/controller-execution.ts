@@ -1,4 +1,6 @@
 import { execFileSync } from "node:child_process";
+import { isProtocolThread } from "../integrations/codex/task-store.ts";
+import { protocolRemoteBlocker } from "../projects/sessions/protocol-session.ts";
 import type { DatabaseSync } from "node:sqlite";
 import type { ControllerAction, PlannedAction } from "./request-plan.ts";
 import { previewCompletionOwnershipStable } from "./run-predicates.ts";
@@ -191,6 +193,8 @@ export function applyInternal(database: DatabaseSync, plan: PlannedAction): unkn
   try {
     let result: Record<string, unknown>;
     if (plan.action === "claim_remote") {
+      const mapping = database.prepare("SELECT codex_thread_id FROM run_resources WHERE run_id=?").get(plan.runId) as {codex_thread_id:string|null};
+      if (isProtocolThread(database,mapping?.codex_thread_id ?? null)) fail(protocolRemoteBlocker);
       const current = database
         .prepare(`SELECT state FROM runs WHERE run_id = ?`)
         .get(plan.runId) as { state: string };

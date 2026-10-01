@@ -26,6 +26,8 @@ export type OrchestratorConfig = {
   mode: "dry_run" | "live";
   limits: {
     max_tmux_sessions_global: number;
+    main_writer_timeout_minutes?: number;
+    technical_worker_timeout_minutes?: number;
   };
 };
 

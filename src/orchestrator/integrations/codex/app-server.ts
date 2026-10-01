@@ -75,15 +75,25 @@ export class AppServerClient {
   #fatalError: Error | null = null;
   #nextId = 1;
 
-  constructor(codexBin: string, options: { rejectServerRequests?: boolean } = {}) {
+  constructor(codexBin: string, options: {
+    rejectServerRequests?: boolean;
+    cwd?: string;
+    environment?: NodeJS.ProcessEnv;
+    args?: string[];
+    onNotification?: (message: RpcNotification) => void;
+    onInteraction?: (method: string) => void;
+  } = {}) {
     this.#rejectServerRequests = options.rejectServerRequests ?? false;
     // The worker owns GitHub App authentication around the detached review.
     // Do not expose tokens, app identity, or the private-key path to Codex.
-    this.#child = spawn(codexBin, ["app-server", "--listen", "stdio://"], {
-      env: detachedCodexEnvironment(),
+    this.#child = spawn(codexBin, ["app-server", "--listen", "stdio://", ...(options.args ?? [])], {
+      env: options.environment ?? detachedCodexEnvironment(),
+      cwd: options.cwd,
       stdio: ["pipe", "pipe", "pipe"],
     });
     const lines = createInterface({ input: this.#child.stdout });
+    if (options.onNotification) this.#notificationListeners.add(options.onNotification);
+    this.#onInteraction = options.onInteraction;
     lines.on("line", (line) => this.#handleLine(line));
     this.#child.stderr.setEncoding("utf8");
     this.#child.stderr.on("data", (chunk: string) => {
@@ -110,7 +120,17 @@ export class AppServerClient {
       }
       this.#pending.clear();
     });
+    this.#child.stdin.on("error", (error) => {
+      this.#recordFatal(error);
+      for (const pending of this.#pending.values()) {
+        clearTimeout(pending.timer);
+        pending.reject(error);
+      }
+      this.#pending.clear();
+    });
   }
+
+  readonly #onInteraction?: (method: string) => void;
 
   #handleLine(line: string): void {
     let message: RpcResponse & RpcNotification & RpcServerRequest;
@@ -121,6 +141,7 @@ export class AppServerClient {
     }
     if (message.id !== undefined && message.method) {
       if (!this.#rejectServerRequests) return;
+      this.#onInteraction?.(message.method);
       const approvalMethods = new Set([
         "item/commandExecution/requestApproval",
         "item/fileChange/requestApproval",
@@ -129,6 +150,8 @@ export class AppServerClient {
       ]);
       if (approvalMethods.has(message.method)) {
         this.#send({ id: message.id, result: { decision: "decline" } });
+      } else if (message.method === "item/permissions/requestApproval") {
+        this.#send({ id: message.id, result: { permissions: {}, scope: "turn" } });
       } else if (message.method === "mcpServer/elicitation/request") {
         this.#send({
           id: message.id,
@@ -212,13 +235,18 @@ export class AppServerClient {
     this.#send({ method, params });
   }
 
-  async initialize(): Promise<void> {
+  assertConnected(): void {
+    if (this.#fatalError) throw this.#fatalError;
+  }
+
+  async initialize(experimentalApi = false): Promise<void> {
     await this.request("initialize", {
       clientInfo: {
         name: "kurami_orchestrator",
         title: "Kurami Dev Orchestrator",
         version: "1.0.0",
       },
+      ...(experimentalApi ? { capabilities: { experimentalApi: true } } : {}),
     });
     this.notify("initialized", {});
   }
@@ -293,6 +321,18 @@ export class AppServerClient {
     this.#child.stdin.end();
     this.#child.kill("SIGTERM");
   }
+
+  async shutdown(): Promise<void> {
+    if (this.#child.exitCode !== null || this.#child.signalCode !== null) return;
+    await new Promise<void>((resolveExit, rejectExit) => {
+      const timer = setTimeout(() => {
+        this.#child.kill("SIGKILL");
+        rejectExit(new Error("Codex process exit was not acknowledged"));
+      }, 5_000);
+      this.#child.once("exit", () => { clearTimeout(timer); resolveExit(); });
+      this.close();
+    });
+  }
 }
 
 type ReviewTurn = {
@@ -329,6 +369,7 @@ export async function runDetachedReview(
     outputSchema?: Record<string, unknown>;
     timeoutMs?: number;
     onStarted?: (reviewThreadId: string, turnId: string) => void;
+    onCompleted?: (reviewThreadId: string, turnId: string, status: ReviewTurn["status"], error: unknown) => void;
   },
 ): Promise<DetachedReviewResult> {
   const client = new AppServerClient(codexBin, { rejectServerRequests: true });
@@ -378,6 +419,7 @@ export async function runDetachedReview(
       return params?.threadId === reviewThreadId && params.turn?.id === turnId;
     }, options.timeoutMs ?? 30 * 60 * 1_000);
     const turn = (notification.params as { turn: ReviewTurn }).turn;
+    options.onCompleted?.(reviewThreadId,turnId,turn.status,turn.error);
     if (turn.status !== "completed")
       throw new Error(
         `Codex review did not complete: ${turn.status}${turn.error?.message ? ` (${turn.error.message})` : ""}`,
@@ -420,7 +462,7 @@ export async function runDetachedReview(
         // Review state remains authoritative; a later retention sweep can retry.
       }
     }
-    client.close();
+    await client.shutdown();
   }
 }
 

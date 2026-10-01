@@ -75,7 +75,7 @@ case "$1" in
     case "$*" in
       *cx-tt-201-complete*)
         printf '%s\n' 'Implemented and verified the focused change.' \
-          'Worked for 5m 53s · 18:24' \
+          'Worked for 50s • 09:50' \
           '' \
           '' \
           '› Ask Codex to do anything'
