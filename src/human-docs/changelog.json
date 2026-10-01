@@ -1,6 +1,12 @@
 {
   "baseline": "4a38c09",
   "commits": {
+    "cdaf149fb63b6e39e1e0cb156f03acc0049f5f6d": {
+      "category": "new",
+      "en": "Added a unified private entry for Hub, Digest, Projects and Docs with one Kurami PWA, same-origin Apps navigation and signed Access checks. Native addresses remain available; full visual and phone acceptance are separate.",
+      "ru": "Добавлен единый закрытый вход в Hub, Digest, Projects и Docs с одной PWA Kurami, общей навигацией Apps и проверкой подписанного токена Access. Старые адреса остаются доступны; полный визуальный обход и приёмка на телефоне проводятся отдельно.",
+      "page": "access"
+    },
     "6c1689e20dcfab3147d2994a88f17e88705058f3": {
       "category": "improved",
       "en": "Daily rejects placeholder editorial copy; the personal news order is more noticeable. Weekly Investment Review gained a guarded scheduled runner, but a successful accepted report is not implied.",
