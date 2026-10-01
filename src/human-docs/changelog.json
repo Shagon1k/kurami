@@ -251,6 +251,19 @@
       "ru": "",
       "exclusionScope": "docs-only",
       "exclude": "Recorded the preceding Projects and shared controls changes in the bilingual changelog; this commit changes only the documentation ledger."
+    },
+    "1a71027f9f1692202caab54dad848d2f4994ab2f": {
+      "category": "fixed",
+      "en": "Projects mobile card backgrounds fill the table width. Active and attention filters show icons and counts beside a compact Sync button, while the total task count is hidden on phones.",
+      "ru": "Заливка мобильных карточек Projects занимает всю ширину таблицы. Фильтры активных задач и задач, требующих внимания, показывают иконки и числа рядом с короткой кнопкой синхронизации; общий счётчик на телефоне скрыт.",
+      "page": "owner-controls"
+    },
+    "a4ec531f13e47b66cb2bb860656c73ab47447ae3": {
+      "category": "operations",
+      "en": "",
+      "ru": "",
+      "exclusionScope": "docs-only",
+      "exclude": "Recorded the preceding Projects counter filter correction in the bilingual changelog; this commit changes only the documentation ledger."
     }
   }
 }
