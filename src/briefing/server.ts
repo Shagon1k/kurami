@@ -1,4 +1,5 @@
 import { THEME_CSS } from "../ui-library/themes/index.ts";
+import {mountResponse,WEB_CLIENT_JS} from "../web/presentation.ts";
 import { CHART_STYLES } from "./ui/charts/styles.ts";
 import { CHART_CLIENT_SCRIPT } from "./ui/charts/client.ts";
 import {STOCKS_CLIENT_SCRIPT} from "./stocks/client.ts";
@@ -82,12 +83,12 @@ const CSP = [
   "style-src 'self' 'unsafe-inline'",
 ].join("; ");
 
-const CLIENT_SCRIPT = `(() => {
+const CLIENT_SCRIPT = WEB_CLIENT_JS+`(() => {
   const english = document.documentElement.lang === 'en';
   const tr = (ru, en) => english ? en : ru;
   const locale = english ? 'en-GB' : 'ru-RU';
   const request = async (path, body) => {
-    const response = await fetch(path, {
+    const response = await fetch(kuramiAppUrl(path), {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
       body: JSON.stringify(body),
@@ -256,7 +257,7 @@ const CLIENT_SCRIPT = `(() => {
         if (interestStatus) interestStatus.textContent = tr('Загружаю профиль интересов…', 'Loading interest profile…');
         try {
           const editionId = feed.getAttribute('data-edition-id');
-          const response = await fetch('/api/news/order?editionId=' + encodeURIComponent(editionId || '') + '&mode=' + encodeURIComponent(requested));
+          const response = await fetch(kuramiAppUrl('/api/news/order?editionId=' + encodeURIComponent(editionId || '') + '&mode=' + encodeURIComponent(requested)));
           if (!response.ok) throw new Error('Order unavailable');
           const result = await response.json();
           const byId = new Map(editorialItems.map(item => [item.getAttribute('data-item-id'), item]));
@@ -763,6 +764,7 @@ export async function createBriefingServer(
       : null
     : options.mailActionExecutor;
   const server = createServer(async (request, response) => {
+    mountResponse(request,response,"digest");
     try {
       const url = new URL(request.url ?? "/", "http://127.0.0.1");
       if (request.method === "GET" && url.pathname === "/health") {

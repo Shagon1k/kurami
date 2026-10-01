@@ -1,0 +1,25 @@
+[Unit]
+Description=Kurami unified private web entry
+After=default.target
+
+[Service]
+Type=simple
+ExecStart=/home/shagon1k/_hermes/_kurami/runtime/node/bin/node /home/shagon1k/_hermes/_kurami/app/src/web/server.ts
+Environment=KURAMI_WEB_PORT=8888
+EnvironmentFile=/home/shagon1k/_hermes/_kurami/secrets/kurami-web.env
+WorkingDirectory=/home/shagon1k/_hermes/_kurami/app
+Restart=on-failure
+RestartSec=3s
+UMask=0077
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=read-only
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6
+RestrictNamespaces=true
+RestrictSUIDSGID=true
+LockPersonality=true
+SystemCallArchitectures=native
+
+[Install]
+WantedBy=default.target

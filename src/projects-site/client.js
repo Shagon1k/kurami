@@ -52,7 +52,8 @@
     const focusedStatus = previousForm?.contains(previousFocus) ? previousFocus.tagName === 'SELECT' ? 'select' : '[data-status-submit]' : null;
     dashboard.dataset.refreshing='true';
     try {
-      const response = await fetch('/api/fragment?' + url.searchParams, { cache: 'no-store', signal: AbortSignal.timeout(10000) });
+      const params=new URLSearchParams(url.searchParams);if(kuramiAppLanguage()==='ru')params.set('lang','ru');
+      const response = await fetch(kuramiAppUrl('/api/fragment?' + params), { cache: 'no-store', signal: AbortSignal.timeout(10000) });
       if (!response.ok) throw new Error('refresh failed');
       const html=await response.text();
       statusHome?.append(status);
@@ -158,7 +159,7 @@
     const hidden=document.querySelector('.projects-search input[name=project]');if(hidden)hidden.value=url.searchParams.get('project')??'';
     const active=document.querySelector('.projects-search input[name=active]');if(active)active.value=url.searchParams.get('active')==='1'?'1':'';
     const attention=document.querySelector('.projects-search input[name=attention]');if(attention)attention.value=url.searchParams.get('attention')==='1'?'1':'';
-    const languageLink=document.querySelector('[data-language-link]');if(languageLink){const next=new URL(url);next.searchParams.set('lang',document.documentElement.lang==='en'?'ru':'en');languageLink.href=next.pathname+next.search;}
+    const languageLink=document.querySelector('[data-language-link]');if(languageLink){const next=new URL(url),other=document.documentElement.lang==='en'?'ru':'en';if(document.getElementById('kurami-web-context')){next.pathname=next.pathname.replace(/^\/(en|ru)(?=\/)/,'/'+other);next.searchParams.delete('lang');}else next.searchParams.set('lang',other);languageLink.href=next.pathname+next.search;}
   }
   function updateLayout(animate=false){
     const frame=dashboard.querySelector('.projects-table-frame');
@@ -199,7 +200,7 @@
     requestingReview = true;
     button.setAttribute('aria-busy', 'true');
     try {
-      const response = await fetch('/api/ai-review', { method: 'POST', headers: requestHeaders,
+      const response = await fetch(kuramiAppUrl('/api/ai-review'), { method: 'POST', headers: requestHeaders,
         body: JSON.stringify({ runId: button.dataset.reviewRun, project: button.dataset.reviewProject, itemId: button.dataset.reviewItem, head: button.dataset.reviewHead, key: button.dataset.reviewKey }),
         signal: AbortSignal.timeout(10000) });
       const result = await response.json();
@@ -222,7 +223,7 @@
     if (button.disabled || requestingAction || requestingReview || requestingStatus || refreshing) return;
     requestingAction=true; button.setAttribute('aria-busy','true');
     try {
-      const response=await fetch('/api/run-action',{method:'POST',headers:requestHeaders,
+      const response=await fetch(kuramiAppUrl('/api/run-action'),{method:'POST',headers:requestHeaders,
         body:JSON.stringify({runId:button.dataset.runId,project:button.dataset.runProject,itemId:button.dataset.runItem,action:button.dataset.runAction,fingerprint:button.dataset.runFingerprint,key:button.dataset.runKey,confirmed}),signal:AbortSignal.timeout(10000)});
       const result=await response.json();
       if(!response.ok) { await refresh(); throw new Error(result.error || t("Could not request this action.")); }
@@ -260,7 +261,7 @@
     const target = form.dataset.check === 'true' ? form.dataset.target : select.value;
     select.disabled = true;
     try {
-      const response = await fetch('/api/status', { method: 'POST', headers: requestHeaders,
+      const response = await fetch(kuramiAppUrl('/api/status'), { method: 'POST', headers: requestHeaders,
         body: JSON.stringify({ project: form.dataset.project, itemId: form.dataset.item, from: JSON.parse(form.dataset.from), target, observedAt: form.dataset.observedAt, key: form.dataset.key }), signal: AbortSignal.timeout(30000) });
       const result = await response.json();
       await refresh();

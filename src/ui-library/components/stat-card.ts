@@ -18,7 +18,7 @@ export const STAT_CARD_CSS=`
 :is(.stat-card,.ui-meter)[data-tone="failure"] { --stat-tone: var(--status-failure); }
 .stat-card { min-width: 0; height: 100%; padding: var(--space-5) var(--space-4); border: 1px solid var(--border-subtle); border-radius: var(--radius-md); background: var(--surface-raised); box-shadow: var(--stat-shadow,none); text-align: center; }
 .stat-card[data-align="start"] { text-align: start; }
-.stat-card__label { display: flex; align-items: center; justify-content: center; gap: var(--space-2); min-height: var(--stat-label-height,2.8em); margin: 0 0 var(--space-3); color: var(--text-muted); font: 500 .8rem/1.4 var(--font-sans); }
+.stat-card__label { display: flex; flex-direction: var(--stat-label-direction,row); align-items: center; justify-content: center; gap: var(--stat-label-gap,var(--space-2)); min-height: var(--stat-label-height,2.8em); margin: 0 0 var(--space-3); color: var(--text-muted); font: 500 .8rem/1.4 var(--font-sans); }
 .stat-card[data-align="start"] .stat-card__label { justify-content: flex-start; }
 .stat-card__label .ui-icon { color: var(--stat-tone); }
 .stat-card__value { display: block; color: var(--stat-tone); font: 600 var(--stat-value-size,clamp(1.8rem,3vw,2.5rem))/1.1 var(--font-sans); font-variant-numeric: tabular-nums; letter-spacing: -.04em; }

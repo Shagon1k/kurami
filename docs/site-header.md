@@ -9,22 +9,29 @@ Docs use the same pattern with a collapsible menu below tablet width.
 The transparent fox and wordmark replace the old boxed K. The edition date
 stays next to the brand; the theme control remains a shared icon button.
 
-Hub, Docs and Digest also show the shared **Sites** switcher in the header.
+Hub, Docs, Projects and Digest show the shared **Apps / Приложения** switcher in the header.
 `src/ui-library/patterns/kurami-sites.ts` defines its destinations: Hub,
-Digest, Docs, Hermes and Dokploy. Hub, Docs and Digest preserve `ru` or `en`
+Digest, Projects, Docs, Hermes and Dokploy. The product apps preserve `ru` or `en`
 when switching sites. Digest localizes Daily, Cinema, Weekly and Stocks;
 source names and original titles remain in their original language. Older
 Daily and Cinema editions without English editorial copy show an explicit
 original-language notice.
-Projects is listed as **soon** with its future
-destination in code, but has no clickable link until the site is available.
+Hermes and Dokploy are separated external links opening in a new tab.
 The switcher becomes an icon button on phones; each
 site keeps its own navigation separate from this cross-site menu.
 Hub serves `/ru/` and `/en/` with localized dashboard labels and PWA offline
 pages. Hub, Docs and Digest redirect their root URL to `/en/`; the language
 control links between explicit `/en/` and `/ru/` routes. Digest upgrades
 retained Daily and legacy Cinema headers when serving
-them, so their Sites control does not depend on republishing old editions.
+them, so their Apps control does not depend on republishing old editions.
+
+The shared wordmark includes the app suffix: Hub, Digest, Projects or Docs.
+At the unified entry, product-owned URL projection maps these links to
+`/en/`, `/en/digest/`, `/en/projects/` and `/en/docs/`, with matching RU paths.
+Native hostnames retain their existing destinations until redirect cutover is
+approved. See [unified web operations](kurami-web-operations.md).
+Hub's global period switch stays inline on desktop and uses the library's
+floating period-button/popover variant on phones, without a second header row.
 
 `site-navigation.ts` reads publication state, not page content. Only current
 complete/partial Daily and Cinema editions qualify; expired Daily, prepared

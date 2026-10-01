@@ -74,6 +74,7 @@ export const BUTTON_CSS = `
 .button--text:hover:not(:disabled):not([aria-busy="true"]) { color: var(--text-primary); background: transparent; text-decoration: underline; text-underline-offset: .2em; }
 .button--icon { inline-size: var(--control-height); block-size: var(--control-height); padding: 0; background: var(--surface-panel); border-color: var(--border-default); }
 .button--icon:hover:not(:disabled):not([aria-busy="true"]) { color: var(--text-primary); background: var(--accent-soft); border-color: var(--accent-primary); }
+.button--icon[aria-pressed="true"],.button--icon[aria-pressed="true"]:hover:not(:disabled):not([aria-busy="true"]) { color: var(--text-on-accent); background: var(--accent-primary); border-color: var(--accent-primary); }
 .button__icon { display: inline-grid; place-items: center; font-size: 1rem; line-height: 1; }
 .button__svg { inline-size: var(--button-icon-size,18px); block-size: var(--button-icon-size,18px); flex: none; display: block; fill: none; stroke: currentColor; stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round; pointer-events: none; }
 .button--icon-end .button__svg { order: 1; }
@@ -112,8 +113,11 @@ export function renderButton(input: ButtonInput): string {
 }
 
 /** Navigation that looks like a button; `href` must be a site-relative or https URL. */
-export function renderLinkButton(input: { label: string; href: string; variant: ButtonVariant; size?: ButtonSize; ariaLabel?: string; iconPath?: string; attributes?: Record<string, AttributeValue> }): string {
+export function renderLinkButton(input: { label: string; href: string; variant: ButtonVariant; size?: ButtonSize; ariaLabel?: string; iconPath?: string; visibleLabel?: boolean; className?: string; target?: "_blank"; attributes?: Record<string, AttributeValue> }): string {
   if (!/^(?:\/(?!\/)|https:\/\/)/.test(input.href)) throw new Error("Unsafe link button href");
-  const ariaLabel = input.ariaLabel ? ` aria-label="${escapeHtml(input.ariaLabel)}"` : "";
-  return `<a class="button button--${input.variant}${input.size === "compact" ? " button--compact" : ""}" href="${escapeHtml(input.href)}"${ariaLabel}${renderAttributes(input.attributes)}>${escapeHtml(input.label)}${input.iconPath?`<svg class="button__svg" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="${escapeHtml(input.iconPath)}"/></svg>`:""}</a>`;
+  if(input.className&&!SAFE_CLASS_LIST.test(input.className))throw new Error("Unsafe link button class list");
+  if(input.visibleLabel===false&&!input.iconPath)throw new Error("Hidden link label requires an icon");
+  const name=input.ariaLabel??(input.visibleLabel===false?input.label:undefined);
+  const ariaLabel = name ? ` aria-label="${escapeHtml(name)}"` : "";
+  return `<a class="button button--${input.variant}${input.size === "compact" ? " button--compact" : ""}${input.className?` ${input.className}`:""}" href="${escapeHtml(input.href)}"${input.target?' target="_blank" rel="noopener noreferrer"':""}${ariaLabel}${renderAttributes(input.attributes)}>${input.visibleLabel===false?"":escapeHtml(input.label)}${input.iconPath?`<svg class="button__svg" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="${escapeHtml(input.iconPath)}"/></svg>`:""}</a>`;
 }

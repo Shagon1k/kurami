@@ -9,6 +9,7 @@ ExecStart=/home/shagon1k/_hermes/_kurami/runtime/node/bin/node /home/shagon1k/_h
 Environment=PROJECTS_PORT=8777
 Environment=KURAMI_HOME=/home/shagon1k/_hermes/_kurami
 EnvironmentFile=-/home/shagon1k/_hermes/_kurami/secrets/projects-site.env
+EnvironmentFile=-/home/shagon1k/_hermes/_kurami/secrets/kurami-web.env
 WorkingDirectory=/home/shagon1k/_hermes/_kurami/app
 Restart=on-failure
 RestartSec=3s

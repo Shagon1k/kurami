@@ -19,6 +19,7 @@ import {changedShare,decodePng} from "./png.ts";
 import {AUDIT_EXPRESSION,inventoryExpression} from "./audit.ts";
 import {pages as docsPages} from "../../human-docs/content.ts";
 import {injectRuntime} from "../../briefing/server.ts";
+import {WEB_CLIENT_JS} from "../../web/presentation.ts";
 import type {Devtools} from "./devtools.ts";
 
 const root=resolve(import.meta.dirname,"../../..");
@@ -73,7 +74,7 @@ function site():string {
   mkdirSync(join(served,"projects"),{recursive:true});
   writeFileSync(join(served,"projects/index.html"),syntheticProjects());
   writeFileSync(join(served,"assets/projects.css"),PROJECTS_STYLES);
-  cpSync(join(root,"src/projects-site/client.js"),join(served,"assets/projects.js"));
+  writeFileSync(join(served,"assets/projects.js"),WEB_CLIENT_JS+readFileSync(join(root,"src/projects-site/client.js"),"utf8"));
   writeFileSync(join(served,"assets/hub.js"),HUB_CLIENT_JS);
   cpSync(join(brandAssets,"kurami-fox-header.webp"),join(served,"assets/kurami-fox.webp"));
   cpSync(join(brandAssets,"kurami-favicon.svg"),join(served,"favicon.svg"));
@@ -126,7 +127,7 @@ async function checkSiteSwitcher(devtools:Devtools,base:string):Promise<void> {
       return {links:[...nav.querySelectorAll('a')].map(link=>link.textContent.trim()),current:nav.querySelector('[aria-current]')?.textContent.trim()??null,projects:projects?.getAttribute('aria-disabled')??null,projectsHref:projects?.getAttribute('href')??null,open:menu.open,overflow:document.documentElement.scrollWidth-innerWidth,left:rect.left,right:rect.right};
     })()`);
     const projectsHref=`https://projects.shagon1k.win/${path==="/en/"||path==="/hub/en.html"?"":"?lang=ru"}`;
-    if(JSON.stringify(state.links)!==JSON.stringify(["Hub","Digest","Docs","Projects","Hermes","Dokploy"])||state.current!==current||state.projects!==null||state.projectsHref!==projectsHref||!state.open||state.overflow>1||state.left<0||state.right>width+1)throw new Error(`Site switcher ${path} at ${width}px: ${JSON.stringify(state)}`);
+    if(JSON.stringify(state.links)!==JSON.stringify(["Hub","Digest","Docs","Projects","Hermes↗","Dokploy↗"])||state.current!==current||state.projects!==null||state.projectsHref!==projectsHref||!state.open||state.overflow>1||state.left<0||state.right>width+1)throw new Error(`Site switcher ${path} at ${width}px: ${JSON.stringify(state)}`);
   }
 }
 

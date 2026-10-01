@@ -8,7 +8,7 @@ order: 80
 next: docs-process
 ---
 
-There is one way to Kurami's sites: Cloudflare Tunnel delivers a request to the server, Cloudflare Access first checks that it is you, and only then does the request reach a local port. The services themselves check little — they listen on `127.0.0.1` and assume that an already verified request has reached them. The one exception is Hub's owner controls, which verify the signed Access token themselves. An anonymous visitor is redirected to the Access login and does not reach the service.
+Cloudflare Access checks your identity before the tunnel delivers a request to a local port. Every service listens on `127.0.0.1`. Native Digest and Docs rely on the edge policy; Hub controls validate the signed token, origin and CSRF token. Projects supports signed owner validation through its Access configuration. The unified gateway adds assertion checks before forwarding requests to any app. An anonymous public visitor reaches Access login instead of private content.
 
 ```diagram
 kind: graph
@@ -39,8 +39,34 @@ edge caddy -> preview "running only"
 | Digest | `127.0.0.1:8787` | Cloudflare Access |
 | This documentation, `docs.shagon1k.win` | `127.0.0.1:8799` | Cloudflare Access; `/` redirects to `/en/` |
 | Hub | `127.0.0.1:8800` | Cloudflare Access; its Controls also check the signed Access token, the origin and a CSRF token |
+| Projects | `127.0.0.1:8777` | Cloudflare Access; configured owner assertion checks and origin checks on controls |
 | Project previews, `preview-N.shagon1k.win` (N from 1 to 6) | through Caddy, `127.0.0.1:9180` | Cloudflare Access plus a 404 for any address without a running preview |
 | The "Open in Codex" link | through Caddy | no Access: a redirect by exact task identifier |
+
+## Unified app entry
+
+The unified gateway on port `8888` routes Hub, Digest, Projects and Docs without
+combining their services. Once this entry is configured and deployed, `/en/`
+opens Hub; `/en/digest/`, `/en/projects/` and `/en/docs/` open the other apps.
+Russian routes start with `/ru/`; `/` redirects to English. The **Apps** menu
+stays inside this entry. Hermes, Dokploy, previews and the Codex redirect remain
+separate resources.
+
+The gateway checks signed Access assertions before forwarding a private request.
+Your owner-only Access policy determines who can enter. The gateway checks the
+issuer, application audience, signature and expiry and requires a human app
+identity. An optional email allowlist adds a local restriction; service tokens
+do not grant owner access.
+Missing configuration, an invalid assertion or a foreign origin on a write
+request is denied. Hub and Projects retain their own control checks. A separately
+configured Docs reader identity can read only Docs, not dashboards or controls.
+The existing hostnames remain available until you approve their redirect cutover.
+
+One Kurami PWA covers all four apps. Its icon uses the transparent fox illustration;
+the Android launcher may add its own background. The worker fetches pages from
+the network and shows a connection placeholder offline. It does not save private
+pages or API responses. Deployment and installed-phone checks are separate from
+the local routing tests.
 
 ## Previews through Caddy
 

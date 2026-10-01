@@ -15,13 +15,16 @@ import {HUB_STYLES} from "./styles.ts";
 import {HUB_CLIENT_JS} from "./assets.ts";
 import {collectHubSnapshot,type HubSnapshot} from "./snapshot.ts";
 import {renderHubDashboard,renderHubOffline,renderHubPage,type HubLanguage} from "./render.ts";
+import {isMountedRequest,mountResponse,WEB_CLIENT_JS} from "../web/presentation.ts";
+import {WebAccess} from "../web/access.ts";
+import {WEB_ORIGIN} from "../web/routes.ts";
 
 const appRoot=resolve(import.meta.dirname,"../..");
 const assetRoot=resolve(appRoot,"src/ui-library/assets");
 const hubRoot=resolve(appRoot,"src/hub");
 const assets=new Map<string,{body:Buffer|string;type:string;cache:string}>([
   ["/assets/hub.css",{body:HUB_STYLES,type:"text/css; charset=utf-8",cache:"private, max-age=300"}],
-  ["/assets/theme.js",{body:THEME_RUNTIME_JS,type:"text/javascript; charset=utf-8",cache:"private, no-cache"}],
+  ["/assets/theme.js",{body:WEB_CLIENT_JS+THEME_RUNTIME_JS,type:"text/javascript; charset=utf-8",cache:"private, no-cache"}],
   ["/assets/hub.js",{body:HUB_CLIENT_JS,type:"text/javascript; charset=utf-8",cache:"private, max-age=300"}],
   ["/assets/fox.png",{body:readFileSync(resolve(assetRoot,"brand/kurami-fox-transparent.png")),type:"image/png",cache:"private, max-age=86400"}],
   ["/assets/fox.webp",{body:readFileSync(resolve(assetRoot,"brand/kurami-fox-header.webp")),type:"image/webp",cache:"private, max-age=86400"}],
@@ -43,7 +46,8 @@ export function createHubServer(options:{snapshot?:()=>HubSnapshot;account?:()=>
   const account=options.account??(options.snapshot?null:readCodexAccount);
   const controls=options.controls??(process.env.HUB_CONTROLS_ENABLED==="true"?createHubControls():null);
   const access=new HubAccess();
-  const authorize=options.authorize??((request)=>access.authorize(request));
+  const webAccess=new WebAccess();
+  const authorize=options.authorize??(async(request)=>isMountedRequest(request,"hub")?(await webAccess.authorize(request,"hub"))?.actor??null:access.authorize(request));
   const origin=options.controlOrigin??process.env.HUB_CONTROL_ORIGIN??"https://hub.shagon1k.win";
   const cookieName="__Host-kurami-control";
   let cached:{at:number;value:HubSnapshot}|null=null;
@@ -61,6 +65,8 @@ export function createHubServer(options:{snapshot?:()=>HubSnapshot;account?:()=>
     try{return await collecting;}finally{collecting=null;}
   }
   return createServer(async(request,response)=>{
+    mountResponse(request,response,"hub");
+    const controlOrigin=options.controlOrigin??(isMountedRequest(request,"hub")?WEB_ORIGIN:origin);
     for(const [name,value] of Object.entries(securityHeaders))response.setHeader(name,value);
     let path:string;
     let lang:HubLanguage;
@@ -73,7 +79,7 @@ export function createHubServer(options:{snapshot?:()=>HubSnapshot;account?:()=>
       const identity=await authorize(request).catch(()=>null);
       if(!identity){json(403,{ok:false,error:"unauthorized"});return;}
       try{
-        const url=new URL(request.url!,origin);lang=url.searchParams.get("lang")==="ru"?"ru":"en";
+        const url=new URL(request.url!,controlOrigin);lang=url.searchParams.get("lang")==="ru"?"ru":"en";
         if(request.method==="GET"){
           const action=url.searchParams.get("action")??"";
           if(!["models","settings","composio-check"].includes(action)){json(400,{ok:false,error:"invalid_request"});return;}
@@ -82,7 +88,7 @@ export function createHubServer(options:{snapshot?:()=>HubSnapshot;account?:()=>
         }
         const cookie=request.headers.cookie?.split(/;\s*/).find(value=>value.startsWith(cookieName+"="))?.slice(cookieName.length+1);
         const token=request.headers["x-hub-control-token"];
-        if(request.headers.origin!==origin||!cookie||typeof token!=="string"||!/^[A-Za-z0-9_-]{43}$/.test(cookie)||token.length!==cookie.length||!timingSafeEqual(Buffer.from(cookie),Buffer.from(token))){json(403,{ok:false,error:"invalid_origin"});return;}
+        if(request.headers.origin!==controlOrigin||!cookie||typeof token!=="string"||!/^[A-Za-z0-9_-]{43}$/.test(cookie)||token.length!==cookie.length||!timingSafeEqual(Buffer.from(cookie),Buffer.from(token))){json(403,{ok:false,error:"invalid_origin"});return;}
         if(!/^application\/json(?:\s*;|$)/i.test(request.headers["content-type"]??"")){json(415,{ok:false,error:"invalid_request"});return;}
         let body="";for await(const chunk of request){body+=chunk.toString();if(Buffer.byteLength(body)>32_768){json(413,{ok:false,error:"invalid_request"});return;}}
         let payload:any;try{payload=JSON.parse(body);}catch{json(400,{ok:false,error:"invalid_request"});return;}

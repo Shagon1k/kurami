@@ -36,7 +36,7 @@ export function renderSiteHeader(input:{section:SiteSection;label?:string;date?:
   return renderKuramiHeader({
     label:input.label??"Kurami",
     attributes:{"data-site-section":input.section},
-    brand:{href:digestPath("/"),ariaLabel:digestText("Kurami — последний дневной выпуск","Kurami — latest Daily edition"),foxSrc:"/assets/kurami-fox.webp",meta:input.date&&input.dateLabel?{label:input.dateLabel,datetime:input.date}:undefined},
+    brand:{href:digestPath("/"),suffix:"Digest",ariaLabel:digestText("Kurami — последний дневной выпуск","Kurami — latest Daily edition"),foxSrc:"/assets/kurami-fox.webp",meta:input.date&&input.dateLabel?{label:input.dateLabel,datetime:input.date}:undefined},
     nav:navigation(input.links??[],input.section),
     sites:kuramiSites("digest",lang),
     actions:renderLinkButton({label:other.toUpperCase(),href:digestPath(relative,other),variant:"icon",ariaLabel:digestText("Переключить на английский","Switch to Russian"),attributes:{hreflang:other}})+renderThemeSwitch(lang),

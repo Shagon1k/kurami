@@ -35,4 +35,4 @@ const paths={
 export type IconName=keyof typeof paths;
 export function iconPath(name:IconName):string{return paths[name];}
 export function renderIcon(name:IconName):string{return `<svg class="ui-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="${paths[name]}"/></svg>`;}
-export const ICON_CSS=`.ui-icon { width: 18px; height: 18px; flex: none; fill: none; stroke: currentColor; stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round; }`;
+export const ICON_CSS=`.ui-icon { width: var(--icon-size,18px); height: var(--icon-size,18px); color: var(--icon-color,inherit); flex: none; fill: none; stroke: currentColor; stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round; }`;

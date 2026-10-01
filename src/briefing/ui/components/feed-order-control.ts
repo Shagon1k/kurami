@@ -5,8 +5,8 @@ import {digestText} from "../../i18n.ts";
 export function renderFeedOrderControl(): string {
   return `<div class="feed-order" data-feed-order-control>
     <div class="feed-order__buttons" role="group" aria-label="${digestText("Порядок новостей","News order")}">
-      ${renderButton({ label: digestText("Обзор","Briefing"), variant: "secondary", attributes: { "data-news-order": "briefing", "aria-pressed": "true" } })}
-      ${renderButton({ label: digestText("Для меня","For me"), variant: "secondary", disabled: true, attributes: { "data-news-order": "for-you", "aria-pressed": "false" } })}
+      ${renderButton({ label: digestText("Обзор","Briefing"), variant: "toggle", attributes: { "data-news-order": "briefing", "aria-pressed": "true" } })}
+      ${renderButton({ label: digestText("Для меня","For me"), variant: "toggle", disabled: true, attributes: { "data-news-order": "for-you", "aria-pressed": "false" } })}
     </div>
     <p class="feed-order__status" data-interest-status role="status" aria-live="polite">${digestText("Обзор — утренний порядок. Все сюжеты доступны.","Briefing order. All stories remain available.")}</p>
     <details class="disclosure feed-order__explanation"><summary>${digestText("Как учитываются интересы","How interests are used")}</summary>

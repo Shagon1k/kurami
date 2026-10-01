@@ -4,6 +4,9 @@
   "description": "Kurami system control plane for Hermes",
   "main": "index.js",
   "scripts": {
+    "web:serve": "node src/web/server.ts",
+    "test:web": "node tests/web/routes.ts && node tests/web/access.ts && node tests/web/gateway.ts",
+    "test:web-browser": "node tests/web/browser.ts",
     "projects:serve": "node src/projects-site/server.ts",
     "test:projects-site": "node tests/projects-site/verify.ts && node tests/projects-site/controls.ts && node tests/projects-site/status.ts && node tests/projects-site/run-actions.ts",
     "test:projects-browser": "node tests/projects-site/browser.ts",

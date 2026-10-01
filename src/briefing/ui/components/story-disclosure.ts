@@ -11,7 +11,7 @@ function panelId(itemId: string): string {
 export function renderStoryToggle(itemId: string): string {
   return renderButton({
     label: digestText("Читать","Read"),
-    variant: "secondary",
+    variant: "subtle",
     className: "story-toggle",
     attributes: {
       "aria-expanded": "false",

@@ -10,6 +10,7 @@ import {renderAlias,renderArticle,renderChangelog,renderHome,resolveSlug} from "
 import {DOCS_STYLES} from "./styles.ts";
 import {fontFiles} from "../ui-library/foundations/fonts.ts";
 import {THEME_RUNTIME_JS} from "../ui-library/runtime/theme.ts";
+import {projectCss,projectDocument,WEB_CLIENT_JS} from "../web/presentation.ts";
 
 const root=resolve(dirname(fileURLToPath(import.meta.url)),"../..");
 const args=process.argv.slice(2);
@@ -52,7 +53,12 @@ for(const [path,html] of rendered){
 }
 rmSync(output,{recursive:true,force:true});
 mkdirSync(resolve(output,"assets"),{recursive:true});
-for(const [path,html] of rendered){const destination=resolve(output,path);mkdirSync(dirname(destination),{recursive:true});writeFileSync(destination,html);}
+for(const [path,html] of rendered){
+  const destination=resolve(output,path);mkdirSync(dirname(destination),{recursive:true});writeFileSync(destination,html);
+  // Both presentations are immutable build artifacts; serving never rewrites published Docs HTML.
+  const unified=resolve(output,"unified",path);mkdirSync(dirname(unified),{recursive:true});
+  writeFileSync(unified,projectDocument(html,"docs",path.startsWith("ru/")?"ru":"en"));
+}
 // Flat names keep every diagram under the origin's plain /assets/<name>.<ext> rule.
 for(const diagram of diagrams)writeFileSync(resolve(output,"assets",`diagram-${diagram.id}.svg`),diagram.svg);
 cpSync(resolve(siteRoot,"kurami-fox-transparent.png"),resolve(output,"assets/fox.png"));
@@ -61,7 +67,9 @@ cpSync(resolve(siteRoot,"kurami-favicon.svg"),resolve(output,"assets/favicon.svg
 for(const font of fontFiles)cpSync(resolve(root,"src/ui-library/assets/fonts",font.file),resolve(output,"assets",font.file));
 for(const file of readdirSync(resolve(root,"src/human-docs/assets")))if(/^shot-[a-z0-9-]+\.png$/.test(file))cpSync(resolve(root,"src/human-docs/assets",file),resolve(output,"assets",file));
 writeFileSync(resolve(output,"assets/docs.css"),DOCS_STYLES);
-writeFileSync(resolve(output,"assets/theme.js"),THEME_RUNTIME_JS);
-writeFileSync(resolve(output,"build.json"),JSON.stringify({revision:revision??null,docsSha,mode:isPreview?"preview":"release",pages:rendered.length},null,2));
+writeFileSync(resolve(output,"assets/theme.js"),WEB_CLIENT_JS+THEME_RUNTIME_JS);
+mkdirSync(resolve(output,"unified/assets"),{recursive:true});
+writeFileSync(resolve(output,"unified/assets/docs.css"),projectCss(DOCS_STYLES,"docs","en"));
+writeFileSync(resolve(output,"build.json"),JSON.stringify({revision:revision??null,docsSha,mode:isPreview?"preview":"release",pages:rendered.length,webMount:true},null,2));
 if(!existsSync(resolve(output,"en/index.html")))throw new Error("Docs build produced no home page");
 console.log(`Built ${rendered.length} pages and ${diagrams.length} diagrams into ${output} (${revision??(isDocsRelease?"docs-only release; no verified app deploy":"unpublished preview")})`);

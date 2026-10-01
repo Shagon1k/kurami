@@ -9,8 +9,9 @@ import {POPOVER_CSS} from "../ui-library/components/popover.ts";
 import {THEME_SWITCH_CSS} from "../ui-library/components/theme-switch.ts";
 import {SITE_HEADER_CSS} from "../ui-library/patterns/site-header.ts";
 import {breakpoints} from "../ui-library/tokens/index.ts";
+import {ICON_CSS} from "../ui-library/components/icon.ts";
 
-export const PROJECTS_STYLES=[THEME_CSS,FOUNDATION_CSS,BUTTON_CSS,TABLE_CSS,FORM_CSS,CALLOUT_CSS,PILL_CSS,POPOVER_CSS,THEME_SWITCH_CSS,SITE_HEADER_CSS,`
+export const PROJECTS_STYLES=[THEME_CSS,FOUNDATION_CSS,BUTTON_CSS,TABLE_CSS,FORM_CSS,CALLOUT_CSS,PILL_CSS,POPOVER_CSS,THEME_SWITCH_CSS,SITE_HEADER_CSS,ICON_CSS,`
 :root { --container-max: 1500px; }
 [data-projects-app] { --projects-table-height: calc(100dvh - 230px); }
 .projects-page { padding-block: var(--space-5) var(--space-6); }
@@ -31,7 +32,7 @@ export const PROJECTS_STYLES=[THEME_CSS,FOUNDATION_CSS,BUTTON_CSS,TABLE_CSS,FORM
 .projects-mobile-sort { display: none; }
 .projects-grid { display: grid; grid-template-columns: minmax(0,1fr); gap: var(--space-4); align-items: start; }
 .projects-grid--detail { grid-template-columns: minmax(0,1fr) 360px; }
-.projects-table-frame { min-width: 0; border: 1px solid var(--border-default); border-radius: var(--radius-md); background: var(--surface-raised); overflow: hidden; }
+.projects-table-frame { min-width: 0; border: 1px solid var(--border-default); border-radius: var(--radius-md); background: var(--surface-raised); box-shadow: var(--shadow-card-sm); overflow: hidden; }
 .projects-table { --table-font-size: .82rem; --table-cell-padding: var(--space-3); --table-head-padding: var(--space-2) var(--space-3); --table-head-background: var(--surface-section); }
 .projects-sort { --button-icon-size: 14px; }
 .projects-checks-heading { display: flex; align-items: center; justify-content: center; min-height: var(--control-height); }
@@ -39,16 +40,16 @@ export const PROJECTS_STYLES=[THEME_CSS,FOUNDATION_CSS,BUTTON_CSS,TABLE_CSS,FORM
 .projects-row--selected { background: var(--accent-soft); }
 .projects-task { display: grid; gap: var(--space-2); min-width: 140px; max-width: 480px; font-weight: 500; line-height: 1.45; }
 .projects-task-meta { display: flex; align-items: center; flex-wrap: wrap; gap: var(--space-2); color: var(--text-muted); font-size: .7rem; font-weight: 400; }
-.projects-task-meta .ui-icon { width: 14px; height: 14px; }
+.projects-task-meta { --icon-size: 14px; }
 .projects-task-id { font-family: var(--font-mono); }
 .projects-attention { display: inline-flex; color: var(--status-warning); }
 .projects-status-pending { display: flex; align-items: center; gap: var(--space-1); margin-top: var(--space-2); color: var(--text-muted); font-size: .7rem; }
 .projects-stage { display: grid; justify-items: start; gap: var(--space-2); min-width: 100px; max-width: 160px; }
 .projects-stage small { display: flex; align-items: center; gap: var(--space-1); color: var(--text-muted); font-size: .7rem; }
-.projects-stage .ui-icon { width: 14px; height: 14px; }
+.projects-stage { --icon-size: 14px; }
 .projects-checks { display: grid; gap: var(--space-2); min-width: 140px; }
 .projects-check { display: grid; grid-template-columns: 14px minmax(60px,1fr) auto; align-items: center; gap: var(--space-1); }
-.projects-check .ui-icon { width: 14px; height: 14px; color: var(--text-muted); }
+.projects-check { --icon-size: 14px; --icon-color: var(--text-muted); }
 .projects-check-name { color: var(--text-muted); font-size: .68rem; white-space: nowrap; }
 .projects-signal { color: var(--text-muted); font: 500 .72rem/1.4 var(--font-sans); white-space: nowrap; }
 .projects-signal--info { color: var(--status-info); }
@@ -66,13 +67,13 @@ export const PROJECTS_STYLES=[THEME_CSS,FOUNDATION_CSS,BUTTON_CSS,TABLE_CSS,FORM
 .projects-recommendation p { margin: 0; }
 .projects-detail-section { border-top: 1px solid var(--border-subtle); padding-block: var(--space-4); }
 .projects-detail-section h3 { display: flex; align-items: center; gap: var(--space-2); margin: 0 0 var(--space-3); font-size: .78rem; font-weight: 600; }
-.projects-detail-section h3 .ui-icon { width: 15px; height: 15px; color: var(--text-muted); }
+.projects-detail-section h3 { --icon-size: 15px; --icon-color: var(--text-muted); }
 .projects-status-controls { display: grid; grid-template-columns: minmax(0,1fr) auto; align-items: end; gap: var(--space-2); }
 .projects-context { padding: var(--space-3); background: var(--surface-panel); border-radius: var(--radius); color: var(--text-muted); font-size: .78rem; line-height: 1.55; margin: var(--space-3) 0 0; overflow-wrap: anywhere; }
 .projects-evidence { display: grid; gap: var(--space-3); }
 .projects-evidence-row { display: flex; align-items: center; justify-content: space-between; gap: var(--space-2); }
 .projects-evidence-label { display: flex; align-items: center; gap: var(--space-2); min-width: 0; }
-.projects-evidence-label > .ui-icon { color: var(--text-muted); }
+.projects-evidence-label { --icon-color: var(--text-muted); }
 .projects-evidence-label > div { display: grid; gap: var(--space-1); }
 .projects-evidence-label strong { font-size: .78rem; font-weight: 500; }
 .projects-detail code { font: .66rem var(--font-mono); color: var(--text-muted); }

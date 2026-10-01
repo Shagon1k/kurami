@@ -93,6 +93,7 @@ function setPeriod(key,days){
   selectedPeriod=days;
   for(const panel of dashboard.querySelectorAll('[data-period-panel]'))panel.hidden=panel.dataset.periodDays!==days;
   for(const button of document.querySelectorAll('[data-period-key="global"]'))button.setAttribute('aria-pressed',String(button.dataset.periodDays===days));
+  for(const trigger of document.querySelectorAll('[data-period-trigger="global"]'))trigger.textContent=days+(hubLanguage==='ru'?'д':'d');
 }
 function initializePeriods(){
   let days=selectedPeriod;
@@ -116,7 +117,7 @@ async function refreshHub(force=false){
   if(!dashboard||refreshing||document.visibilityState!=="visible"||!force&&(dashboard.contains(document.activeElement)||dialog?.open))return;
   refreshing=true;
   try {
-    const response=await fetch("/api/fragment?lang="+hubLanguage,{cache:"no-store",credentials:"same-origin"});
+    const response=await fetch(kuramiAppUrl("/api/fragment?lang="+hubLanguage),{cache:"no-store",credentials:"same-origin"});
     if(!response.ok)throw new Error("Hub refresh failed");
     const html=await response.text();
     if(dashboard.innerHTML!==html){
@@ -143,7 +144,7 @@ if("serviceWorker" in navigator)window.addEventListener("load",()=>{void navigat
 const errors={controls_unavailable:["Управление ещё не подключено","Controls are not connected"],unauthorized:["Нет доступа. Обнови страницу и войди снова","Access denied. Reload and sign in again"],invalid_origin:["Обнови страницу перед повтором","Reload the page before retrying"],stale_settings:["Данные изменились. Открой настройки заново","Values changed. Reopen the settings"],action_in_progress:["Другое действие ещё выполняется","Another action is still running"],command_failed:["Команда отклонена. Обнови состояние и повтори","Command rejected. Refresh the state and retry"],provider_unsupported:["Этот provider настраивается в Hermes","Configure this provider in Hermes"],noCredit:["Нет доступных сбросов","No resets available"],nothingToReset:["Нет лимита для сброса","No eligible limit to reset"]};
 function errorText(code){const pair=errors[code];return pair?text(...pair):text("Действие не выполнено","Action did not complete");}
 async function api(action,payload){
-  const response=await fetch("/api/controls?lang="+hubLanguage+(payload?"":"&action="+encodeURIComponent(action)),{
+  const response=await fetch(kuramiAppUrl("/api/controls?lang="+hubLanguage+(payload?"":"&action="+encodeURIComponent(action))),{
     method:payload?"POST":"GET",credentials:"same-origin",cache:"no-store",
     headers:payload?{"Content-Type":"application/json","X-Hub-Control-Token":csrf}:{},
     body:payload?JSON.stringify({...payload,action,confirm:true}):undefined,

@@ -201,7 +201,7 @@ function shell(lang:Language,title:string,description:string,body:string,active:
   return renderDocument({
     lang,title:`${title} · Kurami docs`,description,favicon:"/assets/favicon.svg",styles:{href:"/assets/docs.css"},themeScript:true,skipLabel:t.skip,
     header:renderSiteHeader({
-      brand:{href:url(lang,""),ariaLabel:lang==="ru"?"Kurami docs — главная":"Kurami docs — home",foxSrc:"/assets/fox.webp",suffix:"docs"},
+      brand:{href:url(lang,""),ariaLabel:lang==="ru"?"Kurami docs — главная":"Kurami docs — home",foxSrc:"/assets/fox.webp",suffix:"Docs"},
       nav:{label:t.primaryNav,links,collapse:{label:t.sections}},
       sites:kuramiSites("docs",lang),
       actions:renderLinkButton({label:other.toUpperCase(),href:url(other,alternateSlug),variant:"icon",ariaLabel:t.choose,attributes:{hreflang:other}})+renderThemeSwitch(lang),

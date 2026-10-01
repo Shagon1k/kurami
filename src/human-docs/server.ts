@@ -2,6 +2,8 @@ import {createServer, type Server} from "node:http";
 import {readFileSync, statSync, createReadStream} from "node:fs";
 import {dirname, resolve, sep} from "node:path";
 import {fileURLToPath} from "node:url";
+import {isMountedRequest} from "../web/presentation.ts";
+import {publicAppUrl} from "../web/routes.ts";
 
 const types: Record<string,string> = {
   ".html":"text/html; charset=utf-8", ".css":"text/css; charset=utf-8",
@@ -11,12 +13,13 @@ const types: Record<string,string> = {
 
 export function createDocsServer(root: string): Server {
   const base = resolve(root);
-  const build = JSON.parse(readFileSync(resolve(base,"build.json"),"utf8")) as {mode?:string;revision?:string|null;docsSha?:string|null};
+  const build = JSON.parse(readFileSync(resolve(base,"build.json"),"utf8")) as {mode?:string;revision?:string|null;docsSha?:string|null;webMount?:boolean};
   if(build.mode!=="release" || !/^[0-9a-f]{40}$/.test(build.docsSha??"") ||
     (build.revision!=null && !/^[0-9a-f]{40}$/.test(build.revision))) {
     throw new Error("Refusing to serve docs without a clean release build");
   }
   return createServer((request,response)=>{
+    const mounted=isMountedRequest(request,"docs");
     response.setHeader("X-Content-Type-Options","nosniff");
     response.setHeader("Cache-Control","no-store");
     response.setHeader("Referrer-Policy","no-referrer");
@@ -24,13 +27,15 @@ export function createDocsServer(root: string): Server {
     let pathname: string;
     try { pathname=decodeURIComponent(new URL(request.url??"/","http://localhost").pathname); }
     catch {response.writeHead(400).end();return;}
-    if(pathname==="/"||pathname==="/index.html") {response.writeHead(302,{Location:"/en/"}).end();return;}
+    if(pathname==="/"||pathname==="/index.html") {response.writeHead(302,{Location:mounted?publicAppUrl("/en/","docs","en"):"/en/"}).end();return;}
     // Only generated public routes/assets; never expose build metadata or source paths.
     if(!/^\/(?:|(?:en|ru)\/(?:|(?:[a-z0-9-]+\/)*)(?:index\.html)?|assets\/[a-z0-9-]+\.(?:css|js|svg|png|webp|woff2))$/.test(pathname)) {
       response.writeHead(404).end();return;
     }
     const relative=pathname.endsWith("/")?`${pathname}index.html`:pathname;
-    const target=resolve(base,`.${relative}`);
+    const variant=mounted&&(relative.endsWith(".html")||relative==="/assets/docs.css");
+    if(variant&&!build.webMount){response.writeHead(503).end();return;}
+    const target=resolve(base,variant?"unified":"",`.${relative}`);
     if(!target.startsWith(base+sep)) {response.writeHead(404).end();return;}
     const extension=target.slice(target.lastIndexOf("."));
     const type=types[extension];

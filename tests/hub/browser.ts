@@ -163,8 +163,11 @@ try {
     await devtools.call("Emulation.setDeviceMetricsOverride",{width:390,height:1000,deviceScaleFactor:1,mobile:true});
     if(lang==="en"){await screenshot("hub-phone");await screenshot("hub-header-phone","header");await screenshot("hub-summary-phone",".overview-grid");}
     await devtools.evaluate("window.scrollTo(0,document.body.scrollHeight/2)");
-    const periodBounds=await devtools.evaluate<{top:number;bottom:number}>("(()=>{const r=document.querySelector('.period-switch').getBoundingClientRect();return {top:r.top,bottom:r.bottom}})()");
-    assert(periodBounds.top>=0&&periodBounds.bottom<200,"global period remains available while scrolling");
+    const periodBounds=await devtools.evaluate<{top:number;bottom:number}>("(()=>{const r=document.querySelector('[data-period-trigger]').getBoundingClientRect();return {top:r.top,bottom:r.bottom}})()");
+    assert(periodBounds.top>=0&&periodBounds.bottom<=1000,"global period capsule remains available while scrolling");
+    assert.equal(await devtools.evaluate("document.querySelector('header').getBoundingClientRect().height<90"),true,"period does not add a mobile header row");
+    await devtools.evaluate("document.querySelector('[data-period-trigger]').click()");
+    assert.equal(await devtools.evaluate("document.querySelector('.period-control__choices').matches(':popover-open')"),true);
     await devtools.evaluate("document.querySelector('[data-period-key=global][data-period-days=\"30\"]').click()");
     assert.equal(await devtools.evaluate("[...document.querySelectorAll('[data-period-panel]:not([hidden])')].every(panel=>panel.dataset.periodDays==='30')"),true,"global period updates every panel from the sticky header");
     await devtools.evaluate("document.querySelector('[data-period-key=global][data-period-days=\"7\"]').click()");

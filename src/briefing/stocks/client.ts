@@ -19,7 +19,9 @@ function initializeStocks():void {
     try {
       let html=cache.get(key);
       if(!html){
-        const response=await fetch("/api/stocks/details?"+new URLSearchParams({symbols:id,period:requestedPeriod,lang:english?"en":"ru"}),{signal:AbortSignal.timeout(10000)});
+        const path="/api/stocks/details?"+new URLSearchParams({symbols:id,period:requestedPeriod,lang:english?"en":"ru"});
+        const context=document.getElementById("kurami-web-context");
+        const response=await fetch(context?"/_apps/"+JSON.parse(context.textContent??"{}").app+path:path,{signal:AbortSignal.timeout(10000)});
         if(!response.ok)throw new Error("Chart unavailable");
         html=await response.text();if(html.length>300000)throw new Error("Chart too large");
       }

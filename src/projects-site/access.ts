@@ -2,7 +2,7 @@ import { createPublicKey, verify, type JsonWebKeyInput } from "node:crypto";
 import type { IncomingMessage } from "node:http";
 
 type AccessKey = JsonWebKeyInput["key"] & { kid: string };
-type AccessOptions = { team: string; audience: string; ownerEmail: string; fetchKeys?: typeof fetch; now?: () => number };
+type AccessOptions = { team: string; audience: string; ownerEmail: string; identityPolicy?: "owner" | "access"; fetchKeys?: typeof fetch; now?: () => number };
 
 /** Validates the signed assertion and the owner's identity before serving private data. */
 export class ProjectsAccess {
@@ -27,7 +27,7 @@ export class ProjectsAccess {
 
   async authorize(request: Pick<IncomingMessage, "headers">): Promise<string | null> {
     const { team, audience, ownerEmail } = this.options;
-    if (!/^https:\/\/[a-z0-9-]+\.cloudflareaccess\.com$/.test(team) || !audience || !ownerEmail) return null;
+    if (!/^https:\/\/[a-z0-9-]+\.cloudflareaccess\.com$/.test(team) || !audience || (!ownerEmail && this.options.identityPolicy !== "access")) return null;
     const token = request.headers["cf-access-jwt-assertion"];
     if (typeof token !== "string" || token.length > 16_000) return null;
     try {
@@ -39,7 +39,7 @@ export class ProjectsAccess {
       if (header.alg !== "RS256" || typeof header.kid !== "string" || header.crit || claims.iss !== team || claims.type !== "app" ||
         !Array.isArray(claims.aud) || !claims.aud.includes(audience) || !Number.isFinite(claims.exp) || claims.exp <= now / 1_000 ||
         !Number.isFinite(claims.nbf) || claims.nbf > now / 1_000 || typeof claims.sub !== "string" || !claims.sub ||
-        typeof claims.email !== "string" || claims.email.toLowerCase() !== ownerEmail.toLowerCase()) return null;
+        typeof claims.email !== "string" || !claims.email || (ownerEmail && claims.email.toLowerCase() !== ownerEmail.toLowerCase())) return null;
       if (!this.keys || now - this.keys.at >= 3_600_000) await this.refreshKeys(now);
       let key = this.keys?.values.find(key => key.kid === header.kid);
       if (!key && this.keys && now - this.keys.at > 60_000) { await this.refreshKeys(now); key = this.keys?.values.find(key => key.kid === header.kid); }

@@ -6,6 +6,8 @@ import { renderStoryCover } from "./story-media.ts";
 import { renderTopicSet } from "./topic-set.ts";
 import { renderKuramiNote } from "./kurami-note.ts";
 import {digestLanguage,digestText} from "../../i18n.ts";
+import {renderLinkButton} from "../../../ui-library/components/button.ts";
+import {iconPath} from "../../../ui-library/components/icon.ts";
 
 function sourceMetadata(story: NewsItem): {
   provider: string;
@@ -52,7 +54,7 @@ export function renderNewsStory(input: {
     : null;
   const read = displayString(story.readState) === "read";
   const sourceLink = source.url
-    ? `<a class="news-story__source" href="${escapeHtml(source.url)}" target="_blank" rel="noopener noreferrer" aria-label="${digestText("Перейти к источнику","Open source")}">↗</a>`
+    ? renderLinkButton({label:digestText("Перейти к источнику","Open source"),href:source.url,variant:"icon",className:"news-story__source",target:"_blank",iconPath:iconPath("arrow"),visibleLabel:false})
     : "";
   const depth = displayString(story.depth, "standard");
   const safeDepth = ["featured", "standard", "compact"].includes(depth) ? depth : "standard";

@@ -55,6 +55,8 @@ try {
       assert.equal(response.status,status,path);
       if(body)assert.equal(await response.text(),body);
     }
+    const mountedHeaders={"x-kurami-web-app":"docs"};
+    assert.equal((await fetch(base+"/en/",{headers:mountedHeaders})).status,503,"old release cannot serve incorrectly rooted mounted HTML");
     const head=await fetch(base+"/ru/",{method:"HEAD"});
     assert.equal(head.status,200);
     assert.equal(await head.text(),"");
@@ -62,5 +64,17 @@ try {
     assert.equal(fox.headers.get("content-type"),"image/webp");
     assert.equal((await fetch(base+"/ru/",{method:"POST"})).status,405);
   } finally {server.close();await once(server,"close");}
+  mkdirSync(join(root,"unified/en"),{recursive:true});
+  const immutable='<html><head></head><body><a href="/en/docs/">Mounted fixture</a></body></html>';
+  writeFileSync(join(root,"unified/en/index.html"),immutable);
+  writeFileSync(join(root,"build.json"),JSON.stringify({mode:"release",revision:null,docsSha:revision,webMount:true}));
+  const mounted=createDocsServer(root);mounted.listen(0,"127.0.0.1");await once(mounted,"listening");
+  try {
+    const base=`http://127.0.0.1:${(mounted.address() as {port:number}).port}`;
+    const response=await fetch(base+"/en/",{headers:{"x-kurami-web-app":"docs"}});
+    assert.equal(await response.text(),immutable,"published mounted bytes are served without rewrite");
+    assert.equal(response.headers.get("content-length"),String(Buffer.byteLength(immutable)));
+    assert.equal(await(await fetch(base+"/en/")).text(),"fixture:en/index.html","native artifacts remain separate");
+  } finally {mounted.close();await once(mounted,"close");}
   console.log("Docs origin: release-only gate, routes, assets and method restrictions verified");
 } finally {rmSync(root,{recursive:true,force:true});}

@@ -38,6 +38,9 @@ const periodControl=renderPeriodSwitch({key:"usage",lang:"en",label:"Usage perio
 assert.match(periodControl,/role="group" aria-label="Usage period"/);
 assert.match(periodControl,/data-period-days="30" aria-pressed="true"/);
 assert.match(periodControl,/data-period-days="7" aria-pressed="false"/);
+const floatingPeriod=renderPeriodSwitch({key:"global",lang:"ru",label:"Период",floating:true});
+assert.match(floatingPeriod,/data-period-trigger="global" aria-expanded="false" aria-controls="period-global-choices"/);
+assert.match(floatingPeriod,/>30д<\/button>/);
 assert.match(renderPeriodSwitch({key:"usage",lang:"ru",selected:7,label:"Расход"}),/>7д</);
 assert.throws(()=>renderPeriodSwitch({key:'bad"key',lang:"en",label:"Usage"}),/Invalid period key/);
 
@@ -137,14 +140,17 @@ assert.throws(()=>renderSiteNav({label:"x",links:[{href:"javascript:alert(1)",la
 assert.throws(()=>renderSiteNav({label:"x",links:[],attributes:{onclick:"x"}}),/Unsafe header attribute/);
 assert.match(renderSiteNav({label:"x",links:[],hideWhenEmpty:true}),/ hidden>/);
 const sites=renderSiteSwitcher(kuramiSites("docs","en"));
-assert.match(sites,/<summary aria-label="Sites">/);
+assert.match(sites,/<summary aria-label="Apps">/);
 assert.match(sites,/href="https:\/\/hub\.shagon1k\.win\/en\/"[^>]*>Hub<\/a>/);
 assert.match(sites,/href="https:\/\/docs\.shagon1k\.win\/en\/" aria-current="location">Docs<\/a>/);
-assert.match(sites,/href="https:\/\/hermes\.shagon1k\.win\/"[^>]*>Hermes<\/a>/);
-assert.match(sites,/href="https:\/\/dokploy\.shagon1k\.win\/"[^>]*>Dokploy<\/a>/);
+assert.match(sites,/href="https:\/\/hermes\.shagon1k\.win\/" target="_blank" rel="noopener noreferrer"[^>]*>Hermes<span/);
+assert.match(sites,/href="https:\/\/dokploy\.shagon1k\.win\/" target="_blank" rel="noopener noreferrer"[^>]*>Dokploy<span/);
 assert.match(sites,/href="https:\/\/projects\.shagon1k\.win\/">Projects<\/a>/);
 assert.doesNotMatch(sites,/site-nav__link--disabled/);
-assert.equal((sites.match(/class="site-nav__link"/g)??[]).length,6);
+assert.equal((sites.match(/class="site-nav__link(?: site-nav__link--external)?"/g)??[]).length,6);
+assert.match(renderLinkButton({label:"Open source",href:"https://source.example",variant:"icon",iconPath:"M0 0",visibleLabel:false,target:"_blank"}),/rel="noopener noreferrer" aria-label="Open source"/);
+assert.throws(()=>renderLinkButton({label:"X",href:"/",variant:"icon",className:'bad"'}),/Unsafe link button class/);
+assert.throws(()=>renderLinkButton({label:"X",href:"/",variant:"icon",visibleLabel:false}),/requires an icon/);
 assert.doesNotMatch(renderSiteSwitcher(kuramiSites("hub")),/href="https:\/\/docs\.shagon1k\.win\/en\/"/);
 const documentHtml=renderDocument({lang:"en",title:"T",favicon:"/f.svg",styles:{href:"/s.css"},themeScript:true,skipLabel:"Skip",header,main:"<p>m</p>",footer:"<footer></footer>"});
 assert.match(documentHtml,/<a class="skip-link" href="#main">Skip<\/a>/);

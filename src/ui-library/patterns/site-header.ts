@@ -3,7 +3,7 @@
 import { escapeHtml } from "../foundations/html.ts";
 import { breakpoints } from "../tokens/index.ts";
 
-export type NavLink = { href: string; label: string; current?: "page" | "location"; title?: string; disabled?: boolean; hint?: string };
+export type NavLink = { href: string; label: string; current?: "page" | "location"; title?: string; disabled?: boolean; hint?: string; external?: boolean };
 export type SiteNavInput = { label: string; links: readonly NavLink[]; scroll?: boolean; attributes?: Record<string, true | string>; hideWhenEmpty?: boolean };
 export type SiteSwitcherInput = { label: string; summary: string; links: readonly NavLink[] };
 export type SiteHeaderInput = {
@@ -15,6 +15,7 @@ export type SiteHeaderInput = {
   /** Trusted HTML from library components, e.g. renderThemeSwitch(). */
   actions: string;
   utility?: string;
+  utilityFloating?:boolean;
 };
 
 const SAFE_ATTRIBUTE = /^(?:data-[a-z][a-z0-9-]*|id)$/;
@@ -33,7 +34,7 @@ export function renderSiteNav(input: SiteNavInput, className = "site-nav"): stri
   const links = input.links.map(link => {
     const href=safeHref(link.href);
     if(link.disabled)return `<span class="site-nav__link site-nav__link--disabled" aria-disabled="true"${link.title ? ` title="${escapeHtml(link.title)}"` : ""}>${escapeHtml(link.label)}${link.hint ? `<small class="site-nav__hint">${escapeHtml(link.hint)}</small>` : ""}</span>`;
-    return `<a class="site-nav__link" href="${href}"${link.current ? ` aria-current="${link.current}"` : ""}${link.title ? ` title="${escapeHtml(link.title)}"` : ""}>${escapeHtml(link.label)}</a>`;
+    return `<a class="site-nav__link${link.external?" site-nav__link--external":""}" href="${href}"${link.external?' target="_blank" rel="noopener noreferrer"':""}${link.current ? ` aria-current="${link.current}"` : ""}${link.title ? ` title="${escapeHtml(link.title)}"` : ""}>${escapeHtml(link.label)}${link.external?'<span class="site-nav__external" aria-hidden="true">↗</span>':""}</a>`;
   }).join("");
   const hidden = input.hideWhenEmpty && !links ? " hidden" : "";
   return `<nav class="${className}${input.scroll?" site-nav--scroll":""}"${attributes(input.attributes)} aria-label="${escapeHtml(input.label)}"${hidden}>${links}</nav>`;
@@ -52,7 +53,7 @@ export function renderSiteHeader(input: SiteHeaderInput): string {
   const menu = nav.collapse
     ? `<details class="site-menu"><summary aria-label="${escapeHtml(nav.collapse.label)}"><span class="site-menu__icon" aria-hidden="true"></span></summary>${renderSiteNav({ label: nav.label, links: nav.links }, "site-menu__nav")}</details>`
     : "";
-  return `<header class="site-header${nav.collapse ? " site-header--collapsible" : ""}${nav.scroll?" site-header--scroll-nav":""}" data-site-header${attributes(input.attributes)}${input.label ? ` aria-label="${escapeHtml(input.label)}"` : ""}>
+  return `<header class="site-header${nav.collapse ? " site-header--collapsible" : ""}${nav.scroll?" site-header--scroll-nav":""}" data-site-header${input.utilityFloating?' data-floating-utility="true"':""}${attributes(input.attributes)}${input.label ? ` aria-label="${escapeHtml(input.label)}"` : ""}>
     <div class="site-header__inner container">
       <a class="site-brand" href="${safeHref(brand.href)}" aria-label="${escapeHtml(brand.ariaLabel)}">
         <img class="site-brand__fox" src="${safeHref(brand.foxSrc)}" width="48" height="48" alt="" decoding="async">
@@ -101,6 +102,9 @@ export const SITE_HEADER_CSS = `
 .site-switcher__nav .site-nav__link { justify-content: flex-start; min-height: var(--control-height); }
 .site-switcher__nav .site-nav__link[aria-current] { color: var(--text-accent); }
 .site-switcher__nav .site-nav__link[aria-current]::after { left: 0; right: auto; top: 12px; bottom: 12px; width: 2px; height: auto; }
+.site-switcher__nav .site-nav__link--external { color: var(--text-muted); }
+.site-switcher__nav .site-nav__link:not(.site-nav__link--external) + .site-nav__link--external { margin-top: var(--space-1); border-top: 1px solid var(--border-subtle); border-radius: 0; }
+.site-nav__external { margin-inline-start: auto; padding-inline-start: var(--space-3); color: var(--text-muted); }
 .site-menu { display: none; }
 @media (max-width: ${breakpoints.tablet}px) {
   .site-header--collapsible .site-header__inner { grid-template-areas: "brand menu actions"; gap: 8px; }
@@ -137,6 +141,8 @@ export const SITE_HEADER_CSS = `
   .site-switcher__nav { top: calc(100% + 4px); right: 0; }
   .site-nav { justify-self: stretch; gap: 4px; border-top: 1px solid var(--border-default); padding-top: 4px; }
   .site-header__utility { justify-self: stretch; border-top: 1px solid var(--border-subtle); padding-top: var(--space-1); }
+  .site-header[data-floating-utility] .site-header__inner { grid-template-areas: "brand actions"; padding-block: 10px; }
+  .site-header[data-floating-utility] .site-header__utility { grid-area: auto; position: absolute; border: 0; padding: 0; }
   .site-nav__link { flex: 1; padding-inline: 10px; }
   .site-menu__nav { grid-template-columns: 1fr; }
 }

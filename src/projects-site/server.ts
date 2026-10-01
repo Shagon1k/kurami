@@ -13,12 +13,15 @@ import type { ProjectsSnapshot } from "./model.ts";
 import { requestProjectsReview, ProjectsActionError, type ReviewResult } from "./actions.ts";
 import { requestProjectStatus, type StatusResult } from "./status.ts";
 import { requestProjectRunAction } from "./run-actions.ts";
+import {isMountedRequest,mountResponse,WEB_CLIENT_JS} from "../web/presentation.ts";
+import {WebAccess} from "../web/access.ts";
+import {WEB_ORIGIN} from "../web/routes.ts";
 
 const assetRoot = resolve(import.meta.dirname, "../ui-library/assets");
 const assets = new Map<string, { body: Buffer | string; type: string }>([
   ["/assets/projects.css", { body: PROJECTS_STYLES, type: "text/css; charset=utf-8" }],
-  ["/assets/projects.js", { body: readFileSync(resolve(import.meta.dirname, "client.js")), type: "text/javascript; charset=utf-8" }],
-  ["/assets/theme.js", { body: THEME_RUNTIME_JS, type: "text/javascript; charset=utf-8" }],
+  ["/assets/projects.js", { body: WEB_CLIENT_JS+readFileSync(resolve(import.meta.dirname, "client.js"),"utf8"), type: "text/javascript; charset=utf-8" }],
+  ["/assets/theme.js", { body: WEB_CLIENT_JS+THEME_RUNTIME_JS, type: "text/javascript; charset=utf-8" }],
   ["/assets/kurami-fox.webp", { body: readFileSync(resolve(assetRoot, "brand/kurami-fox-header.webp")), type: "image/webp" }],
   ["/assets/favicon.svg", { body: readFileSync(resolve(assetRoot, "brand/kurami-favicon.svg")), type: "image/svg+xml" }],
 ]);
@@ -36,9 +39,11 @@ export function createProjectsServer(options: {
   const access = new ProjectsAccess({ team: process.env.PROJECTS_ACCESS_TEAM ?? "", audience: process.env.PROJECTS_ACCESS_AUDIENCE ?? "", ownerEmail: process.env.PROJECTS_OWNER_EMAIL ?? "" });
   const accessEnabled = process.env.PROJECTS_ACCESS_ENABLED ?? "0";
   if (accessEnabled !== "0" && accessEnabled !== "1") throw new Error("Invalid PROJECTS_ACCESS_ENABLED");
-  const authorize = options.authorize ?? (accessEnabled === "1"
-    ? request => access.authorize(request)
-    : async () => "projects-origin");
+  const nativeAuthorize = accessEnabled === "1"
+    ? (request:IncomingMessage) => access.authorize(request)
+    : async () => "projects-origin";
+  const webAccess=new WebAccess();
+  const authorize=options.authorize??(async(request:IncomingMessage)=>isMountedRequest(request,"projects")?(await webAccess.authorize(request,"projects"))?.actor??null:nativeAuthorize(request));
   const snapshot = options.snapshot ?? collectProjectsSnapshot;
   const review = options.review ?? (process.env.PROJECTS_CONTROLS_ENABLED === "1" ? requestProjectsReview : null);
   const statusChange = options.statusChange ?? (process.env.PROJECTS_STATUS_ENABLED === "1" ? requestProjectStatus : null);
@@ -52,12 +57,13 @@ export function createProjectsServer(options: {
     return value;
   }
   return createServer(async (request, response) => {
+    mountResponse(request,response,"projects");
     response.setHeader("Cache-Control", "private, no-store");
     response.setHeader("X-Content-Type-Options", "nosniff");
     response.setHeader("Referrer-Policy", "no-referrer");
     response.setHeader("X-Frame-Options", "DENY");
     response.setHeader("X-Robots-Tag", "noindex, nofollow");
-    response.setHeader("Content-Security-Policy", "default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self'; font-src 'self'; connect-src 'self'; base-uri 'none'; frame-ancestors 'none'; form-action 'self'");
+    response.setHeader("Content-Security-Policy", "default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self'; font-src 'self'; connect-src 'self'; manifest-src 'self'; worker-src 'self'; base-uri 'none'; frame-ancestors 'none'; form-action 'self'");
     let lang:Language=request.headers["accept-language"]?.toLowerCase().startsWith("ru")?"ru":"en";
     const send = (status: number, type: string, body: Buffer | string) => {
       if(typeof body==="string"&&type.startsWith("text/plain"))body=sourceText(body,lang);
@@ -84,7 +90,7 @@ export function createProjectsServer(options: {
     const identity = await authorize(request).catch(() => null);
     if (!identity) { send(403, "text/plain; charset=utf-8", "Доступ разрешён только владельцу через Cloudflare Access."); return; }
     if (reviewRoute || statusRoute || runRoute) {
-      if (request.headers.origin !== (options.origin ?? "https://projects.shagon1k.win") ||
+      if (request.headers.origin !== (options.origin ?? (isMountedRequest(request,"projects")?WEB_ORIGIN:"https://projects.shagon1k.win")) ||
         request.headers["content-type"] !== "application/json" ||
         request.headers["sec-fetch-site"] && request.headers["sec-fetch-site"] !== "same-origin") {
         send(403, "application/json", JSON.stringify({ error: "Запрос разрешён только со страницы Projects." })); return;

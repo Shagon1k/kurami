@@ -10,6 +10,7 @@ const suites = [
   "test:ui-guard",
   "test:hub",
   "test:projects-site",
+  "test:web",
   "test:briefing-weekly",
   "test:briefing-completion",
   "test:briefing-charts",

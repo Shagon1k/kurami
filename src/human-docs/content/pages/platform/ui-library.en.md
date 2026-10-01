@@ -50,6 +50,14 @@ still names the result independently of its color.
 Published Digest editions receive current shared control styles when served,
 so an older edition uses the same sizes as a new page.
 
+The shared header names the current app: Kurami. Hub, Digest, Projects or Docs.
+**Apps** opens the product links; Hermes and Dokploy are separated external links
+that open in another tab. On the unified entry, product links stay on one origin,
+so the saved theme follows you between apps. Hub's phone period control uses a
+shared floating-button variant with keyboard focus and safe-area spacing.
+Digest uses the shared toggle, source-link and selected icon-button states;
+Projects uses shared icon sizing rather than redefining the SVG styles.
+
 ## Layers
 
 The layers run from values up to finished pages, and each one knows only about those below it. At the bottom sit *roles*: not "red #e21b16" but "the accent colour" (`--accent-primary`). There are 32 colour roles and 19 others — fonts, radii, shadows, spacing and durations. The Kurami theme sets the role values in a light and a dark form, and the breakpoints for phone and tablet — 620 and 900 pixels — live in constants because `@media` cannot read variables.
