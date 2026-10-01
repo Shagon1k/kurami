@@ -1,6 +1,13 @@
 {
   "baseline": "4a38c09",
   "commits": {
+    "5d50e91c862e129a9738f0dd9225da37a20f5067": {
+      "category": "operations",
+      "en": "",
+      "ru": "",
+      "exclusionScope": "no-reader-visible-change",
+      "exclude": "Updated only the internal web consolidation and UI audit plans with observed release checks. Product code, reader-facing pages, deployment provenance and remaining Android acceptance are unchanged."
+    },
     "d4bfa6653804e4d5fdd27bc8ebb0c778f2c1129d": {
       "category": "fixed",
       "en": "Fixed authenticated PWA manifest loading, kept Apps links on the unified Kurami origin, and corrected Digest first-load resources and section navigation. Shared font caching, compact dates, footers and mobile chart/control layout now use common patterns. Android installation acceptance remains separate.",
