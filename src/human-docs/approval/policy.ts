@@ -38,11 +38,11 @@ export function stateAfterAction(action:OwnerAction):ProposalState|undefined {
 }
 
 /**
- * A weekly proposal may only change reader-facing docs sources, the reviewed changelog ledger,
+ * A weekly proposal may only change reader-facing Markdown pages, the reviewed changelog ledger,
  * the docs copy test and the coverage record. Structure, renderer, build and application code stay out.
  */
 export function isAllowedProposalPath(path:string):boolean {
-  if(/^src\/human-docs\/content\/[a-z-]+\.ts$/.test(path))return path!=="src/human-docs/content/schema.ts";
+  if(/^src\/human-docs\/content\/pages\/(?:[a-z]+\/)?[a-z0-9-]+\.(?:ru|en)\.md$/.test(path))return true;
   return [
     "src/human-docs/changelog.json",
     "tests/human-docs/verify.ts",

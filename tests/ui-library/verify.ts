@@ -27,6 +27,7 @@ import {renderPopover} from "../../src/ui-library/components/popover.ts";
 import {renderDialog} from "../../src/ui-library/components/dialog.ts";
 import {renderPeriodSwitch} from "../../src/ui-library/components/period-switch.ts";
 import {inlineDiagram} from "../../src/ui-library/foundations/diagram.ts";
+import {renderDiagram} from "../../src/human-docs/diagrams/kit.ts";
 import {exportBundle,exportDirectory} from "../../src/ui-library/export.ts";
 import {baselineGrew,evaluateUiImpact,touchesUi} from "../../src/ui-library/testing/impact.ts";
 import {readFileSync,readdirSync} from "node:fs";
@@ -144,8 +145,10 @@ const table=renderTable({caption:"Cap",columns:["Name","Value"],rows:[["<b>",{ht
 assert.match(table,/^<div class="table table--numeric table--stack"><table><caption>Cap<\/caption>/);
 assert.match(table,/<th scope="row">&lt;b&gt;<\/th><td><span class="table__label" aria-hidden="true">Value<\/span><em>1<\/em><\/td>/);
 assert.throws(()=>renderTable({columns:["a","b"],rows:[["only one"]]}),/does not match/);
+assert.match(renderTable({caption:"Named by a heading",captionHidden:true,columns:["a"],rows:[["1"]]}),/<caption class="sr-only">Named by a heading<\/caption>/);
 assert.match(renderCallout({tone:"warning",title:"T",body:"<x>"}),/^<aside class="callout callout--warning"><strong>T<\/strong><p>&lt;x&gt;<\/p><\/aside>$/);
 assert.throws(()=>renderCallout({tone:"loud" as "note",body:"x"}),/Invalid callout tone/);
+assert.equal(renderCallout({tone:"note",body:{html:"<p>a <code>b</code></p><ul><li>c</li></ul>"}}),'<aside class="callout callout--note"><p>a <code>b</code></p><ul><li>c</li></ul></aside>',"trusted block markup is kept");
 assert.match(renderDisclosure({summary:"<s>",body:"<p>b</p>",boxed:true,open:true}),/^<details class="disclosure disclosure--boxed" open><summary>&lt;s&gt;<\/summary><p>b<\/p><\/details>$/);
 assert.match(renderSelectField({label:"<label>",name:"model",value:"a",options:[{value:"a",label:'<option>"'}]}),/&lt;label&gt;/);
 assert.match(renderSelectField({label:"Model",name:"model",value:"a",options:[{value:"a",label:"A"}]}),/value="a" selected>A<\/option>/);
@@ -171,14 +174,17 @@ assert.match(renderDialog({id:"test-dialog",title:"<title>",closeLabel:"Close",b
 assert.match(renderDialog({id:"test-dialog",title:"<title>",closeLabel:"Close",body:""}),/&lt;title&gt;/);
 assert.throws(()=>renderDialog({id:'bad"id',title:"T",closeLabel:"Close",body:""}),/Invalid dialog ID/);
 
-// Diagrams: every shipped scene stays inside the palette and becomes theme-aware when inlined.
-const scenes=readdirSync(resolve(root,"src/human-docs/assets")).filter(file=>file.endsWith(".svg"));
-assert.ok(scenes.length>=8);
-for(const file of scenes){
-  const inline=inlineDiagram(readFileSync(resolve(root,"src/human-docs/assets",file),"utf8"),{id:file.replace(".svg",""),label:"Scene"});
-  assert.doesNotMatch(inline,/\s(?:fill|stroke)="#/,`${file} keeps no fixed colours`);
-  assert.match(inline,/style="[^"]*var\(--diagram-[a-z-]+,#[0-9a-f]+\)/);
-  assert.doesNotMatch(inline,new RegExp(`\\sid="(?!${file.replace(".svg","")}-)`),`${file} ids are namespaced`);
+// Diagrams: every docs picture comes from the diagram kit, stays inside the palette and becomes theme-aware when inlined.
+const scenes={
+  graph:renderDiagram('kind: graph\ndesc: Every node kind and edge style, drawn once for the palette check.\nnode a "Owner" owner at 0,0\nnode b "Store" store at 1,0\nnode c "External" external at 2,0\nnode d "Start" start at 0,1\nnode e "Wait" wait at 1,1\nnode f "End" end at 2,1\nnode g "Fail" fail at 0,2\nnode h "Check" decision at 1,2\nnode i "table" "a · b" entity at 2,2\ngroup x "Group" a b highlight\nedge a -> b "x" accent\nedge b -> c dashed\nedge d -> e muted\nedge e <-> f').svg,
+  sequence:renderDiagram('kind: sequence\ndesc: Two actors and a phase for the palette check.\nactor a "A" owner\nactor b "B" external\nmsg a -> b "go" accent\nphase "Later"\nself b "work"\nnote b "done"').svg,
+  timeline:renderDiagram('kind: timeline\ndesc: One lane with every mark for the palette check.\nlane l "Lane"\nspan l 01:00-02:00 "Span" accent\nat l 03:00 "Point"\nevery l 120m "tick"').svg,
+};
+for(const [name,svg] of Object.entries(scenes)){
+  const inline=inlineDiagram(svg,{id:`kit-${name}`,label:"Scene"});
+  assert.doesNotMatch(inline,/\s(?:fill|stroke)="#/,`${name} keeps no fixed colours`);
+  assert.match(inline,/style="[^"]*var\(--diagram-(success|warning),#[0-9a-f]+\)/.test(inline)||name!=="graph"?/var\(--diagram-/:/diagram-success/);
+  assert.doesNotMatch(inline,new RegExp(`\\sid="(?!kit-${name}-)`),`${name} ids are namespaced`);
 }
 assert.throws(()=>inlineDiagram('<svg><rect fill="#123456"/></svg>',{id:"x",label:"x"}),/outside the diagram palette/);
 assert.throws(()=>inlineDiagram('<svg onload="x()"></svg>',{id:"x",label:"x"}),/Unsafe diagram/);

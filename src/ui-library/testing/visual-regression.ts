@@ -33,7 +33,7 @@ const pages:Record<string,string>={
   "hub-home-en":"/hub/en.html",
   "docs-home-en":"/en/",
   "docs-overview-ru":"/ru/what-is-kurami/",
-  "docs-state-table-en":"/en/reading-state/",
+  "docs-reference-table-en":"/en/data-stores/",
   "docs-run-diagram-ru":"/ru/run-lifecycle/",
   "docs-changelog-en":"/en/changelog/",
 };

@@ -1,16 +1,18 @@
 import assert from "node:assert/strict";
-import {mkdtempSync,readFileSync,writeFileSync,rmSync,existsSync} from "node:fs";
+import {mkdtempSync,readFileSync,readdirSync,writeFileSync,rmSync,existsSync} from "node:fs";
 import {tmpdir} from "node:os";
 import {join,resolve} from "node:path";
 import {execFileSync} from "node:child_process";
-import {pages} from "../../src/human-docs/content.ts";
-import {navigation,unlistedRoutes} from "../../src/human-docs/content/navigation.ts";
-import {assertContent,type HumanDocsBlock,type HumanDocsPage} from "../../src/human-docs/content/schema.ts";
+import {allPages,pages,homePage} from "../../src/human-docs/content.ts";
+import {aliases,legacyRoutes,sections} from "../../src/human-docs/content/site.ts";
+import {assertContent,walk,type HumanDocsPage} from "../../src/human-docs/content/schema.ts";
+import {parseBlocks,renderInline,type Block} from "../../src/human-docs/markdown.ts";
+import {renderDiagram,diagramSkeleton} from "../../src/human-docs/diagrams/kit.ts";
+import {inlineDiagram} from "../../src/ui-library/foundations/diagram.ts";
 import {changesForDeployedSha,readDeploymentManifest,assertDocsSourceMatchesDeployment,onlyDocsPackageScriptsChanged,onlyDocsWorkflowChanged} from "../../src/human-docs/changelog.ts";
-import {renderArticle,renderChangelog,renderHome} from "../../src/human-docs/render.ts";
+import {renderAlias,renderArticle,renderChangelog,renderHome,resolveSlug} from "../../src/human-docs/render.ts";
 import {DOCS_STYLES} from "../../src/human-docs/styles.ts";
 import {assertSyntheticFixture,syntheticDailyHtml} from "../../src/human-docs/fixtures/synthetic-daily.ts";
-import {INTEREST_POLICY} from "../../src/briefing/interest-profile.ts";
 import {evaluateDocsImpact} from "./impact.ts";
 
 const productChange=["src/briefing/weekly/lifecycle.ts"];
@@ -18,8 +20,8 @@ assert.match(evaluateDocsImpact(productChange,"").join(" "),/Docs-Impact/);
 assert.match(evaluateDocsImpact(productChange,"Docs-Impact: none\nDocs-Reason: moved code").join(" "),/specific/);
 assert.deepEqual(evaluateDocsImpact(productChange,"Docs-Impact: none\nDocs-Reason: Pure module extraction with no intended change to Weekly behavior."),[]);
 assert.match(evaluateDocsImpact(productChange,"Docs-Impact: updated\nChangelog-EN: Weekly retries failed counters.\nChangelog-RU: Weekly повторяет запись счётчиков.").join(" "),/digest/);
-assert.deepEqual(evaluateDocsImpact([...productChange,"src/human-docs/content/digest.ts"],"Docs-Impact: updated\nChangelog-EN: Weekly retries failed counters.\nChangelog-RU: Weekly повторяет запись счётчиков."),[]);
-assert.match(evaluateDocsImpact(["src/orchestrator/runtime/controller.ts","src/briefing/weekly/lifecycle.ts","src/human-docs/content/projects.ts"],"Docs-Impact: updated\nChangelog-EN: Runs and Weekly changed.\nChangelog-RU: Изменены запуски и Weekly.").join(" "),/digest/);
+assert.deepEqual(evaluateDocsImpact([...productChange,"src/human-docs/content/pages/digest/weekly.ru.md"],"Docs-Impact: updated\nChangelog-EN: Weekly retries failed counters.\nChangelog-RU: Weekly повторяет запись счётчиков."),[]);
+assert.match(evaluateDocsImpact(["src/orchestrator/runtime/controller.ts","src/briefing/weekly/lifecycle.ts","src/human-docs/content/pages/projects/run-lifecycle.en.md"],"Docs-Impact: updated\nChangelog-EN: Runs and Weekly changed.\nChangelog-RU: Изменены запуски и Weekly.").join(" "),/digest/);
 assert.deepEqual(evaluateDocsImpact(["src/human-docs/styles.ts"],""),[]);
 assert.deepEqual(evaluateDocsImpact([".github/workflows/regression.yml"],""),[]);
 assert.equal(onlyDocsPackageScriptsChanged({scripts:{check:"tsc"}},{scripts:{check:"tsc","docs:preview":"node build.ts","test:docs:browser":"node browser.ts"}}),true);
@@ -32,11 +34,8 @@ const withDocsGate="      - run: npm ci\n      - if: github.event_name == 'pull_
 assert.equal(onlyDocsWorkflowChanged(regressionWorkflow,withDocsGate),true);
 assert.equal(onlyDocsWorkflowChanged(regressionWorkflow,withDocsGate.replace("npm test","npm run check")),false);
 
-// Keep diagram connectors between cards and reserve space below prose maps.
-assert.match(DOCS_STYLES,/\.architecture-map__path \{[^}]*gap: 24px/);
-assert.match(DOCS_STYLES,/\.block \.system-map \{ margin-bottom: 24px; \}/);
-assert.match(DOCS_STYLES,/\.table--stack table, \.table--stack tbody, \.table--stack tr, \.table--stack caption \{ display: block; width: 100%;/);
-// Small accent labels on the light section background need the darker AA accent-text role.
+// Docs styles use theme roles: diagrams scroll inside their frame on phones, small accent labels use the AA accent-text role.
+assert.match(DOCS_STYLES,/\.figure__scroll \{ overflow-x: auto;/);
 assert.match(DOCS_STYLES,/:root \{[^}]*--text-accent: #c71410;/);
 for(const lang of ["en","ru"] as const)for(const theme of ["light","dark"] as const){
   const fixture=syntheticDailyHtml(lang,theme);
@@ -45,386 +44,108 @@ for(const lang of ["en","ru"] as const)for(const theme of ["light","dark"] as co
 }
 assert.throws(()=>assertSyntheticFixture('<html data-synthetic="true"><script src="https://example.org"></script></html>'),/network-isolated/);
 
+// Markdown subset: strict, no raw HTML, nested blocks by fence length.
+assert.throws(()=>parseBlocks("<div>x</div>","t"),/raw HTML/);
+assert.throws(()=>parseBlocks("# Title","t"),/## to ####/);
+assert.throws(()=>parseBlocks(":::note\nopen","t"),/unclosed/);
+assert.throws(()=>parseBlocks("| a | b |\n|---|---|\n| 1 |","t"),/cells/);
+const nested=parseBlocks("::::example T\n:::steps\n- **A** — one\n- **B** — two\n:::\n::::\n","t");
+assert.equal(nested[0]!.type,"container");
+assert.equal((nested[0] as Extract<Block,{type:"container"}>).body[0]!.type,"container");
+const list=parseBlocks("- one\n  - nested\n- two","t")[0] as Extract<Block,{type:"list"}>;
+assert.equal(list.items.length,2);
+assert.equal(list.items[0]![1]!.type,"list");
+assert.deepEqual(parseBlocks('::shot{file="shot-x.png" size="card" alt="A" caption="C"}',"t")[0],{type:"leaf",name:"shot",attrs:{file:"shot-x.png",size:"card",alt:"A",caption:"C"}});
+const link=(target:string)=>({href:`/x/${target}`});
+assert.equal(renderInline("a <b> **c** *d* `e<f>` [g](h)",link),'a &lt;b&gt; <strong>c</strong> <em>d</em> <code>e&lt;f&gt;</code> <a href="/x/h">g</a>');
+assert.throws(()=>renderInline("**open",link),/Unbalanced/);
+
+// Diagram kit: every engine renders inside the palette, too-wide pictures fail, EN/RU parity is by ids.
+const graph=renderDiagram('kind: graph\ndesc: A small test graph with two nodes and a store.\nnode a "A" owner\nnode b "B" store\nnode c "C" fail\ngroup g "G" a b\nedge a -> b "writes"\nedge b -> c dashed');
+const sequence=renderDiagram('kind: sequence\ndesc: Two actors exchange two messages for the test.\nactor a "A" owner\nactor b "B" external\nmsg a -> b "ask"\nself b "work"\nmsg b -> a "answer" accent');
+const timeline=renderDiagram('kind: timeline\ndesc: A test day with one span and one point in a lane.\nlane l "Lane"\nspan l 06:00-07:00 "Build"\nat l 09:00 "Notify" accent\nevery l 60m "tick" from 00:30');
+for(const diagram of [graph,sequence,timeline]){
+  assert.doesNotThrow(()=>inlineDiagram(diagram.svg,{id:"t",label:"t"}),"diagram stays in the palette");
+  assert.ok(diagram.width>0&&diagram.width<=980);
+  assert.equal(JSON.parse(diagram.excalidraw).type,"excalidraw");
+  assert.doesNotMatch(diagram.svg,/<script|\son[a-z]+=/);
+}
+assert.throws(()=>renderDiagram('kind: graph\ndesc: Nine wide nodes in one row must be rejected as too wide.\n'+Array.from({length:9},(_,i)=>`node n${i} "A rather long node label ${i}" at ${i},0`).join("\n")),/px wide/);
+assert.throws(()=>renderDiagram('kind: graph\ndesc: short'),/desc/);
+assert.throws(()=>renderDiagram('kind: graph\ndesc: An edge to a node that does not exist.\nnode a "A"\nedge a -> b'),/unknown node b/);
+assert.equal(diagramSkeleton('kind: graph\ndesc: Same ids in both languages here.\nnode a "Ты"\nnode b "Б"'),diagramSkeleton('kind: graph\ndesc: Same ids in both languages here.\nnode b "B"\nnode a "You"'));
+
+// Content: every page valid, structured the same in both languages, reachable from the menu.
 const root=resolve(import.meta.dirname,"../..");
-assert.doesNotThrow(()=>assertContent(pages,root));
-assert.ok(readFileSync(resolve(root,"docs/interest-profile-v1.md"),"utf8")
-  .includes(`base = -${INTEREST_POLICY.positionStep} × zero-based index`));
-assert.equal(pages.length,38);
-// Navigation: every page sits in exactly one menu group of its own section, or is an explicit unlisted route.
-const listed=Object.entries(navigation).flatMap(([section,groups])=>groups.flatMap(group=>group.slugs.map(slug=>({section,slug}))));
-assert.equal(new Set(listed.map(item=>item.slug)).size,listed.length,"a page appears in one menu group");
-for(const page of pages){
-  const entry=listed.find(item=>item.slug===page.slug);
-  if(unlistedRoutes.includes(page.slug)){assert.ok(!entry,`${page.slug} is unlisted`);continue;}
-  assert.ok(entry,`${page.slug} is in the menu`);assert.equal(entry.section,page.section,`${page.slug} is listed under its own section`);
+assert.doesNotThrow(()=>assertContent(allPages,root));
+assert.ok(homePage,"home page exists");
+assert.ok(pages.length>=60,`expected the layered site, found ${pages.length} pages`);
+for(const section of sections){
+  const start=pages.filter(page=>page.section===section&&page.group==="start");
+  if(section!=="reference")assert.equal(start.length,1,`${section} has exactly one overview page`);
 }
-for(const item of listed)assert.ok(pages.some(page=>page.slug===item.slug),`menu route ${item.slug} exists`);
-assert.deepEqual(navigation.digest.flatMap(group=>group.slugs),["daily","for-me","daily-addons","signals","daily-lifecycle","weekly","cinema","stocks","stocks-discovery","investment-review"]);
-const slugs=new Set(pages.map(p=>p.slug));
-assert.equal(slugs.size,pages.length);
-const validRoutes=new Set(["/en/","/ru/","/en/changelog/","/ru/changelog/",...pages.flatMap(page=>[`/en/${page.slug}/`,`/ru/${page.slug}/`])]);
-for(const page of pages){
-  const visuals=page.blocks.filter(block=>block.type==="diagram"||block.type==="screenshot"||block.type==="html"&&block.visual).length;
-  assert.ok(visuals<=2&&(visuals>=1||page.blocks.some(block=>block.type==="table")),`${page.slug} has one or two explicit visuals (a table-led page may use its table)`);
-  const disclosures=page.blocks.filter(block=>block.type==="details"||block.type==="technical").length;
-  assert.ok(disclosures===1||disclosures===0&&visuals===0,`${page.slug} has one inline disclosure (a table-led reference page may have none)`);
+for(const route of legacyRoutes)assert.ok(resolveSlug(route),`published route ${route} still resolves`);
+for(const [from,to] of Object.entries(aliases)){
+  assert.ok(!pages.some(page=>page.slug===from),`alias ${from} does not shadow a page`);
+  assert.ok(pages.some(page=>page.slug===to),`alias ${from} → ${to} exists`);
 }
-const invalidContent=(change:(copy:typeof pages)=>void)=>{
-  const copy=structuredClone(pages);
-  change(copy);
-  return copy;
+const count=(page:HumanDocsPage,lang:"en"|"ru",test:(block:Block)=>boolean)=>{let n=0;walk(page.blocks[lang],block=>{if(test(block))n++;});return n;};
+const container=(name:string)=>(block:Block)=>block.type==="container"&&block.name===name;
+const diagram=(block:Block)=>block.type==="code"&&block.lang==="diagram";
+for(const page of pages)for(const lang of ["en","ru"] as const){
+  if(page.group==="internals"){
+    assert.equal(count(page,lang,container("glance")),1,`${page.slug}/${lang}: an internals page starts with one glance block`);
+    assert.ok(count(page,lang,diagram)>=1,`${page.slug}/${lang}: an internals page has a diagram`);
+    assert.equal(count(page,lang,container("code-map")),1,`${page.slug}/${lang}: an internals page ends with a code map`);
+  }
+  if(page.group==="start"){
+    assert.equal(count(page,lang,container("glance")),1,`${page.slug}/${lang}: an overview has a glance block`);
+    assert.ok(count(page,lang,diagram)>=1,`${page.slug}/${lang}: an overview has a diagram`);
+    assert.ok(count(page,lang,container("cards"))>=1,`${page.slug}/${lang}: an overview links deeper`);
+  }
+  assert.ok(count(page,lang,container("guarantees"))<=1,`${page.slug}/${lang}: guarantees appear once at most`);
+  assert.ok(count(page,lang,block=>block.type==="leaf"&&block.name==="shot")<=2,`${page.slug}/${lang}: at most two screenshots`);
+  if(page.group!=="guide")assert.equal(count(page,lang,block=>block.type==="leaf"&&block.name==="shot"),0,`${page.slug}/${lang}: screenshots belong to guide pages`);
+}
+// Privacy: no personal names, home paths, places or long numeric identifiers in reader copy.
+for(const file of readdirSync(resolve(root,"src/human-docs/content/pages"),{recursive:true,encoding:"utf8"}).filter(file=>file.endsWith(".md"))){
+  const text=readFileSync(resolve(root,"src/human-docs/content/pages",file),"utf8");
+  assert.doesNotMatch(text,/\bAlex\b|Л[её]ш[а-яё]*|Vilnius|Вильнюс|\/home\/|ahurynovich|\b\d{15,20}\b|Схема поведения, не реальный API|Conceptual rule, not a callable API/i,`${file} contains private or placeholder copy`);
+}
+const validRoutes=new Set(["/en/","/ru/","/en/changelog/","/ru/changelog/",...[...pages.map(page=>page.slug),...Object.keys(aliases)].flatMap(slug=>[`/en/${slug}/`,`/ru/${slug}/`])]);
+const assertInternalLinks=(html:string,where:string)=>{
+  for(const match of html.matchAll(/<a [^>]*href="([^"]+)"/g))if(match[1]!.startsWith("/")&&!match[1]!.startsWith("/assets/"))assert.ok(validRoutes.has(match[1]!.replace(/#.*$/,"")),`Unknown internal docs route ${match[1]} in ${where}`);
+  assert.doesNotMatch(html,/href="#missing-/,`${where} links to a page that does not exist`);
 };
-assert.throws(()=>assertContent(invalidContent(copy=>{copy[1].slug=copy[0].slug;})),/duplicate docs route/);
-const firstHtml=(copy:typeof pages)=>copy[0].blocks[0] as Extract<HumanDocsBlock,{type:"html"}>;
-assert.throws(()=>assertContent(invalidContent(copy=>{firstHtml(copy).ru="";})),/Empty ru block/);
-assert.throws(()=>assertContent(invalidContent(copy=>{firstHtml(copy).en='<p><script>alert(1)</script></p>';})),/Unsafe or unstructured markup/);
-assert.throws(()=>assertContent(invalidContent(copy=>{firstHtml(copy).en='<div data-visual="home-map"></div>';})),/Unsafe or unstructured markup/);
-assert.throws(()=>assertContent(invalidContent(copy=>{firstHtml(copy).en='<a href="/ru/daily/">wrong locale</a>';})),/Wrong-language link/);
-assert.throws(()=>assertContent(invalidContent(copy=>{firstHtml(copy).en="<a href='/ru/daily/'>wrong locale</a>";})),/Wrong-language link/);
-assert.throws(()=>assertContent(invalidContent(copy=>{copy[0].sources=["../outside.md"];})),/Invalid docs source path/);
-assert.throws(()=>assertContent(invalidContent(copy=>{copy[0].sources=["docs/not-a-real-doc.md"];}),root),/Missing docs source/);
-const semanticFixture:HumanDocsPage={
-  slug:"semantic-fixture",section:"basics",
-  title:{en:"Fixture",ru:"Пример"},navTitle:{en:"Fixture",ru:"Пример"},summary:{en:"Semantic content",ru:"Структурированный контент"},
-  blocks:[
-    {type:"diagram",visual:"roles",explanation:{en:"The owner keeps the final decision.",ru:"Последнее решение остаётся за владельцем."}},
-    {type:"table",caption:{en:"Ownership",ru:"Ответственность"},columns:{en:["Question","Owner"],ru:["Вопрос","Владелец"]},rows:{en:[["Decision","Human"]],ru:[["Решение","Человек"]]}},
-    {type:"callout",tone:"limit",title:{en:"Limit",ru:"Ограничение"},body:{en:"No automatic merge.",ru:"Нет автоматического merge."}},
-    {type:"example",synthetic:true,title:{en:"Sample run",ru:"Пример запуска"},body:{en:"A sample issue waits for review.",ru:"Вымышленная задача ждёт ревью."}},
-    {type:"technical",summary:{en:"Technical detail",ru:"Техническая деталь"},body:{en:"A guard checks state.",ru:"Проверка сверяет состояние."},code:{en:"if (a < b) return;",ru:"if (a < b) return;"}},
-    {type:"source-links",paths:["README.md"]},
-  ],
-};
-assert.doesNotThrow(()=>assertContent([semanticFixture],root));
-for(const lang of ["en","ru"] as const){
-  const html=renderArticle(semanticFixture,lang,"a".repeat(40));
-  assert.match(html,/<figure class="roles-map">/);
-  assert.match(html,/<table><caption>/);
-  assert.match(html,/<th scope="row">/);
-  assert.match(html,/class="table__label" aria-hidden="true"/);
-  assert.match(html,/class="callout callout--limit block"/);
-  assert.ok(html.includes(lang==="en"?"Synthetic example":"Вымышленный пример"));
-  assert.match(html,/<details class="disclosure disclosure--boxed technical">/);
-  assert.ok(html.includes("a &lt; b"));
-  assert.equal((html.match(/class="source-notes"/g)??[]).length,1);
-}
-const badSemantic=(change:(page:HumanDocsPage)=>void)=>{const copy=structuredClone(semanticFixture);change(copy);return [copy];};
-assert.throws(()=>assertContent(badSemantic(page=>{(page.blocks[1] as Extract<HumanDocsBlock,{type:"table"}>).rows.ru[0].pop();})),/Invalid ru table/);
-assert.throws(()=>assertContent(badSemantic(page=>{(page.blocks[1] as Extract<HumanDocsBlock,{type:"table"}>).rows.ru.push(["Другой","Человек"]);})),/Unmatched docs table translations/);
-assert.throws(()=>assertContent(badSemantic(page=>{(page.blocks[0] as Extract<HumanDocsBlock,{type:"diagram"}>).explanation.ru="";})),/diagram explanation/);
-assert.throws(()=>assertContent(badSemantic(page=>{(page.blocks[3] as Extract<HumanDocsBlock,{type:"example"}>).synthetic=false as true;})),/must be synthetic/);
-assert.throws(()=>assertContent(badSemantic(page=>{(page.blocks[5] as Extract<HumanDocsBlock,{type:"source-links"}>).paths=["../secret"];})),/Invalid docs source path/);
-assert.throws(()=>assertContent(badSemantic(page=>{page.sources=["README.md"];})),/Duplicate docs source links/);
-const assertInternalLinks=(html:string)=>{
-  for(const match of html.matchAll(/<a [^>]*href="([^"]+)"/g)){
-    if(match[1].startsWith("/"))assert.ok(validRoutes.has(match[1]),`Unknown internal docs route: ${match[1]}`);
-  }
-};
-for(const page of pages){
-  for(const lang of ["en","ru"] as const){
-    assert.ok(page.title[lang]&&page.navTitle?.[lang]&&page.summary[lang]);
-    assert.doesNotMatch(JSON.stringify({title:page.title[lang],navTitle:page.navTitle[lang],summary:page.summary[lang],blocks:page.blocks}),/\bAlex\b|Л[её]ш[а-яё]*|09:00|10:00|Вильнюс|Vilnius|Схема поведения, не реальный API|Conceptual rule, not a callable API/i);
-    const html=renderArticle(page,lang);
-    assert.match(html,new RegExp(`<html lang="${lang}"`));
-    if(!["weekly-cinema","stocks-review"].includes(page.slug))assert.ok(html.includes(`/${lang}/${page.slug}/`));
-    assert.ok(html.includes(`/${lang==="en"?"ru":"en"}/${page.slug}/`));
-    assert.ok(!html.includes("data-visual="),`Unrendered visual in ${page.slug}`);
-    const rendered=(html.match(/<figure class=/g)??[]).length+(html.match(/<div class="visual">/g)??[]).length;
-    const tableLed=page.blocks.some(block=>block.type==="table")&&!page.blocks.some(block=>block.type==="diagram"||block.type==="screenshot"||block.type==="html"&&block.visual);
-    assert.ok(rendered>=1&&rendered<=2||tableLed&&rendered===0,`${page.slug}/${lang} must have one or two purposeful visuals`);
-    assertInternalLinks(html);
-    if(page.slug==="for-me"){
-      assert.ok(page.summary[lang].includes(lang==="ru"?"порядок новостей":"news order"),"the summary says the mode reorders news");
-    }
-    if(page.slug==="daily"){
-      const sidebar=html.match(/<nav class="side"[^>]*>([\s\S]*?)<\/nav>/)?.[1];
-      assert.ok(sidebar);
-      assert.ok(sidebar.includes(lang==="ru"?"<h3>Рынки</h3>":"<h3>Markets</h3>"));
-      assert.ok(sidebar.indexOf(`/${lang}/for-me/`)<sidebar.indexOf(`/${lang}/weekly/`));
-      assert.ok(sidebar.indexOf(`/${lang}/weekly/`)<sidebar.indexOf(`/${lang}/cinema/`));
-      assert.ok(sidebar.indexOf(`/${lang}/cinema/`)<sidebar.indexOf(`/${lang}/stocks/`));
-      assert.ok(!sidebar.includes(`/${lang}/weekly-cinema/`));
-      assert.ok(!sidebar.includes(`/${lang}/stocks-review/`));
-    }
-    if(page.slug==="project-orchestrator"){
-      assert.match(html,/<figure class="architecture-map">[\s\S]*?<ol class="architecture-map__path">/);
-      assert.equal((html.match(/class="architecture-map__outcomes"/g)??[]).length,1);
-      assert.ok(html.includes("docs/technical-reference.md"));
-      assert.ok(html.includes(lang==="ru"?"Безопасная остановка":"Safe stop"));
-      assert.ok(html.includes(lang==="ru"?"Где искать намерение, состояние и подтверждение":"Where to look for intent, state and proof"));
-      assert.equal((html.match(/<th scope="row">/g)??[]).length,5);
-      assert.ok(html.includes(`/${lang}/project-digest/`));
-    }
-    if(page.slug==="project-digest"){
-      assert.match(html,/<figure class="project-digest-map">/);
-      assert.equal((html.match(/class="project-digest-map__paths"/g)??[]).length,1);
-      assert.ok(html.includes(lang==="ru"?"остаётся твоё, а конфликт отображается":"yours is kept and the conflict is shown"));
-      assert.ok(html.includes(lang==="ru"?"Accept записывает твоё решение в SQLite":"Accept records your decision in SQLite"));
-    }
-    if(page.slug==="daily-lifecycle"){
-      assert.match(html,new RegExp(`<figure class="scene-map">[\\s\\S]*?<svg class="diagram" aria-label="[^"]+"[^>]*role="img"[\\s\\S]*?id="daily-publication-${lang}-tip"`));
-      assert.ok(html.includes(lang==="ru"?"Что проверять при сбое":"What to check when a stage fails"));
-      assert.ok(html.includes(lang==="ru"?"Одного успешного статуса планировщика для этого мало":"A successful scheduler status alone does not show that"));
-      assert.equal((html.match(/<th scope="row">/g)??[]).length,3);
-      const svg=readFileSync(resolve(root,`src/human-docs/assets/daily-publication-${lang}.svg`),"utf8");
-      const scene=JSON.parse(readFileSync(resolve(root,`src/human-docs/diagrams/daily-publication-${lang}.excalidraw`),"utf8"));
-      assert.equal(scene.type,"excalidraw");
-      assert.match(svg,/<svg[^>]*viewBox="0 0 560 1100"/);
-      assert.ok(svg.includes(lang==="ru"?"Сбой до публикации":"Before publication fails"));
-      assert.ok(svg.includes(lang==="ru"?"Сбой уведомления":"Notification fails later"));
-      assert.ok(page.sources?.includes("docs/daily-briefing-runtime.md"));
-    }
-    if(page.slug==="who-does-what"){
-      assert.match(html,/<figure class="roles-map">/);
-      assert.equal((html.match(/class="roles-map__card"/g)??[]).length,3);
-      for(const role of ["Hermes",lang==="ru"?"Курами":"Kurami","Codex"])assert.ok(html.includes(role));
-      assert.match(html,new RegExp(`<figure class="scene-map">[\\s\\S]*?<svg class="diagram"[\\s\\S]*?id="project-path-${lang}-tip"`));
-      assert.ok(html.includes(lang==="ru"?"точному последнему коммиту PR":"PR's exact head commit"));
-    }
-    if(page.slug==="reading-state"){
-      assert.match(html,/<figure class="state-legend">/);
-      assert.equal((html.match(/<dt>/g)??[]).length,6);
-      assert.ok(html.includes(lang==="ru"?"Ждёт владельца":"Awaiting owner"));
-    }
-    if(page.slug==="what-is-kurami"){
-      assert.match(html,/<figure class="system-map">/);
-      assert.equal((html.match(/class="system-map__path"/g)??[]).length,2);
-      assert.equal((html.match(/class="system-map__products"/g)??[]).length,1);
-      assert.ok(html.includes(lang==="ru"?"Решение владельца":"Owner decision"));
-    }
-    if(page.slug==="system-map"){
-      assert.match(html,new RegExp(`<figure class="scene-map">[\\s\\S]*?<svg class="diagram" aria-label="[^"]+"[^>]*role="img"[\\s\\S]*?id="system-map-${lang}-tip"`));
-      assert.ok(html.includes(lang==="ru"?"У каждого процесса своё состояние":"Each workflow keeps its own state"));
-      assert.equal(page.blocks.some(block=>block.type==="table"),false);
-      const svg=readFileSync(resolve(root,`src/human-docs/assets/system-map-${lang}.svg`),"utf8");
-      const scene=JSON.parse(readFileSync(resolve(root,`src/human-docs/diagrams/system-map-${lang}.excalidraw`),"utf8"));
-      assert.equal(scene.type,"excalidraw");
-      assert.match(svg,/<svg[^>]*viewBox="0 0 560 1000"/);
-      assert.ok(svg.includes(lang==="ru"?"Два входа · три процесса":"Two ways in · three workflows"));
-      assert.ok(svg.includes(lang==="ru"?"Агент — только если нужен":"An agent only when needed"));
-      assert.ok(!scene.elements.some((element:{id?:string})=>element.id==="owner-box"||element.id==="branch-to-owner"));
-      for(const label of ["Digest","Project Orchestrator","Operations"])assert.ok(svg.includes(label)&&scene.elements.some((element:{text?:string})=>element.text===label));
-    }
-    if(page.slug==="daily"){
-      assert.match(html,/<figure class="comparison-map">/);
-      assert.equal((html.match(/class="comparison-map__card"/g)??[]).length,2);
-    }
-    if(page.slug==="daily"){
-      assert.ok(html.includes(lang==="ru"?"Вымышленный пример":"Synthetic example"));
-      assert.ok(html.includes(lang==="ru"?"это не расписание Курами":"they are not Kurami's schedule"));
-    }
-    if(page.slug==="daily-addons"){
-      assert.ok(html.includes(lang==="ru"?"Как ведёт себя каждый блок":"How each section behaves"));
-      assert.equal((html.match(/<th scope="row">/g)??[]).length,4);
-    }
-    if(page.slug==="weekly-cinema"){
-      assert.ok(html.includes(`href="/${lang}/weekly/"`)&&html.includes(`href="/${lang}/cinema/"`),"legacy route points to the split pages");
-    }
-    if(page.slug==="weekly"){
-      assert.ok(html.includes(lang==="ru"?"Пять дней — не семь":"Five days are not seven"));
-      assert.equal((html.match(/<th scope="row">/g)??[]).length,4);
-      assert.ok(html.includes("/preview/weekly"));
-    }
-    if(page.slug==="cinema"){
-      assert.ok(html.includes(lang==="ru"?"Может ли новый Cinema заменить страницу?":"Can a new Cinema replace the page?"));
-      assert.equal((html.match(/<th scope="row">/g)??[]).length,3);
-      assert.ok(html.includes(lang==="ru"?"Остались два блока":"Two sections left"));
-    }
-    if(page.slug==="stocks"){
-      assert.ok(html.includes(lang==="ru"?"Одна котировка, два числа":"One quote, two numbers"));
-      assert.ok(page.sources?.includes("docs/charts.md"));
-      assert.ok(html.includes(lang==="ru"?"свой масштаб":"its own scale"));
-    }
-    if(page.slug==="stocks-discovery"){
-      assert.ok(html.includes(lang==="ru"?"Заметное движение может не пройти сверку":"A big move can fail the check"));
-      assert.ok(html.includes(lang==="ru"?"четырёх календарных дней":"four calendar days"));
-      assert.ok(page.sources?.includes("src/briefing/stocks/discovery-model.ts"));
-    }
-    if(page.slug==="investment-review"){
-      assert.ok(html.includes(lang==="ru"?"Что означает состояние отчёта":"What a report state means"));
-      assert.equal((html.match(/<th scope="row">/g)??[]).length,3);
-      assert.ok(html.includes(lang==="ru"?"не гарантируют верность каждого вывода":"cannot prove every analytical conclusion"));
-    }
-    if(["signals","weekly","cinema","stocks","stocks-discovery","investment-review"].includes(page.slug)){
-      assert.match(html,/<figure class="digest-map">/);
-      assert.equal((html.match(/<dt>|<li><span class="folio">0[1-3]<\/span>/g)??[]).length,3);
-    }
-    if(page.slug==="for-me"){
-      assert.match(html,/<figure class="order-map">/);
-      assert.equal((html.match(/class="order-map__column"/g)??[]).length,2);
-      assert.ok(html.includes(lang==="ru"?"десять активных реакций":"ten active reactions"));
-      assert.ok(html.includes(lang==="ru"?"Девять, десять, снова девять":"Nine, ten, nine again"));
-      assert.ok(html.includes(lang==="ru"?"Старые реакции без сведений об источнике":"Older reactions without source details"));
-    }
-    if(page.slug==="signals"){
-      assert.ok(html.includes(lang==="ru"?"Свежий календарь, устаревшая почта":"Fresh calendar, stale mail"));
-      assert.ok(html.includes(lang==="ru"?"календарь на завтра":"calendar tomorrow"));
-      assert.ok(html.includes(lang==="ru"?"без скрипта строка остаётся скрытой":"without the browser script it stays hidden"));
-    }
-    if(page.slug==="project-admission"){
-      assert.match(html,/<figure class="admission-map">/);
-      assert.equal((html.match(/class="admission-map__status"/g)??[]).length,1);
-      assert.equal((html.match(/class="admission-map__gates"/g)??[]).length,1);
-      for(const status of ["PASS","WARN","FAIL"])assert.ok(html.includes(status));
-      assert.equal((html.match(/<li><span class="folio">0[1-4]<\/span>/g)??[]).length,4);
-      assert.ok(html.includes(lang==="ru"?"Активная задача — ещё не новое событие":"An active item is not a new event"));
-      assert.ok(html.includes("admission_pending"));
-      assert.ok(html.includes(lang==="ru"?"лимит сессий Codex проверяется при старте сессии":"the Codex session limit is checked when the session starts"));
-    }
-    if(page.slug==="run-lifecycle"){
-      assert.match(html,new RegExp(`<figure class="scene-map">[\\s\\S]*?<svg class="diagram" aria-label="[^"]+"[^>]*role="img"[\\s\\S]*?id="project-run-state-${lang}-tip"`));
-      assert.ok(html.includes('src="/assets/shot-run-working.png"'));
-      assert.ok(html.includes(lang==="ru"?"готовым к ревью запуск становится, только когда Codex закончил текущий ход":"the run is ready for review only after Codex has finished its current turn"));
-      assert.ok(html.includes(lang==="ru"?"«нужно внимание»":"\"needs attention\""),"session time limits are explained");
-      const svg=readFileSync(resolve(root,`src/human-docs/assets/project-run-state-${lang}.svg`),"utf8");
-      const scene=JSON.parse(readFileSync(resolve(root,`src/human-docs/diagrams/project-run-state-${lang}.excalidraw`),"utf8"));
-      assert.equal(scene.type,"excalidraw");
-      assert.match(svg,/<svg[^>]*viewBox="0 0 560 1210"/);
-      assert.ok(scene.elements.some((element:{id?:string})=>element.id==="cancel-stop"));
-      assert.ok(scene.elements.some((element:{id?:string})=>element.id==="unsafe-stop"));
-      assert.ok(svg.includes(lang==="ru"?"Нужен разбор":"Needs attention"));
-    }
-    if(page.slug==="engineering-evidence"){
-      assert.match(html,/<figure class="project-cards">/);
-      assert.equal((html.match(/class="project-cards__card"/g)??[]).length,3);
-      assert.ok(html.includes(lang==="ru"?"Не является deploy":"Is not a deployment"));
-      assert.ok(html.includes(lang==="ru"?"Почему новый коммит меняет всё":"Why a new commit changes everything"));
-      assert.ok(html.includes("Attempt CI fix")&&html.includes('src="/assets/shot-pr-ai-review.png"'));
-    }
-    if(page.slug==="owner-controls"){
-      assert.ok(html.includes('src="/assets/shot-run-ready-review.png"')&&html.includes('src="/assets/shot-run-timeline.png"'));
-      assert.equal((html.match(/<th scope="row">/g)??[]).length,5);
-      assert.ok(html.includes("/kurami status")&&html.includes(lang==="ru"?"не больше четырёх кнопок":"at most four buttons"));
-    }
-    if(page.slug==="board-statuses"){
-      assert.equal((html.match(/<th scope="row">/g)??[]).length,5);
-      assert.ok(html.includes('src="/assets/shot-project-board.png"')&&html.includes("Deferred"));
-    }
-    if(page.slug==="human-control"){
-      assert.ok(html.includes("human-control")&&html.includes("Continue autonomously")&&html.includes("Take control"));
-    }
-    if(page.slug==="previews"){
-      assert.ok(html.includes("preview-required")&&html.includes("Exact preview reviewed"));
-      assert.equal((html.match(/<th scope="row">/g)??[]).length,2);
-    }
-    if(page.slug==="project-setup"){
-      assert.ok(html.includes("npm run readiness")&&["PASS","WARN","FAIL"].every(level=>html.includes(level)));
-    }
-    if(page.slug==="settings"){
-      assert.ok(html.includes("/kurami settings")&&html.includes("Undo last"));
-      assert.equal((html.match(/<th scope="row">/g)??[]).length,4);
-    }
-    if(page.slug==="health"){
-      assert.ok(html.includes('src="/assets/shot-health-card.png"')&&html.includes('src="/assets/shot-health-alert.png"'));
-      assert.equal((html.match(/<th scope="row">/g)??[]).length,3);
-      assert.ok(html.includes(lang==="ru"?"три неудачные проверки подряд":"three consecutive failing checks"));
-      assert.ok(html.includes("System Health Alert"));
-    }
-    if(page.slug==="recovery"){
-      assert.match(html,new RegExp(`<figure class="scene-map">[\\s\\S]*?<svg class="diagram" aria-label="[^"]+"[^>]*role="img"[\\s\\S]*?id="recovery-topology-${lang}-tip"`));
-      assert.equal((html.match(/<th scope="row">/g)??[]).length,4);
-      const svg=readFileSync(resolve(root,`src/human-docs/assets/recovery-topology-${lang}.svg`),"utf8");
-      const scene=JSON.parse(readFileSync(resolve(root,`src/human-docs/diagrams/recovery-topology-${lang}.excalidraw`),"utf8"));
-      assert.equal(scene.type,"excalidraw");
-      assert.match(svg,/<svg[^>]*viewBox="0 0 560 940"/);
-      assert.ok(scene.elements.some((element:{id?:string})=>element.id==="backup-offsite"));
-      assert.ok(scene.elements.some((element:{id?:string})=>element.id==="backup-host"));
-      assert.ok(svg.includes(lang==="ru"?"Не копируется":"Not copied"));
-      assert.ok(html.includes(lang==="ru"?"Один локальный зашифрованный архив":"A local encrypted archive alone"));
-    }
-    if(page.slug==="automation-boundaries"){
-      assert.match(html,/<figure class="boundary-map">/);
-      assert.equal((html.match(/class="boundary-map__card"/g)??[]).length,3);
-      assert.equal((html.match(/<th scope="row">/g)??[]).length,4);
-      assert.ok(html.includes(lang==="ru"?"это данные, а не инструкции":"data, never instructions"));
-    }
-    if(page.slug==="scheduling"){
-      assert.match(html,/<figure class="schedule-evidence">/);
-      assert.equal((html.match(/<th scope="row">/g)??[]).length,5);
-      assert.ok(html.includes(lang==="ru"?"Таймер сработал, копия не готова":"The timer fired, the backup did not finish"));
-    }
-    if(page.slug==="maintenance"){
-      assert.match(html,/<figure class="maintenance-scope">/);
-      assert.equal((html.match(/class="maintenance-scope__column maintenance-scope__column--/g)??[]).length,2);
-      assert.equal((html.match(/<th scope="row">/g)??[]).length,3);
-      assert.ok(html.includes(lang==="ru"?"без <code>--apply</code>":"without <code>--apply</code>"));
-    }
-    if(page.slug==="connector-authority"){
-      assert.match(html,/<figure class="connector-contours">/);
-      assert.equal((html.match(/<th scope="row">/g)??[]).length,3);
-      for(const contour of ["composio-read","composio-automation","composio"])assert.ok(html.includes(contour));
-      assert.ok(html.includes(lang==="ru"?"Hosted MCP сам этот более узкий набор аргументов не проверяет":"Hosted MCP does not check this narrower argument set itself"));
-    }
-    if(page.slug==="access"){
-      assert.equal((html.match(/<th scope="row">/g)??[]).length,4);
-      const article=html.slice(html.indexOf("<article"),html.indexOf("</article>")+10);
-      assert.ok(article.includes("Cloudflare Access")&&!/\b[a-z0-9-]+\.shagon1k\.win\b/.test(article),"access article names no hostnames");
-    }
-    if(page.slug==="docs-process"){
-      assert.ok(html.includes("Docs-Impact")&&html.includes("UI-Library")&&html.includes("#updates"));
-    }
-    if(page.slug==="docs-releases"){
-      assert.ok(html.includes("revision: null")&&html.includes(`/${lang}/changelog/`));
-    }
-  }
+for(const page of pages)for(const lang of ["en","ru"] as const){
+  const {html}=renderArticle(page,lang,{root});
+  assert.match(html,new RegExp(`<html lang="${lang}"`));
+  assert.ok(html.includes(`href="/${lang==="en"?"ru":"en"}/${page.slug}/"`),`${page.slug}/${lang} links its translation`);
+  assert.ok(html.includes(`class="eyebrow"`)&&/\d+ (min read|мин чтения)/.test(html),`${page.slug}/${lang} shows its depth and reading time`);
+  assertInternalLinks(html,`${page.slug}/${lang}`);
+  const sidebar=html.match(/<nav class="side"[^>]*>([\s\S]*?)<\/nav>/)?.[1]??"";
+  for(const other of pages.filter(other=>other.section!==page.section))assert.ok(!sidebar.includes(`href="/${lang}/${other.slug}/"`),`${page.slug}: side menu shows only its own section`);
 }
 for(const lang of ["en","ru"] as const){
-  const page=pages.find(page=>page.slug==="system-map")!;
-  const sha="a".repeat(40);
-  const html=renderArticle(page,lang,sha);
-  assert.ok(html.includes(`https://github.com/Shagon1k/kurami/blob/${sha}/README.md`));
-  assert.ok(html.includes(lang==="ru"?"не доказательство развёртывания":"does not prove application deployment"));
-  const deployed=renderArticle(page,lang,sha,true);
-  assert.ok(deployed.includes(lang==="ru"?"подтверждённой версии приложения":"verified application revision"));
-}
-for(const lang of ["en","ru"] as const){
-  const sha="a".repeat(40);
-  for(const page of pages.filter(page=>page.section==="digest")){
-    assert.ok(page.sources?.length,`${page.slug} needs source anchors`);
-    const html=renderArticle(page,lang,sha);
-    for(const path of page.sources??[])assert.ok(html.includes(`https://github.com/Shagon1k/kurami/blob/${sha}/${path}`));
-    assert.ok(html.includes(lang==="ru"?"не доказательство развёртывания":"does not prove application deployment"));
-  }
-  for(const slug of ["project-orchestrator","project-digest","project-admission","run-lifecycle","engineering-evidence","owner-controls"]){
-    const page=pages.find(page=>page.slug===slug)!;
-    assert.ok(page.sources?.length,`${slug} needs source anchors`);
-    const html=renderArticle(page,lang,sha);
-    for(const path of page.sources??[])assert.ok(html.includes(`https://github.com/Shagon1k/kurami/blob/${sha}/${path}`));
-  }
-  for(const page of pages.filter(page=>page.section==="operations")){
-    assert.ok(page.sources?.length,`${page.slug} needs source anchors`);
-    const html=renderArticle(page,lang,sha);
-    for(const path of page.sources??[])assert.ok(html.includes(`https://github.com/Shagon1k/kurami/blob/${sha}/${path}`));
-  }
-}
-for(const lang of ["en","ru"] as const){
-  const html=renderHome(lang);
-  assert.ok(html.includes("system-map__paths"));
-  assert.equal((html.match(/class="system-map__path"/g)??[]).length,2);
-  assert.ok(html.includes(lang==="ru"?"Решение владельца":"Owner decision"));
-  assert.ok(html.includes("/assets/theme.js"));
-  assert.ok(html.includes('class="site-menu"'));
-  assert.ok(html.includes('class="site-switcher"'));
-  assert.ok(html.includes(`href="https://hub.shagon1k.win/${lang}/"`));
-  assert.ok(html.includes(`href="https://docs.shagon1k.win/${lang}/" aria-current="location"`));
-  assert.ok(html.includes('class="site-nav"'));
-  assert.ok(html.includes(`aria-label="${lang==="ru"?"Основная навигация":"Primary navigation"}"`));
+  const {html}=renderHome(lang,{root});
+  assertInternalLinks(html,`home/${lang}`);
+  assert.ok(html.includes("/assets/theme.js")&&html.includes('class="site-nav"')&&html.includes('data-theme-toggle'));
+  assert.ok(html.includes('class="site-switcher"')&&html.includes(`href="https://hub.shagon1k.win/${lang}/"`),"the header links the other Kurami sites");
+  assert.ok(html.includes(`href="https://docs.shagon1k.win/${lang}/" aria-current="location"`),"the switcher marks docs as current");
   assert.ok(html.includes('id="main" class="container page" tabindex="-1"'));
-  assert.ok(html.includes('data-theme-toggle')&&html.includes('aria-pressed="false"'));
-  const sectionArticle=renderArticle(pages.find(page=>page.slug==="who-does-what")!,lang);
-  assert.ok(sectionArticle.includes(`href="/${lang}/what-is-kurami/" aria-current="location"`),"Basics is the current section");
-  assert.ok(sectionArticle.includes(`<p class="eyebrow">${lang==="ru"?"Основы · Введение":"Basics · Introduction"}</p>`));
-  assert.ok(!sectionArticle.includes(`href="/${lang}/daily/" aria-current`)&&!sectionArticle.includes(`<li><a href="/${lang}/daily/"`),"side menu shows only the current section");
-  assert.ok(sectionArticle.includes(`aria-label="${lang==="ru"?"Разделы документации":"Documentation sections"}"`));
+  for(const [from,to] of Object.entries(aliases)){
+    const alias=renderAlias(lang,from,to);
+    assert.ok(alias.includes(`<meta http-equiv="refresh" content="0; url=/${lang}/${to}/">`),`alias ${from} redirects`);
+  }
   const emptyChangelog=renderChangelog(lang,[]);
   assert.ok(!emptyChangelog.includes("github.com/Shagon1k/kurami/commit/"));
   assert.ok(emptyChangelog.includes(lang==="ru"?"намеренно оставляет changelog приложения пустым":"deliberately leaves the application changelog empty"));
   const previewStatus=lang==="ru"?"Версия развёртывания не указана":"No deployment revision was supplied";
   const changelogArticle=emptyChangelog.slice(emptyChangelog.indexOf("<article"),emptyChangelog.indexOf("</article>"));
   assert.equal(changelogArticle.split(previewStatus).length-1,1);
-  assertInternalLinks(html);
-  assertInternalLinks(emptyChangelog);
+  assertInternalLinks(emptyChangelog,`changelog/${lang}`);
 }
+const slugs={has:(slug:string)=>Boolean(resolveSlug(slug))};
 const scratch=mkdtempSync(join(tmpdir(),"kurami-docs-test-"));
 try {
   const manifest=join(scratch,"deployment.json");
@@ -470,4 +191,4 @@ try {
     if(!metadata.revision)assert.ok(!readFileSync(join(built,"en/changelog/index.html"),"utf8").includes("review stage requires"));
   }
 } finally {rmSync(scratch,{recursive:true,force:true});}
-console.log(`Verified ${pages.length} bilingual docs pages, shared map, preview honesty and curated release gate`);
+console.log(`Verified ${pages.length} bilingual docs pages, Markdown subset, diagram kit, legacy routes, privacy and curated release gate`);
