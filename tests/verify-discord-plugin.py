@@ -639,8 +639,20 @@ def main() -> None:
         "max_preview_builds_global": 2,
         "preview_ttl_hours": 24,
     }
-    validated = settings_module._validated_settings(runtime_settings)
-    schema = json.loads((settings_module._kurami_home() / "app/src/orchestrator/settings/settings-schema.json").read_text())
+    # Exercise the real schema loader against an isolated home, not the developer's VPS.
+    from tempfile import TemporaryDirectory
+    with TemporaryDirectory(prefix="kurami-discord-schema-") as schema_home:
+        schema_path = Path(schema_home) / "app/src/orchestrator/settings/settings-schema.json"
+        schema_path.parent.mkdir(parents=True)
+        canonical_schema = Path(__file__).resolve().parents[1] / "src/orchestrator/settings/settings-schema.json"
+        schema_path.write_text(canonical_schema.read_text(encoding="utf-8"), encoding="utf-8")
+        original_home = settings_module._kurami_home
+        settings_module._kurami_home = lambda: Path(schema_home)
+        schema = settings_module._schema()
+        require(schema == json.loads(canonical_schema.read_text(encoding="utf-8")), "Discord must load the canonical shared schema")
+        validated = settings_module._validated_settings(runtime_settings)
+        settings_module._kurami_home = original_home
+    settings_module._schema = lambda: schema
     require(settings_module._schema() == schema, "Discord must load the canonical shared schema")
     for field in schema["fields"]:
         for value in [field["min"] - 1, field["max"] + 1, True]:
