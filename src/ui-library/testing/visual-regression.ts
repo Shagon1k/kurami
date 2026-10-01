@@ -11,6 +11,8 @@ import {isAbsolute,join,resolve,sep} from "node:path";
 import {setTimeout as delay} from "node:timers/promises";
 import {findBrowser,launchBrowser} from "./devtools.ts";
 import {librarySubsite,syntheticDaily,syntheticHub,syntheticInvestmentReview,syntheticLegacyCinema,syntheticStocksEmpty,syntheticWeeklyEmpty} from "./fixtures.ts";
+import {syntheticCharts} from "./charts.ts";
+import {HUB_CLIENT_JS} from "../../hub/assets.ts";
 import {HUB_STYLES} from "../../hub/styles.ts";
 import {changedShare,decodePng} from "./png.ts";
 import {AUDIT_EXPRESSION,inventoryExpression} from "./audit.ts";
@@ -28,6 +30,8 @@ const pages:Record<string,string>={
   "digest-stocks-empty":"/digest/stocks.html",
   "digest-weekly-empty":"/digest/weekly.html",
   "digest-investment-review":"/digest/review.html",
+  "library-charts":"/lab/charts.html",
+  "library-charts-en":"/lab/charts-en.html",
   "library-subsite":"/lab/index.html",
   "hub-home":"/hub/index.html",
   "hub-home-en":"/hub/en.html",
@@ -58,11 +62,13 @@ function site():string {
   writeFileSync(join(served,"digest/review.html"),injectRuntime(syntheticInvestmentReview()));
   mkdirSync(join(served,"lab"),{recursive:true});
   writeFileSync(join(served,"lab/index.html"),librarySubsite());
+  writeFileSync(join(served,"lab/charts.html"),syntheticCharts());
+  writeFileSync(join(served,"lab/charts-en.html"),syntheticCharts("en"));
   mkdirSync(join(served,"hub"),{recursive:true});
   writeFileSync(join(served,"hub/index.html"),syntheticHub());
   writeFileSync(join(served,"hub/en.html"),syntheticHub("en"));
   writeFileSync(join(served,"assets/hub.css"),HUB_STYLES);
-  cpSync(join(root,"src/hub/client.js"),join(served,"assets/hub.js"));
+  writeFileSync(join(served,"assets/hub.js"),HUB_CLIENT_JS);
   cpSync(join(brandAssets,"kurami-fox-header.webp"),join(served,"assets/kurami-fox.webp"));
   cpSync(join(brandAssets,"kurami-favicon.svg"),join(served,"favicon.svg"));
   return served;
@@ -140,7 +146,7 @@ async function main(){
   let auditedCount=0;
   try{
     await devtools.call("Page.enable");
-    for(const path of ["/digest/daily.html","/en/reading-state/","/lab/index.html","/hub/index.html"])await checkThemeRuntime(devtools,`http://127.0.0.1:${port}`,path);
+    for(const path of ["/digest/daily.html","/en/state-and-truth/","/lab/index.html","/hub/index.html"])await checkThemeRuntime(devtools,`http://127.0.0.1:${port}`,path);
     await checkSiteSwitcher(devtools,`http://127.0.0.1:${port}`);
     const audited:Record<string,string>={...pages};
     for(const lang of ["en","ru"])for(const route of ["","changelog",...docsPages.map(page=>page.slug)])audited[`docs-${lang}-${route||"home"}`]??=`/${lang}/${route?route+"/":""}`;

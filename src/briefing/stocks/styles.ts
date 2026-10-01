@@ -43,7 +43,7 @@ export const STOCKS_STYLES=`
 .stock-row__trend { display:block; color:var(--text-primary); }
 .stock-details { padding:20px; border-top:1px solid var(--border-default); background:var(--surface-panel); min-width:0; }
 .stock-details[aria-busy=true] { opacity:.65; }
-.stock-details .chart { margin:20px 0; }
+.stock-details { --chart-margin: var(--space-5) 0; }
 .stock-details__toolbar { display:flex; flex-wrap:wrap; justify-content:space-between; align-items:center; gap:16px; }
 .stocks-periods { display:flex; flex-wrap:wrap; gap:8px; }
 .stock-period-change { display:grid; gap:4px; text-align:right; font-size:1.25rem; }

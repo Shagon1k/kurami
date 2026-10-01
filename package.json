@@ -24,6 +24,7 @@
     "readiness": "node src/orchestrator/projects/project-readiness.ts",
     "poll": "node src/orchestrator/projects/poll-projects.ts",
     "check": "tsc --noEmit",
+    "test:ui-charts-browser": "node tests/ui-library/charts-browser.ts",
     "test:ui-library": "node tests/ui-library/verify.ts",
     "test:ui-guard": "node tests/ui-library/guard.ts",
     "test:ui-browser": "node src/ui-library/testing/visual-regression.ts --out=dist/ui-browser",

@@ -42,6 +42,8 @@ Live Activity merges existing journals: run transitions, CI and review states, C
 
 Tokens, cache and output come from local Codex logs, never from transcripts. The **API-equivalent USD** estimates what the same tokens would cost at standard API rates. It is not a subscription bill, and unpriced or partial data is starred. Limits come from the Codex account itself and fall back to a labelled local snapshot. The daily limit chart shows observed consumption in percentage points; starred days have gaps or resets. Usage counts a task as completed only with verified release evidence and reports the median tokens per task and the share spent on rework; `Logs n/m` says how many tasks could be measured.
 
+The commit and limit charts share their light and dark styling with Digest and Stocks. Hover over a bar or focus it with the keyboard to read its exact value. Limit history groups subscription windows side by side; dashed bars and an asterisk mark partial observations. Narrow screens hide labels above crowded bars, while tooltips retain the values.
+
 ## Owner controls
 
 The **Controls** icon in the header opens four actions; **Reset** sits beside the limits.

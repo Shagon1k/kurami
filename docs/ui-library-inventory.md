@@ -63,7 +63,7 @@ The Hub refresh adds `components/icon.ts` (decorative line icons) and
 They use a new semantic `status-info` role, with values in the light/dark theme.
 Forms now include `renderCheckbox`; disclosures accept a stable optional key for
 preserving the correct disclosure across fragment refreshes. A library-only
-fixture covers these primitives. Hub-specific history charts, problem grouping,
+fixture covers these primitives. Hub-specific history adapters, problem grouping,
 work-feed filters and persistence remain in Hub. UI-Library: extended.
 
 The next Hub pass moves Digest's mail checkbox into
@@ -144,7 +144,7 @@ Implemented in seven commits, one per migration step. Each step kept Digest pixe
 | Stage 9.6 criterion | Evidence |
 | --- | --- |
 | Digest and Docs share one library for confirmed shared parts | Both import tokens, foundations, button, theme switch, header, document shell, table, callout and disclosure from `src/ui-library/`; `tests/ui-library/verify.ts` asserts each CSS block is included exactly once per site. |
-| Product components did not move for formal reuse | Story, mail, agenda, Cinema, Stocks, charts engine, Kurami notes and state messages stay in `src/briefing/ui`; Docs maps and article layout stay in `src/human-docs`. |
+| Product components did not move for formal reuse | Story, mail, agenda, Cinema, Stocks, Kurami notes and state messages stay in `src/briefing/ui`; Docs maps and article layout stay in `src/human-docs`. |
 | No competing `shared-ui` location | `src/shared-ui` is deleted; brand assets and fonts live only in `src/ui-library/assets`; the skill holds generated copies checked for freshness. |
 | Light/dark did not regress | `npm run test:ui-browser` checks theme behaviour and audits overflow, names and AA contrast on Digest, Docs and a library-only page in both themes; Docs browser QA passes 360 combinations. |
 | A new theme is a token-set swap | `Theme` requires 32 colour roles per mode and 19 scale roles (`src/ui-library/tokens/index.ts`); the contract test builds a different theme without touching components and rejects incomplete ones. |
@@ -167,3 +167,13 @@ The cross-site switcher is `kuramiSites(current, lang)` in `src/ui-library/patte
 Hub owner controls add two shared primitives: `components/form.ts` exports labelled select and numeric fields; `components/dialog.ts` exports a labelled native dialog with the shared close button. Their CSS uses theme roles. `foundations/index.ts` supplies `.list-reset` for lists without markers. `npm run ui:export` includes these additions in the generated UI bundle.
 
 `npm run test:hub-browser` exercises the controls with synthetic data and mocked actions in EN/RU at 320–1280 px. It checks confirmation, cancellation, contrast, overflow and shared-component use. The joint browser audit excludes the hidden contents of closed disclosures; the Hub check also opens the Sites menu after a theme change.
+
+## Shared charts
+
+`components/charts/` owns the SVG engine, trend and grouped-bar renderers,
+styles, browser interactions and sparklines. Digest keeps language adapters
+at `src/briefing/ui/charts/`; Hub supplies its commit and limit-history data to
+the same component. Display settings control framing, density, legends, zoom,
+value labels and the table. The chart palette changes with the theme and does
+not change status or action colours. See `docs/charts.md` for the contract.
+The generated UI stylesheet includes chart styles. UI-Library: extended.

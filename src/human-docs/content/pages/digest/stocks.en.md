@@ -10,6 +10,8 @@ next: investment-review
 
 Stocks is the page `/stocks` ("My stocks", my stocks) with closing prices from your watchlist. It is not a trading terminal: once a day Kurami fetches the daily history and shows the last completed session. The page has no share counts, no profit and loss, and no recommendations. The morning edition carries a "Stocks" teaser: it is frozen at publication and not updated afterwards.
 
+Charts share their light and dark palettes with Digest and Hub. Legends, tooltips and the exact-value table keep the data accessible; missing history remains a gap in the line. Switching themes preserves the selected period and each miniature chart’s own scale.
+
 ## Reading a row
 
 A list row is an expandable block. Open it to see the chart and the figures for a period. One row is open at a time.
