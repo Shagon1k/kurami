@@ -225,6 +225,12 @@
       "en": "Published Digest editions receive the current compact controls and Sites navigation when served, while their editorial content stays frozen.",
       "ru": "Опубликованные выпуски Digest получают актуальные компактные элементы управления и меню «Сайты» при выдаче страницы; содержание выпусков остаётся зафиксированным.",
       "page": "ui-library"
+    },
+    "de64525adeeb7cca9bb83c56445e35bc8d696825": {
+      "category": "new",
+      "en": "Projects adds an Active only toggle beside Sync to show work in progress and tasks awaiting owner attention while hiding backlog, deferred and done cards. The choice persists across search, project changes and refreshes.",
+      "ru": "В Projects добавлена кнопка «Только активные» рядом с синхронизацией: она показывает задачи в работе и ожидающие внимания владельца, скрывая Backlog, Deferred и Done. Выбор сохраняется при поиске, смене проекта и обновлении.",
+      "page": "owner-controls"
     }
   }
 }
