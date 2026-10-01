@@ -1,6 +1,7 @@
 import { execFileSync } from "node:child_process";
 import {
   chmod,
+  copyFile,
   mkdir,
   mkdtemp,
   realpath,
@@ -11,6 +12,8 @@ import {
 import { tmpdir } from "node:os";
 import { resolve } from "node:path";
 import { DatabaseSync } from "node:sqlite";
+import { applyInternal } from "../src/orchestrator/runtime/controller-execution.ts";
+import { controlComponents } from "../src/orchestrator/controls/discord.ts";
 
 process.umask(0o077);
 
@@ -59,6 +62,10 @@ async function main(): Promise<void> {
   try {
     await mkdir(canonical, { recursive: true, mode: 0o700 });
     await mkdir(resolve(testHome, "config"), { recursive: true, mode: 0o700 });
+    await copyFile(
+      resolve(appDirectory, "deploy/config/orchestrator.yaml"),
+      resolve(testHome, "config/orchestrator.yaml"),
+    );
     await mkdir(fakeBin, { recursive: true, mode: 0o700 });
     await writeFile(fakeGh, "#!/bin/sh\nprintf '[]\\n'\n", "utf8");
     await chmod(fakeGh, 0o700);
@@ -88,6 +95,10 @@ async function main(): Promise<void> {
         "projects:",
         "  tailortales:",
         "    repository: Shagon1k/TailorTales",
+        "    statuses:",
+        "      backlog: Backlog",
+        "      active: In progress",
+        "      review: Human Review",
         "    workspace:",
         `      canonical_repository: ${canonical}`,
         `      worktree_root: ${worktreeRoot}`,
@@ -166,6 +177,64 @@ async function main(): Promise<void> {
     );
     assert(beforeMerge.action === "waiting_for_merge", "Unmerged work was released");
     assert(await exists(worktree), "Unmerged worktree was removed");
+
+    const waitingDatabase = new DatabaseSync(databasePath);
+    const waiting = waitingDatabase.prepare(
+      "SELECT state, stop_reason FROM runs WHERE run_id = ?",
+    ).get(runId) as { state: string; stop_reason: string };
+    assert(waiting.state === "needs_attention" && waiting.stop_reason === "completed",
+      "Done without merge remained stuck in stopping");
+    const historyCount = (): number => (waitingDatabase.prepare(
+      "SELECT COUNT(*) AS count FROM run_state_history WHERE run_id = ?",
+    ).get(runId) as { count: number }).count;
+    const firstHistoryCount = historyCount();
+    release("src/orchestrator/projects/worktrees/release.ts", true);
+    assert(historyCount() === firstHistoryCount, "Merge retries duplicated attention history");
+
+    const planning = JSON.parse(execFileSync(process.execPath,
+      [resolve(appDirectory, "src/orchestrator/runtime/controller.ts")],
+      { encoding: "utf8", env: environment, stdio: ["ignore", "pipe", "pipe"] },
+    )) as { plans: Array<{ runId: string; action: string }> };
+    assert(planning.plans.some(plan => plan.runId === runId && plan.action === "release"),
+      "Controller stopped checking for a later merge");
+    execFileSync(process.execPath,
+      [resolve(appDirectory, "src/orchestrator/runtime/controller.ts"), "--apply"],
+      { env: environment, stdio: ["ignore", "pipe", "pipe"] },
+    );
+    const progress = waitingDatabase.prepare(
+      "SELECT stage, detail FROM run_progress_cards WHERE run_id = ?",
+    ).get(runId) as { stage: string; detail: string };
+    assert(progress.stage === "needs_attention" && progress.detail.includes("cancel the run"),
+      "Merge wait did not explain how to resolve the run");
+
+    for (const state of ["stopping", "needs_attention"]) {
+      waitingDatabase.prepare("UPDATE runs SET state = ?, stop_reason = 'completed' WHERE run_id = ?")
+        .run(state, runId);
+      const controls = JSON.stringify(controlComponents({
+        run_id: runId, run_state: state, stage: state, stop_reason: "completed",
+        owner_state: "none", resource_state: "provisioned", previous_codex_thread_id: null,
+      } as Parameters<typeof controlComponents>[0], {
+        repository: "Shagon1k/TailorTales",
+        workspace: { branch_prefix: "TT", worktree_root: worktreeRoot },
+      }, null));
+      assert(controls.includes(`kurami:stop:${runId}`), `${state} completion hid Cancel run`);
+      const requestId = `rq_cancel_${state}`;
+      waitingDatabase.prepare(`INSERT INTO run_control_requests (
+        request_id, run_id, action, requested_via, idempotency_key
+      ) VALUES (?, ?, 'stop', 'cli', ?)`).run(requestId, runId, requestId);
+      applyInternal(waitingDatabase, {
+        action: "request_stop", runId, project: "tailortales", issueNumber: 9901, requestId,
+      });
+      const cancelled = waitingDatabase.prepare(
+        "SELECT state, stop_reason FROM runs WHERE run_id = ?",
+      ).get(runId) as { state: string; stop_reason: string };
+      assert(cancelled.state === "stopping" && cancelled.stop_reason === "cancelled",
+        `Cancel did not override Done from ${state}`);
+      assert(await exists(worktree), "Cancel discarded unmerged work");
+    }
+    waitingDatabase.prepare("UPDATE runs SET state = 'needs_attention', stop_reason = 'completed' WHERE run_id = ?")
+      .run(runId);
+    waitingDatabase.close();
 
     git(canonical, ["merge", "--squash", branch]);
     git(canonical, ["commit", "-m", "test: squash merge release branch"]);
@@ -288,7 +357,7 @@ async function main(): Promise<void> {
 }
 
 main().catch((error: unknown) => {
-  const message = error instanceof Error ? error.message : String(error);
+  const message = error instanceof Error ? error.stack ?? error.message : String(error);
   process.stderr.write(`${JSON.stringify({ ok: false, error: message })}\n`);
   process.exitCode = 1;
 });

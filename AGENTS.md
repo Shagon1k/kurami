@@ -36,3 +36,9 @@ Every Kurami site (Digest, human docs, any new sub-site) renders through the sha
 - Diagrams are ```` ```diagram ```` blocks drawn by `src/human-docs/diagrams/kit.ts`; never add image files for diagrams.
 - A new SQLite table needs a one-line description in `src/human-docs/reference-notes.ts`, or the docs build fails.
 - Check pages with `node src/human-docs/tools/check-pages.ts <slug> --shots=<dir>` and `npm run test:docs`.
+
+## Delivery
+
+After a change, offer a scoped commit, push, and deployment when relevant. Stage,
+commit, push, or deploy only after the owner explicitly approves that release;
+approval never covers unrelated worktrees or other sites' pending changes.

@@ -23,6 +23,7 @@ export type KuramiNote = {
   id: string;
   target: KuramiNoteTarget;
   text: string;
+  enText?: string;
   role: "focus" | "context" | "action" | "reassurance" | "personality";
   tone: "signal" | "ink";
   rotation: "none" | "negative" | "positive";
@@ -69,6 +70,7 @@ export type NewsItem = {
   headline: string;
   summary: string;
   details: string[];
+  en?: { headline: string; summary: string; details: string[] };
   topics: Topic[];
   media?: StoryMedia[];
   sources?: StorySource[] | Array<Record<string, unknown>>;
@@ -480,7 +482,13 @@ function notes(value: unknown): KuramiNote[] | undefined {
       mark = string(note.mark, `notes[${index}].mark`) as NonNullable<KuramiNote["mark"]>;
       if (!NOTE_MARKS.has(mark)) fail(`notes[${index}].mark is unsupported`);
     }
-    return { id, target, text, role, tone, rotation, ...(mark ? { mark } : {}) };
+    let enText:string|undefined;
+    if(note.enText!==undefined){
+      enText=string(note.enText,`notes[${index}].enText`).trim();
+      const words=enText.match(/[\p{L}\p{N}]+/gu)??[];
+      if(words.length<1||words.length>4||enText.length>48)fail(`notes[${index}].enText must contain one to four words and at most 48 characters`);
+    }
+    return { id, target, text, ...(enText?{enText}:{}), role, tone, rotation, ...(mark ? { mark } : {}) };
   });
   if (parsed.filter((note) => note.role === "personality").length > 2) {
     fail("notes may contain at most two personality notes");
@@ -717,6 +725,11 @@ export function parseBriefingPayload(value: unknown): BriefingPayload {
       headline: string(item.headline, `news.items[${index}].headline`),
       summary: string(item.summary, `news.items[${index}].summary`),
       details: details(item.details, `news.items[${index}].details`),
+      ...(item.en!==undefined?{en:(()=>{const localized=record(item.en,`news.items[${index}].en`);return {
+        headline:string(localized.headline,`news.items[${index}].en.headline`),
+        summary:string(localized.summary,`news.items[${index}].en.summary`),
+        details:details(localized.details,`news.items[${index}].en.details`),
+      };})()}:{}),
       topics: topics(item.topics, `news.items[${index}].topics`),
       media: media(item.media, `news.items[${index}].media`),
       editorialSignals: editorialSignals(item.editorialSignals, `news.items[${index}].editorialSignals`),

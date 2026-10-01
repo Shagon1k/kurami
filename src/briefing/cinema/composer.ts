@@ -122,6 +122,7 @@ export function composeCinemaEnvelope(input: {
     id: source.id,
     headline: editorial.headline,
     summary: editorial.summary,
+    ...(editorial.en?{en:editorial.en}:{}),
     publisher: source.publisher,
     publishedAt: source.publishedAt,
     sourceUrl: source.sourceUrl,

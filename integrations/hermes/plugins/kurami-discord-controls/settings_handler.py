@@ -8,6 +8,7 @@ import hashlib
 import json
 import os
 import re
+from functools import lru_cache
 from pathlib import Path
 from typing import Any, Awaitable, Callable, Optional
 
@@ -77,6 +78,25 @@ def _integer(value: object, name: str, minimum: int, maximum: int) -> int:
     return value
 
 
+@lru_cache(maxsize=1)
+def _schema() -> dict[str, Any]:
+    path = _kurami_home() / "app/src/orchestrator/settings/settings-schema.json"
+    value = json.loads(path.read_text(encoding="utf-8"))
+    if value.get("version") != 1:
+        raise RuntimeError("Unsupported Kurami settings schema")
+    return value
+
+
+def _field(name: str) -> dict[str, Any]:
+    return next(field for field in _schema()["fields"] if field["name"] == name)
+
+
+def _field_label(name: str) -> str:
+    field = _schema()["projectWip"] if name.startswith("project:") else _field(name)
+    label = f"WIP {name.removeprefix('project:')}" if name.startswith("project:") else field["label"]["en"]
+    return f"{label} ({field['min']}-{field['max']})"
+
+
 def _validated_settings(value: object) -> dict[str, Any]:
     if not isinstance(value, dict):
         raise RuntimeError("Kurami settings payload is invalid")
@@ -87,33 +107,20 @@ def _validated_settings(value: object) -> dict[str, Any]:
     for project, limit in sorted(project_wip.items()):
         if not isinstance(project, str) or _PROJECT.fullmatch(project) is None:
             raise RuntimeError("Kurami settings contain an invalid project")
-        projects[project] = _integer(limit, f"WIP {project}", 1, 3)
+        field = _schema()["projectWip"]
+        projects[project] = _integer(limit, f"WIP {project}", field["min"], field["max"])
     settings = {
         "version": 1,
-        "max_llm_running_global": _integer(
-            value.get("max_llm_running_global"), "Max LLM", 1, 3
-        ),
-        "ai_triage_daily": _integer(
-            value.get("ai_triage_daily"), "AI triage/day", 0, 40
-        ),
-        "max_active_global": _integer(
-            value.get("max_active_global"), "Global WIP", 1, 6
-        ),
+        **{field["name"]: _integer(value.get(field["name"]), field["label"]["en"], field["min"], field["max"]) for field in _schema()["fields"]},
         "project_wip": projects,
-        "max_previews_global": _integer(
-            value.get("max_previews_global"), "Active previews", 1, 6
-        ),
-        "max_preview_builds_global": _integer(
-            value.get("max_preview_builds_global"), "Preview builds", 1, 2
-        ),
-        "preview_ttl_hours": _integer(
-            value.get("preview_ttl_hours"), "Preview lifetime", 6, 72
-        ),
     }
-    if any(limit > settings["max_active_global"] for limit in projects.values()):
-        raise RuntimeError("Project WIP cannot exceed Global WIP")
-    if settings["max_preview_builds_global"] > settings["max_previews_global"]:
-        raise RuntimeError("Preview builds cannot exceed active previews")
+    for rule in _schema()["constraints"]:
+        if rule["left"] == "project_wip.*":
+            for project, value in projects.items():
+                if value > settings[rule["right"]]:
+                    raise RuntimeError(rule["message"].replace("{project}", project))
+        elif settings[rule["left"]] > settings[rule["right"]]:
+            raise RuntimeError(rule["message"])
     return settings
 
 
@@ -145,28 +152,14 @@ def _control_args(
     )
     if action == "apply":
         validated = _validated_settings(settings)
-        args.extend(
-            [
-                "--max-llm",
-                str(validated["max_llm_running_global"]),
-                "--ai-triage-daily",
-                str(validated["ai_triage_daily"]),
-                "--global-wip",
-                str(validated["max_active_global"]),
-            ]
-        )
+        for field in _schema()["fields"]:
+            if field["group"] != "previews":
+                args.extend([field["flag"], str(validated[field["name"]])])
         for project, limit in validated["project_wip"].items():
-            args.extend(["--project-wip", f"{project}={limit}"])
-        args.extend(
-            [
-                "--max-previews",
-                str(validated["max_previews_global"]),
-                "--max-preview-builds",
-                str(validated["max_preview_builds_global"]),
-                "--preview-ttl-hours",
-                str(validated["preview_ttl_hours"]),
-            ]
-        )
+            args.extend([_schema()["projectWip"]["flag"], f"{project}={limit}"])
+        for field in _schema()["fields"]:
+            if field["group"] == "previews":
+                args.extend([field["flag"], str(validated[field["name"]])])
     return args
 
 
@@ -223,7 +216,7 @@ async def _run_health_settings_control(
             not actor_id
             or not actor_id.isdigit()
             or expected_revision is None
-            or minutes not in {5, 10, 12, 15, 20, 30, 60}
+            or minutes not in _schema()["health"]["allowedIntervals"]
         ):
             raise RuntimeError("Kurami health settings mutation is invalid")
         args.extend(
@@ -258,7 +251,7 @@ async def _run_health_settings_control(
         raise RuntimeError(str(message)[:500])
     if (
         not isinstance(payload.get("revision"), int)
-        or payload.get("intervalMinutes") not in {5, 10, 12, 15, 20, 30, 60}
+        or payload.get("intervalMinutes") not in _schema()["health"]["allowedIntervals"]
     ):
         raise RuntimeError("Kurami health settings payload is invalid")
     return payload
@@ -598,14 +591,7 @@ def _settings_diff(
 ) -> list[tuple[str, int, int]]:
     before = _validated_settings(current)
     after = _validated_settings(proposed)
-    labels = {
-        "max_llm_running_global": "Concurrent LLM",
-        "ai_triage_daily": "AI triage/day",
-        "max_active_global": "Global WIP",
-        "max_previews_global": "Active previews",
-        "max_preview_builds_global": "Preview builds",
-        "preview_ttl_hours": "Preview lifetime (hours)",
-    }
+    labels = {field["name"]: field["label"]["en"] for field in _schema()["fields"]}
     result: list[tuple[str, int, int]] = []
     for key, label in labels.items():
         if before[key] != after[key]:
@@ -642,7 +628,7 @@ def _settings_message(
         )
 
     capacity = [
-        ("Concurrent LLM", f"{draft['max_llm_running_global']} / 3"),
+        ("Concurrent LLM", f"{draft['max_llm_running_global']} / {_field('max_llm_running_global')['max']}"),
         ("Global WIP", draft["max_active_global"]),
         ("AI triage", f"{draft['ai_triage_daily']} / project/day"),
     ]
@@ -657,7 +643,7 @@ def _settings_message(
             [
                 (
                     "Check interval",
-                    f"{int((health or {}).get('intervalMinutes', 20))} minutes",
+                    f"{int((health or {}).get('intervalMinutes', _schema()['health']['defaultIntervalMinutes']))} minutes",
                 ),
             ]
         ),
@@ -870,11 +856,11 @@ def _build_settings_view(
                     super().__init__(title="Kurami capacity", timeout=180)
                     self.inputs: list[tuple[str, Any]] = []
                     fields = [
-                        ("max_llm_running_global", "Concurrent LLM (1-3)"),
-                        ("max_active_global", "Global WIP (1-6)"),
+                        ("max_llm_running_global", _field_label("max_llm_running_global")),
+                        ("max_active_global", _field_label("max_active_global")),
                     ]
                     fields.extend(
-                        (f"project:{name}", f"WIP {name} (1-3)")
+                        (f"project:{name}", _field_label(f"project:{name}"))
                         for name in list(parent.draft["project_wip"])[:3]
                     )
                     for key, label in fields:
@@ -887,7 +873,7 @@ def _build_settings_view(
                             label=label[:45],
                             default=str(value),
                             min_length=1,
-                            max_length=1,
+                            max_length=len(str((_schema()["projectWip"] if key.startswith("project:") else _field(key))["max"])),
                         )
                         self.inputs.append((key, item))
                         self.add_item(item)
@@ -919,10 +905,10 @@ def _build_settings_view(
                 def __init__(self) -> None:
                     super().__init__(title="Kurami AI triage", timeout=180)
                     self.limit = discord.ui.TextInput(
-                        label="Issues per project/day (0-40)",
+                        label=_field_label("ai_triage_daily"),
                         default=str(parent.draft["ai_triage_daily"]),
                         min_length=1,
-                        max_length=2,
+                        max_length=len(str(_field("ai_triage_daily")["max"])),
                     )
                     self.add_item(self.limit)
 
@@ -948,11 +934,8 @@ def _build_settings_view(
                 def __init__(self) -> None:
                     super().__init__(title="Kurami previews", timeout=180)
                     self.inputs: list[tuple[str, Any]] = []
-                    for key, label, maximum in [
-                        ("max_previews_global", "Active previews (1-6)", 1),
-                        ("max_preview_builds_global", "Concurrent builds (1-2)", 1),
-                        ("preview_ttl_hours", "Preview lifetime hours (6-72)", 2),
-                    ]:
+                    for field in (field for field in _schema()["fields"] if field["group"] == "previews"):
+                        key, label, maximum = field["name"], _field_label(field["name"]), len(str(field["max"]))
                         item = discord.ui.TextInput(
                             label=label,
                             default=str(parent.draft[key]),
@@ -987,7 +970,7 @@ def _build_settings_view(
                     self.minutes = discord.ui.TextInput(
                         label="Check interval (minutes)",
                         default=str(parent.health_payload["intervalMinutes"]),
-                        placeholder="5, 10, 12, 15, 20, 30, or 60",
+                        placeholder=", ".join(map(str, _schema()["health"]["allowedIntervals"])),
                         min_length=1,
                         max_length=2,
                     )
@@ -1005,7 +988,7 @@ def _build_settings_view(
                             minutes=int(str(self.minutes.value)),
                         )
                         before_minutes = int(
-                            parent.health_payload.get("intervalMinutes", 20)
+                            parent.health_payload.get("intervalMinutes", _schema()["health"]["defaultIntervalMinutes"])
                         )
                         audit_warning = await _send_audit(
                             client,

@@ -67,6 +67,7 @@ list and author notes against those visible slots, alongside `recentNotes` from
       "id": "note:hero",
       "target": "hero",
       "text": "утро без суеты",
+      "enText": "A calmer morning",
       "role": "reassurance",
       "tone": "signal",
       "rotation": "positive",
@@ -77,8 +78,10 @@ list and author notes against those visible slots, alongside `recentNotes` from
 ```
 
 Supply exactly the deterministic edition budget
-`min(6, max(1, ceil(story_count / 5)))`, each one to four words. In the
-ranked feed, story notes must occupy distinct consecutive five-story bands;
+`min(6, max(1, ceil(story_count / 5)))`, each one to four words. Set
+`localeVersion: 2` in new drafts and supply `enText` for every note; the
+runtime rejects missing English copy. In the ranked feed, story notes must
+occupy distinct consecutive five-story bands;
 this is selected from the rank-only preview before the final compose. Supported
 section targets are
 `hero`, `news`, `calendar`, `mail`, `metric:mail`, `metric:stories`,
@@ -222,6 +225,11 @@ Use a flexible story rather than a mandatory prose template:
   "headline": "Russian headline",
   "summary": "Concise Russian summary",
   "details": ["extended factual paragraph available inline"],
+  "en": {
+    "headline": "English editorial headline",
+    "summary": "Concise English summary",
+    "details": ["Full English reading paragraph"]
+  },
   "context": "optional background",
   "whyItMatters": "optional, only when it adds information",
   "depth": "compact | standard | deep",
@@ -315,6 +323,10 @@ a two-sentence teaser. It must preserve enough concrete actors, actions, dates, 
 background, uncertainty, and consequences for Alex to understand the useful
 substance without leaving the briefing. Remove channel boilerplate and do not
 merely repeat the summary.
+The bilingual draft supplies `localeVersion: 2` and a complete `en` object
+for every story. English copy follows the same factual and no-filler rules;
+source names, original titles and quotations may remain in their original
+language. If a custom `hero` is supplied, provide `hero.en` too.
 
 The production validator rejects generic headline prefixes such as
 `Что произошло:`, headlines above 120 characters or 18 words, identical scan

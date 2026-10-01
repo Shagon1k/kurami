@@ -178,11 +178,14 @@ assert(!(await(await fetch(base+"/stocks")).text()).includes("Private review sen
 const reviewServer=await createBriefingServer(paths,{mailActionExecutor:null,stocks:true,investmentReview:true});
 reviewServer.listen(0,"127.0.0.1");await once(reviewServer,"listening");
 const reviewBase="http://127.0.0.1:"+(reviewServer.address() as {port:number}).port;
-assert((await(await fetch(reviewBase+"/stocks")).text()).includes("Private review sentinel"));
+assert((await(await fetch(reviewBase+"/ru/stocks")).text()).includes("Private review sentinel"));
+const englishReview=await(await fetch(reviewBase+"/en/stocks")).text();
+assert(englishReview.includes("Portfolio reviews are currently available in Russian"));
+assert(!englishReview.includes("Private review sentinel"));
 assert(!(await(await fetch(reviewBase+"/")).text()).includes("Private review sentinel"),"Never add to Daily");
 assert.equal((await fetch(reviewBase+"/portfolio/reviews/latest-weekly.json")).status,404);
 await writeFile(resolve(paths.stateDirectory,"portfolio/reviews/latest-monthly.json"),'{"id":"bad"}',{mode:0o600});
-assert((await(await fetch(reviewBase+"/stocks")).text()).includes("Private review sentinel"),"Bad monthly slot does not break weekly or quotes");
+assert((await(await fetch(reviewBase+"/ru/stocks")).text()).includes("Private review sentinel"),"Bad monthly slot does not break weekly or quotes");
 await new Promise<void>(resolve=>reviewServer.close(()=>resolve()));
 assert.equal((await fetch(base+"/stocks?symbols=SPCX&period=1y")).status,200);
 assert.equal((await fetch(base+"/stocks?symbols=UNKNOWN")).status,400);

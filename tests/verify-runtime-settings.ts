@@ -5,6 +5,7 @@ import { tmpdir } from "node:os";
 import { resolve } from "node:path";
 import { DatabaseSync } from "node:sqlite";
 import { parse, stringify } from "yaml";
+import {settingsSchema} from "../src/orchestrator/settings/settings-schema.ts";
 import {
   currentRuntimeSettings,
   effectiveOrchestratorConfig,
@@ -117,6 +118,7 @@ try {
   }
 
   const initial = run(["status"], env);
+  assert.deepEqual(initial.schema, settingsSchema, "canonical CLI publishes the same schema consumed by Hub and Discord");
   if (
     initial.revision !== 0 ||
     initial.source !== "defaults" ||

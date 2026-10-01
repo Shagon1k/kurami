@@ -130,6 +130,8 @@ for(const lang of ["en","ru"] as const){
   const {html}=renderHome(lang,{root});
   assertInternalLinks(html,`home/${lang}`);
   assert.ok(html.includes("/assets/theme.js")&&html.includes('class="site-nav"')&&html.includes('data-theme-toggle'));
+  assert.ok(html.includes('class="site-switcher"')&&html.includes(`href="https://hub.shagon1k.win/${lang}/"`),"the header links the other Kurami sites");
+  assert.ok(html.includes(`href="https://docs.shagon1k.win/${lang}/" aria-current="location"`),"the switcher marks docs as current");
   assert.ok(html.includes('id="main" class="container page" tabindex="-1"'));
   for(const [from,to] of Object.entries(aliases)){
     const alias=renderAlias(lang,from,to);

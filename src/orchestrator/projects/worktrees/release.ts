@@ -517,12 +517,13 @@ function recordBlocked(
   database: DatabaseSync,
   run: RunResource,
   error: unknown,
+  reason = "worktree_release_blocked",
 ): void {
   const message = error instanceof Error ? error.message : String(error);
   database.exec("BEGIN IMMEDIATE");
   try {
     const current = loadRun(database, run.run_id);
-    if (current.run_state !== "stopping") {
+    if (current.run_state !== "stopping" || current.stop_reason !== run.stop_reason) {
       database.exec("ROLLBACK");
       return;
     }
@@ -539,7 +540,7 @@ function recordBlocked(
       run.run_id,
       "stopping",
       "needs_attention",
-      "worktree_release_blocked",
+      reason,
       { error: message },
     );
     database.exec("COMMIT");
@@ -579,6 +580,14 @@ export async function runReleaseWorktreeCli(): Promise<void> {
       !plan.completionVerified &&
       (run.stop_reason === "completed" || run.run_state === "needs_attention")
     ) {
+      if (run.stop_reason === "completed") {
+        recordBlocked(
+          database,
+          run,
+          "Done has no verified merge. Work is preserved; merge the pull request or cancel the run.",
+          "completion_waiting_for_merge",
+        );
+      }
       process.stdout.write(
         `${JSON.stringify({
           ok: true,

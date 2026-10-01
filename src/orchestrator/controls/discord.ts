@@ -6,6 +6,7 @@ import { resolveKuramiHome } from "../../core/kurami-home.ts";
 import { DatabaseSync } from "node:sqlite";
 import { parse } from "yaml";
 import { codexLaunchUrl } from "../integrations/codex/deeplink.ts";
+import { PROJECT_RUN_FACTS_SQL, projectRunStatus } from "../projects/status-read-model.ts";
 import {
   actionRow,
   button,
@@ -135,6 +136,9 @@ type CardRow = {
   ci_last_error: string | null;
   ci_repair_attempt_count: number;
   ci_repair_state: string | null;
+  ci_repair_head_sha?: string | null;
+  ci_repair_result_head_sha?: string | null;
+  ci_repair_request_active_count?: number;
   ai_review_state: string | null;
   ai_review_head_sha: string | null;
   ai_review_critical_count: number;
@@ -241,7 +245,7 @@ const desiredSurfaceDigestSql = `
   COALESCE(r.completion_requested_at, 'completion:none') || ':' ||
   COALESCE(r.preview_requirement_satisfied_at, 'preview-satisfied:none') || ':' ||
   COALESCE(ps.hostname, 'host:none') || ':' ||
-  COALESCE(r.stop_reason, 'stop:none') || ':discord-ux-v12'
+  COALESCE(r.stop_reason, 'stop:none') || ':discord-ux-v13'
   || ':' || COALESCE(ci.content_digest, 'ci:none') || ':' ||
   (SELECT COUNT(*) FROM run_ci_repair_attempts repair_count
    WHERE repair_count.run_id = r.run_id) || ':' ||
@@ -519,26 +523,7 @@ function loadDesiredCards(
              ci.aggregate_state AS ci_aggregate_state,
              ci.checks_json AS ci_checks_json,
              ci.last_error AS ci_last_error,
-             (SELECT COUNT(*) FROM run_ci_repair_attempts a
-              WHERE a.run_id = r.run_id) AS ci_repair_attempt_count,
-             (SELECT attempt_state FROM run_ci_repair_attempts a
-              WHERE a.run_id = r.run_id
-              ORDER BY a.attempt_number DESC LIMIT 1) AS ci_repair_state,
-             (SELECT review_state FROM run_ai_reviews ar
-              WHERE ar.run_id = r.run_id
-              ORDER BY ar.review_number DESC LIMIT 1) AS ai_review_state,
-             (SELECT head_sha FROM run_ai_reviews ar
-              WHERE ar.run_id = r.run_id
-              ORDER BY ar.review_number DESC LIMIT 1) AS ai_review_head_sha,
-             COALESCE((SELECT critical_count FROM run_ai_reviews ar
-              WHERE ar.run_id = r.run_id
-              ORDER BY ar.review_number DESC LIMIT 1), 0) AS ai_review_critical_count,
-             COALESCE((SELECT important_count FROM run_ai_reviews ar
-              WHERE ar.run_id = r.run_id
-              ORDER BY ar.review_number DESC LIMIT 1), 0) AS ai_review_important_count,
-             COALESCE((SELECT suggestion_count FROM run_ai_reviews ar
-              WHERE ar.run_id = r.run_id
-              ORDER BY ar.review_number DESC LIMIT 1), 0) AS ai_review_suggestion_count,
+             ${PROJECT_RUN_FACTS_SQL},
              (SELECT COALESCE(github_review_url, pull_request_url)
               FROM run_ai_reviews ar WHERE ar.run_id = r.run_id
               ORDER BY ar.review_number DESC LIMIT 1) AS ai_review_url,
@@ -549,19 +534,12 @@ function loadDesiredCards(
               WHERE q.run_id = r.run_id AND q.action = 'ai_review'
                 AND q.request_state IN ('pending', 'processing'))
                AS ai_review_request_active_count,
-             (SELECT round_state FROM run_review_fix_rounds rf
-              WHERE rf.run_id = r.run_id
-              ORDER BY rf.round_number DESC LIMIT 1) AS review_fix_state,
              (SELECT round_number FROM run_review_fix_rounds rf
               WHERE rf.run_id = r.run_id
               ORDER BY rf.round_number DESC LIMIT 1) AS review_fix_round_number,
              COALESCE((SELECT json_array_length(snapshot_json)
               FROM run_review_fix_rounds rf WHERE rf.run_id = r.run_id
-              ORDER BY rf.round_number DESC LIMIT 1), 0) AS review_fix_thread_count,
-             (SELECT COUNT(*) FROM run_control_requests q
-              WHERE q.run_id = r.run_id AND q.action = 'review_fix'
-                AND q.request_state IN ('pending', 'processing'))
-               AS review_fix_request_active_count
+              ORDER BY rf.round_number DESC LIMIT 1), 0) AS review_fix_thread_count
       FROM run_progress_cards pc
       JOIN runs r USING (run_id)
       JOIN project_events pe ON pe.event_id = r.trigger_event_id
@@ -673,26 +651,7 @@ function loadCard(database: DatabaseSync, runId: string): CardRow {
              ci.aggregate_state AS ci_aggregate_state,
              ci.checks_json AS ci_checks_json,
              ci.last_error AS ci_last_error,
-             (SELECT COUNT(*) FROM run_ci_repair_attempts a
-              WHERE a.run_id = r.run_id) AS ci_repair_attempt_count,
-             (SELECT attempt_state FROM run_ci_repair_attempts a
-              WHERE a.run_id = r.run_id
-              ORDER BY a.attempt_number DESC LIMIT 1) AS ci_repair_state,
-             (SELECT review_state FROM run_ai_reviews ar
-              WHERE ar.run_id = r.run_id
-              ORDER BY ar.review_number DESC LIMIT 1) AS ai_review_state,
-             (SELECT head_sha FROM run_ai_reviews ar
-              WHERE ar.run_id = r.run_id
-              ORDER BY ar.review_number DESC LIMIT 1) AS ai_review_head_sha,
-             COALESCE((SELECT critical_count FROM run_ai_reviews ar
-              WHERE ar.run_id = r.run_id
-              ORDER BY ar.review_number DESC LIMIT 1), 0) AS ai_review_critical_count,
-             COALESCE((SELECT important_count FROM run_ai_reviews ar
-              WHERE ar.run_id = r.run_id
-              ORDER BY ar.review_number DESC LIMIT 1), 0) AS ai_review_important_count,
-             COALESCE((SELECT suggestion_count FROM run_ai_reviews ar
-              WHERE ar.run_id = r.run_id
-              ORDER BY ar.review_number DESC LIMIT 1), 0) AS ai_review_suggestion_count,
+             ${PROJECT_RUN_FACTS_SQL},
              (SELECT COALESCE(github_review_url, pull_request_url)
               FROM run_ai_reviews ar WHERE ar.run_id = r.run_id
               ORDER BY ar.review_number DESC LIMIT 1) AS ai_review_url,
@@ -703,19 +662,12 @@ function loadCard(database: DatabaseSync, runId: string): CardRow {
               WHERE q.run_id = r.run_id AND q.action = 'ai_review'
                 AND q.request_state IN ('pending', 'processing'))
                AS ai_review_request_active_count,
-             (SELECT round_state FROM run_review_fix_rounds rf
-              WHERE rf.run_id = r.run_id
-              ORDER BY rf.round_number DESC LIMIT 1) AS review_fix_state,
              (SELECT round_number FROM run_review_fix_rounds rf
               WHERE rf.run_id = r.run_id
               ORDER BY rf.round_number DESC LIMIT 1) AS review_fix_round_number,
              COALESCE((SELECT json_array_length(snapshot_json)
               FROM run_review_fix_rounds rf WHERE rf.run_id = r.run_id
-              ORDER BY rf.round_number DESC LIMIT 1), 0) AS review_fix_thread_count,
-             (SELECT COUNT(*) FROM run_control_requests q
-              WHERE q.run_id = r.run_id AND q.action = 'review_fix'
-                AND q.request_state IN ('pending', 'processing'))
-               AS review_fix_request_active_count
+              ORDER BY rf.round_number DESC LIMIT 1), 0) AS review_fix_thread_count
       FROM run_progress_cards pc
       JOIN runs r USING (run_id)
       JOIN project_events pe ON pe.event_id = r.trigger_event_id
@@ -1116,11 +1068,7 @@ function aiReviewField(
       card.ai_review_head_sha &&
       currentHead !== card.ai_review_head_sha
     ) {
-      const reviewFixBusy =
-        card.review_fix_request_active_count > 0 ||
-        ["running", "waiting_ci", "resolving"].includes(
-          card.review_fix_state ?? "",
-        );
+      const reviewFixBusy = projectRunStatus(card, currentHead).reviewFixBusy;
       const detail = reviewFixBusy
         ? "PR changed after this review. Review fixes are still being validated."
         : card.review_fix_state === "needs_attention"
@@ -1199,11 +1147,8 @@ export function controlComponents(
     const preservedCancellation = card.stage === "cancelled_work_preserved";
     const publishedCancellation =
       preservedCancellation && Boolean(pullRequest?.url);
-    const reviewFixBusy =
-      card.review_fix_request_active_count > 0 ||
-      ["running", "waiting_ci", "resolving"].includes(
-        card.review_fix_state ?? "",
-      );
+    const status = projectRunStatus(card, pullRequest?.headSha ?? card.ci_head_sha);
+    const reviewFixBusy = status.reviewFixBusy;
     const recovery = cardRecovery(card);
     const attentionCliHandoff = isNeedsAttentionCliHandoff(recovery);
     const failedSuccessorRecovery =
@@ -1310,15 +1255,14 @@ export function controlComponents(
       Boolean(card.ci_head_sha) &&
       ["failed", "missing"].includes(card.ci_aggregate_state ?? "") &&
       card.ci_repair_attempt_count < 2 &&
-      !["running", "waiting_ci"].includes(card.ci_repair_state ?? "");
+      !status.ciRepairBusy;
     if (ciRepairEligible)
       controls.push(
         button("Attempt CI fix", 1, `kurami:ci_repair:${card.run_id}`),
       );
     const reviewHead = pullRequest?.headSha ?? card.ci_head_sha;
     const sameHeadAlreadyReviewed =
-      Boolean(reviewHead) &&
-      card.ai_review_head_sha === reviewHead &&
+      status.reviewCurrent &&
       ["running", "ready"].includes(card.ai_review_state ?? "");
     const aiReviewEligible =
       !preservedCancellation &&
@@ -1336,14 +1280,7 @@ export function controlComponents(
       controls.push(
         button("AI Code Review", 1, `kurami:ai_review:${card.run_id}`),
       );
-    const currentReviewHasFindings =
-      card.ai_review_state === "ready" &&
-      Boolean(reviewHead) &&
-      card.ai_review_head_sha === reviewHead &&
-      card.ai_review_critical_count +
-        card.ai_review_important_count +
-        card.ai_review_suggestion_count >
-        0;
+    const currentReviewHasFindings = status.reviewFindings > 0;
     const reviewFixEligible =
       !preservedCancellation &&
       card.run_state === "parked_review" &&
@@ -1352,9 +1289,7 @@ export function controlComponents(
       card.previous_codex_thread_id === null &&
       currentReviewHasFindings &&
       card.review_fix_request_active_count === 0 &&
-      !["running", "waiting_ci", "resolving"].includes(
-        card.review_fix_state ?? "",
-      ) &&
+      !status.reviewFixBusy &&
       ![
         "ci_repair_queued",
         "ci_repair_working",
@@ -1369,7 +1304,8 @@ export function controlComponents(
       );
     const cancellationStarted =
       card.stop_reason === "cancelled" ||
-      ["stopping", "discarding_cancelled"].includes(card.stage);
+      (card.stage === "stopping" && card.stop_reason !== "completed") ||
+      card.stage === "discarding_cancelled";
     if (preservedCancellation && !publishedCancellation) {
       controls.push(
         button(

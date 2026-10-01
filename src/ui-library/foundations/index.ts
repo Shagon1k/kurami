@@ -10,6 +10,7 @@ export const FOUNDATION_CSS=`${FONT_FACES}
 html { scroll-behavior: smooth; }
 body { margin: 0; color: var(--text-primary); background: var(--surface-page); font: 400 16px/1.5 var(--font-sans); text-rendering: optimizeLegibility; }
 a { color: inherit; }
+.list-reset { list-style: none; margin: 0; padding: 0; }
 button { font: inherit; }
 button, a { -webkit-tap-highlight-color: transparent; }
 :where(a, button, summary, input, select, textarea, [tabindex]:not([tabindex="-1"])):focus-visible { outline: 3px solid var(--focus-ring); outline-offset: 3px; }

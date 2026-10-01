@@ -11,13 +11,21 @@ import {renderPageShell} from "../../src/briefing/ui/page-shell.ts";
 import {existsSync} from "node:fs";
 import {THEME_RUNTIME_JS,THEME_SCRIPT_TAG} from "../../src/ui-library/runtime/theme.ts";
 import {renderThemeSwitch} from "../../src/ui-library/components/theme-switch.ts";
-import {renderLinkButton} from "../../src/ui-library/components/button.ts";
+import {renderButton,renderLinkButton} from "../../src/ui-library/components/button.ts";
 import {validateRenderedHtml} from "../../src/briefing/html-artifacts.ts";
-import {renderSiteHeader,renderSiteNav,SITE_HEADER_CSS} from "../../src/ui-library/patterns/site-header.ts";
+import {renderSiteHeader,renderSiteNav,renderSiteSwitcher,SITE_HEADER_CSS} from "../../src/ui-library/patterns/site-header.ts";
+import {kuramiSites} from "../../src/ui-library/patterns/kurami-sites.ts";
 import {renderDocument} from "../../src/ui-library/patterns/page-shell.ts";
 import {renderTable,TABLE_CSS} from "../../src/ui-library/components/table.ts";
 import {renderCallout,CALLOUT_CSS} from "../../src/ui-library/components/callout.ts";
 import {renderDisclosure,DISCLOSURE_CSS} from "../../src/ui-library/components/disclosure.ts";
+import {renderNumberField,renderSelectField,renderCheckbox} from "../../src/ui-library/components/form.ts";
+import {renderStatCard,renderMeter} from "../../src/ui-library/components/stat-card.ts";
+import {renderIcon,iconPath} from "../../src/ui-library/components/icon.ts";
+import {renderSelectionControl,SELECTION_CONTROL_CSS} from "../../src/ui-library/components/selection-control.ts";
+import {renderPopover} from "../../src/ui-library/components/popover.ts";
+import {renderDialog} from "../../src/ui-library/components/dialog.ts";
+import {renderPeriodSwitch} from "../../src/ui-library/components/period-switch.ts";
 import {inlineDiagram} from "../../src/ui-library/foundations/diagram.ts";
 import {renderDiagram} from "../../src/human-docs/diagrams/kit.ts";
 import {exportBundle,exportDirectory} from "../../src/ui-library/export.ts";
@@ -25,6 +33,12 @@ import {baselineGrew,evaluateUiImpact,touchesUi} from "../../src/ui-library/test
 import {readFileSync,readdirSync} from "node:fs";
 
 const root=resolve(import.meta.dirname,"../..");
+const periodControl=renderPeriodSwitch({key:"usage",lang:"en",label:"Usage period"});
+assert.match(periodControl,/role="group" aria-label="Usage period"/);
+assert.match(periodControl,/data-period-days="30" aria-pressed="true"/);
+assert.match(periodControl,/data-period-days="7" aria-pressed="false"/);
+assert.match(renderPeriodSwitch({key:"usage",lang:"ru",selected:7,label:"Расход"}),/>7д</);
+assert.throws(()=>renderPeriodSwitch({key:'bad"key',lang:"en",label:"Usage"}),/Invalid period key/);
 
 // Every role is declared once per mode; light is the root mode.
 for(const role of colorRoles){
@@ -87,19 +101,38 @@ for(const [lang,name] of [["ru","Тёмная тема"],["en","Dark theme"]] as
   assert.match(button,/data-theme-icon/);
 }
 assert.match(renderLinkButton({label:"RU",href:"/ru/",variant:"icon",attributes:{hreflang:"ru"}}),/^<a class="button button--icon" href="\/ru\/" hreflang="ru">RU<\/a>$/);
+assert.match(renderButton({label:"Reset",variant:"subtle",size:"compact"}),/^<button class="button button--subtle button--compact" type="button">Reset<\/button>$/);
+assert.match(renderLinkButton({label:"More",href:"/more/",variant:"subtle",size:"compact"}),/^<a class="button button--subtle button--compact"/);
+const svgButton=renderButton({label:"Больше такого",variant:"icon",iconPath:"M12 19V5 M6 11l6-6 6 6"});
+assert.match(svgButton,/<button[^>]*aria-label="Больше такого"[^>]*><svg class="button__svg"[^>]*><path d="M12 19V5 M6 11l6-6 6 6"\/><\/svg><\/button>/);
+assert.doesNotMatch(svgButton,/<span|🔔/);
+assert.throws(()=>renderButton({label:"x",variant:"icon",icon:"x",iconPath:"M0 0"}),/both text and SVG/);
 assert.throws(()=>renderLinkButton({label:"x",href:"javascript:alert(1)",variant:"icon"}),/Unsafe link/);
 assert.throws(()=>renderLinkButton({label:"x",href:"//evil.example",variant:"icon"}),/Unsafe link/);
 
 // Header and document patterns: one implementation for both sites, escaped input, safe links.
 for(const [site,css] of [["Digest",BRIEFING_STYLES],["Docs",DOCS_STYLES]] as const)assert.equal(css.split(SITE_HEADER_CSS).length,2,`${site} includes the header pattern once`);
-const header=renderSiteHeader({brand:{href:"/",ariaLabel:"Kurami",foxSrc:"/assets/fox.png",suffix:"docs",meta:{label:"<b>x</b>"}},nav:{label:"Sections",links:[{href:"/a/",label:"A",current:"page"},{href:"/b/",label:"B"}],collapse:{label:"Menu"}},actions:renderThemeSwitch("en")});
+const header=renderSiteHeader({brand:{href:"/",ariaLabel:"Kurami",foxSrc:"/assets/fox.webp",suffix:"docs",meta:{label:"<b>x</b>"}},nav:{label:"Sections",links:[{href:"/a/",label:"A",current:"page"},{href:"/b/",label:"B"}],collapse:{label:"Menu"}},actions:renderThemeSwitch("en")});
 assert.match(header,/class="site-header site-header--collapsible" data-site-header/);
 assert.match(header,/<a class="site-nav__link" href="\/a\/" aria-current="page">A<\/a>/);
 assert.equal((header.match(/aria-label="Sections"/g)??[]).length,2,"inline and collapsed navigation");
 assert.match(header,/&lt;b&gt;x&lt;\/b&gt;/);
+assert.doesNotMatch(header,/site-header__utility/);
+assert.match(renderSiteHeader({brand:{href:"/",ariaLabel:"Hub",foxSrc:"/fox.webp"},nav:{label:"Sections",links:[],hideWhenEmpty:true},actions:"",utility:renderPeriodSwitch({key:"global",lang:"en",label:"All statistics"})}),/class="site-header__utility"><div class="period-switch"/);
+assert.match(renderButton({label:"<Models>",variant:"quiet",iconPath:"M0 0",visibleLabel:true}),/<\/svg><span>&lt;Models&gt;<\/span>/);
 assert.throws(()=>renderSiteNav({label:"x",links:[{href:"javascript:alert(1)",label:"x"}]}),/Unsafe navigation href/);
 assert.throws(()=>renderSiteNav({label:"x",links:[],attributes:{onclick:"x"}}),/Unsafe header attribute/);
 assert.match(renderSiteNav({label:"x",links:[],hideWhenEmpty:true}),/ hidden>/);
+const sites=renderSiteSwitcher(kuramiSites("docs","en"));
+assert.match(sites,/<summary aria-label="Sites">/);
+assert.match(sites,/href="https:\/\/hub\.shagon1k\.win\/en\/"[^>]*>Hub<\/a>/);
+assert.match(sites,/href="https:\/\/docs\.shagon1k\.win\/en\/" aria-current="location">Docs<\/a>/);
+assert.match(sites,/href="https:\/\/hermes\.shagon1k\.win\/"[^>]*>Hermes<\/a>/);
+assert.match(sites,/href="https:\/\/dokploy\.shagon1k\.win\/"[^>]*>Dokploy<\/a>/);
+assert.match(sites,/<span class="site-nav__link site-nav__link--disabled" aria-disabled="true">Projects<small class="site-nav__hint">soon<\/small><\/span>/);
+assert.doesNotMatch(sites,/href="https:\/\/projects\.shagon1k\.win\/"/);
+assert.equal((sites.match(/class="site-nav__link"/g)??[]).length,5);
+assert.doesNotMatch(renderSiteSwitcher(kuramiSites("hub")),/href="https:\/\/docs\.shagon1k\.win\/en\/"/);
 const documentHtml=renderDocument({lang:"en",title:"T",favicon:"/f.svg",styles:{href:"/s.css"},themeScript:true,skipLabel:"Skip",header,main:"<p>m</p>",footer:"<footer></footer>"});
 assert.match(documentHtml,/<a class="skip-link" href="#main">Skip<\/a>/);
 assert.match(documentHtml,/<main id="main" class="container" tabindex="-1">/);
@@ -117,6 +150,29 @@ assert.match(renderCallout({tone:"warning",title:"T",body:"<x>"}),/^<aside class
 assert.throws(()=>renderCallout({tone:"loud" as "note",body:"x"}),/Invalid callout tone/);
 assert.equal(renderCallout({tone:"note",body:{html:"<p>a <code>b</code></p><ul><li>c</li></ul>"}}),'<aside class="callout callout--note"><p>a <code>b</code></p><ul><li>c</li></ul></aside>',"trusted block markup is kept");
 assert.match(renderDisclosure({summary:"<s>",body:"<p>b</p>",boxed:true,open:true}),/^<details class="disclosure disclosure--boxed" open><summary>&lt;s&gt;<\/summary><p>b<\/p><\/details>$/);
+assert.match(renderSelectField({label:"<label>",name:"model",value:"a",options:[{value:"a",label:'<option>"'}]}),/&lt;label&gt;/);
+assert.match(renderSelectField({label:"Model",name:"model",value:"a",options:[{value:"a",label:"A"}]}),/value="a" selected>A<\/option>/);
+assert.match(renderNumberField({label:"WIP",name:"wip",value:2,min:1,max:3}),/name="wip" type="number" value="2" min="1" max="3"/);
+assert.match(renderCheckbox({name:"repo",label:"<Repo>",value:'a"b',checked:true}),/value="a&quot;b" checked/);
+assert.match(renderCheckbox({name:"repo",label:"Kurami",value:"kurami"}),/data-selection-variant="data"/);
+assert.match(renderSelectionControl({label:"<Mail>",disabled:true}),/ disabled/);
+assert.match(renderSelectionControl({label:"<Mail>"}),/&lt;Mail&gt;/);
+assert.throws(()=>renderSelectionControl({label:"Mail",attributes:{onclick:"bad"}}),/Unsafe selection attribute/);
+assert.throws(()=>renderSelectionControl({label:"Mail",className:'bad"class'}),/Unsafe selection class/);
+assert.equal(BRIEFING_STYLES.split(SELECTION_CONTROL_CSS).length,2,"Digest selection CSS has one shared source");
+assert.match(renderDisclosure({summary:"Events",body:"",variant:"inline"}),/disclosure--inline/);
+assert.match(renderPopover({id:"controls",label:"<Controls>",body:"<p>content</p>"}),/popover="auto" aria-label="&lt;Controls&gt;"/);
+assert.throws(()=>renderPopover({id:'bad"id',label:"Controls",body:""}),/Invalid popover ID/);
+assert.match(renderStatCard({label:"<Tokens>",value:"1M",full:'1"000',tone:"info",icon:"tokens"}),/data-tone="info"/);
+assert.match(renderStatCard({label:"<Tokens>",value:"1M",full:'1"000'}),/title="1&quot;000"/);
+assert.match(renderStatCard({label:"<Tokens>",value:"1M"}),/&lt;Tokens&gt;/);
+assert.match(renderMeter({label:"CPU",value:0}),/aria-valuenow="0"/);
+for(const value of [-1,101,NaN,Infinity])assert.throws(()=>renderMeter({label:"CPU",value}),/Invalid meter/);
+assert.match(renderIcon("controls"),/aria-hidden="true"/);assert.match(iconPath("cpu"),/^M/);
+assert.match(renderDisclosure({summary:"Events",body:"",key:'id"1'}),/data-disclosure-key="id&quot;1"/);
+assert.match(renderDialog({id:"test-dialog",title:"<title>",closeLabel:"Close",body:"<p>Trusted</p>"}),/aria-labelledby="test-dialog-title"/);
+assert.match(renderDialog({id:"test-dialog",title:"<title>",closeLabel:"Close",body:""}),/&lt;title&gt;/);
+assert.throws(()=>renderDialog({id:'bad"id',title:"T",closeLabel:"Close",body:""}),/Invalid dialog ID/);
 
 // Diagrams: every docs picture comes from the diagram kit, stays inside the palette and becomes theme-aware when inlined.
 const scenes={

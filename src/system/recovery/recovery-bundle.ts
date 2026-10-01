@@ -238,6 +238,10 @@ async function copyVerifiedSnapshot(
   const database = copied.find((file) => file.path === "snapshot/orchestrator.db");
   if (!database) fail("Backup manifest does not contain orchestrator.db");
   assertDatabaseIntegrity(resolve(stageDirectory, database.path));
+  const health = copied.find((file) => file.path === "snapshot/system-health.db");
+  if (health) assertDatabaseIntegrity(resolve(stageDirectory, health.path));
+  const briefing = copied.find((file) => file.path === "snapshot/briefing.db");
+  if (briefing) assertDatabaseIntegrity(resolve(stageDirectory, briefing.path));
   copied.push(
     await copyPrivateFile(
       manifestPath,
@@ -528,6 +532,12 @@ export async function verifyRecoveryBundle(
       }
     }
     assertDatabaseIntegrity(resolve(root, "snapshot/orchestrator.db"));
+    if (manifest.files.some(file => file.path === "snapshot/system-health.db")) {
+      assertDatabaseIntegrity(resolve(root, "snapshot/system-health.db"));
+    }
+    if (manifest.files.some(file => file.path === "snapshot/briefing.db")) {
+      assertDatabaseIntegrity(resolve(root, "snapshot/briefing.db"));
+    }
     return {
       ok: true,
       action: "verified",

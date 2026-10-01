@@ -227,7 +227,7 @@ export function applyInternal(database: DatabaseSync, plan: PlannedAction): unkn
           `
         UPDATE runs SET state = 'stopping', stop_reason = 'cancelled',
           updated_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
-        WHERE run_id = ? AND state NOT IN ('rejected', 'cancelled', 'archived', 'stopping')
+        WHERE run_id = ? AND state NOT IN ('rejected', 'cancelled', 'archived')
       `,
         )
         .run(plan.runId);

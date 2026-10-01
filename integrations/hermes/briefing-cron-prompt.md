@@ -14,8 +14,12 @@ in the recovery window, repair it against the same frozen source batch before
 retrying validation. Author the draft from all source items; never generate it
 with an ad-hoc script that copies/clips provider text or assigns topics by
 keywords. If faithful editorial work cannot be completed, record failure
-instead of publishing a templated draft. Follow the two-pass notes procedure
-in the Daily skill: draft without notes, rank-preview, grounded notes in
+instead of publishing a templated draft. Follow the bilingual
+`localeVersion: 2` contract: every Kurami-authored story,
+note, and custom hero needs English copy alongside Russian. Source titles,
+names, and quotations may stay in their original language. Follow the two-pass
+notes procedure in the Daily skill: draft without notes, rank-preview,
+grounded notes in
 distinct ranked bands, then compose. Apply its editorial quality rules to
 every captured item. On Saturday, complete the enabled Cinema gate before
 Daily composition; record an isolated Cinema failure without blocking Daily.

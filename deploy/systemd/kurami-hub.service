@@ -8,6 +8,10 @@ Type=simple
 ExecStart=/home/shagon1k/_hermes/_kurami/runtime/node/bin/node /home/shagon1k/_hermes/_kurami/app/src/hub/server.ts
 Environment=HUB_PORT=8800
 Environment=HUB_CODEX_HOME=/home/shagon1k/.codex
+Environment=HUB_CONTROLS_ENABLED=true
+Environment=HUB_CONTROL_ORIGIN=https://hub.shagon1k.win
+Environment=HUB_ACCESS_TEAM=https://super-cloud-e433.cloudflareaccess.com
+Environment=HUB_ACCESS_AUDIENCE=ff6fe3b7c8ce4fa0585e8a8d0235760bc543d07eebbbfbc935c44646a5e9bdfb
 WorkingDirectory=/home/shagon1k/_hermes/_kurami/app
 Restart=on-failure
 RestartSec=3s
@@ -16,6 +20,7 @@ NoNewPrivileges=true
 PrivateTmp=true
 ProtectSystem=strict
 ProtectHome=read-only
+ReadWritePaths=/home/shagon1k/_hermes/_kurami/state /home/shagon1k/_hermes/_kurami/connectors /home/shagon1k/.codex /home/shagon1k/_hermes/_core
 RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6
 RestrictNamespaces=true
 RestrictSUIDSGID=true

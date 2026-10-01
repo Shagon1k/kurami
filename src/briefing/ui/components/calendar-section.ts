@@ -2,16 +2,17 @@ import { section } from "../../addons/envelopes.ts";
 import type { BriefingPayload } from "../../model.ts";
 import { displayString, escapeHtml, externalUrl, records } from "../html.ts";
 import { renderKuramiNote } from "./kurami-note.ts";
+import {digestLanguage,digestText} from "../../i18n.ts";
 
 function eventTime(event: Record<string, unknown>): string {
-  if (event.allDay === true) return "Весь день";
+  if (event.allDay === true) return digestText("Весь день","All day");
   const display = displayString(event.displayTime);
   if (display) return display;
   const start = displayString(event.start);
   if (!start) return "—";
   const parsed = new Date(start);
   if (!Number.isFinite(parsed.getTime())) return start;
-  return new Intl.DateTimeFormat("ru-RU", {
+  return new Intl.DateTimeFormat(digestLanguage()==="en"?"en-GB":"ru-RU", {
     hour: "2-digit",
     minute: "2-digit",
     timeZone: "Europe/Vilnius",
@@ -32,6 +33,7 @@ function mapsUrl(event: Record<string, unknown>, location: string): string | nul
 }
 
 function eventCountLabel(count: number): string {
+  if(digestLanguage()==="en")return `${count} ${count===1?"event":"events"}`;
   const mod10 = count % 10;
   const mod100 = count % 100;
   const noun = mod10 === 1 && mod100 !== 11
@@ -51,7 +53,7 @@ export function renderCalendarSection(payload: BriefingPayload): string {
   const conflicts = records(section(payload, "calendar").conflicts).length;
   const label = events.length
     ? eventCountLabel(events.length)
-    : section(payload, "calendar").state === "empty" ? "день свободен" : "нет данных";
+    : section(payload, "calendar").state === "empty" ? digestText("день свободен","day free") : digestText("нет данных","no data");
 
   const rows = events.length
     ? events.map((event) => {
@@ -72,16 +74,16 @@ export function renderCalendarSection(payload: BriefingPayload): string {
         : "";
       return `<article class="agenda-row${demo ? " is-demo" : ""}">
         <time class="agenda-row__time">${escapeHtml(eventTime(event))}</time>
-        <div class="agenda-row__copy"><strong>${escapeHtml(displayString(event.title, "Без названия"))}</strong>${meta ? `<span>${escapeHtml(meta)}</span>` : ""}${renderedLocation}${description ? `<p>${escapeHtml(description)}</p>` : ""}${renderKuramiNote(eventNote, "agenda-row__note")}</div>
+        <div class="agenda-row__copy"><strong>${escapeHtml(displayString(event.title, digestText("Без названия","Untitled")))}</strong>${meta ? `<span>${escapeHtml(meta)}</span>` : ""}${renderedLocation}${description ? `<p>${escapeHtml(description)}</p>` : ""}${renderKuramiNote(eventNote, "agenda-row__note")}</div>
         <div class="agenda-row__badges">${tentative ? '<span class="agenda-row__badge">TENTATIVE</span>' : ""}${demo ? '<span class="agenda-row__badge is-demo">DEMO</span>' : ""}</div>
       </article>`;
     }).join("")
-    : `<div class="section-empty"><strong>${section(payload, "calendar").state === "empty" ? "На сегодня событий нет" : "Календарь пока недоступен"}</strong><span>${section(payload, "calendar").state === "empty" ? "Можно оставить день свободным." : "Секция обновится после следующего успешного чтения."}</span></div>`;
+    : `<div class="section-empty"><strong>${section(payload, "calendar").state === "empty" ? digestText("На сегодня событий нет","No events today") : digestText("Календарь пока недоступен","Calendar unavailable")}</strong><span>${section(payload, "calendar").state === "empty" ? digestText("Можно оставить день свободным.","Your day is free.") : digestText("Секция обновится после следующего успешного чтения.","This section will update after the next successful refresh.")}</span></div>`;
 
   const sectionNote = payload.notes?.find((note) => note.target === "calendar");
   return `<section class="briefing-panel briefing-panel--calendar" aria-labelledby="calendar-heading">
     ${renderKuramiNote(sectionNote, "briefing-panel__note")}
-    <header class="briefing-panel__header"><div><p class="section-kicker">Три календаря</p><h2 id="calendar-heading">Расписание</h2></div><span>${escapeHtml(conflicts ? `${conflicts} конфликт` : label)}</span></header>
-    <div class="agenda-list briefing-panel__scroll"${events.length > 4 ? ' data-overflow="true" role="region" tabindex="0" aria-label="Все события на сегодня"' : ""}>${rows}</div>
+    <header class="briefing-panel__header"><div><p class="section-kicker">${digestText("Три календаря","Three calendars")}</p><h2 id="calendar-heading">${digestText("Расписание","Schedule")}</h2></div><span>${escapeHtml(conflicts ? `${conflicts} ${digestText("конфликт","conflict")}` : label)}</span></header>
+    <div class="agenda-list briefing-panel__scroll"${events.length > 4 ? ` data-overflow="true" role="region" tabindex="0" aria-label="${digestText("Все события на сегодня","All events today")}"` : ""}>${rows}</div>
   </section>`;
 }

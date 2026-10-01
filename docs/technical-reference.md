@@ -1183,8 +1183,12 @@ KURAMI_HOME=/home/shagon1k/_hermes/_kurami \
 node src/system/recovery/backup-state.ts inspect
 ```
 
-Each backup is a mode-700 directory under `../backups` containing a verified
-SQLite snapshot, the non-secret config allowlist, and a SHA-256 manifest.
+Each backup is a mode-700 directory under `../backups` containing verified
+SQLite snapshots of `orchestrator.db` and, when present, `system-health.db`,
+the non-secret config allowlist, and a SHA-256 manifest. Each database is
+snapshotted independently with `VACUUM INTO`, including committed WAL data;
+the pair is not a cross-database transaction. Recovery bundles check both
+databases and still accept older backups without the Health database.
 Secrets and OAuth stores are never copied. Fourteen snapshots are kept by
 default; at the three-day schedule this is roughly six weeks of history.
 `KURAMI_BACKUP_RETENTION` may be set from 2 through 90.
@@ -1528,9 +1532,19 @@ Alerts remain based on the current five-second sample, so a sustained overload i
 not hidden by a rolling average. This service performs no network, Docker,
 SQLite, or Discord work.
 
-Alert streak and cooldown state is stored atomically in
-`state/runtime-health-alert.json`; changing metric values alone does not bypass
-the cooldown. The persistent health-card message ID lives in
+`src/system/health/health-cycle.ts` owns collection, alert streaks and notification
+intents. It commits the latest result, ten history entries and alert state in
+`state/system-health.db` before delivery reads Discord credentials. The existing
+health wrapper runs collection and `--deliver` as separate processes. Delivery
+reuses the stored result and does not advance streaks. Failed notifications retain
+their original result and nonce; alert and recovery transitions stay ordered.
+Pending reminders with the same fingerprint are suppressed. Each delivery drains
+at most 20 notifications under a delivery lease. The lease does not block collection.
+
+`state/runtime-health-alert.json` and `state/system-health-history.json` are
+compatibility projections of the committed cycle. Existing JSON state seeds the
+first cycle. Changing metric values alone does not bypass the cooldown.
+The persistent health-card message ID lives in
 `state/system-health-discord.json`. Ten bounded snapshots live in
 `state/system-health-history.json`; selecting one from the card responds
 ephemerally and never creates another Health-channel message.

@@ -48,6 +48,7 @@ if(shots&&files.length){
   writeFileSync(resolve(site,"assets/docs.css"),DOCS_STYLES);writeFileSync(resolve(site,"assets/theme.js"),THEME_RUNTIME_JS);
   for(const font of fontFiles)cpSync(resolve(root,"src/ui-library/assets/fonts",font.file),resolve(site,"assets",font.file));
   cpSync(resolve(root,"src/ui-library/assets/brand/kurami-fox-transparent.png"),resolve(site,"assets/fox.png"));
+  cpSync(resolve(root,"src/ui-library/assets/brand/kurami-fox-header.webp"),resolve(site,"assets/fox.webp"));
   cpSync(resolve(root,"src/ui-library/assets/brand/kurami-favicon.svg"),resolve(site,"assets/favicon.svg"));
   for(const file of readdirSync(resolve(root,"src/human-docs/assets")))cpSync(resolve(root,"src/human-docs/assets",file),resolve(site,"assets",file));
   const server=createServer((request,response)=>{

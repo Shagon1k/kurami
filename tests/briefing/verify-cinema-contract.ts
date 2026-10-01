@@ -34,6 +34,7 @@ import {
 } from "../../src/briefing/cinema/time-windows.ts";
 import { loadCinemaRuntimeConfig } from "../../src/briefing/runtime-config.ts";
 import { renderBriefingPage } from "../../src/briefing/ui/render-page.ts";
+import {withDigestLanguage} from "../../src/briefing/i18n.ts";
 import {
   briefingPaths,
   initializeBriefingStore,
@@ -521,6 +522,15 @@ const composed = composeCinemaEnvelope({ candidate: collected, config, draft: ed
 assert.equal(composed.state, "ready");
 assert.equal(composed.data.news.items.length, 4);
 assert.equal(composed.data.news.items[0]?.publisher.length !== 0, true);
+const bilingualDraft={...editorialDraft,localeVersion:2,
+  news:editorialDraft.news.map(item=>({...item,en:{headline:"An independently written cinema headline",summary:"A factual English summary of the same selected cinema story and its verified details."}})),
+  notes:editorialDraft.notes.map(item=>({...item,enText:"A cinema signal"}))};
+assert.throws(()=>composeCinemaEnvelope({candidate:collected,config,draft:{...bilingualDraft,news:[{...bilingualDraft.news[0],en:undefined}]}}),/en is required for bilingual editions/);
+const bilingualCinema=composeCinemaEnvelope({candidate:collected,config,draft:bilingualDraft});
+assert.equal(bilingualCinema.data.news.items[0]?.en?.headline,"An independently written cinema headline");
+const bilingualCinemaHtml=withDigestLanguage("en",()=>renderBriefingPage(cinemaEnvelopeToBriefingPayload(bilingualCinema)));
+assert.match(bilingualCinemaHtml,/An independently written cinema headline/);
+assert.doesNotMatch(bilingualCinemaHtml,/Archived editorial text is available only/);
 assert.throws(() => composeCinemaEnvelope({
   candidate: collected,
   config,

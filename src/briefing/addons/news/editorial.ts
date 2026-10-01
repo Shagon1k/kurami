@@ -9,6 +9,7 @@ export type EditorialStoryDraft = {
   headline: string;
   summary: string;
   details: string[];
+  en?: {headline:string;summary:string;details:string[]};
   topics: Topic[];
   signals: NonNullable<NewsItem["editorialSignals"]>;
   depth?: "featured" | "standard" | "compact";
@@ -19,7 +20,8 @@ export type EditorialStoryDraft = {
 export type EditorialBriefingDraft = {
   editionId: string;
   generatedAt: string;
-  hero?: { title?: string; subtitle?: string };
+  localeVersion?: 2;
+  hero?: { title?: string; subtitle?: string; en?: {title:string;subtitle:string} };
   notes?: Array<Omit<KuramiNote, "target"> & { target: KuramiNote["target"] | `story-source:${string}` }>;
   stories: EditorialStoryDraft[];
   exclusions?: Array<{
@@ -65,9 +67,11 @@ function parseDraft(value: unknown): EditorialBriefingDraft {
   if (!/^daily:\d{4}-\d{2}-\d{2}$/u.test(editionId)) throw new Error("editorial draft editionId is invalid");
   const generatedAt = string(root.generatedAt, "editorial draft.generatedAt");
   if (!Number.isFinite(Date.parse(generatedAt))) throw new Error("editorial draft.generatedAt is invalid");
+  if (root.localeVersion !== undefined && root.localeVersion !== 2) throw new Error("editorial draft.localeVersion must be 2");
   if (!Array.isArray(root.stories)) throw new Error("editorial draft.stories must be an array");
   const stories = root.stories.map((raw, index): EditorialStoryDraft => {
     const story = record(raw, `editorial draft.stories[${index}]`);
+    if (root.localeVersion === 2 && story.en === undefined) throw new Error(`editorial draft.stories[${index}].en is required for bilingual editions`);
     const signals = record(story.signals, `editorial draft.stories[${index}].signals`);
     const topics = story.topics;
     if (!Array.isArray(topics)) throw new Error(`editorial draft.stories[${index}].topics must be an array`);
@@ -76,6 +80,11 @@ function parseDraft(value: unknown): EditorialBriefingDraft {
       headline: string(story.headline, `editorial draft.stories[${index}].headline`),
       summary: string(story.summary, `editorial draft.stories[${index}].summary`),
       details: strings(story.details, `editorial draft.stories[${index}].details`),
+      ...(story.en!==undefined?{en:(()=>{const en=record(story.en,`editorial draft.stories[${index}].en`);return {
+        headline:string(en.headline,`editorial draft.stories[${index}].en.headline`),
+        summary:string(en.summary,`editorial draft.stories[${index}].en.summary`),
+        details:strings(en.details,`editorial draft.stories[${index}].en.details`),
+      };})()}:{}),
       topics: topics as Topic[],
       signals: {
         importance: string(signals.importance, "signals.importance") as EditorialStoryDraft["signals"]["importance"],
@@ -91,6 +100,18 @@ function parseDraft(value: unknown): EditorialBriefingDraft {
       ...(story.entities !== undefined ? { entities: strings(story.entities, "story.entities", 0) } : {}),
     };
   });
+  if(root.localeVersion===2){
+    if(root.hero){
+      const hero=record(root.hero,"editorial draft.hero");
+      if(!hero.en)throw new Error("editorial draft.hero.en is required for bilingual editions");
+      const en=record(hero.en,"editorial draft.hero.en");
+      string(en.title,"editorial draft.hero.en.title");
+      string(en.subtitle,"editorial draft.hero.en.subtitle");
+    }
+    if(Array.isArray(root.notes))root.notes.forEach((raw,index)=>{
+      if(!record(raw,`editorial draft.notes[${index}]`).enText)throw new Error(`editorial draft.notes[${index}].enText is required for bilingual editions`);
+    });
+  }
   if (root.exclusions !== undefined && !Array.isArray(root.exclusions)) {
     throw new Error("editorial draft.exclusions must be an array");
   }
@@ -105,6 +126,7 @@ function parseDraft(value: unknown): EditorialBriefingDraft {
   return {
     editionId,
     generatedAt,
+    ...(root.localeVersion===2?{localeVersion:2 as const}:{}),
     ...(root.hero && typeof root.hero === "object" && !Array.isArray(root.hero) ? { hero: root.hero as EditorialBriefingDraft["hero"] } : {}),
     ...(Array.isArray(root.notes) ? { notes: root.notes as EditorialBriefingDraft["notes"] } : {}),
     stories,
@@ -267,6 +289,7 @@ function storyFromDraft(draft: EditorialStoryDraft, lookup: Map<string, Normaliz
     headline: draft.headline,
     summary: draft.summary,
     details: draft.details,
+    ...(draft.en?{en:draft.en}:{}),
     topics: draft.topics,
     sources,
     editorialSignals: draft.signals,

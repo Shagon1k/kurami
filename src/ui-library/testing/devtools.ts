@@ -41,7 +41,7 @@ export function findBrowser(explicit?:string):string {
   return candidate;
 }
 
-export async function launchBrowser(path:string):Promise<{devtools:Devtools;close:()=>void}> {
+export async function launchBrowser(path:string):Promise<{devtools:Devtools;close:()=>Promise<void>}> {
   const profile=mkdtempSync(join(tmpdir(),"kurami-ui-browser-"));
   const browser:ChildProcess=spawn(path,["--headless","--no-sandbox","--disable-gpu","--disable-background-networking","--disable-dev-shm-usage","--hide-scrollbars","--font-render-hinting=none","--remote-debugging-address=127.0.0.1","--remote-debugging-port=0",`--user-data-dir=${profile}`,"about:blank"],{stdio:["ignore","ignore","pipe"]});
   let port=0;
@@ -60,5 +60,13 @@ export async function launchBrowser(path:string):Promise<{devtools:Devtools;clos
   const socket=new WebSocket(target);
   await new Promise((resolve,reject)=>{socket.addEventListener("open",resolve,{once:true});socket.addEventListener("error",reject,{once:true});});
   const devtools=new Devtools(socket);
-  return {devtools,close:()=>{devtools.close();browser.kill();rmSync(profile,{recursive:true,force:true,maxRetries:10,retryDelay:100});}};
+  return {devtools,close:async()=>{
+    devtools.close();
+    if(browser.exitCode===null&&browser.signalCode===null){
+      const exited=new Promise<void>(done=>browser.once("exit",()=>done()));
+      browser.kill();
+      await Promise.race([exited,delay(3000)]);
+    }
+    rmSync(profile,{recursive:true,force:true,maxRetries:10,retryDelay:100});
+  }};
 }

@@ -5,6 +5,8 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type { ResourceGuardAnalysis } from "../src/orchestrator/resources/guard.ts";
 import type { RuntimeHealthResult } from "../src/orchestrator/health/runtime.ts";
+import {healthSurfaceSnapshot,validHealthSurfaceSnapshot,writeHealthSurfaceSnapshot} from "../src/system/health/health-snapshot.ts";
+import {readFile,rm} from "node:fs/promises";
 import {
   defaultServerHealthConfig,
   emptyHealthAlertState,
@@ -114,6 +116,18 @@ const card = systemHealthCard(result, [
     unhealthyContainers: 0,
   },
 ]);
+const surface=healthSurfaceSnapshot(result);
+assert.equal(surface.server.cpuUsedPercent,result.server.cpuUsedPercent,"Hub and Discord share the same CPU measurement");
+assert.equal(surface.disk.availableGiB,result.resourceGuard.disk.availableGiB);
+assert.equal(surface.orchestrator.backupAgeHours,result.backupAgeHours);
+assert.equal(validHealthSurfaceSnapshot(surface),true);
+assert.equal(validHealthSurfaceSnapshot({version:1}),false);
+assert(!JSON.stringify(surface).includes("topConsumers"),"shared public metrics omit process details");
+const snapshotDirectory=await mkdtemp(join(tmpdir(),"kurami-health-surface-"));
+const snapshotPath=join(snapshotDirectory,"health.json");
+await writeHealthSurfaceSnapshot(snapshotPath,result);
+assert.deepEqual(JSON.parse(await readFile(snapshotPath,"utf8")),surface);
+await rm(snapshotDirectory,{recursive:true,force:true});
 const serializedCard = JSON.stringify(card);
 assert.equal(card.flags, 32768, "Health card must use Discord Components V2");
 assert(!Object.hasOwn(card, "content"), "Health card must not fall back to plain content");

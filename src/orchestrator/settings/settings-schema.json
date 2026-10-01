@@ -1,0 +1,17 @@
+{
+  "version": 1,
+  "fields": [
+    {"name":"max_llm_running_global","flag":"--max-llm","min":1,"max":3,"group":"capacity","unit":"count","label":{"en":"Concurrent LLM","ru":"Параллельные LLM"}},
+    {"name":"ai_triage_daily","flag":"--ai-triage-daily","min":0,"max":40,"group":"triage","unit":"per-project/day","label":{"en":"AI triage/day","ru":"AI triage / день"}},
+    {"name":"max_active_global","flag":"--global-wip","min":1,"max":6,"group":"capacity","unit":"count","label":{"en":"Global WIP","ru":"Общий WIP"}},
+    {"name":"max_previews_global","flag":"--max-previews","min":1,"max":6,"group":"previews","unit":"count","label":{"en":"Active previews","ru":"Превью"}},
+    {"name":"max_preview_builds_global","flag":"--max-preview-builds","min":1,"max":2,"group":"previews","unit":"count","label":{"en":"Preview builds","ru":"Сборки превью"}},
+    {"name":"preview_ttl_hours","flag":"--preview-ttl-hours","min":6,"max":72,"group":"previews","unit":"hours","label":{"en":"Preview lifetime (hours)","ru":"TTL превью · часы"}}
+  ],
+  "projectWip": {"name":"project_wip","flag":"--project-wip","min":1,"max":3,"unit":"count"},
+  "constraints": [
+    {"left":"project_wip.*","right":"max_active_global","message":"Project WIP for {project} cannot exceed Global WIP"},
+    {"left":"max_preview_builds_global","right":"max_previews_global","message":"Concurrent preview builds cannot exceed active previews"}
+  ],
+  "health": {"allowedIntervals":[5,10,12,15,20,30,60],"defaultIntervalMinutes":20}
+}

@@ -640,6 +640,16 @@ def main() -> None:
         "preview_ttl_hours": 24,
     }
     validated = settings_module._validated_settings(runtime_settings)
+    schema = json.loads((settings_module._kurami_home() / "app/src/orchestrator/settings/settings-schema.json").read_text())
+    require(settings_module._schema() == schema, "Discord must load the canonical shared schema")
+    for field in schema["fields"]:
+        for value in [field["min"] - 1, field["max"] + 1, True]:
+            try:
+                settings_module._validated_settings({**runtime_settings, field["name"]: value})
+            except RuntimeError:
+                pass
+            else:
+                raise AssertionError(f"Schema boundary accepted: {field['name']}={value}")
     require(
         validated["project_wip"]["tailortales"]
         + validated["project_wip"]["pickflick"]
@@ -672,6 +682,8 @@ def main() -> None:
         expected_revision=7,
         settings=runtime_settings,
     )
+    for field in schema["fields"]:
+        require(control_args[control_args.index(field["flag"]) + 1] == str(runtime_settings[field["name"]]), "Discord flags drifted from the shared schema")
     require(
         control_args[-2:] == ["--preview-ttl-hours", "24"]
         and control_args[control_args.index("--ai-triage-daily") + 1] == "12"

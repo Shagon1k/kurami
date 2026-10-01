@@ -25,4 +25,4 @@ try{
   const output=resolve(import.meta.dirname,"../assets",`shot-${name}.png`);
   writeFileSync(output,Buffer.from(data,"base64"));
   console.log(JSON.stringify({output}));
-}finally{close();}
+}finally{await close();}

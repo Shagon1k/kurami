@@ -1,6 +1,6 @@
 ---
 name: kurami-daily-briefing
-description: Build, inspect, dry-run, or publish the configured Kurami Daily Briefing from unread news, Gmail, configured Google Calendars, weather, and optional Saturday Cinema. Use for the scheduled morning briefing or an explicit briefing run; deduplicate stories, write concise Russian summaries, assign canonical English topics, and hand an editorial draft to the deterministic runtime. Do not use for ad-hoc news questions or generic email and calendar summaries.
+description: Build, inspect, dry-run, or publish the configured Kurami Daily Briefing from unread news, Gmail, configured Google Calendars, weather, and optional Saturday Cinema. Use for the scheduled morning briefing or an explicit briefing run; deduplicate stories, write concise Russian and English editorial copy, assign canonical English topics, and hand an editorial draft to the deterministic runtime. Do not use for ad-hoc news questions or generic email and calendar summaries.
 ---
 
 # Kurami Daily Briefing
@@ -180,8 +180,11 @@ Default manual experiments to `dry-run`. Generation never archives Gmail;
    `proposed` topic with English ID, label, and aliases and use it immediately.
    Every story needs at least one contextual subtype beyond broad containers
    and geography; do not stamp one topic pair across a channel.
-   Account for every
-   normalized Telegram input exactly once: claim it in one story source or put it in
+   Write an independent English `en` headline, summary, and details for every
+   story. Preserve names, source titles, and quotations in their original
+   language where translation would change their meaning. Do not translate
+   source text mechanically or invent facts in either language. Account for
+   every normalized Telegram input exactly once: claim it in one story source or put it in
    `news.exclusions` with one of the bounded contract reasons. A merged input is
    claimed by the merged story; it is not also recorded as an exclusion. Use a
    compact story for low-signal content instead of silently dropping it. The
@@ -194,9 +197,12 @@ Default manual experiments to `dry-run`. Generation never archives Gmail;
    snapshot whose local date exactly matches this Daily edition. Any Cinema
    failure must be recorded as an isolated diagnostic and must not block,
    mutate, or replace the normal Daily edition.
-9. Write only `editorial-draft.json` in the attempt directory. It contains
+9. Write only `editorial-draft.json` in the attempt directory. Set
+    `localeVersion: 2`; the composer then rejects missing English editorial
+    fields instead of silently publishing a Russian-only edition. It contains
     `editionId`, `generatedAt`, optional hero/notes, stories with exact
-    `sourceItemIds`, authored headline/summary/details/topics, and bounded
+    `sourceItemIds`, authored Russian headline/summary/details, matching English
+    `en` copy, topics, and bounded
     `signals` (`importance`, `urgency`, `publicInterest`, `confidence`, and
     optional `publishedAt`). It may also contain explicit bounded exclusions
     and mail class overrides. A story-specific Kurami Note targets one owned
@@ -210,7 +216,9 @@ Default manual experiments to `dry-run`. Generation never archives Gmail;
     $BRIEFING_NODE $BRIEFING_CLI rank-preview --draft <editorial-draft.json> --live <live-snapshot.json> --config $CONFIG --raw <telegram-raw.json> --normalized <telegram-normalized.json> --output <rank-preview.json>
     ```
 
-    Use its final ranked story list to add notes to the same draft. Only then
+    Use its final ranked story list to add notes to the same draft, with both
+    Russian `text` and English `enText`. If authoring a custom hero, supply
+    `hero.en` as well. Only then
     run the deterministic composer:
 
     ```text

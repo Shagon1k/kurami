@@ -1,5 +1,7 @@
 function initializeStocks():void {
   const root=document.querySelector<HTMLElement>("[data-stock-list]");if(!root)return;
+  const english=document.documentElement.lang==="en";
+  const t=(ru:string,en:string)=>english?en:ru;
   const rows=[...root.querySelectorAll<HTMLDetailsElement>("[data-stock-row]")];
   let period=root.dataset.stockPeriod??"1m";
   const cache=new Map<string,string>(),versions=new Map<string,number>();
@@ -13,11 +15,11 @@ function initializeStocks():void {
     const version=(versions.get(id)??0)+1;versions.set(id,version);
     if(panel.dataset.stockLoaded===period){panel.removeAttribute("aria-busy");status.textContent="";mount();return;}
     const requestedPeriod=period,key=id+":"+requestedPeriod;
-    panel.setAttribute("aria-busy","true");status.textContent="Загружаю график…";
+    panel.setAttribute("aria-busy","true");status.textContent=t("Загружаю график…","Loading chart…");
     try {
       let html=cache.get(key);
       if(!html){
-        const response=await fetch("/api/stocks/details?"+new URLSearchParams({symbols:id,period:requestedPeriod}),{signal:AbortSignal.timeout(10000)});
+        const response=await fetch("/api/stocks/details?"+new URLSearchParams({symbols:id,period:requestedPeriod,lang:english?"en":"ru"}),{signal:AbortSignal.timeout(10000)});
         if(!response.ok)throw new Error("Chart unavailable");
         html=await response.text();if(html.length>300000)throw new Error("Chart too large");
       }
@@ -32,8 +34,8 @@ function initializeStocks():void {
       if(row.open)updateURL(id);
     }catch{
       if(versions.get(id)!==version)return;
-      status.replaceChildren(document.createTextNode("Не удалось загрузить новый период. "));
-      const retry=document.createElement("button");retry.type="button";retry.className="button button--secondary";retry.textContent="Повторить";retry.addEventListener("click",()=>void load(row));status.append(retry);
+      status.replaceChildren(document.createTextNode(t("Не удалось загрузить новый период. ","Could not load the new period. ")));
+      const retry=document.createElement("button");retry.type="button";retry.className="button button--secondary";retry.textContent=t("Повторить","Retry");retry.addEventListener("click",()=>void load(row));status.append(retry);
     }finally{if(versions.get(id)===version)panel.removeAttribute("aria-busy");}
   }
   for(const row of rows){

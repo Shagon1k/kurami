@@ -13,7 +13,7 @@ try {
   writeFileSync(join(root,"build.json"),JSON.stringify({mode:"release",revision:null,docsSha:revision}));
   assert.doesNotThrow(()=>createDocsServer(root));
   writeFileSync(join(root,"build.json"),JSON.stringify({mode:"release",revision,docsSha:revision}));
-  for(const path of ["ru/index.html","en/index.html","en/changelog/index.html","assets/docs.css","assets/shot-project-board.png","assets/diagrams/run-lifecycle-1-en.svg","assets/diagrams/run-lifecycle-1-ru.svg"]){
+  for(const path of ["ru/index.html","en/index.html","en/changelog/index.html","assets/docs.css","assets/fox.webp","assets/shot-project-board.png","assets/diagrams/run-lifecycle-1-en.svg","assets/diagrams/run-lifecycle-1-ru.svg"]){
     const destination=join(root,path);
     mkdirSync(dirname(destination),{recursive:true});
     writeFileSync(destination,`fixture:${path}`);
@@ -40,6 +40,7 @@ try {
       ["/ru/",200,"fixture:ru/index.html"],
       ["/en/changelog/",200,"fixture:en/changelog/index.html"],
       ["/assets/docs.css",200,"fixture:assets/docs.css"],
+      ["/assets/fox.webp",200,"fixture:assets/fox.webp"],
       ["/assets/shot-project-board.png",200,"fixture:assets/shot-project-board.png"],
       ["/assets/diagrams/run-lifecycle-1-en.svg",200,"fixture:assets/diagrams/run-lifecycle-1-en.svg"],
       ["/assets/diagrams/run-lifecycle-1-ru.svg",200,"fixture:assets/diagrams/run-lifecycle-1-ru.svg"],
@@ -57,6 +58,8 @@ try {
     const head=await fetch(base+"/ru/",{method:"HEAD"});
     assert.equal(head.status,200);
     assert.equal(await head.text(),"");
+    const fox=await fetch(base+"/assets/fox.webp");
+    assert.equal(fox.headers.get("content-type"),"image/webp");
     assert.equal((await fetch(base+"/ru/",{method:"POST"})).status,405);
   } finally {server.close();await once(server,"close");}
   console.log("Docs origin: release-only gate, routes, assets and method restrictions verified");

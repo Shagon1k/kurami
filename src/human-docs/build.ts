@@ -55,6 +55,7 @@ mkdirSync(resolve(output,"assets/diagrams"),{recursive:true});
 for(const [path,html] of rendered){const destination=resolve(output,path);mkdirSync(dirname(destination),{recursive:true});writeFileSync(destination,html);}
 for(const diagram of diagrams)writeFileSync(resolve(output,"assets/diagrams",`${diagram.id}.svg`),diagram.svg);
 cpSync(resolve(siteRoot,"kurami-fox-transparent.png"),resolve(output,"assets/fox.png"));
+cpSync(resolve(siteRoot,"kurami-fox-header.webp"),resolve(output,"assets/fox.webp"));
 cpSync(resolve(siteRoot,"kurami-favicon.svg"),resolve(output,"assets/favicon.svg"));
 for(const font of fontFiles)cpSync(resolve(root,"src/ui-library/assets/fonts",font.file),resolve(output,"assets",font.file));
 for(const file of readdirSync(resolve(root,"src/human-docs/assets")))if(/^shot-[a-z0-9-]+\.png$/.test(file))cpSync(resolve(root,"src/human-docs/assets",file),resolve(output,"assets",file));

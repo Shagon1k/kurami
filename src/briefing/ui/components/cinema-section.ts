@@ -9,9 +9,10 @@ import {
 } from "../../cinema/model.ts";
 import { originalTitleFromBilingual } from "../../cinema/titles.ts";
 import { escapeHtml } from "../html.ts";
+import {digestLanguage,digestText as t} from "../../i18n.ts";
 
 function money(amount: number, currency: string): string {
-  return new Intl.NumberFormat("ru-RU", {
+  return new Intl.NumberFormat(digestLanguage()==="en"?"en-US":"ru-RU", {
     style: "currency",
     currency,
     notation: amount >= 1_000_000 ? "compact" : "standard",
@@ -20,7 +21,7 @@ function money(amount: number, currency: string): string {
 }
 
 function shortDate(value: string): string {
-  return new Intl.DateTimeFormat("ru-RU", { day: "numeric", month: "short" })
+  return new Intl.DateTimeFormat(digestLanguage()==="en"?"en-GB":"ru-RU", { day: "numeric", month: "short" })
     .format(new Date(`${value}T12:00:00Z`));
 }
 
@@ -37,7 +38,7 @@ function noteMark(mark: CinemaNote["mark"]): string {
 function note(envelope: CinemaEnvelope, target: string, className = "cinema-heading__note"): string {
   const item = envelope.data.notes.find((candidate) => candidate.target === target);
   if (!item) return "";
-  return `<span class="kurami-note ${escapeHtml(className)}" data-note-id="${escapeHtml(item.id)}">${escapeHtml(item.text)} <span aria-hidden="true">${noteMark(item.mark)}</span></span>`;
+  return `<span class="kurami-note ${escapeHtml(className)}" data-note-id="${escapeHtml(item.id)}"${digestLanguage()==="en"&&!item.enText?' lang="ru"':''}>${escapeHtml(digestLanguage()==="en"?item.enText??item.text:item.text)} <span aria-hidden="true">${noteMark(item.mark)}</span></span>`;
 }
 
 function chartRows(chart: CinemaChart, visible = 5): string {
@@ -50,9 +51,10 @@ function chartRows(chart: CinemaChart, visible = 5): string {
 
 function rankTable(chart: CinemaChart): string {
   const hasMore = chart.entries.length > 5;
-  return `<article class="cinema-rank"><header><div><span>${escapeHtml(chart.region)}</span><h3>${escapeHtml(chart.label)}</h3></div><span>${chart.period === "ytd" ? "год" : "уикенд"}</span></header>
-    <table><thead><tr><th>#</th><th>Фильм</th><th>Сборы</th><th>Δ</th></tr></thead><tbody>${chartRows(chart)}</tbody></table>
-    ${hasMore ? `<details class="cinema-rank__more"><summary>Показать топ-10</summary><span class="sr-only">Остальные строки уже находятся в таблице и открываются стилями.</span></details>` : ""}
+  const title=chart.id==="us-weekend"?t("США — уикенд","US — weekend"):chart.id==="us-ytd"?t("США — с начала года","US — year to date"):chart.id==="world-ytd"?t("Мировой прокат — с начала года","Worldwide — year to date"):chart.label;
+  return `<article class="cinema-rank"><header><div><span>${escapeHtml(chart.region)}</span><h3>${escapeHtml(title)}</h3></div><span>${chart.period === "ytd" ? t("год","year") : t("уикенд","weekend")}</span></header>
+    <table><thead><tr><th>#</th><th>${t("Фильм","Film")}</th><th>${t("Сборы","Gross")}</th><th>Δ</th></tr></thead><tbody>${chartRows(chart)}</tbody></table>
+    ${hasMore ? `<details class="cinema-rank__more"><summary>${t("Показать топ-10","Show top 10")}</summary><span class="sr-only">${t("Остальные строки уже находятся в таблице и открываются стилями.","The remaining rows are already in the table and are revealed by styles.")}</span></details>` : ""}
   </article>`;
 }
 
@@ -69,24 +71,24 @@ function regionOrder(chart: CinemaChart): number {
 }
 
 const RANK_REGIONS = [
-  { id: "WORLD", label: "Мировой прокат" },
-  { id: "US/CA", label: "США" },
-  { id: "LT", label: "Литва" },
+  { id: "WORLD", label: "Мировой прокат", enLabel:"Worldwide" },
+  { id: "US/CA", label: "США", enLabel:"US" },
+  { id: "LT", label: "Литва", enLabel:"Lithuania" },
 ] as const;
 
 function emptyRankTable(region: typeof RANK_REGIONS[number], period: CinemaChart["period"]): string {
-  const suffix = period === "weekend" ? "уикенд" : "с начала года";
-  return `<article class="cinema-rank cinema-rank--empty"><header><div><span>${escapeHtml(region.id)}</span><h3>${escapeHtml(region.label)} — ${suffix}</h3></div><span>${period === "ytd" ? "год" : "уикенд"}</span></header><div class="cinema-rank__empty"><strong>Нет надёжных данных</strong><p>Появятся автоматически, когда будет подключён проверенный источник.</p></div></article>`;
+  const suffix = period === "weekend" ? t("уикенд","weekend") : t("с начала года","year to date");
+  return `<article class="cinema-rank cinema-rank--empty"><header><div><span>${escapeHtml(region.id)}</span><h3>${escapeHtml(t(region.label,region.enLabel))} — ${suffix}</h3></div><span>${period === "ytd" ? t("год","year") : t("уикенд","weekend")}</span></header><div class="cinema-rank__empty"><strong>${t("Нет надёжных данных","No reliable data")}</strong><p>${t("Появятся автоматически, когда будет подключён проверенный источник.","Data will appear when a verified source is connected.")}</p></div></article>`;
 }
 
 function rankGroup(charts: CinemaChart[], period: CinemaChart["period"]): string {
   const selected = charts.filter((chart) => chart.period === period).sort((left, right) => regionOrder(left) - regionOrder(right));
-  const title = period === "weekend" ? "Последний уикенд" : "С начала года";
+  const title = period === "weekend" ? t("Последний уикенд","Latest weekend") : t("С начала года","Year to date");
   const cards = RANK_REGIONS.map((region) => {
     const chart = selected.find((candidate) => candidate.region === region.id);
     return chart ? rankTable(chart) : emptyRankTable(region, period);
   });
-  return `<section class="cinema-rank-group" data-rank-period="${period}"><header><h3>${title}</h3><span>${selected.length} из ${RANK_REGIONS.length} рынков</span></header><div class="cinema-ranks">${cards.join("")}</div></section>`;
+  return `<section class="cinema-rank-group" data-rank-period="${period}"><header><h3>${title}</h3><span>${selected.length} ${t("из","of")} ${RANK_REGIONS.length} ${t("рынков","markets")}</span></header><div class="cinema-ranks">${cards.join("")}</div></section>`;
 }
 
 function boxOffice(envelope: CinemaEnvelope): string {
@@ -94,9 +96,10 @@ function boxOffice(envelope: CinemaEnvelope): string {
   if (section.state === "failed" || !section.charts.length) return "";
   const featured = section.charts.flatMap((chart) => chart.entries)
     .find((entry) => entry.id === section.featuredId);
-  return `<section class="cinema-block cinema-box-office" id="box-office"><header class="cinema-heading"><div><p class="section-kicker">Прокат · цифры</p><h2>Пульс проката</h2></div>${note(envelope, "box-office")}</header>
-    ${featured ? `<article class="cinema-winner"><span>Лидер последнего уикенда</span><strong>${escapeHtml(featured.title)}</strong><b>${money(featured.gross.amount, featured.gross.currency)}</b></article>` : ""}
-    ${section.signals.length ? `<div class="cinema-signals">${section.signals.map((signal) => `<article><span>${escapeHtml(signal.label)}</span><strong>${escapeHtml(signal.filmTitle ?? section.charts.flatMap((chart) => chart.entries).find((entry) => entry.id === signal.filmId)?.title ?? signal.filmId)}</strong><b>${signal.value === undefined ? "" : `${signal.value > 0 ? "+" : ""}${signal.unit === "USD" ? money(signal.value, "USD") : `${Math.round(signal.value)}${signal.unit ?? ""}`}`}</b></article>`).join("")}</div>` : ""}
+  const signalLabels={"largest-debut":t("Крупнейший дебют","Biggest debut"),"best-hold":t("Лучшее удержание","Best hold"),"sharpest-drop":t("Самое резкое падение","Sharpest drop"),"rank-movement":t("Движение в чарте","Chart movement"),"estimate-surprise":t("Сюрприз против прогноза","Versus estimate")};
+  return `<section class="cinema-block cinema-box-office" id="box-office"><header class="cinema-heading"><div><p class="section-kicker">${t("Прокат · цифры","Box office · numbers")}</p><h2>${t("Пульс проката","Box-office pulse")}</h2></div>${note(envelope, "box-office")}</header>
+    ${featured ? `<article class="cinema-winner"><span>${t("Лидер последнего уикенда","Latest weekend leader")}</span><strong>${escapeHtml(featured.title)}</strong><b>${money(featured.gross.amount, featured.gross.currency)}</b></article>` : ""}
+    ${section.signals.length ? `<div class="cinema-signals">${section.signals.map((signal) => `<article><span>${escapeHtml(signalLabels[signal.kind])}</span><strong>${escapeHtml(signal.filmTitle ?? section.charts.flatMap((chart) => chart.entries).find((entry) => entry.id === signal.filmId)?.title ?? signal.filmId)}</strong><b>${signal.value === undefined ? "" : `${signal.value > 0 ? "+" : ""}${signal.unit === "USD" ? money(signal.value, "USD") : `${Math.round(signal.value)}${signal.unit ?? ""}`}`}</b></article>`).join("")}</div>` : ""}
     ${trend(envelope)}
     <div class="cinema-rank-groups">${rankGroup(section.charts, "weekend")}${rankGroup(section.charts, "ytd")}</div>
   </section>`;
@@ -117,14 +120,14 @@ function displayedTrailers(items: CinemaTrailer[], publisherLimit = 3): CinemaTr
 function trailers(envelope: CinemaEnvelope): string {
   const items = displayedTrailers(envelope.data.trailers.items);
   if (!items.length) return "";
-  return `<section class="cinema-block" id="trailers"><header class="cinema-heading"><div><p class="section-kicker">Свежие · ${items.length}</p><h2>Трейлеры недели</h2></div>${note(envelope, "trailers")}</header><div class="cinema-trailer-grid">${items.map((item) => `<a class="cinema-trailer" href="${escapeHtml(item.sourceUrl)}" target="_blank" rel="noopener noreferrer"><span class="cinema-art${item.thumbnailSrc ? " has-image" : ""}">${item.thumbnailSrc ? `<img src="${escapeHtml(item.thumbnailSrc)}" alt="">` : ""}<b aria-hidden="true">▶</b>${duration(item.durationSeconds) ? `<i>${duration(item.durationSeconds)}</i>` : ""}</span><span class="cinema-card__copy"><small>${escapeHtml(item.publisher)} · ${escapeHtml(item.trailerType)}</small><strong>${escapeHtml(item.title)}</strong><em>${new Intl.DateTimeFormat("ru-RU", { day: "numeric", month: "short" }).format(new Date(item.publishedAt))}</em></span></a>`).join("")}</div></section>`;
+  return `<section class="cinema-block" id="trailers"><header class="cinema-heading"><div><p class="section-kicker">${t("Свежие","Recent")} · ${items.length}</p><h2>${t("Трейлеры недели","Trailers this week")}</h2></div>${note(envelope, "trailers")}</header><div class="cinema-trailer-grid">${items.map((item) => `<a class="cinema-trailer" href="${escapeHtml(item.sourceUrl)}" target="_blank" rel="noopener noreferrer"><span class="cinema-art${item.thumbnailSrc ? " has-image" : ""}">${item.thumbnailSrc ? `<img src="${escapeHtml(item.thumbnailSrc)}" alt="">` : ""}<b aria-hidden="true">▶</b>${duration(item.durationSeconds) ? `<i>${duration(item.durationSeconds)}</i>` : ""}</span><span class="cinema-card__copy"><small>${escapeHtml(item.publisher)} · ${escapeHtml(item.trailerType)}</small><strong>${escapeHtml(item.title)}</strong><em>${new Intl.DateTimeFormat(digestLanguage()==="en"?"en-GB":"ru-RU", { day: "numeric", month: "short" }).format(new Date(item.publishedAt))}</em></span></a>`).join("")}</div></section>`;
 }
 
 function premiereFacts(item: CinemaEnvelope["data"]["premieres"]["items"][number]): string {
   const facts = [
-    item.directors?.length ? `<span><b>Режиссёр</b>${escapeHtml(item.directors.join(", "))}</span>` : "",
-    item.cast?.length ? `<span><b>В ролях</b>${escapeHtml(item.cast.join(", "))}</span>` : "",
-    item.runtimeMinutes ? `<span><b>Хронометраж</b>${Math.floor(item.runtimeMinutes / 60)} ч ${item.runtimeMinutes % 60} мин</span>` : "",
+    item.directors?.length ? `<span><b>${t("Режиссёр","Director")}</b>${escapeHtml(item.directors.join(", "))}</span>` : "",
+    item.cast?.length ? `<span><b>${t("В ролях","Cast")}</b>${escapeHtml(item.cast.join(", "))}</span>` : "",
+    item.runtimeMinutes ? `<span><b>${t("Хронометраж","Runtime")}</b>${Math.floor(item.runtimeMinutes / 60)} ${t("ч","h")} ${item.runtimeMinutes % 60} ${t("мин","min")}</span>` : "",
   ].filter(Boolean);
   return facts.length ? `<span class="cinema-premiere__facts">${facts.join("")}</span>` : "";
 }
@@ -132,13 +135,18 @@ function premiereFacts(item: CinemaEnvelope["data"]["premieres"]["items"][number
 function premieres(envelope: CinemaEnvelope): string {
   const items = envelope.data.premieres.items;
   if (!items.length) return "";
-  return `<section class="cinema-block" id="premieres"><header class="cinema-heading"><div><p class="section-kicker">Литва · следующая неделя</p><h2>Премьеры</h2></div>${note(envelope, "premieres")}</header><div class="cinema-premiere-grid">${items.map((item) => `<a class="cinema-premiere" href="${escapeHtml(item.sourceUrl)}" target="_blank" rel="noopener noreferrer"><span class="cinema-poster${item.posterSrc ? " has-image" : ""}">${item.posterSrc ? `<img src="${escapeHtml(item.posterSrc)}" alt="">` : `<b>${escapeHtml((item.originalTitle ?? item.localTitle).slice(0, 1))}</b>`}</span><span class="cinema-card__copy"><small>${shortDate(item.releaseDate)}${item.ageRating ? ` · ${escapeHtml(item.ageRating)}` : ""}</small><strong>${escapeHtml(item.originalTitle ?? item.localTitle)}</strong>${item.originalTitle ? `<em>${escapeHtml(item.localTitle)}</em>` : ""}${item.genres?.length ? `<span class="cinema-card__genres">${item.genres.map((genre) => `<i>${escapeHtml(genre)}</i>`).join("")}</span>` : ""}${premiereFacts(item)}</span></a>`).join("")}</div></section>`;
+  return `<section class="cinema-block" id="premieres"><header class="cinema-heading"><div><p class="section-kicker">${t("Литва · следующая неделя","Lithuania · next week")}</p><h2>${t("Премьеры","Premieres")}</h2></div>${note(envelope, "premieres")}</header><div class="cinema-premiere-grid">${items.map((item) => `<a class="cinema-premiere" href="${escapeHtml(item.sourceUrl)}" target="_blank" rel="noopener noreferrer"><span class="cinema-poster${item.posterSrc ? " has-image" : ""}">${item.posterSrc ? `<img src="${escapeHtml(item.posterSrc)}" alt="">` : `<b>${escapeHtml((item.originalTitle ?? item.localTitle).slice(0, 1))}</b>`}</span><span class="cinema-card__copy"><small>${shortDate(item.releaseDate)}${item.ageRating ? ` · ${escapeHtml(item.ageRating)}` : ""}</small><strong>${escapeHtml(item.originalTitle ?? item.localTitle)}</strong>${item.originalTitle ? `<em>${escapeHtml(item.localTitle)}</em>` : ""}${item.genres?.length ? `<span class="cinema-card__genres">${item.genres.map((genre) => `<i>${escapeHtml(genre)}</i>`).join("")}</span>` : ""}${premiereFacts(item)}</span></a>`).join("")}</div></section>`;
 }
 
 function news(envelope: CinemaEnvelope): string {
   const items = envelope.data.news.items;
   if (!items.length) return "";
-  return `<section class="cinema-block" id="cinema-news"><header class="cinema-heading"><div><p class="section-kicker">За 7 дней · ${items.length}</p><h2>Новости</h2></div>${note(envelope, "news")}</header><div class="cinema-news-list">${items.map((item, index) => `<article class="cinema-news"><span>${String(index + 1).padStart(2, "0")}</span><span class="cinema-news__image${item.imageSrc ? " has-image" : ""}" aria-hidden="true">${item.imageSrc ? `<img src="${escapeHtml(item.imageSrc)}" alt="">` : ""}</span><div class="cinema-news__copy"><small>${escapeHtml(item.publisher)} · ${new Intl.DateTimeFormat("ru-RU", { day: "numeric", month: "short" }).format(new Date(item.publishedAt))}</small>${note(envelope, `news:${item.id}`, "cinema-news__note")}<h3>${escapeHtml(item.headline)}</h3><p>${escapeHtml(item.summary)}</p></div><a href="${escapeHtml(item.sourceUrl)}" target="_blank" rel="noopener noreferrer" aria-label="Открыть источник: ${escapeHtml(item.headline)}">↗</a></article>`).join("")}</div></section>`;
+  return `<section class="cinema-block" id="cinema-news"><header class="cinema-heading"><div><p class="section-kicker">${t("За 7 дней","Last 7 days")} · ${items.length}</p><h2>${t("Новости","News")}</h2></div>${note(envelope, "news")}</header><div class="cinema-news-list">${items.map((item, index) => {
+    const en=digestLanguage()==="en"?item.en:undefined;
+    const originalLang=digestLanguage()==="en"&&!en?' lang="ru"':"";
+    const headline=en?.headline??item.headline;
+    return `<article class="cinema-news"><span>${String(index + 1).padStart(2, "0")}</span><span class="cinema-news__image${item.imageSrc ? " has-image" : ""}" aria-hidden="true">${item.imageSrc ? `<img src="${escapeHtml(item.imageSrc)}" alt="">` : ""}</span><div class="cinema-news__copy"><small>${escapeHtml(item.publisher)} · ${new Intl.DateTimeFormat(digestLanguage()==="en"?"en-GB":"ru-RU", { day: "numeric", month: "short" }).format(new Date(item.publishedAt))}</small>${note(envelope, `news:${item.id}`, "cinema-news__note")}<h3${originalLang}>${escapeHtml(headline)}</h3><p${originalLang}>${escapeHtml(en?.summary??item.summary)}</p></div><a href="${escapeHtml(item.sourceUrl)}" target="_blank" rel="noopener noreferrer" aria-label="${t("Открыть источник","Open source")}: ${escapeHtml(headline)}">↗</a></article>`;
+  }).join("")}</div></section>`;
 }
 
 function full(envelope: CinemaEnvelope): string {
@@ -148,7 +156,7 @@ function full(envelope: CinemaEnvelope): string {
 function preview(envelope: CinemaEnvelope): string {
   const chart = envelope.data.boxOffice.charts.find((item) => item.id === "us-weekend") ?? envelope.data.boxOffice.charts[0];
   const winner = chart?.entries[0];
-  return `<section class="cinema-preview"><div><p class="section-kicker">Субботний add-on</p><h2>Кино за неделю</h2><p>${winner ? `В прокате лидирует ${escapeHtml(winner.title)}; ` : ""}${envelope.data.trailers.items.length} свежих трейлеров и ${envelope.data.premieres.items.length} премьер на следующей неделе.</p></div><div class="cinema-preview__facts"><span><b>${envelope.data.news.items.length}</b> новостей</span><span><b>${envelope.data.boxOffice.signals.length}</b> движений</span></div><a class="button button--primary" href="/cinema">Открыть Cinema ↗</a></section>`;
+  return `<section class="cinema-preview"><div><p class="section-kicker">${t("Субботний add-on","Saturday add-on")}</p><h2>${t("Кино за неделю","Cinema this week")}</h2><p>${winner ? `${t("В прокате лидирует","Box-office leader")}: ${escapeHtml(winner.title)}; ` : ""}${envelope.data.trailers.items.length} ${t("свежих трейлеров и","recent trailers and")} ${envelope.data.premieres.items.length} ${t("премьер на следующей неделе","premieres next week")}.</p></div><div class="cinema-preview__facts"><span><b>${envelope.data.news.items.length}</b> ${t("новостей","news stories")}</span><span><b>${envelope.data.boxOffice.signals.length}</b> ${t("движений","movements")}</span></div><a class="button button--primary" href="/cinema">${t("Открыть Cinema","Open Cinema")} ↗</a></section>`;
 }
 
 export function renderCinemaSection(payload: BriefingPayload): string {

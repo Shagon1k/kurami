@@ -460,8 +460,9 @@ assert.match(html, /data-page-next/);
 assert.match(html, /input[^>]+data-page-input/);
 assert.match(html, /aria-label="Больше такого"[^>]+data-reaction="like"/);
 assert.match(html, /aria-label="Меньше такого"[^>]+data-reaction="dislike"/);
-assert.match(html, /button__icon" aria-hidden="true">🔔<\/span>/);
-assert.match(html, /button__icon" aria-hidden="true">🔕<\/span>/);
+assert.match(html, /data-reaction="like"[^>]*><svg class="button__svg"[^>]*><path d="M12 19V5 M6 11l6-6 6 6"\/><\/svg><\/button>/);
+assert.match(html, /data-reaction="dislike"[^>]*><svg class="button__svg"[^>]*><path d="M12 5v14 m-6-6 6 6 6-6"\/><\/svg><\/button>/);
+assert.doesNotMatch(html, /🔔|🔕/);
 assert.match(html, /data-note-id="note:hero"[^>]*>утро без суеты/);
 assert.match(html, /data-note-id="note:story"[^>]*>сюда стоит смотреть/);
 assert.doesNotMatch(html, /kurami-note--ink/);
@@ -1387,7 +1388,7 @@ try {
   assert.match(previewHtml, /@media \(max-width: 620px\) \{[\s\S]*?\.story-cover, \.news-story__copy, \.news-story__actions \{ grid-column: 1 \/ -1; \}/);
   assert.match(previewHtml, /@media \(max-width: 620px\) \{[\s\S]*?\.news-story__actions \{ display: grid; grid-template-columns: repeat\(3, minmax\(0, 1fr\)\); gap: 6px; \}/);
   assert.match(previewHtml, /\.story-toggle \{ grid-column: 1 \/ -1; width: 100%; \}/);
-  assert.match(previewHtml, /\.news-story__source, \.news-story__actions \.icon-button \{ width: 100%; min-width: 0; padding-inline: 0; \}/);
+  assert.match(previewHtml, /\.news-story__source, \.news-story__actions \.reaction-button \{ width: 100%; min-width: 0; padding-inline: 0; \}/);
 
   const mediaResponse = await fetch(`${base}/media/daily/2026-08-28/story-1/01.jpg`, {
     headers: { range: "bytes=0-1" },

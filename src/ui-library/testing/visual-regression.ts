@@ -10,7 +10,7 @@ import {tmpdir} from "node:os";
 import {isAbsolute,join,resolve,sep} from "node:path";
 import {setTimeout as delay} from "node:timers/promises";
 import {findBrowser,launchBrowser} from "./devtools.ts";
-import {librarySubsite,syntheticDaily,syntheticHub,syntheticInvestmentReview,syntheticStocksEmpty,syntheticWeeklyEmpty} from "./fixtures.ts";
+import {librarySubsite,syntheticDaily,syntheticHub,syntheticInvestmentReview,syntheticLegacyCinema,syntheticStocksEmpty,syntheticWeeklyEmpty} from "./fixtures.ts";
 import {HUB_STYLES} from "../../hub/styles.ts";
 import {changedShare,decodePng} from "./png.ts";
 import {AUDIT_EXPRESSION,inventoryExpression} from "./audit.ts";
@@ -30,13 +30,14 @@ const pages:Record<string,string>={
   "digest-investment-review":"/digest/review.html",
   "library-subsite":"/lab/index.html",
   "hub-home":"/hub/index.html",
+  "hub-home-en":"/hub/en.html",
   "docs-home-en":"/en/",
   "docs-overview-ru":"/ru/what-is-kurami/",
   "docs-reference-table-en":"/en/data-stores/",
   "docs-run-diagram-ru":"/ru/run-lifecycle/",
   "docs-changelog-en":"/en/changelog/",
 };
-const types:Record<string,string>={html:"text/html; charset=utf-8",css:"text/css",js:"text/javascript",svg:"image/svg+xml",png:"image/png",woff2:"font/woff2"};
+const types:Record<string,string>={html:"text/html; charset=utf-8",css:"text/css",js:"text/javascript",svg:"image/svg+xml",png:"image/png",webp:"image/webp",woff2:"font/woff2"};
 
 function site():string {
   execFileSync(process.execPath,[resolve(root,"src/human-docs/build.ts"),"--preview"],{cwd:root,stdio:"ignore"});
@@ -51,6 +52,7 @@ function site():string {
   mkdirSync(join(served,"digest"),{recursive:true});
   // Digest pages pass through the same serve-time injection as production.
   writeFileSync(join(served,"digest/daily.html"),injectRuntime(syntheticDaily()));
+  writeFileSync(join(served,"digest/cinema-legacy.html"),injectRuntime(syntheticLegacyCinema()));
   writeFileSync(join(served,"digest/stocks.html"),injectRuntime(syntheticStocksEmpty()));
   writeFileSync(join(served,"digest/weekly.html"),injectRuntime(syntheticWeeklyEmpty()));
   writeFileSync(join(served,"digest/review.html"),injectRuntime(syntheticInvestmentReview()));
@@ -58,9 +60,10 @@ function site():string {
   writeFileSync(join(served,"lab/index.html"),librarySubsite());
   mkdirSync(join(served,"hub"),{recursive:true});
   writeFileSync(join(served,"hub/index.html"),syntheticHub());
+  writeFileSync(join(served,"hub/en.html"),syntheticHub("en"));
   writeFileSync(join(served,"assets/hub.css"),HUB_STYLES);
   cpSync(join(root,"src/hub/client.js"),join(served,"assets/hub.js"));
-  cpSync(join(brandAssets,"kurami-fox-transparent.png"),join(served,"assets/kurami-fox.png"));
+  cpSync(join(brandAssets,"kurami-fox-header.webp"),join(served,"assets/kurami-fox.webp"));
   cpSync(join(brandAssets,"kurami-favicon.svg"),join(served,"favicon.svg"));
   return served;
 }
@@ -99,6 +102,21 @@ async function checkThemeRuntime(devtools:Devtools,base:string,path:string):Prom
   await devtools.call("Emulation.setEmulatedMedia",{features:[]});
 }
 
+async function checkSiteSwitcher(devtools:Devtools,base:string):Promise<void> {
+  for(const [path,current] of [["/digest/daily.html","Digest"],["/digest/cinema-legacy.html","Digest"],["/en/","Docs"],["/hub/index.html","Hub"],["/hub/en.html","Hub"]] as const)for(const width of [320,390,1280]){
+    await devtools.call("Emulation.setDeviceMetricsOverride",{width,height:900,deviceScaleFactor:1,mobile:width<600});
+    await open(devtools,`${base}${path}`);
+    const state=await devtools.evaluate<{links:string[];current:string|null;projects:string|null;projectsHref:string|null;open:boolean;overflow:number;left:number;right:number}>(`(() => {
+      const menu=document.querySelector('.site-switcher');
+      menu.querySelector('summary').click();
+      const nav=menu.querySelector('nav'),rect=nav.getBoundingClientRect();
+      const projects=[...nav.querySelectorAll('.site-nav__link')].find(link=>link.textContent.trim().startsWith('Projects'));
+      return {links:[...nav.querySelectorAll('a')].map(link=>link.textContent.trim()),current:nav.querySelector('[aria-current]')?.textContent.trim()??null,projects:projects?.getAttribute('aria-disabled')??null,projectsHref:projects?.getAttribute('href')??null,open:menu.open,overflow:document.documentElement.scrollWidth-innerWidth,left:rect.left,right:rect.right};
+    })()`);
+    if(JSON.stringify(state.links)!==JSON.stringify(["Hub","Digest","Docs","Hermes","Dokploy"])||state.current!==current||state.projects!=="true"||state.projectsHref!==null||!state.open||state.overflow>1||state.left<0||state.right>width+1)throw new Error(`Site switcher ${path} at ${width}px: ${JSON.stringify(state)}`);
+  }
+}
+
 async function main(){
   const args=process.argv.slice(2);
   const out=args.find(arg=>arg.startsWith("--out="))?.slice(6);
@@ -123,6 +141,7 @@ async function main(){
   try{
     await devtools.call("Page.enable");
     for(const path of ["/digest/daily.html","/en/reading-state/","/lab/index.html","/hub/index.html"])await checkThemeRuntime(devtools,`http://127.0.0.1:${port}`,path);
+    await checkSiteSwitcher(devtools,`http://127.0.0.1:${port}`);
     const audited:Record<string,string>={...pages};
     for(const lang of ["en","ru"])for(const route of ["","changelog",...docsPages.map(page=>page.slug)])audited[`docs-${lang}-${route||"home"}`]??=`/${lang}/${route?route+"/":""}`;
     for(const [name,path] of Object.entries(audited))if(!Object.values(pages).includes(path)||name in pages)for(const width of widths)for(const theme of themes){
@@ -140,7 +159,7 @@ async function main(){
       writeFileSync(join(output,file),png);
       manifest[file]=createHash("sha256").update(png).digest("hex");
     }
-  }finally{close();server.close();rmSync(served,{recursive:true,force:true});}
+  }finally{await close();server.close();rmSync(served,{recursive:true,force:true});}
   writeFileSync(join(output,"manifest.json"),JSON.stringify(manifest,null,2));
   if(Object.keys(audit).length){console.log(JSON.stringify({ok:false,audit},null,1));process.exitCode=1;return;}
   if(!compare){console.log(JSON.stringify({ok:true,themeRuntime:"verified",audited:auditedCount,screenshots:Object.keys(manifest).length,out:output}));return;}

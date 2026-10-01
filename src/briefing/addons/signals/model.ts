@@ -4,6 +4,7 @@ import type { SignalsConfig } from "./config.ts";
 export type SignalItem = {
   id: string; group: "calendar-today" | "calendar-tomorrow" | "mail" | "weather";
   priority: number; severity: "attention" | "info"; title: string; detail: string;
+  enTitle?: string; enDetail?: string;
   href?: "#calendar-heading" | "#mail-heading";
   expiresAt?: string;
 };
@@ -27,6 +28,8 @@ export function parseSignalsEnvelope(value: BriefingAddonEnvelope | undefined): 
       || !["calendar-today","calendar-tomorrow","mail","weather"].includes(item.group) || !Number.isFinite(item.priority)
       || !["attention","info"].includes(item.severity) || typeof item.title !== "string"
       || typeof item.detail !== "string" || item.title.length > 100 || item.detail.length > 300
+      || (item.enTitle!==undefined&&(typeof item.enTitle!=="string"||item.enTitle.length>100))
+      || (item.enDetail!==undefined&&(typeof item.enDetail!=="string"||item.enDetail.length>300))
       || (item.expiresAt && !Number.isFinite(Date.parse(item.expiresAt)))
       || (item.href && !["#calendar-heading","#mail-heading"].includes(item.href))) return null;
     ids.add(item.id);
