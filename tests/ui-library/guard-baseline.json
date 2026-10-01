@@ -47,8 +47,7 @@
     },
     "css:library-class": {
       "src/briefing/ui/styles.ts": 3,
-      "src/briefing/weekly/styles.ts": 1,
-      "src/human-docs/styles.ts": 1
+      "src/briefing/weekly/styles.ts": 1
     }
   },
   "duplicates": {}

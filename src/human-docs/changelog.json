@@ -194,6 +194,25 @@
       "ru": "",
       "exclusionScope": "docs-only",
       "exclude": "Recorded the installed report-only docs audit in bilingual docs and internal guidance; no application behavior was changed or deployed by this commit."
+    },
+    "342070781de461431014ec420f367765ccf76ef4": {
+      "category": "improved",
+      "en": "Projects defaults to English and adds project tabs, live search, sorting, full-screen mobile task cards and digest suggestions. Shared controls use a compact 36-pixel height.",
+      "ru": "Projects открывается на английском и добавляет вкладки проектов, живой поиск, сортировку, полноэкранные карточки на телефоне и рекомендации digest. Общие элементы управления имеют компактную высоту 36 пикселей.",
+      "page": "owner-controls"
+    },
+    "3e0a918b7a660c58226149bd5aee234575961354": {
+      "category": "operations",
+      "en": "",
+      "ru": "",
+      "exclude": "Integration retains the already released Hub chart implementation and palette while combining the Projects component extensions; no separate owner workflow is introduced.",
+      "exclusionScope": "no-reader-visible-change"
+    },
+    "98070668988b9c617228cf4cd044b1d34e196d32": {
+      "category": "improved",
+      "en": "The bilingual docs explain Projects controls, shared compact components and text check results while preserving the published docs structure.",
+      "ru": "Документация на двух языках описывает управление через Projects, компактные общие элементы и текстовые результаты проверок, сохраняя опубликованную структуру страниц.",
+      "page": "ui-library"
     }
   }
 }

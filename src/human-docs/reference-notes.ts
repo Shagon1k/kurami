@@ -4,6 +4,9 @@ import type {Localized} from "./content/schema.ts";
 
 export const tableNotes:Record<"orchestrator"|"digest",Record<string,Localized<string>>>={
   orchestrator:{
+    "project_action_requests":{ru:"Один запрос действия из Projects: ключ повторного нажатия, проверенное состояние запуска и связь с общей очередью или подтверждением превью.",en:"One Projects action request: its retry key, verified run state and link to the shared queue or preview acknowledgement."},
+    "project_status_requests":{ru:"Одно изменение статуса из Projects: исходный и целевой статусы, состояние записи в GitHub и подтверждение обычной синхронизацией.",en:"One status change from Projects: the original and target states, the GitHub write state and confirmation by normal sync."},
+    "run_control_project_context":{ru:"Контекст действия Projects в общей очереди: инициатор, ожидаемый PR и точный коммит для проверки перед выполнением.",en:"A Projects action's shared-queue context: its actor, expected PR and exact commit checked before execution."},
     "discord_transport_settings":{ru:"Одна строка с настройками доставки в Discord: какие каналы и ветки использует транспорт карточек.",en:"A single settings row for Discord delivery: which channels and threads the card transport uses."},
     "orchestrator_setting_revisions":{ru:"Одна ревизия лимитов, которые владелец меняет командой /kurami settings: новые значения, предыдущие значения, контрольные суммы и кто применил.",en:"One revision of the limits the owner edits with /kurami settings: new values, previous values, checksums and who applied it."},
     "preview_leases":{ru:"Одна аренда слота превью запуском: состояние сборки, срок жизни, проверенный коммит и отметка о просмотре владельцем.",en:"One lease of a preview slot by a run: build state, expiry, the verified commit and the owner's reviewed mark."},

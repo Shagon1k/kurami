@@ -46,7 +46,7 @@ try {
     assert.equal(await devtools.evaluate("document.querySelector('.limit-history__legend').textContent"),"7d","Pro-style weekly-only account has no phantom 5h series");
     assert.equal(await devtools.evaluate("document.querySelector('[data-period-panel=limits]:not([hidden]) table thead tr').children.length"),2);
     assert.equal(await devtools.evaluate("document.querySelector('.work-item__meta').textContent.includes('Running')"),lang==="en","ending a Codex turn does not complete the task");
-    assert.equal(await devtools.evaluate("[...document.querySelectorAll('#hub-dashboard [data-hub-control]')].every(el=>getComputedStyle(el).borderTopStyle==='solid' && getComputedStyle(el).borderTopColor!=='rgba(0, 0, 0, 0)' && el.getBoundingClientRect().height>=(el.classList.contains('button--compact')&&!matchMedia('(pointer: coarse)').matches?32:44))"),true,"dashboard controls have visible borders and appropriate touch targets");
+    assert.equal(await devtools.evaluate("[...document.querySelectorAll('#hub-dashboard [data-hub-control]')].every(el=>getComputedStyle(el).borderTopStyle==='solid' && getComputedStyle(el).borderTopColor!=='rgba(0, 0, 0, 0)' && el.getBoundingClientRect().height>=(el.classList.contains('button--compact')&&!matchMedia('(pointer: coarse)').matches?32:36))"),true,"dashboard controls have visible borders and appropriate touch targets");
     assert.equal(await devtools.evaluate("document.querySelector('[data-hub-control=codex-reset]').classList.contains('button--subtle') && document.querySelector('[data-hub-control=codex-reset]').getBoundingClientRect().height===32"),true,"Reset uses a compact, understated button on desktop");
     assert.deepEqual(await devtools.evaluate(AUDIT_EXPRESSION),[]);
     assert.deepEqual(await devtools.evaluate(inventoryExpression()),[]);
@@ -142,8 +142,8 @@ try {
     for(const width of [320,390,1280]){
       await devtools.call("Emulation.setTouchEmulationEnabled",{enabled:width<500,maxTouchPoints:1});
       await devtools.call("Emulation.setDeviceMetricsOverride",{width,height:1000,deviceScaleFactor:1,mobile:width<500});
-      assert.equal(await devtools.evaluate("document.querySelector('[data-hub-control=codex-reset]').getBoundingClientRect().height"),width<500?44:32,"compact Reset keeps a full touch target on phones");
-      assert.equal(await devtools.evaluate("[...document.querySelectorAll('[data-period-key]')].filter(el=>el.getBoundingClientRect().width).every(el=>el.getBoundingClientRect().height >= (matchMedia('(pointer: coarse)').matches?44:32))"),true,"period selectors retain touch targets");
+      assert.equal(await devtools.evaluate("document.querySelector('[data-hub-control=codex-reset]').getBoundingClientRect().height"),width<500?36:32,"compact Reset uses the shared touch height on phones");
+      assert.equal(await devtools.evaluate("[...document.querySelectorAll('[data-period-key]')].filter(el=>el.getBoundingClientRect().width).every(el=>el.getBoundingClientRect().height >= (matchMedia('(pointer: coarse)').matches?36:32))"),true,"period selectors retain touch targets");
       assert.deepEqual(await devtools.evaluate(AUDIT_EXPRESSION),[],`dialog audit ${lang} ${width}`);
       assert.deepEqual(await devtools.evaluate(inventoryExpression()),[]);
       const bounds=await devtools.evaluate<{width:number;scroll:number;client:number}>("({width:document.querySelector('dialog').getBoundingClientRect().width,scroll:document.querySelector('dialog').scrollWidth,client:document.querySelector('dialog').clientWidth})");
