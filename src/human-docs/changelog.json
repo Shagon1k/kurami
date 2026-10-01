@@ -1,6 +1,12 @@
 {
   "baseline": "4a38c09",
   "commits": {
+    "86922749c5c501d62ef11d64af6d8e64694af82c": {
+      "category": "improved",
+      "en": "Added high-resolution transparent and adaptive fox icons for the unified Kurami PWA. Launcher artwork uses a larger mark within Android's safe area; header logos and favicons are unchanged. Phone appearance still needs confirmation.",
+      "ru": "Добавлены прозрачные и адаптивные иконки лисы высокого разрешения для единой PWA Kurami. Лиса на иконке приложения увеличена в пределах безопасной области Android; логотипы в хедерах и favicon не изменены. Внешний вид на телефоне ещё нужно подтвердить.",
+      "page": "access"
+    },
     "5d50e91c862e129a9738f0dd9225da37a20f5067": {
       "category": "operations",
       "en": "",
