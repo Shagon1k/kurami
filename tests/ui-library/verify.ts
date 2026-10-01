@@ -108,6 +108,11 @@ const svgButton=renderButton({label:"Больше такого",variant:"icon",i
 assert.match(svgButton,/<button[^>]*aria-label="Больше такого"[^>]*><svg class="button__svg"[^>]*><path d="M12 19V5 M6 11l6-6 6 6"\/><\/svg><\/button>/);
 assert.doesNotMatch(svgButton,/<span|🔔/);
 assert.throws(()=>renderButton({label:"x",variant:"icon",icon:"x",iconPath:"M0 0"}),/both text and SVG/);
+const counterToggle=renderButton({label:"need you",count:0,variant:"toggle",attributes:{"aria-pressed":"false"}});
+assert.match(counterToggle,/aria-label="0 need you"/);
+assert.match(counterToggle,/aria-pressed="false"/);
+assert.match(counterToggle,/<strong class="button__count">0<\/strong> need you/);
+for(const count of [-1,NaN,Infinity,1.5,Number.MAX_SAFE_INTEGER+1])assert.throws(()=>renderButton({label:"tasks",count,variant:"toggle"}),/Invalid button count/);
 assert.throws(()=>renderLinkButton({label:"x",href:"javascript:alert(1)",variant:"icon"}),/Unsafe link/);
 assert.throws(()=>renderLinkButton({label:"x",href:"//evil.example",variant:"icon"}),/Unsafe link/);
 

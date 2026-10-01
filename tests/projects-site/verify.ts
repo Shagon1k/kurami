@@ -108,6 +108,21 @@ assert.equal(await access.authorize(request(tampered.join("."))), null, "unverif
 assert.equal(await new ProjectsAccess({ team: "", audience: "", ownerEmail: "" }).authorize(request(token())), null);
 
 const fixture = syntheticProjectsSnapshot();
+assert.deepEqual(selectItems(fixture,parseFilters(new URLSearchParams("attention=1"))).map(item=>item.id),["item-12","item-24"],"attention view includes review and waiting owner input, not agent work");
+const reviewOnly=structuredClone(fixture);reviewOnly.items=[fixture.items[0]!,fixture.items[3]!];
+const reviewOnlyPage=renderProjectsPage(reviewOnly,new URLSearchParams("active=1"));
+assert.match(reviewOnlyPage,/data-task-filter="active"[^>]*>[\s\S]*?<strong class="button__count">1<\/strong> <span>active<\/span>/,"active count includes review even when no card is in the working status");
+assert.equal(selectItems(reviewOnly,parseFilters(new URLSearchParams("active=1"))).length,1);
+assert.equal(parseFilters(new URLSearchParams("active=1&attention=1")).activeOnly,false,"attention view takes precedence for ambiguous links");
+assert.deepEqual(selectItems(fixture,parseFilters(new URLSearchParams("active=1"))).map(item=>item.id),["item-12","item-13","item-24"],"active view includes work, review and owner input");
+const inactive = structuredClone(fixture);
+inactive.items = ["Backlog","Deferred","Done"].map((status,index)=>({...fixture.items[1]!,id:`inactive-${index}`,status,attention:[{code:"run_attention" as const,severity:"critical" as const}]}));
+inactive.items.push({...fixture.items[1]!,id:"unclassified-work",status:null},{...fixture.items[2]!,id:"unclassified-attention",status:null},{...fixture.items[3]!,id:"unclassified-idle",status:null});
+assert.deepEqual(selectItems(inactive,parseFilters(new URLSearchParams("active=1"))).map(item=>item.id),["unclassified-work","unclassified-attention"],"closed or inactive cards stay hidden despite old run signals; current work and attention remain visible");
+const customStatuses=structuredClone(fixture);
+customStatuses.projects[1]!.statuses={backlog:"Todo",active:"Working",review:"Needs eyes",done:"Closed",deferred:"Later"};
+customStatuses.items[2]!.status="Needs eyes";customStatuses.items[3]!.status="Later";
+assert.deepEqual(selectItems(customStatuses,parseFilters(new URLSearchParams("active=1&project=beta"))).map(item=>item.id),["item-24"],"uses each project's configured status roles");
 assert.equal(selectItems(fixture, parseFilters(new URLSearchParams("project=beta"))).length, 2);
 assert.equal(selectItems(fixture,parseFilters(new URLSearchParams("view=attention&status=Done"))).length,6,"retired filters do not hide tasks");
 const ascending=selectItems(fixture,parseFilters(new URLSearchParams("sort=status"))).map(item=>item.status);
