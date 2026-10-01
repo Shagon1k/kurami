@@ -39,7 +39,7 @@ const pages:Record<string,string>={
   "projects-home":"/projects/index.html",
   "docs-home-en":"/en/",
   "docs-overview-ru":"/ru/what-is-kurami/",
-  "docs-state-table-en":"/en/reading-state/",
+  "docs-reference-table-en":"/en/data-stores/",
   "docs-run-diagram-ru":"/ru/run-lifecycle/",
   "docs-changelog-en":"/en/changelog/",
 };
@@ -153,7 +153,7 @@ async function main(){
   let auditedCount=0;
   try{
     await devtools.call("Page.enable");
-    for(const path of ["/digest/daily.html","/en/reading-state/","/lab/index.html","/hub/index.html"])await checkThemeRuntime(devtools,`http://127.0.0.1:${port}`,path);
+    for(const path of ["/digest/daily.html","/en/state-and-truth/","/lab/index.html","/hub/index.html"])await checkThemeRuntime(devtools,`http://127.0.0.1:${port}`,path);
     await checkSiteSwitcher(devtools,`http://127.0.0.1:${port}`);
     const audited:Record<string,string>={...pages};
     for(const lang of ["en","ru"])for(const route of ["","changelog",...docsPages.map(page=>page.slug)])audited[`docs-${lang}-${route||"home"}`]??=`/${lang}/${route?route+"/":""}`;

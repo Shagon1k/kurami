@@ -7,6 +7,8 @@ import { breakpoints } from "../tokens/index.ts";
 export type TableCell = string | { html: string };
 export type TableInput = {
   caption?: string;
+  /** Keeps the caption for assistive technology only, when a visible heading already names the table. */
+  captionHidden?: boolean;
   columns: readonly string[];
   rows: readonly (readonly TableCell[])[];
   headers?: readonly TableCell[];
@@ -27,7 +29,7 @@ export function renderTable(input: TableInput): string {
   if(input.headers && input.headers.length!==input.columns.length)throw new Error("Table header count mismatch");
   if(input.sortDirections && (input.sortDirections.length!==input.columns.length || input.sortDirections.some(value=>!["ascending","descending","none"].includes(value))))throw new Error("Invalid table sort directions");
   const classes = ["table", input.numeric && "table--numeric", input.stack && "table--stack", input.className].filter(Boolean).join(" ");
-  const caption = input.caption ? `<caption>${escapeHtml(input.caption)}</caption>` : "";
+  const caption = input.caption ? `<caption${input.captionHidden ? ' class="sr-only"' : ""}>${escapeHtml(input.caption)}</caption>` : "";
   const head = `<thead><tr>${input.columns.map((column,index) => `<th scope="col"${input.sortDirections?` aria-sort="${input.sortDirections[index]}"`:""}>${input.headers?cell(input.headers[index]!):escapeHtml(column)}</th>`).join("")}</tr></thead>`;
   const body = input.rows.map((row,rowIndex) => `<tr${input.rowClassNames ? ` class="${input.rowClassNames[rowIndex]}"` : ""}>${row.map((value, index) => index === 0 && input.rowHeaders
     ? `<th scope="row">${cell(value)}</th>`

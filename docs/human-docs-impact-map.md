@@ -4,12 +4,13 @@ Use this map when a PR or direct commit changes Kurami behavior, an owner contro
 
 | Changed area | Review these human-docs sources | Questions to check |
 | --- | --- | --- |
-| `src/briefing/`, Daily Hermes skill, briefing cron sync/config | `src/human-docs/content/digest.ts` | Did the reader path, freshness, failure isolation, acceptance or schedule boundary change? |
-| `src/orchestrator/`, `src/discord/`, Discord controls plugin | `src/human-docs/content/projects.ts` | Did admission, run ownership, evidence or an owner decision change? |
-| `src/connectors/`, `src/system/`, other deployment and workflow scripts | `src/human-docs/content/operations.ts` | Did authority, health, scheduling, recovery or cleanup change? |
-| `src/human-docs/approval/`, `src/human-docs/automation/`, docs approval job | `src/human-docs/content/docs.ts` | Did the weekly proposal, its buttons, the allowlist or the publish path change? |
-| `src/core/` | `src/human-docs/content/start.ts` or `understand.ts` | Did the system boundary or source of truth change? |
-| Other shared/product code, package scripts | Relevant `src/human-docs/` source | Which visible or operator-facing contract changed? |
+| `src/briefing/`, Daily Hermes skill, briefing cron sync/config | `src/human-docs/content/pages/digest/` | Did the reader path, freshness, failure isolation, acceptance or schedule boundary change? |
+| `src/orchestrator/`, `src/discord/`, Discord controls plugin | `src/human-docs/content/pages/projects/` (and `reference/commands`) | Did admission, run ownership, evidence or an owner decision change? |
+| `src/connectors/`, `src/system/`, `src/hub/`, other deployment and workflow scripts | `src/human-docs/content/pages/platform/` (and `reference/jobs`, `reference/config`) | Did authority, health, scheduling, recovery or cleanup change? |
+| `src/human-docs/approval/`, `src/human-docs/automation/`, docs approval job | `src/human-docs/content/pages/platform/docs-process.*.md`, `docs-system.*.md` | Did the weekly proposal, its buttons, the allowlist or the publish path change? |
+| `src/core/` | `src/human-docs/content/pages/basics/` | Did the system boundary or source of truth change? |
+| `migrations/` | nothing by hand: `reference/data-stores` and `reference/states` are generated; describe a new table in `src/human-docs/reference-notes.ts` |
+| Other shared/product code, package scripts | Relevant `src/human-docs/content/pages/` | Which visible or operator-facing contract changed? |
 
 For a reader- or operator-visible change, update each affected section and add these lines to the PR body:
 

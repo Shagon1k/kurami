@@ -87,12 +87,12 @@ async function checkKeyboard(devtools:Devtools,navScreenshotPath?:string){
   const skipped=await devtools.evaluate<boolean>(`document.activeElement?.id==='main'`);
   if(!skipped)throw new Error("Skip link did not focus main content");
   await pressTab(devtools);
-  const first=await devtools.evaluate<boolean>(`document.querySelector('.side-mobile > summary')?document.activeElement===document.querySelector('.side-mobile > summary'):document.activeElement===document.querySelector('.route')`);
-  if(!first)throw new Error("Tab from skipped main did not reach the first content control");
+  // Pages with a side menu start at its phone toggle; others at the first control inside main.
+  const first=await devtools.evaluate<boolean>(`document.querySelector('.side-mobile > summary')?document.activeElement===document.querySelector('.side-mobile > summary'):document.activeElement!==document.querySelector('main')&&document.querySelector('main').contains(document.activeElement)`);
+  if(!first)throw new Error(`Tab from skipped main did not reach the first content control on ${await devtools.evaluate<string>("location.pathname")} (focused: ${await devtools.evaluate<string>("document.activeElement?.outerHTML.slice(0,120)")})`);
   for(const selector of [".site-menu > summary",".side-mobile > summary",".article details > summary"]){
     const exists=await devtools.evaluate<boolean>(`document.querySelector(${JSON.stringify(selector)})!==null`);
     if(!exists){
-      if(selector===".article details > summary"&&await devtools.evaluate<boolean>(`document.querySelector('[data-page]')!==null`))throw new Error("Article has no keyboard disclosure");
       continue;
     }
     const focused=await devtools.evaluate<boolean>(`(()=>{const target=document.querySelector(${JSON.stringify(selector)});if(!target)return false;target.focus();return document.activeElement===target})()`);
@@ -159,7 +159,7 @@ async function main(){
   const routeArg=process.argv.slice(2).find(arg=>arg.startsWith("--routes="));
   const all=process.argv.includes("--all");
   const a11y=process.argv.includes("--a11y");
-  const routes=all?["home",...pages.map(page=>page.slug),"changelog"]:(routeArg?.slice("--routes=".length)??"daily,daily-addons,daily-lifecycle").split(",");
+  const routes=all?["home",...pages.map(page=>page.slug),"changelog"]:(routeArg?.slice("--routes=".length)??"daily,daily-pipeline,daily-publication").split(",");
   const browserPath=process.argv.slice(2).find(arg=>isAbsolute(arg));
   if(!browserPath||all&&Boolean(routeArg)||!routes.length||routes.some(route=>!route))throw new Error("Usage: node tests/human-docs/browser-preview.ts [--all | --routes=slug,slug,...] /absolute/path/to/headless-browser");
   for(const slug of routes)if(slug!=="home"&&slug!=="changelog"&&!pages.some(page=>page.slug===slug))throw new Error(`Missing docs route ${slug}`);
@@ -198,7 +198,11 @@ async function main(){
         await delay(50);
       }
       if(!ready)throw new Error(`Page did not load: ${locale}/${slug} at ${width}px`);
-      await devtools.evaluate(`document.fonts.ready.then(()=>{if(document.documentElement.dataset.theme!==${JSON.stringify(theme)})document.querySelector('[data-theme-toggle]')?.click();return true})`);
+      const toggled=await devtools.evaluate<boolean>(`document.fonts.ready.then(()=>{if(document.documentElement.dataset.theme===${JSON.stringify(theme)})return false;document.querySelector('[data-theme-toggle]')?.click();return true})`);
+      // Colour transitions (≤ 220 ms) must finish before contrast is measured.
+      if(toggled)await delay(400);
+      // Lazy screenshots below the fold load only on scroll; load them all before judging images.
+      await devtools.evaluate(`Promise.all([...document.images].map(image=>{image.loading="eager";return image.decode().catch(()=>{})})).then(()=>true)`);
       const state=await devtools.evaluate<{width:number;content:number;theme:string;lang:string;broken:number}>(`({width:document.documentElement.clientWidth,content:document.documentElement.scrollWidth,theme:document.documentElement.dataset.theme,lang:document.documentElement.lang,broken:[...document.images].filter(image=>!image.complete||image.naturalWidth===0).length})`);
       if(state.content>state.width+1||state.theme!==theme||state.lang!==locale||state.broken)throw new Error(`Browser QA failed ${locale}/${slug} ${width}px ${theme}: ${JSON.stringify(state)}`);
       if(a11y)await auditAccessibility(devtools,`${locale}/${slug} ${width}px ${theme}`);

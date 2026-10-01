@@ -6,6 +6,7 @@ const palette: Record<string, string> = {
   "#ffffff": "diagram-surface", "#fff": "diagram-surface",
   "#faf8f2": "diagram-panel", "#fff0ed": "diagram-accent-soft",
   "#0b0b0b": "diagram-ink", "#5e5e59": "diagram-muted", "#e21b16": "diagram-accent",
+  "#147844": "diagram-success", "#9b5b00": "diagram-warning",
 };
 
 function paint(tag: string): string {
