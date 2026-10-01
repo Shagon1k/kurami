@@ -42,6 +42,8 @@
     "docs:build-release": "node src/human-docs/build.ts --deployment-manifest",
     "docs:build-docs-release": "node src/human-docs/build.ts --docs-release",
     "test:docs": "node tests/human-docs/verify.ts && node tests/human-docs/server.ts && node tests/human-docs/audit.ts",
+    "docs:verify-access": "node src/human-docs/tools/verify-access.ts",
+    "docs:prune-releases": "node src/human-docs/approval/releases.ts",
     "docs:audit": "node src/human-docs/automation/audit.ts",
     "docs:check": "node src/human-docs/tools/check-pages.ts",
     "docs:excalidraw": "node src/human-docs/tools/export-excalidraw.ts",
