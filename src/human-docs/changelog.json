@@ -219,6 +219,12 @@
       "en": "The generated database reference describes durable Projects action and status requests and the commit context used by the shared queue.",
       "ru": "Справочник базы описывает устойчивые запросы действий и статусов Projects и контекст коммита в общей очереди.",
       "page": "data-stores"
+    },
+    "ca18c2d0b5386668940a7fb42af65f4b04a466c6": {
+      "category": "fixed",
+      "en": "Published Digest editions receive the current compact controls and Sites navigation when served, while their editorial content stays frozen.",
+      "ru": "Опубликованные выпуски Digest получают актуальные компактные элементы управления и меню «Сайты» при выдаче страницы; содержание выпусков остаётся зафиксированным.",
+      "page": "ui-library"
     }
   }
 }
