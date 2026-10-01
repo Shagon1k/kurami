@@ -84,7 +84,7 @@ export const PROJECTS_STYLES=[THEME_CSS,FOUNDATION_CSS,BUTTON_CSS,TABLE_CSS,FORM
 .projects-update { color: var(--text-muted); font-size: .7rem; line-height: 1.6; margin: var(--space-2) 0 0; }
 [data-search-empty] { padding: var(--space-4); }
 @media (min-width: 901px) {
-  .projects-table { --table-max-height: var(--projects-table-height,calc(100dvh - 230px)); --table-head-position: sticky; --table-overscroll: contain; }
+  .projects-table { --table-cell-padding: var(--space-4); --table-max-height: var(--projects-table-height,calc(100dvh - 230px)); --table-head-position: sticky; --table-overscroll: contain; }
   .projects-detail { max-height: var(--projects-table-height,calc(100dvh - 230px)); overflow-y: auto; overscroll-behavior: contain; }
 }
 @media (max-width: 900px) {
