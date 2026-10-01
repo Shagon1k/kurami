@@ -48,12 +48,13 @@ for(const lang of ["en","ru"] as Language[]){
 const routes=new Set([...pages.map(page=>page.slug),...Object.keys(aliases),"changelog"]);
 for(const [path,html] of rendered){
   for(const [, ,slug] of html.matchAll(/href\s*=\s*["']\/(en|ru)\/([a-z0-9/-]*)["']/g))if(slug&&!routes.has(slug.replace(/\/$/,"")))throw new Error(`Broken internal route ${slug} in ${path}`);
-  for(const [, id] of html.matchAll(/href="\/assets\/diagrams\/([a-z0-9-]+)\.svg"/g))if(!diagrams.some(diagram=>diagram.id===id))throw new Error(`Missing diagram asset ${id} in ${path}`);
+  for(const [, id] of html.matchAll(/href="\/assets\/diagram-([a-z0-9-]+)\.svg"/g))if(!diagrams.some(diagram=>diagram.id===id))throw new Error(`Missing diagram asset ${id} in ${path}`);
 }
 rmSync(output,{recursive:true,force:true});
-mkdirSync(resolve(output,"assets/diagrams"),{recursive:true});
+mkdirSync(resolve(output,"assets"),{recursive:true});
 for(const [path,html] of rendered){const destination=resolve(output,path);mkdirSync(dirname(destination),{recursive:true});writeFileSync(destination,html);}
-for(const diagram of diagrams)writeFileSync(resolve(output,"assets/diagrams",`${diagram.id}.svg`),diagram.svg);
+// Flat names keep every diagram under the origin's plain /assets/<name>.<ext> rule.
+for(const diagram of diagrams)writeFileSync(resolve(output,"assets",`diagram-${diagram.id}.svg`),diagram.svg);
 cpSync(resolve(siteRoot,"kurami-fox-transparent.png"),resolve(output,"assets/fox.png"));
 cpSync(resolve(siteRoot,"kurami-fox-header.webp"),resolve(output,"assets/fox.webp"));
 cpSync(resolve(siteRoot,"kurami-favicon.svg"),resolve(output,"assets/favicon.svg"));

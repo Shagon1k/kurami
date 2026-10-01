@@ -51,7 +51,7 @@ The main check is language parity. The build compares the "skeleton" of the Russ
 
 The pictures are drawn by our own kit, `diagrams/kit.ts`, which has three engines: `graph` for architecture, flows and state machines, `sequence` for message exchange and `timeline` for a day. A ` ```diagram ` block in Markdown turns into SVG at build time, not in the browser. The kit places the nodes itself, and the author gives positions `at column,row` where automatic layout is not enough.
 
-The kit rejects a diagram that cannot be read: wider than 980 pixels or without a `desc` description. That description becomes the text alternative and helps those who cannot see the picture. In the dark theme the diagram colours are replaced by theme roles through `inlineDiagram`, and each picture has its own SVG in `/assets/diagrams/`. The same kit can export a scene for Excalidraw: `npm run docs:excalidraw` writes files to `dist/human-docs-excalidraw/`. The source of truth stays in the Markdown; edits made in Excalidraw do not flow back.
+The kit rejects a diagram that cannot be read: wider than 980 pixels or without a `desc` description. That description becomes the text alternative and helps those who cannot see the picture. In the dark theme the diagram colours are replaced by theme roles through `inlineDiagram`, and each picture has its own SVG at `/assets/diagram-<id>.svg`. The same kit can export a scene for Excalidraw: `npm run docs:excalidraw` writes files to `dist/human-docs-excalidraw/`. The source of truth stays in the Markdown; edits made in Excalidraw do not flow back.
 
 ## Reference tables from code
 

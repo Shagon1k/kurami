@@ -13,7 +13,7 @@ try {
   writeFileSync(join(root,"build.json"),JSON.stringify({mode:"release",revision:null,docsSha:revision}));
   assert.doesNotThrow(()=>createDocsServer(root));
   writeFileSync(join(root,"build.json"),JSON.stringify({mode:"release",revision,docsSha:revision}));
-  for(const path of ["ru/index.html","en/index.html","en/changelog/index.html","assets/docs.css","assets/fox.webp","assets/shot-project-board.png","assets/diagrams/run-lifecycle-1-en.svg","assets/diagrams/run-lifecycle-1-ru.svg"]){
+  for(const path of ["ru/index.html","en/index.html","en/changelog/index.html","assets/docs.css","assets/fox.webp","assets/shot-project-board.png","assets/diagram-run-lifecycle-1-en.svg","assets/diagram-run-lifecycle-1-ru.svg"]){
     const destination=join(root,path);
     mkdirSync(dirname(destination),{recursive:true});
     writeFileSync(destination,`fixture:${path}`);
@@ -42,8 +42,8 @@ try {
       ["/assets/docs.css",200,"fixture:assets/docs.css"],
       ["/assets/fox.webp",200,"fixture:assets/fox.webp"],
       ["/assets/shot-project-board.png",200,"fixture:assets/shot-project-board.png"],
-      ["/assets/diagrams/run-lifecycle-1-en.svg",200,"fixture:assets/diagrams/run-lifecycle-1-en.svg"],
-      ["/assets/diagrams/run-lifecycle-1-ru.svg",200,"fixture:assets/diagrams/run-lifecycle-1-ru.svg"],
+      ["/assets/diagram-run-lifecycle-1-en.svg",200,"fixture:assets/diagram-run-lifecycle-1-en.svg"],
+      ["/assets/diagram-run-lifecycle-1-ru.svg",200,"fixture:assets/diagram-run-lifecycle-1-ru.svg"],
       ["/assets/diagrams/../build.json",404,""],
       ["/assets/other/x.svg",404,""],
       ["/build.json",404,""],
