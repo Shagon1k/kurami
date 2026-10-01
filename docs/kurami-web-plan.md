@@ -4,6 +4,12 @@ Status: unified entry deployed on 1 October 2026 with owner approval; gateway
 liveness and native origins checked. Authenticated unified-origin and Android
 acceptance remain with the owner; full visual and mobile audit is pending.
 Audit procedure: [kurami-ui-audit-plan.md](kurami-ui-audit-plan.md).
+The owner's first mobile pass reported layout defects and incomplete Digest
+resources/navigation on first load. Those observations are recorded in the audit
+plan. The owner has now approved fixing PWA, escaped Apps links, Digest loading,
+and the reported mobile/shared-shell defects. Local fixes and regression checks
+are ready; this follow-up has not been committed or deployed.
+Real Android installation still needs owner acceptance after release.
 Release instructions: [kurami-web-operations.md](kurami-web-operations.md).
 
 ## Approved boundary
@@ -26,7 +32,7 @@ or database migration belongs to this work. Existing functions remain intact.
 | --- | --- | --- | --- |
 | 1. Baseline and contracts | Known route, authorization and rollback boundaries | Route and signed Access tests; loopback-only service; retained native ingress | Locally verified |
 | 2. Unified entry | All modules work under the new origin | Real-server gateway/browser tests; native product regressions; immutable Docs variants | Deployed; anonymous Access redirect and native origins verified; owner's authenticated smoke pending |
-| 3. PWA | One installation covers all modules | Manifest ID/scope, one worker, offline recovery and private-cache checks | Deployed; real Android acceptance pending |
+| 3. PWA | One installation covers all modules | Manifest ID/scope, credentialed manifest fetch behind Access, one worker, offline recovery and private-cache checks | Follow-up fixes in progress; Android acceptance pending |
 | 4. Shared visual rules | Equal component roles look consistent | UI-library tests/guard/export; populated EN/RU light/dark screens; classified style exceptions | Selected shared changes checked; full visual audit pending |
 | 5. Mobile polish | Layouts are comfortable on narrow devices | Hub period capsule and Tasks spacing; populated app screens, overlays and real phone checks | Selected fixes checked; full mobile audit and phone acceptance pending |
 | 6. Release readiness | Integrated candidate is ready for owner acceptance | Type checks, product regressions, visual acceptance, bilingual docs and rollback runbook | Scoped deployment approved and executed; full visual and installed-phone acceptance pending |

@@ -6,6 +6,8 @@ import {THEME_CSS} from "../../../ui-library/themes/index.ts";
 import {FOUNDATION_CSS} from "../../../ui-library/foundations/index.ts";
 import {BUTTON_CSS,renderLinkButton} from "../../../ui-library/components/button.ts";
 import {FORM_CSS} from "../../../ui-library/components/form.ts";
+import {formatSiteDate} from "../../../ui-library/foundations/date.ts";
+import {STORY_ACTIONS_LAYOUT_CSS} from "../styles.ts";
 import {digestLanguage,digestPath,digestText,localizeDigestLinks,type DigestLanguage} from "../../i18n.ts";
 
 export type SiteSection="daily"|"cinema"|"weekly"|"stocks";
@@ -36,7 +38,7 @@ export function renderSiteHeader(input:{section:SiteSection;label?:string;date?:
   return renderKuramiHeader({
     label:input.label??"Kurami",
     attributes:{"data-site-section":input.section},
-    brand:{href:digestPath("/"),suffix:"Digest",ariaLabel:digestText("Kurami — последний дневной выпуск","Kurami — latest Daily edition"),foxSrc:"/assets/kurami-fox.webp",meta:input.date&&input.dateLabel?{label:input.dateLabel,datetime:input.date}:undefined},
+    brand:{href:digestPath("/"),suffix:"Digest",ariaLabel:digestText("Kurami — последний дневной выпуск","Kurami — latest Daily edition"),foxSrc:"/assets/kurami-fox.webp",meta:input.date&&input.dateLabel?{label:formatSiteDate(input.date,lang),datetime:input.date}:undefined},
     nav:navigation(input.links??[],input.section),
     sites:kuramiSites("digest",lang),
     actions:renderLinkButton({label:other.toUpperCase(),href:digestPath(relative,other),variant:"icon",ariaLabel:digestText("Переключить на английский","Switch to Russian"),attributes:{hreflang:other}})+renderThemeSwitch(lang),
@@ -44,7 +46,7 @@ export function renderSiteHeader(input:{section:SiteSection;label?:string;date?:
 }
 /** Refresh shared controls on frozen editions without changing their content. */
 function refreshHeaderStyles(html:string):string {
-  const styles=[THEME_CSS,BUTTON_CSS,FORM_CSS,SITE_HEADER_CSS,THEME_SWITCH_CSS];
+  const styles=[THEME_CSS,FOUNDATION_CSS,BUTTON_CSS,FORM_CSS,SITE_HEADER_CSS,THEME_SWITCH_CSS,STORY_ACTIONS_LAYOUT_CSS];
   if(styles.every(style=>html.includes(style)))return html;
   const updated=html.replace(/<style data-site-header-runtime>[\s\S]*?<\/style>/i,"");
   return updated.replace(/<\/head>/i,`<style data-site-header-runtime>${styles.join("\n")}</style></head>`);

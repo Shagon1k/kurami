@@ -2,6 +2,7 @@
 import { escapeHtml } from "../foundations/html.ts";
 import { THEME_SCRIPT_TAG } from "../runtime/theme.ts";
 import { kuramiTheme } from "../themes/index.ts";
+import {renderFontPreloads} from "../foundations/fonts.ts";
 
 export type DocumentInput = {
   lang: string;
@@ -30,6 +31,7 @@ export function renderDocument(input: DocumentInput): string {
     : `<link rel="stylesheet" href="${escapeHtml(input.styles.href)}">`;
   const description = input.description ? `<meta name="description" content="${escapeHtml(input.description)}">` : "";
   const mainClass = ["container", input.mainClass].filter(Boolean).join(" ");
+  const fontPreloads=renderFontPreloads(input.lang);
   return `<!doctype html>
 <html lang="${input.lang}" data-theme="light">
 <head>
@@ -39,7 +41,7 @@ export function renderDocument(input: DocumentInput): string {
   <meta name="theme-color" content="${kuramiTheme.light.colors["surface-page"]}">
   <title>${escapeHtml(input.title)}</title>
   ${description}<link rel="icon" type="image/svg+xml" href="${escapeHtml(input.favicon)}">
-  ${styles}${input.themeScript ? THEME_SCRIPT_TAG : ""}${input.head ?? ""}
+  ${fontPreloads}${styles}${input.themeScript ? THEME_SCRIPT_TAG : ""}${input.head ?? ""}
 </head>
 <body>
   <a class="skip-link" href="#main">${escapeHtml(input.skipLabel)}</a>

@@ -31,6 +31,11 @@ try{
   assert.equal((await get("/en/","reader")).status,403);
   assert.equal((await get("/_apps/projects/api/fragment","reader")).status,403);
   assert.equal((await get("/manifest.webmanifest","reader")).status,403);
+  const font=await get("/assets/onest-latin.woff2");
+  assert.equal(font.status,200);assert.equal(font.headers.get("content-type"),"font/woff2");
+  assert.equal(font.headers.get("cache-control"),"private, max-age=86400");
+  assert.equal((await get("/assets/onest-latin.woff2","anonymous")).status,403);
+  assert.equal((await get("/assets/onest-latin.woff2","reader")).status,200,"Docs readers can load shared public-design fonts, but not private app data");
   assert.equal((await get("/en/docs/","reader")).status,200);
   assert.equal((await get("/en/docs/","reader",{method:"POST"})).status,403);
   const root=await get("/");assert.equal(root.status,302);assert.equal(root.headers.get("location"),"/en/");
@@ -40,7 +45,7 @@ try{
   const archive=await get("/en/digest/cinema/");assert.equal(archive.status,200);assert((await archive.text()).includes('href="/en/digest/weekly"'));
   const docPage=await get("/en/docs/projects/");assert((await docPage.text()).includes('href="/en/docs/projects/"'));
   const api=await get("/_apps/digest/api/profile/topics?x=1");assert.deepEqual(await api.json(),{path:"/api/profile/topics?x=1",app:"digest"});
-  const stylesheet=await get("/_apps/hub/assets/hub.css");assert.equal(stylesheet.status,200);assert((await stylesheet.text()).includes('/_apps/hub/assets/onest-'));
+  const stylesheet=await get("/_apps/hub/assets/hub.css");assert.equal(stylesheet.status,200);assert((await stylesheet.text()).includes('/assets/onest-'));
   const manifest=await get("/manifest.webmanifest");const data=await manifest.json();assert.equal(data.name,"Kurami");assert.equal(data.scope,"/");assert.equal(data.id,"/");assert.equal(data.icons[0].purpose,"any");
   const icon=await get(data.icons[0].src);assert.equal(icon.status,200);assert.equal(icon.headers.get("content-type"),"image/png");
   const worker=await get("/sw.js");assert.equal(worker.headers.get("service-worker-allowed"),"/");assert(!(await worker.text()).includes("cache.put"));

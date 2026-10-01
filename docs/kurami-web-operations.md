@@ -26,6 +26,8 @@ mounted artifacts returns 503 at the unified entry, not incorrectly rooted HTML.
 
 Native hostnames remain functional. Hermes, Dokploy, preview and go are outside
 the gateway. Their configuration and services are not part of this release.
+The Apps menu on both native and mounted pages now targets the unified entry;
+this changes navigation, not tunnel routes or old-hostname redirects.
 Ordinary upstream reads have a 15-second inactivity timeout; writes and Hub
 control reads allow 90 seconds so existing 60-second commands can finish.
 
@@ -73,6 +75,11 @@ release or treat `HEAD` as deployment evidence. Docs-only publication records
 `revision: null`; app-bound publication requires the trusted deployment manifest
 and reviewed bilingual classifications for the final commit SHA.
 
+Run `npm run briefing:build` before restarting Digest: its unit runs
+`dist/briefing/server.js`, not `src/briefing/server.ts`. The unified browser test
+builds and imports that compiled entry to catch stale or missing mounting code.
+Confirm the built entry contains `mountResponse` and `WEB_CLIENT_JS` before release.
+
 Reload user systemd and restart the affected backend services: Hub, Digest,
 Projects and Docs. Enable/start `kurami-web`. Its unit binds only to loopback on
 8888. No database migration or live agent/session restart is needed. The
@@ -97,11 +104,24 @@ that all four backends are ready. Verify each backend and signed route separatel
   email allowlist is configured, a different email is also denied by the gateway.
 - CSS, fonts, icons and media load after an ordinary reload. Unavailable app
   responses are bounded 502 errors; other apps remain reachable.
+- Clear the browser's HTTP cache once in the synthetic check. Open Digest, follow
+  Cinema/Weekly/Stocks links, and open a media lightbox before any manual reload.
+  Verify the compiled server projects both the image and lightbox paths. Follow
+  Apps links to all four modules and check one origin, manifest ID and footer.
 - Android Chrome installs **Kurami** from Hub; its manifest has stable ID `/`,
   start URL `/en/` and scope `/`. Switching among the four apps stays in the
   installed window. Hermes/Dokploy are external links. The icon uses the existing
   transparent 512px fox, with no illustrated backdrop; the Android launcher may
   add its own plate. Any replacement backdrop needs the owner's visual approval.
+- The manifest link uses `crossorigin="use-credentials"`: Chrome must send the
+  Access cookie even though the manifest is same-origin. Test with a cookie-gated
+  browser fixture, not unconditional test authorization. Manifest, worker and
+  icon endpoints remain protected; do not bypass Access to make installation pass.
+  Chrome parsing/installability checks are local evidence, not Android acceptance.
+- Shared font URLs `/assets/<allowlisted-font>.woff2` require Access and use
+  `Cache-Control: private, max-age=86400`. All apps use the same font URLs and
+  preload their main Onest subsets. This is HTTP caching of design assets only;
+  HTML, API, media, login and authorization failures retain `no-store` at the gateway.
 - One `/sw.js` worker covers the new origin. Private HTML, API responses and
   login pages are not cached. Offline navigation shows a connection placeholder,
   not an old dashboard. Restoring the network restores normal navigation.

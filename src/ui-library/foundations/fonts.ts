@@ -17,3 +17,7 @@ export const fontFiles=[
 
 /** Sites serve these files flat under /assets/. */
 export const FONT_FACES=fontFiles.map(font=>`@font-face { font-family: "${font.family}"; font-style: normal; font-weight: ${font.weight}; font-display: swap; src: url("/assets/${font.file}") format("woff2"); unicode-range: ${font.range}; }`).join("\n");
+
+export function renderFontPreloads(lang:string):string {
+  return ["onest-latin.woff2",...(lang==="ru"?["onest-cyrillic.woff2"]:[])].map(file=>`<link rel="preload" data-font-preload as="font" type="font/woff2" href="/assets/${file}" crossorigin>`).join("");
+}

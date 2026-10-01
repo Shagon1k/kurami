@@ -16,6 +16,7 @@ for(const [url,expected] of [
 ] as const)assert.deepEqual(resolveWebRoute(url),expected,url);
 for(const path of ["//evil","/en/docs/../projects/","/en/%2e%2e/projects/","/_apps/docs/assets/../../build.json","/en/%2fprojects/","/en/%252fprojects/","/en/\\projects/","/_apps/docs/build.json","/_apps/docs/health","/en/projects/private/"])assert.equal(resolveWebRoute(path),null,path);
 assert.equal(publicAppUrl("https://hermes.shagon1k.win/","hub","ru"),"https://hermes.shagon1k.win/");
+assert.equal(publicAppUrl("https://kurami.shagon1k.win/en/projects/?project=x","docs","en"),"/en/projects/?project=x");
 assert.equal(publicAppUrl("https://docs.shagon1k.win/en/projects/#run","hub","ru"),"/en/docs/projects/#run");
 assert.equal(publicAppUrl("/?lang=ru&project=pickflick","projects","en"),"/ru/projects/?project=pickflick");
 assert.equal(publicAppUrl("/assets/docs.css?v=abc","docs","en"),"/_apps/docs/assets/docs.css?v=abc");
@@ -28,6 +29,12 @@ assert(projected.includes('src:url("/_apps/docs/assets/font.woff2")'));
 assert(projected.includes('"original":"/assets/original.png"'));
 assert(projected.includes('&lt;a href="/en/original/"&gt;'));
 assert.equal(projectDocument(projected,"docs","en"),projected);
+for(const native of ['<link rel="manifest" href="/en/manifest.webmanifest">',"<link href='/old.json' rel='manifest'>",'<link rel="manifest" href="/a"><link rel="manifest" href="/b">']){
+  const result=projectDocument(`<html><head>${native}</head></html>`,"hub","en");
+  assert.equal((result.match(/rel="manifest"/g)??[]).length,1);
+  assert.match(result,/href="\/manifest.webmanifest" crossorigin="use-credentials"/);
+  assert.equal(projectDocument(result,"hub","en"),result);
+}
 assert.equal(projectCss('url(/assets/font.woff2)',"hub","en"),'url(/_apps/hub/assets/font.woff2)');
 assert.equal(projectHtml('<a href="/?q=a&amp;project=b&amp;lang=ru">Task</a>',"projects","en"),'<a href="/ru/projects/?q=a&amp;project=b">Task</a>');
 assert.equal(projectHtml('<meta http-equiv="refresh" content="0; url=/en/new-page/">',"docs","en"),'<meta http-equiv="refresh" content="0; url=/en/docs/new-page/">');

@@ -3,7 +3,9 @@ import {renderIcon,type IconName} from "./icon.ts";
 export type StatTone="neutral"|"info"|"accent"|"success"|"warning"|"failure";
 export function renderStatCard(input:{label:string;value:string;full?:string;tone?:StatTone;icon?:IconName;plain?:boolean;align?:"center"|"start"}):string {
   const {full}=input;
-  return `<article class="stat-card metric${input.plain?" stat-card--plain":""}" data-tone="${input.tone??"neutral"}" data-align="${input.align??"center"}"><p class="stat-card__label metric__label">${input.icon?renderIcon(input.icon):""}${escapeHtml(input.label)}</p><strong class="stat-card__value metric__value"${full?` tabindex="0" title="${escapeHtml(full)}" aria-label="${escapeHtml(full)}"`:""}>${escapeHtml(input.value)}</strong></article>`;
+  const marked=input.label.endsWith(" *");
+  const label=marked?escapeHtml(input.label.slice(0,-2)).replace(/(\S+)$/, '<span class="stat-card__marked">$1<sup>*</sup></span>'):escapeHtml(input.label);
+  return `<article class="stat-card metric${input.plain?" stat-card--plain":""}" data-tone="${input.tone??"neutral"}" data-align="${input.align??"center"}"><p class="stat-card__label metric__label">${input.icon?renderIcon(input.icon):""}<span>${label}</span></p><strong class="stat-card__value metric__value"${full?` tabindex="0" title="${escapeHtml(full)}" aria-label="${escapeHtml(full)}"`:""}>${escapeHtml(input.value)}</strong></article>`;
 }
 export function renderMeter(input:{value:number;label:string;tone?:StatTone}):string {
   if(!Number.isFinite(input.value)||input.value<0||input.value>100)throw new Error("Invalid meter value");
@@ -21,6 +23,9 @@ export const STAT_CARD_CSS=`
 .stat-card__label { display: flex; flex-direction: var(--stat-label-direction,row); align-items: center; justify-content: center; gap: var(--stat-label-gap,var(--space-2)); min-height: var(--stat-label-height,2.8em); margin: 0 0 var(--space-3); color: var(--text-muted); font: 500 .8rem/1.4 var(--font-sans); }
 .stat-card[data-align="start"] .stat-card__label { justify-content: flex-start; }
 .stat-card__label .ui-icon { color: var(--stat-tone); }
+.stat-card__label > .ui-icon { flex: none; }
+.stat-card__marked { white-space: nowrap; }
+.stat-card__marked sup { font-size: .75em; }
 .stat-card__value { display: block; color: var(--stat-tone); font: 600 var(--stat-value-size,clamp(1.8rem,3vw,2.5rem))/1.1 var(--font-sans); font-variant-numeric: tabular-nums; letter-spacing: -.04em; }
 .stat-card--plain,.stat-card--plain[data-tone] { --stat-label-height: var(--stat-plain-label-height,1.5em); height: auto; padding: 0; border: 0; background: transparent; box-shadow: none; }
 .ui-meter { height: 5px; overflow: hidden; border-radius: var(--radius); background: var(--surface-section); }

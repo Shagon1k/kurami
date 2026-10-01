@@ -8,6 +8,7 @@ import {generatedReference} from "./reference.ts";
 import {renderLinkButton} from "../ui-library/components/button.ts";
 import {renderThemeSwitch} from "../ui-library/components/theme-switch.ts";
 import {renderSiteHeader} from "../ui-library/patterns/site-header.ts";
+import {renderSiteFooter} from "../ui-library/patterns/site-footer.ts";
 import {kuramiSites} from "../ui-library/patterns/kurami-sites.ts";
 import {renderDocument} from "../ui-library/patterns/page-shell.ts";
 import {renderTable} from "../ui-library/components/table.ts";
@@ -207,7 +208,7 @@ function shell(lang:Language,title:string,description:string,body:string,active:
       actions:renderLinkButton({label:other.toUpperCase(),href:url(other,alternateSlug),variant:"icon",ariaLabel:t.choose,attributes:{hreflang:other}})+renderThemeSwitch(lang),
     }),
     main:body,mainClass:"page",
-    footer:`<footer class="footer"><div class="container">Kurami · ${t.current}</div></footer>`,
+    footer:renderSiteFooter({lang,app:"Docs"}),
   });
 }
 
@@ -242,14 +243,14 @@ export function renderArticle(page:HumanDocsPage,lang:Language,options:RenderOpt
   const content=blocksHtml(page.blocks[lang],context);
   const eyebrow=[sectionLabels[page.section][lang],groupLabels[page.group][lang],`${readingMinutes(page,lang)} ${labels[lang].min}`].join(" · ");
   const tocHtml=toc(page,lang);
-  const body=`<div class="layout${tocHtml?" layout--toc":""}">${side(lang,page.section,page.slug)}<article class="article" data-page="${escape(page.slug)}" data-group="${page.group}"><header class="intro"><p class="eyebrow">${escape(eyebrow)}</p><h1>${escape(page.title[lang])}</h1><p class="lede">${escape(page.summary[lang])}</p></header><div class="prose">${content}</div>${nextLink(page,lang)}</article>${tocHtml}</div>`;
+  const body=`<div class="layout${tocHtml?" layout--toc":""}">${side(lang,page.section,page.slug)}<article class="article" data-page="${escape(page.slug)}" data-group="${page.group}"><header class="intro"><p class="eyebrow page-eyebrow">${escape(eyebrow)}</p><h1 class="page-title">${escape(page.title[lang])}</h1><p class="lede page-subtitle">${escape(page.summary[lang])}</p></header><div class="prose">${content}</div>${nextLink(page,lang)}</article>${tocHtml}</div>`;
   return {html:shell(lang,page.title[lang],page.summary[lang],body,page.section,page.slug),diagrams:context.diagrams};
 }
 
 export function renderHome(lang:Language,options:RenderOptions={}):RenderedPage {
   if(!homePage)throw new Error("Missing content/pages/home.<lang>.md");
   const context:Context={lang,page:homePage,options,diagrams:[]};
-  const body=`<div class="home"><header class="intro"><p class="eyebrow">${escape(lang==="ru"?"Kurami · документация":"Kurami · documentation")}</p><h1>${escape(homePage.title[lang])}</h1><p class="lede">${escape(homePage.summary[lang])}</p></header><div class="prose prose--home">${blocksHtml(homePage.blocks[lang],context)}</div></div>`;
+  const body=`<div class="home"><header class="intro"><p class="eyebrow page-eyebrow">${escape(lang==="ru"?"Kurami · документация":"Kurami · documentation")}</p><h1 class="page-title">${escape(homePage.title[lang])}</h1><p class="lede page-subtitle">${escape(homePage.summary[lang])}</p></header><div class="prose prose--home">${blocksHtml(homePage.blocks[lang],context)}</div></div>`;
   return {html:shell(lang,homePage.title[lang],homePage.summary[lang],body,undefined,""),diagrams:context.diagrams};
 }
 
@@ -258,7 +259,7 @@ export function renderAlias(lang:Language,from:string,to:string):string {
   const target=pageBySlug.get(to);
   if(!target)throw new Error(`Alias ${from} points to missing page ${to}`);
   const href=url(lang,to);
-  const body=`<div class="layout">${side(lang,target.section,"")}<article class="article"><header class="intro"><p class="eyebrow">${escape(labels[lang].moved)}</p><h1>${escape(target.title[lang])}</h1><p class="lede"><a href="${href}">${escape(target.title[lang])} →</a></p></header></article></div>`;
+  const body=`<div class="layout">${side(lang,target.section,"")}<article class="article"><header class="intro"><p class="eyebrow page-eyebrow">${escape(labels[lang].moved)}</p><h1 class="page-title">${escape(target.title[lang])}</h1><p class="lede page-subtitle"><a href="${href}">${escape(target.title[lang])} →</a></p></header></article></div>`;
   return shell(lang,target.title[lang],target.summary[lang],body,target.section,to).replace("<head>",`<head>\n  <meta http-equiv="refresh" content="0; url=${href}">\n  <link rel="canonical" href="${href}">`);
 }
 
@@ -280,7 +281,7 @@ export function renderChangelog(lang:Language,changes:Change[],revision?:string,
     :published
       ?ru?"Этот docs-only release не приписывает себе изменения приложения.":"This docs-only release claims no application changes."
       :ru?"Локальный preview намеренно оставляет changelog приложения пустым.":"The local preview deliberately leaves the application changelog empty.";
-  const body=`<div class="layout">${side(lang,undefined,"")}<article class="article"><header class="intro"><p class="eyebrow">${revision?escape(revision.slice(0,7)):published?ru?"Ожидает подтверждения":"Awaiting verification":ru?"Локальный просмотр":"Local preview"}</p><h1>${title}</h1><p class="lede">${status}</p></header><div class="changes">${cards||`<p>${empty}</p>`}</div></article></div>`;
+  const body=`<div class="layout">${side(lang,undefined,"")}<article class="article"><header class="intro"><p class="eyebrow page-eyebrow">${revision?escape(revision.slice(0,7)):published?ru?"Ожидает подтверждения":"Awaiting verification":ru?"Локальный просмотр":"Local preview"}</p><h1 class="page-title">${title}</h1><p class="lede page-subtitle">${status}</p></header><div class="changes">${cards||`<p>${empty}</p>`}</div></article></div>`;
   return shell(lang,title,status,body,"changelog","changelog");
 }
 

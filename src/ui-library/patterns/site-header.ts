@@ -70,7 +70,7 @@ export const SITE_HEADER_CSS = `
 .site-header.is-scrolled { background: color-mix(in srgb, var(--surface-page) 97%, transparent); border-bottom-color: color-mix(in srgb, var(--border-default) 72%, var(--text-primary)); box-shadow: var(--shadow-raised); }
 .site-header__inner { position: relative; min-height: 84px; display: grid; grid-template-columns: minmax(0,1fr) auto auto; grid-template-areas: "brand nav actions"; align-items: center; gap: 24px; padding-block: 12px; }
 .site-header__utility { grid-area: nav; display: flex; align-items: center; justify-content: flex-end; gap: var(--space-2); }
-.site-brand { grid-area: brand; justify-self: start; min-width: 0; min-height: 48px; display: inline-flex; align-items: center; gap: 12px; color: var(--text-primary); text-decoration: none; white-space: nowrap; border-radius: var(--radius); }
+.site-brand { grid-area: brand; justify-self: start; min-width: 0; max-width: 100%; min-height: 48px; display: inline-flex; align-items: center; gap: 12px; color: var(--text-primary); text-decoration: none; white-space: nowrap; border-radius: var(--radius); }
 .site-brand__fox { width: 48px; height: 48px; flex-shrink: 0; object-fit: contain; }
 [data-theme="dark"] .site-brand__fox { filter: drop-shadow(0 0 1px #ffffff8c); }
 .site-brand__copy { display: grid; gap: 3px; min-width: 0; }
@@ -78,7 +78,7 @@ export const SITE_HEADER_CSS = `
 .site-brand__dot { color: var(--accent-primary); }
 .site-brand__suffix { letter-spacing: -.03em; }
 .site-brand:hover .site-brand__name { color: var(--accent-primary); }
-.site-brand__meta { color: var(--text-muted); font-size: .75rem; line-height: 1.45; font-weight: 400; }
+.site-brand__meta { min-width: 0; max-width: 100%; overflow: hidden; text-overflow: ellipsis; color: var(--text-muted); font-size: .75rem; line-height: 1.45; font-weight: 400; }
 .site-brand:focus-visible, .site-nav__link:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 4px; }
 .site-nav { grid-area: nav; display: flex; align-items: center; gap: 6px; }
 .site-nav--scroll { min-width: 0; max-width: 100%; overflow-x: auto; scrollbar-width: thin; }

@@ -14,7 +14,10 @@ import {publishedSiteLinks} from "./site-navigation.ts";
 import {injectSiteNavigation} from "./ui/components/site-header.ts";
 import {renderPageShell} from "./ui/page-shell.ts";
 import {renderBriefingPage} from "./ui/render-page.ts";
-import {digestText as t,withDigestLanguage,type DigestLanguage} from "./i18n.ts";
+import {digestText as t,digestLanguage,withDigestLanguage,type DigestLanguage} from "./i18n.ts";
+import {renderFontPreloads} from "../ui-library/foundations/fonts.ts";
+import {formatSiteDate} from "../ui-library/foundations/date.ts";
+import {renderSiteFooter} from "../ui-library/patterns/site-footer.ts";
 import {renderWeeklyPage} from "./weekly/render.ts";
 import {loadWeeklyReview} from "./weekly/lifecycle.ts";
 import {buildWeeklyReview} from "./weekly/build.ts";
@@ -404,7 +407,7 @@ ${COMPANY_AVATAR_CLIENT_SCRIPT}
       const dialog = document.querySelector('[data-media-dialog]');
       const image = dialog?.querySelector('[data-media-dialog-image]');
       if (!(dialog instanceof HTMLDialogElement) || !(image instanceof HTMLImageElement)) return;
-      image.src = target.getAttribute('data-media-src') || target.getAttribute('href') || '';
+      image.src = kuramiAppUrl(target.getAttribute('data-media-src') || target.getAttribute('href') || '');
       image.alt = target.getAttribute('data-media-alt') || '';
       dialog.showModal();
       return;
@@ -562,7 +565,10 @@ function stateTag(items: ClientItemState[]): string {
   return `<script id="briefing-state" type="application/json">${json}</script>`;
 }
 
-export function injectRuntime(html: string, items: ClientItemState[] = []): string {
+export function injectRuntime(html: string, items: ClientItemState[] = [],footer?:string): string {
+  if(!html.includes("data-font-preload"))html=html.replace(/<\/head>/i,renderFontPreloads(digestLanguage())+"</head>");
+  html=html.replace(/<h1>/g,'<h1 class="page-title">').replace(/class="hero__eyebrow"/g,'class="hero__eyebrow page-eyebrow"').replace(/class="hero__subtitle"/g,'class="hero__subtitle page-subtitle"');
+  if(footer)html=html.replace(/<footer\b[^>]*>[\s\S]*?<\/footer>/i,footer);
   // Editions frozen before self-hosted fonts still link Google Fonts; serve the same faces locally.
   if (html.includes("fonts.googleapis.com")) html = html.replace(GOOGLE_FONTS, "").replace(/<\/head>/i, `<style>${FONT_FACES}</style></head>`);
   // Frozen editions keep their data and markup; refresh their chart theme at serve time.
@@ -742,7 +748,8 @@ async function serveEdition(
     : await readEditionHtml(edition, paths);
   sendHeaders(response, "text/html; charset=utf-8");
   response.statusCode = 200;
-  response.end(injectRuntime(injectSiteNavigation(html,publishedSiteLinks(database,weeklyEnabled,new Date().toISOString(),stocksEnabled),edition.edition_type,requestedPath), editionClientState(database, edition.id)));
+  const footer=renderSiteFooter({lang:language,app:"Digest",updated:formatSiteDate(edition.published_at??edition.prepared_at,language,true)});
+  response.end(injectRuntime(injectSiteNavigation(html,publishedSiteLinks(database,weeklyEnabled,new Date().toISOString(),stocksEnabled),edition.edition_type,requestedPath), editionClientState(database, edition.id),footer));
 }
 
 export async function createBriefingServer(

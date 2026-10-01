@@ -12,6 +12,12 @@ import {TABLE_CSS} from "../../ui-library/components/table.ts";
 import {CALLOUT_CSS} from "../../ui-library/components/callout.ts";
 import {DISCLOSURE_CSS} from "../../ui-library/components/disclosure.ts";
 import {SELECTION_CONTROL_CSS} from "../../ui-library/components/selection-control.ts";
+import {breakpoints} from "../../ui-library/tokens/index.ts";
+export const STORY_ACTIONS_LAYOUT_CSS=`
+@media (max-width: ${breakpoints.phone}px) {
+  .news-story__source, .news-story__actions .reaction-button { --button-width: 100%; }
+}
+`;
 export const BRIEFING_STYLES = `
 ${THEME_CSS}
 ${FOUNDATION_CSS}
@@ -27,6 +33,7 @@ ${TABLE_CSS}
 ${CALLOUT_CSS}
 ${DISCLOSURE_CSS}
 ${SELECTION_CONTROL_CSS}
+${STORY_ACTIONS_LAYOUT_CSS}
 
 #main,h2[id],section[id] { scroll-margin-top:var(--header-offset); }
 .story-toggle:active, .pagination__button:active { transform: translateY(1px); }
@@ -34,8 +41,7 @@ ${SELECTION_CONTROL_CSS}
 
 .hero { position: relative; min-height: 310px; display: grid; grid-template-columns: minmax(0, 1fr) 280px; align-items: end; gap: 40px; padding: 70px 0 38px; }
 .hero__eyebrow, .section-kicker { margin: 0 0 10px; color: var(--text-muted); font: 400 .625rem/1.3 var(--font-mono); letter-spacing: .08em; text-transform: uppercase; }
-.hero h1 { max-width: 850px; margin: 0; font-size: clamp(44px, 6vw, 76px); font-weight: 600; line-height: 1.02; letter-spacing: -.055em; }
-.hero__subtitle { max-width: 760px; margin: 14px 0 0; color: var(--text-muted); font-size: clamp(17px, 2vw, 21px); line-height: 1.45; }
+.hero__subtitle { margin-top: var(--space-4); }
 .kurami-note { color: var(--accent-primary); font: 600 24px/1 var(--font-note); }
 .kurami-note--none { transform: none; }
 .kurami-note--negative { transform: rotate(-3deg); }

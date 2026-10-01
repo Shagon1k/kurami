@@ -1,7 +1,9 @@
 import {escapeHtml as escape} from "../ui-library/foundations/html.ts";
 import {randomUUID} from "node:crypto";
+import {formatSiteDate} from "../ui-library/foundations/date.ts";
 import {renderDocument} from "../ui-library/patterns/page-shell.ts";
 import {renderSiteHeader} from "../ui-library/patterns/site-header.ts";
+import {renderSiteFooter} from "../ui-library/patterns/site-footer.ts";
 import {kuramiSites} from "../ui-library/patterns/kurami-sites.ts";
 import {renderThemeSwitch} from "../ui-library/components/theme-switch.ts";
 import {renderButton,renderLinkButton} from "../ui-library/components/button.ts";
@@ -16,7 +18,7 @@ import {tr,sourceText,language,stateLabel,browserMessages,type Language} from ".
 
 export function localTime(value:string|null,lang:Language="en"):string {
   if(!value||!Number.isFinite(Date.parse(value)))return tr("Unknown",lang);
-  return new Intl.DateTimeFormat(lang==="ru"?"ru-RU":"en-GB",{timeZone:"Europe/Vilnius",day:"2-digit",month:"short",hour:"2-digit",minute:"2-digit",hour12:false}).format(new Date(value));
+  return formatSiteDate(value,lang,true);
 }
 function stateValue(label:string,tone:PillTone):string{return `<span class="projects-signal projects-signal--${tone}">${escape(label)}</span>`;}
 function signal(value:Signal,lang:Language):string{return stateValue(stateLabel(value.state,lang),value.tone);}
@@ -117,5 +119,5 @@ export function renderProjectsPage(snapshot:ProjectsSnapshot,params=new URLSearc
     header:renderSiteHeader({brand:{href:projectLink(""),ariaLabel:"Kurami Projects",foxSrc:"/assets/kurami-fox.webp",suffix:"Projects"},
       nav:{label:t("Projects"),scroll:true,attributes:{"data-project-tabs":true},links:[{href:projectLink(""),label:t("All projects"),current:!filters.project?"page":undefined},...snapshot.projects.map(project=>({href:projectLink(project.key),label:project.name,current:filters.project===project.key?"page" as const:undefined}))]},sites:kuramiSites("projects",lang),
       actions:renderLinkButton({label:lang==="en"?"RU":"EN",href:`/?${otherLanguage}`,variant:"icon",ariaLabel:lang==="en"?"Switch to Russian":"Переключить на английский",attributes:{"data-language-link":true,hreflang:lang==="en"?"ru":"en"}})+renderThemeSwitch(lang)}),
-    main:`<div data-projects-app data-messages="${escape(JSON.stringify(browserMessages(lang)))}"><h1 class="sr-only">${t("Tasks")}</h1><div class="projects-toolbar"><form class="projects-search" role="search" method="get">${renderSearchField({name:"q",label:t("Search tasks"),labelHidden:true,icon:true,value:params.get("q")??"",placeholder:t("Search by title or issue number")})}<input type="hidden" name="lang" value="${lang}"><input type="hidden" name="active" value="${filters.activeOnly?"1":""}"><input type="hidden" name="attention" value="${filters.attentionOnly?"1":""}">${filters.project?`<input type="hidden" name="project" value="${escape(filters.project)}">`:""}</form><p role="status" aria-live="polite" data-refresh-status></p></div><div id="projects-dashboard">${renderProjectsDashboard(snapshot,params)}</div></div>`,mainClass:"projects-page",footer:""});
+    main:`<div data-projects-app data-messages="${escape(JSON.stringify(browserMessages(lang)))}"><h1 class="sr-only">${t("Tasks")}</h1><div class="projects-toolbar"><form class="projects-search" role="search" method="get">${renderSearchField({name:"q",label:t("Search tasks"),labelHidden:true,icon:true,value:params.get("q")??"",placeholder:t("Search by title or issue number")})}<input type="hidden" name="lang" value="${lang}"><input type="hidden" name="active" value="${filters.activeOnly?"1":""}"><input type="hidden" name="attention" value="${filters.attentionOnly?"1":""}">${filters.project?`<input type="hidden" name="project" value="${escape(filters.project)}">`:""}</form><p role="status" aria-live="polite" data-refresh-status></p></div><div id="projects-dashboard">${renderProjectsDashboard(snapshot,params)}</div></div>`,mainClass:"projects-page",footer:renderSiteFooter({lang,app:"Projects",updated:localTime(snapshot.generatedAt,lang)})});
 }

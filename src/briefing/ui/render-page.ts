@@ -46,7 +46,8 @@ export function renderBriefingPage(payload: BriefingPayload): string {
     || Boolean(cinema?.data.notes.some(note=>!note.enText))
   );
   const enHero=payload.hero.en&&typeof payload.hero.en==="object"?payload.hero.en as Record<string,unknown>:null;
-  const payloadTitle = digestLanguage()==="en"?displayString(enHero?.title,digestText("Утренний брифинг","Morning briefing")):displayString(payload.hero.title, "Утренний брифинг");
+  const defaultTitle=payload.edition.type==="cinema"?digestText("Кинообзор","Cinema briefing"):digestText("Утренний брифинг","Morning briefing");
+  const payloadTitle = digestLanguage()==="en"?displayString(enHero?.title,defaultTitle):displayString(payload.hero.title,defaultTitle);
   const title = payload.edition.type === "daily" ? digestText("Доброе утро, Alex.","Good morning, Alex.") : payloadTitle;
   const subtitle = digestLanguage()==="en"?displayString(enHero?.subtitle,formatDate(payload)):displayString(payload.hero.subtitle, formatDate(payload));
   const generated = new Intl.DateTimeFormat(digestLanguage()==="en"?"en-GB":"ru-RU", {

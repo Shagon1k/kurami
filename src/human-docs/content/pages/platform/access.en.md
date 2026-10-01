@@ -68,6 +68,11 @@ the network and shows a connection placeholder offline. It does not save private
 pages or API responses. Deployment and installed-phone checks are separate from
 the local routing tests.
 
+Install from the unified entry after signing in. The Apps menu keeps Hub, Digest,
+Projects and Docs in that window, including when you enter through an older address.
+All four apps reuse the same font URLs. Your browser can cache these design files;
+private pages and API responses still come from the network.
+
 ## Previews through Caddy
 
 Previews get an address like `preview-N.shagon1k.win` by slot number. Caddy is a separate service, `kurami-preview-ingress`: it listens on `127.0.0.1:9180`, and Project Orchestrator builds the route list into the file `state/caddy/routes.caddy` from the lease database. Only a preview in the "running" state has a route; for any other address Caddy answers 404 "no active route". Before applying a new configuration Caddy validates it, and on failure it restores the previous one. More about slots and leases is in [Previews](@previews).

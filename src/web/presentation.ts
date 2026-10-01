@@ -30,12 +30,15 @@ export function projectHtml(html:string,app:WebApp,language:WebLanguage):string 
 }
 
 export function projectDocument(html:string,app:WebApp,language:WebLanguage):string {
-  if(html.includes('id="kurami-web-context"'))return html;
-  const projected=projectHtml(html,app,language);
+  const projected=html.includes('id="kurami-web-context"')?html:projectHtml(html,app,language);
   if(!/<head\b/i.test(projected))return projected;
   const context=`<script type="application/json" id="kurami-web-context">${JSON.stringify({app,language})}</script>`;
-  const manifest='<link rel="manifest" href="/manifest.webmanifest">';
-  return projected.replace(/<head\b[^>]*>/i,opening=>opening+(projected.includes('id="kurami-web-context"')?"":context)+(projected.includes('href="/manifest.webmanifest"')?"":manifest));
+  const manifest='<link rel="manifest" href="/manifest.webmanifest" crossorigin="use-credentials">';
+  // Normalize native and prebuilt documents alike; Access requires the browser cookie.
+  return projected.replace(/<head\b[^>]*>[\s\S]*?<\/head\s*>/i,head=>{
+    const clean=head.replace(/<(script|style)\b[^>]*>[\s\S]*?<\/\1\s*>|<link\b[^>]*>/gi,tag=>/^<link\b/i.test(tag)&&/\brel\s*=\s*(["'])[^"']*\bmanifest\b[^"']*\1/i.test(tag)?"":tag);
+    return clean.replace(/<head\b[^>]*>/i,opening=>opening+manifest+(projected.includes('id="kurami-web-context"')?"":context));
+  });
 }
 
 export const WEB_CLIENT_JS=`function kuramiAppUrl(path) {

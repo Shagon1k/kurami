@@ -1,5 +1,7 @@
 import {escapeHtml} from "../ui-library/foundations/html.ts";
+import {formatSiteDate} from "../ui-library/foundations/date.ts";
 import {renderDocument} from "../ui-library/patterns/page-shell.ts";
+import {renderSiteFooter} from "../ui-library/patterns/site-footer.ts";
 import {renderSiteHeader} from "../ui-library/patterns/site-header.ts";
 import {kuramiSites} from "../ui-library/patterns/kurami-sites.ts";
 import {renderThemeSwitch} from "../ui-library/components/theme-switch.ts";
@@ -30,7 +32,7 @@ function formatTime(iso:string|null,lang:HubLanguage):string {
   if(!iso)return "—";
   const date=new Date(iso);
   if(!Number.isFinite(date.getTime()))return "—";
-  return new Intl.DateTimeFormat(lang==="ru"?"ru-RU":"en-GB",{day:"2-digit",month:"short",hour:"2-digit",minute:"2-digit",timeZone:"Europe/Vilnius"}).format(date);
+  return formatSiteDate(iso,lang,true);
 }
 
 function metric(label:string,amount:number|string,attention=false,full?:string,options:{tone?:StatTone;icon?:IconName;plain?:boolean}={}):string {
@@ -277,15 +279,15 @@ function hubHeader(lang:HubLanguage,controls=true):string {
 
 export function renderHubPage(snapshot:HubSnapshot,lang:HubLanguage="en",csrfToken=""):string {
   return renderDocument({lang,title:"Hub · Kurami",description:tr(lang,"Личный дашборд Kurami.","Kurami personal dashboard."),favicon:"/assets/favicon.svg",styles:{href:HUB_CSS_URL},themeScript:true,skipLabel:tr(lang,"К содержимому","Skip to content"),
-    head:`<meta name="hub-control-token" content="${escapeHtml(csrfToken)}"><link rel="manifest" href="/${lang}/manifest.webmanifest"><script src="${HUB_CLIENT_URL}" defer></script>`,
+    head:`<meta name="hub-control-token" content="${escapeHtml(csrfToken)}"><link rel="manifest" href="/${lang}/manifest.webmanifest" crossorigin="use-credentials"><script src="${HUB_CLIENT_URL}" defer></script>`,
     header:hubHeader(lang),
     main:`<div id="hub-dashboard" class="hub" aria-live="off">${renderHubDashboard(snapshot,lang)}</div>${renderPopover({id:"hub-controls-popover",label:tr(lang,"Управление","Controls"),body:renderControls(lang)})}<template id="hub-control-back">${renderButton({label:tr(lang,"Назад","Back"),variant:"subtle",size:"compact",attributes:{"data-hub-control":"menu"}})}</template>${renderDialog({id:"hub-control-dialog",title:tr(lang,"Управление","Controls"),closeLabel:tr(lang,"Закрыть","Close"),body:`<div id="hub-control-content"></div><div id="hub-control-confirm" hidden><p id="hub-confirm-message" class="control-summary"></p><div class="control-actions">${renderButton({label:tr(lang,"Подтвердить","Confirm"),variant:"primary",attributes:{"data-hub-confirm":true}})}${renderButton({label:tr(lang,"Отмена","Cancel"),variant:"secondary",attributes:{"data-hub-cancel":true}})}</div></div><p id="hub-control-result" role="status"></p>`})}`,
-    footer:'<footer class="hub-footer container">Kurami Hub · Europe/Vilnius</footer>'});
+    footer:renderSiteFooter({lang,app:"Hub",updated:formatTime(snapshot.generatedAt,lang)})});
 }
 
 export function renderHubOffline(lang:HubLanguage="en"):string {
   return renderDocument({lang,title:`${tr(lang,"Нет связи","Offline")} · Kurami Hub`,favicon:"/assets/favicon.svg",styles:{href:HUB_CSS_URL},themeScript:true,skipLabel:tr(lang,"К содержимому","Skip to content"),
     header:hubHeader(lang,false),
     main:`<div class="hub"><div class="hub__topline"><h1>${tr(lang,"Нет связи","Offline")}</h1></div></div>`,
-    footer:'<footer class="hub-footer container">Kurami Hub</footer>'});
+    footer:renderSiteFooter({lang,app:"Hub"})});
 }

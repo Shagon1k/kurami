@@ -5,6 +5,7 @@ import {fileURLToPath} from "node:url";
 import {WebAccess,type WebIdentity} from "./access.ts";
 import {resolveWebRoute,WEB_ORIGIN,type WebApp} from "./routes.ts";
 import {kuramiTheme} from "../ui-library/themes/kurami.ts";
+import {fontFiles} from "../ui-library/foundations/fonts.ts";
 
 type Options={upstreams?:Record<WebApp,string>;authorize?:(request:IncomingMessage,app:WebApp)=>Promise<WebIdentity|null>;origin?:string};
 const hopHeaders=new Set(["connection","keep-alive","proxy-authenticate","proxy-authorization","te","trailer","transfer-encoding","upgrade"]);
@@ -27,8 +28,9 @@ export function createWebServer(options:Options={}):Server {
     if(request.url==="/health"&&["GET","HEAD"].includes(request.method??"")){send(200,'{"ok":true}',"application/json; charset=utf-8");return;}
     const raw=request.url??"/",route=resolveWebRoute(raw);
     const resource=raw.split("?")[0]!;
-    const pwa=["/manifest.webmanifest","/sw.js","/en/offline.html","/ru/offline.html","/assets/kurami-fox.png","/assets/kurami-fox.webp"].includes(resource);
-    const app=route&&"app" in route?route.app:"hub";
+    const font=fontFiles.find(font=>resource===`/assets/${font.file}`);
+    const pwa=Boolean(font)||["/manifest.webmanifest","/sw.js","/en/offline.html","/ru/offline.html","/assets/kurami-fox.png","/assets/kurami-fox.webp"].includes(resource);
+    const app=font?"docs":route&&"app" in route?route.app:"hub";
     const identity=await authorize(request,app).catch(()=>null);
     if(!identity){send(403,"Access denied");return;}
     if(identity.scope!=="owner"&&(app!=="docs"||!["GET","HEAD"].includes(request.method??""))){send(403,"Access denied");return;}
@@ -40,6 +42,11 @@ export function createWebServer(options:Options={}):Server {
     }
     if(pwa){
       if(!["GET","HEAD"].includes(request.method??"")){send(405,"Method not allowed");return;}
+      if(font){
+        const body=readFileSync(new URL(`../ui-library/assets/fonts/${font.file}`,import.meta.url));
+        response.setHeader("Cache-Control","private, max-age=86400");
+        response.writeHead(200,{"Content-Type":"font/woff2"});response.end(request.method==="HEAD"?undefined:body);return;
+      }
       if(resource==="/manifest.webmanifest"){
         send(200,JSON.stringify({id:"/",name:"Kurami",short_name:"Kurami",start_url:"/en/",scope:"/",display:"standalone",background_color:kuramiTheme.light.colors["surface-page"],theme_color:kuramiTheme.light.colors["surface-page"],icons:[{src:"/assets/kurami-fox.png",type:"image/png",sizes:"512x512",purpose:"any"}]}),"application/manifest+json");return;
       }

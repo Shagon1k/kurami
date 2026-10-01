@@ -1,4 +1,7 @@
-export const WEB_ORIGIN="https://kurami.shagon1k.win";
+import {fontFiles} from "../ui-library/foundations/fonts.ts";
+import {KURAMI_WEB_ORIGIN} from "../ui-library/patterns/kurami-sites.ts";
+
+export const WEB_ORIGIN=KURAMI_WEB_ORIGIN;
 export const WEB_APPS=["hub","digest","projects","docs"] as const;
 export type WebApp=typeof WEB_APPS[number];
 export type WebLanguage="en"|"ru";
@@ -55,12 +58,14 @@ export function publicAppUrl(value:string,app:WebApp,language:WebLanguage):strin
   if(value.startsWith("#")||!value)return value;
   if(/^https:\/\//.test(value)){
     const url=new URL(value),target=oldHosts[url.hostname];
+    if(url.origin===WEB_ORIGIN)return url.pathname+url.search+url.hash;
     if(!target||url.port)return value;
     return publicAppUrl(url.pathname+url.search+url.hash,target,language);
   }
   if(!value.startsWith("/")||value.startsWith("//"))return value;
   if(value.startsWith("/_apps/"))return value;
   const url=new URL(value,WEB_ORIGIN);
+  if(fontFiles.some(font=>url.pathname===`/assets/${font.file}`))return value;
   if(/^\/(?:api|media|assets)\//.test(url.pathname)||url.pathname==="/favicon.svg")return `/_apps/${app}${value}`;
   if(["/sw.js","/manifest.webmanifest"].includes(url.pathname)||/^\/(en|ru)\/manifest\.webmanifest$/.test(url.pathname))return url.pathname==="/sw.js"?"/sw.js":"/manifest.webmanifest";
   const locale=url.pathname.match(/^\/(en|ru)(?=\/|$)/);

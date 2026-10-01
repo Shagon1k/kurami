@@ -125,12 +125,18 @@ export function createChartEngine(language?:"ru"|"en") {
     plot.left=Math.max(plot.left,Math.min(plot.width*.27,Math.max(...ticks.map(tick=>tick.label.length))*6+16));
     const x=(index:number)=>spec.kind==="bar" ? plot.left+(index+.5)*(plot.right-plot.left)/Math.max(1,windowSize)
       : windowSize===1 ? (plot.left+plot.right)/2 : plot.left+index*(plot.right-plot.left)/Math.max(1,windowSize-1);
-    const stride=Math.max(1,Math.ceil((windowSize-1)/(spec.display?.density==="compact"?3:6)));
+    const labelWidth=Math.max(1,...spec.categories.slice(start).map(category=>(category.shortLabel??category.label).length+(category.partial?1:0)))*(spec.display?.density==="compact"?6:7)+16;
+    const labelSlots=Math.max(2,Math.min(spec.display?.density==="compact"?4:7,Math.floor((plot.right-plot.left)/labelWidth)));
+    const stride=Math.max(1,Math.ceil((windowSize-1)/(labelSlots-1)));
     const visibleIndices=[...visible].sort((a,b)=>a-b);
     const slot=(plot.right-plot.left)/Math.max(1,windowSize);
     const barWidth=Math.min(56,slot*.68/Math.max(1,visible.size));
-    const labels=spec.categories.slice(start).flatMap((category,index)=>
-      index%stride===0 || index===windowSize-1 ? [{index:start+index,x:x(index),label:(category.shortLabel ?? category.label)+(category.partial?"*":"")}] : []);
+    const labelIndices=Array.from({length:windowSize},(_,index)=>index).filter(index=>index%stride===0&&index<windowSize-1);
+    if(windowSize){
+      if(labelIndices.length&&x(windowSize-1)-x(labelIndices.at(-1)!)<labelWidth)labelIndices.pop();
+      labelIndices.push(windowSize-1);
+    }
+    const labels=labelIndices.map(index=>{const category=spec.categories[start+index]!;return {index:start+index,x:x(index),label:(category.shortLabel??category.label)+(category.partial?"*":"")};});
     const series=spec.series.flatMap((item,seriesIndex)=>{
       if(!visible.has(seriesIndex) || spec.state==="unavailable")return [];
       const points=item.values.slice(start).map((value,index)=>value===null ? null : {

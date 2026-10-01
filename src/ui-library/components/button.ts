@@ -72,7 +72,7 @@ export const BUTTON_CSS = `
 .button--link .button__svg { inline-size: 14px; block-size: 14px; }
 .button--text { min-height: 0; padding: 0; border: 0; background: transparent; font: inherit; line-height: inherit; text-align: start; justify-content: start; }
 .button--text:hover:not(:disabled):not([aria-busy="true"]) { color: var(--text-primary); background: transparent; text-decoration: underline; text-underline-offset: .2em; }
-.button--icon { inline-size: var(--control-height); block-size: var(--control-height); padding: 0; background: var(--surface-panel); border-color: var(--border-default); }
+.button--icon { inline-size: var(--button-width,var(--control-height)); block-size: var(--control-height); padding: 0; background: var(--surface-panel); border-color: var(--border-default); }
 .button--icon:hover:not(:disabled):not([aria-busy="true"]) { color: var(--text-primary); background: var(--accent-soft); border-color: var(--accent-primary); }
 .button--icon[aria-pressed="true"],.button--icon[aria-pressed="true"]:hover:not(:disabled):not([aria-busy="true"]) { color: var(--text-on-accent); background: var(--accent-primary); border-color: var(--accent-primary); }
 .button__icon { display: inline-grid; place-items: center; font-size: 1rem; line-height: 1; }

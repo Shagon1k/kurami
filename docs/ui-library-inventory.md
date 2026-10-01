@@ -58,6 +58,15 @@ Tokens, Models, commits and Usage reuse it. Products own period persistence and
 data selection; the component supplies escaped markup and CSS. Its CSS is also
 included in the generated UI-preview bundle. UI-Library: extended.
 
+The unified-entry follow-up adds `patterns/site-footer.ts` for all four apps:
+product identity, actual update metadata when supplied, documentation and required
+third-party credits. Foundation CSS provides the shared title/eyebrow/subtitle
+roles; `foundations/date.ts` formats calendar dates and snapshot times without
+inventing freshness. Stat labels keep their partial-data marker attached to the
+last word. The chart engine selects label spacing from the available width.
+Font preloads live in `foundations/fonts.ts`; the gateway serves only allowlisted
+font assets at common, authenticated URLs with a private browser cache.
+
 Projects reuses the small line-icon API introduced alongside Hub. Forms keep
 native select behavior with a decorative, pointer-transparent chevron and
 consistent padding; forced-colour mode restores the native arrow. The button

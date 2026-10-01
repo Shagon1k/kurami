@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import {createServer,type Server} from "node:http";
+import {createServer,type IncomingMessage,type Server} from "node:http";
 import {once} from "node:events";
 import {cpSync,mkdirSync,mkdtempSync,readFileSync,rmSync,writeFileSync} from "node:fs";
 import {execFileSync} from "node:child_process";
@@ -9,9 +9,11 @@ import {setTimeout as delay} from "node:timers/promises";
 import {createWebServer} from "../../src/web/server.ts";
 import {createHubServer} from "../../src/hub/server.ts";
 import {createProjectsServer} from "../../src/projects-site/server.ts";
-import {createBriefingServer} from "../../src/briefing/server.ts";
-import {briefingPaths,openBriefingDatabase} from "../../src/briefing/store.ts";
-import {parseBriefingPayload} from "../../src/briefing/model.ts";
+import {briefingPaths,openBriefingDatabase,upsertAddonSnapshot} from "../../src/briefing/store.ts";
+import {parseBriefingPayload,type BriefingAddonEnvelope} from "../../src/briefing/model.ts";
+import {buildWeeklyReview} from "../../src/briefing/weekly/build.ts";
+import {setSection} from "../../src/briefing/addons/envelopes.ts";
+import {parseStocksConfig} from "../../src/briefing/stocks/config.ts";
 import {renderBriefingPage} from "../../src/briefing/ui/render-page.ts";
 import {createDocsServer} from "../../src/human-docs/server.ts";
 import {syntheticHubSnapshot} from "../../src/ui-library/testing/fixtures.ts";
@@ -25,43 +27,110 @@ const servers:Server[]=[];
 async function listen(server:Server,port=0){servers.push(server);server.listen(port,"127.0.0.1");await once(server,"listening");return `http://127.0.0.1:${(server.address() as {port:number}).port}`;}
 const allocator=createServer();allocator.listen(0,"127.0.0.1");await once(allocator,"listening");const port=(allocator.address() as {port:number}).port;allocator.close();await once(allocator,"close");
 const origin=`http://127.0.0.1:${port}`;
+// Model Access's browser cookie boundary without real credentials or a public manifest.
+let latinRequests=0;
+const authorizeFixture=async(request:IncomingMessage)=>{
+  if(request.url==="/assets/onest-latin.woff2")latinRequests++;
+  return request.headers.cookie?.split(/;\s*/).includes("fixture-access=owner")?{actor:"fixture-owner",scope:"owner" as const}:null;
+};
 let browser:Awaited<ReturnType<typeof launchBrowser>>|undefined;
 try{
+  // Production runs compiled Digest, not its TS entry point. Exercise that exact boundary.
+  execFileSync("npm",["run","briefing:build"],{cwd:root,stdio:"pipe"});
+  const compiledDigest=new URL("../../dist/briefing/server.js",import.meta.url).href;
+  const {createBriefingServer}=await import(compiledDigest) as typeof import("../../src/briefing/server.ts");
   execFileSync(process.execPath,[join(root,"src/human-docs/build.ts"),"--preview"],{cwd:root,stdio:"ignore"});
   const docsRoot=join(temporary,"docs");cpSync(join(root,"dist/human-docs"),docsRoot,{recursive:true});
   // A synthetic release gate exists only in this temporary fixture, never in a deployment artifact.
   const metadata=JSON.parse(readFileSync(join(docsRoot,"build.json"),"utf8"));
   writeFileSync(join(docsRoot,"build.json"),JSON.stringify({...metadata,mode:"release",revision:null,docsSha:"a".repeat(40)}));
-  const hub=await listen(createHubServer({snapshot:syntheticHubSnapshot,authorize:async()=>"fixture-owner",controlOrigin:origin,
+  const hub=await listen(createHubServer({snapshot:()=>{const snapshot=syntheticHubSnapshot();snapshot.codex.coverage="partial";return snapshot;},authorize:async()=>"fixture-owner",controlOrigin:origin,
     controls:{execute:async action=>{if(action!=="models")throw new Error("Fixture does not allow mutations");return {models:[{value:"gpt-6-sol",label:"Sol"}],hermes:"gpt-6-sol",hermesProvider:"openai-codex",codex:"gpt-6-sol",codexEffort:"high"};}}}));
   const projects=await listen(createProjectsServer({snapshot:syntheticProjectsSnapshot,authorize:async()=>"fixture-owner",origin}));
   const digestPaths=briefingPaths({KURAMI_HOME:join(temporary,"digest"),BRIEFING_MIGRATIONS_DIR:join(root,"migrations/briefing")});
   const digest=await listen(await createBriefingServer(digestPaths,{mailActionExecutor:null,weekly:true,stocks:true}));
   const digestDb=openBriefingDatabase(digestPaths);mkdirSync(digestPaths.previewDirectory,{recursive:true});
+  cpSync(join(root,"src/ui-library/assets/brand/kurami-fox-header.webp"),join(digestPaths.mediaDirectory,"fixture.webp"));
   for(const type of ["daily","cinema"] as const){
     const at="2026-10-01T07:00:00Z",date=at.slice(0,10),id=type+":"+date;
     const payload=parseBriefingPayload({schemaVersion:1,formatVersion:3,edition:{id,type,localDate:date,timezone:"Europe/Vilnius",generatedAt:at,status:"complete",retentionUntil:"2099-01-01T00:00:00Z"},hero:{title:"Synthetic edition"},dataQuality:{state:"ready"},addons:{}});
+    if(type==="daily")setSection(payload,"news",{state:"ready",pageSize:10,items:[{id:"fixture-story",fingerprint:"fixture-story",headline:"Synthetic story",summary:"Synthetic summary",details:["Fixture details"],en:{headline:"Synthetic story",summary:"Synthetic summary",details:["Fixture details"]},topics:[{id:"technology",label:"Technology"},{id:"testing",label:"Testing"}],media:[{id:"fixture-image",kind:"image",src:"/media/fixture.webp",alt:"Synthetic image",mimeType:"image/webp"}],sources:[{sourceKey:"telegram:fixture",itemIds:["1"],provider:"telegram",sourceLabel:"Fixture",url:"https://example.org/story"}]}]});
+    parseBriefingPayload(payload);
     writeFileSync(join(digestPaths.previewDirectory,type+".html"),renderBriefingPage(payload));
     digestDb.prepare(`INSERT INTO editions(id,edition_type,local_date,timezone,state,payload_json,html_path,content_digest,preview_enabled,is_current,prepared_at,published_at,retention_until,updated_at) VALUES(?,?,?,'Europe/Vilnius','complete',?,?, 'fixture',1,1,?,?,'2099-01-01T00:00:00Z',?)`).run(id,type,date,JSON.stringify(payload),"pages/preview/"+type+".html",at,at,at);
   }
+  const review=buildWeeklyReview(digestDb,"2026-09-27","Europe/Vilnius","2026-09-27T07:00:00Z");
+  review.state="partial";review.data.coverage.news=1;review.data.days[0]!.stories=1;
+  upsertAddonSnapshot(digestDb,"weekly",review as unknown as BriefingAddonEnvelope);
+  const policy=parseStocksConfig({enabled:true,benchmark:"DEMO",moveThresholdPercent:2,assets:[{id:"DEMO",symbol:"DEMO.US",name:"Synthetic stock",isin:"US0000000000",currency:"USD",exchange:"US",timezone:"UTC",kind:"stock"}]});
+  assert.equal(policy.enabled,true);
+  upsertAddonSnapshot(digestDb,"stocks",{version:1,state:"ready",capturedAt:"2026-10-01T07:00:00Z",data:{provider:"eodhd",policy,series:[{asset:policy.assets[0],points:[{date:"2026-09-30",close:100,adjusted:100}],fetchedAt:"2026-10-01T07:00:00Z",state:"ready"}]}});
   digestDb.close();
   const docs=await listen(createDocsServer(docsRoot));
-  await listen(createWebServer({upstreams:{hub,projects,digest,docs},origin,authorize:async()=>({actor:"fixture-owner",scope:"owner"})}),port);
+  await listen(createWebServer({upstreams:{hub,projects,digest,docs},origin,authorize:authorizeFixture}),port);
   browser=await launchBrowser(findBrowser());const {devtools}=browser;
+  const cookie=await devtools.call<{success:boolean}>("Network.setCookie",{name:"fixture-access",value:"owner",url:origin,httpOnly:true,sameSite:"Lax"});
+  assert.equal(cookie.success,true,"synthetic owner cookie is set");
   async function wait(expression:string){for(let attempt=0;attempt<100;attempt++){if(await devtools.evaluate<boolean>(expression))return;await delay(50);}throw new Error("Browser timeout: "+expression);}
   async function open(path:string){await devtools.evaluate("document.documentElement.dataset.webNavigation='previous'");await devtools.call("Page.navigate",{url:origin+path});try{await wait("document.documentElement.dataset.webNavigation!=='previous' && document.readyState==='complete' && !!document.getElementById('kurami-web-context')");}catch(error){throw new Error(path+": "+await devtools.evaluate("document.body.innerText.slice(0,250)"),{cause:error});}await devtools.evaluate("document.fonts.ready");}
   let checked=0;
+  await open("/en/");
+  const firstManifest=await devtools.call<{data:string;errors:unknown[]}>("Page.getAppManifest");
+  assert.deepEqual(firstManifest.errors,[],"authenticated Chrome must fetch the Hub manifest without an anonymous Access failure");
+  assert.equal(JSON.parse(firstManifest.data).scope,"/");
+  const installability=await devtools.call<{installabilityErrors:unknown[]}>("Page.getInstallabilityErrors");
+  assert.deepEqual(installability.installabilityErrors,[],"Chrome's installability checks pass behind cookie-protected Access");
   for(const lang of ["en","ru"] as const)for(const width of [320,390,1280])for(const path of [`/${lang}/`,`/${lang}/digest/`,`/${lang}/digest/cinema/`,`/${lang}/digest/weekly/`,`/${lang}/digest/stocks/`,`/${lang}/projects/?project=alpha`,`/${lang}/docs/`,`/${lang}/docs/run-lifecycle/`]){
     await devtools.call("Emulation.setDeviceMetricsOverride",{width,height:900,deviceScaleFactor:1,mobile:width<600});
     await open(path);
     assert.equal(await devtools.evaluate("document.documentElement.lang"),lang,path);
     assert.equal(await devtools.evaluate("document.querySelectorAll('link[rel=manifest]').length"),1,path);
+    assert.equal(await devtools.evaluate("document.querySelector('link[rel=manifest]').crossOrigin"),"use-credentials",path+" credentialed manifest");
+    assert.equal(await devtools.evaluate("document.querySelectorAll('.site-footer').length"),1,path+" one common footer");
+    assert.equal(await devtools.evaluate("document.querySelector('.site-brand__fox').naturalWidth>0"),true,path+" fox loaded");
     assert.deepEqual(await devtools.evaluate(AUDIT_EXPRESSION),[],path+" "+width);
     assert.equal(await devtools.evaluate("document.documentElement.scrollWidth>innerWidth+1"),false,path+" overflow");
+    assert.equal(await devtools.evaluate("(() => {const name=document.querySelector('.site-brand__name').getBoundingClientRect(),actions=document.querySelector('.site-actions').getBoundingClientRect();return name.right<=actions.left+1;})()"),true,path+" brand does not overlap controls");
+    assert.equal(await devtools.evaluate("(() => {const date=document.querySelector('.site-brand__meta');return !date||date.getBoundingClientRect().right<=document.querySelector('.site-actions').getBoundingClientRect().left+1;})()"),true,path+" date does not overlap controls");
+    if(path===`/${lang}/`){
+      assert.equal(await devtools.evaluate("(() => {const labels=[...document.querySelectorAll('[data-period-panel=commits]:not([hidden]) .chart__labels:last-child text')].slice(0,-1).map(label=>label.getBoundingClientRect());return labels.every((label,index)=>!index||label.left>=labels[index-1].right+1);})()"),true,path+" commit dates remain separate");
+      assert.equal(await devtools.evaluate("(() => {const mark=document.querySelector('[data-period-panel=commits]:not([hidden]) .stat-card__marked');const text=document.createRange();text.selectNodeContents(mark);return text.getClientRects().length<=3&&getComputedStyle(mark).whiteSpace==='nowrap';})()"),true,path+" partial marker stays attached");
+    }
     assert.equal(await devtools.evaluate("[...document.querySelectorAll('.site-switcher a:not([target])')].every(link=>link.origin===location.origin&&link.pathname.startsWith('/'+document.documentElement.lang+'/'))"),true,path+" same-origin apps");
     assert.equal(await devtools.evaluate("performance.getEntriesByType('resource').filter(entry=>entry.name.startsWith(location.origin)&&entry.responseStatus>=400).length"),0,path+" failed resource");
     if(lang==="en"&&width===390){const shot=await devtools.call<{data:string}>("Page.captureScreenshot",{format:"png",captureBeyondViewport:true});writeFileSync(join(output,path.replace(/\W+/g,"-")+".png"),Buffer.from(shot.data,"base64"));}
     checked++;
+  }
+  assert.equal(latinRequests,1,"all four apps reuse one cached Onest Latin asset across views and reloads");
+  // Follow actual links, not just directly addressed routes; include cold HTTP caches.
+  await devtools.call("Network.clearBrowserCache");
+  await open("/en/digest/");
+  assert.equal(await devtools.evaluate("document.fonts.check('16px Onest')"),true,"Digest fonts loaded on first cold open");
+  await devtools.evaluate("document.querySelector('.story-cover').scrollIntoView()");
+  await wait("document.querySelector('.story-cover img').naturalWidth>0");
+  const heights=await devtools.evaluate<number[]>("[...document.querySelectorAll('.news-story__actions .button')].map(button=>button.getBoundingClientRect().height)");
+  assert(heights.length>=4&&Math.max(...heights)-Math.min(...heights)<=1,"Read, source and reactions share one control height");
+  const widths=await devtools.evaluate<number[]>("[...document.querySelectorAll('.news-story__actions .button--icon')].map(button=>button.getBoundingClientRect().width)");
+  assert(widths.length===3&&Math.max(...widths)-Math.min(...widths)<=1,"source and reaction buttons fill equal mobile columns");
+  await devtools.evaluate("document.querySelector('[data-media-lightbox]').click()");
+  await wait("document.querySelector('[data-media-dialog]').open&&document.querySelector('[data-media-dialog-image]').naturalWidth>0");
+  assert.equal(await devtools.evaluate("new URL(document.querySelector('[data-media-dialog-image]').src).pathname"),"/_apps/digest/media/fixture.webp","lightbox also uses the mounted media route");
+  await devtools.evaluate("document.querySelector('[data-media-dialog]').close()");
+  for(const section of ["cinema","weekly","stocks"]){
+    const expected="/en/digest/"+section;
+    assert.equal(await devtools.evaluate(`document.querySelector('[data-site-navigation] a[href="${expected}"]')?.origin`),origin,section+" navigation link is available");
+    await devtools.evaluate(`document.querySelector('[data-site-navigation] a[href="${expected}"]').click()`);
+    await wait(`location.pathname==='${expected}'&&document.readyState==='complete'&&document.querySelector('[data-site-section="${section}"]')!==null`);
+    await devtools.evaluate("document.fonts.ready");
+    assert.equal(await devtools.evaluate("document.querySelector('.site-brand__fox').naturalWidth>0"),true,section+" cold linked page assets");
+  }
+  for(const app of ["docs","projects","hub","digest"]){
+    const expected=app==="hub"?"/en/":"/en/"+app+"/";
+    await devtools.evaluate(`document.querySelector('.site-switcher a[href="${expected}"]').click()`);
+    await wait(`location.pathname==='${expected}'&&document.readyState==='complete'&&!!document.getElementById('kurami-web-context')`);
+    assert.equal(await devtools.evaluate("location.origin"),origin,app+" clicked Apps stays in the PWA origin");
+    const result=await devtools.call<{data:string}>("Page.getAppManifest");
+    assert.equal(JSON.parse(result.data).id,"/",app+" retains one install identity");
   }
   await open("/en/");await devtools.evaluate("document.querySelector('[data-theme-toggle]').click()");
   const theme=await devtools.evaluate("document.documentElement.dataset.theme");
@@ -89,7 +158,7 @@ try{
   await devtools.evaluate("document.documentElement.dataset.webNavigation='previous'");
   await devtools.call("Page.navigate",{url:origin+"/ru/"});await wait("document.body?.innerText.includes('Нет связи')");
   assert.equal(await devtools.evaluate("!!document.querySelector('#hub-dashboard')"),false,"offline never restores a private dashboard");
-  await listen(createWebServer({upstreams:{hub,projects,digest,docs},origin,authorize:async()=>({actor:"fixture-owner",scope:"owner"})}),port);
+  await listen(createWebServer({upstreams:{hub,projects,digest,docs},origin,authorize:authorizeFixture}),port);
   await open("/en/");assert.equal(await devtools.evaluate("!!document.querySelector('#hub-dashboard')"),true,"online recovery works");
   console.log(`Unified browser: ${checked} mounted EN/RU views at 320/390/1280px; theme, APIs, control reads, Projects detail/reload and one root worker verified; ${output}`);
 }finally{

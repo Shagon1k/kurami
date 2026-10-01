@@ -128,7 +128,7 @@ for(const page of pages)for(const lang of ["en","ru"] as const){
   const {html}=renderArticle(page,lang,{root});
   assert.match(html,new RegExp(`<html lang="${lang}"`));
   assert.ok(html.includes(`href="/${lang==="en"?"ru":"en"}/${page.slug}/"`),`${page.slug}/${lang} links its translation`);
-  assert.ok(html.includes(`class="eyebrow"`)&&/\d+ (min read|мин чтения)/.test(html),`${page.slug}/${lang} shows its depth and reading time`);
+  assert.ok(html.includes(`class="eyebrow page-eyebrow"`)&&/\d+ (min read|мин чтения)/.test(html),`${page.slug}/${lang} shows its depth and reading time`);
   assertInternalLinks(html,`${page.slug}/${lang}`);
   const sidebar=html.match(/<nav class="side"[^>]*>([\s\S]*?)<\/nav>/)?.[1]??"";
   for(const other of pages.filter(other=>other.section!==page.section))assert.ok(!sidebar.includes(`href="/${lang}/${other.slug}/"`),`${page.slug}: side menu shows only its own section`);
@@ -137,8 +137,8 @@ for(const lang of ["en","ru"] as const){
   const {html}=renderHome(lang,{root});
   assertInternalLinks(html,`home/${lang}`);
   assert.ok(html.includes("/assets/theme.js")&&html.includes('class="site-nav"')&&html.includes('data-theme-toggle'));
-  assert.ok(html.includes('class="site-switcher"')&&html.includes(`href="https://hub.shagon1k.win/${lang}/"`),"the header links the other Kurami sites");
-  assert.ok(html.includes(`href="https://docs.shagon1k.win/${lang}/" aria-current="location"`),"the switcher marks docs as current");
+  assert.ok(html.includes('class="site-switcher"')&&html.includes(`href="https://kurami.shagon1k.win/${lang}/"`),"the header links the unified Kurami apps");
+  assert.ok(html.includes(`href="https://kurami.shagon1k.win/${lang}/docs/" aria-current="location"`),"the switcher marks docs as current");
   assert.ok(html.includes('id="main" class="container page" tabindex="-1"'));
   for(const [from,to] of Object.entries(aliases)){
     const alias=renderAlias(lang,from,to);

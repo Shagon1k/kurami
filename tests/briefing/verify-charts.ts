@@ -107,6 +107,12 @@ for(const width of [200,320,1200]) {
 }
 assert.throws(()=>engine.layout(compact,{width:NaN}));
 assert.throws(()=>engine.layout(compact,{width:100}));
+const dated=engine.parse({...bar,version:1,kind:"bar",categories:Array.from({length:7},(_,index)=>({key:String(index),label:`2026-09-${24+index}`,shortLabel:`09.${24+index}`})),series:[{id:"commits",label:"Commits",values:[0,1,0,20,26,10,40]}],display:{variant:"embedded"}});
+for(const width of [200,280,320,390,720]){
+  const labels=engine.layout(dated,{width}).labels;
+  for(let index=1;index<labels.length;index++)assert(labels[index]!.x-labels[index-1]!.x>=51,"date labels cannot overlap at "+width);
+  assert.equal(labels.at(-1)!.index,6,"latest day stays visible");
+}
 assert.match(renderBarChart(compact),/chart--compact/);
 assert.doesNotMatch(renderBarChart(compact),/data-chart-zoom|chart__bar-value|<details/);
 for(const change of [{display:{legend:"bad"}},{display:{zoom:"no"}},{display:[]},{minimumMaximum:0},{minimumMaximum:Infinity},

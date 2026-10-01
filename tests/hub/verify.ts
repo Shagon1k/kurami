@@ -84,7 +84,7 @@ projects:
   assert.doesNotMatch(page,/Твоя система|Источник ещё не подключён|Это активность в Git/);
   assert.match(page,/manifest.webmanifest/);
   assert.match(page,/class="site-switcher"/);
-  assert.match(page,/href="https:\/\/docs\.shagon1k\.win\/ru\/"[^>]*>Docs<\/a>/);
+  assert.match(page,/href="https:\/\/kurami\.shagon1k\.win\/ru\/docs\/"[^>]*>Docs<\/a>/);
   assert.match(page,/href="\/en\/" aria-label="Переключить на английский" hreflang="en">EN<\/a>/);
   assert.doesNotMatch(page,/class="section links"|aria-label="Ресурсы"/);
   assert.doesNotMatch(page,/\/does\/not\/exist/,"local paths never reach the page");
@@ -104,8 +104,8 @@ projects:
   assert.equal(compactNumber(null),"—");
   assert.match(english,/>63% left<\/strong>/);
   assert.match(english,/href="\/ru\/" aria-label="Switch to Russian" hreflang="ru">RU<\/a>/);
-  assert.match(english,/href="https:\/\/docs\.shagon1k\.win\/en\/"[^>]*>Docs<\/a>/);
-  assert.match(english,/href="https:\/\/hub\.shagon1k\.win\/en\/" aria-current="location">Hub<\/a>/);
+  assert.match(english,/href="https:\/\/kurami\.shagon1k\.win\/en\/docs\/"[^>]*>Docs<\/a>/);
+  assert.match(english,/href="https:\/\/kurami\.shagon1k\.win\/en\/" aria-current="location">Hub<\/a>/);
   assert.doesNotMatch(english,/Обзор|Лимиты|Коммиты|нет данных|Сброс/);
   const hiddenModel=syntheticHubSnapshot();
   hiddenModel.codex.periods![30].modelUsage!.push({...hiddenModel.codex.periods![30].modelUsage![0]!,name:"codex-auto-review"});
