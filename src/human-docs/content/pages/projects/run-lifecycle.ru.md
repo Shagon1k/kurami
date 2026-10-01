@@ -50,6 +50,8 @@ edge stopping -> cancelled "отмена"
 edge stopping -> attn "блок" accent
 ```
 
+Исправления CI и ревью используют точные квитанции потока и хода app-server с подтверждённым выходом процесса. Основные писатели, преемники и сессии до этого выпуска сохраняют наблюдение завершения TUI, лимиты времени и передачу Remote. AI-ревью сохраняет протокол только для чтения. Результаты Git, PR и CI проверяются отдельно от завершения задачи; подробнее: [сессия Codex](@codex-sessions).
+
 ## Три поля
 
 `state` говорит, на каком этапе запуск. `owner_state` говорит, кто сейчас держит задачу Codex: `none` — никто, `cli` — управляемая tmux-сессия Kurami, `remote` — ты в приложении Codex. `stop_reason` — намерение остановки: пусто, `cancelled` (отмена) или `completed` (Done). Отмена сильнее всего: запуск с `stop_reason = cancelled` нельзя оживить ни переносом в Human Review или Done, ни кнопкой Take control. Поэтому причина остановки хранится отдельно от состояния: после сбоя контроллер читает её и продолжает отмену.
@@ -82,7 +84,7 @@ edge stopping -> attn "блок" accent
 | → `starting` | Создание копии: начало | `worktree_provisioning_started` |
 | → `needs_attention` | Создание копии: ошибка git | `worktree_provisioning_failed` |
 | `starting` → `running` | Запуск Codex | `codex_initial_turn_started` |
-| `running` → `parked_review` | Освобождение сессии: ход закончен | `codex_cli_park_completed` |
+| `running` → `parked_review` | Освобождение сессии: ход закончен | `codex_cli_park_completed` / `codex_protocol_park_completed` |
 | `running` → `remote_owned` | Передача управления | `codex_cli_handoff_completed` |
 | `parked_review` → `remote_owned` | Continue in Codex, сессии нет | `remote_claim_completed` |
 | `remote_owned` → `running` | Continue autonomously: свежая задача Codex | `autonomous_successor_claimed` |

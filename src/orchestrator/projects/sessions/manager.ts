@@ -1,3 +1,4 @@
+import { taskForSession } from "../../integrations/codex/task-store.ts";
 import { readFile } from "node:fs/promises";
 import { writeSync } from "node:fs";
 import { resolve } from "node:path";
@@ -90,6 +91,11 @@ async function syncSession(
   registry: ProjectsRegistry,
   apply: boolean,
 ): Promise<void> {
+  const task = taskForSession(database,run.tmux_session_name);
+  if (task) {
+    process.stdout.write(`${JSON.stringify({ok:true,apply,action:task.thread_id ? "protocol_bound" : "protocol_pending",taskId:task.task_id,threadId:task.thread_id,turnId:task.turn_id})}\n`);
+    return;
+  }
   const project = registry.projects[run.project];
   if (!project) fail(`Unknown project in run: ${run.project}`);
   if (!run.tmux_session_name || !tmuxSessionExists(run.tmux_session_name)) {
@@ -803,6 +809,7 @@ function recoverManagedReviewFixTask(
       operationChanged.changes !== 1
     )
       fail("Managed review-fix recovery state changed during claim");
+    database.prepare("UPDATE run_codex_tasks SET released_at=strftime('%Y-%m-%dT%H:%M:%fZ','now') WHERE run_id=? AND session_name=? AND stopped_at IS NOT NULL AND released_at IS NULL").run(run.run_id,operation.tmux_session_name);
     appendHistory(
       database,
       run.run_id,

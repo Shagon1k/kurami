@@ -1,0 +1,178 @@
+# Managed Codex protocol lifecycle
+
+This partial release enables private stdio app-server execution only for CI repair and review fix.
+Primary writers, successors, human-control and legacy sessions retain their existing TUI path. tmux remains a process supervisor. It has no authority
+to declare a protocol turn complete. Structured AI review retains its read-only protocol
+path, output schema, GitHub App separation and exact-SHA publication checks, and now persists
+the returned turn identity and terminal status as well.
+
+## Verified protocol baseline
+
+Inspection used the installed `codex-cli 0.159.3`, without connecting to its existing daemon.
+Both stable and experimental TypeScript bindings were generated in disposable directories:
+
+```sh
+codex app-server generate-ts --out /tmp/kurami-codex-stable
+codex app-server generate-ts --out /tmp/kurami-codex-protocol --experimental
+```
+
+The consumed contract is `initialize` → `initialized` → `thread/start` →
+`thread/name/set` → `turn/start`, followed by exact `turn/completed` notifications.
+Cancellation uses `turn/interrupt`. Recovery uses `thread/read` without resuming.
+The worker explicitly opts into `experimentalApi` for `historyMode: "legacy"`, so stored
+turns can be read without paginated-history APIs. Incompatible versions fail closed;
+they do not fall back to terminal completion parsing.
+
+The installed bindings define terminal statuses as `completed`, `failed` and
+`interrupted`. Errors expose `codexErrorInfo`, including usage limits and variants with
+HTTP status codes. Permission requests use an empty permission grant with turn scope.
+Unrecognised interactive requests receive an error and stop the task.
+
+Official documentation consulted:
+
+- [App-server protocol](https://learn.chatgpt.com/docs/app-server):
+  lifecycle, exact identities, stored reads, interruption, permissions and transport.
+- [Codex app-server authentication integration](https://developers.openai.com/siwc/token-sharing-open-source/codex-app-server):
+  initialization and terminal status handling.
+- [Remote engineering workflows](https://developers.openai.com/blog/mastering-codex-remote-for-engineering):
+  paired hosts, steering and ownership from the mobile application.
+
+These sources describe experimental interfaces. Installed-binding inspection and the real
+local smoke test establish this implementation's baseline, not production or mobile compatibility.
+
+## Durable boundaries
+
+`run_codex_tasks` stores the task/run/context identity, exact supervisor, frozen working copy
+and branch, thread, turn, terminal status, failure code, stop intent and acknowledged process
+exit. A unique unreleased-task constraint prevents a second managed writer for the same run.
+`run_codex_task_events` stores the first exact terminal receipt, without prose or tool payloads.
+
+Thread and turn IDs come from their corresponding start replies, rather than a newest-thread
+search by directory. A notification arriving before the turn-start reply is buffered, then checked
+against the persisted identity. Duplicate and conflicting terminal notifications cannot change
+the first receipt. Old-thread, old-turn, changed-resource, Remote-owner and released-task events
+have no authority.
+
+The worker runs inside the exact linked worktree with workspace-write, its isolated and common
+Git directories, network access and the existing auto-review setting. Its environment strips
+unrelated secrets and reviewer App credentials; only the writer token is retained intentionally.
+The launcher still validates private credential-file permissions. The model does not receive
+writable access to the controller's database or prompt directory.
+
+A completed turn and acknowledged child-process exit permit parking. They do not establish
+a commit, push, delivered PR, passed CI or resolved review thread. Existing outcome checks
+continue to use the exact resulting SHA and original evidence snapshots. Undelivered review-fix
+work keeps its task mapping and writer fence for explicit recovery after delivery.
+
+Controller restarts reuse persisted receipts. Missing workers trigger read-only recovery of
+the exact known turn. A recovered terminal event without an exit acknowledgement remains
+`needs_attention` with its writer fence intact. A lost start reply is never retried. Unknown
+dispatch or process state requires operator recovery; this implementation does not automatically
+resume a crashed writer.
+
+Cancellation and runtime expiry ask the worker to interrupt its exact turn and acknowledge
+process exit. Failed acknowledgement blocks release. Runtime expiry, external billing/usage
+blocks, rate limits, permission denial, interruption and protocol disconnect remain distinct
+failure codes. The TUI main-writer default remains 240 minutes. The technical-worker default remains 90 minutes and is passed to the protocol worker.
+
+## Remote migration blocker
+
+The installed CLI exposes `remote-control`, daemon management, `app-server proxy` and a
+remote terminal client. Their availability does not prove that a thread from an isolated stdio
+app-server can be transferred into an already paired mobile Remote host while preserving
+process, credential and ownership boundaries.
+
+No public transfer RPC was found in the generated bindings. This task did not start, stop,
+pair with, enable or inspect the production daemon or running sessions. Mobile visibility
+and same-thread ownership transfer therefore remain unverified, rather than being reported
+as implemented or as definitively impossible upstream.
+
+Take control and Continue in Codex remain present. Existing human-control CLI handoff stays
+available. For a protocol-created thread, live handoff and parked Remote claim fail explicitly
+with `protocol_remote_handoff_unverified`, preserve ownership and record a failed control request.
+They do not silently assign `remote` or leave an unsupported request blocking subsequent parking.
+
+Continue autonomously from an existing Remote-owned run remains a fresh successor, requiring
+the owner's explicit finished-task confirmation. It never resumes or sends input to the predecessor.
+Primary autonomous writers and fresh successors remain on the existing TUI path. Legacy sessions receive no inferred protocol identity and keep terminal completion observation, runtime limits and all existing handoff controls. The guarded TUI parser accepts both `·` and `•` completion-footer separators and rejects busy or approval-blocked tails.
+Migration does not backfill or mutate existing production sessions.
+
+A complete interactive migration needs an isolated, authenticated Remote-host integration test:
+prove same-thread visibility, interrupt acknowledgement, sole writer ownership, credential
+containment and restart behavior before replacing the human-control CLI route.
+
+## Verification
+
+`npm run test:codex-protocol` runs fault fixtures and launcher-to-worker lifecycle integration.
+It covers exact completion, early events, stale identities, duplicates/conflicts, failure,
+approval/permissions/unknown requests, disconnect, lost acknowledgement, cancellation, timeout,
+restart, changed ownership and independent CI outcome checks.
+
+`npm run test:codex-protocol-smoke` starts the real installed binary with a temporary Codex home,
+a localhost Responses provider and a disposable linked Git worktree. It completes a turn,
+reads its history and replays the receipt. It uses no account credentials, GitHub remote or
+GitHub writes, and verifies a clean working copy. It is intentionally separate from the full
+regression suite because it requires an installed Codex binary.
+
+The historical `Worked for 50s • 09:50` footer is covered by the legacy completion regression. It has no authority for protocol tasks.
+
+The matching English/Russian human pages are `codex-sessions`, `run-lifecycle` and
+`human-control`. No UI components were changed. No production Run Store migration or release
+operation was performed.
+
+## Guarded PF33 legacy recovery
+
+Read-only inspection on 2026-10-01 found run `r_367ac0dcb458a2f56692` stopped under
+`ci_repair_runtime_budget_exceeded`. Attempt `cra_51fbd62d584245b6a7cf58862dacd015`
+started at `2026-10-01T09:49:49.241Z`; the preserved timeout transcript reports
+`Worked for 50s • 09:50`, an unchanged worktree and no repair or CI retry. Its actual
+block is GitHub account billing or spending limit, not Codex usage billing.
+The worktree was clean, and local HEAD, remote-tracking branch and PR #156 all named
+`b56b7ce2a7261677d5484e83f0f3eed33a1968f0`.
+
+The existing `recover_managed_task` control recovers delivered review fixes only.
+This incident instead uses an explicit, incident-specific CLI. After deployment, first
+refresh the normal read-only CI observation. Quiesce controller/launch activity while
+checking and applying recovery; the apply transaction fences controller DB claims,
+and local process inspection refuses live writers. Do not launch another writer concurrently.
+Run the following preview against the operator's configured Kurami home:
+
+```sh
+KURAMI_HOME="$KURAMI_HOME" node src/orchestrator/projects/sessions/recover-legacy-ci-timeout.ts --run-id r_367ac0dcb458a2f56692
+```
+
+Only after the preview succeeds and the owner approves incident recovery, apply the same guard:
+
+```sh
+KURAMI_HOME="$KURAMI_HOME" node src/orchestrator/projects/sessions/recover-legacy-ci-timeout.ts --run-id r_367ac0dcb458a2f56692 --apply
+```
+
+The guard pins the run, issue, original request/attempt, both original thread IDs, branch,
+source SHA, PR number and URL. It requires a provisioned live-mode run with owner `none`,
+no stop intent or supervisor mapping, no pending control or active worker, and no protocol
+task for that run. The latest attention event must be the original CI-repair timeout with
+its exact runtime identity and transcript path. The original transcript must match SHA-256
+`f9201478d3886897e758fbd0e780aa6c53c74708f56228aff1ae657b86c93741`
+and contain guarded completion, without an active or approval prompt. The exact canonical
+linked worktree must be clean, on the original branch, with both HEAD and remote-tracking
+HEAD still at the source SHA. A successful normal CI observation no older than two minutes
+must retain the original PR/source SHA and failed CI. The original tmux supervisor must be
+absent and no local Codex/app-server writer may use the worktree. Missing process evidence
+also refuses recovery.
+
+Apply changes only the run to `parked_review`, the preserved attempt's failure classification
+to `legacy_ci_repair_completed_billing_block`, and appends the recovery evidence to history.
+The attempt remains `needs_attention`; the source SHA, result SHA (null), snapshots, task
+thread and predecessor stay unchanged. The billing blocker remains unresolved. Automatic cleanup refuses this classification, so recovery cannot silently restore the
+primary thread or make another repair eligible. Existing explicit `cleanup-repair` remains
+available after a separate owner decision; it archives the technical thread and restores
+the predecessor through the existing path. Until then, Take control retains its existing
+`ci_repair_cleanup_pending` prerequisite. No writer, CI rerun, archive,
+thread resume, repair retry or GitHub write occurs. Other attention reasons are refused.
+A second apply is refused because the timeout fence no longer matches.
+
+`npm run test:legacy-ci-timeout-recovery` verifies preview immutability, apply behavior,
+identity preservation and refusals for cancellation, Remote ownership, other attention reasons,
+changed task/source/PR identity, stale CI, competing controls, dirt, changed remote HEAD,
+changed transcript, live supervisor and a live detached writer. This preparation did not run
+preview/apply against the production store and performed no live recovery.

@@ -1,3 +1,4 @@
+import { claimProtocolTask, taskForSession } from "../../integrations/codex/task-store.ts";
 import { reviewContextMatches } from "../../controls/ai-review.ts";
 import { mkdir, realpath, stat, writeFile } from "node:fs/promises";
 import { writeSync } from "node:fs";
@@ -308,6 +309,7 @@ function claimSession(
   database.exec("BEGIN IMMEDIATE");
   try {
     const current = loadRun(database, run.run_id);
+    if (current.owner_state === "remote") fail("Remote ownership changed before start claim");
     if (
       current.run_state !== "starting" ||
       current.owner_state !== "none" ||
@@ -673,6 +675,7 @@ function recordStartFailure(
   database.exec("BEGIN IMMEDIATE");
   try {
     const current = loadRun(database, run.run_id);
+    if (current.owner_state === "remote") fail("Remote ownership changed; start failure cannot seize it");
     database
       .prepare(
         `
@@ -738,11 +741,12 @@ function recordStartFailure(
   }
 }
 
-async function launchManagedTmux(run: SessionRun, plan: StartPlan): Promise<void> {
+async function launchManagedTmux(run: SessionRun, plan: StartPlan, taskId: string | null, timeoutMs: number, onDispatch: () => void): Promise<void> {
   const promptDirectory = resolve(orchestratorHome, "state/session-prompts");
   const promptPath = resolve(promptDirectory, `${run.run_id}-${Date.now()}.b64`);
   await mkdir(promptDirectory, { recursive: true, mode: 0o700 });
   await writeFile(promptPath, Buffer.from(plan.initialPrompt, "utf8").toString("base64"), { mode: 0o600, flag: "wx" });
+  onDispatch();
   runFile("tmux", [
     "new-session",
     "-d",
@@ -766,10 +770,11 @@ async function launchManagedTmux(run: SessionRun, plan: StartPlan): Promise<void
     `HERMES_INITIAL_PROMPT_FILE=${promptPath}`,
     "-e",
     `CODEX_BIN=${plan.codexBin}`,
+    ...(taskId ? ["-e", `HERMES_CODEX_TASK_ID=${taskId}`, "-e", `HERMES_CODEX_TASK_OPTIONS=${JSON.stringify({ title:plan.codexTitle, timeoutMs })}`] : []),
     plan.launcherPath,
   ]);
   await new Promise((resolveDelay) => setTimeout(resolveDelay, 1_000));
-  if (!tmuxSessionExists(plan.tmuxSessionName)) {
+  if (!taskId && !tmuxSessionExists(plan.tmuxSessionName)) {
     fail(`tmux session exited during startup: ${plan.tmuxSessionName}`);
   }
 }
@@ -828,12 +833,29 @@ export async function startSession(
       config.limits.max_tmux_sessions_global,
     );
   else claimSession(database, run, plan, config.limits.max_tmux_sessions_global);
+  let dispatchAttempted = false;
   try {
-    await launchManagedTmux(run, plan);
     if (plan.repair) recordRepairStarted(database, run, plan);
     else if (plan.reviewFix) recordReviewFixStarted(database, run, plan);
-    else recordStarted(database, run, plan);
+    const protocol = Boolean(plan.repair || plan.reviewFix);
+    const taskId = protocol ? claimProtocolTask(database,run.run_id,plan.tmuxSessionName,
+      plan.repair ? "ci_repair" : "review_fix",
+      plan.repair?.attemptId ?? plan.reviewFix?.roundId ?? run.run_id) : null;
+    await launchManagedTmux(run, plan, taskId, 60_000 * (plan.repair || plan.reviewFix ? config.limits.technical_worker_timeout_minutes ?? 90 : config.limits.main_writer_timeout_minutes ?? 240), () => { dispatchAttempted = true; });
+    if (!taskId) recordStarted(database, run, plan);
+    if (taskId && !tmuxSessionExists(plan.tmuxSessionName) && !taskForSession(database,plan.tmuxSessionName)?.stopped_at)
+      fail("Protocol worker exited without a stop receipt");
   } catch (error) {
+    const task = taskForSession(database,plan.tmuxSessionName);
+    if (task && !dispatchAttempted) {
+      database.prepare("UPDATE run_codex_tasks SET stopped_at=strftime('%Y-%m-%dT%H:%M:%fZ','now'),released_at=strftime('%Y-%m-%dT%H:%M:%fZ','now'),failure_code='protocol_launch_failed' WHERE task_id=?").run(task.task_id);
+      recordStartFailure(database,run,plan,error);
+      throw error;
+    }
+    if (task) {
+      database.prepare("UPDATE runs SET state='needs_attention' WHERE run_id=? AND owner_state='cli'").run(run.run_id);
+      throw error;
+    }
     if (tmuxSessionExists(plan.tmuxSessionName))
       killTmuxSession(plan.tmuxSessionName);
     recordStartFailure(database, run, plan, error);

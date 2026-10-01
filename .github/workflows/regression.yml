@@ -12,6 +12,11 @@ jobs:
   test:
     runs-on: ubuntu-24.04
     timeout-minutes: 20
+    env:
+      GIT_AUTHOR_NAME: Kurami CI
+      GIT_AUTHOR_EMAIL: ci@example.invalid
+      GIT_COMMITTER_NAME: Kurami CI
+      GIT_COMMITTER_EMAIL: ci@example.invalid
     steps:
       - uses: actions/checkout@v7
         with:
@@ -24,4 +29,9 @@ jobs:
       - run: npm ci
       - if: github.event_name == 'pull_request'
         run: node tests/human-docs/impact.ts
+      - name: Start disposable tmux supervisor
+        run: tmux new-session -d -s ci-supervisor
       - run: npm test
+      - name: Remove disposable tmux supervisor
+        if: always()
+        run: tmux kill-session -t '=ci-supervisor' || true

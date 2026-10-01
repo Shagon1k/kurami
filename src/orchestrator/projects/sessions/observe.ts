@@ -1,3 +1,4 @@
+import { taskForSession } from "../../integrations/codex/task-store.ts";
 import { spawnSync } from "node:child_process";
 import { resolve } from "node:path";
 import { resolveKuramiHome } from "../../../core/kurami-home.ts";
@@ -115,7 +116,10 @@ export function classifyTranscript(transcript: string): string | null {
   return null;
 }
 
-function classify(run: ActiveRun): string | null {
+function classify(run: ActiveRun, database: DatabaseSync): string | null {
+  const task = taskForSession(database,run.tmux_session_name);
+  if (task) return task.failure_code;
+
   if (run.owner_state !== "cli") return null;
   if (!run.tmux_session_name) return "managed_session_missing";
   const capture = tmuxCapture(run.tmux_session_name);
@@ -271,8 +275,8 @@ export function runSessionObserverCli(): void {
     database.exec("BEGIN IMMEDIATE");
     try {
       for (const run of runs) {
-        const kind = classify(run);
-        recoverClearedApprovalBlock(database, run, kind);
+        const kind = classify(run,database);
+        if (!taskForSession(database,run.tmux_session_name)) recoverClearedApprovalBlock(database, run, kind);
         const previous = database
           .prepare(
             `

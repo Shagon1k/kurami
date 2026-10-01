@@ -60,6 +60,11 @@ if [[ "${canonical_repository}" == *'"'* || "${canonical_repository}" == *'\\'* 
 fi
 trust_override="projects.\"${canonical_repository}\".trust_level=\"trusted\""
 
+# CI repair and review fix use protocol events; tmux supervises these workers.
+if [[ -n "${HERMES_CODEX_TASK_ID:-}" ]]; then
+  exec node "$(dirname -- "$(realpath -- "$0")")/../src/orchestrator/integrations/codex/managed-worker.ts"
+fi
+
 cd -- "${HERMES_WORKTREE_PATH}"
 if [[ -n "${HERMES_INITIAL_PROMPT_FILE:-}" ]]; then
   [[ -f "${HERMES_INITIAL_PROMPT_FILE}" ]] || { printf 'Initial prompt file not found\n' >&2; exit 1; }

@@ -1,10 +1,12 @@
+import { transcriptHasCompletedTurn } from "../../runtime/codex-terminal.ts";
 import { spawnSync } from "node:child_process";
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { resolve } from "node:path";
 import { resolveKuramiHome } from "../../../core/kurami-home.ts";
 import { DatabaseSync } from "node:sqlite";
 import { parse } from "yaml";
-import { transcriptHasCompletedTurn } from "../../runtime/codex-terminal.ts";
+import { taskForSession, markTaskFailure } from "../../integrations/codex/task-store.ts";
+import { stopProtocolTask, releaseProtocolTask } from "./protocol-session.ts";
 
 process.umask(0o077);
 
@@ -422,6 +424,15 @@ async function applyPlan(
   database: DatabaseSync,
   plan: RuntimeBudgetPlan,
 ): Promise<object> {
+  const task = taskForSession(database,plan.tmuxSessionName);
+  if (task) {
+    if (task.turn_status || task.failure_code)
+      return {...plan,action:"protocol_terminal_deferred_to_controller"};
+    const stopped = await stopProtocolTask(database,task,"timeout");
+    markTaskFailure(database,task.task_id,"runtime_budget_exceeded");
+    releaseProtocolTask(database,taskForSession(database,task.session_name)!,"needs_attention",`${plan.kind}_runtime_budget_exceeded`);
+    return {...plan,action:"protocol_runtime_stopped_needs_attention",turnId:stopped.turn_id};
+  }
   // The controller owns normal terminal completion. Never let a timeout race
   // reclassify a finished main writer as an attention incident.
   if (plan.kind === "main_writer" && tmuxExists(plan.tmuxSessionName)) {

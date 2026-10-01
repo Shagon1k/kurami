@@ -9,6 +9,8 @@ export const reviewFixUncommittedChangesReason =
 export const managedRecoveryCiMaxAgeMs = 2 * 60 * 1_000;
 
 export type ManagedReviewFixRecoverySnapshot = {
+  protocolCompleted?: number;
+  protocolPresent?: number;
   runId: string;
   repository: string;
   runState: string;
@@ -66,9 +68,19 @@ export function loadManagedReviewFixRecoverySnapshot(
   runId: string,
   ignoredRequestId: string | null = null,
 ): ManagedReviewFixRecoverySnapshot | null {
+  const hasProtocolStore = Boolean(database.prepare("SELECT 1 FROM sqlite_master WHERE name='run_codex_tasks'").get());
+  const protocolSelect = hasProtocolStore
+    ? `EXISTS(SELECT 1 FROM run_codex_tasks ct WHERE ct.run_id=r.run_id
+                AND ct.kind='review_fix' AND ct.context_id=f.round_id
+                AND ct.session_name=rr.tmux_session_name AND ct.thread_id=f.codex_thread_id
+                AND ct.worktree_path=rr.worktree_path AND ct.branch_name=rr.branch_name
+                AND ct.turn_id IS NOT NULL AND ct.turn_status='completed' AND ct.failure_code IS NULL
+                AND ct.stopped_at IS NOT NULL AND ct.released_at IS NULL)` : "0";
   const row = database
     .prepare(
-      `SELECT r.run_id AS runId, r.repository,
+      `SELECT ${protocolSelect} AS protocolCompleted,
+              ${hasProtocolStore ? "EXISTS(SELECT 1 FROM run_codex_tasks ct WHERE ct.run_id=r.run_id AND ct.session_name=rr.tmux_session_name)" : "0"} AS protocolPresent,
+              r.run_id AS runId, r.repository,
               r.state AS runState, r.owner_state AS ownerState,
               r.stop_reason AS stopReason, r.execution_mode AS executionMode,
               rr.resource_state AS resourceState,
@@ -297,51 +309,55 @@ export function inspectManagedReviewFixRecovery(
     now - observedAt > managedRecoveryCiMaxAgeMs
   )
     return reject("ci_observation_not_fresh");
-  if (
-    !run.tmuxSessionName ||
-    !/^cx-[a-z0-9-]+$/u.test(run.tmuxSessionName) ||
-    !command("tmux", ["has-session", "-t", `=${run.tmuxSessionName}`]).ok
-  )
-    return reject("managed_session_dead_or_invalid");
-  const sessionRunId = command("tmux", [
-    "show-environment",
-    "-t",
-    `=${run.tmuxSessionName}`,
-    "HERMES_RUN_ID",
-  ]);
-  const sessionWorktree = command("tmux", [
-    "show-environment",
-    "-t",
-    `=${run.tmuxSessionName}`,
-    "HERMES_WORKTREE_PATH",
-  ]);
-  if (
-    !sessionRunId.ok ||
-    sessionRunId.stdout !== `HERMES_RUN_ID=${run.runId}` ||
-    !sessionWorktree.ok ||
-    sessionWorktree.stdout !== `HERMES_WORKTREE_PATH=${worktreePath}`
-  )
-    return reject("managed_session_identity_ambiguous");
-  const panePath = command("tmux", [
-    "display-message",
-    "-p",
-    "-t",
-    `${run.tmuxSessionName}:0.0`,
-    "#{pane_current_path}",
-  ]);
-  if (!panePath.ok || resolve(panePath.stdout) !== worktreePath)
-    return reject("managed_session_worktree_ambiguous");
-  const transcript = command("tmux", [
-    "capture-pane",
-    "-p",
-    "-J",
-    "-t",
-    `${run.tmuxSessionName}:0.0`,
-    "-S",
-    "-200",
-  ]);
-  if (!transcript.ok || !transcriptHasCompletedTurn(transcript.stdout))
-    return reject("managed_session_not_terminal_or_approval_blocked");
+  if (run.protocolPresent) {
+    if (!run.protocolCompleted) return reject("managed_task_has_no_exact_protocol_completion");
+  } else {
+    if (
+      !run.tmuxSessionName ||
+      !/^cx-[a-z0-9-]+$/u.test(run.tmuxSessionName) ||
+      !command("tmux", ["has-session", "-t", `=${run.tmuxSessionName}`]).ok
+    )
+      return reject("managed_session_dead_or_invalid");
+    const sessionRunId = command("tmux", [
+      "show-environment",
+      "-t",
+      `=${run.tmuxSessionName}`,
+      "HERMES_RUN_ID",
+    ]);
+    const sessionWorktree = command("tmux", [
+      "show-environment",
+      "-t",
+      `=${run.tmuxSessionName}`,
+      "HERMES_WORKTREE_PATH",
+    ]);
+    if (
+      !sessionRunId.ok ||
+      sessionRunId.stdout !== `HERMES_RUN_ID=${run.runId}` ||
+      !sessionWorktree.ok ||
+      sessionWorktree.stdout !== `HERMES_WORKTREE_PATH=${worktreePath}`
+    )
+      return reject("managed_session_identity_ambiguous");
+    const panePath = command("tmux", [
+      "display-message",
+      "-p",
+      "-t",
+      `${run.tmuxSessionName}:0.0`,
+      "#{pane_current_path}",
+    ]);
+    if (!panePath.ok || resolve(panePath.stdout) !== worktreePath)
+      return reject("managed_session_worktree_ambiguous");
+    const transcript = command("tmux", [
+      "capture-pane",
+      "-p",
+      "-J",
+      "-t",
+      `${run.tmuxSessionName}:0.0`,
+      "-S",
+      "-200",
+    ]);
+    if (!transcript.ok || !transcriptHasCompletedTurn(transcript.stdout))
+      return reject("managed_session_not_terminal_or_approval_blocked");
+  }
   return {
     eligible: true,
     roundId: run.roundId,

@@ -14,7 +14,7 @@ export function ensureControlEvents(database: DatabaseSync): void {
     SELECT 'ce_' || r.run_id || '_review_' || COALESCE((
              SELECT MAX(h.sequence) FROM run_state_history h
              WHERE h.run_id = r.run_id
-               AND h.reason = 'codex_cli_park_completed'
+               AND h.reason IN ('codex_cli_park_completed','codex_protocol_park_completed')
            ), 0),
            r.run_id, 'review_ready',
            json_object('project', r.project, 'issueNumber', r.issue_number)

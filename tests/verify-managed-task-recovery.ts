@@ -135,6 +135,9 @@ async function main(): Promise<void> {
         'https://github.com/Shagon1k/TailorTales/pull/601','${sourceHead}',
         '[{"threadId":"preserved-thread"}]','01a-review-fix-recovery',
         'review_fix_uncommitted_changes',strftime('%Y-%m-%dT%H:%M:%fZ','now'));
+      INSERT INTO run_codex_tasks(task_id,run_id,kind,context_id,session_name,thread_id,turn_id,phase,turn_status,stopped_at,worktree_path,branch_name)
+      VALUES ('task-recovery','r_managed_recovery','review_fix','rfr_managed501','cx-tt-501-recovery',
+        '01a-review-fix-recovery','turn-recovery','terminal','completed','2026-09-06T10:00:00Z','placeholder','${branch}');
       INSERT INTO run_ci_snapshots (
         run_id, repository, pull_request_number, pull_request_url,
         pull_request_title, head_sha, aggregate_state, checks_json,
@@ -165,6 +168,8 @@ async function main(): Promise<void> {
         `UPDATE run_resources SET worktree_path=? WHERE run_id='r_managed_recovery'`,
       )
       .run(worktree);
+    database.prepare("UPDATE run_codex_tasks SET worktree_path=? WHERE task_id='task-recovery'").run(worktree);
+    if (process.argv[2] === "legacy") database.exec("DELETE FROM run_codex_tasks");
     database.close();
 
     const fakeBin = resolve(home, "fake-bin");
@@ -321,17 +326,24 @@ esac
     await writeFile(resolve(worktree, "dirty.txt"), "post-commit dirt\n");
     assertRefused("Dirty post-commit worktree");
     await rm(resolve(worktree, "dirty.txt"));
-    assertRefused("Approval-blocked session", {
-      ...baseEnv,
-      FAKE_TMUX_MODE: "approval",
-    });
+    if (process.argv[2] === "legacy") {
+    assertRefused("Approval-blocked session", {...baseEnv,FAKE_TMUX_MODE:"approval"});
     await rm(tmuxState);
     assertRefused("Dead session");
-    await writeFile(tmuxState, "alive\n");
-    assertRefused("Ambiguous session identity", {
-      ...baseEnv,
-      FAKE_SESSION_RUN_ID: "r_other_run",
-    });
+    await writeFile(tmuxState,"alive\n");
+    assertRefused("Ambiguous session identity", {...baseEnv,FAKE_SESSION_RUN_ID:"r_other_run"});
+    } else {
+    const protocolRefusal = new DatabaseSync(resolve(home,"state/orchestrator.db"));
+    protocolRefusal.exec("UPDATE run_codex_tasks SET failure_code='permission_request_denied'");
+    assertRefused("Approval-blocked protocol task");
+    protocolRefusal.exec("UPDATE run_codex_tasks SET failure_code=NULL,stopped_at=NULL");
+    assertRefused("Unacknowledged process stop");
+    protocolRefusal.exec("UPDATE run_codex_tasks SET stopped_at='2026-09-06T10:00:00Z',turn_id=NULL,turn_status=NULL");
+    assertRefused("Missing exact turn identity");
+    protocolRefusal.exec("UPDATE run_codex_tasks SET turn_id='turn-recovery',turn_status='completed'");
+    protocolRefusal.close();
+
+    }
 
     const ambiguousDb = new DatabaseSync(resolve(home, "state/orchestrator.db"));
     ambiguousDb.exec(`
@@ -591,8 +603,8 @@ esac
           "unknown_ci",
           "dirty_worktree",
           "approval_blocker",
-          "dead_session",
-          "ambiguous_session",
+          "unacknowledged_stop",
+          "missing_turn_identity",
           "ambiguous_task",
         ],
       })}\n`,
@@ -602,7 +614,9 @@ esac
   }
 }
 
-main().catch((error: unknown) => {
+if (!process.argv[2]) {
+  for (const mode of ["legacy","protocol"]) execFileSync(process.execPath,[import.meta.filename,mode],{stdio:"inherit",env:process.env});
+} else main().catch((error: unknown) => {
   const message = error instanceof Error ? error.message : String(error);
   process.stderr.write(`${JSON.stringify({ ok: false, error: message })}\n`);
   process.exitCode = 1;

@@ -10,6 +10,8 @@ next: previews
 
 Human control is the run state in which you drive the task in the Codex app and Kurami does not write to its thread. Two paths lead there: the `human-control` label on the issue before the start, and the **Take control** button while Codex works.
 
+Primary autonomous writers, fresh successors and human-control sessions keep their TUI handoff and Remote controls. CI repair and review fix use private app-server workers; their technical threads report `protocol_remote_handoff_unverified` if you request Remote ownership. The main thread remains preserved for the existing cleanup path. See [Codex session](@codex-sessions).
+
 ## The human-control label
 
 The `human-control` label sends a run into human control right after preparation. Kurami reads an issue's labels once, when it admits the issue, so add the label before you move the card to In progress. A label added later does not change a run that is already going.

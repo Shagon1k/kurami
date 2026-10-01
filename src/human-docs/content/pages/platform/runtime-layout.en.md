@@ -154,3 +154,8 @@ GitHub Actions runs types, the documentation-impact declaration check and the fu
 - `run-project-poller.sh` — an example of poll locks and the shared consumer
 - `.github/workflows/regression.yml` — checks on every PR
 :::
+
+
+## Technical Codex worker lifecycle
+
+CI repair and review fix use a private Codex app-server worker. The launcher retains tmux as a process supervisor, but completion comes from the exact persisted thread and turn event, not terminal screen text. The primary writer and Remote handoff retain their existing TUI route. Stop, timeout and initialization failures preserve task identity and require acknowledged process exit before ownership is released.
