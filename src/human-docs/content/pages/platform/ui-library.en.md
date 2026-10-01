@@ -47,6 +47,8 @@ switch has the same square shape as the theme switch. Badges identify task statu
 and Suggested next. In parameter/value rows, Projects shows colored text for
 CI, review, preview and sync freshness, without a border or background. The value
 still names the result independently of its color.
+Published Digest editions receive current shared control styles when served,
+so an older edition uses the same sizes as a new page.
 
 ## Layers
 

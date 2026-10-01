@@ -213,6 +213,12 @@
       "en": "The bilingual docs explain Projects controls, shared compact components and text check results while preserving the published docs structure.",
       "ru": "Документация на двух языках описывает управление через Projects, компактные общие элементы и текстовые результаты проверок, сохраняя опубликованную структуру страниц.",
       "page": "ui-library"
+    },
+    "8a782ccaa0092a5ee8dd473bf32a4f87aebde1f4": {
+      "category": "improved",
+      "en": "The generated database reference describes durable Projects action and status requests and the commit context used by the shared queue.",
+      "ru": "Справочник базы описывает устойчивые запросы действий и статусов Projects и контекст коммита в общей очереди.",
+      "page": "data-stores"
     }
   }
 }

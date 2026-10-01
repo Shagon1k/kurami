@@ -4,7 +4,8 @@ import {renderThemeSwitch} from "../../../ui-library/components/theme-switch.ts"
 import {THEME_SWITCH_CSS} from "../../../ui-library/components/theme-switch.ts";
 import {THEME_CSS} from "../../../ui-library/themes/index.ts";
 import {FOUNDATION_CSS} from "../../../ui-library/foundations/index.ts";
-import {renderLinkButton} from "../../../ui-library/components/button.ts";
+import {BUTTON_CSS,renderLinkButton} from "../../../ui-library/components/button.ts";
+import {FORM_CSS} from "../../../ui-library/components/form.ts";
 import {digestLanguage,digestPath,digestText,localizeDigestLinks,type DigestLanguage} from "../../i18n.ts";
 
 export type SiteSection="daily"|"cinema"|"weekly"|"stocks";
@@ -41,19 +42,26 @@ export function renderSiteHeader(input:{section:SiteSection;label?:string;date?:
     actions:renderLinkButton({label:other.toUpperCase(),href:digestPath(relative,other),variant:"icon",ariaLabel:digestText("Переключить на английский","Switch to Russian"),attributes:{hreflang:other}})+renderThemeSwitch(lang),
   });
 }
+/** Refresh shared controls on frozen editions without changing their content. */
+function refreshHeaderStyles(html:string):string {
+  const styles=[THEME_CSS,BUTTON_CSS,FORM_CSS,SITE_HEADER_CSS,THEME_SWITCH_CSS];
+  if(styles.every(style=>html.includes(style)))return html;
+  const updated=html.replace(/<style data-site-header-runtime>[\s\S]*?<\/style>/i,"");
+  return updated.replace(/<\/head>/i,`<style data-site-header-runtime>${styles.join("\n")}</style></head>`);
+}
 /** Availability is injected at request time, never frozen into a Daily snapshot. */
 export function injectSiteNavigation(html:string,links:readonly SiteLink[],current:SiteSection,path?:string):string {
   const updated=html.replace(/<nav[^>]*data-site-navigation[^>]*>[\s\S]*?<\/nav>/i,()=>renderSiteNavigation(links,current));
   const legacyHeader=updated.match(/<header class="utility-header"[^>]*>[\s\S]*?<\/header>/i);
   if(legacyHeader){
     const meta=legacyHeader[0].match(/<time class="utility-meta" datetime="(\d{4}-\d{2}-\d{2})">([^<]*)<\/time>/i);
-    return localizeDigestLinks(updated
+    return refreshHeaderStyles(localizeDigestLinks(updated
       .replace(legacyHeader[0],renderSiteHeader({section:current,date:meta?.[1],dateLabel:meta?.[2],links,path}))
-      .replace(/<\/head>/i,`<style>${THEME_CSS}${FOUNDATION_CSS}:root { --container-max: 1320px; }${SITE_HEADER_CSS}${THEME_SWITCH_CSS}</style></head>`));
+      .replace(/<\/head>/i,`<style>${FOUNDATION_CSS}:root { --container-max: 1320px; }</style></head>`)));
   }
   const currentHeader=updated.match(/<header class="site-header"[^>]*>[\s\S]*?<\/header>/i);
   if(!currentHeader)return localizeDigestLinks(updated);
   const meta=currentHeader[0].match(/<time class="site-brand__meta" datetime="(\d{4}-\d{2}-\d{2})">([^<]*)<\/time>/i);
   const refreshed=updated.replace(currentHeader[0],renderSiteHeader({section:current,date:meta?.[1],dateLabel:meta?.[2],links,path}));
-  return localizeDigestLinks(currentHeader[0].includes('class="site-switcher"')?refreshed:refreshed.replace(/<\/head>/i,`<style>${SITE_HEADER_CSS}</style></head>`));
+  return refreshHeaderStyles(localizeDigestLinks(refreshed));
 }
