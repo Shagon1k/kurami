@@ -4,9 +4,10 @@
 import {spawnSync} from "node:child_process";
 import {cpSync,existsSync,mkdirSync,mkdtempSync,readFileSync,renameSync,rmSync,statSync,writeFileSync} from "node:fs";
 import {tmpdir} from "node:os";
-import {dirname,resolve} from "node:path";
+import {basename,dirname,resolve} from "node:path";
 import {changedPages,disallowedPaths,parseSummary,type PageChange,type ProposalSummary} from "./policy.ts";
 import {docsStateDir,kuramiHome,ProposalStore,type ProposalRow} from "./store.ts";
+import {pruneReleaseCopies} from "./releases.ts";
 import {ownerId} from "./discord.ts";
 import {surfaceFor,type Surface} from "./surface.ts";
 
@@ -338,6 +339,8 @@ export async function releaseDocs(config:WorkerConfig,mergedSha:string):Promise<
       run(config.systemctl,["--user","restart",config.service],{timeoutMs:60_000,allowFailure:true});
       throw new Error(`${error instanceof Error?error.message:String(error)}; the previous release was restored`);
     }
+    // Older copies are only space: any of them can be rebuilt from its docs revision.
+    try{pruneReleaseCopies(config.releaseRoot,{keep:3,now:config.now().getTime(),protect:[basename(rollback)]});}catch{/* next release retries */}
     return {docsSha:tip,rollbackDir:rollback};
   }finally{
     run("git",["worktree","remove","--force",build],{cwd:config.sourceClone,allowFailure:true});
