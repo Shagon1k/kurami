@@ -75,14 +75,31 @@ try {
       await devtools.evaluate(`if(document.documentElement.dataset.theme!==${JSON.stringify(theme)})document.querySelector('[data-theme-toggle]').click()`);
       await delay(250);
       await audit();
-      await devtools.evaluate("document.querySelector('[data-active-toggle]').click()");
+      assert.equal(await devtools.evaluate("document.querySelector('[data-task-filter=active]').textContent"),"3 active","counter matches the full active selection including review");
+      assert.equal(await devtools.evaluate("document.querySelector('[data-task-filter=attention]').textContent"),"2 need you");
+      await devtools.evaluate("document.querySelector('[data-task-filter=active]').click()");
       await wait("location.search.includes('active=1') && !document.querySelector('#projects-dashboard').dataset.refreshing");
       assert.equal(await devtools.evaluate("document.querySelectorAll('.projects-table tbody tr').length"),3);
-      assert.equal(await devtools.evaluate("document.querySelector('[data-active-toggle]').getAttribute('aria-pressed')"),"true");
+      assert.equal(await devtools.evaluate("document.querySelector('[data-task-filter=active]').getAttribute('aria-pressed')"),"true");
       await audit();
-      await devtools.evaluate("document.querySelector('[data-active-toggle]').click()");
+      await devtools.evaluate("document.querySelector('[data-task-filter=active]').click()");
       await wait("!location.search.includes('active=1') && !document.querySelector('#projects-dashboard').dataset.refreshing");
       assert.equal(await devtools.evaluate("document.querySelectorAll('.projects-table tbody tr').length"),6);
+      await devtools.evaluate("document.querySelector('[data-task-filter=attention]').click()");
+      await wait("location.search.includes('attention=1') && !document.querySelector('#projects-dashboard').dataset.refreshing");
+      assert.equal(await devtools.evaluate("document.querySelectorAll('.projects-table tbody tr').length"),2);
+      assert.equal(await devtools.evaluate("document.querySelector('[data-task-filter=attention]').getAttribute('aria-pressed')"),"true");
+      await audit();
+      if(theme==='light'){
+        const shot=await devtools.call<{data:string}>("Page.captureScreenshot",{format:"png",captureBeyondViewport:true});
+        writeFileSync(resolve(out,`projects-attention-${width}.png`),Buffer.from(shot.data,"base64"));
+      }
+      await devtools.evaluate("document.querySelector('[data-task-filter=active]').click()");
+      await wait("location.search.includes('active=1') && !location.search.includes('attention=1') && !document.querySelector('#projects-dashboard').dataset.refreshing");
+      assert.equal(await devtools.evaluate("document.querySelectorAll('.projects-table tbody tr').length"),3);
+      assert.equal(await devtools.evaluate("document.querySelector('[data-task-filter=attention]').getAttribute('aria-pressed')"),"false");
+      await devtools.evaluate("document.querySelector('[data-task-filter=active]').click()");
+      await wait("!location.search.includes('active=1') && !document.querySelector('#projects-dashboard').dataset.refreshing");
       assert.equal(await devtools.evaluate("document.querySelectorAll('.projects-checks .pill,.projects-stage .pill,.projects-sync-list .pill').length"),0,"parameter values do not use pills");
       assert.equal(await devtools.evaluate("document.querySelector('[data-language-link]').classList.contains('button--icon')"),true,"same square language control as Hub and Docs");
       if (width === 1280 && theme === "light") {
@@ -169,9 +186,9 @@ try {
   assert.match(await devtools.evaluate<string>("document.querySelector('.projects-search').textContent"),/Поиск задач/);
   await open("/");
   assert.equal(await devtools.evaluate("document.documentElement.lang"),"en");
-  await devtools.evaluate("const toggle=document.querySelector('[data-active-toggle]');toggle.focus();toggle.click()");
+  await devtools.evaluate("const toggle=document.querySelector('[data-task-filter=active]');toggle.focus();toggle.click()");
   await wait("location.search.includes('active=1') && !document.querySelector('#projects-dashboard').dataset.refreshing");
-  assert.equal(await devtools.evaluate("document.activeElement.hasAttribute('data-active-toggle')"),true,"toggle retains keyboard focus after replacement");
+  assert.equal(await devtools.evaluate("document.activeElement.getAttribute('data-task-filter')==='active'"),true,"toggle retains keyboard focus after replacement");
   await devtools.evaluate("const search=document.querySelector('input[name=q]');search.value='SEARCH';search.dispatchEvent(new Event('input'));document.dispatchEvent(new Event('visibilitychange'))");
   await wait("!document.querySelector('#projects-dashboard').dataset.refreshing");
   assert.equal(await devtools.evaluate("document.querySelector('[data-visible-count]').textContent"),"1","active filter combines with search after background refresh");
@@ -180,8 +197,12 @@ try {
   await wait("location.search.includes('project=beta') && !document.querySelector('#projects-dashboard').dataset.refreshing");
   assert.equal(await devtools.evaluate("document.querySelectorAll('.projects-table tbody tr').length"),1,"project changes keep the active filter");
   assert.equal(await devtools.evaluate("document.querySelector('[data-visible-count]').textContent"),"0","no search match in active project shows zero");
+  await open("/?attention=1&project=beta&lang=ru");
+  assert.equal(await devtools.evaluate("document.querySelector('[data-task-filter=attention]').textContent"),"1 ждут вас");
+  assert.equal(await devtools.evaluate("document.querySelector('[data-task-filter=active]').textContent"),"1 в работе","scoped active and attention counts use their actual selections");
+  assert.equal(await devtools.evaluate("document.querySelectorAll('.projects-table tbody tr').length"),1);
   await open("/?active=1&lang=ru");
-  assert.equal(await devtools.evaluate("document.querySelector('[data-active-toggle]').textContent"),"Только активные");
+  assert.equal(await devtools.evaluate("document.querySelector('[data-task-filter=active]').textContent"),"3 в работе");
   assert.equal(await devtools.evaluate("document.querySelectorAll('.projects-table tbody tr').length"),3,"direct links retain the active view");
   await open("/");
   await devtools.evaluate("document.querySelector('[data-sync-trigger]').click()");

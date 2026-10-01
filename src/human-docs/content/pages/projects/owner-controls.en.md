@@ -22,9 +22,12 @@ English; the square language button switches it to Russian. On desktop the
 table scrolls within the window. On mobile a task fills the screen: swipe right
 to return to the list and left to reopen the last task.
 
-Turn on **Active only** beside Sync to show work in progress and tasks waiting
-for your attention. Backlog, deferred and done tasks stay hidden. The choice is
-kept in the page URL and survives searches, project changes and refreshes.
+The **active** and **need you** counters on the left are filter buttons. Active
+shows work in progress and tasks waiting for your attention; backlog, deferred
+and done tasks stay hidden. Need you shows tasks requiring your decision.
+Each count uses the same selection as its filter. Click an enabled filter again
+to return to all tasks, or choose the other filter to switch views. The choice
+stays in the page URL across searches, project changes and refreshes.
 
 The card lets you change the GitHub Project status and use eligible Kurami
 actions, including AI Review and preview controls. They share Discord's request

@@ -1,13 +1,14 @@
 // Kurami button: shared variants, regular/compact sizes, busy state and a link form.
 import { escapeHtml } from "../foundations/html.ts";
 
-export type ButtonVariant = "primary" | "secondary" | "subtle" | "quiet" | "icon" | "text" | "danger" | "link";
+export type ButtonVariant = "primary" | "secondary" | "subtle" | "quiet" | "icon" | "text" | "danger" | "link" | "toggle";
 export type ButtonSize = "regular" | "compact";
 
 type AttributeValue = string | number | boolean | undefined;
 
 export type ButtonInput = {
   label: string;
+  count?: number;
   variant: ButtonVariant;
   size?: ButtonSize;
   className?: string;
@@ -52,6 +53,10 @@ export const BUTTON_CSS = `
 .button--secondary { color: var(--text-primary); background: var(--surface-raised); border-color: var(--text-primary); }
 .button--subtle { color: var(--text-primary); background: var(--surface-panel); border-color: var(--border-default); }
 .button--subtle:hover:not(:disabled):not([aria-busy="true"]) { color: var(--text-primary); background: var(--surface-section); border-color: var(--text-muted); }
+.button--toggle { color: var(--text-muted); background: var(--surface-raised); border-color: var(--border-default); font-weight: 500; }
+.button--toggle:hover:not(:disabled):not([aria-busy="true"]) { color: var(--text-primary); background: var(--surface-panel); border-color: var(--text-muted); }
+.button--toggle[aria-pressed="true"],.button--toggle[aria-pressed="true"]:hover:not(:disabled):not([aria-busy="true"]) { color: var(--text-accent); background: var(--accent-soft); border-color: color-mix(in srgb,var(--accent-primary) 40%,var(--border-default)); }
+.button__count { font: 600 .78rem/1.2 var(--font-mono); }
 .button--quiet { padding-inline: var(--space-2); background: transparent; border-color: transparent; }
 .button--quiet:hover:not(:disabled):not([aria-busy="true"]) { color: var(--text-primary); background: var(--surface-panel); border-color: var(--border-default); }
 .button--link { padding: 0; border: 0; color: var(--text-accent); background: transparent; font-weight: 500; text-decoration: underline; text-underline-offset: .2em; }
@@ -69,13 +74,15 @@ export const BUTTON_CSS = `
 `;
 
 export function renderButton(input: ButtonInput): string {
+  if(input.count!==undefined&&(!Number.isSafeInteger(input.count)||input.count<0))throw new Error("Invalid button count");
   if (input.className && !SAFE_CLASS_LIST.test(input.className)) {
     throw new Error("Unsafe button class list");
   }
   if (input.icon && input.iconPath) throw new Error("Button cannot have both text and SVG icons");
   const classes = ["button", `button--${input.variant}`, input.size === "compact" ? "button--compact" : undefined, input.iconPosition === "end" ? "button--icon-end" : undefined, input.className].filter(Boolean).join(" ");
   const type = input.type ?? "button";
-  const accessibleLabel = input.ariaLabel ?? (input.iconPath ? input.label : undefined);
+  const count=input.count===undefined?"":`<strong class="button__count">${input.count}</strong> `;
+  const accessibleLabel = input.ariaLabel ?? (input.iconPath||count ? `${input.count===undefined?"":`${input.count} `}${input.label}` : undefined);
   const ariaLabel = accessibleLabel ? ` aria-label="${escapeHtml(accessibleLabel)}"` : "";
   const busyLabel = input.busyLabel
     ? ` data-busy-label="${escapeHtml(input.busyLabel)}"`
@@ -84,12 +91,12 @@ export function renderButton(input: ButtonInput): string {
   const disabled = input.disabled ? " disabled" : "";
   const labelAttributes = renderAttributes(input.labelAttributes);
   const content = input.iconPath
-    ? `<svg class="button__svg" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="${escapeHtml(input.iconPath)}"/></svg>${input.visibleLabel?`<span${labelAttributes}>${escapeHtml(input.label)}</span>`:""}`
+    ? `<svg class="button__svg" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="${escapeHtml(input.iconPath)}"/></svg>${count}${input.visibleLabel?`<span${labelAttributes}>${escapeHtml(input.label)}</span>`:""}`
     : input.icon
-    ? `<span class="button__icon" aria-hidden="true">${escapeHtml(input.icon)}</span><span class="sr-only"${labelAttributes}>${escapeHtml(input.label)}</span>`
+    ? `<span class="button__icon" aria-hidden="true">${escapeHtml(input.icon)}</span>${count}<span class="sr-only"${labelAttributes}>${escapeHtml(input.label)}</span>`
     : input.labelAttributes
-      ? `<span${labelAttributes}>${escapeHtml(input.label)}</span>`
-      : escapeHtml(input.label);
+      ? `${count}<span${labelAttributes}>${escapeHtml(input.label)}</span>`
+      : `${count}${escapeHtml(input.label)}`;
   return `<button class="${classes}" type="${type}"${ariaLabel}${busyLabel}${attributes}${disabled}>${content}</button>`;
 }
 

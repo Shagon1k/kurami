@@ -19,12 +19,12 @@ export const PROJECTS_STYLES=[THEME_CSS,FOUNDATION_CSS,BUTTON_CSS,TABLE_CSS,FORM
 [data-refresh-status] { flex: 1; min-width: 220px; font-size: .8rem; color: var(--text-muted); }
 [data-refresh-status]:empty { display: none; }
 .projects-overview { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: var(--space-2) var(--space-5); margin-block: var(--space-3); }
-.projects-summary { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-4); min-height: var(--control-height); }
+.projects-summary { --button-icon-size: 14px; display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2); min-height: var(--control-height); }
 .projects-summary p { display: flex; align-items: center; gap: var(--space-2); margin: 0; color: var(--text-muted); font-size: .78rem; }
-.projects-summary strong { color: var(--text-primary); font: 600 .82rem var(--font-mono); }
-.projects-summary .projects-attention { color: var(--status-warning); }
-.projects-view-controls { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2); }
-.projects-sync { --popover-width: 380px; --popover-padding: var(--space-4); }
+.projects-summary p { margin-inline-end: var(--space-2); }
+.projects-filters { display: grid; grid-template-columns: repeat(2,max-content); gap: var(--space-2); }
+.projects-summary p strong { color: var(--text-primary); font: 600 .82rem var(--font-mono); }
+.projects-sync { margin-inline-start: auto; --popover-width: 380px; --popover-padding: var(--space-4); }
 .projects-sync-list li { padding-block: var(--space-2); border-bottom: 1px solid var(--border-subtle); }
 .projects-sync-list li > div { display: flex; align-items: center; justify-content: space-between; gap: var(--space-3); }
 .projects-sync-list time { display: block; color: var(--text-muted); font: .72rem var(--font-mono); padding-block: var(--space-1); }

@@ -202,3 +202,7 @@ the same component. Display settings control framing, density, legends, zoom,
 value labels and the table. The chart palette changes with the theme and does
 not change status or action colours. See `docs/charts.md` for the contract.
 The generated UI stylesheet includes chart styles. UI-Library: extended.
+
+The button primitive includes a `toggle` variant with a thin border and an
+`aria-pressed` selection state. Its optional numeric `count` shares a readable
+label and accessible name. Projects uses it for the active and attention filters.
