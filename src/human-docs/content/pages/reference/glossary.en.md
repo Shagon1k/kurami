@@ -91,7 +91,7 @@ Words that mean something specific in these docs. Names from the code are in `mo
 - **`composio-read`** — the read-only session with seven tools; fit for background work
 - **Cloudflare Access** — the identity check in front of the local services; Kurami's sites have no authorization of their own
 - **Hermes** — the ready-made agent environment on the server: schedule, Discord, model runs, MCP
-- **Hub** — a private page with project, Git and Codex state; read-only, listens on `127.0.0.1`
+- **Hub** — a private web dashboard with server, project, Git and Codex state and a few confirmed owner controls; listens on `127.0.0.1` behind Cloudflare Access
 - **MCP server** — an external toolset Hermes connects to; it has an allowed-tools list and a trust level
 - **nonce** — a one-off tag on a Discord message; a message with an already used tag is dropped, so a retry after a failure creates no duplicate
 - **agent job** — a Hermes job that runs a model session with a prompt and skills (Daily, the documentation audit)

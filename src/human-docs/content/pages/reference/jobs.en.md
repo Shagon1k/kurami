@@ -17,7 +17,7 @@ This reference shows what runs on the server and when: twelve Hermes jobs (ten s
 | `kurami-pickflick-poller` | script | `* * * * *` | every minute | the same for PickFlick | `local` |
 | `kurami-<project>-poller` (third) | script | `* * * * *` | every minute | the same for the third project | `local` |
 | `kurami-docs-approval` | script | `* * * * *` | every minute | a step of the documentation proposal worker | `local`; log `logs/docs-approval.log` |
-| `kurami-system-health` | script | `*/10 * * * *` (set by the interval in `/kurami settings`; 10 minutes now) | every 10 minutes | the health check, card and alerts | `local`; Discord over REST |
+| `kurami-system-health` | script | `*/10 * * * *` (set by the interval in `/kurami settings` or Hub; 10 minutes now) | every 10 minutes | the health check: collects a cycle, then delivers the card and alerts | `local`; Discord over REST |
 | `kurami-network-speed` | script | `7 */6 * * *` | 03:07, 09:07, 15:07, 21:07 / 02:07, 08:07, 14:07, 20:07 | a LibreSpeed speed sample | `local`; `state/network-speed.json` |
 | `kurami-projects-digest` | script | `45 6 * * *` | 09:45 / 08:45 | the daily Projects Digest | `local`; Discord over REST |
 | `kurami-daily-briefing` | agent, skill `kurami-daily-briefing` | `0 6,7,8 * * *` | 09:00, 10:00, 11:00 / 08:00, 09:00, 10:00 (working windows: hours 9 and 10) | the morning Daily edition; Cinema on Saturdays, Weekly on Sundays | `local`; the runtime maintains the card |
@@ -35,7 +35,7 @@ This reference shows what runs on the server and when: twelve Hermes jobs (ten s
 | `kurami-cpu-statistics` | service | permanent, a sample every 15 s | rolling CPU average and peak | `state/cpu-statistics.json` |
 | `kurami-briefing` | service | permanent | the Digest site, `127.0.0.1:8787` | — |
 | `kurami-human-docs` | service | permanent | this documentation, `127.0.0.1:8799` | — |
-| `kurami-hub` | service | permanent | Hub, `127.0.0.1:8800` | — |
+| `kurami-hub` | service | permanent | Hub, `127.0.0.1:8800`, with owner controls | — |
 | `kurami-preview-ingress` | service | permanent | Caddy for previews, `127.0.0.1:9180` | — |
 | `hermes-gateway` | Hermes service | permanent | the cron ticker every 60 s, Discord | — |
 
@@ -49,7 +49,7 @@ This reference shows what runs on the server and when: twelve Hermes jobs (ten s
 | Daily guard | deadlines 09:50 (primary window) and 10:50 (recovery); checks before minute 50 act only if the agent has already finished |
 | Weekly and Cinema | no schedule of their own: Weekly is the Sunday Daily, Cinema the Saturday Daily |
 | Stocks | no schedule of their own: the cache warm-up is part of the hourly poll |
-| Hub | the browser refreshes the block every minute, the server caches a snapshot for 45 seconds |
+| Hub | the browser refreshes the page every minute while visible, the server caches a snapshot for 45 seconds; the health snapshot counts as stale after twice the check interval plus five minutes |
 | Times on cards and pages | in local time |
 
 :::code-map

@@ -52,7 +52,7 @@ edge irrev -> owner "yes"
 | [Maintenance](@maintenance) | deletes old logs and unused Docker images | containers, volumes, working copies, previews | a running run may need them |
 | [Documentation audit](@docs-process) | prepares a draft in an isolated copy | publishing: the Publish button | others read the site, changes must be read first |
 | [Connectors](@connector-authority) | reads; removes `INBOX` and `UNREAD` by stored identifiers | any other write | the action list is closed and checked |
-| [Hub](@hub) | reads and shows | — | has no write at all |
+| [Hub](@hub) | reads and shows; its Controls call the existing tools only after you confirm | everything else: Hub starts no runs, merges nothing and sends no Discord messages | one confirmed owner action each, behind Access, an origin check and a CSRF token, and audited |
 
 The last column is not a caveat but the logic itself. Each line has one reason: either the action cannot be undone, or Kurami cannot prove the resource is its own. In the second case it preserves and waits: a resource without a confirmed owner is not deleted but blocks the admission of new tasks.
 

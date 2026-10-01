@@ -8,7 +8,7 @@ order: 30
 next: scheduling
 ---
 
-Every few minutes Kurami checks the server and the Project Orchestrator. The result is always visible in one card, "🩺 Kurami System Health", in the health channel. Kurami does not post a new message for each check: it edits this card in place. A separate message reaches the alerts channel only when a problem is confirmed, changes, drags on or disappears.
+Every few minutes Kurami checks the server and the Project Orchestrator. The result is always visible in one card, "🩺 Kurami System Health", in the health channel. Kurami does not post a new message for each check: it edits this card in place. A separate message reaches the alerts channel only when a problem is confirmed, changes, drags on or disappears. The same numbers are on the System Health area of [Hub](@hub): one check feeds both.
 
 ::shot{file="shot-health-card.png" size="card" alt="The System Health card in Discord: System and Project Orchestrator blocks and a list of recent checks" caption="The title and border colour give the overall result; at the bottom are the last update time and a picker for one of the recent checks."}
 
@@ -63,9 +63,9 @@ Under the card sits a picker, "Inspect one of the last 10 runs…". Each option 
 
 ## How often to check
 
-You change the check interval in `/kurami settings`, section **System Health**. The allowed values are 5, 10, 12, 15, 20, 30 and 60 minutes; the built-in default is 20. Kurami rewrites the job's schedule in Hermes and posts a line to the maintenance channel. The form is described on [Settings](@settings).
+You change the check interval in `/kurami settings`, section **System Health**, or in Hub under Controls → Settings; both use the same command. The allowed values are 5, 10, 12, 15, 20, 30 and 60 minutes; the built-in default is 20. Kurami rewrites the job's schedule in Hermes and posts a line to the maintenance channel. The form is described on [Settings](@settings).
 
-If the "Updated" time in the card footer has stopped moving, the check itself is not running, and no alert says so: the thing that would report the failure is the thing that broke. Look at the state of Hermes; details are in [How monitoring works](@health-internals).
+If the "Updated" time in the card footer has stopped moving, the check itself is not running, and no alert says so: the thing that would report the failure is the thing that broke. Hub shows the same sign: after twice the interval plus five minutes (at least 15) it marks System Health "stale" and lists it among its alerts. Look at the state of Hermes; details are in [How monitoring works](@health-internals).
 
 ::shot{file="shot-health-alert.png" size="card" alt="A System Health Alert message in the Discord alerts channel with the active checks and the hungriest processes" caption="The alert names the confirmed problems and shows who holds CPU and memory at that moment."}
 

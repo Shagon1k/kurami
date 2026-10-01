@@ -45,7 +45,7 @@ group home "$KURAMI_HOME" app runtime config state secrets connectors backups re
 | `state/` | see the table below | jobs and services |
 | `secrets/` | GitHub tokens, `recovery.env`; no document reads the values | you |
 | `connectors/` | the `.env` of the three Composio sessions and Telegram MCP data | connector scripts |
-| `backups/` | `backup-<UTC>/`: a database snapshot, three settings files, a manifest | the backup job |
+| `backups/` | `backup-<UTC>/`: database snapshots, settings files, a manifest | the backup job |
 | `recovery/` | `kurami-recovery-<UTC>.tar.zst.age` and `.sha256` | the backup job |
 | `logs/` | `*.log` and `*.jsonl` per subsystem | scripts; deleted after 90 days |
 
@@ -56,12 +56,14 @@ The JSON files are small and written atomically (a temporary file, then a rename
 | File or directory | What it holds | Written by | Read by |
 |---|---|---|---|
 | `orchestrator.db` | the Run Store | Project Orchestrator | health, Hub (read-only), backup |
+| `system-health.db` | the health cycle: measurements, streaks, pending alert messages | the health collector | health delivery, Hub (read-only), backup |
+| `hub/control-audit.jsonl` | one short record per Hub control action | Hub | you, for review |
 | `briefing/` | the Digest database, pages, media | Digest | the Digest site |
 | `human-docs/` | `release/`, `rollback-<sha>/`, `proposals.db`, drafts | the docs worker | the docs server |
 | `caddy/routes.caddy` | preview routes | route builder | Caddy |
 | `cpu-statistics.json` | up to 1440 CPU samples | the sampler | the health check |
 | `network-speed.json` | the latest speed sample | the speed job | the health check |
-| `runtime-health-*.json`, `system-health-*.json`, `health-settings.json` | streaks, the card id, the last 10 checks, the check interval | the health check; the interval by `/kurami settings` | the health check and the plugin (details in [How monitoring works](@health-internals)) |
+| `runtime-health-*.json`, `system-health-*.json`, `health-settings.json` | projections of the health cycle, the card id, the check interval | the health collector and delivery; the interval by `/kurami settings` or Hub | the health check and the plugin (details in [How monitoring works](@health-internals)) |
 | `*.lock` | job locks | wrappers via `flock` | themselves |
 
 A lock is an empty file: a script takes it with `flock` without waiting and, if it is taken, quietly exits. That is how overlapping runs stay out of each other's way. The shared lock `project-event-consumer.lock` is held for the whole "events, controller, notifications" pass, while the poll and Projects Digest locks are their own.
@@ -74,11 +76,11 @@ All services run as your user (`systemd --user`) and get the same set of restric
 |---|---|---|---|
 | `kurami-briefing` | 8787 | `state/briefing` | `node --jitless`, the built `dist/`, `MemoryDenyWriteExecute` |
 | `kurami-human-docs` | 8799 | nowhere | starts only if `release/build.json` exists |
-| `kurami-hub` | 8800 | nowhere | starts only if `orchestrator.db` exists |
+| `kurami-hub` | 8800 | `state`, `connectors`, the Codex directory and the Hermes home | starts only if `orchestrator.db` exists; the write paths serve the Hub controls |
 | `kurami-preview-ingress` | 9180 | `state/caddy` | validates its configuration before starting |
 | `kurami-cpu-statistics` | — | `state` | Unix sockets only, no network |
 
-The restrictions are common: `ProtectSystem=strict` (the filesystem is read-only), `ProtectHome=read-only`, `NoNewPrivileges`, `PrivateTmp`, no new namespaces, `UMask=0077`. A service that writes nothing gets no `ReadWritePaths` at all, so even a bug in Hub's code could not change a file.
+The restrictions are common: `ProtectSystem=strict` (the filesystem is read-only), `ProtectHome=read-only`, `NoNewPrivileges`, `PrivateTmp`, no new namespaces, `UMask=0077`. A service that writes nothing, such as the documentation server, gets no `ReadWritePaths` at all. Hub has a short list, because its controls update Kurami state, connector runtime files, the Codex configuration and the Hermes configuration; applying a changed unit and restarting Hub is a release step.
 
 ## The pinned Node and two ways to run
 
@@ -138,7 +140,7 @@ GitHub Actions runs types, the documentation-impact declaration check and the fu
 
 :::guarantees
 - `$KURAMI_HOME` has one definition, and it cannot be replaced by a link.
-- Services write only into their own directories; Hub and documentation write nowhere.
+- Services write only where their unit allows: documentation nowhere, Hub only to the paths its controls need.
 - All state files are closed with mode 0600, JSON is written atomically.
 - Application code does not update itself: a deploy is a manual action.
 :::

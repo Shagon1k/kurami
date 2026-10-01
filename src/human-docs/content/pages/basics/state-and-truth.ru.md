@@ -15,8 +15,8 @@ next: how-to-read
 - Запуски: `state/orchestrator.db` — Run Store Project Orchestrator
 - Выпуски: `state/briefing/briefing.db` и страницы в `state/briefing/pages/`
 - Документация: `state/human-docs/proposals.db` и опубликованный релиз
-- Здоровье и настройки: JSON-файлы в `state/`
-- Витрина: Discord и сайты — перерисовываются из баз
+- Здоровье: цикл в `state/system-health.db`; настройки: ревизии в Run Store и `state/health-settings.json`
+- Витрина: Discord, сайты и Hub — перерисовываются из хранилищ; немногие действия Hub меняют состояние только через канонические инструменты
 :::
 
 ## Карта хранилищ
@@ -24,14 +24,14 @@ next: how-to-read
 ```diagram
 kind: graph
 title: Кто пишет в какое хранилище
-desc: Каждый продукт пишет только в своё хранилище. Project Orchestrator пишет в orchestrator.db, Digest — в briefing.db и страницы выпусков, платформа — в JSON-файлы и каталог бэкапов. Discord и сайты только читают и показывают.
+desc: Каждый продукт пишет только в своё хранилище. Project Orchestrator пишет в orchestrator.db, Digest — в briefing.db и страницы выпусков, платформа — в базу здоровья, JSON-файлы и каталог бэкапов. Discord и сайты читают и показывают; Hub тоже читает, а его немногие действия пишут только через канонические инструменты.
 node projects "Project Orchestrator" at 0,0
 node digest "Digest" at 1,0
 node platform "Платформа" at 2,0
 node runstore "orchestrator.db" "запуски, события, превью" store at 0,1
 node briefing "briefing.db" "выпуски, попытки, add-ons" store at 1,1
-node files "state/*.json" "здоровье, настройки" store at 2,1
-node backups "backups/" "копии orchestrator.db" store at 2,2
+node files "system-health.db" "цикл здоровья, настройки" store at 2,1
+node backups "backups/" "копии баз" store at 2,2
 node discord "Discord" "карточки" external at 0,2
 node sites "Сайты" "Digest, Hub, docs" external at 1,2
 edge projects -> runstore
@@ -51,7 +51,7 @@ edge runstore -> backups dashed
 | Идёт ли работа по задаче? | `orchestrator.db`, таблица `runs` | поле `state` и история `run_state_history` |
 | Прошёл ли CI у этого PR? | `orchestrator.db`, `run_ci_snapshots` | результат для точного SHA последнего коммита |
 | Вышел ли сегодняшний выпуск? | `briefing.db`, попытка выпуска | стадия попытки и квитанция уведомления |
-| Здоров ли сервер? | карточка здоровья и `state/runtime-health-alert.json` | время последней проверки и активные проблемы |
+| Здоров ли сервер? | цикл в `state/system-health.db`, его показывают карточка здоровья и Hub | время последней проверки и активные проблемы |
 | Есть ли свежий бэкап? | `$KURAMI_HOME/backups/` | самая новая папка `backup-*` и её `manifest.json` |
 | Какая документация опубликована? | `state/human-docs/release/build.json` | `docsSha` — коммит, из которого собран сайт |
 
@@ -87,7 +87,7 @@ Hermes отмечает задание успешным, когда его ск�
 | Карточка в Discord устарела или удалена | следующий цикл перерисует или создаст её заново | ничего; если не обновляется долго — смотреть здоровье Hermes |
 | Проверка источника не удалась | показывает последнее достоверное значение с пометкой «устарело» | ничего, пока не повторится; иначе — смотреть журнал |
 | Потеряна база `orchestrator.db` | восстановление из последнего проверенного бэкапа | по порядку из [восстановления](@recovery) |
-| Потеряна база `briefing.db` | обычный бэкап её не копирует: история выпусков начнётся заново | учитывать это при планах восстановления |
+| Потеряна база `briefing.db` | восстановить из последнего бэкапа, в котором она есть; в старых копиях её нет, и история начнётся заново | проверить, что в свежем бэкапе есть `briefing.db` ([восстановление](@recovery)) |
 
 :::guarantees
 - У каждого вопроса одно место с правильным ответом; витрины перерисовываются из него.

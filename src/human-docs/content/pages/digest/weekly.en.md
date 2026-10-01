@@ -1,7 +1,7 @@
 ---
 title: Weekly
 nav: Weekly
-summary: What the Sunday review shows, why it has gaps, and how it relates to the «Прочитать и архивировать» button.
+summary: What the Sunday review shows, why it has gaps, and how it relates to the "Read and archive" button.
 section: digest
 group: guide
 order: 50
@@ -12,7 +12,7 @@ Weekly is a review of seven completed days, Sunday through Saturday. Kurami buil
 
 ## Where to look
 
-The review is available in three places. The Sunday edition carries a short teaser, «Неделя в нескольких цифрах» (the week in a few numbers), with an **Открыть обзор →** (open the review) button. The Discord card gets a **📊 Неделя** (week) button. The page itself is `/weekly`: it shows the latest published review and does not expire until the next Sunday. The address `/preview/weekly` builds a review on the fly for the last seven days and saves nothing; it is labelled «Предпросмотр» (preview). Before the first review, `/weekly` shows a placeholder, «Здесь будет ваша неделя» (your week will be here).
+The review is available in three places. The Sunday edition carries a short teaser, "The week in numbers", with an **Открыть обзор →** (open the review) button. The Discord card gets a **📊 Неделя** (week) button. The page itself is `/weekly`: it shows the latest published review and does not expire until the next Sunday. The address `/preview/weekly` builds a review on the fly for the last seven days and saves nothing; it is labelled «Предпросмотр» (preview). Before the first review, `/weekly` shows a placeholder, "Your week will appear here".
 
 ## What the page shows
 
@@ -20,11 +20,11 @@ The review is available in three places. The Sunday edition carries a short teas
 |---|---|---|
 | **Занято в календаре** (busy in calendar) | Timed events, overlaps counted once | Not hours worked and not attendance |
 | **Сюжеты в выпусках** (stories in editions) | The number of stories in each saved edition | Not unique events: one story can appear on several days |
-| **Архивировано через Daily** (archived through Daily) | Successful presses of «Прочитать и архивировать» | Does not count mail you removed directly in Gmail |
+| **Архивировано через Daily** (archived through Daily) | Successful presses of "Read and archive" | Does not count mail you removed directly in Gmail |
 | **Предпочтения** (preferences) | 🔔 and 🔕: the last reaction to each story in the week | Not the interest profile weight; an undone reaction does not count |
-| «Что заметила Курами» (what Kurami noticed) | Up to three sentences from fixed rules | A model does not write them |
+| "What Kurami noticed" | Up to three sentences from fixed rules | A model does not write them |
 | Two charts | Calendar minutes and the unread mail balance per day | The balance is not the number of new mails per day |
-| «На что вы реагировали» (what you reacted to) | Topics: more, less, balance, previous week | One topic can belong to several stories |
+| "What you reacted to" | Topics: more, less, balance, previous week | One topic can belong to several stories |
 
 Next to each number there is its coverage, for example "5/7 days". Read a total together with it: "Busy in calendar: 12 h 30 min" at coverage 5/7 is the sum of the five known days.
 
@@ -34,9 +34,9 @@ A day without observations stays *unknown*: on a chart it is a gap, and it takes
 
 The first week is always incomplete. Editions are kept for seven days, and the mail balance of a day that was already overwritten cannot be recovered.
 
-## The «Прочитать и архивировать» button
+## The "Read and archive" button
 
-The «Прочитать и архивировать» (read and archive) button is described in [The morning edition](@daily). Weekly counts only its presses: each confirmed action produces one record with the number of mails. If the record fails, the mails are archived anyway: the next hourly poll counts what was missed and never counts one action twice.
+The "Read and archive" button is described in [The morning edition](@daily). Weekly counts only its presses: each confirmed action produces one record with the number of mails. If the record fails, the mails are archived anyway: the next hourly poll counts what was missed and never counts one action twice.
 
 ## When something is wrong
 

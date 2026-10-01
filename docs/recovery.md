@@ -42,7 +42,8 @@ bundle containing only:
 - the newest verified SQLite/config snapshot and both manifests;
 - Hermes `.env`;
 - GitHub and TailorTales preview env files;
-- the Hermes `cron/jobs.json` registry.
+- the Hermes `cron/jobs.json` registry (a reference for recreating jobs; see the
+  inventory below).
 
 The SQLite snapshot includes `orchestrator.db` and, when present,
 `system-health.db` and `briefing.db`. The Digest database preserves editions,
@@ -146,18 +147,27 @@ restoration remains an explicit operator action following the order below.
 
 ## Secret inventory
 
-Restore and verify at least:
+The encrypted recovery bundle stages exactly these secret files
+(`src/system/recovery/recovery-bundle.ts`):
 
 ```text
 /home/shagon1k/_hermes/_core/.env
 /home/shagon1k/_hermes/_kurami/secrets/github.env
 /home/shagon1k/_hermes/_kurami/secrets/tailortales-preview.env
+```
+
+The Composio session env files are **not** in the bundle. Recreate them with the
+Composio connector tooling (`src/connectors/composio/`) and verify:
+
+```text
 /home/shagon1k/_hermes/_kurami/connectors/external/composio-session/.env
 /home/shagon1k/_hermes/_kurami/connectors/external/composio-read-session/.env
 /home/shagon1k/_hermes/_kurami/connectors/external/composio-automation-session/.env
 ```
 
-Never print their values. Codex authentication and durable task metadata live
+`secrets/recovery.env` (S3 writer credentials and the `age` public recipient)
+and AWS credentials are also outside the bundle. Never print any of these
+values. Codex authentication and durable task metadata live
 outside this repository; losing them does not corrupt the Run Store, but old
 tasks may no longer be resumable in the desktop app.
 
@@ -176,20 +186,36 @@ Recreate or verify:
 
 ## Cron inventory
 
-| Name | Schedule | Delivery |
-| --- | --- | --- |
-| `kurami-tailortales-poller` | `* * * * *` | local |
-| `kurami-pickflick-poller` | `* * * * *` | local |
-| `kurami-ahurynovich-cv-poller` | `* * * * *` | local |
-| `kurami-projects-digest` | `45 6 * * *` | digest Discord channel |
-| `kurami-state-backup` | `15 3 */3 * *` | maintenance Discord channel |
-| `kurami-system-health` | `*/20 * * * *` | local; edits health card and sends alerts |
-| `kurami-network-speed` | `7 */6 * * *` | local; updates bounded speed state |
-| `kurami-monthly-maintenance` | `15 4 1 * *` | maintenance Discord channel |
+The live Hermes registry holds twelve Kurami jobs (ten script jobs and two
+agent jobs). Schedules are UTC. The verified list, with local times and
+destinations, is `src/human-docs/content/pages/reference/jobs.en.md`.
+
+| Name | Kind | Schedule | Delivery |
+| --- | --- | --- | --- |
+| `kurami-tailortales-poller` | script | `* * * * *` | local |
+| `kurami-pickflick-poller` | script | `* * * * *` | local |
+| `kurami-ahurynovich-cv-poller` | script | `* * * * *` | local |
+| `kurami-docs-approval` | script | `* * * * *` | local |
+| `kurami-system-health` | script | `*/N * * * *`, N = owner-configured interval | local; edits health card and sends alerts |
+| `kurami-network-speed` | script | `7 */6 * * *` | local; updates bounded speed state |
+| `kurami-projects-digest` | script | `45 6 * * *` | local; posts to the digest Discord channel over REST |
+| `kurami-daily-briefing` | agent | `0 6,7,8 * * *` | local; the runtime maintains the Daily card |
+| `kurami-state-backup` | script | `15 3 */3 * *` | maintenance Discord channel |
+| `kurami-monthly-maintenance` | script | `15 4 1 * *` | maintenance Discord channel |
+| `kurami-investment-review-weekly` | script | `0 7 * * 0` | the thread where the job was created |
+| `kurami-docs-freshness` | agent | `0 3,4 * * 1` | documentation updates channel |
+
+The health interval is owner-configurable (5, 10, 12, 15, 20, 30 or 60 minutes,
+changed in `/kurami settings` or on the Hub; code default 20). Recreate the job
+with the interval recorded in `state/health-settings.json` (not part of the
+backup snapshot), or the default when it is unavailable. The Investment Review thread target and the
+Daily/Documentation windows are enforced in local time by the scripts themselves.
 
 The pollers remain separate because project events belong to different Discord
 channels. Backup, maintenance, system health, and network trends are Kurami-wide jobs.
 Project pollers and their cleanup remain part of the Project Orchestrator.
+The `kurami-daily-briefing-guard` timer and the permanent services are systemd
+units (`deploy/systemd/`), not Hermes jobs.
 
 ## Validation
 
@@ -241,8 +267,8 @@ docker system df
 ```
 
 The healthy baseline is an integrity-clean SQLite database, rootless Docker,
-no unexplained preview leases or Compose projects, synchronized ingress, seven
-active cron jobs, and no secrets in Git.
+no unexplained preview leases or Compose projects, synchronized ingress, twelve
+active Hermes cron jobs, and no secrets in Git.
 
 ## Safety
 

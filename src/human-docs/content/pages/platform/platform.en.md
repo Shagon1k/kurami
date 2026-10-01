@@ -27,11 +27,11 @@ The platform is the layer under the products: it starts their jobs on time, watc
 | Write to and listen on Discord | Hermes holds the only connection; the Kurami plugin adds buttons and `/kurami` commands | [Kurami and Hermes](@hermes-integration) |
 | Know the server is healthy | At the configured interval a check updates one card and raises an alert for a persistent problem | [Health](@health) |
 | Not lose state | Every three days: a verified database copy, an encrypted archive and an off-site copy | [Backups](@recovery) |
-| Change limits without a deploy | The `/kurami settings` command, only while Kurami is idle | [Settings](@settings) |
+| Change limits without a deploy | The `/kurami settings` command or Hub Controls, only while Kurami is idle | [Settings](@settings) |
 | Free disk space | Once a month old logs and Docker cache go; containers and working copies stay | [Maintenance](@maintenance) |
 | Reach outside services safely | Three Composio authority levels plus a separate Telegram MCP | [Connector authority](@connector-authority) |
 | Show sites only to the owner | Services listen on `127.0.0.1`; Cloudflare Tunnel and Access guard the entrance | [External access](@access) |
-| See everything on one page | Hub gathers project state, Git and Codex usage | [Hub](@hub) |
+| See everything on one page | Hub, a private web dashboard, gathers server health, project state, Git and Codex usage and offers a few confirmed owner controls | [Hub](@hub) |
 | Explain the system | This site, the weekly audit and a draft of changes that you publish | [Documentation](@docs-process) |
 
 ## A day of the platform

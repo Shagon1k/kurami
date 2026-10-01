@@ -116,7 +116,7 @@ Both sync scripts refuse to work if the source contains `.env`, `*.db`, `*.pem` 
 :::steps
 - **Hermes ticker** — at 10:30 finds the job `kurami-system-health` (id `a1b2c3d4e5f6`, expression `*/10 * * * *` set by the interval setting, script job, `deliver: local`).
 - **Hermes** — runs `$HERMES_HOME/scripts/kurami-runtime-health.sh` with the pinned Node.
-- **The script** — calls `system-health-discord.ts --run`, which collects metrics, evaluates alerts and edits one card.
+- **The script** — runs the collector `health-cycle.ts`, which measures, evaluates alerts and records one cycle, then `system-health-discord.ts --deliver`, which sends pending alerts and edits one card.
 - **Kurami code** — calls Discord REST itself: updates the card and, if needed, sends an alert to the alerts channel.
 - **The script** — prints nothing but a JSON result, and `deliver: local` keeps it in the log.
 - **Hermes** — records `last_status: ok` and increments the run counter.

@@ -7,7 +7,7 @@ order: 20
 next: architecture
 ---
 
-In Kurami every participant has its own role and authority, and those limits are drawn in code rather than by convention. A model cannot merge a PR because the code has no such operation. A button cannot bypass checks because it only queues a request in the same queue automation uses.
+In Kurami every participant has its own role and authority, and those limits are drawn in code rather than by convention. A model cannot merge a PR because the code has no such operation. A button cannot bypass checks because it only queues a request in the same queue automation uses. The few controls in Hub, the private web dashboard, call the same canonical tools.
 
 :::glance
 - Decides: you — through the GitHub board, Discord buttons and publishing edits
@@ -15,20 +15,20 @@ In Kurami every participant has its own role and authority, and those limits are
 - Checks and records: Kurami's code — deterministically, recording in SQLite
 - Writes text and code: agents — the Hermes agent for the Daily edition, Codex for project issues
 - Holds the work: GitHub — boards, branches, PRs, CI
-- Shows: Discord — cards, threads, alerts
+- Shows: Discord — cards, threads, alerts, the only channel for conversation and notifications; Hub — a private web dashboard with state and a few owner controls
 :::
 
 ## Roles
 
 | Participant | What it does | What it does not do |
 |---|---|---|
-| **You** | set intent by moving cards, merge PRs, press buttons, change settings | you do not drive processes directly: everything goes through the queue and checks |
+| **You** | set intent by moving cards, merge PRs, press buttons in Discord, change settings in Discord or Hub | you do not drive processes directly: everything goes through the queue and checks |
 | **Hermes** | holds the Discord connection, checks the schedule every minute, runs scripts and agent sessions, gives agents MCP tools | knows none of Kurami's rules and keeps none of its state |
 | **Kurami's code** | polls sources, admits work, tracks states, publishes, notifies, makes backups | takes none of the decisions reserved for you: merging, deploying, deleting preserved work |
 | **The Hermes agent** | writes the editorial draft of the morning edition; once a week prepares docs edits | never publishes by itself: code checks its output, and you publish docs edits |
 | **Codex** | writes the issue's code in its own branch and working copy, opens a PR, fixes CI or review comments on request | stays inside its working copy, never merges a PR and never touches the board |
 | **GitHub** | holds boards, code, PRs and CI results; reviews come from a separate `kurami-ai` bot | — |
-| **Discord** | shows run, edition and health cards and takes button presses | acts on nothing by itself: a button only creates a request |
+| **Discord** | shows run, edition and health cards and takes button presses; the only channel where you talk to Kurami and get notifications | acts on nothing by itself: a button only creates a request |
 
 ## One issue through everyone's eyes
 

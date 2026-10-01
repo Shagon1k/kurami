@@ -106,7 +106,7 @@ Each decision is written in one format: **Context** — what was needed, **Decis
 
 **Why.** A deleted branch with unmerged commits cannot be restored, while an error in the other direction costs a minute of waiting.
 
-**Trade-off.** Done without a merge leaves the run in `stopping` with no way out from the interface, and some cases (commits only local) remain manual.
+**Trade-off.** Done without a merge holds the run in `needs_attention` until you merge or cancel, and some cases (commits only local) remain manual.
 
 ## Three GitHub identities instead of one token
 

@@ -26,7 +26,7 @@ Each product has its own decisions, collected on the "Why it is so" pages of [Di
 
 **Why.** A limit drawn by the absence of code is more reliable than any permission check: a prompt mistake cannot bypass it.
 
-**Trade-off.** Some work always waits for you, and Done without a merge leaves the run waiting.
+**Trade-off.** Some work always waits for you: for example, Done without a merge holds the run until you merge the PR or cancel it.
 
 ## State in SQLite, processes short-lived
 

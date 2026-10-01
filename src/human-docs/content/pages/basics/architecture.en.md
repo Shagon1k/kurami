@@ -32,8 +32,8 @@ node mcp "MCP servers" "Telegram, Composio" at 2,1
 node jobs "Kurami jobs" "polls, Daily, health" at 1,2
 node timers "systemd timers" "Daily guard, hourly poll" at 2,2
 node sites "Sites" "Digest, docs, Hub" at 0,2
-node sqlite "SQLite" "orchestrator, briefing" store at 0,3
-node json "JSON files" "health, settings" store at 1,3
+node sqlite "SQLite" "orchestrator, briefing, health" store at 0,3
+node json "JSON files" "settings, card ids" store at 1,3
 node logs "logs/" "job logs" store at 2,3
 group entry "Outside" cloudflare discord github band
 group hermes "Hermes" gateway mcp band
@@ -59,12 +59,12 @@ Top to bottom: the outside world, Hermes, Kurami's processes, state. Hermes is a
 | `hermes-gateway` | systemd, always restarted | cron ticker, Discord buttons through the Kurami plugin, agent sessions, MCP servers |
 | Project polls (×3) | Hermes cron, every minute | the Project Orchestrator cycle for each project |
 | Docs proposal worker | Hermes cron, every minute | turns the weekly docs draft into a PR and a card |
-| Server health | Hermes cron, at the configured interval (5–60 minutes) | updates the health card and sends alerts |
+| Server health | Hermes cron, at the configured interval (5–60 minutes) | collects a health cycle, then updates the health card and sends alerts |
 | Daily | Hermes cron, agent job | the Digest morning edition |
 | Projects Digest, backup, maintenance, Investment Review, docs audit, network speed | Hermes cron, on schedule | see [the schedule](@scheduling) |
 | `kurami-briefing` | systemd, always on | the Digest site |
 | `kurami-human-docs` | systemd, always on | these docs |
-| `kurami-hub` | systemd, always on | Hub, the live status panel |
+| `kurami-hub` | systemd, always on | Hub, the private web dashboard: live status plus a few owner controls |
 | `kurami-preview-ingress` | systemd, always on | Caddy: routes to project previews |
 | `kurami-cpu-statistics` | systemd, always on | a CPU sample every 15 seconds for the health card |
 | Daily guard and the hourly Digest poll | systemd timers | checking the morning edition and refreshing its live sections |
@@ -88,7 +88,7 @@ A Hermes job comes in two kinds. A **script job** is just a script: if it prints
 
 ## Access from outside
 
-Every service listens only on the local address `127.0.0.1`. From outside there is one way in: Cloudflare Tunnel, then Cloudflare Access checking that it is you, then the local service. The sites have no login of their own; Access plays that role. The Tunnel and Access settings live in the Cloudflare dashboard, not in the repository.
+Every service listens only on the local address `127.0.0.1`. From outside there is one way in: Cloudflare Tunnel, then Cloudflare Access checking that it is you, then the local service. The sites have no login of their own; Access plays that role, and Hub's owner controls additionally verify the Access token. The Tunnel and Access settings live in the Cloudflare dashboard, not in the repository.
 
 ## How code goes live
 

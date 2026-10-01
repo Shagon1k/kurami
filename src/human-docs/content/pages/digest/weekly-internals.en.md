@@ -12,7 +12,7 @@ Weekly is a deterministic fold of seven daily observations into one review. It h
 
 :::glance
 - What it does: keeps one compact record per date and folds seven records into a review
-- Started by: edition publication, the hourly poll at :37, a press of «Прочитать и архивировать» (read and archive); the review is built by the Sunday 09:00 build
+- Started by: edition publication, the hourly poll at :37, a press of "Read and archive"; the review is built by the Sunday 09:00 build
 - Runs where: inside the Digest runtime, with no provider calls and no model
 - State: `weekly_daily_observations`, `weekly_mail_actions`, the `weekly` row in `addon_snapshots`
 - What you see: a teaser in the Sunday edition, the `/weekly` page, the "📊 Week" button in Discord
@@ -48,7 +48,7 @@ Each observation is one JSON row per date: the number of stories, the calendar, 
 
 - **Edition publication and refresh** write the observation in the same transaction as the edition itself.
 - **The hourly poll** rereads all saved editions and repeats the observations, then deletes records older than the horizon — 7 completed days plus today.
-- **The «Прочитать и архивировать» button** adds a row to `weekly_mail_actions` in the transaction of the action receipt.
+- **The "Read and archive" button** adds a row to `weekly_mail_actions` in the transaction of the action receipt.
 
 The write rules protect history from being overwritten. The calendar is recomputed only while the day itself is running; afterwards it is frozen. The mail balance is taken only if its read time falls on the edition's date: the first value is fixed, the last one moves forward. So refreshing an old edition with today's mail does not rewrite the past.
 
@@ -96,7 +96,7 @@ The data is invented; the formulas are taken from the code.
 
 :::code-map
 - `src/briefing/weekly/observations.ts` — writing an observation, calendar minutes, pruning the horizon
-- `src/briefing/weekly/mail-observation.ts` — the «Прочитать и архивировать» counter and the failure table
+- `src/briefing/weekly/mail-observation.ts` — the "Read and archive" counter and the failure table
 - `src/briefing/weekly/build.ts` — building the seven-day review
 - `src/briefing/weekly/lifecycle.ts` — history, attach, snapshot publication
 - `src/briefing/weekly/persistence.ts` — `persistOptionalWeekly`: the `SAVEPOINT` and failure record

@@ -13,13 +13,13 @@ next: who-does-what
 - Products: Digest (the morning edition and reviews), Project Orchestrator (engineering work), the platform (health, backups, sites)
 - How it runs: on Hermes and systemd schedules, and on your buttons and commands in Discord
 - Where state lives: SQLite databases and JSON files under `$KURAMI_HOME/state`
-- Where you see it: Discord cards, the Digest and Hub sites, these docs
+- Where you see it: Discord cards, the Digest site, Hub (a private web dashboard with a few owner controls), these docs
 - Yours to decide: merging PRs, deploying, deleting preserved work, changing settings
 :::
 
 Kurami solves three problems. **Digest** builds an edition every morning: news from Telegram channels, unread mail, the calendar and the weather, plus the weekly and cinema reviews at the weekend. **Project Orchestrator** turns issues on a GitHub board into work for Codex: its own branch, a PR, CI, a review. **The platform** keeps all of it running: it watches the server, makes backups, cleans up once a month and publishes the sites.
 
-The three parts share no state. Each has its own database, its own rules and its own answer to "is it done". What they share is the server, the Hermes scheduler, Discord as the control panel and one interface library for the sites.
+The three parts share no state. Each has its own database, its own rules and its own answer to "is it done". What they share is the server, the Hermes scheduler, Discord as the control and notification channel, Hub as a private dashboard and one interface library for the sites.
 
 ## One picture
 

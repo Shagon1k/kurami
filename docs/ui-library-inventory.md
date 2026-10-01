@@ -85,11 +85,12 @@ Hub owns the log and summary layouts. UI-Library: extended.
 src/ui-library/
   tokens/        semantic role names and the contract every theme must fill
   themes/        kurami/light.ts, kurami/dark.ts — values only
-  foundations/   reset, typography roles, focus, a11y utilities, @font-face, container
-  components/    button, theme-switch, link, surface, table, disclosure, callout, state-message
-  patterns/      site-header, page-shell
+  foundations/   reset, typography roles, focus, a11y utilities, @font-face, container, diagram palette
+  components/    button, theme-switch, table, disclosure, callout, form, dialog, icon, stat-card,
+                 period-switch, selection-control, popover
+  patterns/      site-header, page-shell, kurami-sites (cross-site switcher)
   assets/        fonts + OFL licences, fox, favicon (moved from the skill and from Docs)
-  runtime/       theme.js — one script for all sites
+  runtime/       theme.ts — one script for all sites
   testing/       shared browser regression over Digest and Docs
 ```
 
@@ -103,11 +104,15 @@ Components read only semantic custom properties:
 --surface-page  --surface-panel  --surface-raised  --surface-section
 --text-primary  --text-muted     --text-accent     --text-inverse
 --border-default --border-subtle
---accent-primary --accent-soft
---status-success --status-warning --status-failure
+--accent-primary --accent-soft --accent-data
+--status-success --status-warning --status-failure --status-info
 --shadow-offset  --focus-ring
---chart-1 … --chart-n  --diagram-*
+--chart-1 … --chart-5
+--diagram-surface --diagram-panel --diagram-ink --diagram-muted
+--diagram-accent --diagram-accent-soft --diagram-success --diagram-warning
 ```
+
+The authoritative lists live in `src/ui-library/tokens/index.ts`: **32 colour roles per mode** (the names above, with `text-on-accent` in place of `text-inverse`) and **19 scale roles** (three font roles, three radii, three shadows, two durations and eleven spacing steps `space-1` … `space-10`). Colour roles are filled separately for light and dark; scale roles are mode-independent. The diagram roles include `diagram-success` and `diagram-warning`, so exported diagram SVGs follow the theme.
 
 A theme is a complete set of values for these properties. Light and dark are modes of the Kurami theme; a second theme would ship its own light and dark sets and components would not change. During migration the old names (`--paper`, `--ink`, `--signal` …) stay as aliases of the new ones, so unmigrated Digest and Docs CSS keeps working, and each alias is deleted once nothing reads it.
 
@@ -142,7 +147,7 @@ Implemented in seven commits, one per migration step. Each step kept Digest pixe
 | Product components did not move for formal reuse | Story, mail, agenda, Cinema, Stocks, charts engine, Kurami notes and state messages stay in `src/briefing/ui`; Docs maps and article layout stay in `src/human-docs`. |
 | No competing `shared-ui` location | `src/shared-ui` is deleted; brand assets and fonts live only in `src/ui-library/assets`; the skill holds generated copies checked for freshness. |
 | Light/dark did not regress | `npm run test:ui-browser` checks theme behaviour and audits overflow, names and AA contrast on Digest, Docs and a library-only page in both themes; Docs browser QA passes 360 combinations. |
-| A new theme is a token-set swap | `Theme` requires 28 colour roles per mode and 19 scale roles; the contract test builds a different theme without touching components and rejects incomplete ones. |
+| A new theme is a token-set swap | `Theme` requires 32 colour roles per mode and 19 scale roles (`src/ui-library/tokens/index.ts`); the contract test builds a different theme without touching components and rejects incomplete ones. |
 | A sub-site needs no Digest/Docs CSS | The `library-subsite` fixture renders header, table, callout, disclosure and buttons from the library plus six lines of layout and passes the same audit. |
 | The skill references real components | The skill names library and Digest functions and `src/ui-library` paths; the test fails if any name or path does not exist, or if the skill restates colours, Google Fonts or templates. |
 | Joint browser regression | `npm run test:ui-browser -- --compare=<baseline dir>` compares screenshots of both products and reports the share of changed pixels. |
@@ -150,6 +155,12 @@ Implemented in seven commits, one per migration step. Each step kept Digest pixe
 Fixes found along the way: the Digest pagination input had no focus ring (undefined `--focus`); white on the dark accent was 3.3:1, so dark primary buttons now use near-black text; small red text on warm sections was 4.1:1 and now uses `text-accent`; dark-mode Digest flashed light before its deferred theme script; diagrams were white slabs in dark mode; Lithuanian and arrow glyphs fell back to system fonts.
 
 Deploying needs `npm run briefing:build`, a `kurami-briefing` restart, a docs release and `bin/sync-hermes-skills.sh --apply` for the rewritten skill. The stale `dist/shared-ui/` directory can be removed after the build.
+
+## Callouts, tables and the site switcher
+
+`renderCallout` takes either a plain string body (escaped into one paragraph) or `{ html }`, trusted block markup supplied by a product renderer, so a callout can hold lists, links and several paragraphs. `renderTable` takes plain-text cells (escaped) or `{ html }` cells, an optional caption, and `captionHidden` to keep the caption for screen readers only (`sr-only`) when a visible heading already names the table. Docs and Hub render both through the library.
+
+The cross-site switcher is `kuramiSites(current, lang)` in `src/ui-library/patterns/kurami-sites.ts`. It returns the `SiteSwitcherInput` that the site header renders through its `sites` option: links to Hub, Digest and Docs (the current one marked as the location), a disabled Projects entry with a "soon" hint, and the Hermes and Dokploy hosts. Products pass their own `KuramiSite` and language instead of hard-coding the list.
 
 ## Hub controls additions
 

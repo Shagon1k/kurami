@@ -32,8 +32,8 @@ node mcp "MCP-серверы" "Telegram, Composio" at 2,1
 node jobs "Задания Kurami" "опросы, Daily, здоровье" at 1,2
 node timers "systemd-таймеры" "страховка Daily, опрос" at 2,2
 node sites "Сайты" "Digest, docs, Hub" at 0,2
-node sqlite "SQLite" "orchestrator, briefing" store at 0,3
-node json "JSON-файлы" "здоровье, настройки" store at 1,3
+node sqlite "SQLite" "orchestrator, briefing, health" store at 0,3
+node json "JSON-файлы" "настройки, id карточек" store at 1,3
 node logs "logs/" "журналы заданий" store at 2,3
 group entry "Снаружи" cloudflare discord github band
 group hermes "Hermes" gateway mcp band
@@ -59,12 +59,12 @@ edge sites -> sqlite "читает"
 | `hermes-gateway` | systemd, перезапускается всегда | тикер cron, приём кнопок Discord через плагин Kurami, агентные сессии, MCP-серверы |
 | Опросы проектов (×3) | Hermes cron, каждую минуту | цикл Project Orchestrator для каждого проекта |
 | Работник docs proposals | Hermes cron, каждую минуту | превращает еженедельный черновик документации в PR и карточку |
-| Здоровье сервера | Hermes cron, по настроенному интервалу (5–60 минут) | обновляет карточку здоровья и шлёт тревоги |
+| Здоровье сервера | Hermes cron, по настроенному интервалу (5–60 минут) | собирает цикл здоровья, затем обновляет карточку здоровья и шлёт тревоги |
 | Daily | Hermes cron, агентное задание | утренний выпуск Digest |
 | Projects Digest, бэкап, обслуживание, Investment Review, аудит документации, скорость сети | Hermes cron, по расписанию | см. [расписание](@scheduling) |
 | `kurami-briefing` | systemd, постоянно | сайт Digest |
 | `kurami-human-docs` | systemd, постоянно | эта документация |
-| `kurami-hub` | systemd, постоянно | Hub — живая панель состояния |
+| `kurami-hub` | systemd, постоянно | Hub — закрытая веб-панель: живое состояние и несколько действий владельца |
 | `kurami-preview-ingress` | systemd, постоянно | Caddy: маршруты к превью проектов |
 | `kurami-cpu-statistics` | systemd, постоянно | замер CPU раз в 15 секунд для карточки здоровья |
 | Страховка Daily и часовой опрос Digest | systemd-таймеры | проверка утреннего выпуска и обновление живых блоков |
@@ -88,7 +88,7 @@ Hermes раз в минуту сверяет расписание в UTC и за
 
 ## Доступ снаружи
 
-Все сервисы слушают только локальный адрес `127.0.0.1`. Снаружи до них можно дойти одним путём: Cloudflare Tunnel, затем Cloudflare Access с проверкой, что это ты, затем локальный сервис. Своей авторизации у сайтов нет, её роль выполняет Access. Настройки Tunnel и Access лежат в панели Cloudflare, а не в репозитории.
+Все сервисы слушают только локальный адрес `127.0.0.1`. Снаружи до них можно дойти одним путём: Cloudflare Tunnel, затем Cloudflare Access с проверкой, что это ты, затем локальный сервис. Своей авторизации у сайтов нет, её роль выполняет Access, а действия владельца в Hub дополнительно проверяют токен Access. Настройки Tunnel и Access лежат в панели Cloudflare, а не в репозитории.
 
 ## Как код попадает на сервер
 

@@ -8,7 +8,7 @@ order: 80
 next: docs-process
 ---
 
-There is one way to Kurami's sites: Cloudflare Tunnel delivers a request to the server, Cloudflare Access first checks that it is you, and only then does the request reach a local port. The services themselves check nothing — they listen on `127.0.0.1` and assume that an already verified request has reached them. An anonymous visitor is redirected to the Access login and does not reach the service.
+There is one way to Kurami's sites: Cloudflare Tunnel delivers a request to the server, Cloudflare Access first checks that it is you, and only then does the request reach a local port. The services themselves check little — they listen on `127.0.0.1` and assume that an already verified request has reached them. The one exception is Hub's owner controls, which verify the signed Access token themselves. An anonymous visitor is redirected to the Access login and does not reach the service.
 
 ```diagram
 kind: graph
@@ -38,7 +38,7 @@ edge caddy -> preview "running only"
 |---|---|---|
 | Digest | `127.0.0.1:8787` | Cloudflare Access |
 | This documentation, `docs.shagon1k.win` | `127.0.0.1:8799` | Cloudflare Access; `/` redirects to `/en/` |
-| Hub | `127.0.0.1:8800` | Cloudflare Access |
+| Hub | `127.0.0.1:8800` | Cloudflare Access; its Controls also check the signed Access token, the origin and a CSRF token |
 | Project previews, `preview-N.shagon1k.win` (N from 1 to 6) | through Caddy, `127.0.0.1:9180` | Cloudflare Access plus a 404 for any address without a running preview |
 | The "Open in Codex" link | through Caddy | no Access: a redirect by exact task identifier |
 
@@ -52,7 +52,7 @@ Discord accepts only HTTP(S) in link buttons, while Codex opens by a `codex://` 
 
 ## What is not in the repository
 
-The Cloudflare settings — tunnel routes for `preview-1…6`, Access policies, a service token for automated checks of the documentation — live in the Cloudflare dashboard. The repository neither checks nor changes them; to restore the server they must be created by hand ([Recovery](@recovery)). That an anonymous request to an address gets a redirect to the login can be observed, but the rules of "whom to let in" are not visible from the repository. For Hub this dependency is the most important one: without Access the page is open to anyone who reaches the port.
+The Cloudflare settings — tunnel routes for `preview-1…6`, Access policies, a service token for automated checks of the documentation — live in the Cloudflare dashboard. The repository neither checks nor changes them; to restore the server they must be created by hand ([Recovery](@recovery)). That an anonymous request to an address gets a redirect to the login can be observed, but the rules of "whom to let in" are not visible from the repository. For Hub this dependency is the most important one: without Access the read-only areas are open to anyone who reaches the port. The controls fail closed: with no valid Access token for the configured team and application they refuse to run.
 
 :::code-map
 - `deploy/systemd/kurami-preview-ingress.service` — the Caddy service
@@ -60,4 +60,5 @@ The Cloudflare settings — tunnel routes for `preview-1…6`, Access policies, 
 - `src/orchestrator/projects/previews/ingress.ts` — building routes from leases
 - `src/human-docs/server.ts` — the documentation server, GET and HEAD only
 - `src/hub/server.ts` — the Hub server on `127.0.0.1`
+- `src/hub/access.ts` — the Access token check used by the Hub controls
 :::

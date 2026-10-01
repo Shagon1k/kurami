@@ -8,7 +8,7 @@ order: 20
 next: health
 ---
 
-The `/kurami settings` command opens a Discord panel with the limits Kurami applies while it works. Only you see the panel: the command accepts the single owner and only inside a project server. Pick a section, change a value in its form and press **Apply**.
+The `/kurami settings` command opens a Discord panel with the limits Kurami applies while it works. Only you see the panel: the command accepts the single owner and only inside a project server. Pick a section, change a value in its form and press **Apply**. The same settings, with the same ranges, are in [Hub](@hub): Controls → Settings. Hub runs the same command-line tools and the same schema, so the idle gate, the checks and the revisions below apply to both. Hub also records the verified identity in its own audit log.
 
 ::shot{file="shot-kurami-settings.png" size="card" alt="Kurami settings panel, revision 4: check interval, capacity, AI triage and previews; changes locked because of active runs" caption="Current values and the lock line: it lists everything that is still running."}
 
@@ -43,7 +43,7 @@ Wait until the list is empty and press **Apply** again.
 
 ## Revisions, Undo and Reset
 
-Every apply creates a new revision: the number grows, and the values, the previous values and the author's Discord id are stored in the database with a checksum. The panel remembers the revision it opened with. If someone changed the settings meanwhile, the panel refuses and asks you to reopen it.
+Every apply creates a new revision: the number grows, and the values, the previous values and the author's id (Discord, or a fixed id for Hub) are stored in the database with a checksum. The panel remembers the revision it opened with. If someone changed the settings meanwhile, the panel refuses and asks you to reopen it.
 
 | Button | What it does |
 |---|---|
@@ -56,10 +56,12 @@ If the values did not change, no revision is created. The values are read by [Ad
 :::guarantees
 - Limits change only while Kurami is idle.
 - Every change is a separate revision with an author and a checksum; any change can be rolled back.
-- Physical limits, disks, channels, paths and secrets cannot be changed from Discord.
+- Physical limits, disks, channels, paths and secrets cannot be changed from Discord or from Hub.
 :::
 
 :::code-map
+- `src/orchestrator/settings/settings-schema.json` — field labels, ranges and flags shared by Discord and Hub
+- `src/hub/controls.ts` — the Hub Settings action
 - `src/orchestrator/settings/runtime-settings.ts` — ranges, consistency checks and the idle check
 - `src/orchestrator/settings/orchestrator-settings.ts` — applying, resetting and rolling back revisions
 - `integrations/hermes/plugins/kurami-discord-controls/settings_handler.py` — the panel and forms in Discord

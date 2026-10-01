@@ -40,7 +40,7 @@ An empty block is allowed only when collection succeeded and found nothing suita
 - **Hermes agent** — reads the news candidates and writes Russian headlines and summaries.
 - **Kurami** — fetches images, checks the snapshot and prepares the page.
 - **Kurami** — replaces `/cinema` in one operation together with the snapshot.
-- **You** — see the «Кино за неделю» (cinema of the week) teaser in Daily and the **🎬 Cinema** button on the Discord card.
+- **You** — see the "Cinema this week" teaser in Daily and the **🎬 Cinema** button on the Discord card.
 :::
 
 You do not configure channels and sources: they are set in `briefing.yaml`, and the market by the key `cinema.market` (currently `LT`).
@@ -50,7 +50,7 @@ You do not configure channels and sources: they are set in `briefing.yaml`, and 
 | Situation | What you see | What to do |
 |---|---|---|
 | The snapshot is not accepted | `/cinema` shows last week with its date; the Saturday Daily has no teaser | Nothing: next Saturday builds again |
-| One block did not build | The page lacks that block; the bottom strip says «Есть оговорки по данным» (there are data caveats) and «Срез собран частично: 1 недоступно, 0 неполно» (the snapshot is partial: 1 unavailable, 0 incomplete) | Nothing |
+| One block did not build | The page lacks that block; the bottom strip says "Data caveats" and «Срез собран частично: 1 недоступно, 0 неполно» (the snapshot is partial: 1 unavailable, 0 incomplete) | Nothing |
 | An image did not arrive | The card stays without an image, the text is in place | Nothing |
 
 How collection, fallback sources and the acceptance rule work is explained in [How Cinema is built](@cinema-internals).

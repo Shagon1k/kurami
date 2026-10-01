@@ -14,7 +14,7 @@ Kurami backs up in three tiers, and each one guards against a heavier loss. A sn
 
 | Tier | What is inside | Where it lives | How many are kept |
 |---|---|---|---|
-| Snapshot | the Run Store database (`orchestrator.db`), `orchestrator.yaml`, `projects.yaml`, `Caddyfile`, a manifest with checksums; no secrets | `$KURAMI_HOME/backups/backup-<UTC time>/` | the latest 14 |
+| Snapshot | the Run Store database (`orchestrator.db`) and, when present, the Health database (`system-health.db`) and the Digest database (`briefing.db`); `orchestrator.yaml`, `projects.yaml`, `Caddyfile` and the Digest settings `briefing.yaml`, `briefing-topics.yaml`; a manifest with checksums; no secrets | `$KURAMI_HOME/backups/backup-<UTC time>/` | the latest 14 |
 | Encrypted bundle | the newest verified snapshot, three secret files (Hermes environment, GitHub, TailorTales preview) and the Hermes cron registry | `$KURAMI_HOME/recovery/*.tar.zst.age` | the latest 3 |
 | Off-site copy | the same bundle plus its checksum file | S3 cloud storage, `recovery/` folder | the latest 3 pairs |
 
@@ -24,12 +24,12 @@ The second and third tiers switch on only when you put an `age` public key and s
 
 The code lives in GitHub and is not part of the backup. Outside every tier you also lose:
 
-- the Digest database `briefing.db` and the `state/briefing/` directory: editions, pages, media;
-- the docs proposal database `proposals.db` and the Digest settings files (`briefing.yaml`, `briefing-topics.yaml`, `stocks.env`);
+- the Digest edition pages and media in `state/briefing/` (the database `briefing.db` with the editions' data is copied, the finished pages are not);
+- the docs proposal database `proposals.db` and `stocks.env`;
 - the remaining secrets: Composio environments, the GitHub App key for reviews, the PickFlick preview environment, the Telegram session;
 - logs, Docker data, working copies, Codex sessions and the previews themselves.
 
-So after a total server loss the history of Digest editions does not come back, and some keys must be issued again.
+So after a total server loss the finished edition pages and media do not come back, and some keys must be issued again. The Health database keeps pending alert messages and streaks, so a restored server does not forget an open problem; an older backup without it is still valid, and the next check starts Health state afresh.
 
 ## What you see
 
@@ -42,7 +42,7 @@ A bundle that cannot be opened is worse than no bundle, so it is worth testing. 
 :::steps
 - **You** — download the newest bundle and its `.sha256` file from storage and compare the checksum.
 - **You** — run `recovery-bundle.ts verify` with the private key you keep offline.
-- **The check** — decrypts the bundle into a temporary directory, rejects unsafe paths in the archive, compares every file to the manifest and runs `quick_check` on the database.
+- **The check** — decrypts the bundle into a temporary directory, rejects unsafe paths in the archive, compares every file to the manifest and runs `quick_check` on each database in it, including `system-health.db` and `briefing.db` when present.
 - **The check** — deletes the decrypted files and prints the result.
 :::
 
@@ -55,7 +55,7 @@ A real restore is a manual operation, and the order matters. The environment com
 - **You** — clone the repository from GitHub into `$KURAMI_HOME/app`, then run `npm ci` and `npm run check`.
 - **You** — copy the configuration from `deploy/config`, install the systemd units, the Hermes plugin and skills.
 - **You** — decrypt the bundle and put the secrets back with mode `0600`.
-- **You** — restore the newest verified database snapshot, or pick a clean database if the run history is expendable.
+- **You** — restore the newest verified database snapshot (`orchestrator.db` and, when included, `system-health.db` and `briefing.db`) while the services and jobs are stopped, or pick a clean database if the run history is expendable.
 - **You** — restore the project clones and start Docker, Hermes and the ingress.
 - **You** — recreate the cron jobs from the inventory: they get new identifiers.
 - **You** — validate everything and only then switch the project pollers on.

@@ -8,46 +8,51 @@ order: 30
 next: backup-internals
 ---
 
-Monitoring is a short script that collects the server's state every few minutes, compares it with the previous check and writes to Discord only as a result of that comparison. What the card and messages look like is on [Server health](@health).
+Monitoring is a pair of short scripts: the first collects the server's state every few minutes and records one cycle, the second turns the recorded cycle into Discord messages. Hub reads the same recorded cycle. What the card and messages look like is on [Server health](@health).
 
 :::glance
-- What it does: collects metrics, keeps a streak for each problem and decides whether to send an alert, a reminder or a recovery message
-- Triggered by: the Hermes job `kurami-system-health`, at the configured interval (built-in default 20 minutes), which you change in `/kurami settings`
-- Runs where: the script `kurami-runtime-health.sh`, with no agent and no LLM; it writes to Discord itself, directly
-- State: four JSON files in `$KURAMI_HOME/state` — streaks, the OOM counter, history, the card id
-- What you see: one card edited in place and separate messages in the alerts channel
+- What it does: collects metrics, keeps a streak for each problem, records one cycle and delivers the alert, reminder or recovery message from it
+- Triggered by: the Hermes job `kurami-system-health`, at the configured interval (built-in default 20 minutes), which you change in `/kurami settings` or in Hub
+- Runs where: the wrapper `kurami-runtime-health.sh` runs two steps, collect and then deliver, with no agent and no LLM; delivery writes to Discord directly
+- State: the private SQLite database `$KURAMI_HOME/state/system-health.db` (cycle, pending messages, leases) plus compatibility JSON files
+- What you see: one card edited in place, separate messages in the alerts channel and the System Health area in [Hub](@hub)
 :::
 
 ```diagram
 kind: graph
 title: One check cycle
-desc: Hermes starts the check script. Collectors read the server, the database, Docker and backups, plus two files written by background jobs. The decision step compares the problems with the streaks from earlier checks and, if needed, sends a message to the alerts channel. Then the script edits the health card and appends to the history.
+desc: Hermes starts the wrapper, which first collects and then delivers. Collectors read the server, the database, Docker and backups, plus two files written by background jobs. The decision step compares the problems with the streaks from the previous cycle and commits the new cycle and any message to send into system-health.db. The delivery step reads the pending messages from that database, writes to the alerts channel and edits the health card. Hub reads the same database.
 node cpustat "cpu-statistics.json" "CPU sampler, every 15 s" store at 0,0
 node speed "network-speed.json" "network speed" store at 0,1
-node script "Check script" "on the Hermes schedule" at 1,0
-node collect "Collectors" "server, database, Docker, backup" at 1,1
+node script "Check wrapper" "on the Hermes schedule" at 1,0
+node collect "1 · Collect" "server, database, Docker, backup" at 1,1
 node decide "Decision" "streaks and fingerprint" at 1,2
-node state "runtime-health-alert.json" "streaks and active" store at 0,2
+node db "system-health.db" "cycle, pending, leases" store at 0,2
+node deliver "2 · Deliver" "up to 20 messages" at 1,3
 node alerts "Alerts channel" "a new message" external at 2,2
 node card "Health card" "edited in place" external at 2,3
-node hist "system-health-history.json" "last 10 checks" store at 1,3
+node hub "Hub" "reads the cycle" external at 0,3
 edge script -> collect "starts"
 edge cpustat -> collect "CPU series" muted
 edge speed -> collect "snapshot" muted
 edge collect -> decide "problems"
-edge decide <-> state "reads and writes"
-edge decide -> alerts "if warranted"
-edge decide -> hist "record"
-edge hist -> card "result"
+edge decide -> db "commit cycle and message"
+edge script -> deliver "then starts" muted
+edge db -> deliver "pending"
+edge deliver -> alerts "send"
+edge deliver -> card "edit"
+edge db -> hub "read" muted
 ```
 
 ## Collectors
 
-The script reads everything itself in one pass and changes nothing on the server. It measures the server directly: CPU load from `/proc/stat` with two readings 5 seconds apart, memory from `/proc/meminfo`, the count of processes killed by the kernel from `/proc/vmstat`, plus the load average and uptime. Network is checked with three HTTPS requests to Cloudflare, Google and GitHub.
+The collector reads everything itself in one pass and changes nothing on the server. It measures the server directly: CPU load from `/proc/stat` with two readings 5 seconds apart, memory from `/proc/meminfo`, the count of processes killed by the kernel from `/proc/vmstat`, plus the load average and uptime. Network is checked with three HTTPS requests to Cloudflare, Google and GitHub.
 
 It opens the Run Store database read-only and runs `PRAGMA quick_check`. Then it asks Docker how many containers run and which are unhealthy, lists the hungriest processes with `ps`, and cross-checks the previews: every lease needs a Docker project and a directory, and every directory needs a lease. Finally it reads the age of the newest backup and the state of the resource guard: disk space, the number of working copies, quarantine.
 
 Two files are prepared for the script by others: `cpu-statistics.json` is written by a background CPU sampler (a sample every 15 seconds, at most 1440 points in the file), and `network-speed.json` by a separate speed-test job. From them the card takes the 8-minute rolling average, the peak and the speed. Alerts do not use the average: it would smooth away a sustained overload, so only the 5-second reading decides.
+
+Collection has no Discord dependency: it reads no Discord configuration or credentials, so a Discord outage cannot stop measuring. A *lease* in the database lets only one collector run at a time; it expires after five minutes, so a crashed collector does not block the next one.
 
 ## Problems, keys and streaks
 
@@ -67,7 +72,7 @@ A streak grows while a problem's severity stays the same. If RAM moves from warn
 
 ## The decision: send or not
 
-A pure function makes the decision. It receives the previous state, the current problems and the time, and returns one of four answers. First it updates the streaks. A problem becomes *active* once its streak reaches the required length and stays active while it remains in the list. Then the function compares the *fingerprint* — the sorted list of "key:severity" pairs of the active problems — with the previous one.
+A pure function makes the decision during collection. It receives the previous state (the stored cycle, or the old JSON files on the very first run), the current problems and the time, and returns one of four answers. First it updates the streaks. A problem becomes *active* once its streak reaches the required length and stays active while it remains in the list. Then the function compares the *fingerprint* — the sorted list of "key:severity" pairs of the active problems — with the previous one.
 
 ```diagram
 kind: graph
@@ -88,31 +93,38 @@ edge now -> recovery "no"
 edge due -> reminder "yes"
 ```
 
-The recovery arrives at the *first* clean check, with no delay. This is deliberate: an alert must not outlive its problem, and a fresh spike still has to pass through a streak. The "Alert" step also carries warnings: the title depends on whether any active problem is critical.
+The recovery arrives at the *first* clean check, with no delay. This is deliberate: an alert must not outlive its problem, and a fresh spike still has to pass through a streak. The "Alert" step also carries warnings: the title depends on whether any active problem is critical. The answer is not sent at this point: it is recorded as a pending message in the same database transaction as the new cycle.
 
-## State files
+## State and compatibility files
 
-| File | What it holds | Who reads it |
+The source of truth is one SQLite database. Collection writes the new cycle and its pending message in a single transaction, so the two never disagree.
+
+| Where | What it holds | Who reads it |
 |---|---|---|
-| `runtime-health-alert.json` | streaks by key, active problems, time of the last message | the next check |
-| `runtime-health-counters.json` | the count of processes killed by the kernel | the next check: the difference gives "OOM killer terminated N processes" |
-| `system-health-history.json` | the last ten checks | the "Inspect one of the last 10 runs…" picker |
-| `system-health-discord.json` | channel and message id of the card | the next check, to edit the same message |
-| `health-settings.json` | interval, revision, who changed it and when | the settings form and the interval command |
+| `system-health.db`, table `health_cycle` | the latest measurements, the last ten checks and the streaks, with the time of the last message | the next collection, delivery, Hub |
+| `system-health.db`, table `health_notifications` | messages waiting to be sent, each with a nonce | delivery |
+| `system-health.db`, table `health_leases` | who collects or delivers now, and until when | collection, delivery |
+| `system-health-discord.json` | channel and message id of the card | delivery, to edit the same message |
+| `health-settings.json` | interval, revision, who changed it and when | the settings form, Hub, the interval command |
+| `runtime-health-alert.json`, `runtime-health-counters.json`, `system-health-history.json`, `system-health-snapshot.json` | projections of the cycle for older readers; the counters file also keeps the OOM count for the next check | compatibility; Hub falls back to the snapshot before the first cycle |
 
-All files are written atomically: a temporary file first, then a rename. So a crash mid-write leaves no half-written JSON.
+Files are written atomically: a temporary file first, then a rename. A missing projection does not matter: Hub and delivery read the database.
 
 ## Delivery to Discord
 
-The Hermes job is marked `deliver: local`, so Hermes itself publishes nothing. The script sends the messages directly through the Discord REST API. That way the card does not get a "Cronjob Response" header, and the card is an edit of an old message rather than a new one.
+The Hermes job is marked `deliver: local`, so Hermes itself publishes nothing. The wrapper runs the collector and then `system-health-discord.ts --deliver`, which sends through the Discord REST API. That way the card does not get a "Cronjob Response" header, and the card is an edit of an old message rather than a new one.
 
-First the script delivers the alert and only after success records the new streak state. If sending fails, the state stays as it was and the next check reaches the same decision. So that a retry does not create a duplicate, each message carries a *nonce*, a one-off tag built from the message kind, the time of the previous message and the fingerprint. With nonce enforcement on, Discord drops a second message with the same tag. Every request is tried up to three times, and a 429 answer is waited out for up to five seconds.
+Delivery takes its own lease, reads the stored cycle without a new CPU sample and sends up to 20 pending messages, oldest first. Each message is removed from the queue only after Discord accepts it. If sending fails, the message stays with its original result and nonce, order is kept, and the next delivery retries. The nonce is a one-off tag built from the message kind, the time of the previous message and the fingerprint; Discord drops a second message with the same tag while it remembers it. A reminder is not queued twice for the same set of problems, but a transition (alert, recovery) always waits until delivered. Every request is tried up to three times, and a 429 answer is waited out for up to five seconds.
 
-After the alert the script appends an entry to the history and edits the card. If the card was deleted, Discord answers 404, and the script posts a new one and remembers its id.
+Then delivery edits the card from the stored cycle. If the card was deleted, Discord answers 404, and delivery posts a new one and remembers its id. The older modes `--run`, `--heartbeat` and `--alerts` still collect first; `--cleanup-health-channel` is explicit maintenance and collects nothing.
+
+## What Hub shows from the cycle
+
+Hub opens `system-health.db` read-only and shows the latest committed cycle, the same numbers as the card. Until the first cycle exists it reads the old snapshot file. If the cycle is older than twice the interval plus five minutes (at least 15), Hub marks System Health stale and puts it into its problem queue. Hub does not collect or deliver anything.
 
 ## What monitoring cannot see
 
-Monitoring does not watch itself. If Hermes stops or the script crashes, the job does not report it: its delivery is local, and there is no watchdog for the watchdog. The only sign is the "Updated" time on the card that stops changing. Container load is not judged against thresholds either: it is shown among the "hungriest" and raises no alert.
+Monitoring does not watch itself. If Hermes stops or the wrapper crashes, the job does not report it: its delivery is local, and there is no watchdog for the watchdog. Two signs remain: the "Updated" time on the card stops changing, and Hub marks System Health stale. Container load is not judged against thresholds either: it is shown among the "hungriest" and raises no alert.
 
 ::::example The evening memory ran out (invented data)
 The interval is 10 minutes. RAM thresholds: warning 80% (3 checks), critical 90% (2 checks).
@@ -127,28 +139,32 @@ The interval is 10 minutes. RAM thresholds: warning 80% (3 checks), critical 90%
 | 12:50 | 92% | critical 2/2 | `alert`, fingerprint changed | "🚨 Alert" |
 | 13:00 | 71% | problem gone, none active | `recovery` | "✅ Recovered", the card is green |
 
-Between 10:10 and 10:30 the card is already "yellow", but nobody calls you: the first two warnings are not yet confirmed.
+Between 10:10 and 10:30 the card is already "yellow", but nobody calls you: the first two warnings are not yet confirmed. If Discord is down at 10:30, the alert waits in `system-health.db` with its nonce, and the 10:40 delivery sends it; the 10:40 collection does not queue a second one.
 ::::
 
 ## What can go wrong
 
 | Situation | What Kurami does | What you do |
 |---|---|---|
-| Discord is unreachable | the script tries three times and exits with an error; the streak state does not advance | nothing: the next check repeats the same decision |
+| Discord is unreachable | delivery tries three times and fails; the message stays pending with its nonce, collection keeps working | nothing: the next delivery retries, up to 20 messages |
 | The card is deleted | gets 404, posts a new one and remembers its id | nothing; stray messages in the channel are cleaned by the `--cleanup-health-channel` flag |
-| Hermes is stopped | no checks run; there is no alert | notice the frozen "Updated" and check `hermes-gateway` |
+| Hermes is stopped | no checks run; there is no alert | notice the frozen "Updated" or the stale mark in Hub and check `hermes-gateway` |
+| A collector is already running | the second one stops with "already running"; the lease frees itself after five minutes | nothing |
 | An interval change is rejected | Hermes did not accept the schedule, the form reports an error, the interval stays | retry or check the job identifier |
 | The job is recreated after a disaster | it gets a new identifier, while the settings form looks for the old one | set `KURAMI_HEALTH_JOB_ID` |
 
 :::guarantees
 - Monitoring only observes: it does not repair, delete previews or stop runs.
 - A short spike does not become an alert: a streak in a row is required.
-- A retry after a failure does not create a second message: Discord drops an identical nonce.
+- Collection never depends on Discord, and delivery never samples or advances streaks.
+- A failed message stays pending in order, and a retry carries the same nonce; delivery is at-least-once, bounded by how long Discord remembers a nonce.
 - Each problem is reported once per change, not on every check.
 :::
 
 :::code-map
-- `src/system/health/system-health-discord.ts` — the `--run` entry point: alert delivery, history, card
+- `src/system/health/health-cycle.ts` — collection, the cycle store, leases and the delivery queue
+- `src/system/health/system-health-discord.ts` — the `--deliver` entry point: messages and the card
+- `src/system/health/health-read-model.ts` — what Hub reads from the cycle
 - `src/orchestrator/health/runtime.ts` — collectors and the list of problems
 - `src/system/health/server-health.ts` — thresholds, streaks, decision, keys
 - `src/system/health/cpu-statistics-sampler.ts` — the background CPU sampler

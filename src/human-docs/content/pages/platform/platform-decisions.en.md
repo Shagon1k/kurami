@@ -48,15 +48,15 @@ Each decision is written in one format: **Context** — what was needed, **Decis
 
 **Trade-off.** Every new automatic action is a change to the policy, the Hermes list, a document and tests; the narrow argument rules live in code, not in Composio.
 
-## Hub reads local sources and writes nothing
+## Hub reads local sources, and its few writes reuse canonical tools
 
-**Context.** The owner wants one page with project state, Git and Codex usage. Calling GitHub and Codex for it would mean holding tokens, hitting limits and risking a write.
+**Context.** The owner wants one page with project state, health, Git and Codex usage, and a few routine actions (a model, a setting, a Composio sync, a restart) without opening Discord. Calling GitHub and Codex for the page would mean holding tokens, hitting limits and risking a write.
 
-**Decision.** Hub opens the Project Orchestrator database read-only, reads the local `git log` and local Codex logs, and listens only on `127.0.0.1`. It has no authorization of its own: Cloudflare Access guards the entrance.
+**Decision.** Hub opens the databases read-only, reads the local `git log`, local Codex logs and the shared health cycle, and listens only on `127.0.0.1`. Every write goes through a Controls action that calls the same command-line tool or service as Discord. An action needs a verified Cloudflare Access identity, an exact origin, a CSRF token and a confirmation, runs one at a time and leaves an audit record. Everything else stays read-only.
 
-**Why.** A service with no writes and no tokens cannot be used to change state, and the data already lies on the server.
+**Why.** A page that holds no tokens and runs no logic of its own cannot drift from the canonical rules: the idle gate, revisions and connector checks stay in one place. The data already lies on the server.
 
-**Trade-off.** The numbers may lag GitHub, Codex tokens are counted approximately from local logs, and safety depends on an Access setup outside the repository.
+**Trade-off.** The numbers may lag GitHub, Codex tokens are counted approximately from local logs, and safety depends on an Access setup outside the repository. The service needs write access to a few directories, and applying that change is a release step.
 
 ## An alert follows a streak of checks, not a single reading
 
@@ -122,7 +122,7 @@ Each decision is written in one format: **Context** — what was needed, **Decis
 - [Kurami and Hermes](@hermes-integration) — the job kinds and the plugin
 - [Schedule](@scheduling) — UTC cron and local-time checks in practice
 - [Connector authority](@connector-authority) — the three levels and the argument rules
-- [Hub](@hub) — what it reads and shows
+- [Hub](@hub) — what it shows and which controls it has
 - [How monitoring works](@health-internals) — streaks, the card and the alerts
 - [How backups work](@backup-internals) — the three tiers in detail
 - [How the docs are updated](@docs-process) — the Publish click

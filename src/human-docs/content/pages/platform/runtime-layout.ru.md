@@ -45,7 +45,7 @@ group home "$KURAMI_HOME" app runtime config state secrets connectors backups re
 | `state/` | см. таблицу ниже | задания и сервисы |
 | `secrets/` | токены GitHub, `recovery.env`; значения не читает ни один документ | ты |
 | `connectors/` | `.env` трёх сессий Composio и данные Telegram MCP | скрипты коннекторов |
-| `backups/` | `backup-<UTC>/`: снимок базы, три файла настроек, манифест | задание бэкапа |
+| `backups/` | `backup-<UTC>/`: снимки баз, файлы настроек, манифест | задание бэкапа |
 | `recovery/` | `kurami-recovery-<UTC>.tar.zst.age` и `.sha256` | задание бэкапа |
 | `logs/` | `*.log` и `*.jsonl` по подсистемам | скрипты; удаляются через 90 дней |
 
@@ -56,12 +56,14 @@ group home "$KURAMI_HOME" app runtime config state secrets connectors backups re
 | Файл или каталог | Что хранит | Пишет | Читает |
 |---|---|---|---|
 | `orchestrator.db` | Run Store | Project Orchestrator | здоровье, Hub (только чтение), бэкап |
+| `system-health.db` | цикл здоровья: измерения, серии, ожидающие сообщения тревог | сборщик здоровья | доставка здоровья, Hub (только чтение), бэкап |
+| `hub/control-audit.jsonl` | короткая запись на каждое действие Controls в Hub | Hub | ты, для проверки |
 | `briefing/` | база Digest, страницы, медиа | Digest | сайт Digest |
 | `human-docs/` | `release/`, `rollback-<sha>/`, `proposals.db`, черновики | воркер документации | сервер документации |
 | `caddy/routes.caddy` | маршруты превью | сборка маршрутов | Caddy |
 | `cpu-statistics.json` | до 1440 замеров CPU | сэмплер | проверка здоровья |
 | `network-speed.json` | последний замер скорости | задание скорости | проверка здоровья |
-| `runtime-health-*.json`, `system-health-*.json`, `health-settings.json` | серии, id карточки, последние 10 проверок, интервал проверки | проверка здоровья; интервал — `/kurami settings` | проверка здоровья и плагин (подробнее — [Как работает мониторинг](@health-internals)) |
+| `runtime-health-*.json`, `system-health-*.json`, `health-settings.json` | проекции цикла здоровья, id карточки, интервал проверки | сборщик и доставка здоровья; интервал — `/kurami settings` или Hub | проверка здоровья и плагин (подробнее — [Как работает мониторинг](@health-internals)) |
 | `*.lock` | блокировки заданий | обёртки через `flock` | они же |
 
 Блокировка — пустой файл: скрипт берёт её командой `flock` без ожидания и, если она занята, тихо выходит. Так пересекающиеся запуски не мешают друг другу. Общая блокировка `project-event-consumer.lock` держится на весь проход «события, контроллер, уведомления», а блокировки опроса и Projects Digest — свои.
@@ -74,11 +76,11 @@ group home "$KURAMI_HOME" app runtime config state secrets connectors backups re
 |---|---|---|---|
 | `kurami-briefing` | 8787 | `state/briefing` | `node --jitless`, собранный `dist/`, `MemoryDenyWriteExecute` |
 | `kurami-human-docs` | 8799 | никуда | стартует, только если есть `release/build.json` |
-| `kurami-hub` | 8800 | никуда | стартует, только если есть `orchestrator.db` |
+| `kurami-hub` | 8800 | `state`, `connectors`, каталог Codex и домашний каталог Hermes | стартует, только если есть `orchestrator.db`; пути записи нужны действиям Controls |
 | `kurami-preview-ingress` | 9180 | `state/caddy` | проверяет конфигурацию перед запуском |
 | `kurami-cpu-statistics` | — | `state` | только Unix-сокеты, сети нет |
 
-Ограничения общие: `ProtectSystem=strict` (файловая система только для чтения), `ProtectHome=read-only`, `NoNewPrivileges`, `PrivateTmp`, запрет новых пространств имён, `UMask=0077`. Сервис, который ничего не пишет, не получает ни одного `ReadWritePaths`, поэтому даже ошибка в коде Hub не сможет изменить файл.
+Ограничения общие: `ProtectSystem=strict` (файловая система только для чтения), `ProtectHome=read-only`, `NoNewPrivileges`, `PrivateTmp`, запрет новых пространств имён, `UMask=0077`. Сервис, который ничего не пишет, например сервер документации, не получает ни одного `ReadWritePaths`. У Hub короткий список, потому что его действия обновляют состояние Kurami, рабочие файлы коннекторов, настройки Codex и настройки Hermes; применить изменённый юнит и перезапустить Hub — шаг выкладки.
 
 ## Закреплённый Node и два способа запуска
 
@@ -138,7 +140,7 @@ GitHub Actions на каждый PR запускает типы, проверк�
 
 :::guarantees
 - У `$KURAMI_HOME` одно определение, и его нельзя заменить ссылкой.
-- Сервисы пишут только в свои каталоги; Hub и документация не пишут никуда.
+- Сервисы пишут только туда, где это разрешает их юнит: документация — никуда, Hub — только в пути, нужные его действиям.
 - Все файлы состояния закрыты правами 0600, JSON записывается атомарно.
 - Код приложения не обновляет сам себя: выкладка — ручное действие.
 :::

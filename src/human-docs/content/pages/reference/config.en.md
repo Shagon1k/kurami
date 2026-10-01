@@ -6,11 +6,11 @@ group: reference
 order: 50
 ---
 
-Kurami's settings live in three places. **Configuration files** are in the repository under `deploy/config/` and are copied to `$KURAMI_HOME/config/` on the server: they change only with a deploy. **Owner settings** are the limits you change in `/kurami settings`: they are stored in the database as revisions on top of the file values. **Environment variables** set paths, ports and secrets and stay out of the repository.
+Kurami's settings live in three places. **Configuration files** are in the repository under `deploy/config/` and are copied to `$KURAMI_HOME/config/` on the server: they change only with a deploy. **Owner settings** are the limits you change in `/kurami settings` or in Hub Controls → Settings: they are stored in the database as revisions on top of the file values. **Environment variables** set paths, ports and secrets and stay out of the repository.
 
 ## What you can change with a button
 
-`/kurami settings` changes only these values. Project Orchestrator limits change only while it is idle: no running runs, previews, queues or technical tasks. The health check interval can change at any time. Every change is recorded as a revision with its author and an integrity check, and **Undo last** rolls it back.
+`/kurami settings` and Hub change only these values, through the same tools and the same schema. Project Orchestrator limits change only while it is idle: no running runs, previews, queues or technical tasks. The health check interval can change at any time. Every change is recorded as a revision with its author and an integrity check, and **Undo last** rolls it back.
 
 | Setting | Allowed | Default | What it limits |
 |---|---|---|---|
@@ -84,6 +84,10 @@ News topics and their checks live separately in `deploy/config/briefing-topics.y
 |---|---|
 | `KURAMI_HOME`, `HERMES_HOME` | the Kurami and Hermes root folders |
 | `BRIEFING_PORT`, `DOCS_PORT`, `HUB_PORT` | the sites' ports on the local address |
+| `HUB_CONTROLS_ENABLED`, `HUB_CONTROL_ORIGIN` | switch on the Hub owner controls and set the exact origin they accept |
+| `HUB_ACCESS_TEAM`, `HUB_ACCESS_AUDIENCE` | the Cloudflare Access team and application the controls verify; if missing, controls refuse to run |
+| `HUB_CONTROL_ACTOR_ID` | the numeric actor that Hub settings changes record in the revision history, 0 by default |
+| `HUB_CODEX_HOME` | where Hub looks for Codex state, `~/.codex` by default |
 | `KURAMI_BACKUP_RETENTION` | how many snapshots to keep, 14 by default |
 | `KURAMI_BACKUP_MAX_AGE_HOURS` | after how many hours a backup counts as stale, 84 by default |
 | `KURAMI_RECOVERY_RETENTION`, `KURAMI_S3_RETENTION` | how many recovery archives to keep locally and off-site, 3 each |

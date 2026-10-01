@@ -14,7 +14,7 @@ A connector is an external set of tools through which an agent or a Kurami scrip
 - Levels: `composio-read` (read only), `composio-automation` (one allowed action), `composio` (broad, for you)
 - Two lists that must agree: the session policy in Composio and `tools.include` in Hermes
 - Who calls: polls and Daily — `read`; the "Прочитать и архивировать" (Read and archive) button — `automation`; you in chat — `composio`
-- Drift check: the `/kurami composio-check` command in Discord
+- Drift check: the `/kurami composio-check` command in Discord, or Controls → Composio in Hub
 - A fourth connector: Telegram MCP — the news source for Daily
 - Secrets: separate `.env` directories with mode 0600, kept out of Git
 :::
@@ -72,7 +72,9 @@ So the "Прочитать и архивировать" button removes the `UNRE
 
 ## Reconciling: `/kurami composio-check`
 
-The command shows all three levels at once and compares each live session with the desired state from `deploy/config/connectors/`. You pick a level in the "Choose capability contour…" list. The "Apply <level> changes" button appears only for the selected level that has drifted, and is bound to the session version, the tool list and the shown difference: if something changes between showing and pressing, it refuses. Creating a session and installing configuration into Hermes are deployment operations through the `bin/kurami-composio-session` CLI; they are unavailable from Discord.
+The command shows all three levels at once and compares each live session with the desired state from `deploy/config/connectors/`. You pick a level in the "Choose capability contour…" list. The "Apply <level> changes" button appears only for the selected level that has drifted, and is bound to the session version, the tool list and the shown difference: if something changes between showing and pressing, it refuses. Creating a session and installing configuration into Hermes are deployment operations through the `bin/kurami-composio-session` CLI; they are unavailable from Discord and from Hub.
+
+Hub offers the same check and sync under Controls → Composio. It checks the three levels, shows each difference and applies one level only after you confirm; the apply is bound to the checked result, so a changed difference is rejected and has to be checked again. Hub calls the same Composio CLI and records the action in its audit log.
 
 ## Telegram as the fourth connector
 
@@ -93,7 +95,7 @@ Digest's news is read from Telegram channels through your account. For this Herm
 
 | Situation | What Kurami does | What you do |
 |---|---|---|
-| A session drifted from the YAML | `/kurami composio-check` shows the difference | review it and press Apply |
+| A session drifted from the YAML | `/kurami composio-check` shows the difference | review it and press Apply, in Discord or in Hub |
 | The tool is not in the Hermes list | the call is rejected | add it through review; background code will not switch to the broad session |
 | Call arguments break the rules | the workflow does not call the tool | nothing; the error stays in the log |
 | Composio is unavailable | Digest marks the block stale and goes on | wait or check the session |

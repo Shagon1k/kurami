@@ -15,7 +15,7 @@ The news in an edition has two orders. **Обзор** (overview) is the order in
 1. Under any story press **🔔 Больше такого** (more like this) or **🔕 Меньше такого** (less like this). A second click on a pressed button clears the reaction.
 2. Collect 10 reactions on different stories. Until then "Для меня" shows a message like "Пока обычный обзор: 4 из 10 реакций для персонализации" (plain overview for now: 4 of 10 reactions) and leaves the order alone.
 3. Press **Для меня**. The page loads the order from the server and rearranges the stories. The address gets `?newsOrder=for-you`, so a reload keeps the mode.
-4. A new reaction does not rebuild the feed by itself, so a story does not run away from under your hand. A line under the panel says "Реакция сохранена. Нажмите «Для меня», чтобы обновить порядок" (reaction saved; press "For me" to update the order).
+4. A new reaction does not rebuild the feed by itself, so a story does not run away from under your hand. A line under the panel says "Реакция сохранена. Нажмите "For me", чтобы обновить порядок" (reaction saved; press "For me" to update the order).
 
 ## What counts as a signal
 

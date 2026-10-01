@@ -58,7 +58,7 @@ After Done, Kurami deletes the copy only when it sees the run's commit in the ma
 
 The cleanup script runs `git fetch --prune origin main` and checks one of two conditions. Either the copy's HEAD is an ancestor of `origin/main` — that is how a regular merge and a fast-forward look. Or `gh pr list --state merged` finds a merged PR of this branch whose `headRefOid` equals the copy's HEAD — that is how squash and rebase look. Only the exactly matching commit counts as proof: a PR with a different commit means nothing.
 
-With proof in hand, the script runs `git worktree remove` without `--force` and `git branch -D`, removes the attempt directory and moves the run to `archived`. Unsaved files block cleanup before any deletion, and `worktree remove` without `--force` is a second guard. Without proof, the script prints `waiting_for_merge`, changes nothing and repeats the check a minute later.
+With proof in hand, the script runs `git worktree remove` without `--force` and `git branch -D`, removes the attempt directory and moves the run to `archived`. Unsaved files block cleanup before any deletion, and `worktree remove` without `--force` is a second guard. Without proof, the script deletes nothing: the run moves to `needs_attention` with reason `completion_waiting_for_merge`, and the card says "Done has no verified merge. Work is preserved; merge the pull request or cancel the run.". The merge check repeats every minute: as soon as you merge the PR, the run completes by itself. If the PR should not be merged, press **Cancel run** — the ordinary cancellation with protected work follows.
 
 ## Cancellation and protected cleanup
 
@@ -69,13 +69,13 @@ If the copy has unsaved files, or commits beyond the base without merge proof, t
 ```diagram
 kind: graph
 title: Can the working copy be deleted
-desc: The run is in stopping. For completion the copy must be clean and the merge proven: then the run becomes archived, without proof it waits for the merge, and a dirty copy is preserved. For cancellation a clean copy with no new commits is deleted and the run becomes cancelled, otherwise the work is preserved.
+desc: The run is in stopping. For completion the copy must be clean and the merge proven: then the run becomes archived, without proof it waits for the merge in needs_attention, and a dirty copy is preserved. For cancellation a clean copy with no new commits is deleted and the run becomes cancelled, otherwise the work is preserved.
 node s "stopping" "stop reason" start at 1,0
 node reason "Reason?" "completed or cancelled" decision at 1,1
 node dclean "Copy clean?" "completion" decision at 0,2
 node merged "Merge proven?" "ancestor of main or PR" decision at 0,3
 node arch "archived" "copy and branch deleted" end at 0,4
-node wait "waiting_for_merge" "retried every minute" wait at 1,4
+node wait "Waits for merge" "needs_attention, checked every minute" wait at 1,4
 node cclean "Clean, no commits?" "cancellation" decision at 2,2
 node canc "cancelled" "and card to Backlog" end at 2,3
 node pres "needs_attention" "work preserved" wait at 2,4
@@ -120,7 +120,7 @@ Had you cancelled the issue at 11:00, while PR #57 was not yet merged, the pictu
 
 | Situation | What Kurami does | What you do |
 |---|---|---|
-| You moved the card to Done but the PR is not merged (closed unmerged or abandoned) | the run stays in `stopping`; every minute `waiting_for_merge`; the card shows "Stopping" with no buttons | merge the PR; there is no other way out from the interface |
+| You moved the card to Done but the PR is not merged (closed unmerged or abandoned) | the run moves to `needs_attention` (`completion_waiting_for_merge`); work is preserved and the merge is checked every minute | merge the PR and the run completes by itself, or press **Cancel run** |
 | The merge could not be checked (a `gh` error, no network) | treats the merge as unproven and waits | wait or check GitHub |
 | The copy has unsaved files at completion | cleanup refuses; the run goes to `needs_attention` | save or discard the edits |
 | Cancellation: unsaved files or new commits | `needs_attention`, "Cancelled — … preserved" | Discard local work or Close draft PR & discard |

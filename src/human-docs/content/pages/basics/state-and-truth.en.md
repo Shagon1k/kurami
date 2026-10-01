@@ -15,8 +15,8 @@ Every question about Kurami has one place where the right answer lives — its *
 - Runs: `state/orchestrator.db` — the Project Orchestrator Run Store
 - Editions: `state/briefing/briefing.db` and the pages in `state/briefing/pages/`
 - Docs: `state/human-docs/proposals.db` and the published release
-- Health and settings: JSON files in `state/`
-- Display: Discord and the sites — redrawn from the databases
+- Health: the cycle in `state/system-health.db`; settings: revisions in the Run Store and `state/health-settings.json`
+- Display: Discord, the sites and Hub — redrawn from the stores; Hub's few controls change state only through the canonical tools
 :::
 
 ## Map of the stores
@@ -24,14 +24,14 @@ Every question about Kurami has one place where the right answer lives — its *
 ```diagram
 kind: graph
 title: Who writes to which store
-desc: Each product writes only to its own store. Project Orchestrator writes to orchestrator.db, Digest to briefing.db and the edition pages, the platform to JSON files and the backup folder. Discord and the sites only read and display.
+desc: Each product writes only to its own store. Project Orchestrator writes to orchestrator.db, Digest to briefing.db and the edition pages, the platform to the health database, JSON files and the backup folder. Discord and the sites read and display; Hub also reads, and its few controls write only through the canonical tools.
 node projects "Project Orchestrator" at 0,0
 node digest "Digest" at 1,0
 node platform "Platform" at 2,0
 node runstore "orchestrator.db" "runs, events, previews" store at 0,1
 node briefing "briefing.db" "editions, attempts, add-ons" store at 1,1
-node files "state/*.json" "health, settings" store at 2,1
-node backups "backups/" "copies of orchestrator.db" store at 2,2
+node files "system-health.db" "health cycle, settings" store at 2,1
+node backups "backups/" "copies of the databases" store at 2,2
 node discord "Discord" "cards" external at 0,2
 node sites "Sites" "Digest, Hub, docs" external at 1,2
 edge projects -> runstore
@@ -51,7 +51,7 @@ edge runstore -> backups dashed
 | Is work on an issue going on? | `orchestrator.db`, table `runs` | the `state` field and the `run_state_history` log |
 | Did CI pass for this PR? | `orchestrator.db`, `run_ci_snapshots` | the result for the exact SHA of the latest commit |
 | Did today's edition go out? | `briefing.db`, the edition attempt | the attempt stage and the notice receipt |
-| Is the server healthy? | the health card and `state/runtime-health-alert.json` | the last check time and active problems |
+| Is the server healthy? | the cycle in `state/system-health.db`, shown on the health card and in Hub | the last check time and active problems |
 | Is there a fresh backup? | `$KURAMI_HOME/backups/` | the newest `backup-*` folder and its `manifest.json` |
 | Which docs are published? | `state/human-docs/release/build.json` | `docsSha` — the commit the site was built from |
 
@@ -87,7 +87,7 @@ Hermes marks a job successful when its script exits without an error. That does 
 | A Discord card is stale or deleted | the next cycle redraws it or creates it again | nothing; if it stays stale for long, check Hermes health |
 | A source check failed | shows the last trustworthy value marked "stale" | nothing unless it repeats; then read the log |
 | `orchestrator.db` is lost | restore from the latest verified backup | follow the order in [recovery](@recovery) |
-| `briefing.db` is lost | the ordinary backup does not copy it: the edition history starts again | keep this in mind when planning recovery |
+| `briefing.db` is lost | restore it from the latest backup that contains it; older backups made before this was added do not, and the history starts again | check that your newest backup lists `briefing.db` ([recovery](@recovery)) |
 
 :::guarantees
 - Every question has one place with the right answer; displays are redrawn from it.

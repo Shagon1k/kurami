@@ -22,7 +22,8 @@ GitHub Project status change
   -> Event Consumer validates and admits/cancels the run
   -> Worktree Provisioner creates isolated Git resources when explicitly applied
   -> Session Manager starts and tracks the dedicated Codex session
-  -> Hermes routes conversation and human control through Discord or Telegram
+  -> Hermes routes conversation and human control through Discord
+     (owner controls also live on the private Hub dashboard)
 ```
 
 SQLite is the operational memory between processes and restarts. It prevents a
@@ -53,7 +54,7 @@ app/
       interest-profile-store.ts
                               Reaction writes and topic-profile queries
       telegram-commit-store.ts
-                              Telegram validation receipts and commit plans
+                              Digest news-source (Telegram channel) validation receipts and commit plans
       addons/
         snapshot-store.ts     Independent add-on snapshot persistence
       weekly/
@@ -86,7 +87,7 @@ app/
       controls/
         run.ts                Inspects runs and queues allowlisted owner actions
         discord.ts            Reconciles Discord ticket threads and live cards
-        telegram.ts           Frozen opt-in proactive Telegram fallback
+        telegram.ts           Legacy, unused notifier; not called by any runner or cron
       integrations/
         codex/
           app-server.ts       Durable Codex thread and detached-task boundary
@@ -595,17 +596,10 @@ one exact managed Draft PR only when the worktree is clean, local and remote
 heads match, and no merged/non-draft/ambiguous PR is present. Every mismatch is
 refused without deletion.
 
-Telegram remains a reversible inbound fallback. Its text buttons arrive
-through the normal Hermes Gateway and the `kurami-run-control` skill queues only
-allowlisted actions. Both transports share the same Run Store and controller;
-neither transport owns lifecycle state. Proactive Telegram application requires
-the explicit process-local override `KURAMI_TELEGRAM_PROACTIVE=1`; without it,
-`src/orchestrator/controls/telegram.ts --apply` exits successfully without
-sending anything. This
-prevents an old command or cron definition from silently re-enabling Telegram
-spam while preserving a deliberate rollback path. Ambiguous Telegram outbox
-rows left in `sending` are not automatically retried because Telegram may
-already have accepted them. Ordinary polling remains `no_agent`.
+Run control is Discord-only (plus owner controls on the private Hub dashboard).
+The Discord controller and the Hub share the same Run Store and controller;
+neither surface owns lifecycle state. Telegram is not a control or
+notification channel for Projects. Ordinary polling remains `no_agent`.
 
 ### Run Store
 
@@ -894,14 +888,15 @@ allowlisted canonical repository from `projects.yaml`, then applies an
 invocation-scoped Codex trust override for that repository. It never edits the
 user's Codex configuration, and a new configured repository cannot stall an
 unattended run on an interactive trust prompt.
-The initial prompt tells Codex that sandboxed GitHub CLI authentication failures
-are inconclusive when network access is restricted, forbids credential mutation,
-and requires a narrowly scoped network retry before declaring a real auth
-blocker.
-Automated turns run in `workspace-write` with interactive `on-request` approval
-and `auto_review`; this is intentionally not full access or `--yolo`. Routine
-boundary requests can continue through the reviewer, while denied or dramatic
-actions still require a safer path or Alex's decision.
+The launcher starts Codex in `workspace-write` with
+`sandbox_workspace_write.network_access=true`, `--ask-for-approval never` and
+`approvals_reviewer="auto_review"`; this is intentionally not full access or
+`--yolo`. The sandbox boundary, not an interactive approval prompt, limits what
+a turn can do, and actions outside it need a safer path or Alex's decision.
+The initial prompt tells Codex that a GitHub CLI authentication or network error
+inside the sandbox is inconclusive, forbids credential mutation and interactive
+permission requests, and requires it to report the exact blocked capability and
+stop rather than retry or change policy.
 AI reviewers are a separate path: they use the official Codex App Server review
 turn with `read-only`, `never` approval, detached delivery, prefetched private
 PR context, and an explicit decline handler for unexpected server-initiated
@@ -948,6 +943,13 @@ head SHA match the run. This supports merge commits, fast-forward, squash, and
 rebase merges without weakening deletion safety. Until one proof passes, the
 run remains `stopping` and the worktree is retained. After verification, the
 worktree and local branch are released and the run becomes `archived`.
+If neither proof exists, the release script deletes nothing and moves the
+`stopping(completed)` run to `needs_attention` with reason
+`completion_waiting_for_merge`; the card reads "Done has no verified merge.
+Work is preserved; merge the pull request or cancel the run." The controller
+keeps retrying the merge proof, so merging the PR completes the run by itself,
+while the owner can press **Cancel run** to start the ordinary guarded
+cancellation instead.
 Cancellation cleanup remains stricter: dirty files or any commit beyond the
 recorded base block automatic deletion and require attention. Only a deliberate
 two-step action can remove dirty unpublished files or one exact clean managed
@@ -1131,7 +1133,8 @@ and after seven days it is due for owner review. Disappearing evidence is marked
 
 Each lifecycle transition creates one durable `resource_guard_events` row.
 The existing Discord notifier batches up to six unbatched transitions and sends
-one changed-only message to `discord.resource_guard_alerts_channel_id` under the
+one changed-only message to `discord.resource_guard_alerts_channel_id` (the same
+channel as `discord.alerts_channel_id`) under the
 same consumer lock used by run cards. A stable batch nonce prevents duplicate
 messages after a process restart; a stale `sending` lease is retried after five
 minutes, and the configured delivery-attempt limit remains three. Mentions are
@@ -1477,23 +1480,17 @@ starting work against the failed project's stale status.
 After reconciliation, `src/orchestrator/controls/discord.ts` maintains Discord
 ticket cards, threads, native controls, one-time run lifecycle events, and the
 durable Resource Guard alert outbox through Discord REST. Resource alerts use
-the private runtime-health channel, are batched and changed-only, and never
+the Alerts channel (`resource_guard_alerts_channel_id` is configured to the same channel as `alerts_channel_id`), are batched and changed-only, and never
 expose a cleanup button. The notifier reads the existing platform token from
 `HERMES_HOME/.env`, never stores or prints it, and never consumes Gateway
 updates. The Hermes Gateway remains the only update consumer. A narrow user
 plugin extends that existing Discord adapter to handle only allowlisted Kurami
 component IDs.
 
-`src/orchestrator/controls/telegram.ts` and the per-project Telegram targets
-remain installed as a reversible fallback, but the poller does not invoke that
-notifier while Discord is the primary proactive control plane. The canonical CLI is
-`src/orchestrator/controls/telegram.ts`. The notifier
-also refuses `--apply`
-unless `KURAMI_TELEGRAM_PROACTIVE=1` is supplied for that exact invocation.
-Cron delivery is local-only, so no proactive run lifecycle messages are sent to
-Telegram.
-Empty successful cycles are silent. Discord is the proactive run-notification
-surface; Telegram remains available only as an inbound fallback.
+Empty successful cycles are silent. Discord is the only proactive run-notification
+surface. The legacy `src/orchestrator/controls/telegram.ts` notifier is unused:
+no runner or cron calls it, and it refuses `--apply` unless
+`KURAMI_TELEGRAM_PROACTIVE=1` is supplied for that exact invocation.
 
 Five additional `no_agent` jobs own digest and operational housekeeping:
 
@@ -1502,7 +1499,8 @@ Five additional `no_agent` jobs own digest and operational housekeeping:
 - state backup on days `1, 4, 7, ...` at `03:15 UTC`, delivered to the muted
   Discord maintenance channel;
 - one combined runtime/server/network health inspection at its owner-configured
-  interval (currently every ten minutes).
+  interval (5, 10, 12, 15, 20, 30 or 60 minutes via `/kurami settings` or the
+  Hub; code default 20).
   It edits one persistent Discord Components V2 card and posts to Alerts only on
   a new incident, severity change, two-hour reminder, or recovery;
 - a bounded LibreSpeed trend sample every six hours against server 49 (London,

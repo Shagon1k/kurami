@@ -138,7 +138,7 @@ Automation repairs nothing from `partial`: the run stays in `needs_attention`. C
 | Situation | What Kurami does | What you do |
 |---|---|---|
 | A failure in the middle of creating the copy | The run goes to `needs_attention`, resources `partial`. A hard kill right between the claim and the write leaves `starting` with resources `provisioning`: the controller rules do not pick such a run up | Press Cancel run if the card is already in `needs_attention`; otherwise sort it out by hand |
-| Done before the merge | The run stays in `stopping`, release repeats every minute | Merge the PR |
+| Done before the merge | The run moves to `needs_attention` (`completion_waiting_for_merge`); work is preserved and the merge is checked every minute | Merge the PR or press **Cancel run** |
 | Cancellation with unmerged work | `needs_attention` with `stop_reason = cancelled`, work preserved | Discard local work or Close draft PR & discard with confirmation, or merge |
 | State changed during a step | The step refuses, the controller plans again | Nothing |
 
