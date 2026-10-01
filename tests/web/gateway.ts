@@ -6,6 +6,7 @@ import {createHubServer} from "../../src/hub/server.ts";
 import {createProjectsServer} from "../../src/projects-site/server.ts";
 import {syntheticHubSnapshot} from "../../src/ui-library/testing/fixtures.ts";
 import {mountResponse} from "../../src/web/presentation.ts";
+import {PWA_MANIFEST_ICONS} from "../../src/web/icons.ts";
 import {syntheticProjectsSnapshot} from "../projects-site/fixture.ts";
 
 const servers:Server[]=[];
@@ -46,8 +47,18 @@ try{
   const docPage=await get("/en/docs/projects/");assert((await docPage.text()).includes('href="/en/docs/projects/"'));
   const api=await get("/_apps/digest/api/profile/topics?x=1");assert.deepEqual(await api.json(),{path:"/api/profile/topics?x=1",app:"digest"});
   const stylesheet=await get("/_apps/hub/assets/hub.css");assert.equal(stylesheet.status,200);assert((await stylesheet.text()).includes('/assets/onest-'));
-  const manifest=await get("/manifest.webmanifest");const data=await manifest.json();assert.equal(data.name,"Kurami");assert.equal(data.scope,"/");assert.equal(data.id,"/");assert.equal(data.icons[0].purpose,"any");
-  const icon=await get(data.icons[0].src);assert.equal(icon.status,200);assert.equal(icon.headers.get("content-type"),"image/png");
+  const manifest=await get("/manifest.webmanifest");const data=await manifest.json();assert.equal(data.name,"Kurami");assert.equal(data.scope,"/");assert.equal(data.id,"/");assert.deepEqual(data.icons,PWA_MANIFEST_ICONS);
+  for(const expected of PWA_MANIFEST_ICONS){
+    const icon=await get(expected.src);assert.equal(icon.status,200);assert.equal(icon.headers.get("content-type"),"image/png");
+    assert(icon.headers.get("cache-control")?.includes("no-store"));
+    const png=Buffer.from(await icon.arrayBuffer());assert.equal(png.subarray(0,8).toString("hex"),"89504e470d0a1a0a");
+    assert.equal(`${png.readUInt32BE(16)}x${png.readUInt32BE(20)}`,expected.sizes,"manifest size matches the actual export");
+    assert.equal((await get(expected.src,"anonymous")).status,403,"icons remain behind Access");
+    assert.equal((await get(expected.src,"reader")).status,403,"Docs credentials cannot access PWA assets");
+    assert.equal((await get(expected.src,"owner",{method:"HEAD"})).status,200);
+    assert.equal((await get(expected.src,"owner",{method:"POST",headers:{"x-test-identity":"owner",origin:gateway}})).status,405);
+  }
+  assert.equal((await get("/assets/kurami-fox.png")).status,200,"legacy icon bookmarks remain available");
   const worker=await get("/sw.js");assert.equal(worker.headers.get("service-worker-allowed"),"/");assert(!(await worker.text()).includes("cache.put"));
   assert.equal((await get("/en/projects/","owner",{method:"DELETE"})).status,405);
   assert.equal((await get("/_apps/docs/build.json")).status,404);

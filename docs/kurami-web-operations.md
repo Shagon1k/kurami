@@ -110,9 +110,14 @@ that all four backends are ready. Verify each backend and signed route separatel
   Apps links to all four modules and check one origin, manifest ID and footer.
 - Android Chrome installs **Kurami** from Hub; its manifest has stable ID `/`,
   start URL `/en/` and scope `/`. Switching among the four apps stays in the
-  installed window. Hermes/Dokploy are external links. The icon uses the existing
-  transparent 512px fox, with no illustrated backdrop; the Android launcher may
-  add its own plate. Any replacement backdrop needs the owner's visual approval.
+  installed window. Hermes/Dokploy are external links. The cosmetic icon follow-up
+  uses separate transparent and adaptive PNGs: check the splash edges and the
+  larger fox inside circular and rounded-square launcher masks. The adaptive
+  background is plain theme paper. Exact exports and regeneration are in
+  [the brand asset notes](../src/ui-library/assets/brand/README.md).
+  Android owns the final launcher shape and splash composition; local previews
+  cannot guarantee their rendering. Do not change headers or favicons with these
+  PWA assets. Keep the manifest ID/scope unchanged and version the image URLs.
 - The manifest link uses `crossorigin="use-credentials"`: Chrome must send the
   Access cookie even though the manifest is same-origin. Test with a cookie-gated
   browser fixture, not unconditional test authorization. Manifest, worker and

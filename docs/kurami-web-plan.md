@@ -1,8 +1,8 @@
 # Kurami web consolidation
 
 Status: unified entry deployed on 1 October 2026 with owner approval; gateway
-liveness and native origins checked. Authenticated unified-origin and Android
-acceptance remain with the owner; full visual and mobile audit is pending.
+liveness and native origins checked. The owner subsequently reported the
+installed app working; full visual and mobile audit is pending.
 Audit procedure: [kurami-ui-audit-plan.md](kurami-ui-audit-plan.md).
 The owner's first mobile pass reported layout defects and incomplete Digest
 resources/navigation on first load. Those observations are recorded in the audit
@@ -12,8 +12,9 @@ bilingual classification `500f92b` are on `origin/main`. All five web services
 were restarted; Digest was rebuilt from the compiled production entry and Docs
 was promoted from a clean release build. Live EN/RU Hub, Digest sections, Docs
 and native Projects passed read-only checks. Mounted Projects rejects unsigned
-requests as designed; authenticated unified navigation remains owner acceptance.
-Real Android installation still needs owner acceptance after release.
+requests as designed. The owner reported the app working and supplied Android
+launch/launcher screenshots. The cosmetic icon follow-up below has owner release
+approval; its phone appearance still needs acceptance after publication.
 Release instructions: [kurami-web-operations.md](kurami-web-operations.md).
 
 ## Approved boundary
@@ -36,7 +37,7 @@ or database migration belongs to this work. Existing functions remain intact.
 | --- | --- | --- | --- |
 | 1. Baseline and contracts | Known route, authorization and rollback boundaries | Route and signed Access tests; loopback-only service; retained native ingress | Locally verified |
 | 2. Unified entry | All modules work under the new origin | Real-server gateway/browser tests; native product regressions; immutable Docs variants | Deployed; anonymous Access redirect and native origins verified; owner's authenticated smoke pending |
-| 3. PWA | One installation covers all modules | Manifest ID/scope, credentialed manifest fetch behind Access, one worker, offline recovery and private-cache checks | Follow-up fixes deployed; Android acceptance pending |
+| 3. PWA | One installation covers all modules | Manifest ID/scope, credentialed manifest fetch behind Access, one worker, offline recovery and private-cache checks | Functional fixes deployed; owner reports installation working; new icon release approved, phone appearance pending |
 | 4. Shared visual rules | Equal component roles look consistent | UI-library tests/guard/export; populated EN/RU light/dark screens; classified style exceptions | Selected shared changes checked; full visual audit pending |
 | 5. Mobile polish | Layouts are comfortable on narrow devices | Hub period capsule and Tasks spacing; populated app screens, overlays and real phone checks | Selected fixes checked; full mobile audit and phone acceptance pending |
 | 6. Release readiness | Integrated candidate is ready for owner acceptance | Type checks, product regressions, visual acceptance, bilingual docs and rollback runbook | Scoped deployment approved and executed; full visual and installed-phone acceptance pending |
@@ -75,16 +76,19 @@ Kurami. Hub/Digest/Projects/Docs in the shared header. Mobile Hub gets one globa
 7/30-day control without a dedicated header row; it must account for safe areas
 and leave clearance for the final content and primary actions.
 
-The PWA icon uses the existing fox illustration, not the favicon. Use the
-transparent 512px source; do not add an illustrated background. Android may add
-its own launcher background: verify on the owner's phone and seek approval for
-any alternative instead of silently adding a maskable backdrop.
+The PWA uses the fox illustration, not the favicon. The owner accepted the
+installed app, then requested a sharper splash mark and a larger launcher fox.
+The cosmetic follow-up adds a reviewed high-resolution reconstruction with
+transparent and adaptive exports; the adaptive background is plain theme paper,
+not an illustration. Native header/favicons stay unchanged. This follow-up is
+approved for the same scoped release process; its launcher appearance still needs
+phone acceptance. Export details are in [the brand asset notes](../src/ui-library/assets/brand/README.md).
 
 ## Remaining acceptance and cutover
 
 - Owner confirmed the new owner-only Access policy; its AUD was obtained from Cloudflare-signed metadata. Gateway binds to `127.0.0.1:8888` and rejects requests without an assertion.
 - No new Docs reader audience is configured. Existing native Docs service access retains its scope; a unified Docs reader needs a separately approved policy.
-- Owner reviews representative visual changes and tests the installed PWA on Android Chrome.
+- Owner reported the installed app working; the full visual audit and new icon's phone appearance remain pending.
 - Verify the authenticated unified entry and approve hostname redirect cutover separately. Old hostnames remain available.
 
 ## Local evidence
