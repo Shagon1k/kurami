@@ -45,6 +45,7 @@
     const detailScroll=previousDetail?.scrollTop??0,previousItem=previousDetail?.dataset.detailItem;
     const focusedDetails = previousFocus?.id === 'project-details';
     const focusedClose = previousFocus?.hasAttribute('data-item-close');
+    const focusedActiveToggle = previousFocus?.hasAttribute('data-active-toggle');
     const previousForm = dashboard.querySelector('[data-status-form]');
     const previousSelect = previousForm?.querySelector('select');
     const statusDraft = previousSelect && previousForm.dataset.check === 'false' && previousSelect.value !== JSON.parse(previousForm.dataset.from) ? { value: previousSelect.value, from: previousForm.dataset.from, item: previousForm.dataset.item } : null;
@@ -75,6 +76,7 @@
       else if (focusedItem) [...dashboard.querySelectorAll('[data-item-link]')].find(el => el.dataset.itemLink === focusedItem)?.focus({ preventScroll: true });
       else if (focusedDetails) dashboard.querySelector('#project-details')?.focus({ preventScroll: true });
       else if (focusedClose) dashboard.querySelector('[data-item-close]')?.focus({ preventScroll: true });
+      else if (focusedActiveToggle) dashboard.querySelector('[data-active-toggle]')?.focus({ preventScroll: true });
       else if (focusedReview) [...dashboard.querySelectorAll('[data-review-run]')].find(el => el.dataset.reviewRun === focusedReview && !el.disabled)?.focus({ preventScroll: true });
       else if (focusedAction) {
         const button = [...dashboard.querySelectorAll('[data-run-action]')].find(el => el.dataset.runAction === focusedAction && !el.disabled);
@@ -98,6 +100,13 @@
   search?.addEventListener('input',()=>{filter();const url=new URL(location.href);if(search.value)url.searchParams.set('q',search.value);else url.searchParams.delete('q');history.replaceState(history.state,'',url);updateProjectTabs(url);});
   document.querySelector('.projects-search')?.addEventListener('submit',event=>{event.preventDefault();filter();});
   document.addEventListener('click', event => {
+    const activeToggle=event.target.closest('[data-active-toggle]');
+    if(activeToggle){
+      if(refreshing||requestingReview||requestingStatus||requestingAction||confirmingAction)return;
+      const url=new URL(location.href);
+      if(url.searchParams.get('active')==='1')url.searchParams.delete('active');else url.searchParams.set('active','1');
+      navigate(url,false);return;
+    }
     const sorter=event.target.closest('[data-sort]');
     if(sorter){const url=new URL(location.href);const key=sorter.dataset.sort;url.searchParams.set('dir',url.searchParams.get('sort')===key&&url.searchParams.get('dir')!=='desc'?'desc':'asc');url.searchParams.set('sort',key);navigate(url,false);return;}
     if (event.target.closest('[data-run-dismiss]')) { dismissConfirmation(); return; }
@@ -145,6 +154,7 @@
       if((url.searchParams.get('project')??'')===key)link.setAttribute('aria-current','page');else link.removeAttribute('aria-current');
     });
     const hidden=document.querySelector('.projects-search input[name=project]');if(hidden)hidden.value=url.searchParams.get('project')??'';
+    const active=document.querySelector('.projects-search input[name=active]');if(active)active.value=url.searchParams.get('active')==='1'?'1':'';
     const languageLink=document.querySelector('[data-language-link]');if(languageLink){const next=new URL(url);next.searchParams.set('lang',document.documentElement.lang==='en'?'ru':'en');languageLink.href=next.pathname+next.search;}
   }
   function updateLayout(animate=false){

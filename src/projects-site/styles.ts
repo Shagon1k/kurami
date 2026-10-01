@@ -23,6 +23,7 @@ export const PROJECTS_STYLES=[THEME_CSS,FOUNDATION_CSS,BUTTON_CSS,TABLE_CSS,FORM
 .projects-summary p { display: flex; align-items: center; gap: var(--space-2); margin: 0; color: var(--text-muted); font-size: .78rem; }
 .projects-summary strong { color: var(--text-primary); font: 600 .82rem var(--font-mono); }
 .projects-summary .projects-attention { color: var(--status-warning); }
+.projects-view-controls { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2); }
 .projects-sync { --popover-width: 380px; --popover-padding: var(--space-4); }
 .projects-sync-list li { padding-block: var(--space-2); border-bottom: 1px solid var(--border-subtle); }
 .projects-sync-list li > div { display: flex; align-items: center; justify-content: space-between; gap: var(--space-3); }
