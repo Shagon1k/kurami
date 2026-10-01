@@ -24,6 +24,10 @@ next: owner-controls
 | Превью | `adapter` (`compose` или `static`), метка `required_label` и параметры адаптера | Есть ли кнопка Start preview и когда превью задерживает завершение |
 | Человеческое управление | `human_control_label` | Какая метка отдаёт запуск тебе |
 
+## Обязательные проверки PR
+
+Для точного коммита PR PickFlick обязательны Secret scan, Lint, type-check, test, Integration and runtime smoke, UI smoke, Production images и Delivery gate. UI contract и UI visual regression запускаются для событий вне PR; Delivery gate проверяет соответствующий событию набор. Удалённая проверка UI accessibility and visual regression не должна оставаться в конфиге. Ошибка dependency audit может остановить static job до запуска lint.
+
 ## Проверка готовности
 
 Команда читает запись и выдаёт список проверок. Каждая — PASS, WARN или FAIL.

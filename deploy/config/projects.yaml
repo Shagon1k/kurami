@@ -111,8 +111,9 @@ projects:
         - Secret scan
         - Lint, type-check, test
         - Integration and runtime smoke
-        - UI accessibility and visual regression
+        - UI smoke
         - Production images
+        - Delivery gate
       missing_grace_minutes: 10
     triage:
       enabled: true

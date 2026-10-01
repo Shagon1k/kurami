@@ -24,6 +24,10 @@ The entry lives in `$KURAMI_HOME/config/projects.yaml` (the sample is `deploy/co
 | Preview | `adapter` (`compose` or `static`), the `required_label` and adapter parameters | Whether Start preview exists and when a preview delays completion |
 | Human control | `human_control_label` | Which label hands a run to you |
 
+## Required PR checks
+
+PickFlick requires Secret scan, Lint, type-check, test, Integration and runtime smoke, UI smoke, Production images and Delivery gate on the exact PR commit. UI contract and UI visual regression run on non-PR events; Delivery gate validates the event-specific selection. The removed UI accessibility and visual regression check must not remain in the policy. A failed dependency audit can stop the static job before lint runs.
+
 ## Readiness check
 
 The command reads the entry and prints a list of checks. Each is PASS, WARN or FAIL.

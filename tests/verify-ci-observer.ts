@@ -83,8 +83,9 @@ async function main(): Promise<void> {
             "Secret scan",
             "Lint, type-check, test",
             "Integration and runtime smoke",
-            "UI accessibility and visual regression",
+            "UI smoke",
             "Production images",
+            "Delivery gate",
           ]) &&
         pickFlickCi.missing_grace_minutes === 10,
       "Tracked PickFlick CI policy is not aligned with GitHub checks",
