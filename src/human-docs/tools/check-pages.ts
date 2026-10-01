@@ -41,10 +41,10 @@ for(const error of errors)console.error(`ERROR ${error}`);
 for(const link of [...new Set(missingLinks)])console.warn(`missing page (fine while others write): ${link}`);
 console.log(`${selected.length} page(s) checked, ${errors.length} error(s), ${diagrams.length} diagram(s)`);
 if(shots&&files.length){
-  mkdirSync(resolve(shots,"site/assets/diagrams"),{recursive:true});
+  mkdirSync(resolve(shots,"site/assets"),{recursive:true});
   const site=resolve(shots,"site");
   for(const [path,html] of files){mkdirSync(dirname(resolve(site,path)),{recursive:true});writeFileSync(resolve(site,path),html);}
-  for(const diagram of diagrams)writeFileSync(resolve(site,"assets/diagrams",`${diagram.id}.svg`),diagram.svg);
+  for(const diagram of diagrams)writeFileSync(resolve(site,"assets",`diagram-${diagram.id}.svg`),diagram.svg);
   writeFileSync(resolve(site,"assets/docs.css"),DOCS_STYLES);writeFileSync(resolve(site,"assets/theme.js"),THEME_RUNTIME_JS);
   for(const font of fontFiles)cpSync(resolve(root,"src/ui-library/assets/fonts",font.file),resolve(site,"assets",font.file));
   cpSync(resolve(root,"src/ui-library/assets/brand/kurami-fox-transparent.png"),resolve(site,"assets/fox.png"));

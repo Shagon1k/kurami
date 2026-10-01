@@ -156,7 +156,7 @@ function diagramHtml(source:string,context:Context):string {
   try{rendered=renderDiagram(source);}catch(error){throw new Error(`${context.page.slug}/${context.lang}: ${(error as Error).message}`);}
   const id=`${context.page.slug}-${context.diagrams.length+1}-${context.lang}`;
   context.diagrams.push({id,svg:rendered.svg,excalidraw:rendered.excalidraw});
-  return `<figure class="figure">${rendered.title?`<figcaption class="figure__title">${escape(rendered.title)}</figcaption>`:""}<div class="figure__scroll" role="region" tabindex="0" aria-label="${escape(rendered.title||rendered.desc.slice(0,80))}"><div class="figure__canvas" style="--figure-width:${Math.ceil(rendered.width)}">${inlineDiagram(rendered.svg,{id,label:rendered.desc})}</div></div><p class="figure__desc">${escape(rendered.desc)} <a href="/assets/diagrams/${id}.svg">${escape(labels[context.lang].open)}</a></p></figure>`;
+  return `<figure class="figure">${rendered.title?`<figcaption class="figure__title">${escape(rendered.title)}</figcaption>`:""}<div class="figure__scroll" role="region" tabindex="0" aria-label="${escape(rendered.title||rendered.desc.slice(0,80))}"><div class="figure__canvas" style="--figure-width:${Math.ceil(rendered.width)}">${inlineDiagram(rendered.svg,{id,label:rendered.desc})}</div></div><p class="figure__desc">${escape(rendered.desc)} <a href="/assets/diagram-${id}.svg">${escape(labels[context.lang].open)}</a></p></figure>`;
 }
 
 function blocksHtml(blocks:Block[],context:Context):string {
