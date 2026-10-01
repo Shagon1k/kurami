@@ -176,3 +176,79 @@ identity preservation and refusals for cancellation, Remote ownership, other att
 changed task/source/PR identity, stale CI, competing controls, dirt, changed remote HEAD,
 changed transcript, live supervisor and a live detached writer. This preparation did not run
 preview/apply against the production store and performed no live recovery.
+
+## Guarded PF33 protocol no-head recovery
+
+The later incident has latest attempt `cra_e4cb3b423e6b478abdfc0b1e93058481` and
+protocol task `ct_5d0bfee44e0b4bc7913cdce1069fcc16` on the same PF33 run, PR #156,
+branch and source SHA listed above. The owner reports GitHub billing prevented CI
+jobs from starting; the completed task produced no edits or commits. The technical
+thread is already archived and the predecessor restored. The legacy timeout
+command does not cover this task.
+
+After deploying this command, quiesce controller/launcher activity and refresh
+normal CI observation. The parent operator performs live recovery under the
+owner's incident authorization. Preview against the configured Kurami home:
+
+```sh
+node src/orchestrator/projects/sessions/recover-ci-no-new-head.ts --run-id r_367ac0dcb458a2f56692
+```
+
+Apply the same checks with explicit mutation:
+
+```sh
+node src/orchestrator/projects/sessions/recover-ci-no-new-head.ts --run-id r_367ac0dcb458a2f56692 --apply
+```
+
+The CLI accepts only this run and these arguments. Both modes validate:
+
+- Live-mode, provisioned `needs_attention`, owner `none`, no stop/completion intent,
+  no supervisor mapping, no successor run, and the restored original predecessor
+  with no pending technical-thread cleanup.
+- Latest attention reason and state transition `ci_repair_no_new_head`, exact
+  attempt/source details, latest allowlisted attempt in `needs_attention`, null result SHA and
+  the original no-head failure reason. Exactly two attempts must remain, with no
+  active repair. An unexhausted budget refuses recovery rather than exposing retry.
+- Exact allowlisted task/run/context, branch, worktree, technical thread and turn;
+  successful terminal receipt, acknowledged stop and release, no failure or cancel/
+  timeout intent. The protocol parking receipt and archived-thread history must
+  agree with the task and restored predecessor.
+- No pending/processing control, pending Project status mutation, unreleased task,
+  active AI review, review-fix round or autonomous successor. The original tmux
+  session and all worktree panes must be absent; the existing fail-closed local
+  Codex/app-server writer inspection also runs.
+- Clean canonical linked worktree within the configured root, exact branch and
+  HTTPS origin, local and remote-tracking HEAD at the source SHA, and read-only
+  `git ls-remote` confirmation of the live remote branch.
+- A live, open, unmerged GitHub PR with the exact repository, number, URL, head
+  branch/SHA and configured base branch. Failed CI observation must match that
+  PR/SHA, have no error, and be no older than two minutes (future dates refuse).
+- Latest AI review `ready` for that PR/head and the live base SHA, completed without
+  failure, with nonempty findings consistent with stored counts. Its native GitHub
+  review must still exist, be submitted on the source SHA, match its stored ID/URL
+  and remain undismissed. A newer non-ready or wrong-head review refuses recovery.
+
+Apply holds `BEGIN IMMEDIATE` while checking and changes only the run to
+`parked_review`, owner `none`, plus its update timestamp. It appends
+`protocol_ci_no_new_head_review_recovery` with task/turn/stop/release identities,
+archive and prior history sequence, source and base SHAs, PR and ready review IDs,
+CI observation time and the owner-reported external billing block. The record
+explicitly says `repairRetry: false`. Attempts, failed CI, review findings,
+resources, control requests and task events remain unchanged. No migration,
+reset, retry, GitHub write, CI job, thread resume or review-fix launch occurs.
+
+Existing reconciliation ignores the terminal attempts; the restored predecessor
+needs no automatic cleanup. The preserved two-attempt count fences CI repair,
+while existing ready findings and owner-triggered **Fix review** remain available.
+The owner must trigger Fix review separately through existing controls and guards.
+Repeated preview/apply is an unchanged success only while the same recovery record
+is the latest state transition and every current guard still passes. Drift or
+another state transition refuses replay. Launchers must stay quiescent because
+local process inspection cannot lock out an independently started external writer.
+
+`npm run test:ci-no-head-recovery` uses disposable migrated SQLite and linked Git
+fixtures, real protocol receipt/release and CI reconciliation, and the actual
+recovery action. GitHub and remote network responses are substituted. It checks
+read-only preview, atomic refusals, preservation, guarded replay, no automatic
+writer/retry or renewed attention, and existing Fix review planning. Implementation
+verification does not constitute live PR validation or incident recovery.

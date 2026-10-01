@@ -91,6 +91,14 @@ node src/orchestrator/projects/sessions/recover-legacy-ci-timeout.ts --run-id r_
 
 The command uses your configured `KURAMI_HOME`. The exact evidence and preconditions are in [the operator recovery procedure](repo:docs/codex-protocol-lifecycle.md).
 
+## A completed CI repair without a new head
+
+For the allowlisted completed protocol incident, an operator can return the run from `ci_repair_no_new_head` to owner-free `parked_review`. Preview with `recover-ci-no-new-head.ts --run-id r_367ac0dcb458a2f56692`; apply requires explicit `--apply` and owner authorization. Quiesce concurrent launchers first.
+
+The command checks the released task, archived technical thread, restored predecessor, exhausted two-attempt budget, clean worktree, live GitHub PR and remote SHA, fresh failed CI, and current ready AI findings. It preserves attempts, failed CI, reviews and events, and appends recovery evidence. You can then use existing AI Review findings and **Fix review**. Recovery launches no writer or CI job. The billing block remains unresolved; other incidents require their own recovery decision.
+
+See [the operator procedure](repo:docs/codex-protocol-lifecycle.md) for the exact command and guards.
+
 ## What can go wrong
 
 | Situation | What Kurami does | What you do |
