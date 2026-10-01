@@ -23,7 +23,7 @@ function files(root:string):string[] {
 /** Public URL path for a release file, or undefined for files the server never serves. */
 export function routeFor(release:string,file:string):string|undefined {
   const path=`/${relative(release,file).split("\\").join("/")}`;
-  if(path==="/build.json")return undefined;
+  if(path==="/build.json"||path.startsWith("/unified/"))return undefined;
   return path.endsWith("/index.html")?path.slice(0,-"index.html".length):path;
 }
 

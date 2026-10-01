@@ -14,6 +14,13 @@ import {renderAlias,renderArticle,renderChangelog,renderHome,resolveSlug} from "
 import {DOCS_STYLES} from "../../src/human-docs/styles.ts";
 import {assertSyntheticFixture,syntheticDailyHtml} from "../../src/human-docs/fixtures/synthetic-daily.ts";
 import {evaluateDocsImpact} from "./impact.ts";
+import {routeFor} from "../../src/human-docs/tools/verify-access.ts";
+
+const releaseFixture=resolve("/tmp/kurami-docs-release-fixture");
+for(const path of ["build.json","unified/en/index.html","unified/ru/access/index.html","unified/assets/docs.css"])assert.equal(routeFor(releaseFixture,join(releaseFixture,path)),undefined);
+assert.equal(routeFor(releaseFixture,join(releaseFixture,"en/index.html")),"/en/");
+assert.equal(routeFor(releaseFixture,join(releaseFixture,"ru/access/index.html")),"/ru/access/");
+assert.equal(routeFor(releaseFixture,join(releaseFixture,"assets/docs.css")),"/assets/docs.css");
 
 const productChange=["src/briefing/weekly/lifecycle.ts"];
 assert.match(evaluateDocsImpact(productChange,"").join(" "),/Docs-Impact/);

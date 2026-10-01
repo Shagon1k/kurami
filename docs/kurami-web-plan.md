@@ -1,7 +1,8 @@
 # Kurami web consolidation
 
-Status: unified entry/PWA candidate implemented and checked locally; full visual
-and mobile audit, production release and Android acceptance are pending.
+Status: unified entry deployed on 1 October 2026 with owner approval; gateway
+liveness and native origins checked. Authenticated unified-origin and Android
+acceptance remain with the owner; full visual and mobile audit is pending.
 Audit procedure: [kurami-ui-audit-plan.md](kurami-ui-audit-plan.md).
 Release instructions: [kurami-web-operations.md](kurami-web-operations.md).
 
@@ -24,11 +25,11 @@ or database migration belongs to this work. Existing functions remain intact.
 | Phase | Outcome | Evidence and acceptance | Status |
 | --- | --- | --- | --- |
 | 1. Baseline and contracts | Known route, authorization and rollback boundaries | Route and signed Access tests; loopback-only service; retained native ingress | Locally verified |
-| 2. Unified entry | All modules work under the new origin | Real-server gateway/browser tests; native product regressions; immutable Docs variants | Locally verified; public Access smoke pending |
-| 3. PWA | One installation covers all modules | Manifest ID/scope, one worker, offline recovery and private-cache checks | Implemented; real Android acceptance pending |
+| 2. Unified entry | All modules work under the new origin | Real-server gateway/browser tests; native product regressions; immutable Docs variants | Deployed; anonymous Access redirect and native origins verified; owner's authenticated smoke pending |
+| 3. PWA | One installation covers all modules | Manifest ID/scope, one worker, offline recovery and private-cache checks | Deployed; real Android acceptance pending |
 | 4. Shared visual rules | Equal component roles look consistent | UI-library tests/guard/export; populated EN/RU light/dark screens; classified style exceptions | Selected shared changes checked; full visual audit pending |
 | 5. Mobile polish | Layouts are comfortable on narrow devices | Hub period capsule and Tasks spacing; populated app screens, overlays and real phone checks | Selected fixes checked; full mobile audit and phone acceptance pending |
-| 6. Release readiness | Integrated candidate is ready for owner acceptance | Type checks, product regressions, visual acceptance, bilingual docs and rollback runbook | Technical evidence available; visual readiness, configuration and approval pending |
+| 6. Release readiness | Integrated candidate is ready for owner acceptance | Type checks, product regressions, visual acceptance, bilingual docs and rollback runbook | Scoped deployment approved and executed; full visual and installed-phone acceptance pending |
 
 Phase 2 depends on phase 1. PWA depends on the routing contract; visual and mobile
 work does not depend on production cutover. Expand implementation detail only
@@ -69,12 +70,12 @@ transparent 512px source; do not add an illustrated background. Android may add
 its own launcher background: verify on the owner's phone and seek approval for
 any alternative instead of silently adding a maskable backdrop.
 
-## Open release prerequisites
+## Remaining acceptance and cutover
 
-- Owner supplies/approves Cloudflare Access application AUD and owner policy for the new hostname.
-- Verify Docs-only service identity policy separately; retain its existing scope.
+- Owner confirmed the new owner-only Access policy; its AUD was obtained from Cloudflare-signed metadata. Gateway binds to `127.0.0.1:8888` and rejects requests without an assertion.
+- No new Docs reader audience is configured. Existing native Docs service access retains its scope; a unified Docs reader needs a separately approved policy.
 - Owner reviews representative visual changes and tests the installed PWA on Android Chrome.
-- Approve release and hostname redirect cutover separately from implementation.
+- Verify the authenticated unified entry and approve hostname redirect cutover separately. Old hostnames remain available.
 
 ## Local evidence
 
@@ -101,6 +102,10 @@ fixtures do not cover full editions. Execute the linked audit plan with populate
 screens, disclosures and mobile states before closing phases 4 and 5. The 58
 guard exceptions require classification, not automatic treatment as 58 UI defects.
 
-No live service, Access policy, hostname, release artifact or Git history was
-changed by these checks. No real mutation control was used. The local candidate
-is not a statement that the new domain is serving it or the installed PWA passed.
+The local tests did not change Access policy or exercise real mutation controls.
+The subsequently approved deployment restarted the four web backends, promoted
+a clean Docs snapshot with native/mounted variants, and enabled the new gateway.
+Previous Docs artifacts and unit files were retained for rollback. Docs remains
+a docs-only release (`revision: null`), not an app-bound changelog publication.
+An anonymous Access redirect and a local health response do not prove the owner's
+authenticated experience or installed-phone acceptance.

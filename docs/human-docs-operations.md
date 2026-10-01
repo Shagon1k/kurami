@@ -97,6 +97,10 @@ At inspection time, `docs.shagon1k.win` resolved and unauthenticated requests fo
 
 Deployment and provider-side changes require explicit owner approval for the exact operation. The origin does not itself prove the Tunnel's authenticated route or Access policy; verify those separately without provider mutation.
 
+The native-host verifier excludes `build.json` and the internal `unified/`
+presentation files: those are not routes on the Docs hostname. Unified HTML and
+CSS are served through the gateway's mounted paths and checked separately.
+
 After any release, `npm run docs:verify-access` checks the public edge read-only. Anonymous requests for pages and an asset must redirect to Cloudflare Access; with the Access service token in `state/human-docs/access-client.json` (mode 600, exactly `client_id` and `client_secret`, never in Git) every page and asset must be byte-identical to `state/human-docs/release/`. Byte equality ties the edge to a release that the repository's own checks rendered, so the check needs no browser and does not break when page markup changes. Credentials are sent only to the docs origin.
 
 Each release keeps the previous one as `rollback-<docsSha>`. The approval worker keeps the three newest rollback copies and removes older ones, plus `failed-*`/`stage-*` leftovers older than a day; `npm run docs:prune-releases` shows the same plan and `-- --apply` performs it after a manual release. Only folders holding a release `build.json` are touched. Any removed copy can be rebuilt from its docs revision.
