@@ -70,6 +70,26 @@ are rejected before the write adapter is called. Missing or incompatible SQLite 
 visible unavailable model without initializing a database. Private auth assertions
 and underlying exception contents never enter logs or responses.
 
+## Interface state and recommendations
+
+English is the default; `?lang=ru` selects Russian. The fragment uses the same
+query parameters as the page. Controls send their UI language through
+`Accept-Language`; the HTTP boundary translates known request errors without
+changing the underlying queue policy. Source content retains its original text.
+
+Header project tabs set `project`. `sort=task|status|kurami` and `dir=asc|desc`
+select a stable display sort. `q` is an immediate client search over the loaded
+project rows. Retired `view` and `status` query filters no longer hide tasks.
+History navigation retains the current task, project, search and sort selection.
+Table/panel scroll and unchanged status drafts survive fragment replacement.
+
+The snapshot reads `project_triage_rankings` joined to `project_triage_state` on
+project and factual hash in the existing read transaction. A recommendation
+must match the item's ID and issue number, a present backlog Issue, a fresh
+project and a non-active run. Future/invalid ranking times and changed facts are
+excluded. The view exposes only the explanation and recommendation timestamps;
+it does not modify ranking state, query Discord or start a separate scheduler.
+
 ## AI Review requests
 
 `actions.ts` writes one control request and its Projects context in a single

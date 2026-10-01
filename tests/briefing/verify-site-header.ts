@@ -58,7 +58,7 @@ const frozen=original.replace(/<details class="site-switcher">[\s\S]*?<\/details
   .replace('/assets/kurami-fox.webp','/assets/kurami-fox.png');
 const refreshed=injectSiteNavigation(frozen,input.links,"daily");
 assert.match(refreshed,/class="site-switcher"/);
-assert.match(refreshed,/Projects<small class="site-nav__hint">скоро<\/small><\/span>/);
+assert.match(refreshed,/href="https:\/\/projects\.shagon1k\.win\/\?lang=ru">Projects<\/a>/);
 assert.match(refreshed,/src="\/assets\/kurami-fox.webp"/);
 assert.match(refreshed,/<style>\s*\.site-header \{/);
 assert.equal(injectSiteNavigation(refreshed,input.links,"daily"),refreshed);

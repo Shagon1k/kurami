@@ -15,7 +15,7 @@ export function syntheticProjectsSnapshot(): ProjectsSnapshot {
       links: { issue: `https://github.com/Example/Alpha/issues/${index}`, pr: null, discord: null, review: null, preview: null }, ...fields };
   }
   snapshot.items = [
-    item(12, { title: "Обновить экран поиска и проверить пустое состояние", status: "Human Review", runId: "r_review", runState: "parked_review", stage: "review_ready", runUpdatedAt: snapshot.generatedAt,
+    item(12, { title: "Refresh search and cover the empty state", status: "Human Review", runId: "r_review", runState: "parked_review", stage: "review_ready", runUpdatedAt: snapshot.generatedAt,
       aiReview: { enabled: true, reason: "eligible", head: "abcdef0123456789" },
       statusChange: { enabled: true, reason: "eligible", choices: Object.entries(statuses).map(([role,value]) => ({value,label:value,hint:role === "done" ? "Kurami проверит условия завершения, включая обязательное превью." : ""})) },
       runActions: {fingerprint:"a".repeat(64),reason:"eligible",actions:[
@@ -23,16 +23,17 @@ export function syntheticProjectsSnapshot(): ProjectsSnapshot {
         {action:"preview_start",label:"Запустить превью",enabled:true,confirmation:null,hint:null,state:null},
         {action:"stop",label:"Отменить запуск",enabled:true,confirmation:null,hint:null,state:null},
       ]},
-      detail: "Изменения готовы. Проверьте PR и текущий коммит перед запуском нового ревью.",
+      detail: "Changes are ready. Check the PR and current commit before another review.",
       ci: { state: "passed", tone: "success", head: "abcdef0123456789" },
       review: { state: "outdated", tone: "warning", head: "1234567890abcdef", critical: 0, important: 1, suggestions: 2 },
       links: { issue: "https://github.com/Example/Alpha/issues/12", pr: "https://github.com/Example/Alpha/pull/20", discord: "https://discord.com/channels/100/200", review: null, preview: null } }),
-    item(13, { title: "Исправить сбой интеграционной проверки", status: "In progress", runId: "r_work", runState: "running", stage: "ci_repair_working", owner: "cli", runUpdatedAt: snapshot.generatedAt,
+    item(13, { title: "Fix failing integration checks", status: "In progress", runId: "r_work", runState: "running", stage: "ci_repair_working", owner: "cli", runUpdatedAt: snapshot.generatedAt,
       ci: { state: "failed", tone: "failure", head: "abcdef0123456789" } }),
-    item(24, { project: "beta", title: "Уточнить поведение формы перед продолжением", status: "In progress", runId: "r_attention", runState: "waiting_human", stage: "waiting_human",
+    item(24, { project: "beta", title: "Clarify form behaviour before continuing", status: "In progress", runId: "r_attention", runState: "waiting_human", stage: "waiting_human",
       attention: [{ code: "owner_input", severity: "warning" }] }),
-    item(25, { project: "beta", title: "Добавить длинное описание без потери переносов на мобильном экране", status: "Backlog" }),
-    item(14, { title: "Завершённая задача", status: "Done", runState: "archived", stage: "completed" }),
+    item(25, { project: "beta", title: "Handle longer descriptions on mobile", status: "Backlog" }),
+    item(15, {title:"Add keyboard navigation",suggestedNext:{since:snapshot.generatedAt,rankedAt:snapshot.generatedAt,explanation:"Owner priority P1 · Ready to start"}}),
+    item(14, { title: "Completed task", status: "Done", runState: "archived", stage: "completed" }),
   ];
   return snapshot;
 }

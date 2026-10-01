@@ -53,7 +53,7 @@ The only code shared today is `src/shared-ui/tokens.ts`: fifteen colour variable
 Status badges have no shared primitive yet: each product styles its own status text. After the docs rework, Docs state legends and Digest stale markers become the two consumers that justify one.
 
 Hub adds `components/period-switch.ts`: a compact 7/30-day button group composed
-from shared buttons, with `aria-pressed`, theme roles and 44px touch targets.
+from shared buttons, with `aria-pressed`, theme roles and the shared control height.
 Tokens, Models, commits and Usage reuse it. Products own period persistence and
 data selection; the component supplies escaped markup and CSS. Its CSS is also
 included in the generated UI-preview bundle. UI-Library: extended.
@@ -83,6 +83,26 @@ and focus handling. Buttons can display an SVG icon beside a visible label;
 `--button-justify` controls alignment without product overrides. The site header
 accepts an optional utility slot: Hub uses it for one persistent 7/30-day selector.
 Hub owns the log and summary layouts. UI-Library: extended.
+
+The Projects revision adds `components/pill.ts` with named tones, dot/icon
+support and a theme-owned `radius-pill` shape. Tables accept trusted header
+content and sort directions, with opt-in height and sticky-heading properties.
+Search fields support an icon and a visually hidden label. Header navigation
+can scroll in a dedicated row on narrow screens. Popovers accept width/padding
+properties; buttons add danger and underlined-link variants. The shared Sites
+menu enables Projects for every product and preserves Russian language choice.
+Library fixtures cover pills and button variants. UI-Library: extended.
+
+The shared `control-height` token is 36px. Regular buttons, icon buttons, forms,
+header links, menus and disclosure triggers use it; compact buttons remain 32px
+and use the shared height on touch devices. Button SVGs are 18px with a 1.6 stroke;
+products can tune `--button-icon-size`, `--button-width` and icon order. Pills use
+11px text and 2px vertical padding. Table headers align vertically in the middle
+and accept `--table-head-padding`. Projects uses 14px trailing sort icons,
+centered Checks headings and full-width action groups. UI-Library: extended.
+Projects reserves pills for Project status and Suggested next. Check results,
+Kurami stages and sync freshness use plain text values. Its language link uses
+the same icon-button variant as Hub and Docs.
 
 ## Proposed structure
 

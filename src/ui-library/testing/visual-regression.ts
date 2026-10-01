@@ -119,7 +119,8 @@ async function checkSiteSwitcher(devtools:Devtools,base:string):Promise<void> {
       const projects=[...nav.querySelectorAll('.site-nav__link')].find(link=>link.textContent.trim().startsWith('Projects'));
       return {links:[...nav.querySelectorAll('a')].map(link=>link.textContent.trim()),current:nav.querySelector('[aria-current]')?.textContent.trim()??null,projects:projects?.getAttribute('aria-disabled')??null,projectsHref:projects?.getAttribute('href')??null,open:menu.open,overflow:document.documentElement.scrollWidth-innerWidth,left:rect.left,right:rect.right};
     })()`);
-    if(JSON.stringify(state.links)!==JSON.stringify(["Hub","Digest","Docs","Hermes","Dokploy"])||state.current!==current||state.projects!=="true"||state.projectsHref!==null||!state.open||state.overflow>1||state.left<0||state.right>width+1)throw new Error(`Site switcher ${path} at ${width}px: ${JSON.stringify(state)}`);
+    const projectsHref=`https://projects.shagon1k.win/${path==="/en/"||path==="/hub/en.html"?"":"?lang=ru"}`;
+    if(JSON.stringify(state.links)!==JSON.stringify(["Hub","Digest","Docs","Projects","Hermes","Dokploy"])||state.current!==current||state.projects!==null||state.projectsHref!==projectsHref||!state.open||state.overflow>1||state.left<0||state.right>width+1)throw new Error(`Site switcher ${path} at ${width}px: ${JSON.stringify(state)}`);
   }
 }
 

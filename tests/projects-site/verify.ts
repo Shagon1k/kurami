@@ -45,9 +45,14 @@ try {
   database.prepare("INSERT INTO run_discord_surfaces(run_id,guild_id,parent_channel_id,thread_id) VALUES(?,?,?,?)").run("r_current", "100", "101", "200");
   database.prepare("INSERT INTO preview_leases(lease_id,run_id,slot_number,state,compose_project_name,expires_at,verified_head_sha) VALUES(?,?,?,?,?,?,?)")
     .run("pl_1", "r_current", 1, "running", "fixture-preview", "2026-10-01T10:00:00Z", "current-head");
+  const factualHash="a".repeat(64);
+  database.prepare("INSERT INTO project_triage_state(project,factual_hash,facts_json,stats_json,change_sequence,first_observed_at,last_changed_at,last_checked_at) VALUES(?,?,?, ?,1,?,?,?)").run("alpha",factualHash,"{}","{}",at,at,at);
+  database.prepare("INSERT INTO project_triage_rankings(project,factual_hash,policy_version,ranking_json,selected_item_id,selected_issue_number,selected_title,selected_url,explanation,content_digest,suggested_since,ranked_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?)")
+    .run("alpha",factualHash,"deterministic-v2","[]","backlog",12,"Task backlog","https://github.com/Example/Alpha/issues/12","Owner priority P1",factualHash,at,at);
   const before = createHash("sha256").update(readFileSync(dbPath)).digest("hex");
   const snapshot = collectProjectsSnapshot({ home, now: new Date(at) });
   assert.equal(snapshot.available, true, "real deployed migration schema can be read");
+  assert.equal(snapshot.items.find(item=>item.id==="backlog")?.suggestedNext?.explanation,"Owner priority P1","same persisted recommendation as Discord digest");
   assert.equal(snapshot.items.length, 3, "absent and unconfigured items are excluded; drafts and unstarted issues remain visible");
   const current = snapshot.items.find(item => item.id === "review")!;
   assert.equal(current.runId, "r_current", "only the latest attempt is joined");
@@ -60,6 +65,9 @@ try {
   assert.equal(collectProjectsSnapshot({ home, now: new Date("2026-09-30T10:02:00Z") }).projects[0]!.freshness, "stale");
   assert.equal(collectProjectsSnapshot({ home, now: new Date("2026-10-01T10:01:00Z") }).items.find(item => item.id === "review")!.links.preview, null, "expired previews never produce navigation");
   assert.equal(createHash("sha256").update(readFileSync(dbPath)).digest("hex"), before, "snapshot does not mutate the Run Store");
+  database.prepare("UPDATE project_triage_state SET factual_hash=?").run("b".repeat(64));
+  assert.equal(collectProjectsSnapshot({home,now:new Date(at)}).items.find(item=>item.id==="backlog")?.suggestedNext,undefined,"obsolete ranking disappears when digest facts change");
+  database.prepare("UPDATE project_triage_state SET factual_hash=?").run(factualHash);
   database.exec("UPDATE preview_leases SET verified_head_sha='previous-head'");
   assert.equal(collectProjectsSnapshot({ home, now: new Date(at) }).items[0]!.preview.state, "outdated", "old preview evidence cannot appear current");
   database.exec("UPDATE run_ci_snapshots SET head_sha=NULL; UPDATE run_ai_reviews SET head_sha='current-head'");
@@ -101,7 +109,12 @@ assert.equal(await new ProjectsAccess({ team: "", audience: "", ownerEmail: "" }
 
 const fixture = syntheticProjectsSnapshot();
 assert.equal(selectItems(fixture, parseFilters(new URLSearchParams("project=beta"))).length, 2);
-assert.equal(selectItems(fixture, parseFilters(new URLSearchParams("view=attention"))).length, 2);
+assert.equal(selectItems(fixture,parseFilters(new URLSearchParams("view=attention&status=Done"))).length,6,"retired filters do not hide tasks");
+const ascending=selectItems(fixture,parseFilters(new URLSearchParams("sort=status"))).map(item=>item.status);
+assert.deepEqual(ascending,["Backlog","Backlog","Done","Human Review","In progress","In progress"]);
+assert.deepEqual(selectItems(fixture,parseFilters(new URLSearchParams("sort=status&dir=desc"))).map(item=>item.status),ascending.toReversed());
+assert.match(renderProjectsPage(fixture),/<html[^>]*lang="en"/);
+assert.match(renderProjectsPage(fixture,new URLSearchParams("lang=ru")),/Поиск задач/);
 let authorized = false; let reads = 0;
 const server = createProjectsServer({ snapshot: () => { reads++; return fixture; }, authorize: async () => authorized ? "owner" : null });
 await new Promise<void>(done => server.listen(0, "127.0.0.1", done));

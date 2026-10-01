@@ -9,12 +9,12 @@ export function renderDisclosure(input: { summary: string; body: string; boxed?:
 }
 
 export const DISCLOSURE_CSS = `
-.disclosure > summary { width: fit-content; min-height: 44px; display: list-item; align-content: center; cursor: pointer; font-weight: 600; }
+.disclosure > summary { width: fit-content; min-height: var(--control-height); display: list-item; align-content: center; cursor: pointer; font-weight: 600; }
 .disclosure--boxed { padding: var(--space-1) var(--space-4); border: 1px solid var(--border-default); background: var(--surface-panel); }
 .disclosure--boxed > summary { width: auto; }
 .disclosure--boxed[open] { padding-bottom: var(--space-4); }
 .disclosure[open] > summary { margin-bottom: var(--space-2); }
-.disclosure--inline > summary { display: flex; align-items: center; gap: var(--space-2); list-style: none; min-height: 44px; padding-inline: var(--space-2); color: var(--text-muted); font-size: .75rem; font-weight: 500; border-radius: var(--radius); position: var(--disclosure-position,static); top: var(--disclosure-top,auto); right: var(--disclosure-right,auto); margin: var(--disclosure-margin,0); }
+.disclosure--inline > summary { display: flex; align-items: center; gap: var(--space-2); list-style: none; min-height: var(--control-height); padding-inline: var(--space-2); color: var(--text-muted); font-size: .75rem; font-weight: 500; border-radius: var(--radius); position: var(--disclosure-position,static); top: var(--disclosure-top,auto); right: var(--disclosure-right,auto); margin: var(--disclosure-margin,0); }
 .disclosure--inline > summary::-webkit-details-marker { display: none; }
 .disclosure--inline > summary::before { content: "›"; font: 500 1.2rem/1 var(--font-sans); transform: rotate(0); transition: transform var(--duration-fast); }
 .disclosure--inline[open] > summary::before { transform: rotate(90deg); }

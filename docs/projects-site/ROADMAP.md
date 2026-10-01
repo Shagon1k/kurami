@@ -13,13 +13,13 @@ workflow. The long-term goal includes all owner actions currently used in Discor
 
 | Phase | Outcome | Dependency | Acceptance and evidence |
 | --- | --- | --- | --- |
-| 1 — implemented | Owner can inspect tasks across projects | Existing Run Store and registry | Real-schema read-only tests; tunnel-hosting and optional Access HTTP tests; table/detail/filter browser checks; joint UI checks |
+| 1 — implemented | Owner can inspect tasks across projects | Existing Run Store and registry | Real-schema read-only tests; tunnel-hosting and optional Access HTTP tests; table/detail/search browser checks; joint UI checks |
 | 2 — implemented | Owner can request AI Review from Projects | Phase 1 and shared control policy | One durable exact-SHA request; duplicate and stale requests rejected; both interfaces show the same result |
 | 3 — implemented | Owner can change Project status | Phase 1 and guarded GitHub writes | A stable transition produces one normal poller event; concurrent requests, conflicts and lost replies have explicit outcomes |
 | 4 — implemented | Owner can use the remaining Kurami actions | Phase 2 | Shared queue admission and request results; displayed-run checks; exact-SHA fix workers; explicit discard confirmation; preview acknowledgement provenance |
 | 5 — next | Owner can manage order and metadata | Phases 3–4 | Each supported field has an explicit authority and conflict policy |
 
-Phase 1 includes the server, read model, table, task panel, filters, freshness,
+Phase 1 includes the server, read model, table, task panel, project selection, search, freshness,
 optional owner Access validation, and a loopback service for port 8777.
 Controls remain disabled by default. Phase 2 adds a guarded AI Review request
 through the existing control queue, an explicit Projects source, and a PR/SHA
@@ -50,6 +50,23 @@ approved hosting the page and all controls on loopback port 8777. Application
 Access validation is optional; normal tunnel hosting records an origin actor marker.
 Control requests and their PR/SHA context live in the existing Run Store; its
 backup and recovery cover these records.
+
+## Interface revision — approved for rollout
+
+The revised interface defaults to English, with a Russian switch. It replaces
+view/status filters and Apply/Refresh buttons with live search, header project
+tabs and sortable Task/Status/Kurami columns. Desktop tables fit the viewport;
+mobile task details use a full-screen dialog with swipe and history navigation.
+
+Shared status pills, a Sync popover, visible action groups and distinct danger
+controls replace the draft presentation. Suggested next reads the same persisted
+ranking as the Discord digest. Projects is enabled in the shared Sites menu.
+
+Verification uses the Projects unit/browser suites and the library, guard and
+joint browser gates. On 2026-10-01 the owner approved the scoped commit, push and
+rollout. Integrate the completed shared UI changes before deployment and repeat
+the relevant checks on the combined revision. Record runtime smoke evidence
+outside Git after restarting the origins and promoting the static Docs menu.
 
 ## Open and deferred decisions
 

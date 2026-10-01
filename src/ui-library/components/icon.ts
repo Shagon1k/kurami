@@ -1,4 +1,12 @@
 const paths={
+  search:"M10 3a7 7 0 1 0 0 14 7 7 0 1 0 0-14M15 15l6 6",
+  close:"M6 6l12 12M18 6 6 18",
+  back:"M14 5l-7 7 7 7M7 12h14",
+  sort:"M8 4v16M4 8l4-4 4 4M16 20V4M12 16l4 4 4-4",
+  stop:"M6 6h12v12H6z",
+  play:"M8 4l12 8-12 8z",
+  spark:"M12 2l3 7 7 3-7 3-3 7-3-7-7-3 7-3z",
+  trash:"M3 6h18M9 6V3h6v3M6 6l1 15h10l1-15M10 10v7M14 10v7",
   project:"M3 6h7l2 2h9v12H3zM3 6V4h7l2 2",
   ci:"M4 4h16v16H4zM8 12l3 3 5-6",
   preview:"M3 4h18v14H3zM8 22h8M12 18v4M3 8h18",

@@ -9,6 +9,8 @@ export type TableInput = {
   caption?: string;
   columns: readonly string[];
   rows: readonly (readonly TableCell[])[];
+  headers?: readonly TableCell[];
+  sortDirections?: readonly ("ascending" | "descending" | "none")[];
   rowHeaders?: boolean;
   numeric?: boolean;
   stack?: boolean;
@@ -22,9 +24,11 @@ export function renderTable(input: TableInput): string {
   if (input.className && !/^[a-z0-9_-]+(?: [a-z0-9_-]+)*$/.test(input.className)) throw new Error("Unsafe table class");
   if (input.rows.some(row => row.length !== input.columns.length)) throw new Error("Table row does not match its columns");
   if (input.rowClassNames && (input.rowClassNames.length !== input.rows.length || input.rowClassNames.some(value => !/^[a-z0-9_-]+(?: [a-z0-9_-]+)*$/.test(value)))) throw new Error("Invalid table row classes");
+  if(input.headers && input.headers.length!==input.columns.length)throw new Error("Table header count mismatch");
+  if(input.sortDirections && (input.sortDirections.length!==input.columns.length || input.sortDirections.some(value=>!["ascending","descending","none"].includes(value))))throw new Error("Invalid table sort directions");
   const classes = ["table", input.numeric && "table--numeric", input.stack && "table--stack", input.className].filter(Boolean).join(" ");
   const caption = input.caption ? `<caption>${escapeHtml(input.caption)}</caption>` : "";
-  const head = `<thead><tr>${input.columns.map(column => `<th scope="col">${escapeHtml(column)}</th>`).join("")}</tr></thead>`;
+  const head = `<thead><tr>${input.columns.map((column,index) => `<th scope="col"${input.sortDirections?` aria-sort="${input.sortDirections[index]}"`:""}>${input.headers?cell(input.headers[index]!):escapeHtml(column)}</th>`).join("")}</tr></thead>`;
   const body = input.rows.map((row,rowIndex) => `<tr${input.rowClassNames ? ` class="${input.rowClassNames[rowIndex]}"` : ""}>${row.map((value, index) => index === 0 && input.rowHeaders
     ? `<th scope="row">${cell(value)}</th>`
     : `<td>${input.stack ? `<span class="table__label" aria-hidden="true">${escapeHtml(input.columns[index])}</span>` : ""}${cell(value)}</td>`).join("")}</tr>`).join("");
@@ -33,11 +37,12 @@ export function renderTable(input: TableInput): string {
 
 // Products tune density with --table-font-size and --table-cell-padding on the wrapper.
 export const TABLE_CSS = `
-.table { max-width: 100%; overflow-x: auto; }
+.table { max-width: 100%; max-height: var(--table-max-height,none); overflow: auto; overscroll-behavior: var(--table-overscroll,auto); }
 .table table { width: 100%; border-collapse: collapse; font-size: var(--table-font-size, .84rem); }
 .table caption { margin-bottom: var(--space-3); color: var(--text-accent); font-weight: 600; text-align: left; }
 .table th, .table td { padding: var(--table-cell-padding, 12px 8px); border-bottom: 1px solid var(--border-default); text-align: left; vertical-align: top; }
-.table thead { background: var(--table-head-background, transparent); }
+.table thead th { vertical-align: middle; padding: var(--table-head-padding,var(--table-cell-padding,12px 8px)); }
+.table thead { position: var(--table-head-position,static); top: 0; z-index: 1; background: var(--table-head-background, transparent); }
 .table th[scope="row"] { font-weight: 600; }
 .table--numeric th:not(:first-child), .table--numeric td:not(:first-child) { text-align: right; white-space: nowrap; }
 .table__label { display: none; }

@@ -1,3 +1,4 @@
+import {stateLabel} from "./i18n.ts";
 import type { ProjectAttention, ProjectStatuses } from "../orchestrator/projects/status-read-model.ts";
 
 export type Freshness = "fresh" | "stale" | "unavailable";
@@ -13,22 +14,23 @@ export type ProjectItem = {
   preview: Signal & { expiresAt: string | null; reviewed: boolean };
   attention: ProjectAttention[];
   aiReview?: { enabled: boolean; reason: string; head: string | null };
+  suggestedNext?: {since:string;rankedAt:string;explanation:string};
   reviewRequestFailed?: boolean;
   statusChange?: StatusChange;
   runActions?: import("./run-actions.ts").RunActionView;
   links: { issue: string | null; pr: string | null; discord: string | null; review: string | null; preview: string | null };
 };
 export type ProjectsSnapshot = { generatedAt: string; available: boolean; projects: ProjectSummary[]; items: ProjectItem[] };
-export type ViewFilters = { project: string; view: "all" | "attention" | "active" | "review"; status: string };
+export type SortKey="task"|"status"|"kurami";
+export type ViewFilters={project:string;sort:SortKey|null;direction:"asc"|"desc"};
 
 // Mirrors the orchestrator's two-minute admission freshness boundary.
 export const PROJECTS_STALE_AFTER_MS = 120_000;
 export const PROJECTS_REFRESH_MS = 30_000;
 
-export function parseFilters(params: URLSearchParams): ViewFilters {
-  const view = params.get("view");
-  return { project: params.get("project") ?? "", status: params.get("status") ?? "",
-    view: view === "attention" || view === "active" || view === "review" ? view : "all" };
+export function parseFilters(params:URLSearchParams):ViewFilters {
+  const sort=params.get("sort");
+  return {project:params.get("project")??"",sort:sort==="task"||sort==="status"||sort==="kurami"?sort:null,direction:params.get("dir")==="desc"?"desc":"asc"};
 }
 
 export function needsOwner(item: ProjectItem, project: ProjectSummary): boolean {
@@ -36,11 +38,10 @@ export function needsOwner(item: ProjectItem, project: ProjectSummary): boolean 
     !["cancelled", "archived", "discarded", "completed"].includes(item.runState ?? "");
 }
 
-export function selectItems(snapshot: ProjectsSnapshot, filters: ViewFilters): ProjectItem[] {
-  return snapshot.items.filter(item => {
-    const project = snapshot.projects.find(project => project.key === item.project);
-    if (!project || filters.project && item.project !== filters.project || filters.status && item.status !== filters.status) return false;
-    return filters.view === "all" || filters.view === "attention" && needsOwner(item, project) ||
-      filters.view === "active" && item.status === project.statuses.active || filters.view === "review" && item.status === project.statuses.review;
-  });
+export function selectItems(snapshot:ProjectsSnapshot,filters:ViewFilters,lang:import("./i18n.ts").Language="en"):ProjectItem[] {
+  const items=snapshot.items.filter(item=>snapshot.projects.some(project=>project.key===item.project)&&(!filters.project||item.project===filters.project));
+  if(!filters.sort)return items;
+  const collator=new Intl.Collator(lang,{numeric:true,sensitivity:"base"});
+  const value=(item:ProjectItem)=>filters.sort==="task"?item.title:filters.sort==="status"?item.status??"":stateLabel(item.stage??item.runState,lang);
+  return items.sort((a,b)=>(filters.direction==="desc"?-1:1)*collator.compare(value(a),value(b))||a.project.localeCompare(b.project)||(a.number??0)-(b.number??0)||a.id.localeCompare(b.id));
 }

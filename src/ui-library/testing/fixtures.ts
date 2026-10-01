@@ -12,6 +12,7 @@ import {BUTTON_CSS,renderButton,renderLinkButton} from "../components/button.ts"
 import {PERIOD_SWITCH_CSS,renderPeriodSwitch} from "../components/period-switch.ts";
 import {THEME_SWITCH_CSS,renderThemeSwitch} from "../components/theme-switch.ts";
 import {TABLE_CSS,renderTable} from "../components/table.ts";
+import {PILL_CSS,renderPill} from "../components/pill.ts";
 import {CALLOUT_CSS,renderCallout} from "../components/callout.ts";
 import {DISCLOSURE_CSS,renderDisclosure} from "../components/disclosure.ts";
 import {SITE_HEADER_CSS,renderSiteHeader} from "../patterns/site-header.ts";
@@ -76,7 +77,7 @@ export function syntheticInvestmentReview():string {
 
 /** A sub-site assembled only from the library: proves a new site needs no Digest or Docs CSS. */
 export function librarySubsite():string {
-  const styles=[THEME_CSS,FOUNDATION_CSS,BUTTON_CSS,THEME_SWITCH_CSS,SITE_HEADER_CSS,TABLE_CSS,CALLOUT_CSS,DISCLOSURE_CSS,PERIOD_SWITCH_CSS,ICON_CSS,STAT_CARD_CSS,FORM_CSS,
+  const styles=[THEME_CSS,FOUNDATION_CSS,BUTTON_CSS,THEME_SWITCH_CSS,SITE_HEADER_CSS,TABLE_CSS,CALLOUT_CSS,DISCLOSURE_CSS,PERIOD_SWITCH_CSS,ICON_CSS,STAT_CARD_CSS,FORM_CSS,PILL_CSS,
     ".page { padding-block: var(--space-10); display: grid; gap: var(--space-6); max-width: 760px; } .page h1 { margin: 0; font-size: clamp(2rem, 5vw, 3.25rem); line-height: 1.05; letter-spacing: -.04em; }"].join("\n");
   return renderDocument({
     lang:"en",title:"Library sub-site · Kurami",favicon:"/favicon.svg",styles:{inline:styles},themeScript:true,skipLabel:"Skip to content",
@@ -85,12 +86,13 @@ export function librarySubsite():string {
 ${renderPeriodSwitch({key:"synthetic-usage",lang:"en",label:"Usage period"})}
 ${renderStatCard({label:"Tokens",value:"3.8M",full:"3,812,400",icon:"tokens",tone:"info"})}
 ${renderMeter({value:36.7,label:"Memory",tone:"info"})}
+<p>${renderPill({label:"Ready",tone:"success"})} ${renderPill({label:"In progress",tone:"info"})} ${renderPill({label:"Needs review",tone:"warning"})} ${renderPill({label:"Failed",tone:"failure"})}</p>
 ${renderCheckbox({name:"synthetic-repo",label:"Kurami",value:"kurami",checked:true})}
 ${renderCallout({tone:"note",title:"Built from the library",body:"Header, buttons, table, callout and disclosure come from src/ui-library; this page adds only its own layout."})}
 ${renderTable({caption:"Synthetic runs",columns:["Run","Duration","Checks"],rows:[["alpha","12 min","4/4"],["beta","7 min","3/4"]],rowHeaders:true,numeric:true,stack:true})}
 ${renderDisclosure({summary:"Technical detail",body:"<p>Nothing here is real data.</p>",boxed:true})}
 ${renderDisclosure({summary:"Events · 3",body:"<p>Shared inline disclosure.</p>",variant:"inline"})}
-<p>${renderButton({label:"Primary action",variant:"primary"})} ${renderButton({label:"Secondary",variant:"secondary"})}</p>`,
+<p>${renderButton({label:"Primary action",variant:"primary"})} ${renderButton({label:"Secondary",variant:"secondary"})} ${renderButton({label:"Discard",variant:"danger"})} ${renderLinkButton({label:"External link",href:"https://example.test/",variant:"link"})}</p>`,
     mainClass:"page",
     footer:`<footer class="container"><p>Kurami lab · synthetic</p></footer>`,
   });

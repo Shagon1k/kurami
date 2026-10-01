@@ -12,8 +12,7 @@ export function renderPeriodSwitch(input:{key:string;lang:"en"|"ru";selected?:7|
 
 export const PERIOD_SWITCH_CSS=`
 .period-switch { display: inline-flex; flex-shrink: 0; align-items: center; gap: var(--space-1); padding: var(--space-1); border: 1px solid var(--border-default); border-radius: var(--radius); background: var(--surface-panel); }
-.period-switch__option { min-inline-size: 40px; color: var(--text-muted); font-family: var(--font-mono); }
+.period-switch__option { min-inline-size: var(--control-height); color: var(--text-muted); font-family: var(--font-mono); }
 .period-switch__option[aria-pressed="true"] { color: var(--text-primary); background: var(--surface-raised); border-color: var(--border-default); }
 .period-switch__option:hover:not(:disabled):not([aria-busy="true"]) { color: var(--text-primary); background: var(--surface-raised); border-color: var(--text-muted); }
-@media (pointer: coarse) { .period-switch__option { min-inline-size: 44px; } }
 `;

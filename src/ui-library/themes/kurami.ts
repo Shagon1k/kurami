@@ -7,11 +7,12 @@ export const kuramiTheme:Theme={
     "font-sans":'"Onest", system-ui, -apple-system, "Segoe UI", sans-serif',
     "font-mono":'"Fragment Mono", ui-monospace, SFMono-Regular, Menlo, monospace',
     "font-note":'"Caveat", "Segoe Print", cursive',
-    "radius-sm":"2px","radius":"3px","radius-md":"4px",
+    "radius-sm":"2px","radius":"3px","radius-md":"4px","radius-pill":"999px",
     "shadow-card":"4px 4px 0 var(--shadow-offset)",
     "shadow-card-sm":"3px 3px 0 var(--shadow-offset)",
     "shadow-raised":"0 8px 22px color-mix(in srgb, var(--text-primary) 10%, transparent)",
     "duration-fast":"150ms","duration-base":"220ms",
+    "control-height":"36px",
     "space-1":"4px","space-2":"8px","space-3":"12px","space-4":"16px","space-5":"20px","space-6":"24px","space-8":"32px","space-10":"40px",
   },
   light:{colorScheme:"light",colors:{

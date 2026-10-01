@@ -23,6 +23,7 @@ import {renderNumberField,renderSelectField,renderSearchField,renderCheckbox} fr
 import {renderStatCard,renderMeter} from "../../src/ui-library/components/stat-card.ts";
 import {renderIcon,iconPath} from "../../src/ui-library/components/icon.ts";
 import {renderSelectionControl,SELECTION_CONTROL_CSS} from "../../src/ui-library/components/selection-control.ts";
+import {renderPill} from "../../src/ui-library/components/pill.ts";
 import {renderPopover} from "../../src/ui-library/components/popover.ts";
 import {renderDialog} from "../../src/ui-library/components/dialog.ts";
 import {renderPeriodSwitch} from "../../src/ui-library/components/period-switch.ts";
@@ -128,9 +129,9 @@ assert.match(sites,/href="https:\/\/hub\.shagon1k\.win\/en\/"[^>]*>Hub<\/a>/);
 assert.match(sites,/href="https:\/\/docs\.shagon1k\.win\/en\/" aria-current="location">Docs<\/a>/);
 assert.match(sites,/href="https:\/\/hermes\.shagon1k\.win\/"[^>]*>Hermes<\/a>/);
 assert.match(sites,/href="https:\/\/dokploy\.shagon1k\.win\/"[^>]*>Dokploy<\/a>/);
-assert.match(sites,/<span class="site-nav__link site-nav__link--disabled" aria-disabled="true">Projects<small class="site-nav__hint">soon<\/small><\/span>/);
-assert.doesNotMatch(sites,/href="https:\/\/projects\.shagon1k\.win\/"/);
-assert.equal((sites.match(/class="site-nav__link"/g)??[]).length,5);
+assert.match(sites,/href="https:\/\/projects\.shagon1k\.win\/">Projects<\/a>/);
+assert.doesNotMatch(sites,/site-nav__link--disabled/);
+assert.equal((sites.match(/class="site-nav__link"/g)??[]).length,6);
 assert.doesNotMatch(renderSiteSwitcher(kuramiSites("hub")),/href="https:\/\/docs\.shagon1k\.win\/en\/"/);
 const documentHtml=renderDocument({lang:"en",title:"T",favicon:"/f.svg",styles:{href:"/s.css"},themeScript:true,skipLabel:"Skip",header,main:"<p>m</p>",footer:"<footer></footer>"});
 assert.match(documentHtml,/<a class="skip-link" href="#main">Skip<\/a>/);
@@ -221,3 +222,7 @@ assert.equal(baselineGrew(frozenBaseline,JSON.stringify({counts:{},duplicates:{a
 assert.equal(baselineGrew(null,frozenBaseline),false,"introducing the baseline freezes, it does not grow");
 
 console.log(`UI library theme contract verified: ${colorRoles.length} colour roles × 2 modes, ${scaleRoles.length} scale roles, no retired or undefined tokens`);
+
+assert.match(renderPill({label:"<Ready>",tone:"success"}),/pill--success[^>]*>[\s\S]*&lt;Ready&gt;/);
+assert.match(renderTable({columns:["Status"],headers:[{html:"<strong>Status</strong>"}],sortDirections:["ascending"],rows:[]}),/aria-sort="ascending"><strong>Status<\/strong>/);
+assert.throws(()=>renderTable({columns:["Status"],headers:[],rows:[]}),/header count/);

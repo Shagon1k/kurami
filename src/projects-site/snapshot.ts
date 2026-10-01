@@ -55,7 +55,7 @@ function itemFromRow(row: ItemRow, config: Config, now: Date): ProjectItem {
   const discord = config.discord && row.guild_id === config.discord.guild_id && row.parent_channel_id === config.discord.channel_id &&
     /^\d+$/.test(row.guild_id ?? "") && /^\d+$/.test(row.thread_id ?? "") ? `https://discord.com/channels/${row.guild_id}/${row.thread_id}` : null;
   return {
-    id: row.item_id, project: row.project, number: row.issue_number, title: row.title ?? "Без названия", kind: row.content_type ?? "Unknown",
+    id: row.item_id, project: row.project, number: row.issue_number, title: row.title ?? "", kind: row.content_type ?? "Unknown",
     status: row.status, observedAt: row.last_seen_at, runUpdatedAt: row.run_updated_at, runId: row.run_id, runState: row.run_id ? row.run_state : null,
     stage: row.stage ?? null, detail: row.detail, owner: row.owner_state,
     ci: { state: row.ci_aggregate_state ?? "none", tone: row.ci_aggregate_state === "passed" ? "success" : ["failed", "missing"].includes(row.ci_aggregate_state ?? "") ? "failure" : "neutral", head: row.ci_head_sha },
@@ -107,6 +107,10 @@ export function collectProjectsSnapshot(options: { home?: string; now?: Date; co
     const statusEnabled = options.statusEnabled ?? process.env.PROJECTS_STATUS_ENABLED === "1";
     const statusReady = statusEnabled && Boolean(database.prepare("SELECT 1 FROM sqlite_master WHERE type='table' AND name='project_status_requests'").get());
     const statusRequests = statusReady ? database.prepare(`SELECT q.* FROM project_status_requests q WHERE NOT EXISTS(SELECT 1 FROM project_status_requests n WHERE n.project=q.project AND n.item_id=q.item_id AND n.rowid>q.rowid)`).all() as StatusRequestRow[] : [];
+    const triageReady=database.prepare("SELECT COUNT(*) AS count FROM sqlite_master WHERE type='table' AND name IN ('project_triage_rankings','project_triage_state')").get() as {count:number};
+    const suggestions=triageReady.count===2?database.prepare(`SELECT r.project,r.selected_item_id,r.selected_issue_number,r.suggested_since,r.ranked_at,r.explanation
+      FROM project_triage_rankings r JOIN project_triage_state s ON s.project=r.project AND s.factual_hash=r.factual_hash
+      WHERE r.selected_item_id IS NOT NULL`).all() as {project:string;selected_item_id:string;selected_issue_number:number;suggested_since:string;ranked_at:string;explanation:string}[]:[];
     database.exec("COMMIT");
     const projects = unavailable.projects.map(project => {
       const poll = polls.find(poll => poll.project === project.key);
@@ -116,6 +120,11 @@ export function collectProjectsSnapshot(options: { home?: string; now?: Date; co
     });
     const items = rows.filter(row => configs[row.project]).map(row => itemFromRow(row, configs[row.project]!, now));
     for (const item of items) {
+      const suggestion=suggestions.find(row=>row.project===item.project&&row.selected_item_id===item.id&&row.selected_issue_number===item.number);
+      if(suggestion&&item.kind==="Issue"&&item.status===configs[item.project]!.statuses.backlog&&
+        (!item.runId||["cancelled","archived","discarded","completed","rejected","failed"].includes(item.runState??""))&&
+        projects.find(project=>project.key===item.project)?.freshness==="fresh"&&Number.isFinite(Date.parse(suggestion.ranked_at))&&Date.parse(suggestion.ranked_at)<=now.getTime())
+        item.suggestedNext={since:suggestion.suggested_since,rankedAt:suggestion.ranked_at,explanation:suggestion.explanation};
       const control = item.runId ? controls.get(item.runId) : null;
       if (statusEnabled) {
         const config = configs[item.project]!;

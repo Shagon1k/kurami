@@ -14,9 +14,10 @@ export type ColorRole=typeof colorRoles[number];
 // Mode-independent roles: typefaces, shape, elevation, motion and spacing. A theme may change them too.
 export const scaleRoles=[
   "font-sans","font-mono","font-note",
-  "radius-sm","radius","radius-md",
+  "radius-sm","radius","radius-md","radius-pill",
   "shadow-card","shadow-card-sm","shadow-raised",
   "duration-fast","duration-base",
+  "control-height",
   "space-1","space-2","space-3","space-4","space-5","space-6","space-8","space-10",
 ] as const;
 export type ScaleRole=typeof scaleRoles[number];

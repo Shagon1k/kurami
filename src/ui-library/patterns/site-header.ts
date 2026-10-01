@@ -4,7 +4,7 @@ import { escapeHtml } from "../foundations/html.ts";
 import { breakpoints } from "../tokens/index.ts";
 
 export type NavLink = { href: string; label: string; current?: "page" | "location"; title?: string; disabled?: boolean; hint?: string };
-export type SiteNavInput = { label: string; links: readonly NavLink[]; attributes?: Record<string, true | string>; hideWhenEmpty?: boolean };
+export type SiteNavInput = { label: string; links: readonly NavLink[]; scroll?: boolean; attributes?: Record<string, true | string>; hideWhenEmpty?: boolean };
 export type SiteSwitcherInput = { label: string; summary: string; links: readonly NavLink[] };
 export type SiteHeaderInput = {
   label?: string;
@@ -36,7 +36,7 @@ export function renderSiteNav(input: SiteNavInput, className = "site-nav"): stri
     return `<a class="site-nav__link" href="${href}"${link.current ? ` aria-current="${link.current}"` : ""}${link.title ? ` title="${escapeHtml(link.title)}"` : ""}>${escapeHtml(link.label)}</a>`;
   }).join("");
   const hidden = input.hideWhenEmpty && !links ? " hidden" : "";
-  return `<nav class="${className}"${attributes(input.attributes)} aria-label="${escapeHtml(input.label)}"${hidden}>${links}</nav>`;
+  return `<nav class="${className}${input.scroll?" site-nav--scroll":""}"${attributes(input.attributes)} aria-label="${escapeHtml(input.label)}"${hidden}>${links}</nav>`;
 }
 
 export function renderSiteSwitcher(input: SiteSwitcherInput): string {
@@ -52,7 +52,7 @@ export function renderSiteHeader(input: SiteHeaderInput): string {
   const menu = nav.collapse
     ? `<details class="site-menu"><summary aria-label="${escapeHtml(nav.collapse.label)}"><span class="site-menu__icon" aria-hidden="true"></span></summary>${renderSiteNav({ label: nav.label, links: nav.links }, "site-menu__nav")}</details>`
     : "";
-  return `<header class="site-header${nav.collapse ? " site-header--collapsible" : ""}" data-site-header${attributes(input.attributes)}${input.label ? ` aria-label="${escapeHtml(input.label)}"` : ""}>
+  return `<header class="site-header${nav.collapse ? " site-header--collapsible" : ""}${nav.scroll?" site-header--scroll-nav":""}" data-site-header${attributes(input.attributes)}${input.label ? ` aria-label="${escapeHtml(input.label)}"` : ""}>
     <div class="site-header__inner container">
       <a class="site-brand" href="${safeHref(brand.href)}" aria-label="${escapeHtml(brand.ariaLabel)}">
         <img class="site-brand__fox" src="${safeHref(brand.foxSrc)}" width="48" height="48" alt="" decoding="async">
@@ -80,7 +80,9 @@ export const SITE_HEADER_CSS = `
 .site-brand__meta { color: var(--text-muted); font-size: .75rem; line-height: 1.45; font-weight: 400; }
 .site-brand:focus-visible, .site-nav__link:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 4px; }
 .site-nav { grid-area: nav; display: flex; align-items: center; gap: 6px; }
-.site-nav__link { position: relative; display: inline-flex; align-items: center; justify-content: center; min-height: 44px; padding: 10px 16px; color: var(--text-muted); font-size: .8125rem; font-weight: 600; text-decoration: none; white-space: nowrap; border-radius: var(--radius); transition: background 140ms ease, color 140ms ease; }
+.site-nav--scroll { min-width: 0; max-width: 100%; overflow-x: auto; scrollbar-width: thin; }
+.site-nav--scroll .site-nav__link { flex: none; }
+.site-nav__link { position: relative; display: inline-flex; align-items: center; justify-content: center; min-height: var(--control-height); padding: var(--space-2) var(--space-3); color: var(--text-muted); font-size: .8125rem; font-weight: 600; text-decoration: none; white-space: nowrap; border-radius: var(--radius); transition: background 140ms ease, color 140ms ease; }
 .site-nav__link:not(.site-nav__link--disabled):hover { color: var(--text-primary); background: var(--surface-section); }
 .site-nav__link:not(.site-nav__link--disabled):active { background: var(--surface-panel); }
 .site-nav__link--disabled { cursor: default; }
@@ -90,13 +92,13 @@ export const SITE_HEADER_CSS = `
 .site-nav[hidden] { display: none; }
 .site-actions { grid-area: actions; justify-self: end; display: flex; align-items: center; gap: 6px; padding-left: 20px; border-left: 1px solid var(--border-default); }
 .site-switcher { position: relative; }
-.site-switcher summary { min-height: 44px; display: inline-flex; align-items: center; gap: 12px; padding: 0 12px; border: 1px solid var(--border-default); border-radius: var(--radius); background: var(--surface-panel); color: var(--text-primary); cursor: pointer; list-style: none; font-size: .8125rem; font-weight: 600; white-space: nowrap; }
+.site-switcher summary { min-height: var(--control-height); display: inline-flex; align-items: center; gap: 12px; padding: 0 12px; border: 1px solid var(--border-default); border-radius: var(--radius); background: var(--surface-panel); color: var(--text-primary); cursor: pointer; list-style: none; font-size: .8125rem; font-weight: 600; white-space: nowrap; }
 .site-switcher summary::-webkit-details-marker { display: none; }
 .site-switcher summary:hover, .site-switcher[open] summary { border-color: var(--accent-primary); }
 .site-switcher summary:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 4px; }
 .site-switcher__icon { width: 5px; height: 5px; margin: 0 9px 9px 0; flex: none; background: currentColor; box-shadow: 9px 0 currentColor, 0 9px currentColor, 9px 9px currentColor; }
 .site-switcher__nav { position: absolute; top: calc(100% + 8px); right: 0; z-index: 2; min-width: 164px; display: grid; gap: 2px; padding: 6px; border: 1px solid var(--border-default); border-radius: var(--radius); background: var(--surface-raised); box-shadow: var(--shadow-card); }
-.site-switcher__nav .site-nav__link { justify-content: flex-start; min-height: 44px; }
+.site-switcher__nav .site-nav__link { justify-content: flex-start; min-height: var(--control-height); }
 .site-switcher__nav .site-nav__link[aria-current] { color: var(--text-accent); }
 .site-switcher__nav .site-nav__link[aria-current]::after { left: 0; right: auto; top: 12px; bottom: 12px; width: 2px; height: auto; }
 .site-menu { display: none; }
@@ -105,7 +107,7 @@ export const SITE_HEADER_CSS = `
   .site-header--collapsible .site-nav { display: none; }
   .site-header--collapsible .site-menu { display: block; grid-area: menu; }
   .site-header--collapsible .site-actions { border-left: 0; padding-left: 0; }
-  .site-menu summary { display: grid; place-items: center; width: 44px; height: 44px; border: 1px solid var(--border-default); border-radius: var(--radius); background: var(--surface-panel); cursor: pointer; list-style: none; }
+  .site-menu summary { display: grid; place-items: center; width: var(--control-height); height: var(--control-height); border: 1px solid var(--border-default); border-radius: var(--radius); background: var(--surface-panel); cursor: pointer; list-style: none; }
   .site-menu summary::-webkit-details-marker { display: none; }
   .site-menu__icon, .site-menu__icon::before, .site-menu__icon::after { display: block; width: 20px; height: 2px; background: var(--text-primary); }
   .site-menu__icon { position: relative; }
@@ -119,6 +121,9 @@ export const SITE_HEADER_CSS = `
   .site-menu__nav .site-nav__link[aria-current] { color: var(--text-accent); background: transparent; border-left: 2px solid var(--accent-primary); border-radius: 0; }
   .site-menu__nav .site-nav__link[aria-current]::after { content: none; }
 }
+@media (max-width: ${breakpoints.tablet}px) {
+  .site-header--scroll-nav .site-header__inner { grid-template-columns: minmax(0,1fr) auto; grid-template-areas: "brand actions" "nav nav"; row-gap: var(--space-1); }
+}
 @media (max-width: ${breakpoints.phone}px) {
   .site-header__inner { min-height: 72px; grid-template-columns: minmax(0,1fr) auto; grid-template-areas: "brand actions" "nav nav"; column-gap: 12px; row-gap: 4px; padding-block: 10px 6px; }
   .site-header--collapsible .site-header__inner { grid-template-columns: minmax(0,1fr) auto auto; grid-template-areas: "brand menu actions"; padding-block: 10px; }
@@ -126,7 +131,7 @@ export const SITE_HEADER_CSS = `
   .site-brand__fox { width: 42px; height: 42px; }
   .site-brand__name { font-size: 1.25rem; }
   .site-actions { border-left: 0; padding-left: 0; }
-  .site-switcher summary { width: 44px; justify-content: center; padding: 0; }
+  .site-switcher summary { width: var(--control-height); justify-content: center; padding: 0; }
   .site-switcher__title { display: none; }
   .site-switcher { position: static; }
   .site-switcher__nav { top: calc(100% + 4px); right: 0; }

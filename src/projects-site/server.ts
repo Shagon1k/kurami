@@ -1,3 +1,4 @@
+import {language,sourceText,type Language} from "./i18n.ts";
 import { createServer, type IncomingMessage, type Server } from "node:http";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
@@ -57,7 +58,12 @@ export function createProjectsServer(options: {
     response.setHeader("X-Frame-Options", "DENY");
     response.setHeader("X-Robots-Tag", "noindex, nofollow");
     response.setHeader("Content-Security-Policy", "default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self'; font-src 'self'; connect-src 'self'; base-uri 'none'; frame-ancestors 'none'; form-action 'self'");
+    let lang:Language=request.headers["accept-language"]?.toLowerCase().startsWith("ru")?"ru":"en";
     const send = (status: number, type: string, body: Buffer | string) => {
+      if(typeof body==="string"&&type.startsWith("text/plain"))body=sourceText(body,lang);
+      if(typeof body==="string"&&type.startsWith("application/json")) {
+        try{const value=JSON.parse(body);if(typeof value.error==="string")body=JSON.stringify({...value,error:sourceText(value.error,lang)});}catch{}
+      }
       response.writeHead(status, { "Content-Type": type, "Content-Length": Buffer.byteLength(body) });
       response.end(request.method === "HEAD" ? undefined : body);
     };
@@ -72,6 +78,7 @@ export function createProjectsServer(options: {
     let url: URL;
     try { url = new URL(request.url ?? "/", "http://localhost"); }
     catch { send(400, "text/plain; charset=utf-8", "Invalid URL"); return; }
+    if(request.method!=="POST")lang=language(url.searchParams);
     if (url.pathname === "/health") { send(200, "application/json; charset=utf-8", '{"ok":true}'); return; }
     if (url.pathname === "/robots.txt") { send(200, "text/plain; charset=utf-8", "User-agent: *\nDisallow: /\n"); return; }
     const identity = await authorize(request).catch(() => null);

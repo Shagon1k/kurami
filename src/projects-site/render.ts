@@ -1,137 +1,121 @@
-import { escapeHtml as escape } from "../ui-library/foundations/html.ts";
-import { randomUUID } from "node:crypto";
-import { renderDocument } from "../ui-library/patterns/page-shell.ts";
-import { renderSiteHeader } from "../ui-library/patterns/site-header.ts";
-import { kuramiSites } from "../ui-library/patterns/kurami-sites.ts";
-import { renderThemeSwitch } from "../ui-library/components/theme-switch.ts";
-import { renderButton, renderLinkButton } from "../ui-library/components/button.ts";
-import { renderTable } from "../ui-library/components/table.ts";
-import { renderSearchField, renderSelectField } from "../ui-library/components/form.ts";
-import { renderCallout } from "../ui-library/components/callout.ts";
-import { renderIcon, iconPath, type IconName } from "../ui-library/components/icon.ts";
-import { renderDisclosure } from "../ui-library/components/disclosure.ts";
-import { needsOwner, parseFilters, selectItems, type ProjectItem, type ProjectsSnapshot, type Signal } from "./model.ts";
+import {escapeHtml as escape} from "../ui-library/foundations/html.ts";
+import {randomUUID} from "node:crypto";
+import {renderDocument} from "../ui-library/patterns/page-shell.ts";
+import {renderSiteHeader} from "../ui-library/patterns/site-header.ts";
+import {kuramiSites} from "../ui-library/patterns/kurami-sites.ts";
+import {renderThemeSwitch} from "../ui-library/components/theme-switch.ts";
+import {renderButton,renderLinkButton} from "../ui-library/components/button.ts";
+import {renderTable} from "../ui-library/components/table.ts";
+import {renderSearchField,renderSelectField} from "../ui-library/components/form.ts";
+import {renderCallout} from "../ui-library/components/callout.ts";
+import {renderIcon,iconPath,type IconName} from "../ui-library/components/icon.ts";
+import {renderPopover} from "../ui-library/components/popover.ts";
+import {renderPill,type PillTone} from "../ui-library/components/pill.ts";
+import {needsOwner,parseFilters,selectItems,type ProjectItem,type ProjectSummary,type ProjectsSnapshot,type Signal,type SortKey} from "./model.ts";
+import {tr,sourceText,language,stateLabel,browserMessages,type Language} from "./i18n.ts";
 
-const labels: Record<string, string> = {
-  none: "—", unknown: "Неизвестно", pending: "Ожидается", queued: "В очереди", passed: "Пройден", failed: "Ошибка", missing: "Нет проверок",
-  running: "Выполняется", ready: "Готово", outdated: "Устарело", superseded: "Устарело", succeeded: "Завершено", unverified: "Не подтверждено", expired: "Истекло",
-  admission_pending: "Ожидает допуска", starting: "Запускается", waiting_human: "Ждёт вас", parked_review: "Готово к проверке",
-  remote_owned: "У вас", handoff_pending: "Передача управления", needs_attention: "Нужно внимание", stopping: "Останавливается",
-  cancelled: "Отменён", archived: "Завершён", rejected: "Не допущен", discarded: "Удалён", completed: "Завершён",
-  review_ready: "Готово к проверке", ci_repair_queued: "Исправление CI в очереди", ci_repair_working: "Исправляет CI",
-  review_fix_queued: "Исправления ревью в очереди", review_fix_working: "Исправляет замечания", review_fix_waiting: "Проверяет исправления",
-  review_fix_resolving: "Закрывает замечания", preview_queued: "Превью в очереди", preview_ready: "Превью готово", preview_failed: "Ошибка превью",
-  preview_stopping: "Останавливает превью", cancelling: "Отменяется", cancelled_work_preserved: "Работа сохранена",
-  preview_required: "Ждёт просмотра превью",
-  request_failed: "Не запущено",
-  leased: "Ожидается", provisioning: "Запускается", releasing: "Останавливается", released: "Остановлено",
-};
-const label = (value: string | null) => value ? labels[value] ?? value : "—";
-export function localTime(value: string | null): string {
-  if (!value || !Number.isFinite(Date.parse(value))) return "Неизвестно";
-  return new Intl.DateTimeFormat("ru-RU", { timeZone: "Europe/Vilnius", day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" }).format(new Date(value));
+export function localTime(value:string|null,lang:Language="en"):string {
+  if(!value||!Number.isFinite(Date.parse(value)))return tr("Unknown",lang);
+  return new Intl.DateTimeFormat(lang==="ru"?"ru-RU":"en-GB",{timeZone:"Europe/Vilnius",day:"2-digit",month:"short",hour:"2-digit",minute:"2-digit",hour12:false}).format(new Date(value));
 }
-function signal(value: Signal): string {
-  return `<span class="projects-signal projects-signal--${value.tone}">${escape(label(value.state))}</span>`;
+function stateValue(label:string,tone:PillTone):string{return `<span class="projects-signal projects-signal--${tone}">${escape(label)}</span>`;}
+function signal(value:Signal,lang:Language):string{return stateValue(stateLabel(value.state,lang),value.tone);}
+function statusTone(item:ProjectItem,project:ProjectSummary):PillTone {
+  return item.status===project.statuses.done?"success":item.status===project.statuses.review?"warning":item.status===project.statuses.active?"info":"neutral";
 }
-function check(name: string, icon: IconName, value: Signal): string {
-  return `<span class="projects-check">${renderIcon(icon)}<span class="projects-check-name">${name}</span>${signal(value)}</span>`;
+function runTone(item:ProjectItem):PillTone {
+  return item.attention.length||["waiting_human","needs_attention","preview_required"].includes(item.stage??item.runState??"")?"warning":
+    ["failed","rejected"].includes(item.runState??"")?"failure":["archived","completed"].includes(item.runState??"")?"success":item.runId?"info":"neutral";
 }
-function itemUrl(params: URLSearchParams, id?: string): string {
-  const next = new URLSearchParams(params);
-  next.delete("item");
-  if (id) next.set("item", id);
-  return "/" + (next.size ? `?${next}` : "");
+function itemUrl(params:URLSearchParams,id?:string):string {
+  const next=new URLSearchParams(params);next.delete("item");next.delete("view");next.delete("status");
+  if(id)next.set("item",id);
+  return "/"+(next.size?`?${next}`:"");
 }
-function navigation(label: string, raw: string | null): string {
-  if (!raw) return "";
-  try { const url = new URL(raw); if (url.protocol !== "https:" || url.username || url.password) return ""; }
-  catch { return ""; }
-  return renderLinkButton({ label, href: raw, variant: "subtle", size: "compact" });
+function navigation(label:string,raw:string|null,lang:Language):string {
+  if(!raw)return "";
+  try{const url=new URL(raw);if(url.protocol!=="https:"||url.username||url.password)return "";}catch{return "";}
+  return renderLinkButton({label:tr(label,lang),href:raw,variant:"link",iconPath:iconPath("arrow")});
 }
-
-export function renderProjectsDashboard(snapshot: ProjectsSnapshot, params = new URLSearchParams()): string {
-  const filters = parseFilters(params);
-  const items = selectItems(snapshot, filters);
-  const selected = items.find(item => item.id === params.get("item") && (!params.get("project") || item.project === params.get("project")));
-  const attention = snapshot.items.filter(item => needsOwner(item, snapshot.projects.find(project => project.key === item.project)!)).length;
-  const active = snapshot.items.filter(item => item.status === snapshot.projects.find(project => project.key === item.project)?.statuses.active).length;
-  const notice = snapshot.available ? "" : renderCallout({ tone: "warning", title: "Данные временно недоступны", body: "Попробуйте обновить страницу. Текущее состояние можно проверить в GitHub и Discord." });
-  const freshness = snapshot.projects.map(project => `<li><a href="${escape(project.boardUrl)}">${escape(project.name)}</a><span class="projects-signal projects-signal--${project.freshness === "fresh" ? "neutral" : "warning"}">${project.freshness === "fresh" ? "Обновлено" : project.freshness === "stale" ? "Данные устарели" : "Нет снимка"} · ${escape(localTime(project.capturedAt))}</span></li>`).join("");
-  const table = items.length ? renderTable({ className: "projects-table", stack: true, rowHeaders: true,
-    columns: ["Задача", "GitHub", "Kurami", "Проверки"],
-    rowClassNames: items.map(item => `projects-row${needsOwner(item, snapshot.projects.find(project => project.key === item.project)!) ? " projects-row--attention" : ""}${selected?.id === item.id && selected?.project === item.project ? " projects-row--selected" : ""}`),
-    rows: items.map(item => {
-      const project = snapshot.projects.find(project => project.key === item.project)!;
-      const identifier = item.number ? `#${item.number}` : item.kind === "DraftIssue" ? "Черновик" : item.kind;
-      const checks = [item.ci.state !== "none" ? check("CI", "ci", item.ci) : "", item.review.state !== "none" ? check("Review", "review", item.review) : "", item.preview.state !== "none" ? check("Превью", "preview", item.preview) : ""].join("");
-      return [{ html: `<div class="projects-task" data-search="${escape(`${project.name} ${identifier} ${item.title} ${item.status ?? ""}`.toLowerCase())}"><div class="projects-task-meta">${renderIcon("project")}<span>${escape(project.name)}</span><span class="projects-task-id">${escape(identifier)}</span>${needsOwner(item, project) ? `<span class="projects-attention" title="Ждёт вашего решения">${renderIcon("alert")}<span class="sr-only">Ждёт вашего решения</span></span>` : ""}</div>${renderLinkButton({ label: item.title, ariaLabel: `Открыть ${identifier}: ${item.title}`, href: itemUrl(params, item.id), variant: "text", attributes: { "data-item-link": item.id } })}</div>` },
-        { html: `<span class="projects-status">${escape(item.status ?? "Без статуса")}</span>${item.statusChange?.request && ["checking","writing","awaiting_sync","uncertain"].includes(item.statusChange.request.state) ? `<small class="projects-status-pending">${renderIcon("refresh")}${escape(item.statusChange.request.target)}</small>` : ""}` },
-        { html: `<div class="projects-stage"><span>${escape(label(item.stage ?? item.runState))}</span>${item.owner === "cli" ? `<small>${renderIcon("cpu")}AI Agent</small>` : item.owner === "remote" ? "<small>Управляете вы</small>" : ""}</div>` },
-        { html: checks ? `<div class="projects-checks">${checks}</div>` : '<span class="projects-signal projects-signal--neutral">—</span>' }];
-    }) }) : renderCallout({ tone: "note", title: snapshot.available ? "Подходящих задач нет" : "Таблица недоступна", body: snapshot.available ? "Выберите другой проект или фильтр." : "Последний снимок задач сейчас прочитать не удалось." });
-  const delayed = snapshot.projects.filter(project => project.freshness !== "fresh").length;
-  return `<div class="projects-overview"><div class="projects-summary"><p>${renderIcon("project")}<span><strong data-visible-count>${items.length}</strong> из ${snapshot.items.length} задач</span></p><p>${renderIcon("work")}<span><strong>${active}</strong> в работе</span></p><p class="${attention ? "projects-attention" : ""}">${renderIcon("alert")}<span><strong>${attention}</strong> ждут вас</span></p></div>
-    ${renderDisclosure({ className: "projects-freshness", summary: delayed ? `Синхронизация · задержки: ${delayed}` : "Синхронизация · актуально", body: `<ul class="list-reset">${freshness}</ul><p class="projects-update">Проверено ${escape(localTime(snapshot.generatedAt))} · Вильнюс · обновление каждые 30 секунд</p>` })}</div>
-    ${notice}<div class="projects-grid${selected ? " projects-grid--detail" : ""}"><div class="projects-table-frame">${table}<p data-search-empty hidden>По вашему запросу ничего не найдено.</p></div>${selected ? detail(selected, params, snapshot.projects.find(project => project.key === selected.project)!.name) : ""}</div>`;
+function sortControl(key:SortKey,label:string,params:URLSearchParams,lang:Language):string {
+  const filters=parseFilters(params);const selected=filters.sort===key;
+  return renderButton({label:tr(label,lang),variant:"quiet",className:"projects-sort",iconPath:iconPath("sort"),iconPosition:"end",visibleLabel:true,ariaLabel:`${tr("Sort by",lang)} ${tr(label,lang)}${selected?` · ${filters.direction}`:""}`,attributes:{"data-sort":key,"aria-pressed":selected?"true":"false"}});
 }
-
-function detail(item: ProjectItem, params: URLSearchParams, projectName: string): string {
-  const links = navigation("Issue", item.links.issue) + navigation("PR", item.links.pr) + navigation("Discord", item.links.discord) + navigation("Review", item.links.review) + navigation("Preview", item.links.preview);
-  const reviewReasons: Record<string, string> = { pending: "Ревью или другое действие уже в работе.", unstable: "Ревью доступно после завершения текущей работы.", no_head: "Текущий коммит PR ещё не подтверждён.", ready: "Ревью этого коммита уже готово.", stale: "Дождитесь свежих данных синхронизации.", superseded: "Этот запуск больше не актуален." };
-  const action = item.aiReview && item.runId ? `<div class="projects-review-action">${renderButton({ label: "AI Review", variant: "primary", disabled: !item.aiReview.enabled, busyLabel: "Отправляем…", attributes: { "data-review-run": item.runId, "data-review-project": item.project, "data-review-item": item.id, "data-review-head": item.aiReview.head ?? "", "data-review-key": randomUUID() } })}<p>${item.aiReview.enabled ? `Для коммита <code>${escape(item.aiReview.head?.slice(0,12) ?? "")}</code>` : escape(reviewReasons[item.aiReview.reason] ?? "Ревью сейчас недоступно.")}</p></div>` : "";
-  const statusControl = statusForm(item);
-  return `<aside class="projects-detail" id="project-details" aria-labelledby="project-details-title" tabindex="-1"><p class="projects-detail-meta">${renderIcon("project")}${escape(projectName)} · ${item.number ? `#${item.number}` : "Черновик"}</p><div class="projects-detail-heading"><h2 id="project-details-title">${escape(item.title)}</h2>${renderLinkButton({ label: "Закрыть", href: itemUrl(params), variant: "subtle", size: "compact", attributes: { "data-item-close": true } })}</div>
-    <dl><dt>Статус</dt><dd>${escape(item.status ?? "Без статуса")}</dd><dt>Kurami</dt><dd>${escape(label(item.stage ?? item.runState))}</dd>
-      <dt>${renderIcon("ci")}CI</dt><dd>${signal(item.ci)}</dd><dt>${renderIcon("review")}AI Review</dt><dd>${signal(item.review)}</dd><dt>${renderIcon("preview")}Превью</dt><dd>${signal(item.preview)}</dd>
-      ${item.ci.head ? `<dt>Коммит PR</dt><dd><code>${escape(item.ci.head.slice(0, 12))}</code></dd>` : ""}
-      ${item.review.head ? `<dt>Коммит ревью</dt><dd><code>${escape(item.review.head.slice(0, 12))}</code></dd>` : ""}
-      ${item.preview.expiresAt ? `<dt>Превью до</dt><dd>${escape(localTime(item.preview.expiresAt))}</dd>` : ""}
-    </dl>${item.detail ? `<p>${escape(item.detail)}</p>` : ""}${item.review.state === "ready" ? `<p>Замечания: ${item.review.critical} критических, ${item.review.important} важных, ${item.review.suggestions} предложений.</p>` : ""}
-    ${item.reviewRequestFailed ? renderCallout({ tone: "warning", title: "AI Review не запустилось", body: "Обновите данные и повторите запрос для текущего коммита PR." }) : ""}${statusControl}${action}${runActionControls(item)}<div class="projects-links">${links}</div>${item.runUpdatedAt ? `<p class="projects-update">Состояние запуска: ${escape(localTime(item.runUpdatedAt))}</p>` : ""}</aside>`;
+function checks(item:ProjectItem,lang:Language):string {
+  return [["CI","ci",item.ci],["AI Review","review",item.review],["Preview","preview",item.preview]].map(([name,icon,value])=>{
+    const evidence=value as Signal;
+    return evidence.state!=="none"?`<span class="projects-check">${renderIcon(icon as IconName)}<span class="projects-check-name">${tr(name as string,lang)}</span>${signal(evidence,lang)}</span>`:"";
+  }).join("");
 }
-
-function runActionControls(item: ProjectItem): string {
-  if (!item.runActions || !item.runId) return "";
-  if (item.runActions.reason === "unavailable") return '<p class="projects-action-note">Управление запуском пока недоступно.</p>';
-  const states: Record<string,string> = {pending:"В очереди",processing:"Выполняется",failed:"Не выполнено — проверьте состояние",rejected:"Отклонено — проверьте состояние"};
-  const body = item.runActions.actions.map(action => `<div class="projects-run-action">${renderButton({label:action.label,variant:"subtle",disabled:!action.enabled,busyLabel:"Отправляем…",attributes:{"data-run-action":action.action,"data-run-id":item.runId!,"data-run-project":item.project,"data-run-item":item.id,"data-run-fingerprint":item.runActions!.fingerprint,"data-run-key":randomUUID(),...(action.confirmation ? {"data-run-confirmation":action.confirmation} : {})}})}${action.state ? `<p class="projects-action-note">${escape(states[action.state] ?? "")}</p>` : ""}${action.hint ? `<p class="projects-action-note">${escape(action.hint)}</p>` : ""}${action.confirmation ? `<div data-run-confirm-panel hidden><p class="projects-action-note">${escape(action.confirmation)}</p><div class="projects-confirm-buttons">${renderButton({label:"Подтвердить удаление",variant:"primary",attributes:{"data-run-confirm":true}})}${renderButton({label:"Отмена",variant:"subtle",attributes:{"data-run-dismiss":true}})}</div></div>` : ""}</div>`).join("");
-  return body ? renderDisclosure({summary:"Действия Kurami",body:(item.runActions.reason === "stale" ? '<p class="projects-action-note">Дождитесь свежих данных синхронизации.</p>' : "")+body,className:"projects-run-actions"}) : "";
+export function renderProjectsDashboard(snapshot:ProjectsSnapshot,params=new URLSearchParams()):string {
+  const lang=language(params),t=(key:string)=>tr(key,lang),filters=parseFilters(params),items=selectItems(snapshot,filters,lang);
+  const selected=items.find(item=>item.id===params.get("item"));
+  const scope=snapshot.items.filter(item=>!filters.project||item.project===filters.project);
+  const projectOf=(item:ProjectItem)=>snapshot.projects.find(project=>project.key===item.project)!;
+  const attention=scope.filter(item=>needsOwner(item,projectOf(item))).length;
+  const active=scope.filter(item=>item.status===projectOf(item).statuses.active).length;
+  const delayed=snapshot.projects.some(project=>project.freshness!=="fresh");
+  const freshBody=`<ul class="projects-sync-list list-reset">${snapshot.projects.map(project=>`<li><div>${navigation(project.name,project.boardUrl,lang)}${stateValue(t(project.freshness==="fresh"?"Updated":project.freshness==="stale"?"Stale data":"No snapshot"),project.freshness==="fresh"?"success":"warning")}</div><time>${escape(localTime(project.capturedAt,lang))}</time></li>`).join("")}</ul><p class="projects-update">${t("Checked")} ${escape(localTime(snapshot.generatedAt,lang))} · ${t("Vilnius")}<br>${t("Refreshes every 30 seconds")}</p>`;
+  const columns=[t("Task"),t("Status"),"Kurami",t("Checks")];
+  const table=items.length?renderTable({className:"projects-table",stack:true,rowHeaders:true,columns,
+    headers:[{html:sortControl("task","Task",params,lang)},{html:sortControl("status","Status",params,lang)},{html:sortControl("kurami","Kurami",params,lang)},{html:`<span class="projects-checks-heading">${t("Checks")}</span>`}],
+    sortDirections:(["task","status","kurami",null] as const).map(key=>key&&filters.sort===key?filters.direction==="desc"?"descending":"ascending":"none"),
+    rowClassNames:items.map(item=>`projects-row${needsOwner(item,projectOf(item))?" projects-row--attention":""}${selected?.id===item.id?" projects-row--selected":""}`),
+    rows:items.map(item=>{
+      const project=projectOf(item),identifier=item.number?`#${item.number}`:t("Draft"),evidence=checks(item,lang);
+      return [{html:`<div class="projects-task" data-search="${escape(`${project.name} ${identifier} ${item.title} ${item.status??""}`.toLocaleLowerCase(lang))}"><div class="projects-task-meta">${renderIcon("project")}<span>${escape(project.name)}</span><span class="projects-task-id">${escape(identifier)}</span>${needsOwner(item,project)?`<span class="projects-attention" title="${t("Your decision needed")}">${renderIcon("alert")}<span class="sr-only">${t("Your decision needed")}</span></span>`:""}</div>${renderLinkButton({label:item.title||t("Untitled task"),href:itemUrl(params,item.id),variant:"text",attributes:{"data-item-link":item.id}})}${item.suggestedNext?`<div class="projects-suggestion">${renderPill({label:t("Suggested next"),tone:"info",icon:"spark",title:t("Suggested in Discord digest")})}</div>`:""}</div>`},
+        {html:renderPill({label:item.status??t("No status"),tone:statusTone(item,project)})+(item.statusChange?.request&&["checking","writing","awaiting_sync","uncertain"].includes(item.statusChange.request.state)?`<small class="projects-status-pending">${renderIcon("refresh")}${escape(item.statusChange.request.target)}</small>`:"")},
+        {html:`<div class="projects-stage">${stateValue(stateLabel(item.stage??item.runState,lang),runTone(item))}${item.owner==="cli"?`<small>${renderIcon("bot")}AI Agent</small>`:item.owner==="remote"?`<small>${renderIcon("person")}${t("You have control")}</small>`:""}</div>`},
+        {html:evidence?`<div class="projects-checks">${evidence}</div>`:"—"}];
+    })}):renderCallout({tone:"note",title:t(snapshot.available?"No matching tasks":"Table unavailable"),body:t(snapshot.available?"Try another project or search.":"The latest snapshot could not be read.")});
+  return `<div class="projects-overview"><div class="projects-summary"><p>${renderIcon("project")}<span><strong data-visible-count>${items.length}</strong> ${t("of")} ${snapshot.items.length} ${t("tasks")}</span></p><p>${renderIcon("work")}<span><strong>${active}</strong> ${t("active")}</span></p><p class="${attention?"projects-attention":""}">${renderIcon("alert")}<span><strong>${attention}</strong> ${t("need you")}</span></p></div><div class="projects-sync">${renderButton({label:`${t("Sync")} · ${t(delayed?"Delayed":"Up to date")}`,iconPath:iconPath("refresh"),visibleLabel:true,variant:"quiet",attributes:{popovertarget:"projects-sync-popover","data-sync-trigger":true}})}${renderPopover({id:"projects-sync-popover",label:t("Sync"),body:freshBody})}</div></div>
+    <div class="projects-mobile-sort" aria-label="${t("Sort by")}">${sortControl("task","Task",params,lang)}${sortControl("status","Status",params,lang)}${sortControl("kurami","Kurami",params,lang)}</div>
+    ${snapshot.available?"":renderCallout({tone:"warning",title:t("Data temporarily unavailable"),body:t("Check the current state in GitHub or Discord.")})}
+    <div class="projects-grid${selected?" projects-grid--detail":""}"><div class="projects-table-frame">${table}<div data-search-empty hidden>${renderCallout({tone:"note",title:t("No tasks match your search."),body:""})}</div></div>${selected?detail(selected,params,projectOf(selected)):""}</div>`;
 }
-
-function statusForm(item: ProjectItem): string {
-  const control = item.statusChange;
-  if (!control) return "";
-  const messages: Record<string,string> = { stale:"Дождитесь свежих данных синхронизации.",unsupported:"Поле статуса проекта не настроено.",unavailable:"Изменение статуса пока недоступно.",
-    checking:"Проверяем актуальный статус в GitHub.",writing:"Сохраняем статус в GitHub.",awaiting_sync:"GitHub обновлён. Ждём синхронизации Kurami.",
-    uncertain:"Результат записи не подтверждён. Проверьте его перед повторным изменением.",conflict:"Статус изменился в GitHub. Проверьте текущее состояние.",failed:"Изменение статуса не подтверждено. Можно повторить запрос." };
-  const pending = control.reason === "pending";
-  const request = control.request;
-  const from = pending && request ? request.from : item.status;
-  const selected = pending && request ? request.target : item.status ?? "";
-  const choices = [{value:item.status ?? "",label:item.status ?? "Без статуса"},...control.choices.filter(choice => choice.value !== item.status)];
-  if (pending && !choices.some(choice => choice.value === selected)) choices.push({value:selected,label:selected});
-  const note = messages[request?.state ?? control.reason] ?? "";
-  return `<form class="projects-status-form" method="post" action="/api/status" data-status-form data-project="${escape(item.project)}" data-item="${escape(item.id)}" data-from="${escape(JSON.stringify(from))}" data-observed-at="${escape(item.observedAt)}" data-key="${pending && request ? escape(request.key) : randomUUID()}" data-check="${pending}" data-target="${escape(selected)}" data-hints="${escape(JSON.stringify(Object.fromEntries(control.choices.map(choice => [choice.value,choice.hint]))))}">
-    <div class="projects-status-controls">${renderSelectField({name:"target",label:"Статус GitHub",value:selected,options:choices,disabled:!control.enabled})}${renderButton({label:pending ? "Проверить" : "Сохранить",variant:"subtle",type:"submit",disabled:pending ? !request?.checkAvailable : true,busyLabel:"…",attributes:{"data-status-submit":true}})}</div>
-    <p class="projects-status-note" data-status-note data-default-note="${escape(note)}"${control.enabled && !request ? " hidden" : ""}>${escape(note)}</p></form>`;
+function detail(item:ProjectItem,params:URLSearchParams,project:ProjectSummary):string {
+  const lang=language(params),t=(key:string)=>tr(key,lang);
+  const reasons:Record<string,string>={pending:"A review or another action is already running.",unstable:"Review is available after current work finishes.",no_head:"The current PR commit is not verified yet.",ready:"This commit has already been reviewed.",stale:"Wait for fresh sync data.",superseded:"This run is no longer current."};
+  const review=item.aiReview&&item.runId?`<div class="projects-review-action">${renderButton({label:"AI Review",iconPath:iconPath("review"),visibleLabel:true,variant:"primary",disabled:!item.aiReview.enabled,busyLabel:t("Sending…"),attributes:{"data-review-run":item.runId,"data-review-project":item.project,"data-review-item":item.id,"data-review-head":item.aiReview.head??"","data-review-key":randomUUID()}})}${!item.aiReview.enabled?`<p class="projects-action-note">${t(reasons[item.aiReview.reason]??"Review is currently unavailable.")}</p>`:""}</div>`:"";
+  const evidence=(name:string,icon:IconName,value:Signal,head:string|null,extra="")=>`<div class="projects-evidence-row"><div class="projects-evidence-label">${renderIcon(icon)}<div><strong>${t(name)}</strong>${head?`<code>${escape(head.slice(0,12))}</code>`:""}</div></div>${signal(value,lang)}${extra}</div>`;
+  const findingCounts=item.review.state==="ready"?[item.review.critical?`${item.review.critical} ${t("critical")}`:"",item.review.important?`${item.review.important} ${t("important")}`:"",item.review.suggestions?`${item.review.suggestions} ${t("suggestions")}`:""].filter(Boolean).join(" · "):"";
+  const links=navigation("Issue",item.links.issue,lang)+navigation("PR",item.links.pr,lang)+navigation("Discord",item.links.discord,lang)+navigation("Review",item.links.review,lang)+navigation("Preview",item.links.preview,lang);
+  return `<aside class="projects-detail" id="project-details" data-detail-item="${escape(item.id)}" aria-labelledby="project-details-title" tabindex="-1"><div class="projects-detail-top"><p class="projects-detail-meta">${renderIcon("project")}${escape(project.name)}<span class="projects-task-id">${item.number?`#${item.number}`:t("Draft")}</span></p>${renderLinkButton({label:t("Back to tasks"),href:itemUrl(params),variant:"quiet",attributes:{"data-item-close":true}})}</div><h2 id="project-details-title">${escape(item.title||t("Untitled task"))}</h2><div class="projects-detail-badges">${renderPill({label:item.status??t("No status"),tone:statusTone(item,project)})}${stateValue(stateLabel(item.stage??item.runState,lang),runTone(item))}${item.suggestedNext?renderPill({label:t("Suggested next"),tone:"info",icon:"spark"}):""}</div><div class="projects-links">${links}</div>
+    ${item.suggestedNext?`<div class="projects-recommendation">${renderIcon("spark")}<p>${escape(sourceText(item.suggestedNext.explanation,lang))}</p></div>`:""}
+    <section class="projects-detail-section"><h3>${renderIcon("work")}${t("Workflow")}</h3>${statusForm(item,lang)}${item.detail?`<p class="projects-context">${escape(sourceText(item.detail,lang))}</p>`:""}</section>
+    <section class="projects-detail-section"><h3>${renderIcon("ci")}${t("Evidence")}</h3><div class="projects-evidence">${evidence("CI","ci",item.ci,item.ci.head)}${evidence("AI Review","review",item.review,item.review.head)}${findingCounts?`<p class="projects-findings">${escape(findingCounts)}</p>`:""}${review}${evidence("Preview","preview",item.preview,item.preview.head)}${item.preview.expiresAt?`<p class="projects-update">${t("Expires")} ${escape(localTime(item.preview.expiresAt,lang))}</p>`:""}</div>
+    ${item.reviewRequestFailed?renderCallout({tone:"warning",title:t("AI Review did not start"),body:t("Refresh and retry for the current PR commit.")}):""}</section>${runActionControls(item,lang)}${item.runUpdatedAt?`<p class="projects-update">${t("Updated")} ${escape(localTime(item.runUpdatedAt,lang))}</p>`:""}</aside>`;
 }
-
-export function renderProjectsPage(snapshot: ProjectsSnapshot, params = new URLSearchParams()): string {
-  const filters = parseFilters(params);
-  const statuses = [...new Set(snapshot.items.map(item => item.status).filter((status): status is string => status !== null))].sort();
-  const options = (values: { value: string; label: string }[]) => [{ value: "", label: "Все" }, ...values];
-  return renderDocument({ lang: "ru", title: "Projects · Kurami", description: "Задачи и состояние работы по всем проектам.", favicon: "/assets/favicon.svg", styles: { href: "/assets/projects.css" }, themeScript: true,
-    head: '<meta name="robots" content="noindex, nofollow"><script src="/assets/projects.js" defer></script>', skipLabel: "К содержанию",
-    header: renderSiteHeader({ brand: { href: "/", ariaLabel: "Kurami Projects — все задачи", foxSrc: "/assets/kurami-fox.webp", suffix: "Projects" },
-      nav: { label: "Представления", links: [{ href: "/", label: "Все задачи", current: "page" }] }, sites: kuramiSites("projects"), actions: renderThemeSwitch("ru") }),
-    main: `<h1 class="sr-only">Задачи</h1>
-      <form class="projects-filters" method="get">${renderSearchField({ name: "q", label: "Поиск", value: params.get("q") ?? "", placeholder: "Номер или название задачи" })}
-        ${renderSelectField({ name: "project", label: "Проект", value: filters.project, options: options(snapshot.projects.map(project => ({ value: project.key, label: project.name }))) })}
-        ${renderSelectField({ name: "view", label: "Показать", value: filters.view, options: [{ value: "all", label: "Все задачи" }, { value: "attention", label: "Ждут меня" }, { value: "active", label: "В работе" }, { value: "review", label: "На проверке" }] })}
-        ${renderSelectField({ name: "status", label: "Статус", value: filters.status, options: options(statuses.map(status => ({ value: status, label: status }))) })}
-        <div class="projects-filter-actions">${renderButton({ label: "Применить", variant: "subtle", type: "submit" })}${renderButton({ label: "Обновить данные", ariaLabel: "Обновить данные", iconPath: iconPath("refresh"), variant: "icon", busyLabel: "…", attributes: { "data-projects-refresh": true } })}</div></form>
-      <p role="status" aria-live="polite" data-refresh-status></p><div id="projects-dashboard">${renderProjectsDashboard(snapshot, params)}</div>`,
-    mainClass: "projects-page", footer: "",
-  });
+function runActionControls(item:ProjectItem,lang:Language):string {
+  if(!item.runActions||!item.runId)return "";
+  const t=(key:string)=>tr(key,lang);
+  if(item.runActions.reason==="unavailable")return `<p class="projects-action-note">${t("Run controls are not available yet.")}</p>`;
+  const states:Record<string,string>={pending:"Queued",processing:"Running",failed:"Not completed — check the state",rejected:"Rejected — check the state"};
+  const groups:[string,string[]][]=[["Work",["take_control"]],["Preview",["preview_start","preview_reviewed","preview_stop"]],["Fixes",["ci_repair","review_fix","recover_managed_task"]],["Cleanup",["stop","discard_local","discard_published"]]];
+  const icons:Record<string,IconName>={take_control:"person",preview_start:"play",preview_stop:"close",preview_reviewed:"check",ci_repair:"ci",review_fix:"review",recover_managed_task:"refresh",stop:"stop",discard_local:"trash",discard_published:"trash"};
+  const sections=groups.map(([group,actions])=>{
+    const available=item.runActions!.actions.filter(action=>actions.includes(action.action));if(!available.length)return "";
+    return `<section class="projects-detail-section projects-run-actions"><h3>${renderIcon(group==="Cleanup"?"stop":group==="Preview"?"preview":group==="Fixes"?"controls":"work")}${t(group)}</h3><div class="projects-action-grid">${available.map(action=>`<div class="projects-run-action">${renderButton({label:sourceText(action.label,lang),iconPath:iconPath(icons[action.action]!),visibleLabel:true,variant:group==="Cleanup"?"danger":"secondary",disabled:!action.enabled,busyLabel:t("Sending…"),attributes:{"data-run-action":action.action,"data-run-id":item.runId!,"data-run-project":item.project,"data-run-item":item.id,"data-run-fingerprint":item.runActions!.fingerprint,"data-run-key":randomUUID(),...(action.confirmation?{"data-run-confirmation":sourceText(action.confirmation,lang)}:{})}})}${action.state?`<p class="projects-action-note">${t(states[action.state]??"")}</p>`:""}${action.hint?`<p class="projects-action-note">${escape(sourceText(action.hint,lang))}</p>`:""}${action.confirmation?`<div data-run-confirm-panel hidden><p class="projects-action-note">${escape(sourceText(action.confirmation,lang))}</p><div class="projects-confirm-buttons">${renderButton({label:t("Confirm deletion"),variant:"danger",attributes:{"data-run-confirm":true}})}${renderButton({label:t("Cancel"),variant:"quiet",attributes:{"data-run-dismiss":true}})}</div></div>`:""}</div>`).join("")}</div></section>`;
+  }).join("");
+  return (item.runActions.reason==="stale"?`<p class="projects-action-note">${t("Wait for fresh sync data.")}</p>`:"")+sections;
+}
+function statusForm(item:ProjectItem,lang:Language):string {
+  const control=item.statusChange;if(!control)return "";const t=(key:string)=>tr(key,lang);
+  const messages:Record<string,string>={stale:"Wait for fresh sync data.",unsupported:"Project status field is not configured.",unavailable:"Status changes are not available yet.",checking:"Checking the current status in GitHub.",writing:"Saving status in GitHub.",awaiting_sync:"GitHub updated. Waiting for Kurami sync.",uncertain:"The write is unconfirmed. Check its result before another change.",conflict:"Status changed in GitHub. Check the current state.",failed:"Status change is unconfirmed. You can retry."};
+  const pending=control.reason==="pending",request=control.request,from=pending&&request?request.from:item.status,selected=pending&&request?request.target:item.status??"";
+  const choices=[{value:item.status??"",label:item.status??t("No status")},...control.choices.filter(choice=>choice.value!==item.status)];
+  if(pending&&!choices.some(choice=>choice.value===selected))choices.push({value:selected,label:selected});
+  const note=t(messages[request?.state??control.reason]??"");
+  return `<form class="projects-status-form" method="post" action="/api/status" data-status-form data-project="${escape(item.project)}" data-item="${escape(item.id)}" data-from="${escape(JSON.stringify(from))}" data-observed-at="${escape(item.observedAt)}" data-key="${pending&&request?escape(request.key):randomUUID()}" data-check="${pending}" data-target="${escape(selected)}" data-hints="${escape(JSON.stringify(Object.fromEntries(control.choices.map(choice=>[choice.value,sourceText(choice.hint,lang)]))))}"><div class="projects-status-controls">${renderSelectField({name:"target",label:t("Status"),value:selected,options:choices,disabled:!control.enabled})}${renderButton({label:t(pending?"Check result":"Save"),iconPath:iconPath(pending?"refresh":"check"),visibleLabel:true,variant:"subtle",type:"submit",disabled:pending?!request?.checkAvailable:true,busyLabel:"…",attributes:{"data-status-submit":true}})}</div><p class="projects-status-note" data-status-note data-default-note="${escape(note)}"${control.enabled&&!request?" hidden":""}>${escape(note)}</p></form>`;
+}
+export function renderProjectsPage(snapshot:ProjectsSnapshot,params=new URLSearchParams()):string {
+  const lang=language(params),t=(key:string)=>tr(key,lang),filters=parseFilters(params);
+  const projectLink=(key:string)=>{const next=new URLSearchParams(params);next.delete("item");next.delete("view");next.delete("status");if(key)next.set("project",key);else next.delete("project");return "/"+(next.size?`?${next}`:"");};
+  const otherLanguage=new URLSearchParams(params);otherLanguage.set("lang",lang==="en"?"ru":"en");
+  return renderDocument({lang,title:"Projects · Kurami",description:lang==="en"?"Tasks and run status across projects.":"Задачи и состояние работы по всем проектам.",favicon:"/assets/favicon.svg",styles:{href:"/assets/projects.css"},themeScript:true,
+    head:'<meta name="robots" content="noindex, nofollow"><script src="/assets/projects.js" defer></script>',skipLabel:t("Skip to content"),
+    header:renderSiteHeader({brand:{href:projectLink(""),ariaLabel:"Kurami Projects",foxSrc:"/assets/kurami-fox.webp",suffix:"Projects"},
+      nav:{label:t("Projects"),scroll:true,attributes:{"data-project-tabs":true},links:[{href:projectLink(""),label:t("All projects"),current:!filters.project?"page":undefined},...snapshot.projects.map(project=>({href:projectLink(project.key),label:project.name,current:filters.project===project.key?"page" as const:undefined}))]},sites:kuramiSites("projects",lang),
+      actions:renderLinkButton({label:lang==="en"?"RU":"EN",href:`/?${otherLanguage}`,variant:"icon",ariaLabel:lang==="en"?"Switch to Russian":"Переключить на английский",attributes:{"data-language-link":true,hreflang:lang==="en"?"ru":"en"}})+renderThemeSwitch(lang)}),
+    main:`<div data-projects-app data-messages="${escape(JSON.stringify(browserMessages(lang)))}"><h1 class="sr-only">${t("Tasks")}</h1><div class="projects-toolbar"><form class="projects-search" role="search" method="get">${renderSearchField({name:"q",label:t("Search tasks"),labelHidden:true,icon:true,value:params.get("q")??"",placeholder:t("Search by title or issue number")})}<input type="hidden" name="lang" value="${lang}">${filters.project?`<input type="hidden" name="project" value="${escape(filters.project)}">`:""}</form><p role="status" aria-live="polite" data-refresh-status></p></div><div id="projects-dashboard">${renderProjectsDashboard(snapshot,params)}</div></div>`,mainClass:"projects-page",footer:""});
 }
