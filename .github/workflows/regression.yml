@@ -24,4 +24,9 @@ jobs:
       - run: npm ci
       - if: github.event_name == 'pull_request'
         run: node tests/human-docs/impact.ts
+      - name: Start disposable tmux supervisor
+        run: tmux new-session -d -s ci-supervisor
       - run: npm test
+      - name: Remove disposable tmux supervisor
+        if: always()
+        run: tmux kill-session -t '=ci-supervisor' || true
