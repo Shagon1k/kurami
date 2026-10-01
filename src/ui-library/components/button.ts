@@ -1,5 +1,6 @@
 // Kurami button: shared variants, regular/compact sizes, busy state and a link form.
 import { escapeHtml } from "../foundations/html.ts";
+import { breakpoints } from "../tokens/index.ts";
 
 export type ButtonVariant = "primary" | "secondary" | "subtle" | "quiet" | "icon" | "text" | "danger" | "link" | "toggle";
 export type ButtonSize = "regular" | "compact";
@@ -8,6 +9,8 @@ type AttributeValue = string | number | boolean | undefined;
 
 export type ButtonInput = {
   label: string;
+  /** Phone label; an empty string keeps only the icon/count. The accessible name stays complete. */
+  compactLabel?: string;
   count?: number;
   variant: ButtonVariant;
   size?: ButtonSize;
@@ -56,6 +59,11 @@ export const BUTTON_CSS = `
 .button--toggle { color: var(--text-muted); background: var(--surface-raised); border-color: var(--border-default); font-weight: 500; }
 .button--toggle:hover:not(:disabled):not([aria-busy="true"]) { color: var(--text-primary); background: var(--surface-panel); border-color: var(--text-muted); }
 .button--toggle[aria-pressed="true"],.button--toggle[aria-pressed="true"]:hover:not(:disabled):not([aria-busy="true"]) { color: var(--text-accent); background: var(--accent-soft); border-color: color-mix(in srgb,var(--accent-primary) 40%,var(--border-default)); }
+.button__label--compact { display: none; }
+@media (max-width: ${breakpoints.phone}px) {
+  .button__label--full { display: none; }
+  .button__label--compact { display: inline; }
+}
 .button__count { font: 600 .78rem/1.2 var(--font-mono); }
 .button--quiet { padding-inline: var(--space-2); background: transparent; border-color: transparent; }
 .button--quiet:hover:not(:disabled):not([aria-busy="true"]) { color: var(--text-primary); background: var(--surface-panel); border-color: var(--border-default); }
@@ -82,7 +90,7 @@ export function renderButton(input: ButtonInput): string {
   const classes = ["button", `button--${input.variant}`, input.size === "compact" ? "button--compact" : undefined, input.iconPosition === "end" ? "button--icon-end" : undefined, input.className].filter(Boolean).join(" ");
   const type = input.type ?? "button";
   const count=input.count===undefined?"":`<strong class="button__count">${input.count}</strong> `;
-  const accessibleLabel = input.ariaLabel ?? (input.iconPath||count ? `${input.count===undefined?"":`${input.count} `}${input.label}` : undefined);
+  const accessibleLabel = input.ariaLabel ?? (input.iconPath||count||input.compactLabel!==undefined ? `${input.count===undefined?"":`${input.count} `}${input.label}` : undefined);
   const ariaLabel = accessibleLabel ? ` aria-label="${escapeHtml(accessibleLabel)}"` : "";
   const busyLabel = input.busyLabel
     ? ` data-busy-label="${escapeHtml(input.busyLabel)}"`
@@ -90,12 +98,15 @@ export function renderButton(input: ButtonInput): string {
   const attributes = renderAttributes(input.attributes);
   const disabled = input.disabled ? " disabled" : "";
   const labelAttributes = renderAttributes(input.labelAttributes);
+  const label = input.compactLabel===undefined
+    ? `<span${labelAttributes}>${escapeHtml(input.label)}</span>`
+    : `<span class="button__label--full"${labelAttributes}>${escapeHtml(input.label)}</span>${input.compactLabel ? `<span class="button__label--compact" aria-hidden="true">${escapeHtml(input.compactLabel)}</span>` : ""}`;
   const content = input.iconPath
-    ? `<svg class="button__svg" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="${escapeHtml(input.iconPath)}"/></svg>${count}${input.visibleLabel?`<span${labelAttributes}>${escapeHtml(input.label)}</span>`:""}`
+    ? `<svg class="button__svg" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="${escapeHtml(input.iconPath)}"/></svg>${count}${input.visibleLabel?label:""}`
     : input.icon
     ? `<span class="button__icon" aria-hidden="true">${escapeHtml(input.icon)}</span>${count}<span class="sr-only"${labelAttributes}>${escapeHtml(input.label)}</span>`
-    : input.labelAttributes
-      ? `${count}<span${labelAttributes}>${escapeHtml(input.label)}</span>`
+    : input.labelAttributes||input.compactLabel!==undefined
+      ? `${count}${label}`
       : `${count}${escapeHtml(input.label)}`;
   return `<button class="${classes}" type="${type}"${ariaLabel}${busyLabel}${attributes}${disabled}>${content}</button>`;
 }

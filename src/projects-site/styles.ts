@@ -99,10 +99,11 @@ export const PROJECTS_STYLES=[THEME_CSS,FOUNDATION_CSS,BUTTON_CSS,TABLE_CSS,FORM
 }
 @media (max-width: ${breakpoints.phone}px) {
   .projects-page { padding-top: var(--space-4); }
-  .projects-summary { gap: var(--space-2) var(--space-3); }
-  .projects-overview { margin-block: var(--space-2); }
+  .projects-summary { display: contents; }
+  .projects-summary p { display: none; }
+  .projects-overview { display: grid; grid-template-columns: minmax(0,1fr) auto; gap: var(--space-2); margin-block: var(--space-2); }
   .projects-mobile-sort { display: flex; flex-wrap: wrap; gap: var(--space-1); margin-bottom: var(--space-2); }
-  .projects-table { padding-inline: var(--space-4); }
+  .projects-table { --table-stack-row-padding: var(--space-3) var(--space-4); }
   .projects-task { max-width: none; min-width: 0; }
   .projects-checks { padding-block: var(--space-1); }
   .projects-detail { padding: var(--space-4); }

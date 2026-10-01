@@ -112,6 +112,13 @@ const counterToggle=renderButton({label:"need you",count:0,variant:"toggle",attr
 assert.match(counterToggle,/aria-label="0 need you"/);
 assert.match(counterToggle,/aria-pressed="false"/);
 assert.match(counterToggle,/<strong class="button__count">0<\/strong> need you/);
+const responsiveButton=renderButton({label:"Sync & freshness",compactLabel:"<Sync>",variant:"quiet"});
+assert.match(responsiveButton,/aria-label="Sync &amp; freshness"/);
+assert.match(responsiveButton,/<span class="button__label--full">Sync &amp; freshness<\/span>/);
+assert.match(responsiveButton,/<span class="button__label--compact" aria-hidden="true">&lt;Sync&gt;<\/span>/);
+const iconCount=renderButton({label:"active",compactLabel:"",count:3,iconPath:"M0 0",visibleLabel:true,variant:"toggle"});
+assert.match(iconCount,/aria-label="3 active"/);
+assert.doesNotMatch(iconCount,/button__label--compact/);
 for(const count of [-1,NaN,Infinity,1.5,Number.MAX_SAFE_INTEGER+1])assert.throws(()=>renderButton({label:"tasks",count,variant:"toggle"}),/Invalid button count/);
 assert.throws(()=>renderLinkButton({label:"x",href:"javascript:alert(1)",variant:"icon"}),/Unsafe link/);
 assert.throws(()=>renderLinkButton({label:"x",href:"//evil.example",variant:"icon"}),/Unsafe link/);

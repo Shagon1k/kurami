@@ -111,7 +111,7 @@ const fixture = syntheticProjectsSnapshot();
 assert.deepEqual(selectItems(fixture,parseFilters(new URLSearchParams("attention=1"))).map(item=>item.id),["item-12","item-24"],"attention view includes review and waiting owner input, not agent work");
 const reviewOnly=structuredClone(fixture);reviewOnly.items=[fixture.items[0]!,fixture.items[3]!];
 const reviewOnlyPage=renderProjectsPage(reviewOnly,new URLSearchParams("active=1"));
-assert.match(reviewOnlyPage,/data-task-filter="active"[^>]*>[\s\S]*?<strong class="button__count">1<\/strong> <span>active<\/span>/,"active count includes review even when no card is in the working status");
+assert.match(reviewOnlyPage,/data-task-filter="active"[^>]*>[\s\S]*?<strong class="button__count">1<\/strong> <span[^>]*>active<\/span>/,"active count includes review even when no card is in the working status");
 assert.equal(selectItems(reviewOnly,parseFilters(new URLSearchParams("active=1"))).length,1);
 assert.equal(parseFilters(new URLSearchParams("active=1&attention=1")).activeOnly,false,"attention view takes precedence for ambiguous links");
 assert.deepEqual(selectItems(fixture,parseFilters(new URLSearchParams("active=1"))).map(item=>item.id),["item-12","item-13","item-24"],"active view includes work, review and owner input");

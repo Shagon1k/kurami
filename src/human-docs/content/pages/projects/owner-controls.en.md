@@ -29,6 +29,10 @@ Each count uses the same selection as its filter. Click an enabled filter again
 to return to all tasks, or choose the other filter to switch views. The choice
 stays in the page URL across searches, project changes and refreshes.
 
+On phones the filter buttons show icons and counts beside a compact Sync button.
+The total task count is hidden to keep the controls on one line. Their full names
+remain available to screen readers.
+
 The card lets you change the GitHub Project status and use eligible Kurami
 actions, including AI Review and preview controls. They share Discord's request
 queue. Sync shows each project's freshness; the page refreshes every 30 seconds.

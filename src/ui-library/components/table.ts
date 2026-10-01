@@ -52,7 +52,7 @@ export const TABLE_CSS = `
   .table--stack { overflow: visible; }
   .table--stack table, .table--stack tbody, .table--stack tr, .table--stack caption { display: block; width: 100%; }
   .table--stack thead { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
-  .table--stack tr { padding: var(--space-3) 0; border-bottom: 1px solid var(--border-default); }
+  .table--stack tr { padding: var(--table-stack-row-padding,var(--space-3) 0); border-bottom: 1px solid var(--border-default); }
   .table--stack th[scope="row"], .table--stack td, .table--stack.table--numeric td:not(:first-child) { display: block; width: 100%; padding: var(--space-1) 0; border: 0; text-align: left; white-space: normal; }
   .table--stack .table__label { display: block; margin-top: var(--space-1); color: var(--text-muted); font: 500 .67rem var(--font-mono); text-transform: uppercase; }
 }

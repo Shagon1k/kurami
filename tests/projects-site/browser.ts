@@ -61,6 +61,18 @@ async function open(path: string): Promise<void> {
   await wait("document.readyState==='complete' && !!document.querySelector('#projects-dashboard')");
   await devtools.evaluate("document.fonts.ready");
 }
+async function mobileOverview(): Promise<void> {
+  const layout=await devtools.evaluate<{sameRow:boolean;withinViewport:boolean;hiddenLabels:boolean;rowFillsFrame:boolean;contentInset:boolean;accessibleNames:boolean}>(`(() => {
+    const active=document.querySelector('[data-task-filter=active]'), attention=document.querySelector('[data-task-filter=attention]'), sync=document.querySelector('[data-sync-trigger]');
+    const a=active.getBoundingClientRect(), b=attention.getBoundingClientRect(), c=sync.getBoundingClientRect();
+    const frame=document.querySelector('.projects-table-frame').getBoundingClientRect(), row=document.querySelector('.projects-row--attention').getBoundingClientRect(), text=document.querySelector('.projects-row--attention .projects-task').getBoundingClientRect();
+    return {sameRow:Math.abs(a.top-b.top)<1&&Math.abs(a.top-c.top)<1,withinViewport:a.left>=0&&b.right<=c.left&&c.right<=innerWidth,hiddenLabels:[active,attention].every(button=>getComputedStyle(button.querySelector('.button__label--full')).display==='none'),rowFillsFrame:Math.abs(row.left-frame.left-1)<1&&Math.abs(row.right-frame.right+1)<1,contentInset:text.left-row.left>=16&&row.right-text.right>=16,accessibleNames:[active,attention,sync].every(button=>button.getAttribute('aria-label').length>3)};
+  })()`);
+  assert.ok(layout.sameRow&&layout.withinViewport,"mobile filters and Sync share a row without overflow");
+  assert.equal(await devtools.evaluate("getComputedStyle(document.querySelector('[data-visible-count]').closest('p')).display"),"none","total task count does not take a separate mobile row");
+  assert.ok(layout.hiddenLabels&&layout.accessibleNames,"compact filters retain full accessible names");
+  assert.ok(layout.rowFillsFrame&&layout.contentInset,"mobile row backgrounds fill the frame with inset content");
+}
 async function audit(): Promise<void> {
   assert.deepEqual(await devtools.evaluate(AUDIT_EXPRESSION), []);
   assert.deepEqual(await devtools.evaluate(inventoryExpression()), []);
@@ -75,6 +87,7 @@ try {
       await devtools.evaluate(`if(document.documentElement.dataset.theme!==${JSON.stringify(theme)})document.querySelector('[data-theme-toggle]').click()`);
       await delay(250);
       await audit();
+      if(width<600)await mobileOverview();
       assert.equal(await devtools.evaluate("document.querySelector('[data-task-filter=active]').textContent"),"3 active","counter matches the full active selection including review");
       assert.equal(await devtools.evaluate("document.querySelector('[data-task-filter=attention]').textContent"),"2 need you");
       await devtools.evaluate("document.querySelector('[data-task-filter=active]').click()");
@@ -143,6 +156,14 @@ try {
       await devtools.evaluate("document.querySelector('[data-item-close]').click()");
       await wait("!document.querySelector('#project-details') && !document.body.classList.contains('projects-mobile-detail-open')");
     }
+  }
+  for(const width of [320,390]) {
+    await devtools.call("Emulation.setDeviceMetricsOverride",{width,height:1000,deviceScaleFactor:1,mobile:true});
+    await open("/?lang=ru&attention=1");
+    await mobileOverview();
+    await audit();
+    const shot=await devtools.call<{data:string}>("Page.captureScreenshot",{format:"png",captureBeyondViewport:true});
+    writeFileSync(resolve(out,`projects-attention-ru-${width}.png`),Buffer.from(shot.data,"base64"));
   }
   await devtools.call("Emulation.setDeviceMetricsOverride",{width:390,height:780,deviceScaleFactor:1,mobile:true});
   await devtools.call("Emulation.setTouchEmulationEnabled",{enabled:true});

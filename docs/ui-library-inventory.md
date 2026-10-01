@@ -206,3 +206,8 @@ The generated UI stylesheet includes chart styles. UI-Library: extended.
 The button primitive includes a `toggle` variant with a thin border and an
 `aria-pressed` selection state. Its optional numeric `count` shares a readable
 label and accessible name. Projects uses it for the active and attention filters.
+
+Buttons accept an optional `compactLabel` for phones, including an empty label
+for icon-and-count controls. The full label remains in the accessible name.
+Stacked tables expose `--table-stack-row-padding` so products can inset row
+contents while their background fills the table width. UI-Library: extended.

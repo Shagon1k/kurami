@@ -93,7 +93,7 @@ ${renderTable({caption:"Synthetic runs",columns:["Run","Duration","Checks"],rows
 ${renderDisclosure({summary:"Technical detail",body:"<p>Nothing here is real data.</p>",boxed:true})}
 ${renderDisclosure({summary:"Events · 3",body:"<p>Shared inline disclosure.</p>",variant:"inline"})}
 <p>${renderButton({label:"Primary action",variant:"primary"})} ${renderButton({label:"Secondary",variant:"secondary"})} ${renderButton({label:"Discard",variant:"danger"})} ${renderLinkButton({label:"External link",href:"https://example.test/",variant:"link"})}</p>
-<p>${renderButton({label:"active",count:3,variant:"toggle",attributes:{"aria-pressed":"true"}})} ${renderButton({label:"need you",count:2,variant:"toggle",attributes:{"aria-pressed":"false"}})}</p>`,
+<p>${renderButton({label:"active",compactLabel:"",count:3,variant:"toggle",attributes:{"aria-pressed":"true"}})} ${renderButton({label:"need you",count:2,variant:"toggle",attributes:{"aria-pressed":"false"}})}</p>`,
     mainClass:"page",
     footer:`<footer class="container"><p>Kurami lab · synthetic</p></footer>`,
   });
