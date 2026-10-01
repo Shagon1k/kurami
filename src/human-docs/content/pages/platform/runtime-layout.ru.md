@@ -154,3 +154,8 @@ GitHub Actions на каждый PR запускает типы, проверк�
 - `run-project-poller.sh` — пример блокировок опроса и общего потребителя
 - `.github/workflows/regression.yml` — проверки на каждый PR
 :::
+
+
+## Lifecycle технических Codex-задач
+
+CI repair и review fix выполняются отдельным Codex app-server worker. Launcher сохраняет tmux как supervisor процесса, но завершение определяется событием сохранённого thread и turn, а не текстом экрана. Основной writer и Remote handoff остаются на прежнем TUI-пути. При остановке, timeout и ошибке инициализации сохраняется identity задачи; ownership освобождается только после подтверждённого выхода процесса.
