@@ -65,6 +65,7 @@ const suites = [
   "test:session-cancel",
   "test:codex-protocol",
   "test:legacy-ci-timeout-recovery",
+  "test:ci-no-head-recovery",
   "test:session-start",
   "test:session-handoff",
   "test:autonomous-successor",
