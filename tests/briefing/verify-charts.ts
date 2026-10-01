@@ -86,7 +86,34 @@ for(const change of [
  {series:[{id:"s",label:"s",values:Array(6)}]},
  {series:Array(1)},
 ])assert.throws(()=>engine.parse({...spec,...change}));
-assert.throws(()=>engine.parse({...spec,kind:"bar"}),/one series/);
+const grouped=engine.parse({...spec,kind:"bar",series:spec.series.slice(0,2)});
+const groupedLayout=engine.layout(grouped);
+assert(groupedLayout.series[0]!.points[0]!.x<groupedLayout.series[1]!.points[0]!.x);
+assert(groupedLayout.series[0]!.points[0]!.x+groupedLayout.barWidth<groupedLayout.series[1]!.points[0]!.x,"grouped bars do not overlap");
+assert.equal(JSON.stringify(browserEngine.layout(grouped)),JSON.stringify(groupedLayout));
+const onlySecond=engine.layout(grouped,{visible:[1]});
+assert.equal(onlySecond.series[0]!.points[0]!.x,onlySecond.labels[0]!.x,"visible groups remain centered");
+const compact=engine.parse({...grouped,minimumMaximum:100,display:{variant:"embedded",density:"compact",header:false,legend:"hidden",zoom:false,values:false,table:"screen-reader"},
+  series:[{...grouped.series[0]!,values:[1,null,0,2,3,4],color:4,partial:[true,false,false,false,false,false]}]});
+assert.equal(engine.layout(compact).series[0]!.points[0]!.partial,true);
+assert.equal(engine.layout(compact).series[0]!.color,3);
+assert(engine.layout(compact).maximum>=100);
+assert.equal(JSON.stringify(browserEngine.layout(compact)),JSON.stringify(engine.layout(compact)));
+for(const width of [200,320,1200]) {
+  const responsive=engine.layout(compact,{width});
+  assert.equal(responsive.plot.width,width);
+  assert.equal(JSON.stringify(browserEngine.layout(compact,{width})),JSON.stringify(responsive));
+  for(const series of responsive.series)for(const point of series.points)assert(point.x-responsive.barWidth/2>=responsive.plot.left&&point.x+responsive.barWidth/2<=responsive.plot.right);
+}
+assert.throws(()=>engine.layout(compact,{width:NaN}));
+assert.throws(()=>engine.layout(compact,{width:100}));
+assert.match(renderBarChart(compact),/chart--compact/);
+assert.doesNotMatch(renderBarChart(compact),/data-chart-zoom|chart__bar-value|<details/);
+for(const change of [{display:{legend:"bad"}},{display:{zoom:"no"}},{display:[]},{minimumMaximum:0},{minimumMaximum:Infinity},
+  {series:[{...spec.series[0]!,color:6}]},{series:[{...spec.series[0]!,partial:[true]}]}])assert.throws(()=>engine.parse({...spec,...change}));
+const frozen=injectRuntime('<html><head><style>old charts</style></head><body>'+renderBarChart(bar)+'</body></html>');
+assert.match(frozen,/data-chart-runtime/);
+assert.equal((injectRuntime(frozen).match(/data-chart-runtime/g)??[]).length,1);
 assert.throws(()=>engine.parse({...spec,kind:"bar",baseline:"auto",series:[spec.series[0]!]}),/zero baseline/);
 const adapted=cinemaTrendInput([
  {id:"a",label:"A",currency:"USD",points:[{at:"2026-08-01",label:"01.08",gross:10},{at:"2026-08-15",label:"15.08",gross:5}]},

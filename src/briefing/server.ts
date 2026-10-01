@@ -1,3 +1,5 @@
+import { THEME_CSS } from "../ui-library/themes/index.ts";
+import { CHART_STYLES } from "./ui/charts/styles.ts";
 import { CHART_CLIENT_SCRIPT } from "./ui/charts/client.ts";
 import {STOCKS_CLIENT_SCRIPT} from "./stocks/client.ts";
 import {renderStocksPage} from "./stocks/render.ts";
@@ -562,6 +564,9 @@ function stateTag(items: ClientItemState[]): string {
 export function injectRuntime(html: string, items: ClientItemState[] = []): string {
   // Editions frozen before self-hosted fonts still link Google Fonts; serve the same faces locally.
   if (html.includes("fonts.googleapis.com")) html = html.replace(GOOGLE_FONTS, "").replace(/<\/head>/i, `<style>${FONT_FACES}</style></head>`);
+  // Frozen editions keep their data and markup; refresh their chart theme at serve time.
+  if (html.includes("data-chart-spec=") && !html.includes(CHART_STYLES))
+    html = html.replace(/<\/head>/i, `<style data-chart-runtime>${THEME_CSS}${CHART_STYLES}</style></head>`);
   // Every served page, including frozen editions, gets the shared theme runtime before first paint.
   if (!html.includes(THEME_SCRIPT_TAG)) html = html.replace(/<\/head>/i, `${THEME_SCRIPT_TAG}</head>`);
   const favicon = '<link rel="icon" type="image/svg+xml" href="/favicon.svg">';

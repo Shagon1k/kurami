@@ -70,18 +70,17 @@ function applyRepositoryFilter(){
   if(coverage)coverage.textContent=partial?text('Git · частичные данные','Git · partial data'):text('Git · выбрано ','Git · selected ')+selected.length+'/'+inputs.length;
   for(const label of dashboard.querySelectorAll('.period-metric .metric__label'))for(const node of label.childNodes)if(node.nodeType===Node.TEXT_NODE)node.textContent=text('Коммиты','Commits')+' · '+label.closest('[data-period-panel]').dataset.periodDays+text(' дней',' days')+(partial?text(' · частично',' · partial'):'');
   for(const panel of source.querySelectorAll('[data-period-panel=commits]')){
-    const days=Number(panel.dataset.periodDays),chart=panel.querySelector('.trend__chart');if(!chart)continue;
-    const bars=[...chart.children];
-    const counts=bars.map((_,index)=>inputs.filter(input=>input.checked).reduce((sum,input)=>sum+(data[input.value]?.slice(-days)[index]?.count??0),0));
+    const days=Number(panel.dataset.periodDays),chart=panel.querySelector('[data-chart]');if(!chart)continue;
+    const spec=JSON.parse(new TextDecoder().decode(Uint8Array.from(atob(chart.dataset.chartSpec.replace(/-/g,'+').replace(/_/g,'/')),char=>char.charCodeAt(0))));
+    const counts=spec.categories.map((_,index)=>inputs.filter(input=>input.checked).reduce((sum,input)=>sum+(data[input.value]?.slice(-days)[index]?.count??0),0));
     const missing=inputs.filter(input=>input.checked).length>0&&inputs.filter(input=>input.checked).every(input=>unavailable.includes(input.value));
-    const max=Math.max(1,...counts),total=counts.reduce((sum,count)=>sum+count,0);
+    const total=counts.reduce((sum,count)=>sum+count,0);
     panel.querySelector('[data-commit-total]').textContent=missing?'—':String(total);
     const metric=dashboard.querySelector(`.period-metric [data-period-days="${days}"] .metric__value`);if(metric)metric.textContent=missing?'—':new Intl.NumberFormat(hubLanguage).format(total);
-    bars.forEach((bar,index)=>{
-      bar.querySelector('.trend__count').textContent=String(counts[index]);bar.querySelector('.trend__bar').style.setProperty('--bar-height',Math.round(100*counts[index]/max)+'%');
-      bar.setAttribute('aria-label',bar.getAttribute('aria-label').replace(/: \d+ /,': '+counts[index]+' '));
-    });
-    chart.hidden=missing;
+    chart.dispatchEvent(new CustomEvent('kurami:chart-update',{detail:{
+      values:[counts.map(count=>missing?null:count)],state:missing?'unavailable':partial?'partial':'ready',
+      message:missing?text('Git · нет данных','Git · unavailable'):partial?text('Git · частичные данные','Git · partial data'):text('Данные доступны','Data available'),
+    }}));
   }
 }
 function initializeFilters(){
@@ -124,6 +123,7 @@ async function refreshHub(force=false){
       const disclosureKey=element=>element.dataset.disclosureKey??element.querySelector("summary")?.textContent;
       const opened=new Set([...dashboard.querySelectorAll("details[open]")].map(disclosureKey));
       dashboard.innerHTML=html;
+      document.dispatchEvent(new Event("kurami:charts-mount"));
       initializePeriods();
       initializeFilters();
       for(const element of dashboard.querySelectorAll("details"))if(opened.has(disclosureKey(element)))element.open=true;
