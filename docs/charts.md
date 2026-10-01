@@ -1,15 +1,18 @@
 # Reusable charts
 
-`src/briefing/ui/charts` provides deterministic server-rendered SVG enhanced by
-the shared briefing client. No charting dependency, provider requests or AI
+`src/ui-library/components/charts` provides deterministic server-rendered SVG
+with one browser runtime for Digest, Stocks and Hub. `src/briefing/ui/charts`
+keeps compatibility adapters that select the Digest language. No charting dependency, provider requests or AI
 layout generation is involved.
 
 ## Boundary
 
 - Add-ons supply a `ChartInput`: stable ID, title, axis labels, one unit,
   ordered categories and series with aligned values.
-- `renderTrendChart(input)` supports up to five series; `renderBarChart(input)`
-  supports one series in v1. Grouped/stacked bars are deliberately out of scope.
+- `renderTrendChart(input, language)` and `renderBarChart(input, language)`
+  support up to five series. Bars group series side by side and keep a zero
+  baseline. Stacked bars are outside this contract. Shared renderers default to
+  Russian; Digest adapters use the current request language.
 - `createChartEngine()` validates the versioned contract and calculates layout.
   The exact same self-contained function runs on the server and in the browser;
   there is no parallel client-side scale implementation.
@@ -59,9 +62,11 @@ input, not permission to add synthetic metrics to a published digest.
 
 ## Shared behavior
 
-Trend nodes are filled circles (3px rest, 6px hover/focus). Series use a fixed
-semantic-token palette, including a dashed fifth series. Bars show values;
-incomplete periods have a muted fill, dashed stroke and asterisk.
+Trend nodes are filled circles (3.5px rest, 6px hover/focus). The theme supplies
+muted blue, terracotta, sage, ochre and grey in separate light/dark palettes.
+Lines stay straight; the fifth palette colour uses a dashed line. Bars show
+values by default and use the theme radius. Incomplete measurements have a
+muted fill, dashed stroke and asterisk.
 
 Legend buttons hide/show series and rescale the visible range. Hiding every
 series produces a recoverable empty state. Zoom buttons select the last N
@@ -70,13 +75,15 @@ interpolated or discarded. `initialWindow` optionally chooses the starting N.
 Each chart keeps its own local interaction state.
 
 Both axes are present; long category sets use deterministic tick thinning.
-Mobile retains controls and horizontally scrolls only the plot. Light/dark
+Cards retain controls on mobile and horizontally scroll only the plot.
+Embedded plots recalculate their width to fit the parent, including compact
+Hub panels. Automatic value labels hide when bar slots become too narrow. Light/dark
 themes and reduced motion use the shared design tokens.
 
 Arrow Left/Right move between points, Home/End to the ends; Up/Down switch
 series at the nearest period. Focus scrolls into view and exposes the exact
 value. Escape dismisses the tooltip. There is one tab entry for the plot.
-The expandable semantic table always exposes all exact values, including
+The semantic table always exposes all exact values, including
 hidden/out-of-window series. Server-rendered SVG and table work without JS.
 
 ## Verification
@@ -97,3 +104,52 @@ for Stocks rows: finite values, explicit null gaps, flat-range handling and
 an accessible caller-supplied label. It does not replace the detailed chart.
 Dynamic disclosures dispatch `kurami:charts-mount` after inserting canonical
 markup; already-mounted charts are skipped and closed details stay unmounted.
+
+## Display settings
+
+Set `display` on the input to adapt the shared component:
+
+| Setting | Default | Alternative |
+| --- | --- | --- |
+| `variant` | `"card"` | `"embedded"` removes the component frame and padding. |
+| `density` | `"regular"` | `"compact"` uses a smaller canvas and fewer date labels. |
+| `header` | `true` | `false` keeps the title available to screen readers. |
+| `legend` | `"interactive"` | `"static"` or `"hidden"`. Single-series legends are static. |
+| `zoom` | `true` | `false` lets the host own period selection. |
+| `values` | Visible on cards; automatic on embedded plots | `true` or `false` overrides labels above bars; exact values remain in tooltips and the table. |
+| `table` | `"disclosure"` | `"screen-reader"` keeps the table in the accessibility tree without a visible disclosure. |
+
+`series.color` selects a palette slot from 1 to 5, independently of series
+order. `series.partial` is an optional boolean array aligned with its values;
+it marks incomplete measurements in one series without marking other series
+in the same category. Category-level `partial` still applies to every series.
+`minimumMaximum` sets a positive floor for the upper scale bound. Hub's limit
+history uses 100 and expands above it when observed daily usage exceeds 100.
+
+Hub commits use embedded bars with repository filters and the existing global
+7/30-day selector. Limit history uses compact grouped bars with per-window
+partial flags. Missing observations remain null. Stocks sparklines use the
+same first palette colour; their detailed charts keep their own price scales.
+
+After replacing a fragment, dispatch `kurami:charts-mount` on `document`.
+To update values without replacing a chart, dispatch `kurami:chart-update` on
+its `[data-chart]` element:
+
+```ts
+chart.dispatchEvent(new CustomEvent("kurami:chart-update", {
+  detail: { values: [[4, null, 0]], state: "ready" },
+}));
+```
+
+`values` contains one aligned array per existing series. Optional `state` and
+`message` update the availability notice. The engine validates updates before
+changing the plot or exact-value table. Series identities, categories and
+presentation stay fixed; replace the fragment to change them.
+
+Frozen Digest editions receive current chart CSS and theme roles at serve
+time. Their stored markup and measurements remain intact.
+
+Run `npm run test:ui-charts-browser` for keyboard, legend, zoom, updates,
+no-JavaScript rendering, light/dark themes and 320/390/1280px checks. Screenshots
+are written to `dist/charts-browser`. `npm run test:ui-browser` also audits the
+shared chart showcase in Russian and English.

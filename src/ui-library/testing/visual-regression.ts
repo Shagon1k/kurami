@@ -11,7 +11,9 @@ import {isAbsolute,join,resolve,sep} from "node:path";
 import {setTimeout as delay} from "node:timers/promises";
 import {findBrowser,launchBrowser} from "./devtools.ts";
 import {librarySubsite,syntheticDaily,syntheticHub,syntheticInvestmentReview,syntheticLegacyCinema,syntheticStocksEmpty,syntheticWeeklyEmpty,syntheticProjects} from "./fixtures.ts";
+import {syntheticCharts} from "./charts.ts";
 import {PROJECTS_STYLES} from "../../projects-site/styles.ts";
+import {HUB_CLIENT_JS} from "../../hub/assets.ts";
 import {HUB_STYLES} from "../../hub/styles.ts";
 import {changedShare,decodePng} from "./png.ts";
 import {AUDIT_EXPRESSION,inventoryExpression} from "./audit.ts";
@@ -29,6 +31,8 @@ const pages:Record<string,string>={
   "digest-stocks-empty":"/digest/stocks.html",
   "digest-weekly-empty":"/digest/weekly.html",
   "digest-investment-review":"/digest/review.html",
+  "library-charts":"/lab/charts.html",
+  "library-charts-en":"/lab/charts-en.html",
   "library-subsite":"/lab/index.html",
   "hub-home":"/hub/index.html",
   "hub-home-en":"/hub/en.html",
@@ -60,6 +64,8 @@ function site():string {
   writeFileSync(join(served,"digest/review.html"),injectRuntime(syntheticInvestmentReview()));
   mkdirSync(join(served,"lab"),{recursive:true});
   writeFileSync(join(served,"lab/index.html"),librarySubsite());
+  writeFileSync(join(served,"lab/charts.html"),syntheticCharts());
+  writeFileSync(join(served,"lab/charts-en.html"),syntheticCharts("en"));
   mkdirSync(join(served,"hub"),{recursive:true});
   writeFileSync(join(served,"hub/index.html"),syntheticHub());
   writeFileSync(join(served,"hub/en.html"),syntheticHub("en"));
@@ -68,7 +74,7 @@ function site():string {
   writeFileSync(join(served,"projects/index.html"),syntheticProjects());
   writeFileSync(join(served,"assets/projects.css"),PROJECTS_STYLES);
   cpSync(join(root,"src/projects-site/client.js"),join(served,"assets/projects.js"));
-  cpSync(join(root,"src/hub/client.js"),join(served,"assets/hub.js"));
+  writeFileSync(join(served,"assets/hub.js"),HUB_CLIENT_JS);
   cpSync(join(brandAssets,"kurami-fox-header.webp"),join(served,"assets/kurami-fox.webp"));
   cpSync(join(brandAssets,"kurami-favicon.svg"),join(served,"favicon.svg"));
   return served;

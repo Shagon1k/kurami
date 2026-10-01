@@ -76,7 +76,7 @@ try {
     await devtools.evaluate("document.querySelector('[data-period-key=global][data-period-days=\"7\"]').click()");
     assert.equal(await devtools.evaluate("document.querySelector('.period-metric [data-period-days=\"7\"] .metric__value').textContent"),"29");
     assert.equal(await devtools.evaluate("document.querySelector('[data-period-panel=commits]:not([hidden]) .project-table td:nth-child(4)').textContent"),"14");
-    assert.equal(await devtools.evaluate("document.querySelector('.trend__chart[style=\"--trend-columns:7\"]').children.length"),7);
+    assert.equal(await devtools.evaluate("document.querySelectorAll('[data-period-panel=commits][data-period-days=\"7\"] [data-chart-point]').length"),7);
     assert.equal(await devtools.evaluate("[...document.querySelectorAll('[data-period-panel]:not([hidden])')].every(panel=>panel.dataset.periodDays==='7')"),true,"all statistics share one period");
     assert.equal(await devtools.evaluate("document.querySelector('.period-cost [data-period-days=\"7\"]').hidden"),false,"top cost uses the summary period");
     assert.equal(await devtools.evaluate("document.querySelectorAll('[name=commit-repository]:checked').length"),4);

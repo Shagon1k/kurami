@@ -11,6 +11,7 @@ import {renderPopover} from "../ui-library/components/popover.ts";
 import {compactNumber,estimatedUsd} from "./format.ts";
 import {HUB_CSS_URL,HUB_CLIENT_URL} from "./assets.ts";
 import {API_RATE_DATE,API_RATE_SOURCE,type ModelUsage,type ApiEquivalent} from "../core/api-equivalent.ts";
+import {renderBarChart} from "../ui-library/components/charts/index.ts";
 import {renderTable} from "../ui-library/components/table.ts";
 import {renderStatCard,renderMeter,type StatTone} from "../ui-library/components/stat-card.ts";
 import {renderIcon,iconPath,type IconName} from "../ui-library/components/icon.ts";
@@ -65,15 +66,13 @@ function renderLimitHistory(codex:CodexSnapshot,lang:HubLanguage):string {
   const chart=periods("limits",days=>{
     const selected=codex.limitUsage?.slice(-days)??[];
     if(!selected.some(day=>windows.some(window=>day.windows[window]!==undefined)))return `<p class="empty-value">${tr(lang,"Нет наблюдений","No observations")}</p>`;
-    const width=300,height=92,step=width/selected.length,max=Math.max(100,...selected.flatMap(day=>windows.map(window=>day.windows[window]??0)));
-    const bars=selected.map((day,index)=>windows.map((window,series)=>{
-      const amount=day.windows[window];
-      if(amount===undefined)return "";
-      const h=amount*76/max;
-      return `<rect class="limit-history__series" data-series="${series%2}" data-partial="${Boolean(day.partial[window])}" x="${(index*step+step*.12+series*step*.76/windows.length).toFixed(2)}" y="${(76-h).toFixed(2)}" width="${(step*.6/windows.length).toFixed(2)}" height="${Math.max(.7,h).toFixed(2)}"><title>${day.date} · ${windowLabel(window)}: ${amount}%${day.partial[window]?` * · ${tr(lang,"Неполные наблюдения","Partial observations")}`:""}</title></rect>`;
-    }).join("")).join("");
-    const rows=selected.map(day=>[day.date,...windows.map(window=>day.windows[window]===undefined?"—":`${day.windows[window]}%${day.partial[window]?" *":""}`)]);
-    return `<svg class="limit-history__chart" viewBox="0 0 ${width} ${height}" role="img" aria-label="${tr(lang,"Наблюдаемый расход лимита за день","Observed daily limit usage")} · ${daysLabel(days,lang)}"><path class="limit-history__grid" d="M0 0H300M0 38H300M0 76H300"/>${bars}</svg><div class="chart-dates"><span>${selected[0]!.date.slice(5)}</span><span>${selected.at(-1)!.date.slice(5)}</span></div><div class="sr-only">${renderTable({caption:tr(lang,"Расход лимита по дням","Daily limit usage"),columns:[tr(lang,"Дата","Date"),...windows.map(windowLabel)],rows})}</div>`;
+    return renderBarChart({id:`hub-limits-${days}`,title:tr(lang,"Наблюдаемый расход лимита за день","Observed daily limit usage")+" · "+daysLabel(days,lang),
+      xLabel:tr(lang,"Дата","Date"),yLabel:tr(lang,"Расход / день · %","Daily usage · %"),unit:{kind:"percent"},minimumMaximum:100,
+      categories:selected.map(day=>({key:day.date,label:day.date,shortLabel:day.date.slice(5)})),
+      series:windows.map((window,index)=>({id:`window-${window}`,label:windowLabel(window),color:index===0?4:3,
+        values:selected.map(day=>day.windows[window]??null),partial:selected.map(day=>Boolean(day.partial[window]))})),
+      display:{variant:"embedded",density:"compact",header:false,legend:"hidden",zoom:false,values:false,table:"screen-reader"},
+    },lang);
   });
   const explanation=tr(lang,"Наблюдаемый прирост использованного лимита за день. После сброса новый расход прибавляется. * — неполные наблюдения: начало дня, пропуски или сброс. Это единица активности, не деньги и не доля токенов.","Observed daily increase in used limit. Usage after a reset is added. * marks partial observations: day boundaries, gaps or resets. This is an activity unit, not spending or token share.");
   return `<div class="limit-history"><div class="panel-heading"><span title="${explanation}" tabindex="0">${tr(lang,"Расход / день · %","Daily usage · %")}</span></div>${chart}<div class="limit-history__legend">${windows.map((window,index)=>`<span data-series="${index%2}">${windowLabel(window)}</span>`).join("")}</div></div>`;
@@ -239,12 +238,15 @@ function renderTrend(snapshot:HubSnapshot,lang:HubLanguage):string {
   const coverage=snapshot.sources.git==="partial"?tr(lang,"Git · частичные данные","Git · partial data"):snapshot.sources.git==="unavailable"?tr(lang,"Git · нет данных","Git · unavailable"):tr(lang,"Git · 4 репозитория","Git · 4 repositories");
   const charts=periods("commits",days=>{
     if(!snapshot.commitDays||snapshot.sources.git==="unavailable")return `<p class="empty-value">${coverage}</p>`;
-    const selected=snapshot.commitDays.slice(-days),max=Math.max(1,...selected.map(day=>day.count));
-    const bars=selected.map(day=>{
-      const height=Math.round(100*day.count/max),date=day.start.slice(5,10).replace("-",".");
-      return `<li aria-label="${escapeHtml(day.start)}: ${day.count} ${tr(lang,"коммитов","commits")}"><span class="trend__count" aria-hidden="true">${day.count}</span><span class="trend__bar" style="--bar-height:${height}%" aria-hidden="true"></span><span class="trend__date" aria-hidden="true">${escapeHtml(date)}</span></li>`;
-    }).join("");
-    return `<div class="trend"><strong class="trend-total"><span data-commit-total>${selected.reduce((sum,day)=>sum+day.count,0)}</span> ${tr(lang,"коммитов","commits")}</strong><ol class="trend__chart" style="--trend-columns:${days}" aria-label="${tr(lang,"Коммиты","Commits")} · ${daysLabel(days,lang)}">${bars}</ol></div>`;
+    const selected=snapshot.commitDays.slice(-days);
+    const chart=renderBarChart({id:`hub-commits-${days}`,title:tr(lang,"Коммиты","Commits")+" · "+daysLabel(days,lang),
+      xLabel:tr(lang,"Дата","Date"),yLabel:tr(lang,"Коммиты","Commits"),unit:{kind:"number"},
+      categories:selected.map(day=>({key:day.start,label:day.start,shortLabel:day.start.slice(5,10).replace("-",".")})),
+      series:[{id:"commits",label:tr(lang,"Коммиты","Commits"),color:4,values:selected.map(day=>day.count)}],
+      state:snapshot.sources.git==="partial"?"partial":"ready",message:coverage,
+      display:{variant:"embedded",header:false,legend:"hidden",zoom:false,table:"screen-reader"},
+    },lang);
+    return `<div class="trend"><strong class="trend-total"><span data-commit-total>${selected.reduce((sum,day)=>sum+day.count,0)}</span> ${tr(lang,"коммитов","commits")}</strong>${chart}</div>`;
   });
   const filters=snapshot.projects.map(project=>renderCheckbox({name:"commit-repository",label:project.name,value:project.key,checked:true})).join("");
   return `<section class="section" aria-labelledby="trend-title"><div class="section-heading section-heading--period"><h2 id="trend-title">${tr(lang,"Коммиты","Commits")}</h2><div class="heading-actions"><span data-commit-coverage>${coverage}</span></div></div><div class="repository-filters" role="group" aria-label="${tr(lang,"Репозитории","Repositories")}">${filters}</div><div data-commit-repositories="${escapeHtml(JSON.stringify(snapshot.commitRepositories??{}))}" data-commit-unavailable="${escapeHtml(JSON.stringify(snapshot.projects.filter(project=>project.git.state==="unavailable").map(project=>project.key)))}">${charts}</div></section>`;
