@@ -1,6 +1,12 @@
 {
   "baseline": "4a38c09",
   "commits": {
+    "f891e859a53000634180050dfe6d04a622c7cb11": {
+      "category": "fixed",
+      "en": "Projects keeps the status editor visible and presents task actions as full-width or paired buttons. Resource links have clearer button surfaces; informational notes and review counts are easier to distinguish. Mobile task navigation preserves scroll before paint and avoids exit flashes. Modal dialogs lock background scrolling; Apps and Docs menus close on repeat click, outside click and Escape.",
+      "ru": "Projects показывает редактор статуса сразу, а действия задачи — кнопками на всю строку или парами. Ссылки получили заметные фон и рамку; пояснения и счётчики ревью различаются по цвету и шрифту. Мобильные переходы восстанавливают прокрутку до появления карточки и не дают блика при закрытии. Модалки блокируют прокрутку фона; Apps и меню Docs закрываются повторным кликом, снаружи и по Escape.",
+      "page": "ui-library"
+    },
     "97e39526fa09b78b83bd09cce159795104eac719": {
       "category": "improved",
       "en": "Projects groups evidence and contextual actions in a compact task panel; mobile navigation follows the finger in both directions. Hub uses operation-specific control dialogs, compact Composio checks and clearer activity without internal Guardian sessions. Cinema stacks news images above text on phones; Stocks uses shared SVG chevrons and compact controls. All four apps share a 1320px desktop container, including the full-width Docs home.",
