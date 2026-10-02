@@ -108,6 +108,23 @@ assert.equal(await access.authorize(request(tampered.join("."))), null, "unverif
 assert.equal(await new ProjectsAccess({ team: "", audience: "", ownerEmail: "" }).authorize(request(token())), null);
 
 const fixture = syntheticProjectsSnapshot();
+const composed=structuredClone(fixture);
+const composedItem=composed.items[0]!;
+composedItem.aiReview={enabled:false,reason:"ready",head:composedItem.ci.head};
+composedItem.review={...composedItem.review,state:"ready",head:composedItem.ci.head};
+composedItem.preview={...composedItem.preview,state:"running",head:composedItem.ci.head};
+composedItem.links.preview="https://example.test/preview";
+const detailHtml=renderProjectsPage(composed,new URLSearchParams("item=item-12")).split('<aside class="projects-detail"')[1]!;
+assert.equal((detailHtml.match(/example.test\/preview/g)??[]).length,1,"Preview has one link beside its evidence");
+assert.equal((detailHtml.match(/abcdef012345<\/code>/g)??[]).length,1,"matching evidence heads are shown once");
+assert.doesNotMatch(detailHtml,/data-review-run=/,"already-reviewed commits do not receive a duplicate disabled review button");
+assert.match(detailHtml,/This commit has already been reviewed/);
+assert.match(detailHtml,/projects-status-editor/);
+assert.match(detailHtml,/projects-evidence-row[\s\S]*data-run-action="preview_start"/);
+assert.doesNotMatch(detailHtml,/<h3>[^<]*Preview|<h3>[^<]*Fixes/);
+composedItem.preview.head=null;
+const mixed=renderProjectsPage(composed,new URLSearchParams("item=item-12")).split('<aside class="projects-detail"')[1]!;
+assert.match(mixed,/Unverified<\/code>/,"unknown evidence heads remain explicit rather than borrowing a shared commit");
 assert.deepEqual(selectItems(fixture,parseFilters(new URLSearchParams("attention=1"))).map(item=>item.id),["item-12","item-24"],"attention view includes review and waiting owner input, not agent work");
 const reviewOnly=structuredClone(fixture);reviewOnly.items=[fixture.items[0]!,fixture.items[3]!];
 const reviewOnlyPage=renderProjectsPage(reviewOnly,new URLSearchParams("active=1"));

@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import {problemQueue,workFeed} from "../../src/hub/work-feed.ts";
+import {problemQueue,workFeed,summarizeActivity} from "../../src/hub/work-feed.ts";
 import type {HubAlert,HubActivity} from "../../src/hub/operations.ts";
 const href="https://github.com/example/project/pull/33";
 const ci:HubAlert={id:"ci",code:"ci_unrepaired",severity:"warning",subject:"project #33",href};
@@ -20,4 +20,15 @@ assert.equal(items[0]!.at,end.at);assert.equal(items[0]!.events.length,3);assert
 assert.equal(workFeed([{...end,group:"codex:1"},{...end,id:"different",group:"codex:2"}]).length,2,"same title does not merge distinct sessions");
 assert.equal(workFeed([{...end,taskState:"running"}])[0]!.event,"running","current task state is used when its last transition lies outside the event window");
 assert.equal(workFeed(Array.from({length:120},(_,i)=>({...end,id:String(i),group:String(i)}))).length,100);
+const start={...end,id:"start",at:task.at,event:"task_started",sessionId:"session",turnId:"turn"};
+const completed={...end,sessionId:"session",turnId:"turn"};
+assert.equal(summarizeActivity([start,completed]).length,1);
+assert.equal(summarizeActivity([start,completed])[0]!.durationSeconds,600);
+assert.equal(summarizeActivity([start,{...completed,sessionId:"another"}]).length,2,"distinct sessions do not pair even with the same turn id");
+assert.equal(summarizeActivity([{...start,turnId:undefined},{...completed,turnId:undefined}]).length,2,"missing identities do not invent a duration");
+assert.equal(workFeed([{...completed,limited:true}])[0]!.limited,true);
+assert.equal(workFeed([{...task,id:"old-ci",source:"CI",event:"passed",result:"CI:passed"},{...end,id:"new-ci",source:"CI",event:"failed",result:"CI:failed"}])[0]!.result,"CI:failed");
+assert.equal(workFeed([{...task,id:"old-review",source:"AI Review",event:"ready",result:"Review:0"},{...end,id:"new-review",source:"AI Review",event:"running",result:undefined}])[0]!.result,undefined,"a previous review result does not survive a new request");
+assert.equal(workFeed([{...end,runId:"new",currentRunId:"new"},{...task,source:"CI",runId:"old",result:"CI:passed"}])[0]!.result,undefined,"results from old attempts are not promoted to the current run");
+assert.equal(workFeed([{...task,source:"CI",head:"new",result:"CI:passed"},{...end,source:"AI Review",head:"old",result:"Review:0"}])[0]!.result,"Review:outdated");
 console.log("Hub queue grouping, responsibility, work history and turn/task distinction verified");

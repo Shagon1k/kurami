@@ -7,6 +7,7 @@ import {collectHubOperations} from "../../src/hub/operations.ts";
 import {syntheticHubSnapshot} from "../../src/ui-library/testing/fixtures.ts";
 import {recordSystemActivity,readSystemActivity} from "../../src/core/activity.ts";
 import {createProjectStore} from "./project-store.ts";
+import {scanFile} from "../../src/core/codex-usage.ts";
 
 const home=mkdtempSync(join(tmpdir(),"kurami-hub-operations-"));
 try {
@@ -36,13 +37,22 @@ try {
   db.prepare("INSERT INTO run_resources VALUES(?,?,NULL)").run("new","thread-1");db.close();
   const rollout=join(home,"codex/sessions/thread.jsonl");
   writeFileSync(rollout,[
-    JSON.stringify({type:"event_msg",timestamp:at,payload:{type:"task_started"}}),
+    JSON.stringify({type:"event_msg",timestamp:at,payload:{type:"task_started",turn_id:"turn-1"}}),
     JSON.stringify({type:"event_msg",timestamp:at,payload:{type:"agent_message",message:"PRIVATE_TRANSCRIPT_SENTINEL"}}),
   ].join("\n")+"\n");
   const codex=new DatabaseSync(join(home,"codex/state_5.sqlite"));
   codex.exec("CREATE TABLE threads(id TEXT,title TEXT,name TEXT,created_at INTEGER,updated_at INTEGER,rollout_path TEXT)");
   codex.prepare("INSERT INTO threads VALUES(?,?,?,?,?,?)").run("thread-1","Old ongoing session",null,Math.floor(now.getTime()/1000)-30*86400,Math.floor(now.getTime()/1000),rollout);codex.close();
+  const classified=new DatabaseSync(join(home,"codex/state_5.sqlite"));
+  classified.exec("ALTER TABLE threads ADD COLUMN source TEXT; ALTER TABLE threads ADD COLUMN thread_source TEXT");
+  const insert=classified.prepare("INSERT INTO threads VALUES(?,?,?,?,?,?,?,?)");
+  insert.run("guardian-1","Not a guardian title",null,Math.floor(now.getTime()/1000),Math.floor(now.getTime()/1000),rollout,'{"subagent":{"other":"guardian"}}',null);
+  insert.run("guardian-2","Another title",null,Math.floor(now.getTime()/1000),Math.floor(now.getTime()/1000),rollout,'{}','guardian_review');
+  insert.run("ordinary","Guardian review",null,Math.floor(now.getTime()/1000),Math.floor(now.getTime()/1000),null,'not json','cli');
+  classified.close();
   const snapshot=collectHubOperations(home,join(home,"codex"),join(home,"hermes"),now);
+  assert(!snapshot.activity.some(event=>event.sessionId?.startsWith("guardian-")),"internal guardian metadata is excluded from the activity UI");
+  assert(snapshot.activity.some(event=>event.sessionId==="ordinary"),"title alone never hides a session");
   assert.equal(snapshot.health?.server.cpuUsedPercent,health.server.cpuUsedPercent);
   assert.equal(snapshot.healthStale,false);
   assert.deepEqual(snapshot.alerts.map(alert=>alert.id),["ci-broken"],"current repair suppresses CI alerts; Done, superseded runs and stale review heads are excluded");
@@ -51,7 +61,13 @@ try {
   assert.equal(snapshot.activity.find(event=>event.source==="CI")?.at,at,"poll timestamps never masquerade as CI transitions");
   assert(snapshot.activity.some(event=>event.event==="task_started"),"new turns in older sessions appear in activity");
   const turn=snapshot.activity.find(event=>event.event==="task_started")!;
+  assert.equal(turn.turnId,"turn-1","trusted turn identifiers reach structured activity");
   assert.equal(turn.group,"task:pickflick:4");assert.equal(turn.subject,"Fix watchlist");
+  const cappedRollout=join(home,"codex/sessions/capped.jsonl");
+  writeFileSync(cappedRollout,Array.from({length:22},(_,index)=>JSON.stringify({type:"event_msg",timestamp:at,payload:{type:"task_started",turn_id:index===21?"<invalid>":`turn-${index}`}})).join("\n")+"\n");
+  const capped=scanFile(cappedRollout,join(home,"codex"))!;
+  assert.equal(capped.activity.length,20);assert.equal(capped.activityTruncated,true);
+  assert.equal(capped.activity.at(-1)?.turnId,undefined,"invalid identifiers do not enter turn pairing");
   const ambiguous=new DatabaseSync(join(home,"state/orchestrator.db"));
   ambiguous.prepare("INSERT INTO run_resources VALUES(?,?,NULL)").run("broken","thread-1");ambiguous.close();
   const unowned=collectHubOperations(home,join(home,"codex"),join(home,"hermes"),now).activity.find(event=>event.event==="task_started")!;

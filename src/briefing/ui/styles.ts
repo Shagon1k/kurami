@@ -21,6 +21,15 @@ export const STORY_ACTIONS_LAYOUT_CSS=`
 /** Layout refresh shared by new pages and retained editions; edition data stays frozen. */
 export const DIGEST_POLISH_CSS=`
 .metric-strip { grid-template-columns:repeat(4,minmax(0,1fr)); }
+.cinema-winner b { font-size:clamp(24px,3vw,34px); }
+@media (max-width: ${breakpoints.phone}px) {
+  .cinema-news { grid-template-columns:24px minmax(0,1fr); }
+  .cinema-news__image,.cinema-news__copy { grid-column:2; }
+  .cinema-news > a { grid-column:2; justify-self:end; }
+  .cinema-news__image { width:100%; }
+  .cinema-news__image:not(.has-image) { display:none; }
+  .stocks-teaser header { flex-direction:row; flex-wrap:wrap; align-items:center; gap:var(--space-3); }
+}
 .metric-card { min-width:0; grid-template-columns:minmax(0,1fr); overflow-wrap:anywhere; }
 .metric-card__chip { max-width:100%; }
 .review-section h2,.weekly-topics h2 { overflow-wrap:anywhere; }
@@ -49,7 +58,6 @@ ${THEME_CSS}
 ${FOUNDATION_CSS}
 :root {
   --header-offset: 104px;
-  --container-max: 1320px;
 }
 
 ${BUTTON_CSS}

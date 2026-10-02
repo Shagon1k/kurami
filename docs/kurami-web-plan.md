@@ -11,11 +11,21 @@ published release journal is `22ad7df`. Owner acceptance is recorded separately
 from automated checks; it is not a claim that every device/state was tested.
 Release instructions: [kurami-web-operations.md](kurami-web-operations.md).
 
+The next UI refinement is planned separately in
+[kurami-ui-refinement-plan.md](kurami-ui-refinement-plan.md); local implementation
+and checks completed on 2 October, with release and phone acceptance still pending.
+The owner will handle Cloudflare retirement independently. On
+2 October the owner authorized retiring the four native app
+hostnames without removing the loopback origins. The retirement prerequisites
+and current access limitation are recorded there; no DNS/Tunnel changes have
+been made by this task.
+
 ## Approved boundary
 
 Kurami uses `https://kurami.shagon1k.win` and a loopback gateway on port 8888.
 Hub, Digest, Projects and Docs remain independently running services. Their
-existing hostnames stay available until a separately approved cutover. Hermes,
+existing hostnames stay available until the approved retirement is prepared and
+executed. Hermes,
 Dokploy, preview and go are outside the migration.
 
 Routes are `/en/` (Hub), `/en/digest/`, `/en/projects/`, `/en/docs/` and their
@@ -83,7 +93,7 @@ are in [the brand asset notes](../src/ui-library/assets/brand/README.md).
 - Owner confirmed the new owner-only Access policy; its AUD was obtained from Cloudflare-signed metadata. Gateway binds to `127.0.0.1:8888` and rejects requests without an assertion.
 - No new Docs reader audience is configured. Existing native Docs service access retains its scope; a unified Docs reader needs a separately approved policy.
 - Owner accepted the phone walkthrough on 2 October after the final UI follow-up. Detailed screen-reader, font CLS and every cold/warm/network state are not individually certified by that report.
-- Approve hostname redirect cutover separately. Old hostnames remain available; acceptance does not authorize their removal or redirection.
+- Owner subsequently approved deletion of the four native app hostnames. They remain available until canonical-link/Docs-verifier prerequisites and Cloudflare management access are resolved; see the refinement plan. This is deletion, not an approved redirect rollout.
 
 ## Initial local evidence (historical)
 

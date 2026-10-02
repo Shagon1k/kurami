@@ -1,6 +1,9 @@
 export type Language="en"|"ru";
 export function language(params:URLSearchParams):Language{return params.get("lang")==="ru"?"ru":"en";}
 const messages:Record<string,string>={
+  "Saved view · refreshing…":"Сохранённый вид · обновляем…",
+  "Saved view · refresh failed":"Сохранённый вид · не удалось обновить",
+  "Change status":"Изменить статус", "Open preview":"Открыть превью",
   "Dismiss notification":"Закрыть уведомление",
   "Untitled task":"Без названия",
   "Task":"Задача", "Tasks":"Задачи", "Status":"Статус", "Checks":"Проверки", "Search tasks":"Поиск задач", "Search by title or issue number":"Название или номер задачи",

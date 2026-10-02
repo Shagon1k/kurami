@@ -39,22 +39,34 @@ A task opens in a side panel on wide screens and a full-screen dialog below
 900 pixels. The mobile dialog locks background scrolling, makes background
 controls inert and keeps keyboard focus inside it. Back to tasks and Escape
 close it. Swiping right returns to the table; swiping left on the table reopens
-the last task. Browser Back/Forward restores the corresponding view. Swipes do
-not start on buttons, links or form fields, and are disabled during a destructive
-confirmation. Reduced-motion settings remove the entry animation.
+the last task. Both directions follow the finger and settle after a distance or
+velocity threshold; short drags return to the starting view. Browser Back/Forward
+restores the corresponding view. Memory-only cached views make the transition
+independent of network latency, but cached action controls stay disabled until
+a fresh server response arrives. Failed refreshes keep that read-only snapshot.
+Polling never replaces the panel during a drag or its settling animation.
+Swipes do not start on buttons, links, form fields, disclosures or charts; vertical
+scroll, text selection and horizontally scrollable regions retain their gestures.
+Multi-touch, pointer cancellation and resizing cancel the drag. Swipes are disabled
+during writes or destructive confirmation. Reduced motion removes settling
+animation, while direct finger tracking remains.
 
 The detail header contains project, issue number, title, a Project status pill
 and the Kurami stage as colored text.
-Underlined links with an external-arrow icon navigate to Issue, PR, Discord,
-review and running preview. They are visually distinct from action buttons.
-Workflow contains the status editor and current source note. Evidence groups
-CI, review and preview states with their short commit IDs. Work, Preview, Fixes
-and Cleanup expose eligible actions directly, without an actions disclosure.
-AI Review uses the primary button; normal controls use outlined buttons;
-cancellation and deletion use the shared danger variant.
+Resources form a quiet two-column grid: Issue, PR, Review and Discord. Missing
+resources leave no empty slots. Preview navigation lives beside Preview evidence.
+Change status reveals the editor; pending requests keep it open. Evidence groups
+CI, review and preview in one panel with their contextual repair/review/preview
+actions. A shared known commit is shown once; differing or unknown heads remain
+explicit. Review Ready does not mean the findings passed. An already-reviewed
+commit has its explanation without a redundant disabled review button.
+Work contains continuation/recovery; Cleanup separates stopping from deletion.
+Only deletion uses the danger variant. All server eligibility and confirmations
+are unchanged.
 
-Regular controls use the shared 36px height. Action buttons fill their group and
-center their icon and label; multiline labels can grow vertically. Status pills
+Regular controls use the shared 36px height; contextual actions use the compact
+variant, retaining coarse-pointer targets. Actions wrap without filling every
+row. Multiline labels can grow vertically. Status pills
 use 11px text with 2px vertical padding. Sort headings put a thin 14px icon after
 the label. Checks is centered horizontally and shares the headings' vertical
 alignment. Header padding is denser than body-row padding.

@@ -7,7 +7,7 @@ type RateLimits={primary:Window|null;secondary:Window|null};
 export type UsageEvent={at:number;input:number;cached:number;output:number;total:number;model:string|null;cacheWrite:number|null;requestInput:number|null};
 type UsageTotals={input:number;cached:number;output:number;total:number;cacheWrite:number|null};
 export type LimitObservation={date:string;windowMinutes:number;usedPercent:number;at:number;resetsAt?:number};
-type FileCache={size:number;mtimeMs:number;ino:number;pending:string;events:UsageEvent[];recordEvents:UsageEvent[];activity:{at:number;event:string}[];previousTotals:UsageTotals|null;currentModel:string|null;limit:{at:number;limits:CodexLimit[]}|null;limitDays:Map<string,LimitObservation>;limitSamples:Map<string,LimitObservation>;lastSeen:number};
+type FileCache={size:number;mtimeMs:number;ino:number;pending:string;events:UsageEvent[];recordEvents:UsageEvent[];activity:{at:number;event:string;turnId?:string}[];activityTruncated?:boolean;previousTotals:UsageTotals|null;currentModel:string|null;limit:{at:number;limits:CodexLimit[]}|null;limitDays:Map<string,LimitObservation>;limitSamples:Map<string,LimitObservation>;lastSeen:number};
 type TokenCounts={input_tokens?:number;cached_input_tokens?:number;cache_write_input_tokens?:number;output_tokens?:number;total_tokens?:number};
 
 export type CodexLimit={name:string;usedPercent:number;remainingPercent:number;windowMinutes:number;resetsAt:string;observedAt:string};
@@ -30,7 +30,7 @@ function isWindow(value:unknown):value is Window {
 function parseLine(line:string,cache:FileCache):void {
   if(!line.includes('"token_usage_record"')&&!line.includes('"token_count"')&&!line.includes('"turn_context"')&&!line.includes('"session_meta"')&&!line.includes('"task_started"')&&!line.includes('"task_complete"')&&!line.includes('"turn_aborted"'))return;
   try {
-    const record=JSON.parse(line) as {timestamp?:string;type?:string;payload?:{type?:string;model?:string;usage?:TokenCounts;info?:{total_token_usage?:TokenCounts;last_token_usage?:TokenCounts};rate_limits?:RateLimits}};
+    const record=JSON.parse(line) as {timestamp?:string;type?:string;payload?:{type?:string;turn_id?:string;model?:string;usage?:TokenCounts;info?:{total_token_usage?:TokenCounts;last_token_usage?:TokenCounts};rate_limits?:RateLimits}};
     const at=Date.parse(record.timestamp??"");
     if(!Number.isFinite(at))return;
     if(record.type==="turn_context"||record.type==="session_meta"){
@@ -39,7 +39,8 @@ function parseLine(line:string,cache:FileCache):void {
     }
     const model=typeof record.payload?.model==="string"&&/^[A-Za-z0-9._/-]{1,120}$/.test(record.payload.model)?record.payload.model:cache.currentModel;
     if(record.type==="event_msg"&&["task_started","task_complete","turn_aborted"].includes(record.payload?.type??"")){
-      cache.activity.push({at,event:record.payload!.type!});if(cache.activity.length>20)cache.activity.shift();return;
+      const turnId=typeof record.payload?.turn_id==="string"&&/^[A-Za-z0-9_-]{1,120}$/.test(record.payload.turn_id)?record.payload.turn_id:undefined;
+      cache.activity.push({at,event:record.payload!.type!,...(turnId?{turnId}:{})});if(cache.activity.length>20){cache.activity.shift();cache.activityTruncated=true;}return;
     }
     if(record.type==="token_usage_record"){
       const usage=record.payload?.usage;

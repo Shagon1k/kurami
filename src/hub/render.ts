@@ -177,13 +177,15 @@ function renderActivity(snapshot:HubSnapshot,lang:HubLanguage):string {
   const result=(raw:string|undefined)=>{
     if(!raw)return "";
     if(raw.startsWith("CI:"))return "CI · "+label(eventLabels,raw.slice(3),lang);
+    if(raw==="Review:outdated")return tr(lang,"Review · другой коммит","Review · different commit");
     if(raw.startsWith("Review:"))return `Review · ${raw.slice(7)} ${tr(lang,"существенных замечаний","major findings")}`;
     return raw;
   };
   const rows=activity.map((item,index)=>{
-    const events=item.events.map(event=>`<li><time datetime="${escapeHtml(event.at)}">${escapeHtml(formatTime(event.at,lang))}</time><span>${escapeHtml(event.source)} · ${escapeHtml(label(eventLabels,event.event,lang))}</span></li>`).join("");
-    const detail=renderDisclosure({summary:tr(lang,`События · ${item.events.length}`,`Events · ${item.events.length}`),key:item.id,className:"work-events",variant:"row",body:`<ol class="work-event-list list-reset">${events}</ol>`});
-    const subject=item.subject.length>80?item.subject.slice(0,77).trimEnd()+"…":item.subject;
+    const eventRow=(event:typeof item.summaryEvents[number])=>`<li><time datetime="${escapeHtml(event.at)}">${escapeHtml(formatTime(event.at,lang))}</time><span>${escapeHtml(event.source)} · ${escapeHtml(label(eventLabels,event.event,lang))}${event.durationSeconds!==undefined?` · ${Math.floor(event.durationSeconds/60)}m ${event.durationSeconds%60}s`:""}${event.result?` · ${escapeHtml(result(event.result))}`:""}${event.head?` · <code>${escapeHtml(event.head.slice(0,12))}</code>`:""}</span></li>`;
+    const raw=renderDisclosure({summary:tr(lang,"Все технические события","Raw events"),variant:"inline",body:`<ol class="work-event-list list-reset">${item.events.map(eventRow).join("")}</ol>`});
+    const detail=renderDisclosure({summary:tr(lang,`События · ${item.events.length}`,`Events · ${item.events.length}`),key:item.id,className:"work-events",variant:"row",body:`<div class="work-event-detail"><p class="work-event-subject">${escapeHtml(item.subject)}</p>${item.limited?`<p class="work-event-coverage">${tr(lang,"Показана часть истории из сохранённых событий.","Partial history from retained events.")}</p>`:""}<ol class="work-event-list list-reset">${item.summaryEvents.map(eventRow).join("")}</ol>${raw}</div>`});
+    const subject=item.subject;
     const state=item.event==="task_started"?tr(lang,"Активна","Active"):item.event==="task_complete"?tr(lang,"Ожидает нового хода","Idle"):item.event==="turn_aborted"?tr(lang,"Ход прерван","Interrupted"):label(eventLabels,item.event,lang);
     const linkLabel=item.href?.includes("/pull/")?tr(lang,"Открыть PR","Open PR"):item.href?.includes("/issues/")?tr(lang,"Открыть задачу","Open task"):item.href?.includes("/codex/threads/")?tr(lang,"Открыть сессию","Open session"):tr(lang,"Открыть результат","Open result");
     const failed=["failed","needs_attention","collect_failed","compose_failed","promote_failed","turn_aborted"].includes(item.event)||item.result==="CI:failed";
@@ -197,7 +199,7 @@ function renderActivity(snapshot:HubSnapshot,lang:HubLanguage):string {
   return `<section class="section activity" aria-labelledby="activity-title"><div class="section-heading"><h2 id="activity-title">${renderIcon("history")}${tr(lang,"Активность","Live Activity")}</h2><div class="activity-filters">${filters}</div></div><div class="activity-log"><ol class="activity-list list-reset">${rows}</ol><p class="activity-empty"${activity.length?" hidden":""}>${tr(lang,"Нет событий","No events")}</p>${more}</div></section>`;
 }
 function renderControls(lang:HubLanguage):string {
-  const buttons:[[string,string,string],...[string,string,string][]]=[["models","Модели","Models"],["settings","Настройки","Settings"],["composio-check","Composio","Composio"],["restart","Перезапуск","Restart"]];
+  const buttons:[[string,string,string],...[string,string,string][]]=[["models","Модели","Models"],["settings","Настройки","Settings"],["composio-check","Проверка Composio","Composio check"],["restart","Перезапуск","Restart"]];
   const icons:IconName[]=["bot","controls","database","clock"];
   return `<div class="controls-menu">${buttons.map(([action,ru,en],index)=>renderButton({label:tr(lang,ru,en),variant:"quiet",iconPath:iconPath(icons[index]!),visibleLabel:true,attributes:{"data-hub-control":action}})).join("")}</div>`;
 }
@@ -273,7 +275,7 @@ export function renderHubDashboard(snapshot:HubSnapshot,lang:HubLanguage="en"):s
 
 function hubHeader(lang:HubLanguage,controls=true):string {
   const other:HubLanguage=lang==="ru"?"en":"ru";
-  const menu=renderButton({label:tr(lang,"Управление","Controls"),variant:"icon",iconPath:iconPath("controls"),disabled:!controls,attributes:{"data-hub-control":"menu","aria-expanded":"false","aria-controls":"hub-controls-popover"}});
+  const menu=renderButton({label:tr(lang,"Управление","Controls"),variant:"icon",iconPath:iconPath("controls"),disabled:!controls,attributes:{"data-hub-control":"menu",popovertarget:"hub-controls-popover","aria-expanded":"false","aria-controls":"hub-controls-popover"}});
   return renderSiteHeader({brand:{href:`/${lang}/`,ariaLabel:tr(lang,"Kurami Hub — главная","Kurami Hub — home"),foxSrc:"/assets/fox.webp",suffix:"Hub"},nav:{label:tr(lang,"Разделы Hub","Hub sections"),links:[],hideWhenEmpty:true},sites:kuramiSites("hub",lang),utility:controls?periodSwitch("global",lang,tr(lang,"Вся статистика","All statistics")):undefined,utilityFloating:controls,actions:menu+renderLinkButton({label:other.toUpperCase(),href:`/${other}/`,variant:"icon",ariaLabel:tr(lang,"Переключить на английский","Switch to Russian"),attributes:{hreflang:other}})+renderThemeSwitch(lang)});
 }
 
@@ -281,7 +283,7 @@ export function renderHubPage(snapshot:HubSnapshot,lang:HubLanguage="en",csrfTok
   return renderDocument({lang,title:"Hub · Kurami",description:tr(lang,"Личный дашборд Kurami.","Kurami personal dashboard."),favicon:"/assets/favicon.svg",styles:{href:HUB_CSS_URL},themeScript:true,skipLabel:tr(lang,"К содержимому","Skip to content"),
     head:`<meta name="hub-control-token" content="${escapeHtml(csrfToken)}"><link rel="manifest" href="/${lang}/manifest.webmanifest" crossorigin="use-credentials"><script src="${HUB_CLIENT_URL}" defer></script>`,
     header:hubHeader(lang),
-main:`<div id="hub-dashboard" class="hub" aria-live="off">${renderHubDashboard(snapshot,lang)}</div>${renderPopover({id:"hub-controls-popover",label:tr(lang,"Управление","Controls"),body:renderControls(lang)})}<template id="hub-control-back">${renderButton({label:tr(lang,"Назад","Back"),variant:"subtle",size:"compact",attributes:{"data-hub-control":"menu"}})}</template>${renderDialog({id:"hub-control-dialog",title:tr(lang,"Управление","Controls"),closeLabel:tr(lang,"Закрыть","Close"),body:`<div id="hub-control-content"></div><div id="hub-control-confirm" hidden><p id="hub-confirm-message" class="control-summary"></p>${renderDialogActions(renderButton({label:tr(lang,"Отмена","Cancel"),variant:"secondary",attributes:{"data-hub-cancel":true}})+renderButton({label:tr(lang,"Подтвердить","Confirm"),variant:"primary",attributes:{"data-hub-confirm":true}}))}</div><p id="hub-control-result" role="status"></p>`})}`,
+main:`<div id="hub-dashboard" class="hub" aria-live="off">${renderHubDashboard(snapshot,lang)}</div>${renderPopover({id:"hub-controls-popover",label:tr(lang,"Управление","Controls"),body:renderControls(lang)})}${renderDialog({id:"hub-control-dialog",title:tr(lang,"Управление","Controls"),closeLabel:tr(lang,"Закрыть","Close"),body:`<div id="hub-control-content"></div><div id="hub-control-confirm" hidden><p id="hub-confirm-message" class="control-summary"></p>${renderDialogActions(renderButton({label:tr(lang,"Отмена","Cancel"),variant:"secondary",attributes:{"data-hub-cancel":true}})+renderButton({label:tr(lang,"Подтвердить","Confirm"),variant:"primary",attributes:{"data-hub-confirm":true}}))}</div><p id="hub-control-result" role="status"></p>`})}`,
     footer:renderSiteFooter({lang,app:"Hub",updated:formatTime(snapshot.generatedAt,lang)})});
 }
 

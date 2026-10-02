@@ -39,7 +39,7 @@ export function renderSiteHeader(input:{section:SiteSection;label?:string;date?:
     label:input.label??"Kurami",
     attributes:{"data-site-section":input.section},
     brand:{href:digestPath("/"),suffix:"Digest",ariaLabel:digestText("Kurami — последний дневной выпуск","Kurami — latest Daily edition"),foxSrc:"/assets/kurami-fox.webp",meta:input.date&&input.dateLabel?{label:formatSiteDate(input.date,lang),datetime:input.date}:undefined},
-    nav:navigation(input.links??[],input.section),
+    nav:{...navigation(input.links??[],input.section),scroll:true},
     sites:kuramiSites("digest",lang),
     actions:renderLinkButton({label:other.toUpperCase(),href:digestPath(relative,other),variant:"icon",ariaLabel:digestText("Переключить на английский","Switch to Russian"),attributes:{hreflang:other}})+renderThemeSwitch(lang),
   });
@@ -63,9 +63,9 @@ export function injectSiteNavigation(html:string,links:readonly SiteLink[],curre
     const meta=legacyHeader[0].match(/<time class="utility-meta" datetime="(\d{4}-\d{2}-\d{2})">([^<]*)<\/time>/i);
     return refreshHeaderStyles(localizeDigestLinks(updated
       .replace(legacyHeader[0],renderSiteHeader({section:current,date:meta?.[1],dateLabel:meta?.[2],links,path}))
-      .replace(/<\/head>/i,`<style>${FOUNDATION_CSS}:root { --container-max: 1320px; }</style></head>`)));
+      .replace(/<\/head>/i,`<style>${FOUNDATION_CSS}</style></head>`)));
   }
-  const currentHeader=updated.match(/<header class="site-header"[^>]*>[\s\S]*?<\/header>/i);
+  const currentHeader=updated.match(/<header class="site-header(?:\s[^"]*)?"[^>]*>[\s\S]*?<\/header>/i);
   if(!currentHeader)return localizeDigestLinks(updated);
   const meta=currentHeader[0].match(/<time class="site-brand__meta" datetime="(\d{4}-\d{2}-\d{2})">([^<]*)<\/time>/i);
   const refreshed=updated.replace(currentHeader[0],renderSiteHeader({section:current,date:meta?.[1],dateLabel:meta?.[2],links,path}));

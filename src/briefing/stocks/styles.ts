@@ -39,7 +39,7 @@ export const STOCKS_STYLES=`
 .stock-row__summary small { display:block; color:var(--text-muted); font-size:.75rem; line-height:1.5; margin-top:4px; }
 .stock-row__quote,.stock-row__change { text-align:right; font-variant-numeric:tabular-nums; }
 .stock-row__change { font-weight:600; font-size:1rem; }
-.stock-row__chevron { text-align:center; font-size:24px; transition:transform 120ms; }
+.stock-row__chevron { display:inline-flex; justify-content:center; align-items:center; transition:transform var(--duration-fast); }
 .stock-row[open] .stock-row__chevron { transform:rotate(180deg); }
 .stock-row__trend { display:block; color:var(--text-primary); }
 .stock-details { padding:20px; border-top:1px solid var(--border-default); background:var(--surface-panel); min-width:0; }
@@ -71,7 +71,8 @@ export const STOCKS_STYLES=`
 .stocks-observations small { color:var(--text-muted); font-size:.75rem; }
 .stocks-teaser { margin-top:36px; padding:24px; border:1px solid var(--border-default); background:var(--surface-panel); border-radius:var(--radius); }
 .stocks-teaser__body { display:grid; grid-template-columns:minmax(180px,1fr) 2fr; gap:28px; }
-.stocks-benchmark { display:grid; align-content:start; gap:6px; }
+.stocks-benchmark { display:grid; grid-template-columns:minmax(0,1fr) auto; align-content:start; align-items:center; gap:6px; }
+.stocks-benchmark>span,.stocks-benchmark>small { grid-column:1/-1; }
 .stocks-benchmark>span,.stocks-benchmark>small { color:var(--text-muted); font-size:.6875rem; }
 .stocks-benchmark>strong { font-size:1.875rem; font-weight:600; }
 .stocks-benchmark .stock-change { font-size:1.125rem; }
@@ -85,7 +86,8 @@ export const STOCKS_STYLES=`
 
 @media(max-width:760px) {
   .stocks-watchlist { padding:20px 12px; }
-  .stocks-section-heading,.stocks-teaser header { align-items:start; flex-direction:column; gap:16px; }
+  .stocks-section-heading { align-items:start; flex-direction:column; gap:16px; }
+  .stocks-teaser header { flex-wrap:wrap; gap:var(--space-3); }
   .stock-row__summary { grid-template-columns:minmax(0,1fr) auto 24px; gap:12px; padding:16px 12px; }
   .stock-row__identity { grid-column:1; grid-row:1; }
   .stock-row__quote { grid-column:2; grid-row:1; }
@@ -109,4 +111,5 @@ export const STOCKS_STYLES=`
   .stock-row__chevron { grid-row:1/4; }
 }
 @media(prefers-reduced-motion:reduce) { .stock-row__chevron { transition:none; } }
+.stocks-sort { --form-field-columns: auto minmax(0,1fr); --form-field-align: center; max-width:100%; }
 `;

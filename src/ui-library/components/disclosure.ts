@@ -1,11 +1,12 @@
 // Disclosure: native <details> with a 44 px summary target. `boxed` frames it as a panel.
 import { escapeHtml } from "../foundations/html.ts";
+import {renderIcon} from "./icon.ts";
 
 /** `body` is trusted markup from a product renderer; the summary is escaped. */
 export function renderDisclosure(input: { summary: string; body: string; boxed?: boolean; open?: boolean; className?: string; key?:string; variant?:"plain"|"inline"|"row" }): string {
   if (input.className && !/^[a-z0-9_-]+(?: [a-z0-9_-]+)*$/.test(input.className)) throw new Error("Unsafe disclosure class");
   const classes = ["disclosure", input.boxed && "disclosure--boxed", (input.variant==="inline"||input.variant==="row")&&"disclosure--inline", input.variant==="row"&&"disclosure--row", input.className].filter(Boolean).join(" ");
-  return `<details class="${classes}"${input.key?` data-disclosure-key="${escapeHtml(input.key)}"`:""}${input.open ? " open" : ""}><summary>${escapeHtml(input.summary)}</summary>${input.body}</details>`;
+  return `<details class="${classes}"${input.key?` data-disclosure-key="${escapeHtml(input.key)}"`:""}${input.open ? " open" : ""}><summary>${input.variant==="inline"||input.variant==="row"?`<span class="disclosure__chevron" aria-hidden="true">${renderIcon("chevronDown")}</span>`:""}${escapeHtml(input.summary)}</summary>${input.body}</details>`;
 }
 
 export const DISCLOSURE_CSS = `
@@ -16,8 +17,9 @@ export const DISCLOSURE_CSS = `
 .disclosure[open] > summary { margin-bottom: var(--space-2); }
 .disclosure--inline > summary { display: flex; align-items: center; gap: var(--space-2); list-style: none; min-height: var(--control-height); padding-inline: var(--space-2); color: var(--text-muted); font-size: .75rem; font-weight: 500; border-radius: var(--radius); margin: var(--disclosure-margin,0); }
 .disclosure--inline > summary::-webkit-details-marker { display: none; }
-.disclosure--inline > summary::before { content: "›"; font: 500 1.2rem/1 var(--font-sans); transform: rotate(0); transition: transform var(--duration-fast); }
-.disclosure--inline[open] > summary::before { transform: rotate(90deg); }
+.disclosure__chevron { display: inline-flex; flex: none; width: 14px; height: 14px; transform: rotate(-90deg); transition: transform var(--duration-fast); }
+.disclosure__chevron svg { width: 100%; height: 100%; fill: none; stroke: currentColor; stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round; }
+.disclosure--inline[open] > summary .disclosure__chevron { transform: rotate(0); }
 .disclosure--inline > summary:hover { color: var(--text-primary); background: var(--surface-section); }
 .disclosure--inline > summary:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 2px; }
 .disclosure--row { --disclosure-summary-row: 1; --disclosure-body-row: 2; --disclosure-row-span: 2; display: grid; min-width: 0; grid-template-columns: subgrid; grid-template-rows: subgrid; grid-column: 1 / -1; grid-row: 1 / span var(--disclosure-row-span); pointer-events: none; }

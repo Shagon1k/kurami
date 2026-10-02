@@ -210,6 +210,8 @@ assert.throws(()=>renderSelectionControl({label:"Mail",attributes:{onclick:"bad"
 assert.throws(()=>renderSelectionControl({label:"Mail",className:'bad"class'}),/Unsafe selection class/);
 assert.equal(BRIEFING_STYLES.split(SELECTION_CONTROL_CSS).length,2,"Digest selection CSS has one shared source");
 assert.match(renderDisclosure({summary:"Events",body:"",variant:"inline"}),/disclosure--inline/);
+assert.match(renderDisclosure({summary:"Events",body:"",variant:"inline"}),/disclosure__chevron[^>]*>[\s\S]*<svg/);
+assert.doesNotMatch(DISCLOSURE_CSS,/content: "›"/);
 assert.match(renderPopover({id:"controls",label:"<Controls>",body:"<p>content</p>"}),/popover="auto" aria-label="&lt;Controls&gt;"/);
 assert.throws(()=>renderPopover({id:'bad"id',label:"Controls",body:""}),/Invalid popover ID/);
 assert.match(renderStatCard({label:"<Tokens>",value:"1M",full:'1"000',tone:"info",icon:"tokens"}),/data-tone="info"/);

@@ -317,6 +317,14 @@ async function main(){
       if(stress&&await devtools.evaluate(`getComputedStyle(document.documentElement).scrollBehavior`)!=='auto')throw new Error('Reduced-motion smooth-scroll suppression failed');
       if(keyboard)keyboardChecks[`${name}-${width}-${theme}`]=await checkKeyboard(devtools);
       await delay(150);
+      if(!stress&&width>=1440&&["hub-home","projects-home","docs-home-en","digest-daily"].includes(name)){
+        const uniform=await devtools.evaluate<boolean>(`(()=>{const main=document.querySelector('main'),header=document.querySelector('header .container');return [main,header].every(element=>element&&Math.abs(element.getBoundingClientRect().width-1320)<1)&&(!document.querySelector('.home')||Math.abs(document.querySelector('.home').getBoundingClientRect().width-main.getBoundingClientRect().width)<1);})()`);
+        if(!uniform)throw new Error(`${name}: app/header/home must share the 1320px container`);
+      }
+      if(width<=620&&name.startsWith('digest-cinema-filled')){
+        const stacked=await devtools.evaluate<boolean>(`[...document.querySelectorAll('.cinema-news')].every(item=>{const image=item.querySelector('.cinema-news__image.has-image'),copy=item.querySelector('.cinema-news__copy');if(!image)return true;const a=image.getBoundingClientRect(),b=copy.getBoundingClientRect();return a.bottom<=b.top+1&&Math.abs(a.left-b.left)<1&&a.width>innerWidth*.5;})`);
+        if(!stacked)throw new Error('Mobile Cinema images must appear above their stories');
+      }
       const issues=[...await devtools.evaluate<string[]>(AUDIT_EXPRESSION),...await devtools.evaluate<string[]>(inventoryExpression())];
       const pending=await devtools.evaluate<unknown[]>(CONTRAST_REVIEW_EXPRESSION);
       if(pending.length){
@@ -333,7 +341,7 @@ async function main(){
         if(stress)layouts[key]={...layouts[key] as object,overflow:await devtools.evaluate(`(()=>{const width=document.documentElement.clientWidth,visible=[...document.body.querySelectorAll('*')].filter(el=>el.getBoundingClientRect().width);const clipped=el=>{for(let parent=el.parentElement;parent&&parent!==document.body;parent=parent.parentElement){if(['auto','scroll','hidden','clip'].includes(getComputedStyle(parent).overflowX)&&parent.getBoundingClientRect().right<=width+1)return true;}return false;};return {width,scroll:document.documentElement.scrollWidth,elements:visible.filter(el=>{const r=el.getBoundingClientRect();return (r.right>width+1||r.left< -1)&&!clipped(el)}).slice(0,24).map(el=>({tag:el.tagName,class:el.className,text:el.textContent.trim().slice(0,70),width:el.getBoundingClientRect().width,right:el.getBoundingClientRect().right,scroll:el.scrollWidth,client:el.clientWidth}))}})()`)};
         const viewport=await devtools.call<{data:string}>("Page.captureScreenshot",{format:"png",captureBeyondViewport:false});
         writeFileSync(join(output,`${key}-viewport.png`),Buffer.from(viewport.data,"base64"));
-        if(width===390&&theme==="light")for(const selector of [".site-footer",".digest-feed",".weekly-charts",".weekly-topics",".cinema-trailer",".cinema-premiere",".cinema-rank",".stock-details",".stocks-discovery",".investment-review",".review-section",".hub-alerts",".activity"]){
+        if(width===390&&theme==="light")for(const selector of [".site-footer",".digest-feed",".weekly-charts",".weekly-topics",".cinema-trailer",".cinema-premiere",".cinema-rank",".cinema-news",".stock-details",".stocks-discovery",".investment-review",".review-section",".hub-alerts",".activity"]){
           const clip=await devtools.evaluate<{x:number;y:number;width:number;height:number;scale:number}|null>(`(()=>{const element=document.querySelector(${JSON.stringify(selector)});if(!element)return null;const r=element.getBoundingClientRect();if(!r.width||!r.height)return null;return {x:Math.max(0,r.x+scrollX),y:Math.max(0,r.y+scrollY),width:Math.min(r.width,innerWidth),height:Math.min(r.height,900),scale:1}})()`);
           if(!clip)continue;
           const detail=await devtools.call<{data:string}>("Page.captureScreenshot",{format:"png",captureBeyondViewport:true,clip});

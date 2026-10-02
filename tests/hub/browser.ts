@@ -19,7 +19,7 @@ const server=createHubServer({snapshot:syntheticHubSnapshot,authorize:async()=>"
     if(failRead&&["models","settings","composio-check"].includes(action))throw new HubControlError("stale_settings");
     if(action==="models")return {models:[{value:"gpt-6-sol",label:"Sol"},{value:"gpt-6-astra",label:"Astra"}],hermes:"gpt-6-sol",hermesProvider:"openai-codex",codex:codexModel,codexEffort:"high"};
     if(action==="settings")return {settings:{revision:1,settings,idle:{idle:true}},health:{revision:1,intervalMinutes:20,allowedIntervals:[5,10,12,15,20,30,60]}};
-    if(action==="composio-check")return {contours:[{contour:"read",ok:true,tools:10,diff:[],warnings:[]}]};
+    if(action==="composio-check")return {contours:[{contour:"broad",ok:true,tools:3,diff:[],warnings:[]},{contour:"read",ok:true,tools:7,diff:[],warnings:[]},{contour:"automation",ok:true,tools:1,diff:[],warnings:[]}]};
     if(writeGate)await writeGate;
     if(failWrite)throw new HubControlError("command_failed");
     actions.push(action);if(action==="model-apply")codexModel=String(payload.model);
@@ -35,7 +35,7 @@ async function screenshot(name:string,selector?:string){
   const result=await devtools.call<{data:string}>("Page.captureScreenshot",{format:"png",captureBeyondViewport:true,...(clip?{clip}:{})});writeFileSync(resolve(output,name+".png"),Buffer.from(result.data,"base64"));
 }
 async function activityAlignment(){
-  assert.equal(await devtools.evaluate("[...document.querySelectorAll('.work-item:not([hidden])')].every(item=>{const link=item.querySelector('.work-item__link a'),summary=item.querySelector('.work-events > summary');if(!link)return true;const a=link.getBoundingClientRect(),b=summary.getBoundingClientRect();return Math.abs((a.top+a.bottom)-(b.top+b.bottom))<2&&a.right<=b.left+1;})"),true,"result links and event toggles share a row and center");
+  assert.equal(await devtools.evaluate("[...document.querySelectorAll('.work-item:not([hidden])')].every(item=>{const link=item.querySelector('.work-item__link a'),summary=item.querySelector('.work-events > summary');if(!link)return true;const a=link.getBoundingClientRect(),b=summary.getBoundingClientRect(),body=item.querySelector('.work-item__body').getBoundingClientRect();return innerWidth<=750?a.left>=body.right-1&&a.bottom<=b.top+1:Math.abs((a.top+a.bottom)-(b.top+b.bottom))<2&&a.right<=b.left+1;})"),true,"mobile links sit beside the title; desktop actions share a row");
   assert.equal(await devtools.evaluate("[...document.querySelectorAll('.health-cell')].every(cell=>getComputedStyle(cell).boxShadow!=='none')"),true,"health cards use the shared card shadow");
 }
 try {
@@ -118,6 +118,11 @@ try {
     assert.equal(await devtools.evaluate("document.querySelector('header [data-hub-control=menu]').getAttribute('aria-expanded')"),"true");
     if(lang==="en")await screenshot("hub-controls","#hub-controls-popover");
     assert.equal(actions.length,menuActions,"opening the Controls menu does not mutate state");
+    const menuPoint=await devtools.evaluate<{x:number;y:number}>("(()=>{const r=document.querySelector('header [data-hub-control=menu]').getBoundingClientRect();return {x:r.x+r.width/2,y:r.y+r.height/2}})()");
+    await devtools.call("Input.dispatchMouseEvent",{type:"mousePressed",button:"left",clickCount:1,...menuPoint});
+    await devtools.call("Input.dispatchMouseEvent",{type:"mouseReleased",button:"left",clickCount:1,...menuPoint});
+    await wait("!document.querySelector('#hub-controls-popover').matches(':popover-open')");
+    await devtools.evaluate("document.querySelector('header [data-hub-control=menu]').click()");
     await devtools.call("Input.dispatchKeyEvent",{type:"keyDown",key:"Escape",code:"Escape",windowsVirtualKeyCode:27,nativeVirtualKeyCode:27});
     await devtools.call("Input.dispatchKeyEvent",{type:"keyUp",key:"Escape",code:"Escape",windowsVirtualKeyCode:27,nativeVirtualKeyCode:27});
     await wait("!document.querySelector('#hub-controls-popover').matches(':popover-open')");
@@ -125,11 +130,8 @@ try {
     await devtools.evaluate("document.querySelector('header [data-hub-control=menu]').click();document.querySelector('[data-hub-control=models]').click()");await wait("!!document.querySelector('form[data-target=codex]')");
     assert.equal(await devtools.evaluate("document.querySelector('dialog').open"),true);
     assert.equal(await devtools.evaluate("document.querySelector('#hub-controls-popover').matches(':popover-open')"),false);
-    await devtools.evaluate("document.querySelector('dialog [data-hub-control=menu]').click()");
-    await wait("document.querySelector('#hub-controls-popover').matches(':popover-open') && !document.querySelector('dialog').open");
-    await delay(80);
-    assert.equal(await devtools.evaluate("document.activeElement.dataset.hubControl"),"models","Back keeps focus inside the reopened popover");
-    await devtools.evaluate("document.querySelector('[data-hub-control=models]').click()");await wait("!!document.querySelector('form[data-target=codex]')");
+    assert.equal(await devtools.evaluate("document.querySelector('#hub-control-dialog-title').textContent"),lang==='en'?'Models':'Модели');
+    assert.equal(await devtools.evaluate("!!document.querySelector('dialog [data-hub-control=menu]')"),false,"modal does not contain an extra Back action");
     await devtools.evaluate("document.querySelector('form[data-target=codex] select').value='gpt-6-astra';document.querySelector('form[data-target=codex]').requestSubmit()");
     const before=actions.length;assert.equal(await devtools.evaluate("document.querySelector('#hub-control-confirm').hidden"),false);
     assert.equal(await devtools.evaluate("(()=>{const row=document.querySelector('#hub-control-confirm .dialog__actions'),cancel=row.querySelector('[data-hub-cancel]'),confirm=row.querySelector('[data-hub-confirm]'),r=row.getBoundingClientRect(),a=cancel.getBoundingClientRect(),b=confirm.getBoundingClientRect();return cancel.compareDocumentPosition(confirm)===Node.DOCUMENT_POSITION_FOLLOWING&&a.right<=b.left&&Math.abs(r.right-b.right)<1;})()"),true,"Cancel then Confirm align to the dialog's right edge");
@@ -149,6 +151,7 @@ try {
     await devtools.evaluate("document.querySelector('[data-dialog-close] .button__svg path').dispatchEvent(new MouseEvent('click',{bubbles:true}))");
     assert.equal(await devtools.evaluate("document.querySelector('dialog').open"),false,"clicking the close icon closes the dialog");
     await devtools.evaluate("document.querySelector('[data-hub-control=codex-reset]').click()");
+    await delay(80);
     assert.equal(actions.length,before+(lang==="en"?1:0),"reset waits for confirmation");
     await devtools.evaluate("document.querySelector('[data-hub-cancel]').click()");
     await devtools.evaluate("document.querySelector('header [data-hub-control=menu]').click();document.querySelector('[data-hub-control=settings]').click()");await wait("!!document.querySelector('[data-hub-submit=settings-apply]')");
@@ -164,6 +167,19 @@ try {
       assert(bounds.width<=width&&bounds.scroll<=bounds.client+1,"settings dialog fits the viewport");
     }
     if(lang==="en")await screenshot("hub-settings");
+    await devtools.evaluate("document.querySelector('[data-dialog-close]').click()");
+    const beforeCheck=actions.length;
+    await devtools.evaluate("document.querySelector('header [data-hub-control=menu]').click();document.querySelector('[data-hub-control=composio-check]').click()");
+    await wait("document.querySelectorAll('.composio-contour').length===3");
+    assert.equal(await devtools.evaluate("document.querySelector('#hub-control-dialog-title').textContent"),lang==='en'?'Composio check':'Проверка Composio');
+    assert.equal(await devtools.evaluate("!!document.querySelector('[data-hub-control=composio-apply]')"),false,"synchronized contours have no apply button");
+    await devtools.evaluate("document.querySelector('#hub-control-content [data-hub-control=composio-check]').click()");
+    await wait("document.querySelectorAll('.composio-contour').length===3");
+    assert.equal(actions.length,beforeCheck,"checking Composio never applies settings");
+    await devtools.call("Emulation.setDeviceMetricsOverride",{width:390,height:1000,deviceScaleFactor:1,mobile:true});
+    assert.equal(await devtools.evaluate("document.querySelector('dialog').getBoundingClientRect().height<600"),true,"three synchronized contours fit a compact dialog");
+    assert.deepEqual(await devtools.evaluate(AUDIT_EXPRESSION),[],"Composio is readable on a phone");
+    if(lang==='en')await screenshot('hub-composio','dialog');
     await devtools.evaluate("document.querySelector('[data-dialog-close]').click()");
     for(const width of [320,390,768,1280]){
       await devtools.call("Emulation.setDeviceMetricsOverride",{width,height:1000,deviceScaleFactor:1,mobile:width<500});
@@ -211,6 +227,7 @@ try {
     writeGate=new Promise<void>(done=>{releaseWrite=done;});
     const beforeFailure=actions.length;
     await devtools.evaluate("document.querySelector('[data-hub-control=codex-reset]').click()");
+    await delay(80);
     const confirmPoint=await devtools.evaluate<{x:number;y:number}>("(()=>{const r=document.querySelector('[data-hub-confirm]').getBoundingClientRect();return {x:r.x+r.width/2,y:r.y+r.height/2}})()");
     // A trusted input grants browser user activation; programmatic .click() makes the native
     // close-watcher's Escape cancel event non-cancellable and is not a real user interaction.

@@ -38,6 +38,12 @@ The problem queue groups CI and review trouble of one PR into a single entry wit
 
 Live Activity merges existing journals: run transitions, CI and review states, Codex and Hermes session starts, Daily and Cinema publications. It reads the last seven days and shows five work items, "More" adds up to fifteen. A finished Codex turn means only "idle": a task is done by its board transition, not by a quiet session.
 
+The activity link sits beside the title on phones; titles use at most two lines.
+Events shows the full title and pairs a turn's start and finish when their session
+and turn IDs match. That pair includes a duration, not an AI summary. Raw events
+remain available. Partial retained history is labelled. Internal Guardian
+review sessions are hidden by their metadata; project reviews remain visible.
+
 ## Usage and limits
 
 Tokens, cache and output come from local Codex logs, never from transcripts. The **API-equivalent USD** estimates what the same tokens would cost at standard API rates. It is not a subscription bill, and unpriced or partial data is starred. Limits come from the Codex account itself and fall back to a labelled local snapshot. The daily limit chart shows observed consumption in percentage points; starred days have gaps or resets. Usage counts a task as completed only with verified release evidence and reports the median tokens per task and the share spent on rework; `Logs n/m` says how many tasks could be measured.
@@ -52,11 +58,16 @@ The **Controls** icon in the header opens four actions; **Reset** sits beside th
 |---|---|
 | **Models** | sets the default model for new Codex sessions and for Hermes (provider `openai-codex`) |
 | **Settings** | the same Kurami settings and health interval as `/kurami settings` ([Settings](@settings)) |
-| **Composio** | checks three connector contours and applies a changed one after you confirm the shown diff ([Connector authority](@connector-authority)) |
+| **Composio check** | compares three connector configurations and applies a changed one after you confirm the shown diff ([Connector authority](@connector-authority)) |
 | **Restart** | asks the Hermes gateway to restart after the current turn; the host and Codex sessions stay up |
 | **Reset** | spends one earned credit to reset the Codex limits |
 
 Opening a view changes nothing. An action runs only when all of this holds: a valid Cloudflare Access identity, the exact Hub origin, a matching CSRF cookie and token, explicit confirmation, and no other action in progress. Settings keep their idle gate and revision check. Every completed action adds a short record to `state/hub/control-audit.jsonl`, with no outputs or secrets. If saving that record fails after the action, Hub still reports success and shows an audit warning; do not repeat the action.
+
+Each control opens its own named dialog, without an extra Back button. The menu
+closes on a second trigger click, outside click or Escape. Composio check is
+read-only and does not test provider availability. Check again repeats the read;
+Sync appears only when there is a difference to confirm.
 
 ## When it looks wrong
 

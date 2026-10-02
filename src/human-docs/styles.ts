@@ -17,7 +17,7 @@ ${TABLE_CSS}
 ${CALLOUT_CSS}
 ${DISCLOSURE_CSS}
 ${DIAGRAM_CSS}
-:root { --container-max: 1240px; --measure: 72ch; }
+:root { --measure: 72ch; }
 body { line-height: 1.6; }
 a { text-decoration-thickness: 1px; text-underline-offset: 4px; }
 a:hover { color: var(--text-accent); }
@@ -171,7 +171,7 @@ h1 { max-width: 20ch; margin-bottom: var(--space-4); font-size: clamp(2.2rem, 5v
 .next-page small { color: var(--text-muted); font-size: .88rem; }
 
 /* Home */
-.home { max-width: 980px; }
+.home { width: 100%; }
 .home .intro h1 { max-width: 16ch; }
 .prose--home .cards { grid-template-columns: repeat(3, minmax(0, 1fr)); }
 .prose--home > p, .prose--home > ul { max-width: 68ch; }

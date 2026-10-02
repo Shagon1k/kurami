@@ -14,7 +14,21 @@ export function problemQueue(alerts:HubAlert[]):HubProblem[] {
   }
   return [...groups.values()].sort((a,b)=>Number(b.severity==="critical")-Number(a.severity==="critical"));
 }
-export type WorkItem={id:string;at:string;subject:string;project:string;agent:string;event:string;href?:string;result?:string;events:HubActivity[]};
+export type ActivitySummary=HubActivity&{durationSeconds?:number;paired?:boolean};
+export function summarizeActivity(events:HubActivity[]):ActivitySummary[] {
+  const starts=new Map<string,HubActivity>();const paired=new Set<string>();const summaries:ActivitySummary[]=[];
+  for(const event of [...events].sort((a,b)=>Date.parse(a.at)-Date.parse(b.at))){
+    const key=event.sessionId&&event.turnId?`${event.sessionId}:${event.turnId}`:null;
+    if(event.event==="task_started"&&key){starts.set(key,event);continue;}
+    const start=key?starts.get(key):undefined;
+    if(start&&["task_complete","turn_aborted"].includes(event.event)&&Date.parse(event.at)>=Date.parse(start.at)&&!paired.has(key!)){
+      summaries.push({...event,durationSeconds:Math.round((Date.parse(event.at)-Date.parse(start.at))/1000),paired:true});paired.add(key!);
+    }else summaries.push(event);
+  }
+  for(const [key,event] of starts)if(!paired.has(key))summaries.push(event);
+  return summaries.sort((a,b)=>Date.parse(b.at)-Date.parse(a.at));
+}
+export type WorkItem={id:string;at:string;subject:string;project:string;agent:string;event:string;href?:string;result?:string;events:HubActivity[];summaryEvents:ActivitySummary[];limited:boolean};
 export function workFeed(events:HubActivity[]):WorkItem[] {
   const groups=new Map<string,HubActivity[]>();
   for(const event of events){
@@ -26,6 +40,13 @@ export function workFeed(events:HubActivity[]):WorkItem[] {
     const latest=items[0]!;
     const state=items.find(item=>item.source==="Projects")??latest;
     const link=items.find(item=>item.href?.includes("/pull/"))??items.find(item=>item.href);
-    return {id,at:latest.at,subject:state.subject,project:latest.project??"other",agent:latest.agent??(["Codex","Hermes"].includes(latest.source)?latest.source:"Kurami"),event:latest.taskState??state.event,href:link?.href,result:items.find(item=>item.result)?.result,events:items.slice(0,50)};
+    const currentRun=latest.currentRunId??latest.runId;
+    const current=items.filter(item=>!currentRun||!item.runId||item.runId===currentRun);
+    const ci=current.find(item=>item.source==="CI"),review=current.find(item=>item.source==="AI Review");
+    const resultEvents=current.filter((item,index)=>current.findIndex(other=>other.source===item.source)===index);
+    const resultEvent=resultEvents.find(item=>item.result);
+    const result=resultEvent===review&&review?.head&&ci?.head&&review.head!==ci.head?"Review:outdated":resultEvent?.result;
+    const retained=items.slice(0,50);
+    return {id,at:latest.at,subject:state.subject,project:latest.project??"other",agent:latest.agent??(["Codex","Hermes"].includes(latest.source)?latest.source:"Kurami"),event:latest.taskState??state.event,href:link?.href,result,events:retained,summaryEvents:summarizeActivity(retained),limited:items.length>50||items.some(item=>item.limited===true)};
   }).sort((a,b)=>Date.parse(b.at)-Date.parse(a.at)).slice(0,100);
 }

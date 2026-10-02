@@ -54,7 +54,8 @@ so an older edition uses the same sizes as a new page.
 
 Dialog actions use `renderDialogActions`: secondary actions first, then the
 primary action, aligned right. Hub's log uses the `row` disclosure variant to
-align the result link and event toggle; expanded events occupy the full row width.
+align desktop actions; on phones the link sits beside the title and Events beside
+the timestamp. Expanded events occupy the full row width.
 System Health cards use the shared small card shadow.
 
 Projects notifications use `renderToastRegion` and `createKuramiToast` from the
@@ -72,8 +73,15 @@ Digest uses the shared toggle, source-link and selected icon-button states;
 Projects uses shared icon sizing rather than redefining the SVG styles.
 Product links are ordered Hub, Digest, Projects, Docs.
 
+All four apps share a 1320px desktop container. The Docs home uses the full
+container without an empty navigation column; article text keeps its reading
+measure. Inline disclosures use an SVG chevron. Forms support inline label/select
+layout through library custom properties, without product overrides.
+
 When text grows, section navigation stays within its column. If the links no
 longer fit, the navigation scrolls horizontally instead of widening the page.
+Digest moves its section navigation to a separate row at tablet widths, so it
+does not overlap the brand or header actions.
 Mobile cards allow labels to wrap; wide tables keep their internal scroll.
 Long identifiers wrap within stacked Docs table rows.
 

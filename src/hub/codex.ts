@@ -7,6 +7,7 @@ import type {CodexAccountSnapshot} from "./codex-account.ts";
 import {summarizeModelUsage,type ModelUsage,type ApiEquivalent,type UsageSample} from "../core/api-equivalent.ts";
 import {dailyLimitHistory,dailyLimitUsage,type LimitDay,type LimitUsageDay} from "./limit-history.ts";
 import type {LimitObservation} from "../core/codex-usage.ts";
+import type {HubActivity} from "./operations.ts";
 
 type ThreadRow={created_at:number;updated_at:number;model:string|null;rollout_path:string|null};
 export type CodexSnapshot={
@@ -23,15 +24,27 @@ export type CodexSnapshot={
 
 const unavailable:CodexSnapshot={state:"unavailable",tokens7:null,tokens30:null,cached30:null,output30:null,sessions30:null,models:[],limits:[],updatedAt:null,coverage:"unavailable"};
 
-export function collectCodexActivity(home:string,now:Date):{id:string;at:string;source:string;subject:string;event:string;sessionId:string;group:string;agent:string}[] {
+function activityThreadFilter(db:DatabaseSync):string {
+  const columns=new Set((db.prepare("PRAGMA table_info(threads)").all() as {name:string}[]).map(column=>column.name));
+  return (columns.has("thread_source")?" AND COALESCE(thread_source,'')!='guardian_review'":"")+(columns.has("source")?" AND CASE WHEN json_valid(source) THEN COALESCE(json_extract(source,'$.subagent.other'),'')!='guardian' ELSE 1 END":"");
+}
+export function collectCodexSessionActivity(home:string,now:Date):HubActivity[] {
+  let db:DatabaseSync|undefined;
+  try{
+    db=new DatabaseSync(resolve(home,"state_5.sqlite"),{readOnly:true,timeout:500});
+    const rows=db.prepare(`SELECT id,title,created_at FROM threads WHERE created_at>=?${activityThreadFilter(db)} ORDER BY created_at DESC LIMIT 100`).all(Math.floor((now.getTime()-7*86400_000)/1000)) as {id:string;title:string;created_at:number}[];
+    return rows.map(row=>({id:`codex-${row.id}`,sessionId:row.id,group:`codex:${row.id}`,agent:"Codex",at:new Date(row.created_at*1000).toISOString(),source:"Codex",subject:(row.title??"").slice(0,120),event:"session_started"}));
+  }catch{return [];}finally{db?.close();}
+}
+export function collectCodexActivity(home:string,now:Date):HubActivity[] {
   let db:DatabaseSync|undefined;
   try {
     db=new DatabaseSync(resolve(home,"state_5.sqlite"),{readOnly:true,timeout:500});
     const cutoff=now.getTime()-7*86400_000;
-    const rows=db.prepare("SELECT id,title,name,rollout_path FROM threads WHERE updated_at>=? ORDER BY updated_at DESC LIMIT 100").all(cutoff/1000) as {id:string;title:string;name:string|null;rollout_path:string|null}[];
+    const rows=db.prepare(`SELECT id,title,name,rollout_path FROM threads WHERE updated_at>=?${activityThreadFilter(db)} ORDER BY updated_at DESC LIMIT 100`).all(cutoff/1000) as {id:string;title:string;name:string|null;rollout_path:string|null}[];
     return rows.flatMap(row=>{
       const cache=row.rollout_path?scanFile(row.rollout_path,home):null;
-      return (cache?.activity??[]).filter(event=>event.at>=cutoff&&event.at<=now.getTime()).map(event=>({id:`codex-turn-${row.id}-${event.at}-${event.event}`,sessionId:row.id,group:`codex:${row.id}`,agent:"Codex",at:new Date(event.at).toISOString(),source:"Codex",subject:(row.name||row.title||"").slice(0,120),event:event.event}));
+      return (cache?.activity??[]).filter(event=>event.at>=cutoff&&event.at<=now.getTime()).map(event=>({id:`codex-turn-${row.id}-${event.at}-${event.event}-${event.turnId??""}`,sessionId:row.id,turnId:event.turnId,limited:cache?.activityTruncated,group:`codex:${row.id}`,agent:"Codex",at:new Date(event.at).toISOString(),source:"Codex",subject:(row.name||row.title||"").slice(0,120),event:event.event}));
     }).sort((a,b)=>Date.parse(b.at)-Date.parse(a.at)).slice(0,400);
   }catch{return [];}
   finally{db?.close();}

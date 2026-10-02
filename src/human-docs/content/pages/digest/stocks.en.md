@@ -16,6 +16,11 @@ Charts fit the available width on a phone without cropping the selected period. 
 
 ## Reading a row
 
+In Daily, Open overview sits to the right of the Stocks title when space allows.
+The main instrument's price and session change sit together. On Stocks, the Order
+label and select share one row; quote and portfolio-review expansion use the
+shared SVG icon.
+
 A list row is an expandable block. Open it to see the chart and the figures for a period. One row is open at a time.
 
 | What | What it means | Source |

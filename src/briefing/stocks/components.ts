@@ -36,10 +36,11 @@ export function renderStockRow(snapshot:StocksSnapshot,id:string,period:StockPer
     <summary class="stock-row__summary"><span class="stock-row__identity">${renderCompanyAvatar(id,logos?.get(id+":"+series.asset.isin))}<span><strong>${e(series.asset.name)}</strong><small>${e(id)} · ${e(series.asset.currency)}${series.asset.kind==="etf"?" · ETF":""}</small></span></span>
       <span class="stock-row__trend">${renderSparkline(points.map(p=>p.adjusted),id+t(": скорректированные закрытия за месяц; собственный масштаб",": adjusted closes over one month; independent scale"))}<small>${t("За месяц","One month")}</small></span>
       <span class="stock-row__quote"><strong>${e(money(quote))}</strong><small>${e(shortDate(quote.date))}${status?` · <span class="stocks-warning">${status}</span>`:""}</small></span>
-      <span class="stock-row__change">${delta(quote.day)}<small>${t("за сессию","session")}</small></span><span class="stock-row__chevron" aria-hidden="true">⌄</span>
+      <span class="stock-row__change">${delta(quote.day)}<small>${t("за сессию","session")}</small></span><span class="stock-row__chevron" aria-hidden="true">${renderIcon("chevronDown")}</span>
     </summary>
     <div class="stock-details" data-stock-details data-stock-loaded="${open?period:""}">
       ${open?renderStockDetails(snapshot,new URLSearchParams({symbols:id,period}),at):`<p>${t("График появится при раскрытии.","The chart loads when expanded.")} <a href="${e(stockHref(id,period))}">${t("Открыть график","Open chart")} ${e(id)} →</a></p>`}
     </div><p class="stock-load-status" data-stock-load-status role="status" aria-live="polite"></p>
   </details>`;
 }
+import {renderIcon} from "../../ui-library/components/icon.ts";

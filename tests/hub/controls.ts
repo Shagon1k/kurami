@@ -62,6 +62,20 @@ try {
     const input=form.match(new RegExp(`<input[^>]*name="${field.name}"[^>]*>`))?.[0];
     assert(input);assert(input.includes(`min="${field.min}"`));assert(input.includes(`max="${field.max}"`));
   }
+  const contours=[
+    {contour:"broad",ok:true,tools:3,diff:[],warnings:[],revision:"one"},
+    {contour:"read",ok:true,tools:7,diff:[{field:"toolset",before:"<old>",after:"expected"}],warnings:["<warning>"],revision:"two"},
+    {contour:"automation",ok:false,tools:0,diff:[],warnings:["Comparison unavailable"],revision:"three"},
+  ];
+  for(const lang of ["en","ru"] as const){
+    const check=renderControlView("composio-check",{contours},lang);
+    assert.equal((check.match(/data-hub-control="composio-apply"/g)??[]).length,1,"only a successful comparison with a diff offers Sync");
+    assert.match(check,/data-contour="read"/);assert.match(check,/data-revision="two"/);
+    assert.match(check,/&lt;old&gt;/);assert.match(check,/&lt;warning&gt;/);
+    assert.equal((check.match(/<details[^>]* open/g)??[]).length,2,"diffs and failed comparisons expose details");
+    assert.match(check,/data-hub-control="composio-check"/);
+    assert(!check.includes("data-hub-back"));
+  }
   await assert.rejects(()=>controls.execute("composio-apply",{contour:"broad; anything"}));
   await assert.rejects(()=>controls.execute("composio-apply",{contour:"read",revision:"stale"}),error=>error instanceof HubControlError&&error.code==="stale_settings");
   await controls.execute("restart",{},"owner");

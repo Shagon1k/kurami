@@ -1,4 +1,5 @@
 import {escapeHtml as e} from "../ui/html.ts";
+import {renderIcon} from "../../ui-library/components/icon.ts";
 import {renderKuramiComment} from "../ui/components/kurami-comment.ts";
 import {renderReviewPosition,renderReviewEvidence,renderResearchCoverage} from "./position.ts";
 import {renderReviewIdea} from "./idea.ts";
@@ -12,7 +13,7 @@ export const REVIEW_PANEL_STYLES=REVIEW_LEARNING_STYLES+`
 .investment-review>summary::-webkit-details-marker{display:none}
 .investment-review>summary:hover{background:var(--surface-section)}
 .investment-review>summary:focus-visible{outline:2px solid var(--accent-primary);outline-offset:3px}
-.investment-review__chevron{font-size:20px;line-height:1}
+.investment-review__chevron{display:inline-flex;flex:none;transition:transform var(--duration-fast)}
 .investment-review[open]>summary .investment-review__chevron{transform:rotate(180deg)}
 .investment-review__content{padding:0 24px 8px}
 .investment-review details{border-top:1px solid var(--border-default)}.investment-review__body{padding:0 0 16px;max-width:95ch}
@@ -23,7 +24,7 @@ export const REVIEW_PANEL_STYLES=REVIEW_LEARNING_STYLES+`
 export function renderReviewPanel(reports:Array<StoredReview|null>,at:string,baseline?:ReviewInput["baseline"]):string{
   const items=reports.filter((r):r is StoredReview=>Boolean(r));
   if(!items.length)return "";
-  return `<details class="investment-review"><summary><h2>Обзор портфеля</h2><span class="investment-review__chevron" aria-hidden="true">⌄</span></summary><div class="investment-review__content">${items.map(r=>{
+  return `<details class="investment-review"><summary><h2>Обзор портфеля</h2><span class="investment-review__chevron" aria-hidden="true">${renderIcon("chevronDown")}</span></summary><div class="investment-review__content">${items.map(r=>{
     const freshness=reviewFreshness(r,at,baseline),label=r.input.mode==="monthly"?"Месяц":r.input.mode==="weekly"?"Неделя":"Обзор";
     const date=new Intl.DateTimeFormat("ru-RU",{day:"numeric",month:"long",year:"numeric",timeZone:"Europe/Vilnius"}).format(new Date(r.input.asOfDate+"T12:00:00Z"));
     const status=freshness.changedHoldings?"Состав изменился — советы требуют пересмотра":freshness.needsConfirmation?"Нужно подтвердить текущий состав":freshness.stale?"Предыдущий обзор — ожидает обновления":"";

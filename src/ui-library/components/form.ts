@@ -21,7 +21,7 @@ export const FORM_CSS=`
 ${ICON_CSS}
 ${SELECTION_CONTROL_CSS}
 .form-check { --selection-size: 20px; --selection-min-height: var(--control-height); --selection-font-size: .8rem; padding-inline: var(--space-2); }
-.form-field { display: grid; align-content: start; gap: var(--space-2); min-width: 0; font-size: .8rem; }
+.form-field { display: grid; grid-template-columns: var(--form-field-columns,minmax(0,1fr)); align-items: var(--form-field-align,start); align-content: start; gap: var(--space-2); min-width: 0; font-size: .8rem; }
 .form-field > span { color: var(--text-muted); }
 .form-field :is(input,select) { width: 100%; min-width: 0; min-height: var(--control-height); padding: var(--space-2) var(--space-3); border: 1px solid var(--border-default); border-radius: var(--radius); color: var(--text-primary); background: var(--surface-raised); font: inherit; transition: border-color var(--duration-fast), background var(--duration-fast); }
 .form-field :is(input,select):hover:not(:disabled) { border-color: var(--text-muted); }

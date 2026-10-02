@@ -96,11 +96,11 @@ assert.doesNotMatch(polished,/inline-size:34px|block-size:34px|min-height:40px/)
 assert.equal(injectSiteNavigation(polished,input.links,"daily"),polished,"layout migration is idempotent");
 const legacyCinema=`<!doctype html><html lang="ru"><head></head><body><header class="utility-header" data-utility-header data-site-section="cinema"><div class="utility-header__inner page-shell"><time class="utility-meta" datetime="2026-09-12">12 сентября 2026</time><nav data-site-navigation></nav><div class="utility-actions"></div></div></header><main>Кино</main></body></html>`;
 const upgradedCinema=injectSiteNavigation(legacyCinema,input.links,"cinema");
-assert.match(upgradedCinema,/class="site-header" data-site-header data-site-section="cinema"/);
+assert.match(upgradedCinema,/class="site-header site-header--scroll-nav" data-site-header data-site-section="cinema"/);
 assert.match(upgradedCinema,/class="site-switcher"/);
 assert.match(upgradedCinema,/href="\/ru\/cinema" aria-current="location"/);
 assert.match(upgradedCinema,/datetime="2026-09-12">12 сент\. 2026 г\.<\/time>/);
-assert.match(upgradedCinema,/--container-max: 1320px/);
+assert.match(upgradedCinema,/var\(--container-max, 1320px\)/);
 assert(!upgradedCinema.includes('class="utility-header"'));
 assert.equal(injectSiteNavigation(upgradedCinema,input.links,"cinema"),upgradedCinema);
 const asset=await readFile(resolve(root,"src/ui-library/assets/brand/kurami-fox-transparent.png"));

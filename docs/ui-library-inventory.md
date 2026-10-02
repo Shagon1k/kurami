@@ -4,6 +4,11 @@ Status: inventory at `c31a505`; the owner approved the structure, self-hosted fo
 
 ## What exists today
 
+The October refinement shares a 1320px container across all four apps, SVG
+chevrons for inline disclosures, a message icon and custom-property controls for
+inline form labels and stacked-table labels. Projects uses those parts for
+resource/evidence composition; product code retains gesture and workflow logic.
+
 The UI follow-up adds `components/toast.ts` and `runtime/toast.ts`: one fixed,
 bottom-right notice, named dismissal, polite live feedback, paused expiry and
 persistent warnings/errors. Projects supplies the message and request state;

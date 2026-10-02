@@ -4,16 +4,17 @@ import {DatabaseSync} from "node:sqlite";
 import type {HealthSurfaceSnapshot} from "../system/health/health-snapshot.ts";
 import {readHealthStatus} from "../system/health/health-read-model.ts";
 import {readSystemActivity} from "../core/activity.ts";
-import {collectCodexActivity} from "./codex.ts";
+import {collectCodexActivity,collectCodexSessionActivity} from "./codex.ts";
 import {parse} from "yaml";
 import {projectRunStatus,readProjectStatus,type ProjectStatusReadModel} from "../orchestrator/projects/status-read-model.ts";
 import {settingsSchema} from "../orchestrator/settings/settings-schema.ts";
 import {codexLaunchUrl} from "../orchestrator/integrations/codex/deeplink.ts";
 import {localDay} from "../core/codex-usage.ts";
+import {kuramiEntryHref} from "../ui-library/patterns/kurami-sites.ts";
 
 export type HubAlert={id:string;severity:"warning"|"critical";code:string;subject:string;href?:string;group?:string;project?:string;title?:string;prNumber?:number;task?:boolean;next?:ProblemNext;actor?:"owner"|"agent"|"system";detail?:string};
 export type ProblemNext="start_repair"|"wait_repair"|"reply"|"inspect_task"|"check_collector"|"check_project"|"inspect_health"|"restore_db";
-export type HubActivity={id:string;at:string;source:string;subject:string;event:string;href?:string;group?:string;project?:string;agent?:string;sessionId?:string;result?:string;taskState?:string};
+export type HubActivity={id:string;at:string;source:string;subject:string;event:string;href?:string;group?:string;project?:string;agent?:string;sessionId?:string;turnId?:string;limited?:boolean;runId?:string;currentRunId?:string;head?:string;result?:string;taskState?:string};
 export type HubOperations={health:HealthSurfaceSnapshot|null;healthStale:boolean;alerts:HubAlert[];activity:HubActivity[]};
 
 function json(path:string):any {try{return JSON.parse(readFileSync(path,"utf8"));}catch{return null;}}
@@ -67,19 +68,19 @@ export function collectHubOperations(home:string,codexHome:string,hermesHome:str
   const runContext=(runId:string)=>{
     const row=metadata.get(runId)??projectStatus.runs.find(run=>run.run_id===runId);
     const current=row&&projectStatus.runs.find(run=>run.project===row.project&&run.issue_number===row.issue_number);
-    return row?{group:`task:${row.project}:${row.issue_number}`,project:short(row.project),agent:"Codex",taskState:current?.run_state??row.state,subject:short(row.title||row.pull_request_title||`Task #${row.issue_number}`)}:{};
+    return row?{group:`task:${row.project}:${row.issue_number}`,runId,currentRunId:current?.run_id,project:short(row.project),agent:"Codex",taskState:current?.run_state??row.state,subject:short(row.title||row.pull_request_title||`Task #${row.issue_number}`)}:{};
   };
   const activity:HubActivity[]=readRows(dbPath,`SELECT h.sequence,h.run_id,h.occurred_at,h.to_state,r.project,r.issue_number,r.repository FROM run_state_history h JOIN runs r USING(run_id) WHERE h.occurred_at>=? ORDER BY h.sequence DESC LIMIT 150`,[cutoff]).map(row=>({
     id:`run-${row.sequence}`,at:row.occurred_at,source:"Projects",subject:`${short(row.project)} #${row.issue_number}`,event:short(row.to_state),href:safeLink(`https://github.com/${row.repository}/issues/${row.issue_number}`),...runContext(row.run_id)}));
-  for(const row of readRows(dbPath,`SELECT run_id,aggregate_state,COALESCE(completed_at,first_observed_at) AS at,pull_request_title,pull_request_url FROM run_ci_snapshots WHERE COALESCE(completed_at,first_observed_at)>=? ORDER BY at DESC LIMIT 100`,[cutoff]))activity.push({id:`ci-${row.run_id}`,at:row.at,source:"CI",subject:short(row.pull_request_title),event:short(row.aggregate_state),href:safeLink(row.pull_request_url),result:`CI:${short(row.aggregate_state)}`,...runContext(row.run_id)});
-  for(const row of readRows(dbPath,`SELECT review_id,run_id,review_state,updated_at,pull_request_number,pull_request_url,critical_count,important_count FROM run_ai_reviews WHERE updated_at>=? ORDER BY updated_at DESC LIMIT 100`,[cutoff]))activity.push({id:`review-${row.review_id}`,at:row.updated_at,source:"AI Review",subject:`PR #${row.pull_request_number}`,event:short(row.review_state),href:safeLink(row.pull_request_url),result:row.review_state==="ready"?`Review:${row.critical_count+row.important_count}`:undefined,...runContext(row.run_id)});
-  for(const row of readRows(resolve(codexHome,"state_5.sqlite"),`SELECT id,title,created_at FROM threads WHERE created_at>=? ORDER BY created_at DESC LIMIT 100`,[Math.floor(Date.parse(cutoff)/1000)]))activity.push({id:`codex-${row.id}`,sessionId:row.id,group:`codex:${row.id}`,agent:"Codex",at:iso(row.created_at),source:"Codex",subject:short(row.title),event:"session_started"});
+  for(const row of readRows(dbPath,`SELECT run_id,head_sha,aggregate_state,COALESCE(completed_at,first_observed_at) AS at,pull_request_title,pull_request_url FROM run_ci_snapshots WHERE COALESCE(completed_at,first_observed_at)>=? ORDER BY at DESC LIMIT 100`,[cutoff]))activity.push({id:`ci-${row.run_id}`,at:row.at,head:row.head_sha,source:"CI",subject:short(row.pull_request_title),event:short(row.aggregate_state),href:safeLink(row.pull_request_url),result:`CI:${short(row.aggregate_state)}`,...runContext(row.run_id)});
+  for(const row of readRows(dbPath,`SELECT review_id,run_id,head_sha,review_state,updated_at,pull_request_number,pull_request_url,critical_count,important_count FROM run_ai_reviews WHERE updated_at>=? ORDER BY updated_at DESC LIMIT 100`,[cutoff]))activity.push({id:`review-${row.review_id}`,at:row.updated_at,head:row.head_sha,source:"AI Review",subject:`PR #${row.pull_request_number}`,event:short(row.review_state),href:safeLink(row.pull_request_url),result:row.review_state==="ready"?`Review:${row.critical_count+row.important_count}`:undefined,...runContext(row.run_id)});
+  activity.push(...collectCodexSessionActivity(codexHome,now));
   for(const row of readRows(resolve(hermesHome,"state.db"),`SELECT id,title,source,started_at FROM sessions WHERE started_at>=? ORDER BY started_at DESC LIMIT 100`,[Date.parse(cutoff)/1000]))activity.push({id:`hermes-${row.id}`,sessionId:row.id,group:`hermes:${row.id}`,agent:"Hermes",at:iso(row.started_at),source:"Hermes",subject:short(row.title||row.source),event:"session_started"});
   for(const row of readRows(resolve(home,"state/briefing/briefing.db"),`SELECT attempt_id,edition_id,state,updated_at FROM briefing_run_attempts WHERE updated_at>=? ORDER BY updated_at DESC LIMIT 10`,[cutoff]))activity.push({id:`digest-${row.attempt_id}`,at:row.updated_at,source:"Digest",subject:short(row.edition_id),event:short(row.state)});
   let cinemaLinked=false;
   for(const row of readRows(resolve(home,"state/briefing/briefing.db"),`SELECT id,edition_type,local_date,published_at FROM editions WHERE published_at>=? ORDER BY published_at DESC LIMIT 10`,[cutoff])){
     const cinema=row.edition_type==="cinema";
-    const href=cinema?(cinemaLinked?undefined:"https://digest.shagon1k.win/en/cinema"):/^\d{4}-\d{2}-\d{2}$/.test(row.local_date)?`https://digest.shagon1k.win/en/daily/${row.local_date}`:undefined;
+    const href=cinema?(cinemaLinked?undefined:kuramiEntryHref("digest","en")+"cinema"):/^\d{4}-\d{2}-\d{2}$/.test(row.local_date)?`${kuramiEntryHref("digest","en")}daily/${row.local_date}`:undefined;
     if(cinema)cinemaLinked=true;
     activity.push({id:`edition-${row.id}`,at:row.published_at,source:cinema?"Cinema":"Daily",subject:short(row.local_date),event:"published",href});
   }

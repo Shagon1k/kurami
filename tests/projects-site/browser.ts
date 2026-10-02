@@ -52,8 +52,8 @@ const browser = await launchBrowser(findBrowser());
 const { devtools } = browser;
 const out = resolve(import.meta.dirname, "../../dist/projects-browser");
 mkdirSync(out, { recursive: true });
-async function wait(expression: string): Promise<void> {
-  for (let attempt = 0; attempt < 100; attempt++) { if (await devtools.evaluate<boolean>(expression)) return; await delay(50); }
+async function wait(expression: string, allowCached=false): Promise<void> {
+  for (let attempt = 0; attempt < 100; attempt++) { if (await devtools.evaluate<boolean>(`(${expression}) && !document.querySelector('#projects-dashboard')?.dataset.transitioning && (${allowCached} || !document.querySelector('[data-cached-view]')) && !document.querySelector('#project-details')?.getAnimations().some(animation=>animation.playState==='running')`)) return; await delay(50); }
   throw new Error("Timed out: " + expression);
 }
 async function open(path: string): Promise<void> {
@@ -125,7 +125,7 @@ try {
       if(width<600){
         assert.equal(await devtools.evaluate("document.querySelector('#project-details').getAttribute('aria-modal')"),"true");
         assert.equal(await devtools.evaluate("document.querySelector('[data-site-header]').inert"),true);
-        assert.equal(await devtools.evaluate("document.querySelector('#project-details').getBoundingClientRect().width"),width);
+        assert.ok(Math.abs(await devtools.evaluate<number>("document.querySelector('#project-details').getBoundingClientRect().width")-width)<.1);
       }
 
       await devtools.evaluate("document.dispatchEvent(new Event('visibilitychange'))");
@@ -136,8 +136,8 @@ try {
         const review=document.querySelector('[data-review-run]'), group=review.parentElement;
         return {reviewHeight:review.getBoundingClientRect().height,reviewWidth:review.getBoundingClientRect().width,groupWidth:group.getBoundingClientRect().width,pillHeight:document.querySelector('.projects-detail .pill').getBoundingClientRect().height,sortIcon:parseFloat(getComputedStyle(document.querySelector('[data-sort] .button__svg')).width),actionWidths:[...document.querySelectorAll('[data-run-action]')].every(button=>Math.abs(button.getBoundingClientRect().width-button.parentElement.getBoundingClientRect().width)<1)};
       })()`);
-      assert.equal(density.reviewHeight,36,"standard action height");
-      assert.ok(Math.abs(density.reviewWidth-density.groupWidth)<1,"review action fills its group");
+      assert.ok(density.reviewHeight>=32&&density.reviewHeight<=36,"compact actions retain coarse-pointer targets");
+      assert.ok(density.reviewWidth<=density.groupWidth,"contextual review fits within its check row");
       assert.ok(density.pillHeight<=23,"compact status pills");
       assert.equal(density.sortIcon,14,"small sorting icon");
       assert.ok(density.actionWidths,"run actions fill their groups");
@@ -171,19 +171,57 @@ try {
   await devtools.evaluate("document.querySelector('[data-item-link]').click()");
   await wait("!!document.querySelector('#project-details') && !document.querySelector('#projects-dashboard').dataset.refreshing");
   const detailSwipeY=await devtools.evaluate<number>("document.querySelector('#project-details h2').getBoundingClientRect().top+8");
+  await devtools.evaluate("window.normalFetch=fetch;window.holdFragments=true;window.releaseFragment=null;window.fetch=(...args)=>normalFetch(...args).then(response=>holdFragments&&String(args[0]).includes('/api/fragment')?new Promise(resolve=>window.releaseFragment=()=>resolve(response)):response);document.dispatchEvent(new Event('visibilitychange'));window.dragPanel=document.querySelector('#project-details')");
+  await wait("typeof releaseFragment==='function'");
+  await devtools.call("Input.dispatchTouchEvent",{type:"touchStart",touchPoints:[{x:90,y:detailSwipeY}]});
+  await devtools.call("Input.dispatchTouchEvent",{type:"touchMove",touchPoints:[{x:150,y:detailSwipeY}]});
+  assert.ok(await devtools.evaluate<boolean>("document.querySelector('#project-details').getBoundingClientRect().x>40"),"detail tracks the finger before release");
+  await devtools.evaluate("holdFragments=false;releaseFragment()");await delay(180);
+  assert.equal(await devtools.evaluate("document.querySelector('#project-details')===dragPanel"),true,"in-flight poll cannot replace a dragged panel");
+  await devtools.call("Input.dispatchTouchEvent",{type:"touchEnd",touchPoints:[]});
+  await wait("!!document.querySelector('#project-details') && !document.querySelector('#projects-dashboard').dataset.refreshing");
+  assert.ok(Math.abs(await devtools.evaluate<number>("document.querySelector('#project-details').getBoundingClientRect().x"))<1,"short swipe settles back to the original position");
+  await devtools.evaluate("window.fetch=normalFetch");
   await devtools.call("Input.dispatchTouchEvent",{type:"touchStart",touchPoints:[{x:90,y:detailSwipeY}]});
   await devtools.call("Input.dispatchTouchEvent",{type:"touchMove",touchPoints:[{x:280,y:detailSwipeY}]});
+  assert.ok(await devtools.evaluate<boolean>("document.querySelector('#project-details').getBoundingClientRect().x>150"),"close follows the finger continuously");
   await devtools.call("Input.dispatchTouchEvent",{type:"touchEnd",touchPoints:[]});
   await wait("!document.querySelector('#project-details') && !document.body.classList.contains('projects-mobile-detail-open')");
   const swipeY=await devtools.evaluate<number>("document.querySelector('.projects-task-meta').getBoundingClientRect().top+8");
   await devtools.call("Input.dispatchTouchEvent",{type:"touchStart",touchPoints:[{x:290,y:swipeY}]});
   await devtools.call("Input.dispatchTouchEvent",{type:"touchMove",touchPoints:[{x:90,y:swipeY}]});
+  await devtools.evaluate("new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve)))");
+  const opening=await devtools.evaluate<{found:boolean;inert:boolean;x:number;transform:string}>("(()=>{const panel=document.querySelector('.projects-detail[data-dragging]');return {found:!!panel,inert:panel?.inert??false,x:panel?.getBoundingClientRect().x??-1,transform:panel?.style.transform??''}})()");
+  assert.ok(opening.found&&opening.inert&&opening.x>0&&opening.x<250,"opening reveals an inert adjacent panel before release: "+JSON.stringify(opening));
   await devtools.call("Input.dispatchTouchEvent",{type:"touchEnd",touchPoints:[]});
   await wait("!!document.querySelector('#project-details') && !document.querySelector('#projects-dashboard').dataset.refreshing");
   await devtools.evaluate("history.back()");
   await wait("!document.querySelector('#project-details') && !document.querySelector('#projects-dashboard').dataset.refreshing");
   await devtools.evaluate("history.forward()");
   await wait("!!document.querySelector('#project-details') && !document.querySelector('#projects-dashboard').dataset.refreshing");
+  await devtools.call("Emulation.setEmulatedMedia",{features:[{name:"prefers-reduced-motion",value:"reduce"}]});
+  await devtools.call("Input.dispatchTouchEvent",{type:"touchStart",touchPoints:[{x:90,y:detailSwipeY}]});
+  await devtools.call("Input.dispatchTouchEvent",{type:"touchMove",touchPoints:[{x:140,y:detailSwipeY}]});
+  await devtools.call("Input.dispatchTouchEvent",{type:"touchCancel",touchPoints:[]});
+  assert.ok(Math.abs(await devtools.evaluate<number>("document.querySelector('#project-details').getBoundingClientRect().x"))<1,"pointer cancellation removes the partial translation");
+  await devtools.call("Emulation.setEmulatedMedia",{features:[]});
+  await devtools.call("Input.dispatchTouchEvent",{type:"touchStart",touchPoints:[{x:90,y:detailSwipeY}]});
+  await devtools.call("Input.dispatchTouchEvent",{type:"touchMove",touchPoints:[{x:95,y:detailSwipeY+70}]});
+  await devtools.call("Input.dispatchTouchEvent",{type:"touchEnd",touchPoints:[]});
+  assert.equal(await devtools.evaluate("!!document.querySelector('#project-details')&&!document.querySelector('[data-dragging]')"),true,"vertical scrolling is not a navigation drag");
+  await devtools.call("Input.dispatchTouchEvent",{type:"touchStart",touchPoints:[{id:0,x:90,y:detailSwipeY}]});
+  await devtools.call("Input.dispatchTouchEvent",{type:"touchMove",touchPoints:[{id:0,x:140,y:detailSwipeY}]});
+  await devtools.call("Input.dispatchTouchEvent",{type:"touchStart",touchPoints:[{id:0,x:140,y:detailSwipeY},{id:1,x:190,y:detailSwipeY}]});
+  await devtools.call("Input.dispatchTouchEvent",{type:"touchEnd",touchPoints:[]});
+  assert.equal(await devtools.evaluate("!!document.querySelector('#project-details')&&!document.querySelector('[data-dragging]')"),true,"a second touch cancels navigation");
+  await devtools.evaluate("document.querySelector('[data-item-close]').click()");
+  await wait("!document.querySelector('#project-details')&&!document.querySelector('#projects-dashboard').dataset.refreshing");
+  await devtools.evaluate("window.fetch=(...args)=>String(args[0]).includes('/api/fragment')?Promise.reject(new Error('offline')):normalFetch(...args);document.querySelector('[data-item-link]').click()");
+  await wait("document.querySelector('[data-cached-view]')?.textContent.includes('refresh failed')&&!document.querySelector('#projects-dashboard').dataset.refreshing",true);
+  assert.equal(await devtools.evaluate("[...document.querySelectorAll('#project-details [data-run-action],#project-details [data-review-run],#project-details [data-status-submit],#project-details select')].every(control=>control.disabled)"),true,"offline cached details never authorize writes");
+  await devtools.evaluate("window.fetch=normalFetch;document.dispatchEvent(new Event('visibilitychange'))");
+  await wait("!!document.querySelector('#project-details')&&!document.querySelector('#projects-dashboard').dataset.refreshing");
+  assert.equal(await devtools.evaluate("document.querySelector('[data-review-run]').disabled"),false,"a fresh response restores server-authorized controls");
   failReview=true;
   await devtools.evaluate("document.querySelector('[data-review-run]').click()");
   await wait("document.querySelector('[data-toast-message]').textContent.includes('unavailable')");
@@ -275,7 +313,7 @@ try {
   assert.equal(await devtools.evaluate("document.querySelector('[data-review-run]').disabled"),true);
   assert.match(await devtools.evaluate<string>("document.querySelector('#project-details').textContent"),/Queued/);
   await audit();
-  await devtools.evaluate("const field=document.querySelector('[data-status-form] select');field.value='Done';field.dispatchEvent(new Event('change',{bubbles:true}));field.focus()");
+  await devtools.evaluate("document.querySelector('.projects-status-editor').open=true;const field=document.querySelector('[data-status-form] select');field.value='Done';field.dispatchEvent(new Event('change',{bubbles:true}));field.focus()");
   assert.equal(await devtools.evaluate("document.querySelector('[data-status-submit]').disabled"),false);
   assert.match(await devtools.evaluate<string>("document.querySelector('[data-status-note]').textContent"),/completion requirements/);
   await devtools.evaluate("document.dispatchEvent(new Event('visibilitychange'))");
@@ -308,7 +346,7 @@ try {
   await wait("document.querySelector('[data-toast-message]').textContent.includes('queued in Kurami')");
   assert.equal(actionKeys.length,2);
   assert.equal(await devtools.evaluate("document.querySelector('[data-run-action=preview_start]').disabled"),true);
-  assert.match(await devtools.evaluate<string>("document.querySelector('[data-run-action=preview_start]').closest('.projects-run-actions').textContent"),/Queued/);
+  assert.match(await devtools.evaluate<string>("document.querySelector('[data-run-action=preview_start]').closest('.projects-evidence-row').textContent"),/Queued/);
   cancellation=true;
   await devtools.evaluate("document.dispatchEvent(new Event('visibilitychange'))");
   await wait("!!document.querySelector('[data-run-action=discard_local]')");

@@ -25,6 +25,8 @@ function toggleControls(){
   controlsPopover.querySelector('button')?.focus();
 }
 controlsPopover?.addEventListener('toggle',event=>controlsTrigger?.setAttribute('aria-expanded',String(event.newState==='open')));
+controlsPopover?.addEventListener('beforetoggle',event=>{if(event.newState==='open')positionControls();});
+controlsPopover?.addEventListener('toggle',event=>{if(event.newState==='open')controlsPopover.querySelector('button')?.focus();});
 addEventListener('resize',()=>{if(popoverOpen())positionControls();});
 document.addEventListener('keydown',event=>{if(event.key==='Escape'&&popoverOpen()){event.preventDefault();hideControls();controlsTrigger?.focus();}});
 document.addEventListener('click',event=>{if(controlsPopover?.classList.contains('is-open')&&!controlsPopover.contains(event.target)&&!controlsTrigger?.contains(event.target))hideControls();});
@@ -34,6 +36,7 @@ const controlResult=document.getElementById("hub-control-result");
 const csrf=document.querySelector('meta[name="hub-control-token"]')?.content??"";
 const text=(ru,en)=>hubLanguage==="ru"?ru:en;
 let pending=null,controlView=null,controlBusy=false,opener=null;
+let controlReadVersion=0;
 let selectedPeriod=null;
 const workFilters={project:'all',agent:'all'};
 let selectedRepositories=null;
@@ -165,11 +168,18 @@ function confirmAction(action,payload,message){
   document.getElementById("hub-confirm-message").textContent=message;
   dialog.querySelector("[data-hub-confirm]").focus();
 }
+function controlTitle(action){
+  const titles={models:text('Модели','Models'),settings:text('Настройки','Settings'),'composio-check':text('Проверка Composio','Composio check'),restart:text('Перезапуск Hermes','Restart Hermes'),'codex-reset':text('Сброс лимитов Codex','Reset Codex limits')};
+  document.getElementById('hub-control-dialog-title').textContent=titles[action]??titles[controlView]??text('Управление','Controls');
+}
 async function loadControl(action){
+  const version=++controlReadVersion;
   controlView=action;pending=null;confirmation.hidden=true;controlContent.hidden=false;
-  controlContent.textContent=text("Загрузка…","Loading…");
-  try{const result=await api(action);controlContent.innerHTML=document.getElementById('hub-control-back').innerHTML+result.html;}
-  catch(error){controlContent.textContent=error.message;}
+  controlTitle(action);controlContent.textContent=action==='composio-check'?text('Проверяем конфигурацию Composio…','Checking Composio configuration…'):text("Загрузка…","Loading…");
+  controlContent.setAttribute('aria-busy','true');
+  try{const result=await api(action);if(version===controlReadVersion&&dialog.open&&controlView===action)controlContent.innerHTML=result.html;}
+  catch(error){if(version===controlReadVersion&&dialog.open&&controlView===action)controlContent.textContent=error.message;}
+  finally{if(version===controlReadVersion)controlContent.removeAttribute('aria-busy');}
 }
 document.addEventListener("click",event=>{
   const button=event.target.closest?.("[data-hub-control],[data-dialog-close],[data-hub-confirm],[data-hub-cancel]");
@@ -180,9 +190,10 @@ document.addEventListener("click",event=>{
     if(!controlView)dialog.close();return;
   }
   if(button.hasAttribute("data-hub-confirm")){void performAction(button);return;}
-  if(button.dataset.hubControl==='menu'){toggleControls();return;}
+  if(button.dataset.hubControl==='menu'){if(!controlsPopover?.showPopover)toggleControls();return;}
   showDialog(button);
   const action=button.dataset.hubControl;
+  controlTitle(action);
   if(["models","settings","composio-check"].includes(action)){void loadControl(action);return;}
   if(action==="codex-reset"){
     controlView=null;
@@ -238,4 +249,4 @@ async function performAction(button){
   finally{controlBusy=false;button.removeAttribute("aria-busy");}
 }
 dialog?.addEventListener("cancel",event=>{if(controlBusy)event.preventDefault();});
-dialog?.addEventListener("close",()=>{pending=null;if(!popoverOpen())opener?.focus();});
+dialog?.addEventListener("close",()=>{if(dialog.open)return;controlReadVersion++;controlContent.removeAttribute('aria-busy');pending=null;if(!popoverOpen())opener?.focus();});

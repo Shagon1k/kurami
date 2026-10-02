@@ -12,6 +12,10 @@ Cinema is a separate page, `/cinema`, with a review of the cinema week. Every Sa
 
 ## The four blocks
 
+On phones, a story image sits above its text, as in Daily. Desktop retains the
+horizontal layout. Images keep their proportions; a story without an image
+does not reserve an empty image column.
+
 | Block | What is inside | Source |
 |---|---|---|
 | **Пульс проката** (box office pulse) | The US weekend winner, up to four "movements" (biggest debut, best hold, sharpest drop, chart shift), weekend and year tables, a chart of the top five over six weeks | Box Office Watch; AP and Kinopoisk on failure; Lithuania from the Lithuanian Film Centre report, world from Kinopoisk |
