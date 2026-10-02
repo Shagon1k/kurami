@@ -29,11 +29,15 @@ Project field; its authority and write behavior are unchanged. Shared pills
 mark the Project status and Suggested next recommendation. Kurami stages, check
 results and source freshness use plain colored text, with no badge container.
 Small icons identify CI, review, preview, projects and owner attention.
+Without an observed run or stage, Kurami shows No agent run rather than Not started.
+This does not change the task's GitHub status; known run states stay visible.
 
 On desktop, the table scrolls within the remaining viewport height and keeps
 its headings visible. The details panel has a separate scroll area. Automatic
 updates retain each scroll position. On phones, the table keeps the normal page
 scroll instead of gaining a nested scroll area.
+At viewport widths of 1280px and above, the panel grows from 380px to at most
+420px. Smaller desktop viewports retain the 360px panel.
 
 A task opens in a side panel on wide screens and a full-screen dialog below
 900 pixels. The mobile dialog locks background scrolling, makes background
@@ -74,6 +78,8 @@ Multiline labels can grow vertically. Status pills
 use 11px text with 2px vertical padding. Sort headings put a thin 14px icon after
 the label. Checks is centered horizontally and shares the headings' vertical
 alignment. Header padding is denser than body-row padding.
+Actions in each pair share a button row through CSS subgrid, so wrapped labels
+give both buttons the same height. Their state and hint text occupy a separate row.
 
 Unavailable controls retain their reason. Pending status writes show the
 requested destination while the table retains its observed status until the
@@ -83,6 +89,7 @@ visible while the card scrolls.
 
 Deletion requires explicit Confirm/Cancel. Escape cancels the confirmation and
 returns focus to its action. Opening or reading the confirmation does not write.
+The confirmation occupies the full action grid, with its controls aligned right.
 Automatic replacement pauses during confirmation or text selection. Shared
 run/SHA/preview checks still validate each action on the server.
 
@@ -92,6 +99,8 @@ The Sync button opens an anchored popover with per-project freshness and
 observation times. It uses native popover dismissal and stays inside the
 viewport. It does not change the page layout. Times use Europe/Vilnius; the
 browser refreshes every 30 seconds against the existing minute poller.
+A small mobile indicator distinguishes fresh data from delayed synchronization;
+the button's full accessible name and tooltip retain the explicit state.
 
 Suggested next comes from the persisted ranking used by the Discord digest.
 Its pill appears on the matching present backlog issue. The detail card shows

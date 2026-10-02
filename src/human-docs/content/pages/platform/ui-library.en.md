@@ -58,6 +58,11 @@ align desktop actions; on phones the link sits beside the title and Events besid
 the timestamp. Expanded events occupy the full row width.
 System Health cards use the shared small card shadow.
 
+Inline disclosures support a stable key, an anchor ID and summary typography
+properties. Stacked tables can arrange labelled mobile values in a compact grid.
+Toggle links use `aria-current` for the selected period; their selected colors
+can follow a product's data accent without changing the primary action style.
+
 Modal dialogs lock background scrolling while keeping their own content
 scrollable. Closing the last modal releases the lock. Apps and collapsed Docs
 menus close on repeat click, outside click or Escape; Escape returns focus to

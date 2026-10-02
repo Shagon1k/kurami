@@ -171,10 +171,15 @@ try{
   const changed=structuredClone(input.baseline);changed.positions[0]!.quantity="3";
   assert(reviewFreshness(saved,"2026-09-18T06:00:00Z",changed).changedHoldings);
   const panel=renderReviewPanel([saved,savedMonth],"2026-09-18T06:00:00Z",input.baseline);
-  assert(panel.startsWith('<details class="investment-review"><summary><h2>Обзор портфеля</h2>'));
+  assert(panel.startsWith('<details class="investment-review"><summary><span class="investment-review__heading"><h2>Обзор портфеля</h2>'));
+  assert(panel.slice(0,panel.indexOf('</summary>')).includes('datetime="2026-09-18"'),"Collapsed panel retains each report's date");
   assert(!panel.includes(saved.draft.headline),"Editorial headline does not add a second disclosure title");
   assert(panel.includes("Неделя"));assert(panel.includes("Месяц"));assert(!panel.includes(" open"));
   const single=renderReviewPanel([saved],"2026-09-18T06:00:00Z",input.baseline);
+  const outdated=renderReviewPanel([saved],"2026-10-18T06:00:00Z");
+  const collapsed=outdated.slice(0,outdated.indexOf('</summary>'));
+  assert(collapsed.includes("Обзор устарел"));assert(collapsed.includes("Подтверди состав"));
+  assert(single.includes('disclosure__chevron'),"Nested controls use the common SVG disclosure");
   assert(!single.includes('class="investment-review__period"'),"Single report opens with the main heading, no redundant nesting");
   assert(!single.includes("Пробный обзор"));assert(single.includes("18 сентября"));
   assert(panel.includes('id="weekly-learn-overlap"'));assert(panel.includes('id="monthly-learn-overlap"'));

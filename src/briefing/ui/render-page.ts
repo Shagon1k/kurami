@@ -7,6 +7,7 @@ import { renderKuramiNote } from "./components/kurami-note.ts";
 import {renderPageShell} from "./page-shell.ts";
 import { renderMetricStrip, timeMetricCard } from "./components/metric-strip.ts";
 import {digestLanguage,digestText} from "../i18n.ts";
+import {refreshCinemaUi} from "./components/cinema-section.ts";
 
 function formatDate(payload: BriefingPayload): string {
   const value = new Date(`${payload.edition.localDate}T12:00:00`);
@@ -66,7 +67,7 @@ export function renderBriefingPage(payload: BriefingPayload): string {
   const main = renderAddonSlot(payload, "main");
   const afterMain = renderAddonSlot(payload, "after-main");
   const utilityTitle = payload.edition.type === "cinema" ? "Kurami Cinema" : "Kurami Daily Briefing";
-  return renderPageShell({title,brand:utilityTitle,section:payload.edition.type,date:payload.edition.localDate,dateLabel:formatDate(payload),generated,updatedAt:payload.edition.generatedAt,timezone:payload.edition.timezone,content:`\n    <section class="hero">
+  return refreshCinemaUi(renderPageShell({title,brand:utilityTitle,section:payload.edition.type,date:payload.edition.localDate,dateLabel:formatDate(payload),generated,updatedAt:payload.edition.generatedAt,timezone:payload.edition.timezone,content:`\n    <section class="hero">
       <div><p class="hero__eyebrow">${escapeHtml(payloadTitle)} · ${escapeHtml(payload.edition.localDate)}</p>
         <h1>${escapeHtml(title)}</h1>
         <p class="hero__subtitle">${escapeHtml(subtitle)}</p></div>
@@ -80,5 +81,5 @@ export function renderBriefingPage(payload: BriefingPayload): string {
     </div>` : ""}
     ${main}
     ${afterMain ? `${afterMain}\n    ` : ""}${renderQuality(payload)}
-  `});
+  `}));
 }

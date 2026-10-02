@@ -1,12 +1,13 @@
 import type {HubAlert,HubActivity,ProblemNext} from "./operations.ts";
-export type HubProblem={id:string;subject:string;title:string;project?:string;task:boolean;severity:"warning"|"critical";issues:HubAlert[];href?:string;actor:"owner"|"agent"|"system";next:ProblemNext};
+export type HubProblem={id:string;subject:string;title:string;project?:string;itemId?:string;task:boolean;severity:"warning"|"critical";issues:HubAlert[];href?:string;actor:"owner"|"agent"|"system";next:ProblemNext};
 export function problemQueue(alerts:HubAlert[]):HubProblem[] {
   const groups=new Map<string,HubProblem>();
   for(const alert of alerts){
     const task=["ci_unrepaired","review_unrepaired","run_attention","owner_input"].includes(alert.code);
     const id=alert.group??(alert.code==="health_issue"||alert.code.startsWith("health_")?"system:health":task&&alert.href?`task:${alert.href}`:alert.id);
     const defaults=alert.code==="poll_stale"?"check_project":alert.code==="orchestrator_unavailable"?"restore_db":alert.code==="health_issue"?"inspect_health":alert.code==="owner_input"?"reply":alert.code==="run_attention"?"inspect_task":task?"start_repair":"check_collector";
-    const group=groups.get(id)??{id,subject:id==="system:health"?"System Health":alert.subject,title:alert.title??"",project:alert.project,task:alert.task??task,severity:alert.severity,issues:[],href:alert.href,actor:alert.actor??"owner",next:alert.next??defaults};
+    const group=groups.get(id)??{id,subject:id==="system:health"?"System Health":alert.subject,title:alert.title??"",project:alert.project,itemId:alert.itemId,task:alert.task??task,severity:alert.severity,issues:[],href:alert.href,actor:alert.actor??"owner",next:alert.next??defaults};
+    group.itemId??=alert.itemId;
     if(alert.severity==="critical")group.severity="critical";
     if(!group.issues.some(issue=>issue.code===alert.code&&issue.subject===alert.subject))group.issues.push(alert);
     if(alert.next==="reply"||alert.next==="inspect_task"){group.next=alert.next;group.actor="owner";}
@@ -47,6 +48,6 @@ export function workFeed(events:HubActivity[]):WorkItem[] {
     const resultEvent=resultEvents.find(item=>item.result);
     const result=resultEvent===review&&review?.head&&ci?.head&&review.head!==ci.head?"Review:outdated":resultEvent?.result;
     const retained=items.slice(0,50);
-    return {id,at:latest.at,subject:state.subject,project:latest.project??"other",agent:latest.agent??(["Codex","Hermes"].includes(latest.source)?latest.source:"Kurami"),event:latest.taskState??state.event,href:link?.href,result,events:retained,summaryEvents:summarizeActivity(retained),limited:items.length>50||items.some(item=>item.limited===true)};
+    return {id,at:latest.at,subject:state.subject.trim()||items.find(item=>item.subject.trim())?.subject.trim()||"",project:latest.project??"other",agent:latest.agent??(["Codex","Hermes"].includes(latest.source)?latest.source:"Kurami"),event:latest.taskState??state.event,href:link?.href,result,events:retained,summaryEvents:summarizeActivity(retained),limited:items.length>50||items.some(item=>item.limited===true)};
   }).sort((a,b)=>Date.parse(b.at)-Date.parse(a.at)).slice(0,100);
 }

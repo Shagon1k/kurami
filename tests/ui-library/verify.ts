@@ -46,6 +46,10 @@ for(const lang of ["en","ru"] as const)for(const app of ["hub","digest","project
   assert.deepEqual(kuramiSites(app,lang).links.map(link=>link.label),["Hub","Digest","Projects","Docs","Hermes","Dokploy"]);
 }
 assert.match(renderDisclosure({summary:"Events",body:"<ol></ol>",variant:"row"}),/disclosure--inline disclosure--row/);
+assert.match(renderDisclosure({summary:"Sources",body:"<p>Evidence</p>",id:"review-sources",variant:"inline"}),/id="review-sources"/);
+assert.throws(()=>renderDisclosure({summary:"Sources",body:"",id:'unsafe" id'}),/Invalid disclosure ID/);
+assert.match(DISCLOSURE_CSS,/font-size: var\(--disclosure-summary-font-size\)/);
+assert.match(TABLE_CSS,/grid-template-columns: var\(--table-stack-row-columns\)/);
 const dialogActions=renderDialogActions(renderButton({label:"Cancel",variant:"secondary"})+renderButton({label:"Confirm",variant:"primary"}));
 assert(dialogActions.indexOf('Cancel')<dialogActions.indexOf('Confirm'));
 assert.match(dialogActions,/class="dialog__actions"/);

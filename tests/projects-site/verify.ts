@@ -108,6 +108,16 @@ assert.equal(await access.authorize(request(tampered.join("."))), null, "unverif
 assert.equal(await new ProjectsAccess({ team: "", audience: "", ownerEmail: "" }).authorize(request(token())), null);
 
 const fixture = syntheticProjectsSnapshot();
+const runlessDone=structuredClone(fixture);runlessDone.items=[{...fixture.items[3]!,status:"Done"}];
+assert.match(renderProjectsPage(runlessDone),/>No agent run<\/span>/,"no observed agent run is distinct from GitHub completion");
+assert.match(renderProjectsPage(runlessDone,new URLSearchParams("lang=ru")),/>Нет запуска<\/span>/);
+assert.doesNotMatch(renderProjectsPage(runlessDone),/>Not started<\/span>/);
+assert.match(renderProjectsPage(fixture),/projects-sync-indicator--delayed/);
+const freshOnly=structuredClone(fixture);freshOnly.projects.forEach(project=>project.freshness="fresh");
+assert.match(renderProjectsPage(freshOnly),/projects-sync-indicator--fresh/);
+assert.match(renderProjectsPage(freshOnly),/title="Sync · Up to date"/);
+freshOnly.available=false;
+assert.match(renderProjectsPage(freshOnly),/projects-sync-indicator--delayed/,"unavailable snapshots cannot show a fresh indicator");
 const composed=structuredClone(fixture);
 const composedItem=composed.items[0]!;
 composedItem.aiReview={enabled:false,reason:"ready",head:composedItem.ci.head};

@@ -4,6 +4,8 @@ import {tmpdir} from "node:os";
 import {dirname,join} from "node:path";
 import {once} from "node:events";
 import {createDocsServer} from "../../src/human-docs/server.ts";
+import {renderNotFound} from "../../src/human-docs/render.ts";
+import {projectDocument} from "../../src/web/presentation.ts";
 
 const root=mkdtempSync(join(tmpdir(),"kurami-docs-origin-test-"));
 const revision="a".repeat(40);
@@ -18,6 +20,8 @@ try {
     mkdirSync(dirname(destination),{recursive:true});
     writeFileSync(destination,`fixture:${path}`);
   }
+  mkdirSync(join(root,"errors"),{recursive:true});
+  for(const lang of ["en","ru"] as const)writeFileSync(join(root,"errors",`${lang}.html`),renderNotFound(lang));
   const server=createDocsServer(root);
   server.listen(Number(process.env.DOCS_SMOKE_PORT??0),"127.0.0.1");
   await once(server,"listening");
@@ -63,10 +67,25 @@ try {
     const fox=await fetch(base+"/assets/fox.webp");
     assert.equal(fox.headers.get("content-type"),"image/webp");
     assert.equal((await fetch(base+"/ru/",{method:"POST"})).status,405);
+    for(const lang of ["en","ru"] as const){
+      const response=await fetch(base+`/${lang}/missing/`);
+      assert.equal(response.status,404);
+      assert.match(response.headers.get("content-type")??"",/^text\/html/);
+      const html=await response.text();
+      assert.ok(html.includes(lang==="en"?"Page not found":"Страница не найдена"));
+      assert.ok(html.includes(`href="/${lang}/"`));
+      assert.ok(!html.includes("missing/"),"unknown path is not reflected into markup");
+      assert.equal(await(await fetch(base+`/${lang}/missing`)).text(),html,"missing article without slash keeps the same 404 shell");
+      const head=await fetch(base+`/${lang}/missing/`,{method:"HEAD"});
+      assert.equal(head.status,404);assert.equal(await head.text(),"");
+      assert.equal(head.headers.get("content-length"),String(Buffer.byteLength(html)));
+    }
   } finally {server.close();await once(server,"close");}
   mkdirSync(join(root,"unified/en"),{recursive:true});
   const immutable='<html><head></head><body><a href="/en/docs/">Mounted fixture</a></body></html>';
   writeFileSync(join(root,"unified/en/index.html"),immutable);
+  mkdirSync(join(root,"unified/errors"),{recursive:true});
+  for(const lang of ["en","ru"] as const)writeFileSync(join(root,"unified/errors",`${lang}.html`),projectDocument(renderNotFound(lang),"docs",lang));
   writeFileSync(join(root,"build.json"),JSON.stringify({mode:"release",revision:null,docsSha:revision,webMount:true}));
   const mounted=createDocsServer(root);mounted.listen(0,"127.0.0.1");await once(mounted,"listening");
   try {
@@ -75,6 +94,17 @@ try {
     assert.equal(await response.text(),immutable,"published mounted bytes are served without rewrite");
     assert.equal(response.headers.get("content-length"),String(Buffer.byteLength(immutable)));
     assert.equal(await(await fetch(base+"/en/")).text(),"fixture:en/index.html","native artifacts remain separate");
+    for(const lang of ["en","ru"] as const){
+      const response=await fetch(base+`/${lang}/missing/`,{headers:{"x-kurami-web-app":"docs","x-kurami-web-lang":lang}});
+      assert.equal(response.status,404);const html=await response.text();
+      assert.equal(html,projectDocument(renderNotFound(lang),"docs",lang),"404 uses immutable mounted artifact");
+      assert.ok(html.includes(`href="/${lang}/docs/"`));
+      assert.ok(html.includes('/_apps/docs/assets/docs.css'));
+    }
+    for(const path of ["/errors/en.html","/unified/errors/en.html","/build.json","/assets/no-file.css"]){
+      const response=await fetch(base+path,{headers:{"x-kurami-web-app":"docs"}});
+      assert.equal(response.status,404);assert.equal(await response.text(),"","internal metadata and missing assets stay unexposed");
+    }
   } finally {mounted.close();await once(mounted,"close");}
   console.log("Docs origin: release-only gate, routes, assets and method restrictions verified");
 } finally {rmSync(root,{recursive:true,force:true});}

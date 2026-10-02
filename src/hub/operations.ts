@@ -12,7 +12,7 @@ import {codexLaunchUrl} from "../orchestrator/integrations/codex/deeplink.ts";
 import {localDay} from "../core/codex-usage.ts";
 import {kuramiEntryHref} from "../ui-library/patterns/kurami-sites.ts";
 
-export type HubAlert={id:string;severity:"warning"|"critical";code:string;subject:string;href?:string;group?:string;project?:string;title?:string;prNumber?:number;task?:boolean;next?:ProblemNext;actor?:"owner"|"agent"|"system";detail?:string};
+export type HubAlert={id:string;severity:"warning"|"critical";code:string;subject:string;href?:string;group?:string;project?:string;itemId?:string;title?:string;prNumber?:number;task?:boolean;next?:ProblemNext;actor?:"owner"|"agent"|"system";detail?:string};
 export type ProblemNext="start_repair"|"wait_repair"|"reply"|"inspect_task"|"check_collector"|"check_project"|"inspect_health"|"restore_db";
 export type HubActivity={id:string;at:string;source:string;subject:string;event:string;href?:string;group?:string;project?:string;agent?:string;sessionId?:string;turnId?:string;limited?:boolean;runId?:string;currentRunId?:string;head?:string;result?:string;taskState?:string};
 export type HubOperations={health:HealthSurfaceSnapshot|null;healthStale:boolean;alerts:HubAlert[];activity:HubActivity[]};
@@ -49,7 +49,7 @@ export function collectHubOperations(home:string,codexHome:string,hermesHome:str
   }
   if(!projectStatus.available)alerts.push({id:"project-state-unavailable",severity:"warning",code:"orchestrator_unavailable",subject:"Project Orchestrator"});
   const prefixes={run_attention:"run",owner_input:"owner",ci_unrepaired:"ci",review_unrepaired:"review"};
-  const metadata=new Map(readRows(dbPath,`SELECT r.run_id,r.project,r.issue_number,r.state,p.title,ci.pull_request_number,ci.pull_request_title,ci.checks_json FROM runs r LEFT JOIN project_items p ON p.project=r.project AND p.item_id=r.item_id LEFT JOIN run_ci_snapshots ci USING(run_id)`).map(row=>[row.run_id,row]));
+  const metadata=new Map(readRows(dbPath,`SELECT r.run_id,r.project,r.item_id,r.issue_number,r.state,p.title,ci.pull_request_number,ci.pull_request_title,ci.checks_json FROM runs r LEFT JOIN project_items p ON p.project=r.project AND p.item_id=r.item_id LEFT JOIN run_ci_snapshots ci USING(run_id)`).map(row=>[row.run_id,row]));
   for(const row of projectStatus.runs){
     const subject=`${short(row.project)} #${row.issue_number}`;
     const href=safeLink(row.pull_request_url)??safeLink(`https://github.com/${row.repository}/issues/${row.issue_number}`);
@@ -59,7 +59,7 @@ export function collectHubOperations(home:string,codexHome:string,hermesHome:str
       const ownerAction=issue.code==="owner_input"?"reply":issue.code==="run_attention"||status.ciRepairBusy&&!status.ciRepairCurrent?"inspect_task":undefined;
       let checks:string|undefined;
       if(issue.code==="ci_unrepaired"){try{const parsed=JSON.parse(info?.checks_json??"[]");if(Array.isArray(parsed))checks=parsed.filter(check=>["failed","missing"].includes(check?.state)&&typeof check?.name==="string").slice(0,3).map(check=>short(check.name)).join(", ")||undefined;}catch{}}
-      alerts.push({id:`${prefixes[issue.code]}-${row.run_id}`,...issue,subject,href,group:href??`task:${row.project}:${row.issue_number}`,project:row.project,task:true,title:short(info?.title||info?.pull_request_title),prNumber:info?.pull_request_number,
+      alerts.push({id:`${prefixes[issue.code]}-${row.run_id}`,...issue,subject,href,group:href??`task:${row.project}:${row.issue_number}`,project:row.project,itemId:typeof info?.item_id==="string"?info.item_id:undefined,task:true,title:short(info?.title||info?.pull_request_title),prNumber:info?.pull_request_number,
         actor:ownerAction?"owner":busy?"agent":"owner",next:ownerAction??(busy?"wait_repair":"start_repair"),
         detail:issue.code==="review_unrepaired"?String(status.majorFindings):checks});
     }

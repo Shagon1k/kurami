@@ -33,6 +33,8 @@ stays in the page URL across searches, project changes and refreshes.
 On phones the filter buttons show icons and counts beside a compact Sync button.
 The total task count is hidden to keep the controls on one line. Their full names
 remain available to screen readers.
+Sync keeps a small freshness indicator: green for fresh data, amber for delayed
+sync. Open Sync for each project's observation time.
 
 The card lets you change the GitHub Project status and use eligible Kurami
 actions, including AI Review and preview controls. They share Discord's request
@@ -40,6 +42,8 @@ queue. Sync shows each project's freshness; the page refreshes every 30 seconds.
 Check results use text values; the task status uses a badge. Suggested next comes
 from the same ranking as Projects Digest. Discord continues to show notifications
 and run state.
+Without an observed agent run or stage, the Kurami column shows **No agent run**.
+This is separate from the task's GitHub status, including Done.
 
 The status editor stays visible. Issue, PR, review and Discord links use bordered
 buttons in a grid. CI, review and preview share one block,
@@ -51,6 +55,8 @@ A single action fills its row; two actions share a row, including Open preview
 and Remove preview. Continuation, recovery and cleanup actions sit below the
 checks without separate headings. Informational notes use a distinct color;
 review counts use a monospaced font.
+Paired buttons keep the same height when their labels wrap. A deletion
+confirmation fills the action area, with its buttons aligned right.
 
 During a swipe, the panel follows your finger; a short drag returns it to place.
 The last task opens from page memory and then refreshes. Controls stay disabled
@@ -86,7 +92,7 @@ The stage decides which buttons make sense. Stage and button names are given as 
 
 ## Buttons
 
-A button appears only when its action is valid in the current state. The card shows at most four buttons in the order below; the rest live under **More actions…**. The three ownership buttons, Take control, Continue in Codex and Continue autonomously, are covered in [Human control](@human-control). The three ownership buttons, Take control, Continue in Codex and Continue autonomously, are covered in [Human control](@human-control). The full table with ids and request names is in the [commands reference](@commands).
+A button appears only when its action is valid in the current state. The card shows at most four buttons in the order below; the rest live under **More actions…**. The three ownership buttons, Take control, Continue in Codex and Continue autonomously, are covered in [Human control](@human-control). The full table with ids and request names is in the [commands reference](@commands).
 
 | Button | When it appears | What it triggers |
 |---|---|---|

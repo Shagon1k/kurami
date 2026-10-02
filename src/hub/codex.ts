@@ -32,8 +32,9 @@ export function collectCodexSessionActivity(home:string,now:Date):HubActivity[] 
   let db:DatabaseSync|undefined;
   try{
     db=new DatabaseSync(resolve(home,"state_5.sqlite"),{readOnly:true,timeout:500});
-    const rows=db.prepare(`SELECT id,title,created_at FROM threads WHERE created_at>=?${activityThreadFilter(db)} ORDER BY created_at DESC LIMIT 100`).all(Math.floor((now.getTime()-7*86400_000)/1000)) as {id:string;title:string;created_at:number}[];
-    return rows.map(row=>({id:`codex-${row.id}`,sessionId:row.id,group:`codex:${row.id}`,agent:"Codex",at:new Date(row.created_at*1000).toISOString(),source:"Codex",subject:(row.title??"").slice(0,120),event:"session_started"}));
+    const columns=new Set((db.prepare("PRAGMA table_info(threads)").all() as {name:string}[]).map(column=>column.name));
+    const rows=db.prepare(`SELECT id,title,${columns.has("name")?"name":"NULL"} AS name,created_at FROM threads WHERE created_at>=?${activityThreadFilter(db)} ORDER BY created_at DESC LIMIT 100`).all(Math.floor((now.getTime()-7*86400_000)/1000)) as {id:string;title:string|null;name:string|null;created_at:number}[];
+    return rows.map(row=>({id:`codex-${row.id}`,sessionId:row.id,group:`codex:${row.id}`,agent:"Codex",at:new Date(row.created_at*1000).toISOString(),source:"Codex",subject:(row.name?.trim()||row.title?.trim()||"").slice(0,120),event:"session_started"}));
   }catch{return [];}finally{db?.close();}
 }
 export function collectCodexActivity(home:string,now:Date):HubActivity[] {
@@ -44,7 +45,7 @@ export function collectCodexActivity(home:string,now:Date):HubActivity[] {
     const rows=db.prepare(`SELECT id,title,name,rollout_path FROM threads WHERE updated_at>=?${activityThreadFilter(db)} ORDER BY updated_at DESC LIMIT 100`).all(cutoff/1000) as {id:string;title:string;name:string|null;rollout_path:string|null}[];
     return rows.flatMap(row=>{
       const cache=row.rollout_path?scanFile(row.rollout_path,home):null;
-      return (cache?.activity??[]).filter(event=>event.at>=cutoff&&event.at<=now.getTime()).map(event=>({id:`codex-turn-${row.id}-${event.at}-${event.event}-${event.turnId??""}`,sessionId:row.id,turnId:event.turnId,limited:cache?.activityTruncated,group:`codex:${row.id}`,agent:"Codex",at:new Date(event.at).toISOString(),source:"Codex",subject:(row.name||row.title||"").slice(0,120),event:event.event}));
+      return (cache?.activity??[]).filter(event=>event.at>=cutoff&&event.at<=now.getTime()).map(event=>({id:`codex-turn-${row.id}-${event.at}-${event.event}-${event.turnId??""}`,sessionId:row.id,turnId:event.turnId,limited:cache?.activityTruncated,group:`codex:${row.id}`,agent:"Codex",at:new Date(event.at).toISOString(),source:"Codex",subject:(row.name?.trim()||row.title?.trim()||"").slice(0,120),event:event.event}));
     }).sort((a,b)=>Date.parse(b.at)-Date.parse(a.at)).slice(0,400);
   }catch{return [];}
   finally{db?.close();}

@@ -22,6 +22,12 @@ export const STORY_ACTIONS_LAYOUT_CSS=`
 export const DIGEST_POLISH_CSS=`
 .metric-strip { grid-template-columns:repeat(4,minmax(0,1fr)); }
 .cinema-winner b { font-size:clamp(24px,3vw,34px); }
+.cinema-rank__more { margin-top:var(--space-2); }
+.cinema-contents { display:flex; flex-wrap:wrap; gap:var(--space-1) var(--space-4); margin:0 0 var(--space-5); }
+.cinema-contents a { display:inline-flex; align-items:center; min-height:var(--control-height); color:var(--text-muted); font-size:.8125rem; text-decoration:underline; text-decoration-color:var(--border-default); text-underline-offset:.25em; }
+.cinema-contents a:hover { color:var(--text-primary); text-decoration-color:currentColor; }
+.cinema-contents a:focus-visible { outline:2px solid var(--focus-ring); outline-offset:var(--space-1); }
+.cinema-block { scroll-margin-top:calc(var(--header-offset,104px) + var(--space-4)); }
 @media (max-width: ${breakpoints.phone}px) {
   .cinema-news { grid-template-columns:24px minmax(0,1fr); }
   .cinema-news__image,.cinema-news__copy { grid-column:2; }
@@ -43,9 +49,10 @@ export const DIGEST_POLISH_CSS=`
 @media (max-width:900px) { .hero { min-height:0; padding:var(--space-6) 0 var(--space-5); } }
 @media (max-width:900px) { .metric-strip { grid-template-columns:repeat(2,minmax(0,1fr)); } }
 @media (max-width:620px) {
-  .mail-actions { grid-template-columns:minmax(0,1fr); }
-  .mail-actions__select-all,.mail-actions__submit { grid-column:1; grid-row:auto; }
-  .mail-actions__submit { --button-width:100%; }
+  .mail-actions { grid-template-columns:minmax(0,1fr) auto; }
+  .mail-actions__select-all { grid-column:1; grid-row:1; }
+  .mail-actions > [data-mail-selection] { grid-column:2; grid-row:1; text-align:right; }
+  .mail-actions__submit { grid-column:1/-1; grid-row:2; --button-width:100%; }
   .mail-row { grid-template-columns:28px minmax(0,1fr); }
   .hero { padding:var(--space-5) 0 var(--space-5); }
   .hero:has(.hero__note) { padding-bottom:88px; }
@@ -274,8 +281,6 @@ ${STORY_ACTIONS_LAYOUT_CSS}
 .cinema-rank thead th { color: var(--text-muted); font: 400 .5625rem/1 var(--font-mono); border-top: 0; }
 .cinema-rank__extra { display: none; }
 .cinema-rank:has(.cinema-rank__more[open]) .cinema-rank__extra { display: table-row; }
-.cinema-rank__more { margin-top: 8px; color: var(--text-accent); font-size: .625rem; font-weight: 600; }
-.cinema-rank__more summary { width: max-content; cursor: pointer; }
 .cinema-trailer-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; }
 .cinema-trailer, .cinema-premiere { min-width: 0; overflow: hidden; color: var(--text-primary); background: var(--surface-raised); border: 1px solid var(--border-default); border-radius: var(--radius-sm); text-decoration: none; transition: border-color 160ms ease, transform 160ms ease, box-shadow 160ms ease; }
 .cinema-trailer:hover, .cinema-premiere:hover { border-color: var(--text-primary); transform: translateY(-2px); box-shadow: var(--shadow-card-sm); }

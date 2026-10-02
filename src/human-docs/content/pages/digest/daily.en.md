@@ -38,6 +38,8 @@ If a source does not answer, the block does not go blank. It keeps the last good
 
 Archiving mail is the one action on the page that changes something outside Kurami. It applies only to messages you ticked, and it removes them from every saved edition at once.
 
+On phones, Select all and the selected-message count share a row. Read and archive fills the row below; selection and archiving behave as before.
+
 ## The Discord card
 
 ::shot{file="shot-daily-card.png" size="card" alt="Discord card: Daily Digest, edition published, story, message and event counts, an Open edition button." caption="A finished card: counters, update time and a link to the edition."}

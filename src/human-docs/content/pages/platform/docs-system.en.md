@@ -47,6 +47,8 @@ Every page is two files, `<slug>.ru.md` and `<slug>.en.md`, in the directory of 
 
 The main check is language parity. The build compares the "skeleton" of the Russian and English versions: the number of second-level headings, the diagrams by node identifiers, screenshots, generated tables and the glance, guarantees and code-map blocks. The build also checks links to other pages and repository paths in the code-map, and the test `tests/human-docs/verify.ts` scans the text for personal data: names, a time zone, Discord identifiers and home paths.
 
+On phones and tablets, an article with at least two sections has a compact **On this page** disclosure below its introduction. The section menu names the current page and keeps long lists inside a bounded scroll area. Screenshot dimensions come from the PNG files at build time, so lazy loading reserves their space. A missing article returns a 404 page with a link to Docs home, in the requested language.
+
 ## Diagrams
 
 The pictures are drawn by our own kit, `diagrams/kit.ts`, which has three engines: `graph` for architecture, flows and state machines, `sequence` for message exchange and `timeline` for a day. A ` ```diagram ` block in Markdown turns into SVG at build time, not in the browser. The kit places the nodes itself, and the author gives positions `at column,row` where automatic layout is not enough.
@@ -67,7 +69,7 @@ The description of each table is written by hand in `reference-notes.ts`. A new 
 | Docs release | `npm run docs:build-docs-release` | a clean tree | `mode: release`, `docsSha` = `HEAD`, `revision: null` | what the worker publishes |
 | App-bound | `npm run docs:build-release -- <manifest>` | a manifest `{status, appSha}` from a trusted deployment controller | `revision` = `appSha`, the changelog | adds the changes since the last release to the changelog |
 
-The docs server starts only with `mode: release` and a 40-character `docsSha`, so a preview cannot be published by mistake. There is no trusted application deployment controller in the repository, so the site is currently built in "docs release" mode: the changelog is empty and `revision` is `null`. The changelog page says so outright: the site does not claim that code of any version is running.
+The docs server starts only with `mode: release` and a 40-character `docsSha`, so a preview cannot be published by mistake. There is no trusted application deployment controller in the repository, so the site is currently built in "docs release" mode: the changelog is empty and `revision` is `null`. The changelog page shows the documentation's own `docsSha` separately and explains that the application release history is not connected to a verified deployment. That documentation version is not proof of an application release.
 
 ## Changelog
 

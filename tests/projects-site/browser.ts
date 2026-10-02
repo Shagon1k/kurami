@@ -24,7 +24,7 @@ const serverOptions = { snapshot: () => {
     else snapshot.items[0]!.statusChange = { ...snapshot.items[0]!.statusChange!, enabled: false, reason: "pending", request: {...statusRequest,checkAvailable:false} };
   }
   if(actionAccepted) snapshot.items[0]!.runActions!.actions=snapshot.items[0]!.runActions!.actions.map(action=>action.action==="preview_start"?{...action,enabled:false,state:"pending"}:action);
-  if(cancellation) snapshot.items[0]!.runActions!.actions=[{action:"discard_local",label:"Удалить локальную работу",enabled:!discarded,confirmation:"Удалить сохранённую локальную работу? Это действие нельзя отменить.",hint:null,state:discarded?"pending":null}];
+  if(cancellation) snapshot.items[0]!.runActions!.actions=[{action:"take_control",label:"Продолжить в Codex",enabled:true,confirmation:null,hint:null,state:null},{action:"discard_local",label:"Удалить локальную работу",enabled:!discarded,confirmation:"Удалить сохранённую локальную работу? Это действие нельзя отменить.",hint:null,state:discarded?"pending":null}];
   if(dense)for(let index=0;index<80;index++)snapshot.items.push({...snapshot.items[3]!,id:`bulk-${index}`,number:100+index,title:`Additional task ${index}`});
   return snapshot;
 }, cacheMs: 0, authorize: async () => "fixture-owner", origin: "", review: (value: unknown) => {
@@ -73,6 +73,9 @@ async function mobileOverview(): Promise<void> {
   assert.ok(layout.sameRow&&layout.withinViewport,"mobile filters and Sync share a row without overflow");
   assert.equal(await devtools.evaluate("getComputedStyle(document.querySelector('[data-visible-count]').closest('p')).display"),"none","total task count does not take a separate mobile row");
   assert.ok(layout.hiddenLabels&&layout.accessibleNames,"compact filters retain full accessible names");
+  assert.equal(await devtools.evaluate("getComputedStyle(document.querySelector('.projects-sync-indicator')).display"),"block","mobile Sync keeps its freshness indicator");
+  assert.equal(await devtools.evaluate("document.querySelector('.projects-sync-indicator').classList.contains('projects-sync-indicator--delayed')"),true);
+  assert.match(await devtools.evaluate<string>("document.querySelector('[data-sync-trigger]').getAttribute('aria-label')"),/Delayed|С задержкой/);
   assert.ok(layout.rowFillsFrame&&layout.contentInset,"mobile row backgrounds fill the frame with inset content");
 }
 async function audit(): Promise<void> {
@@ -163,11 +166,12 @@ try {
     }
   }
   previewReady=true;
-  for(const width of [320,390,1280]) {
+  for(const width of [320,390,1280,1600]) {
     await devtools.call("Emulation.setDeviceMetricsOverride",{width,height:1000,deviceScaleFactor:1,mobile:width<600});
     await open('/?item=item-12');
-    const paired=await devtools.evaluate<boolean>("(()=>{const link=document.querySelector('.projects-evidence a[href=\"https://preview.example.test/\"]'),remove=document.querySelector('[data-run-action=preview_stop]'),a=link.getBoundingClientRect(),b=remove.getBoundingClientRect(),row=link.closest('.projects-action-grid').getBoundingClientRect();return Math.abs(a.top-b.top)<1&&Math.abs(a.width-b.width)<1&&a.right<=b.left&&Math.abs(b.right-row.right)<1&&!!link.querySelector('svg')})()");
+    const paired=await devtools.evaluate<boolean>("(()=>{const link=document.querySelector('.projects-evidence a[href=\"https://preview.example.test/\"]'),remove=document.querySelector('[data-run-action=preview_stop]'),a=link.getBoundingClientRect(),b=remove.getBoundingClientRect(),row=link.closest('.projects-action-grid').getBoundingClientRect();return Math.abs(a.top-b.top)<1&&Math.abs(a.width-b.width)<1&&Math.abs(a.height-b.height)<1&&a.right<=b.left&&Math.abs(b.right-row.right)<1&&!!link.querySelector('svg')})()");
     assert.ok(paired,'Open preview and Remove preview are equal-width buttons on one row at '+width);
+    if(width>=1280){const panelWidth=await devtools.evaluate<number>("document.querySelector('#project-details').getBoundingClientRect().width");assert.ok(panelWidth>=380&&panelWidth<=420,'large-screen detail has a modest responsive width');}
     await audit();
     const shot=await devtools.call<{data:string}>('Page.captureScreenshot',{format:'png',captureBeyondViewport:false});
     writeFileSync(resolve(out,`projects-preview-pair-${width}.png`),Buffer.from(shot.data,'base64'));
@@ -377,6 +381,7 @@ try {
   await wait("!!document.querySelector('[data-run-action=discard_local]')");
   await devtools.evaluate("document.querySelector('[data-run-action=discard_local]').click()");
   assert.equal(actionKeys.length,2,"opening destructive confirmation never writes");
+  assert.equal(await devtools.evaluate("(()=>{const panel=document.querySelector('[data-run-confirm-panel]'),grid=panel.closest('.projects-action-grid'),buttons=panel.querySelector('.projects-confirm-buttons'),last=buttons.lastElementChild;return Math.abs(panel.getBoundingClientRect().width-grid.getBoundingClientRect().width)<1&&Math.abs(last.getBoundingClientRect().right-buttons.getBoundingClientRect().right)<1&&!panel.closest('.projects-run-action')})()"),true,"deletion confirmation spans the action grid and aligns controls right");
   assert.equal(await devtools.evaluate("document.activeElement.hasAttribute('data-run-confirm')"),true);
   await devtools.evaluate("document.querySelector('[data-run-confirm-panel] p').click();document.dispatchEvent(new Event('visibilitychange'))");
   assert.equal(actionKeys.length,2,"explanatory text is not a confirmation control");

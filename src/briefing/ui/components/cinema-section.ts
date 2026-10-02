@@ -10,6 +10,19 @@ import {
 import { originalTitleFromBilingual } from "../../cinema/titles.ts";
 import { escapeHtml } from "../html.ts";
 import {digestLanguage,digestText as t} from "../../i18n.ts";
+import {renderDisclosure} from "../../../ui-library/components/disclosure.ts";
+
+/** Refresh navigation and controls without rewriting a retained edition's content. */
+export function refreshCinemaUi(html:string):string {
+  if(!html.includes("data-cinema-edition="))return html;
+  html=html.replace(/<style\b([^>]*)>([\s\S]*?)<\/style>/gi,(_tag,attributes,css:string)=>`<style${attributes}>${css.replace(/\.cinema-rank__more\s+summary\s*\{[^}]*\}/g,"")}</style>`);
+  html=html.replace(/<details class="cinema-rank__more"><summary>([^<]*)<\/summary>([\s\S]*?)<\/details>/g,(_match,summary,body)=>renderDisclosure({summary,body,variant:"inline",className:"cinema-rank__more"}));
+  if(html.includes("data-cinema-contents"))return html;
+  const sections=[["box-office",t("Прокат","Box office")],["trailers",t("Трейлеры","Trailers")],["premieres",t("Премьеры","Premieres")],["cinema-news",t("Новости","News")]];
+  const links=sections.filter(([id])=>html.includes(`id="${id}"`)).map(([id,label])=>`<a href="#${id}">${escapeHtml(label)}</a>`).join("");
+  if(!links)return html;
+  return html.replace(/(<section class="hero">[\s\S]*?<\/section>)/,`$1<nav class="cinema-contents" data-cinema-contents aria-label="${t("Разделы кинообзора","Cinema sections")}">${links}</nav>`);
+}
 
 function money(amount: number, currency: string): string {
   return new Intl.NumberFormat(digestLanguage()==="en"?"en-US":"ru-RU", {
@@ -54,7 +67,7 @@ function rankTable(chart: CinemaChart): string {
   const title=chart.id==="us-weekend"?t("США — уикенд","US — weekend"):chart.id==="us-ytd"?t("США — с начала года","US — year to date"):chart.id==="world-ytd"?t("Мировой прокат — с начала года","Worldwide — year to date"):chart.label;
   return `<article class="cinema-rank"><header><div><span>${escapeHtml(chart.region)}</span><h3>${escapeHtml(title)}</h3></div><span>${chart.period === "ytd" ? t("год","year") : t("уикенд","weekend")}</span></header>
     <table><thead><tr><th>#</th><th>${t("Фильм","Film")}</th><th>${t("Сборы","Gross")}</th><th>Δ</th></tr></thead><tbody>${chartRows(chart)}</tbody></table>
-    ${hasMore ? `<details class="cinema-rank__more"><summary>${t("Показать топ-10","Show top 10")}</summary><span class="sr-only">${t("Остальные строки уже находятся в таблице и открываются стилями.","The remaining rows are already in the table and are revealed by styles.")}</span></details>` : ""}
+    ${hasMore ? renderDisclosure({summary:t("Показать топ-10","Show top 10"),variant:"inline",className:"cinema-rank__more",body:`<span class="sr-only">${t("Остальные строки уже находятся в таблице и открываются стилями.","The remaining rows are already in the table and are revealed by styles.")}</span>`}) : ""}
   </article>`;
 }
 

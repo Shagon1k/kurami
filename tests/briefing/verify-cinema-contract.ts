@@ -28,6 +28,7 @@ import {
   promoteCinemaSnapshot,
 } from "../../src/briefing/cinema/promotion.ts";
 import { cinemaEnvelopeToBriefingPayload } from "../../src/briefing/cinema/payload.ts";
+import {refreshCinemaUi} from "../../src/briefing/ui/components/cinema-section.ts";
 import {
   cinemaPremiereCoverage,
   cinemaWeeklyCoverage,
@@ -736,6 +737,14 @@ snapshotDatabase.close();
 const cinemaPayload = cinemaEnvelopeToBriefingPayload(envelope);
 const cinemaHtml = renderBriefingPage(cinemaPayload);
 validateRenderedHtml(cinemaHtml, cinemaPayload);
+assert.match(cinemaHtml,/data-cinema-contents/);
+for(const section of ["box-office","trailers","premieres","cinema-news"])assert(cinemaHtml.includes(`href="#${section}"`));
+assert.equal(refreshCinemaUi(cinemaHtml),cinemaHtml,"Navigation refresh is idempotent");
+const retained='<section class="hero"><h1>Retained</h1></section><div data-cinema-edition="old"><section id="cinema-news"><p>Frozen editorial text</p></section><details class="cinema-rank__more"><summary>Показать топ-10</summary><span>Existing rows</span></details></div>';
+const refreshed=refreshCinemaUi(retained);
+assert(refreshed.includes('href="#cinema-news"'));assert(!refreshed.includes('href="#trailers"'));
+assert(refreshed.includes('disclosure__chevron'));assert(refreshed.includes('Frozen editorial text'));
+assert.equal(refreshCinemaUi(refreshed),refreshed);
 for (const marker of [
   "Пульс проката",
   "Трейлеры недели",

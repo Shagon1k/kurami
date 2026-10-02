@@ -24,7 +24,10 @@ export const PROJECTS_STYLES=[THEME_CSS,FOUNDATION_CSS,BUTTON_CSS,TABLE_CSS,FORM
 .projects-summary p { margin-inline-end: var(--space-2); }
 .projects-filters { display: grid; grid-template-columns: repeat(2,max-content); gap: var(--space-2); }
 .projects-summary p strong { color: var(--text-primary); font: 600 .82rem var(--font-mono); }
-.projects-sync { margin-inline-start: auto; --popover-width: 380px; --popover-padding: var(--space-4); }
+.projects-sync { display: flex; align-items: center; gap: var(--space-1); margin-inline-start: auto; --popover-width: 380px; --popover-padding: var(--space-4); }
+.projects-sync-indicator { display: none; inline-size: var(--space-2); block-size: var(--space-2); border-radius: var(--radius-pill); flex: none; }
+.projects-sync-indicator--fresh { background: var(--status-success); }
+.projects-sync-indicator--delayed { background: var(--status-warning); }
 .projects-sync-list li { padding-block: var(--space-2); border-bottom: 1px solid var(--border-subtle); }
 .projects-sync-list li > div { display: flex; align-items: center; justify-content: space-between; gap: var(--space-3); }
 .projects-sync-list time { display: block; color: var(--text-muted); font: .72rem var(--font-mono); padding-block: var(--space-1); }
@@ -79,16 +82,21 @@ export const PROJECTS_STYLES=[THEME_CSS,FOUNDATION_CSS,BUTTON_CSS,TABLE_CSS,FORM
 .projects-evidence-label strong { font-size: .78rem; font-weight: 500; }
 .projects-detail code { font: .66rem var(--font-mono); color: var(--text-muted); }
 .projects-findings { color: var(--status-info); font: .7rem/1.5 var(--font-mono); margin: 0; }
-.projects-action-grid { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: var(--space-2); }
-.projects-run-action { --button-width: 100%; min-width: 0; }
-.projects-run-action:last-child:nth-child(odd) { grid-column: 1 / -1; }
+.projects-action-grid { display: grid; gap: var(--space-2); }
+.projects-action-pair { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); column-gap: var(--space-2); }
+.projects-action-pair:has(> :only-child) { grid-template-columns: minmax(0,1fr); }
+.projects-run-action { --button-width: 100%; min-width: 0; display: grid; grid-template-rows: subgrid; grid-row: span 2; }
+.projects-run-action-meta { min-width: 0; }
 .projects-action-note,.projects-status-note,.projects-info { color: var(--status-info); font-size: .74rem; line-height: 1.5; margin: var(--space-2) 0 0; }
-.projects-confirm-buttons { --button-width: auto; display: flex; flex-wrap: wrap; gap: var(--space-2); margin-top: var(--space-2); }
+.projects-confirm-buttons { --button-width: auto; display: flex; flex-wrap: wrap; justify-content: flex-end; gap: var(--space-2); margin-top: var(--space-2); }
 .projects-update { color: var(--text-muted); font-size: .7rem; line-height: 1.6; margin: var(--space-2) 0 0; }
 [data-search-empty] { padding: var(--space-4); }
 @media (min-width: 901px) {
   .projects-table { --table-cell-padding: var(--space-4); --table-max-height: var(--projects-table-height,calc(100dvh - 230px)); --table-head-position: sticky; --table-overscroll: contain; }
   .projects-detail { max-height: var(--projects-table-height,calc(100dvh - 230px)); overflow-y: auto; overscroll-behavior: contain; }
+}
+@media (min-width: 1280px) {
+  .projects-grid--detail { grid-template-columns: minmax(0,1fr) clamp(380px,28vw,420px); }
 }
 @media (max-width: 900px) {
   .projects-grid--detail { grid-template-columns: minmax(0,1fr); }
@@ -102,6 +110,7 @@ export const PROJECTS_STYLES=[THEME_CSS,FOUNDATION_CSS,BUTTON_CSS,TABLE_CSS,FORM
   .projects-summary { display: contents; }
   .projects-summary p { display: none; }
   .projects-overview { display: grid; grid-template-columns: minmax(0,1fr) auto; gap: var(--space-2); margin-block: var(--space-2); }
+  .projects-sync-indicator { display: block; }
   .projects-mobile-sort { display: flex; flex-wrap: wrap; gap: var(--space-1); margin-bottom: var(--space-2); }
   .projects-table { --table-stack-row-padding: var(--space-3) var(--space-4); --table-stack-label-display: none; }
   .projects-task { max-width: none; min-width: 0; }

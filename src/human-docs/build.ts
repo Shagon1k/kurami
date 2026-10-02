@@ -6,7 +6,7 @@ import {allPages,pages} from "./content.ts";
 import {assertContent} from "./content/schema.ts";
 import {aliases} from "./content/site.ts";
 import {readDeploymentManifest,changesForDeployedSha,assertDocsSourceMatchesDeployment,type Language} from "./changelog.ts";
-import {renderAlias,renderArticle,renderChangelog,renderHome,resolveSlug} from "./render.ts";
+import {renderAlias,renderArticle,renderChangelog,renderHome,renderNotFound,resolveSlug} from "./render.ts";
 import {DOCS_STYLES} from "./styles.ts";
 import {fontFiles} from "../ui-library/foundations/fonts.ts";
 import {THEME_RUNTIME_JS} from "../ui-library/runtime/theme.ts";
@@ -44,7 +44,7 @@ for(const lang of ["en","ru"] as Language[]){
     rendered.push([`${lang}/${page.slug}/index.html`,article.html]);diagrams.push(...article.diagrams);
   }
   for(const [from,to] of Object.entries(aliases))rendered.push([`${lang}/${from}/index.html`,renderAlias(lang,from,to)]);
-  rendered.push([`${lang}/changelog/index.html`,renderChangelog(lang,changes[lang],revision,!isPreview)]);
+  rendered.push([`${lang}/changelog/index.html`,renderChangelog(lang,changes[lang],revision,!isPreview,docsSha??undefined)]);
 }
 const routes=new Set([...pages.map(page=>page.slug),...Object.keys(aliases),"changelog"]);
 for(const [path,html] of rendered){
@@ -53,6 +53,11 @@ for(const [path,html] of rendered){
 }
 rmSync(output,{recursive:true,force:true});
 mkdirSync(resolve(output,"assets"),{recursive:true});
+for(const lang of ["en","ru"] as Language[]){
+  const html=renderNotFound(lang);
+  mkdirSync(resolve(output,"errors"),{recursive:true});writeFileSync(resolve(output,"errors",`${lang}.html`),html);
+  mkdirSync(resolve(output,"unified/errors"),{recursive:true});writeFileSync(resolve(output,"unified/errors",`${lang}.html`),projectDocument(html,"docs",lang));
+}
 for(const [path,html] of rendered){
   const destination=resolve(output,path);mkdirSync(dirname(destination),{recursive:true});writeFileSync(destination,html);
   // Both presentations are immutable build artifacts; serving never rewrites published Docs HTML.

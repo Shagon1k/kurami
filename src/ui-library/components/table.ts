@@ -39,7 +39,7 @@ export function renderTable(input: TableInput): string {
 
 // Products tune density with --table-font-size and --table-cell-padding on the wrapper.
 export const TABLE_CSS = `
-.table { max-width: 100%; max-height: var(--table-max-height,none); overflow: auto; overscroll-behavior: var(--table-overscroll,auto); }
+.table { --table-stack-row-display: block; --table-stack-row-columns: none; --table-stack-header-column: auto; --table-stack-cell-width: 100%; max-width: 100%; max-height: var(--table-max-height,none); overflow: auto; overscroll-behavior: var(--table-overscroll,auto); }
 .table table { width: 100%; border-collapse: collapse; font-size: var(--table-font-size, .84rem); }
 .table caption { margin-bottom: var(--space-3); color: var(--text-accent); font-weight: 600; text-align: left; }
 .table th, .table td { padding: var(--table-cell-padding, 12px 8px); border-bottom: 1px solid var(--border-default); text-align: left; vertical-align: top; }
@@ -52,8 +52,9 @@ export const TABLE_CSS = `
   .table--stack { overflow: visible; }
   .table--stack table, .table--stack tbody, .table--stack tr, .table--stack caption { display: block; width: 100%; }
   .table--stack thead { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
-  .table--stack tr { padding: var(--table-stack-row-padding,var(--space-3) 0); border-bottom: 1px solid var(--border-default); }
-  .table--stack th[scope="row"], .table--stack td, .table--stack.table--numeric td:not(:first-child) { display: block; width: 100%; padding: var(--space-1) 0; border: 0; text-align: left; white-space: normal; }
+  .table--stack tr { display: var(--table-stack-row-display); grid-template-columns: var(--table-stack-row-columns); padding: var(--table-stack-row-padding,var(--space-3) 0); border-bottom: 1px solid var(--border-default); }
+  .table--stack th[scope="row"], .table--stack td, .table--stack.table--numeric td:not(:first-child) { display: block; width: var(--table-stack-cell-width); min-width: 0; padding: var(--space-1) 0; border: 0; text-align: left; white-space: normal; }
+  .table--stack th[scope="row"] { grid-column: var(--table-stack-header-column); }
   .table--stack .table__label { display: var(--table-stack-label-display,block); margin-top: var(--space-1); color: var(--text-muted); font: 500 .67rem var(--font-mono); text-transform: uppercase; }
 }
 `;

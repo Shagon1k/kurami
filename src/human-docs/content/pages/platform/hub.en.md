@@ -44,6 +44,11 @@ and turn IDs match. That pair includes a duration, not an AI summary. Raw events
 remain available. Partial retained history is labelled. Internal Guardian
 review sessions are hidden by their metadata; project reviews remain visible.
 
+When the task identity is available, **Open task** leads to its Projects card;
+the PR remains a separate link. Opening either starts no repair.
+Each event disclosure keeps its own open state across refreshes. A session without
+a title uses its available name, or "Untitled session" with a short identifier.
+
 ## Usage and limits
 
 Tokens, cache and output come from local Codex logs, never from transcripts. The **API-equivalent USD** estimates what the same tokens would cost at standard API rates. It is not a subscription bill, and unpriced or partial data is starred. Limits come from the Codex account itself and fall back to a labelled local snapshot. The daily limit chart shows observed consumption in percentage points; starred days have gaps or resets. Usage counts a task as completed only with verified release evidence and reports the median tokens per task and the share spent on rework; `Logs n/m` says how many tasks could be measured.

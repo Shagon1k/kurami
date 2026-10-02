@@ -13,25 +13,18 @@
       "src/briefing/html-artifacts.ts": 1
     },
     "markup:details": {
-      "src/briefing/investment-review/idea.ts": 1,
-      "src/briefing/investment-review/learning-note.ts": 1,
-      "src/briefing/investment-review/panel.ts": 3,
-      "src/briefing/investment-review/position.ts": 2,
-      "src/briefing/investment-review/render.ts": 4,
+      "src/briefing/investment-review/panel.ts": 1,
       "src/briefing/stocks/components.ts": 1,
       "src/briefing/stocks/discovery-render.ts": 1,
       "src/briefing/ui/components/cinema-section.ts": 1,
       "src/briefing/ui/components/feed-order-control.ts": 1,
-      "src/briefing/weekly/render.ts": 1,
-      "src/human-docs/render.ts": 1
+      "src/briefing/weekly/render.ts": 1
     },
     "markup:table": {
       "src/briefing/investment-review/render.ts": 2,
-      "src/briefing/ui/components/cinema-section.ts": 1,
-      "src/briefing/weekly/render.ts": 1
+      "src/briefing/ui/components/cinema-section.ts": 1
     },
     "markup:button-class": {
-      "src/briefing/stocks/components.ts": 1,
       "src/briefing/stocks/render.ts": 1,
       "src/briefing/ui/components/cinema-section.ts": 1,
       "src/briefing/weekly/render.ts": 1

@@ -1,6 +1,7 @@
 export type Language="en"|"ru";
 export function language(params:URLSearchParams):Language{return params.get("lang")==="ru"?"ru":"en";}
 const messages:Record<string,string>={
+  "No agent run":"Нет запуска",
   "Saved view · refreshing…":"Сохранённый вид · обновляем…",
   "Saved view · refresh failed":"Сохранённый вид · не удалось обновить",
   "Change status":"Изменить статус", "Open preview":"Открыть превью",
@@ -26,4 +27,4 @@ export function tr(value:string,lang:Language):string{return lang==="ru"?message
 export function sourceText(value:string,lang:Language):string{return lang==="en"?englishByRussian.get(value)??value:value;}
 export function browserMessages(lang:Language):Record<string,string>{return Object.fromEntries(Object.keys(messages).map(key=>[key,tr(key,lang)]));}
 const states:Record<string,string>={none:"—",unknown:"Unknown",pending:"Pending",queued:"Queued",passed:"Passed",failed:"Failed",missing:"No checks",running:"Running",ready:"Ready",outdated:"Outdated",superseded:"Outdated",succeeded:"Completed",unverified:"Unverified",expired:"Expired",admission_pending:"Awaiting admission",starting:"Starting",waiting_human:"Waiting for you",parked_review:"Ready for review",remote_owned:"In your control",handoff_pending:"Handing over",needs_attention:"Needs attention",stopping:"Stopping",cancelled:"Cancelled",archived:"Archived",rejected:"Rejected",discarded:"Discarded",completed:"Completed",review_ready:"Ready for review",ci_repair_queued:"CI fix queued",ci_repair_working:"Fixing CI",review_fix_queued:"Review fix queued",review_fix_working:"Fixing findings",review_fix_waiting:"Verifying fixes",review_fix_resolving:"Resolving findings",preview_queued:"Preview queued",preview_ready:"Preview ready",preview_failed:"Preview failed",preview_stopping:"Stopping preview",cancelling:"Cancelling",cancelled_work_preserved:"Work preserved",preview_required:"Preview review needed",request_failed:"Not started",leased:"Pending",provisioning:"Starting",releasing:"Stopping",released:"Released"};
-export function stateLabel(value:string|null,lang:Language):string{return value?tr(states[value]??value,lang):tr("Not started",lang);}
+export function stateLabel(value:string|null,lang:Language):string{return value?tr(value==="no_agent_run"?"No agent run":states[value]??value,lang):tr("Not started",lang);}

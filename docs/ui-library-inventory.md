@@ -253,3 +253,20 @@ Buttons accept an optional `compactLabel` for phones, including an empty label
 for icon-and-count controls. The full label remains in the accessible name.
 Stacked tables expose `--table-stack-row-padding` so products can inset row
 contents while their background fills the table width. UI-Library: extended.
+
+## Compact navigation and comparison refinements
+
+`renderDisclosure` accepts a stable `key` for refresh restoration and a validated
+`id` for anchors. Its inline variant exposes summary font size, weight, color,
+padding and minimum-height properties. Docs uses these for its bounded section
+menu and mobile article contents; Cinema and portfolio reviews reuse the SVG
+disclosure instead of native marker variants.
+
+Stacked tables expose row display/columns, row-header column and cell-width
+properties. Weekly uses them for a topic heading followed by a two-column grid
+of labelled comparison values. Desktop table semantics remain unchanged.
+
+The `toggle` button variant recognizes `aria-current="true"` on links as well as
+`aria-pressed="true"` on buttons. Its selected color, surface and border properties
+let Stocks use the data accent while preserving navigation and no-JavaScript
+fallbacks. These refinements add no new product-specific UI exceptions.

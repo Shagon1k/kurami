@@ -58,7 +58,7 @@ export const BUTTON_CSS = `
 .button--subtle:hover:not(:disabled):not([aria-busy="true"]) { color: var(--text-primary); background: var(--surface-section); border-color: var(--text-muted); }
 .button--toggle { color: var(--text-muted); background: var(--surface-raised); border-color: var(--border-default); font-weight: 500; }
 .button--toggle:hover:not(:disabled):not([aria-busy="true"]) { color: var(--text-primary); background: var(--surface-panel); border-color: var(--text-muted); }
-.button--toggle[aria-pressed="true"],.button--toggle[aria-pressed="true"]:hover:not(:disabled):not([aria-busy="true"]) { color: var(--text-accent); background: var(--accent-soft); border-color: color-mix(in srgb,var(--accent-primary) 40%,var(--border-default)); }
+.button--toggle[aria-pressed="true"],.button--toggle[aria-pressed="true"]:hover:not(:disabled):not([aria-busy="true"]),.button--toggle[aria-current="true"],.button--toggle[aria-current="true"]:hover:not(:disabled):not([aria-busy="true"]) { color: var(--button-selected-color,var(--text-accent)); background: var(--button-selected-background,var(--accent-soft)); border-color: var(--button-selected-border,color-mix(in srgb,var(--accent-primary) 40%,var(--border-default))); }
 .button__label--compact { display: none; }
 @media (max-width: ${breakpoints.phone}px) {
   .button__label--full { display: none; }

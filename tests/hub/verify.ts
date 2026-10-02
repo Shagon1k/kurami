@@ -123,6 +123,19 @@ projects:
   weekly.codex.limitUsage!.at(-1)!.windows[60]=25;
   const hourPage=renderHubDashboard(weekly,"en");
   assert.match(hourPage,/class="limit-history__legend"><span data-series="0">1h<\/span><\/div>/,"only the observed active window appears in the legend");
+  const attention=syntheticHubSnapshot();
+  attention.operations!.alerts=attention.operations!.alerts.map(alert=>({...alert,project:"pickflick",itemId:"item &33"}));
+  for(const lang of ["en","ru"] as const){
+    const dashboard=renderHubDashboard(attention,lang);
+    assert.match(dashboard,new RegExp(`href="https://kurami\\.shagon1k\\.win/${lang}/projects/\\?project=pickflick&amp;item=item%20%2633"`));
+    assert.match(dashboard,/PR #123/);
+    const keys=[...dashboard.matchAll(/data-disclosure-key="([^"]+)"/g)].map(match=>match[1]);
+    assert.equal(new Set(keys).size,keys.length,"all Hub disclosures have distinct restoration keys, including periods and raw events");
+  }
+  const unnamed=syntheticHubSnapshot();
+  unnamed.operations!.activity=[{id:"unknown",group:"codex:abcdefgh-1234",sessionId:"abcdefgh-1234",source:"Codex",agent:"Codex",at:unnamed.generatedAt,subject:" ",event:"session_started"}];
+  assert.match(renderHubDashboard(unnamed,"en"),/Untitled session · abcdefgh/);
+  assert.match(renderHubDashboard(unnamed,"ru"),/Сессия без названия · abcdefgh/);
 
   const server=createHubServer({snapshot:()=>snapshot});
   await new Promise<void>(done=>server.listen(0,"127.0.0.1",done));

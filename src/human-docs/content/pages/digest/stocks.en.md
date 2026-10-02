@@ -23,6 +23,8 @@ shared SVG icon.
 
 A list row is an expandable block. Open it to see the chart and the figures for a period. One row is open at a time.
 
+The selected chart period uses a quiet ochre toggle, not the primary action colour. The links still open the selected period when JavaScript is unavailable.
+
 | What | What it means | Source |
 |---|---|---|
 | Large price | The ordinary closing price of the session, in the security's currency | Exchange data without adjustments |

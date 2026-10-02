@@ -15,13 +15,14 @@ import {renderTable} from "../ui-library/components/table.ts";
 import {renderCallout} from "../ui-library/components/callout.ts";
 import {renderDisclosure} from "../ui-library/components/disclosure.ts";
 import {inlineDiagram} from "../ui-library/foundations/diagram.ts";
+import {screenshotDimensions} from "./screenshot-dimensions.ts";
 
 const REPO="https://github.com/Shagon1k/kurami";
 const labels={
   en:{changelog:"Changelog",skip:"Skip to content",choose:"Switch to Russian",primaryNav:"Primary navigation",articleNav:"Documentation sections",toc:"On this page",next:"Next",min:"min read",glance:"At a glance",guarantees:"Guarantees",example:"Worked example",synthetic:"invented data",terms:"Key terms",codeMap:"Where it lives in the code",codeMapNote:"Source at revision",open:"Open full size",sections:"Sections",current:"Current state",
-    latest:"Changes verified for deployed revision",unpublished:"No deployment revision was supplied. Changes are not claimed as live.",awaiting:"Docs are published; no verified application deployment revision has been supplied. Changes are not claimed as live.",source:"Commit",readPage:"Read the page",moved:"This page has moved"},
+    latest:"Changes verified for deployed revision",unpublished:"No deployment revision was supplied. Changes are not claimed as live.",awaiting:"The application release history is not connected to a verified deployment.",source:"Commit",readPage:"Read the page",moved:"This page has moved"},
   ru:{changelog:"Изменения",skip:"К содержанию",choose:"Переключить на английский",primaryNav:"Основная навигация",articleNav:"Разделы документации",toc:"На странице",next:"Дальше",min:"мин чтения",glance:"Коротко",guarantees:"Гарантии",example:"Пример",synthetic:"вымышленные данные",terms:"Термины",codeMap:"Где это в коде",codeMapNote:"Исходники на версии",open:"Открыть в полный размер",sections:"Разделы",current:"Текущее состояние",
-    latest:"Изменения подтверждены для развёрнутой версии",unpublished:"Версия развёртывания не указана. Изменения не заявлены как работающие.",awaiting:"Документация опубликована, но подтверждённая версия приложения не указана. Изменения не заявлены как работающие.",source:"Коммит",readPage:"Открыть страницу",moved:"Страница переехала"},
+    latest:"Изменения подтверждены для развёрнутой версии",unpublished:"Версия развёртывания не указана. Изменения не заявлены как работающие.",awaiting:"Журнал изменений приложения не связан с подтверждённым развёртыванием.",source:"Коммит",readPage:"Открыть страницу",moved:"Страница переехала"},
 } as const;
 
 const url=(lang:Language,slug:string)=>`/${lang}/${slug&&slug!=="home"?slug+"/":""}`;
@@ -146,7 +147,8 @@ function container(block:Extract<Block,{type:"container"}>,context:Context):stri
 function leaf(block:Extract<Block,{type:"leaf"}>,context:Context):string {
   if(block.name==="shot"){
     const {file,size,alt,caption}=block.attrs;
-    return `<figure class="shot shot--${escape(size!)}"><a href="/assets/${escape(file!)}" class="shot__frame" aria-label="${escape(`${alt}. ${labels[context.lang].open}`)}"><img src="/assets/${escape(file!)}" alt="${escape(alt!)}" loading="lazy" decoding="async"></a><figcaption>${escape(caption!)}</figcaption></figure>`;
+    const {width,height}=screenshotDimensions(file!,context.options.root);
+    return `<figure class="shot shot--${escape(size!)}"><a href="/assets/${escape(file!)}" class="shot__frame" aria-label="${escape(`${alt}. ${labels[context.lang].open}`)}"><img src="/assets/${escape(file!)}" alt="${escape(alt!)}" width="${width}" height="${height}" loading="lazy" decoding="async"></a><figcaption>${escape(caption!)}</figcaption></figure>`;
   }
   if(block.name==="generated")return `<div class="block generated">${generatedReference(block.attrs.name??"",context.lang)}</div>`;
   throw new Error(`${context.page.slug}: unknown directive ::${block.name}`);
@@ -221,13 +223,15 @@ function side(lang:Language,section:Section|undefined,active:string){
         return `<div class="side-group side-group--${group}"><h3>${escape(groupLabels[group][lang])}</h3><ul>${members.map(page=>`<li><a href="${url(lang,page.slug)}"${page.slug===active?' aria-current="page"':""}>${escape(page.navTitle[lang])}</a></li>`).join("")}</ul></div>`;
       }).join("")}`
     :`<p class="side__section">${t.sections}</p><div class="side-group"><ul>${sections.filter(firstPage).map(item=>`<li><a href="${url(lang,firstPage(item)!.slug)}">${escape(sectionLabels[item][lang])}</a></li>`).join("")}</ul></div>`;
-  return `<nav class="side" aria-label="${t.articleNav}">${items}</nav><details class="side-mobile"><summary>${section?escape(sectionLabels[section][lang]):t.sections}</summary><nav aria-label="${t.articleNav}">${items}</nav></details>`;
+  const page=pageBySlug.get(active),summary=[section?sectionLabels[section][lang]:t.sections,page?.navTitle[lang]].filter(Boolean).join(" · ");
+  return `<nav class="side" aria-label="${t.articleNav}">${items}</nav>${renderDisclosure({summary,body:`<nav class="side-mobile__list" aria-label="${t.articleNav}">${items}</nav>`,boxed:true,variant:"inline",className:"side-mobile"})}`;
 }
 
-function toc(page:HumanDocsPage,lang:Language):string {
+function toc(page:HumanDocsPage,lang:Language):{desktop:string;mobile:string} {
   const headings=page.blocks[lang].filter((block):block is Extract<Block,{type:"heading"}>=>block.type==="heading"&&block.level===2);
-  if(headings.length<3)return "";
-  return `<nav class="toc" aria-label="${labels[lang].toc}"><p>${labels[lang].toc}</p><ol>${headings.map(heading=>`<li><a href="#${escape(headingId(heading.text))}">${escape(plainInline(heading.text))}</a></li>`).join("")}</ol></nav>`;
+  if(headings.length<2)return {desktop:"",mobile:""};
+  const links=`<ol>${headings.map(heading=>`<li><a href="#${escape(headingId(heading.text))}">${escape(plainInline(heading.text))}</a></li>`).join("")}</ol>`;
+  return {desktop:`<nav class="toc" aria-label="${labels[lang].toc}"><p>${labels[lang].toc}</p>${links}</nav>`,mobile:renderDisclosure({summary:labels[lang].toc,body:`<nav class="toc-mobile__list" aria-label="${labels[lang].toc}">${links}</nav>`,boxed:true,variant:"inline",className:"toc-mobile"})};
 }
 
 function nextLink(page:HumanDocsPage,lang:Language):string {
@@ -243,7 +247,7 @@ export function renderArticle(page:HumanDocsPage,lang:Language,options:RenderOpt
   const content=blocksHtml(page.blocks[lang],context);
   const eyebrow=[sectionLabels[page.section][lang],groupLabels[page.group][lang],`${readingMinutes(page,lang)} ${labels[lang].min}`].join(" · ");
   const tocHtml=toc(page,lang);
-  const body=`<div class="layout${tocHtml?" layout--toc":""}">${side(lang,page.section,page.slug)}<article class="article" data-page="${escape(page.slug)}" data-group="${page.group}"><header class="intro"><p class="eyebrow page-eyebrow">${escape(eyebrow)}</p><h1 class="page-title">${escape(page.title[lang])}</h1><p class="lede page-subtitle">${escape(page.summary[lang])}</p></header><div class="prose">${content}</div>${nextLink(page,lang)}</article>${tocHtml}</div>`;
+  const body=`<div class="layout${tocHtml.desktop?" layout--toc":""}">${side(lang,page.section,page.slug)}<article class="article" data-page="${escape(page.slug)}" data-group="${page.group}"><header class="intro"><p class="eyebrow page-eyebrow">${escape(eyebrow)}</p><h1 class="page-title">${escape(page.title[lang])}</h1><p class="lede page-subtitle">${escape(page.summary[lang])}</p></header>${tocHtml.mobile}<div class="prose">${content}</div>${nextLink(page,lang)}</article>${tocHtml.desktop}</div>`;
   return {html:shell(lang,page.title[lang],page.summary[lang],body,page.section,page.slug),diagrams:context.diagrams};
 }
 
@@ -263,7 +267,8 @@ export function renderAlias(lang:Language,from:string,to:string):string {
   return shell(lang,target.title[lang],target.summary[lang],body,target.section,to).replace("<head>",`<head>\n  <meta http-equiv="refresh" content="0; url=${href}">\n  <link rel="canonical" href="${href}">`);
 }
 
-export function renderChangelog(lang:Language,changes:Change[],revision?:string,published=false):string {
+export function renderChangelog(lang:Language,changes:Change[],revision?:string,published=false,docsSha?:string):string {
+  if(docsSha&&!/^[0-9a-f]{40}$/.test(docsSha))throw new Error("Invalid documentation revision");
   const ru=lang==="ru";
   const t=labels[lang],title=t.changelog;
   const byDate=new Map<string,Change[]>();
@@ -279,10 +284,17 @@ export function renderChangelog(lang:Language,changes:Change[],revision?:string,
   const empty=revision
     ?ru?"После начальной точки пока нет опубликованных изменений.":"No published changes since the baseline."
     :published
-      ?ru?"Этот docs-only release не приписывает себе изменения приложения.":"This docs-only release claims no application changes."
+      ?ru?"Этот выпуск документации не публикует изменения приложения.":"This documentation release does not publish application changes."
       :ru?"Локальный preview намеренно оставляет changelog приложения пустым.":"The local preview deliberately leaves the application changelog empty.";
-  const body=`<div class="layout">${side(lang,undefined,"")}<article class="article"><header class="intro"><p class="eyebrow page-eyebrow">${revision?escape(revision.slice(0,7)):published?ru?"Ожидает подтверждения":"Awaiting verification":ru?"Локальный просмотр":"Local preview"}</p><h1 class="page-title">${title}</h1><p class="lede page-subtitle">${status}</p></header><div class="changes">${cards||`<p>${empty}</p>`}</div></article></div>`;
+  const docsVersion=published&&docsSha?`<p class="changelog-version">${ru?"Версия документации":"Documentation version"} <code title="${docsSha}">${docsSha.slice(0,12)}</code></p>`:"";
+  const body=`<div class="layout">${side(lang,undefined,"")}<article class="article"><header class="intro"><p class="eyebrow page-eyebrow">${revision?escape(revision.slice(0,7)):published?ru?"Документация опубликована":"Documentation published":ru?"Локальный просмотр":"Local preview"}</p><h1 class="page-title">${title}</h1>${docsVersion}<p class="lede page-subtitle">${status}</p></header><div class="changes">${cards||`<p>${empty}</p>`}</div></article></div>`;
   return shell(lang,title,status,body,"changelog","changelog");
+}
+
+export function renderNotFound(lang:Language):string {
+  const ru=lang==="ru",title=ru?"Страница не найдена":"Page not found",description=ru?"Этой страницы нет. Найди нужный раздел на главной документации.":"This page does not exist. Find the section you need on the documentation home page.";
+  const body=`<div class="home"><header class="intro"><p class="eyebrow page-eyebrow">404</p><h1 class="page-title">${title}</h1><p class="lede page-subtitle">${description}</p></header>${renderLinkButton({label:ru?"На главную Docs":"Docs home",href:url(lang,""),variant:"secondary"})}</div>`;
+  return shell(lang,title,description,body,undefined,"");
 }
 
 export {resolveSlug};

@@ -6,6 +6,7 @@ import {THEME_CSS} from "../../../ui-library/themes/index.ts";
 import {FOUNDATION_CSS} from "../../../ui-library/foundations/index.ts";
 import {BUTTON_CSS,renderLinkButton} from "../../../ui-library/components/button.ts";
 import {FORM_CSS} from "../../../ui-library/components/form.ts";
+import {DISCLOSURE_CSS} from "../../../ui-library/components/disclosure.ts";
 import {formatSiteDate} from "../../../ui-library/foundations/date.ts";
 import {STORY_ACTIONS_LAYOUT_CSS,DIGEST_POLISH_CSS} from "../styles.ts";
 import {digestLanguage,digestPath,digestText,localizeDigestLinks,type DigestLanguage} from "../../i18n.ts";
@@ -50,7 +51,7 @@ function refreshHeaderStyles(html:string):string {
     const updated=css.replace(/\.(?:media-lightbox__close|mail-actions__submit)\s*\{[^}]*\}/g,block=>/\b(?:inline-size:\s*34px|block-size:\s*34px|min-height:\s*40px)/.test(block)?"":block);
     return `<style${attributes}>${updated}</style>`;
   });
-  const styles=[THEME_CSS,FOUNDATION_CSS,BUTTON_CSS,FORM_CSS,SITE_HEADER_CSS,THEME_SWITCH_CSS,STORY_ACTIONS_LAYOUT_CSS,DIGEST_POLISH_CSS];
+  const styles=[THEME_CSS,FOUNDATION_CSS,BUTTON_CSS,FORM_CSS,DISCLOSURE_CSS,SITE_HEADER_CSS,THEME_SWITCH_CSS,STORY_ACTIONS_LAYOUT_CSS,DIGEST_POLISH_CSS];
   if(styles.every(style=>html.includes(style)))return html;
   const updated=html.replace(/<style data-site-header-runtime>[\s\S]*?<\/style>/i,"");
   return updated.replace(/<\/head>/i,`<style data-site-header-runtime>${styles.join("\n")}</style></head>`);

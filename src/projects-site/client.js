@@ -179,7 +179,7 @@
       dismissConfirmation(false);
       if (runAction.dataset.runConfirmation) {
         confirmingAction=runAction;
-        const panel=runAction.closest('.projects-run-action').querySelector('[data-run-confirm-panel]');
+        const panel=document.getElementById(runAction.dataset.runConfirmTarget);
         panel.hidden=false; panel.querySelector('[data-run-confirm]').focus();
       } else submitRunAction(runAction,false);
       return;
@@ -323,7 +323,7 @@
   function dismissConfirmation(focus = true) {
     if (!confirmingAction) return;
     const button=confirmingAction;
-    const panel=button.closest('.projects-run-action')?.querySelector('[data-run-confirm-panel]');
+    const panel=document.getElementById(button.dataset.runConfirmTarget);
     if(panel) panel.hidden=true;
     confirmingAction=null;
     if(focus) button.focus();

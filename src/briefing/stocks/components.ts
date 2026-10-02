@@ -7,6 +7,7 @@ import {delta,money,shortDate} from "./format.ts";
 import {renderCompanyAvatar} from "../ui/components/company-avatar.ts";
 import type {CompanyLogoDomains} from "./logo-registry.ts";
 import {digestText as t} from "../i18n.ts";
+import {renderLinkButton} from "../../ui-library/components/button.ts";
 
 export const stockHref=(id:string,period:StockPeriod)=>"/stocks?"+new URLSearchParams({symbols:id,period})+"#stock-"+id;
 export function renderStockDetails(snapshot:StocksSnapshot,params:URLSearchParams,at=new Date().toISOString()):string {
@@ -19,7 +20,7 @@ export function renderStockDetails(snapshot:StocksSnapshot,params:URLSearchParam
   const change=values.length>1?(values.at(-1)!/values[0]!-1)*100:null;
   const last=series.points.at(-1),yearBase=last?series.points.findLast(p=>p.date<=dayShift(last.date,-365)):undefined;
   const year=last&&yearBase?(last.adjusted/yearBase.adjusted-1)*100:null;
-  const periods=(["1m","3m","1y"] as const).map(period=>`<a class="button button--${period===selection.period?"primary":"secondary"}" data-stock-period="${period}" href="${e(stockHref(id,period))}"${period===selection.period?' aria-current="true"':""}>${period==="1m"?t("Месяц","Month"):period==="3m"?t("3 месяца","3 months"):t("Год","Year")}</a>`).join("");
+  const periods=(["1m","3m","1y"] as const).map(period=>renderLinkButton({label:period==="1m"?t("Месяц","Month"):period==="3m"?t("3 месяца","3 months"):t("Год","Year"),variant:"toggle",href:stockHref(id,period),attributes:{"data-stock-period":period,"aria-current":period===selection.period?"true":undefined}})).join("");
   return `<div data-stock-detail-content data-period="${selection.period}">
     <div class="stock-details__toolbar"><nav class="stocks-periods" aria-label="${t("Период графика","Chart period")} ${e(id)}">${periods}</nav><div class="stock-period-change"><span>${t("За показанный период","Shown period")}</span>${delta(change)}</div></div>
     ${renderTrendChart(chart)}

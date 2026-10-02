@@ -8,6 +8,7 @@ import {syntheticHubSnapshot} from "../../src/ui-library/testing/fixtures.ts";
 import {recordSystemActivity,readSystemActivity} from "../../src/core/activity.ts";
 import {createProjectStore} from "./project-store.ts";
 import {scanFile} from "../../src/core/codex-usage.ts";
+import {collectCodexSessionActivity} from "../../src/hub/codex.ts";
 
 const home=mkdtempSync(join(tmpdir(),"kurami-hub-operations-"));
 try {
@@ -49,15 +50,23 @@ try {
   insert.run("guardian-1","Not a guardian title",null,Math.floor(now.getTime()/1000),Math.floor(now.getTime()/1000),rollout,'{"subagent":{"other":"guardian"}}',null);
   insert.run("guardian-2","Another title",null,Math.floor(now.getTime()/1000),Math.floor(now.getTime()/1000),rollout,'{}','guardian_review');
   insert.run("ordinary","Guardian review",null,Math.floor(now.getTime()/1000),Math.floor(now.getTime()/1000),null,'not json','cli');
+  insert.run("named-subagent","   ","Leaf reviewer",Math.floor(now.getTime()/1000),Math.floor(now.getTime()/1000),null,'{}','cli');
   classified.close();
   const snapshot=collectHubOperations(home,join(home,"codex"),join(home,"hermes"),now);
   assert(!snapshot.activity.some(event=>event.sessionId?.startsWith("guardian-")),"internal guardian metadata is excluded from the activity UI");
   assert(snapshot.activity.some(event=>event.sessionId==="ordinary"),"title alone never hides a session");
+  assert.equal(snapshot.activity.find(event=>event.sessionId==="named-subagent")?.subject,"Leaf reviewer","session names are available before a task title arrives");
+  const legacyHome=join(home,"legacy-codex");mkdirSync(legacyHome);
+  const legacyDb=new DatabaseSync(join(legacyHome,"state_5.sqlite"));
+  legacyDb.exec("CREATE TABLE threads(id TEXT,title TEXT,created_at INTEGER)");
+  legacyDb.prepare("INSERT INTO threads VALUES(?,?,?)").run("old-session"," Legacy session ",Math.floor(now.getTime()/1000));legacyDb.close();
+  assert.equal(collectCodexSessionActivity(legacyHome,now)[0]?.subject,"Legacy session","older databases without a name column retain session activity");
   assert.equal(snapshot.health?.server.cpuUsedPercent,health.server.cpuUsedPercent);
   assert.equal(snapshot.healthStale,false);
   assert.deepEqual(snapshot.alerts.map(alert=>alert.id),["ci-broken"],"current repair suppresses CI alerts; Done, superseded runs and stale review heads are excluded");
   assert.equal(snapshot.alerts[0]!.actor,"owner");assert.equal(snapshot.alerts[0]!.next,"inspect_task","stale busy repair needs inspection, not a second repair");
   assert.equal(snapshot.alerts[0]!.detail,"unit-tests");
+  assert.equal(snapshot.alerts[0]!.itemId,"item-2","Alerts includes the actual Projects item, not an inferred PR identity");
   assert.equal(snapshot.activity.find(event=>event.source==="CI")?.at,at,"poll timestamps never masquerade as CI transitions");
   assert(snapshot.activity.some(event=>event.event==="task_started"),"new turns in older sessions appear in activity");
   const turn=snapshot.activity.find(event=>event.event==="task_started")!;

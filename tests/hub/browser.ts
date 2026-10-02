@@ -105,6 +105,10 @@ try {
     await devtools.evaluate("document.querySelector('[data-period-key=global][data-period-days=\"7\"]').click()");
     assert.equal(await devtools.evaluate("document.querySelector('[data-period-panel=limits]:not([hidden]) table tbody').children.length"),7);
     await devtools.evaluate("document.querySelector('.activity-list > [data-work-id]:not([hidden]) .work-events > summary').click()");
+    await devtools.evaluate("document.querySelector('.activity-list > [data-work-id]:not([hidden]) .work-event-detail > details > summary').click()");
+    assert.equal(await devtools.evaluate("document.querySelectorAll('.work-event-detail > details[open]').length"),1);
+    await devtools.evaluate("refreshHub(true)");
+    assert.equal(await devtools.evaluate("document.querySelectorAll('.work-event-detail > details[open]').length"),1,"refresh restores only the selected raw-events disclosure");
     await devtools.evaluate("document.querySelector('.usage > summary').click();document.querySelector('[data-period-key=global][data-period-days=\"7\"]').click()");
     assert.equal(await devtools.evaluate("document.querySelector('[data-period-panel=usage]:not([hidden]) .metric__value').textContent"),"6");
     assert.equal(await devtools.evaluate("document.querySelector('[data-period-panel=usage]:not([hidden]) .usage-coverage').textContent"),lang==="en"?"Logs 5/6":"Логи 5/6");

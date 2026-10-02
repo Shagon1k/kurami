@@ -3,7 +3,7 @@ import {formatSiteDate} from "../ui-library/foundations/date.ts";
 import {renderDocument} from "../ui-library/patterns/page-shell.ts";
 import {renderSiteFooter} from "../ui-library/patterns/site-footer.ts";
 import {renderSiteHeader} from "../ui-library/patterns/site-header.ts";
-import {kuramiSites} from "../ui-library/patterns/kurami-sites.ts";
+import {kuramiSites,kuramiEntryHref} from "../ui-library/patterns/kurami-sites.ts";
 import {renderThemeSwitch} from "../ui-library/components/theme-switch.ts";
 import {renderButton,renderLinkButton} from "../ui-library/components/button.ts";
 import {renderPeriodSwitch} from "../ui-library/components/period-switch.ts";
@@ -103,10 +103,10 @@ function renderCodex(codex:CodexSnapshot,lang:HubLanguage):string {
       const total=usage.reduce((sum,model)=>sum+model.tokens,0);
       const primaryRows=(items:ModelUsage[])=>items.map(model=>[{html:`<span class="model-name">${escapeHtml(modelName(model))}</span><span class="model-share" aria-hidden="true"><span style="--share:${total?100*model.tokens/total:0}%"></span></span>`},numberCell(model.tokens),costCell(model.equivalent)]);
       const primary=renderTable({columns:[tr(lang,"Модель","Model"),tr(lang,"Токены","Tokens"),"API eq"],rows:primaryRows(usage.slice(0,4)),rowHeaders:true,numeric:true,className:"model-table"});
-      const rest=usage.length>4?renderDisclosure({summary:tr(lang,`Ещё ${usage.length-4}`,`${usage.length-4} more`),body:renderTable({columns:[tr(lang,"Модель","Model"),tr(lang,"Токены","Tokens"),"API eq"],rows:primaryRows(usage.slice(4)),rowHeaders:true,numeric:true,className:"model-table"})}):"";
+      const rest=usage.length>4?renderDisclosure({summary:tr(lang,`Ещё ${usage.length-4}`,`${usage.length-4} more`),key:`models-more:${days}`,body:renderTable({columns:[tr(lang,"Модель","Model"),tr(lang,"Токены","Tokens"),"API eq"],rows:primaryRows(usage.slice(4)),rowHeaders:true,numeric:true,className:"model-table"})}):"";
       const detail=renderTable({columns:[tr(lang,"Модель","Model"),tr(lang,"Сессии","Sessions"),tr(lang,"Вход","Input"),tr(lang,"Кэш · чтение","Cache · read"),tr(lang,"Кэш · запись","Cache · write"),tr(lang,"Выход","Output")],rows:usage.map(model=>[modelName(model),value(model.sessions,lang),numberCell(model.input),numberCell(model.cached),numberCell(model.cacheWrite),numberCell(model.output)]),rowHeaders:true,numeric:true,className:"model-detail-table"});
       const source=`<p class="api-rates"><a href="${API_RATE_SOURCE}" target="_blank" rel="noopener noreferrer">Standard · ${API_RATE_DATE}</a></p>`;
-      return primary+rest+renderDisclosure({summary:tr(lang,"Разбивка по моделям","Model breakdown"),className:"model-breakdown",body:detail+source});
+      return primary+rest+renderDisclosure({summary:tr(lang,"Разбивка по моделям","Model breakdown"),key:`models-breakdown:${days}`,className:"model-breakdown",body:detail+source});
     }
     const visible=selected.models.filter(model=>model.name!=="codex-auto-review");
     return visible.length?renderTable({columns:[tr(lang,"Модель","Model"),tr(lang,"Сессий","Sessions")],rows:visible.map(model=>[model.name,value(model.sessions,lang)]),rowHeaders:true,numeric:true,className:"model-table"}):`<p class="empty-value">${tr(lang,"Модели","Models")} —</p>`;
@@ -132,13 +132,15 @@ function renderAlerts(snapshot:HubSnapshot,lang:HubLanguage):string {
     const reasons=problem.issues.map(issue=>`<span>${renderIcon(issue.code==="ci_unrepaired"?"controls":issue.code==="review_unrepaired"?"review":"alert")}<span>${escapeHtml(label(alertLabels,issue.code,lang))}${issue.code==="review_unrepaired"&&issue.detail?` · ${escapeHtml(issue.detail)} ${tr(lang,"существенных замечаний","major findings")}`:issue.code==="ci_unrepaired"&&issue.detail?` · ${escapeHtml(issue.detail)}`:issue.code==="health_issue"?` · ${escapeHtml(issue.subject)}`:""}</span></span>`).join("");
     const actor=problem.actor==="owner"?tr(lang,"Владелец","Owner"):problem.actor==="agent"?"Codex":"Kurami";
     const linkLabel=pr?tr(lang,"Открыть PR","Open PR"):problem.task?tr(lang,"Открыть задачу","Open task"):tr(lang,"Открыть проект","Open project");
-    return `<li class="problem" data-severity="${problem.severity}"><div class="problem__main"><strong>${escapeHtml(subject)}${problem.title?` · ${escapeHtml(problem.title)}`:""}</strong><div class="problem__reasons">${reasons}</div><p class="problem__next">${renderIcon(problem.actor==="owner"?"person":problem.actor==="agent"?"bot":"clock")}<span>${actor} · ${escapeHtml(tr(lang,...next[problem.next]))}</span></p></div>${problem.href?renderLinkButton({label:linkLabel,href:problem.href,variant:"subtle",size:"compact"}):""}</li>`;
+    const taskHref=problem.task&&problem.project&&problem.itemId?`${kuramiEntryHref("projects",lang)}?project=${encodeURIComponent(problem.project)}&item=${encodeURIComponent(problem.itemId)}`:undefined;
+    const links=(taskHref?renderLinkButton({label:tr(lang,"Открыть задачу","Open task"),href:taskHref,variant:"subtle",size:"compact"}):"")+(problem.href?renderLinkButton({label:taskHref&&pr?`PR #${pr}`:linkLabel,href:problem.href,variant:taskHref?"quiet":"subtle",size:"compact",iconPath:iconPath("arrow")}):"");
+    return `<li class="problem" data-severity="${problem.severity}"><div class="problem__main"><strong>${escapeHtml(subject)}${problem.title?` · ${escapeHtml(problem.title)}`:""}</strong><div class="problem__reasons">${reasons}</div><p class="problem__next">${renderIcon(problem.actor==="owner"?"person":problem.actor==="agent"?"bot":"clock")}<span>${actor} · ${escapeHtml(tr(lang,...next[problem.next]))}</span></p></div>${links?`<div class="problem__links">${links}</div>`:""}</li>`;
   });
   const tasks=queue.every(problem=>problem.task);
   const plural=(n:number,forms:[string,string,string])=>forms[n%100>=11&&n%100<=14?2:n%10===1?0:n%10>=2&&n%10<=4?1:2];
   const objects=tr(lang,plural(queue.length,tasks?["задача","задачи","задач"]:["объект","объекта","объектов"]),tasks?(queue.length===1?"task":"tasks"):(queue.length===1?"object":"objects"));
   const issues=queue.reduce((sum,problem)=>sum+problem.issues.length,0);
-  return `<section class="hub-alerts" aria-labelledby="alerts-title"><div class="section-heading"><h2 id="alerts-title">${renderIcon("alert")}${tr(lang,"Требует внимания","Alerts")}</h2><span>${queue.length} ${objects} · ${issues} ${tr(lang,plural(issues,["проблема","проблемы","проблем"]),issues===1?"issue":"issues")}</span></div><ul class="alert-list list-reset">${rows.slice(0,4).join("")}</ul>${rows.length>4?renderDisclosure({summary:tr(lang,`Ещё ${rows.length-4}`,`${rows.length-4} more`),body:`<ul class="alert-list list-reset">${rows.slice(4).join("")}</ul>`}):""}</section>`;
+  return `<section class="hub-alerts" aria-labelledby="alerts-title"><div class="section-heading"><h2 id="alerts-title">${renderIcon("alert")}${tr(lang,"Требует внимания","Alerts")}</h2><span>${queue.length} ${objects} · ${issues} ${tr(lang,plural(issues,["проблема","проблемы","проблем"]),issues===1?"issue":"issues")}</span></div><ul class="alert-list list-reset">${rows.slice(0,4).join("")}</ul>${rows.length>4?renderDisclosure({summary:tr(lang,`Ещё ${rows.length-4}`,`${rows.length-4} more`),key:"alerts-more",body:`<ul class="alert-list list-reset">${rows.slice(4).join("")}</ul>`}):""}</section>`;
 }
 const projectName=(key:string)=>({pickflick:"PickFlick",tailortales:"TailorTales","ahurynovich-cv":"AHurynovich-CV",kurami:"Kurami",digest:"Digest",other:"—"}[key]??key);
 function renderHealth(snapshot:HubSnapshot,lang:HubLanguage):string {
@@ -182,20 +184,21 @@ function renderActivity(snapshot:HubSnapshot,lang:HubLanguage):string {
     return raw;
   };
   const rows=activity.map((item,index)=>{
+    const sessionId=item.events.find(event=>event.sessionId)?.sessionId;
+    const subject=item.subject.trim()||(sessionId?`${tr(lang,"Сессия без названия","Untitled session")} · ${sessionId.slice(0,8)}`:`${item.agent} · ${label(eventLabels,item.event,lang)}`);
     const eventRow=(event:typeof item.summaryEvents[number])=>`<li><time datetime="${escapeHtml(event.at)}">${escapeHtml(formatTime(event.at,lang))}</time><span>${escapeHtml(event.source)} · ${escapeHtml(label(eventLabels,event.event,lang))}${event.durationSeconds!==undefined?` · ${Math.floor(event.durationSeconds/60)}m ${event.durationSeconds%60}s`:""}${event.result?` · ${escapeHtml(result(event.result))}`:""}${event.head?` · <code>${escapeHtml(event.head.slice(0,12))}</code>`:""}</span></li>`;
-    const raw=renderDisclosure({summary:tr(lang,"Все технические события","Raw events"),variant:"inline",body:`<ol class="work-event-list list-reset">${item.events.map(eventRow).join("")}</ol>`});
-    const detail=renderDisclosure({summary:tr(lang,`События · ${item.events.length}`,`Events · ${item.events.length}`),key:item.id,className:"work-events",variant:"row",body:`<div class="work-event-detail"><p class="work-event-subject">${escapeHtml(item.subject)}</p>${item.limited?`<p class="work-event-coverage">${tr(lang,"Показана часть истории из сохранённых событий.","Partial history from retained events.")}</p>`:""}<ol class="work-event-list list-reset">${item.summaryEvents.map(eventRow).join("")}</ol>${raw}</div>`});
-    const subject=item.subject;
+    const raw=renderDisclosure({summary:tr(lang,"Все технические события","Raw events"),key:`${item.id}:raw`,variant:"inline",body:`<ol class="work-event-list list-reset">${item.events.map(eventRow).join("")}</ol>`});
+    const detail=renderDisclosure({summary:tr(lang,`События · ${item.events.length}`,`Events · ${item.events.length}`),key:item.id,className:"work-events",variant:"row",body:`<div class="work-event-detail"><p class="work-event-subject">${escapeHtml(subject)}</p>${item.limited?`<p class="work-event-coverage">${tr(lang,"Показана часть истории из сохранённых событий.","Partial history from retained events.")}</p>`:""}<ol class="work-event-list list-reset">${item.summaryEvents.map(eventRow).join("")}</ol>${raw}</div>`});
     const state=item.event==="task_started"?tr(lang,"Активна","Active"):item.event==="task_complete"?tr(lang,"Ожидает нового хода","Idle"):item.event==="turn_aborted"?tr(lang,"Ход прерван","Interrupted"):label(eventLabels,item.event,lang);
     const linkLabel=item.href?.includes("/pull/")?tr(lang,"Открыть PR","Open PR"):item.href?.includes("/issues/")?tr(lang,"Открыть задачу","Open task"):item.href?.includes("/codex/threads/")?tr(lang,"Открыть сессию","Open session"):tr(lang,"Открыть результат","Open result");
     const failed=["failed","needs_attention","collect_failed","compose_failed","promote_failed","turn_aborted"].includes(item.event)||item.result==="CI:failed";
     const success=["published","passed","ready","archived","promote_completed"].includes(item.event);
     const icon:IconName=failed?"alert":success?"check":item.event==="parked_review"?"review":item.agent==="Kurami"?"history":"bot";
-    return `<li class="work-item" data-tone="${failed?"failure":success?"success":"accent"}" data-work-id="${escapeHtml(item.id)}" data-work-at="${escapeHtml(item.at)}" data-work-project="${escapeHtml(item.project)}" data-work-agent="${escapeHtml(item.agent)}"${index>=5?" hidden":""}><div class="work-item__row"><span class="work-item__icon">${renderIcon(icon)}</span><div class="work-item__body"><strong title="${escapeHtml(item.subject)}">${item.project!=="other"?`${escapeHtml(projectName(item.project))} · `:""}${escapeHtml(subject)}</strong><div class="work-item__meta"><span>${escapeHtml(item.agent)}</span><span>${escapeHtml(state)}</span></div></div><div class="work-item__result">${item.result?`<span>${escapeHtml(result(item.result))}</span>`:""}<time datetime="${escapeHtml(item.at)}" title="${escapeHtml(formatTime(item.at,lang))}">${escapeHtml(relative(item.at))}</time></div><div class="work-item__link">${item.href?renderLinkButton({label:"↗",ariaLabel:linkLabel,attributes:{title:linkLabel},href:item.href,variant:"icon"}):""}</div></div>${detail}</li>`;
+    return `<li class="work-item" data-tone="${failed?"failure":success?"success":"accent"}" data-work-id="${escapeHtml(item.id)}" data-work-at="${escapeHtml(item.at)}" data-work-project="${escapeHtml(item.project)}" data-work-agent="${escapeHtml(item.agent)}"${index>=5?" hidden":""}><div class="work-item__row"><span class="work-item__icon">${renderIcon(icon)}</span><div class="work-item__body"><strong title="${escapeHtml(subject)}">${item.project!=="other"?`${escapeHtml(projectName(item.project))} · `:""}${escapeHtml(subject)}</strong><div class="work-item__meta"><span>${escapeHtml(item.agent)}</span><span>${escapeHtml(state)}</span></div></div><div class="work-item__result">${item.result?`<span>${escapeHtml(result(item.result))}</span>`:""}<time datetime="${escapeHtml(item.at)}" title="${escapeHtml(formatTime(item.at,lang))}">${escapeHtml(relative(item.at))}</time></div><div class="work-item__link">${item.href?renderLinkButton({label:"↗",ariaLabel:linkLabel,attributes:{title:linkLabel},href:item.href,variant:"icon"}):""}</div></div>${detail}</li>`;
   }).join("");
   const options=(key:"project"|"agent")=>[{value:"all",label:tr(lang,"Все","All")},...[...new Set(activity.map(item=>item[key]))].map(value=>({value,label:key==="project"?projectName(value):value}))];
   const filters=renderSelectField({name:"activity-project",label:tr(lang,"Проект","Project"),value:"all",options:options("project")})+renderSelectField({name:"activity-agent",label:tr(lang,"Агент","Agent"),value:"all",options:options("agent")});
-  const more=renderDisclosure({summary:tr(lang,"Ещё","More"),variant:"inline",className:"activity-more",body:'<ol class="activity-more-list list-reset"></ol>'});
+  const more=renderDisclosure({summary:tr(lang,"Ещё","More"),key:"activity-more",variant:"inline",className:"activity-more",body:'<ol class="activity-more-list list-reset"></ol>'});
   return `<section class="section activity" aria-labelledby="activity-title"><div class="section-heading"><h2 id="activity-title">${renderIcon("history")}${tr(lang,"Активность","Live Activity")}</h2><div class="activity-filters">${filters}</div></div><div class="activity-log"><ol class="activity-list list-reset">${rows}</ol><p class="activity-empty"${activity.length?" hidden":""}>${tr(lang,"Нет событий","No events")}</p>${more}</div></section>`;
 }
 function renderControls(lang:HubLanguage):string {
@@ -223,7 +226,7 @@ function projectRows(projects:HubProject[],lang:HubLanguage,days:Period):string 
 
 function renderUsage(snapshot:HubSnapshot,lang:HubLanguage):string {
   const usage=snapshot.usage;
-  return `<div class="usage-block">${renderDisclosure({summary:tr(lang,"Расход","Usage"),boxed:true,className:"usage",body:
+  return `<div class="usage-block">${renderDisclosure({summary:tr(lang,"Расход","Usage"),key:"usage",boxed:true,className:"usage",body:
     periods("usage",days=>{
       const stats=usage?.periods[days];
       const coverage=usage?.available?`${tr(lang,"Логи","Logs")} ${stats!.measured}/${stats!.completed}`:tr(lang,"Нет данных","Unavailable");

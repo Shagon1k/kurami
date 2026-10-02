@@ -17,6 +17,7 @@ export const WEEKLY_STYLES=`
 @media(max-width:640px) {
   .weekly-teaser {display:block;padding:20px;}
   .weekly-topics {padding:20px;}
+  .weekly-table { --table-stack-row-display:grid; --table-stack-row-columns:repeat(2,minmax(0,1fr)); --table-stack-header-column:1/-1; --table-stack-cell-width:auto; }
   /* Weekly cards carry long labels and explanations; a two-column mobile grid
      turns them into a dense poster rather than an at-a-glance review. */
   .weekly-metrics .metric-strip {grid-template-columns:1fr;}

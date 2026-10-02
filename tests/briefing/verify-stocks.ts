@@ -132,6 +132,9 @@ assert(!closed.includes("data-chart-spec="));assert.equal((closed.match(/class="
 for(const period of ["1m","3m","1y"]){
   const details=renderStockDetails(initial,new URLSearchParams({symbols:"NVDA",period}),"2026-09-17T07:00:00Z");
   assert.match(details,/stock-chart-NVDA-title/);assert(details.includes('data-period="'+period+'"'));
+  assert.equal((details.match(/class="button button--toggle"/g)??[]).length,3);
+  assert.equal((details.match(/aria-current="true"/g)??[]).length,1);
+  assert(!details.includes('button--primary'),"Period selection uses the quiet shared toggle");
   assert(details.includes('aria-current="true"'));assert(!details.includes("secret-test"));
 }
 assert.throws(()=>renderStockDetails(initial,new URLSearchParams("symbols=NVDA,MSFT")));

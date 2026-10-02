@@ -39,6 +39,10 @@ export function needsOwner(item: ProjectItem, project: ProjectSummary): boolean 
     !["cancelled", "archived", "discarded", "completed"].includes(item.runState ?? "");
 }
 
+export function projectStageLabel(item:ProjectItem,lang:import("./i18n.ts").Language="en"):string {
+  return stateLabel(item.stage??item.runState??(item.runId?null:"no_agent_run"),lang);
+}
+
 export function selectItems(snapshot:ProjectsSnapshot,filters:ViewFilters,lang:import("./i18n.ts").Language="en"):ProjectItem[] {
   const items=snapshot.items.filter(item=>{
     const project=snapshot.projects.find(project=>project.key===item.project);
@@ -50,6 +54,6 @@ export function selectItems(snapshot:ProjectsSnapshot,filters:ViewFilters,lang:i
   });
   if(!filters.sort)return items;
   const collator=new Intl.Collator(lang,{numeric:true,sensitivity:"base"});
-  const value=(item:ProjectItem)=>filters.sort==="task"?item.title:filters.sort==="status"?item.status??"":stateLabel(item.stage??item.runState,lang);
+  const value=(item:ProjectItem)=>filters.sort==="task"?item.title:filters.sort==="status"?item.status??"":projectStageLabel(item,lang);
   return items.sort((a,b)=>(filters.direction==="desc"?-1:1)*collator.compare(value(a),value(b))||a.project.localeCompare(b.project)||(a.number??0)-(b.number??0)||a.id.localeCompare(b.id));
 }

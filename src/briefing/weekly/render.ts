@@ -5,6 +5,7 @@ import {renderMetricCards,type MetricCard} from "../ui/components/metric-strip.t
 import {renderBarChart} from "../ui/charts/index.ts";
 import {parseWeeklyReview,type WeeklyReview} from "./model.ts";
 import {digestLanguage,digestText as t} from "../i18n.ts";
+import {renderTable} from "../../ui-library/components/table.ts";
 
 const dateLabel=(date:string)=>new Intl.DateTimeFormat(digestLanguage()==="en"?"en-GB":"ru-RU",{day:"numeric",month:"short",timeZone:"UTC"}).format(new Date(date+"T12:00:00Z"));
 const duration=(minutes:number|null)=>minutes===null?"—":Math.floor(minutes/60)+t(" ч"," h")+(minutes%60?" "+minutes%60+t(" мин"," min"):"");
@@ -53,7 +54,9 @@ export function renderWeeklyPage(raw:WeeklyReview|null,preview=false):string {
     xLabel:t("День","Day"),yLabel:t("Минуты","Minutes"),unit:{kind:"number",suffix:t("мин","min")},categories,series:[{id:"busy",label:t("Занято","Busy"),values:d.days.map(day=>day.calendar?.busyMinutes??null)}]});
   const mail=renderBarChart({id:"weekly-mail",title:"Unread Primary",description:t("Последнее доступное наблюдение каждого дня. Это остаток писем, не количество новых за сутки.","The last available observation each day. This is remaining mail, not new arrivals."),
     xLabel:t("День","Day"),yLabel:t("Письма","Mail"),unit:{kind:"number"},categories,series:[{id:"unread",label:t("Непрочитанные","Unread"),values:d.days.map(day=>day.inbox?.last??null)}]});
-  const topicRows=d.topics.map(topic=>`<tr><th scope="row">${e(topic.label)}</th><td>${topic.more}</td><td>${topic.less}</td><td>${topic.net>0?"+":""}${topic.net}</td><td>${topic.previousNet>0?"+":""}${topic.previousNet}</td></tr>`).join("");
+  const topicTable=renderTable({className:"weekly-table",numeric:true,stack:true,rowHeaders:true,
+    columns:[t("Тема","Topic"),t("Больше","More"),t("Меньше","Less"),t("Баланс","Balance"),t("Прошлая неделя","Previous week")],
+    rows:d.topics.map(topic=>[topic.label,String(topic.more),String(topic.less),(topic.net>0?"+":"")+topic.net,(topic.previousNet>0?"+":"")+topic.previousNet])});
   const content=`<section class="hero"><div><p class="hero__eyebrow">${preview?t("Предпросмотр · не опубликованный недельный выпуск","Preview · unpublished weekly edition"):"Weekly Review"}</p>
     <h1>${t("Неделя, без лишнего шума.","The week, without the noise.")}</h1><p class="hero__subtitle">${e(period)} · ${t("семь завершённых дней","seven completed days")}</p><a href="/">← ${t("К Daily","Daily")}</a></div></section>
     ${review.state!=="ready"?`<aside class="weekly-caveat"><strong>${t("Пока неполная история.","History is incomplete.")}</strong> ${t("Календарь","Calendar")}: ${d.coverage.calendar}/7 ${t("дней","days")}, ${t("почта","mail")}: ${d.coverage.mail}/7, ${t("новости","news")}: ${d.coverage.news}/7. ${t("Уже удалённые данные не восстанавливались; неполные недели не сравниваю как полные.","Deleted data was not restored; incomplete weeks are not compared as full weeks.")}</aside>`:""}
@@ -65,7 +68,7 @@ export function renderWeeklyPage(raw:WeeklyReview|null,preview=false):string {
     <div class="weekly-charts">${calendar}${mail}</div>
     <section class="weekly-topics" aria-labelledby="weekly-topics"><h2 id="weekly-topics">${t("На что вы реагировали","What you reacted to")}</h2>
       <p>${t("Сигналы интереса, не оценка самих событий. Тема может встречаться в нескольких сюжетах; баланс — 🔔 минус 🔕, а не вес Interest Profile.","These are interest signals, not judgments about events. A topic may appear in several stories; balance is 🔔 minus 🔕, not an Interest Profile weight.")}</p>
-      ${topicRows?`<div class="table table--numeric weekly-table"><table><thead><tr><th>${t("Тема","Topic")}</th><th>${t("Больше","More")}</th><th>${t("Меньше","Less")}</th><th>${t("Баланс","Balance")}</th><th>${t("Прошлая неделя","Previous week")}</th></tr></thead><tbody>${topicRows}</tbody></table></div>`:`<p>${t("За этот период реакций на сюжеты нет.","No story reactions in this period.")}</p>`}
+      ${d.topics.length?topicTable:`<p>${t("За этот период реакций на сюжеты нет.","No story reactions in this period.")}</p>`}
     </section>
     <details class="disclosure weekly-method"><summary>${t("Как посчитано","How it is calculated")}</summary><p>${t("Календарь отражает запланированные события, без отменённых, отклонённых и демонстрационных. События на весь день не превращаются в рабочие часы. Почтовые наблюдения привязаны к дню получения, а не к дате страницы. Действия вне Daily не выдаются за архивирование через дайджест. Все выводы рассчитаны по фиксированным правилам, без дополнительных запросов к AI.","Calendar time covers scheduled events, excluding cancelled, declined and demo events. All-day events are not converted into work hours. Mail observations follow the day they were received, not the page date. Actions outside Daily are not counted as archiving through the digest. Every conclusion follows fixed rules, without additional AI requests.")}</p></details>`;
   return renderPageShell({title:t("Недельный обзор","Weekly review"),brand:"Kurami Weekly",section:"weekly",date:d.publicationDate,dateLabel:period,

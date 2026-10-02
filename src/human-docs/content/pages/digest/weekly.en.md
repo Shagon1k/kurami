@@ -30,6 +30,8 @@ Next to each number there is its coverage, for example "5/7 days". Read a total 
 
 On a phone, charts show the whole selected period. Some date labels are hidden to avoid overlap; exact values remain in tooltips and the data table.
 
+The topic comparison becomes a labelled list on phones. Each topic keeps More, Less, Balance and Previous week visible without horizontal scrolling.
+
 ## A gap is not zero
 
 A day without observations stays *unknown*: on a chart it is a gap, and it takes no part in the sum. Kurami does not turn unknown into zero, because then a week with two lost days would look calm. A comparison with the previous week appears only when both weeks have all seven calendar days observed. If coverage is incomplete, a note «Пока неполная история» (history is still incomplete) sits at the top with three counters: calendar, mail, news.

@@ -124,8 +124,8 @@ async function refreshHub(force=false){
     if(!response.ok)throw new Error("Hub refresh failed");
     const html=await response.text();
     if(dashboard.innerHTML!==html){
-      const disclosureKey=element=>element.dataset.disclosureKey??element.querySelector("summary")?.textContent;
-      const opened=new Set([...dashboard.querySelectorAll("details[open]")].map(disclosureKey));
+      const disclosureKey=element=>element.dataset.disclosureKey;
+      const opened=new Set([...dashboard.querySelectorAll("details[open][data-disclosure-key]")].map(disclosureKey));
       dashboard.innerHTML=html;
       document.dispatchEvent(new Event("kurami:charts-mount"));
       initializePeriods();

@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import "./ui-polish.ts";
 import {mkdtempSync,readFileSync,readdirSync,writeFileSync,rmSync,existsSync} from "node:fs";
 import {tmpdir} from "node:os";
 import {join,resolve} from "node:path";
@@ -186,8 +187,8 @@ try {
   assert.ok(renderChangelog("ru",changesForDeployedSha("095b03fb0f40bf39b914fef13dfec4c1b8348f7b","ru"),"095b03fb0f40bf39b914fef13dfec4c1b8348f7b").includes("Даты в списке — дни коммитов, не дни развёртывания."));
   assert.ok(renderChangelog("en",changes,"596c877dfa0f7d1a82bfaacfed1c1194fdbd6b26").includes("review stage requires"));
   assert.ok(renderChangelog("ru",changesForDeployedSha("596c877dfa0f7d1a82bfaacfed1c1194fdbd6b26","ru"),"596c877dfa0f7d1a82bfaacfed1c1194fdbd6b26").includes("Изменения подтверждены"));
-  assert.ok(renderChangelog("en",[],undefined,true).includes("Docs are published; no verified application deployment"));
-  assert.ok(renderChangelog("ru",[],undefined,true).includes("Документация опубликована"));
+  assert.ok(renderChangelog("en",[],undefined,true).includes("The application release history is not connected to a verified deployment."));
+  assert.ok(renderChangelog("ru",[],undefined,true).includes("Журнал изменений приложения не связан с подтверждённым развёртыванием."));
   const built=resolve(root,"dist/human-docs");
   if(existsSync(built)) {
     assert.ok(!existsSync(join(built,"index.html")),"Root must redirect on the origin, not render a choice page");

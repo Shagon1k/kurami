@@ -46,7 +46,7 @@ export const STOCKS_STYLES=`
 .stock-details[aria-busy=true] { opacity:.65; }
 .stock-details { --chart-margin: var(--space-5) 0; }
 .stock-details__toolbar { display:flex; flex-wrap:wrap; justify-content:space-between; align-items:center; gap:16px; }
-.stocks-periods { display:flex; flex-wrap:wrap; gap:8px; }
+.stocks-periods { display:flex; flex-wrap:wrap; gap:8px; --button-selected-color:var(--accent-data); --button-selected-background:var(--surface-panel); --button-selected-border:var(--accent-data); }
 .stock-period-change { display:grid; gap:4px; text-align:right; font-size:1.25rem; }
 .stock-period-change>span:first-child { font-size:.75rem; color:var(--text-muted); }
 .stock-stats { display:flex; flex-wrap:wrap; gap:24px 40px; padding:16px 0; margin:0; }

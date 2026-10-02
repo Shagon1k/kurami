@@ -8,6 +8,7 @@ const queue=problemQueue([ci,review,review]);
 assert.equal(queue.length,1);assert.equal(queue[0]!.issues.length,2);
 assert.equal(queue[0]!.actor,"owner");assert.equal(queue[0]!.next,"start_repair");
 assert.equal(queue[0]!.task,true);
+assert.equal(problemQueue([{...ci,project:"project"},{...review,project:"project",itemId:"item-33"}])[0]!.itemId,"item-33","task identity survives grouped alerts");
 assert.equal(problemQueue([{...ci,actor:"agent",next:"wait_repair"}])[0]!.next,"wait_repair");
 assert.equal(problemQueue([ci,{...review,next:"reply"}])[0]!.next,"reply");
 const health=problemQueue([{id:"cpu",code:"health_issue",severity:"warning",subject:"CPU high"},{id:"disk",code:"health_issue",severity:"critical",subject:"Disk full"}]);
@@ -31,4 +32,5 @@ assert.equal(workFeed([{...task,id:"old-ci",source:"CI",event:"passed",result:"C
 assert.equal(workFeed([{...task,id:"old-review",source:"AI Review",event:"ready",result:"Review:0"},{...end,id:"new-review",source:"AI Review",event:"running",result:undefined}])[0]!.result,undefined,"a previous review result does not survive a new request");
 assert.equal(workFeed([{...end,runId:"new",currentRunId:"new"},{...task,source:"CI",runId:"old",result:"CI:passed"}])[0]!.result,undefined,"results from old attempts are not promoted to the current run");
 assert.equal(workFeed([{...task,source:"CI",head:"new",result:"CI:passed"},{...end,source:"AI Review",head:"old",result:"Review:0"}])[0]!.result,"Review:outdated");
+assert.equal(workFeed([{...task,subject:"Named session"},{...end,subject:"   "}])[0]!.subject,"Named session","blank current metadata does not erase a retained title");
 console.log("Hub queue grouping, responsibility, work history and turn/task distinction verified");

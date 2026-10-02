@@ -24,6 +24,8 @@ There are two slots, «Неделя» (week) and «Месяц» (month), and the
 
 ## What is inside a report
 
+Before you expand the panel, its heading shows each report's date and whether it is stale or needs confirmation of the holdings. Quote freshness does not imply that the portfolio analysis is current. Sources, positions and term explanations use the same SVG disclosure control.
+
 The block opens with one click. If one report is accepted, it is open right away; if both, you choose «Неделя · дата» or «Месяц · дата» (week or month, with the date) inside. At the top is a short conclusion from Kurami. Then come the positions: each is collapsed and opens by its ticker. A position has «Совет» (advice; for example «Оставить без изменений», keep unchanged, or «Пока не увеличивать позицию», do not increase the position yet), «Короткий вывод» (short conclusion), «Для твоего портфеля» (for your portfolio), «Что может пойти иначе» (what could go differently) and «За чем следить» (what to watch), plus a «Факты и источники» (facts and sources) disclosure. Below there may be «Идеи для изучения» (ideas to study) — at most two, and they are not suggestions to buy — and short term explanations, «Разобраться по ходу» (understand as you go).
 
 All sums, shares and stress scenarios (−30% and −50%) are computed by code, not by the model. Positions without enough data are marked «Недостаточно данных для совета» (not enough data for advice) and say exactly what is missing.

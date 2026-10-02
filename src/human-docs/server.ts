@@ -28,9 +28,19 @@ export function createDocsServer(root: string): Server {
     try { pathname=decodeURIComponent(new URL(request.url??"/","http://localhost").pathname); }
     catch {response.writeHead(400).end();return;}
     if(pathname==="/"||pathname==="/index.html") {response.writeHead(302,{Location:mounted?publicAppUrl("/en/","docs","en"):"/en/"}).end();return;}
+    const articlePath=/^\/(?:en|ru)\/(?:[a-z0-9-]+\/)*[a-z0-9-]*\/?$/.test(pathname);
+    const missingPage=()=>{
+      if(mounted&&!build.webMount){response.writeHead(503).end();return;}
+      const lang=pathname.startsWith("/ru/")?"ru":"en";
+      try {
+        const html=readFileSync(resolve(base,mounted?"unified/errors":"errors",`${lang}.html`));
+        response.writeHead(404,{"Content-Type":"text/html; charset=utf-8","Content-Length":html.length});
+        response.end(request.method==="HEAD"?undefined:html);
+      } catch {response.writeHead(404).end();}
+    };
     // Only generated public routes/assets; never expose build metadata or source paths.
     if(!/^\/(?:|(?:en|ru)\/(?:|(?:[a-z0-9-]+\/)*)(?:index\.html)?|assets\/[a-z0-9-]+\.(?:css|js|svg|png|webp|woff2))$/.test(pathname)) {
-      response.writeHead(404).end();return;
+      if(articlePath)missingPage();else response.writeHead(404).end();return;
     }
     const relative=pathname.endsWith("/")?`${pathname}index.html`:pathname;
     const variant=mounted&&(relative.endsWith(".html")||relative==="/assets/docs.css");
@@ -46,7 +56,10 @@ export function createDocsServer(root: string): Server {
       response.writeHead(200,{"Content-Type":type,"Content-Length":stat.size});
       if(request.method==="HEAD")response.end();
       else createReadStream(target).on("error",()=>response.destroy()).pipe(response);
-    } catch {response.writeHead(404).end();}
+    } catch {
+      if(articlePath||/^\/(?:en|ru)\/(?:[a-z0-9-]+\/)*index\.html$/.test(pathname))missingPage();
+      else response.writeHead(404).end();
+    }
   });
 }
 
