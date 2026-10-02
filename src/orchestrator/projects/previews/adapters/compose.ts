@@ -45,7 +45,7 @@ type OrchestratorConfig = RuntimeSettingsBaseConfig & {
 };
 
 type PreviewHealth = { service: string; path: string };
-type PreviewConfig = {
+export type PreviewConfig = {
   adapter: "compose";
   compose_file: string;
   secrets_file?: string;
@@ -93,7 +93,7 @@ type RuntimeRecord = {
   ci_head_sha: string | null;
 };
 
-type RuntimePlan = {
+export type RuntimePlan = {
   runId: string;
   project: string;
   issueNumber: number;
@@ -336,7 +336,7 @@ function envLine(key: string, value: string | number): string {
   return `${key}=${JSON.stringify(String(value))}`;
 }
 
-async function writeRuntimeFiles(
+export async function writeRuntimeFiles(
   plan: RuntimePlan,
   preview: PreviewConfig,
 ): Promise<void> {
@@ -353,6 +353,8 @@ async function writeRuntimeFiles(
   const runtimeValues: Record<string, string | number> = {
     FRONTEND_PORT: plan.ports.frontend,
     BACKEND_PORT: plan.ports.backend,
+    PREVIEW_FRONTEND_PORT: plan.ports.frontend,
+    PREVIEW_BACKEND_PORT: plan.ports.backend,
     POSTGRES_PORT: plan.ports.postgres,
     REDIS_PORT: plan.ports.redis,
     MINIO_API_PORT: plan.ports.minioApi,

@@ -54,6 +54,8 @@ A slot is a pre-declared address plus a set of ports that Kurami leases to a run
 | MinIO API | 4910N | 49103 |
 | MinIO console | 4920N | 49203 |
 
+The Compose adapter writes the allocated frontend and backend ports into `runtime.env` as `PREVIEW_FRONTEND_PORT` and `PREVIEW_BACKEND_PORT`. It also keeps `FRONTEND_PORT` and `BACKEND_PORT` for existing Compose consumers. Both pairs identify the same slot ports; the repository's Compose file still defines the container ports and loopback bindings.
+
 A slot is held by a *lease* — a `preview_leases` row that ties the slot, the run and a state together. Partial unique indexes allow one active lease per slot, one per run and one per Compose project name. Double allocation is therefore impossible even if two processes race. At most six leases are active (`max_previews_global`) and at most two build at once (`max_preview_builds_global`). What this looks like for you is in [Previews](@previews).
 
 ## Two adapters

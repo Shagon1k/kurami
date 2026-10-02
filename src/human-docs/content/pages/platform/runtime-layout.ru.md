@@ -53,6 +53,8 @@ group home "$KURAMI_HOME" app runtime config state secrets connectors backups re
 
 Файлы JSON — небольшие, записываются атомарно (временный файл и переименование) с правами 0600.
 
+Превью Compose хранят закрытые runtime-файлы в `state/previews/<run_id>/`. В `runtime.env` значения `PREVIEW_FRONTEND_PORT` и `FRONTEND_PORT` равны выделенному порту frontend; `PREVIEW_BACKEND_PORT` и `BACKEND_PORT` содержат порт backend. Рядом остаётся снимок исходного Compose-файла для уборки; изменение адаптера действует при создании нового runtime.
+
 | Файл или каталог | Что хранит | Пишет | Читает |
 |---|---|---|---|
 | `orchestrator.db` | Run Store | Project Orchestrator | здоровье, Hub (только чтение), бэкап |
