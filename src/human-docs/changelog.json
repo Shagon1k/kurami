@@ -1,6 +1,12 @@
 {
   "baseline": "4a38c09",
   "commits": {
+    "20395b2aed67274ae49740110ecdeb41eaf694df": {
+      "category": "fixed",
+      "en": "Hub preserves disclosure state across refreshes, gives unnamed activity a readable title and links alerts to the affected task. Projects aligns paired actions, expands deletion confirmations and distinguishes known stages from missing agent runs. Digest improves mobile Weekly and Mail layouts, review freshness and shared reading controls. Docs reserves illustration space, adds a mobile contents list and a useful 404 page, and separates documentation publication from application deployment.",
+      "ru": "Hub сохраняет раскрытия при обновлении, даёт понятные заголовки безымянной активности и связывает предупреждения с конкретной задачей. Projects выравнивает парные действия, расширяет подтверждения удаления и отличает известный этап задачи от отсутствия запуска агента. В Digest улучшены мобильные Weekly и Mail, свежесть обзора и общие контролы чтения. Docs резервирует место под иллюстрации, добавляет мобильное оглавление и содержательную страницу 404, отделяет публикацию документации от развёртывания приложения.",
+      "page": "ui-library"
+    },
     "f891e859a53000634180050dfe6d04a622c7cb11": {
       "category": "fixed",
       "en": "Projects keeps the status editor visible and presents task actions as full-width or paired buttons. Resource links have clearer button surfaces; informational notes and review counts are easier to distinguish. Mobile task navigation preserves scroll before paint and avoids exit flashes. Modal dialogs lock background scrolling; Apps and Docs menus close on repeat click, outside click and Escape.",
