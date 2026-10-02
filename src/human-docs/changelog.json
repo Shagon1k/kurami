@@ -1,6 +1,12 @@
 {
   "baseline": "4a38c09",
   "commits": {
+    "3d14565b5262c060e2cacf47fb58a158aff7b8d8": {
+      "category": "improved",
+      "en": "Hub, Digest, Projects and Docs share a full-width mobile navigation panel with larger icons and menus above the panel. Existing search, language, theme and app controls move into those menus without duplication; desktop layouts are unchanged. Hub keeps its separate period bubble and switches between 7 and 30 days with one tap.",
+      "ru": "Hub, Digest, Projects и Docs используют общую нижнюю панель мобильной навигации с крупными иконками и меню над панелью. Поиск, язык, тема и управление приложениями перенесены в эти меню без дублирования; desktop-раскладки не изменены. Hub сохраняет отдельную кнопку периода и переключается между 7 и 30 днями одним нажатием.",
+      "page": "ui-library"
+    },
     "20395b2aed67274ae49740110ecdeb41eaf694df": {
       "category": "fixed",
       "en": "Hub preserves disclosure state across refreshes, gives unnamed activity a readable title and links alerts to the affected task. Projects aligns paired actions, expands deletion confirmations and distinguishes known stages from missing agent runs. Digest improves mobile Weekly and Mail layouts, review freshness and shared reading controls. Docs reserves illustration space, adds a mobile contents list and a useful 404 page, and separates documentation publication from application deployment.",
