@@ -53,6 +53,8 @@ group home "$KURAMI_HOME" app runtime config state secrets connectors backups re
 
 The JSON files are small and written atomically (a temporary file, then a rename) with mode 0600.
 
+Compose previews keep private runtime files under `state/previews/<run_id>/`. In `runtime.env`, `PREVIEW_FRONTEND_PORT` and `FRONTEND_PORT` hold the same allocated frontend port; `PREVIEW_BACKEND_PORT` and `BACKEND_PORT` hold the backend port. The source Compose snapshot stays beside this file for cleanup; the adapter change applies when a new runtime is generated.
+
 | File or directory | What it holds | Written by | Read by |
 |---|---|---|---|
 | `orchestrator.db` | the Run Store | Project Orchestrator | health, Hub (read-only), backup |

@@ -1003,6 +1003,25 @@ the project-specific orchestrator secret file; per-run JWT, E2E, PostgreSQL, and
 MinIO credentials are generated locally and never printed or stored in SQLite.
 After Compose health checks pass, the lease becomes `running`.
 
+The generated `runtime.env` exposes allocated frontend/backend host ports under
+both `PREVIEW_FRONTEND_PORT` / `PREVIEW_BACKEND_PORT` and the legacy
+`FRONTEND_PORT` / `BACKEND_PORT` names. PostgreSQL, Redis and MinIO mappings keep
+their existing names. Repository Compose files retain control of container
+ports and loopback bindings. Source snapshots and cleanup use the same runtime
+files as before; existing runtimes acquire the aliases only when regenerated.
+
+Run `npm run test:pickflick-preview-contract` to render the checked-in PickFlick
+contract fixture with the adapter's actual generated env and disposable
+synthetic OAuth credentials. To check a current checkout, run
+`npm run test:pickflick-preview-contract -- --repository /path/to/PickFlick`
+(or set `PICKFLICK_PREVIEW_REPOSITORY`). The test runs only `docker compose config`,
+checks every required interpolation key, exact allocated ports, legacy aliases,
+and loopback exposure, and removes its temporary files. It reports configured
+health service names absent from the Compose contract separately. The adapter's
+health probes use allocated ports and configured paths, so stale service names
+are metadata drift rather than a runtime gate. Docker Compose is required; the
+default fixture needs no private repository or credential file.
+
 Projects that produce an already-built static site may instead configure:
 
 ```yaml
