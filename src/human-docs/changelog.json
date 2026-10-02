@@ -1,6 +1,12 @@
 {
   "baseline": "4a38c09",
   "commits": {
+    "ea22cdf19c03c478a928a724650a1bc01f692f0b": {
+      "category": "fixed",
+      "en": "Restored Digest's Read and archive actions without replacing the Mail footer. Projects uses shared bottom-right notifications. Hub aligns log actions and right-aligned confirmation buttons, adds matching System Health card shadows, and places Docs after Projects in every Apps menu.",
+      "ru": "В Digest восстановлена кнопка «Прочитать и архивировать»: футер страницы больше не подменяет панель Mail. Projects использует общие уведомления справа снизу. В Hub выровнены действия журнала и кнопки подтверждения справа, добавлены одинаковые тени карточек System Health. Во всех меню «Приложения» Docs идёт после Projects.",
+      "page": "ui-library"
+    },
     "9cf198e3ecc93992acc20caf7f0f26424f0a35df": {
       "category": "operations",
       "en": "",
