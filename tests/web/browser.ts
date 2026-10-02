@@ -128,8 +128,14 @@ try{
     assert.equal(await devtools.evaluate("document.querySelector('.site-brand__fox').naturalWidth>0"),true,path+" fox loaded");
     assert.deepEqual(await devtools.evaluate(AUDIT_EXPRESSION),[],path+" "+width);
     assert.equal(await devtools.evaluate("document.documentElement.scrollWidth>innerWidth+1"),false,path+" overflow");
-    assert.equal(await devtools.evaluate("(() => {const name=document.querySelector('.site-brand__name').getBoundingClientRect(),actions=document.querySelector('.site-actions').getBoundingClientRect();return name.right<=actions.left+1;})()"),true,path+" brand does not overlap controls");
-    assert.equal(await devtools.evaluate("(() => {const date=document.querySelector('.site-brand__meta');return !date||date.getBoundingClientRect().right<=document.querySelector('.site-actions').getBoundingClientRect().left+1;})()"),true,path+" date does not overlap controls");
+    if(width>620){
+      assert.equal(await devtools.evaluate("(() => {const name=document.querySelector('.site-brand__name').getBoundingClientRect(),actions=document.querySelector('.site-actions').getBoundingClientRect();return name.right<=actions.left+1;})()"),true,path+" brand does not overlap controls");
+      assert.equal(await devtools.evaluate("(() => {const date=document.querySelector('.site-brand__meta');return !date||date.getBoundingClientRect().right<=document.querySelector('.site-actions').getBoundingClientRect().left+1;})()"),true,path+" date does not overlap controls");
+    }else{
+      assert.equal(await devtools.evaluate("getComputedStyle(document.querySelector('.site-actions')).display"),"none",path+" mobile controls leave the header");
+      assert.equal(await devtools.evaluate("getComputedStyle(document.querySelector('.site-header')).position"),"static",path+" mobile header scrolls with content");
+      assert.equal(await devtools.evaluate("(() => {const bar=document.querySelector('.mobile-navigation__bar'),rect=bar.getBoundingClientRect();return getComputedStyle(bar).position==='fixed'&&rect.left===0&&Math.abs(rect.right-innerWidth)<=1&&Math.abs(rect.bottom-innerHeight)<=1&&bar.querySelectorAll('[data-mobile-menu]').length===4;})()"),true,path+" unified mobile panel remains available");
+    }
     if(path===`/${lang}/`){
       assert.equal(await devtools.evaluate("(() => {const labels=[...document.querySelectorAll('[data-period-panel=commits]:not([hidden]) .chart__labels:last-child text')].slice(0,-1).map(label=>label.getBoundingClientRect());return labels.every((label,index)=>!index||label.left>=labels[index-1].right+1);})()"),true,path+" commit dates remain separate");
       assert.equal(await devtools.evaluate("(() => {const mark=document.querySelector('[data-period-panel=commits]:not([hidden]) .stat-card__marked');const text=document.createRange();text.selectNodeContents(mark);return text.getClientRects().length<=3&&getComputedStyle(mark).whiteSpace==='nowrap';})()"),true,path+" partial marker stays attached");
