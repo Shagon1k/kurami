@@ -569,7 +569,16 @@ export function injectRuntime(html: string, items: ClientItemState[] = [],footer
   html=html.replace(/<([a-z]+) class="media-lightbox__close"[^>]*>[\s\S]*?<\/\1>/g,()=>renderMediaClose());
   if(!html.includes("data-font-preload"))html=html.replace(/<\/head>/i,renderFontPreloads(digestLanguage())+"</head>");
   html=html.replace(/<h1>/g,'<h1 class="page-title">').replace(/class="hero__eyebrow"/g,'class="hero__eyebrow page-eyebrow"').replace(/class="hero__subtitle"/g,'class="hero__subtitle page-subtitle"');
-  if(footer)html=html.replace(/<footer\b[^>]*>[\s\S]*?<\/footer>/i,footer);
+  if(footer){
+    // Section footers (Mail actions, story metadata) belong to the frozen content.
+    // The page footer is outside the main landmark, including on retained editions.
+    const endOfMain=/<\/main\s*>/gi;let boundary:RegExpExecArray|null,lastBoundary=0;
+    while((boundary=endOfMain.exec(html)))lastBoundary=endOfMain.lastIndex;
+    if(lastBoundary){
+      const tail=html.slice(lastBoundary),pageFooter=/<footer\b[^>]*>[\s\S]*?<\/footer>/i;
+      html=html.slice(0,lastBoundary)+(pageFooter.test(tail)?tail.replace(pageFooter,()=>footer):footer+tail);
+    }
+  }
   // Editions frozen before self-hosted fonts still link Google Fonts; serve the same faces locally.
   if (html.includes("fonts.googleapis.com")) html = html.replace(GOOGLE_FONTS, "").replace(/<\/head>/i, `<style>${FONT_FACES}</style></head>`);
   // Frozen editions keep their data and markup; refresh their chart theme at serve time.

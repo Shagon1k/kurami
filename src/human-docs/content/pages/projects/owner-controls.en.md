@@ -16,7 +16,7 @@ The card is edited in place. After every event Kurami posts it again below the e
 
 ## The Projects page
 
-Open Projects through the Sites menu. Choose a project in the header, search for
+Open Projects through the Apps menu. Choose a project in the header, search for
 a task, or sort by task, status and Kurami state. The interface defaults to
 English; the square language button switches it to Russian. On desktop the
 table scrolls within the window, with more space inside each row. On mobile a
@@ -40,6 +40,13 @@ queue. Sync shows each project's freshness; the page refreshes every 30 seconds.
 Check results use text values; the task status uses a badge. Suggested next comes
 from the same ranking as Projects Digest. Discord continues to show notifications
 and run state.
+
+Action feedback appears in a small bottom-right notification, not beside search.
+Successful requests disappear automatically. Errors and unconfirmed status
+writes stay until you close them or another result replaces them. Refreshing the
+table preserves the notification; on phones it remains available inside the task
+dialog. A queued request is not proof that the action has completed: check the
+card's current state.
 
 ## What the card shows
 

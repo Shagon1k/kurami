@@ -11,8 +11,10 @@
   let gesture=null;
   let pendingHistory=null;
   let navigationVersion=0;
-  const status = document.querySelector('[data-refresh-status]');
-  const statusHome=status?.parentElement;
+  const toastRegion=document.querySelector('[data-toast-region]');
+  const toastHome=app;
+  const toast=createKuramiToast(toastRegion,()=>dashboard.querySelector('#project-details')??search);
+  const notify=(message,tone='info',duration)=>toast.show(message,{tone,duration});
   if (!dashboard) return;
   let refreshing = false;
   let requestingReview = false;
@@ -36,6 +38,7 @@
     if (refreshing || confirmingAction) return;
     refreshing = true;
     const previousFocus = document.activeElement;
+    const focusedToast=toastRegion.contains(previousFocus);
     const focusedItem = previousFocus?.getAttribute('data-item-link');
     const focusedReview = previousFocus?.getAttribute('data-review-run');
     const focusedAction = previousFocus?.getAttribute('data-run-action');
@@ -56,7 +59,7 @@
       const response = await fetch(kuramiAppUrl('/api/fragment?' + params), { cache: 'no-store', signal: AbortSignal.timeout(10000) });
       if (!response.ok) throw new Error('refresh failed');
       const html=await response.text();
-      statusHome?.append(status);
+      toastHome.append(toastRegion);
       dashboard.innerHTML = html;
       const table=dashboard.querySelector('.projects-table');
       if(table){table.scrollTop=scrollTop;table.scrollLeft=scrollLeft;}
@@ -65,15 +68,15 @@
       updateLayout(focusDetails && detail?.dataset.detailItem!==previousItem);
       updateProjectTabs(url);
       filter();
-      status.textContent = '';
       const form = dashboard.querySelector('[data-status-form]');
       const select = form?.querySelector('select');
       if (statusDraft && form?.dataset.item === statusDraft.item && select && !select.disabled) {
         if (form.dataset.from === statusDraft.from && [...select.options].some(option => option.value === statusDraft.value)) select.value = statusDraft.value;
-        else status.textContent = t("Status changed. Check the new state before saving.");
+        else notify(t("Status changed. Check the new state before saving."),'warning');
       }
       if (form) updateStatusChoice(form);
-      if (focusDetails) (dashboard.querySelector('#project-details') ?? dashboard.querySelector('[data-item-link]'))?.focus({ preventScroll: true });
+      if(focusedToast && !toastRegion.hidden)toastRegion.querySelector('[data-toast-dismiss]').focus({preventScroll:true});
+      else if (focusDetails) (dashboard.querySelector('#project-details') ?? dashboard.querySelector('[data-item-link]'))?.focus({ preventScroll: true });
       else if (focusedItem) [...dashboard.querySelectorAll('[data-item-link]')].find(el => el.dataset.itemLink === focusedItem)?.focus({ preventScroll: true });
       else if (focusedDetails) dashboard.querySelector('#project-details')?.focus({ preventScroll: true });
       else if (focusedClose) dashboard.querySelector('[data-item-close]')?.focus({ preventScroll: true });
@@ -90,7 +93,7 @@
       return true;
     } catch {
       returnFocus=null;
-      status.textContent = t("Refresh failed. The previous snapshot is still displayed.");
+      notify(t("Refresh failed. The previous snapshot is still displayed."),'failure');
       return false;
     } finally {
       refreshing = false;
@@ -164,7 +167,7 @@
   function updateLayout(animate=false){
     const frame=dashboard.querySelector('.projects-table-frame');
     const detail=dashboard.querySelector('#project-details'),modal=mobile.matches&&!!detail;
-    if(modal)detail.insertBefore(status,detail.querySelector('h2'));else statusHome?.append(status);
+    if(modal)detail.append(toastRegion);else toastHome.append(toastRegion);
     if(frame)app.style.setProperty('--projects-table-height',`${Math.max(220,innerHeight-frame.getBoundingClientRect().top-24)}px`);
     const toolbar=dashboard.querySelector('.projects-mobile-sort');
     for(const button of dashboard.querySelectorAll('.projects-table thead [data-sort]'))button.tabIndex=toolbar&&getComputedStyle(toolbar).display!=='none'?-1:0;
@@ -207,8 +210,8 @@
       if (!response.ok) throw new Error(result.error || t("Could not request AI Review."));
       button.disabled = true;
       await refresh();
-      status.textContent = ['failed', 'rejected'].includes(result.requestState) ? t("The previous request did not start. Retry AI Review for the current commit.") : result.state === 'existing' ? t("This AI Review request has already been accepted.") : t("AI Review queued.");
-    } catch (error) { status.textContent = error.name === 'TimeoutError' || error.name === 'TypeError' ? t("Could not confirm the request. Retry safely: another click will not create a duplicate.") : error.message; }
+      notify(['failed', 'rejected'].includes(result.requestState) ? t("The previous request did not start. Retry AI Review for the current commit.") : result.state === 'existing' ? t("This AI Review request has already been accepted.") : t("AI Review queued."),['failed','rejected'].includes(result.requestState)?'warning':'success');
+    } catch (error) { notify(error.name === 'TimeoutError' || error.name === 'TypeError' ? t("Could not confirm the request. Retry safely: another click will not create a duplicate.") : error.message,'failure'); }
     finally { requestingReview = false; button.removeAttribute('aria-busy'); }
   }
   function dismissConfirmation(focus = true) {
@@ -229,10 +232,10 @@
       if(!response.ok) { await refresh(); throw new Error(result.error || t("Could not request this action.")); }
       button.disabled=true;
       await refresh();
-      status.textContent=['failed','rejected'].includes(result.requestState) ? t("The previous request failed. Check the state and retry.") :
-        result.requestState==='applied' ? t("Action confirmed.") : result.state==='existing' ? t("This request has already been accepted.") : t("Action queued in Kurami.");
+      notify(['failed','rejected'].includes(result.requestState) ? t("The previous request failed. Check the state and retry.") :
+        result.requestState==='applied' ? t("Action confirmed.") : result.state==='existing' ? t("This request has already been accepted.") : t("Action queued in Kurami."),['failed','rejected'].includes(result.requestState)?'warning':'success');
     } catch(error) {
-      status.textContent=error.name==='TimeoutError' || error.name==='TypeError' ? t("Could not confirm the request. Another click checks the same request without a duplicate.") : error.message;
+      notify(error.name==='TimeoutError' || error.name==='TypeError' ? t("Could not confirm the request. Another click checks the same request without a duplicate.") : error.message,'failure');
     } finally {requestingAction=false;button.removeAttribute('aria-busy');}
   }
   function updateStatusChoice(form) {
@@ -266,9 +269,10 @@
       const result = await response.json();
       await refresh();
       if (!response.ok) throw new Error(result.error || statusMessages[result.state] || t("Could not save status."));
-      status.textContent = statusMessages[result.state] || t("Request accepted.");
+      const tone=['conflict','failed','uncertain'].includes(result.state)?'warning':result.state==='synced'?'success':'info';
+      notify(statusMessages[result.state] || t("Request accepted."),tone,result.state==='synced'?undefined:0);
     } catch (error) {
-      status.textContent = error.name === 'TimeoutError' || error.name === 'TypeError' ? t("Could not confirm the write. Another click checks this request's result.") : error.message;
+      notify(error.name === 'TimeoutError' || error.name === 'TypeError' ? t("Could not confirm the write. Another click checks this request's result.") : error.message,'failure');
       // Retain the nonce until a refreshed snapshot has resolved the operation.
       if (form.isConnected) { select.disabled = form.dataset.check === 'true'; button.disabled = false; }
     } finally { requestingStatus = false; button.removeAttribute('aria-busy'); }

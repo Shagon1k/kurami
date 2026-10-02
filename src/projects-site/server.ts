@@ -14,13 +14,14 @@ import { requestProjectsReview, ProjectsActionError, type ReviewResult } from ".
 import { requestProjectStatus, type StatusResult } from "./status.ts";
 import { requestProjectRunAction } from "./run-actions.ts";
 import {isMountedRequest,mountResponse,WEB_CLIENT_JS} from "../web/presentation.ts";
+import {TOAST_RUNTIME_JS} from "../ui-library/runtime/toast.ts";
 import {WebAccess} from "../web/access.ts";
 import {WEB_ORIGIN} from "../web/routes.ts";
 
 const assetRoot = resolve(import.meta.dirname, "../ui-library/assets");
 const assets = new Map<string, { body: Buffer | string; type: string }>([
   ["/assets/projects.css", { body: PROJECTS_STYLES, type: "text/css; charset=utf-8" }],
-  ["/assets/projects.js", { body: WEB_CLIENT_JS+readFileSync(resolve(import.meta.dirname, "client.js"),"utf8"), type: "text/javascript; charset=utf-8" }],
+  ["/assets/projects.js", { body: WEB_CLIENT_JS+TOAST_RUNTIME_JS+readFileSync(resolve(import.meta.dirname, "client.js"),"utf8"), type: "text/javascript; charset=utf-8" }],
   ["/assets/theme.js", { body: WEB_CLIENT_JS+THEME_RUNTIME_JS, type: "text/javascript; charset=utf-8" }],
   ["/assets/kurami-fox.webp", { body: readFileSync(resolve(assetRoot, "brand/kurami-fox-header.webp")), type: "image/webp" }],
   ["/assets/favicon.svg", { body: readFileSync(resolve(assetRoot, "brand/kurami-favicon.svg")), type: "image/svg+xml" }],

@@ -25,9 +25,18 @@ import type {HubSnapshot} from "../../hub/snapshot.ts";
 import {summarizeModelUsage,type UsageSample} from "../../core/api-equivalent.ts";
 import {renderProjectsPage} from "../../projects-site/render.ts";
 import {syntheticProjectsSnapshot} from "../../../tests/projects-site/fixture.ts";
+import {TOAST_CSS,renderToastRegion} from "../components/toast.ts";
+import {TOAST_RUNTIME_JS} from "../runtime/toast.ts";
 
 export function syntheticProjects(lang:"en"|"ru"="en"):string {
   return renderProjectsPage(syntheticProjectsSnapshot(),new URLSearchParams({lang}));
+}
+
+/** Library-only notification fixture, with no product CSS or action endpoints. */
+export function libraryToast():string {
+  return renderDocument({lang:"en",title:"Toast · Kurami lab",favicon:"/favicon.svg",footer:"",skipLabel:"Skip to content",styles:{inline:[THEME_CSS,FOUNDATION_CSS,BUTTON_CSS,ICON_CSS,TOAST_CSS].join('\n')},themeScript:true,
+    head:`<script>${TOAST_RUNTIME_JS}\ndocument.addEventListener('DOMContentLoaded',()=>{const trigger=document.querySelector('[data-demo-toast]');const toast=createKuramiToast(document.querySelector('[data-toast-region]'),()=>trigger);trigger.addEventListener('click',()=>toast.show('Request queued.',{tone:'success',duration:0}));toast.show('Request queued.',{tone:'success',duration:0});});</script>`,
+    header:renderThemeSwitch("en"),main:`<h1>Notification</h1>${renderButton({label:"Show notification",variant:"secondary",attributes:{"data-demo-toast":true}})}${renderToastRegion("Dismiss notification")}`});
 }
 
 const at="2026-09-16T07:00:00Z";

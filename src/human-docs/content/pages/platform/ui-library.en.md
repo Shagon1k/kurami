@@ -52,6 +52,17 @@ still names the result independently of its color.
 Published Digest editions receive current shared control styles when served,
 so an older edition uses the same sizes as a new page.
 
+Dialog actions use `renderDialogActions`: secondary actions first, then the
+primary action, aligned right. Hub's log uses the `row` disclosure variant to
+align the result link and event toggle; expanded events occupy the full row width.
+System Health cards use the shared small card shadow.
+
+Projects notifications use `renderToastRegion` and `createKuramiToast` from the
+library. A single notice appears at the bottom-right without taking focus.
+Success and ordinary information expire after eight seconds; hovering, keyboard
+focus or a hidden page pauses the timer. Errors, warnings and pending status
+writes remain until dismissed or replaced. The close icon has an accessible name.
+
 The shared header names the current app: Kurami. Hub, Digest, Projects or Docs.
 **Apps** opens the product links; Hermes and Dokploy are separated external links
 that open in another tab. On the unified entry, product links stay on one origin,
@@ -59,6 +70,7 @@ so the saved theme follows you between apps. Hub's phone period control uses a
 shared floating-button variant with keyboard focus and safe-area spacing.
 Digest uses the shared toggle, source-link and selected icon-button states;
 Projects uses shared icon sizing rather than redefining the SVG styles.
+Product links are ordered Hub, Digest, Projects, Docs.
 
 When text grows, section navigation stays within its column. If the links no
 longer fit, the navigation scrolls horizontally instead of widening the page.
@@ -108,7 +120,7 @@ edge d3 -> exc "no" accent
 
 ## Export for the skill
 
-The Hermes skill "kurami-ui-preview-language" draws previews by the same rules, so it needs the same style. The command `npm run ui:export` builds the CSS and the theme script from the library into the skill's assets directory. The files are marked as generated, and a test checks that they have not fallen behind the library: after any library change the export is run again.
+The Hermes skill "kurami-ui-preview-language" draws previews by the same rules, so it needs the same style. The command `npm run ui:export` builds the CSS, theme script and toast runtime (`kurami-toast.js`) from the library into the skill's assets directory. The files are marked as generated, and a test checks that they have not fallen behind the library: after any library change the export is run again.
 
 ::::example A "Download" button in a new Digest block (an invented example)
 :::steps

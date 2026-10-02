@@ -57,6 +57,7 @@ try{
     const at="2026-10-01T07:00:00Z",date=at.slice(0,10),id=type+":"+date;
     const payload=parseBriefingPayload({schemaVersion:1,formatVersion:3,edition:{id,type,localDate:date,timezone:"Europe/Vilnius",generatedAt:at,status:"complete",retentionUntil:"2099-01-01T00:00:00Z"},hero:{title:"Synthetic edition"},dataQuality:{state:"ready"},addons:{}});
     if(type==="daily")setSection(payload,"news",{state:"ready",pageSize:10,items:[{id:"fixture-story",fingerprint:"fixture-story",headline:"Synthetic story",summary:"Synthetic summary",details:["Fixture details"],en:{headline:"Synthetic story",summary:"Synthetic summary",details:["Fixture details"]},topics:[{id:"technology",label:"Technology"},{id:"testing",label:"Testing"}],media:[{id:"fixture-image",kind:"image",src:"/media/fixture.webp",alt:"Synthetic image",mimeType:"image/webp"}],sources:[{sourceKey:"telegram:fixture",itemIds:["1"],provider:"telegram",sourceLabel:"Fixture",url:"https://example.org/story"}]}]});
+    if(type==="daily")setSection(payload,"mail",{state:"ready",count:1,items:[{id:"fixture-mail",provider:"gmail",providerItemId:"fixture-message",class:"GENERAL",subject:"Synthetic inbox message"}]});
     parseBriefingPayload(payload);
     writeFileSync(join(digestPaths.previewDirectory,type+".html"),renderBriefingPage(payload));
     digestDb.prepare(`INSERT INTO editions(id,edition_type,local_date,timezone,state,payload_json,html_path,content_digest,preview_enabled,is_current,prepared_at,published_at,retention_until,updated_at) VALUES(?,?,?,'Europe/Vilnius','complete',?,?, 'fixture',1,1,?,?,'2099-01-01T00:00:00Z',?)`).run(id,type,date,JSON.stringify(payload),"pages/preview/"+type+".html",at,at,at);
@@ -116,6 +117,14 @@ try{
     assert.equal(await devtools.evaluate("document.querySelectorAll('link[rel=manifest]').length"),1,path);
     assert.equal(await devtools.evaluate("document.querySelector('link[rel=manifest]').crossOrigin"),"use-credentials",path+" credentialed manifest");
     assert.equal(await devtools.evaluate("document.querySelectorAll('.site-footer').length"),1,path+" one common footer");
+    assert.equal(await devtools.evaluate("!!document.querySelector('.site-footer').closest('main')"),false,path+" page footer is outside main");
+    assert.deepEqual(await devtools.evaluate("[...document.querySelectorAll('.site-switcher a')].map(link=>link.textContent)"),["Hub","Digest","Projects","Docs","Hermes↗","Dokploy↗"],path+" app order");
+    if(path===`/${lang}/digest/`){
+      assert.equal(await devtools.evaluate("!!document.querySelector('[data-mail-section] .mail-actions [data-mail-archive]')"),true,path+" mail archive action survives runtime injection");
+      assert.match(await devtools.evaluate<string>("document.querySelector('[data-mail-archive]').textContent"),lang==="en"?/Read and archive/:/Прочитать и архивировать/);
+      await devtools.evaluate("document.querySelector('[data-mail-select]').click()");
+      assert.equal(await devtools.evaluate("document.querySelector('[data-mail-archive]').disabled"),false,path+" selecting mail enables archive without submitting it");
+    }
     assert.equal(await devtools.evaluate("document.querySelector('.site-brand__fox').naturalWidth>0"),true,path+" fox loaded");
     assert.deepEqual(await devtools.evaluate(AUDIT_EXPRESSION),[],path+" "+width);
     assert.equal(await devtools.evaluate("document.documentElement.scrollWidth>innerWidth+1"),false,path+" overflow");
@@ -170,7 +179,7 @@ try{
   await devtools.evaluate("document.querySelector('[data-hub-control=models]').click()");await wait("!!document.querySelector('form[data-target=codex]')");
   assert.equal(await devtools.evaluate("document.querySelector('dialog').open"),true,"mounted read-only control configuration works");
   await open("/ru/projects/?project=alpha");
-  await devtools.evaluate("document.querySelector('[data-item-link]').click()");try{await wait("!!document.querySelector('#project-details')");}catch(error){throw new Error(await devtools.evaluate("JSON.stringify({url:location.href,link:document.querySelector('[data-item-link]').href,status:document.querySelector('[data-refresh-status]').textContent,api:kuramiAppUrl('/api/fragment?item=issue-1&lang=ru')})"),{cause:error});}
+  await devtools.evaluate("document.querySelector('[data-item-link]').click()");try{await wait("!!document.querySelector('#project-details')");}catch(error){throw new Error(await devtools.evaluate("JSON.stringify({url:location.href,link:document.querySelector('[data-item-link]').href,status:document.querySelector('[data-toast-message]').textContent,api:kuramiAppUrl('/api/fragment?item=issue-1&lang=ru')})"),{cause:error});}
   assert.equal(await devtools.evaluate("location.pathname"),"/ru/projects/","task navigation remains mounted");
   assert.equal(await devtools.evaluate("document.documentElement.lang"),"ru","fragment keeps locale");
   assert.equal(await devtools.evaluate("document.querySelector('[data-language-link]').pathname"),"/en/projects/","language links use mounted paths after fragment navigation");

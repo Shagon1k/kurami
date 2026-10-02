@@ -53,6 +53,22 @@ assert.doesNotMatch(renderSiteHeader({...input,dateLabel:'<script>"test"</script
 assert.throws(()=>renderSiteNavigation([{section:"__proto__" as SiteSection}],"daily"));
 assert.throws(()=>renderSiteNavigation([{section:"daily"},{section:"daily"}],"daily"));
 const original=renderPageShell({title:"Тест",brand:"Kurami",section:"daily",date:"2026-09-17",dateLabel:"четверг, 17 сентября 2026 г.",generated:"09:00",timezone:"Europe/Vilnius",content:"<h1 class=\"page-title\">Содержание не меняется</h1>"});
+const mailActions='<footer class="mail-actions"><button data-mail-archive>Read and archive</button></footer>';
+const storyFooter='<footer class="story-meta">Original metadata</footer>';
+for(const language of ["en","ru"] as const){
+  const retained=original.replace('</main>',mailActions+storyFooter+'</main>');
+  const pageFooter=`<footer class="site-footer">${language} refreshed page footer</footer>`;
+  const result=injectRuntime(retained,[],pageFooter);
+  assert(result.includes(mailActions),"Mail actions survive runtime footer refresh");
+  assert(result.includes(storyFooter),"section footers remain unchanged");
+  assert(result.indexOf(pageFooter)>result.lastIndexOf('</main>'),"only the page footer is replaced");
+  assert.equal(result.match(/class="site-footer"/g)?.length,1);
+  const repeated=injectRuntime(result,[],pageFooter);
+  assert.equal(repeated.match(/class="site-footer"/g)?.length,1,"repeated runtime injection keeps one page footer");
+  assert(repeated.includes(mailActions)&&repeated.includes(storyFooter));
+  const withoutFooter=retained.replace(/<footer\b[^>]*class="[^"]*\bsite-footer\b[^"]*"[^>]*>[\s\S]*?<\/footer>/,'');
+  assert(injectRuntime(withoutFooter,[],pageFooter).includes('</main>'+pageFooter),"legacy documents receive a footer after main");
+}
 const updated=injectSiteNavigation(original,input.links,"daily");
 assert.match(updated,/href="\/ru\/weekly"/);
 assert(updated.includes("<h1 class=\"page-title\">Содержание не меняется</h1>"));

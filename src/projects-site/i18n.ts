@@ -1,6 +1,7 @@
 export type Language="en"|"ru";
 export function language(params:URLSearchParams):Language{return params.get("lang")==="ru"?"ru":"en";}
 const messages:Record<string,string>={
+  "Dismiss notification":"Закрыть уведомление",
   "Untitled task":"Без названия",
   "Task":"Задача", "Tasks":"Задачи", "Status":"Статус", "Checks":"Проверки", "Search tasks":"Поиск задач", "Search by title or issue number":"Название или номер задачи",
   "All projects":"Все проекты", "Projects":"Проекты", "Project":"Проект", "Skip to content":"К содержанию", "Close task":"Закрыть задачу", "Back to tasks":"К задачам", "Draft":"Черновик", "No status":"Без статуса", "Unknown":"Неизвестно", "Not started":"Не запущено", "Your decision needed":"Ждёт вашего решения", "Suggested next":"Следующая задача", "Suggested in Discord digest":"Рекомендовано в Discord digest",

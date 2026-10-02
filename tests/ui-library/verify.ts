@@ -27,7 +27,8 @@ import {renderIcon,iconPath} from "../../src/ui-library/components/icon.ts";
 import {renderSelectionControl,SELECTION_CONTROL_CSS} from "../../src/ui-library/components/selection-control.ts";
 import {renderPill} from "../../src/ui-library/components/pill.ts";
 import {renderPopover} from "../../src/ui-library/components/popover.ts";
-import {renderDialog} from "../../src/ui-library/components/dialog.ts";
+import {renderDialog,renderDialogActions} from "../../src/ui-library/components/dialog.ts";
+import {renderToastRegion,TOAST_CSS} from "../../src/ui-library/components/toast.ts";
 import {renderPeriodSwitch} from "../../src/ui-library/components/period-switch.ts";
 import {inlineDiagram} from "../../src/ui-library/foundations/diagram.ts";
 import {renderDiagram} from "../../src/human-docs/diagrams/kit.ts";
@@ -41,6 +42,18 @@ assert.throws(()=>renderSelectField({name:"sort",label:"Order",value:"original",
 assert.match(renderIcon("bellOff"),/aria-hidden="true"/);
 
 const root=resolve(import.meta.dirname,"../..");
+for(const lang of ["en","ru"] as const)for(const app of ["hub","digest","projects","docs"] as const){
+  assert.deepEqual(kuramiSites(app,lang).links.map(link=>link.label),["Hub","Digest","Projects","Docs","Hermes","Dokploy"]);
+}
+assert.match(renderDisclosure({summary:"Events",body:"<ol></ol>",variant:"row"}),/disclosure--inline disclosure--row/);
+const dialogActions=renderDialogActions(renderButton({label:"Cancel",variant:"secondary"})+renderButton({label:"Confirm",variant:"primary"}));
+assert(dialogActions.indexOf('Cancel')<dialogActions.indexOf('Confirm'));
+assert.match(dialogActions,/class="dialog__actions"/);
+const toast=renderToastRegion('Close "notice"');
+assert.match(toast,/data-toast-region data-tone="info" hidden/);
+assert.match(toast,/role="status" aria-live="polite" aria-atomic="true"/);
+assert.match(toast,/aria-label="Close &quot;notice&quot;"/);
+assert.match(TOAST_CSS,/position: fixed/);
 const periodControl=renderPeriodSwitch({key:"usage",lang:"en",label:"Usage period"});
 assert.match(periodControl,/role="group" aria-label="Usage period"/);
 assert.match(periodControl,/data-period-days="30" aria-pressed="true"/);

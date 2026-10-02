@@ -34,6 +34,10 @@ async function screenshot(name:string,selector?:string){
   const clip=selector?await devtools.evaluate(`(()=>{const r=document.querySelector(${JSON.stringify(selector)}).getBoundingClientRect();return {x:r.x+scrollX,y:r.y+scrollY,width:r.width,height:r.height,scale:1};})()`):undefined;
   const result=await devtools.call<{data:string}>("Page.captureScreenshot",{format:"png",captureBeyondViewport:true,...(clip?{clip}:{})});writeFileSync(resolve(output,name+".png"),Buffer.from(result.data,"base64"));
 }
+async function activityAlignment(){
+  assert.equal(await devtools.evaluate("[...document.querySelectorAll('.work-item:not([hidden])')].every(item=>{const link=item.querySelector('.work-item__link a'),summary=item.querySelector('.work-events > summary');if(!link)return true;const a=link.getBoundingClientRect(),b=summary.getBoundingClientRect();return Math.abs((a.top+a.bottom)-(b.top+b.bottom))<2&&a.right<=b.left+1;})"),true,"result links and event toggles share a row and center");
+  assert.equal(await devtools.evaluate("[...document.querySelectorAll('.health-cell')].every(cell=>getComputedStyle(cell).boxShadow!=='none')"),true,"health cards use the shared card shadow");
+}
 try {
   for(const lang of ["en","ru"]){
     await devtools.call("Emulation.setTouchEmulationEnabled",{enabled:false});
@@ -45,6 +49,7 @@ try {
     assert(Math.max(...heights)-Math.min(...heights)<1,"Codex panels share one row height");
     assert.equal(await devtools.evaluate("document.querySelector('[data-period-panel=tokens]:not([hidden]) .metric__value').title"),lang==="en"?"14,268,300":"3 812 400","30 days is the default; selections persist across languages");
     assert.equal(await devtools.evaluate("document.querySelector('.activity').tagName"),"SECTION");
+    await activityAlignment();
     assert.equal(await devtools.evaluate("document.querySelectorAll('.activity-list > [data-work-id]:not([hidden])').length"),5,"five work items are always visible");
     assert.equal(await devtools.evaluate("document.querySelectorAll('.problem').length"),1,"CI and review are one problem object");
     assert.equal(await devtools.evaluate("document.querySelector('.problem__reasons').children.length"),2);
@@ -127,6 +132,7 @@ try {
     await devtools.evaluate("document.querySelector('[data-hub-control=models]').click()");await wait("!!document.querySelector('form[data-target=codex]')");
     await devtools.evaluate("document.querySelector('form[data-target=codex] select').value='gpt-6-astra';document.querySelector('form[data-target=codex]').requestSubmit()");
     const before=actions.length;assert.equal(await devtools.evaluate("document.querySelector('#hub-control-confirm').hidden"),false);
+    assert.equal(await devtools.evaluate("(()=>{const row=document.querySelector('#hub-control-confirm .dialog__actions'),cancel=row.querySelector('[data-hub-cancel]'),confirm=row.querySelector('[data-hub-confirm]'),r=row.getBoundingClientRect(),a=cancel.getBoundingClientRect(),b=confirm.getBoundingClientRect();return cancel.compareDocumentPosition(confirm)===Node.DOCUMENT_POSITION_FOLLOWING&&a.right<=b.left&&Math.abs(r.right-b.right)<1;})()"),true,"Cancel then Confirm align to the dialog's right edge");
     await delay(100);assert.equal(actions.length,before,"opening confirmation never applies a model");
     if(lang==="en"){
       await devtools.evaluate("document.querySelector('[data-hub-confirm]').click()");await wait("document.querySelector('#hub-control-result').textContent==='Applied'");
@@ -161,6 +167,7 @@ try {
     await devtools.evaluate("document.querySelector('[data-dialog-close]').click()");
     for(const width of [320,390,768,1280]){
       await devtools.call("Emulation.setDeviceMetricsOverride",{width,height:1000,deviceScaleFactor:1,mobile:width<500});
+      await activityAlignment();
       await devtools.evaluate("window.scrollTo(0,0);document.querySelector('header [data-hub-control=menu]').click()");
       const rect=await devtools.evaluate<{left:number;right:number;top:number;bottom:number}>("(()=>{const r=document.querySelector('#hub-controls-popover').getBoundingClientRect();return {left:r.left,right:r.right,top:r.top,bottom:r.bottom}})()");
       assert(rect.left>=0&&rect.right<=width+1&&rect.top>=0&&rect.bottom<=1000,"Controls popover fits "+width);

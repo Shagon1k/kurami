@@ -11,7 +11,7 @@ import {tmpdir} from "node:os";
 import {isAbsolute,join,resolve,sep} from "node:path";
 import {setTimeout as delay} from "node:timers/promises";
 import {findBrowser,launchBrowser} from "./devtools.ts";
-import {librarySubsite,syntheticDaily,syntheticHub,syntheticInvestmentReview,syntheticLegacyCinema,syntheticStocksEmpty,syntheticWeeklyEmpty,syntheticProjects} from "./fixtures.ts";
+import {librarySubsite,libraryToast,syntheticDaily,syntheticHub,syntheticInvestmentReview,syntheticLegacyCinema,syntheticStocksEmpty,syntheticWeeklyEmpty,syntheticProjects} from "./fixtures.ts";
 import {syntheticCharts} from "./charts.ts";
 import {auditPoster,syntheticDailyFilled,syntheticCinemaFilled,syntheticWeeklyFilled,syntheticStocksFilled} from "./digest-filled.ts";
 import {syntheticStocksDiscovery,syntheticRetainedCinema,syntheticHubUnavailable,syntheticHubLong} from "./audit-states.ts";
@@ -27,6 +27,7 @@ import {pages as docsPages} from "../../human-docs/content.ts";
 import {injectRuntime,createBriefingServer} from "../../briefing/server.ts";
 import {briefingPaths} from "../../briefing/store.ts";
 import {WEB_CLIENT_JS} from "../../web/presentation.ts";
+import {TOAST_RUNTIME_JS} from "../runtime/toast.ts";
 import type {Devtools} from "./devtools.ts";
 
 const root=resolve(import.meta.dirname,"../../..");
@@ -61,6 +62,7 @@ const availablePages:Record<string,string>={
   "library-charts":"/lab/charts.html",
   "library-charts-en":"/lab/charts-en.html",
   "library-subsite":"/lab/index.html",
+  "library-toast":"/lab/toast.html",
   "hub-home":"/hub/index.html",
   "hub-home-en":"/hub/en.html",
   "hub-unavailable":"/hub/unavailable.html",
@@ -132,6 +134,7 @@ async function site():Promise<string> {
   writeFileSync(join(served,"digest/review.html"),syntheticInvestmentReview());
   mkdirSync(join(served,"lab"),{recursive:true});
   writeFileSync(join(served,"lab/index.html"),librarySubsite());
+  writeFileSync(join(served,"lab/toast.html"),libraryToast());
   writeFileSync(join(served,"lab/charts.html"),syntheticCharts());
   writeFileSync(join(served,"lab/charts-en.html"),syntheticCharts("en"));
   mkdirSync(join(served,"hub"),{recursive:true});
@@ -147,7 +150,7 @@ async function site():Promise<string> {
   writeFileSync(join(served,"projects/index.html"),syntheticProjects());
   writeFileSync(join(served,"projects/ru.html"),syntheticProjects("ru"));
   writeFileSync(join(served,"assets/projects.css"),PROJECTS_STYLES);
-  writeFileSync(join(served,"assets/projects.js"),WEB_CLIENT_JS+readFileSync(join(root,"src/projects-site/client.js"),"utf8"));
+  writeFileSync(join(served,"assets/projects.js"),WEB_CLIENT_JS+TOAST_RUNTIME_JS+readFileSync(join(root,"src/projects-site/client.js"),"utf8"));
   writeFileSync(join(served,"assets/hub.js"),HUB_CLIENT_JS);
   cpSync(join(brandAssets,"kurami-fox-header.webp"),join(served,"assets/kurami-fox.webp"));
   cpSync(join(brandAssets,"kurami-fox-header.webp"),join(served,"assets/kurami-fox-header.webp"));
@@ -239,7 +242,7 @@ async function checkSiteSwitcher(devtools:Devtools,base:string):Promise<void> {
       return {links:[...nav.querySelectorAll('a')].map(link=>link.textContent.trim()),current:nav.querySelector('[aria-current]')?.textContent.trim()??null,projects:projects?.getAttribute('aria-disabled')??null,projectsHref:projects?.getAttribute('href')??null,open:menu.open,overflow:document.documentElement.scrollWidth-innerWidth,left:rect.left,right:rect.right};
     })()`);
     const projectsHref=`https://kurami.shagon1k.win/${path==="/en/"||path==="/hub/en.html"?"en":"ru"}/projects/`;
-    if(JSON.stringify(state.links)!==JSON.stringify(["Hub","Digest","Docs","Projects","Hermes↗","Dokploy↗"])||state.current!==current||state.projects!==null||state.projectsHref!==projectsHref||!state.open||state.overflow>1||state.left<0||state.right>width+1)throw new Error(`Site switcher ${path} at ${width}px: ${JSON.stringify(state)}`);
+    if(JSON.stringify(state.links)!==JSON.stringify(["Hub","Digest","Projects","Docs","Hermes↗","Dokploy↗"])||state.current!==current||state.projects!==null||state.projectsHref!==projectsHref||!state.open||state.overflow>1||state.left<0||state.right>width+1)throw new Error(`Site switcher ${path} at ${width}px: ${JSON.stringify(state)}`);
   }
 }
 

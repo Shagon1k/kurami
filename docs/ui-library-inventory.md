@@ -4,6 +4,16 @@ Status: inventory at `c31a505`; the owner approved the structure, self-hosted fo
 
 ## What exists today
 
+The UI follow-up adds `components/toast.ts` and `runtime/toast.ts`: one fixed,
+bottom-right notice, named dismissal, polite live feedback, paused expiry and
+persistent warnings/errors. Projects supplies the message and request state;
+the library owns presentation and lifecycle. `ui:export` also writes the portable
+`kurami-toast.js` runtime. A library-only fixture tests the notification without
+product CSS. Dialog actions now share `renderDialogActions`; the disclosure `row`
+variant uses a parent subgrid to align a result link and event toggle without
+absolute offsets. Apps ordering is Hub, Digest, Projects, Docs, then external
+Hermes and Dokploy. UI-Library: extended.
+
 Kurami renders HTML for three sites plus one private report. All of it is server-rendered TypeScript strings; there is no client framework.
 
 | Surface | Renderer | Styles | Theme runtime | Fonts | Brand assets |

@@ -8,7 +8,7 @@ import {renderThemeSwitch} from "../ui-library/components/theme-switch.ts";
 import {renderButton,renderLinkButton} from "../ui-library/components/button.ts";
 import {renderPeriodSwitch} from "../ui-library/components/period-switch.ts";
 import {renderDisclosure} from "../ui-library/components/disclosure.ts";
-import {renderDialog} from "../ui-library/components/dialog.ts";
+import {renderDialog,renderDialogActions} from "../ui-library/components/dialog.ts";
 import {renderPopover} from "../ui-library/components/popover.ts";
 import {compactNumber,estimatedUsd} from "./format.ts";
 import {HUB_CSS_URL,HUB_CLIENT_URL} from "./assets.ts";
@@ -182,7 +182,7 @@ function renderActivity(snapshot:HubSnapshot,lang:HubLanguage):string {
   };
   const rows=activity.map((item,index)=>{
     const events=item.events.map(event=>`<li><time datetime="${escapeHtml(event.at)}">${escapeHtml(formatTime(event.at,lang))}</time><span>${escapeHtml(event.source)} · ${escapeHtml(label(eventLabels,event.event,lang))}</span></li>`).join("");
-    const detail=renderDisclosure({summary:tr(lang,`События · ${item.events.length}`,`Events · ${item.events.length}`),key:item.id,className:"work-events",variant:"inline",body:`<ol class="work-event-list list-reset">${events}</ol>`});
+    const detail=renderDisclosure({summary:tr(lang,`События · ${item.events.length}`,`Events · ${item.events.length}`),key:item.id,className:"work-events",variant:"row",body:`<ol class="work-event-list list-reset">${events}</ol>`});
     const subject=item.subject.length>80?item.subject.slice(0,77).trimEnd()+"…":item.subject;
     const state=item.event==="task_started"?tr(lang,"Активна","Active"):item.event==="task_complete"?tr(lang,"Ожидает нового хода","Idle"):item.event==="turn_aborted"?tr(lang,"Ход прерван","Interrupted"):label(eventLabels,item.event,lang);
     const linkLabel=item.href?.includes("/pull/")?tr(lang,"Открыть PR","Open PR"):item.href?.includes("/issues/")?tr(lang,"Открыть задачу","Open task"):item.href?.includes("/codex/threads/")?tr(lang,"Открыть сессию","Open session"):tr(lang,"Открыть результат","Open result");
@@ -281,7 +281,7 @@ export function renderHubPage(snapshot:HubSnapshot,lang:HubLanguage="en",csrfTok
   return renderDocument({lang,title:"Hub · Kurami",description:tr(lang,"Личный дашборд Kurami.","Kurami personal dashboard."),favicon:"/assets/favicon.svg",styles:{href:HUB_CSS_URL},themeScript:true,skipLabel:tr(lang,"К содержимому","Skip to content"),
     head:`<meta name="hub-control-token" content="${escapeHtml(csrfToken)}"><link rel="manifest" href="/${lang}/manifest.webmanifest" crossorigin="use-credentials"><script src="${HUB_CLIENT_URL}" defer></script>`,
     header:hubHeader(lang),
-    main:`<div id="hub-dashboard" class="hub" aria-live="off">${renderHubDashboard(snapshot,lang)}</div>${renderPopover({id:"hub-controls-popover",label:tr(lang,"Управление","Controls"),body:renderControls(lang)})}<template id="hub-control-back">${renderButton({label:tr(lang,"Назад","Back"),variant:"subtle",size:"compact",attributes:{"data-hub-control":"menu"}})}</template>${renderDialog({id:"hub-control-dialog",title:tr(lang,"Управление","Controls"),closeLabel:tr(lang,"Закрыть","Close"),body:`<div id="hub-control-content"></div><div id="hub-control-confirm" hidden><p id="hub-confirm-message" class="control-summary"></p><div class="control-actions">${renderButton({label:tr(lang,"Подтвердить","Confirm"),variant:"primary",attributes:{"data-hub-confirm":true}})}${renderButton({label:tr(lang,"Отмена","Cancel"),variant:"secondary",attributes:{"data-hub-cancel":true}})}</div></div><p id="hub-control-result" role="status"></p>`})}`,
+main:`<div id="hub-dashboard" class="hub" aria-live="off">${renderHubDashboard(snapshot,lang)}</div>${renderPopover({id:"hub-controls-popover",label:tr(lang,"Управление","Controls"),body:renderControls(lang)})}<template id="hub-control-back">${renderButton({label:tr(lang,"Назад","Back"),variant:"subtle",size:"compact",attributes:{"data-hub-control":"menu"}})}</template>${renderDialog({id:"hub-control-dialog",title:tr(lang,"Управление","Controls"),closeLabel:tr(lang,"Закрыть","Close"),body:`<div id="hub-control-content"></div><div id="hub-control-confirm" hidden><p id="hub-confirm-message" class="control-summary"></p>${renderDialogActions(renderButton({label:tr(lang,"Отмена","Cancel"),variant:"secondary",attributes:{"data-hub-cancel":true}})+renderButton({label:tr(lang,"Подтвердить","Confirm"),variant:"primary",attributes:{"data-hub-confirm":true}}))}</div><p id="hub-control-result" role="status"></p>`})}`,
     footer:renderSiteFooter({lang,app:"Hub",updated:formatTime(snapshot.generatedAt,lang)})});
 }
 

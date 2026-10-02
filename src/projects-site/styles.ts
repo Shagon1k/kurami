@@ -10,15 +10,14 @@ import {THEME_SWITCH_CSS} from "../ui-library/components/theme-switch.ts";
 import {SITE_HEADER_CSS} from "../ui-library/patterns/site-header.ts";
 import {breakpoints} from "../ui-library/tokens/index.ts";
 import {ICON_CSS} from "../ui-library/components/icon.ts";
+import {TOAST_CSS} from "../ui-library/components/toast.ts";
 
-export const PROJECTS_STYLES=[THEME_CSS,FOUNDATION_CSS,BUTTON_CSS,TABLE_CSS,FORM_CSS,CALLOUT_CSS,PILL_CSS,POPOVER_CSS,THEME_SWITCH_CSS,SITE_HEADER_CSS,ICON_CSS,`
+export const PROJECTS_STYLES=[THEME_CSS,FOUNDATION_CSS,BUTTON_CSS,TABLE_CSS,FORM_CSS,CALLOUT_CSS,PILL_CSS,POPOVER_CSS,THEME_SWITCH_CSS,SITE_HEADER_CSS,ICON_CSS,TOAST_CSS,`
 :root { --container-max: 1500px; }
 [data-projects-app] { --projects-table-height: calc(100dvh - 230px); }
 .projects-page { padding-block: var(--space-5) var(--space-6); }
 .projects-toolbar { display: flex; align-items: center; flex-wrap: wrap; gap: var(--space-3) var(--space-5); }
 .projects-search { width: min(480px,100%); }
-[data-refresh-status] { flex: 1; min-width: 220px; font-size: .8rem; color: var(--text-muted); }
-[data-refresh-status]:empty { display: none; }
 .projects-overview { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: var(--space-2) var(--space-5); margin-block: var(--space-3); }
 .projects-summary { --button-icon-size: 14px; display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2); min-height: var(--control-height); }
 .projects-summary p { display: flex; align-items: center; gap: var(--space-2); margin: 0; color: var(--text-muted); font-size: .78rem; }
@@ -93,7 +92,6 @@ export const PROJECTS_STYLES=[THEME_CSS,FOUNDATION_CSS,BUTTON_CSS,TABLE_CSS,FORM
   .projects-detail { position: fixed; inset: 0; z-index: 60; width: 100%; height: 100dvh; overflow-y: auto; overscroll-behavior: contain; border: 0; border-radius: var(--radius-sm); padding: var(--space-5); padding-bottom: calc(var(--space-6) + env(safe-area-inset-bottom)); background: var(--surface-page); touch-action: pan-y; }
   .projects-detail[data-enter] { animation: projects-detail-enter var(--duration-base) ease-out; }
   body.projects-mobile-detail-open { overflow: hidden; }
-  .projects-detail [data-refresh-status] { position: sticky; top: 0; z-index: 2; min-width: 0; padding: var(--space-3); background: var(--surface-panel); border: 1px solid var(--border-default); border-radius: var(--radius); }
   body.projects-mobile-detail-open .projects-table-frame { visibility: hidden; }
   .projects-table-frame { touch-action: pan-y; }
   @keyframes projects-detail-enter { from { transform: translateX(8%); opacity: 0; } to { transform: translateX(0); opacity: 1; } }
