@@ -21,4 +21,17 @@
     try { localStorage.setItem(key, next); } catch {}
     apply(next);
   });
+  const menus = () => document.querySelectorAll                    (".site-switcher[open],.site-menu[open],.side-mobile[open]");
+  document.addEventListener("pointerdown", event => {
+    if (!(event.target instanceof Node)) return;
+    for (const menu of menus()) if (!menu.contains(event.target)) menu.open = false;
+  });
+  document.addEventListener("keydown", event => {
+    if (event.key !== "Escape") return;
+    for (const menu of menus()) { menu.open = false; menu.querySelector("summary")?.focus({preventScroll:true}); }
+  });
+  document.addEventListener("click", event => {
+    if (!(event.target instanceof Element)) return;
+    for (const menu of menus()) if (!menu.contains(event.target) || event.target.closest("a[href]")) menu.open = false;
+  });
 })();

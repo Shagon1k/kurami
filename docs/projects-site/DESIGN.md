@@ -53,20 +53,24 @@ animation, while direct finger tracking remains.
 
 The detail header contains project, issue number, title, a Project status pill
 and the Kurami stage as colored text.
-Resources form a quiet two-column grid: Issue, PR, Review and Discord. Missing
+Resources form a bordered two-column button grid: Issue, PR, Review and Discord. Missing
 resources leave no empty slots. Preview navigation lives beside Preview evidence.
-Change status reveals the editor; pending requests keep it open. Evidence groups
+The status editor is always visible. Evidence groups
 CI, review and preview in one panel with their contextual repair/review/preview
 actions. A shared known commit is shown once; differing or unknown heads remain
 explicit. Review Ready does not mean the findings passed. An already-reviewed
 commit has its explanation without a redundant disabled review button.
-Work contains continuation/recovery; Cleanup separates stopping from deletion.
+Continuation, recovery, stopping and deletion share a bottom action grid without
+Work/Cleanup headings. One action fills a row; two share equal columns, including
+Open preview and Remove preview. Notes use the information color; finding counts
+use the monospaced font. Scroll restoration happens after layout but before paint;
+an exiting panel stays offscreen until replaced.
 Only deletion uses the danger variant. All server eligibility and confirmations
 are unchanged.
 
 Regular controls use the shared 36px height; contextual actions use the compact
-variant, retaining coarse-pointer targets. Actions wrap without filling every
-row. Multiline labels can grow vertically. Status pills
+variant, retaining coarse-pointer targets. Actions fill their grid cells.
+Multiline labels can grow vertically. Status pills
 use 11px text with 2px vertical padding. Sort headings put a thin 14px icon after
 the label. Checks is centered horizontally and shares the headings' vertical
 alignment. Header padding is denser than body-row padding.

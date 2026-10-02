@@ -111,6 +111,13 @@ try {
     assert.deepEqual(await devtools.evaluate(AUDIT_EXPRESSION),[],"expanded Usage and selected period are accessible");
     if(lang==="en")await screenshot("hub-usage",".usage");
     const menuActions=actions.length;
+    await devtools.evaluate("document.querySelector('.site-switcher > summary').click()");
+    assert.equal(await devtools.evaluate("document.querySelector('.site-switcher').open"),true);
+    await devtools.call("Input.dispatchMouseEvent",{type:"mousePressed",button:"left",clickCount:1,x:4,y:400});
+    await devtools.call("Input.dispatchMouseEvent",{type:"mouseReleased",button:"left",clickCount:1,x:4,y:400});
+    assert.equal(await devtools.evaluate("document.querySelector('.site-switcher').open"),false,"Apps closes on outside click");
+    await devtools.evaluate("document.querySelector('.site-switcher > summary').click();document.querySelector('.site-switcher > summary').click()");
+    assert.equal(await devtools.evaluate("document.querySelector('.site-switcher').open"),false,"Apps closes on repeat click");
     await devtools.evaluate("document.querySelector('header [data-hub-control=menu]').click()");
     assert.equal(await devtools.evaluate("document.querySelector('#hub-controls-popover').matches(':popover-open')"),true);
     assert.equal(await devtools.evaluate("document.querySelector('dialog').open"),false,"Controls first opens a popover, not a modal");
@@ -129,6 +136,11 @@ try {
     assert.equal(await devtools.evaluate("document.activeElement.dataset.hubControl"),"menu","Escape restores focus to the header");
     await devtools.evaluate("document.querySelector('header [data-hub-control=menu]').click();document.querySelector('[data-hub-control=models]').click()");await wait("!!document.querySelector('form[data-target=codex]')");
     assert.equal(await devtools.evaluate("document.querySelector('dialog').open"),true);
+    assert.equal(await devtools.evaluate("getComputedStyle(document.documentElement).overflowY==='hidden'&&getComputedStyle(document.body).overflowY==='hidden'"),true,"modal locks the page scroll, not just focus");
+    const lockedScroll=await devtools.evaluate<number>("scrollY");
+    await devtools.call("Input.dispatchMouseEvent",{type:"mouseWheel",x:4,y:450,deltaX:0,deltaY:250});
+    await delay(100);
+    assert.equal(await devtools.evaluate("scrollY"),lockedScroll,"wheel outside the modal cannot move the page");
     assert.equal(await devtools.evaluate("document.querySelector('#hub-controls-popover').matches(':popover-open')"),false);
     assert.equal(await devtools.evaluate("document.querySelector('#hub-control-dialog-title').textContent"),lang==='en'?'Models':'Модели');
     assert.equal(await devtools.evaluate("!!document.querySelector('dialog [data-hub-control=menu]')"),false,"modal does not contain an extra Back action");
@@ -150,6 +162,7 @@ try {
     assert.equal(await devtools.evaluate("document.querySelector('[data-dialog-close]').getAttribute('aria-label')"),lang==="en"?"Close":"Закрыть");
     await devtools.evaluate("document.querySelector('[data-dialog-close] .button__svg path').dispatchEvent(new MouseEvent('click',{bubbles:true}))");
     assert.equal(await devtools.evaluate("document.querySelector('dialog').open"),false,"clicking the close icon closes the dialog");
+    assert.equal(await devtools.evaluate("getComputedStyle(document.documentElement).overflowY==='hidden'"),false,"closing the modal releases the page scroll");
     await devtools.evaluate("document.querySelector('[data-hub-control=codex-reset]').click()");
     await delay(80);
     assert.equal(actions.length,before+(lang==="en"?1:0),"reset waits for confirmation");

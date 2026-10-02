@@ -24,6 +24,8 @@ html[data-theme="dark"] { color-scheme: dark; --surface-page: #0a0a0a; --surface
 *, *::before, *::after { box-sizing: border-box; }
 [hidden] { display: none !important; }
 html { scroll-behavior: smooth; }
+html:has(dialog:modal),body:has(dialog:modal) { overflow: hidden; overscroll-behavior: none; }
+html:has(dialog:modal) { scrollbar-gutter: stable; }
 body { margin: 0; color: var(--text-primary); background: var(--surface-page); font: 400 16px/1.5 var(--font-sans); text-rendering: optimizeLegibility; }
 a { color: inherit; }
 .list-reset { list-style: none; margin: 0; padding: 0; }
@@ -256,7 +258,7 @@ button, a { -webkit-tap-highlight-color: transparent; }
 @media (forced-colors: active) { .form-select select { appearance: auto; padding-inline-end: var(--space-3); } .form-select .ui-icon { display: none; } }
 
 
-.dialog { width: min(620px,calc(100% - 28px)); max-height: calc(100dvh - 40px); padding: var(--space-5); color: var(--text-primary); background: var(--surface-page); border: 1px solid var(--border-default); border-radius: var(--radius); box-shadow: var(--shadow-raised); }
+.dialog { width: min(620px,calc(100% - 28px)); max-height: calc(100dvh - 40px); padding: var(--space-5); color: var(--text-primary); background: var(--surface-page); border: 1px solid var(--border-default); border-radius: var(--radius); box-shadow: var(--shadow-raised); overscroll-behavior: contain; }
 .dialog::backdrop { background: color-mix(in srgb,var(--text-primary) 40%,transparent); }
 .dialog__heading { display: flex; align-items: center; justify-content: space-between; gap: var(--space-3); margin-bottom: var(--space-4); }
 .dialog__heading h2 { min-width: 0; overflow-wrap: anywhere; margin: 0; font-size: 1.2rem; }

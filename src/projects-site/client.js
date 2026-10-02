@@ -37,11 +37,11 @@
     toastHome.append(toastRegion);dashboard.innerHTML=html;
     const detail=dashboard.querySelector('#project-details');
     if(detail){
-      detail.scrollTop=detailScrolls.get(detail.dataset.detailItem)??0;
       detail.querySelectorAll('[data-run-action],[data-review-run],[data-status-submit],select').forEach(control=>control.disabled=true);
       const note=document.createElement('p');note.className='projects-update';note.dataset.cachedView='';note.textContent=t('Saved view · refreshing…');detail.append(note);
     }
     updateLayout();updateProjectTabs(url);filter();
+    if(detail)detail.scrollTop=detailScrolls.get(detail.dataset.detailItem)??0;
     if(focusDetails)detail?.focus({preventScroll:true});else restoreTaskFocus();
     return true;
   }
@@ -95,7 +95,6 @@
     const previousTable=dashboard.querySelector('.projects-table');
     const scrollTop=previousTable?.scrollTop??0,scrollLeft=previousTable?.scrollLeft??0;
     const previousDetail=dashboard.querySelector('#project-details');
-    const statusEditorOpen=previousDetail?.querySelector('.projects-status-editor')?.open;
     const detailScroll=previousDetail?.scrollTop??0,previousItem=previousDetail?.dataset.detailItem;
     const focusedDetails = previousFocus?.id === 'project-details';
     const focusedClose = previousFocus?.hasAttribute('data-item-close');
@@ -117,13 +116,13 @@
       const table=dashboard.querySelector('.projects-table');
       if(table){table.scrollTop=scrollTop;table.scrollLeft=scrollLeft;}
       const detail=dashboard.querySelector('#project-details');
-      if(detail && detail.dataset.detailItem===previousItem) detail.scrollTop=detailScroll;
-      updateLayout(focusDetails && detail?.dataset.detailItem!==previousItem);
+      updateLayout();
+      if(detail)detail.scrollTop=detail.dataset.detailItem===previousItem?detailScroll:detailScrolls.get(detail.dataset.detailItem)??0;
       updateProjectTabs(url);
       filter();
+      if(mobile.matches&&focusDetails&&detail&&detail.dataset.detailItem!==previousItem&&!settledEnter)await slide(detail,innerWidth,0);
+      if(version!==navigationVersion)return false;
       const form = dashboard.querySelector('[data-status-form]');
-      const editor=dashboard.querySelector('.projects-status-editor');
-      if(editor&&detail?.dataset.detailItem===previousItem&&statusEditorOpen)editor.open=true;
       const select = form?.querySelector('select');
       if (statusDraft && form?.dataset.item === statusDraft.item && select && !select.disabled) {
         if (form.dataset.from === statusDraft.from && [...select.options].some(option => option.value === statusDraft.value)) select.value = statusDraft.value;
@@ -236,7 +235,7 @@
     const attention=document.querySelector('.projects-search input[name=attention]');if(attention)attention.value=url.searchParams.get('attention')==='1'?'1':'';
     const languageLink=document.querySelector('[data-language-link]');if(languageLink){const next=new URL(url),other=document.documentElement.lang==='en'?'ru':'en';if(document.getElementById('kurami-web-context')){next.pathname=next.pathname.replace(/^\/(en|ru)(?=\/)/,'/'+other);next.searchParams.delete('lang');}else next.searchParams.set('lang',other);languageLink.href=next.pathname+next.search;}
   }
-  function updateLayout(animate=false){
+  function updateLayout(){
     const frame=dashboard.querySelector('.projects-table-frame');
     const detail=dashboard.querySelector('#project-details'),modal=mobile.matches&&!!detail;
     if(modal)detail.append(toastRegion);else toastHome.append(toastRegion);
@@ -246,7 +245,7 @@
     document.body.classList.toggle('projects-mobile-detail-open',modal);
     for(const element of [document.querySelector('[data-site-header]'),document.querySelector('.projects-toolbar'),dashboard.querySelector('.projects-overview'),dashboard.querySelector('.projects-mobile-sort'),frame])if(element)element.inert=modal;
     if(detail){
-      if(modal){detail.setAttribute('role','dialog');detail.setAttribute('aria-modal','true');if(animate){detail.setAttribute('data-enter','');detail.addEventListener('animationend',()=>detail.removeAttribute('data-enter'),{once:true});}}
+      if(modal){detail.setAttribute('role','dialog');detail.setAttribute('aria-modal','true');}
       else{detail.removeAttribute('role');detail.removeAttribute('aria-modal');detail.removeAttribute('data-enter');}
     }
   }
@@ -280,6 +279,7 @@
         const template=document.createElement('template');template.innerHTML=views.get(viewKey(lastDetailUrl));
         start.panel=template.content.querySelector('#project-details');if(!start.panel){cancelGesture();return;}
         start.panel.removeAttribute('id');start.panel.removeAttribute('aria-labelledby');start.panel.setAttribute('aria-hidden','true');start.panel.inert=true;document.body.append(start.panel);
+        start.panel.scrollTop=detailScrolls.get(start.panel.dataset.detailItem)??0;
       }
       start.panel.setAttribute('data-dragging','');
     }
@@ -297,13 +297,12 @@
     const from=start.detail?start.delta:innerWidth+start.delta;
     const settled=await slide(start.panel,from,complete?(start.detail?innerWidth:0):(start.detail?0:innerWidth));
     start.panel.removeAttribute('data-dragging');
-    if(!start.detail)start.panel.remove();else start.panel.style.removeProperty('transform');
-    if(!complete||!settled)return;
-    if(start.detail){settledExit=true;dashboard.querySelector('[data-item-close]')?.click();}
-    else{settledEnter=true;await navigate(new URL(lastDetailUrl));}
+    if(!complete||!settled){if(!start.detail)start.panel.remove();else start.panel.style.removeProperty('transform');return;}
+    if(start.detail){start.panel.dataset.exited='true';settledExit=true;dashboard.querySelector('[data-item-close]')?.click();}
+    else{settledEnter=true;await navigate(new URL(lastDetailUrl));start.panel.remove();}
   },{passive:true});
   function cancelGesture(){const start=gesture;gesture=null;if(start?.panel){if(!start.detail)start.panel.remove();else start.panel.style.removeProperty('transform');start.panel.removeAttribute('data-dragging');}motionFinished();}
-  function cancelMotion(){motionVersion++;settling=false;delete dashboard.dataset.transitioning;document.querySelectorAll('.projects-detail').forEach(panel=>{panel.getAnimations().forEach(animation=>animation.cancel());panel.style.removeProperty('transform');});motionFinished();}
+  function cancelMotion(){motionVersion++;settling=false;delete dashboard.dataset.transitioning;document.querySelectorAll('.projects-detail:not([data-exited])').forEach(panel=>{panel.getAnimations().forEach(animation=>animation.cancel());panel.style.removeProperty('transform');});motionFinished();}
   document.addEventListener('pointercancel',cancelGesture,{passive:true});
   async function submitReview(button) {
     if (button.disabled || requestingReview || requestingStatus || requestingAction || confirmingAction || refreshing) return;

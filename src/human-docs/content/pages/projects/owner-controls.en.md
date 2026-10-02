@@ -41,16 +41,22 @@ Check results use text values; the task status uses a badge. Suggested next come
 from the same ranking as Projects Digest. Discord continues to show notifications
 and run state.
 
-Change status reveals the editor; an unresolved request keeps it open. Issue,
-PR, review and Discord links form a grid. CI, review and preview share one block,
+The status editor stays visible. Issue, PR, review and Discord links use bordered
+buttons in a grid. CI, review and preview share one block,
 with repair actions beside their checks. Preview has its own link and expiry.
 A matching commit appears once; differing commits stay visible. A ready review
 does not mean there are no findings.
+
+A single action fills its row; two actions share a row, including Open preview
+and Remove preview. Continuation, recovery and cleanup actions sit below the
+checks without separate headings. Informational notes use a distinct color;
+review counts use a monospaced font.
 
 During a swipe, the panel follows your finger; a short drag returns it to place.
 The last task opens from page memory and then refreshes. Controls stay disabled
 until fresh data arrives. Vertical scrolling and form fields do not switch views;
 a deletion confirmation also disables swipes.
+The saved scroll position is restored before the panel appears.
 
 Action feedback appears in a small bottom-right notification, not beside search.
 Successful requests disappear automatically. Errors and unconfirmed status

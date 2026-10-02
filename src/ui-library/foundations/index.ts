@@ -10,6 +10,8 @@ export const FOUNDATION_CSS=`${FONT_FACES}${SITE_FOOTER_CSS}
 *, *::before, *::after { box-sizing: border-box; }
 [hidden] { display: none !important; }
 html { scroll-behavior: smooth; }
+html:has(dialog:modal),body:has(dialog:modal) { overflow: hidden; overscroll-behavior: none; }
+html:has(dialog:modal) { scrollbar-gutter: stable; }
 body { margin: 0; color: var(--text-primary); background: var(--surface-page); font: 400 16px/1.5 var(--font-sans); text-rendering: optimizeLegibility; }
 a { color: inherit; }
 .list-reset { list-style: none; margin: 0; padding: 0; }

@@ -243,6 +243,28 @@ async function checkSiteSwitcher(devtools:Devtools,base:string):Promise<void> {
     })()`);
     const projectsHref=`https://kurami.shagon1k.win/${path==="/en/"||path==="/hub/en.html"?"en":"ru"}/projects/`;
     if(JSON.stringify(state.links)!==JSON.stringify(["Hub","Digest","Projects","Docs","Hermes↗","Dokploy↗"])||state.current!==current||state.projects!==null||state.projectsHref!==projectsHref||!state.open||state.overflow>1||state.left<0||state.right>width+1)throw new Error(`Site switcher ${path} at ${width}px: ${JSON.stringify(state)}`);
+    await devtools.call("Input.dispatchMouseEvent",{type:"mousePressed",button:"left",clickCount:1,x:4,y:450});
+    await devtools.call("Input.dispatchMouseEvent",{type:"mouseReleased",button:"left",clickCount:1,x:4,y:450});
+    if(await devtools.evaluate("document.querySelector('.site-switcher').open"))throw new Error(`Apps outside dismissal failed ${path}`);
+    await devtools.evaluate("document.querySelector('.site-switcher > summary').click();document.querySelector('.site-switcher > summary').click()");
+    if(await devtools.evaluate("document.querySelector('.site-switcher').open"))throw new Error(`Apps repeated-click dismissal failed ${path}`);
+  }
+  for(const width of [320,390]){
+    await devtools.call("Emulation.setDeviceMetricsOverride",{width,height:900,deviceScaleFactor:1,mobile:true});
+    await open(devtools,`${base}/en/state-and-truth/`);
+    for(const selector of ['.site-menu','.side-mobile']){
+      await devtools.evaluate(`document.querySelector('${selector} > summary').click()`);
+      if(!await devtools.evaluate(`document.querySelector('${selector}').open`))throw new Error(`Docs menu did not open ${selector}`);
+      await devtools.call("Input.dispatchMouseEvent",{type:"mousePressed",button:"left",clickCount:1,x:4,y:450});
+      await devtools.call("Input.dispatchMouseEvent",{type:"mouseReleased",button:"left",clickCount:1,x:4,y:450});
+      if(await devtools.evaluate(`document.querySelector('${selector}').open`))throw new Error(`Docs outside dismissal failed ${selector}`);
+      await devtools.evaluate(`document.querySelector('${selector} > summary').click()`);
+      await devtools.call("Input.dispatchKeyEvent",{type:"keyDown",key:"Escape",code:"Escape",windowsVirtualKeyCode:27});
+      await devtools.call("Input.dispatchKeyEvent",{type:"keyUp",key:"Escape",code:"Escape",windowsVirtualKeyCode:27});
+      if(!await devtools.evaluate(`!document.querySelector('${selector}').open&&document.activeElement===document.querySelector('${selector} > summary')`))throw new Error(`Docs Escape dismissal/focus failed ${selector}`);
+      await devtools.evaluate(`document.querySelector('${selector} > summary').click();document.querySelector('${selector} > summary').click()`);
+      if(await devtools.evaluate(`document.querySelector('${selector}').open`))throw new Error(`Docs repeat dismissal failed ${selector}`);
+    }
   }
 }
 

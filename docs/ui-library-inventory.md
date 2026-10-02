@@ -4,6 +4,12 @@ Status: inventory at `c31a505`; the owner approved the structure, self-hosted fo
 
 ## What exists today
 
+Shared foundations lock page scrolling while a native modal is open. The common
+runtime closes Apps, collapsed header navigation and the Docs mobile section
+menu on outside pointer interaction or Escape; their native summaries still
+toggle on repeat click. Escape returns focus to the summary. Dialog content
+keeps its own scroll and contains overscroll.
+
 The October refinement shares a 1320px container across all four apps, SVG
 chevrons for inline disclosures, a message icon and custom-property controls for
 inline form labels and stacked-table labels. Projects uses those parts for

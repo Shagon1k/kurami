@@ -10,12 +10,14 @@ import { syntheticProjectsSnapshot } from "./fixture.ts";
 
 let unavailable = false;
 let dense=false;
+let previewReady=false;
 let statusRequest: {state:"awaiting_sync";target:string;from:string;key:string} | null = null; let statusSynced = false; let statusConflict = false; const statusKeys: string[] = [];
 let accepted = false; let failReview = false; const requestKeys: string[] = [];
 let failAction=false,actionAccepted=false,cancellation=false,discarded=false;const actionKeys:string[]=[];
 const serverOptions = { snapshot: () => {
   if (unavailable) throw new Error("fixture failure");
   const snapshot = syntheticProjectsSnapshot();
+  if(previewReady){const item=snapshot.items[0]!;item.links.preview='https://preview.example.test/';item.preview.expiresAt='2026-10-04T10:00:00Z';item.runActions!.actions=[{action:'preview_stop',label:'Remove preview',enabled:true,confirmation:null,hint:null,state:null}];}
   if (accepted) { snapshot.items[0]!.review.state = "queued"; snapshot.items[0]!.review.tone = "neutral"; snapshot.items[0]!.aiReview = { enabled: false, reason: "pending", head: "abcdef0123456789" }; }
   if (statusRequest) {
     if (statusSynced) snapshot.items[0]!.status = statusRequest.target;
@@ -141,6 +143,9 @@ try {
       assert.ok(density.pillHeight<=23,"compact status pills");
       assert.equal(density.sortIcon,14,"small sorting icon");
       assert.ok(density.actionWidths,"run actions fill their groups");
+      assert.equal(await devtools.evaluate("document.querySelector('[data-status-form]').closest('details')"),null,"status editor is always visible");
+      assert.equal(await devtools.evaluate("[...document.querySelectorAll('.projects-links a')].every(link=>link.classList.contains('button--subtle'))"),true,"resources have visible button surfaces");
+      assert.equal(await devtools.evaluate("[...document.querySelectorAll('.projects-run-actions h3')].length"),0,"bottom actions have no redundant Work/Cleanup headings");
       assert.equal(await devtools.evaluate("document.querySelectorAll('.projects-evidence .pill').length"),0,"evidence values do not use pills");
       if(width===1280)assert.equal(await devtools.evaluate("getComputedStyle(document.querySelector('.projects-table thead th:last-child')).verticalAlign"),"middle");
       if (width === 1280 && theme === "light") {
@@ -157,6 +162,17 @@ try {
       await wait("!document.querySelector('#project-details') && !document.body.classList.contains('projects-mobile-detail-open')");
     }
   }
+  previewReady=true;
+  for(const width of [320,390,1280]) {
+    await devtools.call("Emulation.setDeviceMetricsOverride",{width,height:1000,deviceScaleFactor:1,mobile:width<600});
+    await open('/?item=item-12');
+    const paired=await devtools.evaluate<boolean>("(()=>{const link=document.querySelector('.projects-evidence a[href=\"https://preview.example.test/\"]'),remove=document.querySelector('[data-run-action=preview_stop]'),a=link.getBoundingClientRect(),b=remove.getBoundingClientRect(),row=link.closest('.projects-action-grid').getBoundingClientRect();return Math.abs(a.top-b.top)<1&&Math.abs(a.width-b.width)<1&&a.right<=b.left&&Math.abs(b.right-row.right)<1&&!!link.querySelector('svg')})()");
+    assert.ok(paired,'Open preview and Remove preview are equal-width buttons on one row at '+width);
+    await audit();
+    const shot=await devtools.call<{data:string}>('Page.captureScreenshot',{format:'png',captureBeyondViewport:false});
+    writeFileSync(resolve(out,`projects-preview-pair-${width}.png`),Buffer.from(shot.data,'base64'));
+  }
+  previewReady=false;
   for(const width of [320,390]) {
     await devtools.call("Emulation.setDeviceMetricsOverride",{width,height:1000,deviceScaleFactor:1,mobile:true});
     await open("/?lang=ru&attention=1");
@@ -185,8 +201,11 @@ try {
   await devtools.call("Input.dispatchTouchEvent",{type:"touchStart",touchPoints:[{x:90,y:detailSwipeY}]});
   await devtools.call("Input.dispatchTouchEvent",{type:"touchMove",touchPoints:[{x:280,y:detailSwipeY}]});
   assert.ok(await devtools.evaluate<boolean>("document.querySelector('#project-details').getBoundingClientRect().x>150"),"close follows the finger continuously");
+  await devtools.evaluate("window.exitFrames=[];window.exitPanel=document.querySelector('#project-details');window.originalBack=history.back.bind(history);history.back=()=>setTimeout(originalBack,100);requestAnimationFrame(function sample(){if(!exitPanel.isConnected)return;if(exitPanel.dataset.exited)exitFrames.push(exitPanel.getBoundingClientRect().x);requestAnimationFrame(sample)})");
   await devtools.call("Input.dispatchTouchEvent",{type:"touchEnd",touchPoints:[]});
   await wait("!document.querySelector('#project-details') && !document.body.classList.contains('projects-mobile-detail-open')");
+  assert.equal(await devtools.evaluate("exitFrames.length>0&&exitFrames.every(x=>x>=innerWidth-1)"),true,"exited detail never flashes back onscreen before replacement");
+  await devtools.evaluate("history.back=originalBack");
   const swipeY=await devtools.evaluate<number>("document.querySelector('.projects-task-meta').getBoundingClientRect().top+8");
   await devtools.call("Input.dispatchTouchEvent",{type:"touchStart",touchPoints:[{x:290,y:swipeY}]});
   await devtools.call("Input.dispatchTouchEvent",{type:"touchMove",touchPoints:[{x:90,y:swipeY}]});
@@ -195,10 +214,16 @@ try {
   assert.ok(opening.found&&opening.inert&&opening.x>0&&opening.x<250,"opening reveals an inert adjacent panel before release: "+JSON.stringify(opening));
   await devtools.call("Input.dispatchTouchEvent",{type:"touchEnd",touchPoints:[]});
   await wait("!!document.querySelector('#project-details') && !document.querySelector('#projects-dashboard').dataset.refreshing");
+  const savedScroll=await devtools.evaluate<number>("(()=>{const panel=document.querySelector('#project-details');panel.scrollTop=180;return panel.scrollTop})()");
+  assert.ok(savedScroll>0,"fixture detail can scroll");
   await devtools.evaluate("history.back()");
   await wait("!document.querySelector('#project-details') && !document.querySelector('#projects-dashboard').dataset.refreshing");
+  await devtools.evaluate("window.entryScrolls=[];window.watchEntry=true;requestAnimationFrame(function sample(){if(!watchEntry)return;const panel=document.querySelector('#project-details');if(panel)entryScrolls.push(panel.scrollTop);requestAnimationFrame(sample)})");
   await devtools.evaluate("history.forward()");
   await wait("!!document.querySelector('#project-details') && !document.querySelector('#projects-dashboard').dataset.refreshing");
+  await devtools.evaluate("watchEntry=false");
+  assert.equal(await devtools.evaluate(`entryScrolls.length>0&&entryScrolls.every(top=>Math.abs(top-${savedScroll})<1)`),true,"restored scroll is applied before every visible entry frame");
+  await devtools.evaluate("document.querySelector('#project-details').scrollTop=0");
   await devtools.call("Emulation.setEmulatedMedia",{features:[{name:"prefers-reduced-motion",value:"reduce"}]});
   await devtools.call("Input.dispatchTouchEvent",{type:"touchStart",touchPoints:[{x:90,y:detailSwipeY}]});
   await devtools.call("Input.dispatchTouchEvent",{type:"touchMove",touchPoints:[{x:140,y:detailSwipeY}]});
@@ -313,7 +338,7 @@ try {
   assert.equal(await devtools.evaluate("document.querySelector('[data-review-run]').disabled"),true);
   assert.match(await devtools.evaluate<string>("document.querySelector('#project-details').textContent"),/Queued/);
   await audit();
-  await devtools.evaluate("document.querySelector('.projects-status-editor').open=true;const field=document.querySelector('[data-status-form] select');field.value='Done';field.dispatchEvent(new Event('change',{bubbles:true}));field.focus()");
+  await devtools.evaluate("const field=document.querySelector('[data-status-form] select');field.value='Done';field.dispatchEvent(new Event('change',{bubbles:true}));field.focus()");
   assert.equal(await devtools.evaluate("document.querySelector('[data-status-submit]').disabled"),false);
   assert.match(await devtools.evaluate<string>("document.querySelector('[data-status-note]').textContent"),/completion requirements/);
   await devtools.evaluate("document.dispatchEvent(new Event('visibilitychange'))");

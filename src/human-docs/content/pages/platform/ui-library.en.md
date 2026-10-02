@@ -58,6 +58,11 @@ align desktop actions; on phones the link sits beside the title and Events besid
 the timestamp. Expanded events occupy the full row width.
 System Health cards use the shared small card shadow.
 
+Modal dialogs lock background scrolling while keeping their own content
+scrollable. Closing the last modal releases the lock. Apps and collapsed Docs
+menus close on repeat click, outside click or Escape; Escape returns focus to
+the menu trigger.
+
 Projects notifications use `renderToastRegion` and `createKuramiToast` from the
 library. A single notice appears at the bottom-right without taking focus.
 Success and ordinary information expire after eight seconds; hovering, keyboard
