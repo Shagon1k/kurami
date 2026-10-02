@@ -1,6 +1,12 @@
 {
   "baseline": "4a38c09",
   "commits": {
+    "cd4e36a2e735eca348c8bbf08a51305dbb40663e": {
+      "category": "improved",
+      "en": "Refined shared mobile headers and responsive charts. Digest now uses shared Stocks sort controls, compact Weekly counters and publication dates in footers. This is the first UI audit package; the full audit and installed-phone checks remain open.",
+      "ru": "Улучшены общие мобильные хедеры и адаптивные графики. Digest использует общий контрол сортировки Stocks, компактные счётчики Weekly и даты публикации в футерах. Это первый пакет UI-аудита; полный обход и проверки установленного приложения на телефоне ещё не завершены.",
+      "page": "ui-library"
+    },
     "86922749c5c501d62ef11d64af6d8e64694af82c": {
       "category": "improved",
       "en": "Added high-resolution transparent and adaptive fox icons for the unified Kurami PWA. Launcher artwork uses a larger mark within Android's safe area; header logos and favicons are unchanged. Phone appearance still needs confirmation.",
