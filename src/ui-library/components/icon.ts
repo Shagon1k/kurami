@@ -1,6 +1,8 @@
 const paths={
   search:"M10 3a7 7 0 1 0 0 14 7 7 0 1 0 0-14M15 15l6 6",
   close:"M6 6l12 12M18 6 6 18",
+  bell:"M5 17h14l-2-3V9a5 5 0 0 0-10 0v5zM10 21h4M12 2v2",
+  bellOff:"M3 3l18 18M7 7v7l-2 3h12M10 4a5 5 0 0 1 7 5v4M10 21h4",
   back:"M14 5l-7 7 7 7M7 12h14",
   sort:"M8 4v16M4 8l4-4 4 4M16 20V4M12 16l4 4 4-4",
   stop:"M6 6h12v12H6z",

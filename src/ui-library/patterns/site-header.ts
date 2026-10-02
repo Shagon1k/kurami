@@ -74,7 +74,7 @@ export const SITE_HEADER_CSS = `
 .site-brand__fox { width: 48px; height: 48px; flex-shrink: 0; object-fit: contain; }
 [data-theme="dark"] .site-brand__fox { filter: drop-shadow(0 0 1px #ffffff8c); }
 .site-brand__copy { display: grid; gap: 3px; min-width: 0; }
-.site-brand__name { font-size: 1.375rem; font-weight: 600; line-height: 1.05; letter-spacing: -.055em; }
+.site-brand__name { min-width: 0; overflow: hidden; text-overflow: ellipsis; font-size: 1.375rem; font-weight: 600; line-height: 1.05; letter-spacing: -.055em; }
 .site-brand__dot { color: var(--accent-primary); }
 .site-brand__suffix { letter-spacing: -.03em; }
 .site-brand:hover .site-brand__name { color: var(--accent-primary); }
@@ -150,5 +150,8 @@ export const SITE_HEADER_CSS = `
   .site-brand__fox { width: 34px; height: 34px; }
   .site-brand__name { font-size: 1.05rem; }
   .site-actions { gap: 4px; }
+  .site-header--collapsible .site-brand { gap: 6px; }
+  .site-header--collapsible .site-brand__fox { width: 30px; height: 30px; }
+  .site-header--collapsible .site-brand__name { font-size: .95rem; }
 }
 `;

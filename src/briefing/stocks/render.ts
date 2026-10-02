@@ -14,6 +14,7 @@ import type {CompanyLogoDomains} from "./logo-registry.ts";
 import {renderReviewPanel,REVIEW_PANEL_STYLES} from "../investment-review/panel.ts";
 import type {StoredReview} from "../investment-review/store.ts";
 import {digestLanguage,digestText as t} from "../i18n.ts";
+import {renderSelectField} from "../../ui-library/components/form.ts";
 const href=(ids:string[],period:StockPeriod,anchor=true)=>"/stocks?"+new URLSearchParams({symbols:ids.join(","),period}).toString()+(anchor?"#stock-"+ids[0]:"");
 
 export function renderStocksTeaser(payload:BriefingPayload):string {
@@ -61,11 +62,11 @@ export function renderStocksPage(value:StocksSnapshot|null,params=new URLSearchP
     ${reviewPanel}
     <section class="stocks-watchlist" aria-labelledby="stocks-list-heading" data-stock-list data-stock-period="${selection.period}">
       <header class="stocks-section-heading"><div><h2 id="stocks-list-heading">${t("В твоём списке","In your watchlist")}</h2><p>${t("Цена закрытия и изменение за сессию","Closing price and session change")}</p></div>
-        <label class="stocks-sort">${t("Порядок","Order")}<select data-stock-sort><option value="original">${t("Мой порядок","My order")}</option><option value="moves">${t("Заметные движения","Notable moves")}</option></select></label>
+        <div class="stocks-sort">${renderSelectField({name:"stock-sort",label:t("Порядок","Order"),value:"original",attributes:{"data-stock-sort":true},options:[{value:"original",label:t("Мой порядок","My order")},{value:"moves",label:t("Заметные движения","Notable moves")}]})}</div>
       </header>
       <div data-stock-rows>${rows}</div>
     </section>
     ${renderStocksDiscovery(discovery,at,new Set(quotes.map(q=>q.asset.id)),logos)}`;
-  return renderPageShell({title:t("Мои акции","My stocks"),brand:"Kurami Stocks",section:"stocks",date,dateLabel:t("Цены закрытия · ","Closing prices · ")+ready+"/"+quotes.length+t(" актуальных"," current"),generated:updated,timezone,content,
+  return renderPageShell({title:t("Мои акции","My stocks"),brand:"Kurami Stocks",section:"stocks",date,dateLabel:t("Цены закрытия · ","Closing prices · ")+ready+"/"+quotes.length+t(" актуальных"," current"),generated:updated,updatedAt:snapshot.capturedAt,timezone,content,
     ...(logos?.size?{footerLink:{label:"Logos by AllInvestView",href:"https://www.allinvestview.com/tools/ticker-logos/"}}:{})}).replace("</style>",REVIEW_PANEL_STYLES+"</style>");
 }

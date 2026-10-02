@@ -7,7 +7,7 @@ import {FOUNDATION_CSS} from "../../../ui-library/foundations/index.ts";
 import {BUTTON_CSS,renderLinkButton} from "../../../ui-library/components/button.ts";
 import {FORM_CSS} from "../../../ui-library/components/form.ts";
 import {formatSiteDate} from "../../../ui-library/foundations/date.ts";
-import {STORY_ACTIONS_LAYOUT_CSS} from "../styles.ts";
+import {STORY_ACTIONS_LAYOUT_CSS,DIGEST_POLISH_CSS} from "../styles.ts";
 import {digestLanguage,digestPath,digestText,localizeDigestLinks,type DigestLanguage} from "../../i18n.ts";
 
 export type SiteSection="daily"|"cinema"|"weekly"|"stocks";
@@ -46,7 +46,11 @@ export function renderSiteHeader(input:{section:SiteSection;label?:string;date?:
 }
 /** Refresh shared controls on frozen editions without changing their content. */
 function refreshHeaderStyles(html:string):string {
-  const styles=[THEME_CSS,FOUNDATION_CSS,BUTTON_CSS,FORM_CSS,SITE_HEADER_CSS,THEME_SWITCH_CSS,STORY_ACTIONS_LAYOUT_CSS];
+  html=html.replace(/<style\b([^>]*)>([\s\S]*?)<\/style>/gi,(_tag,attributes,css:string)=>{
+    const updated=css.replace(/\.(?:media-lightbox__close|mail-actions__submit)\s*\{[^}]*\}/g,block=>/\b(?:inline-size:\s*34px|block-size:\s*34px|min-height:\s*40px)/.test(block)?"":block);
+    return `<style${attributes}>${updated}</style>`;
+  });
+  const styles=[THEME_CSS,FOUNDATION_CSS,BUTTON_CSS,FORM_CSS,SITE_HEADER_CSS,THEME_SWITCH_CSS,STORY_ACTIONS_LAYOUT_CSS,DIGEST_POLISH_CSS];
   if(styles.every(style=>html.includes(style)))return html;
   const updated=html.replace(/<style data-site-header-runtime>[\s\S]*?<\/style>/i,"");
   return updated.replace(/<\/head>/i,`<style data-site-header-runtime>${styles.join("\n")}</style></head>`);

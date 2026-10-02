@@ -72,6 +72,18 @@ native select behavior with a decorative, pointer-transparent chevron and
 consistent padding; forced-colour mode restores the native arrow. The button
 library adds a `text` variant for task navigation, and tables accept validated
 row classes plus `--table-head-background`. UI-Library: extended.
+`renderSelectField` accepts validated `data-*`, `aria-*` and `id` attributes;
+Stocks sort now uses this field without changing its native change handler.
+The icon vocabulary includes `bell` and `bellOff` for labelled Weekly counters.
+Digest lightbox close uses the shared icon button; its product CSS only positions it.
+The responsive chart engine fits both cards and embedded plots to their parent,
+with ochre as the one-series default and the multi-series palette unchanged.
+
+The browser audit separates solid-background contrast failures from image-backed
+text. `testing/contrast-pixels.ts` samples rendered backgrounds with text ink
+temporarily hidden, then restores styles. Its conservative bounds apply only to
+that rendered state; a low bound stays in the manual-review queue. Neither the
+pixel report nor a clean automated run certifies the whole product as WCAG AA.
 The Hub refresh adds `components/icon.ts` (decorative line icons) and
 `components/stat-card.ts` (centered/start-aligned metrics and accessible load meters).
 They use a new semantic `status-info` role, with values in the light/dark theme.

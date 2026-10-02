@@ -66,7 +66,7 @@ export function renderBriefingPage(payload: BriefingPayload): string {
   const main = renderAddonSlot(payload, "main");
   const afterMain = renderAddonSlot(payload, "after-main");
   const utilityTitle = payload.edition.type === "cinema" ? "Kurami Cinema" : "Kurami Daily Briefing";
-  return renderPageShell({title,brand:utilityTitle,section:payload.edition.type,date:payload.edition.localDate,dateLabel:formatDate(payload),generated,timezone:payload.edition.timezone,content:`\n    <section class="hero">
+  return renderPageShell({title,brand:utilityTitle,section:payload.edition.type,date:payload.edition.localDate,dateLabel:formatDate(payload),generated,updatedAt:payload.edition.generatedAt,timezone:payload.edition.timezone,content:`\n    <section class="hero">
       <div><p class="hero__eyebrow">${escapeHtml(payloadTitle)} · ${escapeHtml(payload.edition.localDate)}</p>
         <h1>${escapeHtml(title)}</h1>
         <p class="hero__subtitle">${escapeHtml(subtitle)}</p></div>

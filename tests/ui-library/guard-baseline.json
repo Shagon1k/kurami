@@ -36,9 +36,6 @@
       "src/briefing/ui/components/cinema-section.ts": 1,
       "src/briefing/weekly/render.ts": 1
     },
-    "markup:button": {
-      "src/briefing/ui/page-shell.ts": 1
-    },
     "css:radius": {
       "src/briefing/ui/styles.ts": 3
     },

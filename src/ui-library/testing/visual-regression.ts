@@ -1,6 +1,7 @@
 // Joint Digest + Docs browser regression. Checks the theme runtime, then audits every Docs route and
 // every Digest page fixture in light/dark at phone and desktop widths (accessibility and component
 // inventory), and screenshots a representative set, optionally compared with a baseline run.
+// Audit options: --screens-only --viewports --widths=320,390,768,1280
 // Usage: node src/ui-library/testing/visual-regression.ts --out=<dir> [--compare=<baseline dir>] [/absolute/path/to/chromium]
 import {execFileSync} from "node:child_process";
 import {createHash} from "node:crypto";
@@ -12,23 +13,41 @@ import {setTimeout as delay} from "node:timers/promises";
 import {findBrowser,launchBrowser} from "./devtools.ts";
 import {librarySubsite,syntheticDaily,syntheticHub,syntheticInvestmentReview,syntheticLegacyCinema,syntheticStocksEmpty,syntheticWeeklyEmpty,syntheticProjects} from "./fixtures.ts";
 import {syntheticCharts} from "./charts.ts";
+import {auditPoster,syntheticDailyFilled,syntheticCinemaFilled,syntheticWeeklyFilled,syntheticStocksFilled} from "./digest-filled.ts";
+import {withDigestLanguage} from "../../briefing/i18n.ts";
+import {injectSiteNavigation,type SiteSection} from "../../briefing/ui/components/site-header.ts";
 import {PROJECTS_STYLES} from "../../projects-site/styles.ts";
 import {HUB_CLIENT_JS} from "../../hub/assets.ts";
 import {HUB_STYLES} from "../../hub/styles.ts";
 import {changedShare,decodePng} from "./png.ts";
-import {AUDIT_EXPRESSION,inventoryExpression} from "./audit.ts";
+import {AUDIT_EXPRESSION,CONTRAST_REVIEW_EXPRESSION,inventoryExpression} from "./audit.ts";
+import {checkImageBackedContrast} from "./contrast-pixels.ts";
 import {pages as docsPages} from "../../human-docs/content.ts";
-import {injectRuntime} from "../../briefing/server.ts";
+import {injectRuntime,createBriefingServer} from "../../briefing/server.ts";
+import {briefingPaths} from "../../briefing/store.ts";
 import {WEB_CLIENT_JS} from "../../web/presentation.ts";
 import type {Devtools} from "./devtools.ts";
 
 const root=resolve(import.meta.dirname,"../../..");
 const brandAssets=resolve(root,"src/ui-library/assets/brand");
-const widths=[390,1280] as const;
+const requestedWidths=process.argv.find(arg=>arg.startsWith("--widths="))?.slice(9);
+const widths=requestedWidths?requestedWidths.split(",").map(Number):[390,1280];
+if(widths.some(width=>!Number.isInteger(width)||width<320||width>2560)||!widths.length)throw new Error("Invalid audit widths");
 const themes=["light","dark"] as const;
 // Screenshots: a representative set. The audit covers these plus every Docs route in both languages.
-const pages:Record<string,string>={
+const availablePages:Record<string,string>={
   "digest-daily":"/digest/daily.html",
+  "digest-daily-en":"/digest/daily-en.html",
+  "digest-daily-filled":"/digest/daily-filled.html",
+  "digest-daily-filled-en":"/digest/daily-filled-en.html",
+  "digest-cinema-filled":"/digest/cinema.html",
+  "digest-cinema-filled-en":"/digest/cinema-en.html",
+  "digest-weekly-filled":"/digest/weekly-filled.html",
+  "digest-weekly-filled-en":"/digest/weekly-filled-en.html",
+  "digest-weekly-partial":"/digest/weekly-partial.html",
+  "digest-stocks-filled":"/digest/stocks-filled.html",
+  "digest-stocks-filled-en":"/digest/stocks-filled-en.html",
+  "digest-stocks-expanded":"/digest/stocks-expanded.html",
   "digest-stocks-empty":"/digest/stocks.html",
   "digest-weekly-empty":"/digest/weekly.html",
   "digest-investment-review":"/digest/review.html",
@@ -38,15 +57,19 @@ const pages:Record<string,string>={
   "hub-home":"/hub/index.html",
   "hub-home-en":"/hub/en.html",
   "projects-home":"/projects/index.html",
+  "projects-home-ru":"/projects/ru.html",
   "docs-home-en":"/en/",
   "docs-overview-ru":"/ru/what-is-kurami/",
   "docs-reference-table-en":"/en/data-stores/",
   "docs-run-diagram-ru":"/ru/run-lifecycle/",
   "docs-changelog-en":"/en/changelog/",
 };
+const requestedPages=process.argv.find(arg=>arg.startsWith("--pages="))?.slice(8).split(",");
+if(requestedPages?.some(name=>!Object.hasOwn(availablePages,name)))throw new Error("Unknown screenshot page");
+const pages=requestedPages?Object.fromEntries(requestedPages.map(name=>[name,availablePages[name]!])):availablePages;
 const types:Record<string,string>={html:"text/html; charset=utf-8",css:"text/css",js:"text/javascript",svg:"image/svg+xml",png:"image/png",webp:"image/webp",woff2:"font/woff2"};
 
-function site():string {
+async function site():Promise<string> {
   execFileSync(process.execPath,[resolve(root,"src/human-docs/build.ts"),"--preview"],{cwd:root,stdio:"ignore"});
   const served=mkdtempSync(join(tmpdir(),"kurami-ui-site-"));
   cpSync(resolve(root,"dist/human-docs"),served,{recursive:true});
@@ -57,8 +80,33 @@ function site():string {
     writeFileSync(path,readFileSync(path,"utf8").replaceAll(head,"0".repeat(40)).replaceAll(head.slice(0,12),"0".repeat(12)).replaceAll(head.slice(0,7),"0".repeat(7)));
   }
   mkdirSync(join(served,"digest"),{recursive:true});
+  const digestPage=(html:string,section:SiteSection,lang:"en"|"ru"="ru")=>withDigestLanguage(lang,()=>injectRuntime(injectSiteNavigation(html,[{section:"daily"},{section:"cinema"},{section:"weekly"},{section:"stocks"}],section)));
   // Digest pages pass through the same serve-time injection as production.
-  writeFileSync(join(served,"digest/daily.html"),injectRuntime(syntheticDaily()));
+  writeFileSync(join(served,"digest/daily.html"),digestPage(syntheticDaily(),"daily"));
+  writeFileSync(join(served,"digest/daily-en.html"),withDigestLanguage("en",()=>digestPage(syntheticDaily(),"daily","en")));
+  for(const lang of ["ru","en"] as const){
+    const suffix=lang==="en"?"-en":"";
+    writeFileSync(join(served,`digest/daily-filled${suffix}.html`),digestPage(syntheticDailyFilled(lang),"daily",lang));
+    writeFileSync(join(served,`digest/cinema${suffix}.html`),digestPage(syntheticCinemaFilled(lang),"cinema",lang));
+    writeFileSync(join(served,`digest/weekly-filled${suffix}.html`),digestPage(syntheticWeeklyFilled(lang),"weekly",lang));
+    writeFileSync(join(served,`digest/stocks-filled${suffix}.html`),digestPage(syntheticStocksFilled(lang),"stocks",lang));
+  }
+  writeFileSync(join(served,"digest/weekly-partial.html"),digestPage(syntheticWeeklyFilled("ru",true),"weekly"));
+  writeFileSync(join(served,"digest/stocks-expanded.html"),digestPage(syntheticStocksFilled("ru",true),"stocks"));
+  const runtimeHome=mkdtempSync(join(tmpdir(),"kurami-ui-digest-runtime-"));
+  const digest=await createBriefingServer(briefingPaths({KURAMI_HOME:runtimeHome,BRIEFING_MIGRATIONS_DIR:join(root,"migrations/briefing")}),{mailActionExecutor:null});
+  try{
+    await new Promise<void>(done=>digest.listen(0,"127.0.0.1",done));
+    const response=await fetch(`http://127.0.0.1:${(digest.address() as {port:number}).port}/assets/briefing.js`);
+    if(!response.ok)throw new Error("Fixture Digest runtime failed to load");
+    writeFileSync(join(served,"assets/briefing.js"),await response.text());
+    const profile=await fetch(`http://127.0.0.1:${(digest.address() as {port:number}).port}/api/profile/interests`);
+    if(!profile.ok)throw new Error("Fixture interest profile failed to load");
+    writeFileSync(join(served,"fixture-profile.json"),await profile.text());
+  }finally{await new Promise<void>(done=>digest.close(()=>done()));rmSync(runtimeHome,{recursive:true,force:true});}
+  mkdirSync(join(served,"media/cinema/2026-09-19"),{recursive:true});
+  writeFileSync(join(served,"media/cinema/2026-09-19/audit-poster.svg"),auditPoster);
+  cpSync(join(brandAssets,"kurami-fox-header.webp"),join(served,"media/audit-illustration.webp"));
   writeFileSync(join(served,"digest/cinema-legacy.html"),injectRuntime(syntheticLegacyCinema()));
   writeFileSync(join(served,"digest/stocks.html"),injectRuntime(syntheticStocksEmpty()));
   writeFileSync(join(served,"digest/weekly.html"),injectRuntime(syntheticWeeklyEmpty()));
@@ -73,10 +121,12 @@ function site():string {
   writeFileSync(join(served,"assets/hub.css"),HUB_STYLES);
   mkdirSync(join(served,"projects"),{recursive:true});
   writeFileSync(join(served,"projects/index.html"),syntheticProjects());
+  writeFileSync(join(served,"projects/ru.html"),syntheticProjects("ru"));
   writeFileSync(join(served,"assets/projects.css"),PROJECTS_STYLES);
   writeFileSync(join(served,"assets/projects.js"),WEB_CLIENT_JS+readFileSync(join(root,"src/projects-site/client.js"),"utf8"));
   writeFileSync(join(served,"assets/hub.js"),HUB_CLIENT_JS);
   cpSync(join(brandAssets,"kurami-fox-header.webp"),join(served,"assets/kurami-fox.webp"));
+  cpSync(join(brandAssets,"kurami-fox-header.webp"),join(served,"assets/kurami-fox-header.webp"));
   cpSync(join(brandAssets,"kurami-favicon.svg"),join(served,"favicon.svg"));
   return served;
 }
@@ -135,13 +185,22 @@ async function main(){
   const args=process.argv.slice(2);
   const out=args.find(arg=>arg.startsWith("--out="))?.slice(6);
   const compare=args.find(arg=>arg.startsWith("--compare="))?.slice(10);
+  const screensOnly=args.includes("--screens-only");
+  const viewports=args.includes("--viewports");
   if(!out)throw new Error("Usage: visual-regression.ts --out=<dir> [--compare=<baseline dir>] [/absolute/path/to/chromium]");
   const output=resolve(out);
   rmSync(output,{recursive:true,force:true});
   mkdirSync(output,{recursive:true});
-  const served=site();
+  const served=await site();
   const server=createServer((request,response)=>{
+    if(request.method!=="GET"&&request.method!=="HEAD"){response.writeHead(405).end();return;}
     const raw=new URL(request.url??"/","http://127.0.0.1").pathname;
+    if(raw==="/api/news/order"){
+      const filled=request.headers.referer?.includes("/digest/daily-filled");
+      const order=Array.from({length:filled?6:3},(_,index)=>filled?`audit-story-${index}`:`story-${index+1}`);
+      response.writeHead(200,{"content-type":"application/json"}).end(JSON.stringify({mode:"briefing",order,details:[],profile:JSON.parse(readFileSync(join(served,"fixture-profile.json"),"utf8"))}));
+      return;
+    }
     const path=resolve(served,`.${decodeURIComponent(raw)}`,raw.endsWith("/")?"index.html":"");
     if(!path.startsWith(`${served}${sep}`)||!existsSync(path)){response.writeHead(404).end();return;}
     response.writeHead(200,{"content-type":types[path.split(".").at(-1)??""]??"application/octet-stream"}).end(readFileSync(path));
@@ -151,22 +210,53 @@ async function main(){
   const {devtools,close}=await launchBrowser(findBrowser(args.find(arg=>isAbsolute(arg))));
   const manifest:Record<string,string>={};
   const audit:Record<string,string[]>={};
+  const contrastReview:Record<string,unknown[]>={};
+  const layouts:Record<string,unknown>={};
   let auditedCount=0;
   try{
     await devtools.call("Page.enable");
+    if(viewports)await devtools.call("Page.addScriptToEvaluateOnNewDocument",{source:`(()=>{const NativeDate=Date;const fixed='2026-09-16T07:00:00Z';window.Date=class extends NativeDate{constructor(...args){super(...(args.length?args:[fixed]));}static now(){return NativeDate.parse(fixed);}};})()`});
     for(const path of ["/digest/daily.html","/en/state-and-truth/","/lab/index.html","/hub/index.html"])await checkThemeRuntime(devtools,`http://127.0.0.1:${port}`,path);
     await checkSiteSwitcher(devtools,`http://127.0.0.1:${port}`);
+    await open(devtools,`http://127.0.0.1:${port}/digest/stocks-filled-en.html`);
+    const sorting=await devtools.evaluate<boolean>(`(()=>{
+      const select=document.querySelector('[data-stock-sort]'),container=document.querySelector('[data-stock-rows]');
+      const rows=[...container.children],order=()=>[...container.children].map(row=>row.dataset.stockRow).join(',');
+      const original=order(),expected=[...rows].sort((a,b)=>Number(b.dataset.stockMove)-Number(a.dataset.stockMove)||Number(a.dataset.stockIndex)-Number(b.dataset.stockIndex)).map(row=>row.dataset.stockRow).join(',');
+      select.value='moves';select.dispatchEvent(new Event('change',{bubbles:true}));const sorted=order()===expected;
+      select.value='original';select.dispatchEvent(new Event('change',{bubbles:true}));return sorted&&order()===original;
+    })()`);
+    if(!sorting)throw new Error("Shared Stocks select must preserve native sorting and original order");
     const audited:Record<string,string>={...pages};
-    for(const lang of ["en","ru"])for(const route of ["","changelog",...docsPages.map(page=>page.slug)])audited[`docs-${lang}-${route||"home"}`]??=`/${lang}/${route?route+"/":""}`;
+    if(!screensOnly)for(const lang of ["en","ru"])for(const route of ["","changelog",...docsPages.map(page=>page.slug)])audited[`docs-${lang}-${route||"home"}`]??=`/${lang}/${route?route+"/":""}`;
     for(const [name,path] of Object.entries(audited))if(!Object.values(pages).includes(path)||name in pages)for(const width of widths)for(const theme of themes){
+      await devtools.call("Emulation.setTouchEmulationEnabled",{enabled:width<600,maxTouchPoints:1});
       await devtools.call("Emulation.setDeviceMetricsOverride",{width,height:900,deviceScaleFactor:1,mobile:width<600});
       await open(devtools,`http://127.0.0.1:${port}${path}`);
       await devtools.evaluate(`(()=>{const style=document.createElement('style');style.textContent='*,*::before,*::after{transition:none!important;animation:none!important;caret-color:transparent!important}';document.head.append(style);if(document.documentElement.dataset.theme!==${JSON.stringify(theme)})document.querySelector('[data-theme-toggle]').click();return document.fonts.ready.then(()=>true)})()`);
       await delay(150);
       const issues=[...await devtools.evaluate<string[]>(AUDIT_EXPRESSION),...await devtools.evaluate<string[]>(inventoryExpression())];
+      const pending=await devtools.evaluate<unknown[]>(CONTRAST_REVIEW_EXPRESSION);
+      if(pending.length){
+        const measured=await checkImageBackedContrast(devtools);
+        contrastReview[`${name}-${width}-${theme}`]=measured;
+        for(const check of measured)if(check.status==="manual-review-required")issues.push("Contrast pixel bound needs manual review: "+check.element);
+      }
       auditedCount++;
       if(issues.length)audit[`${name}-${width}-${theme}`]=issues;
       if(!(name in pages))continue;
+      if(viewports){
+        const key=`${name}-${width}-${theme}`;
+        layouts[key]=await devtools.evaluate(`(()=>{const size=el=>{const r=el.getBoundingClientRect(),s=getComputedStyle(el);return {text:el.textContent.trim().slice(0,80),x:Math.round(r.x),y:Math.round(r.y),width:Math.round(r.width),height:Math.round(r.height),font:s.fontSize,shadow:s.boxShadow}};return {header:[...document.querySelectorAll('.site-brand,.site-actions,.site-header > .container > .site-nav')].map(size),titles:[...document.querySelectorAll('h1')].map(size),buttons:[...document.querySelectorAll('.button')].filter(el=>el.getBoundingClientRect().height).map(size),footer:[...document.querySelectorAll('.site-footer')].map(size),brokenImages:[...document.images].filter(image=>!image.complete||image.naturalWidth===0).map(image=>image.getAttribute('src'))}})()`);
+        const viewport=await devtools.call<{data:string}>("Page.captureScreenshot",{format:"png",captureBeyondViewport:false});
+        writeFileSync(join(output,`${key}-viewport.png`),Buffer.from(viewport.data,"base64"));
+        if(width===390&&theme==="light")for(const selector of [".site-footer",".digest-feed",".weekly-charts",".weekly-topics",".cinema-trailer",".cinema-premiere",".cinema-rank",".stock-details"]){
+          const clip=await devtools.evaluate<{x:number;y:number;width:number;height:number;scale:number}|null>(`(()=>{const element=document.querySelector(${JSON.stringify(selector)});if(!element)return null;const r=element.getBoundingClientRect();if(!r.width||!r.height)return null;return {x:Math.max(0,r.x+scrollX),y:Math.max(0,r.y+scrollY),width:Math.min(r.width,innerWidth),height:Math.min(r.height,900),scale:1}})()`);
+          if(!clip)continue;
+          const detail=await devtools.call<{data:string}>("Page.captureScreenshot",{format:"png",captureBeyondViewport:true,clip});
+          writeFileSync(join(output,`${key}-${selector.slice(1)}.png`),Buffer.from(detail.data,"base64"));
+        }
+      }
       const shot=await devtools.call<{data:string}>("Page.captureScreenshot",{format:"png",captureBeyondViewport:true});
       const file=`${name}-${width}-${theme}.png`;
       const png=Buffer.from(shot.data,"base64");
@@ -175,8 +265,10 @@ async function main(){
     }
   }finally{await close();server.close();rmSync(served,{recursive:true,force:true});}
   writeFileSync(join(output,"manifest.json"),JSON.stringify(manifest,null,2));
+  if(viewports)writeFileSync(join(output,"layouts.json"),JSON.stringify(layouts,null,2));
+  writeFileSync(join(output,"audit.json"),JSON.stringify({audited:auditedCount,screenshots:Object.keys(manifest).length,widths,themes,audit,contrastReview},null,2));
   if(Object.keys(audit).length){console.log(JSON.stringify({ok:false,audit},null,1));process.exitCode=1;return;}
-  if(!compare){console.log(JSON.stringify({ok:true,themeRuntime:"verified",audited:auditedCount,screenshots:Object.keys(manifest).length,out:output}));return;}
+  if(!compare){console.log(JSON.stringify({ok:true,themeRuntime:"verified",audited:auditedCount,screenshots:Object.keys(manifest).length,contrastReviewPages:Object.keys(contrastReview).length,out:output}));return;}
   const baseline=JSON.parse(readFileSync(resolve(compare,"manifest.json"),"utf8")) as Record<string,string>;
   const changed:Record<string,string>={};
   for(const file of Object.keys({...baseline,...manifest}).sort()){

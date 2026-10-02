@@ -12,7 +12,7 @@ import {loadStocksCache} from "./stocks/collector.ts";
 import {loadReview,type StoredReview} from "./investment-review/store.ts";
 import {publishedSiteLinks} from "./site-navigation.ts";
 import {injectSiteNavigation} from "./ui/components/site-header.ts";
-import {renderPageShell} from "./ui/page-shell.ts";
+import {renderPageShell,renderMediaClose} from "./ui/page-shell.ts";
 import {renderBriefingPage} from "./ui/render-page.ts";
 import {digestText as t,digestLanguage,withDigestLanguage,type DigestLanguage} from "./i18n.ts";
 import {renderFontPreloads} from "../ui-library/foundations/fonts.ts";
@@ -566,6 +566,7 @@ function stateTag(items: ClientItemState[]): string {
 }
 
 export function injectRuntime(html: string, items: ClientItemState[] = [],footer?:string): string {
+  html=html.replace(/<([a-z]+) class="media-lightbox__close"[^>]*>[\s\S]*?<\/\1>/g,()=>renderMediaClose());
   if(!html.includes("data-font-preload"))html=html.replace(/<\/head>/i,renderFontPreloads(digestLanguage())+"</head>");
   html=html.replace(/<h1>/g,'<h1 class="page-title">').replace(/class="hero__eyebrow"/g,'class="hero__eyebrow page-eyebrow"').replace(/class="hero__subtitle"/g,'class="hero__subtitle page-subtitle"');
   if(footer)html=html.replace(/<footer\b[^>]*>[\s\S]*?<\/footer>/i,footer);

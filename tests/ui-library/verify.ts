@@ -35,6 +35,11 @@ import {exportBundle,exportDirectory} from "../../src/ui-library/export.ts";
 import {baselineGrew,evaluateUiImpact,touchesUi} from "../../src/ui-library/testing/impact.ts";
 import {readFileSync,readdirSync} from "node:fs";
 
+const attributedSelect=renderSelectField({name:"sort",label:"Order",value:"original",options:[{value:"original",label:"My order"}],attributes:{"data-stock-sort":true,"aria-label":"Order & sort"}});
+assert.match(attributedSelect,/<select name="sort" data-stock-sort aria-label="Order &amp; sort">/);
+assert.throws(()=>renderSelectField({name:"sort",label:"Order",value:"original",options:[],attributes:{onchange:"alert(1)"}}),/Unsafe select attribute/);
+assert.match(renderIcon("bellOff"),/aria-hidden="true"/);
+
 const root=resolve(import.meta.dirname,"../..");
 const periodControl=renderPeriodSwitch({key:"usage",lang:"en",label:"Usage period"});
 assert.match(periodControl,/role="group" aria-label="Usage period"/);
@@ -83,6 +88,9 @@ for(const font of fontFiles){
   assert.ok(FOUNDATION_CSS.includes(`url("/assets/${font.file}")`),`${font.file} face`);
 }
 const page=renderPageShell({title:"T",brand:"Kurami",date:"2026-09-16",dateLabel:"16",generated:"10:00",timezone:"UTC",content:"<p>x</p>"});
+assert.doesNotMatch(page.match(/<footer[\s\S]*?<\/footer>/)?.[0]??"",/Обновлено|Updated/,"missing snapshot time is not invented");
+const timedPage=renderPageShell({title:"T",brand:"Kurami",date:"2026-09-16",dateLabel:"16",generated:"10:00",updatedAt:"2026-09-16T07:00:00Z",timezone:"Europe/Vilnius",content:"<p>x</p>"});
+assert(timedPage.includes(formatSiteDate("2026-09-16T07:00:00Z","ru",true)),"Digest footer uses the shared snapshot formatter");
 assert.doesNotMatch(page,/fonts\.(googleapis|gstatic)\.com/,"Digest pages load no third-party fonts");
 const frozen='<html><head><link rel="preconnect" href="https://fonts.googleapis.com"><link href="https://fonts.googleapis.com/css2?family=Onest" rel="stylesheet"></head><body></body></html>';
 const served=injectRuntime(frozen);

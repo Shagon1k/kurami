@@ -7,7 +7,7 @@ export const CHART_STYLES = `
 .chart h3 { margin: 4px 0 0; font-size: 1rem; font-weight: 600; line-height: 1.25; }
 .chart__subtitle { margin: 0; color: var(--text-muted); font-size: .6875rem; }
 .chart__legend { max-width: 65%; display: flex; flex-wrap: wrap; justify-content: end; gap: 4px 8px; }
-.chart__key { --chart-color: var(--text-primary); display: inline-flex; align-items: center; gap: 6px; min-height: 44px; padding: 5px 8px; font: 500 .6875rem/1.3 var(--font-sans); text-align: left; }
+.chart__key { --chart-color: var(--text-primary); display: inline-flex; align-items: center; gap: 6px; min-height: var(--control-height); padding: 5px 8px; font: 500 .6875rem/1.3 var(--font-sans); text-align: left; }
 .chart__key::before { content: ""; flex: 0 0 10px; height: 10px; border: 1px solid color-mix(in srgb,var(--chart-color) 65%,var(--text-primary)); border-radius: 50%; background: var(--chart-color); }
 .chart__key[aria-pressed="false"] { opacity: .6; text-decoration: line-through; }
 .chart__series--0, .chart__key--0 { --chart-color: var(--chart-1); }
@@ -19,10 +19,11 @@ export const CHART_STYLES = `
 .chart__key--4::before { border-style: dashed; }
 .chart__toolbar { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-top: 8px; color: var(--text-muted); font-size: .6875rem; }
 .chart__zoom { display: inline-flex; align-items: center; gap: 4px; }
-.chart__zoom .button { width: 44px; min-height: 44px; padding: 0; }
+.chart__zoom .button { --button-width: var(--control-height); padding: 0; }
 .chart__zoom output { min-width: 48px; text-align: center; }
 .chart__plot { overflow-x: auto; }
 .chart svg { display: block; width: 100%; min-width: 590px; height: auto; margin-top: 8px; }
+.chart[data-chart-mounted] svg { min-width: 0; }
 .chart__grid line { stroke: color-mix(in srgb,var(--border-subtle) 70%,var(--chart-surface)); stroke-width: 1; }
 .chart__series polyline { fill: none; stroke: var(--chart-color); stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
 .chart__plot:has(.chart__point:hover) .chart__series:not(:has(.chart__point:hover)),
@@ -53,4 +54,5 @@ export const CHART_STYLES = `
   .chart__toolbar { padding-inline: 6px; flex-wrap: wrap; }
 }
 @media (prefers-reduced-motion: reduce) { .chart__series circle { transition: none; } }
+@media (pointer: coarse) { .chart__zoom .button { --button-width: 44px; min-height: 44px; } .chart__key { min-height: 44px; } }
 `;

@@ -26,9 +26,8 @@ export const STOCKS_STYLES=`
 .stocks-section-heading,.stocks-teaser header { display:flex; align-items:center; justify-content:space-between; gap:20px; margin-bottom:20px; }
 .stocks-section-heading h2,.stocks-teaser h2,.stocks-observations h2 { margin:0; font-size:clamp(1.5rem,2.5vw,2rem); font-weight:600; }
 .stocks-section-heading p { margin:8px 0 0; color:var(--text-muted); font-size:.8125rem; }
-.stocks-sort { display:grid; gap:6px; font-size:.75rem; color:var(--text-muted); }
-.stocks-sort select { min-height:44px; max-width:100%; padding:8px 30px 8px 12px; border:1px solid var(--border-default); border-radius:var(--radius); color:var(--text-primary); background:var(--surface-raised); font:600 .8125rem var(--font-sans); }
-.stocks-sort select:focus-visible,.stock-row__summary:focus-visible { outline:2px solid var(--accent-primary); outline-offset:3px; }
+.stocks-sort { min-width:0; }
+.stock-row__summary:focus-visible { outline:2px solid var(--accent-primary); outline-offset:3px; }
 .stock-row { border-top:1px solid var(--border-default); background:var(--surface-raised); scroll-margin-top:calc(var(--header-offset,90px) + 16px); }
 .stock-row:last-child { border-bottom:1px solid var(--border-default); }
 .stock-row__summary { display:grid; grid-template-columns:minmax(140px,1fr) 140px minmax(100px,.45fr) 100px 28px; gap:24px; align-items:center; padding:20px 16px; cursor:pointer; list-style:none; min-height:88px; }

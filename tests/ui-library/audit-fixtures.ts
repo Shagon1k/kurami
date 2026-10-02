@@ -1,0 +1,42 @@
+import assert from "node:assert/strict";
+import {syntheticDailyFilled,syntheticCinemaFilled,syntheticWeeklyFilled,syntheticWeeklyReview,syntheticStocksFilled,syntheticStocksSnapshot,auditPoster} from "../../src/ui-library/testing/digest-filled.ts";
+import {parseWeeklyReview} from "../../src/briefing/weekly/model.ts";
+import {parseStocksSnapshot} from "../../src/briefing/stocks/model.ts";
+
+for(const lang of ["en","ru"] as const){
+  const daily=syntheticDailyFilled(lang);
+  assert.match(daily,/audit-mail-7/);
+  assert.match(daily,/audit-story-5/);
+  assert.match(daily,/audit-illustration.webp/);
+  assert.equal(daily,syntheticDailyFilled(lang),"Daily fixture is deterministic");
+  const cinema=syntheticCinemaFilled(lang);
+  assert.match(cinema,new RegExp(`<html[^>]*lang="${lang}"`));
+  assert.match(cinema,/cinema-trailer/);
+  assert.match(cinema,/cinema-premiere/);
+  assert.match(cinema,/cinema-news/);
+  assert.match(cinema,/cinema-rank/);
+  assert.match(cinema,/data-chart-spec=/);
+  assert.match(cinema,/audit-poster.svg/);
+  assert.equal(cinema,syntheticCinemaFilled(lang),"Cinema fixture is deterministic");
+  const weekly=syntheticWeeklyFilled(lang);
+  assert.match(weekly,/weekly-metrics/);
+  assert.match(weekly,/weekly-topics/);
+  assert.equal((weekly.match(/data-chart-spec=/g)??[]).length,2);
+  assert.match(weekly,/metric-card__value--segments/);
+  assert.match(weekly,/metric-card__segment.*ui-icon/);
+  assert.doesNotMatch(weekly.match(/data-metric="weekly-reactions"[\s\S]*?<\/article>/)?.[0]??"",/🔔|🔕/);
+  assert.match(daily,/button button--icon media-lightbox__close/);
+  assert.match(daily,/site-footer__meta/);
+  assert.equal(weekly,syntheticWeeklyFilled(lang),"Weekly fixture is deterministic");
+  const stocks=syntheticStocksFilled(lang);
+  assert.equal((stocks.match(/data-stock-row=/g)??[]).length,12);
+  assert.match(stocks,lang==="en"?/Fresh quotes: 10\/12/:/Свежие котировки: 10\/12/);
+  assert.match(syntheticStocksFilled(lang,true),/data-chart-spec=/);
+  assert.match(stocks,/class="form-select"><select name="stock-sort" data-stock-sort/);
+  assert.equal(stocks,syntheticStocksFilled(lang),"Stocks fixture is deterministic");
+}
+assert.equal(parseWeeklyReview(syntheticWeeklyReview()).state,"ready");
+assert.equal(parseWeeklyReview(syntheticWeeklyReview(true)).data.days[2]!.calendar,null);
+assert.equal(parseStocksSnapshot(syntheticStocksSnapshot()).data.series.length,12);
+assert.match(auditPoster,/SYNTHETIC POSTER/);
+console.log("Filled UI audit fixtures: EN/RU Daily, Cinema, Weekly, partial week, 12-stock watchlist, stale/unavailable quotes and expanded stock chart verified");

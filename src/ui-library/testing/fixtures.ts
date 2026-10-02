@@ -26,8 +26,8 @@ import {summarizeModelUsage,type UsageSample} from "../../core/api-equivalent.ts
 import {renderProjectsPage} from "../../projects-site/render.ts";
 import {syntheticProjectsSnapshot} from "../../../tests/projects-site/fixture.ts";
 
-export function syntheticProjects():string {
-  return renderProjectsPage(syntheticProjectsSnapshot());
+export function syntheticProjects(lang:"en"|"ru"="en"):string {
+  return renderProjectsPage(syntheticProjectsSnapshot(),new URLSearchParams({lang}));
 }
 
 const at="2026-09-16T07:00:00Z";

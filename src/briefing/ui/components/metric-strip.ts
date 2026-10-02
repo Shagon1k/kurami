@@ -3,6 +3,7 @@ import type { BriefingPayload, KuramiNoteTarget } from "../../model.ts";
 import { displayString, escapeHtml } from "../html.ts";
 import { renderKuramiNote } from "./kurami-note.ts";
 import {digestLanguage,digestText} from "../../i18n.ts";
+import {renderIcon,type IconName} from "../../../ui-library/components/icon.ts";
 
 const weatherTerms:Record<string,string>={"Ясно":"Clear","Преимущественно ясно":"Mostly clear","Переменная облачность":"Partly cloudy","Пасмурно":"Overcast","Туман":"Fog","Морось":"Drizzle","Дождь":"Rain","Снег":"Snow","Ливни":"Showers","Снегопад":"Snowfall","Гроза":"Thunderstorm","Неизвестные условия":"Unknown conditions"};
 function englishWeather(value:string):string {
@@ -16,6 +17,7 @@ export type MetricCard = {
   key: string;
   label: string;
   value: string;
+  segments?: Array<{icon:IconName;value:number;label:string}>;
   chip: string;
   context: string;
   warning?: boolean;
@@ -112,7 +114,7 @@ export function renderMetricCards(cards:MetricCard[],timezone:string,renderNote:
   return `<section class="metric-strip" aria-label="${digestText("Коротко о выпуске","Edition at a glance")}">${cards.map((card) => {
     return `<article class="metric-card" data-metric="${escapeHtml(card.key)}">
       <span class="metric-card__label">${escapeHtml(card.label)}</span>
-      <strong class="metric-card__value"${card.liveClock ? ` data-live-clock data-timezone="${escapeHtml(timezone)}"` : ""}>${escapeHtml(card.value)}</strong>
+      <strong class="metric-card__value${card.segments?" metric-card__value--segments":""}"${card.liveClock ? ` data-live-clock data-timezone="${escapeHtml(timezone)}"` : ""}>${card.segments?card.segments.map(segment=>`<span class="metric-card__segment">${renderIcon(segment.icon)}<span>${escapeHtml(String(segment.value))}</span><small>${escapeHtml(segment.label)}</small></span>`).join(""):escapeHtml(card.value)}</strong>
       <span class="metric-card__chip${card.warning ? " warning" : ""}">${escapeHtml(card.chip)}</span>
       <p class="metric-card__context">${escapeHtml(card.context)}</p>
       ${renderNote(card.key)}

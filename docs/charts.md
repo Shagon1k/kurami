@@ -64,8 +64,10 @@ input, not permission to add synthetic metrics to a published digest.
 
 Trend nodes are filled circles (3.5px rest, 6px hover/focus). The theme supplies
 muted blue, terracotta, sage, ochre and grey in separate light/dark palettes.
-Lines stay straight; the fifth palette colour uses a dashed line. Bars show
-values by default and use the theme radius. Incomplete measurements have a
+Lines stay straight; the fifth palette colour uses a dashed line. A single
+series defaults to ochre; explicit colours override it. Multiple series retain
+their ordered palette. Bars show values when the slots fit their labels and use
+the theme radius. Incomplete measurements have a
 muted fill, dashed stroke and asterisk.
 
 Legend buttons hide/show series and rescale the visible range. Hiding every
@@ -75,9 +77,11 @@ interpolated or discarded. `initialWindow` optionally chooses the starting N.
 Each chart keeps its own local interaction state.
 
 Both axes are present; long category sets use deterministic tick thinning.
-Cards retain controls on mobile and horizontally scroll only the plot.
-Embedded plots recalculate their width to fit the parent, including compact
-Hub panels. Automatic value labels hide when bar slots become too narrow. Light/dark
+Cards retain controls on mobile. Both card and embedded plots recalculate their
+geometry to fit the parent, including compact Hub panels. Tick labels thin out;
+the selected period and its data stay intact. Automatic value labels hide when
+bar slots become too narrow. Without JavaScript, card plots retain their
+scrollable server-rendered fallback. Light/dark
 themes and reduced motion use the shared design tokens.
 
 Arrow Left/Right move between points, Home/End to the ends; Up/Down switch
@@ -116,7 +120,7 @@ Set `display` on the input to adapt the shared component:
 | `header` | `true` | `false` keeps the title available to screen readers. |
 | `legend` | `"interactive"` | `"static"` or `"hidden"`. Single-series legends are static. |
 | `zoom` | `true` | `false` lets the host own period selection. |
-| `values` | Visible on cards; automatic on embedded plots | `true` or `false` overrides labels above bars; exact values remain in tooltips and the table. |
+| `values` | Automatic, based on available bar-label space | `true` or `false` overrides labels above bars; exact values remain in tooltips and the table. |
 | `table` | `"disclosure"` | `"screen-reader"` keeps the table in the accessibility tree without a visible disclosure. |
 
 `series.color` selects a palette slot from 1 to 5, independently of series

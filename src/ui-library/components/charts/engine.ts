@@ -33,6 +33,7 @@ export function createChartEngine(language?:"ru"|"en") {
         ...(entry.shortLabel === undefined ? {} : {shortLabel:text(entry.shortLabel,"short label",64)}),
         ...(entry.partial === undefined ? {} : {partial:entry.partial}) };
     });
+    const singleSeries=raw.series.length===1;
     const series = Array.from(raw.series,entry => {
       if (!entry || typeof entry !== "object" || !Array.isArray(entry.values) || entry.values.length !== categories.length) throw new Error("Chart values must align with categories");
       const seriesId = text(entry.id,"series id",160);
@@ -45,7 +46,7 @@ export function createChartEngine(language?:"ru"|"en") {
       if(entry.color!==undefined && (!Number.isInteger(entry.color)||entry.color<1||entry.color>5))throw new Error("Invalid chart series color");
       if(entry.partial!==undefined && (!Array.isArray(entry.partial)||entry.partial.length!==categories.length||Array.from(entry.partial).some(v=>typeof v!=="boolean")))throw new Error("Invalid chart series partial flags");
       return {id:seriesId,label:text(entry.label,"series label"),values,
-        ...(entry.color===undefined?{}:{color:entry.color}),
+        ...(entry.color===undefined?(singleSeries?{color:4}:{}):{color:entry.color}),
         ...(entry.partial===undefined?{}:{partial:[...entry.partial]})};
     });
     if (new Set(categories.map(item=>item.key)).size !== categories.length || new Set(series.map(item=>item.id)).size !== series.length) throw new Error("Duplicate chart key");
@@ -94,6 +95,10 @@ export function createChartEngine(language?:"ru"|"en") {
     if(options.width!==undefined) {
       if(!Number.isFinite(options.width)||options.width<200||options.width>3200)throw new Error("Invalid chart width");
       plot.right=options.width-(plot.width-plot.right);plot.width=options.width;
+      if(options.width<480&&spec.display?.density!=="compact") {
+        plot.left=44;
+        if(spec.display?.variant!=="embedded") {plot.height=246;plot.bottom=190;}
+      }
     }
     if(options.windowSize!==undefined && !Number.isSafeInteger(options.windowSize)) throw new Error("Invalid chart view window");
     if(options.visible?.some(index=>!Number.isSafeInteger(index) || index<0 || index>=spec.series.length)) throw new Error("Invalid visible series");
@@ -155,7 +160,8 @@ export function createChartEngine(language?:"ru"|"en") {
       if(segment.length)segments.push(segment);
       return [{index:seriesIndex,color:(item.color??seriesIndex+1)-1,points:points.filter((point):point is NonNullable<typeof point>=>point!==null),segments}];
     });
-    const showValues=spec.display?.values??(spec.display?.variant!=="embedded"||slot/Math.max(1,visible.size)>=24);
+    const valueWidth=Math.max(0,...series.flatMap(item=>item.points.map(point=>point.valueLabel.length*7+8)));
+    const showValues=spec.display?.values??(slot/Math.max(1,visible.size)>=valueWidth);
     return {plot,showValues,labelY:plot.bottom+(spec.display?.density==="compact"?22:35),minimum,maximum,ticks,labels,series,start,windowSize,total,baseline:y(0),
       barWidth,empty:values.length===0};
   }

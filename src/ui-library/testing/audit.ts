@@ -1,7 +1,11 @@
 // Product-neutral page audit evaluated in the browser: layout overflow, image alternatives, control
-// names, theme-switch state and WCAG AA text contrast against the nearest opaque background.
+// names, theme-switch state and text contrast on solid backgrounds. Image-backed text needs a
+// separate pixel or manual check; comparing it with an ancestor's flat colour is not evidence.
 export const AUDIT_EXPRESSION = `(() => {
   const issues = [];
+  const contrastReview = [];
+  window.__kuramiContrastReview = contrastReview;
+  document.querySelectorAll('[data-contrast-review]').forEach(element => element.removeAttribute('data-contrast-review'));
   const visible = element => { for (let parent = element.parentElement; parent; parent = parent.parentElement) if (parent.matches('details:not([open])') && !parent.querySelector(':scope > summary')?.contains(element)) return false; const style = getComputedStyle(element), box = element.getBoundingClientRect(); return style.display !== 'none' && style.visibility !== 'hidden' && box.width > 0 && box.height > 0; };
   if (document.documentElement.scrollWidth > document.documentElement.clientWidth + 1) issues.push('Horizontal page overflow');
   for (const image of document.images) if (!image.hasAttribute('alt')) issues.push('Image without alt');
@@ -14,8 +18,26 @@ export const AUDIT_EXPRESSION = `(() => {
     if (!visible(element) || element.closest('svg, .sr-only, [aria-hidden="true"]') || !Array.from(element.childNodes).some(node => node.nodeType === Node.TEXT_NODE && node.textContent?.trim())) continue;
     const style = getComputedStyle(element), foreground = color(style.color);
     if (!foreground || (foreground[3] !== undefined && foreground[3] < .99) || Number(style.opacity) < 1) continue;
-    let background = null, ancestor = element;
-    while (ancestor && !background) { const candidate = color(getComputedStyle(ancestor).backgroundColor); if (candidate && (candidate[3] === undefined || candidate[3] >= .99)) background = candidate; ancestor = ancestor.parentElement; }
+    let background = null, ancestor = element, imageBackground = false;
+    while (ancestor && !background) {
+      const ancestorStyle = getComputedStyle(ancestor);
+      if (ancestorStyle.backgroundImage !== 'none') { imageBackground = true; break; }
+      const candidate = color(ancestorStyle.backgroundColor);
+      if (candidate && (candidate[3] === undefined || candidate[3] >= .99)) background = candidate;
+      ancestor = ancestor.parentElement;
+    }
+    if (imageBackground) {
+      const id=String(contrastReview.length);
+      element.setAttribute('data-contrast-review',id);
+      const rectangles=[];
+      for (const text of element.childNodes) if(text.nodeType===Node.TEXT_NODE&&text.textContent.trim()) {
+        const range=document.createRange();range.selectNodeContents(text);
+        for(const box of range.getClientRects())if(box.width&&box.height)rectangles.push({x:box.x+scrollX,y:box.y+scrollY,width:box.width,height:box.height});
+      }
+      const large=parseFloat(style.fontSize)>=24||parseFloat(style.fontSize)>=18.66&&Number(style.fontWeight)>=700;
+      contrastReview.push({id,element:element.tagName.toLowerCase()+'.'+String(element.className),text:element.textContent.trim().slice(0,160),foreground:foreground.slice(0,3),required:large?3:4.5,rectangles,reason:'Image or gradient background: pixel/manual contrast check required'});
+      continue;
+    }
     if (!background) continue;
     const a = luminance(foreground), b = luminance(background), ratio = (Math.max(a, b) + .05) / (Math.min(a, b) + .05);
     const large = parseFloat(style.fontSize) >= 24 || parseFloat(style.fontSize) >= 18.66 && Number(style.fontWeight) >= 700;
@@ -24,6 +46,8 @@ export const AUDIT_EXPRESSION = `(() => {
   }
   return issues;
 })()`;
+
+export const CONTRAST_REVIEW_EXPRESSION = 'window.__kuramiContrastReview ?? []';
 
 /** Selectors of product components that are allowed to render their own controls. Adding one is a
  *  deliberate decision: prefer a library component, and explain the exception in the PR. */

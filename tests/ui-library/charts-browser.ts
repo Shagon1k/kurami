@@ -33,11 +33,14 @@ try {
     await wait("document.readyState==='complete' && document.querySelectorAll('[data-chart-mounted]').length===5");
     await devtools.evaluate(`document.documentElement.dataset.theme===${JSON.stringify(theme)}||document.querySelector('[data-theme-toggle]').click()`);
     await devtools.evaluate("document.fonts.ready");
+    await devtools.call("Input.dispatchMouseEvent",{type:"mouseMoved",x:1,y:1});
     assert.equal(await devtools.evaluate("document.documentElement.dataset.theme"),theme);
-    await delay(100);
+    await delay(240);
     assert.deepEqual(await devtools.evaluate(AUDIT_EXPRESSION),[],`${lang}/${width}/${theme}`);
     assert.deepEqual(await devtools.evaluate(inventoryExpression()),[]);
     assert.equal(await devtools.evaluate("(()=>{const plot=document.querySelector('#showcase-compact-title').closest('[data-chart]').querySelector('[data-chart-plot]');return Math.abs(plot.querySelector('svg').viewBox.baseVal.width-plot.clientWidth)<1})()"),true,"embedded geometry fits its parent");
+    assert.equal(await devtools.evaluate("[...document.querySelectorAll('[data-chart-plot]')].filter(plot=>!plot.hidden).every(plot=>Math.abs(plot.querySelector('svg').viewBox.baseVal.width-plot.clientWidth)<1&&plot.scrollWidth<=plot.clientWidth+1)"),true,"all visible charts fit without hiding periods off-screen");
+    assert.equal(await devtools.evaluate("[...document.querySelectorAll('.chart__labels')].every(group=>{const labels=[...group.querySelectorAll('text')].filter(text=>text.getAttribute('text-anchor')==='middle').slice(0,-1);return labels.every((text,index)=>!index||text.getBoundingClientRect().left>=labels[index-1].getBoundingClientRect().right)})"),true,"date labels do not overlap");
     if(width===1280&&lang==="ru") {
       const shot=await devtools.call<{data:string}>("Page.captureScreenshot",{format:"png",captureBeyondViewport:true});
       writeFileSync(resolve(output,`charts-${theme}.png`),Buffer.from(shot.data,"base64"));

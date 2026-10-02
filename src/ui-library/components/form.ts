@@ -6,8 +6,12 @@ export function renderSearchField(input:{name:string;label:string;value?:string;
   return `<label class="form-field"><span${input.labelHidden?' class="sr-only"':""}>${escapeHtml(input.label)}</span><span class="form-search">${input.icon?renderIcon("search"):""}<input name="${escapeHtml(input.name)}" type="search" value="${escapeHtml(input.value??"")}"${input.placeholder?` placeholder="${escapeHtml(input.placeholder)}"`:""}></span></label>`;
 }
 
-export function renderSelectField(input:{name:string;label:string;value:string;options:{value:string;label:string}[];disabled?:boolean}):string {
-  return `<label class="form-field"><span>${escapeHtml(input.label)}</span><span class="form-select"><select name="${escapeHtml(input.name)}"${input.disabled?" disabled":""}>${input.options.map(option=>`<option value="${escapeHtml(option.value)}"${option.value===input.value?" selected":""}>${escapeHtml(option.label)}</option>`).join("")}</select>${renderIcon("chevronDown")}</span></label>`;
+export function renderSelectField(input:{name:string;label:string;value:string;options:{value:string;label:string}[];disabled?:boolean;attributes?:Record<string,string|true>}):string {
+  const attributes=Object.entries(input.attributes??{}).map(([name,value])=>{
+    if(!/^(?:data-[a-z][a-z0-9-]*|aria-[a-z][a-z0-9-]*|id)$/.test(name))throw new Error("Unsafe select attribute: "+name);
+    return value===true?` ${name}`:` ${name}="${escapeHtml(value)}"`;
+  }).join("");
+  return `<label class="form-field"><span>${escapeHtml(input.label)}</span><span class="form-select"><select name="${escapeHtml(input.name)}"${attributes}${input.disabled?" disabled":""}>${input.options.map(option=>`<option value="${escapeHtml(option.value)}"${option.value===input.value?" selected":""}>${escapeHtml(option.label)}</option>`).join("")}</select>${renderIcon("chevronDown")}</span></label>`;
 }
 export function renderNumberField(input:{name:string;label:string;value:number;min:number;max:number;disabled?:boolean}):string {
   for(const number of [input.value,input.min,input.max])if(!Number.isFinite(number))throw new Error("Invalid numeric field");

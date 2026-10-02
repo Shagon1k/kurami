@@ -12,6 +12,8 @@ Stocks is the page `/stocks` ("My stocks", my stocks) with closing prices from y
 
 Charts share their light and dark palettes with Digest and Hub. Legends, tooltips and the exact-value table keep the data accessible; missing history remains a gap in the line. Switching themes preserves the selected period and each miniature chart’s own scale.
 
+Charts fit the available width on a phone without cropping the selected period. Date labels become less frequent; every exact value remains in the tooltip and data table. A single series uses the shared ochre colour.
+
 ## Reading a row
 
 A list row is an expandable block. Open it to see the chart and the figures for a period. One row is open at a time.

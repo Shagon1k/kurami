@@ -14,7 +14,7 @@ import type {BriefingAddonEnvelope} from "../../src/briefing/model.ts";
 import {withDigestLanguage,localizeDigestLinks} from "../../src/briefing/i18n.ts";
 import {BUTTON_CSS} from "../../src/ui-library/components/button.ts";
 import {SITE_HEADER_CSS} from "../../src/ui-library/patterns/site-header.ts";
-import {STORY_ACTIONS_LAYOUT_CSS} from "../../src/briefing/ui/styles.ts";
+import {STORY_ACTIONS_LAYOUT_CSS,DIGEST_POLISH_CSS} from "../../src/briefing/ui/styles.ts";
 
 const root=resolve(import.meta.dirname,"../.."),home=await mkdtemp(resolve(tmpdir(),"kurami-header-"));
 const paths=briefingPaths({KURAMI_HOME:home,BRIEFING_MIGRATIONS_DIR:resolve(root,"migrations/briefing")});
@@ -73,6 +73,11 @@ assert.ok(compact.includes("<h1 class=\"page-title\">Содержание не �
 assert.equal(injectSiteNavigation(compact,input.links,"daily"),compact,"shared styles refresh is idempotent");
 const frozenActions=original.replace(STORY_ACTIONS_LAYOUT_CSS,"");
 assert(injectSiteNavigation(frozenActions,input.links,"daily").includes(STORY_ACTIONS_LAYOUT_CSS),"retained editions receive the current mobile action layout");
+const retainedShapes=original.replace(DIGEST_POLISH_CSS,"").replace('</style>','.media-lightbox__close { inline-size:34px; block-size:34px; } .mail-actions__submit { min-height:40px; }</style>');
+const polished=injectSiteNavigation(retainedShapes,input.links,"daily");
+assert(polished.includes(DIGEST_POLISH_CSS),"retained editions receive current product layout");
+assert.doesNotMatch(polished,/inline-size:34px|block-size:34px|min-height:40px/);
+assert.equal(injectSiteNavigation(polished,input.links,"daily"),polished,"layout migration is idempotent");
 const legacyCinema=`<!doctype html><html lang="ru"><head></head><body><header class="utility-header" data-utility-header data-site-section="cinema"><div class="utility-header__inner page-shell"><time class="utility-meta" datetime="2026-09-12">12 сентября 2026</time><nav data-site-navigation></nav><div class="utility-actions"></div></div></header><main>Кино</main></body></html>`;
 const upgradedCinema=injectSiteNavigation(legacyCinema,input.links,"cinema");
 assert.match(upgradedCinema,/class="site-header" data-site-header data-site-section="cinema"/);

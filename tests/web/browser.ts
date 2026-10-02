@@ -144,7 +144,8 @@ try{
   await devtools.evaluate("document.querySelector('[data-media-lightbox]').click()");
   await wait("document.querySelector('[data-media-dialog]').open&&document.querySelector('[data-media-dialog-image]').naturalWidth>0");
   assert.equal(await devtools.evaluate("new URL(document.querySelector('[data-media-dialog-image]').src).pathname"),"/_apps/digest/media/fixture.webp","lightbox also uses the mounted media route");
-  await devtools.evaluate("document.querySelector('[data-media-dialog]').close()");
+  await devtools.evaluate("document.querySelector('[data-media-close] .button__svg path').dispatchEvent(new MouseEvent('click',{bubbles:true}))");
+  await wait("!document.querySelector('[data-media-dialog]').open");
   for(const section of ["cinema","weekly","stocks"]){
     const expected="/en/digest/"+section;
     assert.equal(await devtools.evaluate(`document.querySelector('[data-site-navigation] a[href="${expected}"]')?.origin`),origin,section+" navigation link is available");

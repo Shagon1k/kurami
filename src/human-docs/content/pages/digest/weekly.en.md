@@ -21,12 +21,14 @@ The review is available in three places. The Sunday edition carries a short teas
 | **Занято в календаре** (busy in calendar) | Timed events, overlaps counted once | Not hours worked and not attendance |
 | **Сюжеты в выпусках** (stories in editions) | The number of stories in each saved edition | Not unique events: one story can appear on several days |
 | **Архивировано через Daily** (archived through Daily) | Successful presses of "Read and archive" | Does not count mail you removed directly in Gmail |
-| **Предпочтения** (preferences) | 🔔 and 🔕: the last reaction to each story in the week | Not the interest profile weight; an undone reaction does not count |
+| **Предпочтения** (preferences) | Labelled More and Less bell icons: the last reaction to each story in the week | Not the interest profile weight; an undone reaction does not count |
 | "What Kurami noticed" | Up to three sentences from fixed rules | A model does not write them |
 | Two charts | Calendar minutes and the unread mail balance per day | The balance is not the number of new mails per day |
 | "What you reacted to" | Topics: more, less, balance, previous week | One topic can belong to several stories |
 
 Next to each number there is its coverage, for example "5/7 days". Read a total together with it: "Busy in calendar: 12 h 30 min" at coverage 5/7 is the sum of the five known days.
+
+On a phone, charts show the whole selected period. Some date labels are hidden to avoid overlap; exact values remain in tooltips and the data table.
 
 ## A gap is not zero
 

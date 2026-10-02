@@ -108,6 +108,16 @@ for(const width of [200,320,1200]) {
 assert.throws(()=>engine.layout(compact,{width:NaN}));
 assert.throws(()=>engine.layout(compact,{width:100}));
 const dated=engine.parse({...bar,version:1,kind:"bar",categories:Array.from({length:7},(_,index)=>({key:String(index),label:`2026-09-${24+index}`,shortLabel:`09.${24+index}`})),series:[{id:"commits",label:"Commits",values:[0,1,0,20,26,10,40]}],display:{variant:"embedded"}});
+assert.equal(engine.layout(dated).series[0]!.color,3,"single-series default is the shared ochre role");
+assert.equal(engine.layout(engine.parse({...dated,series:[{...dated.series[0]!,color:2}]})).series[0]!.color,1,"explicit colours stay authoritative");
+assert.deepEqual(engine.layout(spec).series.map(series=>series.color),[0,1,2],"multi-series palette stays distinct");
+for(const width of [200,280,320,390,720]) {
+  const regular=engine.parse({...dated,display:{variant:"card"}}),layout=engine.layout(regular,{width});
+  assert.equal(layout.plot.width,width);
+  assert.equal(layout.series[0]!.points.length,7,"responsive layout retains every value");
+  for(let index=1;index<layout.labels.length;index++)assert(layout.labels[index]!.x-layout.labels[index-1]!.x>=51);
+  assert.equal(JSON.stringify(browserEngine.layout(regular,{width})),JSON.stringify(layout));
+}
 for(const width of [200,280,320,390,720]){
   const labels=engine.layout(dated,{width}).labels;
   for(let index=1;index<labels.length;index++)assert(labels[index]!.x-labels[index-1]!.x>=51,"date labels cannot overlap at "+width);

@@ -20,6 +20,9 @@ function initializeCharts(factory: typeof createChartEngine): void {
       if(encoded.length>256_000)throw new Error("Chart payload too large");
       const binary=atob(encoded.replace(/-/g,"+").replace(/_/g,"/"));
       let spec=engine.parse(JSON.parse(new TextDecoder().decode(Uint8Array.from(binary,char=>char.charCodeAt(0)))));
+      root.querySelectorAll<HTMLElement>(".chart__key").forEach((key,index)=>{
+        key.className=key.className.replace(/chart__key--[0-4]/g,"").trim()+" chart__key--"+((spec.series[index]?.color??index+1)-1);
+      });
       const plotNode=root.querySelector<HTMLElement>("[data-chart-plot]")!;
       const empty=root.querySelector<HTMLElement>("[data-chart-empty]")!;
       const tooltip=root.querySelector<HTMLElement>("[data-chart-tooltip]")!;
@@ -42,7 +45,7 @@ function initializeCharts(factory: typeof createChartEngine): void {
         const focused=active&&root.contains(active)?{series:active.getAttribute("data-chart-series"),index:active.getAttribute("data-chart-index")}:null;
         hideTip();
         const measured=plotNode.clientWidth;
-        const width=spec.display?.variant==="embedded"&&measured>=200?Math.min(3200,measured):undefined;
+        const width=measured>=200?Math.min(3200,measured):undefined;
         lastWidth=measured;
         const layout=engine.layout(spec,{visible:[...visible],windowSize,width}),p=layout.plot;
         plotNode.hidden=layout.empty;empty.hidden=!layout.empty;
@@ -157,7 +160,7 @@ function initializeCharts(factory: typeof createChartEngine): void {
         }
       });
       draw();
-      if(spec.display?.variant==="embedded"&&typeof ResizeObserver!=="undefined") {
+      if(typeof ResizeObserver!=="undefined") {
         const observer=new ResizeObserver(()=>{
           if(!root.isConnected){observer.disconnect();return;}
           if(plotNode.clientWidth>=200&&Math.abs(plotNode.clientWidth-lastWidth)>.5)draw();
