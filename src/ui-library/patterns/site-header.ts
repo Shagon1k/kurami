@@ -2,6 +2,7 @@
 // row on phones (few links) or collapses into a menu below tablet width (many links).
 import { escapeHtml } from "../foundations/html.ts";
 import { breakpoints } from "../tokens/index.ts";
+import {renderMobileNavigation,MOBILE_NAVIGATION_CSS,type MobileNavigationInput} from "./mobile-navigation.ts";
 
 export type NavLink = { href: string; label: string; current?: "page" | "location"; title?: string; disabled?: boolean; hint?: string; external?: boolean };
 export type SiteNavInput = { label: string; links: readonly NavLink[]; scroll?: boolean; attributes?: Record<string, true | string>; hideWhenEmpty?: boolean };
@@ -16,6 +17,7 @@ export type SiteHeaderInput = {
   actions: string;
   utility?: string;
   utilityFloating?:boolean;
+  mobile?:Pick<MobileNavigationInput,"app"|"lang">;
 };
 
 const SAFE_ATTRIBUTE = /^(?:data-[a-z][a-z0-9-]*|id)$/;
@@ -61,7 +63,7 @@ export function renderSiteHeader(input: SiteHeaderInput): string {
       </a>
       ${renderSiteNav(nav)}${menu}${input.utility?`<div class="site-header__utility">${input.utility}</div>`:""}
       <div class="site-actions">${input.sites ? renderSiteSwitcher(input.sites) : ""}${input.actions}</div>
-    </div>
+    </div>${input.mobile?renderMobileNavigation({...input.mobile,apps:input.sites?renderSiteNav({label:input.sites.label,links:input.sites.links},"site-switcher__nav"):"",sections:renderSiteNav({...nav,attributes:nav.attributes,hideWhenEmpty:false})}):""}
   </header>`;
 }
 
@@ -154,4 +156,5 @@ export const SITE_HEADER_CSS = `
   .site-header--collapsible .site-brand__fox { width: 30px; height: 30px; }
   .site-header--collapsible .site-brand__name { font-size: .95rem; }
 }
+${MOBILE_NAVIGATION_CSS}
 `;

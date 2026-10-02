@@ -1,4 +1,8 @@
 const paths={
+  apps:"M3 3h7v7H3zM14 3h7v7h-7zM3 14h7v7H3zM14 14h7v7h-7z",
+  sections:"M8 6h13M8 12h13M8 18h13M3 6h1M3 12h1M3 18h1",
+  contents:"M4 4v16M8 6h12M8 12h12M8 18h12",
+  more:"M4 12h1M11 12h2M19 12h1",
   search:"M10 3a7 7 0 1 0 0 14 7 7 0 1 0 0-14M15 15l6 6",
   close:"M6 6l12 12M18 6 6 18",
   bell:"M5 17h14l-2-3V9a5 5 0 0 0-10 0v5zM10 21h4M12 2v2",

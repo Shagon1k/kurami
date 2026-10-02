@@ -77,8 +77,12 @@ writes remain until dismissed or replaced. The close icon has an accessible name
 The shared header names the current app: Kurami. Hub, Digest, Projects or Docs.
 **Apps** opens the product links; Hermes and Dokploy are separated external links
 that open in another tab. On the unified entry, product links stay on one origin,
-so the saved theme follows you between apps. Hub's phone period control uses a
-shared floating-button variant with keyboard focus and safe-area spacing.
+so the saved theme follows you between apps. On phones, a full-width bottom panel
+replaces sticky header navigation. Large icons sit above compact labels; Apps,
+sections, contextual navigation and More open menus above the panel. A repeated
+click, an outside click or Escape closes a menu. More contains language and theme.
+Hub keeps its period in a floating button above the panel; each click switches
+between 7 and 30 days without opening choices.
 Digest uses the shared toggle, source-link and selected icon-button states;
 Projects uses shared icon sizing rather than redefining the SVG styles.
 Product links are ordered Hub, Digest, Projects, Docs.

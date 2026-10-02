@@ -37,6 +37,7 @@ export function renderSiteHeader(input:{section:SiteSection;label?:string;date?:
   const path=input.path??destinations[input.section].href;
   const relative=path.replace(/^\/(?:en|ru)(?=\/|$)/,"")||"/";
   return renderKuramiHeader({
+    mobile:{app:"digest",lang},
     label:input.label??"Kurami",
     attributes:{"data-site-section":input.section},
     brand:{href:digestPath("/"),suffix:"Digest",ariaLabel:digestText("Kurami — последний дневной выпуск","Kurami — latest Daily edition"),foxSrc:"/assets/kurami-fox.webp",meta:input.date&&input.dateLabel?{label:formatSiteDate(input.date,lang),datetime:input.date}:undefined},

@@ -59,7 +59,7 @@ type Period=7|30;
 const daysLabel=(days:Period,lang:HubLanguage)=>`${days} ${tr(lang,"дней","days")}`;
 const periodPanel=(key:string,days:Period,body:string)=>`<div data-period-panel="${key}" data-period-days="${days}"${days===7?" hidden":""}>${body}</div>`;
 const periods=(key:string,body:(days:Period)=>string)=>([7,30] as const).map(days=>periodPanel(key,days,body(days))).join("");
-const periodSwitch=(key:string,lang:HubLanguage,label:string)=>renderPeriodSwitch({key,lang,label:`${label} · ${tr(lang,"период","period")}`,floating:true});
+const periodSwitch=(key:string,lang:HubLanguage,label:string)=>renderPeriodSwitch({key,lang,label:`${label} · ${tr(lang,"период","period")}`,floating:true,cycle:true});
 
 function renderLimitHistory(codex:CodexSnapshot,lang:HubLanguage):string {
   const current=codex.account?.state==="live"?codex.account.limits:codex.limits;
@@ -279,7 +279,7 @@ export function renderHubDashboard(snapshot:HubSnapshot,lang:HubLanguage="en"):s
 function hubHeader(lang:HubLanguage,controls=true):string {
   const other:HubLanguage=lang==="ru"?"en":"ru";
   const menu=renderButton({label:tr(lang,"Управление","Controls"),variant:"icon",iconPath:iconPath("controls"),disabled:!controls,attributes:{"data-hub-control":"menu",popovertarget:"hub-controls-popover","aria-expanded":"false","aria-controls":"hub-controls-popover"}});
-  return renderSiteHeader({brand:{href:`/${lang}/`,ariaLabel:tr(lang,"Kurami Hub — главная","Kurami Hub — home"),foxSrc:"/assets/fox.webp",suffix:"Hub"},nav:{label:tr(lang,"Разделы Hub","Hub sections"),links:[],hideWhenEmpty:true},sites:kuramiSites("hub",lang),utility:controls?periodSwitch("global",lang,tr(lang,"Вся статистика","All statistics")):undefined,utilityFloating:controls,actions:menu+renderLinkButton({label:other.toUpperCase(),href:`/${other}/`,variant:"icon",ariaLabel:tr(lang,"Переключить на английский","Switch to Russian"),attributes:{hreflang:other}})+renderThemeSwitch(lang)});
+  return renderSiteHeader({mobile:{app:"hub",lang},brand:{href:`/${lang}/`,ariaLabel:tr(lang,"Kurami Hub — главная","Kurami Hub — home"),foxSrc:"/assets/fox.webp",suffix:"Hub"},nav:{label:tr(lang,"Разделы Hub","Hub sections"),links:[],hideWhenEmpty:true},sites:kuramiSites("hub",lang),utility:controls?periodSwitch("global",lang,tr(lang,"Вся статистика","All statistics")):undefined,utilityFloating:controls,actions:menu+renderLinkButton({label:other.toUpperCase(),href:`/${other}/`,variant:"icon",ariaLabel:tr(lang,"Переключить на английский","Switch to Russian"),attributes:{hreflang:other}})+renderThemeSwitch(lang)});
 }
 
 export function renderHubPage(snapshot:HubSnapshot,lang:HubLanguage="en",csrfToken=""):string {

@@ -2,7 +2,7 @@
 import { escapeHtml } from "../foundations/html.ts";
 import { breakpoints } from "../tokens/index.ts";
 
-export type ButtonVariant = "primary" | "secondary" | "subtle" | "quiet" | "icon" | "text" | "danger" | "link" | "toggle";
+export type ButtonVariant = "primary" | "secondary" | "subtle" | "quiet" | "icon" | "text" | "danger" | "link" | "toggle" | "navigation";
 export type ButtonSize = "regular" | "compact";
 
 type AttributeValue = string | number | boolean | undefined;
@@ -79,6 +79,12 @@ export const BUTTON_CSS = `
 .button__svg { inline-size: var(--button-icon-size,18px); block-size: var(--button-icon-size,18px); flex: none; display: block; fill: none; stroke: currentColor; stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round; pointer-events: none; }
 .button--icon-end .button__svg { order: 1; }
 .button--compact { min-height: 32px; padding-inline: 10px; font-size: .7rem; font-weight: 500; }
+.button--navigation { --button-icon-size: 32px; min-height: 82px; min-width: 0; flex-direction: column; justify-content: flex-start; gap: 6px; padding: 12px 0 14px; border: 0; border-radius: 0; background: transparent; font: 400 .875rem/18px var(--font-sans); white-space: nowrap; }
+.button--navigation .button__svg { stroke-width: 1.8; }
+.button--navigation:hover:not(:disabled):not([aria-busy="true"]) { color: var(--text-primary); background: transparent; }
+.button--navigation[aria-expanded="true"] .button__svg { color: var(--accent-data); }
+.button--navigation[aria-expanded="true"]::after { content: ""; position: absolute; bottom: 8px; width: 18px; height: 2px; background: var(--accent-data); }
+@media(max-width:360px) { .button--navigation { font-size: .8125rem; } }
 @media (pointer: coarse) { .button--compact { min-height: var(--control-height); } }
 `;
 

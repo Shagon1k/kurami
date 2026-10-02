@@ -12,7 +12,9 @@ project names and source notes retain their original text. Interface labels,
 control hints, confirmation text and request errors are localized. The language
 link uses the same square icon-button variant as Hub and Docs.
 
-Projects are header tabs, including All projects. Long tab sets scroll on narrow
+Projects are header tabs on desktop, including All projects. At up to 620px,
+the shared bottom panel opens Apps, Projects, Search and More. Search contains
+the original form; More contains language and theme. Long desktop tab sets scroll on narrow
 screens. The toolbar contains a search field with a visible search icon and an
 accessible label. Search updates immediately and survives refreshes. There are
 no view/status filters, Apply button or manual refresh button.

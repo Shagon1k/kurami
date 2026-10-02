@@ -122,7 +122,7 @@ try {
     assert.equal(await devtools.evaluate("document.querySelector('.site-switcher').open"),false,"Apps closes on outside click");
     await devtools.evaluate("document.querySelector('.site-switcher > summary').click();document.querySelector('.site-switcher > summary').click()");
     assert.equal(await devtools.evaluate("document.querySelector('.site-switcher').open"),false,"Apps closes on repeat click");
-    await devtools.evaluate("document.querySelector('header [data-hub-control=menu]').click()");
+    await devtools.evaluate("(innerWidth<=620?document.querySelector('[data-mobile-menu=controls]'):document.querySelector('header [data-hub-control=menu]')).click()");
     assert.equal(await devtools.evaluate("document.querySelector('#hub-controls-popover').matches(':popover-open')"),true);
     assert.equal(await devtools.evaluate("document.querySelector('dialog').open"),false,"Controls first opens a popover, not a modal");
     assert.equal(await devtools.evaluate("[...document.querySelectorAll('#hub-controls-popover button')].every(button=>button.textContent.trim().length>0)"),true,"popover actions have visible labels beside icons");
@@ -133,12 +133,12 @@ try {
     await devtools.call("Input.dispatchMouseEvent",{type:"mousePressed",button:"left",clickCount:1,...menuPoint});
     await devtools.call("Input.dispatchMouseEvent",{type:"mouseReleased",button:"left",clickCount:1,...menuPoint});
     await wait("!document.querySelector('#hub-controls-popover').matches(':popover-open')");
-    await devtools.evaluate("document.querySelector('header [data-hub-control=menu]').click()");
+    await devtools.evaluate("(innerWidth<=620?document.querySelector('[data-mobile-menu=controls]'):document.querySelector('header [data-hub-control=menu]')).click()");
     await devtools.call("Input.dispatchKeyEvent",{type:"keyDown",key:"Escape",code:"Escape",windowsVirtualKeyCode:27,nativeVirtualKeyCode:27});
     await devtools.call("Input.dispatchKeyEvent",{type:"keyUp",key:"Escape",code:"Escape",windowsVirtualKeyCode:27,nativeVirtualKeyCode:27});
     await wait("!document.querySelector('#hub-controls-popover').matches(':popover-open')");
     assert.equal(await devtools.evaluate("document.activeElement.dataset.hubControl"),"menu","Escape restores focus to the header");
-    await devtools.evaluate("document.querySelector('header [data-hub-control=menu]').click();document.querySelector('[data-hub-control=models]').click()");await wait("!!document.querySelector('form[data-target=codex]')");
+    await devtools.evaluate("(innerWidth<=620?document.querySelector('[data-mobile-menu=controls]'):document.querySelector('header [data-hub-control=menu]')).click();document.querySelector('[data-hub-control=models]').click()");await wait("!!document.querySelector('form[data-target=codex]')");
     assert.equal(await devtools.evaluate("document.querySelector('dialog').open"),true);
     assert.equal(await devtools.evaluate("getComputedStyle(document.documentElement).overflowY==='hidden'&&getComputedStyle(document.body).overflowY==='hidden'"),true,"modal locks the page scroll, not just focus");
     const lockedScroll=await devtools.evaluate<number>("scrollY");
@@ -171,7 +171,7 @@ try {
     await delay(80);
     assert.equal(actions.length,before+(lang==="en"?1:0),"reset waits for confirmation");
     await devtools.evaluate("document.querySelector('[data-hub-cancel]').click()");
-    await devtools.evaluate("document.querySelector('header [data-hub-control=menu]').click();document.querySelector('[data-hub-control=settings]').click()");await wait("!!document.querySelector('[data-hub-submit=settings-apply]')");
+    await devtools.evaluate("(innerWidth<=620?document.querySelector('[data-mobile-menu=controls]'):document.querySelector('header [data-hub-control=menu]')).click();document.querySelector('[data-hub-control=settings]').click()");await wait("!!document.querySelector('[data-hub-submit=settings-apply]')");
     assert.equal(await devtools.evaluate("[...document.querySelectorAll('dialog button')].every(el=>!el.classList.contains('button--quiet'))"),true,"dialog actions look like buttons");
     for(const width of [320,390,1280]){
       await devtools.call("Emulation.setTouchEmulationEnabled",{enabled:width<500,maxTouchPoints:1});
@@ -186,7 +186,7 @@ try {
     if(lang==="en")await screenshot("hub-settings");
     await devtools.evaluate("document.querySelector('[data-dialog-close]').click()");
     const beforeCheck=actions.length;
-    await devtools.evaluate("document.querySelector('header [data-hub-control=menu]').click();document.querySelector('[data-hub-control=composio-check]').click()");
+    await devtools.evaluate("(innerWidth<=620?document.querySelector('[data-mobile-menu=controls]'):document.querySelector('header [data-hub-control=menu]')).click();document.querySelector('[data-hub-control=composio-check]').click()");
     await wait("document.querySelectorAll('.composio-contour').length===3");
     assert.equal(await devtools.evaluate("document.querySelector('#hub-control-dialog-title').textContent"),lang==='en'?'Composio check':'Проверка Composio');
     assert.equal(await devtools.evaluate("!!document.querySelector('[data-hub-control=composio-apply]')"),false,"synchronized contours have no apply button");
@@ -201,11 +201,11 @@ try {
     for(const width of [320,390,768,1280]){
       await devtools.call("Emulation.setDeviceMetricsOverride",{width,height:1000,deviceScaleFactor:1,mobile:width<500});
       await activityAlignment();
-      await devtools.evaluate("window.scrollTo(0,0);document.querySelector('header [data-hub-control=menu]').click()");
-      const rect=await devtools.evaluate<{left:number;right:number;top:number;bottom:number}>("(()=>{const r=document.querySelector('#hub-controls-popover').getBoundingClientRect();return {left:r.left,right:r.right,top:r.top,bottom:r.bottom}})()");
+      await devtools.evaluate("window.scrollTo(0,0);(innerWidth<=620?document.querySelector('[data-mobile-menu=controls]'):document.querySelector('header [data-hub-control=menu]')).click()");
+      const rect=await devtools.evaluate<{left:number;right:number;top:number;bottom:number}>("(()=>{const r=document.querySelector(innerWidth<=620?'#mobile-menu-controls':'#hub-controls-popover').getBoundingClientRect();return {left:r.left,right:r.right,top:r.top,bottom:r.bottom}})()");
       assert(rect.left>=0&&rect.right<=width+1&&rect.top>=0&&rect.bottom<=1000,"Controls popover fits "+width);
       assert.deepEqual(await devtools.evaluate(AUDIT_EXPRESSION),[],`popover ${lang} ${width}`);
-      await devtools.evaluate("hideControls()");
+      await devtools.evaluate("hideControls();document.querySelector('#mobile-menu-controls:popover-open [data-mobile-close]')?.click()");
     }
     await devtools.call("Emulation.setTouchEmulationEnabled",{enabled:true,maxTouchPoints:1});
     await devtools.call("Emulation.setDeviceMetricsOverride",{width:390,height:1000,deviceScaleFactor:1,mobile:true});
@@ -213,11 +213,11 @@ try {
     await devtools.evaluate("window.scrollTo(0,document.body.scrollHeight/2)");
     const periodBounds=await devtools.evaluate<{top:number;bottom:number}>("(()=>{const r=document.querySelector('[data-period-trigger]').getBoundingClientRect();return {top:r.top,bottom:r.bottom}})()");
     assert(periodBounds.top>=0&&periodBounds.bottom<=1000,"global period capsule remains available while scrolling");
+    assert.equal(await devtools.evaluate("document.querySelector('[data-period-trigger]').getBoundingClientRect().bottom<document.querySelector('.mobile-navigation__bar').getBoundingClientRect().top"),true,"bubble sits above the footer");
     assert.equal(await devtools.evaluate("document.querySelector('header').getBoundingClientRect().height<90"),true,"period does not add a mobile header row");
     await devtools.evaluate("document.querySelector('[data-period-trigger]').click()");
-    assert.equal(await devtools.evaluate("document.querySelector('.period-control__choices').matches(':popover-open')"),true);
-    await devtools.evaluate("document.querySelector('[data-period-key=global][data-period-days=\"30\"]').click()");
-    assert.equal(await devtools.evaluate("[...document.querySelectorAll('[data-period-panel]:not([hidden])')].every(panel=>panel.dataset.periodDays==='30')"),true,"global period updates every panel from the sticky header");
+    assert.equal(await devtools.evaluate("document.querySelector('.period-control__choices').matches(':popover-open')"),false,"bubble cycles without opening a menu");
+    assert.equal(await devtools.evaluate("[...document.querySelectorAll('[data-period-panel]:not([hidden])')].every(panel=>panel.dataset.periodDays==='30')"),true,"one bubble click updates every history panel");
     await devtools.evaluate("document.querySelector('[data-period-key=global][data-period-days=\"7\"]').click()");
     await devtools.evaluate("document.querySelector('[data-period-panel=models]:not([hidden]) .model-breakdown > summary').click()");
     assert.deepEqual(await devtools.evaluate(AUDIT_EXPRESSION),[],"expanded model detail fits the phone viewport");
@@ -234,7 +234,7 @@ try {
     await devtools.call("Emulation.setTouchEmulationEnabled",{enabled:controlWidth<600,maxTouchPoints:1});
     await devtools.call("Emulation.setDeviceMetricsOverride",{width:controlWidth,height:1000,deviceScaleFactor:1,mobile:controlWidth<600});
     failRead=true;
-    await devtools.evaluate("document.querySelector('header [data-hub-control=menu]').click();document.querySelector('[data-hub-control=settings]').click()");
+    await devtools.evaluate("(innerWidth<=620?document.querySelector('[data-mobile-menu=controls]'):document.querySelector('header [data-hub-control=menu]')).click();document.querySelector('[data-hub-control=settings]').click()");
     await wait("document.querySelector('#hub-control-content').textContent.includes("+JSON.stringify(lang==="en"?"Values changed":"Данные изменились")+")");
     assert.deepEqual(await devtools.evaluate(AUDIT_EXPRESSION),[],"failed control read remains readable");
     await screenshot(`hub-control-read-error-${lang}-${controlWidth}`,'dialog');

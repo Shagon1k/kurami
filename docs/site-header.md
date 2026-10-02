@@ -17,8 +17,14 @@ source names and original titles remain in their original language. Older
 Daily and Cinema editions without English editorial copy show an explicit
 original-language notice.
 Hermes and Dokploy are separated external links opening in a new tab.
-The switcher becomes an icon button on phones; each
-site keeps its own navigation separate from this cross-site menu.
+At widths up to 620px, all four apps use the shared full-width bottom panel
+from `patterns/mobile-navigation.ts`. It has 32px icons above compact labels;
+the top header scrolls with the page. Apps and contextual menus open above the
+panel and close on repeat click, outside click or Escape. Language and theme move
+to More; existing controls are moved, not cloned, and return on desktop resize.
+Projects moves its search form into Search. Docs includes its section tree and
+article contents. Digest derives edition contents from rendered section headings.
+Hub has Apps, Sections, Controls and More; its period stays outside the panel.
 Hub serves `/ru/` and `/en/` with localized dashboard labels and PWA offline
 pages. Hub, Docs and Digest redirect their root URL to `/en/`; the language
 control links between explicit `/en/` and `/ru/` routes. Digest upgrades
@@ -33,7 +39,8 @@ themselves remain available without redirects until cutover is approved.
 The canonical origin and entry URLs live in `kurami-sites.ts`; the gateway and
 shared footer reuse them. See [unified web operations](kurami-web-operations.md).
 Hub's global period switch stays inline on desktop and uses the library's
-floating period-button/popover variant on phones, without a second header row.
+floating period-button variant above the phone panel. One click cycles 7/30 days;
+it does not open a popover. The selection remains stored across reloads.
 
 `site-navigation.ts` reads publication state, not page content. Only current
 complete/partial Daily and Cinema editions qualify; expired Daily, prepared

@@ -62,7 +62,7 @@
   }
   const toastRegion=document.querySelector('[data-toast-region]');
   const toastHome=app;
-  const toast=createKuramiToast(toastRegion,()=>dashboard.querySelector('#project-details')??search);
+  const toast=createKuramiToast(toastRegion,()=>dashboard.querySelector('#project-details')??(search?.getClientRects().length?search:document.querySelector('[data-mobile-menu="search"]')));
   const notify=(message,tone='info',duration)=>toast.show(message,{tone,duration});
   if (!dashboard) return;
   let refreshing = false;

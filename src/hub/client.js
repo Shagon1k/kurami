@@ -96,7 +96,7 @@ function setPeriod(key,days){
   selectedPeriod=days;
   for(const panel of dashboard.querySelectorAll('[data-period-panel]'))panel.hidden=panel.dataset.periodDays!==days;
   for(const button of document.querySelectorAll('[data-period-key="global"]'))button.setAttribute('aria-pressed',String(button.dataset.periodDays===days));
-  for(const trigger of document.querySelectorAll('[data-period-trigger="global"]'))trigger.textContent=days+(hubLanguage==='ru'?'д':'d');
+  for(const trigger of document.querySelectorAll('[data-period-trigger="global"]')){trigger.textContent=days+(hubLanguage==='ru'?'д':'d');if(trigger.hasAttribute('data-period-cycle'))trigger.setAttribute('aria-label',text('Период: ','Period: ')+days+text(' дней. Переключить на ',' days. Switch to ')+(days==='7'?'30':'7')+text(' дней',' days'));}
 }
 function initializePeriods(){
   let days=selectedPeriod;
@@ -249,4 +249,4 @@ async function performAction(button){
   finally{controlBusy=false;button.removeAttribute("aria-busy");}
 }
 dialog?.addEventListener("cancel",event=>{if(controlBusy)event.preventDefault();});
-dialog?.addEventListener("close",()=>{if(dialog.open)return;controlReadVersion++;controlContent.removeAttribute('aria-busy');pending=null;if(!popoverOpen())opener?.focus();});
+dialog?.addEventListener("close",()=>{if(dialog.open)return;controlReadVersion++;controlContent.removeAttribute('aria-busy');pending=null;if(!popoverOpen())(opener?.getClientRects().length?opener:document.querySelector('[data-mobile-menu="controls"]'))?.focus({preventScroll:true});});

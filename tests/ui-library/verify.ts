@@ -30,6 +30,7 @@ import {renderPopover} from "../../src/ui-library/components/popover.ts";
 import {renderDialog,renderDialogActions} from "../../src/ui-library/components/dialog.ts";
 import {renderToastRegion,TOAST_CSS} from "../../src/ui-library/components/toast.ts";
 import {renderPeriodSwitch} from "../../src/ui-library/components/period-switch.ts";
+import {renderMobileNavigation} from "../../src/ui-library/patterns/mobile-navigation.ts";
 import {inlineDiagram} from "../../src/ui-library/foundations/diagram.ts";
 import {renderDiagram} from "../../src/human-docs/diagrams/kit.ts";
 import {exportBundle,exportDirectory} from "../../src/ui-library/export.ts";
@@ -67,6 +68,16 @@ assert.match(floatingPeriod,/data-period-trigger="global" aria-expanded="false" 
 assert.match(floatingPeriod,/>30д<\/button>/);
 assert.match(renderPeriodSwitch({key:"usage",lang:"ru",selected:7,label:"Расход"}),/>7д</);
 assert.throws(()=>renderPeriodSwitch({key:'bad"key',lang:"en",label:"Usage"}),/Invalid period key/);
+const cyclePeriod=renderPeriodSwitch({key:"global",lang:"ru",label:"Период",floating:true,cycle:true});
+assert.match(cyclePeriod,/data-period-trigger="global" data-period-cycle/);
+assert.doesNotMatch(cyclePeriod,/aria-expanded|aria-controls/);
+for(const app of ["hub","digest","projects","docs"] as const)for(const lang of ["en","ru"] as const){
+  const mobile=renderMobileNavigation({app,lang,apps:"",sections:""});
+  assert.equal((mobile.match(/data-mobile-menu=/g)??[]).length,4);
+  assert.match(mobile,/button--navigation/);
+  assert.match(mobile,/data-mobile-close/);
+  assert.doesNotMatch(mobile,/data-period/);
+}
 
 // Every role is declared once per mode; light is the root mode.
 for(const role of colorRoles){

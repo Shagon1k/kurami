@@ -28,7 +28,7 @@ Kurami in the project table is a repository, not an admitted project: it only ha
 
 ## Period and freshness
 
-One **7 / 30 days** switch drives all history: the task summary, the project table, the commit chart, tokens, models, limits history and Usage. It sits in the desktop header; on phones, a floating period button opens the choices without adding a header row. The choice survives page refreshes and the language switch; a new visitor starts at 30 days. Current limits, System Health and current task states are live snapshots and ignore the period. Activity has its own filters.
+One **7 / 30 days** switch drives all history: the task summary, the project table, the commit chart, tokens, models, limits history and Usage. It sits in the desktop header. On phones, a floating button above the bottom panel switches between 7 and 30 days with one click, without opening a menu. The choice survives page refreshes and the language switch; a new visitor starts at 30 days. Current limits, System Health and current task states are live snapshots and ignore the period. Activity has its own filters.
 
 The server caches a snapshot for 45 seconds, and the browser asks for a new one every minute while the tab is visible. Board numbers come from the last successful poll: a snapshot older than 15 minutes or after a failed poll is marked stale. The health snapshot is stale after twice the check interval plus five minutes, at least 15 minutes. If a source is missing, Hub writes "—" or a partial label instead of zero, because zero would say "no work" and "—" says "unknown".
 
@@ -57,7 +57,7 @@ The commit and limit charts share their light and dark styling with Digest and S
 
 ## Owner controls
 
-The **Controls** icon in the header opens four actions; **Reset** sits beside the limits.
+The **Controls** icon opens four actions from the desktop header or the phone's bottom panel; **Reset** sits beside the limits.
 
 | Action | What it does |
 |---|---|

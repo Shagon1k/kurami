@@ -4,6 +4,14 @@ Status: inventory at `c31a505`; the owner approved the structure, self-hosted fo
 
 ## What exists today
 
+The shared mobile navigation pattern supplies the full-width bottom panel for
+Hub, Digest, Projects and Docs at up to 620px. The `navigation` button variant
+uses 32px line icons and compact labels. The common runtime moves existing
+settings, search and documentation navigation into popovers, then restores them
+on desktop resize. Manual top-layer popovers avoid repeat-click light-dismiss
+races; the runtime handles outside interaction, Escape and focus restoration.
+Hub's floating period variant cycles 7/30 days directly above the panel.
+
 Shared foundations lock page scrolling while a native modal is open. The common
 runtime closes Apps, collapsed header navigation and the Docs mobile section
 menu on outside pointer interaction or Escape; their native summaries still

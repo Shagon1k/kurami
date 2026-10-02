@@ -174,10 +174,12 @@ async function checkKeyboard(devtools:Devtools):Promise<{theme:boolean;disclosur
     await delay(60);
   };
   const theme=await devtools.evaluate<string>(`document.documentElement.dataset.theme`);
+  await devtools.evaluate(`(()=>{const button=document.querySelector('[data-mobile-menu="more"]');if(button&&button.getBoundingClientRect().height)button.click();})()`);
   await devtools.evaluate(`document.querySelector('[data-theme-toggle]').focus()`);
   await enter();
   if(await devtools.evaluate(`document.documentElement.dataset.theme`)===theme)throw new Error("Keyboard theme activation failed on "+await devtools.evaluate("location.pathname"));
   await enter();
+  await devtools.evaluate(`document.querySelector('[data-mobile-navigation] .ui-popover:popover-open [data-mobile-close]')?.click()`);
   const summary=await devtools.evaluate<boolean>(`(()=>{const element=[...document.querySelectorAll('main details > summary, #hub-dashboard details > summary')].find(el=>el.getBoundingClientRect().height>0);if(!element)return false;element.dataset.auditKeyboard='true';element.focus();return true;})()`);
   if(summary){
     const before=await devtools.evaluate(`document.querySelector('[data-audit-keyboard]').parentElement.open`);
@@ -186,7 +188,7 @@ async function checkKeyboard(devtools:Devtools):Promise<{theme:boolean;disclosur
     await enter();
     await devtools.evaluate(`document.querySelector('[data-audit-keyboard]').removeAttribute('data-audit-keyboard')`);
   }
-  const apps=await devtools.evaluate<boolean>(`(()=>{const element=document.querySelector('.site-switcher > summary');if(!element)return false;element.focus();return true;})()`);
+  const apps=await devtools.evaluate<boolean>(`(()=>{const element=document.querySelector('.site-switcher > summary');if(!element||!element.getBoundingClientRect().height)return false;element.focus();return true;})()`);
   if(apps){
     const before=await devtools.evaluate(`document.querySelector('.site-switcher').open`);
     await enter();
@@ -230,10 +232,39 @@ async function checkThemeRuntime(devtools:Devtools,base:string,path:string):Prom
   await devtools.call("Emulation.setEmulatedMedia",{features:[]});
 }
 
+async function checkMobileNavigation(devtools:Devtools,width:number,current:string):Promise<void>{
+  const geometry=await devtools.evaluate<{icons:number[];labels:boolean;fixed:boolean;header:string;overflow:number}>(`(()=>{const nav=document.querySelector('.mobile-navigation__bar');return {icons:[...nav.querySelectorAll('svg')].map(icon=>icon.getBoundingClientRect().width),labels:[...nav.querySelectorAll('button')].every(button=>button.getBoundingClientRect().height>=44&&button.querySelector('span').getBoundingClientRect().width<=button.getBoundingClientRect().width),fixed:getComputedStyle(nav).position==='fixed',header:getComputedStyle(document.querySelector('[data-site-header]')).position,overflow:document.documentElement.scrollWidth-innerWidth};})()`);
+  if(!geometry.fixed||geometry.header!=='static'||geometry.overflow>1||!geometry.labels||geometry.icons.some(size=>size!==32))throw new Error(`Mobile geometry ${current} ${width}: ${JSON.stringify(geometry)}`);
+  await devtools.evaluate(`document.querySelector('[data-mobile-menu="apps"]').click()`);
+  const apps=await devtools.evaluate<{current:string;links:string[];fits:boolean}>(`(()=>{const panel=document.querySelector('#mobile-menu-apps'),r=panel.getBoundingClientRect();return {current:panel.querySelector('[aria-current]')?.textContent.trim(),links:[...panel.querySelectorAll('a')].map(link=>link.textContent.trim()),fits:r.left>=0&&r.right<=innerWidth&&r.bottom<=document.querySelector('.mobile-navigation__bar').getBoundingClientRect().top-7};})()`);
+  if(apps.current!==current||apps.links.join('|')!=='Hub|Digest|Projects|Docs|Hermes↗|Dokploy↗'||!apps.fits)throw new Error(`Mobile Apps ${JSON.stringify(apps)}`);
+  const point=await devtools.evaluate<{x:number;y:number}>(`(()=>{const r=document.querySelector('[data-mobile-menu="apps"]').getBoundingClientRect();return {x:r.x+r.width/2,y:r.y+r.height/2};})()`);
+  await devtools.call('Input.dispatchMouseEvent',{type:'mousePressed',button:'left',clickCount:1,...point});
+  await devtools.call('Input.dispatchMouseEvent',{type:'mouseReleased',button:'left',clickCount:1,...point});
+  if(await devtools.evaluate(`document.querySelector('#mobile-menu-apps').matches(':popover-open')`))throw new Error('Mobile repeat dismissal');
+  for(const key of await devtools.evaluate<string[]>(`[...document.querySelectorAll('[data-mobile-menu]')].map(button=>button.dataset.mobileMenu)`)){
+    await devtools.evaluate(`document.querySelector('[data-mobile-menu="${key}"]').click()`);
+    if(!await devtools.evaluate(`document.querySelector('#mobile-menu-${key}').matches(':popover-open')`))throw new Error('Mobile menu closed '+key);
+    if(key==='search'&&!await devtools.evaluate(`document.querySelector('#mobile-menu-search input[name="q"]')===document.activeElement`))throw new Error('Search focus lost');
+    await devtools.call('Input.dispatchKeyEvent',{type:'keyDown',key:'Escape',code:'Escape',windowsVirtualKeyCode:27});
+    await devtools.call('Input.dispatchKeyEvent',{type:'keyUp',key:'Escape',code:'Escape',windowsVirtualKeyCode:27});
+    if(!await devtools.evaluate(`!document.querySelector('#mobile-menu-${key}').matches(':popover-open')&&document.activeElement===document.querySelector('[data-mobile-menu="${key}"]')`))throw new Error('Mobile Escape focus '+key);
+  }
+  await devtools.evaluate(`document.querySelector('[data-mobile-menu="apps"]').click()`);
+  await devtools.call('Input.dispatchMouseEvent',{type:'mousePressed',button:'left',clickCount:1,x:4,y:450});
+  await devtools.call('Input.dispatchMouseEvent',{type:'mouseReleased',button:'left',clickCount:1,x:4,y:450});
+  if(await devtools.evaluate(`document.querySelector('#mobile-menu-apps').matches(':popover-open')`))throw new Error('Mobile outside dismissal');
+  await devtools.call('Emulation.setDeviceMetricsOverride',{width:1280,height:900,deviceScaleFactor:1,mobile:false});await delay(80);
+  if(!await devtools.evaluate(`!!document.querySelector('.site-actions [data-theme-toggle]')&&(!document.querySelector('.projects-search')||!!document.querySelector('.projects-toolbar .projects-search'))`))throw new Error('Desktop controls not restored');
+  await devtools.call('Emulation.setDeviceMetricsOverride',{width,height:900,deviceScaleFactor:1,mobile:true});await delay(80);
+  if(!await devtools.evaluate(`!!document.querySelector('[data-mobile-slot="more"] [data-theme-toggle]')`))throw new Error('Mobile controls not restored');
+}
+
 async function checkSiteSwitcher(devtools:Devtools,base:string):Promise<void> {
-  for(const [path,current] of [["/digest/daily.html","Digest"],["/digest/cinema-legacy.html","Digest"],["/en/","Docs"],["/hub/index.html","Hub"],["/hub/en.html","Hub"]] as const)for(const width of [320,390,1280]){
+  for(const [path,current] of [["/digest/daily.html","Digest"],["/digest/cinema-legacy.html","Digest"],["/en/","Docs"],["/hub/index.html","Hub"],["/hub/en.html","Hub"],["/projects/index.html","Projects"]] as const)for(const width of [320,390,1280]){
     await devtools.call("Emulation.setDeviceMetricsOverride",{width,height:900,deviceScaleFactor:1,mobile:width<600});
     await open(devtools,`${base}${path}`);
+    if(width<=620){await checkMobileNavigation(devtools,width,current);continue;}
     const state=await devtools.evaluate<{links:string[];current:string|null;projects:string|null;projectsHref:string|null;open:boolean;overflow:number;left:number;right:number}>(`(() => {
       const menu=document.querySelector('.site-switcher');
       menu.querySelector('summary').click();
@@ -241,7 +272,7 @@ async function checkSiteSwitcher(devtools:Devtools,base:string):Promise<void> {
       const projects=[...nav.querySelectorAll('.site-nav__link')].find(link=>link.textContent.trim().startsWith('Projects'));
       return {links:[...nav.querySelectorAll('a')].map(link=>link.textContent.trim()),current:nav.querySelector('[aria-current]')?.textContent.trim()??null,projects:projects?.getAttribute('aria-disabled')??null,projectsHref:projects?.getAttribute('href')??null,open:menu.open,overflow:document.documentElement.scrollWidth-innerWidth,left:rect.left,right:rect.right};
     })()`);
-    const projectsHref=`https://kurami.shagon1k.win/${path==="/en/"||path==="/hub/en.html"?"en":"ru"}/projects/`;
+    const projectsHref=`https://kurami.shagon1k.win/${path==="/en/"||path==="/hub/en.html"||path==="/projects/index.html"?"en":"ru"}/projects/`;
     if(JSON.stringify(state.links)!==JSON.stringify(["Hub","Digest","Projects","Docs","Hermes↗","Dokploy↗"])||state.current!==current||state.projects!==null||state.projectsHref!==projectsHref||!state.open||state.overflow>1||state.left<0||state.right>width+1)throw new Error(`Site switcher ${path} at ${width}px: ${JSON.stringify(state)}`);
     await devtools.call("Input.dispatchMouseEvent",{type:"mousePressed",button:"left",clickCount:1,x:4,y:450});
     await devtools.call("Input.dispatchMouseEvent",{type:"mouseReleased",button:"left",clickCount:1,x:4,y:450});
@@ -252,18 +283,19 @@ async function checkSiteSwitcher(devtools:Devtools,base:string):Promise<void> {
   for(const width of [320,390]){
     await devtools.call("Emulation.setDeviceMetricsOverride",{width,height:900,deviceScaleFactor:1,mobile:true});
     await open(devtools,`${base}/en/state-and-truth/`);
-    for(const selector of ['.site-menu','.side-mobile']){
-      await devtools.evaluate(`document.querySelector('${selector} > summary').click()`);
-      if(!await devtools.evaluate(`document.querySelector('${selector}').open`))throw new Error(`Docs menu did not open ${selector}`);
+    for(const key of ['sections','contents']){
+      const selector=`#mobile-menu-${key}`;
+      await devtools.evaluate(`document.querySelector('[data-mobile-menu="${key}"]').click()`);
+      if(!await devtools.evaluate(`document.querySelector('${selector}').matches(':popover-open')`))throw new Error(`Docs menu did not open ${selector}`);
       await devtools.call("Input.dispatchMouseEvent",{type:"mousePressed",button:"left",clickCount:1,x:4,y:450});
       await devtools.call("Input.dispatchMouseEvent",{type:"mouseReleased",button:"left",clickCount:1,x:4,y:450});
-      if(await devtools.evaluate(`document.querySelector('${selector}').open`))throw new Error(`Docs outside dismissal failed ${selector}`);
-      await devtools.evaluate(`document.querySelector('${selector} > summary').click()`);
+      if(await devtools.evaluate(`document.querySelector('${selector}').matches(':popover-open')`))throw new Error(`Docs outside dismissal failed ${selector}`);
+      await devtools.evaluate(`document.querySelector('[data-mobile-menu="${key}"]').click()`);
       await devtools.call("Input.dispatchKeyEvent",{type:"keyDown",key:"Escape",code:"Escape",windowsVirtualKeyCode:27});
       await devtools.call("Input.dispatchKeyEvent",{type:"keyUp",key:"Escape",code:"Escape",windowsVirtualKeyCode:27});
-      if(!await devtools.evaluate(`!document.querySelector('${selector}').open&&document.activeElement===document.querySelector('${selector} > summary')`))throw new Error(`Docs Escape dismissal/focus failed ${selector}`);
-      await devtools.evaluate(`document.querySelector('${selector} > summary').click();document.querySelector('${selector} > summary').click()`);
-      if(await devtools.evaluate(`document.querySelector('${selector}').open`))throw new Error(`Docs repeat dismissal failed ${selector}`);
+      if(!await devtools.evaluate(`!document.querySelector('${selector}').matches(':popover-open')&&document.activeElement===document.querySelector('[data-mobile-menu="${key}"]')`))throw new Error(`Docs Escape dismissal/focus failed ${selector}`);
+      await devtools.evaluate(`document.querySelector('[data-mobile-menu="${key}"]').click();document.querySelector('[data-mobile-menu="${key}"]').click()`);
+      if(await devtools.evaluate(`document.querySelector('${selector}').matches(':popover-open')`))throw new Error(`Docs repeat dismissal failed ${selector}`);
     }
   }
 }
