@@ -7,16 +7,21 @@ import {createHubServer} from "../../src/hub/server.ts";
 import {syntheticHubSnapshot} from "../../src/ui-library/testing/fixtures.ts";
 import {findBrowser,launchBrowser} from "../../src/ui-library/testing/devtools.ts";
 import {AUDIT_EXPRESSION,inventoryExpression} from "../../src/ui-library/testing/audit.ts";
+import {HubControlError} from "../../src/hub/controls.ts";
 
 const allocator=createServer();await new Promise<void>(done=>allocator.listen(0,"127.0.0.1",done));
 const port=(allocator.address() as {port:number}).port;await new Promise<void>(done=>allocator.close(()=>done()));
 const base=`http://127.0.0.1:${port}`;const actions:string[]=[];let codexModel="gpt-6-sol";
+let failRead=false,failWrite=false,writeGate:Promise<void>|null=null;
 const settings={version:1,max_llm_running_global:2,ai_triage_daily:5,max_active_global:4,max_previews_global:3,max_preview_builds_global:1,preview_ttl_hours:24,project_wip:{pickflick:2}};
 const server=createHubServer({snapshot:syntheticHubSnapshot,authorize:async()=>"synthetic-owner",controlOrigin:base,
   controls:{execute:async(action,payload={})=>{
+    if(failRead&&["models","settings","composio-check"].includes(action))throw new HubControlError("stale_settings");
     if(action==="models")return {models:[{value:"gpt-6-sol",label:"Sol"},{value:"gpt-6-astra",label:"Astra"}],hermes:"gpt-6-sol",hermesProvider:"openai-codex",codex:codexModel,codexEffort:"high"};
     if(action==="settings")return {settings:{revision:1,settings,idle:{idle:true}},health:{revision:1,intervalMinutes:20,allowedIntervals:[5,10,12,15,20,30,60]}};
     if(action==="composio-check")return {contours:[{contour:"read",ok:true,tools:10,diff:[],warnings:[]}]};
+    if(writeGate)await writeGate;
+    if(failWrite)throw new HubControlError("command_failed");
     actions.push(action);if(action==="model-apply")codexModel=String(payload.model);
     return {ok:true,action:"applied",outcome:action==="codex-reset"?"reset":undefined};
   }}});
@@ -25,7 +30,7 @@ const browser=await launchBrowser(findBrowser());const {devtools}=browser;
 const output=resolve(import.meta.dirname,"../../dist/hub-browser");mkdirSync(output,{recursive:true});
 async function wait(expression:string){for(let attempt=0;attempt<100;attempt++){if(await devtools.evaluate<boolean>(expression))return;await delay(100);}throw new Error("Browser condition timed out: "+expression);}
 async function screenshot(name:string,selector?:string){
-  if(!selector){await devtools.evaluate("window.scrollTo(0,0)");await delay(80);}
+  await devtools.evaluate("document.documentElement.style.scrollBehavior='auto';window.scrollTo(0,0)");await delay(80);
   const clip=selector?await devtools.evaluate(`(()=>{const r=document.querySelector(${JSON.stringify(selector)}).getBoundingClientRect();return {x:r.x+scrollX,y:r.y+scrollY,width:r.width,height:r.height,scale:1};})()`):undefined;
   const result=await devtools.call<{data:string}>("Page.captureScreenshot",{format:"png",captureBeyondViewport:true,...(clip?{clip}:{})});writeFileSync(resolve(output,name+".png"),Buffer.from(result.data,"base64"));
 }
@@ -133,7 +138,10 @@ try {
       assert.equal(await devtools.evaluate("[...document.querySelectorAll('.work-events[open]')].length"),1,"identical disclosure labels do not open unrelated work items");
       assert.equal(await devtools.evaluate("document.querySelector('[name=commit-repository][value=pickflick]').checked"),true,"refresh preserves repository selection");
     }else await devtools.evaluate("document.querySelector('[data-hub-cancel]').click()");
-    await devtools.evaluate("document.querySelector('[data-dialog-close]').click()");
+    assert.equal(await devtools.evaluate("document.querySelector('[data-dialog-close]').textContent.trim()"),"","close control is icon-only");
+    assert.equal(await devtools.evaluate("document.querySelector('[data-dialog-close]').getAttribute('aria-label')"),lang==="en"?"Close":"Закрыть");
+    await devtools.evaluate("document.querySelector('[data-dialog-close] .button__svg path').dispatchEvent(new MouseEvent('click',{bubbles:true}))");
+    assert.equal(await devtools.evaluate("document.querySelector('dialog').open"),false,"clicking the close icon closes the dialog");
     await devtools.evaluate("document.querySelector('[data-hub-control=codex-reset]').click()");
     assert.equal(actions.length,before+(lang==="en"?1:0),"reset waits for confirmation");
     await devtools.evaluate("document.querySelector('[data-hub-cancel]').click()");
@@ -181,6 +189,45 @@ try {
     await delay(250);
     assert.deepEqual(await devtools.evaluate(AUDIT_EXPRESSION),[]);
     await devtools.evaluate("document.querySelector('.site-switcher > summary').click()");
+    // Safe busy/failure coverage: no real executors, and the delayed write is rejected.
+    for(const controlWidth of [320,1280]){
+    await devtools.call("Emulation.setTouchEmulationEnabled",{enabled:controlWidth<600,maxTouchPoints:1});
+    await devtools.call("Emulation.setDeviceMetricsOverride",{width:controlWidth,height:1000,deviceScaleFactor:1,mobile:controlWidth<600});
+    failRead=true;
+    await devtools.evaluate("document.querySelector('header [data-hub-control=menu]').click();document.querySelector('[data-hub-control=settings]').click()");
+    await wait("document.querySelector('#hub-control-content').textContent.includes("+JSON.stringify(lang==="en"?"Values changed":"Данные изменились")+")");
+    assert.deepEqual(await devtools.evaluate(AUDIT_EXPRESSION),[],"failed control read remains readable");
+    await screenshot(`hub-control-read-error-${lang}-${controlWidth}`,'dialog');
+    await devtools.evaluate("document.querySelector('[data-dialog-close]').click()");
+    failRead=false;failWrite=true;
+    let releaseWrite!:()=>void;
+    writeGate=new Promise<void>(done=>{releaseWrite=done;});
+    const beforeFailure=actions.length;
+    await devtools.evaluate("document.querySelector('[data-hub-control=codex-reset]').click()");
+    const confirmPoint=await devtools.evaluate<{x:number;y:number}>("(()=>{const r=document.querySelector('[data-hub-confirm]').getBoundingClientRect();return {x:r.x+r.width/2,y:r.y+r.height/2}})()");
+    // A trusted input grants browser user activation; programmatic .click() makes the native
+    // close-watcher's Escape cancel event non-cancellable and is not a real user interaction.
+    await devtools.call("Input.dispatchMouseEvent",{type:"mousePressed",button:"left",clickCount:1,...confirmPoint});
+    await devtools.call("Input.dispatchMouseEvent",{type:"mouseReleased",button:"left",clickCount:1,...confirmPoint});
+    await wait("document.querySelector('[data-hub-confirm]').getAttribute('aria-busy')==='true'");
+    await devtools.call("Input.dispatchKeyEvent",{type:"keyDown",key:"Escape",code:"Escape",windowsVirtualKeyCode:27});
+    await devtools.call("Input.dispatchKeyEvent",{type:"keyUp",key:"Escape",code:"Escape",windowsVirtualKeyCode:27});
+    assert.equal(await devtools.evaluate("document.querySelector('dialog').open"),true,"pending action cannot be dismissed by Escape");
+    assert.deepEqual(await devtools.evaluate(AUDIT_EXPRESSION),[],"busy confirmation fits the phone");
+    await screenshot(`hub-control-busy-${lang}-${controlWidth}`,'dialog');
+    releaseWrite();writeGate=null;
+    await wait("!document.querySelector('[data-hub-confirm]').hasAttribute('aria-busy') && document.querySelector('#hub-control-result').textContent.length>0");
+    assert.equal(actions.length,beforeFailure,"failed mock reset performs no state change");
+    assert.match(await devtools.evaluate<string>("document.querySelector('#hub-control-result').textContent"),lang==="en"?/Command rejected/:/Команда отклонена/);
+    assert.deepEqual(await devtools.evaluate(AUDIT_EXPRESSION),[],"failed write leaves the confirmation readable");
+    await screenshot(`hub-control-write-error-${lang}-${controlWidth}`,'dialog');
+    await devtools.evaluate("document.querySelector('[data-hub-cancel]').click()");
+    assert.equal(await devtools.evaluate("document.querySelector('dialog').open"),false);
+    assert.equal(await devtools.evaluate("document.activeElement.dataset.hubControl"),"codex-reset","cancelling a failed action restores focus");
+    failWrite=false;
+    }
+    await devtools.call("Emulation.setTouchEmulationEnabled",{enabled:true,maxTouchPoints:1});
+    await devtools.call("Emulation.setDeviceMetricsOverride",{width:390,height:1000,deviceScaleFactor:1,mobile:true});
     await devtools.call("Page.reload",{});await wait("document.readyState==='complete' && !!document.querySelector('.codex-grid')");
     assert.equal(await devtools.evaluate("document.querySelector('[data-period-key=global][data-period-days=\"7\"]').getAttribute('aria-pressed')"),"true","ordinary reload preserves the global period");
     await delay(250);

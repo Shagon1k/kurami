@@ -43,7 +43,9 @@ group themes "Themes and tokens" theme roles band
 ## Compact controls
 
 Regular buttons, fields and header controls share a 36-pixel size. The language
-switch has the same square shape as the theme switch. Badges identify task status
+switch has the same square shape as the theme switch. The top-right dialog close
+button uses the shared cross icon. Its accessible name and hover tooltip stay
+"Close"; the button has no visible text. Badges identify task status
 and Suggested next. In parameter/value rows, Projects shows colored text for
 CI, review, preview and sync freshness, without a border or background. The value
 still names the result independently of its color.
@@ -57,6 +59,11 @@ so the saved theme follows you between apps. Hub's phone period control uses a
 shared floating-button variant with keyboard focus and safe-area spacing.
 Digest uses the shared toggle, source-link and selected icon-button states;
 Projects uses shared icon sizing rather than redefining the SVG styles.
+
+When text grows, section navigation stays within its column. If the links no
+longer fit, the navigation scrolls horizontally instead of widening the page.
+Mobile cards allow labels to wrap; wide tables keep their internal scroll.
+Long identifiers wrap within stacked Docs table rows.
 
 ## Layers
 

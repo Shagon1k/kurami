@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import {syntheticDailyFilled,syntheticCinemaFilled,syntheticWeeklyFilled,syntheticWeeklyReview,syntheticStocksFilled,syntheticStocksSnapshot,auditPoster} from "../../src/ui-library/testing/digest-filled.ts";
 import {parseWeeklyReview} from "../../src/briefing/weekly/model.ts";
 import {parseStocksSnapshot} from "../../src/briefing/stocks/model.ts";
+import {syntheticDiscovery,syntheticStoredReview,syntheticStocksDiscovery,syntheticRetainedCinema,syntheticHubUnavailable,syntheticHubLong} from "../../src/ui-library/testing/audit-states.ts";
 
 for(const lang of ["en","ru"] as const){
   const daily=syntheticDailyFilled(lang);
@@ -34,7 +35,25 @@ for(const lang of ["en","ru"] as const){
   assert.match(syntheticStocksFilled(lang,true),/data-chart-spec=/);
   assert.match(stocks,/class="form-select"><select name="stock-sort" data-stock-sort/);
   assert.equal(stocks,syntheticStocksFilled(lang),"Stocks fixture is deterministic");
+  const discovery=syntheticStocksDiscovery(lang);
+  assert.equal((discovery.match(/data-stock-discovery-card/g)??[]).length,3);
+  assert.match(discovery,/data-company-logo/);
+  assert.match(discovery,/audit-loaded.org/);
+  assert.match(discovery,/audit-failed.org/);
+  assert.match(discovery,lang==="ru"?/investment-review__period/:/available in Russian/);
+  assert.equal(discovery,syntheticStocksDiscovery(lang),"Discovery and accepted-review fixture is deterministic");
+  const retained=syntheticRetainedCinema(lang);
+  assert.match(retained,/cinema-trailer/);
+  assert.match(retained,/site-brand__name/);
+  assert.doesNotMatch(retained,/<header class="utility-header"/);
+  assert.match(retained,new RegExp(`href="/${lang}/cinema"`));
+  assert.match(retained,new RegExp(`<html[^>]*lang="${lang}"`));
+  if(lang==="en")assert.match(retained,/Archived editorial text is available only in its original Russian/);
+  assert.match(syntheticHubUnavailable(lang),/hub-dashboard/);
+  assert.match(syntheticHubLong(lang),/Synthetic task with a very long description/);
 }
+for(const state of ["ready","partial","failed","empty"] as const)assert.equal(syntheticDiscovery(state).state,state);
+for(const mode of ["weekly","monthly"] as const)assert.equal(syntheticStoredReview(mode).input.mode,mode);
 assert.equal(parseWeeklyReview(syntheticWeeklyReview()).state,"ready");
 assert.equal(parseWeeklyReview(syntheticWeeklyReview(true)).data.days[2]!.calendar,null);
 assert.equal(parseStocksSnapshot(syntheticStocksSnapshot()).data.series.length,12);

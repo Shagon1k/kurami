@@ -32,7 +32,7 @@ export function syntheticDailyFilled(lang:DigestLanguage="ru"):string {
   return withDigestLanguage(lang,()=>renderBriefingPage(payload));
 }
 
-export function syntheticCinemaFilled(lang:DigestLanguage="ru"):string {
+export function syntheticCinemaFilled(lang:DigestLanguage="ru",originalEditorial=false):string {
   const capturedAt="2026-09-19T07:00:00Z";
   const sourceId="source:audit";
   const coverage={start:"2026-09-12T00:00:00Z",end:"2026-09-19T00:00:00Z"};
@@ -63,7 +63,7 @@ export function syntheticCinemaFilled(lang:DigestLanguage="ru"):string {
     news:{state:"ready",capturedAt,provenance:[sourceId],items:Array.from({length:3},(_,index)=>({
       id:`cinema-story-${index}`,headline:"Синтетическая новость киноиндустрии с длинным редакционным заголовком",
       summary:"Тестовый текст для проверки переносов, плотности и внешних ссылок в полноценном выпуске. Никаких настоящих новостей или личных данных.",
-      en:{headline:"Synthetic cinema industry story with a long editorial headline",summary:"Fixture copy for checking wrapping, density and source links in a filled edition. No actual news or personal data."},
+      ...(originalEditorial?{}:{en:{headline:"Synthetic cinema industry story with a long editorial headline",summary:"Fixture copy for checking wrapping, density and source links in a filled edition. No actual news or personal data."}}),
       publisher:"Synthetic Cinema Source",publishedAt:"2026-09-18T07:00:00Z",sourceUrl:"https://example.org/cinema-news",...(index===0?{imageSrc:media}:{}),sourceId,
     }))},
     notes:[],quality:{summary:"Все тестовые разделы заполнены.",diagnostics:[]},

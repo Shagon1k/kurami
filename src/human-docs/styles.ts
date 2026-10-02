@@ -30,6 +30,7 @@ h1 { max-width: 20ch; margin-bottom: var(--space-4); font-size: clamp(2.2rem, 5v
 .muted { color: var(--text-muted); }
 
 /* Layout: side menu · article · contents */
+.prose { min-width: 0; }
 .layout { display: grid; grid-template-columns: minmax(180px, 220px) minmax(0, 1fr); gap: clamp(28px, 4vw, 56px); }
 .layout--toc { grid-template-columns: minmax(180px, 220px) minmax(0, 1fr) 190px; }
 .side { align-self: start; position: sticky; top: 96px; max-height: calc(100vh - 120px); overflow: auto; padding-bottom: var(--space-6); }
@@ -190,7 +191,7 @@ h1 { max-width: 20ch; margin-bottom: var(--space-4); font-size: clamp(2.2rem, 5v
   .toc { display: none; }
 }
 @media (max-width: 800px) {
-  .layout, .layout--toc { grid-template-columns: 1fr; gap: var(--space-6); }
+  .layout, .layout--toc { grid-template-columns: minmax(0,1fr); gap: var(--space-6); }
   .side { display: none; }
   .side-mobile { display: block; padding: 10px 14px; border: 1px solid var(--border-default); background: var(--surface-panel); }
   .side-mobile summary { min-height: 44px; align-content: center; cursor: pointer; font-weight: 600; }
@@ -200,6 +201,7 @@ h1 { max-width: 20ch; margin-bottom: var(--space-4); font-size: clamp(2.2rem, 5v
   .prose--home .cards { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }
 @media (max-width: 620px) {
+  .generated th code { white-space: normal; }
   .page { padding-top: 28px; }
   .intro { padding-bottom: var(--space-6); margin-bottom: var(--space-6); }
   .compare--2, .compare--3, .cards, .prose--home .cards { grid-template-columns: 1fr; }

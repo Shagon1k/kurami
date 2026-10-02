@@ -14,6 +14,7 @@ import {findBrowser,launchBrowser} from "./devtools.ts";
 import {librarySubsite,syntheticDaily,syntheticHub,syntheticInvestmentReview,syntheticLegacyCinema,syntheticStocksEmpty,syntheticWeeklyEmpty,syntheticProjects} from "./fixtures.ts";
 import {syntheticCharts} from "./charts.ts";
 import {auditPoster,syntheticDailyFilled,syntheticCinemaFilled,syntheticWeeklyFilled,syntheticStocksFilled} from "./digest-filled.ts";
+import {syntheticStocksDiscovery,syntheticRetainedCinema,syntheticHubUnavailable,syntheticHubLong} from "./audit-states.ts";
 import {withDigestLanguage} from "../../briefing/i18n.ts";
 import {injectSiteNavigation,type SiteSection} from "../../briefing/ui/components/site-header.ts";
 import {PROJECTS_STYLES} from "../../projects-site/styles.ts";
@@ -51,11 +52,21 @@ const availablePages:Record<string,string>={
   "digest-stocks-empty":"/digest/stocks.html",
   "digest-weekly-empty":"/digest/weekly.html",
   "digest-investment-review":"/digest/review.html",
+  "digest-stocks-discovery":"/digest/stocks-discovery.html",
+  "digest-stocks-discovery-en":"/digest/stocks-discovery-en.html",
+  "digest-stocks-discovery-failed":"/digest/stocks-discovery-failed.html",
+  "digest-stocks-discovery-partial-en":"/digest/stocks-discovery-partial-en.html",
+  "digest-cinema-retained":"/digest/cinema-retained.html",
+  "digest-cinema-retained-en":"/digest/cinema-retained-en.html",
   "library-charts":"/lab/charts.html",
   "library-charts-en":"/lab/charts-en.html",
   "library-subsite":"/lab/index.html",
   "hub-home":"/hub/index.html",
   "hub-home-en":"/hub/en.html",
+  "hub-unavailable":"/hub/unavailable.html",
+  "hub-unavailable-en":"/hub/unavailable-en.html",
+  "hub-long":"/hub/long.html",
+  "hub-long-en":"/hub/long-en.html",
   "projects-home":"/projects/index.html",
   "projects-home-ru":"/projects/ru.html",
   "docs-home-en":"/en/",
@@ -84,13 +95,18 @@ async function site():Promise<string> {
   // Digest pages pass through the same serve-time injection as production.
   writeFileSync(join(served,"digest/daily.html"),digestPage(syntheticDaily(),"daily"));
   writeFileSync(join(served,"digest/daily-en.html"),withDigestLanguage("en",()=>digestPage(syntheticDaily(),"daily","en")));
+  const localLogos=(html:string)=>html.replaceAll("https://cdn.tickerlogos.com/audit-loaded.org","/media/audit-logo.svg").replaceAll("https://cdn.tickerlogos.com/audit-failed.org","/media/audit-logo-missing.svg");
   for(const lang of ["ru","en"] as const){
     const suffix=lang==="en"?"-en":"";
     writeFileSync(join(served,`digest/daily-filled${suffix}.html`),digestPage(syntheticDailyFilled(lang),"daily",lang));
     writeFileSync(join(served,`digest/cinema${suffix}.html`),digestPage(syntheticCinemaFilled(lang),"cinema",lang));
     writeFileSync(join(served,`digest/weekly-filled${suffix}.html`),digestPage(syntheticWeeklyFilled(lang),"weekly",lang));
     writeFileSync(join(served,`digest/stocks-filled${suffix}.html`),digestPage(syntheticStocksFilled(lang),"stocks",lang));
+    writeFileSync(join(served,`digest/stocks-discovery${suffix}.html`),digestPage(localLogos(syntheticStocksDiscovery(lang)),"stocks",lang));
+    writeFileSync(join(served,`digest/cinema-retained${suffix}.html`),digestPage(syntheticRetainedCinema(lang),"cinema",lang));
   }
+  writeFileSync(join(served,"digest/stocks-discovery-failed.html"),digestPage(localLogos(syntheticStocksDiscovery("ru","failed")),"stocks"));
+  writeFileSync(join(served,"digest/stocks-discovery-partial-en.html"),digestPage(localLogos(syntheticStocksDiscovery("en","partial")),"stocks","en"));
   writeFileSync(join(served,"digest/weekly-partial.html"),digestPage(syntheticWeeklyFilled("ru",true),"weekly"));
   writeFileSync(join(served,"digest/stocks-expanded.html"),digestPage(syntheticStocksFilled("ru",true),"stocks"));
   const runtimeHome=mkdtempSync(join(tmpdir(),"kurami-ui-digest-runtime-"));
@@ -106,11 +122,14 @@ async function site():Promise<string> {
   }finally{await new Promise<void>(done=>digest.close(()=>done()));rmSync(runtimeHome,{recursive:true,force:true});}
   mkdirSync(join(served,"media/cinema/2026-09-19"),{recursive:true});
   writeFileSync(join(served,"media/cinema/2026-09-19/audit-poster.svg"),auditPoster);
+  writeFileSync(join(served,"media/audit-logo.svg"),auditPoster);
   cpSync(join(brandAssets,"kurami-fox-header.webp"),join(served,"media/audit-illustration.webp"));
   writeFileSync(join(served,"digest/cinema-legacy.html"),injectRuntime(syntheticLegacyCinema()));
   writeFileSync(join(served,"digest/stocks.html"),injectRuntime(syntheticStocksEmpty()));
   writeFileSync(join(served,"digest/weekly.html"),injectRuntime(syntheticWeeklyEmpty()));
-  writeFileSync(join(served,"digest/review.html"),injectRuntime(syntheticInvestmentReview()));
+  // The standalone trial already embeds its theme/learning runtime; server injection would
+  // register a second theme click listener and falsely report broken keyboard activation.
+  writeFileSync(join(served,"digest/review.html"),syntheticInvestmentReview());
   mkdirSync(join(served,"lab"),{recursive:true});
   writeFileSync(join(served,"lab/index.html"),librarySubsite());
   writeFileSync(join(served,"lab/charts.html"),syntheticCharts());
@@ -118,6 +137,11 @@ async function site():Promise<string> {
   mkdirSync(join(served,"hub"),{recursive:true});
   writeFileSync(join(served,"hub/index.html"),syntheticHub());
   writeFileSync(join(served,"hub/en.html"),syntheticHub("en"));
+  for(const lang of ["en","ru"] as const){
+    const suffix=lang==="en"?"-en":"";
+    writeFileSync(join(served,`hub/unavailable${suffix}.html`),syntheticHubUnavailable(lang));
+    writeFileSync(join(served,`hub/long${suffix}.html`),syntheticHubLong(lang));
+  }
   writeFileSync(join(served,"assets/hub.css"),HUB_STYLES);
   mkdirSync(join(served,"projects"),{recursive:true});
   writeFileSync(join(served,"projects/index.html"),syntheticProjects());
@@ -134,6 +158,44 @@ async function site():Promise<string> {
 async function open(devtools:Devtools,url:string):Promise<void> {
   await devtools.call("Page.navigate",{url});
   await devtools.evaluate(`new Promise(done=>document.readyState==='complete'?done():addEventListener('load',done,{once:true}))`);
+}
+
+/** Keyboard activation of existing read-only controls, without form submission or writes. */
+async function checkKeyboard(devtools:Devtools):Promise<{theme:boolean;disclosure:boolean;apps:boolean}> {
+  await devtools.call("Page.bringToFront");
+  await devtools.call("Emulation.setFocusEmulationEnabled",{enabled:true});
+  const enter=async()=>{
+    const key={key:"Enter",code:"Enter",windowsVirtualKeyCode:13,nativeVirtualKeyCode:13,text:"\r",unmodifiedText:"\r"};
+    await devtools.call("Input.dispatchKeyEvent",{type:"keyDown",...key});
+    await devtools.call("Input.dispatchKeyEvent",{type:"keyUp",...key});
+    await delay(60);
+  };
+  const theme=await devtools.evaluate<string>(`document.documentElement.dataset.theme`);
+  await devtools.evaluate(`document.querySelector('[data-theme-toggle]').focus()`);
+  await enter();
+  if(await devtools.evaluate(`document.documentElement.dataset.theme`)===theme)throw new Error("Keyboard theme activation failed on "+await devtools.evaluate("location.pathname"));
+  await enter();
+  const summary=await devtools.evaluate<boolean>(`(()=>{const element=[...document.querySelectorAll('main details > summary, #hub-dashboard details > summary')].find(el=>el.getBoundingClientRect().height>0);if(!element)return false;element.dataset.auditKeyboard='true';element.focus();return true;})()`);
+  if(summary){
+    const before=await devtools.evaluate(`document.querySelector('[data-audit-keyboard]').parentElement.open`);
+    await enter();
+    if(await devtools.evaluate(`document.querySelector('[data-audit-keyboard]').parentElement.open`)===before)throw new Error("Keyboard disclosure activation failed");
+    await enter();
+    await devtools.evaluate(`document.querySelector('[data-audit-keyboard]').removeAttribute('data-audit-keyboard')`);
+  }
+  const apps=await devtools.evaluate<boolean>(`(()=>{const element=document.querySelector('.site-switcher > summary');if(!element)return false;element.focus();return true;})()`);
+  if(apps){
+    const before=await devtools.evaluate(`document.querySelector('.site-switcher').open`);
+    await enter();
+    if(await devtools.evaluate(`document.querySelector('.site-switcher').open`)===before)throw new Error("Keyboard Apps activation failed");
+    if(!before){
+      const fits=await devtools.evaluate(`(()=>{const nav=document.querySelector('.site-switcher__nav'),r=nav.getBoundingClientRect();return r.left>=0&&r.right<=document.documentElement.clientWidth+1;})()`);
+      if(!fits)throw new Error("Open Apps menu exceeds the viewport");
+    }
+    await enter();
+  }
+  await devtools.evaluate(`document.activeElement.blur();scrollTo(0,0)`);
+  return {theme:true,disclosure:summary,apps};
 }
 
 type ThemeState={theme:string;pressed:string|null;icon:string|null;stored:string|null;color:string|null;inHead:boolean};
@@ -187,6 +249,8 @@ async function main(){
   const compare=args.find(arg=>arg.startsWith("--compare="))?.slice(10);
   const screensOnly=args.includes("--screens-only");
   const viewports=args.includes("--viewports");
+  const stress=args.includes("--stress");
+  const keyboard=args.includes("--keyboard");
   if(!out)throw new Error("Usage: visual-regression.ts --out=<dir> [--compare=<baseline dir>] [/absolute/path/to/chromium]");
   const output=resolve(out);
   rmSync(output,{recursive:true,force:true});
@@ -212,9 +276,12 @@ async function main(){
   const audit:Record<string,string[]>={};
   const contrastReview:Record<string,unknown[]>={};
   const layouts:Record<string,unknown>={};
+  const keyboardChecks:Record<string,unknown>={};
   let auditedCount=0;
   try{
     await devtools.call("Page.enable");
+    await devtools.call("Network.enable");
+    await devtools.call("Network.setBlockedURLs",{urls:["https://*"]});
     if(viewports)await devtools.call("Page.addScriptToEvaluateOnNewDocument",{source:`(()=>{const NativeDate=Date;const fixed='2026-09-16T07:00:00Z';window.Date=class extends NativeDate{constructor(...args){super(...(args.length?args:[fixed]));}static now(){return NativeDate.parse(fixed);}};})()`});
     for(const path of ["/digest/daily.html","/en/state-and-truth/","/lab/index.html","/hub/index.html"])await checkThemeRuntime(devtools,`http://127.0.0.1:${port}`,path);
     await checkSiteSwitcher(devtools,`http://127.0.0.1:${port}`);
@@ -234,6 +301,18 @@ async function main(){
       await devtools.call("Emulation.setDeviceMetricsOverride",{width,height:900,deviceScaleFactor:1,mobile:width<600});
       await open(devtools,`http://127.0.0.1:${port}${path}`);
       await devtools.evaluate(`(()=>{const style=document.createElement('style');style.textContent='*,*::before,*::after{transition:none!important;animation:none!important;caret-color:transparent!important}';document.head.append(style);if(document.documentElement.dataset.theme!==${JSON.stringify(theme)})document.querySelector('[data-theme-toggle]').click();return document.fonts.ready.then(()=>true)})()`);
+      if(stress){
+        await devtools.call("Emulation.setEmulatedMedia",{features:[{name:"prefers-reduced-motion",value:"reduce"}]});
+        await devtools.evaluate(`document.documentElement.style.fontSize='200%'; document.querySelectorAll('main details, #hub-dashboard details').forEach(element=>element.open=true);document.fonts.ready`);
+      }
+      // Decode fixture images (including the intentionally failing logo) before measuring.
+      await devtools.evaluate(`Promise.all([...document.images].map(image=>{image.loading='eager';return image.decode().catch(()=>{});})).then(()=>true)`);
+      if(name.startsWith('digest-stocks-discovery')){
+        const avatars=await devtools.evaluate(`(()=>{const loaded=[...document.querySelectorAll('[data-company-logo]')].filter(img=>img.getAttribute('src')==='/media/audit-logo.svg');const failed=[...document.querySelectorAll('[data-company-logo]')].filter(img=>img.getAttribute('src')==='/media/audit-logo-missing.svg');return loaded.length>0&&failed.length>0&&loaded.every(img=>img.naturalWidth>0&&img.parentElement.classList.contains('is-loaded'))&&failed.every(img=>img.naturalWidth===0&&!img.parentElement.classList.contains('is-loaded')&&getComputedStyle(img.parentElement.querySelector('.company-avatar__letters')).visibility==='visible');})()`);
+        if(!avatars)throw new Error('Synthetic Stocks logos and letter fallback failed');
+      }
+      if(stress&&await devtools.evaluate(`getComputedStyle(document.documentElement).scrollBehavior`)!=='auto')throw new Error('Reduced-motion smooth-scroll suppression failed');
+      if(keyboard)keyboardChecks[`${name}-${width}-${theme}`]=await checkKeyboard(devtools);
       await delay(150);
       const issues=[...await devtools.evaluate<string[]>(AUDIT_EXPRESSION),...await devtools.evaluate<string[]>(inventoryExpression())];
       const pending=await devtools.evaluate<unknown[]>(CONTRAST_REVIEW_EXPRESSION);
@@ -248,9 +327,10 @@ async function main(){
       if(viewports){
         const key=`${name}-${width}-${theme}`;
         layouts[key]=await devtools.evaluate(`(()=>{const size=el=>{const r=el.getBoundingClientRect(),s=getComputedStyle(el);return {text:el.textContent.trim().slice(0,80),x:Math.round(r.x),y:Math.round(r.y),width:Math.round(r.width),height:Math.round(r.height),font:s.fontSize,shadow:s.boxShadow}};return {header:[...document.querySelectorAll('.site-brand,.site-actions,.site-header > .container > .site-nav')].map(size),titles:[...document.querySelectorAll('h1')].map(size),buttons:[...document.querySelectorAll('.button')].filter(el=>el.getBoundingClientRect().height).map(size),footer:[...document.querySelectorAll('.site-footer')].map(size),brokenImages:[...document.images].filter(image=>!image.complete||image.naturalWidth===0).map(image=>image.getAttribute('src'))}})()`);
+        if(stress)layouts[key]={...layouts[key] as object,overflow:await devtools.evaluate(`(()=>{const width=document.documentElement.clientWidth,visible=[...document.body.querySelectorAll('*')].filter(el=>el.getBoundingClientRect().width);const clipped=el=>{for(let parent=el.parentElement;parent&&parent!==document.body;parent=parent.parentElement){if(['auto','scroll','hidden','clip'].includes(getComputedStyle(parent).overflowX)&&parent.getBoundingClientRect().right<=width+1)return true;}return false;};return {width,scroll:document.documentElement.scrollWidth,elements:visible.filter(el=>{const r=el.getBoundingClientRect();return (r.right>width+1||r.left< -1)&&!clipped(el)}).slice(0,24).map(el=>({tag:el.tagName,class:el.className,text:el.textContent.trim().slice(0,70),width:el.getBoundingClientRect().width,right:el.getBoundingClientRect().right,scroll:el.scrollWidth,client:el.clientWidth}))}})()`)};
         const viewport=await devtools.call<{data:string}>("Page.captureScreenshot",{format:"png",captureBeyondViewport:false});
         writeFileSync(join(output,`${key}-viewport.png`),Buffer.from(viewport.data,"base64"));
-        if(width===390&&theme==="light")for(const selector of [".site-footer",".digest-feed",".weekly-charts",".weekly-topics",".cinema-trailer",".cinema-premiere",".cinema-rank",".stock-details"]){
+        if(width===390&&theme==="light")for(const selector of [".site-footer",".digest-feed",".weekly-charts",".weekly-topics",".cinema-trailer",".cinema-premiere",".cinema-rank",".stock-details",".stocks-discovery",".investment-review",".review-section",".hub-alerts",".activity"]){
           const clip=await devtools.evaluate<{x:number;y:number;width:number;height:number;scale:number}|null>(`(()=>{const element=document.querySelector(${JSON.stringify(selector)});if(!element)return null;const r=element.getBoundingClientRect();if(!r.width||!r.height)return null;return {x:Math.max(0,r.x+scrollX),y:Math.max(0,r.y+scrollY),width:Math.min(r.width,innerWidth),height:Math.min(r.height,900),scale:1}})()`);
           if(!clip)continue;
           const detail=await devtools.call<{data:string}>("Page.captureScreenshot",{format:"png",captureBeyondViewport:true,clip});
@@ -266,7 +346,7 @@ async function main(){
   }finally{await close();server.close();rmSync(served,{recursive:true,force:true});}
   writeFileSync(join(output,"manifest.json"),JSON.stringify(manifest,null,2));
   if(viewports)writeFileSync(join(output,"layouts.json"),JSON.stringify(layouts,null,2));
-  writeFileSync(join(output,"audit.json"),JSON.stringify({audited:auditedCount,screenshots:Object.keys(manifest).length,widths,themes,audit,contrastReview},null,2));
+  writeFileSync(join(output,"audit.json"),JSON.stringify({audited:auditedCount,screenshots:Object.keys(manifest).length,widths,themes,stress,keyboardChecks,audit,contrastReview},null,2));
   if(Object.keys(audit).length){console.log(JSON.stringify({ok:false,audit},null,1));process.exitCode=1;return;}
   if(!compare){console.log(JSON.stringify({ok:true,themeRuntime:"verified",audited:auditedCount,screenshots:Object.keys(manifest).length,contrastReviewPages:Object.keys(contrastReview).length,out:output}));return;}
   const baseline=JSON.parse(readFileSync(resolve(compare,"manifest.json"),"utf8")) as Record<string,string>;

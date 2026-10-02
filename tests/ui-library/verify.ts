@@ -208,6 +208,14 @@ assert.match(renderIcon("controls"),/aria-hidden="true"/);assert.match(iconPath(
 assert.match(renderDisclosure({summary:"Events",body:"",key:'id"1'}),/data-disclosure-key="id&quot;1"/);
 assert.match(renderDialog({id:"test-dialog",title:"<title>",closeLabel:"Close",body:"<p>Trusted</p>"}),/aria-labelledby="test-dialog-title"/);
 assert.match(renderDialog({id:"test-dialog",title:"<title>",closeLabel:"Close",body:""}),/&lt;title&gt;/);
+for(const closeLabel of ["Close","Закрыть"]){
+  const dialog=renderDialog({id:"test-dialog",title:"Title",closeLabel,body:""});
+  assert.match(dialog,/class="button button--icon"/);
+  assert.ok(dialog.includes(`aria-label="${closeLabel}"`));
+  assert.ok(dialog.includes(`title="${closeLabel}"`));
+  assert.match(dialog,/data-dialog-close[^>]*><svg[^>]*aria-hidden="true"/);
+  assert.ok(!dialog.includes(`>${closeLabel}<`),"close label is accessible, not visible text");
+}
 assert.throws(()=>renderDialog({id:'bad"id',title:"T",closeLabel:"Close",body:""}),/Invalid dialog ID/);
 
 // Diagrams: every docs picture comes from the diagram kit, stays inside the palette and becomes theme-aware when inlined.

@@ -55,6 +55,9 @@ clip within the brand column, never beneath action buttons. Snapshot times retai
 their own source timestamp; Docs does not invent a current date.
 The wordmark is also bounded by its brand column. Collapsible headers tighten
 the logo and wordmark below 360 px without adding a header row or shrinking controls.
+Section navigation stays within its grid column when labels or text grow.
+When the links no longer fit, the navigation scrolls horizontally inside the
+header; the whole page does not become wider. Links remain keyboard-accessible.
 
 ## Shared page framing
 

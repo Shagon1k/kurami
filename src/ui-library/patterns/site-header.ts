@@ -80,7 +80,7 @@ export const SITE_HEADER_CSS = `
 .site-brand:hover .site-brand__name { color: var(--accent-primary); }
 .site-brand__meta { min-width: 0; max-width: 100%; overflow: hidden; text-overflow: ellipsis; color: var(--text-muted); font-size: .75rem; line-height: 1.45; font-weight: 400; }
 .site-brand:focus-visible, .site-nav__link:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 4px; }
-.site-nav { grid-area: nav; display: flex; align-items: center; gap: 6px; }
+.site-nav { grid-area: nav; min-width: 0; max-width: 100%; display: flex; align-items: center; gap: 6px; overflow-x: auto; scrollbar-width: thin; }
 .site-nav--scroll { min-width: 0; max-width: 100%; overflow-x: auto; scrollbar-width: thin; }
 .site-nav--scroll .site-nav__link { flex: none; }
 .site-nav__link { position: relative; display: inline-flex; align-items: center; justify-content: center; min-height: var(--control-height); padding: var(--space-2) var(--space-3); color: var(--text-muted); font-size: .8125rem; font-weight: 600; text-decoration: none; white-space: nowrap; border-radius: var(--radius); transition: background 140ms ease, color 140ms ease; }
