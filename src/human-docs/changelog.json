@@ -1,6 +1,13 @@
 {
   "baseline": "4a38c09",
   "commits": {
+    "21f1ce17e8940e8947d8fab05ce7f24bf5012a8b": {
+      "category": "operations",
+      "en": "",
+      "ru": "",
+      "exclusionScope": "no-reader-visible-change",
+      "exclude": "Updates only the unified-origin browser test: desktop header overlap checks remain, while mobile checks assert the static header and fixed four-item navigation panel instead of hidden header controls. Product behavior and release policy are unchanged."
+    },
     "3d14565b5262c060e2cacf47fb58a158aff7b8d8": {
       "category": "improved",
       "en": "Hub, Digest, Projects and Docs share a full-width mobile navigation panel with larger icons and menus above the panel. Existing search, language, theme and app controls move into those menus without duplication; desktop layouts are unchanged. Hub keeps its separate period bubble and switches between 7 and 30 days with one tap.",
