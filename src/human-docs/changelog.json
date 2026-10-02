@@ -1,6 +1,12 @@
 {
   "baseline": "4a38c09",
   "commits": {
+    "2e2f5421fcc16c3efe633b6eaf3d4b8c47ccdffb": {
+      "category": "fixed",
+      "en": "Fixed narrow-screen and enlarged-text layouts in Hub, Digest and Docs. Section navigation and wide Cinema tables scroll within their own containers; dialog close buttons use an accessible shared cross icon. Installed Android checks remain separate.",
+      "ru": "Исправлены раскладки Hub, Digest и Docs на узких экранах и при увеличенном тексте. Навигация разделов и широкие таблицы Cinema прокручиваются внутри своих контейнеров; диалоги закрываются общей иконкой крестика с доступным названием. Проверки установленного приложения на Android остаются отдельным этапом.",
+      "page": "ui-library"
+    },
     "cd4e36a2e735eca348c8bbf08a51305dbb40663e": {
       "category": "improved",
       "en": "Refined shared mobile headers and responsive charts. Digest now uses shared Stocks sort controls, compact Weekly counters and publication dates in footers. This is the first UI audit package; the full audit and installed-phone checks remain open.",
