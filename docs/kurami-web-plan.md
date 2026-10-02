@@ -1,20 +1,14 @@
 # Kurami web consolidation
 
-Status: unified entry deployed on 1 October 2026 with owner approval; gateway
-liveness and native origins checked. The owner subsequently reported the
-installed app working; full visual and mobile audit is pending.
+Status: unified entry, PWA and agreed visual/mobile fixes deployed; the owner
+accepted the phone walkthrough on 2 October 2026 ("Прошелся, норм"). The agreed
+consolidation and UI scope is complete. Old-hostname cutover remains separate.
 Audit procedure: [kurami-ui-audit-plan.md](kurami-ui-audit-plan.md).
-The owner's first mobile pass reported layout defects and incomplete Digest
-resources/navigation on first load. Those observations are recorded in the audit
-plan. The owner has now approved fixing PWA, escaped Apps links, Digest loading,
-and the reported mobile/shared-shell defects. Follow-up code `d4bfa66` and its
-bilingual classification `500f92b` are on `origin/main`. All five web services
-were restarted; Digest was rebuilt from the compiled production entry and Docs
-was promoted from a clean release build. Live EN/RU Hub, Digest sections, Docs
-and native Projects passed read-only checks. Mounted Projects rejects unsigned
-requests as designed. The owner reported the app working and supplied Android
-launch/launcher screenshots. The cosmetic icon follow-up below has owner release
-approval; its phone appearance still needs acceptance after publication.
+Release history, automated evidence and coverage limits:
+[kurami-ui-audit-findings.md](kurami-ui-audit-findings.md). The latest product
+fixes are `ea22cdf`, their bilingual classification is `96a6b4b`, and the
+published release journal is `22ad7df`. Owner acceptance is recorded separately
+from automated checks; it is not a claim that every device/state was tested.
 Release instructions: [kurami-web-operations.md](kurami-web-operations.md).
 
 ## Approved boundary
@@ -36,11 +30,11 @@ or database migration belongs to this work. Existing functions remain intact.
 | Phase | Outcome | Evidence and acceptance | Status |
 | --- | --- | --- | --- |
 | 1. Baseline and contracts | Known route, authorization and rollback boundaries | Route and signed Access tests; loopback-only service; retained native ingress | Locally verified |
-| 2. Unified entry | All modules work under the new origin | Real-server gateway/browser tests; native product regressions; immutable Docs variants | Deployed; anonymous Access redirect and native origins verified; owner's authenticated smoke pending |
-| 3. PWA | One installation covers all modules | Manifest ID/scope, credentialed manifest fetch behind Access, one worker, offline recovery and private-cache checks | Functional fixes deployed; owner reports installation working; new icon release approved, phone appearance pending |
-| 4. Shared visual rules | Equal component roles look consistent | UI-library tests/guard/export; populated EN/RU light/dark screens; classified style exceptions | Selected shared changes checked; full visual audit pending |
-| 5. Mobile polish | Layouts are comfortable on narrow devices | Hub period capsule and Tasks spacing; populated app screens, overlays and real phone checks | Selected fixes checked; full mobile audit and phone acceptance pending |
-| 6. Release readiness | Integrated candidate is ready for owner acceptance | Type checks, product regressions, visual acceptance, bilingual docs and rollback runbook | Scoped deployment approved and executed; full visual and installed-phone acceptance pending |
+| 2. Unified entry | All modules work under the new origin | Real-server gateway/browser tests; native product regressions; immutable Docs variants | Deployed and checked; owner accepted the phone walkthrough |
+| 3. PWA | One installation covers all modules | Manifest ID/scope, credentialed manifest fetch behind Access, one worker, offline recovery and private-cache checks | Deployed; installation and icon follow-up accepted by owner |
+| 4. Shared visual rules | Equal component roles look consistent | UI-library tests/guard/export; populated EN/RU light/dark screens; classified style exceptions | Agreed audit fixes verified and released; owner accepted reviewed UI |
+| 5. Mobile polish | Layouts are comfortable on narrow devices | Hub period capsule and Tasks spacing; populated app screens, overlays and real phone checks | Agreed fixes verified and released; phone walkthrough accepted |
+| 6. Release readiness | Integrated candidate is ready for owner acceptance | Type checks, product regressions, visual acceptance, bilingual docs and rollback runbook | Release verified; owner acceptance received on 2 October |
 
 Phase 2 depends on phase 1. PWA depends on the routing contract; visual and mobile
 work does not depend on production cutover. Expand implementation detail only
@@ -81,17 +75,17 @@ installed app, then requested a sharper splash mark and a larger launcher fox.
 The cosmetic follow-up adds a reviewed high-resolution reconstruction with
 transparent and adaptive exports; the adaptive background is plain theme paper,
 not an illustration. Native header/favicons stay unchanged. This follow-up is
-approved for the same scoped release process; its launcher appearance still needs
-phone acceptance. Export details are in [the brand asset notes](../src/ui-library/assets/brand/README.md).
+released and accepted by the owner before the UI audit continued. Export details
+are in [the brand asset notes](../src/ui-library/assets/brand/README.md).
 
 ## Remaining acceptance and cutover
 
 - Owner confirmed the new owner-only Access policy; its AUD was obtained from Cloudflare-signed metadata. Gateway binds to `127.0.0.1:8888` and rejects requests without an assertion.
 - No new Docs reader audience is configured. Existing native Docs service access retains its scope; a unified Docs reader needs a separately approved policy.
-- Owner reported the installed app working; the full visual audit and new icon's phone appearance remain pending.
-- Verify the authenticated unified entry and approve hostname redirect cutover separately. Old hostnames remain available.
+- Owner accepted the phone walkthrough on 2 October after the final UI follow-up. Detailed screen-reader, font CLS and every cold/warm/network state are not individually certified by that report.
+- Approve hostname redirect cutover separately. Old hostnames remain available; acceptance does not authorize their removal or redirection.
 
-## Local evidence
+## Initial local evidence (historical)
 
 - `npm run check`, `test:web`, `test:web-browser`: routes, resources, APIs,
   malformed paths, signed owner assertions, separate Docs reader scope, private
@@ -110,11 +104,12 @@ phone acceptance. Export details are in [the brand asset notes](../src/ui-librar
 - Screenshots are generated under `dist/ui-browser`, `dist/hub-browser` and
   `dist/web-browser`. They contain synthetic data and are not release artifacts.
 
-These counts do not prove a complete visual audit. Weekly/Stocks screenshots
+These initial counts did not prove a complete visual audit. Weekly/Stocks screenshots
 include empty states; Cinema's legacy-header example and minimal Digest gateway
-fixtures do not cover full editions. Execute the linked audit plan with populated
-screens, disclosures and mobile states before closing phases 4 and 5. The 58
-guard exceptions require classification, not automatic treatment as 58 UI defects.
+fixtures did not cover full editions. The subsequent populated audit, additional
+states, regression results and owner acceptance are recorded in the linked
+journal. The current guard retains 57 exceptions; they are not
+automatically 57 UI defects or a reason to rewrite legitimate product layouts.
 
 The local tests did not change Access policy or exercise real mutation controls.
 The subsequently approved deployment restarted the four web backends, promoted
@@ -122,4 +117,5 @@ a clean Docs snapshot with native/mounted variants, and enabled the new gateway.
 Previous Docs artifacts and unit files were retained for rollback. Docs remains
 a docs-only release (`revision: null`), not an app-bound changelog publication.
 An anonymous Access redirect and a local health response do not prove the owner's
-authenticated experience or installed-phone acceptance.
+authenticated experience or installed-phone acceptance. The subsequent owner
+walkthrough provides human acceptance separately from this initial smoke.
