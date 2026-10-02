@@ -6,14 +6,18 @@ consolidation and UI scope is complete. Old-hostname cutover remains separate.
 Audit procedure: [kurami-ui-audit-plan.md](kurami-ui-audit-plan.md).
 Release history, automated evidence and coverage limits:
 [kurami-ui-audit-findings.md](kurami-ui-audit-findings.md). The latest product
-fixes are `ea22cdf`, their bilingual classification is `96a6b4b`, and the
-published release journal is `22ad7df`. Owner acceptance is recorded separately
+feedback fixes were `ea22cdf`, their bilingual classification was `96a6b4b`, and
+their published release journal was `22ad7df`. The subsequent refinement package
+`97e3952` is now deployed; its release evidence is in the refinement plan below.
+Owner acceptance is recorded separately
 from automated checks; it is not a claim that every device/state was tested.
 Release instructions: [kurami-web-operations.md](kurami-web-operations.md).
 
 The next UI refinement is planned separately in
 [kurami-ui-refinement-plan.md](kurami-ui-refinement-plan.md); local implementation
-and checks completed on 2 October, with release and phone acceptance still pending.
+and checks completed on 2 October. The owner approved its release; all four
+backends are updated and read-only origin smoke passed. Phone acceptance of the
+new drag gestures remains separate.
 The owner will handle Cloudflare retirement independently. On
 2 October the owner authorized retiring the four native app
 hostnames without removing the loopback origins. The retirement prerequisites

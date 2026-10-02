@@ -1,6 +1,12 @@
 {
   "baseline": "4a38c09",
   "commits": {
+    "97e39526fa09b78b83bd09cce159795104eac719": {
+      "category": "improved",
+      "en": "Projects groups evidence and contextual actions in a compact task panel; mobile navigation follows the finger in both directions. Hub uses operation-specific control dialogs, compact Composio checks and clearer activity without internal Guardian sessions. Cinema stacks news images above text on phones; Stocks uses shared SVG chevrons and compact controls. All four apps share a 1320px desktop container, including the full-width Docs home.",
+      "ru": "Projects объединяет проверки и связанные действия в компактной карточке; мобильные переходы следуют за пальцем в обе стороны. В Hub диалоги названы по операции, проверка Composio компактнее, а журнал активности не показывает служебные Guardian-сессии. Cinema располагает картинки над новостями на телефоне; Stocks использует общие SVG-шевроны и компактные контролы. Все четыре приложения имеют общий desktop-контейнер 1320 px, включая главную Docs на всю ширину.",
+      "page": "ui-library"
+    },
     "96a6b4be8faf60aca1b5254822e4411829bca89b": {
       "category": "operations",
       "en": "",
