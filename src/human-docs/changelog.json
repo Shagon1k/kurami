@@ -2,6 +2,19 @@
   "baseline": "4a38c09",
   "publicationBaseline": "788787f077d42fc3b3346a4f4a612947b97ce2e8",
   "commits": {
+    "55f9fd3362c85d9aa4b40cc78dfe047476d6f1a1": {
+      "category": "improved",
+      "en": "The shared mobile footer and menus have distinct warm surfaces, balanced outline icons and aligned labels. On page tracks the section being read. Menus focus the current item; section links focus their heading without a second scroll. Back closes an open panel before normal navigation, while Forward and reload restore recorded panel state. Projects preserves typed search queries when switching menus. Larger text increases the measured panel height; desktop layouts are unchanged. The release controller checks the current immutable Docs assets before the next app-bound Docs publication.",
+      "ru": "Общая мобильная панель и меню получили различимые тёплые фоны, сбалансированные контурные иконки и выровненные подписи. «На странице» отслеживает читаемый раздел. Меню передают фокус текущему пункту, а ссылки на разделы — заголовку без второй прокрутки. «Назад» закрывает открытую панель до обычного перехода; «Вперёд» и перезагрузка восстанавливают записанное состояние панели. Projects сохраняет введённый поисковый запрос при переключении меню. При увеличении текста панель измеряет новую высоту; desktop-раскладки не изменены. Контроллер выпуска проверяет текущие ресурсы неизменяемой сборки Docs перед публикацией следующей сборки, привязанной к приложению.",
+      "page": "ui-library"
+    },
+    "e529d06dcac86d7a0ce1aeded43168e21f6a098c": {
+      "category": "operations",
+      "en": "",
+      "ru": "",
+      "exclusionScope": "docs-only",
+      "exclude": "Adds only the reviewed bilingual Changelog classification for the unified-origin cleanup; application behavior is unchanged."
+    },
     "596a165e07f4ab6d03bd205ed4a66c9076e03970": {
       "category": "operations",
       "en": "Digest notifications and standalone Investment Review reports link to the unified Kurami origin. Docs verification checks the unified Access gate and distinguishes local artifact checks from authenticated edge checks. The guarded release controller records verified application revisions; Docs publication and automation use that evidence for Changelog. Migration plans now record the owner's retirement of the old app hostnames.",
