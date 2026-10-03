@@ -1,6 +1,12 @@
 {
   "baseline": "4a38c09",
   "commits": {
+    "b8056db1af5a3977d641d6afe994ad22b20e4269": {
+      "category": "fixed",
+      "en": "Mobile footer buttons use a bottom underline; selection rails stay inside menus. On page lists are text-only across all four apps. The Projects panda icon is wider, and Docs menu icons use the shared compact outline styling instead of large filled shapes. Desktop layouts are unchanged.",
+      "ru": "Кнопки нижней мобильной панели снова подчёркнуты снизу; полоска выбора слева остаётся внутри меню. Списки «На странице» во всех четырёх приложениях не содержат иконок. Иконка панды в Projects стала шире, а иконки меню Docs используют общий компактный контурный стиль вместо крупных залитых фигур. Desktop-раскладки не изменены.",
+      "page": "ui-library"
+    },
     "3a27099cbe28ad709cb6772d81b35702c45301f1": {
       "category": "improved",
       "en": "Mobile menus use a left selection rail, shared label typography and monochrome outline icons; Docs keeps its section hierarchy. Projects adds panda, fox and profile icons. Hub translates Controls in Russian and moves the 7/30-day period into horizontal Settings rows beside language and the theme switch. Desktop navigation and controls are unchanged.",
