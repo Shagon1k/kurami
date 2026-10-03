@@ -82,6 +82,37 @@ async function audit(): Promise<void> {
   assert.deepEqual(await devtools.evaluate(AUDIT_EXPRESSION), []);
   assert.deepEqual(await devtools.evaluate(inventoryExpression()), []);
 }
+async function panelHistory():Promise<void>{
+  await wait(`!document.querySelector('#projects-dashboard').dataset.refreshing`);
+  await devtools.evaluate(`window.panelPops=0;window.panelListener=()=>panelPops++;addEventListener('popstate',panelListener);window.panelDashboard=document.querySelector('#projects-dashboard');window.panelUrl=location.href;document.querySelector('[data-mobile-menu="apps"]').click();window.panelLength=history.length;window.panelToken=history.state.__kuramiMobilePanel.token;document.querySelector('[data-mobile-menu="search"]').click()`);
+  await wait(`document.querySelector('#mobile-menu-search').matches(':popover-open')`);
+  assert.equal(await devtools.evaluate(`history.length===panelLength&&history.state.__kuramiMobilePanel.token===panelToken`),true,'switching panels reuses the one panel entry');
+  await devtools.evaluate(`history.back()`);
+  await wait(`!history.state?.__kuramiMobilePanel&&!document.querySelector('.mobile-navigation .ui-popover:popover-open')`);
+  const panelBack=await devtools.evaluate<{same:boolean;url:string;base:string;refreshing:string;state:unknown}>(`({same:document.querySelector('#projects-dashboard')===panelDashboard,url:location.href,base:panelUrl,refreshing:document.querySelector('#projects-dashboard').dataset.refreshing,state:history.state,pops:panelPops})`);
+  assert.ok(panelBack.same&&panelBack.url===panelBack.base&&!panelBack.refreshing,'panel Back must not refresh or change the Projects route: '+JSON.stringify(panelBack));
+  await devtools.evaluate(`history.forward()`);await wait(`document.querySelector('#mobile-menu-search').matches(':popover-open')`);
+  assert.equal(await devtools.evaluate(`document.querySelector('#projects-dashboard')===panelDashboard`),true,'panel Forward preserves the table');
+  await devtools.evaluate(`(()=>{window.panelTable=document.querySelector('.projects-table');const input=document.querySelector('input[name=q]');input.value='search';input.dispatchEvent(new Event('input',{bubbles:true}));})()`);await delay(30);
+  await devtools.evaluate(`document.querySelector('[data-mobile-menu="more"]').click()`);await wait(`document.querySelector('#mobile-menu-more').matches(':popover-open')`);
+  await devtools.evaluate(`history.back()`);await wait(`!history.state?.__kuramiMobilePanel`);
+  assert.equal(await devtools.evaluate(`new URL(location.href).searchParams.get('q')==='search'&&document.querySelector('.projects-table')===panelTable`),true,'Back closes Search without undoing its query or refreshing the table');
+  await devtools.evaluate(`document.querySelector('[data-mobile-menu="search"]').click()`);await wait(`document.querySelector('#mobile-menu-search').matches(':popover-open')`);
+  await devtools.evaluate(`(()=>{const input=document.querySelector('input[name=q]');input.value='';input.dispatchEvent(new Event('input',{bubbles:true}));})()`);await delay(30);
+  assert.equal(await devtools.evaluate(`new URL(location.href).searchParams.has('q')`),false,'clearing Search updates its route');
+  await devtools.evaluate(`document.dispatchEvent(new KeyboardEvent('keydown',{key:'Escape',bubbles:true}))`);
+  await wait(`!history.state?.__kuramiMobilePanel`);await delay(50);
+  await devtools.evaluate(`document.querySelector('[data-mobile-menu="apps"]').click()`);await delay(240);
+  const point=await devtools.evaluate<{x:number;y:number}>(`(()=>{const link=document.querySelector('[data-item-link]');link.scrollIntoView({behavior:'instant',block:'start'});const r=link.getBoundingClientRect();return{x:r.x+r.width/2,y:r.y+r.height/2}})()`);
+  await devtools.call('Input.dispatchMouseEvent',{type:'mousePressed',button:'left',clickCount:1,...point});
+  await devtools.call('Input.dispatchMouseEvent',{type:'mouseReleased',button:'left',clickCount:1,...point});
+  await wait(`!!document.querySelector('#project-details')&&!history.state?.__kuramiMobilePanel`);
+  assert.equal(await devtools.evaluate(`history.state.projectsDetail`),true,'outside task click runs after consuming panel history');
+  await devtools.evaluate(`history.back()`);await wait(`!document.querySelector('#project-details')`);
+  const taskBack=await devtools.evaluate<{url:string;base:string;state:unknown}>(`({url:location.href,base:panelUrl,state:history.state})`);
+  assert.equal(taskBack.url,taskBack.base,'next Back closes the task, not a stale panel: '+JSON.stringify(taskBack));
+  await devtools.evaluate(`removeEventListener('popstate',panelListener)`);
+}
 try {
   await devtools.call("Page.enable");
   for (const width of [320, 390, 1280]) {
@@ -93,6 +124,7 @@ try {
       await delay(250);
       await audit();
       if(width<600)await mobileOverview();
+      if(width<600&&theme==='light')await panelHistory();
       assert.equal(await devtools.evaluate("document.querySelector('[data-task-filter=active]').textContent"),"3 active","counter matches the full active selection including review");
       assert.equal(await devtools.evaluate("document.querySelector('[data-task-filter=attention]').textContent"),"2 need you");
       await devtools.evaluate("document.querySelector('[data-task-filter=active]').click()");

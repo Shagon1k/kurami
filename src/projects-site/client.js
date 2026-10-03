@@ -383,7 +383,8 @@
       if (form.isConnected) { select.disabled = form.dataset.check === 'true'; button.disabled = false; }
     } finally { requestingStatus = false; button.removeAttribute('aria-busy'); }
   });
-  addEventListener('popstate',async()=>{
+  addEventListener('popstate',async event=>{
+    if(window.kuramiMobilePanelPopState?.(event))return;
     navigationVersion++;const version=navigationVersion;cancelGesture();cancelMotion();dismissConfirmation(false);const url=new URL(location.href);
     const detail=dashboard.querySelector('#project-details');
     if(mobile.matches&&detail&&!url.searchParams.has('item')&&!settledExit)await slide(detail,0,innerWidth);

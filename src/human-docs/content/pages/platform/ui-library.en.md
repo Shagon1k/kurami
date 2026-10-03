@@ -86,6 +86,16 @@ background and left rail; open footer buttons keep their short bottom underline.
 On page links are text-only. Apps, Sections and Controls use monochrome outline
 icons and shared sans-serif labels; Docs keeps its grouped section hierarchy.
 A repeated click, an outside click or Escape closes a menu.
+The bottom panel has a stronger warm surface; menus use a distinct raised surface.
+Outline icons keep a 32px frame with balanced visual weight and aligned labels.
+On page highlights the section you are reading, not just the last clicked anchor.
+Opening a menu focuses its current link; selecting a section focuses its heading
+without a second scroll. Search still focuses the input above the keyboard.
+Back first closes an open menu. Switching menus reuses one temporary history
+entry; closing it removes that entry before a selected action continues.
+Forward or a reload restores a menu recorded in history. With no menu open,
+Back retains normal page and Projects task navigation. The panel measures its
+height when text grows, keeping content and menus above it.
 Menus and icons animate together; reduced-motion preferences disable that motion.
 Projects opens Search at the top of the visible screen, above the keyboard.
 Hub puts its 7/30-day period in Settings on phones, alongside language and the

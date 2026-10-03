@@ -239,12 +239,14 @@ async function checkMobileNavigation(devtools:Devtools,width:number,current:stri
   await delay(240);
   const apps=await devtools.evaluate<{current:string;links:string[];fits:boolean}>(`(()=>{const panel=document.querySelector('#mobile-menu-apps'),r=panel.getBoundingClientRect(),bar=document.querySelector('.mobile-navigation__bar').getBoundingClientRect();return {current:panel.querySelector('[aria-current]')?.textContent.trim(),links:[...panel.querySelectorAll('a')].map(link=>link.textContent.trim()),bounds:{left:r.left,right:r.right,bottom:r.bottom,barTop:bar.top,width:innerWidth},fits:r.left>=0&&r.right<=innerWidth&&r.bottom<=bar.top-6.5};})()`);
   if(apps.current!==current||apps.links.join('|')!=='Hub|Digest|Projects|Docs|Hermes↗|Dokploy↗'||!apps.fits)throw new Error(`Mobile Apps ${JSON.stringify(apps)}`);
+  if(!await devtools.evaluate(`document.activeElement===document.querySelector('#mobile-menu-apps a[aria-current]')`))throw new Error('Apps must focus the current app, not Close');
   if(!await devtools.evaluate(`(()=>{const link=document.querySelector('#mobile-menu-apps [aria-current]'),line=getComputedStyle(link,'::after');return line.width==='2px'&&parseFloat(line.height)>20&&line.left==='0px'&&line.transform==='none'&&!!link.querySelector('svg');})()`))throw new Error('Mobile selection must use the common left rail and outline icons');
   if(!await devtools.evaluate(`(()=>{const line=getComputedStyle(document.querySelector('[data-mobile-menu="apps"]'),'::after');return line.width==='18px'&&line.height==='2px'&&line.bottom==='8px';})()`))throw new Error('Footer selection must keep its short bottom underline, not a left rail');
   const point=await devtools.evaluate<{x:number;y:number}>(`(()=>{const r=document.querySelector('[data-mobile-menu="apps"]').getBoundingClientRect();return {x:r.x+r.width/2,y:r.y+r.height/2};})()`);
   await devtools.call('Input.dispatchMouseEvent',{type:'mousePressed',button:'left',clickCount:1,...point});
   await devtools.call('Input.dispatchMouseEvent',{type:'mouseReleased',button:'left',clickCount:1,...point});
   if(await devtools.evaluate(`document.querySelector('#mobile-menu-apps').matches(':popover-open')`))throw new Error('Mobile repeat dismissal');
+  await delay(100);
   for(const key of await devtools.evaluate<string[]>(`[...document.querySelectorAll('[data-mobile-menu]')].map(button=>button.dataset.mobileMenu)`)){
     await devtools.evaluate(`document.querySelector('[data-mobile-menu="${key}"]').click()`);
     if(!await devtools.evaluate(`document.querySelector('#mobile-menu-${key}').matches(':popover-open')`))throw new Error('Mobile menu closed '+key);
@@ -262,11 +264,13 @@ async function checkMobileNavigation(devtools:Devtools,width:number,current:stri
     await devtools.call('Input.dispatchKeyEvent',{type:'keyDown',key:'Escape',code:'Escape',windowsVirtualKeyCode:27});
     await devtools.call('Input.dispatchKeyEvent',{type:'keyUp',key:'Escape',code:'Escape',windowsVirtualKeyCode:27});
     if(!await devtools.evaluate(`!document.querySelector('#mobile-menu-${key}').matches(':popover-open')&&document.activeElement===document.querySelector('[data-mobile-menu="${key}"]')`))throw new Error('Mobile Escape focus '+key);
+    await delay(100);
   }
   await devtools.evaluate(`document.querySelector('[data-mobile-menu="apps"]').click()`);
   await devtools.call('Input.dispatchMouseEvent',{type:'mousePressed',button:'left',clickCount:1,x:4,y:450});
   await devtools.call('Input.dispatchMouseEvent',{type:'mouseReleased',button:'left',clickCount:1,x:4,y:450});
   if(await devtools.evaluate(`document.querySelector('#mobile-menu-apps').matches(':popover-open')`))throw new Error('Mobile outside dismissal');
+  await delay(100);
   await devtools.evaluate(`document.querySelector('[data-mobile-menu="more"]').click()`);await delay(240);
   if(!await devtools.evaluate(`getComputedStyle(document.querySelector('[data-mobile-menu="more"] svg')).transform!=='none'`))throw new Error('Settings icon should animate with menu state');
   const settings=await devtools.evaluate<{rows:{delta:number;gap:number}[];switchHeight:number}>(`(()=>{const rows=[...document.querySelectorAll('#mobile-menu-more .mobile-navigation__setting:not([hidden])')];return {rows:rows.map(row=>{const l=row.querySelector('.mobile-navigation__setting-label').getBoundingClientRect(),v=row.querySelector('.mobile-navigation__setting-value').getBoundingClientRect();return {delta:Math.abs((l.top+l.bottom-v.top-v.bottom)/2),gap:v.left-l.right};}),switchHeight:document.querySelector('[data-mobile-slot="theme"] .button--switch').getBoundingClientRect().height};})()`);
@@ -277,8 +281,10 @@ async function checkMobileNavigation(devtools:Devtools,width:number,current:stri
   await devtools.evaluate(`document.querySelector('[data-mobile-slot="theme"] [data-theme-toggle]').click()`);
   if(!await devtools.evaluate(`(()=>{const targets=[...document.querySelectorAll('.mobile-navigation .mobile-navigation__link,.mobile-navigation__action')];return targets.every(node=>{const s=getComputedStyle(node),hierarchy=node.matches('.side-group a[aria-current]');return s.fontSize==='14px'&&(s.fontWeight==='500'||hierarchy&&s.fontWeight==='600')&&s.fontFamily===getComputedStyle(document.querySelector('.mobile-navigation__setting-label')).fontFamily;});})()`))throw new Error('Mobile menu typography must be shared, preserving Docs hierarchy');
   await devtools.evaluate(`document.querySelector('[data-mobile-menu="more"]').click()`);
+  await delay(100);
   await devtools.call('Emulation.setEmulatedMedia',{features:[{name:'prefers-reduced-motion',value:'reduce'}]});
   await devtools.evaluate(`document.querySelector('[data-mobile-menu="more"]').click()`);
+  await delay(100);
   const reduced=await devtools.evaluate<{panel:string;icon:string;transform:string}>(`(()=>{const panel=document.querySelector('#mobile-menu-more'),icon=document.querySelector('[data-mobile-menu="more"] svg');return {panel:getComputedStyle(panel).transitionDuration,icon:getComputedStyle(icon).transitionDuration,transform:getComputedStyle(icon).transform};})()`);
   if([reduced.panel,reduced.icon].some(value=>value.split(',').some(duration=>parseFloat(duration)>.00001))||reduced.transform!=='none')throw new Error('Reduced motion must disable menu and icon animation: '+JSON.stringify(reduced));
   await devtools.evaluate(`document.querySelector('[data-mobile-menu="more"]').click()`);

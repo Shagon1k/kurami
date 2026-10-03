@@ -31,8 +31,14 @@ ${POPOVER_CSS}
   .site-header:has([data-mobile-navigation]) .site-brand__name { font-size: 1.25rem; }
   .site-header:has([data-mobile-navigation]) .site-actions,.site-header:has([data-mobile-navigation]) .site-header__inner > .site-nav,.site-header:has([data-mobile-navigation]) .site-menu { display: none; }
   .mobile-navigation { display: block; }
-  .mobile-navigation__bar { position: fixed; inset-inline: 0; bottom: 0; z-index: 40; display: grid; grid-template-columns: repeat(4,minmax(0,1fr)); padding-bottom: env(safe-area-inset-bottom); color: var(--text-primary); background: var(--surface-section); border-top: 1px solid color-mix(in srgb,var(--text-primary) 45%,var(--border-default)); }
-  .mobile-navigation .ui-popover { --popover-width: 430px; --popover-padding: var(--space-4); left: max(var(--space-3),calc((100vw - 430px)/2)); top: auto; bottom: calc(var(--mobile-navigation-height) + env(safe-area-inset-bottom) + var(--space-2)); width: min(430px,calc(100vw - 24px)); max-height: calc(100dvh - var(--mobile-navigation-height) - env(safe-area-inset-bottom) - var(--space-8)); }
+  .mobile-navigation__bar { position: fixed; inset-inline: 0; bottom: 0; z-index: 40; display: grid; grid-template-columns: repeat(4,minmax(0,1fr)); padding-bottom: env(safe-area-inset-bottom); color: var(--text-primary); background: color-mix(in srgb,var(--accent-data) 10%,var(--surface-section)); border-top: 1px solid color-mix(in srgb,var(--text-primary) 45%,var(--border-default)); box-shadow: var(--shadow-raised); }
+  .mobile-navigation__bar .button--navigation { font-weight: 500; white-space: normal; line-height: 1.3; text-align: center; }
+  .mobile-navigation__bar .button--navigation > span { max-width: 100%; overflow-wrap: anywhere; }
+  .mobile-navigation__bar .button__svg path { transform-box: fill-box; transform-origin: center; }
+  .mobile-navigation__bar [data-mobile-menu="sections"] .button__svg path { transform: scaleY(1.18); }
+  .mobile-navigation__bar [data-mobile-menu="controls"] .button__svg path,.mobile-navigation__bar [data-mobile-menu="contents"] .button__svg path,.mobile-navigation[data-mobile-navigation="hub"] [data-mobile-menu="sections"] .button__svg path { transform: scale(1.08); }
+  .mobile-navigation__bar [data-mobile-menu="more"] .button__svg path { transform: scale(.94); }
+  .mobile-navigation .ui-popover { --popover-width: 430px; --popover-padding: var(--space-4); left: max(var(--space-3),calc((100vw - 430px)/2)); top: auto; bottom: calc(var(--mobile-navigation-height) + env(safe-area-inset-bottom) + var(--space-2)); width: min(430px,calc(100vw - 24px)); max-height: calc(100dvh - var(--mobile-navigation-height) - env(safe-area-inset-bottom) - var(--space-8)); background: color-mix(in srgb,var(--accent-data) 3%,var(--surface-raised)); border-color: color-mix(in srgb,var(--accent-data) 25%,var(--border-default)); }
   .mobile-navigation .ui-popover { opacity: 0; transform: translateY(12px) scale(.98); transform-origin: bottom center; transition: opacity 180ms ease, transform 220ms cubic-bezier(.2,.8,.2,1), display 220ms allow-discrete, overlay 220ms allow-discrete; pointer-events: none; }
   .mobile-navigation .ui-popover:popover-open,.mobile-navigation .ui-popover.is-open { opacity: 1; transform: none; pointer-events: auto; }
   .mobile-navigation .ui-popover[id="mobile-menu-search"] { top: var(--mobile-search-top,12px); bottom: auto; max-height: calc(var(--mobile-search-height,100dvh) - 24px); transform-origin: top center; }
@@ -67,6 +73,8 @@ ${POPOVER_CSS}
   body:has([data-mobile-navigation="docs"]) .side-mobile,body:has([data-mobile-navigation="docs"]) .toc-mobile { display: none; }
   body:has([data-mobile-navigation="projects"]) .projects-toolbar { display: none; }
   .mobile-navigation .projects-search { width: 100%; }
+  html:has([data-mobile-navigation]) { scroll-padding-bottom: calc(var(--mobile-navigation-height,82px) + env(safe-area-inset-bottom) + var(--space-4)); }
+  body:has([data-mobile-navigation]) main :is(h2,h3,h4)[id] { scroll-margin-block: var(--space-6) calc(var(--mobile-navigation-height,82px) + env(safe-area-inset-bottom) + var(--space-4)); }
   body:has(dialog[open]) .mobile-navigation__bar { visibility: hidden; }
   body:has([data-mobile-navigation]):not(.projects-mobile-detail-open) .toast { bottom: calc(var(--mobile-navigation-height) + env(safe-area-inset-bottom) + var(--space-4)); }
 }

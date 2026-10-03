@@ -75,11 +75,13 @@ function productionOperations(manifestPath:string):ReleaseOperations {
       const docsRoot=resolve(resolveKuramiHome(dirname(root)),"state/human-docs/release");
       const docsBuild=JSON.parse(readFileSync(resolve(docsRoot,"build.json"),"utf8"));
       if(docsBuild.mode!=="release"||!docsBuild.webMount)throw new Error("Published Docs is not a mounted release");
-      const equal=async(url:string,expected:string)=>{if(await get(url)!==expected)throw new Error("Published asset bytes do not match release source: "+url);};
+      const equal=async(url:string,expected:string)=>{if(await get(url)!==expected)throw new Error("Published asset bytes do not match expected release: "+url);};
       await equal("http://127.0.0.1:8800/assets/hub.css",HUB_STYLES);
       await equal("http://127.0.0.1:8777/assets/projects.css",PROJECTS_STYLES);
       await equal("http://127.0.0.1:8799/assets/docs.css",readFileSync(resolve(docsRoot,"assets/docs.css"),"utf8"));
-      for(const port of [8800,8777,8799])await equal(`http://127.0.0.1:${port}/assets/theme.js`,WEB_CLIENT_JS+THEME_RUNTIME_JS);
+      for(const port of [8800,8777])await equal(`http://127.0.0.1:${port}/assets/theme.js`,WEB_CLIENT_JS+THEME_RUNTIME_JS);
+      // Docs keeps its immutable artifact until the app-bound build is verified and promoted.
+      await equal("http://127.0.0.1:8799/assets/theme.js",readFileSync(resolve(docsRoot,"assets/theme.js"),"utf8"));
       const {THEME_RUNTIME_JS:compiledTheme}=await import(resolve(root,"dist/ui-library/runtime/theme.js"));
       await equal("http://127.0.0.1:8787/assets/theme.js",compiledTheme);
       if(await get("http://127.0.0.1:8888/health")!==JSON.stringify({ok:true}))throw new Error("Gateway health failed");

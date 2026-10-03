@@ -18,6 +18,17 @@ and shared sans-serif labels. Docs includes the icon stylesheet explicitly and
 retains its section hierarchy. Project icons cover
 the all-projects folder, panda, fox and profile card.
 
+The mobile panel uses a stronger warm surface and optically balanced 32px icons.
+Its runtime tracks the visible On page heading and focuses the current menu link
+or selected heading without a second scroll. A namespaced temporary history entry
+closes the panel before normal Back navigation; switching replaces that entry,
+and dismissal consumes it before replaying a selected action. Panel-only popstate
+events are isolated from Projects route handling. Forward, reload and BFCache
+restore panel state; closed-panel navigation remains product-owned. A measured
+bar height supports larger text without covering menus or destinations. These
+contracts require browser regressions; Android keyboard-first Back behavior and
+TalkBack still need a real-device check. Desktop controls and CSS remain unchanged.
+
 Shared foundations lock page scrolling while a native modal is open. The common
 runtime closes Apps, collapsed header navigation and the Docs mobile section
 menu on outside pointer interaction or Escape; their native summaries still
