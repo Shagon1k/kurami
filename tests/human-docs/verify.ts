@@ -10,7 +10,7 @@ import {assertContent,walk,type HumanDocsPage} from "../../src/human-docs/conten
 import {parseBlocks,renderInline,type Block} from "../../src/human-docs/markdown.ts";
 import {renderDiagram,diagramSkeleton} from "../../src/human-docs/diagrams/kit.ts";
 import {inlineDiagram} from "../../src/ui-library/foundations/diagram.ts";
-import {changesForDeployedSha,readDeploymentManifest,assertDocsSourceMatchesDeployment,onlyDocsPackageScriptsChanged,onlyDocsWorkflowChanged} from "../../src/human-docs/changelog.ts";
+import {changesForDeployedSha as publicationChanges,readDeploymentManifest,assertDocsSourceMatchesDeployment,onlyDocsPackageScriptsChanged,onlyDocsWorkflowChanged,type Language} from "../../src/human-docs/changelog.ts";
 import {renderAlias,renderArticle,renderChangelog,renderHome,resolveSlug} from "../../src/human-docs/render.ts";
 import {DOCS_STYLES} from "../../src/human-docs/styles.ts";
 import {assertSyntheticFixture,syntheticDailyHtml} from "../../src/human-docs/fixtures/synthetic-daily.ts";
@@ -18,6 +18,10 @@ import {evaluateDocsImpact} from "./impact.ts";
 import {routeFor} from "../../src/human-docs/tools/verify-access.ts";
 
 const releaseFixture=resolve("/tmp/kurami-docs-release-fixture");
+// Historical assertions keep their original baseline; new publication has its own verified start.
+const changesForDeployedSha=(sha:string,lang:Language)=>publicationChanges(sha,lang,true);
+assert.deepEqual(publicationChanges("788787f077d42fc3b3346a4f4a612947b97ce2e8","en"),[]);
+assert.throws(()=>publicationChanges("596c877dfa0f7d1a82bfaacfed1c1194fdbd6b26","en"),/older than/);
 for(const path of ["build.json","unified/en/index.html","unified/ru/access/index.html","unified/assets/docs.css"])assert.equal(routeFor(releaseFixture,join(releaseFixture,path)),undefined);
 assert.equal(routeFor(releaseFixture,join(releaseFixture,"en/index.html")),"/en/");
 assert.equal(routeFor(releaseFixture,join(releaseFixture,"ru/access/index.html")),"/ru/access/");

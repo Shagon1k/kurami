@@ -24,8 +24,11 @@ both native and mounted HTML/CSS as immutable artifacts under one release;
 the server does not rewrite the published bytes. An older Docs release without
 mounted artifacts returns 503 at the unified entry, not incorrectly rooted HTML.
 
-Native hostnames remain functional. Hermes, Dokploy, preview and go are outside
+Native loopback origins remain functional. Hermes, Dokploy, preview and go are outside
 the gateway. Their configuration and services are not part of this release.
+Historical note: the owner removed the four native app hostnames on 3 October.
+Only the loopback origins remain. New verification and rollback must use the
+unified entry, not the retired hostnames.
 The Apps menu on both native and mounted pages now targets the unified entry;
 this changes navigation, not tunnel routes or old-hostname redirects.
 Ordinary upstream reads have a 15-second inactivity timeout; writes and Hub
@@ -53,13 +56,27 @@ control reads allow 90 seconds so existing 60-second commands can finish.
    it must be denied at Hub, Projects and all write endpoints. Existing Docs
    service-token credentials remain out of Git and keep their native scope.
 5. Record the current app revision, installed service units, and the promoted
-   Docs release/rollback path. Keep the old tunnel routes and Access apps.
+   Docs release/rollback path. Record the current unified tunnel and Access policy;
+   do not recreate the retired app hostnames.
 6. Run `npm run check`, `test:web`, `test:web-browser`, `test:ui-library`,
    `test:ui-guard`, `test:ui-browser`, and the affected product regressions.
    Review the screenshots, not just test exit codes. Real Android installation
    still needs the owner; headless Chromium does not verify launcher appearance.
 
 ## Owner-approved deployment
+
+Use the guarded controller `npm run web:release -- --sha=<full approved SHA>`
+after checks and release approval. Its private success assertion is written only
+after build, restart and read-only verification. It does not promote Docs or
+modify Cloudflare. Build app-bound Docs with that assertion and promote it with
+the existing recoverable directory swap. See the Docs runbook for evidence and
+the first publication baseline. If a release fails, preserve its pending state,
+diagnose the affected service and restore the recorded code/artifact; do not
+change the manifest to success manually.
+
+The clean checkout must be `main` at `origin/main`. A later Docs-only commit may
+classify the approved application SHA for Changelog; newer application changes
+are rejected. The assertion records both that application SHA and the source HEAD.
 
 Deploy the reviewed Git revision using the existing release process. Install the
 repository versions of `kurami-web.service`, `kurami-hub.service` and
@@ -130,18 +147,18 @@ that all four backends are ready. Verify each backend and signed route separatel
 - One `/sw.js` worker covers the new origin. Private HTML, API responses and
   login pages are not cached. Offline navigation shows a connection placeholder,
   not an old dashboard. Restoring the network restores normal navigation.
-- The old hostnames still work. Redirect cutover and removal need separate
-  approval after installed-phone acceptance; never remove preview/go routes.
+- The owner removed the old app hostnames on 3 October; no redirect cutover is
+  required. Preserve loopback origins and preview/go routes.
 
 ## Rollback
 
-If the new origin fails acceptance, stop the new gateway and continue using the
-retained native hostnames. Keep the reviewed candidate and logs for diagnosis;
+If the unified origin fails acceptance, restore the recorded gateway/app revision
+and the previous Docs artifact while retaining the unified hostname. Keep the reviewed candidate and logs for diagnosis;
 do not delete services, credentials, data or branch history. If a backend change
-also breaks a native hostname, redeploy its previously recorded revision/unit
+also breaks a loopback origin, redeploy its previously recorded revision/unit
 through the normal release process. Restore the recorded Docs release using
 its documented rollback process. Reload/restart only affected services.
 
-Because cutover is separate, rollback does not require reconstructing deleted
-DNS records or tunnel routes. Clear only this origin's Kurami service-worker
+The retired hostnames are not a rollback target; do not recreate DNS records or
+tunnel routes without separate approval. Clear only this origin's Kurami service-worker
 registration if browser diagnosis requires it; do not clear unrelated apps.

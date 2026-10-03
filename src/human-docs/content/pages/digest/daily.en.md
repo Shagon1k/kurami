@@ -48,6 +48,9 @@ On phones, Select all and the selected-message count share a row. Read and archi
 
 ## The Discord card
 
+Edition, Cinema and Weekly links use the unified Kurami entry and open the
+Russian Digest route. Saved English links retain their language.
+
 ::shot{file="shot-daily-card.png" size="card" alt="Discord card: Daily Digest, edition published, story, message and event counts, an Open edition button." caption="A finished card: counters, update time and a link to the edition."}
 
 Kurami keeps one card per date. It appears when the build starts and is edited at every stage: "Подключаю источники" (connecting sources), "Собираю изображения" (collecting images), "Публикую страницу" (publishing the page). At the end it holds the counters for news, mail and events, the line "Выпуск опубликован" (edition published) and an **Открыть выпуск** (open edition) button. Cinema and the week add **🎬 Cinema** and **📊 Неделя** (week) buttons. The buttons are links only: you cannot control Digest from Discord.

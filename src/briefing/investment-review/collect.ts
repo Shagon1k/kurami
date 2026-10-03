@@ -94,7 +94,7 @@ export async function collectIssuerEvidence(targets:ResearchTarget[],asOfDate:st
     if(result.requests)await pause(150);
     result.requests++;
     const response=await fetcher(url,{redirect:"error",signal:AbortSignal.timeout(20000),
-      headers:{"user-agent":"KuramiResearch/0.1 (+https://digest.shagon1k.win; personal research)","accept":"application/json"}});
+      headers:{"user-agent":"KuramiResearch/0.1 (+https://kurami.shagon1k.win; personal research)","accept":"application/json"}});
     if(!response.ok)throw Error("SEC HTTP "+response.status);
     const body=await response.text();if(body.length>20_000_000)throw Error("SEC document too large");return JSON.parse(body);
   };

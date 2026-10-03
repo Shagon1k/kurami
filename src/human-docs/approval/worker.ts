@@ -1,6 +1,6 @@
 // Docs proposal worker, run every minute by a Hermes no_agent job (see run-docs-approval.sh).
 // It turns the Monday draft into a PR and a #updates card, applies discussion remarks, publishes on the
-// owner's click, and cleans up. It never deploys application code: the release is a docs-only build.
+// owner's click, and cleans up. It never deploys application code; an existing verified manifest can bind the docs snapshot.
 import {spawnSync} from "node:child_process";
 import {cpSync,existsSync,mkdirSync,mkdtempSync,readFileSync,renameSync,rmSync,statSync,writeFileSync} from "node:fs";
 import {tmpdir} from "node:os";
@@ -10,6 +10,8 @@ import {docsStateDir,kuramiHome,ProposalStore,type ProposalRow} from "./store.ts
 import {pruneReleaseCopies} from "./releases.ts";
 import {ownerId} from "./discord.ts";
 import {surfaceFor,type Surface} from "./surface.ts";
+import {existingDeploymentManifest} from "../deployment.ts";
+import {readDeploymentManifest} from "../changelog.ts";
 
 process.umask(0o077);
 
@@ -307,7 +309,7 @@ function readDocsSha(dir:string):string|null {
   try{return (JSON.parse(readFileSync(resolve(dir,"build.json"),"utf8")) as {docsSha?:string}).docsSha??null;}catch{return null;}
 }
 
-/** Build a docs-only release from origin/main in a throwaway worktree, swap it in, keep the old one for rollback. */
+/** Build a Docs snapshot from origin/main, reuse existing deployment evidence, and preserve rollback. */
 export async function releaseDocs(config:WorkerConfig,mergedSha:string):Promise<{docsSha:string;rollbackDir:string}> {
   git(config.sourceClone,"fetch","--quiet","--no-tags","origin","refs/heads/main:refs/remotes/origin/main");
   const tip=git(config.sourceClone,"rev-parse","refs/remotes/origin/main");
@@ -316,10 +318,12 @@ export async function releaseDocs(config:WorkerConfig,mergedSha:string):Promise<
   const build=resolve(config.releaseRoot,`build-${tip.slice(0,12)}-${stamp}`);
   git(config.sourceClone,"worktree","add","--detach","--quiet",build,tip);
   try{
-    run(config.node,["src/human-docs/build.ts","--docs-release"],{cwd:build,timeoutMs:5*60_000});
+    const manifest=existingDeploymentManifest(config.home);
+    const revision=manifest?readDeploymentManifest(manifest):null;
+    run(config.node,["src/human-docs/build.ts",...(manifest?["--deployment-manifest",manifest]:["--docs-release"])],{cwd:build,timeoutMs:5*60_000});
     const output=resolve(build,"dist/human-docs");
     const info=JSON.parse(readFileSync(resolve(output,"build.json"),"utf8")) as {mode?:string;docsSha?:string;revision?:string|null};
-    if(info.mode!=="release"||info.docsSha!==tip||info.revision!==null)throw new Error("the docs build produced an unexpected build.json");
+    if(info.mode!=="release"||info.docsSha!==tip||info.revision!==revision)throw new Error("the docs build produced an unexpected build.json");
     const stage=resolve(config.releaseRoot,`stage-${tip}`);
     rmSync(stage,{recursive:true,force:true});
     cpSync(output,stage,{recursive:true});

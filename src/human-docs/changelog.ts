@@ -7,7 +7,7 @@ import {isDeepStrictEqual} from "node:util";
 export type Language = "en" | "ru";
 type Category = "new" | "improved" | "fixed" | "operations";
 interface Curated {category: Category; en: string; ru: string; page?: string; exclude?: string; exclusionScope?: "docs-only" | "no-reader-visible-change"}
-interface Ledger {baseline: string; commits: Record<string,Curated>}
+interface Ledger {baseline: string; publicationBaseline?:string; commits: Record<string,Curated>}
 export interface Change {sha: string; date: string; category: Category; copy: string; page?: string}
 const root = resolve(dirname(fileURLToPath(import.meta.url)), "../..");
 const ledgerPath = resolve(root, "src/human-docs/changelog.json");
@@ -48,10 +48,10 @@ function contentlessMerge(sha:string):boolean {
   return parents.length>1 && parents.some(parent=>!git("diff","--name-only",parent,sha));
 }
 
-export function changesForDeployedSha(deployedSha: string, lang: Language): Change[] {
+export function changesForDeployedSha(deployedSha: string, lang: Language, historical=false): Change[] {
   if (!shaPattern.test(deployedSha)) throw new Error("Deployment revision must be a full 40-character Git SHA");
   const ledger = JSON.parse(readFileSync(ledgerPath, "utf8")) as Ledger;
-  const baseline = git("rev-parse", `${ledger.baseline}^{commit}`);
+  const baseline = git("rev-parse", `${historical?ledger.baseline:ledger.publicationBaseline??ledger.baseline}^{commit}`);
   const revision = git("rev-parse", `${deployedSha}^{commit}`);
   if (revision !== deployedSha) throw new Error("Deployment revision does not match a commit");
   try { git("merge-base", "--is-ancestor", baseline, revision); }

@@ -15,7 +15,7 @@ The documentation is a static site built from Markdown files in the repository a
 - Triggered by: the build by `npm run docs:build` or by the worker at publish time; proposals by a Hermes job on Mondays
 - Runs where: `src/human-docs/`, a separate systemd service `kurami-human-docs` on localhost port 8799 behind Cloudflare Access
 - State: `state/human-docs/` — the live `release/`, earlier `rollback-<sha>/` and the proposal database `proposals.db`
-- What you see: the site `docs.shagon1k.win` and proposal cards in `#updates`
+- What you see: the Docs app at the unified Kurami entry and proposal cards in `#updates`
 :::
 
 ```diagram
@@ -69,11 +69,13 @@ The description of each table is written by hand in `reference-notes.ts`. A new 
 | Docs release | `npm run docs:build-docs-release` | a clean tree | `mode: release`, `docsSha` = `HEAD`, `revision: null` | what the worker publishes |
 | App-bound | `npm run docs:build-release -- <manifest>` | a manifest `{status, appSha}` from a trusted deployment controller | `revision` = `appSha`, the changelog | adds the changes since the last release to the changelog |
 
-The docs server starts only with `mode: release` and a 40-character `docsSha`, so a preview cannot be published by mistake. There is no trusted application deployment controller in the repository, so the site is currently built in "docs release" mode: the changelog is empty and `revision` is `null`. The changelog page shows the documentation's own `docsSha` separately and explains that the application release history is not connected to a verified deployment. That documentation version is not proof of an application release.
+The docs server starts only with `mode: release` and a 40-character `docsSha`, so a preview cannot be published by mistake. The application release controller requires an explicit approved SHA and a clean checkout. It builds, restarts the web services and checks their responses before writing a private success manifest. An app-bound Docs build uses that manifest; a push or documentation version is not deployment proof. Without an existing successful manifest, publication remains docs-only with `revision: null`.
 
 ## Changelog
 
-The ledger `changelog.json` is a list of Russian and English explanations keyed by the full commit SHA, plus a baseline. When a build is bound to the application, it takes the range of commits from the baseline to the verified deployment. Every commit that changes something for the reader must be described. A commit that touched only documentation can be excluded: its paths are checked against a narrow list. An internal change is excluded with a stated reason, and an empty merge is skipped automatically. Any undescribed commit stops the build. The dates in the ledger are commit dates, not deployment dates.
+The ledger `changelog.json` stores Russian and English explanations keyed by full commit SHA. New publication starts at a verified baseline; older entries remain stored without being presented as confirmed deployment history. Every later reader-visible commit must be described. Docs-only changes can be excluded after their paths are checked; internal changes need a specific reason. Empty merges are skipped. An undescribed commit stops the build. Dates are commit dates, not deployment dates.
+
+The unified Docs verifier checks anonymous Access redirects and mounted file bytes separately. Without a private owner session it checks the loopback origin, not authenticated edge access. With that session it compares the same files through the unified public entry. It does not send the old Docs service token to the owner-only route.
 
 ## The weekly proposal
 
@@ -127,7 +129,7 @@ phase "Failure"
 self worker "failed-sha, restore rollback" accent
 ```
 
-Before merging, the worker compares the PR head with the one shown on the card and runs `gh pr merge --squash --match-head-commit`: if the PR got a new commit, the merge refuses. Then the worker confirms that the merged commit is in `origin/main`, builds the release, requires `mode: release` and `revision: null` in `build.json`, renames `release/` to `rollback-<previous docsSha>`, puts the built release in place and restarts the service. The smoke check makes up to 20 attempts half a second apart: the pages `/en/` and `/ru/what-is-kurami/` must answer 200. On failure the worker renames the new release to `failed-<sha>-<time>`, restores the previous one, restarts the service and moves the proposal to `failed` with a "Retry release" button.
+Before merging, the worker compares the PR head with the card and runs `gh pr merge --squash --match-head-commit`. It confirms the merged commit belongs to `origin/main` and builds a release. An existing private controller manifest supplies `revision`; without one the value is `null`. A pending or invalid manifest blocks publication. The worker checks the build metadata, keeps the old directory as `rollback-<previous docsSha>` and restarts Docs. Two pages must return 200 within the bounded smoke check. On failure, the new directory becomes `failed-…`, the old release is restored, and the card offers "Retry release".
 
 ::::example Proposal dp_3f9a1c02b7e4 (invented data)
 :::steps

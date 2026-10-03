@@ -1,4 +1,5 @@
 import { section } from "./addons/envelopes.ts";
+import {publicDigestUrl} from "./public-url.ts";
 import { createHash } from "node:crypto";
 import { readFile } from "node:fs/promises";
 import { resolve } from "node:path";
@@ -148,7 +149,7 @@ function addonButtons(payload: BriefingPayload | null, baseUrl: string): JsonRec
       type: 2,
       style: 5,
       label: `${addon.emoji} ${addon.label}`,
-      url: `${baseUrl}${addon.path}`,
+      url: publicDigestUrl(addon.path,"ru",{BRIEFING_PUBLIC_BASE_URL:baseUrl}),
     }] : [];
   });
 }
@@ -162,7 +163,7 @@ function runCardMessage(input: {
 }): { body: DiscordMessage; state: CardState; publicationUrl: string } {
   const { attempt, payload, timeZone, baseUrl, lastCompletedStage } = input;
   const localDate = localDateFromEditionId(attempt.editionId);
-  const publicationUrl = `${baseUrl}/daily/${localDate}`;
+  const publicationUrl = publicDigestUrl(`/daily/${localDate}`,"ru",{BRIEFING_PUBLIC_BASE_URL:baseUrl});
   const progress = PROGRESS[attempt.state];
   const success = attempt.state === "published" || attempt.state === "notified";
   const failure = attempt.state === "failed";
@@ -288,7 +289,7 @@ export async function syncBriefingRunCard(
   const paths = briefingPaths(environment);
   await initializeBriefingStore(paths);
   const config = await loadBriefingRuntimeConfig(paths, environment);
-  const baseUrl = (environment.BRIEFING_PUBLIC_BASE_URL ?? "https://digest.shagon1k.win").replace(/\/$/u, "");
+  const baseUrl = publicDigestUrl("/","ru",environment).replace(/\/$/u, "");
   const database = openBriefingDatabase(paths);
   let attempt: BriefingRunAttempt;
   let payload: BriefingPayload | null = null;
@@ -490,7 +491,7 @@ export async function notifyBriefingRelease(
   } finally {
     database.close();
   }
-  const publicationUrl = `${(environment.BRIEFING_PUBLIC_BASE_URL ?? "https://digest.shagon1k.win").replace(/\/$/u, "")}/daily/${localDate}`;
+  const publicationUrl = publicDigestUrl(`/daily/${localDate}`,"ru",environment);
   const card = await syncBriefingRunCard(attemptId, environment, options);
   if (!card.messageId) throw new Error("Release run card has no Discord message ID");
   const alreadyComplete = existingRelease?.state === "complete"

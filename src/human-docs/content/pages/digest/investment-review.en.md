@@ -38,6 +38,9 @@ The panel on the page always reminds you: «Нужно подтвердить т
 
 ## Discord messages
 
+Links inside the standalone report use the unified Digest entry; embedded
+images and fonts remain inside the private file.
+
 | Message | Reason | What to do |
 |---|---|---|
 | Portfolio review for the date is ready | The report is accepted | Open `/stocks` |

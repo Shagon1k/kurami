@@ -2,6 +2,14 @@
 
 Status: owner-approved scope and implementation handoff. This is a delivery plan, not a claim that every page below is finished. Keep this file aligned with decisions made in the Codex Remote session. Do not turn proposed content into a statement of deployed behavior.
 
+Current checkpoint, 3 October 2026: the published snapshot has 152 native/mounted
+routes from 66 bilingual articles at `788787f`, still `revision: null`.
+The owner accepted the latest UI and removed the four old hostnames.
+Canonical links, unified Docs verification and a guarded application release
+controller are implemented locally; their release and first app-bound Docs
+promotion are pending. Older snapshots below remain historical evidence.
+The current release contract is in [human-docs-operations.md](human-docs-operations.md).
+
 Post-publication expansion, 2026-09-28: [the coverage audit](human-docs-coverage-audit.md) records the current source baseline, new editorial gaps and proposed route structure. The release identities and route statuses below are the 2026-09-23 delivery snapshot; do not use them as current deployment evidence.
 
 ## Expansion sequence and owner checkpoints

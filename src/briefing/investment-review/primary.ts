@@ -58,7 +58,7 @@ export async function collectPrimaryDocuments(targets:ResearchTarget[],asOfDate:
     if(!["www.sec.gov","data.sec.gov"].includes(u.hostname)||u.protocol!=="https:"||u.username||u.password||u.search)throw Error("Unapproved source");
     result.requests++;
     const response=await fetcher(url,{redirect:"error",signal:AbortSignal.timeout(15000),
-      headers:{"user-agent":"KuramiResearch/0.1 (+https://digest.shagon1k.win; personal research)","accept":"application/json,text/html"}});
+      headers:{"user-agent":"KuramiResearch/0.1 (+https://kurami.shagon1k.win; personal research)","accept":"application/json,text/html"}});
     if(!response.ok)throw Error("Source unavailable");
     const body=await response.text();if(body.length>3_000_000)throw Error("Source too large");return body;
   };

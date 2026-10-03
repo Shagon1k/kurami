@@ -2,6 +2,7 @@ import {resolve} from "node:path";
 import {collectDocsAudit} from "./audit.ts";
 import {prepareDraft} from "../approval/prepare.ts";
 import {kuramiHome} from "../approval/store.ts";
+import {existingDeploymentManifest} from "../deployment.ts";
 
 /** Hermes currently schedules in UTC; only one of the two candidate ticks is 06:00 in Vilnius. */
 export function isDocsAuditWindow(at:Date):boolean {
@@ -25,7 +26,7 @@ if(import.meta.main){
       sourceRef:"HEAD",
       ledgerPath:resolve(root,"src/human-docs/changelog.json"),
       docsBuildPath,
-      deploymentManifestPath:process.env.KURAMI_APP_DEPLOY_MANIFEST||undefined,
+      deploymentManifestPath:process.env.KURAMI_APP_DEPLOY_MANIFEST||existingDeploymentManifest(kuramiHome()),
     });
     // The agent drafts into this worktree; the docs approval worker turns it into a PR and a #updates card.
     const draft=prepareDraft({sourceRoot:root,home:kuramiHome()});

@@ -37,7 +37,7 @@ edge caddy -> preview "running only"
 | What | Port on the server | Protection |
 |---|---|---|
 | Digest | `127.0.0.1:8787` | Cloudflare Access |
-| This documentation, `docs.shagon1k.win` | `127.0.0.1:8799` | Cloudflare Access; `/` redirects to `/en/` |
+| Docs at the unified entry | `127.0.0.1:8799` | Cloudflare Access through the gateway |
 | Hub | `127.0.0.1:8800` | Cloudflare Access; its Controls also check the signed Access token, the origin and a CSRF token |
 | Projects | `127.0.0.1:8777` | Cloudflare Access; configured owner assertion checks and origin checks on controls |
 | Project previews, `preview-N.shagon1k.win` (N from 1 to 6) | through Caddy, `127.0.0.1:9180` | Cloudflare Access plus a 404 for any address without a running preview |
@@ -46,11 +46,14 @@ edge caddy -> preview "running only"
 ## Unified app entry
 
 The unified gateway on port `8888` routes Hub, Digest, Projects and Docs without
-combining their services. Once this entry is configured and deployed, `/en/`
+combining their services. This entry is deployed; `/en/`
 opens Hub; `/en/digest/`, `/en/projects/` and `/en/docs/` open the other apps.
 Russian routes start with `/ru/`; `/` redirects to English. The **Apps** menu
 stays inside this entry. Hermes, Dokploy, previews and the Codex redirect remain
 separate resources.
+
+The owner removed the four separate app hostnames. The loopback origins remain
+required by the gateway; they are not public replacement entrances.
 
 The gateway checks signed Access assertions before forwarding a private request.
 Your owner-only Access policy determines who can enter. The gateway checks the

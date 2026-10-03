@@ -1,6 +1,6 @@
 # Kurami human docs — how to write them
 
-The reader-facing site at `docs.shagon1k.win` (source `src/human-docs/`). This file is the writing and format
+The reader-facing Docs app at `kurami.shagon1k.win/en/docs/` (source `src/human-docs/`). This file is the writing and format
 contract for every page, for people and for the weekly docs agent (`src/human-docs/automation/weekly-audit.md`
 points here). Building, publishing and the changelog are in `docs/human-docs-operations.md`.
 
@@ -61,7 +61,7 @@ links to the matching internals page. 250–700 words.
 ## Privacy
 
 No personal names, no city or time-zone name («по местному времени» / "local time"), no Discord/chat IDs, IPs,
-tokens, e-mail addresses or secret contents. Hostnames: only `docs.shagon1k.win` and `preview-N.shagon1k.win`.
+tokens, e-mail addresses or secret contents. Hostnames: only `kurami.shagon1k.win` and `preview-N.shagon1k.win`; the retired Docs hostname may appear only in explicitly historical notes.
 Write `$KURAMI_HOME/…`, never home-directory paths. Worked examples use invented data. `tests/human-docs/verify.ts`
 enforces part of this.
 

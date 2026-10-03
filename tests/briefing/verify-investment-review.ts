@@ -59,6 +59,8 @@ const ideaDraft={...structuredClone(draft),inputDigest:inputDigest(withIdea),ide
 assert.equal(validateReviewDraft(withIdea,ideaDraft),ideaDraft);
 const ideaHtml=renderInvestmentReview(withIdea,ideaDraft);
 const standalone=await standaloneReportHtml(renderInvestmentReview(input,draft));
+assert.ok(!standalone.includes("digest.shagon1k.win"));
+assert.ok(standalone.includes("https://kurami.shagon1k.win/"));
 assert.doesNotMatch(standalone,/(?:src|href)="\/(?!\/)|url\("\/assets\//,"standalone report has no site-relative assets");
 assert.match(standalone,/url\("data:font\/woff2;base64,/);
 assert.ok(standalone.indexOf(THEME_RUNTIME_JS)>0&&standalone.indexOf(THEME_RUNTIME_JS)<standalone.indexOf("</head>"),"theme runtime runs in head");

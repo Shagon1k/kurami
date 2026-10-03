@@ -2,7 +2,7 @@
 
 Status: unified entry, PWA and agreed visual/mobile fixes deployed; the owner
 accepted the phone walkthrough on 2 October 2026 ("Прошелся, норм"). The agreed
-consolidation and UI scope is complete. Old-hostname cutover remains separate.
+consolidation and UI scope is complete. On 3 October the owner accepted the latest mobile menus and confirmed deleting the four old app hostnames.
 Audit procedure: [kurami-ui-audit-plan.md](kurami-ui-audit-plan.md).
 Release history, automated evidence and coverage limits:
 [kurami-ui-audit-findings.md](kurami-ui-audit-findings.md). The latest product
@@ -17,19 +17,22 @@ The next UI refinement is planned separately in
 [kurami-ui-refinement-plan.md](kurami-ui-refinement-plan.md); local implementation
 and checks completed on 2 October. The owner approved its release; all four
 backends are updated and read-only origin smoke passed. Phone acceptance of the
-new drag gestures remains separate.
-The owner will handle Cloudflare retirement independently. On
-2 October the owner authorized retiring the four native app
-hostnames without removing the loopback origins. The retirement prerequisites
-and current access limitation are recorded there; no DNS/Tunnel changes have
-been made by this task.
+new drag gestures was followed by the owner's final "Все норм" on 3 October.
+The latest deployed correction is `b8056db`, classified by `788787f`: footer
+underlines, text-only On page, wider panda and compact outline icons in Docs.
+The owner's deletion of the old hostnames is recorded as owner evidence, not a
+provider API read-back. Loopback origins remain required by the gateway.
+
+The remaining migration cleanup is now implemented locally: canonical Digest
+notification/report links, a unified Docs verifier and a guarded `web:release`
+controller. Its first execution and app-bound Docs promotion require approval
+of this package; no new deployment is claimed by these source changes.
 
 ## Approved boundary
 
 Kurami uses `https://kurami.shagon1k.win` and a loopback gateway on port 8888.
 Hub, Digest, Projects and Docs remain independently running services. Their
-existing hostnames stay available until the approved retirement is prepared and
-executed. Hermes,
+old public hostnames have been removed by the owner. Hermes,
 Dokploy, preview and go are outside the migration.
 
 Routes are `/en/` (Hub), `/en/digest/`, `/en/projects/`, `/en/docs/` and their
@@ -57,8 +60,8 @@ when their phase closes; do not create a second permanent source of truth.
 
 Readiness, human acceptance, and production deployment are separate boundaries.
 Stage/commit/push/deploy only after explicit owner approval of the release scope.
-Keep old ingress available for rollback; change it to redirects only after new
-origin and installed-PWA checks pass.
+The owner has retired the old public app hostnames. Preserve loopback origins
+and recorded code/Docs artifacts for rollback under the unified hostname.
 
 ## Security and operational requirements
 
@@ -97,7 +100,7 @@ are in [the brand asset notes](../src/ui-library/assets/brand/README.md).
 - Owner confirmed the new owner-only Access policy; its AUD was obtained from Cloudflare-signed metadata. Gateway binds to `127.0.0.1:8888` and rejects requests without an assertion.
 - No new Docs reader audience is configured. Existing native Docs service access retains its scope; a unified Docs reader needs a separately approved policy.
 - Owner accepted the phone walkthrough on 2 October after the final UI follow-up. Detailed screen-reader, font CLS and every cold/warm/network state are not individually certified by that report.
-- Owner subsequently approved deletion of the four native app hostnames. They remain available until canonical-link/Docs-verifier prerequisites and Cloudflare management access are resolved; see the refinement plan. This is deletion, not an approved redirect rollout.
+- Owner confirmed deletion of the four native app hostnames on 3 October. No redirect rollout or closure of the loopback origins is part of this operation.
 
 ## Initial local evidence (historical)
 

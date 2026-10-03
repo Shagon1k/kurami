@@ -510,7 +510,7 @@ async function verifyReleaseNotifier(): Promise<void> {
       destination: "1543918214835216584",
       messageId: "188888888888888888",
       alreadyComplete: false,
-      publicationUrl: "https://digest.shagon1k.win/daily/2026-08-31",
+      publicationUrl: "https://kurami.shagon1k.win/ru/digest/daily/2026-08-31",
     });
     assert.equal(requests.length, 2);
     assert.equal(
@@ -549,8 +549,8 @@ async function verifyReleaseNotifier(): Promise<void> {
       { name: "Расписание", value: "0 событий", inline: true },
     ]);
     assert.deepEqual(completedBody.components[0]?.components, [
-      { type: 2, style: 5, label: "Открыть выпуск", url: "https://digest.shagon1k.win/daily/2026-08-31" },
-      { type: 2, style: 5, label: "🎬 Cinema", url: "https://digest.shagon1k.win/cinema" },
+      { type: 2, style: 5, label: "Открыть выпуск", url: "https://kurami.shagon1k.win/ru/digest/daily/2026-08-31" },
+      { type: 2, style: 5, label: "🎬 Cinema", url: "https://kurami.shagon1k.win/ru/digest/cinema" },
     ]);
     assert.doesNotMatch(JSON.stringify(completedBody), /Cronjob Response|To stop|manage this job|job_id/iu);
 

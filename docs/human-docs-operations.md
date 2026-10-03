@@ -45,6 +45,23 @@ A build-time flag is **not proof** by itself. The release controller must supply
 
 If the app deployment cannot be verified, `npm run docs:build-docs-release` from a clean checkout publishes only the docs snapshot. It records `docsSha` as the docs source revision and `revision: null` for the app; the changelog stays empty and explicitly says it has no verified app revision. This is not a substitute for the app-bound changelog. When deployment evidence arrives, run `npm run docs:build-release -- /absolute/path/to/trusted-manifest.json` from a clean checkout. The app-bound build rejects application-code changes newer than the verified app revision; docs-only commits may follow it. `dist/human-docs/build.json` records both the docs SHA and verified app revision (or null). Do not claim that a new code commit is live just because it was pushed or because docs built.
 
+The repository now provides `npm run web:release -- --sha=<full approved SHA>`.
+It requires a clean `main` equal to `origin/main`, checks installed unit paths,
+rebuilds Digest, restarts only the five web units, and verifies pages, asset bytes,
+service invocation IDs and Access boundaries. Only success writes the private
+`$KURAMI_HOME/state/web/deployment.json`. A new restart marks that file pending
+and retains the previous assertion; a failed check cannot publish success.
+This command requires scoped release approval and does not promote Docs.
+
+The first reliable application history starts at `publicationBaseline`, the
+owner-accepted release `788787f`. The original baseline and curated entries remain
+in the ledger for historical review; older incomplete classifications are not
+presented as verified deployment history. Every later commit still needs a
+reviewed classification. The audit and release builder use the same publication
+baseline. After the first controller run, build and promote app-bound Docs using
+its manifest. The weekly Docs worker reuses this existing private assertion;
+without one it remains docs-only, and an invalid or pending one stops publication.
+
 For each meaningful behavior change, update its short human page and prepare a bilingual changelog summary, whether the change uses a PR or a direct commit. Once the final commit SHA exists, classify it in the ledger before an app-bound release. For an internal-only change, record why the reader-facing contract is unchanged. The PR docs-impact gate checks declarations and affected sections only for PRs; the release gate checks the SHA ledger and deployment revision for either path. Neither generates copy from raw commit subjects. A periodic audit can catch drift but cannot prove that its own prose is correct or that a commit was deployed.
 
 ### Weekly drift audit — installed, first delivery pending
@@ -54,7 +71,7 @@ The owner chose `#updates` for a short Hermes report about documentation and cha
 The installed configuration has these boundaries:
 
 1. A dedicated standalone clone of `main` has full history and a local `.git/kurami-docs-audit` marker. It is separate from the application checkout and managed worktrees. The wrapper refuses unmarked clones, linked worktrees, dirty trees, non-`main` branches and a local `main` ahead of `origin/main`.
-2. The active Hermes profile has a copy of `src/human-docs/automation/hermes-wrapper.sh` in `scripts/` and a local launcher there. The launcher supplies the clone and promoted `build.json` paths outside Git. No app-deployment manifest is configured because none has been verified. Hermes does not apply an agent job's `workdir` to its pre-run script.
+2. The active Hermes profile has a copy of `src/human-docs/automation/hermes-wrapper.sh` in `scripts/` and a local launcher there. The launcher supplies the clone and promoted `build.json` paths outside Git. The audit uses the controller's existing private manifest when available; absence means deployment is unverified, while a pending or invalid assertion fails the audit. Hermes does not apply an agent job's `workdir` to its pre-run script.
 3. The enabled job has candidate ticks at `0 3,4 * * 1` on the observed UTC scheduler. `cron-payload.ts` silently skips whichever tick is not Monday 06:00 in `Europe/Vilnius`. The first candidate is due on 2026-10-05 at 03:00 UTC. The job's Discord destination is stored only in Hermes configuration.
 4. The clone guard, winter/summer gate, clean fast-forward, syntax and off-tick skip passed local tests. The first scheduled agent run and Discord delivery are not yet observed. Pause `kurami-docs-freshness` if a live failure or unexpected report needs investigation; preserve the clone and job history for diagnosis.
 
@@ -97,11 +114,24 @@ At inspection time, `docs.shagon1k.win` resolved and unauthenticated requests fo
 
 Deployment and provider-side changes require explicit owner approval for the exact operation. The origin does not itself prove the Tunnel's authenticated route or Access policy; verify those separately without provider mutation.
 
-The native-host verifier excludes `build.json` and the internal `unified/`
-presentation files: those are not routes on the Docs hostname. Unified HTML and
-CSS are served through the gateway's mounted paths and checked separately.
+The owner confirmed deletion of the old Docs hostname on 3 October. The public
+entry is now the Docs app on the unified origin; the loopback server remains.
 
-After any release, `npm run docs:verify-access` checks the public edge read-only. Anonymous requests for pages and an asset must redirect to Cloudflare Access; with the Access service token in `state/human-docs/access-client.json` (mode 600, exactly `client_id` and `client_secret`, never in Git) every page and asset must be byte-identical to `state/human-docs/release/`. Byte equality ties the edge to a release that the repository's own checks rendered, so the check needs no browser and does not break when page markup changes. Credentials are sent only to the docs origin.
+`npm run docs:verify-access` checks anonymous EN/RU Docs pages and CSS at the
+unified edge, then compares every served mounted file against the promoted
+release through loopback. It reports those two boundaries separately; loopback
+byte equality does not prove an authenticated edge request. Internal metadata
+and error templates are not treated as ordinary 200 routes.
+
+For complete authenticated edge byte checks, use
+`npm run docs:verify-access -- --owner-session=<private file>`. The file must be
+a non-symlink regular file with no group/other access, containing exactly
+`origin` (the unified HTTPS origin) and `authorization` (the owner's current
+Access token). Keep it outside Git. The verifier sends that token only as the
+`CF_Authorization` cookie to that exact origin and never follows redirects.
+An expired session fails; no session means authenticated edge verification is
+explicitly unperformed. The old service-token file is not read or reused;
+owner-only Access remains intact. No new Docs reader policy is provisioned.
 
 Each release keeps the previous one as `rollback-<docsSha>`. The approval worker keeps the three newest rollback copies and removes older ones, plus `failed-*`/`stage-*` leftovers older than a day; `npm run docs:prune-releases` shows the same plan and `-- --apply` performs it after a manual release. Only folders holding a release `build.json` are touched. Any removed copy can be rebuilt from its docs revision.
 

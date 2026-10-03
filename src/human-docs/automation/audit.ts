@@ -70,10 +70,10 @@ function manifestSha(path:string):string {
 export function collectDocsAudit(options:AuditOptions):AuditSnapshot {
   const repo=resolve(options.repo);
   const sourceSha=commit(repo,options.sourceRef);
-  const ledger=JSON.parse(readFileSync(options.ledgerPath,"utf8")) as {baseline?:string;commits?:Record<string,unknown>};
+  const ledger=JSON.parse(readFileSync(options.ledgerPath,"utf8")) as {baseline?:string;publicationBaseline?:string;commits?:Record<string,unknown>};
   if(!ledger.baseline||!ledger.commits||typeof ledger.commits!=="object")throw new Error("Invalid changelog ledger");
   const classified=ledger.commits;
-  const baselineSha=commit(repo,ledger.baseline);
+  const baselineSha=commit(repo,ledger.publicationBaseline??ledger.baseline);
   if(!ancestor(repo,baselineSha,sourceSha))throw new Error("Source is older than the changelog baseline");
 
   let docsReleaseSha:string|null=null;
