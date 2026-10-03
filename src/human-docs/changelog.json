@@ -2,6 +2,12 @@
   "baseline": "4a38c09",
   "publicationBaseline": "788787f077d42fc3b3346a4f4a612947b97ce2e8",
   "commits": {
+    "596a165e07f4ab6d03bd205ed4a66c9076e03970": {
+      "category": "operations",
+      "en": "Digest notifications and standalone Investment Review reports link to the unified Kurami origin. Docs verification checks the unified Access gate and distinguishes local artifact checks from authenticated edge checks. The guarded release controller records verified application revisions; Docs publication and automation use that evidence for Changelog. Migration plans now record the owner's retirement of the old app hostnames.",
+      "ru": "Уведомления Digest и отдельные HTML-отчёты Investment Review ведут на единый адрес Kurami. Проверка Docs использует единый вход Access и различает локальную сверку артефактов и авторизованную проверку публичного входа. Контроллер выпуска записывает подтверждённую версию приложения; публикация и автоматизация Docs используют эти данные для Changelog. Планы переезда учитывают удаление владельцем старых поддоменов приложений.",
+      "page": "docs-system"
+    },
     "b8056db1af5a3977d641d6afe994ad22b20e4269": {
       "category": "fixed",
       "en": "Mobile footer buttons use a bottom underline; selection rails stay inside menus. On page lists are text-only across all four apps. The Projects panda icon is wider, and Docs menu icons use the shared compact outline styling instead of large filled shapes. Desktop layouts are unchanged.",
