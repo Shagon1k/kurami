@@ -211,14 +211,15 @@ try {
     await devtools.call("Emulation.setDeviceMetricsOverride",{width:390,height:1000,deviceScaleFactor:1,mobile:true});
     if(lang==="en"){await screenshot("hub-phone");await screenshot("hub-header-phone","header");await screenshot("hub-summary-phone",".overview-grid");}
     await devtools.evaluate("window.scrollTo(0,document.body.scrollHeight/2)");
-    const periodBounds=await devtools.evaluate<{top:number;bottom:number}>("(()=>{const r=document.querySelector('[data-period-trigger]').getBoundingClientRect();return {top:r.top,bottom:r.bottom}})()");
-    assert(periodBounds.top>=0&&periodBounds.bottom<=1000,"global period capsule remains available while scrolling");
-    assert.equal(await devtools.evaluate("document.querySelector('[data-period-trigger]').getBoundingClientRect().bottom<document.querySelector('.mobile-navigation__bar').getBoundingClientRect().top"),true,"bubble sits above the footer");
+    assert.equal(await devtools.evaluate("document.querySelector('[data-period-trigger]').getClientRects().length"),0,"no floating period bubble on mobile");
     assert.equal(await devtools.evaluate("document.querySelector('header').getBoundingClientRect().height<90"),true,"period does not add a mobile header row");
-    await devtools.evaluate("document.querySelector('[data-period-trigger]').click()");
-    assert.equal(await devtools.evaluate("document.querySelector('.period-control__choices').matches(':popover-open')"),false,"bubble cycles without opening a menu");
-    assert.equal(await devtools.evaluate("[...document.querySelectorAll('[data-period-panel]:not([hidden])')].every(panel=>panel.dataset.periodDays==='30')"),true,"one bubble click updates every history panel");
+    await devtools.evaluate("document.querySelector('[data-mobile-menu=more]').click()");
+    assert.equal(await devtools.evaluate("document.querySelectorAll('[data-mobile-slot=period] [data-period-days]').length"),2,"period choices live in Settings without duplicates");
+    await devtools.evaluate("document.querySelector('[data-period-key=global][data-period-days=\"30\"]').click()");
+    assert.equal(await devtools.evaluate("document.querySelector('#mobile-menu-more').matches(':popover-open')"),true,"changing period keeps Settings open");
+    assert.equal(await devtools.evaluate("[...document.querySelectorAll('[data-period-panel]:not([hidden])')].every(panel=>panel.dataset.periodDays==='30')"),true,"one Settings choice updates every history panel");
     await devtools.evaluate("document.querySelector('[data-period-key=global][data-period-days=\"7\"]').click()");
+    await devtools.evaluate("document.querySelector('[data-mobile-menu=more]').click()");
     await devtools.evaluate("document.querySelector('[data-period-panel=models]:not([hidden]) .model-breakdown > summary').click()");
     assert.deepEqual(await devtools.evaluate(AUDIT_EXPRESSION),[],"expanded model detail fits the phone viewport");
     await devtools.evaluate("document.querySelector('[data-period-panel=models]:not([hidden]) .model-breakdown > summary').click()");

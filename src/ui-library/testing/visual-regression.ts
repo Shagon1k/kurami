@@ -239,7 +239,7 @@ async function checkMobileNavigation(devtools:Devtools,width:number,current:stri
   await delay(240);
   const apps=await devtools.evaluate<{current:string;links:string[];fits:boolean}>(`(()=>{const panel=document.querySelector('#mobile-menu-apps'),r=panel.getBoundingClientRect(),bar=document.querySelector('.mobile-navigation__bar').getBoundingClientRect();return {current:panel.querySelector('[aria-current]')?.textContent.trim(),links:[...panel.querySelectorAll('a')].map(link=>link.textContent.trim()),bounds:{left:r.left,right:r.right,bottom:r.bottom,barTop:bar.top,width:innerWidth},fits:r.left>=0&&r.right<=innerWidth&&r.bottom<=bar.top-6.5};})()`);
   if(apps.current!==current||apps.links.join('|')!=='Hub|Digest|Projects|Docs|Hermes↗|Dokploy↗'||!apps.fits)throw new Error(`Mobile Apps ${JSON.stringify(apps)}`);
-  if(!await devtools.evaluate(`(()=>{const link=document.querySelector('#mobile-menu-apps [aria-current]'),line=getComputedStyle(link,'::after');return getComputedStyle(link).borderLeftWidth==='0px'&&line.height==='2px'&&line.bottom==='3px';})()`))throw new Error('Mobile selection must use the common underline, not a left rail');
+  if(!await devtools.evaluate(`(()=>{const link=document.querySelector('#mobile-menu-apps [aria-current]'),line=getComputedStyle(link,'::after');return line.width==='2px'&&parseFloat(line.height)>20&&line.left==='0px'&&line.transform==='none'&&!!link.querySelector('svg');})()`))throw new Error('Mobile selection must use the common left rail and outline icons');
   const point=await devtools.evaluate<{x:number;y:number}>(`(()=>{const r=document.querySelector('[data-mobile-menu="apps"]').getBoundingClientRect();return {x:r.x+r.width/2,y:r.y+r.height/2};})()`);
   await devtools.call('Input.dispatchMouseEvent',{type:'mousePressed',button:'left',clickCount:1,...point});
   await devtools.call('Input.dispatchMouseEvent',{type:'mouseReleased',button:'left',clickCount:1,...point});
@@ -264,6 +264,13 @@ async function checkMobileNavigation(devtools:Devtools,width:number,current:stri
   if(await devtools.evaluate(`document.querySelector('#mobile-menu-apps').matches(':popover-open')`))throw new Error('Mobile outside dismissal');
   await devtools.evaluate(`document.querySelector('[data-mobile-menu="more"]').click()`);await delay(240);
   if(!await devtools.evaluate(`getComputedStyle(document.querySelector('[data-mobile-menu="more"] svg')).transform!=='none'`))throw new Error('Settings icon should animate with menu state');
+  const settings=await devtools.evaluate<{rows:{delta:number;gap:number}[];switchHeight:number}>(`(()=>{const rows=[...document.querySelectorAll('#mobile-menu-more .mobile-navigation__setting:not([hidden])')];return {rows:rows.map(row=>{const l=row.querySelector('.mobile-navigation__setting-label').getBoundingClientRect(),v=row.querySelector('.mobile-navigation__setting-value').getBoundingClientRect();return {delta:Math.abs((l.top+l.bottom-v.top-v.bottom)/2),gap:v.left-l.right};}),switchHeight:document.querySelector('[data-mobile-slot="theme"] .button--switch').getBoundingClientRect().height};})()`);
+  if(settings.rows.length<2||settings.rows.some(row=>row.delta>=1||row.gap<0)||settings.switchHeight<43.5)throw new Error('Settings must have aligned horizontal rows and a usable theme switch: '+JSON.stringify(settings));
+  const beforeTheme=await devtools.evaluate<string>(`document.documentElement.dataset.theme`);
+  await devtools.evaluate(`document.querySelector('[data-mobile-slot="theme"] [data-theme-toggle]').click()`);
+  if(await devtools.evaluate(`document.documentElement.dataset.theme`)==beforeTheme||!await devtools.evaluate(`document.querySelector('#mobile-menu-more').matches(':popover-open')`))throw new Error('Theme switch must toggle without closing Settings');
+  await devtools.evaluate(`document.querySelector('[data-mobile-slot="theme"] [data-theme-toggle]').click()`);
+  if(!await devtools.evaluate(`(()=>{const targets=[...document.querySelectorAll('.mobile-navigation .mobile-navigation__link,.mobile-navigation__action')];return targets.every(node=>{const s=getComputedStyle(node),hierarchy=node.matches('.side-group a[aria-current]');return s.fontSize==='14px'&&(s.fontWeight==='500'||hierarchy&&s.fontWeight==='600')&&s.fontFamily===getComputedStyle(document.querySelector('.mobile-navigation__setting-label')).fontFamily;});})()`))throw new Error('Mobile menu typography must be shared, preserving Docs hierarchy');
   await devtools.evaluate(`document.querySelector('[data-mobile-menu="more"]').click()`);
   await devtools.call('Emulation.setEmulatedMedia',{features:[{name:'prefers-reduced-motion',value:'reduce'}]});
   await devtools.evaluate(`document.querySelector('[data-mobile-menu="more"]').click()`);
@@ -272,13 +279,13 @@ async function checkMobileNavigation(devtools:Devtools,width:number,current:stri
   await devtools.evaluate(`document.querySelector('[data-mobile-menu="more"]').click()`);
   await devtools.call('Emulation.setEmulatedMedia',{features:[]});
   await devtools.call('Emulation.setDeviceMetricsOverride',{width:1280,height:900,deviceScaleFactor:1,mobile:false});await delay(80);
-  if(!await devtools.evaluate(`!!document.querySelector('.site-actions [data-theme-toggle]')&&(!document.querySelector('.projects-search')||!!document.querySelector('.projects-toolbar .projects-search'))`))throw new Error('Desktop controls not restored');
+  if(!await devtools.evaluate(`!!document.querySelector('.site-actions [data-theme-toggle]:not(.button--switch)')&&!document.querySelector('.site-header__inner .site-nav svg,.site-header__inner .site-switcher svg')&&(!document.querySelector('.projects-search')||!!document.querySelector('.projects-toolbar .projects-search'))&&(!document.querySelector('[data-floating-period]')||!!document.querySelector('.site-header__utility [data-floating-period]'))`))throw new Error('Desktop controls not restored unchanged');
   await devtools.call('Emulation.setDeviceMetricsOverride',{width,height:900,deviceScaleFactor:1,mobile:true});await delay(80);
   if(!await devtools.evaluate(`!!document.querySelector('[data-mobile-slot="more"] [data-theme-toggle]')`))throw new Error('Mobile controls not restored');
 }
 
 async function checkSiteSwitcher(devtools:Devtools,base:string):Promise<void> {
-  for(const [path,current] of [["/digest/daily.html","Digest"],["/digest/cinema-legacy.html","Digest"],["/en/","Docs"],["/hub/index.html","Hub"],["/hub/en.html","Hub"],["/projects/index.html","Projects"]] as const)for(const width of [320,390,1280]){
+  for(const [path,current] of [["/digest/daily.html","Digest"],["/digest/cinema-legacy.html","Digest"],["/en/","Docs"],["/ru/what-is-kurami/","Docs"],["/hub/index.html","Hub"],["/hub/en.html","Hub"],["/projects/index.html","Projects"],["/projects/ru.html","Projects"]] as const)for(const width of [320,390,1280]){
     await devtools.call("Emulation.setDeviceMetricsOverride",{width,height:900,deviceScaleFactor:1,mobile:width<600});
     await open(devtools,`${base}${path}`);
     if(width<=620){await checkMobileNavigation(devtools,width,current);continue;}

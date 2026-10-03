@@ -11,6 +11,7 @@ import { createProjectsServer } from "../../src/projects-site/server.ts";
 import { renderProjectsPage } from "../../src/projects-site/render.ts";
 import { parseFilters, selectItems } from "../../src/projects-site/model.ts";
 import { syntheticProjectsSnapshot } from "./fixture.ts";
+import {iconPath} from "../../src/ui-library/components/icon.ts";
 
 const home = mkdtempSync(join(tmpdir(), "kurami-projects-"));
 const at = "2026-09-30T10:00:00Z";
@@ -108,6 +109,11 @@ assert.equal(await access.authorize(request(tampered.join("."))), null, "unverif
 assert.equal(await new ProjectsAccess({ team: "", audience: "", ownerEmail: "" }).authorize(request(token())), null);
 
 const fixture = syntheticProjectsSnapshot();
+const iconFixture=structuredClone(fixture);
+iconFixture.projects=["PickFlick","TailorTales","AHurynovich-CV"].map((name,index)=>({...fixture.projects[0]!,key:`project-${index}`,name}));
+const iconPage=renderProjectsPage(iconFixture),mobileProjectNav=iconPage.split('id="mobile-menu-sections"')[1]!.split('</nav>')[0]!;
+for(const icon of ["projects","panda","fox","profile"] as const)assert.ok(mobileProjectNav.includes(iconPath(icon)),`mobile project navigation: ${icon}`);
+assert.doesNotMatch(iconPage.split('<div class="site-header__inner container">')[1]!.split('class="site-actions"')[0]!,/<svg/,'desktop project navigation remains text-only');
 const runlessDone=structuredClone(fixture);runlessDone.items=[{...fixture.items[3]!,status:"Done"}];
 assert.match(renderProjectsPage(runlessDone),/>No agent run<\/span>/,"no observed agent run is distinct from GitHub completion");
 assert.match(renderProjectsPage(runlessDone,new URLSearchParams("lang=ru")),/>Нет запуска<\/span>/);

@@ -14,7 +14,8 @@ Every morning you get one page, `/daily/<date>`, and one card in Discord. The pa
 
 On phones, the bottom panel opens Apps, Sections and On page. Sections switches
 between Daily, Cinema, Weekly and Stocks when an edition is available. On page
-jumps to a block in the current edition; Settings contains language and theme.
+jumps to a block in the current edition; Settings contains language and theme in
+horizontal rows. Section links use outline icons and a left rail for the selected page.
 The top header scrolls with the page; desktop keeps its header navigation.
 
 | Block | What it shows | Frozen or live |

@@ -2,7 +2,7 @@
 import { escapeHtml } from "../foundations/html.ts";
 import { breakpoints } from "../tokens/index.ts";
 
-export type ButtonVariant = "primary" | "secondary" | "subtle" | "quiet" | "icon" | "text" | "danger" | "link" | "toggle" | "navigation";
+export type ButtonVariant = "primary" | "secondary" | "subtle" | "quiet" | "icon" | "text" | "danger" | "link" | "toggle" | "navigation" | "switch";
 export type ButtonSize = "regular" | "compact";
 
 type AttributeValue = string | number | boolean | undefined;
@@ -75,6 +75,12 @@ export const BUTTON_CSS = `
 .button--icon { inline-size: var(--button-width,var(--control-height)); block-size: var(--control-height); padding: 0; background: var(--surface-panel); border-color: var(--border-default); }
 .button--icon:hover:not(:disabled):not([aria-busy="true"]) { color: var(--text-primary); background: var(--accent-soft); border-color: var(--accent-primary); }
 .button--icon[aria-pressed="true"],.button--icon[aria-pressed="true"]:hover:not(:disabled):not([aria-busy="true"]) { color: var(--text-on-accent); background: var(--accent-primary); border-color: var(--accent-primary); }
+.button--switch,.button--switch:hover:not(:disabled):not([aria-busy="true"]),.button--switch[aria-pressed="true"],.button--switch[aria-pressed="true"]:hover:not(:disabled):not([aria-busy="true"]) { inline-size: 52px; block-size: 44px; min-height: 44px; padding: 0; border: 0; color: var(--text-primary); background: transparent; }
+.button--switch .button__icon { display: none; }
+.button--switch::before { content: ""; position: absolute; inset: 8px 0; border: 1px solid var(--border-default); border-radius: var(--radius-pill); background: var(--surface-section); transition: background 160ms ease; }
+.button--switch::after { content: ""; position: absolute; width: 20px; height: 20px; left: 4px; top: 12px; border-radius: var(--radius-pill); background: var(--text-muted); transition: transform 180ms ease, background 160ms ease; }
+.button--switch[aria-pressed="true"]::before { background: var(--accent-data); border-color: var(--accent-data); }
+.button--switch[aria-pressed="true"]::after { transform: translateX(24px); background: var(--surface-raised); }
 .button__icon { display: inline-grid; place-items: center; font-size: 1rem; line-height: 1; }
 .button__svg { inline-size: var(--button-icon-size,18px); block-size: var(--button-icon-size,18px); flex: none; display: block; fill: none; stroke: currentColor; stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round; pointer-events: none; }
 .button--icon-end .button__svg { order: 1; }
@@ -84,7 +90,7 @@ export const BUTTON_CSS = `
 .button--navigation:hover:not(:disabled):not([aria-busy="true"]) { color: var(--text-primary); background: transparent; }
 .button--navigation[aria-expanded="true"],.button--navigation[aria-expanded="true"]:hover:not(:disabled):not([aria-busy="true"]) { background: color-mix(in srgb,var(--accent-data) 10%,var(--surface-raised)); }
 .button--navigation[aria-expanded="true"] .button__svg { color: var(--accent-data); transform: var(--navigation-icon-open-transform,translateY(-2px) scale(1.06)); }
-.button--navigation[aria-expanded="true"]::after { content: ""; position: absolute; bottom: 8px; width: 18px; height: 2px; background: var(--accent-data); }
+.button--navigation[aria-expanded="true"]::after { content: ""; position: absolute; inset: 12px auto 12px 0; width: 2px; background: var(--accent-data); }
 @media(max-width:360px) { .button--navigation { font-size: .8125rem; } }
 @media(prefers-reduced-motion:reduce) { .button--navigation,.button--navigation .button__svg { transition: none; transform: none; } .button--navigation[aria-expanded="true"] .button__svg { transform: none; } }
 @media (pointer: coarse) { .button--compact { min-height: var(--control-height); } }
@@ -117,7 +123,7 @@ export function renderButton(input: ButtonInput): string {
     : input.labelAttributes||input.compactLabel!==undefined
       ? `${count}${label}`
       : `${count}${escapeHtml(input.label)}`;
-  return `<button class="${classes}" type="${type}"${ariaLabel}${busyLabel}${attributes}${disabled}>${content}</button>`;
+  return `<button class="${classes}" type="${type}"${ariaLabel}${busyLabel}${attributes}${disabled}>${input.variant==="switch"?`<span class="sr-only">${escapeHtml(input.label)}</span>`:content}</button>`;
 }
 
 /** Navigation that looks like a button; `href` must be a site-relative or https URL. */

@@ -2,7 +2,7 @@ import {escapeHtml} from "../foundations/html.ts";
 import {renderButton} from "./button.ts";
 import {breakpoints} from "../tokens/index.ts";
 
-export function renderPeriodSwitch(input:{key:string;lang:"en"|"ru";selected?:7|30;label:string;floating?:boolean;cycle?:boolean}):string {
+export function renderPeriodSwitch(input:{key:string;lang:"en"|"ru";selected?:7|30;label:string;floating?:boolean;cycle?:boolean;mobileSettings?:boolean}):string {
   if(!/^[a-z][a-z0-9-]*$/.test(input.key))throw new Error("Invalid period key");
   const choices=`<div class="period-switch" role="group" aria-label="${escapeHtml(input.label)}">${([7,30] as const).map(days=>renderButton({
     label:`${days}${input.lang==="ru"?"д":"d"}`,ariaLabel:`${days} ${input.lang==="ru"?"дней":"days"}`,
@@ -11,7 +11,7 @@ export function renderPeriodSwitch(input:{key:string;lang:"en"|"ru";selected?:7|
   })).join("")}</div>`;
   if(!input.floating)return choices;
   const id=`period-${input.key}-choices`;
-  return `<div class="period-control" data-floating-period="${input.key}">${renderButton({label:`${input.selected??30}${input.lang==="ru"?"д":"d"}`,variant:"subtle",className:"period-control__trigger",ariaLabel:input.label,attributes:{"data-period-trigger":input.key,"data-period-cycle":input.cycle||undefined,...(input.cycle?{}:{"aria-expanded":"false","aria-controls":id})}})}<div class="period-control__choices" id="${id}">${choices}</div></div>`;
+  return `<div class="period-control" data-floating-period="${input.key}"${input.mobileSettings?' data-period-mobile-settings':""}>${renderButton({label:`${input.selected??30}${input.lang==="ru"?"д":"d"}`,variant:"subtle",className:"period-control__trigger",ariaLabel:input.label,attributes:{"data-period-trigger":input.key,"data-period-cycle":input.cycle||undefined,...(input.cycle?{}:{"aria-expanded":"false","aria-controls":id})}})}<div class="period-control__choices" id="${id}">${choices}</div></div>`;
 }
 
 export const PERIOD_CLIENT_SCRIPT=`(()=>{
@@ -22,10 +22,11 @@ export const PERIOD_CLIENT_SCRIPT=`(()=>{
     const isOpen=()=>choices.hasAttribute('popover')?choices.matches(':popover-open'):choices.classList.contains('is-open');
     const close=()=>{if(choices.hasAttribute('popover')&&isOpen())choices.hidePopover();choices.classList.remove('is-open');if(!trigger.hasAttribute('data-period-cycle'))trigger.setAttribute('aria-expanded','false');};
     const position=()=>{const rect=trigger.getBoundingClientRect();choices.style.setProperty('--period-left',Math.max(8,Math.min(innerWidth-136,rect.right-128))+'px');choices.style.setProperty('--period-top',Math.max(8,rect.top-60)+'px');};
-    const adapt=()=>{close();if(media.matches){document.body.append(control);if(typeof choices.showPopover==='function')choices.setAttribute('popover','auto');}else{anchor.after(control);choices.removeAttribute('popover');}};
+    const setting=control.hasAttribute('data-period-mobile-settings')?document.querySelector('[data-mobile-slot="period"]'):null;
+    const adapt=()=>{close();if(media.matches){if(setting){setting.append(control);choices.removeAttribute('popover');}else{document.body.append(control);if(typeof choices.showPopover==='function')choices.setAttribute('popover','auto');}}else{anchor.after(control);choices.removeAttribute('popover');}};
     trigger.addEventListener('click',()=>{if(trigger.hasAttribute('data-period-cycle')){choices.querySelector('[aria-pressed="false"]')?.click();return;}if(isOpen()){close();return;}position();if(choices.hasAttribute('popover'))choices.showPopover();else choices.classList.add('is-open');trigger.setAttribute('aria-expanded','true');choices.querySelector('[aria-pressed="true"]')?.focus();});
     choices.addEventListener('toggle',event=>trigger.setAttribute('aria-expanded',String(event.newState==='open')));
-    choices.addEventListener('click',event=>{if(event.target.closest('[data-period-days]')){close();if(media.matches)trigger.focus();}});
+    choices.addEventListener('click',event=>{if(event.target.closest('[data-period-days]')){close();if(media.matches&&!setting)trigger.focus();}});
     document.addEventListener('keydown',event=>{if(event.key==='Escape'&&isOpen()){close();trigger.focus();}});
     document.addEventListener('click',event=>{if(!control.contains(event.target))close();});
     addEventListener('resize',()=>{if(isOpen())position();});media.addEventListener('change',adapt);adapt();

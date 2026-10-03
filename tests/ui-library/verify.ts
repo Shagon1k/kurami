@@ -71,17 +71,29 @@ assert.throws(()=>renderPeriodSwitch({key:'bad"key',lang:"en",label:"Usage"}),/I
 const cyclePeriod=renderPeriodSwitch({key:"global",lang:"ru",label:"Период",floating:true,cycle:true});
 assert.match(cyclePeriod,/data-period-trigger="global" data-period-cycle/);
 assert.doesNotMatch(cyclePeriod,/aria-expanded|aria-controls/);
+assert.match(renderPeriodSwitch({key:"global",lang:"en",label:"Period",floating:true,mobileSettings:true}),/data-period-mobile-settings/);
 for(const app of ["hub","digest","projects","docs"] as const)for(const lang of ["en","ru"] as const){
   const mobile=renderMobileNavigation({app,lang,apps:"",sections:""});
   assert.equal((mobile.match(/data-mobile-menu=/g)??[]).length,4);
   assert.match(mobile,/button--navigation/);
   assert.match(mobile,/data-mobile-close/);
   assert.doesNotMatch(mobile,/data-period/);
+  assert.match(mobile,/data-mobile-slot="language"/);
+  assert.match(mobile,/data-mobile-slot="theme"/);
+  assert.equal(mobile.includes('data-mobile-slot="period"'),app==="hub");
   assert.match(mobile,new RegExp(lang==="ru"?"Настройки":"Settings"));
   assert.ok(mobile.includes(iconPath("settings")));
   assert.doesNotMatch(mobile,/>More<|>Ещё</);
-  if(app==="hub")assert.match(mobile,new RegExp(lang==="ru"?"На странице":"On page"));
+  if(app==="hub"){
+    assert.match(mobile,new RegExp(lang==="ru"?"На странице":"On page"));
+    assert.match(mobile,new RegExp(`data-mobile-menu="controls"[^>]*>.*?<span>${lang==="ru"?"Управление":"Controls"}</span>`));
+  }
 }
+const iconNav={label:"Projects",links:[{href:"/",label:"PickFlick",mobileIcon:"panda" as const}]};
+assert.doesNotMatch(renderSiteNav(iconNav),/<svg/,'desktop navigation stays text-only');
+assert.ok(renderSiteNav(iconNav,"site-nav",true).includes(iconPath("panda")));
+for(const icon of ["panda","fox","profile","projects"] as const)assert.match(renderIcon(icon),/aria-hidden="true"/);
+assert.match(renderButton({label:"Dark theme",variant:"switch",attributes:{"aria-pressed":"false"}}),/button--switch[^>]*aria-pressed="false"><span class="sr-only">Dark theme<\/span>/);
 
 // Every role is declared once per mode; light is the root mode.
 for(const role of colorRoles){

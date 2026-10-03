@@ -59,7 +59,7 @@ type Period=7|30;
 const daysLabel=(days:Period,lang:HubLanguage)=>`${days} ${tr(lang,"дней","days")}`;
 const periodPanel=(key:string,days:Period,body:string)=>`<div data-period-panel="${key}" data-period-days="${days}"${days===7?" hidden":""}>${body}</div>`;
 const periods=(key:string,body:(days:Period)=>string)=>([7,30] as const).map(days=>periodPanel(key,days,body(days))).join("");
-const periodSwitch=(key:string,lang:HubLanguage,label:string)=>renderPeriodSwitch({key,lang,label:`${label} · ${tr(lang,"период","period")}`,floating:true,cycle:true});
+const periodSwitch=(key:string,lang:HubLanguage,label:string)=>renderPeriodSwitch({key,lang,label:`${label} · ${tr(lang,"период","period")}`,floating:true,cycle:true,mobileSettings:true});
 
 function renderLimitHistory(codex:CodexSnapshot,lang:HubLanguage):string {
   const current=codex.account?.state==="live"?codex.account.limits:codex.limits;

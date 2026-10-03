@@ -69,23 +69,31 @@
     }
     header.querySelectorAll('.site-actions > .button,.site-actions > button').forEach(node=>{
       if(node.matches('[data-hub-control]'))return;
-      const slot=shell.querySelector('[data-mobile-slot="more"]') ,anchor=document.createComment('mobile setting');node.before(anchor);moves.push({node,anchor,slot});
+      const key=node.matches('[data-theme-toggle]')?'theme':node.matches('a[hreflang]')?'language':null;if(!key)return;
+      const slot=shell.querySelector(`[data-mobile-slot="${key}"]`) ,anchor=document.createComment('mobile setting');node.before(anchor);moves.push({node,anchor,slot});
     });
     if(app==='hub'){move('#hub-controls-popover .controls-menu','controls');if(!moves.some(item=>item.slot.getAttribute('data-mobile-slot')==='controls'))shell.querySelector                   ('[data-mobile-menu="controls"]') .disabled=true;}
     if(app==='projects')move('.projects-search','search');
     if(app==='docs'){move('.side-mobile__list','sections');move('.toc-mobile__list','contents');}
+    function headingLink(heading            ,link                  ){
+      const icon=heading.querySelector('.ui-icon');if(icon)link.append(icon.cloneNode(true));
+      const label=document.createElement('span');label.textContent=heading.textContent;link.append(label);
+    }
     function fillContents(){
       const slot=shell.querySelector('[data-mobile-slot="contents"]');if(!slot||slot.querySelector('.toc-mobile__list'))return;
       slot.replaceChildren();
       const headings=[...document.querySelectorAll             ('main h2')].filter(heading=>heading.textContent?.trim()&&heading.getClientRects().length&&!heading.closest('dialog,.ui-popover,[hidden]'));
       for(const [index,heading] of headings.entries()){
         if(!heading.id)heading.id=`mobile-section-${index+1}`;
-        const link=document.createElement('a');link.className='mobile-navigation__anchor';link.href=`#${heading.id}`;link.textContent=heading.textContent;slot.append(link);
+        const link=document.createElement('a');link.className='mobile-navigation__anchor';link.href=`#${heading.id}`;headingLink(heading,link);slot.append(link);
       }
       if(!headings.length){const note=document.createElement('p');note.textContent=ru?'На этой странице нет разделов.':'No sections on this page.';slot.append(note);}
     }
     function adapt(){
       close();for(const item of moves)if(media.matches)item.slot.append(item.node);else item.anchor.after(item.node);
+      header.querySelectorAll('[data-theme-toggle]').forEach(button=>button.classList.toggle('button--switch',media.matches));
+      header.querySelectorAll('[data-hub-control]').forEach(button=>button.classList.toggle('mobile-navigation__action',media.matches));
+      const periodRow=shell.querySelector             ('[data-mobile-period-row]');if(periodRow)periodRow.hidden=!periodRow.querySelector('[data-floating-period]');
       links();viewport();
       if(!media.matches)for(const panel of panels)panel.classList.remove('is-open');
     }
@@ -97,7 +105,7 @@
         const panel=document.getElementById(trigger.getAttribute('aria-controls') ) ;
         if(opened(panel)){close();return;}close();
         if(trigger.dataset.mobileMenu==='contents'||app==='hub'&&trigger.dataset.mobileMenu==='sections'){
-          if(app==='hub'){const nav=panel.querySelector('nav') ;nav.replaceChildren();for(const heading of document.querySelectorAll             ('#hub-dashboard h2[id]')){const link=document.createElement('a');link.className='site-nav__link';link.href=`#${heading.id}`;link.textContent=heading.textContent;nav.append(link);}}
+          if(app==='hub'){const nav=panel.querySelector('nav') ;nav.replaceChildren();for(const heading of document.querySelectorAll             ('#hub-dashboard h2[id]')){const link=document.createElement('a');link.className='site-nav__link';link.href=`#${heading.id}`;headingLink(heading,link);nav.append(link);}}
           else fillContents();
         }
         links();viewport();active=panel;opener=trigger;trigger.setAttribute('aria-expanded','true');

@@ -40,6 +40,10 @@ function navigation(label:string,raw:string|null,lang:Language):string {
   try{const url=new URL(raw);if(url.protocol!=="https:"||url.username||url.password)return "";}catch{return "";}
   return renderLinkButton({label:tr(label,lang),href:raw,variant:"link",iconPath:iconPath("arrow")});
 }
+function projectIcon(name:string):IconName {
+  const icons:Record<string,IconName>={pickflick:"panda",tailortales:"fox",ahurynovichcv:"profile"};
+  return icons[name.toLowerCase().replace(/[^a-z0-9]/g,"")]??"project";
+}
 function sortControl(key:SortKey,label:string,params:URLSearchParams,lang:Language):string {
   const filters=parseFilters(params);const selected=filters.sort===key;
   return renderButton({label:tr(label,lang),variant:"quiet",className:"projects-sort",iconPath:iconPath("sort"),iconPosition:"end",visibleLabel:true,ariaLabel:`${tr("Sort by",lang)} ${tr(label,lang)}${selected?` · ${filters.direction}`:""}`,attributes:{"data-sort":key,"aria-pressed":selected?"true":"false"}});
@@ -138,7 +142,7 @@ export function renderProjectsPage(snapshot:ProjectsSnapshot,params=new URLSearc
   return renderDocument({lang,title:"Projects · Kurami",description:lang==="en"?"Tasks and run status across projects.":"Задачи и состояние работы по всем проектам.",favicon:"/assets/favicon.svg",styles:{href:"/assets/projects.css"},themeScript:true,
     head:'<meta name="robots" content="noindex, nofollow"><script src="/assets/projects.js" defer></script>',skipLabel:t("Skip to content"),
     header:renderSiteHeader({mobile:{app:"projects",lang},brand:{href:projectLink(""),ariaLabel:"Kurami Projects",foxSrc:"/assets/kurami-fox.webp",suffix:"Projects"},
-      nav:{label:t("Projects"),scroll:true,attributes:{"data-project-tabs":true},links:[{href:projectLink(""),label:t("All projects"),current:!filters.project?"page":undefined},...snapshot.projects.map(project=>({href:projectLink(project.key),label:project.name,current:filters.project===project.key?"page" as const:undefined}))]},sites:kuramiSites("projects",lang),
+      nav:{label:t("Projects"),scroll:true,attributes:{"data-project-tabs":true},links:[{href:projectLink(""),label:t("All projects"),mobileIcon:"projects",current:!filters.project?"page":undefined},...snapshot.projects.map(project=>({href:projectLink(project.key),label:project.name,mobileIcon:projectIcon(project.name),current:filters.project===project.key?"page" as const:undefined}))]},sites:kuramiSites("projects",lang),
       actions:renderLinkButton({label:lang==="en"?"RU":"EN",href:`/?${otherLanguage}`,variant:"icon",ariaLabel:lang==="en"?"Switch to Russian":"Переключить на английский",attributes:{"data-language-link":true,hreflang:lang==="en"?"ru":"en"}})+renderThemeSwitch(lang)}),
     main:`<div data-projects-app data-messages="${escape(JSON.stringify(browserMessages(lang)))}"><h1 class="sr-only">${t("Tasks")}</h1><div class="projects-toolbar"><form class="projects-search" role="search" method="get">${renderSearchField({name:"q",label:t("Search tasks"),labelHidden:true,icon:true,value:params.get("q")??"",placeholder:t("Search by title or issue number")})}<input type="hidden" name="lang" value="${lang}"><input type="hidden" name="active" value="${filters.activeOnly?"1":""}"><input type="hidden" name="attention" value="${filters.attentionOnly?"1":""}">${filters.project?`<input type="hidden" name="project" value="${escape(filters.project)}">`:""}</form></div><div id="projects-dashboard">${renderProjectsDashboard(snapshot,params)}</div>${renderToastRegion(t("Dismiss notification"))}</div>`,mainClass:"projects-page",footer:renderSiteFooter({lang,app:"Projects",updated:localTime(snapshot.generatedAt,lang)})});
 }

@@ -29,9 +29,9 @@ Kurami in the project table is a repository, not an admitted project: it only ha
 ## Period and freshness
 
 On phones, **On page** jumps between dashboard blocks; Hub has no section subpages.
-**Settings** holds language and theme, separate from **Controls** for operational actions.
+**Settings** holds horizontal rows for language, theme and period, separate from **Controls** for operational actions.
 
-One **7 / 30 days** switch drives all history: the task summary, the project table, the commit chart, tokens, models, limits history and Usage. It sits in the desktop header. On phones, a floating button above the bottom panel switches between 7 and 30 days with one click, without opening a menu. The choice survives page refreshes and the language switch; a new visitor starts at 30 days. Current limits, System Health and current task states are live snapshots and ignore the period. Activity has its own filters.
+One **7 / 30 days** switch drives all history: the task summary, the project table, the commit chart, tokens, models, limits history and Usage. It sits in the desktop header. On phones, open **Settings** in the bottom panel and choose 7 or 30 days in the **Period** row. The choice survives page refreshes and the language switch; a new visitor starts at 30 days. Current limits, System Health and current task states are live snapshots and ignore the period. Activity has its own filters.
 
 The server caches a snapshot for 45 seconds, and the browser asks for a new one every minute while the tab is visible. Board numbers come from the last successful poll: a snapshot older than 15 minutes or after a failed poll is marked stale. The health snapshot is stale after twice the check interval plus five minutes, at least 15 minutes. If a source is missing, Hub writes "—" or a partial label instead of zero, because zero would say "no work" and "—" says "unknown".
 

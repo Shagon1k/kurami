@@ -3,8 +3,9 @@
 import { escapeHtml } from "../foundations/html.ts";
 import { breakpoints } from "../tokens/index.ts";
 import {renderMobileNavigation,MOBILE_NAVIGATION_CSS,type MobileNavigationInput} from "./mobile-navigation.ts";
+import {renderIcon,type IconName} from "../components/icon.ts";
 
-export type NavLink = { href: string; label: string; current?: "page" | "location"; title?: string; disabled?: boolean; hint?: string; external?: boolean };
+export type NavLink = { href: string; label: string; current?: "page" | "location"; title?: string; disabled?: boolean; hint?: string; external?: boolean; mobileIcon?:IconName };
 export type SiteNavInput = { label: string; links: readonly NavLink[]; scroll?: boolean; attributes?: Record<string, true | string>; hideWhenEmpty?: boolean };
 export type SiteSwitcherInput = { label: string; summary: string; links: readonly NavLink[] };
 export type SiteHeaderInput = {
@@ -32,11 +33,12 @@ function safeHref(href: string): string {
   return escapeHtml(href);
 }
 
-export function renderSiteNav(input: SiteNavInput, className = "site-nav"): string {
+export function renderSiteNav(input: SiteNavInput, className = "site-nav", mobile=false): string {
   const links = input.links.map(link => {
     const href=safeHref(link.href);
-    if(link.disabled)return `<span class="site-nav__link site-nav__link--disabled" aria-disabled="true"${link.title ? ` title="${escapeHtml(link.title)}"` : ""}>${escapeHtml(link.label)}${link.hint ? `<small class="site-nav__hint">${escapeHtml(link.hint)}</small>` : ""}</span>`;
-    return `<a class="site-nav__link${link.external?" site-nav__link--external":""}" href="${href}"${link.external?' target="_blank" rel="noopener noreferrer"':""}${link.current ? ` aria-current="${link.current}"` : ""}${link.title ? ` title="${escapeHtml(link.title)}"` : ""}>${escapeHtml(link.label)}${link.external?'<span class="site-nav__external" aria-hidden="true">↗</span>':""}</a>`;
+    const icon=mobile&&link.mobileIcon?renderIcon(link.mobileIcon):"";
+    if(link.disabled)return `<span class="site-nav__link site-nav__link--disabled" aria-disabled="true"${link.title ? ` title="${escapeHtml(link.title)}"` : ""}>${icon}${escapeHtml(link.label)}${link.hint ? `<small class="site-nav__hint">${escapeHtml(link.hint)}</small>` : ""}</span>`;
+    return `<a class="site-nav__link${link.external?" site-nav__link--external":""}" href="${href}"${link.external?' target="_blank" rel="noopener noreferrer"':""}${link.current ? ` aria-current="${link.current}"` : ""}${link.title ? ` title="${escapeHtml(link.title)}"` : ""}>${icon}${escapeHtml(link.label)}${link.external?'<span class="site-nav__external" aria-hidden="true">↗</span>':""}</a>`;
   }).join("");
   const hidden = input.hideWhenEmpty && !links ? " hidden" : "";
   return `<nav class="${className}${input.scroll?" site-nav--scroll":""}"${attributes(input.attributes)} aria-label="${escapeHtml(input.label)}"${hidden}>${links}</nav>`;
@@ -63,7 +65,7 @@ export function renderSiteHeader(input: SiteHeaderInput): string {
       </a>
       ${renderSiteNav(nav)}${menu}${input.utility?`<div class="site-header__utility">${input.utility}</div>`:""}
       <div class="site-actions">${input.sites ? renderSiteSwitcher(input.sites) : ""}${input.actions}</div>
-    </div>${input.mobile?renderMobileNavigation({...input.mobile,apps:input.sites?renderSiteNav({label:input.sites.label,links:input.sites.links},"site-switcher__nav"):"",sections:renderSiteNav({...nav,attributes:nav.attributes,hideWhenEmpty:false})}):""}
+    </div>${input.mobile?renderMobileNavigation({...input.mobile,apps:input.sites?renderSiteNav({label:input.sites.label,links:input.sites.links},"site-switcher__nav",true):"",sections:renderSiteNav({...nav,attributes:nav.attributes,hideWhenEmpty:false},"site-nav",true)}):""}
   </header>`;
 }
 

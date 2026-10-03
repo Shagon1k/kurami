@@ -10,7 +10,11 @@ uses 32px line icons and compact labels. The common runtime moves existing
 settings, search and documentation navigation into popovers, then restores them
 on desktop resize. Manual top-layer popovers avoid repeat-click light-dismiss
 races; the runtime handles outside interaction, Escape and focus restoration.
-Hub's floating period variant cycles 7/30 days directly above the panel.
+Horizontal Settings rows hold language and the shared `switch` button variant for
+theme. Hub moves its existing 7/30-day control into a third row; desktop retains
+the header control. Mobile selected items use a left rail, shared sans-serif menu
+labels and outline icons; Docs retains its section hierarchy. Project icons cover
+the all-projects folder, panda, fox and profile card.
 
 Shared foundations lock page scrolling while a native modal is open. The common
 runtime closes Apps, collapsed header navigation and the Docs mobile section

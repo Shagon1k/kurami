@@ -7,6 +7,7 @@ import {renderDiagram} from "./diagrams/kit.ts";
 import {generatedReference} from "./reference.ts";
 import {renderLinkButton} from "../ui-library/components/button.ts";
 import {renderThemeSwitch} from "../ui-library/components/theme-switch.ts";
+import {type IconName} from "../ui-library/components/icon.ts";
 import {renderSiteHeader} from "../ui-library/patterns/site-header.ts";
 import {renderSiteFooter} from "../ui-library/patterns/site-footer.ts";
 import {kuramiSites} from "../ui-library/patterns/kurami-sites.ts";
@@ -200,7 +201,7 @@ function shell(lang:Language,title:string,description:string,body:string,active:
   const links=[
     ...sections.filter(firstPage).map(section=>({href:url(lang,firstPage(section)!.slug),label:sectionLabels[section][lang],key:section as string})),
     {href:url(lang,"changelog"),label:t.changelog,key:"changelog"},
-  ].map(link=>({href:link.href,label:link.label,current:active===link.key?(link.href===current?"page" as const:"location" as const):undefined}));
+  ].map(link=>({href:link.href,label:link.label,mobileIcon:({basics:"home",digest:"news",projects:"projects",platform:"box",reference:"book",changelog:"history"} as Record<string,IconName>)[link.key],current:active===link.key?(link.href===current?"page" as const:"location" as const):undefined}));
   return renderDocument({
     lang,title:`${title} · Kurami docs`,description,favicon:"/assets/favicon.svg",styles:{href:"/assets/docs.css"},themeScript:true,skipLabel:t.skip,
     header:renderSiteHeader({

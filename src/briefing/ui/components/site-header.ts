@@ -25,7 +25,7 @@ function navigation(links:readonly SiteLink[],current:SiteSection) {
     seen.add(link.section);
     const date=link.date&&/^[0-9]{4}-[0-9]{2}-[0-9]{2}$/.test(link.date)?link.date:undefined;
     const label=digestLanguage()==="en"?({daily:"Daily",cinema:"Cinema",weekly:"Weekly",stocks:"Stocks"} as const)[link.section]:destination.label;
-    return {href:digestPath(destination.href),label,current:link.section===current?"location" as const:undefined,title:label+(date?digestText(" · выпуск "," · edition ")+date:"")};
+    return {href:digestPath(destination.href),label,mobileIcon:({daily:"news",cinema:"cinema",weekly:"calendar",stocks:"chart"} as const)[link.section],current:link.section===current?"location" as const:undefined,title:label+(date?digestText(" · выпуск "," · edition ")+date:"")};
   })};
 }
 export function renderSiteNavigation(links:readonly SiteLink[],current:SiteSection):string {
