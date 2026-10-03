@@ -1,6 +1,12 @@
 {
   "baseline": "4a38c09",
   "commits": {
+    "5c22439ebc57ca7ad4b5c45bef7d5c9d9c05acbc": {
+      "category": "improved",
+      "en": "Mobile navigation replaces More with Settings and a gear icon. Menu selections share a warm background and short underline; On page identifies in-page anchors, while Sections changes pages. Projects opens Search at the top of the visual viewport and adjusts to the keyboard. Menus and icons animate together, respecting reduced-motion preferences.",
+      "ru": "Мобильная навигация заменяет More на «Настройки» с шестерёнкой. Выбранные пункты меню имеют общий тёплый фон и короткое подчёркивание; «На странице» обозначает якоря, а «Разделы» переключают страницы. Поиск Projects открывается вверху видимой области экрана и учитывает клавиатуру. Меню и иконки анимируются вместе с учётом настройки уменьшения движения.",
+      "page": "ui-library"
+    },
     "21f1ce17e8940e8947d8fab05ce7f24bf5012a8b": {
       "category": "operations",
       "en": "",
