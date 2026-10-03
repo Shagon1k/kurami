@@ -1,6 +1,12 @@
 {
   "baseline": "4a38c09",
   "commits": {
+    "3a27099cbe28ad709cb6772d81b35702c45301f1": {
+      "category": "improved",
+      "en": "Mobile menus use a left selection rail, shared label typography and monochrome outline icons; Docs keeps its section hierarchy. Projects adds panda, fox and profile icons. Hub translates Controls in Russian and moves the 7/30-day period into horizontal Settings rows beside language and the theme switch. Desktop navigation and controls are unchanged.",
+      "ru": "Мобильные меню используют полоску выбора слева, единый шрифт подписей и одноцветные контурные иконки; Docs сохраняет иерархию разделов. Projects получил иконки панды, лисы и профиля. Hub переводит Controls как «Управление» и переносит период 7/30 дней в горизонтальные строки «Настроек», рядом с языком и переключателем темы. Навигация и контролы на компьютере не изменены.",
+      "page": "ui-library"
+    },
     "5c22439ebc57ca7ad4b5c45bef7d5c9d9c05acbc": {
       "category": "improved",
       "en": "Mobile navigation replaces More with Settings and a gear icon. Menu selections share a warm background and short underline; On page identifies in-page anchors, while Sections changes pages. Projects opens Search at the top of the visual viewport and adjusts to the keyboard. Menus and icons animate together, respecting reduced-motion preferences.",
