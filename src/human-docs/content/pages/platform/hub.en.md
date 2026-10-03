@@ -28,7 +28,7 @@ Kurami in the project table is a repository, not an admitted project: it only ha
 
 ## Period and freshness
 
-On phones, **On page** jumps between dashboard blocks; Hub has no section subpages.
+On phones, **On page** uses text-only links to dashboard blocks; Hub has no section subpages.
 **Settings** holds horizontal rows for language, theme and period, separate from **Controls** for operational actions.
 
 One **7 / 30 days** switch drives all history: the task summary, the project table, the commit chart, tokens, models, limits history and Usage. It sits in the desktop header. On phones, open **Settings** in the bottom panel and choose 7 or 30 days in the **Period** row. The choice survives page refreshes and the language switch; a new visitor starts at 30 days. Current limits, System Health and current task states are live snapshots and ignore the period. Activity has its own filters.

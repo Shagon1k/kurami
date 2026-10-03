@@ -81,9 +81,11 @@ so the saved theme follows you between apps. On phones, a full-width bottom pane
 replaces sticky header navigation. Large icons sit above compact labels; Apps,
 sections, contextual navigation and Settings open menus. Settings contains language
 and theme in horizontal rows behind a gear icon. Sections changes pages; On page jumps within the
-current page, including Hub's dashboard. Selected menu items share a warm background
-and left rail. Menu labels share one sans-serif style and monochrome outline icons;
-Docs keeps its grouped section hierarchy. A repeated click, an outside click or Escape closes a menu.
+current page, including Hub's dashboard. Selected items inside popovers share a warm
+background and left rail; open footer buttons keep their short bottom underline.
+On page links are text-only. Apps, Sections and Controls use monochrome outline
+icons and shared sans-serif labels; Docs keeps its grouped section hierarchy.
+A repeated click, an outside click or Escape closes a menu.
 Menus and icons animate together; reduced-motion preferences disable that motion.
 Projects opens Search at the top of the visible screen, above the keyboard.
 Hub puts its 7/30-day period in Settings on phones, alongside language and the

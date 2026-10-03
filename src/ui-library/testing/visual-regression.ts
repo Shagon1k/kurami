@@ -240,6 +240,7 @@ async function checkMobileNavigation(devtools:Devtools,width:number,current:stri
   const apps=await devtools.evaluate<{current:string;links:string[];fits:boolean}>(`(()=>{const panel=document.querySelector('#mobile-menu-apps'),r=panel.getBoundingClientRect(),bar=document.querySelector('.mobile-navigation__bar').getBoundingClientRect();return {current:panel.querySelector('[aria-current]')?.textContent.trim(),links:[...panel.querySelectorAll('a')].map(link=>link.textContent.trim()),bounds:{left:r.left,right:r.right,bottom:r.bottom,barTop:bar.top,width:innerWidth},fits:r.left>=0&&r.right<=innerWidth&&r.bottom<=bar.top-6.5};})()`);
   if(apps.current!==current||apps.links.join('|')!=='Hub|Digest|Projects|Docs|Hermes↗|Dokploy↗'||!apps.fits)throw new Error(`Mobile Apps ${JSON.stringify(apps)}`);
   if(!await devtools.evaluate(`(()=>{const link=document.querySelector('#mobile-menu-apps [aria-current]'),line=getComputedStyle(link,'::after');return line.width==='2px'&&parseFloat(line.height)>20&&line.left==='0px'&&line.transform==='none'&&!!link.querySelector('svg');})()`))throw new Error('Mobile selection must use the common left rail and outline icons');
+  if(!await devtools.evaluate(`(()=>{const line=getComputedStyle(document.querySelector('[data-mobile-menu="apps"]'),'::after');return line.width==='18px'&&line.height==='2px'&&line.bottom==='8px';})()`))throw new Error('Footer selection must keep its short bottom underline, not a left rail');
   const point=await devtools.evaluate<{x:number;y:number}>(`(()=>{const r=document.querySelector('[data-mobile-menu="apps"]').getBoundingClientRect();return {x:r.x+r.width/2,y:r.y+r.height/2};})()`);
   await devtools.call('Input.dispatchMouseEvent',{type:'mousePressed',button:'left',clickCount:1,...point});
   await devtools.call('Input.dispatchMouseEvent',{type:'mouseReleased',button:'left',clickCount:1,...point});
@@ -247,6 +248,10 @@ async function checkMobileNavigation(devtools:Devtools,width:number,current:stri
   for(const key of await devtools.evaluate<string[]>(`[...document.querySelectorAll('[data-mobile-menu]')].map(button=>button.dataset.mobileMenu)`)){
     await devtools.evaluate(`document.querySelector('[data-mobile-menu="${key}"]').click()`);
     if(!await devtools.evaluate(`document.querySelector('#mobile-menu-${key}').matches(':popover-open')`))throw new Error('Mobile menu closed '+key);
+    await delay(240);
+    const icons=await devtools.evaluate<{width:number;height:number;fill:string;stroke:string;strokeWidth:string}[]>(`[...document.querySelectorAll('#mobile-menu-${key} .ui-icon')].map(icon=>{const r=icon.getBoundingClientRect(),s=getComputedStyle(icon);return {width:r.width,height:r.height,fill:s.fill,stroke:s.stroke,strokeWidth:s.strokeWidth};})`);
+    if(icons.some(icon=>Math.abs(icon.width-20)>.5||Math.abs(icon.height-20)>.5||icon.fill!=='none'||icon.stroke==='none'||icon.strokeWidth!=='1.6px'))throw new Error(`Menu outline icon geometry ${current} ${key} ${width}: ${JSON.stringify(icons)}`);
+    if((key==='contents'||current==='Hub'&&key==='sections')&&!await devtools.evaluate(`[...document.querySelectorAll('#mobile-menu-${key} a')].every(link=>!link.querySelector('svg'))`))throw new Error('On page must stay text-only in every app');
     if(key==='search'&&!await devtools.evaluate(`document.querySelector('#mobile-menu-search input[name="q"]')===document.activeElement`))throw new Error('Search focus lost');
     if(key==='search'){
       await devtools.evaluate(`Object.defineProperties(visualViewport,{height:{configurable:true,value:300},offsetTop:{configurable:true,value:40}});visualViewport.dispatchEvent(new Event('resize'))`);

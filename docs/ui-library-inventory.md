@@ -12,8 +12,10 @@ on desktop resize. Manual top-layer popovers avoid repeat-click light-dismiss
 races; the runtime handles outside interaction, Escape and focus restoration.
 Horizontal Settings rows hold language and the shared `switch` button variant for
 theme. Hub moves its existing 7/30-day control into a third row; desktop retains
-the header control. Mobile selected items use a left rail, shared sans-serif menu
-labels and outline icons; Docs retains its section hierarchy. Project icons cover
+the header control. Selected popover items use a left rail; footer buttons retain
+their short underline. On page is text-only; Apps and Sections use outline icons
+and shared sans-serif labels. Docs includes the icon stylesheet explicitly and
+retains its section hierarchy. Project icons cover
 the all-projects folder, panda, fox and profile card.
 
 Shared foundations lock page scrolling while a native modal is open. The common

@@ -75,17 +75,13 @@
     if(app==='hub'){move('#hub-controls-popover .controls-menu','controls');if(!moves.some(item=>item.slot.getAttribute('data-mobile-slot')==='controls'))shell.querySelector                   ('[data-mobile-menu="controls"]') .disabled=true;}
     if(app==='projects')move('.projects-search','search');
     if(app==='docs'){move('.side-mobile__list','sections');move('.toc-mobile__list','contents');}
-    function headingLink(heading            ,link                  ){
-      const icon=heading.querySelector('.ui-icon');if(icon)link.append(icon.cloneNode(true));
-      const label=document.createElement('span');label.textContent=heading.textContent;link.append(label);
-    }
     function fillContents(){
       const slot=shell.querySelector('[data-mobile-slot="contents"]');if(!slot||slot.querySelector('.toc-mobile__list'))return;
       slot.replaceChildren();
       const headings=[...document.querySelectorAll             ('main h2')].filter(heading=>heading.textContent?.trim()&&heading.getClientRects().length&&!heading.closest('dialog,.ui-popover,[hidden]'));
       for(const [index,heading] of headings.entries()){
         if(!heading.id)heading.id=`mobile-section-${index+1}`;
-        const link=document.createElement('a');link.className='mobile-navigation__anchor';link.href=`#${heading.id}`;headingLink(heading,link);slot.append(link);
+        const link=document.createElement('a');link.className='mobile-navigation__anchor';link.href=`#${heading.id}`;link.textContent=heading.textContent;slot.append(link);
       }
       if(!headings.length){const note=document.createElement('p');note.textContent=ru?'На этой странице нет разделов.':'No sections on this page.';slot.append(note);}
     }
@@ -105,7 +101,7 @@
         const panel=document.getElementById(trigger.getAttribute('aria-controls') ) ;
         if(opened(panel)){close();return;}close();
         if(trigger.dataset.mobileMenu==='contents'||app==='hub'&&trigger.dataset.mobileMenu==='sections'){
-          if(app==='hub'){const nav=panel.querySelector('nav') ;nav.replaceChildren();for(const heading of document.querySelectorAll             ('#hub-dashboard h2[id]')){const link=document.createElement('a');link.className='site-nav__link';link.href=`#${heading.id}`;headingLink(heading,link);nav.append(link);}}
+          if(app==='hub'){const nav=panel.querySelector('nav') ;nav.replaceChildren();for(const heading of document.querySelectorAll             ('#hub-dashboard h2[id]')){const link=document.createElement('a');link.className='site-nav__link';link.href=`#${heading.id}`;link.textContent=heading.textContent;nav.append(link);}}
           else fillContents();
         }
         links();viewport();active=panel;opener=trigger;trigger.setAttribute('aria-expanded','true');

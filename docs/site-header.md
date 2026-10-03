@@ -23,7 +23,8 @@ the top header scrolls with the page. Apps and contextual menus open above the
 panel and close on repeat click, outside click or Escape. Language and theme move
 to Settings with a gear icon. Horizontal rows hold the language choice, theme toggle
 and Hub's 7/30-day period. Existing controls are moved, not cloned, and return on desktop resize.
-Selected links and open panel buttons share a warm fill and left rail. Menu labels
+Selected links inside popovers use a warm fill and left rail. Open footer buttons
+keep their short bottom underline. On page links are text-only in every app. Menu labels
 use one sans-serif style; Docs keeps its grouped section hierarchy. Contextual links
 use monochrome outline icons. Menus fade and slide;
 icons respond to open state. Reduced motion disables these transitions.

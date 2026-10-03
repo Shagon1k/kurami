@@ -2,6 +2,7 @@ import {THEME_CSS} from "../ui-library/themes/index.ts";
 import {FOUNDATION_CSS} from "../ui-library/foundations/index.ts";
 import {BUTTON_CSS} from "../ui-library/components/button.ts";
 import {THEME_SWITCH_CSS} from "../ui-library/components/theme-switch.ts";
+import {ICON_CSS} from "../ui-library/components/icon.ts";
 import {SITE_HEADER_CSS} from "../ui-library/patterns/site-header.ts";
 import {TABLE_CSS} from "../ui-library/components/table.ts";
 import {CALLOUT_CSS} from "../ui-library/components/callout.ts";
@@ -12,6 +13,7 @@ import {DIAGRAM_CSS} from "../ui-library/foundations/diagram.ts";
 // (glance, steps, compare, cards, terms, guarantees, code map, figures, screenshots). Roles only.
 export const DOCS_STYLES = `${THEME_CSS}${FOUNDATION_CSS}${BUTTON_CSS}
 ${THEME_SWITCH_CSS}
+${ICON_CSS}
 ${SITE_HEADER_CSS}
 ${TABLE_CSS}
 ${CALLOUT_CSS}

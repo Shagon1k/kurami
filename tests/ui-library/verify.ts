@@ -5,6 +5,8 @@ import {colorRoles,scaleRoles,type Theme} from "../../src/ui-library/tokens/inde
 import {kuramiTheme,themeCss,THEME_CSS} from "../../src/ui-library/themes/index.ts";
 import {BRIEFING_STYLES} from "../../src/briefing/ui/styles.ts";
 import {DOCS_STYLES} from "../../src/human-docs/styles.ts";
+import {HUB_STYLES} from "../../src/hub/styles.ts";
+import {PROJECTS_STYLES} from "../../src/projects-site/styles.ts";
 import {FOUNDATION_CSS,fontFiles} from "../../src/ui-library/foundations/index.ts";
 import {injectRuntime} from "../../src/briefing/server.ts";
 import {renderPageShell} from "../../src/briefing/ui/page-shell.ts";
@@ -23,7 +25,7 @@ import {renderCallout,CALLOUT_CSS} from "../../src/ui-library/components/callout
 import {renderDisclosure,DISCLOSURE_CSS} from "../../src/ui-library/components/disclosure.ts";
 import {renderNumberField,renderSelectField,renderSearchField,renderCheckbox} from "../../src/ui-library/components/form.ts";
 import {renderStatCard,renderMeter} from "../../src/ui-library/components/stat-card.ts";
-import {renderIcon,iconPath} from "../../src/ui-library/components/icon.ts";
+import {renderIcon,iconPath,ICON_CSS} from "../../src/ui-library/components/icon.ts";
 import {renderSelectionControl,SELECTION_CONTROL_CSS} from "../../src/ui-library/components/selection-control.ts";
 import {renderPill} from "../../src/ui-library/components/pill.ts";
 import {renderPopover} from "../../src/ui-library/components/popover.ts";
@@ -182,6 +184,7 @@ assert.throws(()=>renderLinkButton({label:"x",href:"//evil.example",variant:"ico
 
 // Header and document patterns: one implementation for both sites, escaped input, safe links.
 for(const [site,css] of [["Digest",BRIEFING_STYLES],["Docs",DOCS_STYLES]] as const)assert.equal(css.split(SITE_HEADER_CSS).length,2,`${site} includes the header pattern once`);
+for(const [site,css] of [["Digest",BRIEFING_STYLES],["Docs",DOCS_STYLES],["Hub",HUB_STYLES],["Projects",PROJECTS_STYLES]] as const)assert.ok(css.includes(ICON_CSS),`${site} includes the outline icon CSS`);
 const header=renderSiteHeader({brand:{href:"/",ariaLabel:"Kurami",foxSrc:"/assets/fox.webp",suffix:"docs",meta:{label:"<b>x</b>"}},nav:{label:"Sections",links:[{href:"/a/",label:"A",current:"page"},{href:"/b/",label:"B"}],collapse:{label:"Menu"}},actions:renderThemeSwitch("en")});
 assert.match(header,/class="site-header site-header--collapsible" data-site-header/);
 assert.match(header,/<a class="site-nav__link" href="\/a\/" aria-current="page">A<\/a>/);
