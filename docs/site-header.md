@@ -21,10 +21,14 @@ At widths up to 620px, all four apps use the shared full-width bottom panel
 from `patterns/mobile-navigation.ts`. It has 32px icons above compact labels;
 the top header scrolls with the page. Apps and contextual menus open above the
 panel and close on repeat click, outside click or Escape. Language and theme move
-to More; existing controls are moved, not cloned, and return on desktop resize.
-Projects moves its search form into Search. Docs includes its section tree and
+to Settings with a gear icon; existing controls are moved, not cloned, and return on desktop resize.
+Selected links share a warm fill and short bottom marker. Menus fade and slide;
+icons respond to open state. Reduced motion disables these transitions.
+Projects moves its search form into Search at the top of the visual viewport;
+visual viewport resize/scroll events keep it above the keyboard. Docs includes its section tree and
 article contents. Digest derives edition contents from rendered section headings.
-Hub has Apps, Sections, Controls and More; its period stays outside the panel.
+Hub has Apps, On page, Controls and Settings; its period stays outside the panel.
+Sections switches between pages in Digest and Docs; On page jumps to current-page headings.
 Hub serves `/ru/` and `/en/` with localized dashboard labels and PWA offline
 pages. Hub, Docs and Digest redirect their root URL to `/en/`; the language
 control links between explicit `/en/` and `/ru/` routes. Digest upgrades

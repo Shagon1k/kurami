@@ -18,8 +18,9 @@ The card is edited in place. After every event Kurami posts it again below the e
 
 Open Projects through the Apps menu. Choose a project in the header, search for
 a task, or sort by task, status and Kurami state. The interface defaults to
-English. On phones, the bottom panel opens Projects and Search; More contains
-language and theme. Desktop keeps project links and language in the header. The
+English. On phones, the bottom panel opens Projects and Search; Settings contains
+language and theme. Search opens at the top of the visible screen and adjusts to
+the keyboard. Desktop keeps project links and language in the header. The
 table scrolls within the window, with more space inside each row. On mobile a
 task fills the screen: swipe right
 to return to the list and left to reopen the last task.

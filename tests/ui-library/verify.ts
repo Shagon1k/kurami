@@ -77,6 +77,10 @@ for(const app of ["hub","digest","projects","docs"] as const)for(const lang of [
   assert.match(mobile,/button--navigation/);
   assert.match(mobile,/data-mobile-close/);
   assert.doesNotMatch(mobile,/data-period/);
+  assert.match(mobile,new RegExp(lang==="ru"?"Настройки":"Settings"));
+  assert.ok(mobile.includes(iconPath("settings")));
+  assert.doesNotMatch(mobile,/>More<|>Ещё</);
+  if(app==="hub")assert.match(mobile,new RegExp(lang==="ru"?"На странице":"On page"));
 }
 
 // Every role is declared once per mode; light is the root mode.

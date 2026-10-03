@@ -79,8 +79,12 @@ The shared header names the current app: Kurami. Hub, Digest, Projects or Docs.
 that open in another tab. On the unified entry, product links stay on one origin,
 so the saved theme follows you between apps. On phones, a full-width bottom panel
 replaces sticky header navigation. Large icons sit above compact labels; Apps,
-sections, contextual navigation and More open menus above the panel. A repeated
-click, an outside click or Escape closes a menu. More contains language and theme.
+sections, contextual navigation and Settings open menus. Settings contains language
+and theme behind a gear icon. Sections changes pages; On page jumps within the
+current page, including Hub's dashboard. Selected menu items share a warm background
+and short underline. A repeated click, an outside click or Escape closes a menu.
+Menus and icons animate together; reduced-motion preferences disable that motion.
+Projects opens Search at the top of the visible screen, above the keyboard.
 Hub keeps its period in a floating button above the panel; each click switches
 between 7 and 30 days without opening choices.
 Digest uses the shared toggle, source-link and selected icon-button states;

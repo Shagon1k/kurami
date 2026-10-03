@@ -236,8 +236,10 @@ async function checkMobileNavigation(devtools:Devtools,width:number,current:stri
   const geometry=await devtools.evaluate<{icons:number[];labels:boolean;fixed:boolean;header:string;overflow:number}>(`(()=>{const nav=document.querySelector('.mobile-navigation__bar');return {icons:[...nav.querySelectorAll('svg')].map(icon=>icon.getBoundingClientRect().width),labels:[...nav.querySelectorAll('button')].every(button=>button.getBoundingClientRect().height>=44&&button.querySelector('span').getBoundingClientRect().width<=button.getBoundingClientRect().width),fixed:getComputedStyle(nav).position==='fixed',header:getComputedStyle(document.querySelector('[data-site-header]')).position,overflow:document.documentElement.scrollWidth-innerWidth};})()`);
   if(!geometry.fixed||geometry.header!=='static'||geometry.overflow>1||!geometry.labels||geometry.icons.some(size=>size!==32))throw new Error(`Mobile geometry ${current} ${width}: ${JSON.stringify(geometry)}`);
   await devtools.evaluate(`document.querySelector('[data-mobile-menu="apps"]').click()`);
-  const apps=await devtools.evaluate<{current:string;links:string[];fits:boolean}>(`(()=>{const panel=document.querySelector('#mobile-menu-apps'),r=panel.getBoundingClientRect();return {current:panel.querySelector('[aria-current]')?.textContent.trim(),links:[...panel.querySelectorAll('a')].map(link=>link.textContent.trim()),fits:r.left>=0&&r.right<=innerWidth&&r.bottom<=document.querySelector('.mobile-navigation__bar').getBoundingClientRect().top-7};})()`);
+  await delay(240);
+  const apps=await devtools.evaluate<{current:string;links:string[];fits:boolean}>(`(()=>{const panel=document.querySelector('#mobile-menu-apps'),r=panel.getBoundingClientRect(),bar=document.querySelector('.mobile-navigation__bar').getBoundingClientRect();return {current:panel.querySelector('[aria-current]')?.textContent.trim(),links:[...panel.querySelectorAll('a')].map(link=>link.textContent.trim()),bounds:{left:r.left,right:r.right,bottom:r.bottom,barTop:bar.top,width:innerWidth},fits:r.left>=0&&r.right<=innerWidth&&r.bottom<=bar.top-6.5};})()`);
   if(apps.current!==current||apps.links.join('|')!=='Hub|Digest|Projects|Docs|Hermes↗|Dokploy↗'||!apps.fits)throw new Error(`Mobile Apps ${JSON.stringify(apps)}`);
+  if(!await devtools.evaluate(`(()=>{const link=document.querySelector('#mobile-menu-apps [aria-current]'),line=getComputedStyle(link,'::after');return getComputedStyle(link).borderLeftWidth==='0px'&&line.height==='2px'&&line.bottom==='3px';})()`))throw new Error('Mobile selection must use the common underline, not a left rail');
   const point=await devtools.evaluate<{x:number;y:number}>(`(()=>{const r=document.querySelector('[data-mobile-menu="apps"]').getBoundingClientRect();return {x:r.x+r.width/2,y:r.y+r.height/2};})()`);
   await devtools.call('Input.dispatchMouseEvent',{type:'mousePressed',button:'left',clickCount:1,...point});
   await devtools.call('Input.dispatchMouseEvent',{type:'mouseReleased',button:'left',clickCount:1,...point});
@@ -246,6 +248,12 @@ async function checkMobileNavigation(devtools:Devtools,width:number,current:stri
     await devtools.evaluate(`document.querySelector('[data-mobile-menu="${key}"]').click()`);
     if(!await devtools.evaluate(`document.querySelector('#mobile-menu-${key}').matches(':popover-open')`))throw new Error('Mobile menu closed '+key);
     if(key==='search'&&!await devtools.evaluate(`document.querySelector('#mobile-menu-search input[name="q"]')===document.activeElement`))throw new Error('Search focus lost');
+    if(key==='search'){
+      await devtools.evaluate(`Object.defineProperties(visualViewport,{height:{configurable:true,value:300},offsetTop:{configurable:true,value:40}});visualViewport.dispatchEvent(new Event('resize'))`);
+      await delay(240);
+      if(!await devtools.evaluate(`(()=>{const panel=document.querySelector('#mobile-menu-search').getBoundingClientRect(),input=document.querySelector('#mobile-menu-search input').getBoundingClientRect();return panel.top>=52&&panel.bottom<=340&&input.top>=52&&input.bottom<=340;})()`))throw new Error('Search must fit at the top of the keyboard-reduced visual viewport');
+      await devtools.evaluate(`delete visualViewport.height;delete visualViewport.offsetTop;visualViewport.dispatchEvent(new Event('resize'))`);
+    }
     await devtools.call('Input.dispatchKeyEvent',{type:'keyDown',key:'Escape',code:'Escape',windowsVirtualKeyCode:27});
     await devtools.call('Input.dispatchKeyEvent',{type:'keyUp',key:'Escape',code:'Escape',windowsVirtualKeyCode:27});
     if(!await devtools.evaluate(`!document.querySelector('#mobile-menu-${key}').matches(':popover-open')&&document.activeElement===document.querySelector('[data-mobile-menu="${key}"]')`))throw new Error('Mobile Escape focus '+key);
@@ -254,6 +262,15 @@ async function checkMobileNavigation(devtools:Devtools,width:number,current:stri
   await devtools.call('Input.dispatchMouseEvent',{type:'mousePressed',button:'left',clickCount:1,x:4,y:450});
   await devtools.call('Input.dispatchMouseEvent',{type:'mouseReleased',button:'left',clickCount:1,x:4,y:450});
   if(await devtools.evaluate(`document.querySelector('#mobile-menu-apps').matches(':popover-open')`))throw new Error('Mobile outside dismissal');
+  await devtools.evaluate(`document.querySelector('[data-mobile-menu="more"]').click()`);await delay(240);
+  if(!await devtools.evaluate(`getComputedStyle(document.querySelector('[data-mobile-menu="more"] svg')).transform!=='none'`))throw new Error('Settings icon should animate with menu state');
+  await devtools.evaluate(`document.querySelector('[data-mobile-menu="more"]').click()`);
+  await devtools.call('Emulation.setEmulatedMedia',{features:[{name:'prefers-reduced-motion',value:'reduce'}]});
+  await devtools.evaluate(`document.querySelector('[data-mobile-menu="more"]').click()`);
+  const reduced=await devtools.evaluate<{panel:string;icon:string;transform:string}>(`(()=>{const panel=document.querySelector('#mobile-menu-more'),icon=document.querySelector('[data-mobile-menu="more"] svg');return {panel:getComputedStyle(panel).transitionDuration,icon:getComputedStyle(icon).transitionDuration,transform:getComputedStyle(icon).transform};})()`);
+  if([reduced.panel,reduced.icon].some(value=>value.split(',').some(duration=>parseFloat(duration)>.00001))||reduced.transform!=='none')throw new Error('Reduced motion must disable menu and icon animation: '+JSON.stringify(reduced));
+  await devtools.evaluate(`document.querySelector('[data-mobile-menu="more"]').click()`);
+  await devtools.call('Emulation.setEmulatedMedia',{features:[]});
   await devtools.call('Emulation.setDeviceMetricsOverride',{width:1280,height:900,deviceScaleFactor:1,mobile:false});await delay(80);
   if(!await devtools.evaluate(`!!document.querySelector('.site-actions [data-theme-toggle]')&&(!document.querySelector('.projects-search')||!!document.querySelector('.projects-toolbar .projects-search'))`))throw new Error('Desktop controls not restored');
   await devtools.call('Emulation.setDeviceMetricsOverride',{width,height:900,deviceScaleFactor:1,mobile:true});await delay(80);
