@@ -1,0 +1,758 @@
+{
+  "coverage": {
+    "boxOffice": {
+      "start": "2026-09-25T00:00:00.000Z",
+      "end": "2026-09-28T00:00:00.000Z"
+    },
+    "trailers": {
+      "start": "2026-09-26T06:00:00.000Z",
+      "end": "2026-10-03T06:00:00.000Z"
+    },
+    "premieres": {
+      "start": "2026-10-04T21:00:00.000Z",
+      "end": "2026-10-11T21:00:00.000Z"
+    },
+    "news": {
+      "start": "2026-09-26T06:00:00.000Z",
+      "end": "2026-10-03T06:00:00.000Z"
+    }
+  },
+  "boxOffice": {
+    "state": "partial",
+    "capturedAt": "2026-10-03T06:02:03.569Z",
+    "featuredId": "bow:avengers-endgame",
+    "charts": [
+      {
+        "id": "us-weekend",
+        "label": "США — уикенд",
+        "region": "US/CA",
+        "period": "weekend",
+        "entries": [
+          {
+            "id": "bow:avengers-endgame",
+            "title": "Avengers: Endgame",
+            "rank": 1,
+            "gross": {
+              "amount": 26106643,
+              "currency": "USD"
+            },
+            "cumulativeGross": {
+              "amount": 884479643,
+              "currency": "USD"
+            },
+            "weeks": 1,
+            "sourceId": "cinema:box-office-watch:5cfdba30bca1882f"
+          },
+          {
+            "id": "bow:resident-evil",
+            "title": "Resident Evil",
+            "rank": 2,
+            "gross": {
+              "amount": 23012848,
+              "currency": "USD"
+            },
+            "cumulativeGross": {
+              "amount": 103189095,
+              "currency": "USD"
+            },
+            "changePercent": -62,
+            "previousRank": 1,
+            "weeks": 2,
+            "sourceId": "cinema:box-office-watch:5cfdba30bca1882f"
+          },
+          {
+            "id": "bow:heart-of-the-beast",
+            "title": "Heart of the Beast",
+            "rank": 3,
+            "gross": {
+              "amount": 20042473,
+              "currency": "USD"
+            },
+            "cumulativeGross": {
+              "amount": 20042473,
+              "currency": "USD"
+            },
+            "weeks": 1,
+            "sourceId": "cinema:box-office-watch:5cfdba30bca1882f"
+          },
+          {
+            "id": "bow:primetime",
+            "title": "Primetime",
+            "rank": 4,
+            "gross": {
+              "amount": 18830798,
+              "currency": "USD"
+            },
+            "cumulativeGross": {
+              "amount": 18830798,
+              "currency": "USD"
+            },
+            "weeks": 1,
+            "sourceId": "cinema:box-office-watch:5cfdba30bca1882f"
+          },
+          {
+            "id": "bow:forgotten-island",
+            "title": "Forgotten Island",
+            "rank": 5,
+            "gross": {
+              "amount": 13007005,
+              "currency": "USD"
+            },
+            "cumulativeGross": {
+              "amount": 13007005,
+              "currency": "USD"
+            },
+            "weeks": 1,
+            "sourceId": "cinema:box-office-watch:5cfdba30bca1882f"
+          },
+          {
+            "id": "bow:practical-magic-2",
+            "title": "Practical Magic 2",
+            "rank": 6,
+            "gross": {
+              "amount": 5600274,
+              "currency": "USD"
+            },
+            "cumulativeGross": {
+              "amount": 59762967,
+              "currency": "USD"
+            },
+            "changePercent": -54,
+            "previousRank": 2,
+            "weeks": 3,
+            "sourceId": "cinema:box-office-watch:5cfdba30bca1882f"
+          },
+          {
+            "id": "bow:spider-man-brand-new-day",
+            "title": "Spider-Man: Brand New Day",
+            "rank": 7,
+            "gross": {
+              "amount": 4054489,
+              "currency": "USD"
+            },
+            "cumulativeGross": {
+              "amount": 950637311,
+              "currency": "USD"
+            },
+            "changePercent": -37,
+            "previousRank": 3,
+            "weeks": 9,
+            "sourceId": "cinema:box-office-watch:5cfdba30bca1882f"
+          },
+          {
+            "id": "bow:the-odyssey",
+            "title": "The Odyssey",
+            "rank": 8,
+            "gross": {
+              "amount": 3802065,
+              "currency": "USD"
+            },
+            "cumulativeGross": {
+              "amount": 616623710,
+              "currency": "USD"
+            },
+            "changePercent": -23,
+            "previousRank": 4,
+            "weeks": 11,
+            "sourceId": "cinema:box-office-watch:5cfdba30bca1882f"
+          },
+          {
+            "id": "bow:coyote-vs-acme",
+            "title": "Coyote vs. Acme",
+            "rank": 9,
+            "gross": {
+              "amount": 1915685,
+              "currency": "USD"
+            },
+            "cumulativeGross": {
+              "amount": 58393726,
+              "currency": "USD"
+            },
+            "changePercent": -57,
+            "previousRank": 5,
+            "weeks": 5,
+            "sourceId": "cinema:box-office-watch:5cfdba30bca1882f"
+          },
+          {
+            "id": "bow:daniel-and-the-fiery-furnace",
+            "title": "Daniel and the Fiery Furnace",
+            "rank": 10,
+            "gross": {
+              "amount": 1540161,
+              "currency": "USD"
+            },
+            "cumulativeGross": {
+              "amount": 6229247,
+              "currency": "USD"
+            },
+            "changePercent": -53,
+            "previousRank": 6,
+            "weeks": 2,
+            "sourceId": "cinema:box-office-watch:5cfdba30bca1882f"
+          }
+        ]
+      },
+      {
+        "id": "domestic-ytd",
+        "label": "США — с начала года",
+        "region": "US/CA",
+        "period": "ytd",
+        "entries": [
+          {
+            "id": "bow:spider-man-brand-new-day",
+            "title": "Spider-Man: Brand New Day",
+            "rank": 1,
+            "gross": {
+              "amount": 952026970,
+              "currency": "USD"
+            },
+            "sourceId": "cinema:box-office-watch:5cfdba30bca1882f",
+            "distributor": "Sony Pictures"
+          },
+          {
+            "id": "bow:the-odyssey",
+            "title": "The Odyssey",
+            "rank": 2,
+            "gross": {
+              "amount": 619163510,
+              "currency": "USD"
+            },
+            "sourceId": "cinema:box-office-watch:5cfdba30bca1882f",
+            "distributor": "Universal"
+          },
+          {
+            "id": "bow:toy-story-5",
+            "title": "Toy Story 5",
+            "rank": 3,
+            "gross": {
+              "amount": 480294461,
+              "currency": "USD"
+            },
+            "sourceId": "cinema:box-office-watch:5cfdba30bca1882f",
+            "distributor": "Disney"
+          },
+          {
+            "id": "bow:the-super-mario-galaxy-movie",
+            "title": "The Super Mario Galaxy Movie",
+            "rank": 4,
+            "gross": {
+              "amount": 429814610,
+              "currency": "USD"
+            },
+            "sourceId": "cinema:box-office-watch:5cfdba30bca1882f",
+            "distributor": "Universal"
+          },
+          {
+            "id": "bow:michael",
+            "title": "Michael",
+            "rank": 5,
+            "gross": {
+              "amount": 372303388,
+              "currency": "USD"
+            },
+            "sourceId": "cinema:box-office-watch:5cfdba30bca1882f",
+            "distributor": "Lionsgate"
+          }
+        ]
+      },
+      {
+        "id": "worldwide-ytd",
+        "label": "Мировой прокат — с начала года",
+        "region": "WORLD",
+        "period": "ytd",
+        "entries": [
+          {
+            "id": "bow:spider-man-brand-new-day",
+            "title": "Spider-Man: Brand New Day",
+            "rank": 1,
+            "gross": {
+              "amount": 2497014154,
+              "currency": "USD"
+            },
+            "sourceId": "cinema:box-office-watch:5cfdba30bca1882f",
+            "distributor": "Sony Pictures"
+          },
+          {
+            "id": "bow:the-odyssey",
+            "title": "The Odyssey",
+            "rank": 2,
+            "gross": {
+              "amount": 1753877510,
+              "currency": "USD"
+            },
+            "sourceId": "cinema:box-office-watch:5cfdba30bca1882f",
+            "distributor": "Universal"
+          },
+          {
+            "id": "bow:toy-story-5",
+            "title": "Toy Story 5",
+            "rank": 3,
+            "gross": {
+              "amount": 1147465495,
+              "currency": "USD"
+            },
+            "sourceId": "cinema:box-office-watch:5cfdba30bca1882f",
+            "distributor": "Disney"
+          },
+          {
+            "id": "bow:michael",
+            "title": "Michael",
+            "rank": 4,
+            "gross": {
+              "amount": 1021426595,
+              "currency": "USD"
+            },
+            "sourceId": "cinema:box-office-watch:5cfdba30bca1882f",
+            "distributor": "Lionsgate"
+          },
+          {
+            "id": "bow:the-super-mario-galaxy-movie",
+            "title": "The Super Mario Galaxy Movie",
+            "rank": 5,
+            "gross": {
+              "amount": 1012429498,
+              "currency": "USD"
+            },
+            "sourceId": "cinema:box-office-watch:5cfdba30bca1882f",
+            "distributor": "Universal"
+          }
+        ]
+      },
+      {
+        "id": "world-weekend",
+        "label": "Мировой прокат — уикенд",
+        "region": "WORLD",
+        "period": "weekend",
+        "entries": [
+          {
+            "id": "kinopoisk:7077372",
+            "title": "Heart of the Beast",
+            "rank": 1,
+            "gross": {
+              "amount": 30100000,
+              "currency": "USD"
+            },
+            "cumulativeGross": {
+              "amount": 30100000,
+              "currency": "USD"
+            },
+            "weeks": 1,
+            "sourceId": "cinema:kinopoisk-world:9d8830216fa9d4eb"
+          },
+          {
+            "id": "kinopoisk:7378605",
+            "title": "Resident Evil",
+            "rank": 2,
+            "gross": {
+              "amount": 27000000,
+              "currency": "USD"
+            },
+            "cumulativeGross": {
+              "amount": 93000000,
+              "currency": "USD"
+            },
+            "changePercent": -44,
+            "weeks": 2,
+            "sourceId": "cinema:kinopoisk-world:9d8830216fa9d4eb"
+          },
+          {
+            "id": "kinopoisk:6385370",
+            "title": "The Odyssey",
+            "rank": 3,
+            "gross": {
+              "amount": 13844000,
+              "currency": "USD"
+            },
+            "cumulativeGross": {
+              "amount": 1134726000,
+              "currency": "USD"
+            },
+            "changePercent": -14,
+            "weeks": 11,
+            "sourceId": "cinema:kinopoisk-world:9d8830216fa9d4eb"
+          },
+          {
+            "id": "kinopoisk:13703356",
+            "title": "Huan ying laai long can guan",
+            "rank": 4,
+            "gross": {
+              "amount": 7415400,
+              "currency": "USD"
+            },
+            "cumulativeGross": {
+              "amount": 337912200,
+              "currency": "USD"
+            },
+            "changePercent": 70,
+            "weeks": 7,
+            "sourceId": "cinema:kinopoisk-world:9d8830216fa9d4eb"
+          },
+          {
+            "id": "kinopoisk:5494049",
+            "title": "Spider-Man: Brand New Day",
+            "rank": 5,
+            "gross": {
+              "amount": 6200000,
+              "currency": "USD"
+            },
+            "cumulativeGross": {
+              "amount": 1545000000,
+              "currency": "USD"
+            },
+            "changePercent": -42,
+            "weeks": 9,
+            "sourceId": "cinema:kinopoisk-world:9d8830216fa9d4eb"
+          },
+          {
+            "id": "kinopoisk:10628576",
+            "title": "Forgotten Island",
+            "rank": 6,
+            "gross": {
+              "amount": 5638000,
+              "currency": "USD"
+            },
+            "cumulativeGross": {
+              "amount": 7849000,
+              "currency": "USD"
+            },
+            "weeks": 1,
+            "sourceId": "cinema:kinopoisk-world:9d8830216fa9d4eb"
+          },
+          {
+            "id": "kinopoisk:6426123",
+            "title": "Practical Magic 2",
+            "rank": 7,
+            "gross": {
+              "amount": 3100000,
+              "currency": "USD"
+            },
+            "cumulativeGross": {
+              "amount": 32600000,
+              "currency": "USD"
+            },
+            "changePercent": -55,
+            "weeks": 3,
+            "sourceId": "cinema:kinopoisk-world:9d8830216fa9d4eb"
+          },
+          {
+            "id": "kinopoisk:7400696",
+            "title": "Primetime",
+            "rank": 8,
+            "gross": {
+              "amount": 869000,
+              "currency": "USD"
+            },
+            "cumulativeGross": {
+              "amount": 884000,
+              "currency": "USD"
+            },
+            "weeks": 1,
+            "sourceId": "cinema:kinopoisk-world:9d8830216fa9d4eb"
+          }
+        ]
+      }
+    ],
+    "signals": [
+      {
+        "id": "signal:largest-debut",
+        "kind": "largest-debut",
+        "filmId": "bow:avengers-endgame",
+        "filmTitle": "Avengers: Endgame",
+        "label": "Крупнейший дебют",
+        "value": 26106643,
+        "unit": "USD",
+        "sourceId": "cinema:box-office-watch:5cfdba30bca1882f"
+      },
+      {
+        "id": "signal:best-hold",
+        "kind": "best-hold",
+        "filmId": "bow:the-history-of-concrete",
+        "filmTitle": "The History of Concrete",
+        "label": "Лучшее удержание",
+        "value": 323,
+        "unit": "%",
+        "sourceId": "cinema:box-office-watch:5cfdba30bca1882f"
+      },
+      {
+        "id": "signal:sharpest-drop",
+        "kind": "sharpest-drop",
+        "filmId": "bow:the-uprising",
+        "filmTitle": "The Uprising",
+        "label": "Самое резкое падение",
+        "value": -93,
+        "unit": "%",
+        "sourceId": "cinema:box-office-watch:5cfdba30bca1882f"
+      },
+      {
+        "id": "signal:rank-movement",
+        "kind": "rank-movement",
+        "filmId": "bow:you-had-to-be-there-how-the-toronto-godspell-ignited-the-comedy-revolution-spread-love-overalls-and-",
+        "filmTitle": "You Had to Be There: How the Toronto Godspell Ignited the Comedy Revolution, Spread Love & Overalls, and Created a Community That Changed the World (in a Canadian Kind of Way)",
+        "label": "Движение в чарте",
+        "value": 14,
+        "unit": "поз.",
+        "sourceId": "cinema:box-office-watch:5cfdba30bca1882f"
+      }
+    ],
+    "trend": [
+      {
+        "id": "bow:avengers-endgame",
+        "label": "Avengers: Endgame",
+        "currency": "USD",
+        "points": [
+          {
+            "at": "2026-08-23",
+            "label": "08-23",
+            "gross": null
+          },
+          {
+            "at": "2026-08-30",
+            "label": "08-30",
+            "gross": null
+          },
+          {
+            "at": "2026-09-06",
+            "label": "09-06",
+            "gross": null
+          },
+          {
+            "at": "2026-09-13",
+            "label": "09-13",
+            "gross": null
+          },
+          {
+            "at": "2026-09-20",
+            "label": "09-20",
+            "gross": null
+          },
+          {
+            "at": "2026-09-27",
+            "label": "09-27",
+            "gross": 26106643,
+            "debut": true
+          }
+        ]
+      },
+      {
+        "id": "bow:resident-evil",
+        "label": "Resident Evil",
+        "currency": "USD",
+        "points": [
+          {
+            "at": "2026-08-23",
+            "label": "08-23",
+            "gross": null
+          },
+          {
+            "at": "2026-08-30",
+            "label": "08-30",
+            "gross": null
+          },
+          {
+            "at": "2026-09-06",
+            "label": "09-06",
+            "gross": null
+          },
+          {
+            "at": "2026-09-13",
+            "label": "09-13",
+            "gross": null
+          },
+          {
+            "at": "2026-09-20",
+            "label": "09-20",
+            "gross": 60152878
+          },
+          {
+            "at": "2026-09-27",
+            "label": "09-27",
+            "gross": 23012848,
+            "changePercent": -62
+          }
+        ]
+      },
+      {
+        "id": "bow:heart-of-the-beast",
+        "label": "Heart of the Beast",
+        "currency": "USD",
+        "points": [
+          {
+            "at": "2026-08-23",
+            "label": "08-23",
+            "gross": null
+          },
+          {
+            "at": "2026-08-30",
+            "label": "08-30",
+            "gross": null
+          },
+          {
+            "at": "2026-09-06",
+            "label": "09-06",
+            "gross": null
+          },
+          {
+            "at": "2026-09-13",
+            "label": "09-13",
+            "gross": null
+          },
+          {
+            "at": "2026-09-20",
+            "label": "09-20",
+            "gross": null
+          },
+          {
+            "at": "2026-09-27",
+            "label": "09-27",
+            "gross": 20042473,
+            "debut": true
+          }
+        ]
+      },
+      {
+        "id": "bow:primetime",
+        "label": "Primetime",
+        "currency": "USD",
+        "points": [
+          {
+            "at": "2026-08-23",
+            "label": "08-23",
+            "gross": null
+          },
+          {
+            "at": "2026-08-30",
+            "label": "08-30",
+            "gross": null
+          },
+          {
+            "at": "2026-09-06",
+            "label": "09-06",
+            "gross": null
+          },
+          {
+            "at": "2026-09-13",
+            "label": "09-13",
+            "gross": null
+          },
+          {
+            "at": "2026-09-20",
+            "label": "09-20",
+            "gross": null
+          },
+          {
+            "at": "2026-09-27",
+            "label": "09-27",
+            "gross": 18830798,
+            "debut": true
+          }
+        ]
+      },
+      {
+        "id": "bow:forgotten-island",
+        "label": "Forgotten Island",
+        "currency": "USD",
+        "points": [
+          {
+            "at": "2026-08-23",
+            "label": "08-23",
+            "gross": null
+          },
+          {
+            "at": "2026-08-30",
+            "label": "08-30",
+            "gross": null
+          },
+          {
+            "at": "2026-09-06",
+            "label": "09-06",
+            "gross": null
+          },
+          {
+            "at": "2026-09-13",
+            "label": "09-13",
+            "gross": null
+          },
+          {
+            "at": "2026-09-20",
+            "label": "09-20",
+            "gross": null
+          },
+          {
+            "at": "2026-09-27",
+            "label": "09-27",
+            "gross": 13007005,
+            "debut": true
+          }
+        ]
+      }
+    ],
+    "provenance": [
+      "cinema:box-office-watch:5cfdba30bca1882f",
+      "cinema:kinopoisk-world:9d8830216fa9d4eb"
+    ],
+    "diagnostics": [
+      "lkc:lkc_schema:No fresh LKC weekend workbook found"
+    ]
+  },
+  "provenance": [
+    {
+      "id": "cinema:box-office-watch:5cfdba30bca1882f",
+      "provider": "Box Office Watch",
+      "url": "https://boxofficewatch.com/",
+      "fetchedAt": "2026-10-03T06:02:03.569Z",
+      "region": "US/WORLD",
+      "period": "2026-09-27"
+    },
+    {
+      "id": "cinema:kinopoisk-world:9d8830216fa9d4eb",
+      "provider": "Kinopoisk",
+      "url": "https://www.kinopoisk.ru/box/type/world/",
+      "fetchedAt": "2026-10-03T06:02:03.569Z",
+      "region": "WORLD",
+      "period": "2026-09-27",
+      "evidence": "Public Kinopoisk weekend chart via bounded reader transport; upstream data credited to Box Office Mojo"
+    },
+    {
+      "id": "cinema:cinema-lt:2b9961eb74af20b5",
+      "provider": "cinema.lt",
+      "url": "https://cinema.lt/repertuaras",
+      "fetchedAt": "2026-10-03T06:02:03.569Z",
+      "region": "LT"
+    },
+    {
+      "id": "cinema:variety:58b40d3cf0481a8f",
+      "provider": "Variety",
+      "url": "https://variety.com/feed/",
+      "fetchedAt": "2026-10-03T06:02:03.569Z",
+      "period": "2026-09-26T06:00:00.000Z/2026-10-03T06:00:00.000Z"
+    },
+    {
+      "id": "cinema:deadline:a6faba43a17ae08c",
+      "provider": "Deadline",
+      "url": "https://deadline.com/feed/",
+      "fetchedAt": "2026-10-03T06:02:03.569Z",
+      "period": "2026-09-26T06:00:00.000Z/2026-10-03T06:00:00.000Z"
+    },
+    {
+      "id": "cinema:hollywoodReporter:0b5974ac5f011d1b",
+      "provider": "The Hollywood Reporter",
+      "url": "https://www.hollywoodreporter.com/feed/",
+      "fetchedAt": "2026-10-03T06:02:03.569Z",
+      "period": "2026-09-26T06:00:00.000Z/2026-10-03T06:00:00.000Z"
+    },
+    {
+      "id": "cinema:indiewire:6b5ec7928d83c2dc",
+      "provider": "IndieWire",
+      "url": "https://www.indiewire.com/feed/",
+      "fetchedAt": "2026-10-03T06:02:03.569Z",
+      "period": "2026-09-26T06:00:00.000Z/2026-10-03T06:00:00.000Z"
+    },
+    {
+      "id": "cinema:youtube:dbae2d0204aa489e",
+      "provider": "YouTube",
+      "url": "https://www.youtube.com/",
+      "fetchedAt": "2026-10-03T06:02:03.569Z",
+      "period": "2026-09-26T06:00:00.000Z/2026-10-03T06:00:00.000Z"
+    }
+  ]
+}

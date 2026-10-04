@@ -432,8 +432,9 @@ const collected = await collectCinemaCandidate({
   retry: { attempts: 1, timeoutMs: 1_000 },
   now: () => new Date("2026-08-29T06:05:00Z"),
 });
-assert.equal(collected.boxOffice.state, "ready");
-assert.equal(collected.boxOffice.charts.find((chart) => chart.id === "world-weekend")?.entries.length, 8);
+// The existing independent fixtures conflict for three exact film titles.
+assert.equal(collected.boxOffice.state, "partial");
+assert.equal(collected.boxOffice.charts.some((chart) => chart.id === "world-weekend"), false);
 assert.equal(collected.boxOffice.charts.find((chart) => chart.id === "lt-weekend")?.entries.length, 2);
 assert.equal(collected.trailers.state, "ready");
 assert.equal(collected.trailers.candidates.length, 1);
@@ -441,7 +442,7 @@ assert.equal(collected.premieres.state, "ready");
 assert.deepEqual(collected.premieres.candidates[0]?.directors, ["Greta Example"]);
 assert.equal(collected.news.state, "ready");
 assert.equal(collected.news.candidates.length, 4);
-assert.equal(collected.diagnostics.length, 0);
+assert.equal(collected.diagnostics.filter((diagnostic) => diagnostic.includes("world_below_domestic")).length, 3);
 
 const apArticleUrl = "https://apnews.com/article/weekly-box-office-test";
 const fallbackCollected = await collectCinemaCandidate({
@@ -520,7 +521,7 @@ if (missingNewsImage) assert.equal(typeof cachedMedia.media[missingNewsImage.id]
 assert.equal(Object.values(cachedMedia.media).every((path) => path.startsWith("/media/cinema/2026-08-29/")), true);
 await rm(mediaRoot, { recursive: true, force: true });
 const composed = composeCinemaEnvelope({ candidate: collected, config, draft: editorialDraft, media: cachedMedia.media });
-assert.equal(composed.state, "ready");
+assert.equal(composed.state, "partial");
 assert.equal(composed.data.news.items.length, 4);
 assert.equal(composed.data.news.items[0]?.publisher.length !== 0, true);
 const bilingualDraft={...editorialDraft,localeVersion:2,

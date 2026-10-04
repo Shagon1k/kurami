@@ -122,7 +122,7 @@
     "test:briefing-editorial": "node tests/briefing/verify-editorial-validation.ts",
     "test:briefing-poller": "node tests/briefing/verify-public-url.ts && node tests/briefing/verify-poller-notifier.ts",
     "test:briefing-workflow": "node tests/briefing/verify-deterministic-workflow.ts",
-    "test:briefing-cinema": "node tests/briefing/verify-cinema-contract.ts",
+    "test:briefing-cinema": "node tests/briefing/verify-cinema-box-office-consistency.ts && node tests/briefing/verify-cinema-contract.ts",
     "briefing:build": "tsc -p tsconfig.briefing-runtime.json",
     "briefing:init": "node src/briefing/cli.ts init",
     "briefing:inspect": "node src/briefing/cli.ts inspect",

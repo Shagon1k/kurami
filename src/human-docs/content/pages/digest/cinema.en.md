@@ -31,6 +31,14 @@ Numbers, dates and ranks come from the sources and are computed by code. The mod
 
 ## When the page is replaced
 
+The supplemental world weekend table is omitted, with a diagnostic and partial
+box-office status, if its source cannot prove the same weekend as the collected
+US table, or if an unambiguous exact film match has world gross below domestic
+gross in the same currency. Source references remain available for audit. Kurami
+does not relabel uncertain figures as international or add them to US figures.
+Recovery must create a new candidate from the frozen file, preserving dates and
+provenance; it must not overwrite the original or recollect a different week.
+
 Kurami replaces `/cinema` only with a checked snapshot. Each of the four blocks gets its own state, and those states decide the fate of the whole snapshot.
 
 | Snapshot | Decision | What you see |

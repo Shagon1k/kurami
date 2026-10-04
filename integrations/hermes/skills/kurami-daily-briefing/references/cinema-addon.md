@@ -129,6 +129,15 @@ CINEMA_CLI=/home/shagon1k/_hermes/_kurami/app/dist/briefing/cinema/cli.js
 - No fresh premiere inside the next-week window: use `empty`, not older films.
 - Box Office Watch failure: the runtime may use its bounded AP/Comscore Top 10
   fallback. Do not restore unavailable trend, YTD, or movement data by hand.
+- Supplemental WORLD weekend charts must pass the runtime same-weekend and
+  same-currency domestic lower-bound checks. An omitted chart is a truthful
+  partial, not a reason to discard all Cinema sections. Preserve its safe
+  diagnostic and source provenance. Never infer international/excluding-US
+  semantics, add domestic and WORLD values, or substitute guessed totals.
+  For an authorized historical recovery, apply the same runtime reconciliation
+  to a new candidate artifact derived from the frozen candidate; preserve all
+  coverage windows and other sections, verify the original remains unchanged,
+  and continue through cache-media, compose, prepare and promote.
 - Cinema collection, copy, image, render, or promotion failure: record the safe
   diagnostic and continue Daily without a Cinema preview for that date.
 - Never reuse last week's snapshot inside a new Saturday Daily page. The old

@@ -18,6 +18,7 @@ import type {
   CinemaSourceReference,
 } from "./model.ts";
 import { normalizeBoxOfficeWatch } from "./providers/box-office-watch.ts";
+import { reconcileWorldWeekend } from "./box-office-consistency.ts";
 import { apArticlePublishedAt, discoverApBoxOfficeLinks, parseApTopTen } from "./providers/ap.ts";
 import { parseCinemaLtMovieDetails, parseCinemaLtPremieres, type CinemaLtPremiereCandidate } from "./providers/cinema-lt.ts";
 import { parseCinemaRss, type CinemaNewsCandidate } from "./providers/rss.ts";
@@ -547,8 +548,9 @@ export async function collectCinemaCandidate(options: CinemaCollectorOptions): P
     ...news.sources,
     ...trailers.sources,
   ];
+  const reconciledBoxOffice = reconcileWorldWeekend(mergedBoxOffice, provenance, boxOffice.coverage);
   const diagnostics = [
-    ...(mergedBoxOffice.diagnostics ?? []),
+    ...(reconciledBoxOffice.diagnostics ?? []),
     ...premieres.section.diagnostics,
     ...news.section.diagnostics,
     ...trailers.section.diagnostics,
@@ -561,7 +563,7 @@ export async function collectCinemaCandidate(options: CinemaCollectorOptions): P
     timezone: options.config.timeZone,
     language: options.config.language,
     coverage: { boxOffice: boxOffice.coverage, trailers: weekly, premieres: premieresCoverage, news: weekly },
-    boxOffice: mergedBoxOffice,
+    boxOffice: reconciledBoxOffice,
     trailers: trailers.section,
     premieres: premieres.section,
     news: news.section,
