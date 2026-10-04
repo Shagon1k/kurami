@@ -11,6 +11,7 @@ import { syntheticProjectsSnapshot } from "./fixture.ts";
 let unavailable = false;
 let dense=false;
 let previewReady=false;
+let semanticNotes=false;
 let ciScenario:"normal"|"failed"|"mixed"|"new-head"="normal";
 let prScenario:"off"|"ready"|"merge"|"all-methods"|"blocked"|"pending"|"syncing"|"unavailable"="off";
 let prWrites:{action:string;method:string|null;confirmed:boolean;key:string}[]=[];
@@ -20,6 +21,7 @@ let failAction=false,actionAccepted=false,cancellation=false,discarded=false;con
 const serverOptions = { snapshot: () => {
   if (unavailable) throw new Error("fixture failure");
   const snapshot = syntheticProjectsSnapshot();
+  if(semanticNotes){const item=snapshot.items[0]!;item.review={...item.review,state:'ready',critical:1,important:2,suggestions:3};item.preview.state='running';item.preview.expiresAt=new Date(Date.now()+1800000).toISOString();}
   if(prScenario!=="off")snapshot.items[0]!.prControlsEnabled=true;
   if(ciScenario!=="normal"){
     const ci=snapshot.items[0]!.ci;
@@ -644,6 +646,16 @@ try {
     }
   }
   assert.equal(prWrites.length,2,"reading blocked PR explanations never writes a PR");
+  semanticNotes=true;prScenario='off';ciScenario='normal';previewReady=false;cancellation=false;accepted=false;statusRequest=null;actionAccepted=false;
+  for(const lang of ['en','ru'])for(const theme of ['light','dark']){
+    await devtools.call('Emulation.setDeviceMetricsOverride',{width:390,height:900,deviceScaleFactor:1,mobile:true});
+    await open(`/?item=item-12&lang=${lang}`);
+    await devtools.evaluate(`if(document.documentElement.dataset.theme!==${JSON.stringify(theme)})document.querySelector('[data-theme-toggle]').click()`);await delay(200);
+    assert.equal(await devtools.evaluate("document.querySelector('.projects-findings [data-note-tone=failure]').textContent.startsWith('1 ')"),true,'critical finding has a separate severity accent');
+    assert.equal(await devtools.evaluate("document.querySelector('[data-preview-expiry]').dataset.noteTone"),'warning','live preview expiry has a last-hour caution');
+    await audit();
+    if(lang==='en'){const shot=await devtools.call<{data:string}>('Page.captureScreenshot',{format:'png',captureBeyondViewport:false});writeFileSync(resolve(out,`projects-semantic-notes-${theme}.png`),Buffer.from(shot.data,'base64'));}
+  }
 } finally {
   await browser.close();
   await new Promise<void>(done => server.close(() => done()));

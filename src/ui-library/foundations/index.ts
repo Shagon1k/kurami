@@ -25,6 +25,7 @@ button, a { -webkit-tap-highlight-color: transparent; }
 .page-title,h1.page-title { max-width: 24ch; margin: 0 0 var(--space-4); font: 600 clamp(2rem,5vw,3.6rem)/1.08 var(--font-sans); letter-spacing: -.045em; overflow-wrap: anywhere; }
 .page-subtitle { max-width: 62ch; margin: 0; color: var(--text-muted); font: 400 clamp(1rem,1.8vw,1.25rem)/1.5 var(--font-sans); }
 .page-eyebrow { margin: 0 0 var(--space-3); color: var(--text-muted); font: 400 .7rem/1.4 var(--font-mono); letter-spacing: .07em; text-transform: uppercase; }
+[data-anchor-arrival="true"] { background: color-mix(in srgb,var(--accent-data) 10%,var(--surface-page)); outline: 1px solid color-mix(in srgb,var(--accent-data) 25%,var(--border-subtle)); outline-offset: var(--space-1); border-radius: var(--radius); }
 @media (max-width: ${breakpoints.phone}px) { .container { width: min(100% - 28px, var(--container-max, 1320px)); } }
 @media (prefers-reduced-motion: reduce) {
   html { scroll-behavior: auto; }

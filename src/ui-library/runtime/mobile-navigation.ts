@@ -161,6 +161,7 @@ function mobileNavigationRuntime(phoneWidth:number) {
           const temporary=!destination.hasAttribute('tabindex');if(temporary){destination.tabIndex=-1;destination.addEventListener('blur',()=>destination.removeAttribute('tabindex'),{once:true});}
           history.pushState(history.state,'',link!.href);destination.focus({preventScroll:true});
           destination.scrollIntoView({block:'start',behavior:matchMedia('(prefers-reduced-motion: reduce)').matches?'instant':'smooth'});scheduleReading();
+          document.dispatchEvent(new CustomEvent('kurami:anchor-arrival',{detail:destination.id}));
         }else{replaying=true;try{(link??control)!.click();}finally{replaying=false;}}
       });
     },true);

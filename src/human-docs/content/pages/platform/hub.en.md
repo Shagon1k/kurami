@@ -60,6 +60,12 @@ The commit and limit charts share their light and dark styling with Digest and S
 
 ## Owner controls
 
+Changed model, numeric and interval fields have a light blue accent. Confirmations
+show the field, previous value and proposed value in a compact table. Returning a
+field to its original value removes the accent; locked fields remain neutral.
+In Codex limits, a remaining quota of 20% or less is amber; an exhausted quota is
+red. The low/exhausted label remains visible without relying on colour.
+
 The **Controls** icon opens four actions from the desktop header or the phone's bottom panel; **Reset** sits beside the limits.
 
 Apply buttons and their confirmations use a light blue accent. Reset credits, Restart and restoring Defaults

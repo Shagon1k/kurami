@@ -1,6 +1,7 @@
 // One theme runtime for every Kurami page. Sites serve THEME_RUNTIME_JS as /assets/theme.js and load it
 // synchronously in <head>, so the stored or system theme applies before first paint.
 import {MOBILE_NAVIGATION_RUNTIME_JS} from "./mobile-navigation.ts";
+import {READING_RUNTIME_JS} from './reading.ts';
 function kuramiThemeRuntime() {
   const root = document.documentElement, key = "kurami-theme", media = matchMedia("(prefers-color-scheme: dark)");
   const stored = () => { try { const value = localStorage.getItem(key); return value === "dark" || value === "light" ? value : null; } catch { return null; } };
@@ -38,5 +39,5 @@ function kuramiThemeRuntime() {
   });
 }
 
-export const THEME_RUNTIME_JS = `(${kuramiThemeRuntime.toString()})();\n${MOBILE_NAVIGATION_RUNTIME_JS}`;
+export const THEME_RUNTIME_JS = `(${kuramiThemeRuntime.toString()})();\n${MOBILE_NAVIGATION_RUNTIME_JS}\n${READING_RUNTIME_JS}`;
 export const THEME_SCRIPT_TAG = '<script src="/assets/theme.js"></script>';

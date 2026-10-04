@@ -162,10 +162,13 @@ function showDialog(button){
   hideControls();controlResult.textContent="";
   if(!dialog.open)dialog.showModal();
 }
-function confirmAction(action,payload,message){
+function confirmAction(action,payload,message,changes=[]){
   pending={action,payload};
   controlContent.hidden=true;confirmation.hidden=false;
   document.getElementById("hub-confirm-message").textContent=message;
+  const table=document.getElementById("hub-confirm-changes");table.hidden=!changes.length;
+  const body=table.querySelector('tbody');body.replaceChildren();
+  for(const change of changes){const row=document.createElement('tr');change.forEach((value,index)=>{const cell=document.createElement(index?'td':'th');if(!index)cell.scope='row';cell.textContent=String(value);row.append(cell);});body.append(row);}
   const confirm=dialog.querySelector("[data-hub-confirm]");
   confirm.classList.remove("button--info","button--warning","button--subtle");
   const tone=["restart","codex-reset","settings-reset"].includes(action)?"warning":action==="settings-rollback"?"subtle":"info";
@@ -213,6 +216,15 @@ document.addEventListener("click",event=>{
     confirmAction(action,{revision:Number(button.dataset.revision)},action==="settings-reset"?text("Восстановить настройки по умолчанию?","Restore default settings?"):text("Откатить последнее изменение настроек?","Undo the last settings change?"));
   }
 });
+function markChangedFields(event){
+  const input=event.target;
+  if(!input.matches?.('[data-hub-submit] input,[data-hub-submit] select'))return;
+  const original=input.tagName==='SELECT'?[...input.options].find(option=>option.defaultSelected)?.value:input.defaultValue;
+  const changed=input.type==='number'?Number(input.value)!==Number(original):input.value!==original;
+  input.closest('.form-field')?.setAttribute('data-dirty',String(changed&&!input.disabled));
+}
+document.addEventListener('input',markChangedFields);
+document.addEventListener('change',markChangedFields);
 document.addEventListener("submit",event=>{
   const form=event.target;
   if(!form.matches?.("[data-hub-submit]"))return;
@@ -220,19 +232,19 @@ document.addEventListener("submit",event=>{
   const values=Object.fromEntries(new FormData(form));const action=form.dataset.hubSubmit;
   if(action==="model-apply"){
     const selected=JSON.parse(form.dataset.models).find(model=>model.value===values.model);
-    const effort=form.dataset.effort;let message=`${form.dataset.target}: ${form.dataset.expectedModel} → ${values.model}`;
-    if(form.dataset.target==="codex"&&effort&&selected?.efforts?.length&&!selected.efforts.includes(effort))message+=`\nReasoning: ${effort} → ${selected.defaultEffort}`;
-    confirmAction(action,{target:form.dataset.target,expectedModel:form.dataset.expectedModel,expectedEffort:form.dataset.target==="codex"?(effort||null):undefined,model:values.model},message);
+    const effort=form.dataset.effort,changes=[[text('Модель','Model'),form.dataset.expectedModel,values.model]];
+    if(form.dataset.target==="codex"&&effort&&selected?.efforts?.length&&!selected.efforts.includes(effort))changes.push(['Reasoning',effort,selected.defaultEffort]);
+    confirmAction(action,{target:form.dataset.target,expectedModel:form.dataset.expectedModel,expectedEffort:form.dataset.target==="codex"?(effort||null):undefined,model:values.model},form.dataset.target,changes);
   }
-  if(action==="health-apply")confirmAction(action,{revision:Number(form.dataset.revision),minutes:Number(values.minutes)},`System Health: ${values.minutes} min`);
+  if(action==="health-apply")confirmAction(action,{revision:Number(form.dataset.revision),minutes:Number(values.minutes)},'System Health',[[text('Интервал · минуты','Interval · minutes'),[...form.elements.minutes.options].find(option=>option.defaultSelected)?.value,values.minutes]]);
   if(action==="settings-apply"){
     const settings={project_wip:{}};const current=JSON.parse(form.dataset.current);const changes=[];
     for(const [name,value] of Object.entries(values)){
-      if(name.startsWith("project_wip.")){const project=name.slice(12);settings.project_wip[project]=Number(value);if(Number(value)!==current.project_wip[project])changes.push(`${project} WIP: ${current.project_wip[project]} → ${value}`);}
-      else{settings[name]=Number(value);if(Number(value)!==current[name])changes.push(`${form.elements.namedItem(name).closest("label").querySelector("span").textContent}: ${current[name]} → ${value}`);}
+      if(name.startsWith("project_wip.")){const project=name.slice(12);settings.project_wip[project]=Number(value);if(Number(value)!==current.project_wip[project])changes.push([`${project} WIP`,current.project_wip[project],value]);}
+      else{settings[name]=Number(value);if(Number(value)!==current[name])changes.push([form.elements.namedItem(name).closest("label").querySelector("span").textContent,current[name],value]);}
     }
     if(!changes.length){controlResult.textContent=text("Без изменений","No changes");return;}
-    confirmAction(action,{revision:Number(form.dataset.revision),settings},changes.join("\n"));
+    confirmAction(action,{revision:Number(form.dataset.revision),settings},text('Применить изменения настроек?','Apply settings changes?'),changes);
   }
 });
 async function performAction(button){

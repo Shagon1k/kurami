@@ -124,6 +124,12 @@ try{
       assert.match(await devtools.evaluate<string>("document.querySelector('[data-mail-archive]').textContent"),lang==="en"?/Read and archive/:/Прочитать и архивировать/);
       await devtools.evaluate("document.querySelector('[data-mail-select]').click()");
       assert.equal(await devtools.evaluate("document.querySelector('[data-mail-archive]').disabled"),false,path+" selecting mail enables archive without submitting it");
+      assert.equal(await devtools.evaluate("document.querySelector('[data-mail-select]').closest('[data-mail-item]').dataset.selected"),'true',path+' selected mail has a row accent');
+      await devtools.evaluate("document.querySelector('[data-mail-select-all]').click()");
+      assert.equal(await devtools.evaluate("document.querySelector('[data-mail-item]').dataset.selected"),'false',path+' clearing Select all removes the row accent');
+      await devtools.evaluate("document.querySelector('[data-mail-select-all]').click()");
+      assert.equal(await devtools.evaluate("[...document.querySelectorAll('[data-mail-select]:not(:disabled)')].every(input=>input.closest('[data-mail-item]').dataset.selected==='true')"),true,path+' Select all accents all actionable messages');
+      assert.equal(await devtools.evaluate("document.querySelectorAll('[data-edition-freshness]').length"),1,path+' separate edition/source metadata survives retained-page injection');
     }
     assert.equal(await devtools.evaluate("document.querySelector('.site-brand__fox').naturalWidth>0"),true,path+" fox loaded");
     assert.deepEqual(await devtools.evaluate(AUDIT_EXPRESSION),[],path+" "+width);

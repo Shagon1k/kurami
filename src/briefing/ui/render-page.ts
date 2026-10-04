@@ -8,6 +8,7 @@ import {renderPageShell} from "./page-shell.ts";
 import { renderMetricStrip, timeMetricCard } from "./components/metric-strip.ts";
 import {digestLanguage,digestText} from "../i18n.ts";
 import {refreshCinemaUi} from "./components/cinema-section.ts";
+import {renderEditionFreshness} from './components/edition-freshness.ts';
 
 function formatDate(payload: BriefingPayload): string {
   const value = new Date(`${payload.edition.localDate}T12:00:00`);
@@ -73,6 +74,7 @@ export function renderBriefingPage(payload: BriefingPayload): string {
         <p class="hero__subtitle">${escapeHtml(subtitle)}</p></div>
       ${renderKuramiNote(heroNote, "hero__note")}
     </section>
+    ${renderEditionFreshness(payload)}
     ${originalEditorial?`<aside class="quality-strip" aria-label="Original-language editorial content"><p>Archived editorial text is available only in its original Russian. New editions include English copy.</p></aside>`:""}
     ${payload.edition.type === "cinema" ? "" : renderMetricStrip(payload, metricCards)}
     ${afterMetrics}

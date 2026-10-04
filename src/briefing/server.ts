@@ -14,6 +14,7 @@ import {publishedSiteLinks} from "./site-navigation.ts";
 import {injectSiteNavigation} from "./ui/components/site-header.ts";
 import {renderPageShell,renderMediaClose} from "./ui/page-shell.ts";
 import {renderBriefingPage} from "./ui/render-page.ts";
+import {refreshEditionFreshness} from './ui/components/edition-freshness.ts';
 import {refreshCinemaUi} from "./ui/components/cinema-section.ts";
 import {digestText as t,digestLanguage,withDigestLanguage,type DigestLanguage} from "./i18n.ts";
 import {renderFontPreloads} from "../ui-library/foundations/fonts.ts";
@@ -343,6 +344,7 @@ ${COMPANY_AVATAR_CLIENT_SCRIPT}
   const refreshMailSelection = (section) => {
     const choices = Array.from(section.querySelectorAll('[data-mail-select]:not(:disabled)'));
     const selected = choices.filter((input) => input.checked);
+    for(const row of section.querySelectorAll('[data-mail-item]'))row.dataset.selected=String(Boolean(row.querySelector('[data-mail-select]:checked:not(:disabled)')));
     const selectAll = section.querySelector('[data-mail-select-all]');
     if (selectAll) {
       selectAll.checked = choices.length > 0 && selected.length === choices.length;
@@ -761,7 +763,7 @@ async function serveEdition(
   sendHeaders(response, "text/html; charset=utf-8");
   response.statusCode = 200;
   const footer=renderSiteFooter({lang:language,app:"Digest",updated:formatSiteDate(edition.published_at??edition.prepared_at,language,true)});
-  response.end(injectRuntime(injectSiteNavigation(html,publishedSiteLinks(database,weeklyEnabled,new Date().toISOString(),stocksEnabled),edition.edition_type,requestedPath), editionClientState(database, edition.id),footer));
+  response.end(injectRuntime(injectSiteNavigation(refreshEditionFreshness(html,parseBriefingPayload(JSON.parse(edition.payload_json))),publishedSiteLinks(database,weeklyEnabled,new Date().toISOString(),stocksEnabled),edition.edition_type,requestedPath), editionClientState(database, edition.id),footer));
 }
 
 export async function createBriefingServer(

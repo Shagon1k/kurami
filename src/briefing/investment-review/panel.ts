@@ -16,6 +16,7 @@ export const REVIEW_PANEL_STYLES=REVIEW_LEARNING_STYLES+`
 .investment-review>summary:focus-visible{outline:2px solid var(--accent-primary);outline-offset:3px}
 .investment-review__chevron{display:inline-flex;flex:none;transition:transform var(--duration-fast)}
 .investment-review[open]>summary .investment-review__chevron{transform:rotate(180deg)}
+.investment-review[open]>summary{background:var(--surface-section)}
 .investment-review__content{padding:0 24px 8px}
 .investment-review details{border-top:1px solid var(--border-default)}.investment-review__body{padding:0 0 16px;max-width:95ch}
 .investment-review__status{color:var(--text-muted);line-height:1.5}

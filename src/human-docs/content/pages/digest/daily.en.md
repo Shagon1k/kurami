@@ -46,6 +46,11 @@ Archiving mail is the one action on the page that changes something outside Kura
 
 On phones, Select all and the selected-message count share a row. Read and archive fills the row below; selection and archiving behave as before.
 
+Selected mail rows have a light blue background and a thin leading edge, including
+when you select all. Below the title, Edition identifies the saved snapshot;
+Sources shows the last successful live refresh and its state separately. An old
+edition date alone is not a warning. Missing refresh evidence is shown as unknown.
+
 Read and archive has a light green accent when messages are selected; without a selection it stays disabled and gray.
 The accent marks the action that finishes inbox processing, not a confirmed result.
 

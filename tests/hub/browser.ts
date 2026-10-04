@@ -148,7 +148,14 @@ try {
     assert.equal(await devtools.evaluate("document.querySelector('#hub-controls-popover').matches(':popover-open')"),false);
     assert.equal(await devtools.evaluate("document.querySelector('#hub-control-dialog-title').textContent"),lang==='en'?'Models':'Модели');
     assert.equal(await devtools.evaluate("!!document.querySelector('dialog [data-hub-control=menu]')"),false,"modal does not contain an extra Back action");
-    await devtools.evaluate("document.querySelector('form[data-target=codex] select').value='gpt-6-astra';document.querySelector('form[data-target=codex]').requestSubmit()");
+    const proposed=codexModel==='gpt-6-astra'?'gpt-6-sol':'gpt-6-astra';
+    await devtools.evaluate(`document.querySelector('form[data-target=codex] select').value=${JSON.stringify(proposed)};document.querySelector('form[data-target=codex] select').dispatchEvent(new Event('change',{bubbles:true}))`);
+    assert.equal(await devtools.evaluate("document.querySelector('form[data-target=codex] .form-field').dataset.dirty"),'true','changed model has an informational field accent');
+    await devtools.evaluate("document.querySelector('form[data-target=codex]').requestSubmit()");
+    assert.equal(await devtools.evaluate("document.querySelector('#hub-confirm-changes').hidden"),false,'confirmation shows a comparison table');
+    assert.equal(await devtools.evaluate("document.querySelector('#hub-confirm-changes tbody tr td:last-child').textContent"),proposed,'proposed value appears in After column');
+    await delay(200);assert.deepEqual(await devtools.evaluate(AUDIT_EXPRESSION),[],'comparison table contrast and accessibility');
+    if(lang==='en')await screenshot('hub-model-confirmation','dialog');
     const before=actions.length;assert.equal(await devtools.evaluate("document.querySelector('#hub-control-confirm').hidden"),false);
     assert.equal(await devtools.evaluate("document.querySelector('[data-hub-confirm]').classList.contains('button--info')"),true,"applying a model uses the informational accent");
     assert.equal(await devtools.evaluate("(()=>{const row=document.querySelector('#hub-control-confirm .dialog__actions'),cancel=row.querySelector('[data-hub-cancel]'),confirm=row.querySelector('[data-hub-confirm]'),r=row.getBoundingClientRect(),a=cancel.getBoundingClientRect(),b=confirm.getBoundingClientRect();return cancel.compareDocumentPosition(confirm)===Node.DOCUMENT_POSITION_FOLLOWING&&a.right<=b.left&&Math.abs(r.right-b.right)<1;})()"),true,"Cancel then Confirm align to the dialog's right edge");
@@ -179,6 +186,13 @@ try {
     assert.equal(await devtools.evaluate("document.querySelector('[data-hub-confirm]').classList.contains('button--warning')&&!document.querySelector('[data-hub-confirm]').classList.contains('button--info')"),true,"consuming a reset switches the confirmation to caution without a stale informational class");
     await devtools.evaluate("document.querySelector('[data-hub-cancel]').click()");
     await devtools.evaluate("(innerWidth<=620?document.querySelector('[data-mobile-menu=controls]'):document.querySelector('header [data-hub-control=menu]')).click();document.querySelector('[data-hub-control=settings]').click()");await wait("!!document.querySelector('[data-hub-submit=settings-apply]')");
+    await devtools.evaluate("(()=>{const input=document.querySelector('[data-hub-submit=settings-apply] input');input.value=String(Number(input.defaultValue)+1);input.dispatchEvent(new Event('input',{bubbles:true}));})()");
+    assert.equal(await devtools.evaluate("document.querySelector('[data-hub-submit=settings-apply] .form-field').dataset.dirty"),'true');
+    await delay(200);assert.deepEqual(await devtools.evaluate(AUDIT_EXPRESSION),[],'dirty field contrast');
+    await devtools.evaluate("document.querySelector('[data-hub-submit=settings-apply]').requestSubmit()");
+    assert.equal(await devtools.evaluate("document.querySelectorAll('#hub-confirm-changes tbody tr').length"),1,'confirmation lists only changed fields');
+    await devtools.evaluate("document.querySelector('[data-hub-cancel]').click();(()=>{const input=document.querySelector('[data-hub-submit=settings-apply] input');input.value=input.defaultValue;input.dispatchEvent(new Event('input',{bubbles:true}));})()");
+    assert.equal(await devtools.evaluate("document.querySelector('[data-hub-submit=settings-apply] .form-field').dataset.dirty"),'false','returning a setting to its original value removes the accent');
     for(const [action,tone]of [['settings-reset','warning'],['settings-rollback','subtle']]){
       await devtools.evaluate(`document.querySelector('[data-hub-control=${action}]').click()`);
       assert.equal(await devtools.evaluate(`document.querySelector('[data-hub-confirm]').classList.contains('button--${tone}')&&[...document.querySelector('[data-hub-confirm]').classList].filter(c=>['button--info','button--warning','button--subtle'].includes(c)).length===1`),true,'confirmation accent switches for '+action);

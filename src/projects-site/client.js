@@ -4,6 +4,15 @@
   const app=document.querySelector('[data-projects-app]');
   const messages=JSON.parse(app?.dataset.messages ?? '{}');
   const t=key=>messages[key]??key;
+  function updateExpiry(){
+    for(const note of document.querySelectorAll('[data-preview-expiry]')){
+      const remaining=Date.parse(note.dataset.previewExpiry)-Date.now();
+      note.dataset.noteTone=remaining<=3600000?'warning':'neutral';
+      const label=note.querySelector('[data-expiry-label]');if(label)label.textContent=remaining<=0?' · '+t('Expiry reached'):remaining<=3600000?' · '+t('Expires soon'):'';
+    }
+  }
+  updateExpiry();setInterval(updateExpiry,30000);
+  document.addEventListener('visibilitychange',()=>{if(!document.hidden)updateExpiry();});
   const requestHeaders={'Content-Type':'application/json','Accept-Language':document.documentElement.lang};
   const mobile=matchMedia('(max-width:900px)');
   let lastDetailUrl=null;
@@ -133,6 +142,7 @@
     finally {requestingAction=false;button.removeAttribute('aria-busy');await refresh();}
   }
   function filter() {
+    updateExpiry();
     const query = (search?.value ?? '').trim().toLocaleLowerCase(document.documentElement.lang);
     const rows = [...dashboard.querySelectorAll('.projects-table tbody tr')];
     let count = 0;
@@ -457,6 +467,8 @@
     form.querySelector('[data-status-submit]').disabled = select.disabled || !changed;
     if (!select.disabled) {
       const note = form.querySelector('[data-status-note]');
+      note.dataset.defaultTone??=note.dataset.noteTone||'info';
+      note.dataset.noteTone=changed?'info':note.dataset.defaultTone;
       note.textContent = changed ? JSON.parse(form.dataset.hints)[select.value] || '' : note.dataset.defaultNote || '';
       note.hidden = !note.textContent;
     }

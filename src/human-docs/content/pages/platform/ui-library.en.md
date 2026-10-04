@@ -47,6 +47,11 @@ amber for operations requiring attention, green for completion and red for cance
 Labels and icons remain visible; a color does not mean the request has completed. Disabled buttons stay gray.
 Navigation, popup cancellation and closing controls remain neutral.
 
+Open disclosures keep a neutral background on their heading, including nested
+portfolio sections. Following an in-page link briefly highlights its destination
+heading without moving the layout. The cue clears after 1.8 seconds and does not
+animate. Docs also tracks the section being read in its desktop contents list.
+
 Regular buttons, fields and header controls share a 36-pixel size. The language
 switch has the same square shape as the theme switch. The top-right dialog close
 button uses the shared cross icon. Its accessible name and hover tooltip stay

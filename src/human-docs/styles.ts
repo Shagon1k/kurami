@@ -49,6 +49,7 @@ h1 { max-width: 20ch; margin-bottom: var(--space-4); font-size: clamp(2.2rem, 5v
 .toc ol { margin: 0; padding: 0; list-style: none; border-left: 1px solid var(--border-subtle); }
 .toc li a { display: block; padding: 4px 0 4px 12px; color: var(--text-muted); line-height: 1.35; text-decoration: none; }
 .toc li a:hover { color: var(--text-accent); }
+.toc li a[aria-current="location"] { color:var(--text-primary); background:var(--surface-section); border-inline-start:2px solid var(--accent-data); padding-inline-start:10px; font-weight:600; }
 .toc-mobile { display: none; }
 .side-mobile, .toc-mobile { --disclosure-summary-font-size: .86rem; --disclosure-summary-font-weight: 600; --disclosure-summary-color: var(--text-primary); --disclosure-summary-padding-inline: 0; --disclosure-summary-min-height: 44px; }
 .side-mobile__list, .toc-mobile__list { max-height: min(60vh, 520px); overflow: auto; overscroll-behavior: contain; scrollbar-gutter: stable; }

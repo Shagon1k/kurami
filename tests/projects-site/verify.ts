@@ -123,6 +123,19 @@ assert.equal(await access.authorize(request(tampered.join("."))), null, "unverif
 assert.equal(await new ProjectsAccess({ team: "", audience: "", ownerEmail: "" }).authorize(request(token())), null);
 
 const fixture = syntheticProjectsSnapshot();
+const semantics=structuredClone(fixture);
+semantics.items[0]!.review={...semantics.items[0]!.review,state:'ready',critical:1,important:2,suggestions:3};
+semantics.items[0]!.preview.state='running';
+for(const lang of ['en','ru']){
+  for(const [minutes,tone]of [[120,'neutral'],[30,'warning'],[-1,'warning']] as const){
+    semantics.items[0]!.preview.expiresAt=new Date(Date.parse(semantics.generatedAt)+minutes*60000).toISOString();
+    const html=renderProjectsPage(semantics,new URLSearchParams(`item=item-12&lang=${lang}`));
+    assert.match(html,/data-note-tone="failure">1 /);assert.match(html,/data-note-tone="warning">2 /);assert.match(html,/data-note-tone="neutral">3 /);
+    assert.match(html,new RegExp(`data-preview-expiry="[^"]+" data-note-tone="${tone}"`));
+  }
+}
+semantics.items[0]!.preview.state='stopped';
+assert.doesNotMatch(renderProjectsPage(semantics,new URLSearchParams('item=item-12')),/data-preview-expiry=/,'a retired environment does not warn about an old expiry');
 const accented=structuredClone(fixture);
 const actionTones={ci_repair:"info",review_fix:"info",preview_stop:"warning",preview_reviewed:"success",stop:"danger",discard_local:"danger",discard_published:"danger",take_control:"subtle",preview_start:"subtle",recover_managed_task:"subtle"};
 accented.items[0]!.runActions!.actions=(Object.keys(actionTones) as (keyof typeof actionTones)[]).map(action=>({action,label:action,enabled:true,confirmation:null,hint:null,state:null}));
