@@ -62,6 +62,9 @@ The commit and limit charts share their light and dark styling with Digest and S
 
 The **Controls** icon opens four actions from the desktop header or the phone's bottom panel; **Reset** sits beside the limits.
 
+Apply buttons and their confirmations use a light blue accent. Reset credits, Restart and restoring Defaults
+use amber; Undo stays neutral. The confirmation changes its accent to match the operation, not the menu you opened.
+
 | Action | What it does |
 |---|---|
 | **Models** | sets the default model for new Codex sessions and for Hermes (provider `openai-codex`) |

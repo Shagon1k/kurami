@@ -42,6 +42,11 @@ group themes "Themes and tokens" theme roles band
 
 ## Compact controls
 
+Action buttons use restrained accents from the existing theme: blue for applying changes or starting a fix,
+amber for operations requiring attention, green for completion and red for cancellation or discarding work.
+Labels and icons remain visible; a color does not mean the request has completed. Disabled buttons stay gray.
+Navigation, popup cancellation and closing controls remain neutral.
+
 Regular buttons, fields and header controls share a 36-pixel size. The language
 switch has the same square shape as the theme switch. The top-right dialog close
 button uses the shared cross icon. Its accessible name and hover tooltip stay

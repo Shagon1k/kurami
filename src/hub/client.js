@@ -166,7 +166,11 @@ function confirmAction(action,payload,message){
   pending={action,payload};
   controlContent.hidden=true;confirmation.hidden=false;
   document.getElementById("hub-confirm-message").textContent=message;
-  dialog.querySelector("[data-hub-confirm]").focus();
+  const confirm=dialog.querySelector("[data-hub-confirm]");
+  confirm.classList.remove("button--info","button--warning","button--subtle");
+  const tone=["restart","codex-reset","settings-reset"].includes(action)?"warning":action==="settings-rollback"?"subtle":"info";
+  confirm.classList.add("button--"+tone);
+  confirm.focus();
 }
 function controlTitle(action){
   const titles={models:text('Модели','Models'),settings:text('Настройки','Settings'),'composio-check':text('Проверка Composio','Composio check'),restart:text('Перезапуск Hermes','Restart Hermes'),'codex-reset':text('Сброс лимитов Codex','Reset Codex limits')};

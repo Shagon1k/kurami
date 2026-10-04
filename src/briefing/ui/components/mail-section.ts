@@ -65,7 +65,7 @@ export function renderMailSection(payload: BriefingPayload): string {
   });
   const archiveButton = renderButton({
     label: digestText("Прочитать и архивировать","Read and archive"),
-    variant: "primary",
+    variant: "success",
     className: "mail-actions__submit",
     busyLabel: digestText("Обрабатываю…","Processing…"),
     disabled: true,

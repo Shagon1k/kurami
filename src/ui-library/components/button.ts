@@ -2,7 +2,7 @@
 import { escapeHtml } from "../foundations/html.ts";
 import { breakpoints } from "../tokens/index.ts";
 
-export type ButtonVariant = "primary" | "secondary" | "subtle" | "quiet" | "icon" | "text" | "danger" | "success" | "link" | "toggle" | "navigation" | "switch";
+export type ButtonVariant = "primary" | "secondary" | "subtle" | "quiet" | "icon" | "text" | "danger" | "success" | "info" | "warning" | "link" | "toggle" | "navigation" | "switch";
 export type ButtonSize = "regular" | "compact";
 
 type AttributeValue = string | number | boolean | undefined;
@@ -55,6 +55,10 @@ export const BUTTON_CSS = `
 .button--danger:hover:not(:disabled):not([aria-busy="true"]) { color: var(--surface-page); background: var(--status-failure); border-color: var(--status-failure); }
 .button--success { --button-busy-color: color-mix(in srgb,var(--status-success) 65%,var(--text-primary)); color: var(--button-busy-color); border-color: color-mix(in srgb,var(--status-success) 40%,var(--border-default)); background: color-mix(in srgb,var(--status-success) 6%,var(--surface-raised)); }
 .button--success:hover:not(:disabled):not([aria-busy="true"]) { color: var(--button-busy-color); background: color-mix(in srgb,var(--status-success) 12%,var(--surface-raised)); border-color: var(--status-success); }
+.button--info { --button-busy-color: color-mix(in srgb,var(--status-info) 65%,var(--text-primary)); color: var(--button-busy-color); border-color: color-mix(in srgb,var(--status-info) 40%,var(--border-default)); background: color-mix(in srgb,var(--status-info) 6%,var(--surface-raised)); }
+.button--info:hover:not(:disabled):not([aria-busy="true"]) { color: var(--button-busy-color); background: color-mix(in srgb,var(--status-info) 12%,var(--surface-raised)); border-color: var(--status-info); }
+.button--warning { --button-busy-color: color-mix(in srgb,var(--status-warning) 65%,var(--text-primary)); color: var(--button-busy-color); border-color: color-mix(in srgb,var(--status-warning) 40%,var(--border-default)); background: color-mix(in srgb,var(--status-warning) 6%,var(--surface-raised)); }
+.button--warning:hover:not(:disabled):not([aria-busy="true"]) { color: var(--button-busy-color); background: color-mix(in srgb,var(--status-warning) 12%,var(--surface-raised)); border-color: var(--status-warning); }
 .button--secondary { color: var(--text-primary); background: var(--surface-raised); border-color: var(--text-primary); }
 .button--subtle { color: var(--text-primary); background: var(--surface-panel); border-color: var(--border-default); }
 .button--subtle:hover:not(:disabled):not([aria-busy="true"]) { color: var(--text-primary); background: var(--surface-section); border-color: var(--text-muted); }

@@ -57,7 +57,7 @@ try {
     assert.equal(await devtools.evaluate("document.querySelector('[data-period-panel=limits]:not([hidden]) table thead tr').children.length"),2);
     assert.equal(await devtools.evaluate("document.querySelector('.work-item__meta').textContent.includes('Running')"),lang==="en","ending a Codex turn does not complete the task");
     assert.equal(await devtools.evaluate("[...document.querySelectorAll('#hub-dashboard [data-hub-control]')].every(el=>getComputedStyle(el).borderTopStyle==='solid' && getComputedStyle(el).borderTopColor!=='rgba(0, 0, 0, 0)' && el.getBoundingClientRect().height>=(el.classList.contains('button--compact')&&!matchMedia('(pointer: coarse)').matches?32:36))"),true,"dashboard controls have visible borders and appropriate touch targets");
-    assert.equal(await devtools.evaluate("document.querySelector('[data-hub-control=codex-reset]').classList.contains('button--subtle') && document.querySelector('[data-hub-control=codex-reset]').getBoundingClientRect().height===32"),true,"Reset uses a compact, understated button on desktop");
+    assert.equal(await devtools.evaluate("document.querySelector('[data-hub-control=codex-reset]').classList.contains('button--warning') && document.querySelector('[data-hub-control=codex-reset]').getBoundingClientRect().height===32"),true,"Reset uses a compact caution button on desktop");
     assert.deepEqual(await devtools.evaluate(AUDIT_EXPRESSION),[]);
     assert.deepEqual(await devtools.evaluate(inventoryExpression()),[]);
     assert.equal(await devtools.evaluate("document.querySelectorAll('.task-summary__cell').length"),3);
@@ -150,6 +150,7 @@ try {
     assert.equal(await devtools.evaluate("!!document.querySelector('dialog [data-hub-control=menu]')"),false,"modal does not contain an extra Back action");
     await devtools.evaluate("document.querySelector('form[data-target=codex] select').value='gpt-6-astra';document.querySelector('form[data-target=codex]').requestSubmit()");
     const before=actions.length;assert.equal(await devtools.evaluate("document.querySelector('#hub-control-confirm').hidden"),false);
+    assert.equal(await devtools.evaluate("document.querySelector('[data-hub-confirm]').classList.contains('button--info')"),true,"applying a model uses the informational accent");
     assert.equal(await devtools.evaluate("(()=>{const row=document.querySelector('#hub-control-confirm .dialog__actions'),cancel=row.querySelector('[data-hub-cancel]'),confirm=row.querySelector('[data-hub-confirm]'),r=row.getBoundingClientRect(),a=cancel.getBoundingClientRect(),b=confirm.getBoundingClientRect();return cancel.compareDocumentPosition(confirm)===Node.DOCUMENT_POSITION_FOLLOWING&&a.right<=b.left&&Math.abs(r.right-b.right)<1;})()"),true,"Cancel then Confirm align to the dialog's right edge");
     await delay(100);assert.equal(actions.length,before,"opening confirmation never applies a model");
     if(lang==="en"){
@@ -167,11 +168,23 @@ try {
     await devtools.evaluate("document.querySelector('[data-dialog-close] .button__svg path').dispatchEvent(new MouseEvent('click',{bubbles:true}))");
     assert.equal(await devtools.evaluate("document.querySelector('dialog').open"),false,"clicking the close icon closes the dialog");
     assert.equal(await devtools.evaluate("getComputedStyle(document.documentElement).overflowY==='hidden'"),false,"closing the modal releases the page scroll");
+    await devtools.evaluate("document.querySelector('[data-hub-control=restart]').click()");
+    assert.equal(await devtools.evaluate("document.querySelector('[data-hub-confirm]').classList.contains('button--warning')"),true,"restart confirmation uses caution, not danger");
+    await delay(200);assert.deepEqual(await devtools.evaluate(AUDIT_EXPRESSION),[],"restart caution contrast");
+    if(lang==='en')await screenshot('hub-restart-accent','#hub-control-dialog');
+    await devtools.evaluate("document.querySelector('[data-hub-cancel]').click()");
     await devtools.evaluate("document.querySelector('[data-hub-control=codex-reset]').click()");
     await delay(80);
     assert.equal(actions.length,before+(lang==="en"?1:0),"reset waits for confirmation");
+    assert.equal(await devtools.evaluate("document.querySelector('[data-hub-confirm]').classList.contains('button--warning')&&!document.querySelector('[data-hub-confirm]').classList.contains('button--info')"),true,"consuming a reset switches the confirmation to caution without a stale informational class");
     await devtools.evaluate("document.querySelector('[data-hub-cancel]').click()");
     await devtools.evaluate("(innerWidth<=620?document.querySelector('[data-mobile-menu=controls]'):document.querySelector('header [data-hub-control=menu]')).click();document.querySelector('[data-hub-control=settings]').click()");await wait("!!document.querySelector('[data-hub-submit=settings-apply]')");
+    for(const [action,tone]of [['settings-reset','warning'],['settings-rollback','subtle']]){
+      await devtools.evaluate(`document.querySelector('[data-hub-control=${action}]').click()`);
+      assert.equal(await devtools.evaluate(`document.querySelector('[data-hub-confirm]').classList.contains('button--${tone}')&&[...document.querySelector('[data-hub-confirm]').classList].filter(c=>['button--info','button--warning','button--subtle'].includes(c)).length===1`),true,'confirmation accent switches for '+action);
+      await delay(200);assert.deepEqual(await devtools.evaluate(AUDIT_EXPRESSION),[],action+' accent contrast');
+      await devtools.evaluate("document.querySelector('[data-hub-cancel]').click()");
+    }
     assert.equal(await devtools.evaluate("[...document.querySelectorAll('dialog button')].every(el=>!el.classList.contains('button--quiet'))"),true,"dialog actions look like buttons");
     for(const width of [320,390,1280]){
       await devtools.call("Emulation.setTouchEmulationEnabled",{enabled:width<500,maxTouchPoints:1});

@@ -87,6 +87,11 @@ review counts use a monospaced font.
 Paired buttons keep the same height when their labels wrap. A deletion
 confirmation fills the action area, with its buttons aligned right.
 
+CI and review fixes use a blue accent, as does saving a changed status.
+Removing a preview uses amber; marking it reviewed uses green. Cancel run and
+discarding work remain red. Starting a preview or review, opening links and
+marking a draft ready remain neutral; disabled actions stay gray.
+
 During a swipe, the panel follows your finger; a short drag returns it to place.
 The last task opens from page memory and then refreshes. Controls stay disabled
 until fresh data arrives. Vertical scrolling and form fields do not switch views;

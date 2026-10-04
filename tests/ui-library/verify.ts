@@ -94,6 +94,11 @@ for(const app of ["hub","digest","projects","docs"] as const)for(const lang of [
 }
 const iconNav={label:"Projects",links:[{href:"/",label:"PickFlick",mobileIcon:"panda" as const}]};
 assert.match(renderButton({label:"Merge PR",variant:"success"}),/button--success/);
+for(const variant of ["info","warning"] as const){
+  assert.match(renderButton({label:"Apply",variant}),new RegExp(`button--${variant}`));
+  assert.match(renderButton({label:"Unavailable",variant,disabled:true}),/ disabled/);
+  assert.match(renderButton({label:"Apply",variant,busyLabel:"Sending…",attributes:{"aria-busy":"true"}}),/aria-busy="true"/);
+}
 assert.doesNotMatch(renderSiteNav(iconNav),/<svg/,'desktop navigation stays text-only');
 assert.ok(renderSiteNav(iconNav,"site-nav",true).includes(iconPath("panda")));
 for(const icon of ["panda","fox","profile","projects"] as const)assert.match(renderIcon(icon),/aria-hidden="true"/);

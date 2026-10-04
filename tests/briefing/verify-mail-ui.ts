@@ -62,7 +62,7 @@ const mailHtml = renderMailSection({
 } as never);
 assert.match(mailHtml, /class="mail-row__select" data-selection-control/);
 assert.match(mailHtml, /class="mail-actions__select-all" data-selection-control/);
-assert.match(mailHtml, /class="button button--primary mail-actions__submit"/);
+assert.match(mailHtml, /class="button button--success mail-actions__submit"/);
 assert.doesNotMatch(mailHtml, /class="action-button"/);
 
 assert.match(BRIEFING_STYLES, /\.button:hover:not\(:disabled\):not\(\[aria-busy="true"\]\)/);

@@ -123,6 +123,17 @@ assert.equal(await access.authorize(request(tampered.join("."))), null, "unverif
 assert.equal(await new ProjectsAccess({ team: "", audience: "", ownerEmail: "" }).authorize(request(token())), null);
 
 const fixture = syntheticProjectsSnapshot();
+const accented=structuredClone(fixture);
+const actionTones={ci_repair:"info",review_fix:"info",preview_stop:"warning",preview_reviewed:"success",stop:"danger",discard_local:"danger",discard_published:"danger",take_control:"subtle",preview_start:"subtle",recover_managed_task:"subtle"};
+accented.items[0]!.runActions!.actions=(Object.keys(actionTones) as (keyof typeof actionTones)[]).map(action=>({action,label:action,enabled:true,confirmation:null,hint:null,state:null}));
+for(const lang of ["en","ru"]){
+  const html=renderProjectsPage(accented,new URLSearchParams(`item=item-12&lang=${lang}`));
+  for(const [action,tone]of Object.entries(actionTones))assert.match(html,new RegExp(`class="button button--${tone}[^"\\n]*"[^>]*data-run-action="${action}"`),`semantic action accent: ${action}`);
+  const saveButton=html.match(/<button[^>]*data-status-submit[^>]*>/)?.[0];
+  assert.ok(saveButton,"status Save is present");
+  assert.match(saveButton,/class="button button--info/);
+  assert.match(saveButton,/\sdisabled(?:\s|>)/,"unchanged status Save remains disabled");
+}
 const iconFixture=structuredClone(fixture);
 iconFixture.projects=["PickFlick","TailorTales","AHurynovich-CV"].map((name,index)=>({...fixture.projects[0]!,key:`project-${index}`,name}));
 const iconPage=renderProjectsPage(iconFixture),mobileProjectNav=iconPage.split('id="mobile-menu-sections"')[1]!.split('</nav>')[0]!;

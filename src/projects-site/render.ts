@@ -6,7 +6,7 @@ import {renderSiteHeader} from "../ui-library/patterns/site-header.ts";
 import {renderSiteFooter} from "../ui-library/patterns/site-footer.ts";
 import {kuramiSites} from "../ui-library/patterns/kurami-sites.ts";
 import {renderThemeSwitch} from "../ui-library/components/theme-switch.ts";
-import {renderButton,renderLinkButton} from "../ui-library/components/button.ts";
+import {renderButton,renderLinkButton,type ButtonVariant} from "../ui-library/components/button.ts";
 import {renderTable} from "../ui-library/components/table.ts";
 import {renderSearchField,renderSelectField} from "../ui-library/components/form.ts";
 import {renderCallout} from "../ui-library/components/callout.ts";
@@ -145,13 +145,14 @@ function runActions(item:ProjectItem,lang:Language,actions:string[],leading="",t
   const t=(key:string)=>tr(key,lang);
   const states:Record<string,string>={pending:"Queued",processing:"Running",failed:"Not completed — check the state",rejected:"Rejected — check the state"};
   const icons:Record<string,IconName>={take_control:"person",preview_start:"play",preview_stop:"close",preview_reviewed:"check",ci_repair:"ci",review_fix:"review",recover_managed_task:"refresh",stop:"close",discard_local:"trash",discard_published:"trash"};
+  const variants:Record<string,ButtonVariant>={stop:"danger",discard_local:"danger",discard_published:"danger",ci_repair:"info",review_fix:"info",preview_stop:"warning",preview_reviewed:"success"};
   const available=item.runActions.actions.filter(action=>actions.includes(action.action));
   if(!available.length&&!leading&&!trailing)return "";
   const confirmations:string[]=[];
   const controls=available.map(action=>{
     const confirmId=action.confirmation?`projects-confirm-${randomUUID()}`:null;
     if(confirmId)confirmations.push(`<div id="${confirmId}" class="projects-action-confirmation" data-run-confirm-panel hidden><p class="projects-action-note">${escape(sourceText(action.confirmation!,lang))}</p><div class="projects-confirm-buttons">${renderButton({label:t("Cancel"),variant:"quiet",attributes:{"data-run-dismiss":true}})}${renderButton({label:t("Confirm deletion"),variant:"danger",attributes:{"data-run-confirm":true}})}</div></div>`);
-    const control=renderButton({label:sourceText(action.label,lang),iconPath:iconPath(icons[action.action]!),visibleLabel:true,size:"compact",variant:action.action.startsWith("discard_")||action.action==="stop"?"danger":"subtle",disabled:!action.enabled,busyLabel:t("Sending…"),attributes:{"data-run-action":action.action,"data-run-id":item.runId!,"data-run-project":item.project,"data-run-item":item.id,"data-run-fingerprint":item.runActions!.fingerprint,"data-run-key":randomUUID(),...(confirmId?{"data-run-confirmation":sourceText(action.confirmation!,lang),"data-run-confirm-target":confirmId}:{})}});
+    const control=renderButton({label:sourceText(action.label,lang),iconPath:iconPath(icons[action.action]!),visibleLabel:true,size:"compact",variant:variants[action.action]??"subtle",disabled:!action.enabled,busyLabel:t("Sending…"),attributes:{"data-run-action":action.action,"data-run-id":item.runId!,"data-run-project":item.project,"data-run-item":item.id,"data-run-fingerprint":item.runActions!.fingerprint,"data-run-key":randomUUID(),...(confirmId?{"data-run-confirmation":sourceText(action.confirmation!,lang),"data-run-confirm-target":confirmId}:{})}});
     const notes=(action.state?`<p class="projects-action-note">${t(states[action.state]??"")}</p>`:"")+(action.hint?`<p class="projects-action-note">${escape(sourceText(action.hint,lang))}</p>`:"");
     return wrap(control,notes);
   });
@@ -164,7 +165,7 @@ function statusForm(item:ProjectItem,lang:Language):string {
   const choices=[{value:item.status??"",label:item.status??t("No status")},...control.choices.filter(choice=>choice.value!==item.status)];
   if(pending&&!choices.some(choice=>choice.value===selected))choices.push({value:selected,label:selected});
   const note=t(messages[request?.state??control.reason]??"");
-  return `<form class="projects-status-form" method="post" action="/api/status" data-status-form data-project="${escape(item.project)}" data-item="${escape(item.id)}" data-from="${escape(JSON.stringify(from))}" data-observed-at="${escape(item.observedAt)}" data-key="${pending&&request?escape(request.key):randomUUID()}" data-check="${pending}" data-target="${escape(selected)}" data-hints="${escape(JSON.stringify(Object.fromEntries(control.choices.map(choice=>[choice.value,sourceText(choice.hint,lang)]))))}"><div class="projects-status-controls">${renderSelectField({name:"target",label:t("Status"),value:selected,options:choices,disabled:!control.enabled})}${renderButton({label:t(pending?"Check result":"Save"),iconPath:iconPath(pending?"refresh":"check"),visibleLabel:true,variant:"subtle",type:"submit",disabled:pending?!request?.checkAvailable:true,busyLabel:"…",attributes:{"data-status-submit":true}})}</div><p class="projects-status-note" data-status-note data-default-note="${escape(note)}"${control.enabled&&!request?" hidden":""}>${escape(note)}</p></form>`;
+  return `<form class="projects-status-form" method="post" action="/api/status" data-status-form data-project="${escape(item.project)}" data-item="${escape(item.id)}" data-from="${escape(JSON.stringify(from))}" data-observed-at="${escape(item.observedAt)}" data-key="${pending&&request?escape(request.key):randomUUID()}" data-check="${pending}" data-target="${escape(selected)}" data-hints="${escape(JSON.stringify(Object.fromEntries(control.choices.map(choice=>[choice.value,sourceText(choice.hint,lang)]))))}"><div class="projects-status-controls">${renderSelectField({name:"target",label:t("Status"),value:selected,options:choices,disabled:!control.enabled})}${renderButton({label:t(pending?"Check result":"Save"),iconPath:iconPath(pending?"refresh":"check"),visibleLabel:true,variant:pending?"subtle":"info",type:"submit",disabled:pending?!request?.checkAvailable:true,busyLabel:"…",attributes:{"data-status-submit":true}})}</div><p class="projects-status-note" data-status-note data-default-note="${escape(note)}"${control.enabled&&!request?" hidden":""}>${escape(note)}</p></form>`;
 }
 export function renderProjectsPage(snapshot:ProjectsSnapshot,params=new URLSearchParams()):string {
   const lang=language(params),t=(key:string)=>tr(key,lang),filters=parseFilters(params);
