@@ -65,10 +65,13 @@ request is denied. Hub and Projects retain their own control checks. A separatel
 configured Docs reader identity can read only Docs, not dashboards or controls.
 The existing hostnames remain available until you approve their redirect cutover.
 
-One Kurami PWA covers all four apps. Its high-resolution fox has a transparent
-version and a separate adaptive icon with a plain light background. The adaptive
-version enlarges the mark within Android's safe area; the launcher owns its final
-shape. The worker fetches pages from
+One Kurami PWA covers all four apps. Its fox icons are exported directly from
+vector paths at 512 and 1024 pixels, without enlarging a raster source. The splash
+and launcher icons share the theme's warm beige background. The adaptive icon
+keeps the mark within Android's safe area; the launcher owns its final shape.
+New icon URLs do not force an installed Android app to update immediately;
+Chrome may ask you to confirm the changed icon in the app menu.
+The worker fetches pages from
 the network and shows a connection placeholder offline. It does not save private
 pages or API responses. Deployment and installed-phone checks are separate from
 the local routing tests.
