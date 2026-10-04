@@ -102,6 +102,7 @@
     "test:cancel-resolution": "node tests/verify-cancel-resolution.ts",
     "test:project-status": "node tests/verify-project-status.ts",
     "test:ci": "node tests/verify-ci-observer.ts",
+    "test:worker-diagnostics": "node tests/verify-worker-diagnostics.ts",
     "test:ci-repair": "node tests/verify-ci-repair.ts",
     "test:ai-review": "node tests/verify-ai-review.ts",
     "test:project-resilience": "node tests/verify-project-resilience.ts",

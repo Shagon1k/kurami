@@ -1,3 +1,4 @@
+import { technicalWorkerDiagnostic } from "../integrations/codex/worker-diagnostic.ts";
 import { aiReviewStable } from "./ai-review.ts";
 import {hasActivePrRequest} from "./pr-boundary.ts";
 import { createHash, randomUUID } from "node:crypto";
@@ -343,6 +344,7 @@ export function runControlStatus(
     .all(runId);
   return {
     ...run,
+    technical_worker_diagnostic: technicalWorkerDiagnostic(database, runId),
     preview_url: run.preview_hostname
       ? `https://${String(run.preview_hostname)}`
       : null,

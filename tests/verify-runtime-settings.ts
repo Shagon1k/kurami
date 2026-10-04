@@ -113,7 +113,8 @@ try {
     `)
     .get() as { schema_version: number; sentinel: number };
   upgrade.close();
-  if (upgradeEvidence.schema_version !== 36 || upgradeEvidence.sentinel !== 1) {
+  const expectedMigrations = (await readdir(resolve(app, "migrations"))).filter(name => /^\d+_.*\.sql$/u.test(name)).length;
+  if (upgradeEvidence.schema_version !== expectedMigrations || upgradeEvidence.sentinel !== 1) {
     fail(`Populated v29 upgrade failed: ${JSON.stringify(upgradeEvidence)}`);
   }
 

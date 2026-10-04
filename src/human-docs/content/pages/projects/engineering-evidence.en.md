@@ -99,7 +99,11 @@ edge waiting -> failed "CI red" accent
 edge waiting -> attn "attempt 2, 10 or 30 min" accent
 ```
 
-The time limits are: no new commit 10 minutes after the push — `needs_attention` (`ci_repair_no_new_head`); a commit exists but CI has not settled in 30 minutes — `ci_repair_ci_timeout`. While an attempt runs, Take control is unavailable. When it is done, the controller archives the technical thread and restores the main one.
+The time limits are: no new commit 10 minutes after the worker parks — `needs_attention` (`ci_repair_no_new_head`); a commit exists but CI has not settled in 30 minutes — `ci_repair_ci_timeout`. While an attempt runs, Take control is unavailable. When it is done, the controller archives the technical thread and restores the main one.
+
+A failed security-audit check can authorize a minimal compatible published upstream dependency fix or a targeted transitive override. Codex must verify the advisory, published version, consumer compatibility and relevant tests. Unrelated upgrades, major versions, custom patches or forks, advisory exceptions, weaker audit policy, migrations, security-boundary changes, secrets and permissions remain outside the repair scope. Without a compatible published fix, Codex stops and reports the blocker.
+
+For a protocol worker, run-control status, Discord and Projects retain the bounded final report separately from the delivery outcome. A completed read-only refusal can therefore explain why no new PR head appeared; it is not a worker crash. The report is at most 800 characters, sanitized, and bound to the exact task, attempt, thread and turn. Only final assistant output is accepted. Tool stdout, errors, prompts and the restored main conversation are excluded. A missing report stays explicitly unavailable; a crash keeps its protocol failure code. The report changes neither ownership nor retry eligibility.
 
 ## AI review
 

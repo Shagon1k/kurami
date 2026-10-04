@@ -17,7 +17,7 @@ const server=createServer((request,response)=>{
   request.on("data",(chunk)=>body+=chunk);
   request.on("end",()=>{
     const input=JSON.parse(body);assert.equal(input.model,"local-smoke");requests++;
-    const item={id:"msg_smoke",type:"message",status:"completed",role:"assistant",
+    const item={id:"msg_smoke",type:"message",status:"completed",role:"assistant",phase:"final_answer",
       content:[{type:"output_text",text:"Local protocol smoke completed.",annotations:[]}]};
     const result={id:"resp_smoke",object:"response",created_at:1,status:"completed",
       output:[item],usage:{input_tokens:10,output_tokens:5,total_tokens:15}};
@@ -60,6 +60,7 @@ supports_websockets=false
   assert.equal(task.turn_status,"completed",JSON.stringify(task));
   assert.equal(task.failure_code,null,JSON.stringify(task));assert.ok(task.stopped_at);
   assert.ok(requests>0);
+  assert.equal(task.final_summary,"Local protocol smoke completed.","Real app-server final_answer is durably retained");
   const client=new AppServerClient(bin,{environment,rejectServerRequests:true});
   try {
     await client.initialize();

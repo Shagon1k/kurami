@@ -4,9 +4,16 @@ const scenario = process.env.PROTOCOL_SCENARIO;
 const threadId = "thread-exact";
 const turnId = "turn-exact";
 const send = (value) => process.stdout.write(JSON.stringify(value)+"\n");
-const completed = (status="completed", id=turnId, thread=threadId) =>
+const completed = (status="completed", id=turnId, thread=threadId) => {
+  send({method:"item/completed",params:{threadId:thread,turnId:id,item:{type:"userMessage",text:"Never retain the task prompt"}}});
+  send({method:"item/completed",params:{threadId:thread,turnId:id,item:{type:"commandExecution",stdout:"Never retain stdout"}}});
+  send({method:"item/completed",params:{threadId:thread,turnId:id,item:{type:"agentMessage",phase:"commentary",text:"Never retain progress"}}});
+  send({method:"item/completed",params:{threadId:thread,turnId:id,item:{type:"agentMessage",phase:"final_answer",text:
+    scenario === "scope_refusal" ? "Dependency remediation excluded by scope; braces advisory has no published upstream fix. No changes or push." :
+    scenario === "no_change" ? "No compatible upstream fix exists. No changes or push." : "Exact worker final report"}}});
   send({method:"turn/completed",params:{threadId:thread,turn:{id,status,
     error: status === "failed" ? {codexErrorInfo:scenario === "billing" ? "usageLimitExceeded" : "sandboxError"} : null}}});
+};
 const lines = createInterface({input:process.stdin});
 for await (const line of lines) {
   const message = JSON.parse(line);

@@ -75,6 +75,58 @@ process exit. Failed acknowledgement blocks release. Runtime expiry, external bi
 blocks, rate limits, permission denial, interruption and protocol disconnect remain distinct
 failure codes. The TUI main-writer default remains 240 minutes. The technical-worker default remains 90 minutes and is passed to the protocol worker.
 
+## Bounded stop diagnostics / Ограниченная диагностика остановки
+
+Migration `038_codex_worker_summary.sql` adds a nullable, maximum-800-character
+`run_codex_tasks.final_summary`; existing rows are not backfilled. The first exact
+successful `turn/completed` receipt may persist only an `agentMessage` with phase
+`final_answer`, from that turn's items or exact `item/completed` notifications. Early
+notifications are bounded and checked after the turn-start acknowledgement. Exact
+`thread/read` recovery uses only the persisted technical thread and turn; no primary
+conversation or newest-thread search is a diagnostic source. Prompts, progress,
+command stdout, error prose and echoed orchestrator prompts are excluded. Redaction
+precedes truncation; credential-like values, URLs, control characters and Markdown
+mentions/markup are removed. Unknown/missing final phase falls back to unavailable.
+
+Read-only status joins the newest task to the newest matching terminal CI attempt
+or review-fix round, including run/context/thread provenance and the current attention
+receipt's exact task/attempt/round ID. Cleanup-only history is ignored; a later unrelated
+failure suppresses the old worker report. It shows the controller
+outcome separately from the worker's untrusted report, with task/thread/turn IDs in
+run-control JSON. A successful scope refusal is not labelled as a crash; failed or
+interrupted workers use their existing protocol discriminant instead. No report is
+proof of a commit, push, green CI or release. No eligibility, ownership, attempt
+budget or historical incident rows are changed. The migration is repository-only
+until an independently approved deployment applies it.
+
+Миграция добавляет итоговый отчёт до 800 символов без заполнения старых строк.
+Источник — только финальный ответ точного технического хода; промпты, вывод команд,
+ошибки и основной разговор не используются. Очистка секретов предшествует обрезке.
+Статусы run-control, Discord и Projects показывают результат контроллера отдельно
+от отчёта исполнителя. Отказ без изменений не считается падением; отсутствие отчёта
+остаётся явным, а падение сохраняет протокольный код ошибки. Диагностика не меняет
+владельца, допустимость действий, бюджет попыток или старые строки инцидента. Диагностика требует точного task/attempt/round ID текущей
+причины остановки; служебная история очистки игнорируется, а более поздняя посторонняя
+ошибка исключает старый отчёт исполнителя.
+
+CI repair alone now permits minimal compatible published upstream security fixes
+and targeted compatible overrides supported by exact failed CI evidence. No fix
+available, major upgrades, custom patch/fork, advisory exception/suppression, audit
+policy weakening, migrations or security-boundary/secret/permission changes remain
+stop conditions. Initial writer, human-control, successor and review-fix policies
+are unchanged; same-branch focused commit authorization remains explicit.
+
+Только CI repair разрешает минимальное совместимое опубликованное upstream-исправление
+или точечный совместимый override по точным данным упавшего CI. Нет исправления,
+major-обновление, собственный патч/форк, исключение advisory, ослабление audit policy,
+миграция или изменение границ безопасности, секретов и прав требуют остановки.
+Политики остальных режимов не меняются; разрешение focused commit и push в ту же
+ветку остаётся явным.
+
+Verification: `npm run test:worker-diagnostics`, `npm run test:codex-protocol`,
+`npm run test:ci-repair`, then `npm test`. Tests use disposable stores/worktrees;
+never repair or backfill live incident rows to validate diagnostics.
+
 ## Remote migration blocker
 
 The installed CLI exposes `remote-control`, daemon management, `app-server proxy` and a

@@ -11,6 +11,8 @@ import { PROJECT_RUN_FACTS_SQL, projectRunStatus, type ProjectRunFacts, type Pro
 import { PROJECTS_STALE_AFTER_MS, needsOwner, type ProjectItem, type ProjectsSnapshot } from "./model.ts";
 import {hasActivePrRequest} from "../orchestrator/controls/pr-boundary.ts";
 
+import { technicalWorkerDiagnostic, workerDiagnosticText } from "../orchestrator/integrations/codex/worker-diagnostic.ts";
+
 type Config = { owner: string; project_number: number; status_field?: string; repository: string; statuses: ProjectStatuses; discord?: { guild_id: string; channel_id: string } };
 type ItemRow = ProjectRunFacts & {
   item_id: string; project: string; issue_number: number | null; title: string | null; content_type: string | null;
@@ -116,6 +118,10 @@ export function collectProjectsSnapshot(options: { home?: string; now?: Date; co
     const suggestions=triageReady.count===2?database.prepare(`SELECT r.project,r.selected_item_id,r.selected_issue_number,r.suggested_since,r.ranked_at,r.explanation
       FROM project_triage_rankings r JOIN project_triage_state s ON s.project=r.project AND s.factual_hash=r.factual_hash
       WHERE r.selected_item_id IS NOT NULL`).all() as {project:string;selected_item_id:string;selected_issue_number:number;suggested_since:string;ranked_at:string;explanation:string}[]:[];
+    for (const row of rows) if (row.run_id) {
+      const diagnostic = workerDiagnosticText(technicalWorkerDiagnostic(database, row.run_id));
+      if (diagnostic) row.detail = [row.detail, diagnostic].filter(Boolean).join(" · ");
+    }
     database.exec("COMMIT");
     const projects = unavailable.projects.map(project => {
       const poll = polls.find(poll => poll.project === project.key);

@@ -1,3 +1,4 @@
+import { technicalWorkerDiagnostic, workerDiagnosticText } from "../integrations/codex/worker-diagnostic.ts";
 import { createHash } from "node:crypto";
 import { execFileSync } from "node:child_process";
 import { readFile } from "node:fs/promises";
@@ -97,6 +98,7 @@ type CardRow = {
   codex_thread_id: string | null;
   previous_codex_thread_id: string | null;
   latest_attention_reason: string | null;
+  technical_worker_detail?: string | null;
   latest_autonomous_successor_state: string | null;
   latest_autonomous_successor_predecessor_thread_id: string | null;
   autonomous_successor_active: number;
@@ -579,7 +581,7 @@ function loadDesiredCards(
       ORDER BY r.created_at, r.run_id
     `,
     )
-    .all(maxDeliveryAttempts) as CardRow[];
+    .all(maxDeliveryAttempts).map(row => ({ ...row, technical_worker_detail: workerDiagnosticText(technicalWorkerDiagnostic(database, String(row.run_id))) })) as CardRow[];
 }
 
 function loadCard(database: DatabaseSync, runId: string): CardRow {
@@ -685,6 +687,7 @@ function loadCard(database: DatabaseSync, runId: string): CardRow {
   if (!card) fail(`No Discord-eligible run card found: ${runId}`);
   if (terminalStages.has(card.stage))
     fail(`Run controls are closed: ${card.stage}`);
+  card.technical_worker_detail = workerDiagnosticText(technicalWorkerDiagnostic(database, runId));
   return card;
 }
 
@@ -1474,6 +1477,7 @@ export function threadControlPayload(
   const detailSections = [ci, review, preview, policy]
     .filter((field): field is { name: string; value: string } => Boolean(field))
     .map((field) => `**${field.name}**\n${field.value}`);
+  if (card.technical_worker_detail) detailSections.push(`**Technical worker**\n${card.technical_worker_detail}`);
   if (remote) detailSections.push(`**Codex handoff**\n${remote.summary}`);
   const links = runLinks(card, project, pullRequest);
   const controls = controlComponents(card, project, pullRequest);
