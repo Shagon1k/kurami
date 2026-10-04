@@ -2,6 +2,19 @@
   "baseline": "4a38c09",
   "publicationBaseline": "788787f077d42fc3b3346a4f4a612947b97ce2e8",
   "commits": {
+    "59f4c3f7ab73aa77335a3803dbadfd39f58c21a6": {
+      "category": "fixed",
+      "en": "CI repair permits narrowly scoped compatible published upstream security fixes while preserving owner checkpoints for major upgrades, custom patches, advisory exceptions and runtime dependencies. Technical workers retain bounded sanitized native final messages for stop diagnostics; missing legacy receipts are not invented or backfilled.",
+      "ru": "CI repair допускает точечные совместимые security fixes из опубликованных upstream-версий; major upgrades, custom patches, исключения advisory и runtime dependencies сохраняют owner checkpoint. Technical workers сохраняют ограниченные очищенные native final messages для диагностики остановки; отсутствующие старые receipts не выдумываются и не заполняются задним числом.",
+      "page": "engineering-evidence"
+    },
+    "0381a868f8dd6b666009558a57e402ba59a51a86": {
+      "category": "operations",
+      "en": "",
+      "ru": "",
+      "exclusionScope": "docs-only",
+      "exclude": "Adds only the bilingual Changelog classification for the cinema provider correction; application behavior is unchanged."
+    },
     "60cd8f20f8eb26bbc5854d660ee2e57faed86a9d": {
       "category": "improved",
       "en": "Hub, Projects and Digest Mail use restrained action accents from the shared UI library: blue for applying changes and starting fixes, amber for resets and removing preview environments, green for completion, and red for cancelling runs or discarding work. Hub confirmations choose their accent for the operation. Disabled buttons remain gray; navigation and cancellation stay neutral. Both themes use the existing semantic colours.",
@@ -448,6 +461,13 @@
       "ru": "",
       "exclusionScope": "docs-only",
       "exclude": "Recorded the preceding Projects mobile layout correction in the bilingual changelog; this commit changes only the documentation ledger."
+    },
+    "d22b0986b9640302714d0ac45b12608b8214be30": {
+      "category": "operations",
+      "en": "",
+      "ru": "",
+      "exclusionScope": "docs-only",
+      "exclude": "Adds only bilingual Changelog classifications for semantic action accents and preceding documentation commits; application behavior is unchanged."
     }
   }
 }

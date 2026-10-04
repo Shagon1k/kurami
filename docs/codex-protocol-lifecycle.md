@@ -172,6 +172,50 @@ The matching English/Russian human pages are `codex-sessions`, `run-lifecycle` a
 `human-control`. No UI components were changed. No production Run Store migration or release
 operation was performed.
 
+## Guarded PF-34 external delivery (operator only)
+
+Run `r_f3edc9332a2d56f6c6dc`, PF-34 / draft PR #157, has one archived completed
+no-new-head CI attempt. Its source remains `c442192ed8aa4eccc25e06bd90874cc9d1adf7a5`,
+result and worker summary remain null, and attempt state remains `needs_attention`.
+The owner-approved external fix delivered `b46c7eb16912198596b45d075d5e4f9610671387`
+with six passed checks; this is not source produced by the old worker.
+PF33 commands are unchanged and cannot recover this incident.
+
+After independently verified deployment, quiesce launchers and external writers;
+refresh the normal read-only observer to obtain passed exact-head CI no older than
+two minutes. From clean deployed source, preview against explicit configured home:
+
+```sh
+KURAMI_HOME="$KURAMI_HOME" node src/orchestrator/projects/sessions/recover-external-ci-delivery.ts --run-id r_f3edc9332a2d56f6c6dc
+```
+
+Only after successful preview and owner authorization may the operator repeat this
+command with `--apply`. This documentation is not a production apply.
+The CLI pins exact request/attempt/task/session/thread/turn, completion/stop/release
+times, item, branch, canonical linked copy and receipt sequences 2221/2222/2223.
+It checks matching terminal, parking, archive and attention links and restored
+primary thread; refuses owners, stop/completion intent, pending controls, competing
+Project mutations, newer runs, active tasks/processes/tmux, dirty/untracked copies,
+changed local/tracking/live remote or draft PR SHA and any AI/review-fix lineage.
+Stored passed CI must match six native GitHub Actions success receipts at the exact
+external head, including SHA, status, completion time and job links. No GitHub
+mutation, protocol resume or worker-output backfill occurs.
+
+Apply holds `BEGIN IMMEDIATE` across guards, state update and core history append.
+Only live run state/update timestamp changes to `parked_review` and the distinctive
+`operator_external_ci_delivery_recovery` audit is appended with original/external
+SHAs, `workerProducedHead: false` and `repairRetry: false`. All historical evidence,
+counts, preview labels and review/preview gates stay unchanged. Failure rolls back;
+replay is an unchanged success only with matching latest recovery and all current
+guards. The DB lock cannot prevent an independently started external writer, so
+launchers must stay quiescent throughout. Normal owner AI-review and preview
+acceptance controls still apply. There is no automatic re-admission route.
+
+`npm run test:external-ci-delivery-recovery` uses disposable protocol-repository
+fixtures, real Git/terminal/release/reconciliation and substituted read-only network
+receipts to check negatives, rollback, preservation and idempotency. Parent owns
+full/hosted verification, publication and production dry-run/apply.
+
 ## Guarded PF33 legacy recovery
 
 Read-only inspection on 2026-10-01 found run `r_367ac0dcb458a2f56692` stopped under
