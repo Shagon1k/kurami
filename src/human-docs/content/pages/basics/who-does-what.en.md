@@ -7,10 +7,10 @@ order: 20
 next: architecture
 ---
 
-In Kurami every participant has its own role and authority, and those limits are drawn in code rather than by convention. A model cannot merge a PR because the code has no such operation. A button cannot bypass checks because it only queues a request in the same queue automation uses. The few controls in Hub, the private web dashboard, call the same canonical tools.
+In Kurami every participant has its own role and authority. The automatic controller does not merge PRs. In Projects you confirm merging separately, and the server checks owner access, the current commit and GitHub rules. Run controls in Discord and Projects share one queue. The few controls in Hub call the same canonical tools.
 
 :::glance
-- Decides: you — through the GitHub board, Discord buttons and publishing edits
+- Decides: you — through the GitHub board, Discord and Projects buttons, publishing edits
 - Starts things: Hermes — on schedule and on your commands
 - Checks and records: Kurami's code — deterministically, recording in SQLite
 - Writes text and code: agents — the Hermes agent for the Daily edition, Codex for project issues
@@ -22,7 +22,7 @@ In Kurami every participant has its own role and authority, and those limits are
 
 | Participant | What it does | What it does not do |
 |---|---|---|
-| **You** | set intent by moving cards, merge PRs, press buttons in Discord, change settings in Discord or Hub | you do not drive processes directly: everything goes through the queue and checks |
+| **You** | set intent by moving cards, confirm merging in Projects or GitHub, press Discord buttons, change settings | you do not drive processes directly: runs use the queue, GitHub writes use checked owner actions |
 | **Hermes** | holds the Discord connection, checks the schedule every minute, runs scripts and agent sessions, gives agents MCP tools | knows none of Kurami's rules and keeps none of its state |
 | **Kurami's code** | polls sources, admits work, tracks states, publishes, notifies, makes backups | takes none of the decisions reserved for you: merging, deploying, deleting preserved work |
 | **The Hermes agent** | writes the editorial draft of the morning edition; once a week prepares docs edits | never publishes by itself: code checks its output, and you publish docs edits |
@@ -63,7 +63,7 @@ Notice that Kurami and Codex hardly talk to each other directly. Kurami gives Co
 
 | What changes | Who can | How it is protected |
 |---|---|---|
-| An issue's board column | you; Kurami only to Human Review after Codex's work and to Backlog after a cancellation | status writes live in one module, and only the controller calls it |
+| An issue's board column | you in GitHub or Projects; configured GitHub automation; the controller to Human Review and Backlog | Projects rechecks the field and current status; automatic transitions remain in the controller module |
 | Project code | Codex in its own branch | a separate working copy per run; merging is manual only |
 | A Digest edition | Digest code, from the result of one agent step | text and coverage checks before publishing; published news never changes |
 | Settings | you, with a button in `/kurami settings` | Project Orchestrator limits only while it is idle, each change a revision you can roll back; the health check interval at any time |
@@ -80,7 +80,9 @@ Notice that Kurami and Codex hardly talk to each other directly. Kurami gives Co
 :::code-map
 - `integrations/hermes/plugins/kurami-discord-controls/` — buttons and commands: who may press them
 - `src/orchestrator/controls/run.ts` — queuing your requests
-- `src/orchestrator/projects/project-status.ts` — the only place Kurami changes a board column
+- `src/orchestrator/projects/project-status.ts` — automatic board column transitions
+- `src/projects-site/status.ts` — owner-confirmed GitHub status changes
+- `src/projects-site/pr-actions.ts` — draft promotion and merge confirmations, checking request retries
 - `src/briefing/editorial-validation.ts` — checking the agent's text before publishing
 - `deploy/config/connectors/` — connector authority contours
 :::

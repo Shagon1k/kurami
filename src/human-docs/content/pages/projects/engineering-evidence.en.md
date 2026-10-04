@@ -60,6 +60,10 @@ The buttons that start these checks are described in [Controls in Discord](@owne
 
 ## Watching CI
 
+In Projects, open a task's details and expand **Checks** under CI. Each check occupies one line: a result icon and a name linking to its GitHub job when available. Long names truncate; the full name and result remain in the tooltip and accessible text. Failed or missing checks open the list automatically. The task table keeps only the overall CI status.
+
+The list comes from the CI observer's saved snapshot, with its commit and observation time. Dashboard refreshes preserve your expanded or collapsed choice for that commit. A missing check has no fabricated link; unavailable details do not mean CI passed.
+
 Once a minute the CI observer finds the single open PR for the run's branch and reads its checks on the commit. That way CI is judged independently of Codex and Discord: the observer only reads GitHub and writes a row to `run_ci_snapshots`.
 
 It calls the GitHub REST API, takes the check-runs and commit statuses, and counts only the *required* checks from `projects.yaml` — exact names, for example `Secret scan` and `Lint, type-check, test` for TailorTales. For each name the newest record wins. The result is combined by priority: `failed`, then `unknown`, `pending`, `missing`, and only then `passed`.

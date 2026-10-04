@@ -22,9 +22,9 @@ Each product has its own decisions, collected on the "Why it is so" pages of [Di
 
 **Context.** Merging a PR, deploying an application and deleting someone's work cannot be undone.
 
-**Decision.** Kurami's code has no operation to merge a project PR or deploy its application. Deleting preserved work is possible only after two confirmations in Discord.
+**Decision.** The automatic controller does not merge PRs or deploy a project's application. In Projects you confirm merging separately: the server checks owner access, the current commit and GitHub rules. Deleting preserved work requires two steps in Discord or Projects.
 
-**Why.** A limit drawn by the absence of code is more reliable than any permission check: a prompt mistake cannot bypass it.
+**Why.** Being ready for review does not authorize merging. The owner action is separate from the automatic cycle; its request and result are recorded in the database.
 
 **Trade-off.** Some work always waits for you: for example, Done without a merge holds the run until you merge the PR or cancel it.
 

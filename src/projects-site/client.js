@@ -19,7 +19,7 @@
   let motionWaiters=[];
   const reducedMotion=matchMedia('(prefers-reduced-motion:reduce)');
   const viewKey=url=>{const params=new URLSearchParams(url.search);params.sort();return url.pathname+'?'+params;};
-  const busy=()=>requestingReview||requestingStatus||requestingAction||confirmingAction;
+  const busy=()=>requestingReview||requestingStatus||requestingAction||confirmingAction||confirmingPr;
   function rememberView(url){
     const copy=dashboard.cloneNode(true);copy.querySelector('[data-toast-region]')?.remove();
     views.set(viewKey(url),copy.innerHTML);
@@ -37,7 +37,7 @@
     toastHome.append(toastRegion);dashboard.innerHTML=html;
     const detail=dashboard.querySelector('#project-details');
     if(detail){
-      detail.querySelectorAll('[data-run-action],[data-review-run],[data-status-submit],select').forEach(control=>control.disabled=true);
+      detail.querySelectorAll('[data-run-action],[data-review-run],[data-status-submit],[data-pr-action],select').forEach(control=>control.disabled=true);
       const note=document.createElement('p');note.className='projects-update';note.dataset.cachedView='';note.textContent=t('Saved view · refreshing…');detail.append(note);
     }
     updateLayout();updateProjectTabs(url);filter();
@@ -70,6 +70,68 @@
   let requestingStatus = false;
   let requestingAction = false;
   let confirmingAction = null;
+  let confirmingPr=null;
+  let dismissedPrTrigger=null;
+  async function loadPrControl() {
+    const slot=dashboard.querySelector('[data-pr-slot]');if(!slot||confirmingPr)return;
+    const version=navigationVersion;
+    try {
+      const params=new URLSearchParams({project:slot.dataset.prProject,item:slot.dataset.prItem,lang:document.documentElement.lang});
+      const response=await fetch(kuramiAppUrl('/api/pr-controls?'+params),{cache:'no-store',signal:AbortSignal.timeout(30000)});
+      if(!response.ok)throw new Error('PR controls unavailable');
+      const html=await response.text();
+      if(!slot.isConnected||version!==navigationVersion||confirmingPr)return;
+      const focused=slot.contains(document.activeElement);
+      slot.innerHTML=html;
+      if(focused)(slot.querySelector('[data-pr-action]:not(:disabled)')??dashboard.querySelector('#project-details'))?.focus({preventScroll:true});
+      rememberView(new URL(location.href));
+    } catch {
+      if(slot.isConnected&&version===navigationVersion){slot.querySelector('[data-pr-action]')?.setAttribute('disabled','');const note=document.createElement('p');note.className='projects-action-note';note.textContent=t('PR actions are temporarily unavailable.');slot.replaceChildren(note);}
+    }
+  }
+  function dismissPr(focus=true) {
+    if(!confirmingPr)return;
+    const button=confirmingPr,panel=document.getElementById(button.dataset.prConfirmTarget);confirmingPr=null;
+    if(panel?.matches(':popover-open'))panel.hidePopover();
+    button.setAttribute('aria-expanded','false');
+    if(focus)button.focus({preventScroll:true});
+  }
+  function positionPr() {
+    if(!confirmingPr)return;
+    const panel=document.getElementById(confirmingPr.dataset.prConfirmTarget),anchor=confirmingPr.getBoundingClientRect(),rect=panel.getBoundingClientRect();
+    const viewport=window.visualViewport,top=viewport?.offsetTop??0,height=viewport?.height??innerHeight,left=viewport?.offsetLeft??0,width=viewport?.width??innerWidth;
+    panel.style.setProperty('--popover-left',`${Math.max(left+8,Math.min(anchor.right-rect.width,left+width-rect.width-8))}px`);
+    const above=anchor.top-rect.height-8,below=anchor.bottom+8;
+    panel.style.setProperty('--popover-top',`${Math.max(top+8,Math.min(above>=top+8?above:below,top+height-rect.height-8))}px`);
+  }
+  document.addEventListener('beforetoggle',event=>{
+    if(event.newState==='closed'&&confirmingPr&&event.target.id===confirmingPr.dataset.prConfirmTarget){
+      confirmingPr.setAttribute('aria-expanded','false');confirmingPr=null;
+    }
+  },true);
+  document.addEventListener('pointerdown',event=>{
+    // Native light-dismiss can close the popup before the trigger's click arrives.
+    dismissedPrTrigger=confirmingPr&&event.target.closest?.('[data-pr-action]')===confirmingPr?confirmingPr:null;
+  },true);
+  document.addEventListener('focusin',event=>{
+    if(confirmingPr&&!confirmingPr.contains(event.target)&&!document.getElementById(confirmingPr.dataset.prConfirmTarget).contains(event.target))dismissPr(false);
+  });
+  window.addEventListener('resize',positionPr);
+  document.addEventListener('scroll',positionPr,true);
+  async function submitPr(button,method) {
+    if(button.disabled||requestingAction||requestingReview||requestingStatus||refreshing)return;
+    const slot=button.closest('[data-pr-slot]');requestingAction=true;button.setAttribute('aria-busy','true');
+    try {
+      const response=await fetch(kuramiAppUrl('/api/pr-action'),{method:'POST',headers:requestHeaders,body:JSON.stringify({
+        project:slot.dataset.prProject,itemId:slot.dataset.prItem,action:button.dataset.prAction,head:button.dataset.prHead,
+        fingerprint:button.dataset.prFingerprint,key:button.dataset.prKey,confirmed:true,method,checkOnly:button.hasAttribute('data-pr-check'),
+      }),signal:AbortSignal.timeout(45000)});
+      const result=await response.json();
+      if(!response.ok)throw new Error(result.error||t('GitHub did not complete this PR action.'));
+      notify(t(result.state==='applied'?(button.dataset.prAction==='ready'?'PR ready for review.':'PR merged.'):result.state==='uncertain'?'PR action unconfirmed. Check its result in GitHub.':'GitHub is processing this PR action.'),result.state==='applied'?'success':'warning');
+    } catch(error) {notify(error.name==='TimeoutError'||error.name==='TypeError'?t('PR action unconfirmed. Check its result in GitHub.'):error.message,'failure');}
+    finally {requestingAction=false;button.removeAttribute('aria-busy');await refresh();}
+  }
   function filter() {
     const query = (search?.value ?? '').trim().toLocaleLowerCase(document.documentElement.lang);
     const rows = [...dashboard.querySelectorAll('.projects-table tbody tr')];
@@ -84,7 +146,7 @@
     if (empty) empty.hidden = !rows.length || count > 0;
   }
   async function refresh(url = new URL(location.href), focusDetails = false) {
-    if (refreshing || confirmingAction || gesture || settling) return;
+    if (refreshing || confirmingAction || confirmingPr || gesture || settling) return;
     refreshing = true;
     const version=navigationVersion;
     const previousFocus = document.activeElement;
@@ -92,10 +154,13 @@
     const focusedItem = previousFocus?.getAttribute('data-item-link');
     const focusedReview = previousFocus?.getAttribute('data-review-run');
     const focusedAction = previousFocus?.getAttribute('data-run-action');
+    const focusedPr=previousFocus?.getAttribute('data-pr-action');
     const previousTable=dashboard.querySelector('.projects-table');
     const scrollTop=previousTable?.scrollTop??0,scrollLeft=previousTable?.scrollLeft??0;
     const previousDetail=dashboard.querySelector('#project-details');
     const detailScroll=previousDetail?.scrollTop??0,previousItem=previousDetail?.dataset.detailItem;
+    const ciDisclosure=previousDetail?.querySelector('.projects-ci-details');
+    const ciDisclosureState=ciDisclosure?{key:ciDisclosure.dataset.disclosureKey,open:ciDisclosure.open,focus:ciDisclosure.querySelector('summary')===previousFocus,link:ciDisclosure.contains(previousFocus)?previousFocus?.getAttribute('href'):null}:null;
     const focusedDetails = previousFocus?.id === 'project-details';
     const focusedClose = previousFocus?.hasAttribute('data-item-close');
     const focusedFilter = previousFocus?.getAttribute('data-task-filter');
@@ -111,11 +176,14 @@
       const html=await response.text();
       await waitForMotion();
       if(version!==navigationVersion)return false;
+      if(ciDisclosureState&&ciDisclosure?.isConnected)ciDisclosureState.open=ciDisclosure.open;
       toastHome.append(toastRegion);
       dashboard.innerHTML = html;
       const table=dashboard.querySelector('.projects-table');
       if(table){table.scrollTop=scrollTop;table.scrollLeft=scrollLeft;}
       const detail=dashboard.querySelector('#project-details');
+      const nextCiDisclosure=detail?.querySelector('.projects-ci-details');
+      if(ciDisclosureState&&nextCiDisclosure?.dataset.disclosureKey===ciDisclosureState.key)nextCiDisclosure.open=ciDisclosureState.open;
       updateLayout();
       if(detail)detail.scrollTop=detail.dataset.detailItem===previousItem?detailScroll:detailScrolls.get(detail.dataset.detailItem)??0;
       updateProjectTabs(url);
@@ -130,7 +198,13 @@
       }
       if (form) updateStatusChoice(form);
       rememberView(url);
+      loadPrControl();
       if(focusedToast && !toastRegion.hidden)toastRegion.querySelector('[data-toast-dismiss]').focus({preventScroll:true});
+      else if(ciDisclosureState?.focus||ciDisclosureState?.link){
+        const sameCommit=nextCiDisclosure?.dataset.disclosureKey===ciDisclosureState.key;
+        const link=sameCommit&&ciDisclosureState.link?[...nextCiDisclosure.querySelectorAll('a')].find(link=>link.getAttribute('href')===ciDisclosureState.link):null;
+        (link??nextCiDisclosure?.querySelector('summary')??detail)?.focus({preventScroll:true});
+      }
       else if (focusDetails) (dashboard.querySelector('#project-details') ?? dashboard.querySelector('[data-item-link]'))?.focus({ preventScroll: true });
       else if (focusedItem) [...dashboard.querySelectorAll('[data-item-link]')].find(el => el.dataset.itemLink === focusedItem)?.focus({ preventScroll: true });
       else if (focusedDetails) dashboard.querySelector('#project-details')?.focus({ preventScroll: true });
@@ -141,6 +215,7 @@
         const button = [...dashboard.querySelectorAll('[data-run-action]')].find(el => el.dataset.runAction === focusedAction && !el.disabled);
         (button ?? dashboard.querySelector('#project-details'))?.focus({preventScroll:true});
       }
+      else if(focusedPr)dashboard.querySelector('#project-details')?.focus({preventScroll:true});
       else if (focusedStatus) {
         const target = form?.querySelector(focusedStatus);
         (target && !target.disabled ? target : dashboard.querySelector('#project-details'))?.focus({ preventScroll: true });
@@ -162,7 +237,7 @@
   document.addEventListener('click', event => {
     const taskFilter=event.target.closest('[data-task-filter]');
     if(taskFilter){
-      if(refreshing||requestingReview||requestingStatus||requestingAction||confirmingAction)return;
+      if(refreshing||busy())return;
       const url=new URL(location.href);
       const enabled=taskFilter.getAttribute('aria-pressed')==='true';
       url.searchParams.delete('active');url.searchParams.delete('attention');
@@ -171,12 +246,38 @@
     }
     const sorter=event.target.closest('[data-sort]');
     if(sorter){const url=new URL(location.href);const key=sorter.dataset.sort;url.searchParams.set('dir',url.searchParams.get('sort')===key&&url.searchParams.get('dir')!=='desc'?'desc':'asc');url.searchParams.set('sort',key);navigate(url,false);return;}
+    if(event.target.closest('[data-pr-dismiss]')){dismissPr();return;}
+    const prMethod=event.target.closest('[data-pr-method]');
+    if(prMethod&&confirmingPr){
+      const panel=document.getElementById(confirmingPr.dataset.prConfirmTarget);
+      confirmingPr.dataset.prMethodValue=prMethod.dataset.prMethod;
+      panel.querySelector('[data-pr-choices]').hidden=true;
+      panel.querySelector('[data-pr-confirmation]').hidden=false;
+      const confirm=panel.querySelector('[data-pr-confirm]');confirm.textContent=prMethod.dataset.prConfirmLabel;
+      confirm.focus({preventScroll:true});positionPr();return;
+    }
+    if(event.target.closest('[data-pr-confirm]')){
+      const button=confirmingPr,method=button?.dataset.prMethodValue??null;
+      dismissPr(false);if(button)submitPr(button,method);return;
+    }
+    const prAction=event.target.closest('[data-pr-action]');
+    if(prAction){
+      if(dismissedPrTrigger===prAction){dismissedPrTrigger=null;dismissPr();return;}
+      if(prAction.disabled||requestingAction||requestingReview||requestingStatus||refreshing)return;
+      if(prAction.hasAttribute('data-pr-check')){submitPr(prAction,prAction.dataset.prMethodValue||null);return;}
+      if(confirmingPr===prAction){dismissPr();return;}
+      dismissConfirmation(false);dismissPr(false);confirmingPr=prAction;prAction.setAttribute('aria-expanded','true');delete prAction.dataset.prMethodValue;
+      const panel=document.getElementById(prAction.dataset.prConfirmTarget),choices=panel.querySelector('[data-pr-choices]');
+      if(choices){choices.hidden=false;panel.querySelector('[data-pr-confirmation]').hidden=true;}
+      panel.showPopover();positionPr();
+      (choices?.querySelector('[data-pr-method]')??panel.querySelector('[data-pr-confirm]')).focus({preventScroll:true});return;
+    }
     if (event.target.closest('[data-run-dismiss]')) { dismissConfirmation(); return; }
     if (event.target.closest('[data-run-confirm]')) { const button=confirmingAction; dismissConfirmation(false); if(button) submitRunAction(button,true); return; }
     const runAction = event.target.closest('[data-run-action]');
     if (runAction) {
       if (runAction.disabled || requestingAction || requestingReview || requestingStatus || refreshing) return;
-      dismissConfirmation(false);
+      dismissPr(false);dismissConfirmation(false);
       if (runAction.dataset.runConfirmation) {
         confirmingAction=runAction;
         const panel=document.getElementById(runAction.dataset.runConfirmTarget);
@@ -186,12 +287,17 @@
     }
     const review = event.target.closest('[data-review-run]');
     if (review) { event.preventDefault(); submitReview(review); return; }
+    if(event.target.closest('.projects-ci-details summary')){
+      queueMicrotask(()=>rememberView(new URL(location.href)));
+      return;
+    }
     const row=event.target.closest('.projects-table tbody tr');
     const link = event.target.closest('[data-item-link], [data-item-close], [data-project-tabs] a') ?? (row&&!getSelection()?.toString()?row.querySelector('[data-item-link]'):null);
     if (!link || event.ctrlKey || event.metaKey || event.shiftKey || event.altKey || event.button) return;
     event.preventDefault();
     if(link.hasAttribute('data-item-close')&&settling)cancelMotion();
     if (requestingReview || requestingStatus || requestingAction || settling) return;
+    dismissPr(false);
     if(link.hasAttribute('data-item-link'))returnFocus=link.dataset.itemLink;
     if(link.closest('[data-project-tabs]'))lastDetailUrl=null;
     if(link.hasAttribute('data-item-close') && history.state?.projectsDetail){dismissConfirmation(false);history.back();return;}
@@ -305,7 +411,7 @@
   function cancelMotion(){motionVersion++;settling=false;delete dashboard.dataset.transitioning;document.querySelectorAll('.projects-detail:not([data-exited])').forEach(panel=>{panel.getAnimations().forEach(animation=>animation.cancel());panel.style.removeProperty('transform');});motionFinished();}
   document.addEventListener('pointercancel',cancelGesture,{passive:true});
   async function submitReview(button) {
-    if (button.disabled || requestingReview || requestingStatus || requestingAction || confirmingAction || refreshing) return;
+    if (button.disabled || busy() || refreshing) return;
     requestingReview = true;
     button.setAttribute('aria-busy', 'true');
     try {
@@ -364,7 +470,7 @@
     if (!form) return;
     event.preventDefault();
     const button = form.querySelector('[data-status-submit]');
-    if (button.disabled || requestingStatus || requestingReview || requestingAction || confirmingAction || refreshing) return;
+    if (button.disabled || busy() || refreshing) return;
     requestingStatus = true; button.setAttribute('aria-busy', 'true');
     const select = form.querySelector('select');
     const target = form.dataset.check === 'true' ? form.dataset.target : select.value;
@@ -399,19 +505,25 @@
   rememberView(new URL(location.href));
   if(new URL(location.href).searchParams.has('item'))lastDetailUrl=new URL(location.href);
   document.addEventListener('keydown',event=>{
+    if(event.key==='Escape'&&confirmingPr){event.preventDefault();dismissPr();return;}
+    if(confirmingPr&&event.target.closest?.('[data-pr-choices]')&&['ArrowDown','ArrowUp','Home','End'].includes(event.key)){
+      const choices=[...document.getElementById(confirmingPr.dataset.prConfirmTarget).querySelectorAll('[data-pr-method]')],current=choices.indexOf(document.activeElement);
+      const next=event.key==='Home'?0:event.key==='End'?choices.length-1:(current+(event.key==='ArrowDown'?1:-1)+choices.length)%choices.length;
+      event.preventDefault();choices[next]?.focus({preventScroll:true});return;
+    }
     if(event.key==='Escape'&&confirmingAction){event.preventDefault();dismissConfirmation();return;}
     const detail=dashboard.querySelector('#project-details');
     if(!detail||!mobile.matches)return;
     if(event.key==='Escape'){event.preventDefault();detail.querySelector('[data-item-close]')?.click();}
     if(event.key==='Tab'){
-      const controls=[...detail.querySelectorAll('a[href],button:not(:disabled),select:not(:disabled)')].filter(element=>element.getClientRects().length&&!element.closest('[hidden]'));
+      const controls=[...detail.querySelectorAll('a[href],button:not(:disabled),select:not(:disabled),summary')].filter(element=>element.getClientRects().length&&!element.closest('[hidden]')&&(!element.closest('details:not([open])')||element.tagName==='SUMMARY'));
       const first=controls[0],last=controls.at(-1);
       if(event.shiftKey&&(document.activeElement===first||document.activeElement===detail)){event.preventDefault();last?.focus();}
       else if(!event.shiftKey&&(document.activeElement===last||document.activeElement===detail)){event.preventDefault();first?.focus();}
     }
   });
-  setInterval(() => { if (!requestingReview && !requestingStatus && !requestingAction && !confirmingAction && !document.hidden && !getSelection()?.toString() && !dashboard.querySelector(':popover-open')) refresh(); }, 30000);
-  document.addEventListener('visibilitychange', () => { if (!requestingReview && !requestingStatus && !requestingAction && !confirmingAction && !document.hidden && !getSelection()?.toString() && !dashboard.querySelector(':popover-open')) refresh(); });
-  filter();updateLayout();updateProjectTabs(new URL(location.href));
+  setInterval(() => { if (!busy() && !document.hidden && !getSelection()?.toString() && !dashboard.querySelector(':popover-open')) refresh(); }, 30000);
+  document.addEventListener('visibilitychange', () => { if (!busy() && !document.hidden && !getSelection()?.toString() && !dashboard.querySelector(':popover-open')) refresh(); });
+  filter();updateLayout();updateProjectTabs(new URL(location.href));loadPrControl();
   if(mobile.matches&&dashboard.querySelector('#project-details'))dashboard.querySelector('#project-details').focus({preventScroll:true});
 })();

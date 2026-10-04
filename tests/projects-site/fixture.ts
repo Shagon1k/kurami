@@ -1,5 +1,9 @@
 import type { ProjectItem, ProjectsSnapshot } from "../../src/projects-site/model.ts";
 
+export function syntheticCiChecks(repository="Example/Alpha"): NonNullable<ProjectItem["ci"]["checks"]> {
+  return ["Secret scan","Lint, type-check, test","Integration and runtime smoke","UI smoke","Production images","Delivery gate"].map((name,index)=>({name,state:"passed",detailsUrl:`https://github.com/${repository}/actions/runs/100/job/${200+index}#step:2:1`}));
+}
+
 export function syntheticProjectsSnapshot(): ProjectsSnapshot {
   const statuses = { backlog: "Backlog", active: "In progress", review: "Human Review", done: "Done", deferred: "Deferred" };
   const snapshot: ProjectsSnapshot = { generatedAt: "2026-09-30T10:00:00Z", available: true,
@@ -24,11 +28,11 @@ export function syntheticProjectsSnapshot(): ProjectsSnapshot {
         {action:"stop",label:"Отменить запуск",enabled:true,confirmation:null,hint:null,state:null},
       ]},
       detail: "Changes are ready. Check the PR and current commit before another review.",
-      ci: { state: "passed", tone: "success", head: "abcdef0123456789" },
+      ci: { state: "passed", tone: "success", head: "abcdef0123456789", checks:syntheticCiChecks(), observedAt:snapshot.generatedAt },
       review: { state: "outdated", tone: "warning", head: "1234567890abcdef", critical: 0, important: 1, suggestions: 2 },
       links: { issue: "https://github.com/Example/Alpha/issues/12", pr: "https://github.com/Example/Alpha/pull/20", discord: "https://discord.com/channels/100/200", review: null, preview: null } }),
     item(13, { title: "Fix failing integration checks", status: "In progress", runId: "r_work", runState: "running", stage: "ci_repair_working", owner: "cli", runUpdatedAt: snapshot.generatedAt,
-      ci: { state: "failed", tone: "failure", head: "abcdef0123456789" } }),
+      ci: { state: "failed", tone: "failure", head: "abcdef0123456789",checks:syntheticCiChecks().map((check,index)=>({...check,state:index===1||index===5?"failed":"passed"})),observedAt:snapshot.generatedAt } }),
     item(24, { project: "beta", title: "Clarify form behaviour before continuing", status: "In progress", runId: "r_attention", runState: "waiting_human", stage: "waiting_human",
       attention: [{ code: "owner_input", severity: "warning" }] }),
     item(25, { project: "beta", title: "Handle longer descriptions on mobile", status: "Backlog" }),

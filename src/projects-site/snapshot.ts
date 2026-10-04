@@ -1,4 +1,5 @@
 import { observedStatusRequest, type StatusRequestRow } from "./status-state.ts";
+import { parseCiChecks } from "./ci-checks.ts";
 import { projectRunActions } from "./run-actions.ts";
 import { inspectAiReview } from "../orchestrator/controls/ai-review.ts";
 import { readFileSync } from "node:fs";
@@ -8,6 +9,7 @@ import { parse } from "yaml";
 import { resolveKuramiHome } from "../core/kurami-home.ts";
 import { PROJECT_RUN_FACTS_SQL, projectRunStatus, type ProjectRunFacts, type ProjectStatuses } from "../orchestrator/projects/status-read-model.ts";
 import { PROJECTS_STALE_AFTER_MS, needsOwner, type ProjectItem, type ProjectsSnapshot } from "./model.ts";
+import {hasActivePrRequest} from "../orchestrator/controls/pr-boundary.ts";
 
 type Config = { owner: string; project_number: number; status_field?: string; repository: string; statuses: ProjectStatuses; discord?: { guild_id: string; channel_id: string } };
 type ItemRow = ProjectRunFacts & {
@@ -17,6 +19,7 @@ type ItemRow = ProjectRunFacts & {
   review_pending: number; review_request_failed: number | null; preview_state: string | null; preview_hostname: string | null; preview_expires_at: string | null;
   preview_reviewed_at: string | null; preview_head: string | null;
   guild_id: string | null; parent_channel_id: string | null; thread_id: string | null;
+  ci_checks_json: string | null; ci_observed_at: string | null;
 };
 
 export function projectsRegistry(path: string): Record<string, Config> {
@@ -58,7 +61,8 @@ function itemFromRow(row: ItemRow, config: Config, now: Date): ProjectItem {
     id: row.item_id, project: row.project, number: row.issue_number, title: row.title ?? "", kind: row.content_type ?? "Unknown",
     status: row.status, observedAt: row.last_seen_at, runUpdatedAt: row.run_updated_at, runId: row.run_id, runState: row.run_id ? row.run_state : null,
     stage: row.stage ?? null, detail: row.detail, owner: row.owner_state,
-    ci: { state: row.ci_aggregate_state ?? "none", tone: row.ci_aggregate_state === "passed" ? "success" : ["failed", "missing"].includes(row.ci_aggregate_state ?? "") ? "failure" : "neutral", head: row.ci_head_sha },
+    ci: { state: row.ci_aggregate_state ?? "none", tone: row.ci_aggregate_state === "passed" ? "success" : ["failed", "missing"].includes(row.ci_aggregate_state ?? "") ? "failure" : "neutral", head: row.ci_head_sha,
+      checks: parseCiChecks(row.ci_checks_json, config.repository), observedAt: row.ci_observed_at },
     reviewRequestFailed: Boolean(row.review_request_failed),
     review: { state: reviewState, tone: ["outdated", "superseded", "unverified"].includes(reviewState) ? "warning" : ["failed","request_failed"].includes(reviewState) ? "failure" : reviewState === "ready" ? (run?.majorFindings ? "warning" : "success") : "neutral",
       head: row.ai_review_head_sha, critical: row.ai_review_critical_count, important: row.ai_review_important_count, suggestions: row.ai_review_suggestion_count },
@@ -85,7 +89,7 @@ export function collectProjectsSnapshot(options: { home?: string; now?: Date; co
     const polls = database.prepare("SELECT project,last_captured_at,last_attempt_state FROM project_poll_state").all() as { project: string; last_captured_at: string | null; last_attempt_state: string }[];
     const rows = database.prepare(`SELECT p.project,p.item_id,p.issue_number,p.title,p.content_type,p.status,p.last_seen_at,p.url,
       r.run_id,r.state AS run_state,r.owner_state,r.updated_at AS run_updated_at,pc.stage,pc.detail,
-      ci.head_sha AS ci_head_sha,ci.aggregate_state AS ci_aggregate_state,ci.pull_request_url,${PROJECT_RUN_FACTS_SQL},
+      ci.head_sha AS ci_head_sha,ci.aggregate_state AS ci_aggregate_state,ci.pull_request_url,ci.checks_json AS ci_checks_json,ci.last_observed_at AS ci_observed_at,${PROJECT_RUN_FACTS_SQL},
       (SELECT github_review_url FROM run_ai_reviews a WHERE a.run_id=r.run_id ORDER BY a.review_number DESC LIMIT 1) AS review_url,
       (SELECT COUNT(*) FROM run_control_requests q WHERE q.run_id=r.run_id AND q.action='ai_review' AND q.request_state IN ('pending','processing')) AS review_pending,
       (SELECT q.request_state IN ('failed','rejected') FROM run_control_requests q WHERE q.run_id=r.run_id AND q.action='ai_review' ORDER BY q.rowid DESC LIMIT 1) AS review_request_failed,
@@ -99,6 +103,7 @@ export function collectProjectsSnapshot(options: { home?: string; now?: Date; co
       WHERE p.present=1 ORDER BY p.project,p.issue_number,p.item_id`).all() as ItemRow[];
     const controls = new Map<string, ReturnType<typeof inspectAiReview>>();
     const runActions = new Map<string, ReturnType<typeof projectRunActions>>();
+    const prControlsReady=(options.controlsEnabled??process.env.PROJECTS_CONTROLS_ENABLED==="1")&&Boolean(database.prepare("SELECT 1 FROM sqlite_master WHERE type='table' AND name='project_pr_requests'").get());
     if (options.controlsEnabled ?? process.env.PROJECTS_CONTROLS_ENABLED === "1") for (const row of rows) if (row.run_id && configs[row.project]) controls.set(row.run_id, inspectAiReview(database, row.run_id));
     if (options.controlsEnabled ?? process.env.PROJECTS_CONTROLS_ENABLED === "1") for (const row of rows) if (row.run_id && configs[row.project]) {
       try { runActions.set(row.run_id,projectRunActions(database,row.run_id,home,now,true)); }
@@ -120,6 +125,8 @@ export function collectProjectsSnapshot(options: { home?: string; now?: Date; co
     });
     const items = rows.filter(row => configs[row.project]).map(row => itemFromRow(row, configs[row.project]!, now));
     for (const item of items) {
+      item.prControlsEnabled=prControlsReady&&Boolean(item.runId&&item.links.pr);
+      const prPending=Boolean(item.runId&&hasActivePrRequest(database,item.runId));
       const suggestion=suggestions.find(row=>row.project===item.project&&row.selected_item_id===item.id&&row.selected_issue_number===item.number);
       if(suggestion&&item.kind==="Issue"&&item.status===configs[item.project]!.statuses.backlog&&
         (!item.runId||["cancelled","archived","discarded","completed","rejected","failed"].includes(item.runState??""))&&
@@ -138,15 +145,15 @@ export function collectProjectsSnapshot(options: { home?: string; now?: Date; co
           done: "Kurami проверит условия завершения, включая обязательное превью.",
           ...([config.statuses.active,config.statuses.review].includes(item.status ?? "") ? { backlog: "Текущая работа будет остановлена с сохранением результата.", deferred: "Текущая работа будет остановлена с сохранением результата." } : {}),
         } : {};
-        item.statusChange = { enabled: statusReady && fresh && Boolean(config.status_field) && !pending,
-          reason: !statusReady ? "unavailable" : !config.status_field ? "unsupported" : !fresh ? "stale" : pending ? "pending" : "eligible",
+        item.statusChange = { enabled: statusReady && fresh && Boolean(config.status_field) && !pending&&!prPending,
+          reason: !statusReady ? "unavailable" : !config.status_field ? "unsupported" : !fresh ? "stale" : pending ? "pending" : prPending?"pr_pending":"eligible",
           choices: Object.entries(config.statuses).map(([role,value]) => ({value,label:value,hint:hints[role] ?? ""})),
           ...(latest && state && state !== "synced" ? { request: {state,target:latest.to_status,from:latest.from_status,key:latest.client_key,checkAvailable: ["checking","writing","uncertain"].includes(state) && now.getTime()-Date.parse(latest.updated_at) >= 30_000} } : {}),
         };
       }
       if (control) {
         const fresh = projects.find(project => project.key === item.project)?.freshness === "fresh";
-        item.aiReview = { enabled: control.eligible && fresh, reason: fresh ? control.reason : "stale", head: control.head };
+        item.aiReview = { enabled: control.eligible && fresh&&!prPending, reason: prPending?"pending":fresh ? control.reason : "stale", head: control.head };
       }
       const actions = item.runId ? runActions.get(item.runId) : undefined;
       if (actions) {

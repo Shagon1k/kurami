@@ -7,12 +7,13 @@ import { fontFiles } from "../ui-library/foundations/fonts.ts";
 import { THEME_RUNTIME_JS } from "../ui-library/runtime/theme.ts";
 import { ProjectsAccess } from "./access.ts";
 import { collectProjectsSnapshot } from "./snapshot.ts";
-import { renderProjectsDashboard, renderProjectsPage } from "./render.ts";
+import { renderProjectsDashboard, renderProjectsPage,renderProjectPrControl } from "./render.ts";
 import { PROJECTS_STYLES } from "./styles.ts";
 import type { ProjectsSnapshot } from "./model.ts";
 import { requestProjectsReview, ProjectsActionError, type ReviewResult } from "./actions.ts";
 import { requestProjectStatus, type StatusResult } from "./status.ts";
 import { requestProjectRunAction } from "./run-actions.ts";
+import {inspectProjectPr,requestProjectPr,type PrActionView,type PrActionResult} from "./pr-actions.ts";
 import {isMountedRequest,mountResponse,WEB_CLIENT_JS} from "../web/presentation.ts";
 import {TOAST_RUNTIME_JS} from "../ui-library/runtime/toast.ts";
 import {WebAccess} from "../web/access.ts";
@@ -35,6 +36,9 @@ export function createProjectsServer(options: {
   review?: (input: unknown, actor: string) => ReviewResult;
   statusChange?: (input: unknown, actor: string) => Promise<StatusResult>;
   runAction?: (input: unknown, actor: string) => ReviewResult;
+  prInspect?: (project:string,itemId:string) => Promise<PrActionView>;
+  prAction?: (input:unknown,actor:string) => Promise<PrActionResult>;
+  prCacheMs?:number;
   origin?: string;
 } = {}): Server {
   const access = new ProjectsAccess({ team: process.env.PROJECTS_ACCESS_TEAM ?? "", audience: process.env.PROJECTS_ACCESS_AUDIENCE ?? "", ownerEmail: process.env.PROJECTS_OWNER_EMAIL ?? "" });
@@ -49,6 +53,9 @@ export function createProjectsServer(options: {
   const review = options.review ?? (process.env.PROJECTS_CONTROLS_ENABLED === "1" ? requestProjectsReview : null);
   const statusChange = options.statusChange ?? (process.env.PROJECTS_STATUS_ENABLED === "1" ? requestProjectStatus : null);
   const runAction = options.runAction ?? (process.env.PROJECTS_CONTROLS_ENABLED === "1" ? requestProjectRunAction : null);
+  const prInspect=options.prInspect??(process.env.PROJECTS_CONTROLS_ENABLED==="1"?inspectProjectPr:null);
+  const prAction=options.prAction??(process.env.PROJECTS_CONTROLS_ENABLED==="1"?requestProjectPr:null);
+  const prCache=new Map<string,{at:number;value:Promise<PrActionView>}>();
   let cached: { at: number; value: ProjectsSnapshot } | null = null;
   function current(): ProjectsSnapshot {
     const now = Date.now();
@@ -77,7 +84,8 @@ export function createProjectsServer(options: {
     const reviewRoute = request.method === "POST" && request.url === "/api/ai-review" && review;
     const statusRoute = request.method === "POST" && request.url === "/api/status" && statusChange;
     const runRoute = request.method === "POST" && request.url === "/api/run-action" && runAction;
-    if (request.method !== "GET" && request.method !== "HEAD" && !reviewRoute && !statusRoute && !runRoute) {
+    const prRoute=request.method==="POST"&&request.url==="/api/pr-action"&&prAction;
+    if (request.method !== "GET" && request.method !== "HEAD" && !reviewRoute && !statusRoute && !runRoute&&!prRoute) {
       response.setHeader("Allow", "GET, HEAD");
       send(405, "text/plain; charset=utf-8", "Method not allowed"); return;
     }
@@ -90,7 +98,7 @@ export function createProjectsServer(options: {
     if (url.pathname === "/robots.txt") { send(200, "text/plain; charset=utf-8", "User-agent: *\nDisallow: /\n"); return; }
     const identity = await authorize(request).catch(() => null);
     if (!identity) { send(403, "text/plain; charset=utf-8", "Доступ разрешён только владельцу через Cloudflare Access."); return; }
-    if (reviewRoute || statusRoute || runRoute) {
+    if (reviewRoute || statusRoute || runRoute||prRoute) {
       if (request.headers.origin !== (options.origin ?? (isMountedRequest(request,"projects")?WEB_ORIGIN:"https://projects.shagon1k.win")) ||
         request.headers["content-type"] !== "application/json" ||
         request.headers["sec-fetch-site"] && request.headers["sec-fetch-site"] !== "same-origin") {
@@ -104,12 +112,15 @@ export function createProjectsServer(options: {
         });
         let input: unknown;
         try { input = JSON.parse(body); } catch { throw new ProjectsActionError(400, "Некорректный запрос."); }
-        if (statusRoute && statusChange) {
+        if(prRoute&&prAction) {
+          const result=await prAction(input,identity);cached=null;prCache.clear();
+          send(result.state==="applied"?200:["failed","conflict"].includes(result.state)?409:202,"application/json; charset=utf-8",JSON.stringify(result));
+        } else if (statusRoute && statusChange) {
           const result = await statusChange(input, identity); cached = null;
           const code = result.state === "synced" ? 200 : result.state === "conflict" ? 409 : result.state === "failed" ? 503 : 202;
           send(code,"application/json; charset=utf-8",JSON.stringify(result));
         } else if (runRoute && runAction) {
-          const result = runAction(input,identity); cached=null;
+          const result = runAction(input,identity); cached=null;prCache.clear();
           send(result.state === "created" ? 202 : 200,"application/json; charset=utf-8",JSON.stringify(result));
         } else if (review) {
           const result = review(input, identity); cached = null;
@@ -117,12 +128,19 @@ export function createProjectsServer(options: {
         }
       } catch (error) {
         send(error instanceof ProjectsActionError ? error.status : 503, "application/json; charset=utf-8",
-          JSON.stringify({ error: error instanceof ProjectsActionError ? error.message : statusRoute ? "Изменение статуса временно недоступно." : runRoute ? "Действие временно недоступно." : "AI Review временно недоступно." }));
+          JSON.stringify({ error: error instanceof ProjectsActionError ? error.message : prRoute?"PR actions are temporarily unavailable.":statusRoute ? "Изменение статуса временно недоступно." : runRoute ? "Действие временно недоступно." : "AI Review временно недоступно." }));
       }
       return;
     }
     try {
-      if (url.pathname === "/") send(200, "text/html; charset=utf-8", renderProjectsPage(current(), url.searchParams));
+      if(url.pathname==="/api/pr-controls"&&prInspect) {
+        const project=url.searchParams.get("project")??"",item=url.searchParams.get("item")??"";
+        if(!/^[a-z0-9_-]{1,100}$/.test(project)||!item||item.length>200)throw new ProjectsActionError(400,"Invalid PR action or missing confirmation.");
+        const key=JSON.stringify([identity,project,item]),previous=prCache.get(key);
+        const value=previous&&Date.now()-previous.at<(options.prCacheMs??10_000)?previous.value:prInspect(project,item);
+        if(value!==previous?.value){prCache.set(key,{at:Date.now(),value});while(prCache.size>32)prCache.delete(prCache.keys().next().value!);}
+        send(200,"text/html; charset=utf-8",renderProjectPrControl(await value,lang));
+      } else if (url.pathname === "/") send(200, "text/html; charset=utf-8", renderProjectsPage(current(), url.searchParams));
       else if (url.pathname === "/api/fragment") send(200, "text/html; charset=utf-8", renderProjectsDashboard(current(), url.searchParams));
       else {
         const asset = assets.get(url.pathname);

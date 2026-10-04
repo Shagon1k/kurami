@@ -1,4 +1,5 @@
 import { aiReviewStable } from "./ai-review.ts";
+import {hasActivePrRequest} from "./pr-boundary.ts";
 import { createHash, randomUUID } from "node:crypto";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
@@ -458,6 +459,7 @@ export function requestRunControl(
   const home = options.home ?? orchestratorHome;
   const projectsPath = resolve(home,"config/projects.yaml");
   try {
+    if(hasActivePrRequest(database,runId))fail("A GitHub PR action is still pending; check its result in Projects first");
     const run = database
       .prepare(
         `
@@ -876,6 +878,7 @@ function controls(
 /** The existing control menu, reusable by owner interfaces without starting a CLI. */
 export function availableRunControls(database: DatabaseSync, runId: string, options: {home?:string;now?:number} = {}): Record<string,unknown> {
   const selected = runControlStatus(database,runId);
+  if(hasActivePrRequest(database,runId))return {...selected,available_actions:["status"]};
   if (["rejected","cancelled","archived","failed"].includes(String(selected.state))) return {...selected,available_actions:["status"]};
   const home = options.home ?? orchestratorHome;
   const projectsPath = resolve(home,"config/projects.yaml");

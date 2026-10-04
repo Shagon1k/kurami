@@ -134,7 +134,7 @@ Had you cancelled the issue at 11:00, while PR #57 was not yet merged, the pictu
 - Kurami does not delete unsaved files at completion: `git worktree remove` runs without `--force`.
 - A cancelled run does not become `archived`.
 - Kurami does not delete preserved or published work without your two-step confirmation; only one draft PR with an exactly matching commit is closed.
-- Kurami does not merge a PR or move a card to Done.
+- The controller does not merge PRs automatically. Projects merges only after your confirmation; it leaves the card's Done transition to GitHub or you.
 :::
 
 :::code-map

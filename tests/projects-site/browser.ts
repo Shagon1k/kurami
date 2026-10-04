@@ -11,12 +11,26 @@ import { syntheticProjectsSnapshot } from "./fixture.ts";
 let unavailable = false;
 let dense=false;
 let previewReady=false;
+let ciScenario:"normal"|"failed"|"mixed"|"new-head"="normal";
+let prScenario:"off"|"ready"|"merge"|"all-methods"|"blocked"|"pending"="off";
+let prWrites:{action:string;method:string|null;confirmed:boolean;key:string}[]=[];
 let statusRequest: {state:"awaiting_sync";target:string;from:string;key:string} | null = null; let statusSynced = false; let statusConflict = false; const statusKeys: string[] = [];
 let accepted = false; let failReview = false; const requestKeys: string[] = [];
 let failAction=false,actionAccepted=false,cancellation=false,discarded=false;const actionKeys:string[]=[];
 const serverOptions = { snapshot: () => {
   if (unavailable) throw new Error("fixture failure");
   const snapshot = syntheticProjectsSnapshot();
+  if(prScenario!=="off")snapshot.items[0]!.prControlsEnabled=true;
+  if(ciScenario!=="normal"){
+    const ci=snapshot.items[0]!.ci;
+    if(ciScenario==="new-head")ci.head="fedcba9876543210";
+    else {
+      ci.state=ciScenario==="failed"?"failed":"unknown";
+      ci.tone=ciScenario==="failed"?"failure":"neutral";
+      const mixedStates=["passed","pending","unknown","missing","passed","passed"] as const;
+      ci.checks=ci.checks!.map((check,index)=>({...check,state:ciScenario==="failed"?(index===1||index===5?"failed":"passed"):mixedStates[index]!,detailsUrl:ciScenario==="mixed"&&index===3?null:check.detailsUrl}));
+    }
+  }
   if(previewReady){const item=snapshot.items[0]!;item.links.preview='https://preview.example.test/';item.preview.expiresAt='2026-10-04T10:00:00Z';item.runActions!.actions=[{action:'preview_stop',label:'Remove preview',enabled:true,confirmation:null,hint:null,state:null}];}
   if (accepted) { snapshot.items[0]!.review.state = "queued"; snapshot.items[0]!.review.tone = "neutral"; snapshot.items[0]!.aiReview = { enabled: false, reason: "pending", head: "abcdef0123456789" }; }
   if (statusRequest) {
@@ -33,11 +47,15 @@ const serverOptions = { snapshot: () => {
   if (failReview) throw new ProjectsActionError(503,"Ревью временно недоступно.");
   accepted = true; return { state: "created" as const, requestId: "fixture", requestState: "pending" };
 } };
-const completeOptions = { ...serverOptions, runAction:(value:unknown)=>{
+const completeOptions = { ...serverOptions, prCacheMs:0,runAction:(value:unknown)=>{
   const input=value as {action:string;key:string;confirmed:boolean};actionKeys.push(input.key);
   if(input.action==="discard_local") {assert.equal(input.confirmed,true);discarded=true;}
   else {assert.equal(input.action,"preview_start");assert.equal(input.confirmed,false);if(failAction) throw new ProjectsActionError(503,"Действие временно недоступно.");actionAccepted=true;}
   return {state:"created" as const,requestId:"fixture-action",requestState:"pending"};
+},prInspect:async()=>({action:prScenario==="ready"?"ready" as const:"merge" as const,enabled:prScenario!=="blocked",reason:prScenario==="blocked"?"GitHub requirements block merging.":"",head:"a".repeat(40),fingerprint:"f".repeat(64),methods:(prScenario==="all-methods"?["squash","rebase","merge"]:["squash","rebase"]) as ("squash"|"rebase"|"merge")[],number:20,base:"main"}),prAction:async(value:unknown)=>{
+  const input=value as {action:string;method:string|null;confirmed:boolean;key:string};prWrites.push(input);assert.equal(input.confirmed,true);
+  prScenario=input.action==="ready"?"merge":"pending";
+  return {state:input.action==="ready"?"applied" as const:"pending" as const,requestId:"fixture-pr"};
 },statusChange: async (value: unknown) => {
   const input = value as {from:string;target:string;key:string;itemId:string};
   assert.equal(input.from,"Human Review"); assert.equal(input.itemId,"item-12"); assert.equal(input.target,"Done");
@@ -82,6 +100,11 @@ async function audit(): Promise<void> {
   assert.deepEqual(await devtools.evaluate(AUDIT_EXPRESSION), []);
   assert.deepEqual(await devtools.evaluate(inventoryExpression()), []);
 }
+async function pointerClick(selector:string):Promise<void> {
+  const point=await devtools.evaluate<{x:number;y:number}>(`(()=>{const button=document.querySelector(${JSON.stringify(selector)});button.scrollIntoView({behavior:'instant',block:'nearest'});const r=button.getBoundingClientRect();return{x:r.x+r.width/2,y:r.y+r.height/2}})()`);
+  await devtools.call('Input.dispatchMouseEvent',{type:'mousePressed',button:'left',clickCount:1,...point});
+  await devtools.call('Input.dispatchMouseEvent',{type:'mouseReleased',button:'left',clickCount:1,...point});
+}
 async function panelHistory():Promise<void>{
   await wait(`!document.querySelector('#projects-dashboard').dataset.refreshing`);
   await devtools.evaluate(`window.panelPops=0;window.panelListener=()=>panelPops++;addEventListener('popstate',panelListener);window.panelDashboard=document.querySelector('#projects-dashboard');window.panelUrl=location.href;document.querySelector('[data-mobile-menu="apps"]').click();window.panelLength=history.length;window.panelToken=history.state.__kuramiMobilePanel.token;document.querySelector('[data-mobile-menu="search"]').click()`);
@@ -115,6 +138,7 @@ async function panelHistory():Promise<void>{
 }
 try {
   await devtools.call("Page.enable");
+  if(!process.argv.includes("--pr-only")) {
   for (const width of [320, 390, 1280]) {
     await devtools.call("Emulation.setDeviceMetricsOverride", { width, height: 1000, deviceScaleFactor: 1, mobile: width < 600 });
     await devtools.call("Emulation.setTouchEmulationEnabled",{enabled:width<600});
@@ -169,6 +193,29 @@ try {
       await wait("!document.querySelector('#projects-dashboard').dataset.refreshing");
       assert.equal(await devtools.evaluate("document.activeElement.id"), "project-details", "background refresh preserves panel focus");
       await audit();
+      assert.equal(await devtools.evaluate("document.querySelector('.projects-ci-details').open"),false,"successful checks start collapsed; closing remains saved on return");
+      await devtools.evaluate("(()=>{const summary=document.querySelector('.projects-ci-details summary');summary.click();summary.focus({preventScroll:true})})()");
+      assert.equal(await devtools.evaluate("document.querySelectorAll('.projects-ci-checks li').length"),6);
+      assert.equal(await devtools.evaluate("document.querySelector('.projects-ci-checks a').getAttribute('href')"),"https://github.com/Example/Alpha/actions/runs/100/job/200#step:2:1");
+      await devtools.evaluate("document.dispatchEvent(new Event('visibilitychange'))");
+      await wait("!document.querySelector('#projects-dashboard').dataset.refreshing");
+      assert.equal(await devtools.evaluate("document.querySelector('.projects-ci-details').open&&document.activeElement===document.querySelector('.projects-ci-details summary')"),true,"refresh preserves disclosure and keyboard focus");
+      assert.equal(await devtools.evaluate("[...document.querySelectorAll('.projects-ci-checks a')].every(a=>a.getBoundingClientRect().width<=a.parentElement.getBoundingClientRect().width)"),true,"long check names fit the detail panel");
+      assert.equal(await devtools.evaluate("document.querySelectorAll('.projects-ci-checks a svg,.projects-ci-result').length"),0,"CI links have no repeated arrows or second-line status");
+      assert.equal(await devtools.evaluate("[...document.querySelectorAll('.projects-ci-check')].every(row=>{const text=row.querySelector('.projects-ci-check-content').getBoundingClientRect(),mark=row.querySelector('.projects-ci-mark').getBoundingClientRect(),box=row.getBoundingClientRect();return mark.left>=text.right&&Math.abs(mark.right-box.right)<1&&Math.abs(mark.top+mark.height/2-box.top-box.height/2)<1})"),true,"CI result icons align at the right edge and vertical center");
+      assert.equal(await devtools.evaluate("[...document.querySelectorAll('.projects-ci-checks .button__label--truncate')].every(label=>getComputedStyle(label).whiteSpace==='nowrap'&&getComputedStyle(label).textOverflow==='ellipsis'&&label.getBoundingClientRect().height<22)"),true,"CI labels remain one line");
+      if(width===320){
+        await devtools.evaluate("(()=>{const label=document.querySelector('.projects-ci-checks .button__label--truncate');window.ciLabelOriginal=label.textContent;label.textContent+=' — an intentionally long workflow check name that must stay on one line'})()");
+        assert.equal(await devtools.evaluate("(()=>{const label=document.querySelector('.projects-ci-checks .button__label--truncate');return label.scrollWidth>label.clientWidth&&label.getBoundingClientRect().height<22})()"),true,"long names really truncate rather than overflow");
+        await devtools.evaluate("document.querySelector('.projects-ci-checks .button__label--truncate').textContent=window.ciLabelOriginal");
+      }
+      await audit();
+      if(theme==='light'){
+        await devtools.evaluate("document.querySelector('.projects-ci-details').scrollIntoView({block:'center',behavior:'instant'})");
+        const ciShot=await devtools.call<{data:string}>("Page.captureScreenshot",{format:"png",captureBeyondViewport:false});
+        writeFileSync(resolve(out,`projects-ci-${width}.png`),Buffer.from(ciShot.data,"base64"));
+      }
+      await devtools.evaluate("document.querySelector('.projects-ci-details summary').click();document.querySelector('#project-details').focus({preventScroll:true})");
       const density=await devtools.evaluate<{reviewHeight:number;reviewWidth:number;groupWidth:number;pillHeight:number;sortIcon:number;actionWidths:boolean}>(`(() => {
         const review=document.querySelector('[data-review-run]'), group=review.parentElement;
         return {reviewHeight:review.getBoundingClientRect().height,reviewWidth:review.getBoundingClientRect().width,groupWidth:group.getBoundingClientRect().width,pillHeight:document.querySelector('.projects-detail .pill').getBoundingClientRect().height,sortIcon:parseFloat(getComputedStyle(document.querySelector('[data-sort] .button__svg')).width),actionWidths:[...document.querySelectorAll('[data-run-action]')].every(button=>Math.abs(button.getBoundingClientRect().width-button.parentElement.getBoundingClientRect().width)<1)};
@@ -197,6 +244,33 @@ try {
       await wait("!document.querySelector('#project-details') && !document.body.classList.contains('projects-mobile-detail-open')");
     }
   }
+  for(const width of [320,390,1280]){
+    await devtools.call("Emulation.setDeviceMetricsOverride",{width,height:1000,deviceScaleFactor:1,mobile:width<600});
+    ciScenario="failed";
+    await open('/?item=item-12');
+    await devtools.evaluate("if(document.documentElement.dataset.theme!=='light')document.querySelector('[data-theme-toggle]').click()");
+    await delay(250);
+    assert.equal(await devtools.evaluate("document.querySelector('.projects-ci-details').open"),true,"failed CI automatically shows job details");
+    assert.equal(await devtools.evaluate("document.querySelectorAll('.projects-ci-mark--failure').length"),2);
+    await audit();
+    await devtools.evaluate("document.querySelector('.projects-ci-details').scrollIntoView({block:'center',behavior:'instant'})");
+    const failedShot=await devtools.call<{data:string}>("Page.captureScreenshot",{format:"png",captureBeyondViewport:false});
+    writeFileSync(resolve(out,`projects-ci-failed-${width}.png`),Buffer.from(failedShot.data,"base64"));
+    await devtools.evaluate("document.querySelector('.projects-ci-checks a').focus({preventScroll:true});document.dispatchEvent(new Event('visibilitychange'))");
+    await wait("!document.querySelector('#projects-dashboard').dataset.refreshing");
+    assert.equal(await devtools.evaluate("document.activeElement.getAttribute('href')"),"https://github.com/Example/Alpha/actions/runs/100/job/200#step:2:1","job link keeps focus across refresh");
+    ciScenario="mixed";
+    await open('/?item=item-12');
+    assert.equal(await devtools.evaluate("document.querySelectorAll('.projects-ci-checks a').length"),5,"missing check has no invented navigation");
+    assert.match(await devtools.evaluate<string>("[...document.querySelectorAll('.projects-ci-check')].map(row=>row.title).join(' · ')"),/Pending[\s\S]*Unknown[\s\S]*Check not reported/);
+    await audit();
+    ciScenario="new-head";
+    await devtools.evaluate("document.querySelector('.projects-ci-details summary').focus({preventScroll:true});document.dispatchEvent(new Event('visibilitychange'))");
+    await wait("document.querySelector('.projects-ci-details').dataset.disclosureKey.endsWith('fedcba9876543210')");
+    assert.equal(await devtools.evaluate("document.querySelector('.projects-ci-details').open"),false,"new commit resets to its own successful-check default");
+    assert.equal(await devtools.evaluate("document.activeElement===document.querySelector('.projects-ci-details summary')"),true,"new commit keeps focus on the check disclosure");
+  }
+  ciScenario="normal";
   previewReady=true;
   for(const width of [320,390,1280,1600]) {
     await devtools.call("Emulation.setDeviceMetricsOverride",{width,height:1000,deviceScaleFactor:1,mobile:width<600});
@@ -422,7 +496,7 @@ try {
   assert.equal(await devtools.evaluate("document.querySelector('[data-run-confirm-panel]').hidden"),true);
   assert.equal(actionKeys.length,2);
   await devtools.evaluate("document.querySelector('[data-run-action=discard_local]').click();document.querySelector('[data-run-confirm]').click()");
-  await wait("document.querySelector('[data-toast-message]').textContent.includes('queued in Kurami')");
+  await wait("document.querySelector('[data-toast-message]').textContent.includes('queued in Kurami') && document.querySelector('[data-run-action=discard_local]')?.disabled && !document.querySelector('#projects-dashboard').dataset.refreshing");
   assert.equal(actionKeys.length,3);
   await audit();
   unavailable = true;
@@ -452,6 +526,99 @@ try {
   await devtools.evaluate("testToast.show('Dismiss me',{duration:0});testRegion.querySelector('button').focus();document.activeElement.click()");
   assert.equal(await devtools.evaluate("document.activeElement.name"),'q',"dismiss returns focus without leaving it on a hidden button");
   await devtools.evaluate("testRegion.remove()");
+  }
+  cancellation=discarded=accepted=false;statusRequest=null;ciScenario="normal";
+  for(const width of [320,390,1280]) {
+    await devtools.call("Emulation.setDeviceMetricsOverride",{width,height:1000,deviceScaleFactor:1,mobile:width<600});
+    for(const theme of ["light","dark"]) {
+      prScenario="merge";await open('/?item=item-12');await wait("!!document.querySelector('[data-pr-action]')");
+      await devtools.evaluate(`if(document.documentElement.dataset.theme!==${JSON.stringify(theme)})document.querySelector('[data-theme-toggle]').click()`);
+      await delay(250);
+      assert.equal(await devtools.evaluate("(()=>{const cancel=document.querySelector('[data-run-action=stop]'),pr=document.querySelector('[data-pr-action]');return cancel.closest('.projects-action-pair')===pr.closest('.projects-action-pair')&&Math.abs(cancel.getBoundingClientRect().height-pr.getBoundingClientRect().height)<1})()"),true,"cancel and PR action pair have equal heights");
+      await audit();
+      await devtools.evaluate("document.querySelector('[data-pr-action]').scrollIntoView({block:'nearest',behavior:'instant'})");
+      const before=await devtools.evaluate("document.querySelector('[data-pr-action]').getBoundingClientRect().top");
+      await devtools.evaluate("document.querySelector('[data-pr-action]').click()");
+      assert.equal(await devtools.evaluate("document.activeElement.dataset.prMethod"),'squash');
+      assert.deepEqual(await devtools.evaluate("[...document.querySelectorAll('[data-pr-method]')].map(option=>option.dataset.prMethod)"),['squash','rebase']);
+      assert.equal(await devtools.evaluate("document.querySelector('select[name=merge-method]')"),null,"no additional select in the card");
+      assert.equal(prWrites.length,0,"opening method menu performs no write");
+      assert.equal(await devtools.evaluate("document.querySelector('[data-pr-action]').getBoundingClientRect().top"),before,"popup never changes the card layout");
+      await audit();
+      await devtools.evaluate("document.activeElement.dispatchEvent(new KeyboardEvent('keydown',{key:'ArrowDown',bubbles:true}))");
+      assert.equal(await devtools.evaluate("document.activeElement.dataset.prMethod"),'rebase');
+      await devtools.evaluate("document.activeElement.dispatchEvent(new KeyboardEvent('keydown',{key:'Home',bubbles:true}))");
+      assert.equal(await devtools.evaluate("document.activeElement.dataset.prMethod"),'squash');
+      if(width===390&&theme==='light'){
+        await pointerClick('[data-pr-action]');
+        assert.equal(await devtools.evaluate("document.querySelector('.projects-pr-popover .ui-popover').matches(':popover-open')"),false,"repeat physical click closes the menu instead of reopening it after light-dismiss");
+        await pointerClick('[data-pr-action]');
+        assert.equal(await devtools.evaluate("document.querySelector('.projects-pr-popover .ui-popover').matches(':popover-open')"),true);
+        await pointerClick('[data-pr-method=squash]');
+        await pointerClick('[data-pr-dismiss]');
+        assert.equal(await devtools.evaluate("document.querySelector('.projects-pr-popover .ui-popover').matches(':popover-open')"),false,"Cancel closes the confirmation without a write");
+        await pointerClick('[data-pr-action]');
+        await devtools.call('Input.dispatchMouseEvent',{type:'mousePressed',button:'left',clickCount:1,x:2,y:500});
+        await devtools.call('Input.dispatchMouseEvent',{type:'mouseReleased',button:'left',clickCount:1,x:2,y:500});
+        assert.equal(await devtools.evaluate("document.querySelector('.projects-pr-popover .ui-popover').matches(':popover-open')"),false,"outside click closes the menu");
+        assert.equal(await devtools.evaluate("document.querySelector('[data-pr-action]').getAttribute('aria-expanded')"),'false');
+        await pointerClick('[data-pr-action]');
+        await devtools.evaluate("document.querySelector('[data-run-action=stop]').focus({preventScroll:true})");
+        assert.equal(await devtools.evaluate("document.querySelector('.projects-pr-popover .ui-popover').matches(':popover-open')"),false,"keyboard focus outside closes the menu without stealing focus");
+        assert.equal(await devtools.evaluate("document.activeElement.dataset.runAction"),'stop');
+        await pointerClick('[data-pr-action]');
+        assert.equal(await devtools.evaluate("document.querySelector('[data-pr-confirmation]').hidden"),true,"reopening returns to methods, not a previous confirmation");
+      }
+      await devtools.evaluate("document.querySelector('[data-pr-method=rebase]').click()");
+      assert.equal(prWrites.length,0,"selecting a merge method still requires confirmation");
+      assert.equal(await devtools.evaluate("document.activeElement.hasAttribute('data-pr-confirm')"),true);
+      assert.equal(await devtools.evaluate("document.querySelector('[data-pr-confirm]').textContent"),'Rebase and merge');
+      await audit();
+      if(theme==='light'){
+        await wait("(()=>{const panel=document.querySelector('.projects-pr-popover .ui-popover').getBoundingClientRect();return panel.height>50&&panel.bottom<=innerHeight&&panel.top>=0&&panel.left>=0&&panel.right<=innerWidth})()");
+        await delay(80);
+        const shot=await devtools.call<{data:string}>('Page.captureScreenshot',{format:'png',captureBeyondViewport:false});writeFileSync(resolve(out,`projects-pr-merge-${width}.png`),Buffer.from(shot.data,'base64'));
+      }
+      await devtools.evaluate("document.dispatchEvent(new KeyboardEvent('keydown',{key:'Escape',bubbles:true}))");
+      assert.equal(await devtools.evaluate("document.querySelector('.projects-pr-popover .ui-popover').matches(':popover-open')"),false);
+      assert.equal(await devtools.evaluate("document.activeElement.hasAttribute('data-pr-action')"),true);
+    }
+  }
+  prScenario="ready";await open('/?item=item-12&lang=ru');await wait("document.querySelector('[data-pr-action]')?.dataset.prAction==='ready'");
+  assert.equal(await devtools.evaluate("document.querySelector('[data-pr-action]').textContent"),'Готово к проверке');
+  await devtools.evaluate("document.querySelector('[data-pr-action]').click()");assert.equal(prWrites.length,0);
+  await devtools.evaluate("document.querySelector('[data-pr-confirm]').click()");await wait("document.querySelector('[data-pr-action]')?.dataset.prAction==='merge'");
+  assert.equal(prWrites.length,1);assert.equal(prWrites[0]!.action,'ready');assert.equal(prWrites[0]!.method,null);
+  await devtools.evaluate("document.querySelector('[data-pr-action]').click();document.querySelector('[data-pr-method=rebase]').click();document.querySelector('[data-pr-confirm]').click()");
+  await wait("!document.querySelector('#projects-dashboard').dataset.refreshing&&document.querySelector('[data-toast-message]')?.textContent.includes('GitHub')");
+  assert.equal(prWrites.length,2);assert.equal(prWrites[1]!.method,'rebase');
+  prScenario="blocked";await open('/?item=item-12');await wait("document.querySelector('[data-pr-action]')?.disabled===true");
+  assert.equal(await devtools.evaluate("document.querySelector('[data-pr-slot]').textContent.includes('GitHub requirements')"),true);
+  assert.equal(prWrites.length,2);
+  prScenario="merge";await devtools.call("Emulation.setDeviceMetricsOverride",{width:320,height:700,deviceScaleFactor:1,mobile:true});
+  await open('/?item=item-12&lang=ru');await wait("document.querySelector('[data-pr-action]')?.dataset.prAction==='merge'");
+  await pointerClick('[data-pr-action]');await pointerClick('[data-pr-method=rebase]');
+  await audit();
+  assert.equal(await devtools.evaluate("document.querySelector('[data-pr-confirm]').textContent"),'Смержить через Rebase');
+  assert.equal(await devtools.evaluate("(()=>{const a=document.querySelector('[data-pr-confirm]').getBoundingClientRect(),b=document.querySelector('[data-pr-dismiss]').getBoundingClientRect();return Math.abs(a.top-b.top)<1})()"),true,"Russian confirmation buttons remain a single row at 320px");
+  const ruShot=await devtools.call<{data:string}>('Page.captureScreenshot',{format:'png',captureBeyondViewport:false});writeFileSync(resolve(out,'projects-pr-merge-ru-320.png'),Buffer.from(ruShot.data,'base64'));
+  await devtools.call('Input.dispatchKeyEvent',{type:'keyDown',key:'Escape',code:'Escape',windowsVirtualKeyCode:27});
+  await devtools.call('Input.dispatchKeyEvent',{type:'keyUp',key:'Escape',code:'Escape',windowsVirtualKeyCode:27});
+  assert.equal(await devtools.evaluate("document.querySelector('.projects-pr-popover .ui-popover').matches(':popover-open')"),false,"real Escape closes only the PR popup");
+  assert.equal(await devtools.evaluate("!!document.querySelector('#project-details')&&document.activeElement.hasAttribute('data-pr-action')"),true);
+  assert.equal(prWrites.length,2);
+  for(const lang of ['ru','en']) {
+    prScenario="all-methods";await open(`/?item=item-12&lang=${lang}`);await wait("document.querySelectorAll('[data-pr-method]').length===3");
+    const labels=lang==='ru'?{squash:'Смержить через Squash',rebase:'Смержить через Rebase',merge:'Создать merge-коммит'}:{squash:'Squash and merge',rebase:'Rebase and merge',merge:'Create merge commit'};
+    for(const [method,label] of Object.entries(labels)) {
+      await pointerClick('[data-pr-action]');await pointerClick(`[data-pr-method=${method}]`);
+      assert.equal(await devtools.evaluate("document.querySelector('[data-pr-confirm]').textContent"),label);
+      assert.equal(await devtools.evaluate("document.querySelector('[data-pr-action]').dataset.prMethodValue"),method,"label changes do not change the selected API method");
+      assert.equal(await devtools.evaluate("(()=>{const a=document.querySelector('[data-pr-confirm]').getBoundingClientRect(),b=document.querySelector('[data-pr-dismiss]').getBoundingClientRect();return Math.abs(a.top-b.top)<1})()"),true,"all confirmation labels keep one button row at 320px");
+      await audit();await pointerClick('[data-pr-dismiss]');
+    }
+  }
+  assert.equal(prWrites.length,2,"checking labels never writes a PR");
 } finally {
   await browser.close();
   await new Promise<void>(done => server.close(() => done()));

@@ -2,7 +2,7 @@
 import { escapeHtml } from "../foundations/html.ts";
 import { breakpoints } from "../tokens/index.ts";
 
-export type ButtonVariant = "primary" | "secondary" | "subtle" | "quiet" | "icon" | "text" | "danger" | "link" | "toggle" | "navigation" | "switch";
+export type ButtonVariant = "primary" | "secondary" | "subtle" | "quiet" | "icon" | "text" | "danger" | "success" | "link" | "toggle" | "navigation" | "switch";
 export type ButtonSize = "regular" | "compact";
 
 type AttributeValue = string | number | boolean | undefined;
@@ -53,6 +53,8 @@ export const BUTTON_CSS = `
 .button--primary[aria-busy="true"] { background: var(--accent-primary); border-color: var(--accent-primary); }
 .button--danger { --button-busy-color: var(--status-failure); color: var(--status-failure); border-color: color-mix(in srgb,var(--status-failure) 35%,var(--border-default)); background: color-mix(in srgb,var(--status-failure) 6%,var(--surface-raised)); }
 .button--danger:hover:not(:disabled):not([aria-busy="true"]) { color: var(--surface-page); background: var(--status-failure); border-color: var(--status-failure); }
+.button--success { --button-busy-color: color-mix(in srgb,var(--status-success) 65%,var(--text-primary)); color: var(--button-busy-color); border-color: color-mix(in srgb,var(--status-success) 40%,var(--border-default)); background: color-mix(in srgb,var(--status-success) 6%,var(--surface-raised)); }
+.button--success:hover:not(:disabled):not([aria-busy="true"]) { color: var(--button-busy-color); background: color-mix(in srgb,var(--status-success) 12%,var(--surface-raised)); border-color: var(--status-success); }
 .button--secondary { color: var(--text-primary); background: var(--surface-raised); border-color: var(--text-primary); }
 .button--subtle { color: var(--text-primary); background: var(--surface-panel); border-color: var(--border-default); }
 .button--subtle:hover:not(:disabled):not([aria-busy="true"]) { color: var(--text-primary); background: var(--surface-section); border-color: var(--text-muted); }
@@ -72,6 +74,9 @@ export const BUTTON_CSS = `
 .button--link .button__svg { inline-size: 14px; block-size: 14px; }
 .button--text { min-height: 0; padding: 0; border: 0; background: transparent; font: inherit; line-height: inherit; text-align: start; justify-content: start; }
 .button--text:hover:not(:disabled):not([aria-busy="true"]) { color: var(--text-primary); background: transparent; text-decoration: underline; text-underline-offset: .2em; }
+.button--truncate { min-width: 0; max-width: 100%; }
+.button__label--truncate { min-width: 0; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+.button--text:focus-visible .button__label--truncate { text-decoration: underline; text-underline-offset: .2em; }
 .button--icon { inline-size: var(--button-width,var(--control-height)); block-size: var(--control-height); padding: 0; background: var(--surface-panel); border-color: var(--border-default); }
 .button--icon:hover:not(:disabled):not([aria-busy="true"]) { color: var(--text-primary); background: var(--accent-soft); border-color: var(--accent-primary); }
 .button--icon[aria-pressed="true"],.button--icon[aria-pressed="true"]:hover:not(:disabled):not([aria-busy="true"]) { color: var(--text-on-accent); background: var(--accent-primary); border-color: var(--accent-primary); }
@@ -127,11 +132,12 @@ export function renderButton(input: ButtonInput): string {
 }
 
 /** Navigation that looks like a button; `href` must be a site-relative or https URL. */
-export function renderLinkButton(input: { label: string; href: string; variant: ButtonVariant; size?: ButtonSize; ariaLabel?: string; iconPath?: string; visibleLabel?: boolean; className?: string; target?: "_blank"; attributes?: Record<string, AttributeValue> }): string {
+export function renderLinkButton(input: { label: string; href: string; variant: ButtonVariant; size?: ButtonSize; ariaLabel?: string; iconPath?: string; visibleLabel?: boolean; truncate?: boolean; className?: string; target?: "_blank"; attributes?: Record<string, AttributeValue> }): string {
   if (!/^(?:\/(?!\/)|https:\/\/)/.test(input.href)) throw new Error("Unsafe link button href");
   if(input.className&&!SAFE_CLASS_LIST.test(input.className))throw new Error("Unsafe link button class list");
   if(input.visibleLabel===false&&!input.iconPath)throw new Error("Hidden link label requires an icon");
   const name=input.ariaLabel??(input.visibleLabel===false?input.label:undefined);
   const ariaLabel = name ? ` aria-label="${escapeHtml(name)}"` : "";
-  return `<a class="button button--${input.variant}${input.size === "compact" ? " button--compact" : ""}${input.className?` ${input.className}`:""}" href="${escapeHtml(input.href)}"${input.target?' target="_blank" rel="noopener noreferrer"':""}${ariaLabel}${renderAttributes(input.attributes)}>${input.visibleLabel===false?"":escapeHtml(input.label)}${input.iconPath?`<svg class="button__svg" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="${escapeHtml(input.iconPath)}"/></svg>`:""}</a>`;
+  const label=input.visibleLabel===false?"":input.truncate?`<span class="button__label--truncate">${escapeHtml(input.label)}</span>`:escapeHtml(input.label);
+  return `<a class="button button--${input.variant}${input.size === "compact" ? " button--compact" : ""}${input.truncate?" button--truncate":""}${input.className?` ${input.className}`:""}" href="${escapeHtml(input.href)}"${input.target?' target="_blank" rel="noopener noreferrer"':""}${ariaLabel}${renderAttributes(input.attributes)}>${label}${input.iconPath?`<svg class="button__svg" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="${escapeHtml(input.iconPath)}"/></svg>`:""}</a>`;
 }

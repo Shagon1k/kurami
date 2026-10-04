@@ -92,6 +92,7 @@ for(const app of ["hub","digest","projects","docs"] as const)for(const lang of [
   }
 }
 const iconNav={label:"Projects",links:[{href:"/",label:"PickFlick",mobileIcon:"panda" as const}]};
+assert.match(renderButton({label:"Merge PR",variant:"success"}),/button--success/);
 assert.doesNotMatch(renderSiteNav(iconNav),/<svg/,'desktop navigation stays text-only');
 assert.ok(renderSiteNav(iconNav,"site-nav",true).includes(iconPath("panda")));
 for(const icon of ["panda","fox","profile","projects"] as const)assert.match(renderIcon(icon),/aria-hidden="true"/);
@@ -163,6 +164,11 @@ for(const [lang,name] of [["ru","Тёмная тема"],["en","Dark theme"]] as
 assert.match(renderLinkButton({label:"RU",href:"/ru/",variant:"icon",attributes:{hreflang:"ru"}}),/^<a class="button button--icon" href="\/ru\/" hreflang="ru">RU<\/a>$/);
 assert.match(renderButton({label:"Reset",variant:"subtle",size:"compact"}),/^<button class="button button--subtle button--compact" type="button">Reset<\/button>$/);
 assert.match(renderLinkButton({label:"More",href:"/more/",variant:"subtle",size:"compact"}),/^<a class="button button--subtle button--compact"/);
+const truncatedLink=renderLinkButton({label:"Long <check>",href:"/check/",variant:"text",truncate:true,ariaLabel:"Long check · Passed",attributes:{title:"Long check · Passed"}});
+assert.match(truncatedLink,/class="button button--text button--truncate"/);
+assert.match(truncatedLink,/<span class="button__label--truncate">Long &lt;check&gt;<\/span>/);
+assert.match(truncatedLink,/aria-label="Long check · Passed" title="Long check · Passed"/);
+assert.doesNotMatch(renderLinkButton({label:"Unchanged",href:"/",variant:"text"}),/button--truncate|<span/);
 const svgButton=renderButton({label:"Больше такого",variant:"icon",iconPath:"M12 19V5 M6 11l6-6 6 6"});
 assert.match(svgButton,/<button[^>]*aria-label="Больше такого"[^>]*><svg class="button__svg"[^>]*><path d="M12 19V5 M6 11l6-6 6 6"\/><\/svg><\/button>/);
 assert.doesNotMatch(svgButton,/<span|🔔/);

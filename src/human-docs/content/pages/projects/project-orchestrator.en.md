@@ -96,7 +96,7 @@ CI, reviews and previews belong to one SHA — the PR's latest commit. A new com
 :::
 
 :::guarantees
-- It never merges a PR or deploys application code — that is always your decision.
+- The automatic controller never merges a PR or deploys an application. Merging in Projects requires your separate confirmation.
 - It never creates two runs for one issue: a unique index in the database forbids it.
 - It never deletes unsaved or published work without your explicit confirmation.
 - It never retries a rejection silently: a rejected issue waits until you move it again.

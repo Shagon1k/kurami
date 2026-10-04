@@ -10,11 +10,18 @@ import { ProjectsAccess } from "../../src/projects-site/access.ts";
 import { createProjectsServer } from "../../src/projects-site/server.ts";
 import { renderProjectsPage } from "../../src/projects-site/render.ts";
 import { parseFilters, selectItems } from "../../src/projects-site/model.ts";
-import { syntheticProjectsSnapshot } from "./fixture.ts";
+import { syntheticProjectsSnapshot, syntheticCiChecks } from "./fixture.ts";
+import {parseCiChecks,ciCheckUrl} from "../../src/projects-site/ci-checks.ts";
 import {iconPath} from "../../src/ui-library/components/icon.ts";
 
 const home = mkdtempSync(join(tmpdir(), "kurami-projects-"));
 const at = "2026-09-30T10:00:00Z";
+const checkUrl="https://github.com/Example/Alpha/actions/runs/123/job/456#step:2:1";
+assert.equal(ciCheckUrl(checkUrl,"Example/Alpha"),checkUrl,"the recorded job and step anchor are preserved");
+for(const url of ["javascript:alert(1)","https://evil.test/Example/Alpha/actions/runs/123","https://github.com/Example/Other/actions/runs/123","https://user:secret@github.com/Example/Alpha/actions/runs/123","https://github.com/Example/Alpha/issues/12","https://github.com/Example/Alpha/../Other/actions/runs/123"])
+  assert.equal(ciCheckUrl(url,"Example/Alpha"),null);
+for(const raw of [null,"{bad","{}",'[null,1,{"name":""}]'])assert.deepEqual(parseCiChecks(raw,"Example/Alpha"),[]);
+assert.deepEqual(parseCiChecks('[{"name":"CI","state":"invented","detailsUrl":"javascript:alert(1)"}]',"Example/Alpha"),[{name:"CI",state:"unknown",detailsUrl:null}]);
 try {
   mkdirSync(join(home, "config")); mkdirSync(join(home, "state"));
   const config = { projects: { alpha: { owner: "Example", project_number: 1, repository: "Example/Alpha", statuses: { backlog: "Todo", active: "Doing", review: "Review", done: "Closed", deferred: "Later" }, discord: { guild_id: "100", channel_id: "101" } } } };
@@ -66,6 +73,13 @@ try {
   assert.equal(collectProjectsSnapshot({ home, now: new Date("2026-09-30T10:02:00Z") }).projects[0]!.freshness, "stale");
   assert.equal(collectProjectsSnapshot({ home, now: new Date("2026-10-01T10:01:00Z") }).items.find(item => item.id === "review")!.links.preview, null, "expired previews never produce navigation");
   assert.equal(createHash("sha256").update(readFileSync(dbPath)).digest("hex"), before, "snapshot does not mutate the Run Store");
+  database.prepare("UPDATE run_ci_snapshots SET checks_json=?").run(JSON.stringify(syntheticCiChecks()));
+  const ciItem=collectProjectsSnapshot({home,now:new Date(at)}).items.find(item=>item.id==="review")!;
+  assert.deepEqual(ciItem.ci.checks,syntheticCiChecks());
+  assert.equal(ciItem.ci.observedAt,at);
+  database.prepare("UPDATE run_ci_snapshots SET checks_json=?").run("{}");
+  assert.deepEqual(collectProjectsSnapshot({home,now:new Date(at)}).items.find(item=>item.id==="review")!.ci.checks,[],"bad check payload does not make the entire dashboard unavailable");
+  database.prepare("UPDATE run_ci_snapshots SET checks_json=?").run("[]");
   database.prepare("UPDATE project_triage_state SET factual_hash=?").run("b".repeat(64));
   assert.equal(collectProjectsSnapshot({home,now:new Date(at)}).items.find(item=>item.id==="backlog")?.suggestedNext,undefined,"obsolete ranking disappears when digest facts change");
   database.prepare("UPDATE project_triage_state SET factual_hash=?").run(factualHash);
@@ -132,6 +146,22 @@ composedItem.preview={...composedItem.preview,state:"running",head:composedItem.
 composedItem.preview.expiresAt="2026-10-04T10:00:00Z";
 composedItem.links.preview="https://example.test/preview";
 const detailHtml=renderProjectsPage(composed,new URLSearchParams("item=item-12")).split('<aside class="projects-detail"')[1]!;
+assert.match(detailHtml,/data-disclosure-key="ci:item-12:abcdef0123456789"[^>]*><summary>[\s\S]*?Checks · 6/);
+assert.match(detailHtml,/href="https:\/\/github.com\/Example\/Alpha\/actions\/runs\/100\/job\/201#step:2:1"/);
+const ciMarkup=detailHtml.split('<ul class="projects-ci-checks">')[1]!.split('</ul>')[0]!;
+assert.doesNotMatch(ciMarkup,/projects-ci-result|class="button__svg"/,"CI rows have no repeated status text or external-link arrows");
+assert.match(ciMarkup,/button__label--truncate/);
+assert.match(ciMarkup,/<li[^>]+><div class="projects-ci-check-content">[\s\S]*?<\/div><span class="projects-ci-mark/,"result icon follows the check name");
+assert.match(ciMarkup,/aria-label="Secret scan · Passed · Open check in GitHub"/);
+assert.doesNotMatch(renderProjectsPage(fixture),/projects-ci-checks|Secret scan/,"check breakdown stays out of the task table");
+const failedCi=renderProjectsPage(fixture,new URLSearchParams("item=item-13")).split('<aside class="projects-detail"')[1]!;
+assert.match(failedCi,/data-disclosure-key="ci:item-13:[^"]+" open>/,"failed checks are visible without an extra click");
+assert.equal((failedCi.match(/projects-ci-mark--failure/g)??[]).length,2);
+const unreported=structuredClone(composed);unreported.items[0]!.ci.checks=[{name:"<script>CI</script>",state:"missing",detailsUrl:"javascript:alert(1)"},{name:"Waiting",state:"pending",detailsUrl:null},{name:"Unknown",state:"unknown",detailsUrl:null}];
+const unreportedHtml=renderProjectsPage(unreported,new URLSearchParams("item=item-12&lang=ru")).split('<aside class="projects-detail"')[1]!;
+assert.match(unreportedHtml,/Проверки · 3/);assert.match(unreportedHtml,/Результат ещё не получен/);assert.match(unreportedHtml,/&lt;script&gt;CI&lt;\/script&gt;/);assert.doesNotMatch(unreportedHtml,/javascript:|<script>CI/);
+unreported.items[0]!.ci.checks=[];
+assert.match(renderProjectsPage(unreported,new URLSearchParams("item=item-12")),/Check details unavailable/);
 assert.equal((detailHtml.match(/example.test\/preview/g)??[]).length,1,"Preview has one link beside its evidence");
 assert.equal((detailHtml.match(/abcdef012345<\/code>/g)??[]).length,1,"matching evidence heads are shown once");
 assert.doesNotMatch(detailHtml,/data-review-run=/,"already-reviewed commits do not receive a duplicate disabled review button");

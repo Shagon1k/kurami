@@ -12,6 +12,9 @@ import {renderSearchField,renderSelectField} from "../ui-library/components/form
 import {renderCallout} from "../ui-library/components/callout.ts";
 import {renderIcon,iconPath,type IconName} from "../ui-library/components/icon.ts";
 import {renderPopover} from "../ui-library/components/popover.ts";
+import {renderDisclosure} from "../ui-library/components/disclosure.ts";
+import {ciCheckUrl} from "./ci-checks.ts";
+import type {PrActionView} from "./pr-actions.ts";
 import {renderToastRegion} from "../ui-library/components/toast.ts";
 import {renderPill,type PillTone} from "../ui-library/components/pill.ts";
 import {needsOwner,parseFilters,projectStageLabel,selectItems,type ProjectItem,type ProjectSummary,type ProjectsSnapshot,type Signal,type SortKey} from "./model.ts";
@@ -80,6 +83,19 @@ export function renderProjectsDashboard(snapshot:ProjectsSnapshot,params=new URL
     ${snapshot.available?"":renderCallout({tone:"warning",title:t("Data temporarily unavailable"),body:t("Check the current state in GitHub or Discord.")})}
     <div class="projects-grid${selected?" projects-grid--detail":""}"><div class="projects-table-frame">${table}<div data-search-empty hidden>${renderCallout({tone:"note",title:t("No tasks match your search."),body:""})}</div></div>${selected?detail(selected,params,projectOf(selected)):""}</div>`;
 }
+function ciDetails(item:ProjectItem,project:ProjectSummary,lang:Language):string {
+  const checks=item.ci.checks??[],t=(key:string)=>tr(key,lang);
+  if(!checks.length)return item.ci.state!=="none"?`<p class="projects-action-note">${t("Check details unavailable")}</p>`:"";
+  const rows=checks.map(check=>{
+    const tone:Signal["tone"]=check.state==="passed"?"success":check.state==="failed"?"failure":check.state==="missing"?"warning":"neutral";
+    const icon:IconName=check.state==="passed"?"check":check.state==="failed"?"close":check.state==="pending"?"clock":"alert";
+    const url=ciCheckUrl(check.detailsUrl,project.repository),label=check.state==="missing"?t("Check not reported"):stateLabel(check.state,lang);
+    const description=`${check.name} · ${label}`;
+    const name=url?renderLinkButton({label:check.name,href:url,variant:"text",truncate:true,ariaLabel:`${description} · ${t("Open check in GitHub")}`,attributes:{title:description}}):`<span class="projects-ci-check-name">${escape(check.name)}</span><span class="sr-only"> · ${escape(label)}</span>`;
+    return `<li class="projects-ci-check" title="${escape(description)}"><div class="projects-ci-check-content">${name}</div><span class="projects-ci-mark projects-ci-mark--${tone}" aria-hidden="true">${renderIcon(icon)}</span></li>`;
+  }).join("");
+  return renderDisclosure({summary:`${t("Checks")} · ${checks.length}`,variant:"inline",className:"projects-ci-details",key:`ci:${item.id}:${item.ci.head??"unknown"}`,open:checks.some(check=>["failed","missing"].includes(check.state)),body:`<ul class="projects-ci-checks">${rows}</ul>${item.ci.observedAt?`<p class="projects-update">${t("Checked")} ${escape(localTime(item.ci.observedAt,lang))}</p>`:""}`});
+}
 function detail(item:ProjectItem,params:URLSearchParams,project:ProjectSummary):string {
   const lang=language(params),t=(key:string)=>tr(key,lang);
   const reasons:Record<string,string>={pending:"A review or another action is already running.",unstable:"Review is available after current work finishes.",no_head:"The current PR commit is not verified yet.",ready:"This commit has already been reviewed.",stale:"Wait for fresh sync data.",superseded:"This run is no longer current."};
@@ -96,18 +112,33 @@ function detail(item:ProjectItem,params:URLSearchParams,project:ProjectSummary):
   return `<aside class="projects-detail" id="project-details" data-detail-item="${escape(item.id)}" aria-labelledby="project-details-title" tabindex="-1"><div class="projects-detail-top"><p class="projects-detail-meta">${renderIcon("project")}${escape(project.name)}<span class="projects-task-id">${item.number?`#${item.number}`:t("Draft")}</span></p>${renderLinkButton({label:t("Back to tasks"),href:itemUrl(params),variant:"quiet",attributes:{"data-item-close":true}})}</div><h2 id="project-details-title">${escape(item.title||t("Untitled task"))}</h2><div class="projects-detail-badges">${renderPill({label:item.status??t("No status"),tone:statusTone(item,project)})}${stateValue(projectStageLabel(item,lang),runTone(item))}${item.suggestedNext?renderPill({label:t("Suggested next"),tone:"info",icon:"spark"}):""}</div><div class="projects-links">${links}</div>
     ${item.suggestedNext?`<div class="projects-recommendation">${renderIcon("spark")}<p>${escape(sourceText(item.suggestedNext.explanation,lang))}</p></div>`:""}
     ${statusEditor}${item.detail?`<p class="projects-context">${escape(sourceText(item.detail,lang))}</p>`:""}
-    <section class="projects-detail-section"><h3>${renderIcon("ci")}${t("Evidence")}</h3>${commonHead?`<p class="projects-update">${t("Current commit")} <code title="${escape(commonHead)}">${escape(commonHead.slice(0,12))}</code></p>`:""}<div class="projects-evidence">${evidence("CI","ci",item.ci,runActions(item,lang,["ci_repair"]))}${evidence("AI Review","review",item.review,`${findingCounts?`<p class="projects-findings">${escape(findingCounts)}</p>`:""}${reviewNote}${runActions(item,lang,["review_fix"],review)}`)}${evidence("Preview","preview",item.preview,`${item.preview.expiresAt?`<p class="projects-info">${t("Expires")} ${escape(localTime(item.preview.expiresAt,lang))}</p>`:""}${runActions(item,lang,["preview_start","preview_reviewed","preview_stop"],resource("Open preview",item.links.preview,"arrow"))}`)}</div>
+    <section class="projects-detail-section"><h3>${renderIcon("ci")}${t("Evidence")}</h3>${commonHead?`<p class="projects-update">${t("Current commit")} <code title="${escape(commonHead)}">${escape(commonHead.slice(0,12))}</code></p>`:""}<div class="projects-evidence">${evidence("CI","ci",item.ci,ciDetails(item,project,lang)+runActions(item,lang,["ci_repair"]))}${evidence("AI Review","review",item.review,`${findingCounts?`<p class="projects-findings">${escape(findingCounts)}</p>`:""}${reviewNote}${runActions(item,lang,["review_fix"],review)}`)}${evidence("Preview","preview",item.preview,`${item.preview.expiresAt?`<p class="projects-info">${t("Expires")} ${escape(localTime(item.preview.expiresAt,lang))}</p>`:""}${runActions(item,lang,["preview_start","preview_reviewed","preview_stop"],resource("Open preview",item.links.preview,"arrow"))}`)}</div>
     ${item.reviewRequestFailed?renderCallout({tone:"warning",title:t("AI Review did not start"),body:t("Refresh and retry for the current PR commit.")}):""}</section>${runActionControls(item,lang)}${item.runUpdatedAt?`<p class="projects-update">${t("Updated")} ${escape(localTime(item.runUpdatedAt,lang))}</p>`:""}</aside>`;
 }
 function runActionControls(item:ProjectItem,lang:Language):string {
   if(!item.runActions||!item.runId)return "";
   const t=(key:string)=>tr(key,lang);
   if(item.runActions.reason==="unavailable")return `<p class="projects-action-note">${t("Run controls are not available yet.")}</p>`;
-  const controls=runActions(item,lang,["take_control","recover_managed_task","stop","discard_local","discard_published"]);
+  const pr=item.prControlsEnabled||item.prActions?`<div class="projects-run-action" data-pr-slot data-pr-project="${escape(item.project)}" data-pr-item="${escape(item.id)}">${renderProjectPrControl(item.prActions,lang)}</div>`:"";
+  const controls=runActions(item,lang,["take_control","recover_managed_task"])+runActions(item,lang,["stop","discard_local","discard_published"],"",pr);
   const sections=controls?`<div class="projects-detail-section projects-run-actions">${controls}</div>`:"";
   return (item.runActions.reason==="stale"?`<p class="projects-action-note">${t("Wait for fresh sync data.")}</p>`:"")+sections;
 }
-function runActions(item:ProjectItem,lang:Language,actions:string[],leading=""):string {
+export function renderProjectPrControl(view:PrActionView|undefined,lang:Language):string {
+  const t=(key:string)=>tr(key,lang);
+  if(!view)return renderButton({label:t("Checking PR…"),variant:"subtle",size:"compact",disabled:true})+"<div></div>";
+  if(!view.action)return `<p class="projects-action-note">${escape(t(view.reason))}</p><div></div>`;
+  if(view.checkOnly)return renderButton({label:t("Check result"),variant:"subtle",iconPath:iconPath("refresh"),visibleLabel:true,size:"compact",disabled:!view.enabled,busyLabel:t("Sending…"),attributes:{"data-pr-action":view.action,"data-pr-check":true,"data-pr-method-value":view.method??"","data-pr-head":view.head,"data-pr-fingerprint":view.fingerprint,"data-pr-key":view.key}})+`<div class="projects-run-action-meta"><p class="projects-action-note">${escape(t(view.reason))}</p></div>`;
+  const merge=view.action==="merge",id=`projects-pr-confirm-${randomUUID()}`;
+  const button=renderButton({label:t(merge?"Merge PR":"Ready for review"),variant:merge?"success":"subtle",iconPath:iconPath(merge?"branch":"check"),visibleLabel:true,size:"compact",disabled:!view.enabled,busyLabel:t("Sending…"),attributes:{"data-pr-action":view.action,"data-pr-head":view.head,"data-pr-fingerprint":view.fingerprint,"data-pr-key":randomUUID(),"data-pr-confirm-target":id,"aria-expanded":"false","aria-controls":id}});
+  const note=view.reason?`<p class="projects-action-note">${escape(t(view.reason))}</p>`:"";
+  const labels={squash:"Squash",rebase:"Rebase",merge:"Merge commit"};
+  const confirmLabels={squash:"Squash and merge",rebase:"Rebase and merge",merge:"Create merge commit"};
+  const choices=merge?`<div class="projects-pr-methods" data-pr-choices>${view.methods.map(method=>renderButton({label:t(labels[method]),variant:"quiet",attributes:{"data-pr-method":method,"data-pr-confirm-label":t(confirmLabels[method])}})).join("")}</div>`:"";
+  const confirm=`<div data-pr-confirmation${merge?" hidden":""}><p class="projects-action-note">${escape(t(merge?"Merge this PR into":"Mark this draft ready for review"))} ${merge?escape(view.base):""} · #${view.number} · <code>${escape(view.head.slice(0,12))}</code>?</p><div class="projects-confirm-buttons">${renderButton({label:t("Cancel"),variant:"quiet",attributes:{"data-pr-dismiss":true}})}${renderButton({label:t(merge?"Confirm merge":"Confirm"),variant:merge?"success":"subtle",attributes:{"data-pr-confirm":true}})}</div></div>`;
+  return button+`<div class="projects-run-action-meta">${note}<div class="projects-pr-popover">${renderPopover({id,label:t(merge?"Merge method":"Ready for review"),body:choices+confirm})}</div></div>`;
+}
+function runActions(item:ProjectItem,lang:Language,actions:string[],leading="",trailing=""):string {
   const wrap=(control:string,notes="")=>`<div class="projects-run-action">${control}<div class="projects-run-action-meta">${notes}</div></div>`;
   const grid=(controls:string[],confirmations:string[]=[])=>`<div class="projects-action-grid">${Array.from({length:Math.ceil(controls.length/2)},(_,index)=>`<div class="projects-action-pair">${controls.slice(index*2,index*2+2).join("")}</div>`).join("")}${confirmations.join("")}</div>`;
   if(!item.runActions||!item.runId)return leading?grid([wrap(leading)]):"";
@@ -115,20 +146,20 @@ function runActions(item:ProjectItem,lang:Language,actions:string[],leading=""):
   const states:Record<string,string>={pending:"Queued",processing:"Running",failed:"Not completed — check the state",rejected:"Rejected — check the state"};
   const icons:Record<string,IconName>={take_control:"person",preview_start:"play",preview_stop:"close",preview_reviewed:"check",ci_repair:"ci",review_fix:"review",recover_managed_task:"refresh",stop:"close",discard_local:"trash",discard_published:"trash"};
   const available=item.runActions.actions.filter(action=>actions.includes(action.action));
-  if(!available.length&&!leading)return "";
+  if(!available.length&&!leading&&!trailing)return "";
   const confirmations:string[]=[];
   const controls=available.map(action=>{
     const confirmId=action.confirmation?`projects-confirm-${randomUUID()}`:null;
     if(confirmId)confirmations.push(`<div id="${confirmId}" class="projects-action-confirmation" data-run-confirm-panel hidden><p class="projects-action-note">${escape(sourceText(action.confirmation!,lang))}</p><div class="projects-confirm-buttons">${renderButton({label:t("Cancel"),variant:"quiet",attributes:{"data-run-dismiss":true}})}${renderButton({label:t("Confirm deletion"),variant:"danger",attributes:{"data-run-confirm":true}})}</div></div>`);
-    const control=renderButton({label:sourceText(action.label,lang),iconPath:iconPath(icons[action.action]!),visibleLabel:true,size:"compact",variant:action.action.startsWith("discard_")?"danger":"subtle",disabled:!action.enabled,busyLabel:t("Sending…"),attributes:{"data-run-action":action.action,"data-run-id":item.runId!,"data-run-project":item.project,"data-run-item":item.id,"data-run-fingerprint":item.runActions!.fingerprint,"data-run-key":randomUUID(),...(confirmId?{"data-run-confirmation":sourceText(action.confirmation!,lang),"data-run-confirm-target":confirmId}:{})}});
+    const control=renderButton({label:sourceText(action.label,lang),iconPath:iconPath(icons[action.action]!),visibleLabel:true,size:"compact",variant:action.action.startsWith("discard_")||action.action==="stop"?"danger":"subtle",disabled:!action.enabled,busyLabel:t("Sending…"),attributes:{"data-run-action":action.action,"data-run-id":item.runId!,"data-run-project":item.project,"data-run-item":item.id,"data-run-fingerprint":item.runActions!.fingerprint,"data-run-key":randomUUID(),...(confirmId?{"data-run-confirmation":sourceText(action.confirmation!,lang),"data-run-confirm-target":confirmId}:{})}});
     const notes=(action.state?`<p class="projects-action-note">${t(states[action.state]??"")}</p>`:"")+(action.hint?`<p class="projects-action-note">${escape(sourceText(action.hint,lang))}</p>`:"");
     return wrap(control,notes);
   });
-  return grid([...(leading?[wrap(leading)]:[]),...controls],confirmations);
+  return grid([...(leading?[wrap(leading)]:[]),...controls,...(trailing?[trailing]:[])],confirmations);
 }
 function statusForm(item:ProjectItem,lang:Language):string {
   const control=item.statusChange;if(!control)return "";const t=(key:string)=>tr(key,lang);
-  const messages:Record<string,string>={stale:"Wait for fresh sync data.",unsupported:"Project status field is not configured.",unavailable:"Status changes are not available yet.",checking:"Checking the current status in GitHub.",writing:"Saving status in GitHub.",awaiting_sync:"GitHub updated. Waiting for Kurami sync.",uncertain:"The write is unconfirmed. Check its result before another change.",conflict:"Status changed in GitHub. Check the current state.",failed:"Status change is unconfirmed. You can retry."};
+  const messages:Record<string,string>={pr_pending:"GitHub is processing this PR action.",stale:"Wait for fresh sync data.",unsupported:"Project status field is not configured.",unavailable:"Status changes are not available yet.",checking:"Checking the current status in GitHub.",writing:"Saving status in GitHub.",awaiting_sync:"GitHub updated. Waiting for Kurami sync.",uncertain:"The write is unconfirmed. Check its result before another change.",conflict:"Status changed in GitHub. Check the current state.",failed:"Status change is unconfirmed. You can retry."};
   const pending=control.reason==="pending",request=control.request,from=pending&&request?request.from:item.status,selected=pending&&request?request.target:item.status??"";
   const choices=[{value:item.status??"",label:item.status??t("No status")},...control.choices.filter(choice=>choice.value!==item.status)];
   if(pending&&!choices.some(choice=>choice.value===selected))choices.push({value:selected,label:selected});

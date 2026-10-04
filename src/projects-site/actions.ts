@@ -6,6 +6,7 @@ import { resolveKuramiHome } from "../core/kurami-home.ts";
 import { inspectAiReview, reviewContextMatches } from "../orchestrator/controls/ai-review.ts";
 import { projectsRegistry } from "./snapshot.ts";
 import { PROJECTS_STALE_AFTER_MS } from "./model.ts";
+import {hasActivePrRequest} from "../orchestrator/controls/pr-boundary.ts";
 
 export type ReviewInput = { runId: string; project: string; itemId: string; head: string; key: string };
 export type ReviewResult = { state: "created" | "existing"; requestId: string; requestState: string };
@@ -44,6 +45,7 @@ export function requestProjectsReview(value: unknown, actor: string, options: { 
     const previous = database.prepare("SELECT request_id,request_state FROM run_control_requests WHERE idempotency_key=?").get(idempotencyKey) as
       { request_id: string; request_state: string } | undefined;
     if (previous) { database.exec("COMMIT"); began = false; return { state: "existing", requestId: previous.request_id, requestState: previous.request_state }; }
+    if(hasActivePrRequest(database,input.runId))throw new ProjectsActionError(409,"GitHub is processing this PR action.");
     const inspection = inspectAiReview(database, input.runId);
     if (!inspection || inspection.project !== input.project || inspection.itemId !== input.itemId || inspection.repository.toLowerCase() !== project.repository.toLowerCase())
       throw new ProjectsActionError(409, "Запуск задачи изменился. Обновите страницу.");

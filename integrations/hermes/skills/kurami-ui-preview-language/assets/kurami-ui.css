@@ -58,6 +58,8 @@ button, a { -webkit-tap-highlight-color: transparent; }
 .button--primary[aria-busy="true"] { background: var(--accent-primary); border-color: var(--accent-primary); }
 .button--danger { --button-busy-color: var(--status-failure); color: var(--status-failure); border-color: color-mix(in srgb,var(--status-failure) 35%,var(--border-default)); background: color-mix(in srgb,var(--status-failure) 6%,var(--surface-raised)); }
 .button--danger:hover:not(:disabled):not([aria-busy="true"]) { color: var(--surface-page); background: var(--status-failure); border-color: var(--status-failure); }
+.button--success { --button-busy-color: color-mix(in srgb,var(--status-success) 65%,var(--text-primary)); color: var(--button-busy-color); border-color: color-mix(in srgb,var(--status-success) 40%,var(--border-default)); background: color-mix(in srgb,var(--status-success) 6%,var(--surface-raised)); }
+.button--success:hover:not(:disabled):not([aria-busy="true"]) { color: var(--button-busy-color); background: color-mix(in srgb,var(--status-success) 12%,var(--surface-raised)); border-color: var(--status-success); }
 .button--secondary { color: var(--text-primary); background: var(--surface-raised); border-color: var(--text-primary); }
 .button--subtle { color: var(--text-primary); background: var(--surface-panel); border-color: var(--border-default); }
 .button--subtle:hover:not(:disabled):not([aria-busy="true"]) { color: var(--text-primary); background: var(--surface-section); border-color: var(--text-muted); }
@@ -77,6 +79,9 @@ button, a { -webkit-tap-highlight-color: transparent; }
 .button--link .button__svg { inline-size: 14px; block-size: 14px; }
 .button--text { min-height: 0; padding: 0; border: 0; background: transparent; font: inherit; line-height: inherit; text-align: start; justify-content: start; }
 .button--text:hover:not(:disabled):not([aria-busy="true"]) { color: var(--text-primary); background: transparent; text-decoration: underline; text-underline-offset: .2em; }
+.button--truncate { min-width: 0; max-width: 100%; }
+.button__label--truncate { min-width: 0; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+.button--text:focus-visible .button__label--truncate { text-decoration: underline; text-underline-offset: .2em; }
 .button--icon { inline-size: var(--button-width,var(--control-height)); block-size: var(--control-height); padding: 0; background: var(--surface-panel); border-color: var(--border-default); }
 .button--icon:hover:not(:disabled):not([aria-busy="true"]) { color: var(--text-primary); background: var(--accent-soft); border-color: var(--accent-primary); }
 .button--icon[aria-pressed="true"],.button--icon[aria-pressed="true"]:hover:not(:disabled):not([aria-busy="true"]) { color: var(--text-on-accent); background: var(--accent-primary); border-color: var(--accent-primary); }

@@ -9,6 +9,7 @@ import { reviewContextMatches } from "../orchestrator/controls/ai-review.ts";
 import { ProjectsActionError, type ReviewResult } from "./actions.ts";
 import { projectsRegistry } from "./snapshot.ts";
 import { PROJECTS_STALE_AFTER_MS } from "./model.ts";
+import {hasActivePrRequest} from "../orchestrator/controls/pr-boundary.ts";
 
 export const RUN_ACTIONS = ["take_control","preview_start","preview_stop","preview_reviewed","ci_repair","review_fix","recover_managed_task","stop","discard_local","discard_published"] as const;
 export type RunAction = typeof RUN_ACTIONS[number];
@@ -46,6 +47,7 @@ export function projectRunActions(database: DatabaseSync, runId: string, home: s
     return {fingerprint:"",reason:"unavailable",actions:[]};
   const run = readRun(database,runId,home,now);
   const eligible = candidates(run,now);
+  const prPending=hasActivePrRequest(database,runId);
   const requests = database.prepare("SELECT request_id,action,request_state,requested_via FROM run_control_requests WHERE run_id=? ORDER BY rowid DESC").all(runId) as Pending[];
   const actions = RUN_ACTIONS.flatMap(action => {
     const latest = requests.find(request => request.action === action);
@@ -53,7 +55,7 @@ export function projectRunActions(database: DatabaseSync, runId: string, home: s
     if (!eligible.has(action) && !pending && !["failed","rejected"].includes(latest?.request_state ?? "")) return [];
     const label = action === "take_control" ? run.take_control_autonomous ? "Продолжить автономно" : run.owner_state === "none" ? "Продолжить в Codex" : labels[action] :
       action === "preview_start" && run.preview_state === "running" ? "Продлить превью на 24 ч" : labels[action];
-    return [{action,label,enabled:eligible.has(action) && fresh && run.execution_mode === "live" && !pending,confirmation:destructive.has(action) ?
+    return [{action,label,enabled:eligible.has(action) && fresh && run.execution_mode === "live" && !pending&&!prPending,confirmation:destructive.has(action) ?
       action === "discard_published" ? "Закрыть draft PR и удалить сохранённую ветку и локальную работу? Это действие нельзя отменить." : "Удалить сохранённую локальную работу? Это действие нельзя отменить." : null,
       hint:action === "take_control" && run.owner_state === "remote" ? "Нажатие подтверждает, что текущая Remote-задача завершена. Kurami запустит продолжение." :
         action === "take_control" && run.owner_state === "cli" ? "Kurami остановит текущий ход и передаст вам управление." : null,
@@ -88,6 +90,7 @@ export function requestProjectRunAction(value: unknown, actor: string, options: 
     const key = "projects-action:" + createHash("sha256").update(JSON.stringify([actor,input.runId,input.project,input.itemId,input.action,input.fingerprint,input.key])).digest("hex");
     const previous = database.prepare("SELECT a.request_id,q.request_state FROM project_action_requests a LEFT JOIN run_control_requests q ON q.request_id=a.request_id WHERE a.idempotency_key=?").get(key) as {request_id:string|null;request_state:string|null} | undefined;
     if (previous) { database.exec("COMMIT"); began=false; return {state:"existing",requestId:previous.request_id ?? key,requestState:previous.request_state ?? "applied"}; }
+    if(hasActivePrRequest(database,input.runId))throw new ProjectsActionError(409,"GitHub is processing this PR action.");
     const item = database.prepare("SELECT p.present,EXISTS(SELECT 1 FROM runs n WHERE n.project=r.project AND n.item_id=r.item_id AND n.rowid>r.rowid) AS superseded FROM runs r JOIN project_items p ON p.project=r.project AND p.item_id=r.item_id WHERE r.run_id=? AND r.project=? AND r.item_id=? AND lower(r.repository)=lower(?)").get(input.runId,input.project,input.itemId,project.repository) as {present:number;superseded:number} | undefined;
     if (!item?.present || item.superseded) throw new ProjectsActionError(409,"Запуск задачи изменился. Обновите страницу.");
     const poll = database.prepare("SELECT last_captured_at,last_attempt_state FROM project_poll_state WHERE project=?").get(input.project) as {last_captured_at:string;last_attempt_state:string} | undefined;

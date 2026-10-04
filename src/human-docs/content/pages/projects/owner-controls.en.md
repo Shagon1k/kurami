@@ -48,6 +48,30 @@ and run state.
 Without an observed agent run or stage, the Kurami column shows **No agent run**.
 This is separate from the task's GitHub status, including Done.
 
+### Complete a pull request
+
+At the bottom of a managed task, **Cancel run** sits beside the PR action.
+For a draft, **Ready for review** opens a confirmation. For an open non-draft,
+**Merge PR** opens a compact menu of allowed methods: Squash, Rebase or Merge commit.
+Choose a method, then confirm it in the same popup:
+**Squash and merge**, **Rebase and merge** or **Create merge commit**.
+Selecting a method does not merge the PR.
+Repository settings and effective branch rules narrow the list; Squash appears first when available.
+The page reads GitHub when you open the
+task and refreshes that view with the task, without blocking the task table.
+
+Both actions require an active or review task, fresh project data and a stopped, unowned run. Before writing,
+Kurami rechecks the current PR, commit, permissions and merge requirements.
+Merging submits the displayed head SHA without bypassing GitHub rules.
+Stacked PRs, non-default target branches and merge queues remain managed in GitHub.
+
+GitHub accepting a merge request does not mean the PR has merged. **Check result**
+rechecks the same request after 30 seconds without issuing another write.
+While its result is pending or unconfirmed, run controls and status changes are
+locked. Kurami leaves the Project status unchanged: a configured GitHub workflow
+can move the task to Done after merging. Normal polling then observes that change.
+See [Completion and cleanup](@release-cleanup) for the resulting cleanup.
+
 The status editor stays visible. Issue, PR, review and Discord links use bordered
 buttons in a grid. CI, review and preview share one block,
 with repair actions beside their checks. Preview has its own link and expiry.

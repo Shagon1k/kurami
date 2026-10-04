@@ -7,6 +7,7 @@ import { githubProjectFields, type ProjectFieldClient, type ProjectFieldSnapshot
 import { ProjectsActionError } from "./actions.ts";
 import { projectsRegistry } from "./snapshot.ts";
 import { PROJECTS_STALE_AFTER_MS } from "./model.ts";
+import {hasActivePrRequest} from "../orchestrator/controls/pr-boundary.ts";
 
 import { observedStatusRequest, type StatusInput, type StatusResult, type StatusRequestRow, type StatusRequestState } from "./status-state.ts";
 export type { StatusInput, StatusResult } from "./status-state.ts";
@@ -37,6 +38,8 @@ export async function requestProjectStatus(value: unknown, actor: string, option
   type Item = { status: string | null; last_seen_at: string; present: number; repository: string | null; content_type: string };
   const localItem = () => database.prepare("SELECT status,last_seen_at,present,repository,content_type FROM project_items WHERE project=? AND item_id=?").get(input.project,input.itemId) as Item | undefined;
   function validateLocal(): Item {
+    const run=database.prepare("SELECT run_id FROM runs WHERE project=? AND item_id=? ORDER BY rowid DESC LIMIT 1").get(input.project,input.itemId) as {run_id:string}|undefined;
+    if(run&&hasActivePrRequest(database,run.run_id))throw new ProjectsActionError(409,"GitHub is processing this PR action.");
     const item = localItem();
     if (!item?.present || !["Issue","PullRequest","DraftIssue"].includes(item.content_type) ||
       item.content_type !== "DraftIssue" && item.repository?.toLowerCase() !== config!.repository.toLowerCase())
