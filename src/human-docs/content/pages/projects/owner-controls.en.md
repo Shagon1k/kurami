@@ -51,6 +51,8 @@ This is separate from the task's GitHub status, including Done.
 ### Complete a pull request
 
 At the bottom of a managed task, **Cancel run** sits beside the PR action.
+When no PR action is available, its explanation appears below the actions;
+**Cancel run** fills the row instead of sharing it with a note.
 For a draft, **Ready for review** opens a confirmation. For an open non-draft,
 **Merge PR** opens a compact menu of allowed methods: Squash, Rebase or Merge commit.
 Choose a method, then confirm it in the same popup:

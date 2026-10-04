@@ -60,7 +60,7 @@ The buttons that start these checks are described in [Controls in Discord](@owne
 
 ## Watching CI
 
-In Projects, open a task's details and expand **Checks** under CI. Each check occupies one line: a result icon and a name linking to its GitHub job when available. Long names truncate; the full name and result remain in the tooltip and accessible text. Failed or missing checks open the list automatically. The task table keeps only the overall CI status.
+In Projects, open a task's details and expand **Checks** under CI. The entire Checks row is clickable. Each check occupies one line: a result icon and a name linking to its GitHub job when available. Long names truncate; the full name and result remain in the tooltip and accessible text. Failed or missing checks open the list automatically. The task table keeps only the overall CI status.
 
 The list comes from the CI observer's saved snapshot, with its commit and observation time. Dashboard refreshes preserve your expanded or collapsed choice for that commit. A missing check has no fabricated link; unavailable details do not mean CI passed.
 

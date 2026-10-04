@@ -52,6 +52,7 @@ assert.match(renderDisclosure({summary:"Events",body:"<ol></ol>",variant:"row"})
 assert.match(renderDisclosure({summary:"Sources",body:"<p>Evidence</p>",id:"review-sources",variant:"inline"}),/id="review-sources"/);
 assert.throws(()=>renderDisclosure({summary:"Sources",body:"",id:'unsafe" id'}),/Invalid disclosure ID/);
 assert.match(DISCLOSURE_CSS,/font-size: var\(--disclosure-summary-font-size\)/);
+assert.match(DISCLOSURE_CSS,/width: var\(--disclosure-summary-width,fit-content\)/,"disclosure summary width is opt-in; other disclosures keep their compact target");
 assert.match(TABLE_CSS,/grid-template-columns: var\(--table-stack-row-columns\)/);
 const dialogActions=renderDialogActions(renderButton({label:"Cancel",variant:"secondary"})+renderButton({label:"Confirm",variant:"primary"}));
 assert(dialogActions.indexOf('Cancel')<dialogActions.indexOf('Confirm'));

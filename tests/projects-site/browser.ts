@@ -12,7 +12,7 @@ let unavailable = false;
 let dense=false;
 let previewReady=false;
 let ciScenario:"normal"|"failed"|"mixed"|"new-head"="normal";
-let prScenario:"off"|"ready"|"merge"|"all-methods"|"blocked"|"pending"="off";
+let prScenario:"off"|"ready"|"merge"|"all-methods"|"blocked"|"pending"|"syncing"|"unavailable"="off";
 let prWrites:{action:string;method:string|null;confirmed:boolean;key:string}[]=[];
 let statusRequest: {state:"awaiting_sync";target:string;from:string;key:string} | null = null; let statusSynced = false; let statusConflict = false; const statusKeys: string[] = [];
 let accepted = false; let failReview = false; const requestKeys: string[] = [];
@@ -52,7 +52,10 @@ const completeOptions = { ...serverOptions, prCacheMs:0,runAction:(value:unknown
   if(input.action==="discard_local") {assert.equal(input.confirmed,true);discarded=true;}
   else {assert.equal(input.action,"preview_start");assert.equal(input.confirmed,false);if(failAction) throw new ProjectsActionError(503,"Действие временно недоступно.");actionAccepted=true;}
   return {state:"created" as const,requestId:"fixture-action",requestState:"pending"};
-},prInspect:async()=>({action:prScenario==="ready"?"ready" as const:"merge" as const,enabled:prScenario!=="blocked",reason:prScenario==="blocked"?"GitHub requirements block merging.":"",head:"a".repeat(40),fingerprint:"f".repeat(64),methods:(prScenario==="all-methods"?["squash","rebase","merge"]:["squash","rebase"]) as ("squash"|"rebase"|"merge")[],number:20,base:"main"}),prAction:async(value:unknown)=>{
+},prInspect:async()=>{
+  if(prScenario==="unavailable")throw new ProjectsActionError(503,"PR actions are temporarily unavailable.");
+  return {action:prScenario==="syncing"?null:prScenario==="ready"?"ready" as const:"merge" as const,enabled:!["blocked","syncing"].includes(prScenario),reason:prScenario==="syncing"?"A status change is still synchronizing.":prScenario==="blocked"?"GitHub requirements block merging.":"",head:"a".repeat(40),fingerprint:"f".repeat(64),methods:(prScenario==="all-methods"?["squash","rebase","merge"]:["squash","rebase"]) as ("squash"|"rebase"|"merge")[],number:20,base:"main"};
+},prAction:async(value:unknown)=>{
   const input=value as {action:string;method:string|null;confirmed:boolean;key:string};prWrites.push(input);assert.equal(input.confirmed,true);
   prScenario=input.action==="ready"?"merge":"pending";
   return {state:input.action==="ready"?"applied" as const:"pending" as const,requestId:"fixture-pr"};
@@ -619,6 +622,28 @@ try {
     }
   }
   assert.equal(prWrites.length,2,"checking labels never writes a PR");
+  for(const width of [320,390,1280])for(const lang of ['en','ru'])for(const theme of ['light','dark'])for(const scenario of ['syncing','unavailable'] as const){
+    prScenario=scenario;
+    await devtools.call("Emulation.setDeviceMetricsOverride",{width,height:1000,deviceScaleFactor:1,mobile:width<600});
+    await open(`/?item=item-12&lang=${lang}`);
+    await wait("!!document.querySelector('[data-pr-slot] > .projects-action-note')");
+    await devtools.evaluate(`if(document.documentElement.dataset.theme!==${JSON.stringify(theme)})document.querySelector('[data-theme-toggle]').click()`);
+    await delay(250);
+    assert.equal(await devtools.evaluate("(()=>{const cancel=document.querySelector('[data-run-action=stop]').getBoundingClientRect(),slot=document.querySelector('[data-pr-slot]'),note=slot.querySelector('p').getBoundingClientRect(),row=slot.closest('.projects-action-pair').getBoundingClientRect();return Math.abs(cancel.width-row.width)<1&&Math.abs(note.width-row.width)<1&&note.top>=cancel.bottom&&Math.abs(note.left-cancel.left)<1&&!slot.querySelector('button')})()"),true,'unavailable PR explanation follows full-width Cancel run: '+width+' '+lang+' '+scenario);
+    await devtools.evaluate("document.querySelector('.projects-ci-details summary').scrollIntoView({block:'center',behavior:'instant'})");
+    assert.equal(await devtools.evaluate("(()=>{const details=document.querySelector('.projects-ci-details'),summary=details.querySelector('summary');return Math.abs(details.getBoundingClientRect().width-summary.getBoundingClientRect().width)<1})()"),true,"Checks target fills the evidence width");
+    const wasOpen=await devtools.evaluate<boolean>("document.querySelector('.projects-ci-details').open");
+    const point=await devtools.evaluate<{x:number;y:number}>("(()=>{const r=document.querySelector('.projects-ci-details summary').getBoundingClientRect();return {x:r.right-4,y:r.top+r.height/2}})()");
+    await devtools.call('Input.dispatchMouseEvent',{type:'mousePressed',button:'left',clickCount:1,...point});
+    await devtools.call('Input.dispatchMouseEvent',{type:'mouseReleased',button:'left',clickCount:1,...point});
+    assert.equal(await devtools.evaluate("document.querySelector('.projects-ci-details').open"),!wasOpen,"clicking the far-right edge toggles Checks");
+    await audit();
+    if(width===390&&lang==='en'&&scenario==='syncing'){
+      await devtools.evaluate("document.querySelector('[data-run-action=stop]').scrollIntoView({block:'center',behavior:'instant'})");
+      const shot=await devtools.call<{data:string}>('Page.captureScreenshot',{format:'png',captureBeyondViewport:false});writeFileSync(resolve(out,`projects-pr-note-${theme}-390.png`),Buffer.from(shot.data,'base64'));
+    }
+  }
+  assert.equal(prWrites.length,2,"reading blocked PR explanations never writes a PR");
 } finally {
   await browser.close();
   await new Promise<void>(done => server.close(() => done()));

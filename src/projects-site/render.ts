@@ -127,7 +127,7 @@ function runActionControls(item:ProjectItem,lang:Language):string {
 export function renderProjectPrControl(view:PrActionView|undefined,lang:Language):string {
   const t=(key:string)=>tr(key,lang);
   if(!view)return renderButton({label:t("Checking PR…"),variant:"subtle",size:"compact",disabled:true})+"<div></div>";
-  if(!view.action)return `<p class="projects-action-note">${escape(t(view.reason))}</p><div></div>`;
+  if(!view.action)return `<p class="projects-action-note">${escape(t(view.reason))}</p>`;
   if(view.checkOnly)return renderButton({label:t("Check result"),variant:"subtle",iconPath:iconPath("refresh"),visibleLabel:true,size:"compact",disabled:!view.enabled,busyLabel:t("Sending…"),attributes:{"data-pr-action":view.action,"data-pr-check":true,"data-pr-method-value":view.method??"","data-pr-head":view.head,"data-pr-fingerprint":view.fingerprint,"data-pr-key":view.key}})+`<div class="projects-run-action-meta"><p class="projects-action-note">${escape(t(view.reason))}</p></div>`;
   const merge=view.action==="merge",id=`projects-pr-confirm-${randomUUID()}`;
   const button=renderButton({label:t(merge?"Merge PR":"Ready for review"),variant:merge?"success":"subtle",iconPath:iconPath(merge?"branch":"check"),visibleLabel:true,size:"compact",disabled:!view.enabled,busyLabel:t("Sending…"),attributes:{"data-pr-action":view.action,"data-pr-head":view.head,"data-pr-fingerprint":view.fingerprint,"data-pr-key":randomUUID(),"data-pr-confirm-target":id,"aria-expanded":"false","aria-controls":id}});

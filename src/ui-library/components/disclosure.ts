@@ -12,7 +12,7 @@ export function renderDisclosure(input: { summary: string; body: string; boxed?:
 
 export const DISCLOSURE_CSS = `
 .disclosure { --disclosure-summary-font-size: .75rem; --disclosure-summary-font-weight: 500; --disclosure-summary-color: var(--text-muted); --disclosure-summary-padding-inline: var(--space-2); --disclosure-summary-min-height: var(--control-height); }
-.disclosure > summary { width: fit-content; min-height: var(--control-height); display: list-item; align-content: center; cursor: pointer; font-weight: 600; }
+.disclosure > summary { width: var(--disclosure-summary-width,fit-content); min-height: var(--control-height); display: list-item; align-content: center; cursor: pointer; font-weight: 600; }
 .disclosure--boxed { padding: var(--space-1) var(--space-4); border: 1px solid var(--border-default); background: var(--surface-panel); }
 .disclosure--boxed > summary { width: auto; }
 .disclosure--boxed[open] { padding-bottom: var(--space-4); }

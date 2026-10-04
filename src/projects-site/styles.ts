@@ -80,7 +80,7 @@ export const PROJECTS_STYLES=[THEME_CSS,FOUNDATION_CSS,BUTTON_CSS,TABLE_CSS,FORM
 .projects-evidence-label { display: flex; align-items: center; gap: var(--space-2); min-width: 0; }
 .projects-evidence-label { --icon-color: var(--text-muted); }
 .projects-evidence-label strong { font-size: .78rem; font-weight: 500; }
-.projects-ci-details { --disclosure-summary-padding-inline: 0; --disclosure-summary-font-size: .7rem; }
+.projects-ci-details { --disclosure-summary-width: 100%; --disclosure-summary-padding-inline: 0; --disclosure-summary-font-size: .7rem; }
 .projects-ci-checks { list-style: none; padding: 0; margin: 0; display: grid; }
 .projects-ci-check { display: grid; grid-template-columns: minmax(0,1fr) 16px; align-items: stretch; gap: var(--space-2); min-height: var(--control-height); }
 .projects-ci-check + .projects-ci-check { border-top: 1px solid var(--border-subtle); }
@@ -97,7 +97,9 @@ export const PROJECTS_STYLES=[THEME_CSS,FOUNDATION_CSS,BUTTON_CSS,TABLE_CSS,FORM
 .projects-run-actions { display: grid; gap: var(--space-2); }
 .projects-action-pair { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); column-gap: var(--space-2); }
 .projects-action-pair:has(> :only-child) { grid-template-columns: minmax(0,1fr); }
+.projects-action-pair:has(> [data-pr-slot] > .projects-action-note) { grid-template-columns: minmax(0,1fr); }
 .projects-run-action { --button-width: 100%; min-width: 0; display: grid; grid-template-rows: subgrid; grid-row: span 2; }
+[data-pr-slot]:has(> .projects-action-note) { display: block; grid-row: auto; }
 .projects-run-action-meta { min-width: 0; }
 .projects-pr-popover { --popover-width: 300px; --popover-padding: var(--space-3); --button-width: auto; }
 .projects-pr-methods { display: grid; --button-width: 100%; --button-justify: flex-start; }
