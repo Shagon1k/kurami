@@ -189,3 +189,20 @@ The data is invented. PR #57 of run `r_3f9a1c7e5b2d4a8c6e01`, TailorTales.
 - `src/orchestrator/security/prompt-safety.ts` — secret stripping and safe data passing
 - `deploy/config/projects.yaml` — the project's required checks
 :::
+
+
+## Operator recovery after an external PF-34 fix
+
+PF-34 / PR #157 is a separate, owner-approved external delivery case. Its completed
+CI worker produced no new head; the archived attempt remains `needs_attention`,
+with original source `c442192ed8aa4eccc25e06bd90874cc9d1adf7a5` and null result.
+The external fix delivered `b46c7eb16912198596b45d075d5e4f9610671387` with six passed
+checks. Only the incident-pinned `recover-external-ci-delivery.ts` operator CLI can
+restore this run to `parked_review`; green CI alone never clears attention.
+Default dry-run checks exact receipt/archive history, restored thread, sole-writer
+absence, clean linked copy, local/tracking/live remote and draft PR head, fresh CI
+and native GitHub receipts. This case refuses any AI/review-fix lineage.
+Explicit apply adds an external-delivery audit, not worker success. No attempt
+budget, worker output, preview label or review/preview gate is changed. AI review
+and preview acceptance still require their normal owner controls. Replays are
+idempotent only while all guards still pass. This implementation is not a live apply.
