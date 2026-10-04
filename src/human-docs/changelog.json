@@ -494,6 +494,19 @@
       "ru": "",
       "exclusionScope": "docs-only",
       "exclude": "Recorded the preceding Projects mobile layout correction in the bilingual changelog; this commit changes only the documentation ledger."
+    },
+    "d974fa45abbe595cc8e4cc251c2390218b9a9d11": {
+      "category": "fixed",
+      "en": "An operator-only recovery restores the pinned archived CI no-new-head incident after owner-approved external delivery passes exact-head checks. It preserves the failed worker receipt, repair budget and review/preview gates, and records that the new commit came from external remediation.",
+      "ru": "Operator-only recovery возвращает в review конкретную архивированную попытку CI без нового head, когда отдельно разрешённое внешнее исправление проходит проверки точного SHA. Сохраняются неуспешный результат worker, бюджет попыток и review/preview gates; новый коммит отмечается как внешнее исправление.",
+      "page": "engineering-evidence"
+    },
+    "28bfd8e23a9f812f525f1c920d38c61823cb7b0d": {
+      "category": "operations",
+      "en": "",
+      "ru": "",
+      "exclusionScope": "docs-only",
+      "exclude": "Adds only the reviewed bilingual Changelog classification for the PWA artwork release; application behavior is unchanged."
     }
   }
 }
