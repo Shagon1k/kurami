@@ -5,6 +5,8 @@ import { DatabaseSync } from "node:sqlite";
 import { AppServerClient, detachedCodexEnvironment } from "./app-server.ts";
 import { markTaskFailure, recordTurnCompleted, taskForSession, type ProtocolTask } from "./task-store.ts";
 
+import { completedWorkerSummary } from "./worker-diagnostic.ts";
+
 const delay = (ms: number) => new Promise<void>((done) => setTimeout(done, ms));
 
 export async function executeManagedTask(database: DatabaseSync, task: ProtocolTask, options: {
@@ -41,15 +43,27 @@ export async function executeManagedTask(database: DatabaseSync, task: ProtocolT
   if ((options.environment ?? process.env).GH_TOKEN)
     environment.GH_TOKEN = (options.environment ?? process.env).GH_TOKEN;
   let interaction = false;
+  const finalItems = new Map<string, { type: string; phase: string; text: string }>();
   const pending: Array<{ method?: string; params?: unknown }> = [];
   const client = new AppServerClient(options.codexBin, {
     cwd: options.cwd, environment, rejectServerRequests: true,
     args: ["-c", `projects.${JSON.stringify(canonical)}.trust_level="trusted"`],
     onInteraction: () => { interaction = true; markTaskFailure(database, task.task_id, "permission_request_denied"); },
     onNotification: (message) => {
+      const params = message.params as { threadId?: string; turnId?: string; item?: unknown; turn?: { id?: string; items?: unknown } } | undefined;
+      if (message.method === "item/completed") {
+        const text = completedWorkerSummary([params?.item]);
+        if (text && params?.threadId === task.thread_id && params.turnId &&
+            (!task.turn_id || params.turnId === task.turn_id) && finalItems.size < 16)
+          finalItems.set(params.turnId, { type: "agentMessage", phase: "final_answer", text });
+        return;
+      }
       if (message.method !== "turn/completed") return;
-      if (!task.turn_id) pending.push(message);
-      else recordTurnCompleted(database, task.task_id, message);
+      const final = params?.turn?.id ? finalItems.get(params.turn.id) : undefined;
+      const receipt = final && params?.threadId === task.thread_id
+        ? { ...message, params: { ...params, turn: { ...params.turn, items: [final] } } } : message;
+      if (!task.turn_id) { if (pending.length < 16) pending.push(receipt); }
+      else recordTurnCompleted(database, task.task_id, receipt);
     },
   });
   let interrupted = false;

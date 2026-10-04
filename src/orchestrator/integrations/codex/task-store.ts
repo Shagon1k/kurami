@@ -1,4 +1,5 @@
 import { randomUUID } from "node:crypto";
+import { completedWorkerSummary } from "./worker-diagnostic.ts";
 import type { DatabaseSync } from "node:sqlite";
 
 export type ProtocolTask = {
@@ -6,6 +7,7 @@ export type ProtocolTask = {
   context_id: string; session_name: string; thread_id: string | null; turn_id: string | null;
   worktree_path: string; branch_name: string;
   phase: string; turn_status: "completed" | "failed" | "interrupted" | null;
+  final_summary: string | null;
   failure_code: string | null; stop_requested: string | null; stopped_at: string | null;
   released_at: string | null; created_at: string;
 };
@@ -32,7 +34,8 @@ export function claimProtocolTask(database: DatabaseSync, runId: string, session
   return taskId;
 }
 
-// Store no prose, command payloads, prompts or secrets. Errors are protocol discriminants.
+// Errors are protocol discriminants, never raw stdout/error prose. Only a separately
+// bounded completed final assistant report may be retained as display-only diagnostics.
 export function turnFailureCode(error: unknown): string {
   const info = (error as { codexErrorInfo?: unknown } | null)?.codexErrorInfo;
   if (info === "usageLimitExceeded" || info === "sessionBudgetExceeded") return "external_billing_block";
@@ -53,19 +56,20 @@ export function recordTurnCompleted(database: DatabaseSync, taskId: string, mess
 }): boolean {
   if (message.method !== "turn/completed") return false;
   const params = message.params as {
-    threadId?: string; turn?: { id?: string; status?: string; error?: unknown };
+    threadId?: string; turn?: { id?: string; status?: string; error?: unknown; items?: unknown };
   } | undefined;
   const turn = params?.turn;
   if (!params?.threadId || !turn?.id || !["completed","failed","interrupted"].includes(turn.status ?? "")) return false;
   database.exec("BEGIN IMMEDIATE");
   try {
     const task = database.prepare("SELECT * FROM run_codex_tasks WHERE task_id=?").get(taskId) as ProtocolTask;
+    if (!task) { database.exec("COMMIT"); return false; }
     const owner = database.prepare(`SELECT r.owner_state, rr.tmux_session_name, rr.codex_thread_id,rr.worktree_path,rr.branch_name
       FROM runs r JOIN run_resources rr USING(run_id) WHERE r.run_id=?`).get(task.run_id) as {
       owner_state: string; tmux_session_name: string | null; codex_thread_id: string | null;
       worktree_path: string | null; branch_name: string | null;
     };
-    if (task.released_at || task.thread_id !== params.threadId || task.turn_id !== turn.id ||
+    if (!task || task.released_at || task.thread_id !== params.threadId || task.turn_id !== turn.id ||
         owner.owner_state !== "cli" || owner.tmux_session_name !== task.session_name ||
         owner.codex_thread_id !== task.thread_id || owner.worktree_path !== task.worktree_path ||
         owner.branch_name !== task.branch_name) {
@@ -76,8 +80,9 @@ export function recordTurnCompleted(database: DatabaseSync, taskId: string, mess
       turn.status === "interrupted" ? "protocol_turn_interrupted" : null;
     // First terminal receipt wins; conflicting replays cannot change completion.
     const changed = database.prepare(`UPDATE run_codex_tasks SET phase='terminal',turn_status=?,
-      failure_code=COALESCE(failure_code,?),updated_at=strftime('%Y-%m-%dT%H:%M:%fZ','now')
-      WHERE task_id=? AND turn_status IS NULL`).run(turn.status!, failure, taskId);
+      failure_code=COALESCE(failure_code,?),final_summary=?,updated_at=strftime('%Y-%m-%dT%H:%M:%fZ','now')
+      WHERE task_id=? AND turn_status IS NULL`).run(turn.status!, failure,
+        turn.status === 'completed' && !task.failure_code ? completedWorkerSummary(turn.items) : null, taskId);
     if (changed.changes === 1)
       database.prepare(`INSERT INTO run_codex_task_events
         (task_id,event_key,method,thread_id,turn_id,status,failure_code) VALUES (?,?,?,?,?,?,?)`)

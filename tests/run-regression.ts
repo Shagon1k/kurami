@@ -78,6 +78,7 @@ const suites = [
   "test:api-equivalent",
   "test:ci",
   "test:ci-repair",
+  "test:worker-diagnostics",
   "test:ai-review",
   "test:project-resilience",
   "test:review-fix",

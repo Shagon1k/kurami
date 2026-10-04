@@ -9,7 +9,7 @@ import { protocolRepository } from "./fixtures/protocol-repository.ts";
 import { leaveCliSession } from "../src/orchestrator/projects/sessions/session-stop.ts";
 import { loadRun } from "../src/orchestrator/projects/sessions/session-shared.ts";
 
-for (const scenario of ["success","early","stale","failure","billing","approval","permission","unknown_request","disconnect","lost_ack","cancel","timeout"]) {
+for (const scenario of ["success","early","stale","no_change","scope_refusal","failure","billing","approval","permission","unknown_request","disconnect","lost_ack","cancel","timeout"]) {
   const f = protocolRepository();
   try {
     const bin=resolve(f.root,"codex");
@@ -29,8 +29,12 @@ for (const scenario of ["success","early","stale","failure","billing","approval"
     if(timer) clearTimeout(timer);
     const task=taskForSession(f.database,f.task.session_name)!;
     assert.ok(task.stopped_at,scenario);
-    assert.equal(Boolean(task.failure_code),!["success","early","stale"].includes(scenario),scenario);
-    assert.equal(protocolTurnSucceeded(f.database,task.session_name),["success","early","stale"].includes(scenario));
+    if (["success","early","stale"].includes(scenario)) assert.equal(task.final_summary,"Exact worker final report");
+    if (scenario === "scope_refusal") assert.ok(task.final_summary?.includes("Dependency remediation excluded"));
+    if (scenario === "no_change") assert.ok(task.final_summary?.includes("No compatible upstream fix exists"));
+    if (task.failure_code) assert.equal(task.final_summary,null);
+    assert.equal(Boolean(task.failure_code),!["success","early","stale","no_change","scope_refusal"].includes(scenario),scenario);
+    assert.equal(protocolTurnSucceeded(f.database,task.session_name),["success","early","stale","no_change","scope_refusal"].includes(scenario));
     if(scenario==="billing") assert.equal(task.failure_code,"external_billing_block");
     if(scenario==="timeout") assert.equal(task.failure_code,"runtime_budget_exceeded");
     if(scenario==="lost_ack") { assert.equal(task.turn_id,null); assert.equal(task.phase,"disconnected"); }
@@ -45,12 +49,13 @@ for (const scenario of ["success","early","stale","failure","billing","approval"
     assert.equal(turnRequest.sandboxPolicy.writableRoots[0],f.worktree);
     if(scenario==="permission") assert.deepEqual(rpc.find((row)=>row.id==="approval").result,{permissions:{},scope:"turn"});
     if(scenario==="approval") assert.equal(rpc.find((row)=>row.id==="approval").result.decision,"decline");
-    if(["success","early","stale"].includes(scenario)) {
+    if(["success","early","stale","no_change","scope_refusal"].includes(scenario)) {
       assert.equal((f.database.prepare("SELECT COUNT(*) n FROM run_codex_task_events").get() as {n:number}).n,1);
       // Durable controller restart sees the same receipt. Terminal status is immutable.
       f.database.close();
       const restarted=new DatabaseSync(f.dbPath);
       assert.ok(protocolTurnSucceeded(restarted,task.session_name));
+      assert.equal(taskForSession(restarted,task.session_name)?.final_summary,task.final_summary);
       recordTurnCompleted(restarted,task.task_id,{method:"turn/completed",params:{threadId:task.thread_id,turn:{id:task.turn_id,status:"failed"}}});
       assert.equal(taskForSession(restarted,task.session_name)?.turn_status,"completed");
       const oldEnv=process.env.PATH;
@@ -120,4 +125,4 @@ assert.ok(protocolRemoteBlocker.includes("No Remote ownership"));
     assert.equal(f.database.prepare("SELECT COUNT(*) n FROM run_codex_tasks").get()?.n,2);
   } finally {f.database.close();rmSync(f.root,{recursive:true,force:true});}
 }
-process.stdout.write(JSON.stringify({ok:true,protocolFixtures:12,technicalOnly:true,sequentialTasks:true,exitReceiptRace:true,exactIdentity:true,replay:true,restart:true,permissionFailClosed:true,billingDistinct:true,remoteFence:true})+"\n");
+process.stdout.write(JSON.stringify({ok:true,protocolFixtures:14,technicalOnly:true,sequentialTasks:true,exitReceiptRace:true,exactIdentity:true,replay:true,restart:true,permissionFailClosed:true,billingDistinct:true,remoteFence:true})+"\n");
