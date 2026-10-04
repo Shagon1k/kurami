@@ -2,6 +2,19 @@
   "baseline": "4a38c09",
   "publicationBaseline": "788787f077d42fc3b3346a4f4a612947b97ce2e8",
   "commits": {
+    "c31a6ac59e5827119b7c96078f1370b3c1fc99c3": {
+      "category": "fixed",
+      "en": "Projects places unavailable PR explanations below task actions instead of in a neighboring button slot. Cancel run fills the row when no PR action is available. The entire Checks row is clickable and matches the width of its expanded CI results.",
+      "ru": "В Projects пояснения о недоступных действиях PR находятся под кнопками, а не занимают соседнюю ячейку. Если действия для PR нет, кнопка отмены запуска занимает всю строку. Строка «Проверки» кликабельна по всей ширине, как и раскрываемый список результатов CI.",
+      "page": "owner-controls"
+    },
+    "3f47572cd4c4d9e5a3bbeed94e12b02bdd3708ad": {
+      "category": "operations",
+      "en": "",
+      "ru": "",
+      "exclusionScope": "docs-only",
+      "exclude": "Adds only the reviewed bilingual Changelog classification for Projects CI details and guarded PR controls; application behavior is unchanged."
+    },
     "16a6003c9a9930cac7a1649656ace119560aad7a": {
       "category": "improved",
       "en": "Projects task details show compact CI job results with GitHub links and right-aligned state icons. Owners can mark draft PRs ready for review and merge with a GitHub-allowed method from a compact confirmation popup. Actions recheck the current commit, permissions and branch rules; pending or unconfirmed results block conflicting controls without blind retries. GitHub automation still owns the transition to Done.",
