@@ -2,6 +2,19 @@
   "baseline": "4a38c09",
   "publicationBaseline": "788787f077d42fc3b3346a4f4a612947b97ce2e8",
   "commits": {
+    "067cbfb628176c585485093ff34ad5059de772c1": {
+      "category": "fixed",
+      "en": "The PWA uses vector-derived fox artwork following the existing header logo, exported directly at 512 and 1024 pixels. Splash and launcher icons share the theme's warm paper background. Versioned icon URLs retain compatibility with previous installations; native header branding, app identity and scope are unchanged.",
+      "ru": "PWA использует векторную лису по образцу существующего логотипа в хедере с прямым экспортом в 512 и 1024 пикселя. Экран запуска и иконка приложения получили общий тёплый фон из темы. Новые версии URL иконок сохраняют совместимость с прежними установками; логотип хедера, идентификатор и область приложения не изменены.",
+      "page": "access"
+    },
+    "4d6f5ca029dd728a6bf416919abd95f2bfee9b6f": {
+      "category": "operations",
+      "en": "",
+      "ru": "",
+      "exclusionScope": "docs-only",
+      "exclude": "Adds only the reviewed bilingual Changelog classification for existing worker diagnostics; application behavior is unchanged."
+    },
     "59f4c3f7ab73aa77335a3803dbadfd39f58c21a6": {
       "category": "fixed",
       "en": "The repair protocol defines the boundary for compatible published dependency security fixes and starts the no-new-commit timeout after the worker parks. Projects and run-control can show a sanitized final worker report separately from delivery status when that report is available. Missing reports remain unavailable; diagnostics do not change ownership or retry eligibility.",
