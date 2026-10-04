@@ -2,6 +2,19 @@
   "baseline": "4a38c09",
   "publicationBaseline": "788787f077d42fc3b3346a4f4a612947b97ce2e8",
   "commits": {
+    "686c1405afdb923028796311eb1a6a3b42cf9520": {
+      "category": "improved",
+      "en": "Mobile navigation in Hub, Projects, Digest and Docs uses a floating capsule with a lightly translucent warm surface and background blur. Open controls have an inset accent tile. Short Go to and Controls labels fit at 320 pixels; full popover titles remain unchanged. Content, menus and notifications reserve the dock's height and lower gap, including enlarged text. Desktop header navigation is unchanged.",
+      "ru": "Мобильная навигация Hub, Projects, Digest и Docs получила плавающий док-капсулу с тёплым полупрозрачным фоном и лёгким размытием. Открытые кнопки выделены внутренней плашкой. Короткие подписи «Перейти к» и «Контролы» помещаются на 320 пикселях; полные заголовки поповеров сохранены. Содержимое, меню и уведомления учитывают высоту дока и нижний отступ, в том числе при увеличенном тексте. Навигация desktop-хедера не изменена.",
+      "page": "ui-library"
+    },
+    "b57b2a702f7d3e1482101a0678aabfec4c629c1b": {
+      "category": "operations",
+      "en": "",
+      "ru": "",
+      "exclusionScope": "docs-only",
+      "exclude": "Adds only the reviewed bilingual Changelog classification for guarded external CI recovery; application behavior is unchanged."
+    },
     "067cbfb628176c585485093ff34ad5059de772c1": {
       "category": "fixed",
       "en": "The PWA uses vector-derived fox artwork following the existing header logo, exported directly at 512 and 1024 pixels. Splash and launcher icons share the theme's warm paper background. Versioned icon URLs retain compatibility with previous installations; native header branding, app identity and scope are unchanged.",
