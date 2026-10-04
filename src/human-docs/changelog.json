@@ -15,6 +15,12 @@
       "exclusionScope": "docs-only",
       "exclude": "Adds only the reviewed bilingual Changelog classification for Projects action layout fixes; application behavior is unchanged."
     },
+    "f2e80358a823fc01cdf3849ac21961fa01d4afbb": {
+      "category": "fixed",
+      "en": "Cinema omits the supplemental worldwide weekend chart when its sources do not establish the same weekend as the US chart, or when an unambiguous film match has worldwide gross below domestic gross in the same currency. The box-office section reports partial coverage and retains source references for audit; uncertain figures are not added or relabeled.",
+      "ru": "Cinema исключает дополнительную мировую таблицу уикенда, если источники не подтверждают тот же уикенд, что и таблица США, либо у однозначно совпавшего фильма мировые сборы ниже внутренних в одной валюте. Раздел проката сообщает о частичном покрытии и сохраняет ссылки на источники для аудита; неясные значения не складываются и не переименовываются.",
+      "page": "cinema"
+    },
     "c31a6ac59e5827119b7c96078f1370b3c1fc99c3": {
       "category": "fixed",
       "en": "Projects places unavailable PR explanations below task actions instead of in a neighboring button slot. Cancel run fills the row when no PR action is available. The entire Checks row is clickable and matches the width of its expanded CI results.",
