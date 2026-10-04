@@ -2,6 +2,19 @@
   "baseline": "4a38c09",
   "publicationBaseline": "788787f077d42fc3b3346a4f4a612947b97ce2e8",
   "commits": {
+    "8fc9d2ee7da2e9fa59cfcd4657147b38ff6624bc": {
+      "category": "fixed",
+      "en": "Projects keeps the PR button beside Cancel run during loading, synchronization and temporary read failures, with explanations below both controls. Review fixes show their actual phase and round instead of stale preview context or an orphan Queued label. Fresh polling settles older status writes for PR eligibility; unresolved writes remain blocking. The shared mobile dock is smaller, with lighter 26px icon strokes, responsive medium-weight labels and an 82% opaque warm surface. Desktop header navigation is unchanged.",
+      "ru": "Projects сохраняет PR-кнопку рядом с отменой запуска при загрузке, синхронизации и временной ошибке чтения; пояснения находятся под обеими кнопками. Исправление ревью показывает текущую фазу и раунд вместо старого сообщения о превью и отдельной подписи «В очереди» под кнопкой. Свежий опрос подтверждает результат старой записи статуса для доступности PR-действий; неподтверждённые записи продолжают блокировать их. Общий мобильный док стал компактнее: тонкие контуры иконок размером 26 пикселей, адаптивные подписи средней жирности и тёплый фон с непрозрачностью 82%. Навигация desktop-хедера не изменена.",
+      "page": "owner-controls"
+    },
+    "5e16e3fd9a2e36692bce0b2a6730a9374a503e29": {
+      "category": "operations",
+      "en": "",
+      "ru": "",
+      "exclusionScope": "docs-only",
+      "exclude": "Adds only the reviewed bilingual Changelog classification for the floating mobile dock; application behavior is unchanged."
+    },
     "686c1405afdb923028796311eb1a6a3b42cf9520": {
       "category": "improved",
       "en": "Mobile navigation in Hub, Projects, Digest and Docs uses a floating capsule with a lightly translucent warm surface and background blur. Open controls have an inset accent tile. Short Go to and Controls labels fit at 320 pixels; full popover titles remain unchanged. Content, menus and notifications reserve the dock's height and lower gap, including enlarged text. Desktop header navigation is unchanged.",
