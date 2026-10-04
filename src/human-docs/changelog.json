@@ -2,6 +2,19 @@
   "baseline": "4a38c09",
   "publicationBaseline": "788787f077d42fc3b3346a4f4a612947b97ce2e8",
   "commits": {
+    "16a6003c9a9930cac7a1649656ace119560aad7a": {
+      "category": "improved",
+      "en": "Projects task details show compact CI job results with GitHub links and right-aligned state icons. Owners can mark draft PRs ready for review and merge with a GitHub-allowed method from a compact confirmation popup. Actions recheck the current commit, permissions and branch rules; pending or unconfirmed results block conflicting controls without blind retries. GitHub automation still owns the transition to Done.",
+      "ru": "Карточка задачи в Projects показывает компактные результаты CI с переходами к джобам GitHub и иконками состояния справа. Владелец может снять draft с PR и смержить его доступным в GitHub способом через компактный попап подтверждения. Кнопки называются «Смержить через Squash», «Смержить через Rebase» и «Создать merge-коммит». Перед записью проверяются текущий коммит, права и правила ветки; ожидающий или неподтверждённый результат блокирует конфликтующие действия без повторной записи вслепую. Переход в Done остаётся за автоматизацией GitHub.",
+      "page": "owner-controls"
+    },
+    "67c86ee32b0f65fefad3d1b5aab3f73cdcf09e12": {
+      "category": "operations",
+      "en": "",
+      "ru": "",
+      "exclusionScope": "docs-only",
+      "exclude": "Adds only the reviewed bilingual Changelog classification for mobile navigation polish; application behavior is unchanged."
+    },
     "55f9fd3362c85d9aa4b40cc78dfe047476d6f1a1": {
       "category": "improved",
       "en": "The shared mobile footer and menus have distinct warm surfaces, balanced outline icons and aligned labels. On page tracks the section being read. Menus focus the current item; section links focus their heading without a second scroll. Back closes an open panel before normal navigation, while Forward and reload restore recorded panel state. Projects preserves typed search queries when switching menus. Larger text increases the measured panel height; desktop layouts are unchanged. The release controller checks the current immutable Docs assets before the next app-bound Docs publication.",
