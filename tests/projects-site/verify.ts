@@ -8,15 +8,24 @@ import { DatabaseSync } from "node:sqlite";
 import { collectProjectsSnapshot } from "../../src/projects-site/snapshot.ts";
 import { ProjectsAccess } from "../../src/projects-site/access.ts";
 import { createProjectsServer } from "../../src/projects-site/server.ts";
-import { renderProjectsPage } from "../../src/projects-site/render.ts";
-import { parseFilters, selectItems } from "../../src/projects-site/model.ts";
+import { renderProjectsPage, renderProjectPrControl } from "../../src/projects-site/render.ts";
+import { parseFilters, selectItems, projectStageLabel } from "../../src/projects-site/model.ts";
 import { syntheticProjectsSnapshot, syntheticCiChecks } from "./fixture.ts";
 import {parseCiChecks,ciCheckUrl} from "../../src/projects-site/ci-checks.ts";
 import {iconPath} from "../../src/ui-library/components/icon.ts";
+import type {PrActionView} from "../../src/projects-site/pr-actions.ts";
 
 const home = mkdtempSync(join(tmpdir(), "kurami-projects-"));
 const at = "2026-09-30T10:00:00Z";
 const checkUrl="https://github.com/Example/Alpha/actions/runs/123/job/456#step:2:1";
+for(const lang of ["en","ru"] as const){
+  for(const view of [undefined,{action:null,enabled:false,reason:"A status change is still synchronizing.",head:"",fingerprint:"",methods:[],number:null,base:""}] as (PrActionView|undefined)[]){
+    const html=renderProjectPrControl(view,lang);
+    assert.match(html,/<button[^>]*disabled/,'PR loading and blocked states keep a disabled button');
+    assert.match(html,/class="projects-run-action-meta"/,'PR explanations use the shared metadata row');
+    assert.doesNotMatch(html,/data-pr-action=/,'an unavailable placeholder cannot start a write');
+  }
+}
 assert.equal(ciCheckUrl(checkUrl,"Example/Alpha"),checkUrl,"the recorded job and step anchor are preserved");
 for(const url of ["javascript:alert(1)","https://evil.test/Example/Alpha/actions/runs/123","https://github.com/Example/Other/actions/runs/123","https://user:secret@github.com/Example/Alpha/actions/runs/123","https://github.com/Example/Alpha/issues/12","https://github.com/Example/Alpha/../Other/actions/runs/123"])
   assert.equal(ciCheckUrl(url,"Example/Alpha"),null);
@@ -123,6 +132,19 @@ assert.equal(await access.authorize(request(tampered.join("."))), null, "unverif
 assert.equal(await new ProjectsAccess({ team: "", audience: "", ownerEmail: "" }).authorize(request(token())), null);
 
 const fixture = syntheticProjectsSnapshot();
+for(const lang of ["en","ru"] as const)for(const state of ["queued","running","waiting_ci","resolving","succeeded","needs_attention"]){
+  const snapshot=structuredClone(fixture),item=snapshot.items[0]!;
+  item.stage="preview_ready";item.reviewFix={state,round:2};item.aiReview={enabled:false,reason:"unstable",head:item.ci.head};
+  item.runActions!.actions=[{action:"review_fix",label:"Fix review findings",enabled:false,state:"pending",hint:null,confirmation:null}];
+  const html=renderProjectsPage(snapshot,new URLSearchParams(`item=item-12&lang=${lang}`));
+  assert.match(html,new RegExp(`data-review-fix-state="${state}"`),'every observed fix phase stays visible');
+  assert.match(html,lang==="ru"?/Раунд 2/:/Round 2/);
+  if(["queued","running","waiting_ci","resolving"].includes(state)){
+    assert.doesNotMatch(html,/data-review-run=/,'active fix does not offer a second review');
+    assert.doesNotMatch(html,/>Queued<\/p>|>В очереди<\/p>/,'queued is not stranded below one button');
+    assert.notEqual(projectStageLabel(item,lang),lang==="ru"?"Превью готово":"Preview ready",'fix progress replaces stale preview stage');
+  }
+}
 const semantics=structuredClone(fixture);
 semantics.items[0]!.review={...semantics.items[0]!.review,state:'ready',critical:1,important:2,suggestions:3};
 semantics.items[0]!.preview.state='running';

@@ -1,6 +1,7 @@
 export type Language="en"|"ru";
 export function language(params:URLSearchParams):Language{return params.get("lang")==="ru"?"ru":"en";}
 const messages:Record<string,string>={
+  "Round":"Раунд", "Review fixes queued.":"Исправление замечаний в очереди.", "Fixing review findings…":"Исправляем замечания ревью…", "Review fixes pushed. Waiting for CI.":"Исправления отправлены. Ждём CI.", "Checking fixes and resolving review threads.":"Проверяем исправления и закрываем замечания.", "Review fixes completed.":"Исправление замечаний завершено.", "Review fixes need attention. Check GitHub or Discord.":"Исправление замечаний требует внимания. Проверьте GitHub или Discord.",
   "Expiry reached":"Срок истёк", "Expires soon":"Скоро истекает",
   "Checking PR…":"Проверяем PR…",
   "A status change is still synchronizing.":"Изменение статуса ещё синхронизируется.",

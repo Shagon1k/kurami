@@ -94,8 +94,8 @@ export const BUTTON_CSS = `
 .button__svg { inline-size: var(--button-icon-size,18px); block-size: var(--button-icon-size,18px); flex: none; display: block; fill: none; stroke: currentColor; stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round; pointer-events: none; }
 .button--icon-end .button__svg { order: 1; }
 .button--compact { min-height: 32px; padding-inline: 10px; font-size: .7rem; font-weight: 500; }
-.button--navigation { --button-icon-size: 32px; min-height: var(--navigation-button-height,82px); min-width: 0; flex-direction: column; justify-content: flex-start; gap: 6px; padding: var(--navigation-button-padding,12px 0 14px); border: 0; border-radius: var(--navigation-button-radius,0); background: transparent; font: 400 .875rem/18px var(--font-sans); white-space: nowrap; }
-.button--navigation .button__svg { stroke-width: 1.8; transition: transform 220ms cubic-bezier(.2,.8,.2,1), color 160ms ease; }
+.button--navigation { --button-icon-size: var(--navigation-icon-size,32px); min-height: var(--navigation-button-height,82px); min-width: 0; flex-direction: column; justify-content: flex-start; gap: var(--navigation-button-gap,6px); padding: var(--navigation-button-padding,12px 0 14px); border: 0; border-radius: var(--navigation-button-radius,0); background: transparent; font: 400 .875rem/18px var(--font-sans); white-space: nowrap; }
+.button--navigation .button__svg { stroke-width: var(--navigation-icon-stroke,1.8); transition: transform 220ms cubic-bezier(.2,.8,.2,1), color 160ms ease; }
 .button--navigation:hover:not(:disabled):not([aria-busy="true"]) { color: var(--text-primary); background: transparent; }
 .button--navigation[aria-expanded="true"],.button--navigation[aria-expanded="true"]:hover:not(:disabled):not([aria-busy="true"]) { color: var(--navigation-active-label,var(--text-primary)); background: var(--navigation-active-background,color-mix(in srgb,var(--accent-data) 10%,var(--surface-raised))); }
 .button--navigation[aria-expanded="true"] .button__svg { color: var(--navigation-active-icon,var(--accent-data)); transform: var(--navigation-icon-open-transform,translateY(-2px) scale(1.06)); }

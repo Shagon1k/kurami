@@ -22,6 +22,7 @@ type ItemRow = ProjectRunFacts & {
   preview_reviewed_at: string | null; preview_head: string | null;
   guild_id: string | null; parent_channel_id: string | null; thread_id: string | null;
   ci_checks_json: string | null; ci_observed_at: string | null;
+  review_fix_round_number: number | null;
 };
 
 export function projectsRegistry(path: string): Record<string, Config> {
@@ -66,6 +67,8 @@ function itemFromRow(row: ItemRow, config: Config, now: Date): ProjectItem {
     ci: { state: row.ci_aggregate_state ?? "none", tone: row.ci_aggregate_state === "passed" ? "success" : ["failed", "missing"].includes(row.ci_aggregate_state ?? "") ? "failure" : "neutral", head: row.ci_head_sha,
       checks: parseCiChecks(row.ci_checks_json, config.repository), observedAt: row.ci_observed_at },
     reviewRequestFailed: Boolean(row.review_request_failed),
+    reviewFix: row.review_fix_request_active_count > 0 && !["running","waiting_ci","resolving"].includes(row.review_fix_state??"")
+      ? {state:"queued",round:null} : row.review_fix_state ? {state:row.review_fix_state,round:row.review_fix_round_number} : undefined,
     review: { state: reviewState, tone: ["outdated", "superseded", "unverified"].includes(reviewState) ? "warning" : ["failed","request_failed"].includes(reviewState) ? "failure" : reviewState === "ready" ? (run?.majorFindings ? "warning" : "success") : "neutral",
       head: row.ai_review_head_sha, critical: row.ai_review_critical_count, important: row.ai_review_important_count, suggestions: row.ai_review_suggestion_count },
     preview: { state: previewState, tone: ["outdated", "expired"].includes(previewState) ? "warning" : previewState === "failed" ? "failure" : previewUrl ? "success" : "neutral",
@@ -93,6 +96,7 @@ export function collectProjectsSnapshot(options: { home?: string; now?: Date; co
       r.run_id,r.state AS run_state,r.owner_state,r.updated_at AS run_updated_at,pc.stage,pc.detail,
       ci.head_sha AS ci_head_sha,ci.aggregate_state AS ci_aggregate_state,ci.pull_request_url,ci.checks_json AS ci_checks_json,ci.last_observed_at AS ci_observed_at,${PROJECT_RUN_FACTS_SQL},
       (SELECT github_review_url FROM run_ai_reviews a WHERE a.run_id=r.run_id ORDER BY a.review_number DESC LIMIT 1) AS review_url,
+      (SELECT round_number FROM run_review_fix_rounds f WHERE f.run_id=r.run_id ORDER BY f.round_number DESC LIMIT 1) AS review_fix_round_number,
       (SELECT COUNT(*) FROM run_control_requests q WHERE q.run_id=r.run_id AND q.action='ai_review' AND q.request_state IN ('pending','processing')) AS review_pending,
       (SELECT q.request_state IN ('failed','rejected') FROM run_control_requests q WHERE q.run_id=r.run_id AND q.action='ai_review' ORDER BY q.rowid DESC LIMIT 1) AS review_request_failed,
       pl.state AS preview_state,ps.hostname AS preview_hostname,pl.expires_at AS preview_expires_at,pl.reviewed_at AS preview_reviewed_at,pl.verified_head_sha AS preview_head,
@@ -145,6 +149,7 @@ export function collectProjectsSnapshot(options: { home?: string; now?: Date; co
         const latest = statusRequests.find(request => request.project === item.project && request.item_id === item.id);
         const state = latest ? observedStatusRequest(latest,item.status,item.observedAt) : null;
         const pending = ["checking","writing","awaiting_sync","uncertain"].includes(state ?? "");
+        const historicalConflict=Boolean(latest&&state==="conflict"&&fresh&&Date.parse(item.observedAt)>Date.parse(latest.updated_at)&&now.getTime()-Date.parse(latest.updated_at)>=PROJECTS_STALE_AFTER_MS);
         const hints: Record<string,string> = item.kind === "Issue" ? {
           active: "Kurami обработает запуск задачи после синхронизации.",
           review: "Kurami обработает переход к проверке после синхронизации.",
@@ -154,7 +159,7 @@ export function collectProjectsSnapshot(options: { home?: string; now?: Date; co
         item.statusChange = { enabled: statusReady && fresh && Boolean(config.status_field) && !pending&&!prPending,
           reason: !statusReady ? "unavailable" : !config.status_field ? "unsupported" : !fresh ? "stale" : pending ? "pending" : prPending?"pr_pending":"eligible",
           choices: Object.entries(config.statuses).map(([role,value]) => ({value,label:value,hint:hints[role] ?? ""})),
-          ...(latest && state && state !== "synced" ? { request: {state,target:latest.to_status,from:latest.from_status,key:latest.client_key,checkAvailable: ["checking","writing","uncertain"].includes(state) && now.getTime()-Date.parse(latest.updated_at) >= 30_000} } : {}),
+          ...(latest && state && state !== "synced" && !historicalConflict ? { request: {state,target:latest.to_status,from:latest.from_status,key:latest.client_key,checkAvailable: ["checking","writing","uncertain"].includes(state) && now.getTime()-Date.parse(latest.updated_at) >= 30_000} } : {}),
         };
       }
       if (control) {

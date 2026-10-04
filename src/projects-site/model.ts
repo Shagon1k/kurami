@@ -15,6 +15,7 @@ export type ProjectItem = {
   preview: Signal & { expiresAt: string | null; reviewed: boolean };
   attention: ProjectAttention[];
   aiReview?: { enabled: boolean; reason: string; head: string | null };
+  reviewFix?: { state: string; round: number | null };
   suggestedNext?: {since:string;rankedAt:string;explanation:string};
   reviewRequestFailed?: boolean;
   statusChange?: StatusChange;
@@ -43,6 +44,8 @@ export function needsOwner(item: ProjectItem, project: ProjectSummary): boolean 
 }
 
 export function projectStageLabel(item:ProjectItem,lang:import("./i18n.ts").Language="en"):string {
+  const fixStages:Record<string,string>={queued:"review_fix_queued",running:"review_fix_working",waiting_ci:"review_fix_waiting",resolving:"review_fix_resolving"};
+  if(item.reviewFix&&fixStages[item.reviewFix.state])return stateLabel(fixStages[item.reviewFix.state]!,lang);
   return stateLabel(item.stage??item.runState??(item.runId?null:"no_agent_run"),lang);
 }
 

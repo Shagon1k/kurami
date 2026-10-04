@@ -50,9 +50,16 @@ This is separate from the task's GitHub status, including Done.
 
 ### Complete a pull request
 
+While Fix Review is queued or active, the task stage and AI Review block show its
+current phase: queued, editing, waiting for CI or resolving threads. The displayed
+round comes from the Run Store, not the old preview status. Completion and
+needs-attention states remain visible. Conflicting controls stay unavailable
+until the agent stops and technical-session cleanup finishes.
+
 At the bottom of a managed task, **Cancel run** sits beside the PR action.
 When no PR action is available, its explanation appears below the actions;
-**Cancel run** fills the row instead of sharing it with a note.
+the disabled PR button keeps its place, so **Cancel run** keeps the same width.
+Loading and temporary read failures also preserve both buttons.
 For a draft, **Ready for review** opens a confirmation. For an open non-draft,
 **Merge PR** opens a compact menu of allowed methods: Squash, Rebase or Merge commit.
 Choose a method, then confirm it in the same popup:
@@ -64,6 +71,8 @@ task and refreshes that view with the task, without blocking the task table.
 
 Both actions require an active or review task, fresh project data and a stopped, unowned run. Before writing,
 Kurami rechecks the current PR, commit, permissions and merge requirements.
+Fresh polling settles an older status write for this check; its original receipt stays in the database.
+An unresolved write still blocks PR actions. A conflict notice clears after two minutes only when fresh polling observes the later status.
 Merging submits the displayed head SHA without bypassing GitHub rules.
 Stacked PRs, non-default target branches and merge queues remain managed in GitHub.
 

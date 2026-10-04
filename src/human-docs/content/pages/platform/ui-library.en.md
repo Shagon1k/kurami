@@ -97,9 +97,10 @@ Go to links are text-only. Apps, Sections and Controls use monochrome outline
 icons and shared sans-serif labels; Docs keeps its grouped section hierarchy.
 A repeated click, an outside click or Escape closes a menu.
 The dock leaves space around its sides and above the phone's bottom safe area.
-Its warm surface is 90% opaque with a slight backdrop blur; icons and labels remain opaque.
+Its warm surface is 82% opaque with a slight backdrop blur; icons and labels remain opaque.
 Browsers without backdrop blur use an opaque surface. Menus keep a distinct raised surface.
-Outline icons keep a 32px frame with balanced visual weight and aligned labels.
+Outline icons use a 26px frame with lighter strokes and aligned 13px medium-weight labels, reduced to 12px up to 360px.
+The dock is 66px high at normal text size, with 56px tap targets; enlarged text can increase its height.
 Go to highlights the section you are reading, not just the last clicked anchor.
 The Controls menu keeps its full heading where the dock label is shortened.
 Opening a menu focuses its current link; selecting a section focuses its heading

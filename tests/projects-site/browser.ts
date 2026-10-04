@@ -12,9 +12,11 @@ let unavailable = false;
 let dense=false;
 let previewReady=false;
 let semanticNotes=false;
+let reviewFixScenario:string|null=null;
 let ciScenario:"normal"|"failed"|"mixed"|"new-head"="normal";
 let prScenario:"off"|"ready"|"merge"|"all-methods"|"blocked"|"pending"|"syncing"|"unavailable"="off";
 let prWrites:{action:string;method:string|null;confirmed:boolean;key:string}[]=[];
+let prReadGate:Promise<void>|null=null;
 let statusRequest: {state:"awaiting_sync";target:string;from:string;key:string} | null = null; let statusSynced = false; let statusConflict = false; const statusKeys: string[] = [];
 let accepted = false; let failReview = false; const requestKeys: string[] = [];
 let failAction=false,actionAccepted=false,cancellation=false,discarded=false;const actionKeys:string[]=[];
@@ -41,6 +43,10 @@ const serverOptions = { snapshot: () => {
   }
   if(actionAccepted) snapshot.items[0]!.runActions!.actions=snapshot.items[0]!.runActions!.actions.map(action=>action.action==="preview_start"?{...action,enabled:false,state:"pending"}:action);
   if(cancellation) snapshot.items[0]!.runActions!.actions=[{action:"take_control",label:"Продолжить в Codex",enabled:true,confirmation:null,hint:null,state:null},{action:"discard_local",label:"Удалить локальную работу",enabled:!discarded,confirmation:"Удалить сохранённую локальную работу? Это действие нельзя отменить.",hint:null,state:discarded?"pending":null}];
+  if(reviewFixScenario){
+    const item=snapshot.items[0]!;item.stage="preview_ready";item.detail="Preview is running and ready to open.";item.reviewFix={state:reviewFixScenario,round:1};item.aiReview={enabled:false,reason:"unstable",head:item.ci.head};
+    item.runActions!.actions=[{action:"review_fix",label:"Fix review findings",enabled:false,confirmation:null,hint:null,state:"pending"},{action:"stop",label:"Cancel run",enabled:true,confirmation:null,hint:null,state:null}];
+  }
   if(dense)for(let index=0;index<80;index++)snapshot.items.push({...snapshot.items[3]!,id:`bulk-${index}`,number:100+index,title:`Additional task ${index}`});
   return snapshot;
 }, cacheMs: 0, authorize: async () => "fixture-owner", origin: "", review: (value: unknown) => {
@@ -55,6 +61,7 @@ const completeOptions = { ...serverOptions, prCacheMs:0,runAction:(value:unknown
   else {assert.equal(input.action,"preview_start");assert.equal(input.confirmed,false);if(failAction) throw new ProjectsActionError(503,"Действие временно недоступно.");actionAccepted=true;}
   return {state:"created" as const,requestId:"fixture-action",requestState:"pending"};
 },prInspect:async()=>{
+  if(prReadGate)await prReadGate;
   if(prScenario==="unavailable")throw new ProjectsActionError(503,"PR actions are temporarily unavailable.");
   return {action:prScenario==="syncing"?null:prScenario==="ready"?"ready" as const:"merge" as const,enabled:!["blocked","syncing"].includes(prScenario),reason:prScenario==="syncing"?"A status change is still synchronizing.":prScenario==="blocked"?"GitHub requirements block merging.":"",head:"a".repeat(40),fingerprint:"f".repeat(64),methods:(prScenario==="all-methods"?["squash","rebase","merge"]:["squash","rebase"]) as ("squash"|"rebase"|"merge")[],number:20,base:"main"};
 },prAction:async(value:unknown)=>{
@@ -343,6 +350,7 @@ try {
   await devtools.call("Input.dispatchTouchEvent",{type:"touchStart",touchPoints:[{x:90,y:detailSwipeY}]});
   await devtools.call("Input.dispatchTouchEvent",{type:"touchMove",touchPoints:[{x:140,y:detailSwipeY}]});
   await devtools.call("Input.dispatchTouchEvent",{type:"touchCancel",touchPoints:[]});
+  await wait("Math.abs(document.querySelector('#project-details').getBoundingClientRect().x)<1");
   assert.ok(Math.abs(await devtools.evaluate<number>("document.querySelector('#project-details').getBoundingClientRect().x"))<1,"pointer cancellation removes the partial translation");
   await devtools.call("Emulation.setEmulatedMedia",{features:[]});
   await devtools.call("Input.dispatchTouchEvent",{type:"touchStart",touchPoints:[{x:90,y:detailSwipeY}]});
@@ -624,14 +632,19 @@ try {
     }
   }
   assert.equal(prWrites.length,2,"checking labels never writes a PR");
-  for(const width of [320,390,1280])for(const lang of ['en','ru'])for(const theme of ['light','dark'])for(const scenario of ['syncing','unavailable'] as const){
+  for(const width of [320,390,1280])for(const lang of ['en','ru'])for(const theme of ['light','dark'])for(const scenario of ['syncing','unavailable','ready','merge','blocked'] as const){
     prScenario=scenario;
+    let releasePr!:()=>void;prReadGate=new Promise<void>(done=>{releasePr=done});
     await devtools.call("Emulation.setDeviceMetricsOverride",{width,height:1000,deviceScaleFactor:1,mobile:width<600});
     await open(`/?item=item-12&lang=${lang}`);
-    await wait("!!document.querySelector('[data-pr-slot] > .projects-action-note')");
+    const before=await devtools.evaluate<number[]>("(()=>{const cancel=document.querySelector('[data-run-action=stop]').getBoundingClientRect(),pr=document.querySelector('[data-pr-slot] button').getBoundingClientRect();return [cancel.width,pr.width]})()");
+    releasePr();prReadGate=null;
+    await wait(["syncing","unavailable","blocked"].includes(scenario)?"!!document.querySelector('[data-pr-slot] > .projects-run-action-meta > .projects-action-note')":"!!document.querySelector('[data-pr-action]:not(:disabled)')");
+    const after=await devtools.evaluate<number[]>("(()=>{const cancel=document.querySelector('[data-run-action=stop]').getBoundingClientRect(),pr=document.querySelector('[data-pr-slot] button').getBoundingClientRect();return [cancel.width,pr.width]})()");
+    assert.deepEqual(after,before,'loading, unavailable and available PR controls preserve both button widths');
     await devtools.evaluate(`if(document.documentElement.dataset.theme!==${JSON.stringify(theme)})document.querySelector('[data-theme-toggle]').click()`);
     await delay(250);
-    assert.equal(await devtools.evaluate("(()=>{const cancel=document.querySelector('[data-run-action=stop]').getBoundingClientRect(),slot=document.querySelector('[data-pr-slot]'),note=slot.querySelector('p').getBoundingClientRect(),row=slot.closest('.projects-action-pair').getBoundingClientRect();return Math.abs(cancel.width-row.width)<1&&Math.abs(note.width-row.width)<1&&note.top>=cancel.bottom&&Math.abs(note.left-cancel.left)<1&&!slot.querySelector('button')})()"),true,'unavailable PR explanation follows full-width Cancel run: '+width+' '+lang+' '+scenario);
+    if(['syncing','unavailable','blocked'].includes(scenario))assert.equal(await devtools.evaluate("(()=>{const cancel=document.querySelector('[data-run-action=stop]').getBoundingClientRect(),slot=document.querySelector('[data-pr-slot]'),button=slot.querySelector('button'),pr=button.getBoundingClientRect(),note=slot.querySelector('.projects-action-note').getBoundingClientRect(),row=slot.closest('.projects-action-pair').getBoundingClientRect();return button.disabled&&Math.abs(cancel.width-pr.width)<1&&Math.abs(cancel.top-pr.top)<1&&Math.abs(cancel.height-pr.height)<1&&Math.abs(note.width-row.width)<1&&note.top>=cancel.bottom&&Math.abs(note.left-cancel.left)<1})()"),true,'disabled PR control keeps its half-width slot; explanation spans the row: '+width+' '+lang+' '+scenario);
     await devtools.evaluate("document.querySelector('.projects-ci-details summary').scrollIntoView({block:'center',behavior:'instant'})");
     assert.equal(await devtools.evaluate("(()=>{const details=document.querySelector('.projects-ci-details'),summary=details.querySelector('summary');return Math.abs(details.getBoundingClientRect().width-summary.getBoundingClientRect().width)<1})()"),true,"Checks target fills the evidence width");
     const wasOpen=await devtools.evaluate<boolean>("document.querySelector('.projects-ci-details').open");
@@ -655,6 +668,20 @@ try {
     assert.equal(await devtools.evaluate("document.querySelector('[data-preview-expiry]').dataset.noteTone"),'warning','live preview expiry has a last-hour caution');
     await audit();
     if(lang==='en'){const shot=await devtools.call<{data:string}>('Page.captureScreenshot',{format:'png',captureBeyondViewport:false});writeFileSync(resolve(out,`projects-semantic-notes-${theme}.png`),Buffer.from(shot.data,'base64'));}
+  }
+  for(const width of [320,390,1280])for(const lang of ['en','ru'])for(const state of ['queued','running','waiting_ci','resolving']){
+    reviewFixScenario=state;prScenario='syncing';
+    await devtools.call('Emulation.setDeviceMetricsOverride',{width,height:900,deviceScaleFactor:1,mobile:width<620});
+    await open(`/?item=item-12&lang=${lang}`);
+    await wait("!!document.querySelector('[data-pr-slot] > .projects-run-action-meta > .projects-action-note')");
+    assert.equal(await devtools.evaluate(`document.querySelector('[data-review-fix-state]').dataset.reviewFixState`),state);
+    assert.equal(await devtools.evaluate(`!document.querySelector('#project-details [data-review-run]')&&!document.querySelector('#project-details .projects-context')`),true,'active fix removes stale preview context and duplicate unavailable review');
+    assert.equal(await devtools.evaluate(`(()=>{const detail=document.querySelector('#project-details'),note=detail.querySelector('[data-review-fix-state]'),row=note.closest('.projects-evidence-row'),fix=detail.querySelector('[data-run-action=review_fix]');return note.getBoundingClientRect().width===row.clientWidth-24&&fix.getBoundingClientRect().width===fix.closest('.projects-action-pair').getBoundingClientRect().width&&![...detail.querySelectorAll('.projects-run-action-meta p')].some(p=>['Queued','В очереди'].includes(p.textContent))&&[...detail.querySelectorAll('.projects-evidence-heading')].every(h=>h.scrollWidth<=h.clientWidth);})()`),true,'progress fills its evidence row; no orphan Queued or overlapping header');
+    await audit();
+    if(width===390&&lang==='en'&&state==='queued'){
+      await devtools.evaluate(`document.querySelector('[data-review-fix-state]').scrollIntoView({block:'center',behavior:'instant'})`);
+      const shot=await devtools.call<{data:string}>('Page.captureScreenshot',{format:'png',captureBeyondViewport:false});writeFileSync(resolve(out,'projects-review-fix-queued.png'),Buffer.from(shot.data,'base64'));
+    }
   }
 } finally {
   await browser.close();

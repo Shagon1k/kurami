@@ -40,6 +40,24 @@ async function input():Promise<PrActionInput>{const v=await inspect();return {pr
 function reset(){db.exec("DELETE FROM project_pr_requests; DELETE FROM project_status_requests; DELETE FROM run_control_requests; UPDATE runs SET state='parked_review',owner_state='none'; UPDATE project_items SET present=1,status='Review'");db.prepare("UPDATE project_poll_state SET last_captured_at=?,last_attempt_state='succeeded'").run(at);db.prepare("UPDATE run_ci_snapshots SET head_sha=?").run(head);remote=structuredClone(template);instant=new Date(at);writes=reads=0;timeout=applyBeforeTimeout=reject=pendingMerge=resultFailed=false;readGate=null;}
 try {
   assert.equal((await inspect()).action,"ready");
+  for(const requestState of ["checking","writing","awaiting_sync","uncertain"]){
+    reset();
+    db.prepare("UPDATE project_items SET last_seen_at=?").run(at);
+    db.prepare("INSERT INTO project_status_requests(request_id,project,item_id,actor_subject,idempotency_key,client_key,from_status,to_status,request_state,created_at,updated_at) VALUES('status','alpha','item12','owner','status','status','Review','Doing',?,?,?)").run(requestState,at,at);
+    assert.equal((await inspect()).enabled,false,'unsettled status operation blocks PR actions');
+    db.prepare("UPDATE project_items SET last_seen_at=?").run(new Date(Date.parse(at)+1000).toISOString());
+    assert.equal((await inspect()).enabled,requestState==="awaiting_sync",'only a positively observed settled status write stops blocking');
+    const receipt=db.prepare("SELECT request_state FROM project_status_requests").get();
+    assert.equal(receipt!.request_state,requestState,'read-only inspection preserves the original receipt');
+    if(requestState==="awaiting_sync"){
+      db.exec("UPDATE project_items SET status='Doing'");
+      assert.equal((await inspect()).enabled,true,'observed target status also unblocks a finished write');
+      db.prepare("UPDATE project_poll_state SET last_captured_at=?").run(new Date(Date.parse(at)-120001).toISOString());
+      assert.equal((await inspect()).enabled,false,'settled status cannot bypass the freshness guard');
+    }
+    assert.equal(writes,0);
+  }
+  reset();db.prepare("UPDATE project_items SET last_seen_at=?").run(at);
   const original=await input(),items=db.prepare("SELECT * FROM project_items").all();
   const ready=await requestProjectPr(original,"owner",options);assert.equal(ready.state,"applied");assert.equal(remote.draft,false);assert.equal(writes,1);
   assert.equal((await requestProjectPr(original,"owner",options)).requestId,ready.requestId);assert.equal(writes,1,"nonce retry does not promote twice");

@@ -95,7 +95,7 @@
       if(focused)(slot.querySelector('[data-pr-action]:not(:disabled)')??dashboard.querySelector('#project-details'))?.focus({preventScroll:true});
       rememberView(new URL(location.href));
     } catch {
-      if(slot.isConnected&&version===navigationVersion){slot.querySelector('[data-pr-action]')?.setAttribute('disabled','');const note=document.createElement('p');note.className='projects-action-note';note.textContent=t('PR actions are temporarily unavailable.');slot.replaceChildren(note);}
+      if(slot.isConnected&&version===navigationVersion){const button=slot.querySelector('button');button?.setAttribute('disabled','');button?.setAttribute('aria-expanded','false');const note=document.createElement('p');note.className='projects-action-note';note.dataset.noteTone='warning';note.textContent=t('PR actions are temporarily unavailable.');slot.querySelector('.projects-run-action-meta')?.replaceChildren(note);}
     }
   }
   function dismissPr(focus=true) {

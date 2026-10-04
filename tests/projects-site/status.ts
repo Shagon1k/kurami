@@ -93,6 +93,16 @@ try {
 
   reset(); remote.status="Review"; remote.optionId="opt_review";
   assert.equal((await requestProjectStatus(input(),"owner",options)).state,"conflict"); assert.equal(mutations.length,0,"live divergence blocks an overwrite");
+  assert.equal(collectProjectsSnapshot({home,now:instant,statusEnabled:true}).items[0]!.statusChange?.request?.state,"conflict","a recent conflict is visible");
+  instant=new Date(Date.parse(at)+130000);
+  database.prepare("UPDATE project_poll_state SET last_captured_at=?").run(instant.toISOString());
+  assert.equal(collectProjectsSnapshot({home,now:instant,statusEnabled:true}).items[0]!.statusChange?.request?.state,"conflict","time alone cannot hide a conflict");
+  database.prepare("UPDATE project_items SET status='Review',last_seen_at=?").run(instant.toISOString());
+  assert.equal(collectProjectsSnapshot({home,now:instant,statusEnabled:true}).items[0]!.statusChange?.request,undefined,"a fresh later observation clears an old conflict notice");
+  assert.equal(database.prepare("SELECT request_state FROM project_status_requests").get()!.request_state,"conflict","hiding an old notice preserves its receipt");
+  database.exec("UPDATE project_status_requests SET request_state='uncertain'");
+  const uncertain=collectProjectsSnapshot({home,now:instant,statusEnabled:true}).items[0]!.statusChange!;
+  assert.equal(uncertain.request?.state,"uncertain");assert.equal(uncertain.enabled,false,"an unconfirmed write never clears on time or a later status alone");
   reset(); remote.status="Doing"; remote.optionId="opt_active";
   assert.equal((await requestProjectStatus(input(),"owner",options)).state,"awaiting_sync"); assert.equal(mutations.length,0,"an already applied target is read without rewriting");
   reset(); remote.itemProjectId="another-project";

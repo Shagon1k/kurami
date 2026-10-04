@@ -7,6 +7,7 @@ import {githubPullRequests,GitHubPrRejected,type PullRequestClient,type PullRequ
 import {ProjectsActionError} from "./actions.ts";
 import {projectsRegistry} from "./snapshot.ts";
 import {PROJECTS_STALE_AFTER_MS} from "./model.ts";
+import {observedStatusRequest,type StatusRequestRow} from "./status-state.ts";
 
 export type PrActionInput={project:string;itemId:string;action:"ready"|"merge";head:string;fingerprint:string;key:string;confirmed:boolean;method:MergeMethod|null;checkOnly?:boolean};
 type RequestState="checking"|"writing"|"pending"|"applied"|"failed"|"conflict"|"uncertain";
@@ -16,6 +17,7 @@ type Options={home?:string;now?:()=>Date;github?:PullRequestClient};
 type Context={runId:string;repository:string;number:number;head:string;url:string};
 type Row={request_id:string;project:string;item_id:string;run_id:string;actor_subject:string;client_key:string;action:"ready"|"merge";merge_method:MergeMethod|null;repository:string;pr_number:number;pr_id:string;head_sha:string;fingerprint:string;request_state:RequestState;github_request_uuid:string|null;updated_at:string};
 const active=["checking","writing","pending","uncertain"];
+const activeStatusStates=new Set(["checking","writing","awaiting_sync","uncertain"]);
 const unavailable=(reason="unavailable"):PrActionView=>({action:null,enabled:false,reason,head:"",fingerprint:"",methods:[],number:null,base:""});
 function open(options:Options,readOnly=false) {
   const home=options.home??resolveKuramiHome(resolve(import.meta.dirname,"../../.."));
@@ -23,7 +25,7 @@ function open(options:Options,readOnly=false) {
 }
 function context(db:DatabaseSync,home:string,project:string,itemId:string,now:Date,stable=true):Context {
   const config=projectsRegistry(resolve(home,"config/projects.yaml"))[project];
-  const item=db.prepare("SELECT present,repository,status FROM project_items WHERE project=? AND item_id=?").get(project,itemId) as {present:number;repository:string;status:string|null}|undefined;
+  const item=db.prepare("SELECT present,repository,status,last_seen_at FROM project_items WHERE project=? AND item_id=?").get(project,itemId) as {present:number;repository:string;status:string|null;last_seen_at:string}|undefined;
   const run=db.prepare("SELECT run_id FROM runs WHERE project=? AND item_id=? ORDER BY rowid DESC LIMIT 1").get(project,itemId) as {run_id:string}|undefined;
   const inspection=run?inspectAiReview(db,run.run_id):null;
   if(!config||!item?.present||item.repository?.toLowerCase()!==config.repository.toLowerCase()||!inspection||inspection.repository.toLowerCase()!==config.repository.toLowerCase())
@@ -34,9 +36,11 @@ function context(db:DatabaseSync,home:string,project:string,itemId:string,now:Da
     throw new ProjectsActionError(409,"Wait for fresh sync data.");
   if(stable&&!["eligible","ready"].includes(inspection.reason))throw new ProjectsActionError(409,"PR actions unlock when current work finishes.");
   if(stable&&![config.statuses.active,config.statuses.review].includes(item.status??""))throw new ProjectsActionError(409,"PR actions require an active or review task.");
-  if(stable&&db.prepare("SELECT 1 FROM sqlite_master WHERE type='table' AND name='project_status_requests'").get()&&
-    db.prepare("SELECT 1 FROM project_status_requests WHERE project=? AND item_id=? AND request_state IN ('checking','writing','awaiting_sync','uncertain') LIMIT 1").get(project,itemId))
-    throw new ProjectsActionError(409,"A status change is still synchronizing.");
+  if(stable&&db.prepare("SELECT 1 FROM sqlite_master WHERE type='table' AND name='project_status_requests'").get()){
+    const requests=db.prepare("SELECT * FROM project_status_requests WHERE project=? AND item_id=? AND request_state IN ('checking','writing','awaiting_sync','uncertain')").all(project,itemId) as StatusRequestRow[];
+    if(requests.some(request=>activeStatusStates.has(observedStatusRequest(request,item.status,item.last_seen_at))))
+      throw new ProjectsActionError(409,"A status change is still synchronizing.");
+  }
   const url=new URL(inspection.prUrl??"https://invalid.local"),segments=url.pathname.split("/");
   if(url.origin!=="https://github.com"||url.username||url.password||url.search||url.hash||segments.length!==5||
     `${segments[1]}/${segments[2]}`.toLowerCase()!==config.repository.toLowerCase()||segments[3]!=="pull"||!/^\d+$/.test(segments[4]!)||Number(segments[4])<1||!inspection.head)

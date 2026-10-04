@@ -50,6 +50,14 @@ try {
   assert.deepEqual(database.prepare("SELECT name FROM sqlite_master WHERE type='index' AND tbl_name<>'run_control_project_context' ORDER BY name").all(),indexes,"all original indexes survive");
   assert.deepEqual(database.prepare("PRAGMA foreign_key_check").all(),[]);
   assert.equal(collectProjectsSnapshot({ ...options, controlsEnabled: true }).items[0]!.aiReview?.enabled,true);
+  for(const phase of ["running","waiting_ci","resolving","needs_attention","succeeded"]){
+    database.prepare("UPDATE run_review_fix_rounds SET round_state=? WHERE round_id='fix1'").run(phase);
+    const snapshot=collectProjectsSnapshot({ ...options, controlsEnabled:true });
+    assert.deepEqual(snapshot.items[0]!.reviewFix,{state:phase,round:1},'snapshot exposes actual fix round rather than old progress-card text');
+  }
+  database.exec("UPDATE run_control_requests SET request_state='pending' WHERE request_id='q_fix'");
+  assert.deepEqual(collectProjectsSnapshot({...options,controlsEnabled:true}).items[0]!.reviewFix,{state:"queued",round:null},'a new queued request overrides the old completed round');
+  database.exec("UPDATE run_control_requests SET request_state='applied' WHERE request_id='q_fix'");
   const firstInput = input(); const first = requestProjectsReview(firstInput,"owner",options);
   assert.equal(first.state,"created");
   assert.equal(requestProjectsReview(firstInput,"owner",options).requestId,first.requestId,"network retry is durable and idempotent");

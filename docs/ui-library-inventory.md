@@ -6,7 +6,7 @@ Status: inventory at `c31a505`; the owner approved the structure, self-hosted fo
 
 The shared mobile navigation pattern supplies the floating capsule dock for
 Hub, Digest, Projects and Docs at up to 620px. The `navigation` button variant
-uses 32px line icons and compact labels. The common runtime moves existing
+uses 26px line icons and 13px medium-weight labels (12px up to 360px). The common runtime moves existing
 settings, search and documentation navigation into popovers, then restores them
 on desktop resize. Manual top-layer popovers avoid repeat-click light-dismiss
 races; the runtime handles outside interaction, Escape and focus restoration.
@@ -18,10 +18,11 @@ and shared sans-serif labels. Docs includes the icon stylesheet explicitly and
 retains its section hierarchy. Project icons cover
 the all-projects folder, panda, fox and profile card.
 
-The dock uses a warm surface, 90% opacity and 12px backdrop blur; text and icons
+The dock uses a warm surface, 82% opacity and 12px backdrop blur; text and icons
 stay opaque. Browsers without backdrop blur keep an opaque surface. Side and lower
 margins detach the capsule from the viewport; the lower margin sits above the
-safe area. It retains the optically balanced 32px icons.
+safe area. At normal text size the dock is 66px high with 56px tap targets and
+a maximum width of 344px. Enlarged text can increase its height.
 Russian dock labels use «Перейти к» and «Контролы»; the management menu retains
 its full «Управление» heading. Normal-size labels fit on one line at 320px, while
 larger text may wrap without clipping.
