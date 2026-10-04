@@ -161,7 +161,8 @@ try{
     }else{
       assert.equal(await devtools.evaluate("getComputedStyle(document.querySelector('.site-actions')).display"),"none",path+" mobile controls leave the header");
       assert.equal(await devtools.evaluate("getComputedStyle(document.querySelector('.site-header')).position"),"static",path+" mobile header scrolls with content");
-      assert.equal(await devtools.evaluate("(() => {const bar=document.querySelector('.mobile-navigation__bar'),rect=bar.getBoundingClientRect();return getComputedStyle(bar).position==='fixed'&&rect.left===0&&Math.abs(rect.right-innerWidth)<=1&&Math.abs(rect.bottom-innerHeight)<=1&&bar.querySelectorAll('[data-mobile-menu]').length===4;})()"),true,path+" unified mobile panel remains available");
+      assert.equal(await devtools.evaluate("(() => {const bar=document.querySelector('.mobile-navigation__bar'),rect=bar.getBoundingClientRect();return getComputedStyle(bar).position==='fixed'&&rect.left>=11&&innerWidth-rect.right>=11&&rect.width<=360&&innerHeight-rect.bottom>=11&&bar.querySelectorAll('[data-mobile-menu]').length===4;})()"),true,path+" unified mobile dock floats within viewport margins");
+      assert.equal(await devtools.evaluate("(() => {const labels=[...document.querySelectorAll('.mobile-navigation__bar button > span')].map(span=>{const range=document.createRange();range.selectNodeContents(span);return [...range.getClientRects()];});return labels.every((rects,index)=>rects.length===1&&(!index||rects[0].left-labels[index-1][0].right>=4));})()"),true,path+" dock labels stay on one line with a readable gap in both languages");
     }
     if(path===`/${lang}/`){
       assert.equal(await devtools.evaluate("(() => {const labels=[...document.querySelectorAll('[data-period-panel=commits]:not([hidden]) .chart__labels:last-child text')].slice(0,-1).map(label=>label.getBoundingClientRect());return labels.every((label,index)=>!index||label.left>=labels[index-1].right+1);})()"),true,path+" commit dates remain separate");
@@ -170,6 +171,17 @@ try{
     assert.equal(await devtools.evaluate("[...document.querySelectorAll('.site-switcher a:not([target])')].every(link=>link.origin===location.origin&&link.pathname.startsWith('/'+document.documentElement.lang+'/'))"),true,path+" same-origin apps");
     assert.equal(await devtools.evaluate("performance.getEntriesByType('resource').filter(entry=>entry.name.startsWith(location.origin)&&entry.responseStatus>=400).length"),0,path+" failed resource");
     if(lang==="en"&&width===390){const shot=await devtools.call<{data:string}>("Page.captureScreenshot",{format:"png",captureBeyondViewport:true});writeFileSync(join(output,path.replace(/\W+/g,"-")+".png"),Buffer.from(shot.data,"base64"));}
+    if(lang==='en'&&width===390&&path==='/en/'){
+      await devtools.evaluate(`document.querySelector('[data-mobile-menu="sections"]').click()`);
+      await wait(`document.querySelector('#mobile-menu-sections').matches(':popover-open')`);await delay(240);
+      for(const theme of ['light','dark']){
+        await devtools.evaluate(`document.documentElement.dataset.theme=${JSON.stringify(theme)}`);await delay(80);
+        const shot=await devtools.call<{data:string}>('Page.captureScreenshot',{format:'png',captureBeyondViewport:false,clip:{x:0,y:580,width:390,height:320,scale:1}});
+        writeFileSync(join(output,`hub-dock-${theme}.png`),Buffer.from(shot.data,'base64'));
+      }
+      await devtools.evaluate(`document.documentElement.dataset.theme='light';document.querySelector('#mobile-menu-sections [data-mobile-close]').click()`);
+      await wait(`!history.state?.__kuramiMobilePanel`);
+    }
     checked++;
   }
   assert.equal(latinRequests,1,"all four apps reuse one cached Onest Latin asset across views and reloads");

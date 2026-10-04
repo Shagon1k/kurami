@@ -10,10 +10,10 @@ export function renderMobileNavigation(input:MobileNavigationInput):string {
   const settings=`<div class="mobile-navigation__settings" data-mobile-slot="more"><div class="mobile-navigation__setting"><span class="mobile-navigation__setting-label">${renderIcon("language")}${t("Язык","Language")}</span><div class="mobile-navigation__setting-value" data-mobile-slot="language"><span class="mobile-navigation__language-current" aria-current="true">${input.lang.toUpperCase()}</span></div></div><div class="mobile-navigation__setting"><span class="mobile-navigation__setting-label">${renderIcon("moon")}${t("Тёмная тема","Dark theme")}</span><div class="mobile-navigation__setting-value" data-mobile-slot="theme"></div></div>${input.app==="hub"?`<div class="mobile-navigation__setting" data-mobile-period-row><span class="mobile-navigation__setting-label">${renderIcon("calendar")}${t("Период","Period")}</span><div class="mobile-navigation__setting-value" data-mobile-slot="period"></div></div>`:""}</div>`;
   const slots=[
     {key:"apps",label:"Apps",title:"Apps",icon:"apps" as const,body:input.apps},
-    {key:"sections",label:input.app==="hub"?t("На странице","On page"):input.app==="projects"?t("Проекты","Projects"):t("Разделы","Sections"),title:input.app==="hub"?t("На этой странице","On this page"):input.app==="projects"?t("Проекты","Projects"):t("Разделы","Sections"),icon:input.app==="hub"?"contents" as const:"sections" as const,body:input.sections+'<div data-mobile-slot="sections"></div>'},
-    input.app==="hub"?{key:"controls",label:t("Управление","Controls"),title:t("Управление","Controls"),icon:"controls" as const,body:'<div data-mobile-slot="controls"></div>'}:
+    {key:"sections",label:input.app==="hub"?t("Перейти к","Go to"):input.app==="projects"?t("Проекты","Projects"):t("Разделы","Sections"),title:input.app==="hub"?t("На этой странице","On this page"):input.app==="projects"?t("Проекты","Projects"):t("Разделы","Sections"),icon:input.app==="hub"?"contents" as const:"sections" as const,body:input.sections+'<div data-mobile-slot="sections"></div>'},
+    input.app==="hub"?{key:"controls",label:t("Контролы","Controls"),title:t("Управление","Controls"),icon:"controls" as const,body:'<div data-mobile-slot="controls"></div>'}:
     input.app==="projects"?{key:"search",label:t("Поиск","Search"),title:t("Поиск задач","Search tasks"),icon:"search" as const,body:'<div data-mobile-slot="search"></div>'}:
-    {key:"contents",label:t("На странице","On page"),title:t("На этой странице","On this page"),icon:"contents" as const,body:'<div data-mobile-slot="contents"></div>'},
+    {key:"contents",label:t("Перейти к","Go to"),title:t("На этой странице","On this page"),icon:"contents" as const,body:'<div data-mobile-slot="contents"></div>'},
     {key:"more",label:t("Настройки","Settings"),title:t("Настройки","Settings"),icon:"settings" as const,body:settings},
   ];
   return `<div class="mobile-navigation" data-mobile-navigation="${input.app}"><nav class="mobile-navigation__bar" aria-label="${t("Навигация приложения","App navigation")}">${slots.map(slot=>renderButton({label:slot.label,iconPath:iconPath(slot.icon),visibleLabel:true,variant:"navigation",attributes:{"data-mobile-menu":slot.key,"aria-expanded":"false","aria-controls":`mobile-menu-${slot.key}`}})).join("")}</nav>${slots.map(slot=>renderPopover({mode:"manual",id:`mobile-menu-${slot.key}`,label:slot.title,body:`<div class="mobile-navigation__heading"><strong>${slot.title}</strong>${renderButton({label:t("Закрыть","Close"),variant:"icon",iconPath:iconPath("close"),attributes:{"data-mobile-close":true}})}</div>${slot.body}`})).join("")}</div>`;
@@ -21,9 +21,9 @@ export function renderMobileNavigation(input:MobileNavigationInput):string {
 
 export const MOBILE_NAVIGATION_CSS=`
 ${POPOVER_CSS}
-.mobile-navigation { --mobile-search-top: 12px; --mobile-search-height: 100dvh; display: none; }
+.mobile-navigation { --mobile-search-top: 12px; --mobile-search-height: 100dvh; --mobile-navigation-gap: var(--space-3); display: none; }
 @media(max-width:${breakpoints.phone}px) {
-  body:has([data-mobile-navigation]) { --mobile-navigation-height: 82px; padding-bottom: calc(var(--mobile-navigation-height) + env(safe-area-inset-bottom) + var(--space-6)); }
+  body:has([data-mobile-navigation]) { --mobile-navigation-height: 98px; padding-bottom: calc(var(--mobile-navigation-height) + env(safe-area-inset-bottom) + var(--space-6)); }
   .site-header:has([data-mobile-navigation]) { position: static; backdrop-filter: none; background: var(--surface-page); }
   .site-header:has([data-mobile-navigation]) .site-header__inner { grid-template-columns: minmax(0,1fr); grid-template-areas: "brand"; padding-block: var(--space-4); }
   .site-header:has([data-mobile-navigation]) .site-brand { gap: 9px; }
@@ -31,7 +31,10 @@ ${POPOVER_CSS}
   .site-header:has([data-mobile-navigation]) .site-brand__name { font-size: 1.25rem; }
   .site-header:has([data-mobile-navigation]) .site-actions,.site-header:has([data-mobile-navigation]) .site-header__inner > .site-nav,.site-header:has([data-mobile-navigation]) .site-menu { display: none; }
   .mobile-navigation { display: block; }
-  .mobile-navigation__bar { position: fixed; inset-inline: 0; bottom: 0; z-index: 40; display: grid; grid-template-columns: repeat(4,minmax(0,1fr)); padding-bottom: env(safe-area-inset-bottom); color: var(--text-primary); background: color-mix(in srgb,var(--accent-data) 10%,var(--surface-section)); border-top: 1px solid color-mix(in srgb,var(--text-primary) 45%,var(--border-default)); box-shadow: var(--shadow-raised); }
+  .mobile-navigation__bar { --navigation-button-height: 74px; --navigation-button-padding: var(--space-2) 0; --navigation-button-radius: calc(var(--radius-md) * 6); --navigation-active-background: color-mix(in srgb,var(--accent-primary) 9%,var(--surface-section)); --navigation-active-label: var(--text-accent); --navigation-active-icon: var(--text-accent); --navigation-indicator-display: none; position: fixed; inset-inline: 0; bottom: calc(var(--mobile-navigation-gap) + env(safe-area-inset-bottom)); z-index: 40; display: grid; grid-template-columns: repeat(4,minmax(0,1fr)); width: min(360px,calc(100% - var(--space-3) * 2)); margin-inline: auto; padding: var(--space-1); color: var(--text-primary); background: color-mix(in srgb,var(--accent-data) 8%,var(--surface-section)); border: 1px solid var(--border-default); border-radius: var(--radius-pill); box-shadow: var(--shadow-raised); }
+  @supports ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+    .mobile-navigation__bar { background: color-mix(in srgb,color-mix(in srgb,var(--accent-data) 8%,var(--surface-section)) 90%,transparent); -webkit-backdrop-filter: blur(12px); backdrop-filter: blur(12px); }
+  }
   .mobile-navigation__bar .button--navigation { font-weight: 500; white-space: normal; line-height: 1.3; text-align: center; }
   .mobile-navigation__bar .button--navigation > span { max-width: 100%; overflow-wrap: anywhere; }
   .mobile-navigation__bar .button__svg path { transform-box: fill-box; transform-origin: center; }
@@ -73,8 +76,8 @@ ${POPOVER_CSS}
   body:has([data-mobile-navigation="docs"]) .side-mobile,body:has([data-mobile-navigation="docs"]) .toc-mobile { display: none; }
   body:has([data-mobile-navigation="projects"]) .projects-toolbar { display: none; }
   .mobile-navigation .projects-search { width: 100%; }
-  html:has([data-mobile-navigation]) { scroll-padding-bottom: calc(var(--mobile-navigation-height,82px) + env(safe-area-inset-bottom) + var(--space-4)); }
-  body:has([data-mobile-navigation]) main :is(h2,h3,h4)[id] { scroll-margin-block: var(--space-6) calc(var(--mobile-navigation-height,82px) + env(safe-area-inset-bottom) + var(--space-4)); }
+  html:has([data-mobile-navigation]) { scroll-padding-bottom: calc(var(--mobile-navigation-height,98px) + env(safe-area-inset-bottom) + var(--space-4)); }
+  body:has([data-mobile-navigation]) main :is(h2,h3,h4)[id] { scroll-margin-block: var(--space-6) calc(var(--mobile-navigation-height,98px) + env(safe-area-inset-bottom) + var(--space-4)); }
   body:has(dialog[open]) .mobile-navigation__bar { visibility: hidden; }
   body:has([data-mobile-navigation]):not(.projects-mobile-detail-open) .toast { bottom: calc(var(--mobile-navigation-height) + env(safe-area-inset-bottom) + var(--space-4)); }
 }

@@ -87,25 +87,28 @@ writes remain until dismissed or replaced. The close icon has an accessible name
 The shared header names the current app: Kurami. Hub, Digest, Projects or Docs.
 **Apps** opens the product links; Hermes and Dokploy are separated external links
 that open in another tab. On the unified entry, product links stay on one origin,
-so the saved theme follows you between apps. On phones, a full-width bottom panel
+so the saved theme follows you between apps. On phones, a floating capsule dock
 replaces sticky header navigation. Large icons sit above compact labels; Apps,
 sections, contextual navigation and Settings open menus. Settings contains language
-and theme in horizontal rows behind a gear icon. Sections changes pages; On page jumps within the
+and theme in horizontal rows behind a gear icon. Sections changes pages; Go to jumps within the
 current page, including Hub's dashboard. Selected items inside popovers share a warm
-background and left rail; open footer buttons keep their short bottom underline.
-On page links are text-only. Apps, Sections and Controls use monochrome outline
+background and left rail; an open dock button uses a rounded red-tinted tile with matching icon and label.
+Go to links are text-only. Apps, Sections and Controls use monochrome outline
 icons and shared sans-serif labels; Docs keeps its grouped section hierarchy.
 A repeated click, an outside click or Escape closes a menu.
-The bottom panel has a stronger warm surface; menus use a distinct raised surface.
+The dock leaves space around its sides and above the phone's bottom safe area.
+Its warm surface is 90% opaque with a slight backdrop blur; icons and labels remain opaque.
+Browsers without backdrop blur use an opaque surface. Menus keep a distinct raised surface.
 Outline icons keep a 32px frame with balanced visual weight and aligned labels.
-On page highlights the section you are reading, not just the last clicked anchor.
+Go to highlights the section you are reading, not just the last clicked anchor.
+The Controls menu keeps its full heading where the dock label is shortened.
 Opening a menu focuses its current link; selecting a section focuses its heading
 without a second scroll. Search still focuses the input above the keyboard.
 Back first closes an open menu. Switching menus reuses one temporary history
 entry; closing it removes that entry before a selected action continues.
 Forward or a reload restores a menu recorded in history. With no menu open,
 Back retains normal page and Projects task navigation. The panel measures its
-height when text grows, keeping content and menus above it.
+height and lower gap when text grows, keeping content and menus above it.
 Menus and icons animate together; reduced-motion preferences disable that motion.
 Projects opens Search at the top of the visible screen, above the keyboard.
 Hub puts its 7/30-day period in Settings on phones, alongside language and the

@@ -88,8 +88,11 @@ for(const app of ["hub","digest","projects","docs"] as const)for(const lang of [
   assert.ok(mobile.includes(iconPath("settings")));
   assert.doesNotMatch(mobile,/>More<|>Ещё</);
   if(app==="hub"){
-    assert.match(mobile,new RegExp(lang==="ru"?"На странице":"On page"));
-    assert.match(mobile,new RegExp(`data-mobile-menu="controls"[^>]*>.*?<span>${lang==="ru"?"Управление":"Controls"}</span>`));
+    assert.match(mobile,new RegExp(`data-mobile-menu="sections"[^>]*>.*?<span>${lang==="ru"?"Перейти к":"Go to"}</span>`));
+    assert.match(mobile,new RegExp(`data-mobile-menu="controls"[^>]*>.*?<span>${lang==="ru"?"Контролы":"Controls"}</span>`));
+    assert.match(mobile,new RegExp(`id="mobile-menu-controls"[^>]*aria-label="${lang==="ru"?"Управление":"Controls"}"`));
+  }else if(app!=="projects"){
+    assert.match(mobile,new RegExp(`data-mobile-menu="contents"[^>]*>.*?<span>${lang==="ru"?"Перейти к":"Go to"}</span>`));
   }
 }
 const iconNav={label:"Projects",links:[{href:"/",label:"PickFlick",mobileIcon:"panda" as const}]};

@@ -4,7 +4,7 @@ Status: inventory at `c31a505`; the owner approved the structure, self-hosted fo
 
 ## What exists today
 
-The shared mobile navigation pattern supplies the full-width bottom panel for
+The shared mobile navigation pattern supplies the floating capsule dock for
 Hub, Digest, Projects and Docs at up to 620px. The `navigation` button variant
 uses 32px line icons and compact labels. The common runtime moves existing
 settings, search and documentation navigation into popovers, then restores them
@@ -12,20 +12,26 @@ on desktop resize. Manual top-layer popovers avoid repeat-click light-dismiss
 races; the runtime handles outside interaction, Escape and focus restoration.
 Horizontal Settings rows hold language and the shared `switch` button variant for
 theme. Hub moves its existing 7/30-day control into a third row; desktop retains
-the header control. Selected popover items use a left rail; footer buttons retain
-their short underline. On page is text-only; Apps and Sections use outline icons
+the header control. Selected popover items use a left rail; an open dock button uses
+a rounded red-tinted tile with matching icon and label. Go to is text-only; Apps and Sections use outline icons
 and shared sans-serif labels. Docs includes the icon stylesheet explicitly and
 retains its section hierarchy. Project icons cover
 the all-projects folder, panda, fox and profile card.
 
-The mobile panel uses a stronger warm surface and optically balanced 32px icons.
-Its runtime tracks the visible On page heading and focuses the current menu link
+The dock uses a warm surface, 90% opacity and 12px backdrop blur; text and icons
+stay opaque. Browsers without backdrop blur keep an opaque surface. Side and lower
+margins detach the capsule from the viewport; the lower margin sits above the
+safe area. It retains the optically balanced 32px icons.
+Russian dock labels use «Перейти к» and «Контролы»; the management menu retains
+its full «Управление» heading. Normal-size labels fit on one line at 320px, while
+larger text may wrap without clipping.
+Its runtime tracks the visible Go to heading and focuses the current menu link
 or selected heading without a second scroll. A namespaced temporary history entry
 closes the panel before normal Back navigation; switching replaces that entry,
 and dismissal consumes it before replaying a selected action. Panel-only popstate
 events are isolated from Projects route handling. Forward, reload and BFCache
 restore panel state; closed-panel navigation remains product-owned. A measured
-bar height supports larger text without covering menus or destinations. These
+bar height plus lower gap supports larger text without covering menus or destinations. These
 contracts require browser regressions; Android keyboard-first Back behavior and
 TalkBack still need a real-device check. Desktop controls and CSS remain unchanged.
 

@@ -39,8 +39,11 @@ try{
     await devtools.call('Emulation.setDeviceMetricsOverride',{width,height:900,deviceScaleFactor:1,mobile:true});
     await devtools.call('Page.navigate',{url:`${base}/${lang}/${app}/`});
     await wait(`document.readyState==='complete'&&!!document.querySelector('[data-mobile-menu="apps"]')`);
+    assert.equal(await devtools.evaluate(`(()=>{const bar=document.querySelector('.mobile-navigation__bar'),r=bar.getBoundingClientRect(),s=getComputedStyle(bar);return r.left>=11&&innerWidth-r.right>=11&&r.width<=360&&innerHeight-r.bottom>=11&&parseFloat(s.borderRadius)>=r.height/2&&[...bar.querySelectorAll('button')].every(button=>button.getBoundingClientRect().height>=44)&&Math.abs(parseFloat(document.body.style.getPropertyValue('--mobile-navigation-height'))-r.height-12)<1;})()`),true,'capsule floats within side and bottom margins; reserved height includes the gap');
+    assert.equal(await devtools.evaluate(`(()=>{const bar=document.querySelector('.mobile-navigation__bar'),s=getComputedStyle(bar);return getComputedStyle(bar.parentElement).opacity==='1'&&s.opacity==='1'&&s.backdropFilter==='blur(12px)'&&/(?:,\\s*|\\/\\s*)0\\.9\\)/.test(s.backgroundColor);})()`),true,'only the warm surface is slightly transparent; icons and text stay opaque');
     await devtools.evaluate(`history.replaceState({preserved:'fixture',before:0},'');history.pushState({preserved:'fixture',before:1},'');window.routePops=0;addEventListener('popstate',()=>routePops++);window.panelLength=history.length;`);
     await click('apps');
+    assert.equal(await devtools.evaluate(`(()=>{const button=document.querySelector('[data-mobile-menu="apps"]');return getComputedStyle(button,'::after').display==='none'&&getComputedStyle(button).color===getComputedStyle(button.querySelector('svg')).color&&parseFloat(getComputedStyle(button).borderRadius)>0;})()`),true,'open menu uses the rounded accent tile');
     assert.equal(await devtools.evaluate(`document.activeElement===document.querySelector('#mobile-menu-apps [aria-current]')`),true);
     assert.equal(await devtools.evaluate(`history.state.preserved`),'fixture');
     await click('more');
@@ -81,7 +84,7 @@ try{
     await devtools.call('Input.dispatchMouseEvent',{type:'mouseReleased',button:'left',clickCount:1,...point});
     await closed();await wait(`document.body.dataset.outside==='yes'`);
     await devtools.evaluate(`document.documentElement.style.fontSize='200%'`);await delay(100);
-    assert.equal(await devtools.evaluate(`(()=>{const bar=document.querySelector('.mobile-navigation__bar');return bar.getBoundingClientRect().height>82&&document.documentElement.scrollWidth<=innerWidth&&Math.abs(parseFloat(document.body.style.getPropertyValue('--mobile-navigation-height'))-bar.getBoundingClientRect().height)<1})()`),true,'enlarged labels resize the bar without overflow');
+    assert.equal(await devtools.evaluate(`(()=>{const bar=document.querySelector('.mobile-navigation__bar');return bar.getBoundingClientRect().height>82&&document.documentElement.scrollWidth<=innerWidth&&Math.abs(parseFloat(document.body.style.getPropertyValue('--mobile-navigation-height'))-bar.getBoundingClientRect().height-12)<1})()`),true,'enlarged labels resize the dock and its reserved gap without overflow');
     await click('apps');
     await delay(240);
     assert.equal(await devtools.evaluate(`document.querySelector('#mobile-menu-apps').getBoundingClientRect().bottom<document.querySelector('.mobile-navigation__bar').getBoundingClientRect().top`),true);
@@ -89,6 +92,7 @@ try{
     await devtools.call('Emulation.setDeviceMetricsOverride',{width:1280,height:900,deviceScaleFactor:1,mobile:false});await delay(50);
     const length=await devtools.evaluate<number>('history.length');await devtools.evaluate(`document.querySelector('[data-mobile-menu="apps"]').click()`);
     assert.equal(await devtools.evaluate('history.length'),length,'desktop never creates panel history');
+    assert.equal(await devtools.evaluate(`getComputedStyle(document.querySelector('[data-mobile-navigation]')).display==='none'&&!document.body.style.getPropertyValue('--mobile-navigation-height')`),true,'desktop hides the dock and removes mobile height reservations');
     states++;
   }
   await devtools.call('Page.navigate',{url:base+'/en/docs/'});await wait('document.readyState===\'complete\'');

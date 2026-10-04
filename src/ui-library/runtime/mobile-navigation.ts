@@ -26,7 +26,7 @@ function mobileNavigationRuntime(phoneWidth:number) {
       shell.style.setProperty('--mobile-search-top',`${(visible?.offsetTop??0)+12}px`);
       shell.style.setProperty('--mobile-search-height',`${visible?.height??innerHeight}px`);
       const bar=shell.querySelector<HTMLElement>('.mobile-navigation__bar')!;
-      if(media.matches){const height=bar.getBoundingClientRect().height-parseFloat(getComputedStyle(bar).paddingBottom||'0');for(const node of [document.body,document.documentElement])node.style.setProperty('--mobile-navigation-height',`${height}px`);}
+      if(media.matches){const height=bar.getBoundingClientRect().height+parseFloat(getComputedStyle(shell).getPropertyValue('--mobile-navigation-gap')||'0');for(const node of [document.body,document.documentElement])node.style.setProperty('--mobile-navigation-height',`${height}px`);}
       else for(const node of [document.body,document.documentElement])node.style.removeProperty('--mobile-navigation-height');
     }
     function links(){
