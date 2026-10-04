@@ -2,18 +2,51 @@
   "baseline": "4a38c09",
   "publicationBaseline": "788787f077d42fc3b3346a4f4a612947b97ce2e8",
   "commits": {
+    "067cbfb628176c585485093ff34ad5059de772c1": {
+      "category": "fixed",
+      "en": "The PWA uses vector-derived fox artwork following the existing header logo, exported directly at 512 and 1024 pixels. Splash and launcher icons share the theme's warm paper background. Versioned icon URLs retain compatibility with previous installations; native header branding, app identity and scope are unchanged.",
+      "ru": "PWA использует векторную лису по образцу существующего логотипа в хедере с прямым экспортом в 512 и 1024 пикселя. Экран запуска и иконка приложения получили общий тёплый фон из темы. Новые версии URL иконок сохраняют совместимость с прежними установками; логотип хедера, идентификатор и область приложения не изменены.",
+      "page": "access"
+    },
+    "4d6f5ca029dd728a6bf416919abd95f2bfee9b6f": {
+      "category": "operations",
+      "en": "",
+      "ru": "",
+      "exclusionScope": "docs-only",
+      "exclude": "Adds only the reviewed bilingual Changelog classification for existing worker diagnostics; application behavior is unchanged."
+    },
     "59f4c3f7ab73aa77335a3803dbadfd39f58c21a6": {
       "category": "fixed",
-      "en": "CI repair permits narrowly scoped compatible published upstream security fixes while preserving owner checkpoints for major upgrades, custom patches, advisory exceptions and runtime dependencies. Technical workers retain bounded sanitized native final messages for stop diagnostics; missing legacy receipts are not invented or backfilled.",
-      "ru": "CI repair допускает точечные совместимые security fixes из опубликованных upstream-версий; major upgrades, custom patches, исключения advisory и runtime dependencies сохраняют owner checkpoint. Technical workers сохраняют ограниченные очищенные native final messages для диагностики остановки; отсутствующие старые receipts не выдумываются и не заполняются задним числом.",
+      "en": "The repair protocol defines the boundary for compatible published dependency security fixes and starts the no-new-commit timeout after the worker parks. Projects and run-control can show a sanitized final worker report separately from delivery status when that report is available. Missing reports remain unavailable; diagnostics do not change ownership or retry eligibility.",
+      "ru": "Протокол исправления CI определяет границы совместимых security-исправлений из опубликованных версий зависимостей и отсчитывает таймаут отсутствия нового коммита после парковки исполнителя. Projects и run-control могут показывать очищенный итоговый отчёт отдельно от результата доставки, когда отчёт доступен. Отсутствующий отчёт остаётся недоступным; диагностика не меняет владельца и доступность повторной попытки.",
       "page": "engineering-evidence"
+    },
+    "bc97e89da104eb8845aef3d206763d40b046b3fc": {
+      "category": "operations",
+      "en": "",
+      "ru": "",
+      "exclusionScope": "docs-only",
+      "exclude": "Adds only the reviewed bilingual Changelog classification for state and reading cues; application behavior is unchanged."
+    },
+    "f130acf1f287a4e3e24aa727963d454b75ac56cb": {
+      "category": "improved",
+      "en": "Hub distinguishes low and exhausted quotas, highlights changed fields and confirms settings with a Before/After table. Projects separates review severity, pending or uncertain notes and active preview expiry warnings. Digest highlights selected Mail and separates edition creation from the last successful source refresh. Shared disclosures have neutral open headers; anchor arrivals briefly highlight the heading, and desktop Docs contents follows the reading position. Both themes use existing semantic colours without changing action eligibility or desktop header navigation.",
+      "ru": "Hub различает низкий и исчерпанный остаток лимита, подсвечивает изменённые поля и показывает таблицу «Было / Стало» перед применением настроек. Projects разделяет важность замечаний ревью, ожидание и неподтверждённые результаты, предупреждает о скором истечении активного preview. Digest выделяет выбранные письма и отделяет время создания выпуска от последнего успешного обновления источников. Раскрытые блоки имеют нейтральные заголовки; переход по якорю ненадолго выделяет заголовок, а оглавление Docs на desktop следует за чтением. Обе темы используют существующие смысловые цвета; доступность действий и навигация в desktop-хедере не изменены.",
+      "page": "ui-library"
+    },
+    "d22b0986b9640302714d0ac45b12608b8214be30": {
+      "category": "operations",
+      "en": "",
+      "ru": "",
+      "exclusionScope": "docs-only",
+      "exclude": "Adds only the reviewed bilingual Changelog classification for semantic action accents; application behavior is unchanged."
     },
     "0381a868f8dd6b666009558a57e402ba59a51a86": {
       "category": "operations",
       "en": "",
       "ru": "",
       "exclusionScope": "docs-only",
-      "exclude": "Adds only the bilingual Changelog classification for the cinema provider correction; application behavior is unchanged."
+      "exclude": "Classifies the existing Cinema source-consistency fix in the Changelog; application behavior is unchanged."
     },
     "60cd8f20f8eb26bbc5854d660ee2e57faed86a9d": {
       "category": "improved",
@@ -461,13 +494,6 @@
       "ru": "",
       "exclusionScope": "docs-only",
       "exclude": "Recorded the preceding Projects mobile layout correction in the bilingual changelog; this commit changes only the documentation ledger."
-    },
-    "d22b0986b9640302714d0ac45b12608b8214be30": {
-      "category": "operations",
-      "en": "",
-      "ru": "",
-      "exclusionScope": "docs-only",
-      "exclude": "Adds only bilingual Changelog classifications for semantic action accents and preceding documentation commits; application behavior is unchanged."
     }
   }
 }

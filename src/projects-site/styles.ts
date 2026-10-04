@@ -92,7 +92,11 @@ export const PROJECTS_STYLES=[THEME_CSS,FOUNDATION_CSS,BUTTON_CSS,TABLE_CSS,FORM
 .projects-ci-check-content { display: grid; min-width: 0; font-size: .75rem; line-height: 1.45; --button-width: 100%; }
 .projects-ci-check-name { align-self: center; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
 .projects-detail code { font: .66rem var(--font-mono); color: var(--text-muted); }
-.projects-findings { color: var(--status-info); font: .7rem/1.5 var(--font-mono); margin: 0; }
+.projects-findings { color: var(--text-muted); font: .7rem/1.5 var(--font-mono); margin: 0; display: flex; flex-wrap: wrap; gap: var(--space-1); }
+.projects-detail [data-note-tone="neutral"] { color: var(--text-muted); }
+.projects-detail [data-note-tone="info"] { color: var(--status-info); }
+.projects-detail [data-note-tone="warning"] { color: var(--status-warning); }
+.projects-detail [data-note-tone="failure"] { color: var(--status-failure); }
 .projects-action-grid { display: grid; gap: var(--space-2); }
 .projects-run-actions { display: grid; gap: var(--space-2); }
 .projects-action-pair { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); column-gap: var(--space-2); }

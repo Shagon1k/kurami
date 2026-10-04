@@ -8,6 +8,21 @@ import { renderButton } from "../../src/ui-library/components/button.ts";
 import { renderMailSection } from "../../src/briefing/ui/components/mail-section.ts";
 import { renderSelectionControl } from "../../src/briefing/ui/components/selection-control.ts";
 import { BRIEFING_STYLES } from "../../src/briefing/ui/styles.ts";
+import {renderEditionFreshness,refreshEditionFreshness} from '../../src/briefing/ui/components/edition-freshness.ts';
+import {withDigestLanguage} from '../../src/briefing/i18n.ts';
+
+for(const lang of ['en','ru'] as const)withDigestLanguage(lang,()=>{
+  const edition={generatedAt:'2026-09-30T06:00:00Z'};
+  const payload={edition,live:{state:'stale',refreshedAt:'2026-10-04T08:00:00Z',lastSuccessAt:'2026-10-03T07:00:00Z'}} as never;
+  const html=renderEditionFreshness(payload);
+  assert.match(html,/data-live-state="stale"/);assert.match(html,/datetime="2026-09-30T06:00:00Z"/);assert.match(html,/datetime="2026-10-03T07:00:00Z"/);
+  assert.doesNotMatch(html,/datetime="2026-10-04T08:00:00Z"/,'a failed/latest attempt is not presented as a successful refresh');
+  const missing=renderEditionFreshness({edition,live:{state:'failed',refreshedAt:'2026-10-04T08:00:00Z'}} as never);
+  assert.equal((missing.match(/<time /g)||[]).length,1,'unknown successful refresh has no invented date');
+  const original='<section class="hero"><h1>Invented edition</h1></section><article>Frozen copy</article>';
+  const refreshed=refreshEditionFreshness(original,payload);
+  assert.equal(refreshEditionFreshness(refreshed,payload),refreshed,'retained metadata is injected once');assert.ok(refreshed.endsWith('<article>Frozen copy</article>'));
+});
 
 const primary = renderButton({
   label: "Прочитать и архивировать",

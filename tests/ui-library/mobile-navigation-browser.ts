@@ -91,5 +91,16 @@ try{
     assert.equal(await devtools.evaluate('history.length'),length,'desktop never creates panel history');
     states++;
   }
-  console.log(`Mobile navigation: ${states} EN/RU fixtures verify reading/focus, Back/Forward/reload, preserved route state, persisted lifecycle, outside actions, large text and unchanged desktop history`);
+  await devtools.call('Page.navigate',{url:base+'/en/docs/'});await wait('document.readyState===\'complete\'');
+  await devtools.evaluate(`(()=>{const toc=document.querySelector('.toc-mobile__list').cloneNode(true);toc.className='toc';toc.style.cssText='position:fixed;top:80px;right:10px';document.querySelector('main').append(toc);document.documentElement.style.scrollBehavior='auto';document.getElementById('section-4').scrollIntoView({behavior:'instant'});})()`);
+  await wait(`document.querySelector('.toc [aria-current]').getAttribute('href')==='#section-4'`);
+  await devtools.evaluate(`document.querySelector('.toc a[href="#section-7"]').click()`);
+  await wait(`document.getElementById('section-7').dataset.anchorArrival==='true'`);
+  await delay(1900);assert.equal(await devtools.evaluate(`document.querySelector('[data-anchor-arrival]')===null`),true,'arrival cue clears without persistent decoration');
+  await devtools.call('Emulation.setEmulatedMedia',{features:[{name:'prefers-reduced-motion',value:'reduce'}]});
+  await devtools.evaluate(`document.querySelector('.toc a[href="#section-2"]').click()`);
+  await wait(`document.querySelector('.toc [aria-current]').getAttribute('href')==='#section-2'`);
+  await wait(`document.getElementById('section-2').dataset.anchorArrival==='true'`);
+  assert.equal(await devtools.evaluate(`getComputedStyle(document.getElementById('section-2')).animationName`),'none','reduced-motion anchor cue has no CSS animation');
+  console.log(`Mobile navigation: ${states} EN/RU fixtures verify reading/focus, Back/Forward/reload, preserved route state, persisted lifecycle, outside actions, large text and unchanged desktop history; desktop reading and transient/reduced-motion anchor cues verified`);
 }finally{await browser.close();await new Promise<void>(resolve=>server.close(()=>resolve()));}

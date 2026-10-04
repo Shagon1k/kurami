@@ -1,6 +1,7 @@
 export type Language="en"|"ru";
 export function language(params:URLSearchParams):Language{return params.get("lang")==="ru"?"ru":"en";}
 const messages:Record<string,string>={
+  "Expiry reached":"Срок истёк", "Expires soon":"Скоро истекает",
   "Checking PR…":"Проверяем PR…",
   "A status change is still synchronizing.":"Изменение статуса ещё синхронизируется.",
   "Action confirmed. Finish checking.":"Действие подтверждено. Завершите проверку результата.",

@@ -128,9 +128,9 @@ that all four backends are ready. Verify each backend and signed route separatel
 - Android Chrome installs **Kurami** from Hub; its manifest has stable ID `/`,
   start URL `/en/` and scope `/`. Switching among the four apps stays in the
   installed window. Hermes/Dokploy are external links. The cosmetic icon follow-up
-  uses separate transparent and adaptive PNGs: check the splash edges and the
+  uses separate regular and adaptive PNGs exported from SVG: check the splash edges and the
   larger fox inside circular and rounded-square launcher masks. The adaptive
-  background is plain theme paper. Exact exports and regeneration are in
+  background matches the splash: light `surface-section` warm beige. Exact exports and regeneration are in
   [the brand asset notes](../src/ui-library/assets/brand/README.md).
   Android owns the final launcher shape and splash composition; local previews
   cannot guarantee their rendering. Do not change headers or favicons with these

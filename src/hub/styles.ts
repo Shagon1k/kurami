@@ -75,6 +75,11 @@ body { min-height: 100vh; }
 .limit__head strong { font-size: 1rem; font-variant-numeric: tabular-nums; }
 .limit__track { height: 6px; margin: var(--space-2) 0; border-radius: var(--radius-sm); overflow: hidden; background: var(--surface-panel); }
 .limit__track span { display: block; width: var(--used); height: 100%; background: var(--accent-data); }
+.limit[data-tone="warning"] { --limit-tone: var(--status-warning); }
+.limit[data-tone="failure"] { --limit-tone: var(--status-failure); }
+.limit[data-tone]:not([data-tone="neutral"]) .limit__head strong { color: var(--limit-tone); }
+.limit[data-tone]:not([data-tone="neutral"]) .limit__track span { background: var(--limit-tone); }
+.control-changes { --table-font-size: .78rem; --table-cell-padding: var(--space-2); margin-block: var(--space-3); overflow-wrap: anywhere; }
 .limit__meta { color: var(--text-muted); font: .7rem/1.3 var(--font-mono); }
 .limit-history { padding-top: var(--space-5); }
 .limit-history .panel-heading { margin-bottom: var(--space-2); color: var(--text-muted); font-size: .75rem; }

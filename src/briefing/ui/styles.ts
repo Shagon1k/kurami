@@ -20,6 +20,14 @@ export const STORY_ACTIONS_LAYOUT_CSS=`
 `;
 /** Layout refresh shared by new pages and retained editions; edition data stays frozen. */
 export const DIGEST_POLISH_CSS=`
+.mail-row[data-selected="true"] { background:color-mix(in srgb,var(--status-info) 5%,var(--surface-raised)); border-inline-start:2px solid var(--status-info); padding-inline-start:var(--space-2); }
+.mail-row { border-inline-start:2px solid transparent; padding-inline-start:var(--space-2); }
+.edition-freshness { display:flex; flex-wrap:wrap; gap:var(--space-2) var(--space-5); margin:var(--space-4) 0; color:var(--text-muted); font-size:.75rem; }
+.edition-freshness > span { display:grid; gap:var(--space-1); }
+.edition-freshness strong { font-size:.7rem; font-weight:500; }
+.edition-freshness time { font-variant-numeric:tabular-nums; }
+.edition-freshness [data-live-state="stale"],.edition-freshness [data-live-state="partial"] { color:var(--status-warning); }
+.edition-freshness [data-live-state="failed"] { color:var(--status-failure); }
 .metric-strip { grid-template-columns:repeat(4,minmax(0,1fr)); }
 .cinema-winner b { font-size:clamp(24px,3vw,34px); }
 .cinema-rank__more { margin-top:var(--space-2); }

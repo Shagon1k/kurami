@@ -12,6 +12,10 @@ import {createProjectStore} from "./project-store.ts";
 import {syntheticHubSnapshot} from "../../src/ui-library/testing/fixtures.ts";
 
 const home=mkdtempSync(join(tmpdir(),"kurami-hub-test-"));
+for(const [remaining,tone]of [[20.1,'neutral'],[20,'warning'],[0.1,'warning'],[0,'failure']] as const){
+  const fixture=syntheticHubSnapshot();fixture.codex.limits[0]!.remainingPercent=remaining;
+  assert.match(renderHubDashboard(fixture),new RegExp(`<article class="limit" data-tone="${tone}"`));
+}
 try {
   mkdirSync(join(home,"config"));mkdirSync(join(home,"state"));
   writeFileSync(join(home,"config/projects.yaml"),`version: 1

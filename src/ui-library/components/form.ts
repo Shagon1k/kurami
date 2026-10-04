@@ -32,6 +32,8 @@ ${SELECTION_CONTROL_CSS}
 .form-select select { appearance: none; padding-inline-end: calc(var(--space-3) * 2 + 18px); cursor: pointer; }
 .form-select .ui-icon { position: absolute; inset-inline-end: var(--space-3); top: 50%; transform: translateY(-50%); pointer-events: none; color: var(--text-muted); }
 .form-field :disabled { color: var(--text-muted); background: var(--surface-panel); cursor: not-allowed; }
+.form-field[data-dirty="true"] :is(input,select):not(:disabled) { border-color: color-mix(in srgb,var(--status-info) 45%,var(--border-default)); background: color-mix(in srgb,var(--status-info) 5%,var(--surface-raised)); }
+.form-field[data-dirty="true"] > span:first-child { color: var(--status-info); }
 .form-select:has(:disabled) .ui-icon { opacity: .5; }
 @media (forced-colors: active) { .form-select select { appearance: auto; padding-inline-end: var(--space-3); } .form-select .ui-icon { display: none; } }
 `;

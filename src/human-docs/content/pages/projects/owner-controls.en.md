@@ -92,6 +92,12 @@ Removing a preview uses amber; marking it reviewed uses green. Cancel run and
 discarding work remain red. Starting a preview or review, opening links and
 marking a draft ready remain neutral; disabled actions stay gray.
 
+Review counts separate critical findings in red, important findings in amber and
+suggestions in neutral text. Ordinary action information and synchronization use
+blue; stale data and unconfirmed writes use amber. Explicitly failed or rejected
+run actions use red. Preview expiry is neutral until its last hour, then amber;
+an elapsed expiry is labeled without claiming that the environment has stopped.
+
 During a swipe, the panel follows your finger; a short drag returns it to place.
 The last task opens from page memory and then refreshes. Controls stay disabled
 until fresh data arrives. Vertical scrolling and form fields do not switch views;

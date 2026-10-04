@@ -20,8 +20,7 @@ import {syntheticHubSnapshot} from "../../src/ui-library/testing/fixtures.ts";
 import {syntheticProjectsSnapshot} from "../projects-site/fixture.ts";
 import {findBrowser,launchBrowser} from "../../src/ui-library/testing/devtools.ts";
 import {AUDIT_EXPRESSION} from "../../src/ui-library/testing/audit.ts";
-import {PWA_MANIFEST_ICONS} from "../../src/web/icons.ts";
-import {kuramiTheme} from "../../src/ui-library/themes/kurami.ts";
+import {PWA_BACKGROUND,PWA_MANIFEST_ICONS} from "../../src/web/icons.ts";
 
 const root=resolve(import.meta.dirname,"../.."),temporary=mkdtempSync(join(tmpdir(),"kurami-web-browser-"));
 const output=join(root,"dist/web-browser");mkdirSync(output,{recursive:true});
@@ -77,6 +76,18 @@ try{
   async function wait(expression:string){for(let attempt=0;attempt<100;attempt++){if(await devtools.evaluate<boolean>(expression))return;await delay(50);}throw new Error("Browser timeout: "+expression);}
   async function open(path:string){await devtools.evaluate("document.documentElement.dataset.webNavigation='previous'");await devtools.call("Page.navigate",{url:origin+path});try{await wait("document.documentElement.dataset.webNavigation!=='previous' && document.readyState==='complete' && !!document.getElementById('kurami-web-context')");}catch(error){throw new Error(path+": "+await devtools.evaluate("document.body.innerText.slice(0,250)"),{cause:error});}await devtools.evaluate("document.fonts.ready");}
   let checked=0;
+  const vector=readFileSync(join(root,'src/ui-library/assets/brand/kurami-fox-pwa-master-v3.svg'),'utf8');
+  const headerReference=readFileSync(join(root,'src/ui-library/assets/brand/kurami-fox-transparent.png'));
+  const fidelity=await devtools.evaluate<number[]>(`(async()=>{
+    const sources=[${JSON.stringify('data:image/png;base64,'+headerReference.toString('base64'))},${JSON.stringify('data:image/svg+xml;base64,'+Buffer.from(vector).toString('base64'))}];
+    const images=await Promise.all(sources.map(async src=>{const image=new Image();image.src=src;await image.decode();return image;}));
+    const pixels=images.map(image=>{const canvas=document.createElement('canvas');canvas.width=canvas.height=512;const context=canvas.getContext('2d');context.drawImage(image,0,0,512,512);return context.getImageData(0,0,512,512).data;});
+    const masks=[p=>p[3]>127,p=>p[3]>127&&p[0]>180&&p[1]<180&&p[2]<100,p=>p[3]>127&&p[0]>190&&p[1]>190&&p[2]>190];
+    return masks.map(mask=>{let difference=0,reference=0;for(let i=0;i<pixels[0].length;i+=4){const a=mask(pixels[0].subarray(i,i+4)),b=mask(pixels[1].subarray(i,i+4));reference+=a?1:0;difference+=a!==b?1:0;}return difference/reference;});
+  })()`);
+  assert(fidelity[0]!<0.03,'PWA silhouette matches the header fox, not a redesigned outline: '+JSON.stringify(fidelity));
+  assert(fidelity[1]!<0.05,'PWA forehead, muzzle and ears follow the header reference: '+JSON.stringify(fidelity));
+  assert(fidelity[2]!<0.06,'PWA cheeks follow the header reference: '+JSON.stringify(fidelity));
   await open("/en/");
   const firstManifest=await devtools.call<{data:string;errors:unknown[]}>("Page.getAppManifest");
   assert.deepEqual(firstManifest.errors,[],"authenticated Chrome must fetch the Hub manifest without an anonymous Access failure");
@@ -84,30 +95,40 @@ try{
   const installability=await devtools.call<{installabilityErrors:unknown[]}>("Page.getInstallabilityErrors");
   assert.deepEqual(installability.installabilityErrors,[],"Chrome's installability checks pass behind cookie-protected Access");
   assert.deepEqual(JSON.parse(firstManifest.data).icons,PWA_MANIFEST_ICONS);
-  const iconChecks=await devtools.evaluate<Array<{purpose:string;size:number;width:number;height:number;opaque:boolean;cornerAlpha:number;coverage:number;radius:number}>>(`(async()=>{
-    const bg=${JSON.stringify(kuramiTheme.light.colors["surface-page"])};const rgb=[1,3,5].map(i=>parseInt(bg.slice(i,i+2),16));const results=[];
+  assert.equal(JSON.parse(firstManifest.data).background_color,PWA_BACKGROUND);
+  assert.equal(JSON.parse(firstManifest.data).theme_color,PWA_BACKGROUND);
+  const iconChecks=await devtools.evaluate<Array<{purpose:string;size:number;width:number;height:number;opaque:boolean;corner:number[];center:number[];softEdgePixels:number;coverage:number;radius:number}>>(`(async()=>{
+    const bg=${JSON.stringify(PWA_BACKGROUND)};const rgb=[1,3,5].map(i=>parseInt(bg.slice(i,i+2),16));const results=[];
     for(const asset of ${JSON.stringify(PWA_MANIFEST_ICONS)}){
       const image=new Image();image.src=asset.src;await image.decode();const size=parseInt(asset.sizes);
       const canvas=document.createElement('canvas');canvas.width=canvas.height=size;const context=canvas.getContext('2d');context.drawImage(image,0,0);
       const pixels=context.getImageData(0,0,size,size).data;let opaque=true,left=size,right=-1,top=size,bottom=-1,radius=0;
       for(let y=0;y<size;y++)for(let x=0;x<size;x++){
         const i=(y*size+x)*4;opaque=opaque&&pixels[i+3]===255;
-        const foreground=asset.purpose==='any'?pixels[i+3]>8:rgb.some((value,channel)=>Math.abs(pixels[i+channel]-value)>8);
+        const foreground=rgb.some((value,channel)=>Math.abs(pixels[i+channel]-value)>8);
         if(foreground){left=Math.min(left,x);right=Math.max(right,x);top=Math.min(top,y);bottom=Math.max(bottom,y);radius=Math.max(radius,Math.hypot(x+0.5-size/2,y+0.5-size/2)/size);}
       }
-      results.push({purpose:asset.purpose,size,width:image.naturalWidth,height:image.naturalHeight,opaque,cornerAlpha:pixels[3],coverage:Math.max(right-left+1,bottom-top+1)/size,radius});
+      const y=Math.floor(size/2);let boundary=-1,softEdgePixels=0;
+      for(let x=0;x<size/2;x++){const i=(y*size+x)*4;if(rgb.some((value,channel)=>Math.abs(pixels[i+channel]-value)>8)){boundary=x;break;}}
+      if(boundary<0)throw new Error('Missing fox silhouette');
+      for(let x=Math.max(0,boundary-2);x<boundary+5;x++){const i=(y*size+x)*4;if(rgb.some((value,channel)=>Math.abs(pixels[i+channel]-value)>8)&&[0,1,2].some(channel=>pixels[i+channel]>8))softEdgePixels++;}
+      const centerIndex=(y*size+Math.floor(size/2))*4;
+      results.push({purpose:asset.purpose,size,width:image.naturalWidth,height:image.naturalHeight,opaque,corner:[...pixels.slice(0,4)],center:[...pixels.slice(centerIndex,centerIndex+4)],softEdgePixels,coverage:Math.max(right-left+1,bottom-top+1)/size,radius});
     }
     return results;
   })()`);
   for(const icon of iconChecks){
     assert.equal(icon.width,icon.size);assert.equal(icon.height,icon.size);
+    assert.equal(icon.opaque,true,'all PWA exports have a solid warm paper plate');
+    assert.deepEqual(icon.corner,[...PWA_BACKGROUND.slice(1).match(/../g)!.map(value=>parseInt(value,16)),255],'icon and native splash use the identical theme background');
+    assert.deepEqual(icon.center,[252,69,1,255],'the vector uses the header reference orange, without raster texture');
+    assert(icon.softEdgePixels<=2,'outer edge has only a narrow antialiasing fringe, not a blurred raster halo');
     if(icon.purpose==="maskable"){
       assert.equal(icon.opaque,true,"adaptive exports fill the launcher plate");
       assert(icon.radius<=0.4,"all visible artwork fits the circular safe zone");
       assert(icon.coverage>0.65&&icon.coverage<0.8,"adaptive mark fills its safe area, without extra inset padding");
     }else{
-      assert.equal(icon.cornerAlpha,0,"splash/install artwork remains transparent");
-      assert(icon.coverage>0.9&&icon.coverage<0.94,"transparent mark has only a small outer margin");
+      assert(icon.coverage>0.9&&icon.coverage<0.94,"splash mark has only a small outer margin");
     }
   }
   for(const lang of ["en","ru"] as const)for(const width of [320,390,1280])for(const path of [`/${lang}/`,`/${lang}/digest/`,`/${lang}/digest/cinema/`,`/${lang}/digest/weekly/`,`/${lang}/digest/stocks/`,`/${lang}/projects/?project=alpha`,`/${lang}/docs/`,`/${lang}/docs/run-lifecycle/`]){
@@ -124,6 +145,12 @@ try{
       assert.match(await devtools.evaluate<string>("document.querySelector('[data-mail-archive]').textContent"),lang==="en"?/Read and archive/:/Прочитать и архивировать/);
       await devtools.evaluate("document.querySelector('[data-mail-select]').click()");
       assert.equal(await devtools.evaluate("document.querySelector('[data-mail-archive]').disabled"),false,path+" selecting mail enables archive without submitting it");
+      assert.equal(await devtools.evaluate("document.querySelector('[data-mail-select]').closest('[data-mail-item]').dataset.selected"),'true',path+' selected mail has a row accent');
+      await devtools.evaluate("document.querySelector('[data-mail-select-all]').click()");
+      assert.equal(await devtools.evaluate("document.querySelector('[data-mail-item]').dataset.selected"),'false',path+' clearing Select all removes the row accent');
+      await devtools.evaluate("document.querySelector('[data-mail-select-all]').click()");
+      assert.equal(await devtools.evaluate("[...document.querySelectorAll('[data-mail-select]:not(:disabled)')].every(input=>input.closest('[data-mail-item]').dataset.selected==='true')"),true,path+' Select all accents all actionable messages');
+      assert.equal(await devtools.evaluate("document.querySelectorAll('[data-edition-freshness]').length"),1,path+' separate edition/source metadata survives retained-page injection');
     }
     assert.equal(await devtools.evaluate("document.querySelector('.site-brand__fox').naturalWidth>0"),true,path+" fox loaded");
     assert.deepEqual(await devtools.evaluate(AUDIT_EXPRESSION),[],path+" "+width);

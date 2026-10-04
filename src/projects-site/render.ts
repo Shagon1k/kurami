@@ -26,6 +26,21 @@ export function localTime(value:string|null,lang:Language="en"):string {
 }
 function stateValue(label:string,tone:PillTone):string{return `<span class="projects-signal projects-signal--${tone}">${escape(label)}</span>`;}
 function signal(value:Signal,lang:Language):string{return stateValue(stateLabel(value.state,lang),value.tone);}
+type NoteTone="info"|"warning"|"failure"|"neutral";
+function noteTone(state:string):NoteTone{return ["failed","rejected"].includes(state)?"failure":["uncertain","conflict","stale","unsupported","unavailable","superseded","no_head"].includes(state)?"warning":state==="ready"?"neutral":"info";}
+function actionNote(label:string,tone:NoteTone="info"):string{return `<p class="projects-action-note" data-note-tone="${tone}">${escape(label)}</p>`;}
+function reviewFindings(item:ProjectItem,lang:Language):string {
+  if(item.review.state!=="ready")return "";
+  const counts=([['critical','failure'],['important','warning'],['suggestions','neutral']] as const)
+    .filter(([kind])=>item.review[kind]>0).map(([kind,tone])=>`<span data-note-tone="${tone}">${item.review[kind]} ${escape(tr(kind,lang))}</span>`).join('<span aria-hidden="true"> · </span>');
+  return counts?`<p class="projects-findings">${counts}</p>`:"";
+}
+function previewExpiry(item:ProjectItem,lang:Language,at:string):string {
+  const expiry=item.preview.expiresAt;if(!expiry||!Number.isFinite(Date.parse(expiry)))return "";
+  const active=['running','outdated','expired'].includes(item.preview.state);
+  const remaining=Date.parse(expiry)-Date.parse(at),warning=active&&Number.isFinite(remaining)&&remaining<=3_600_000;
+  return `<p class="projects-info"${active?` data-preview-expiry="${escape(expiry)}"`:''} data-note-tone="${warning?'warning':'neutral'}">${escape(tr("Expires",lang))} ${escape(localTime(expiry,lang))}<span data-expiry-label>${active&&remaining<=0?` · ${tr("Expiry reached",lang)}`:warning?` · ${tr("Expires soon",lang)}`:""}</span></p>`;
+}
 function statusTone(item:ProjectItem,project:ProjectSummary):PillTone {
   return item.status===project.statuses.done?"success":item.status===project.statuses.review?"warning":item.status===project.statuses.active?"info":"neutral";
 }
@@ -81,7 +96,7 @@ export function renderProjectsDashboard(snapshot:ProjectsSnapshot,params=new URL
   return `<div class="projects-overview"><div class="projects-summary"><p>${renderIcon("project")}<span><strong data-visible-count>${items.length}</strong> ${t("of")} ${snapshot.items.length} ${t("tasks")}</span></p><div class="projects-filters">${counter("active",active,"active","work",filters.activeOnly,"Tasks in progress or waiting for your attention.")}${counter("attention",attention,"need you","alert",filters.attentionOnly,"Tasks waiting for your attention.")}</div></div><div class="projects-sync"><span class="projects-sync-indicator projects-sync-indicator--${delayed?"delayed":"fresh"}" aria-hidden="true"></span>${renderButton({label:`${t("Sync")} · ${t(delayed?"Delayed":"Up to date")}`,compactLabel:lang==="ru"?t("Sync short"):t("Sync"),iconPath:iconPath("refresh"),visibleLabel:true,variant:"quiet",attributes:{popovertarget:"projects-sync-popover","data-sync-trigger":true,title:`${t("Sync")} · ${t(delayed?"Delayed":"Up to date")}`}})}${renderPopover({id:"projects-sync-popover",label:t("Sync"),body:freshBody})}</div></div>
     <div class="projects-mobile-sort" aria-label="${t("Sort by")}">${sortControl("task","Task",params,lang)}${sortControl("status","Status",params,lang)}${sortControl("kurami","Kurami",params,lang)}</div>
     ${snapshot.available?"":renderCallout({tone:"warning",title:t("Data temporarily unavailable"),body:t("Check the current state in GitHub or Discord.")})}
-    <div class="projects-grid${selected?" projects-grid--detail":""}"><div class="projects-table-frame">${table}<div data-search-empty hidden>${renderCallout({tone:"note",title:t("No tasks match your search."),body:""})}</div></div>${selected?detail(selected,params,projectOf(selected)):""}</div>`;
+    <div class="projects-grid${selected?" projects-grid--detail":""}"><div class="projects-table-frame">${table}<div data-search-empty hidden>${renderCallout({tone:"note",title:t("No tasks match your search."),body:""})}</div></div>${selected?detail(selected,params,projectOf(selected),snapshot.generatedAt):""}</div>`;
 }
 function ciDetails(item:ProjectItem,project:ProjectSummary,lang:Language):string {
   const checks=item.ci.checks??[],t=(key:string)=>tr(key,lang);
@@ -96,15 +111,15 @@ function ciDetails(item:ProjectItem,project:ProjectSummary,lang:Language):string
   }).join("");
   return renderDisclosure({summary:`${t("Checks")} · ${checks.length}`,variant:"inline",className:"projects-ci-details",key:`ci:${item.id}:${item.ci.head??"unknown"}`,open:checks.some(check=>["failed","missing"].includes(check.state)),body:`<ul class="projects-ci-checks">${rows}</ul>${item.ci.observedAt?`<p class="projects-update">${t("Checked")} ${escape(localTime(item.ci.observedAt,lang))}</p>`:""}`});
 }
-function detail(item:ProjectItem,params:URLSearchParams,project:ProjectSummary):string {
+function detail(item:ProjectItem,params:URLSearchParams,project:ProjectSummary,at:string):string {
   const lang=language(params),t=(key:string)=>tr(key,lang);
   const reasons:Record<string,string>={pending:"A review or another action is already running.",unstable:"Review is available after current work finishes.",no_head:"The current PR commit is not verified yet.",ready:"This commit has already been reviewed.",stale:"Wait for fresh sync data.",superseded:"This run is no longer current."};
   const review=item.aiReview&&item.runId&&item.aiReview.reason!=="ready"?renderButton({label:"AI Review",iconPath:iconPath("review"),visibleLabel:true,variant:"subtle",size:"compact",disabled:!item.aiReview.enabled,busyLabel:t("Sending…"),attributes:{"data-review-run":item.runId,"data-review-project":item.project,"data-review-item":item.id,"data-review-head":item.aiReview.head??"","data-review-key":randomUUID()}}):"";
-  const reviewNote=item.aiReview&&item.runId&&!item.aiReview.enabled?`<p class="projects-action-note">${t(reasons[item.aiReview.reason]??"Review is currently unavailable.")}</p>`:"";
+  const reviewNote=item.aiReview&&item.runId&&!item.aiReview.enabled?actionNote(t(reasons[item.aiReview.reason]??"Review is currently unavailable."),noteTone(item.aiReview.reason)):"";
   const heads=[item.ci.head,item.review.head,item.preview.head];
   const commonHead=heads.every(head=>head&&head===heads[0])?heads[0]:null;
   const evidence=(name:string,icon:IconName,value:Signal,extra="")=>`<div class="projects-evidence-row"><div class="projects-evidence-heading"><div class="projects-evidence-label">${renderIcon(icon)}<strong>${t(name)}</strong></div>${signal(value,lang)}</div>${!commonHead&&value.state!=="none"?`<code title="${escape(value.head??"")}">${value.head?escape(value.head.slice(0,12)):t("Unverified")}</code>`:""}${extra}</div>`;
-  const findingCounts=item.review.state==="ready"?[item.review.critical?`${item.review.critical} ${t("critical")}`:"",item.review.important?`${item.review.important} ${t("important")}`:"",item.review.suggestions?`${item.review.suggestions} ${t("suggestions")}`:""].filter(Boolean).join(" · "):"";
+  const findings=reviewFindings(item,lang);
   const resource=(name:string,url:string|null,icon:IconName)=>navigation(name,url,lang)?renderLinkButton({label:t(name),href:url!,variant:"subtle",size:"compact",iconPath:iconPath(icon)}):"";
   const links=resource("Issue",item.links.issue,"project")+resource("PR",item.links.pr,"branch")+resource("Review",item.links.review,"review")+resource("Discord",item.links.discord,"message");
   const editor=statusForm(item,lang);
@@ -112,26 +127,26 @@ function detail(item:ProjectItem,params:URLSearchParams,project:ProjectSummary):
   return `<aside class="projects-detail" id="project-details" data-detail-item="${escape(item.id)}" aria-labelledby="project-details-title" tabindex="-1"><div class="projects-detail-top"><p class="projects-detail-meta">${renderIcon("project")}${escape(project.name)}<span class="projects-task-id">${item.number?`#${item.number}`:t("Draft")}</span></p>${renderLinkButton({label:t("Back to tasks"),href:itemUrl(params),variant:"quiet",attributes:{"data-item-close":true}})}</div><h2 id="project-details-title">${escape(item.title||t("Untitled task"))}</h2><div class="projects-detail-badges">${renderPill({label:item.status??t("No status"),tone:statusTone(item,project)})}${stateValue(projectStageLabel(item,lang),runTone(item))}${item.suggestedNext?renderPill({label:t("Suggested next"),tone:"info",icon:"spark"}):""}</div><div class="projects-links">${links}</div>
     ${item.suggestedNext?`<div class="projects-recommendation">${renderIcon("spark")}<p>${escape(sourceText(item.suggestedNext.explanation,lang))}</p></div>`:""}
     ${statusEditor}${item.detail?`<p class="projects-context">${escape(sourceText(item.detail,lang))}</p>`:""}
-    <section class="projects-detail-section"><h3>${renderIcon("ci")}${t("Evidence")}</h3>${commonHead?`<p class="projects-update">${t("Current commit")} <code title="${escape(commonHead)}">${escape(commonHead.slice(0,12))}</code></p>`:""}<div class="projects-evidence">${evidence("CI","ci",item.ci,ciDetails(item,project,lang)+runActions(item,lang,["ci_repair"]))}${evidence("AI Review","review",item.review,`${findingCounts?`<p class="projects-findings">${escape(findingCounts)}</p>`:""}${reviewNote}${runActions(item,lang,["review_fix"],review)}`)}${evidence("Preview","preview",item.preview,`${item.preview.expiresAt?`<p class="projects-info">${t("Expires")} ${escape(localTime(item.preview.expiresAt,lang))}</p>`:""}${runActions(item,lang,["preview_start","preview_reviewed","preview_stop"],resource("Open preview",item.links.preview,"arrow"))}`)}</div>
+    <section class="projects-detail-section"><h3>${renderIcon("ci")}${t("Evidence")}</h3>${commonHead?`<p class="projects-update">${t("Current commit")} <code title="${escape(commonHead)}">${escape(commonHead.slice(0,12))}</code></p>`:""}<div class="projects-evidence">${evidence("CI","ci",item.ci,ciDetails(item,project,lang)+runActions(item,lang,["ci_repair"]))}${evidence("AI Review","review",item.review,`${findings}${reviewNote}${runActions(item,lang,["review_fix"],review)}`)}${evidence("Preview","preview",item.preview,`${previewExpiry(item,lang,at)}${runActions(item,lang,["preview_start","preview_reviewed","preview_stop"],resource("Open preview",item.links.preview,"arrow"))}`)}</div>
     ${item.reviewRequestFailed?renderCallout({tone:"warning",title:t("AI Review did not start"),body:t("Refresh and retry for the current PR commit.")}):""}</section>${runActionControls(item,lang)}${item.runUpdatedAt?`<p class="projects-update">${t("Updated")} ${escape(localTime(item.runUpdatedAt,lang))}</p>`:""}</aside>`;
 }
 function runActionControls(item:ProjectItem,lang:Language):string {
   if(!item.runActions||!item.runId)return "";
   const t=(key:string)=>tr(key,lang);
-  if(item.runActions.reason==="unavailable")return `<p class="projects-action-note">${t("Run controls are not available yet.")}</p>`;
+  if(item.runActions.reason==="unavailable")return actionNote(t("Run controls are not available yet."),"warning");
   const pr=item.prControlsEnabled||item.prActions?`<div class="projects-run-action" data-pr-slot data-pr-project="${escape(item.project)}" data-pr-item="${escape(item.id)}">${renderProjectPrControl(item.prActions,lang)}</div>`:"";
   const controls=runActions(item,lang,["take_control","recover_managed_task"])+runActions(item,lang,["stop","discard_local","discard_published"],"",pr);
   const sections=controls?`<div class="projects-detail-section projects-run-actions">${controls}</div>`:"";
-  return (item.runActions.reason==="stale"?`<p class="projects-action-note">${t("Wait for fresh sync data.")}</p>`:"")+sections;
+  return (item.runActions.reason==="stale"?actionNote(t("Wait for fresh sync data."),"warning"):"")+sections;
 }
 export function renderProjectPrControl(view:PrActionView|undefined,lang:Language):string {
   const t=(key:string)=>tr(key,lang);
   if(!view)return renderButton({label:t("Checking PR…"),variant:"subtle",size:"compact",disabled:true})+"<div></div>";
-  if(!view.action)return `<p class="projects-action-note">${escape(t(view.reason))}</p>`;
-  if(view.checkOnly)return renderButton({label:t("Check result"),variant:"subtle",iconPath:iconPath("refresh"),visibleLabel:true,size:"compact",disabled:!view.enabled,busyLabel:t("Sending…"),attributes:{"data-pr-action":view.action,"data-pr-check":true,"data-pr-method-value":view.method??"","data-pr-head":view.head,"data-pr-fingerprint":view.fingerprint,"data-pr-key":view.key}})+`<div class="projects-run-action-meta"><p class="projects-action-note">${escape(t(view.reason))}</p></div>`;
+  if(!view.action)return actionNote(t(view.reason),view.noteTone??"warning");
+  if(view.checkOnly)return renderButton({label:t("Check result"),variant:"subtle",iconPath:iconPath("refresh"),visibleLabel:true,size:"compact",disabled:!view.enabled,busyLabel:t("Sending…"),attributes:{"data-pr-action":view.action,"data-pr-check":true,"data-pr-method-value":view.method??"","data-pr-head":view.head,"data-pr-fingerprint":view.fingerprint,"data-pr-key":view.key}})+`<div class="projects-run-action-meta">${actionNote(t(view.reason),view.noteTone??"info")}</div>`;
   const merge=view.action==="merge",id=`projects-pr-confirm-${randomUUID()}`;
   const button=renderButton({label:t(merge?"Merge PR":"Ready for review"),variant:merge?"success":"subtle",iconPath:iconPath(merge?"branch":"check"),visibleLabel:true,size:"compact",disabled:!view.enabled,busyLabel:t("Sending…"),attributes:{"data-pr-action":view.action,"data-pr-head":view.head,"data-pr-fingerprint":view.fingerprint,"data-pr-key":randomUUID(),"data-pr-confirm-target":id,"aria-expanded":"false","aria-controls":id}});
-  const note=view.reason?`<p class="projects-action-note">${escape(t(view.reason))}</p>`:"";
+  const note=view.reason?actionNote(t(view.reason),view.noteTone??(view.enabled?"info":"warning")):"";
   const labels={squash:"Squash",rebase:"Rebase",merge:"Merge commit"};
   const confirmLabels={squash:"Squash and merge",rebase:"Rebase and merge",merge:"Create merge commit"};
   const choices=merge?`<div class="projects-pr-methods" data-pr-choices>${view.methods.map(method=>renderButton({label:t(labels[method]),variant:"quiet",attributes:{"data-pr-method":method,"data-pr-confirm-label":t(confirmLabels[method])}})).join("")}</div>`:"";
@@ -153,7 +168,7 @@ function runActions(item:ProjectItem,lang:Language,actions:string[],leading="",t
     const confirmId=action.confirmation?`projects-confirm-${randomUUID()}`:null;
     if(confirmId)confirmations.push(`<div id="${confirmId}" class="projects-action-confirmation" data-run-confirm-panel hidden><p class="projects-action-note">${escape(sourceText(action.confirmation!,lang))}</p><div class="projects-confirm-buttons">${renderButton({label:t("Cancel"),variant:"quiet",attributes:{"data-run-dismiss":true}})}${renderButton({label:t("Confirm deletion"),variant:"danger",attributes:{"data-run-confirm":true}})}</div></div>`);
     const control=renderButton({label:sourceText(action.label,lang),iconPath:iconPath(icons[action.action]!),visibleLabel:true,size:"compact",variant:variants[action.action]??"subtle",disabled:!action.enabled,busyLabel:t("Sending…"),attributes:{"data-run-action":action.action,"data-run-id":item.runId!,"data-run-project":item.project,"data-run-item":item.id,"data-run-fingerprint":item.runActions!.fingerprint,"data-run-key":randomUUID(),...(confirmId?{"data-run-confirmation":sourceText(action.confirmation!,lang),"data-run-confirm-target":confirmId}:{})}});
-    const notes=(action.state?`<p class="projects-action-note">${t(states[action.state]??"")}</p>`:"")+(action.hint?`<p class="projects-action-note">${escape(sourceText(action.hint,lang))}</p>`:"");
+    const notes=(action.state?actionNote(t(states[action.state]??""),noteTone(action.state)):"")+(action.hint?actionNote(sourceText(action.hint,lang),action.enabled?"info":"warning"):"");
     return wrap(control,notes);
   });
   return grid([...(leading?[wrap(leading)]:[]),...controls,...(trailing?[trailing]:[])],confirmations);
@@ -165,7 +180,8 @@ function statusForm(item:ProjectItem,lang:Language):string {
   const choices=[{value:item.status??"",label:item.status??t("No status")},...control.choices.filter(choice=>choice.value!==item.status)];
   if(pending&&!choices.some(choice=>choice.value===selected))choices.push({value:selected,label:selected});
   const note=t(messages[request?.state??control.reason]??"");
-  return `<form class="projects-status-form" method="post" action="/api/status" data-status-form data-project="${escape(item.project)}" data-item="${escape(item.id)}" data-from="${escape(JSON.stringify(from))}" data-observed-at="${escape(item.observedAt)}" data-key="${pending&&request?escape(request.key):randomUUID()}" data-check="${pending}" data-target="${escape(selected)}" data-hints="${escape(JSON.stringify(Object.fromEntries(control.choices.map(choice=>[choice.value,sourceText(choice.hint,lang)]))))}"><div class="projects-status-controls">${renderSelectField({name:"target",label:t("Status"),value:selected,options:choices,disabled:!control.enabled})}${renderButton({label:t(pending?"Check result":"Save"),iconPath:iconPath(pending?"refresh":"check"),visibleLabel:true,variant:pending?"subtle":"info",type:"submit",disabled:pending?!request?.checkAvailable:true,busyLabel:"…",attributes:{"data-status-submit":true}})}</div><p class="projects-status-note" data-status-note data-default-note="${escape(note)}"${control.enabled&&!request?" hidden":""}>${escape(note)}</p></form>`;
+  const tone=request?.state==="failed"?"warning":noteTone(request?.state??control.reason);
+  return `<form class="projects-status-form" method="post" action="/api/status" data-status-form data-project="${escape(item.project)}" data-item="${escape(item.id)}" data-from="${escape(JSON.stringify(from))}" data-observed-at="${escape(item.observedAt)}" data-key="${pending&&request?escape(request.key):randomUUID()}" data-check="${pending}" data-target="${escape(selected)}" data-hints="${escape(JSON.stringify(Object.fromEntries(control.choices.map(choice=>[choice.value,sourceText(choice.hint,lang)]))))}"><div class="projects-status-controls">${renderSelectField({name:"target",label:t("Status"),value:selected,options:choices,disabled:!control.enabled})}${renderButton({label:t(pending?"Check result":"Save"),iconPath:iconPath(pending?"refresh":"check"),visibleLabel:true,variant:pending?"subtle":"info",type:"submit",disabled:pending?!request?.checkAvailable:true,busyLabel:"…",attributes:{"data-status-submit":true}})}</div><p class="projects-status-note" data-status-note data-note-tone="${tone}" data-default-note="${escape(note)}"${control.enabled&&!request?" hidden":""}>${escape(note)}</p></form>`;
 }
 export function renderProjectsPage(snapshot:ProjectsSnapshot,params=new URLSearchParams()):string {
   const lang=language(params),t=(key:string)=>tr(key,lang),filters=parseFilters(params);

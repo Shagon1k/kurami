@@ -11,7 +11,7 @@ import {PROJECTS_STALE_AFTER_MS} from "./model.ts";
 export type PrActionInput={project:string;itemId:string;action:"ready"|"merge";head:string;fingerprint:string;key:string;confirmed:boolean;method:MergeMethod|null;checkOnly?:boolean};
 type RequestState="checking"|"writing"|"pending"|"applied"|"failed"|"conflict"|"uncertain";
 export type PrActionResult={state:RequestState;requestId:string};
-export type PrActionView={action:"ready"|"merge"|null;enabled:boolean;reason:string;head:string;fingerprint:string;methods:MergeMethod[];number:number|null;base:string;key?:string;method?:MergeMethod|null;checkOnly?:boolean};
+export type PrActionView={action:"ready"|"merge"|null;enabled:boolean;reason:string;noteTone?:"neutral"|"info"|"warning"|"failure";head:string;fingerprint:string;methods:MergeMethod[];number:number|null;base:string;key?:string;method?:MergeMethod|null;checkOnly?:boolean};
 type Options={home?:string;now?:()=>Date;github?:PullRequestClient};
 type Context={runId:string;repository:string;number:number;head:string;url:string};
 type Row={request_id:string;project:string;item_id:string;run_id:string;actor_subject:string;client_key:string;action:"ready"|"merge";merge_method:MergeMethod|null;repository:string;pr_number:number;pr_id:string;head_sha:string;fingerprint:string;request_state:RequestState;github_request_uuid:string|null;updated_at:string};
@@ -49,7 +49,7 @@ function fingerprint(c:Context,p:PullRequestState):string {
 function view(c:Context,p:PullRequestState):PrActionView {
   if(p.url.toLowerCase()!==c.url.toLowerCase())throw new Error("GitHub PR identity changed");
   const result:PrActionView={action:p.draft?"ready":"merge",enabled:false,reason:"",head:p.head,fingerprint:fingerprint(c,p),methods:p.methods,number:c.number,base:p.base};
-  if(p.state!=="OPEN")return {...result,action:null,reason:p.state==="MERGED"?"PR merged.":"PR closed."};
+  if(p.state!=="OPEN")return {...result,action:null,noteTone:"neutral",reason:p.state==="MERGED"?"PR merged.":"PR closed."};
   if(p.head!==c.head)return {...result,reason:"PR commit changed. Wait for CI sync."};
   if(p.draft)return {...result,enabled:p.canUpdate,reason:p.canUpdate?"":"GitHub permissions do not allow this action."};
   const reason=p.rulesKnown===false?"GitHub branch rules could not be checked.":!p.canMerge?"GitHub permissions do not allow this action.":p.stacked||!p.defaultBase?"Merge this branch or stack in GitHub.":
@@ -86,6 +86,7 @@ export async function inspectProjectPr(project:string,itemId:string,options:Opti
     if(row&&active.includes(row.request_state)) {
       const state=await observed(row,p,github);
       return {...view(c,p),action:row.action,head:row.head_sha,fingerprint:row.fingerprint,key:row.client_key,method:row.merge_method,checkOnly:true,
+        noteTone:state==="uncertain"?"warning":state==="failed"||state==="conflict"?"failure":"info",
         enabled:(options.now??(()=>new Date()))().getTime()-Date.parse(row.updated_at)>=30_000,
         reason:state==="applied"?"Action confirmed. Finish checking.":state==="failed"||state==="conflict"?"GitHub did not complete this PR action.":state==="uncertain"?"PR action unconfirmed. Check its result in GitHub.":"GitHub is processing this PR action."};
     }

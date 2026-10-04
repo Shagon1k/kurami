@@ -22,6 +22,7 @@ export const DISCLOSURE_CSS = `
 .disclosure__chevron { display: inline-flex; flex: none; width: 14px; height: 14px; transform: rotate(-90deg); transition: transform var(--duration-fast); }
 .disclosure__chevron svg { width: 100%; height: 100%; fill: none; stroke: currentColor; stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round; }
 .disclosure--inline[open] > summary .disclosure__chevron { transform: rotate(0); }
+.disclosure--inline[open] > summary { color: var(--text-primary); background: var(--surface-section); }
 .disclosure--inline > summary:hover { color: var(--text-primary); background: var(--surface-section); }
 .disclosure--inline > summary:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 2px; }
 .disclosure--row { --disclosure-summary-row: 1; --disclosure-body-row: 2; --disclosure-row-span: 2; display: grid; min-width: 0; grid-template-columns: subgrid; grid-template-rows: subgrid; grid-column: 1 / -1; grid-row: 1 / span var(--disclosure-row-span); pointer-events: none; }
