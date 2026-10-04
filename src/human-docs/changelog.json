@@ -2,6 +2,26 @@
   "baseline": "4a38c09",
   "publicationBaseline": "788787f077d42fc3b3346a4f4a612947b97ce2e8",
   "commits": {
+    "f130acf1f287a4e3e24aa727963d454b75ac56cb": {
+      "category": "improved",
+      "en": "Hub distinguishes low and exhausted quotas, highlights changed fields and confirms settings with a Before/After table. Projects separates review severity, pending or uncertain notes and active preview expiry warnings. Digest highlights selected Mail and separates edition creation from the last successful source refresh. Shared disclosures have neutral open headers; anchor arrivals briefly highlight the heading, and desktop Docs contents follows the reading position. Both themes use existing semantic colours without changing action eligibility or desktop header navigation.",
+      "ru": "Hub различает низкий и исчерпанный остаток лимита, подсвечивает изменённые поля и показывает таблицу «Было / Стало» перед применением настроек. Projects разделяет важность замечаний ревью, ожидание и неподтверждённые результаты, предупреждает о скором истечении активного preview. Digest выделяет выбранные письма и отделяет время создания выпуска от последнего успешного обновления источников. Раскрытые блоки имеют нейтральные заголовки; переход по якорю ненадолго выделяет заголовок, а оглавление Docs на desktop следует за чтением. Обе темы используют существующие смысловые цвета; доступность действий и навигация в desktop-хедере не изменены.",
+      "page": "ui-library"
+    },
+    "d22b0986b9640302714d0ac45b12608b8214be30": {
+      "category": "operations",
+      "en": "",
+      "ru": "",
+      "exclusionScope": "docs-only",
+      "exclude": "Adds only the reviewed bilingual Changelog classification for semantic action accents; application behavior is unchanged."
+    },
+    "0381a868f8dd6b666009558a57e402ba59a51a86": {
+      "category": "operations",
+      "en": "",
+      "ru": "",
+      "exclusionScope": "docs-only",
+      "exclude": "Classifies the existing Cinema source-consistency fix in the Changelog; application behavior is unchanged."
+    },
     "60cd8f20f8eb26bbc5854d660ee2e57faed86a9d": {
       "category": "improved",
       "en": "Hub, Projects and Digest Mail use restrained action accents from the shared UI library: blue for applying changes and starting fixes, amber for resets and removing preview environments, green for completion, and red for cancelling runs or discarding work. Hub confirmations choose their accent for the operation. Disabled buttons remain gray; navigation and cancellation stay neutral. Both themes use the existing semantic colours.",
