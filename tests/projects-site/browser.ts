@@ -7,12 +7,15 @@ import { createProjectsServer } from "../../src/projects-site/server.ts";
 import { findBrowser, launchBrowser } from "../../src/ui-library/testing/devtools.ts";
 import { AUDIT_EXPRESSION, inventoryExpression } from "../../src/ui-library/testing/audit.ts";
 import { syntheticProjectsSnapshot } from "./fixture.ts";
+import {RUN_ACTIONS} from "../../src/projects-site/run-actions.ts";
 
 let unavailable = false;
 let dense=false;
 let previewReady=false;
 let semanticNotes=false;
 let reviewFixScenario:string|null=null;
+let runNotesScenario:string|null=null;
+let previewStopOnly=false;
 let ciScenario:"normal"|"failed"|"mixed"|"new-head"="normal";
 let prScenario:"off"|"ready"|"merge"|"all-methods"|"blocked"|"pending"|"syncing"|"unavailable"="off";
 let prWrites:{action:string;method:string|null;confirmed:boolean;key:string}[]=[];
@@ -46,6 +49,12 @@ const serverOptions = { snapshot: () => {
   if(reviewFixScenario){
     const item=snapshot.items[0]!;item.stage="preview_ready";item.detail="Preview is running and ready to open.";item.reviewFix={state:reviewFixScenario,round:1};item.aiReview={enabled:false,reason:"unstable",head:item.ci.head};
     item.runActions!.actions=[{action:"review_fix",label:"Fix review findings",enabled:false,confirmation:null,hint:null,state:"pending"},{action:"stop",label:"Cancel run",enabled:true,confirmation:null,hint:null,state:null}];
+  }
+  if(runNotesScenario){
+    const item=snapshot.items[0]!,labels:Record<string,string>={preview_stop:'Remove preview',review_fix:'Fix review findings',ci_repair:'Fix CI',preview_start:'Start preview',preview_reviewed:'Preview reviewed',take_control:'Continue in Codex',recover_managed_task:'Recover managed task',stop:'Cancel run',discard_local:'Discard local work',discard_published:'Discard published work'};
+    item.links.preview='https://preview.example.test/';item.aiReview={enabled:false,reason:'unstable',head:item.ci.head};item.reviewFix={state:'succeeded',round:1};
+    item.runActions!.actions=RUN_ACTIONS.map(action=>({action,label:labels[action]!,enabled:false,state:runNotesScenario,hint:null,confirmation:null}));
+    if(previewStopOnly){item.runActions!.actions=item.runActions!.actions.filter(action=>['preview_stop','stop','take_control'].includes(action.action));item.preview.state='outdated';item.preview.tone='warning';item.preview.head=item.review.head;}
   }
   if(dense)for(let index=0;index<80;index++)snapshot.items.push({...snapshot.items[3]!,id:`bulk-${index}`,number:100+index,title:`Additional task ${index}`});
   return snapshot;
@@ -229,8 +238,8 @@ try {
       }
       await devtools.evaluate("document.querySelector('.projects-ci-details summary').click();document.querySelector('#project-details').focus({preventScroll:true})");
       const density=await devtools.evaluate<{reviewHeight:number;reviewWidth:number;groupWidth:number;pillHeight:number;sortIcon:number;actionWidths:boolean}>(`(() => {
-        const review=document.querySelector('[data-review-run]'), group=review.parentElement;
-        return {reviewHeight:review.getBoundingClientRect().height,reviewWidth:review.getBoundingClientRect().width,groupWidth:group.getBoundingClientRect().width,pillHeight:document.querySelector('.projects-detail .pill').getBoundingClientRect().height,sortIcon:parseFloat(getComputedStyle(document.querySelector('[data-sort] .button__svg')).width),actionWidths:[...document.querySelectorAll('[data-run-action]')].every(button=>Math.abs(button.getBoundingClientRect().width-button.parentElement.getBoundingClientRect().width)<1)};
+        const review=document.querySelector('[data-review-run]'), group=review.closest('.projects-action-pair');
+        return {reviewHeight:review.getBoundingClientRect().height,reviewWidth:review.getBoundingClientRect().width,groupWidth:group.getBoundingClientRect().width,pillHeight:document.querySelector('.projects-detail .pill').getBoundingClientRect().height,sortIcon:parseFloat(getComputedStyle(document.querySelector('[data-sort] .button__svg')).width),actionWidths:[...document.querySelectorAll('[data-run-action]')].every(button=>{const pair=button.closest('.projects-action-pair'),columns=pair.children.length,expected=(pair.getBoundingClientRect().width-parseFloat(getComputedStyle(pair).columnGap)*(columns-1))/columns;return Math.abs(button.getBoundingClientRect().width-expected)<1;})};
       })()`);
       assert.ok(density.reviewHeight>=32&&density.reviewHeight<=36,"compact actions retain coarse-pointer targets");
       assert.ok(density.reviewWidth<=density.groupWidth,"contextual review fits within its check row");
@@ -682,6 +691,28 @@ try {
       await devtools.evaluate(`document.querySelector('[data-review-fix-state]').scrollIntoView({block:'center',behavior:'instant'})`);
       const shot=await devtools.call<{data:string}>('Page.captureScreenshot',{format:'png',captureBeyondViewport:false});writeFileSync(resolve(out,'projects-review-fix-queued.png'),Buffer.from(shot.data,'base64'));
     }
+  }
+  reviewFixScenario=null;
+  for(const width of [320,390,1280])for(const lang of ['en','ru'])for(const theme of ['light','dark'])for(const state of ['pending','processing','failed','rejected']){
+    runNotesScenario=state;
+    await devtools.call('Emulation.setDeviceMetricsOverride',{width,height:900,deviceScaleFactor:1,mobile:width<620});
+    await open(`/?item=item-12&lang=${lang}`);
+    await wait("!!document.querySelector('[data-pr-slot] > .projects-run-action-meta > .projects-action-note')");
+    await devtools.evaluate(`if(document.documentElement.dataset.theme!==${JSON.stringify(theme)})document.querySelector('[data-theme-toggle]').click()`);await delay(250);
+    assert.equal(await devtools.evaluate(`(()=>{const notes=[...document.querySelectorAll('[data-run-action-state]')];return notes.length===${RUN_ACTIONS.length}&&notes.every(note=>{const pair=note.closest('.projects-action-pair'),buttons=[...pair.children].map(slot=>slot.firstElementChild),r=note.getBoundingClientRect(),p=pair.getBoundingClientRect();return note.dataset.requestState===${JSON.stringify(state)}&&note.textContent.includes(' · ')&&Math.abs(r.left-p.left)<1&&Math.abs(r.width-p.width)<1&&buttons.every(button=>r.top>=button.getBoundingClientRect().bottom)&&buttons.every(button=>Math.abs(button.getBoundingClientRect().top-buttons[0].getBoundingClientRect().top)<1&&Math.abs(button.getBoundingClientRect().height-buttons[0].getBoundingClientRect().height)<1);})&&[...document.querySelectorAll('.projects-action-pair')].every(pair=>{const visible=[...pair.querySelectorAll('.projects-run-action-meta')].filter(meta=>meta.getBoundingClientRect().height);return visible.every((meta,index)=>index===0||meta.getBoundingClientRect().top>=visible[index-1].getBoundingClientRect().bottom);});})()`),true,'every action note spans its pair without button-column artifacts or overlapping messages');
+    await audit();
+    if(width===390&&lang==='en'&&state==='pending'&&theme==='light'){
+      await devtools.evaluate(`document.querySelector('[data-run-action=preview_stop]').scrollIntoView({block:'center',behavior:'instant'})`);
+      const shot=await devtools.call<{data:string}>('Page.captureScreenshot',{format:'png',captureBeyondViewport:false});writeFileSync(resolve(out,'projects-preview-stop-pending.png'),Buffer.from(shot.data,'base64'));
+    }
+  }
+  previewStopOnly=true;runNotesScenario='pending';
+  for(const width of [320,390,1280])for(const lang of ['en','ru'])for(const theme of ['light','dark']){
+    await devtools.call('Emulation.setDeviceMetricsOverride',{width,height:900,deviceScaleFactor:1,mobile:width<620});await open(`/?item=item-12&lang=${lang}`);
+    await devtools.evaluate(`if(document.documentElement.dataset.theme!==${JSON.stringify(theme)})document.querySelector('[data-theme-toggle]').click()`);await delay(250);
+    assert.equal(await devtools.evaluate(`(()=>{const button=document.querySelector('[data-run-action=preview_stop]'),note=document.querySelector('[data-run-action-state=preview_stop]'),pair=button.closest('.projects-action-pair'),open=pair.querySelector('a'),r=note.getBoundingClientRect(),p=pair.getBoundingClientRect(),b=button.getBoundingClientRect(),a=open.getBoundingClientRect();return button.disabled&&pair.children.length===2&&Math.abs(a.width-b.width)<1&&Math.abs(a.height-b.height)<1&&Math.abs(a.top-b.top)<1&&r.top>=b.bottom&&Math.abs(r.left-p.left)<1&&Math.abs(r.width-p.width)<1&&note.textContent.includes(' · ');})()`),true,'Open preview and pending Remove preview keep an equal button pair with one shared full-width status');
+    await audit();
+    if(width===390&&lang==='en'&&theme==='light'){await devtools.evaluate(`document.querySelector('[data-run-action=preview_stop]').scrollIntoView({block:'center',behavior:'instant'})`);const shot=await devtools.call<{data:string}>('Page.captureScreenshot',{format:'png',captureBeyondViewport:false});writeFileSync(resolve(out,'projects-preview-stop-pending.png'),Buffer.from(shot.data,'base64'));}
   }
 } finally {
   await browser.close();

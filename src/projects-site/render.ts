@@ -28,7 +28,7 @@ function stateValue(label:string,tone:PillTone):string{return `<span class="proj
 function signal(value:Signal,lang:Language):string{return stateValue(stateLabel(value.state,lang),value.tone);}
 type NoteTone="info"|"warning"|"failure"|"neutral";
 function noteTone(state:string):NoteTone{return ["failed","rejected"].includes(state)?"failure":["uncertain","conflict","stale","unsupported","unavailable","superseded","no_head"].includes(state)?"warning":state==="ready"?"neutral":"info";}
-function actionNote(label:string,tone:NoteTone="info"):string{return `<p class="projects-action-note" data-note-tone="${tone}">${escape(label)}</p>`;}
+function actionNote(label:string,tone:NoteTone="info",request?:{action:string;state:string}):string{return `<p class="projects-action-note" data-note-tone="${tone}"${request?` data-run-action-state="${escape(request.action)}" data-request-state="${escape(request.state)}" role="status"`:""}>${escape(label)}</p>`;}
 function reviewFindings(item:ProjectItem,lang:Language):string {
   if(item.review.state!=="ready")return "";
   const counts=([['critical','failure'],['important','warning'],['suggestions','neutral']] as const)
@@ -172,7 +172,7 @@ function runActions(item:ProjectItem,lang:Language,actions:string[],leading="",t
     if(confirmId)confirmations.push(`<div id="${confirmId}" class="projects-action-confirmation" data-run-confirm-panel hidden><p class="projects-action-note">${escape(sourceText(action.confirmation!,lang))}</p><div class="projects-confirm-buttons">${renderButton({label:t("Cancel"),variant:"quiet",attributes:{"data-run-dismiss":true}})}${renderButton({label:t("Confirm deletion"),variant:"danger",attributes:{"data-run-confirm":true}})}</div></div>`);
     const control=renderButton({label:sourceText(action.label,lang),iconPath:iconPath(icons[action.action]!),visibleLabel:true,size:"compact",variant:variants[action.action]??"subtle",disabled:!action.enabled,busyLabel:t("Sending…"),attributes:{"data-run-action":action.action,"data-run-id":item.runId!,"data-run-project":item.project,"data-run-item":item.id,"data-run-fingerprint":item.runActions!.fingerprint,"data-run-key":randomUUID(),...(confirmId?{"data-run-confirmation":sourceText(action.confirmation!,lang),"data-run-confirm-target":confirmId}:{})}});
     const shownState=action.action==="review_fix"&&item.reviewFix&&["queued","running","waiting_ci","resolving"].includes(item.reviewFix.state)?null:action.state;
-    const notes=(shownState?actionNote(t(states[shownState]??""),noteTone(shownState)):"")+(action.hint?actionNote(sourceText(action.hint,lang),action.enabled?"info":"warning"):"");
+    const notes=(shownState?actionNote(`${sourceText(action.label,lang)} · ${t(states[shownState]??"")}`,noteTone(shownState),{action:action.action,state:shownState}):"")+(action.hint?actionNote(sourceText(action.hint,lang),action.enabled?"info":"warning"):"");
     return wrap(control,notes);
   });
   return grid([...(leading?[wrap(leading)]:[]),...controls,...(trailing?[trailing]:[])],confirmations);

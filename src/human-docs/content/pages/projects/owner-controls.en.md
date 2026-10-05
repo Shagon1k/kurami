@@ -60,6 +60,8 @@ At the bottom of a managed task, **Cancel run** sits beside the PR action.
 When no PR action is available, its explanation appears below the actions;
 the disabled PR button keeps its place, so **Cancel run** keeps the same width.
 Loading and temporary read failures also preserve both buttons.
+Queued, running and failed actions show their status in a full-width row below the button pair.
+Each status names its action; multiple messages stack without sharing a button column.
 For a draft, **Ready for review** opens a confirmation. For an open non-draft,
 **Merge PR** opens a compact menu of allowed methods: Squash, Rebase or Merge commit.
 Choose a method, then confirm it in the same popup:

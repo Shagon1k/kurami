@@ -105,12 +105,11 @@ export const PROJECTS_STYLES=[THEME_CSS,FOUNDATION_CSS,BUTTON_CSS,TABLE_CSS,FORM
 .projects-run-actions { display: grid; gap: var(--space-2); }
 .projects-action-pair { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); column-gap: var(--space-2); }
 .projects-action-pair:has(> :only-child) { grid-template-columns: minmax(0,1fr); }
-.projects-run-action { --button-width: 100%; min-width: 0; display: grid; grid-template-rows: subgrid; grid-row: span 2; }
+.projects-run-action { --button-width: 100%; min-width: 0; display: contents; }
 .projects-run-action-meta { min-width: 0; }
-.projects-action-pair:has(> [data-pr-slot]) > .projects-run-action { display: contents; }
-.projects-action-pair:has(> [data-pr-slot]) > .projects-run-action > :first-child { grid-row: 1; }
-.projects-action-pair:has(> [data-pr-slot]) > .projects-run-action > .projects-run-action-meta { grid-column: 1 / -1; }
-.projects-action-pair:has(> [data-pr-slot]) > .projects-run-action > .projects-run-action-meta:empty { display: none; }
+.projects-action-pair > .projects-run-action > :first-child { grid-row: 1; }
+.projects-action-pair > .projects-run-action > .projects-run-action-meta { grid-column: 1 / -1; }
+.projects-action-pair > .projects-run-action > .projects-run-action-meta:empty { display: none; }
 .projects-pr-popover { --popover-width: 300px; --popover-padding: var(--space-3); --button-width: auto; }
 .projects-pr-methods { display: grid; --button-width: 100%; --button-justify: flex-start; }
 .projects-action-note,.projects-status-note,.projects-info { color: var(--status-info); font-size: .74rem; line-height: 1.5; margin: var(--space-2) 0 0; }

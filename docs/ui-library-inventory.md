@@ -18,7 +18,7 @@ and shared sans-serif labels. Docs includes the icon stylesheet explicitly and
 retains its section hierarchy. Project icons cover
 the all-projects folder, panda, fox and profile card.
 
-The dock uses a warm surface, 82% opacity and 12px backdrop blur; text and icons
+The dock uses a warm surface, 72% opacity and 12px backdrop blur; text and icons
 stay opaque. Browsers without backdrop blur keep an opaque surface. Side and lower
 margins detach the capsule from the viewport; the lower margin sits above the
 safe area. At normal text size the dock is 66px high with 56px tap targets and

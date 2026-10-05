@@ -14,6 +14,7 @@ import { syntheticProjectsSnapshot, syntheticCiChecks } from "./fixture.ts";
 import {parseCiChecks,ciCheckUrl} from "../../src/projects-site/ci-checks.ts";
 import {iconPath} from "../../src/ui-library/components/icon.ts";
 import type {PrActionView} from "../../src/projects-site/pr-actions.ts";
+import {RUN_ACTIONS} from "../../src/projects-site/run-actions.ts";
 
 const home = mkdtempSync(join(tmpdir(), "kurami-projects-"));
 const at = "2026-09-30T10:00:00Z";
@@ -132,6 +133,13 @@ assert.equal(await access.authorize(request(tampered.join("."))), null, "unverif
 assert.equal(await new ProjectsAccess({ team: "", audience: "", ownerEmail: "" }).authorize(request(token())), null);
 
 const fixture = syntheticProjectsSnapshot();
+for(const lang of ["en","ru"] as const)for(const state of ["pending","processing","failed","rejected"]){
+  const snapshot=structuredClone(fixture),item=snapshot.items[0]!;
+  item.runActions!.actions=RUN_ACTIONS.map(action=>({action,label:action,enabled:false,state,hint:null,confirmation:null}));
+  const html=renderProjectsPage(snapshot,new URLSearchParams(`item=item-12&lang=${lang}`));
+  for(const action of RUN_ACTIONS)assert.match(html,new RegExp(`data-run-action-state="${action}" data-request-state="${state}" role="status">${action} · `),'status names its operation, not just Queued below one button');
+  assert.doesNotMatch(html,/>Queued<\/p>|>В очереди<\/p>/,'no bare queued labels remain for any run action');
+}
 for(const lang of ["en","ru"] as const)for(const state of ["queued","running","waiting_ci","resolving","succeeded","needs_attention"]){
   const snapshot=structuredClone(fixture),item=snapshot.items[0]!;
   item.stage="preview_ready";item.reviewFix={state,round:2};item.aiReview={enabled:false,reason:"unstable",head:item.ci.head};
