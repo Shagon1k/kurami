@@ -2,6 +2,19 @@
   "baseline": "4a38c09",
   "publicationBaseline": "788787f077d42fc3b3346a4f4a612947b97ce2e8",
   "commits": {
+    "e8caf45bbd2ad41f657a53142818246119e8d373": {
+      "category": "fixed",
+      "en": "The shared synchronization icon has symmetrical circular arcs connected to equal-length arrowheads without gaps. Sync controls, pending status indicators and result-check buttons use the same corrected outline. Icon sizing, stroke width and action behavior are unchanged.",
+      "ru": "Общая иконка синхронизации получила симметричные дуги, соединённые без зазоров с наконечниками равной длины. Sync, отметки ожидающей синхронизации статуса и кнопки проверки результата используют один исправленный контур. Размеры, толщина линии и поведение действий не изменены.",
+      "page": "ui-library"
+    },
+    "f1e4b3a5486c4a72ca569763a1f7f15dd0d82534": {
+      "category": "operations",
+      "en": "",
+      "ru": "",
+      "exclusionScope": "docs-only",
+      "exclude": "Adds only the reviewed bilingual Changelog classification for the Access verification outage fix; application behavior is unchanged."
+    },
     "8fd56e946984c7b7ff2dc744674ec1472e744b7a": {
       "category": "fixed",
       "en": "Access signature verification allows 15 seconds to fetch Cloudflare public keys instead of five. Key endpoint timeouts, network errors and malformed responses return a temporary 503 message rather than Access denied. Invalid assertions remain denied; token expiry is checked again after fetching keys. Hub and Projects share the bounded key-fetch helper and keep private data and actions closed until verification succeeds.",
