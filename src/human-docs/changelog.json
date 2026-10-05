@@ -2,6 +2,13 @@
   "baseline": "4a38c09",
   "publicationBaseline": "788787f077d42fc3b3346a4f4a612947b97ce2e8",
   "commits": {
+    "a76eca5cd23056f20130229cd769d3895b6788ad": {
+      "category": "operations",
+      "en": "",
+      "ru": "",
+      "exclusionScope": "docs-only",
+      "exclude": "Adds only the reviewed bilingual Changelog classification for Projects PR controls and compact mobile dock fixes, plus the preceding docs-only classification; application behavior and reader-facing pages are unchanged."
+    },
     "8fc9d2ee7da2e9fa59cfcd4657147b38ff6624bc": {
       "category": "fixed",
       "en": "Projects keeps the PR button beside Cancel run during loading, synchronization and temporary read failures, with explanations below both controls. Review fixes show their actual phase and round instead of stale preview context or an orphan Queued label. Fresh polling settles older status writes for PR eligibility; unresolved writes remain blocking. The shared mobile dock is smaller, with lighter 26px icon strokes, responsive medium-weight labels and an 82% opaque warm surface. Desktop header navigation is unchanged.",
