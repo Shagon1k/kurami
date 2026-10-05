@@ -80,6 +80,18 @@ try {
   assert.equal(database.prepare("SELECT COUNT(*) AS n FROM project_events WHERE from_status='Backlog' AND to_status='Doing'").get()!.n,1,"the normal poller observes the transition exactly once");
   assert.equal(collectProjectsSnapshot({home,now:new Date(),statusEnabled:true}).items[0]!.statusChange?.enabled,true);
   assert.equal((await requestProjectStatus(original,"owner",options)).state,"synced"); assert.equal(mutations.length,1);
+  assert.equal(collectProjectsSnapshot({home,now:new Date(),statusEnabled:true}).items[0]!.taskStart?.state,"awaiting_admission","a confirmed write stays visible until admission, including after a new snapshot");
+  const activation=database.prepare("SELECT event_id FROM project_events WHERE to_status='Doing'").get()!.event_id;
+  database.prepare("UPDATE project_events SET processing_state='ignored',processing_note='Issue description is empty' WHERE event_id=?").run(activation);
+  assert.match(collectProjectsSnapshot({home,now:new Date(),statusEnabled:true}).items[0]!.taskStart!.message,/description/);
+  database.prepare("UPDATE project_events SET processing_state='processed',processing_note=NULL WHERE event_id=?").run(activation);
+  database.prepare("INSERT INTO runs(run_id,trigger_event_id,project,item_id,content_id,repository,issue_number,interaction_policy,state,owner_state,created_at,updated_at,execution_mode) VALUES('start_fixture',?,'alpha','PVTI_item','issue12','Example/Alpha',12,'autonomous','admission_pending','none',?,?,'live')").run(activation,at,at);
+  assert.equal(collectProjectsSnapshot({home,now:new Date(),statusEnabled:true}).items[0]!.taskStart?.state,"awaiting_admission");
+  database.exec("UPDATE runs SET state='starting' WHERE run_id='start_fixture'");
+  assert.equal(collectProjectsSnapshot({home,now:new Date(),statusEnabled:true}).items[0]!.taskStart?.state,"starting");
+  database.exec("UPDATE runs SET state='running' WHERE run_id='start_fixture'");
+  assert.equal(collectProjectsSnapshot({home,now:new Date(),statusEnabled:true}).items[0]!.taskStart,undefined,"actual execution replaces the start receipt, not a timer");
+  database.exec("DELETE FROM runs WHERE run_id='start_fixture'");
   assert.equal(database.prepare("SELECT actor_subject FROM project_status_requests").get()!.actor_subject,"owner");
 
   reset(); let releaseRead!: () => void;

@@ -19,6 +19,7 @@ export type ProjectItem = {
   suggestedNext?: {since:string;rankedAt:string;explanation:string};
   reviewRequestFailed?: boolean;
   statusChange?: StatusChange;
+  taskStart?: import("./task-start.ts").TaskStart;
   runActions?: import("./run-actions.ts").RunActionView;
   prControlsEnabled?:boolean;
   prActions?:import("./pr-actions.ts").PrActionView;
@@ -44,6 +45,7 @@ export function needsOwner(item: ProjectItem, project: ProjectSummary): boolean 
 }
 
 export function projectStageLabel(item:ProjectItem,lang:import("./i18n.ts").Language="en"):string {
+  if(item.taskStart)return stateLabel(({checking:"Start requested",writing:"Start requested",awaiting_sync:"Waiting for start sync",awaiting_admission:"admission_pending",starting:"starting",uncertain:"Start unconfirmed",failed:"request_failed",blocked:"Task start blocked"} as const)[item.taskStart.state],lang);
   const fixStages:Record<string,string>={queued:"review_fix_queued",running:"review_fix_working",waiting_ci:"review_fix_waiting",resolving:"review_fix_resolving"};
   if(item.reviewFix&&fixStages[item.reviewFix.state])return stateLabel(fixStages[item.reviewFix.state]!,lang);
   return stateLabel(item.stage??item.runState??(item.runId?null:"no_agent_run"),lang);

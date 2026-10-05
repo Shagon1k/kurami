@@ -455,6 +455,7 @@
     });
   }
   function updateStatusChoice(form) {
+    if(form.hasAttribute('data-start-task'))return;
     if (form.dataset.check === 'true') return;
     const select = form.querySelector('select');
     const changed = select.value !== JSON.parse(form.dataset.from);
@@ -473,16 +474,18 @@
     const form=event.target.closest('[data-status-form]');if(!form)return;
     event.preventDefault();const button=form.querySelector('[data-status-submit]');
     if(button.disabled||busy()||refreshing)return;
-    const select=form.querySelector('select'),target=form.dataset.check==='true'?form.dataset.target:select.value;
-    select.disabled=true;
+    const select=form.querySelector('select'),start=form.hasAttribute('data-start-task'),target=form.dataset.check==='true'||start?form.dataset.target:select.value;
+    if(select)select.disabled=true;
+    if(start)form.querySelector('[data-status-note]').textContent=t('Requesting task start in GitHub.');
     await requestAction(button,{kind:'status',path:'/api/status',timeout:30000,
       body:{project:form.dataset.project,itemId:form.dataset.item,from:JSON.parse(form.dataset.from),target,observedAt:form.dataset.observedAt,key:form.dataset.key},
       unconfirmed:t("Could not confirm the write. Another click checks this request's result."),
       response:async(result,response)=>{
+        if(start&&response.ok)button.disabled=true;
         await refresh();const presentation=statusMessages[result.state];
         if(!response.ok)throw new Error(result.error||presentation?.message||t("Could not save status."));
         notify(presentation?.message||t("Request accepted."),presentation?.tone||'info',result.state==='synced'?undefined:0);
-      },error:()=>{if(form.isConnected){select.disabled=form.dataset.check==='true';button.disabled=false;}},
+      },error:()=>{if(form.isConnected){if(select)select.disabled=form.dataset.check==='true';button.disabled=false;if(start){const note=form.querySelector('[data-status-note]');note.textContent=t('Task start is unconfirmed. Check the same request before trying again.');note.dataset.noteTone='warning';}}},
     });
   });
   addEventListener('popstate',async event=>{

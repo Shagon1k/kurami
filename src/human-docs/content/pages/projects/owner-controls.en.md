@@ -85,7 +85,13 @@ locked. Kurami leaves the Project status unchanged: a configured GitHub workflow
 can move the task to Done after merging. Normal polling then observes that change.
 See [Completion and cleanup](@release-cleanup) for the resulting cleanup.
 
-The status editor stays visible. Issue, PR, review and Discord links use bordered
+For an issue in Backlog, click **Start work**: choosing In progress and saving separately is no longer needed.
+The card immediately shows the start request, then synchronization, admission and session preparation.
+Waiting survives reload through the request receipt, not a UI timer.
+Another click does not create a second request. When a write is unconfirmed, **Check result** checks the same request.
+An admission refusal shows its reason and leaves the status editor available; actual execution replaces the waiting state.
+
+For other states, the status editor stays visible. Issue, PR, review and Discord links use bordered
 buttons in a grid. CI, review and preview share one block,
 with repair actions beside their checks. Preview has its own link and expiry.
 After **Mark reviewed**, its button disappears and **Preview reviewed** stays visible with a green check.

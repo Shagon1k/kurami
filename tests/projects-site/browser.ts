@@ -17,6 +17,8 @@ let reviewFixScenario:string|null=null;
 let runNotesScenario:string|null=null;
 let previewStopOnly=false;
 let previewReviewScenario=false,previewReviewed=false,previewNewHead=false;
+let startScenario:"off"|"idle"|"checking"|"sync"|"admission"|"starting"|"running"|"blocked"="off",startKey="",startWrites=0;
+let startWriteGate:Promise<void>|null=null;
 let ciScenario:"normal"|"failed"|"mixed"|"new-head"="normal";
 let prScenario:"off"|"ready"|"merge"|"all-methods"|"blocked"|"pending"|"syncing"|"unavailable"="off";
 let prWrites:{action:string;method:string|null;confirmed:boolean;key:string}[]=[];
@@ -59,6 +61,17 @@ const serverOptions = { snapshot: () => {
   }
   if(dense)for(let index=0;index<80;index++)snapshot.items.push({...snapshot.items[3]!,id:`bulk-${index}`,number:100+index,title:`Additional task ${index}`});
   if(previewReviewScenario){const item=snapshot.items[0]!;item.preview={state:previewNewHead?'outdated':'running',tone:previewNewHead?'warning':'success',head:'abcdef0123456789',expiresAt:'2030-01-01T00:00:00Z',reviewed:previewReviewed};item.ci.head=previewNewHead?'fedcba9876543210':item.preview.head;item.links.preview='https://preview.example.test/';item.runActions!.actions=previewReviewed?[]:[{action:'preview_reviewed',label:'Превью проверено',enabled:true,confirmation:null,hint:null,state:null}];}
+  if(startScenario!=="off") {
+    const item=snapshot.items.find(item=>item.id==="item-15")!,statuses=snapshot.projects[0]!.statuses;
+    item.status=["idle","checking","sync"].includes(startScenario)?statuses.backlog:statuses.active;
+    item.statusChange={enabled:startScenario==="idle"||["running","blocked"].includes(startScenario),reason:["checking","sync"].includes(startScenario)?"pending":"eligible",choices:Object.values(statuses).map(value=>({value,label:value,hint:""}))};
+    if(startScenario==="checking"||startScenario==="sync")item.statusChange.request={state:startScenario==="checking"?"checking":"awaiting_sync",target:statuses.active,from:statuses.backlog,key:startKey,checkAvailable:false};
+    const messages={checking:"Checking the task in GitHub before starting.",sync:"Start requested. Waiting for Kurami to observe the status change.",admission:"Task accepted. Waiting for workspace preparation.",starting:"Kurami is preparing the workspace and agent session.",blocked:"Task start is blocked by work limits. Return it to Backlog and retry when capacity is available."};
+    const states={checking:"checking",sync:"awaiting_sync",admission:"awaiting_admission",starting:"starting",blocked:"blocked"} as const;
+    if(startScenario in states){const phase=startScenario as keyof typeof states;item.taskStart={state:states[phase],message:messages[phase]};}
+    if(["admission","starting","running"].includes(startScenario)){item.runId="new-start";item.runState=startScenario==="admission"?"admission_pending":startScenario;}
+    if(startScenario==="blocked"){item.runId="rejected-start";item.runState="rejected";}
+  }
   return snapshot;
 }, cacheMs: 0, authorize: async () => "fixture-owner", origin: "", review: (value: unknown) => {
   const input = value as { head: string; key: string };
@@ -82,6 +95,12 @@ const completeOptions = { ...serverOptions, prCacheMs:0,runAction:(value:unknown
   return {state:input.action==="ready"?"applied" as const:"pending" as const,requestId:"fixture-pr"};
 },statusChange: async (value: unknown) => {
   const input = value as {from:string;target:string;key:string;itemId:string};
+  if(input.itemId==="item-15") {
+    assert.equal(input.from,"Backlog");assert.equal(input.target,"In progress");
+    startWrites++;startKey=input.key;startScenario="checking";
+    await startWriteGate;startScenario="sync";
+    return {state:"awaiting_sync" as const,requestId:"start-fixture",target:input.target};
+  }
   assert.equal(input.from,"Human Review"); assert.equal(input.itemId,"item-12"); assert.equal(input.target,"Done");
   statusKeys.push(input.key);
   if (statusConflict) throw new ProjectsActionError(409,"Статус изменился. Обновите страницу.");
@@ -734,6 +753,34 @@ try {
     previewNewHead=true;await open(`/?item=item-12&lang=${lang}`);
     await wait("!!document.querySelector('[data-preview-review=outdated]')");await audit();
     assert.equal(await devtools.evaluate("!!document.querySelector('[data-preview-review=current]')"),false);
+  }
+  previewReviewScenario=false;
+  for(const width of [320,390,1280])for(const lang of ['en','ru'])for(const theme of ['light','dark']){
+    startScenario='idle';startKey='';startWrites=0;
+    let releaseStart!:()=>void;startWriteGate=new Promise<void>(resolve=>{releaseStart=resolve;});
+    await devtools.call('Emulation.setDeviceMetricsOverride',{width,height:900,deviceScaleFactor:1,mobile:width<620});
+    await open(`/?item=item-15&lang=${lang}`);
+    await devtools.evaluate(`if(document.documentElement.dataset.theme!==${JSON.stringify(theme)})document.querySelector('[data-theme-toggle]').click()`);await delay(150);
+    assert.equal(await devtools.evaluate("!!document.querySelector('[data-start-task] select')"),false);
+    assert.equal(await devtools.evaluate("document.querySelector('[data-status-submit]').disabled"),false);
+    await pointerClick('[data-status-submit]');
+    await wait("document.querySelector('[data-status-submit]').getAttribute('aria-busy')==='true'");
+    await devtools.evaluate("document.querySelector('[data-status-submit]').click()");
+    await delay(100);assert.equal(startWrites,1,'double clicking starts one status request');
+    releaseStart();startWriteGate=null;
+    await wait("!!document.querySelector('[data-start-state=awaiting_sync]')");
+    assert.equal(await devtools.evaluate("document.querySelector('[data-status-submit]').disabled"),true);
+    await audit();await open(`/?item=item-15&lang=${lang}`);
+    assert.equal(await devtools.evaluate("document.querySelector('[data-start-task]').dataset.key"),startKey,'reload keeps the same durable start identity');
+    assert.equal(await devtools.evaluate("!!document.querySelector('[data-start-state=awaiting_sync]')"),true);
+    if(width===390&&lang==='ru'&&theme==='light'){const shot=await devtools.call<{data:string}>('Page.captureScreenshot',{format:'png',captureBeyondViewport:false});writeFileSync(resolve(out,'projects-task-start-waiting.png'),Buffer.from(shot.data,'base64'));}
+    for(const phase of ['admission','starting','running','blocked'] as const){
+      startScenario=phase;await open(`/?item=item-15&lang=${lang}`);await audit();
+      if(phase==='running'||phase==='blocked')assert.equal(await devtools.evaluate("!!document.querySelector('[data-status-form] select')"),true);
+      else assert.equal(await devtools.evaluate("document.querySelector('[data-status-submit]').disabled"),true);
+      if(phase==='blocked')assert.equal(await devtools.evaluate("document.querySelector('[data-status-note]').hidden"),false,'admission refusal stays visible and leaves status controls available');
+    }
+    assert.equal(startWrites,1,'refreshing and phase changes never start another request');
   }
 } finally {
   await browser.close();

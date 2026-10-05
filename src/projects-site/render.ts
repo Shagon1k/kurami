@@ -1,4 +1,5 @@
 import {browserStatusPresentation,statusPresentation} from "./action-presentation.ts";
+import {canStartTask} from "./task-start.ts";
 import {escapeHtml as escape} from "../ui-library/foundations/html.ts";
 import {randomUUID} from "node:crypto";
 import {formatSiteDate} from "../ui-library/foundations/date.ts";
@@ -46,6 +47,7 @@ function statusTone(item:ProjectItem,project:ProjectSummary):PillTone {
   return item.status===project.statuses.done?"success":item.status===project.statuses.review?"warning":item.status===project.statuses.active?"info":"neutral";
 }
 function runTone(item:ProjectItem):PillTone {
+  if(item.taskStart)return ["failed","blocked","uncertain"].includes(item.taskStart.state)?"warning":"info";
   return item.attention.length||["waiting_human","needs_attention","preview_required"].includes(item.stage??item.runState??"")?"warning":
     ["failed","rejected"].includes(item.runState??"")?"failure":["archived","completed"].includes(item.runState??"")?"success":item.runId?"info":"neutral";
 }
@@ -133,7 +135,7 @@ function detail(item:ProjectItem,params:URLSearchParams,project:ProjectSummary,a
   const findings=reviewFindings(item,lang);
   const resource=(name:string,url:string|null,icon:IconName)=>navigation(name,url,lang)?renderLinkButton({label:t(name),href:url!,variant:"subtle",size:"compact",iconPath:iconPath(icon)}):"";
   const links=resource("Issue",item.links.issue,"project")+resource("PR",item.links.pr,"branch")+resource("Review",item.links.review,"review")+resource("Discord",item.links.discord,"message");
-  const editor=statusForm(item,lang);
+  const editor=statusForm(item,lang,project);
   const statusEditor=editor?`<div class="projects-status-editor">${editor}</div>`:"";
   return `<aside class="projects-detail" id="project-details" data-detail-item="${escape(item.id)}" aria-labelledby="project-details-title" tabindex="-1"><div class="projects-detail-top"><p class="projects-detail-meta">${renderIcon("project")}${escape(project.name)}<span class="projects-task-id">${item.number?`#${item.number}`:t("Draft")}</span></p>${renderLinkButton({label:t("Back to tasks"),href:itemUrl(params),variant:"quiet",attributes:{"data-item-close":true}})}</div><h2 id="project-details-title">${escape(item.title||t("Untitled task"))}</h2><div class="projects-detail-badges">${renderPill({label:item.status??t("No status"),tone:statusTone(item,project)})}${stateValue(projectStageLabel(item,lang),runTone(item))}${item.suggestedNext?renderPill({label:t("Suggested next"),tone:"info",icon:"spark"}):""}</div><div class="projects-links">${links}</div>
     ${item.suggestedNext?`<div class="projects-recommendation">${renderIcon("spark")}<p>${escape(sourceText(item.suggestedNext.explanation,lang))}</p></div>`:""}
@@ -185,15 +187,24 @@ function runActions(item:ProjectItem,lang:Language,actions:string[],leading="",t
   });
   return grid([...(leading?[wrap(leading)]:[]),...controls,...(trailing?[trailing]:[])],confirmations);
 }
-function statusForm(item:ProjectItem,lang:Language):string {
+function statusForm(item:ProjectItem,lang:Language,project:ProjectSummary):string {
   const control=item.statusChange;if(!control)return "";const t=(key:string)=>tr(key,lang);
   const presentation=statusPresentation(control.request?.state??control.reason);
   const pending=control.reason==="pending",request=control.request,from=pending&&request?request.from:item.status,selected=pending&&request?request.target:item.status??"";
+  const waiting=Boolean(item.taskStart&&["checking","writing","awaiting_sync","awaiting_admission","starting","uncertain"].includes(item.taskStart.state));
+  const start=waiting||(canStartTask(item,project)&&(!pending||(request?.from===project.statuses.backlog&&request.target===project.statuses.active)));
+  if(start) {
+    const labels={checking:"Requesting start…",writing:"Requesting start…",awaiting_sync:"Waiting for sync…",awaiting_admission:"Awaiting admission",starting:"Preparing task…",uncertain:"Start unconfirmed",failed:"Start work",blocked:"Start work"};
+    const label=pending&&request?.checkAvailable?"Check result":item.taskStart?labels[item.taskStart.state]:"Start work";
+    const note=item.taskStart?.message??(!control.enabled?presentation?.message:undefined)??"Requests work on this issue. Kurami will prepare its workspace and agent session.";
+    const tone=item.taskStart?["uncertain","failed","blocked"].includes(item.taskStart.state)?"warning":"info":!control.enabled?presentation?.tone??"warning":"info";
+    return `<form class="projects-status-form projects-task-start" method="post" action="/api/status" data-status-form data-start-task data-project="${escape(item.project)}" data-item="${escape(item.id)}" data-from="${escape(JSON.stringify(from))}" data-observed-at="${escape(item.observedAt)}" data-key="${pending&&request?escape(request.key):randomUUID()}" data-check="${pending}" data-target="${escape(project.statuses.active)}" data-start-state="${item.taskStart?.state??"idle"}">${renderButton({label:t(label),iconPath:iconPath(pending&&request?.checkAvailable?"refresh":"play"),visibleLabel:true,variant:"info",type:"submit",disabled:pending?!request?.checkAvailable:waiting||!control.enabled,busyLabel:t("Requesting start…"),attributes:{"data-status-submit":true}})}<p class="projects-status-note" data-status-note data-note-tone="${tone}" role="status">${escape(t(note))}</p></form>`;
+  }
   const choices=[{value:item.status??"",label:item.status??t("No status")},...control.choices.filter(choice=>choice.value!==item.status)];
   if(pending&&!choices.some(choice=>choice.value===selected))choices.push({value:selected,label:selected});
-  const note=t(presentation?.message??"");
-  const tone=presentation?.tone??noteTone(request?.state??control.reason);
-  return `<form class="projects-status-form" method="post" action="/api/status" data-status-form data-project="${escape(item.project)}" data-item="${escape(item.id)}" data-from="${escape(JSON.stringify(from))}" data-observed-at="${escape(item.observedAt)}" data-key="${pending&&request?escape(request.key):randomUUID()}" data-check="${pending}" data-target="${escape(selected)}" data-hints="${escape(JSON.stringify(Object.fromEntries(control.choices.map(choice=>[choice.value,sourceText(choice.hint,lang)]))))}"><div class="projects-status-controls">${renderSelectField({name:"target",label:t("Status"),value:selected,options:choices,disabled:!control.enabled})}${renderButton({label:t(pending?"Check result":"Save"),iconPath:iconPath(pending?"refresh":"check"),visibleLabel:true,variant:pending?"subtle":"info",type:"submit",disabled:pending?!request?.checkAvailable:true,busyLabel:"…",attributes:{"data-status-submit":true}})}</div><p class="projects-status-note" data-status-note data-note-tone="${tone}" data-default-note="${escape(note)}"${control.enabled&&!request?" hidden":""}>${escape(note)}</p></form>`;
+  const note=t(item.taskStart?.message??presentation?.message??"");
+  const tone=item.taskStart?.state==="blocked"?"warning":presentation?.tone??noteTone(request?.state??control.reason);
+  return `<form class="projects-status-form" method="post" action="/api/status" data-status-form data-project="${escape(item.project)}" data-item="${escape(item.id)}" data-from="${escape(JSON.stringify(from))}" data-observed-at="${escape(item.observedAt)}" data-key="${pending&&request?escape(request.key):randomUUID()}" data-check="${pending}" data-target="${escape(selected)}" data-hints="${escape(JSON.stringify(Object.fromEntries(control.choices.map(choice=>[choice.value,sourceText(choice.hint,lang)]))))}"><div class="projects-status-controls">${renderSelectField({name:"target",label:t("Status"),value:selected,options:choices,disabled:!control.enabled})}${renderButton({label:t(pending?"Check result":"Save"),iconPath:iconPath(pending?"refresh":"check"),visibleLabel:true,variant:pending?"subtle":"info",type:"submit",disabled:pending?!request?.checkAvailable:true,busyLabel:"…",attributes:{"data-status-submit":true}})}</div><p class="projects-status-note" data-status-note data-note-tone="${tone}" data-default-note="${escape(note)}"${control.enabled&&!request&&!item.taskStart?" hidden":""}>${escape(note)}</p></form>`;
 }
 export function renderProjectsPage(snapshot:ProjectsSnapshot,params=new URLSearchParams()):string {
   const lang=language(params),t=(key:string)=>tr(key,lang),filters=parseFilters(params);
