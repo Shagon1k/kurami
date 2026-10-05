@@ -28,7 +28,8 @@
   let motionWaiters=[];
   const reducedMotion=matchMedia('(prefers-reduced-motion:reduce)');
   const viewKey=url=>{const params=new URLSearchParams(url.search);params.sort();return url.pathname+'?'+params;};
-  const busy=()=>requestingReview||requestingStatus||requestingAction||confirmingAction||confirmingPr;
+  let updateRequired=false;
+  const busy=()=>updateRequired||requestingReview||requestingStatus||requestingAction||confirmingAction||confirmingPr;
   function rememberView(url){
     const copy=dashboard.cloneNode(true);copy.querySelector('[data-toast-region]')?.remove();
     views.set(viewKey(url),copy.innerHTML);
@@ -79,7 +80,7 @@
   let requestingStatus = false;
   let requestingAction = false;
   const requestAction=createProjectActionRequest({
-    busy:()=>requestingReview||requestingStatus||requestingAction||refreshing,
+    busy:()=>updateRequired||requestingReview||requestingStatus||requestingAction||refreshing,
     setBusy:(kind,value)=>{if(kind==='review')requestingReview=value;else if(kind==='status')requestingStatus=value;else requestingAction=value;},
     headers:requestHeaders,url:kuramiAppUrl,notify,
   });
@@ -186,6 +187,12 @@
       const params=new URLSearchParams(url.searchParams);if(kuramiAppLanguage()==='ru')params.set('lang','ru');
       const response = await fetch(kuramiAppUrl('/api/fragment?' + params), { cache: 'no-store', signal: AbortSignal.timeout(10000) });
       if (!response.ok) throw new Error('refresh failed');
+      if(response.headers.get('X-Kurami-Projects-Version')!==projectsClientVersion){
+        updateRequired=true;
+        dashboard.querySelectorAll('[data-run-action],[data-review-run],[data-status-submit],[data-pr-action],select').forEach(control=>control.disabled=true);
+        notify(t('Projects was updated. Reload the page to continue.'),'warning',0);
+        return false;
+      }
       const html=await response.text();
       await waitForMotion();
       if(version!==navigationVersion)return false;
@@ -233,6 +240,7 @@
         const target = form?.querySelector(focusedStatus);
         (target && !target.disabled ? target : dashboard.querySelector('#project-details'))?.focus({ preventScroll: true });
       }
+      if(toastRegion.querySelector('[data-toast-message]').textContent===t('Refresh failed. The previous snapshot is still displayed.'))toast.hide();
       return true;
     } catch {
       const cached=dashboard.querySelector('[data-cached-view]');if(cached)cached.textContent=t('Saved view · refresh failed');

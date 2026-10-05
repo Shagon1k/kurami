@@ -30,6 +30,8 @@ for(const lang of ["en","ru"] as const) {
   item.status="Backlog";delete item.taskStart;
   const html=renderProjectsPage(snapshot,new URLSearchParams({lang,item:item.id}));
   assert.match(html,/data-start-task/);assert.match(html,lang==="ru"?/Начать работу/:/Start work/);
+  assert.match(html,/projects\.css\?v=[a-f0-9]{16}/);assert.match(html,/projects\.js\?v=[a-f0-9]{16}/);
+  assert.match(html,lang==="ru"?/Запустить задачу в Kurami\./:/Start this task in Kurami\./);
   const form=html.match(/<form[^>]*data-start-task[^>]*>[\s\S]*?<\/form>/)![0];assert.doesNotMatch(form,/<select/);assert.match(form,/data-target="In progress"/);
   item.taskStart={state:"awaiting_sync",message:"Start requested. Waiting for Kurami to observe the status change."};
   item.statusChange={...item.statusChange,enabled:false,reason:"pending",request:{state:"awaiting_sync",target:"In progress",from:"Backlog",key:"same-key",checkAvailable:false}};

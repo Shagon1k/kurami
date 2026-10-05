@@ -401,6 +401,7 @@ try {
   await devtools.evaluate("window.fetch=normalFetch;document.dispatchEvent(new Event('visibilitychange'))");
   await wait("!!document.querySelector('#project-details')&&!document.querySelector('#projects-dashboard').dataset.refreshing");
   assert.equal(await devtools.evaluate("document.querySelector('[data-review-run]').disabled"),false,"a fresh response restores server-authorized controls");
+  assert.equal(await devtools.evaluate("document.querySelector('[data-toast-region]').hidden"),true,"successful refresh clears only its stale refresh failure");
   failReview=true;
   await devtools.evaluate("document.querySelector('[data-review-run]').click()");
   await wait("document.querySelector('[data-toast-message]').textContent.includes('unavailable')");
@@ -763,6 +764,7 @@ try {
     await devtools.evaluate(`if(document.documentElement.dataset.theme!==${JSON.stringify(theme)})document.querySelector('[data-theme-toggle]').click()`);await delay(150);
     assert.equal(await devtools.evaluate("!!document.querySelector('[data-start-task] select')"),false);
     assert.equal(await devtools.evaluate("document.querySelector('[data-status-submit]').disabled"),false);
+    assert.ok(await devtools.evaluate("(()=>{const form=document.querySelector('[data-start-task]'),button=form.querySelector('[data-status-submit]');return Math.abs(form.getBoundingClientRect().width-button.getBoundingClientRect().width)<1;})()"),'single Start work button fills its row');
     await pointerClick('[data-status-submit]');
     await wait("document.querySelector('[data-status-submit]').getAttribute('aria-busy')==='true'");
     await devtools.evaluate("document.querySelector('[data-status-submit]').click()");
@@ -781,6 +783,27 @@ try {
       if(phase==='blocked')assert.equal(await devtools.evaluate("document.querySelector('[data-status-note]').hidden"),false,'admission refusal stays visible and leaves status controls available');
     }
     assert.equal(startWrites,1,'refreshing and phase changes never start another request');
+  }
+  for(const lang of ['en','ru']){
+    startScenario='idle';startWrites=0;
+    await devtools.call('Emulation.setDeviceMetricsOverride',{width:390,height:900,deviceScaleFactor:1,mobile:true});
+    await open(`/?item=item-15&lang=${lang}`);
+    await devtools.evaluate("window.beforeUpgradeFetch=fetch;window.fetch=(...args)=>beforeUpgradeFetch(...args).then(response=>{if(!String(args[0]).includes('/api/fragment'))return response;const headers=new Headers(response.headers);headers.set('X-Kurami-Projects-Version','new-server-generation');return new Response(response.body,{status:response.status,headers});})");
+    startScenario='sync';startKey='upgrade-fixture';
+    await devtools.evaluate("document.dispatchEvent(new Event('visibilitychange'))");
+    await wait("document.querySelector('[data-toast-region]').dataset.tone==='warning'&&!document.querySelector('#projects-dashboard').dataset.refreshing");
+    assert.equal(await devtools.evaluate("document.querySelector('[data-start-task]').dataset.startState"),'idle','different-generation fragment never replaces the old card');
+    assert.equal(await devtools.evaluate("document.querySelector('[data-status-submit]').disabled"),true);
+    assert.match(await devtools.evaluate<string>("document.querySelector('[data-toast-message]').textContent"),lang==='ru'?/Перезагрузите/:/Reload/);
+    await devtools.evaluate("document.querySelector('[data-status-submit]').click()");assert.equal(startWrites,0);
+    await devtools.evaluate("window.fetch=beforeUpgradeFetch");startScenario='idle';
+    await open(`/?item=item-15&lang=${lang}`);
+    assert.equal(await devtools.evaluate("document.querySelector('[data-status-submit]').disabled"),false,'full reload restores the current generation');
+    await devtools.evaluate("window.savedRefreshFetch=fetch;window.fetch=(...args)=>String(args[0]).includes('/api/fragment')?Promise.reject(new Error('fixture offline')):savedRefreshFetch(...args);document.dispatchEvent(new Event('visibilitychange'))");
+    await wait("document.querySelector('[data-toast-region]').dataset.tone==='failure'&&!document.querySelector('#projects-dashboard').dataset.refreshing");
+    await devtools.evaluate("window.fetch=savedRefreshFetch;document.dispatchEvent(new Event('visibilitychange'))");
+    await wait("document.querySelector('[data-toast-region]').hidden&&!document.querySelector('#projects-dashboard').dataset.refreshing");
+    await audit();assert.equal(startWrites,0,'refresh recovery never starts the task');
   }
 } finally {
   await browser.close();

@@ -104,7 +104,7 @@ export const PROJECTS_STYLES=[THEME_CSS,FOUNDATION_CSS,BUTTON_CSS,TABLE_CSS,FORM
 .projects-action-grid { display: grid; gap: var(--space-2); }
 .projects-run-actions { display: grid; gap: var(--space-2); }
 .projects-preview-review { margin: var(--space-2) 0; }
-.projects-task-start { --button-width: 100%; }
+.projects-task-start { display: grid; grid-template-columns: minmax(0,1fr); --button-width: 100%; }
 .projects-action-pair { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); column-gap: var(--space-2); }
 .projects-action-pair:has(> :only-child) { grid-template-columns: minmax(0,1fr); }
 .projects-run-action { --button-width: 100%; min-width: 0; display: contents; }

@@ -1,5 +1,6 @@
 import {browserStatusPresentation,statusPresentation} from "./action-presentation.ts";
 import {canStartTask} from "./task-start.ts";
+import {PROJECTS_CLIENT_VERSION} from "./client-version.ts";
 import {escapeHtml as escape} from "../ui-library/foundations/html.ts";
 import {randomUUID} from "node:crypto";
 import {formatSiteDate} from "../ui-library/foundations/date.ts";
@@ -196,7 +197,7 @@ function statusForm(item:ProjectItem,lang:Language,project:ProjectSummary):strin
   if(start) {
     const labels={checking:"Requesting start…",writing:"Requesting start…",awaiting_sync:"Waiting for sync…",awaiting_admission:"Awaiting admission",starting:"Preparing task…",uncertain:"Start unconfirmed",failed:"Start work",blocked:"Start work"};
     const label=pending&&request?.checkAvailable?"Check result":item.taskStart?labels[item.taskStart.state]:"Start work";
-    const note=item.taskStart?.message??(!control.enabled?presentation?.message:undefined)??"Requests work on this issue. Kurami will prepare its workspace and agent session.";
+    const note=item.taskStart?.message??(!control.enabled?presentation?.message:undefined)??"Start this task in Kurami.";
     const tone=item.taskStart?["uncertain","failed","blocked"].includes(item.taskStart.state)?"warning":"info":!control.enabled?presentation?.tone??"warning":"info";
     return `<form class="projects-status-form projects-task-start" method="post" action="/api/status" data-status-form data-start-task data-project="${escape(item.project)}" data-item="${escape(item.id)}" data-from="${escape(JSON.stringify(from))}" data-observed-at="${escape(item.observedAt)}" data-key="${pending&&request?escape(request.key):randomUUID()}" data-check="${pending}" data-target="${escape(project.statuses.active)}" data-start-state="${item.taskStart?.state??"idle"}">${renderButton({label:t(label),iconPath:iconPath(pending&&request?.checkAvailable?"refresh":"play"),visibleLabel:true,variant:"info",type:"submit",disabled:pending?!request?.checkAvailable:waiting||!control.enabled,busyLabel:t("Requesting start…"),attributes:{"data-status-submit":true}})}<p class="projects-status-note" data-status-note data-note-tone="${tone}" role="status">${escape(t(note))}</p></form>`;
   }
@@ -210,8 +211,8 @@ export function renderProjectsPage(snapshot:ProjectsSnapshot,params=new URLSearc
   const lang=language(params),t=(key:string)=>tr(key,lang),filters=parseFilters(params);
   const projectLink=(key:string)=>{const next=new URLSearchParams(params);next.delete("item");next.delete("view");next.delete("status");if(key)next.set("project",key);else next.delete("project");return "/"+(next.size?`?${next}`:"");};
   const otherLanguage=new URLSearchParams(params);otherLanguage.set("lang",lang==="en"?"ru":"en");
-  return renderDocument({lang,title:"Projects · Kurami",description:lang==="en"?"Tasks and run status across projects.":"Задачи и состояние работы по всем проектам.",favicon:"/assets/favicon.svg",styles:{href:"/assets/projects.css"},themeScript:true,
-    head:'<meta name="robots" content="noindex, nofollow"><script src="/assets/projects.js" defer></script>',skipLabel:t("Skip to content"),
+  return renderDocument({lang,title:"Projects · Kurami",description:lang==="en"?"Tasks and run status across projects.":"Задачи и состояние работы по всем проектам.",favicon:"/assets/favicon.svg",styles:{href:`/assets/projects.css?v=${PROJECTS_CLIENT_VERSION}`},themeScript:true,
+    head:`<meta name="robots" content="noindex, nofollow"><script src="/assets/projects.js?v=${PROJECTS_CLIENT_VERSION}" defer></script>`,skipLabel:t("Skip to content"),
     header:renderSiteHeader({mobile:{app:"projects",lang},brand:{href:projectLink(""),ariaLabel:"Kurami Projects",foxSrc:"/assets/kurami-fox.webp",suffix:"Projects"},
       nav:{label:t("Projects"),scroll:true,attributes:{"data-project-tabs":true},links:[{href:projectLink(""),label:t("All projects"),mobileIcon:"projects",current:!filters.project?"page":undefined},...snapshot.projects.map(project=>({href:projectLink(project.key),label:project.name,mobileIcon:projectIcon(project.name),current:filters.project===project.key?"page" as const:undefined}))]},sites:kuramiSites("projects",lang),
       actions:renderLinkButton({label:lang==="en"?"RU":"EN",href:`/?${otherLanguage}`,variant:"icon",ariaLabel:lang==="en"?"Switch to Russian":"Переключить на английский",attributes:{"data-language-link":true,hreflang:lang==="en"?"ru":"en"}})+renderThemeSwitch(lang)}),

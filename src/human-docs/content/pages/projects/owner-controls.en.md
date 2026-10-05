@@ -91,6 +91,8 @@ Waiting survives reload through the request receipt, not a UI timer.
 Another click does not create a second request. When a write is unconfirmed, **Check result** checks the same request.
 An admission refusal shows its reason and leaves the status editor available; actual execution replaces the waiting state.
 
+If Projects changes while the page is open, reload when prompted. Kurami keeps the previous card and disables writes instead of combining new markup with older scripts and styles. A successful refresh clears its previous refresh-error notice.
+
 For other states, the status editor stays visible. Issue, PR, review and Discord links use bordered
 buttons in a grid. CI, review and preview share one block,
 with repair actions beside their checks. Preview has its own link and expiry.
