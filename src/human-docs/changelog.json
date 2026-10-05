@@ -2,6 +2,19 @@
   "baseline": "4a38c09",
   "publicationBaseline": "788787f077d42fc3b3346a4f4a612947b97ce2e8",
   "commits": {
+    "b1e7074b101ffb8d5f7bde70fc68500f689ad3a9": {
+      "category": "improved",
+      "en": "Projects offers Start work for Backlog issues without a separate status selection and Save. The card shows the request, synchronization, admission and session preparation, preserving waiting after reload through the existing request receipt. Repeated clicks reuse the same request. Admission failures show a reason and leave status controls available; other task states retain the status editor. GitHub polling and the Orchestrator still own task creation.",
+      "ru": "Для issue в Backlog Projects показывает кнопку «Начать работу» без отдельного выбора статуса и сохранения. Карточка показывает запрос, синхронизацию, допуск и подготовку сессии; ожидание сохраняется после перезагрузки по квитанции существующего запроса. Повторные клики используют тот же запрос. Отказ допуска показывает причину и оставляет изменение статуса доступным; для остальных состояний редактор статуса сохранён. Создание запуска остаётся за опросом GitHub и Orchestrator.",
+      "page": "owner-controls"
+    },
+    "f6b3a6d941f839cdf2f588324f48bd74a554eafa": {
+      "category": "operations",
+      "en": "",
+      "ru": "",
+      "exclusionScope": "docs-only",
+      "exclude": "Adds only the reviewed bilingual Changelog classification for the refactor and preview review marker; application behavior is unchanged."
+    },
     "d147466af26570b5d6da6cc82c0c1ce2b1f6d9d2": {
       "category": "improved",
       "en": "Projects keeps a green Preview reviewed marker after acknowledgement. When the current commit differs, an amber marker identifies the reviewed earlier commit; missing commit data does not imply verification. Shared helpers replace duplicated action transport, status presentation, run projections, env parsing and Digest topic updates. Request keys, timeouts, transaction boundaries and merge eligibility are unchanged.",
