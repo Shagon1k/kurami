@@ -9,6 +9,7 @@ import {mountResponse} from "../../src/web/presentation.ts";
 import {PWA_BACKGROUND,PWA_LEGACY_ICON_ASSETS,PWA_MANIFEST_ICONS} from "../../src/web/icons.ts";
 import {syntheticProjectsSnapshot} from "../projects-site/fixture.ts";
 import {AccessVerificationUnavailableError} from "../../src/web/access-keys.ts";
+import {VIEWPORT_META} from "../../src/ui-library/patterns/page-shell.ts";
 
 const servers:Server[]=[];
 async function listen(server:Server,port=0){servers.push(server);server.listen(port,"127.0.0.1");await once(server,"listening");const address=server.address();assert(address&&typeof address!=="string");return `http://127.0.0.1:${address.port}`;}
@@ -50,6 +51,12 @@ try{
   const stylesheet=await get("/_apps/hub/assets/hub.css");assert.equal(stylesheet.status,200);assert((await stylesheet.text()).includes('/assets/onest-'));
   const manifest=await get("/manifest.webmanifest");const data=await manifest.json();assert.equal(data.name,"Kurami");assert.equal(data.scope,"/");assert.equal(data.id,"/");assert.deepEqual(data.icons,PWA_MANIFEST_ICONS);
   assert.equal(data.background_color,PWA_BACKGROUND);assert.equal(data.theme_color,PWA_BACKGROUND);
+  assert.equal(data.display,"standalone","PWA keeps its normal system bars instead of hiding them in fullscreen");
+  for(const path of ["/en/","/ru/projects/","/en/digest/cinema/","/en/docs/projects/","/en/offline.html","/ru/offline.html"]){
+    const page=await get(path);assert.equal(page.status,200,path);
+    const source=await page.text();assert.ok(source.includes(VIEWPORT_META),`${path}: shared viewport applies to browser tabs and PWA navigations`);
+    assert.equal(source.split(VIEWPORT_META).length,2,"one viewport per mounted or offline document");
+  }
   assert(PWA_MANIFEST_ICONS.every(icon=>icon.src.endsWith('-v3.png')),'new installs use versioned vector exports');
   for(const expected of PWA_MANIFEST_ICONS){
     const icon=await get(expected.src);assert.equal(icon.status,200);assert.equal(icon.headers.get("content-type"),"image/png");
@@ -63,7 +70,7 @@ try{
   }
   assert.equal((await get("/assets/kurami-fox.png")).status,200,"legacy icon bookmarks remain available");
   for(const icon of PWA_LEGACY_ICON_ASSETS){assert.equal((await get(icon.src)).status,200,'previous installed manifest URLs remain available');assert.equal((await get(icon.src,'anonymous')).status,403);assert.equal((await get(icon.src,'reader')).status,403);}
-  const worker=await get("/sw.js");assert.equal(worker.headers.get("service-worker-allowed"),"/");assert(!(await worker.text()).includes("cache.put"));
+  const worker=await get("/sw.js");assert.equal(worker.headers.get("service-worker-allowed"),"/");const workerSource=await worker.text();assert(!workerSource.includes("cache.put"));assert.ok(workerSource.includes(VIEWPORT_META),"service-worker offline page also keeps the edge-to-edge viewport");
   assert.equal((await get("/en/projects/","owner",{method:"DELETE"})).status,405);
   assert.equal((await get("/_apps/docs/build.json")).status,404);
   assert.equal((await get("/_apps/digest/api/items/read","owner",{method:"POST"})).status,403,"mutations require same-origin browser requests");

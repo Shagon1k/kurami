@@ -19,7 +19,7 @@ import {renderSiteHeader,renderSiteNav,renderSiteSwitcher,SITE_HEADER_CSS} from 
 import {kuramiSites} from "../../src/ui-library/patterns/kurami-sites.ts";
 import {renderSiteFooter} from "../../src/ui-library/patterns/site-footer.ts";
 import {formatSiteDate} from "../../src/ui-library/foundations/date.ts";
-import {renderDocument} from "../../src/ui-library/patterns/page-shell.ts";
+import {renderDocument,VIEWPORT_META,withEdgeToEdgeViewport} from "../../src/ui-library/patterns/page-shell.ts";
 import {renderTable,TABLE_CSS} from "../../src/ui-library/components/table.ts";
 import {renderCallout,CALLOUT_CSS} from "../../src/ui-library/components/callout.ts";
 import {renderDisclosure,DISCLOSURE_CSS} from "../../src/ui-library/components/disclosure.ts";
@@ -163,6 +163,8 @@ assert(timedPage.includes(formatSiteDate("2026-09-16T07:00:00Z","ru",true)),"Dig
 assert.doesNotMatch(page,/fonts\.(googleapis|gstatic)\.com/,"Digest pages load no third-party fonts");
 const frozen='<html><head><link rel="preconnect" href="https://fonts.googleapis.com"><link href="https://fonts.googleapis.com/css2?family=Onest" rel="stylesheet"></head><body></body></html>';
 const served=injectRuntime(frozen);
+assert.equal((served.match(/name="viewport"/g)??[]).length,1);
+assert.ok(served.includes(VIEWPORT_META),"retained Digest editions opt into edge-to-edge when served");
 assert.doesNotMatch(served,/fonts\.googleapis\.com/,"older editions stop requesting Google Fonts");
 assert.ok(served.includes('url("/assets/onest-latin.woff2")'),"older editions get self-hosted faces");
 assert.equal(injectRuntime(page).includes("@font-face"),page.includes("@font-face"),"current pages are not given a second copy");
@@ -244,6 +246,18 @@ assert.throws(()=>renderLinkButton({label:"X",href:"/",variant:"icon",className:
 assert.throws(()=>renderLinkButton({label:"X",href:"/",variant:"icon",visibleLabel:false}),/requires an icon/);
 assert.match(renderSiteSwitcher(kuramiSites("hub")),/href="https:\/\/kurami\.shagon1k\.win\/ru\/docs\/"/);
 const documentHtml=renderDocument({lang:"en",title:"T",favicon:"/f.svg",styles:{href:"/s.css"},themeScript:true,skipLabel:"Skip",header,main:"<p>m</p>",footer:"<footer></footer>"});
+assert.ok(documentHtml.includes(VIEWPORT_META));
+assert.doesNotMatch(VIEWPORT_META,/user-scalable|maximum-scale/,"edge-to-edge does not disable zoom");
+for(const old of ['', '<meta name="viewport" content="width=device-width">', "<meta content='initial-scale=1, viewport-fit=auto' name='viewport'>",'<meta NAME=viewport content="width=device-width"><meta name="viewport" content="initial-scale=1">']){
+  const rawText='<script>const old=\'<meta name="viewport" content="old">\';</script><style>/* <meta name="viewport"> */</style><!-- <meta name="viewport"> -->';
+  const updated=withEdgeToEdgeViewport(`<html><head>${rawText}${old}</head><body></body></html>`);
+  assert.ok(updated.includes(rawText),"scripts, styles and comments remain unchanged");
+  assert.equal(updated.split(VIEWPORT_META).length,2,"one canonical viewport");
+  assert.equal(withEdgeToEdgeViewport(updated),updated,"viewport upgrade is idempotent");
+}
+const fragment='<div><meta name="viewport" content="fragment"></div>';
+assert.equal(withEdgeToEdgeViewport(fragment),fragment,"API fragments are not documents");
+assert.ok(withEdgeToEdgeViewport('<head><meta content=\'name="viewport"\' name="description"></head>').includes('<meta content=\'name="viewport"\' name="description">'),"attribute values are not treated as attributes");
 assert.match(documentHtml,/<a class="skip-link" href="#main">Skip<\/a>/);
 assert.match(documentHtml,/<main id="main" class="container" tabindex="-1">/);
 assert.ok(documentHtml.indexOf(THEME_SCRIPT_TAG)<documentHtml.indexOf("</head>"));

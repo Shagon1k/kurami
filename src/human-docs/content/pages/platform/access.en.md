@@ -82,6 +82,13 @@ the network and shows a connection placeholder offline. It does not save private
 pages or API responses. Deployment and installed-phone checks are separate from
 the local routing tests.
 
+Browser tabs and the installed PWA use the same edge-to-edge page shell and safe
+screen insets. Whether the system gesture strip becomes transparent depends on
+the browser and OS, especially for an installed Android PWA; the page cannot force
+it. Kurami remains in standalone mode, not fullscreen. Verify both a browser tab
+and the installed app on your phone after deployment; desktop emulation checks
+layout, not the native system bars.
+
 Install from the unified entry after signing in. The Apps menu keeps Hub, Digest,
 Projects and Docs in that window, including when you enter through an older address.
 All four apps reuse the same font URLs. Your browser can cache these design files;

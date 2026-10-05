@@ -4,6 +4,22 @@ import { THEME_SCRIPT_TAG } from "../runtime/theme.ts";
 import { kuramiTheme } from "../themes/index.ts";
 import {renderFontPreloads} from "../foundations/fonts.ts";
 
+export const VIEWPORT_META='<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">';
+
+/** Upgrade retained documents without changing scripts, styles or HTML fragments. */
+export function withEdgeToEdgeViewport(html:string):string {
+  let inHead=false;
+  return html.replace(/<!--[\s\S]*?-->|<(script|style)\b[^>]*>[\s\S]*?<\/\1\s*>|<[^>]+>/gi,tag=>{
+    if(/^<head\b/i.test(tag)){inHead=true;return tag+VIEWPORT_META;}
+    if(/^<\/head\b/i.test(tag)){inHead=false;return tag;}
+    if(inHead&&/^<meta\b/i.test(tag)){
+      const attributes=[...tag.slice(5).matchAll(/([^\s=/>]+)(?:\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\s>]+)))?/g)];
+      if(attributes.some(([,name,double,single,bare])=>name?.toLowerCase()==="name"&&(double??single??bare)?.toLowerCase()==="viewport"))return "";
+    }
+    return tag;
+  });
+}
+
 export type DocumentInput = {
   lang: string;
   title: string;
@@ -36,7 +52,7 @@ export function renderDocument(input: DocumentInput): string {
 <html lang="${input.lang}" data-theme="light">
 <head>
   <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
+  ${VIEWPORT_META}
   <meta name="color-scheme" content="light dark">
   <meta name="theme-color" content="${kuramiTheme.light.colors["surface-page"]}">
   <title>${escapeHtml(input.title)}</title>

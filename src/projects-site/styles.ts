@@ -127,7 +127,7 @@ export const PROJECTS_STYLES=[THEME_CSS,FOUNDATION_CSS,BUTTON_CSS,TABLE_CSS,FORM
 }
 @media (max-width: 900px) {
   .projects-grid--detail { grid-template-columns: minmax(0,1fr); }
-  .projects-detail { position: fixed; inset: 0; z-index: 60; width: 100%; height: 100dvh; overflow-y: auto; overscroll-behavior: contain; border: 0; border-radius: var(--radius-sm); padding: var(--space-5); padding-bottom: calc(var(--space-6) + env(safe-area-inset-bottom)); background: var(--surface-page); touch-action: pan-y; }
+  .projects-detail { --projects-detail-padding: var(--space-5); --projects-detail-bottom-padding: var(--space-6); position: fixed; inset: 0; z-index: 60; width: 100%; height: 100dvh; overflow-y: auto; overscroll-behavior: contain; border: 0; border-radius: var(--radius-sm); padding: calc(var(--projects-detail-padding) + env(safe-area-inset-top,0px)) calc(var(--projects-detail-padding) + env(safe-area-inset-right,0px)) calc(var(--projects-detail-bottom-padding) + max(env(safe-area-max-inset-bottom,0px),env(safe-area-inset-bottom,0px))) calc(var(--projects-detail-padding) + env(safe-area-inset-left,0px)); background: var(--surface-page); touch-action: pan-y; }
   body.projects-mobile-detail-open { overflow: hidden; }
   .projects-detail[data-dragging] { box-shadow: var(--shadow-raised); will-change: transform; }
   .projects-table-frame { touch-action: pan-y; }
@@ -142,6 +142,6 @@ export const PROJECTS_STYLES=[THEME_CSS,FOUNDATION_CSS,BUTTON_CSS,TABLE_CSS,FORM
   .projects-table { --table-stack-row-padding: var(--space-3) var(--space-4); --table-stack-label-display: none; }
   .projects-task { max-width: none; min-width: 0; }
   .projects-checks { padding-block: var(--space-1); }
-  .projects-detail { padding: var(--space-4); }
+  .projects-detail { --projects-detail-padding: var(--space-4); --projects-detail-bottom-padding: var(--space-4); }
 }
 `].join("\n");

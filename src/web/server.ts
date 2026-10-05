@@ -6,6 +6,7 @@ import {WebAccess,type WebIdentity} from "./access.ts";
 import {AccessVerificationUnavailableError,accessUnavailableMessage} from "./access-keys.ts";
 import {resolveWebRoute,WEB_ORIGIN,type WebApp} from "./routes.ts";
 import {fontFiles} from "../ui-library/foundations/fonts.ts";
+import {VIEWPORT_META} from "../ui-library/patterns/page-shell.ts";
 import {PWA_BACKGROUND,PWA_ICON_ASSETS,PWA_LEGACY_ICON_ASSETS,PWA_MANIFEST_ICONS} from "./icons.ts";
 
 type Options={upstreams?:Record<WebApp,string>;authorize?:(request:IncomingMessage,app:WebApp)=>Promise<WebIdentity|null>;origin?:string};
@@ -68,7 +69,7 @@ export function createWebServer(options:Options={}):Server {
         response.setHeader("Service-Worker-Allowed","/");send(200,readFileSync(new URL("./sw.js",import.meta.url),"utf8"),"text/javascript; charset=utf-8");return;
       }
       if(resource.endsWith("offline.html")){
-        const ru=resource.startsWith("/ru/");send(200,`<!doctype html><html lang="${ru?"ru":"en"}"><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Kurami</title><h1>${ru?"Нет связи":"No connection"}</h1><a href="/${ru?"ru":"en"}/">Kurami</a></html>`,"text/html; charset=utf-8");return;
+        const ru=resource.startsWith("/ru/");send(200,`<!doctype html><html lang="${ru?"ru":"en"}"><meta charset="utf-8">${VIEWPORT_META}<title>Kurami</title><h1>${ru?"Нет связи":"No connection"}</h1><a href="/${ru?"ru":"en"}/">Kurami</a></html>`,"text/html; charset=utf-8");return;
       }
       const png=resource.endsWith(".png"),body=readFileSync(new URL(`../ui-library/assets/brand/${png?"kurami-fox-transparent.png":"kurami-fox-header.webp"}`,import.meta.url));
       response.writeHead(200,{"Content-Type":png?"image/png":"image/webp"});response.end(request.method==="HEAD"?undefined:body);return;

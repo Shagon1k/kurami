@@ -42,6 +42,13 @@ group themes "Themes and tokens" theme roles band
 
 ## Compact controls
 
+The shared page shell uses `viewport-fit=cover` in browser tabs and the installed
+PWA. The page background extends to the screen edges; navigation, menus, dialogs
+and the Projects drawer keep controls clear of screen cutouts and system gestures.
+The dock follows the current bottom inset, while the page reserves its maximum
+inset where supported to avoid layout jumps as browser bars retract. Retained
+Digest pages receive the same viewport setting when served.
+
 Action buttons use restrained accents from the existing theme: blue for applying changes or starting a fix,
 amber for operations requiring attention, green for completion and red for cancellation or discarding work.
 Labels and icons remain visible; a color does not mean the request has completed. Disabled buttons stay gray.
