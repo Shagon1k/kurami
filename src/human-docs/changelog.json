@@ -2,6 +2,19 @@
   "baseline": "4a38c09",
   "publicationBaseline": "788787f077d42fc3b3346a4f4a612947b97ce2e8",
   "commits": {
+    "d147466af26570b5d6da6cc82c0c1ce2b1f6d9d2": {
+      "category": "improved",
+      "en": "Projects keeps a green Preview reviewed marker after acknowledgement. When the current commit differs, an amber marker identifies the reviewed earlier commit; missing commit data does not imply verification. Shared helpers replace duplicated action transport, status presentation, run projections, env parsing and Digest topic updates. Request keys, timeouts, transaction boundaries and merge eligibility are unchanged.",
+      "ru": "Projects сохраняет зелёную отметку «Превью просмотрено» после подтверждения. Если текущий коммит изменился, янтарная отметка сообщает о просмотре предыдущего коммита; отсутствие данных коммита не считается подтверждённым просмотром. Общие функции заменили дублирование запросов действий, сообщений статусов, проекций запусков, разбора env и обновления тем Digest. Ключи запросов, таймауты, границы транзакций и условия мержа не изменены.",
+      "page": "owner-controls"
+    },
+    "122f81d0a3f65694a7cf458b9aaec944ee6cedd4": {
+      "category": "operations",
+      "en": "",
+      "ru": "",
+      "exclusionScope": "docs-only",
+      "exclude": "Adds only the reviewed bilingual Changelog classification for full-width action statuses and dock transparency; application behavior is unchanged."
+    },
     "e31d327defb5484d05008fd03075ad1141e1beb6": {
       "category": "fixed",
       "en": "Projects displays queued, running and failed action statuses in full-width rows below paired buttons, with the operation name. This also covers Remove preview and keeps paired controls aligned. The mobile dock background is now 72% opaque, adding 10 percentage points of transparency; labels, icons, sizing and desktop navigation are unchanged.",
