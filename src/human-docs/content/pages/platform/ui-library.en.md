@@ -47,6 +47,9 @@ amber for operations requiring attention, green for completion and red for cance
 Labels and icons remain visible; a color does not mean the request has completed. Disabled buttons stay gray.
 Navigation, popup cancellation and closing controls remain neutral.
 
+The shared sync icon uses two symmetrical circular arcs joined to equal-length
+arrowheads. Buttons and inline status indicators use the same outline.
+
 Open disclosures keep a neutral background on their heading, including nested
 portfolio sections. Following an in-page link briefly highlights its destination
 heading without moving the layout. The cue clears after 1.8 seconds and does not

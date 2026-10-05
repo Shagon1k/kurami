@@ -43,6 +43,19 @@ const attributedSelect=renderSelectField({name:"sort",label:"Order",value:"origi
 assert.match(attributedSelect,/<select name="sort" data-stock-sort aria-label="Order &amp; sort">/);
 assert.throws(()=>renderSelectField({name:"sort",label:"Order",value:"original",options:[],attributes:{onchange:"alert(1)"}}),/Unsafe select attribute/);
 assert.match(renderIcon("bellOff"),/aria-hidden="true"/);
+const refreshPath=iconPath("refresh");
+const refreshArcs=[...refreshPath.matchAll(/M([\d.]+) ([\d.]+)a([\d.]+) ([\d.]+) 0 0 1 ?(-?[\d.]+) 0/g)].map(match=>match.slice(1).map(Number));
+const refreshHeads=[...refreshPath.matchAll(/M([\d.]+) ([\d.]+)V([\d.]+)H([\d.]+)/g)].map(match=>match.slice(1).map(Number));
+assert.equal(refreshArcs.length,2);assert.equal(refreshHeads.length,2);
+for(let i=0;i<2;i++){
+  const [x,y,rx,ry,dx]=refreshArcs[i]!,[hx,hy,tipY,endX]=refreshHeads[i]!;
+  assert.equal(hx,x!+dx!,"refresh arc joins its arrowhead without a gap");assert.equal(tipY,y);
+  assert.equal(rx,ry);assert.equal(Math.hypot(x!-12,y!-12),rx,"both arcs share the icon's center");
+  assert.equal(Math.abs(hy!-tipY!),Math.abs(endX!-hx!),"arrowhead arms have equal length");
+}
+for(let i=0;i<4;i++)assert.equal(refreshHeads[0]![i]!+refreshHeads[1]![i]!,24,"refresh heads have half-turn symmetry");
+assert(renderIcon("refresh").includes(`d="${refreshPath}"`));
+assert(renderButton({label:"Sync",variant:"quiet",iconPath:refreshPath,visibleLabel:true}).includes(`d="${refreshPath}"`),"buttons and standalone icons share the corrected path");
 
 const root=resolve(import.meta.dirname,"../..");
 for(const lang of ["en","ru"] as const)for(const app of ["hub","digest","projects","docs"] as const){

@@ -29,7 +29,7 @@ const paths={
   project:"M3 6h7l2 2h9v12H3zM3 6V4h7l2 2",
   ci:"M4 4h16v16H4zM8 12l3 3 5-6",
   preview:"M3 4h18v14H3zM8 22h8M12 18v4M3 8h18",
-  refresh:"M20 7v5h-5M4 17v-5h5M5 7a8 8 0 0 1 14 0M19 17a8 8 0 0 1-14 0",
+  refresh:"M4.5 8a8.5 8.5 0 0 1 15 0M19.5 3.5V8H15M19.5 16a8.5 8.5 0 0 1-15 0M4.5 20.5V16H9",
   chevronDown:"M6 9l6 6 6-6",
   work:"M8 6V4h8v2M3 7h18v13H3zM3 12h18M10 11v3h4v-3",
   review:"M9 3h6v3H9zM7 5H4v16h16V5h-3M8 13l3 3 5-6",
