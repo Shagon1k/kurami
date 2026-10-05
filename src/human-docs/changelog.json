@@ -2,6 +2,19 @@
   "baseline": "4a38c09",
   "publicationBaseline": "788787f077d42fc3b3346a4f4a612947b97ce2e8",
   "commits": {
+    "8fd56e946984c7b7ff2dc744674ec1472e744b7a": {
+      "category": "fixed",
+      "en": "Access signature verification allows 15 seconds to fetch Cloudflare public keys instead of five. Key endpoint timeouts, network errors and malformed responses return a temporary 503 message rather than Access denied. Invalid assertions remain denied; token expiry is checked again after fetching keys. Hub and Projects share the bounded key-fetch helper and keep private data and actions closed until verification succeeds.",
+      "ru": "Проверка подписи Access ожидает публичные ключи Cloudflare до 15 секунд вместо пяти. Таймауты, сетевые ошибки и некорректные ответы сервиса ключей возвращают временную ошибку 503 вместо отказа в доступе. Неверные токены по-прежнему отклоняются; срок действия повторно проверяется после получения ключей. Hub и Projects используют общую функцию загрузки ключей с ограничениями; приватные данные и действия остаются недоступны до успешной проверки.",
+      "page": "access"
+    },
+    "9a215e7325cac1ce07d7b1ab9e4b26c95f1ea520": {
+      "category": "operations",
+      "en": "",
+      "ru": "",
+      "exclusionScope": "docs-only",
+      "exclude": "Adds only the reviewed bilingual Changelog classification for the Projects refresh compatibility fix; application behavior is unchanged."
+    },
     "51c07ed2d0f896e68d6cdc02eeb9e29767d7c450": {
       "category": "fixed",
       "en": "Projects explicitly stretches its single Start work button across the row and shortens the pre-launch hint. CSS, JavaScript and card fragments share a compatibility version. An open tab receiving a different version keeps its previous card, disables writes and asks for a reload instead of inserting incompatible markup. A successful refresh clears its previous refresh-error notice; unrelated action errors remain visible.",
