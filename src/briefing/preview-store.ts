@@ -1,3 +1,4 @@
+import {prepareTopicUpsert} from "./topic-registry-store.ts";
 import { createHash } from "node:crypto";
 import { readFile, unlink } from "node:fs/promises";
 import type { DatabaseSync } from "node:sqlite";
@@ -97,21 +98,7 @@ export async function persistPreparedPreview(
         read_at, reaction, updated_at
       ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
     `);
-    const upsertTopic = database.prepare(`
-      INSERT INTO topic_registry (id, label, aliases_json, status, created_at, updated_at)
-      VALUES (?, ?, ?, ?, ?, ?)
-      ON CONFLICT(id) DO UPDATE SET
-        label = excluded.label,
-        aliases_json = CASE
-          WHEN excluded.aliases_json = '[]' THEN topic_registry.aliases_json
-          ELSE excluded.aliases_json
-        END,
-        status = CASE
-          WHEN topic_registry.status = 'active' THEN 'active'
-          ELSE excluded.status
-        END,
-        updated_at = excluded.updated_at
-    `);
+    const upsertTopic = prepareTopicUpsert(database);
     for (const item of items) {
       const previousItem = priorState.get(item.itemId);
       insertItem.run(

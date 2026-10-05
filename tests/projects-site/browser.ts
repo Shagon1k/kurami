@@ -16,6 +16,7 @@ let semanticNotes=false;
 let reviewFixScenario:string|null=null;
 let runNotesScenario:string|null=null;
 let previewStopOnly=false;
+let previewReviewScenario=false,previewReviewed=false,previewNewHead=false;
 let ciScenario:"normal"|"failed"|"mixed"|"new-head"="normal";
 let prScenario:"off"|"ready"|"merge"|"all-methods"|"blocked"|"pending"|"syncing"|"unavailable"="off";
 let prWrites:{action:string;method:string|null;confirmed:boolean;key:string}[]=[];
@@ -57,6 +58,7 @@ const serverOptions = { snapshot: () => {
     if(previewStopOnly){item.runActions!.actions=item.runActions!.actions.filter(action=>['preview_stop','stop','take_control'].includes(action.action));item.preview.state='outdated';item.preview.tone='warning';item.preview.head=item.review.head;}
   }
   if(dense)for(let index=0;index<80;index++)snapshot.items.push({...snapshot.items[3]!,id:`bulk-${index}`,number:100+index,title:`Additional task ${index}`});
+  if(previewReviewScenario){const item=snapshot.items[0]!;item.preview={state:previewNewHead?'outdated':'running',tone:previewNewHead?'warning':'success',head:'abcdef0123456789',expiresAt:'2030-01-01T00:00:00Z',reviewed:previewReviewed};item.ci.head=previewNewHead?'fedcba9876543210':item.preview.head;item.links.preview='https://preview.example.test/';item.runActions!.actions=previewReviewed?[]:[{action:'preview_reviewed',label:'Превью проверено',enabled:true,confirmation:null,hint:null,state:null}];}
   return snapshot;
 }, cacheMs: 0, authorize: async () => "fixture-owner", origin: "", review: (value: unknown) => {
   const input = value as { head: string; key: string };
@@ -66,6 +68,7 @@ const serverOptions = { snapshot: () => {
 } };
 const completeOptions = { ...serverOptions, prCacheMs:0,runAction:(value:unknown)=>{
   const input=value as {action:string;key:string;confirmed:boolean};actionKeys.push(input.key);
+  if(input.action==='preview_reviewed'){assert.equal(input.confirmed,false);previewReviewed=true;return {state:'created' as const,requestId:'fixture-reviewed',requestState:'applied'};}
   if(input.action==="discard_local") {assert.equal(input.confirmed,true);discarded=true;}
   else {assert.equal(input.action,"preview_start");assert.equal(input.confirmed,false);if(failAction) throw new ProjectsActionError(503,"Действие временно недоступно.");actionAccepted=true;}
   return {state:"created" as const,requestId:"fixture-action",requestState:"pending"};
@@ -713,6 +716,24 @@ try {
     assert.equal(await devtools.evaluate(`(()=>{const button=document.querySelector('[data-run-action=preview_stop]'),note=document.querySelector('[data-run-action-state=preview_stop]'),pair=button.closest('.projects-action-pair'),open=pair.querySelector('a'),r=note.getBoundingClientRect(),p=pair.getBoundingClientRect(),b=button.getBoundingClientRect(),a=open.getBoundingClientRect();return button.disabled&&pair.children.length===2&&Math.abs(a.width-b.width)<1&&Math.abs(a.height-b.height)<1&&Math.abs(a.top-b.top)<1&&r.top>=b.bottom&&Math.abs(r.left-p.left)<1&&Math.abs(r.width-p.width)<1&&note.textContent.includes(' · ');})()`),true,'Open preview and pending Remove preview keep an equal button pair with one shared full-width status');
     await audit();
     if(width===390&&lang==='en'&&theme==='light'){await devtools.evaluate(`document.querySelector('[data-run-action=preview_stop]').scrollIntoView({block:'center',behavior:'instant'})`);const shot=await devtools.call<{data:string}>('Page.captureScreenshot',{format:'png',captureBeyondViewport:false});writeFileSync(resolve(out,'projects-preview-stop-pending.png'),Buffer.from(shot.data,'base64'));}
+  }
+  previewReviewScenario=true;runNotesScenario=null;previewStopOnly=false;semanticNotes=false;reviewFixScenario=null;
+  prScenario='off';previewReady=false;accepted=false;cancellation=false;actionAccepted=false;statusRequest=null;
+  for(const width of [320,390,1280])for(const lang of ['en','ru'])for(const theme of ['light','dark']){
+    previewReviewed=false;previewNewHead=false;
+    await devtools.call('Emulation.setDeviceMetricsOverride',{width,height:900,deviceScaleFactor:1,mobile:width<620});
+    await open(`/?item=item-12&lang=${lang}`);
+    await devtools.evaluate(`if(document.documentElement.dataset.theme!==${JSON.stringify(theme)})document.querySelector('[data-theme-toggle]').click()`);await delay(200);
+    assert.equal(await devtools.evaluate("!!document.querySelector('[data-preview-review]')"),false);
+    await pointerClick('[data-run-action=preview_reviewed]');
+    await wait("!!document.querySelector('[data-preview-review=current]')");
+    assert.equal(await devtools.evaluate("!!document.querySelector('[data-run-action=preview_reviewed]')"),false);
+    await audit();await open(`/?item=item-12&lang=${lang}`);
+    await wait("!!document.querySelector('[data-preview-review=current]')");
+    if(width===390&&lang==='ru'&&theme==='light'){await devtools.evaluate("document.querySelector('[data-preview-review]').scrollIntoView({block:'center',behavior:'instant'})");const shot=await devtools.call<{data:string}>('Page.captureScreenshot',{format:'png',captureBeyondViewport:false});writeFileSync(resolve(out,'projects-preview-reviewed.png'),Buffer.from(shot.data,'base64'));}
+    previewNewHead=true;await open(`/?item=item-12&lang=${lang}`);
+    await wait("!!document.querySelector('[data-preview-review=outdated]')");await audit();
+    assert.equal(await devtools.evaluate("!!document.querySelector('[data-preview-review=current]')"),false);
   }
 } finally {
   await browser.close();

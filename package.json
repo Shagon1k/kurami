@@ -4,6 +4,7 @@
   "description": "Kurami system control plane for Hermes",
   "main": "index.js",
   "scripts": {
+    "test:duplication-refactor": "node tests/verify-duplication-refactor.ts",
     "web:serve": "node src/web/server.ts",
     "test:web": "node tests/web/routes.ts && node tests/web/access.ts && node tests/web/gateway.ts && node tests/web/release.ts",
     "web:release": "node src/web/release.ts",

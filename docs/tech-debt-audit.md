@@ -5,15 +5,15 @@ This roadmap records verified Kurami debt. Update **Status** as fixes land:
 verified at code level; it does not by itself claim a production rollout. The **Jira**
 column remains empty unless the owner asks for tickets.
 
-_Last audit: 2026-09-28. Scope: Daily Briefing skill, Digest persistence, and Orchestrator runtime boundaries._
+_Last audit: 2026-10-05. Scope: prior items retained; duplication in Projects, Orchestrator projections, env parsing and Digest topic persistence._
 
 ## Summary
 
 | Severity | Open | In progress | Done |
 | --- | ---: | ---: | ---: |
 | High | 0 | 0 | 0 |
-| Medium | 5 | 1 | 5 |
-| Low | 0 | 0 | 1 |
+| Medium | 5 | 1 | 8 |
+| Low | 0 | 0 | 3 |
 
 ## Rollout evidence
 
@@ -45,9 +45,14 @@ run was 2026-09-28 at 06:00 UTC; its result is tracked in M1.
 | M9 | maintainability | `src/orchestrator/runtime/controller.ts:164` | CI repair, review-fix, AI review, and progress reconciliation now have separate modules on this branch. Focused tests check cycle order and typed action/receipt dispatch; the CLI dry-run branch is unchanged. | Merge and verify the controller refactor before marking this item Done; no application rollout is implied. | Open | — |
 | M10 | error-handling | `src/briefing/weekly/mail-observation.ts:21` | The inline catch on `main` can hide a failed Weekly mail observation after the mail action completes. This branch adds an action- and edition-bound failure receipt with idempotent history replay. | Merge the tested handler and migration, then verify the populated database upgrade before marking this item done. | Open | — |
 | M11 | testing | `.github/workflows/regression.yml:1` | A secretless PR and main workflow is present on this branch, but no successful GitHub run has been verified yet. Reviewers still lack confirmed automatic regression evidence. | Verify the workflow on PR #13, then decide separately whether its check should become a required merge gate. | Open | — |
+| M12 | maintainability | `src/projects-site/action-request.ts:9` | Four Projects actions repeated POST transport, busy cleanup and ambiguous-error handling. They now use one request helper; operation-specific refresh timing and receipt handling stay with each action. | Verify focused and browser regressions, then release the scoped refactor. | Done | — |
+| M13 | consistency | `src/projects-site/action-presentation.ts:6` | Server-rendered status notes and browser notifications maintained separate state/message/tone maps. A typed source now supplies both presentations. | Verify all EN/RU state mappings and status-request recovery before release. | Done | — |
+| M14 | maintainability | `src/orchestrator/runtime/run-projections.ts:2` | Controls, Discord, succession and runtime reads duplicated attention/successor projections. Shared SQL keeps filters and ordering consistent; COUNT and EXISTS remain separate to preserve semantics. | Run control, Discord, succession and controller regressions before release. | Done | — |
 
 ## Low
 
 | ID | Category | Location | Description | Suggested fix | Status | Jira |
 | --- | --- | --- | --- | --- | --- | --- |
 | L1 | maintainability | `integrations/hermes/skills/kurami-daily-briefing/references/provider-hermes-weather.md:1` | The `hermes-weather` profile had no configured source or runtime adapter; a test alone kept it present. It could mislead future recovery work. | Remove the unused profile while retaining the tested Open-Meteo selection. | Done | — |
+| L2 | maintainability | `src/core/env-value.ts:2` | Four modules copied the Hermes env-file parser. One helper now preserves first-match, empty-value and quoted-value behavior without shell evaluation. | Verify format tests and affected delivery suites before release. | Done | — |
+| L3 | maintainability | `src/briefing/topic-registry-store.ts:4` | Preview preparation and published-news updates duplicated the topic upsert. One prepared statement now preserves active status and existing aliases inside caller-owned transactions. | Verify topic preservation, rollback and Digest regression suites before release. | Done | — |

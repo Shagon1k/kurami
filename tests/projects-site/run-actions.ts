@@ -77,6 +77,7 @@ try {
   reset();const extension=input("preview_start");assert.match(view().actions.find(action=>action.action==="preview_start")!.label,/Продлить/);requestProjectRunAction(extension,"owner",options);
   reset();const acknowledgement=input("preview_reviewed");const ack=requestProjectRunAction(acknowledgement,"owner",options);
   assert.equal(ack.requestState,"applied");assert.equal(count(),0,"preview acknowledgement does not start a worker");
+  assert.equal(collectProjectsSnapshot(options).items.find(item=>item.id==='item12')!.preview.reviewed,true,"the confirmed receipt survives a fresh snapshot");
   assert.equal(database.prepare("SELECT reviewed_via FROM preview_leases WHERE lease_id='lease_current'").get()!.reviewed_via,"projects");
   assert.equal(database.prepare("SELECT preview_requirement_lease_id FROM runs").get()!.preview_requirement_lease_id,"lease_current");
   assert.equal(requestProjectRunAction(acknowledgement,"owner",options).state,"existing");assert.equal(database.prepare("SELECT COUNT(*) AS n FROM run_state_history WHERE reason='preview_reviewed'").get()!.n,1);

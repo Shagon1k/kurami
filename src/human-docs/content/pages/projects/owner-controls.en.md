@@ -88,6 +88,8 @@ See [Completion and cleanup](@release-cleanup) for the resulting cleanup.
 The status editor stays visible. Issue, PR, review and Discord links use bordered
 buttons in a grid. CI, review and preview share one block,
 with repair actions beside their checks. Preview has its own link and expiry.
+After **Mark reviewed**, its button disappears and **Preview reviewed** stays visible with a green check.
+The mark refers to the exact preview commit. After the PR changes, an amber mark says **Reviewed for an earlier commit**.
 A matching commit appears once; differing commits stay visible. A ready review
 does not mean there are no findings.
 

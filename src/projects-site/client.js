@@ -78,6 +78,11 @@
   let requestingReview = false;
   let requestingStatus = false;
   let requestingAction = false;
+  const requestAction=createProjectActionRequest({
+    busy:()=>requestingReview||requestingStatus||requestingAction||refreshing,
+    setBusy:(kind,value)=>{if(kind==='review')requestingReview=value;else if(kind==='status')requestingStatus=value;else requestingAction=value;},
+    headers:requestHeaders,url:kuramiAppUrl,notify,
+  });
   let confirmingAction = null;
   let confirmingPr=null;
   let dismissedPrTrigger=null;
@@ -128,18 +133,16 @@
   window.addEventListener('resize',positionPr);
   document.addEventListener('scroll',positionPr,true);
   async function submitPr(button,method) {
-    if(button.disabled||requestingAction||requestingReview||requestingStatus||refreshing)return;
-    const slot=button.closest('[data-pr-slot]');requestingAction=true;button.setAttribute('aria-busy','true');
-    try {
-      const response=await fetch(kuramiAppUrl('/api/pr-action'),{method:'POST',headers:requestHeaders,body:JSON.stringify({
-        project:slot.dataset.prProject,itemId:slot.dataset.prItem,action:button.dataset.prAction,head:button.dataset.prHead,
-        fingerprint:button.dataset.prFingerprint,key:button.dataset.prKey,confirmed:true,method,checkOnly:button.hasAttribute('data-pr-check'),
-      }),signal:AbortSignal.timeout(45000)});
-      const result=await response.json();
-      if(!response.ok)throw new Error(result.error||t('GitHub did not complete this PR action.'));
-      notify(t(result.state==='applied'?(button.dataset.prAction==='ready'?'PR ready for review.':'PR merged.'):result.state==='uncertain'?'PR action unconfirmed. Check its result in GitHub.':'GitHub is processing this PR action.'),result.state==='applied'?'success':'warning');
-    } catch(error) {notify(error.name==='TimeoutError'||error.name==='TypeError'?t('PR action unconfirmed. Check its result in GitHub.'):error.message,'failure');}
-    finally {requestingAction=false;button.removeAttribute('aria-busy');await refresh();}
+    const slot=button.closest('[data-pr-slot]');
+    return requestAction(button,{kind:'action',path:'/api/pr-action',timeout:45000,
+      body:{project:slot.dataset.prProject,itemId:slot.dataset.prItem,action:button.dataset.prAction,head:button.dataset.prHead,
+        fingerprint:button.dataset.prFingerprint,key:button.dataset.prKey,confirmed:true,method,checkOnly:button.hasAttribute('data-pr-check')},
+      unconfirmed:t('PR action unconfirmed. Check its result in GitHub.'),
+      response:async(result,response)=>{
+        if(!response.ok)throw new Error(result.error||t('GitHub did not complete this PR action.'));
+        notify(t(result.state==='applied'?(button.dataset.prAction==='ready'?'PR ready for review.':'PR merged.'):result.state==='uncertain'?'PR action unconfirmed. Check its result in GitHub.':'GitHub is processing this PR action.'),result.state==='applied'?'success':'warning');
+      },after:()=>refresh(),
+    });
   }
   function filter() {
     updateExpiry();
@@ -421,20 +424,16 @@
   function cancelMotion(){motionVersion++;settling=false;delete dashboard.dataset.transitioning;document.querySelectorAll('.projects-detail:not([data-exited])').forEach(panel=>{panel.getAnimations().forEach(animation=>animation.cancel());panel.style.removeProperty('transform');});motionFinished();}
   document.addEventListener('pointercancel',cancelGesture,{passive:true});
   async function submitReview(button) {
-    if (button.disabled || busy() || refreshing) return;
-    requestingReview = true;
-    button.setAttribute('aria-busy', 'true');
-    try {
-      const response = await fetch(kuramiAppUrl('/api/ai-review'), { method: 'POST', headers: requestHeaders,
-        body: JSON.stringify({ runId: button.dataset.reviewRun, project: button.dataset.reviewProject, itemId: button.dataset.reviewItem, head: button.dataset.reviewHead, key: button.dataset.reviewKey }),
-        signal: AbortSignal.timeout(10000) });
-      const result = await response.json();
-      if (!response.ok) throw new Error(result.error || t("Could not request AI Review."));
-      button.disabled = true;
-      await refresh();
-      notify(['failed', 'rejected'].includes(result.requestState) ? t("The previous request did not start. Retry AI Review for the current commit.") : result.state === 'existing' ? t("This AI Review request has already been accepted.") : t("AI Review queued."),['failed','rejected'].includes(result.requestState)?'warning':'success');
-    } catch (error) { notify(error.name === 'TimeoutError' || error.name === 'TypeError' ? t("Could not confirm the request. Retry safely: another click will not create a duplicate.") : error.message,'failure'); }
-    finally { requestingReview = false; button.removeAttribute('aria-busy'); }
+    if(busy())return;
+    return requestAction(button,{kind:'review',path:'/api/ai-review',timeout:10000,
+      body:{runId:button.dataset.reviewRun,project:button.dataset.reviewProject,itemId:button.dataset.reviewItem,head:button.dataset.reviewHead,key:button.dataset.reviewKey},
+      unconfirmed:t("Could not confirm the request. Retry safely: another click will not create a duplicate."),
+      response:async(result,response)=>{
+        if(!response.ok)throw new Error(result.error||t("Could not request AI Review."));
+        button.disabled=true;await refresh();
+        notify(['failed','rejected'].includes(result.requestState)?t("The previous request did not start. Retry AI Review for the current commit."):result.state==='existing'?t("This AI Review request has already been accepted."):t("AI Review queued."),['failed','rejected'].includes(result.requestState)?'warning':'success');
+      },
+    });
   }
   function dismissConfirmation(focus = true) {
     if (!confirmingAction) return;
@@ -445,20 +444,15 @@
     if(focus) button.focus();
   }
   async function submitRunAction(button,confirmed) {
-    if (button.disabled || requestingAction || requestingReview || requestingStatus || refreshing) return;
-    requestingAction=true; button.setAttribute('aria-busy','true');
-    try {
-      const response=await fetch(kuramiAppUrl('/api/run-action'),{method:'POST',headers:requestHeaders,
-        body:JSON.stringify({runId:button.dataset.runId,project:button.dataset.runProject,itemId:button.dataset.runItem,action:button.dataset.runAction,fingerprint:button.dataset.runFingerprint,key:button.dataset.runKey,confirmed}),signal:AbortSignal.timeout(10000)});
-      const result=await response.json();
-      if(!response.ok) { await refresh(); throw new Error(result.error || t("Could not request this action.")); }
-      button.disabled=true;
-      await refresh();
-      notify(['failed','rejected'].includes(result.requestState) ? t("The previous request failed. Check the state and retry.") :
-        result.requestState==='applied' ? t("Action confirmed.") : result.state==='existing' ? t("This request has already been accepted.") : t("Action queued in Kurami."),['failed','rejected'].includes(result.requestState)?'warning':'success');
-    } catch(error) {
-      notify(error.name==='TimeoutError' || error.name==='TypeError' ? t("Could not confirm the request. Another click checks the same request without a duplicate.") : error.message,'failure');
-    } finally {requestingAction=false;button.removeAttribute('aria-busy');}
+    return requestAction(button,{kind:'action',path:'/api/run-action',timeout:10000,
+      body:{runId:button.dataset.runId,project:button.dataset.runProject,itemId:button.dataset.runItem,action:button.dataset.runAction,fingerprint:button.dataset.runFingerprint,key:button.dataset.runKey,confirmed},
+      unconfirmed:t("Could not confirm the request. Another click checks the same request without a duplicate."),
+      response:async(result,response)=>{
+        if(!response.ok){await refresh();throw new Error(result.error||t("Could not request this action."));}
+        button.disabled=true;await refresh();
+        notify(['failed','rejected'].includes(result.requestState)?t("The previous request failed. Check the state and retry."):result.requestState==='applied'?t("Action confirmed."):result.state==='existing'?t("This request has already been accepted."):t("Action queued in Kurami."),['failed','rejected'].includes(result.requestState)?'warning':'success');
+      },
+    });
   }
   function updateStatusChoice(form) {
     if (form.dataset.check === 'true') return;
@@ -473,33 +467,23 @@
       note.hidden = !note.textContent;
     }
   }
-  const statusMessages = { checking: t("Checking the current status in GitHub."), writing: t("Saving status in GitHub."), awaiting_sync: t("GitHub updated. Waiting for Kurami sync."),
-    synced: t("Status synced."), conflict: t("Status changed in GitHub. Check the current state."), failed: t("Status change is unconfirmed. You can retry."),
-    uncertain: t("The write is unconfirmed. Check its result before another change.") };
+  const statusMessages=JSON.parse(app?.dataset.statusMessages??'{}');
   dashboard.addEventListener('change', event => { const form = event.target.closest('[data-status-form]'); if (form) updateStatusChoice(form); });
   dashboard.addEventListener('submit', async event => {
-    const form = event.target.closest('[data-status-form]');
-    if (!form) return;
-    event.preventDefault();
-    const button = form.querySelector('[data-status-submit]');
-    if (button.disabled || busy() || refreshing) return;
-    requestingStatus = true; button.setAttribute('aria-busy', 'true');
-    const select = form.querySelector('select');
-    const target = form.dataset.check === 'true' ? form.dataset.target : select.value;
-    select.disabled = true;
-    try {
-      const response = await fetch(kuramiAppUrl('/api/status'), { method: 'POST', headers: requestHeaders,
-        body: JSON.stringify({ project: form.dataset.project, itemId: form.dataset.item, from: JSON.parse(form.dataset.from), target, observedAt: form.dataset.observedAt, key: form.dataset.key }), signal: AbortSignal.timeout(30000) });
-      const result = await response.json();
-      await refresh();
-      if (!response.ok) throw new Error(result.error || statusMessages[result.state] || t("Could not save status."));
-      const tone=['conflict','failed','uncertain'].includes(result.state)?'warning':result.state==='synced'?'success':'info';
-      notify(statusMessages[result.state] || t("Request accepted."),tone,result.state==='synced'?undefined:0);
-    } catch (error) {
-      notify(error.name === 'TimeoutError' || error.name === 'TypeError' ? t("Could not confirm the write. Another click checks this request's result.") : error.message,'failure');
-      // Retain the nonce until a refreshed snapshot has resolved the operation.
-      if (form.isConnected) { select.disabled = form.dataset.check === 'true'; button.disabled = false; }
-    } finally { requestingStatus = false; button.removeAttribute('aria-busy'); }
+    const form=event.target.closest('[data-status-form]');if(!form)return;
+    event.preventDefault();const button=form.querySelector('[data-status-submit]');
+    if(button.disabled||busy()||refreshing)return;
+    const select=form.querySelector('select'),target=form.dataset.check==='true'?form.dataset.target:select.value;
+    select.disabled=true;
+    await requestAction(button,{kind:'status',path:'/api/status',timeout:30000,
+      body:{project:form.dataset.project,itemId:form.dataset.item,from:JSON.parse(form.dataset.from),target,observedAt:form.dataset.observedAt,key:form.dataset.key},
+      unconfirmed:t("Could not confirm the write. Another click checks this request's result."),
+      response:async(result,response)=>{
+        await refresh();const presentation=statusMessages[result.state];
+        if(!response.ok)throw new Error(result.error||presentation?.message||t("Could not save status."));
+        notify(presentation?.message||t("Request accepted."),presentation?.tone||'info',result.state==='synced'?undefined:0);
+      },error:()=>{if(form.isConnected){select.disabled=form.dataset.check==='true';button.disabled=false;}},
+    });
   });
   addEventListener('popstate',async event=>{
     if(window.kuramiMobilePanelPopState?.(event))return;

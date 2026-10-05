@@ -1,3 +1,4 @@
+import {LATEST_ATTENTION_SQL,LATEST_SUCCESSOR_STATE_SQL,LATEST_SUCCESSOR_THREAD_SQL,ACTIVE_SUCCESSOR_EXISTS_SQL} from "./run-projections.ts";
 /** The controller's persisted run projection. Keep aliases aligned with RunRow. */
 export type RunRow = {
   run_id: string;
@@ -153,21 +154,9 @@ export function baseRunSelect(): string {
              WHERE fix_active.run_id = r.run_id
                AND fix_active.round_state IN ('running','waiting_ci','resolving'))
               AS review_fix_active_count
-           ,EXISTS (
-             SELECT 1 FROM run_autonomous_successions successor_active
-             WHERE successor_active.run_id = r.run_id
-               AND successor_active.succession_state IN ('starting','running')
-           ) AS autonomous_successor_active
-           ,(SELECT succession_state
-             FROM run_autonomous_successions successor_latest
-             WHERE successor_latest.run_id = r.run_id
-             ORDER BY successor_latest.succession_number DESC LIMIT 1)
-              AS latest_autonomous_successor_state
-           ,(SELECT predecessor_thread_id
-             FROM run_autonomous_successions successor_latest
-             WHERE successor_latest.run_id = r.run_id
-             ORDER BY successor_latest.succession_number DESC LIMIT 1)
-              AS latest_autonomous_successor_predecessor_thread_id
+           ,${ACTIVE_SUCCESSOR_EXISTS_SQL}
+           ,${LATEST_SUCCESSOR_STATE_SQL}
+           ,${LATEST_SUCCESSOR_THREAD_SQL}
            ,(SELECT round_state FROM run_review_fix_rounds fix_latest
              WHERE fix_latest.run_id = r.run_id
              ORDER BY fix_latest.round_number DESC LIMIT 1)
@@ -188,14 +177,7 @@ export function baseRunSelect(): string {
              WHERE fix_latest.run_id = r.run_id
              ORDER BY fix_latest.round_number DESC LIMIT 1)
               AS latest_review_fix_failure_reason
-           ,(SELECT reason FROM run_state_history attention_latest
-             WHERE attention_latest.run_id = r.run_id
-               AND attention_latest.to_state = 'needs_attention'
-               AND attention_latest.reason NOT IN (
-                 'review_fix_task_archived', 'ci_repair_task_archived'
-               )
-             ORDER BY attention_latest.sequence DESC LIMIT 1)
-              AS latest_attention_reason
+           ,${LATEST_ATTENTION_SQL}
            ,pps.last_captured_at AS project_poll_last_captured_at
            ,pps.last_attempt_state AS project_poll_last_attempt_state
     FROM runs r
