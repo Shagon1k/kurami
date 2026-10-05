@@ -2,6 +2,19 @@
   "baseline": "4a38c09",
   "publicationBaseline": "788787f077d42fc3b3346a4f4a612947b97ce2e8",
   "commits": {
+    "e31d327defb5484d05008fd03075ad1141e1beb6": {
+      "category": "fixed",
+      "en": "Projects displays queued, running and failed action statuses in full-width rows below paired buttons, with the operation name. This also covers Remove preview and keeps paired controls aligned. The mobile dock background is now 72% opaque, adding 10 percentage points of transparency; labels, icons, sizing and desktop navigation are unchanged.",
+      "ru": "Projects показывает состояния очереди, выполнения и ошибки в строках на всю ширину под парными кнопками, с названием операции. Это относится и к удалению превью; парные кнопки сохраняют ровное расположение. Непрозрачность фона мобильного дока уменьшена до 72%: прозрачность выросла на 10 процентных пунктов. Подписи, иконки, размеры и desktop-навигация не изменены.",
+      "page": "owner-controls"
+    },
+    "a76eca5cd23056f20130229cd769d3895b6788ad": {
+      "category": "operations",
+      "en": "",
+      "ru": "",
+      "exclusionScope": "docs-only",
+      "exclude": "Adds only the reviewed bilingual Changelog classification for Projects controls and the compact mobile dock; application behavior is unchanged."
+    },
     "8fc9d2ee7da2e9fa59cfcd4657147b38ff6624bc": {
       "category": "fixed",
       "en": "Projects keeps the PR button beside Cancel run during loading, synchronization and temporary read failures, with explanations below both controls. Review fixes show their actual phase and round instead of stale preview context or an orphan Queued label. Fresh polling settles older status writes for PR eligibility; unresolved writes remain blocking. The shared mobile dock is smaller, with lighter 26px icon strokes, responsive medium-weight labels and an 82% opaque warm surface. Desktop header navigation is unchanged.",
