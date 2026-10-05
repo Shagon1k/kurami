@@ -21,9 +21,9 @@ export function renderMobileNavigation(input:MobileNavigationInput):string {
 
 export const MOBILE_NAVIGATION_CSS=`
 ${POPOVER_CSS}
-.mobile-navigation { --mobile-search-top: 12px; --mobile-search-height: 100dvh; --mobile-navigation-gap: var(--space-2); display: none; }
+.mobile-navigation { --mobile-search-top: 12px; --mobile-search-height: 100dvh; --mobile-navigation-gap: 3px; display: none; }
 @media(max-width:${breakpoints.phone}px) {
-  body:has([data-mobile-navigation]) { --mobile-navigation-height: 74px; padding-bottom: calc(var(--mobile-navigation-height) + max(env(safe-area-max-inset-bottom,0px),env(safe-area-inset-bottom,0px)) + var(--space-6)); }
+  body:has([data-mobile-navigation]) { --mobile-navigation-height: 69px; padding-bottom: calc(var(--mobile-navigation-height) + max(env(safe-area-max-inset-bottom,0px),env(safe-area-inset-bottom,0px)) + var(--space-6)); }
   .site-header:has([data-mobile-navigation]) { position: static; backdrop-filter: none; background: var(--surface-page); }
   .site-header:has([data-mobile-navigation]) .site-header__inner { grid-template-columns: minmax(0,1fr); grid-template-areas: "brand"; padding-block: var(--space-4); }
   .site-header:has([data-mobile-navigation]) .site-brand { gap: 9px; }
@@ -76,8 +76,8 @@ ${POPOVER_CSS}
   body:has([data-mobile-navigation="docs"]) .side-mobile,body:has([data-mobile-navigation="docs"]) .toc-mobile { display: none; }
   body:has([data-mobile-navigation="projects"]) .projects-toolbar { display: none; }
   .mobile-navigation .projects-search { width: 100%; }
-  html:has([data-mobile-navigation]) { scroll-padding-bottom: calc(var(--mobile-navigation-height,74px) + env(safe-area-inset-bottom) + var(--space-4)); }
-  body:has([data-mobile-navigation]) main :is(h2,h3,h4)[id] { scroll-margin-block: var(--space-6) calc(var(--mobile-navigation-height,74px) + env(safe-area-inset-bottom) + var(--space-4)); }
+  html:has([data-mobile-navigation]) { scroll-padding-bottom: calc(var(--mobile-navigation-height,69px) + env(safe-area-inset-bottom) + var(--space-4)); }
+  body:has([data-mobile-navigation]) main :is(h2,h3,h4)[id] { scroll-margin-block: var(--space-6) calc(var(--mobile-navigation-height,69px) + env(safe-area-inset-bottom) + var(--space-4)); }
   body:has(dialog[open]) .mobile-navigation__bar { visibility: hidden; }
   body:has([data-mobile-navigation]):not(.projects-mobile-detail-open) .toast { bottom: calc(var(--mobile-navigation-height) + env(safe-area-inset-bottom) + var(--space-4)); }
 }
