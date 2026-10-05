@@ -8,6 +8,7 @@ import {syntheticHubSnapshot} from "../../src/ui-library/testing/fixtures.ts";
 import {mountResponse} from "../../src/web/presentation.ts";
 import {PWA_BACKGROUND,PWA_LEGACY_ICON_ASSETS,PWA_MANIFEST_ICONS} from "../../src/web/icons.ts";
 import {syntheticProjectsSnapshot} from "../projects-site/fixture.ts";
+import {AccessVerificationUnavailableError} from "../../src/web/access-keys.ts";
 
 const servers:Server[]=[];
 async function listen(server:Server,port=0){servers.push(server);server.listen(port,"127.0.0.1");await once(server,"listening");const address=server.address();assert(address&&typeof address!=="string");return `http://127.0.0.1:${address.port}`;}
@@ -70,6 +71,21 @@ try{
   assert.equal(forwarded.status,200);assert.equal((await forwarded.json()).path,"/api/fixture","permitted writes retain app namespace");
   const wrongHost=await new Promise<number>((done,reject)=>{const request=httpRequest(gateway+"/en/",{headers:{host:"wrong.example","x-test-identity":"owner"}},response=>{response.resume();done(response.statusCode!);});request.on("error",reject);request.end();});assert.equal(wrongHost,421);
   const closed=await listen(createWebServer({upstreams:{hub,projects,docs,digest}}));assert.equal((await fetch(closed+"/en/",{headers:{host:"kurami.shagon1k.win"}})).status,403);
+  const unavailable=await listen(createWebServer({upstreams:{hub,projects,docs,digest},authorize:async()=>{throw new AccessVerificationUnavailableError();}}));
+  for(const path of ["/en/","/ru/projects/","/_apps/digest/api/profile/topics?lang=ru"]){
+    const result=await fetch(unavailable+path);assert.equal(result.status,503);
+    assert.equal(result.headers.get("retry-after"),"10");assert(result.headers.get("cache-control")?.includes("no-store"));
+    const text=await result.text();assert(text.includes(path.includes("ru")?"Проверка входа временно недоступна":"Sign-in verification is temporarily unavailable"));
+    assert(!text.includes("Access denied"));assert(!text.includes("fixture-owner"));
+  }
+  const head=await fetch(unavailable+"/en/",{method:"HEAD"});assert.equal(head.status,503);assert.equal(await head.text(),"");
+  const unexpected=await listen(createWebServer({upstreams:{hub,projects,docs,digest},authorize:async()=>{throw new Error("fixture private detail");}}));
+  const denied=await fetch(unexpected+"/en/");assert.equal(denied.status,403);assert.equal(await denied.text(),"Access denied");
+  let snapshots=0,actions=0;
+  const unavailableProjects=await listen(createProjectsServer({authorize:async()=>{throw new AccessVerificationUnavailableError();},snapshot:()=>{snapshots++;return syntheticProjectsSnapshot();}}));
+  const projectFailure=await fetch(unavailableProjects+"/?lang=ru");assert.equal(projectFailure.status,503);assert((await projectFailure.text()).includes("Проверка входа временно недоступна"));assert.equal(snapshots,0);
+  const unavailableHub=await listen(createHubServer({authorize:async()=>{throw new AccessVerificationUnavailableError();},controls:{execute:async()=>{actions++;return {};}} as any}));
+  const hubFailure=await fetch(unavailableHub+"/api/controls?action=settings");assert.equal(hubFailure.status,503);assert.equal(hubFailure.headers.get("retry-after"),"10");assert.equal((await hubFailure.json()).ok,false);assert.equal(actions,0);
   // The existing origin is not silently converted into a unified site.
   assert(!(await (await fetch(hub+"/en/")).text()).includes('id="kurami-web-context"'));
   console.log("Unified gateway: mounted pages/APIs/resources, PWA, private cache policy, reader isolation and fail-closed entry verified");

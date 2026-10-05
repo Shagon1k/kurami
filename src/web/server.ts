@@ -3,6 +3,7 @@ import {readFileSync} from "node:fs";
 import {resolve} from "node:path";
 import {fileURLToPath} from "node:url";
 import {WebAccess,type WebIdentity} from "./access.ts";
+import {AccessVerificationUnavailableError,accessUnavailableMessage} from "./access-keys.ts";
 import {resolveWebRoute,WEB_ORIGIN,type WebApp} from "./routes.ts";
 import {fontFiles} from "../ui-library/foundations/fonts.ts";
 import {PWA_BACKGROUND,PWA_ICON_ASSETS,PWA_LEGACY_ICON_ASSETS,PWA_MANIFEST_ICONS} from "./icons.ts";
@@ -32,7 +33,15 @@ export function createWebServer(options:Options={}):Server {
     const icon=[...PWA_ICON_ASSETS,...PWA_LEGACY_ICON_ASSETS].find(icon=>resource===icon.src);
     const pwa=Boolean(font||icon)||["/manifest.webmanifest","/sw.js","/en/offline.html","/ru/offline.html","/assets/kurami-fox.png","/assets/kurami-fox.webp"].includes(resource);
     const app=font?"docs":route&&"app" in route?route.app:"hub";
-    const identity=await authorize(request,app).catch(()=>null);
+    let identity:WebIdentity|null;
+    try{identity=await authorize(request,app);}catch(error){
+      if(error instanceof AccessVerificationUnavailableError){
+        response.setHeader("Retry-After","10");
+        const language=route&&"language" in route?route.language:/^\/ru(?:\/|$)/.test(resource)||request.headers["accept-language"]?.toLowerCase().startsWith("ru")?"ru":"en";
+        send(503,accessUnavailableMessage(language));return;
+      }
+      identity=null;
+    }
     if(!identity){send(403,"Access denied");return;}
     if(identity.scope!=="owner"&&(app!=="docs"||!["GET","HEAD"].includes(request.method??""))){send(403,"Access denied");return;}
     if(request.headers.host!==origin.host){send(421,"Unexpected host");return;}
