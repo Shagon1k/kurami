@@ -2,6 +2,19 @@
   "baseline": "4a38c09",
   "publicationBaseline": "788787f077d42fc3b3346a4f4a612947b97ce2e8",
   "commits": {
+    "51c07ed2d0f896e68d6cdc02eeb9e29767d7c450": {
+      "category": "fixed",
+      "en": "Projects explicitly stretches its single Start work button across the row and shortens the pre-launch hint. CSS, JavaScript and card fragments share a compatibility version. An open tab receiving a different version keeps its previous card, disables writes and asks for a reload instead of inserting incompatible markup. A successful refresh clears its previous refresh-error notice; unrelated action errors remain visible.",
+      "ru": "Projects явно растягивает единственную кнопку «Начать работу» на всю строку и сокращает пояснение до запуска. CSS, JavaScript и фрагменты карточки используют общую версию совместимости. Если открытая вкладка получает другую версию, она сохраняет прежнюю карточку, блокирует запись и просит перезагрузку вместо подстановки несовместимой разметки. Успешное обновление убирает прежнее сообщение о сбое обновления; ошибки других действий остаются видны.",
+      "page": "owner-controls"
+    },
+    "263b6fd186396bddef57ef8efd75a6ff96100201": {
+      "category": "operations",
+      "en": "",
+      "ru": "",
+      "exclusionScope": "docs-only",
+      "exclude": "Adds only the reviewed bilingual Changelog classification for one-click task start; application behavior is unchanged."
+    },
     "b1e7074b101ffb8d5f7bde70fc68500f689ad3a9": {
       "category": "improved",
       "en": "Projects offers Start work for Backlog issues without a separate status selection and Save. The card shows the request, synchronization, admission and session preparation, preserving waiting after reload through the existing request receipt. Repeated clicks reuse the same request. Admission failures show a reason and leave status controls available; other task states retain the status editor. GitHub polling and the Orchestrator still own task creation.",
