@@ -2,6 +2,19 @@
   "baseline": "4a38c09",
   "publicationBaseline": "788787f077d42fc3b3346a4f4a612947b97ce2e8",
   "commits": {
+    "d777fcbd18b88f8e580fa6bfa85444fa360f5ae6": {
+      "category": "improved",
+      "en": "The shared mobile dock sits 4px lower in Hub, Projects, Digest and Docs, with an 8px gap above the bottom safe area. Menus, notifications and reserved content spacing follow the smaller gap. Side margins, dock sizing, transparency and desktop navigation are unchanged.",
+      "ru": "Общий мобильный док в Hub, Projects, Digest и Docs опущен на 4 пикселя: зазор над нижней безопасной областью составляет 8 пикселей. Меню, уведомления и резерв места для содержимого учитывают уменьшенный зазор. Боковые отступы, размеры дока, прозрачность и desktop-навигация не изменены.",
+      "page": "ui-library"
+    },
+    "16b007307f7b93ff09df68db2770e4da0b430f19": {
+      "category": "operations",
+      "en": "",
+      "ru": "",
+      "exclusionScope": "docs-only",
+      "exclude": "Adds only the reviewed bilingual Changelog classification for the mobile edge-to-edge fix; application behavior is unchanged."
+    },
     "03bd6c510bad450461c45ca546e28ec9cf247502": {
       "category": "fixed",
       "en": "Browser tabs and PWA pages use the shared edge-to-edge viewport, including retained Digest editions and offline pages. The page background extends to screen edges; the dock, menus, dialogs and issue drawer respect safe screen insets. Page spacing reserves the maximum bottom inset where supported to avoid scroll jumps. Native system-bar transparency still depends on the browser and OS and requires a phone check.",
