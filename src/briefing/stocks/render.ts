@@ -1,3 +1,4 @@
+import {surfaceAttributes} from "../../ui-library/components/surface.ts";
 import type {BriefingPayload} from "../model.ts";
 import {escapeHtml as e} from "../ui/html.ts";
 import {renderPageShell} from "../ui/page-shell.ts";
@@ -60,7 +61,7 @@ export function renderStocksPage(value:StocksSnapshot|null,params=new URLSearchP
     ${ready<quotes.length?`<aside class="callout callout--warning stocks-notice">${t("Свежие котировки","Fresh quotes")}: ${ready}/${quotes.length}. ${t("Даты и состояние сохранённых котировок указаны в строках.","Dates and the status of saved quotes are shown in each row.")}</aside>`:""}
     ${observations}
     ${reviewPanel}
-    <section class="stocks-watchlist" aria-labelledby="stocks-list-heading" data-stock-list data-stock-period="${selection.period}">
+    <section class="stocks-watchlist"${surfaceAttributes("lead")} aria-labelledby="stocks-list-heading" data-stock-list data-stock-period="${selection.period}">
       <header class="stocks-section-heading"><div><h2 id="stocks-list-heading">${t("В твоём списке","In your watchlist")}</h2><p>${t("Цена закрытия и изменение за сессию","Closing price and session change")}</p></div>
         <div class="stocks-sort">${renderSelectField({name:"stock-sort",label:t("Порядок","Order"),value:"original",attributes:{"data-stock-sort":true},options:[{value:"original",label:t("Мой порядок","My order")},{value:"moves",label:t("Заметные движения","Notable moves")}]})}</div>
       </header>

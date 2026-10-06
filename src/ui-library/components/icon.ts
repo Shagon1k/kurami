@@ -54,5 +54,6 @@ const paths={
 } as const;
 export type IconName=keyof typeof paths;
 export function iconPath(name:IconName):string{return paths[name];}
-export function renderIcon(name:IconName):string{return `<svg class="ui-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="${paths[name]}"/></svg>`;}
+/** `tile` marks an icon that a theme may set on a plate (Neon); Paper draws it as a plain icon. */
+export function renderIcon(name:IconName,options:{tile?:boolean}={}):string{return `<svg class="ui-icon${options.tile?" ui-icon--tile":""}" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="${paths[name]}"/></svg>`;}
 export const ICON_CSS=`.ui-icon { width: var(--icon-size,18px); height: var(--icon-size,18px); color: var(--icon-color,inherit); flex: none; fill: none; stroke: currentColor; stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round; }`;

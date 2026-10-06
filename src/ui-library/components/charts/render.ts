@@ -12,7 +12,7 @@ function svgPlot(spec:ChartSpec,language:"ru"|"en"):string {
   let first=true;
   const series=layout.series.map(series=>{
     const paths=spec.kind==="trend" ? series.segments.filter(segment=>segment.length>1)
-      .map(segment=>`<polyline points="${segment.map(point=>point.x+","+point.y).join(" ")}"/>`).join("") : "";
+      .map(segment=>`<polygon class="chart__area" points="${segment.map(point=>point.x+","+point.y).join(" ")} ${segment.at(-1)!.x},${plot.bottom} ${segment[0]!.x},${plot.bottom}"/><polyline points="${segment.map(point=>point.x+","+point.y).join(" ")}"/>`).join("") : "";
     const points=series.points.map(point=>{
       const attributes=`data-chart-point data-chart-series="${series.index}" data-chart-index="${point.index}" data-chart-value="${escape(point.text)}" tabindex="${first?"0":"-1"}" role="img" aria-label="${escape(point.text)}"`;
       first=false;

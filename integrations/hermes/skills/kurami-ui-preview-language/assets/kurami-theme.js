@@ -97,6 +97,43 @@
     for (const menu of menus()) if (!menu.contains(event.target) || event.target.closest("a[href]")) menu.open = false;
   });
 })({"labels":{"paper":"Paper","neon":"Neon"},"modes":{"paper":["light","dark"],"neon":["dark"]}});
+(function kuramiNeonMotion() {
+  const root = document.documentElement, reduce = matchMedia("(prefers-reduced-motion: reduce)");
+  const active = () => root.dataset.kuramiTheme === "neon" && !reduce.matches;
+  const countUp = (element         ) => {
+    const text = element.textContent ?? "", match = /^(\D*?)(\d+(?:[.,]\d+)?)(.*)$/s.exec(text);
+    if (!match || element.children.length) return;
+    const [, prefix, number, suffix] = match, separator = number.includes(",") ? "," : ".", decimals = (number.split(/[.,]/)[1] ?? "").length;
+    const end = Number(number.replace(",", ".")), start = performance.now(), duration = 900;
+    if (!Number.isFinite(end) || end === 0) return;
+    const step = (now        ) => {
+      const t = Math.min((now - start) / duration, 1), value = end * (1 - Math.pow(1 - t, 3));
+      element.textContent = prefix + value.toFixed(decimals).replace(".", separator) + suffix;
+      if (t < 1) requestAnimationFrame(step); else element.textContent = text;
+    };
+    requestAnimationFrame(step);
+  };
+  const app = (path        ) => /^\/(?:ru|en)\/(digest|projects|docs)(?:\/|$)/.exec(path)?.[1] ?? "hub";
+  document.addEventListener("DOMContentLoaded", () => {
+    if (!active()) return;
+    document.querySelectorAll(".stat-card__value, [data-ui-count]").forEach(countUp);
+    try {
+      const from = document.referrer ? new URL(document.referrer) : null;
+      if (from && from.origin === location.origin && app(from.pathname) !== app(location.pathname)) document.querySelector(".site-brand__name")?.classList.add("ui-glitch");
+    } catch {}
+    const observer = new MutationObserver(records => {
+      if (!active()) return;
+      for (const record of records) {
+        const live = (record.target instanceof Element ? record.target : record.target.parentElement)?.closest             ("[data-ui-live]");
+        if (!live || live.classList.contains("ui-live-scan")) continue;
+        live.classList.add("ui-live-scan");
+        setTimeout(() => live.classList.remove("ui-live-scan"), 1200);
+      }
+    });
+    // Start watching after the count-up, so the page's own first animation is not mistaken for a refresh.
+    setTimeout(() => document.querySelectorAll("[data-ui-live]").forEach(live => observer.observe(live, { childList: true, subtree: true, characterData: true })), 1000);
+  });
+})();
 (function mobileNavigationRuntime(phoneWidth       ) {
   document.addEventListener('DOMContentLoaded',()=>{
     const found=document.querySelector             ('[data-mobile-navigation]');if(!found)return;const shell            =found;

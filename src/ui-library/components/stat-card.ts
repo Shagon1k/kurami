@@ -9,7 +9,15 @@ export function renderStatCard(input:{label:string;value:string;full?:string;ton
 }
 export function renderMeter(input:{value:number;label:string;tone?:StatTone}):string {
   if(!Number.isFinite(input.value)||input.value<0||input.value>100)throw new Error("Invalid meter value");
-  return `<div class="ui-meter" data-tone="${input.tone??"info"}" role="meter" aria-label="${escapeHtml(input.label)}" aria-valuemin="0" aria-valuemax="100" aria-valuenow="${input.value}"><span style="--meter-fill:${input.value}%"></span></div>`;
+  return `<div class="ui-meter" data-tone="${input.tone??"info"}" role="meter" aria-label="${escapeHtml(input.label)}" aria-valuemin="0" aria-valuemax="100" aria-valuenow="${input.value}" style="--meter-fill:${input.value}%"><span></span></div>`;
+}
+/**
+ * A stat card with its meter. Paper keeps the current stacked layout (the wrapper has `display: contents`);
+ * a theme may redraw it, e.g. Neon puts the value inside a ring drawn from the meter.
+ */
+export function renderGauge(input:{stat:string;meter:string}):string {
+  if(!input.stat.startsWith('<article class="stat-card')||!input.meter.startsWith('<div class="ui-meter"'))throw new Error("A gauge takes a stat card and a meter");
+  return `<div class="ui-gauge">${input.stat}${input.meter}</div>`;
 }
 export const STAT_CARD_CSS=`
 .stat-card,.ui-meter { --stat-tone: var(--text-primary); }
@@ -30,4 +38,5 @@ export const STAT_CARD_CSS=`
 .stat-card--plain,.stat-card--plain[data-tone] { --stat-label-height: var(--stat-plain-label-height,1.5em); height: auto; padding: 0; border: 0; background: transparent; box-shadow: none; }
 .ui-meter { height: 5px; overflow: hidden; border-radius: var(--radius); background: var(--surface-section); }
 .ui-meter > span { display: block; width: var(--meter-fill); height: 100%; background: var(--stat-tone); }
+.ui-gauge { display: contents; }
 `;

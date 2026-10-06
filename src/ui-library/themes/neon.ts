@@ -15,8 +15,8 @@ export const neonTheme:ThemeVariant={
     "font-display":'"Tektur", "Onest", system-ui, sans-serif',
     "display-case":"uppercase","display-tracking":".01em",
     "display-glow":`0 0 2px #fff6, 0 0 18px ${red}99, 0 0 42px ${red}55`,
-    "panel-cut":"polygon(0 0, calc(100% - 14px) 0, 100% 14px, 100% 100%, 14px 100%, 0 calc(100% - 14px))",
-    "panel-glow":`drop-shadow(0 0 1px ${red}) drop-shadow(0 0 14px ${red}88)`,
+    "panel-cut":"14px",
+    "panel-glow":`0 0 0 1px ${red}, 0 0 18px ${red}88, inset 0 0 22px -12px ${red}88`,
     "radius-sm":"4px","radius":"6px","radius-md":"8px","radius-pill":"999px",
     "shadow-card":"inset 0 0 0 1px var(--border-default)",
     "shadow-card-sm":"inset 0 0 0 1px var(--border-default)",
@@ -45,7 +45,9 @@ export const neonTheme:ThemeVariant={
     "status-failure":"#ff7482",
     "shadow-offset":"#000000",
     "focus-ring":yellow,
-    "chart-1":yellow,"chart-2":red,"chart-3":"#6fdba6","chart-4":"#e4dee8","chart-5":"#a69dae",
+    // chart-4 is the single-series default (Paper's data gold), so one-line charts and bars are yellow;
+    // multi-series charts and sparklines start from neutral white.
+    "chart-1":"#e4dee8","chart-2":"#ff6b80","chart-3":"#6fdba6","chart-4":yellow,"chart-5":"#a69dae",
     "diagram-surface":"#100e16","diagram-panel":"#16131e","diagram-ink":"#f6f1f4","diagram-muted":"#a69dae","diagram-accent":red,"diagram-accent-soft":"#2b0c15","diagram-success":"#6fdba6","diagram-warning":"#ffb054",
   }}},
 };
@@ -74,6 +76,56 @@ ${N} .button--primary { filter: drop-shadow(0 0 10px ${red}88); }
 ${N} .button--primary:hover:not(:disabled):not([aria-busy="true"]) { color: #fff; background: #c80f31; border-color: #c80f31; filter: drop-shadow(0 0 16px ${red}cc); }
 ${N} .button:active:not(:disabled):not([aria-busy="true"]) { filter: brightness(1.3); }
 ${N} .ui-popover { box-shadow: 0 18px 40px #000c, 0 0 0 1px ${red}55, 0 0 22px -6px ${red}88; }
+/* Surfaces: two bevelled corners where the browser supports corner-shape, rounded corners elsewhere. */
+${N} :is([data-ui-surface], .stat-card:not(.stat-card--plain), .callout, .dialog, .theme-menu__panel) { border-radius: var(--radius-md); }
+@supports (corner-shape: bevel) {
+  ${N} :is([data-ui-surface], .stat-card:not(.stat-card--plain), .callout, .dialog) { border-radius: 0 var(--panel-cut) 0 var(--panel-cut); corner-shape: bevel; }
+}
+${N} [data-ui-surface="panel"], ${N} .stat-card:not(.stat-card--plain) { border-color: var(--border-default); background: var(--surface-panel); box-shadow: none; }
+${N} [data-ui-surface="lead"] { border-color: ${red}; background: linear-gradient(135deg, color-mix(in srgb, ${red} 9%, var(--surface-panel)), var(--surface-panel) 45%); box-shadow: var(--panel-glow); }
+${N} :is(.section-heading, [data-ui-surface]) :is(h2, h3) { font-family: var(--font-display); text-transform: var(--display-case); letter-spacing: .03em; }
+
+/* Figures: display face; plain figures are white, statuses keep their colour. */
+${N} .stat-card[data-tone="accent"], ${N} .stat-card[data-tone="info"], ${N} .stat-card[data-tone="neutral"] { --stat-tone: var(--text-primary); }
+${N} .stat-card__value { font-family: var(--font-display); font-weight: 700; letter-spacing: 0; }
+
+/* Gauge: the meter becomes a ring around the value. */
+${N} .ui-gauge { display: grid; grid-template-areas: "label" "ring"; justify-items: center; align-items: center; row-gap: var(--space-3); }
+${N} .ui-gauge > .stat-card { display: contents; }
+${N} .ui-gauge .stat-card__label { grid-area: label; margin: 0; }
+${N} .ui-gauge .stat-card__value { grid-area: ring; position: relative; z-index: 1; font-size: 1.45rem; }
+${N} .ui-gauge > .ui-meter { grid-area: ring; width: 112px; height: 112px; border-radius: 50%; overflow: visible; background: conic-gradient(var(--gauge-color, var(--text-primary)) var(--meter-fill), var(--border-default) 0);
+  -webkit-mask: radial-gradient(farthest-side, transparent calc(100% - 9px), #000 calc(100% - 8px)); mask: radial-gradient(farthest-side, transparent calc(100% - 9px), #000 calc(100% - 8px)); }
+${N} .ui-gauge > .ui-meter > span { display: none; }
+${N} .ui-gauge > .ui-meter:is([data-tone="warning"], [data-tone="failure"]) { --gauge-color: var(--stat-tone); }
+
+/* Icons on plates, where a product marks them. */
+${N} .ui-icon--tile { box-sizing: content-box; padding: 7px; border-radius: var(--radius); color: var(--icon-color, currentColor); background: color-mix(in srgb, currentColor 12%, var(--surface-raised)); box-shadow: inset 0 0 0 1px color-mix(in srgb, currentColor 45%, transparent); }
+
+/* Badges and charts. */
+${N} .pill { font-weight: 600; }
+${N} .chart__series polyline { stroke-width: 2.5; filter: drop-shadow(0 0 5px var(--chart-color)); }
+${N} .chart__area { display: inline; fill: var(--chart-color); fill-opacity: .16; }
+${N} .chart__series:not(.chart__series--1) .chart__area { fill-opacity: .06; }
+${N} .sparkline polyline { filter: drop-shadow(0 0 3px currentColor); }
+
+/* Attention: a slow pulse on lead blocks that need the owner. */
+@media (prefers-reduced-motion: no-preference) {
+  ${N} [data-ui-surface="lead"][data-ui-attention] { animation: kurami-neon-pulse 3.2s ease-in-out infinite; }
+  ${N} .ui-live-scan { position: relative; }
+  ${N} .ui-live-scan::after { content: ""; position: absolute; inset: 0; pointer-events: none; border-radius: inherit; mix-blend-mode: screen;
+    background: linear-gradient(180deg, transparent 0, color-mix(in srgb, ${yellow} 16%, transparent) 70%, ${yellow} 99%, transparent 100%) no-repeat 0 -60%/100% 36%;
+    animation: kurami-neon-scan 1.1s ease-in-out forwards; }
+  ${N} .site-brand__name.ui-glitch { animation: kurami-neon-glitch .55s steps(2, end); }
+}
+@keyframes kurami-neon-pulse { 0%, 100% { box-shadow: var(--panel-glow); } 50% { box-shadow: 0 0 0 1px ${red}, 0 0 30px ${red}cc, inset 0 0 26px -10px ${red}aa; } }
+@keyframes kurami-neon-scan { to { background-position: 0 160%; } }
+@keyframes kurami-neon-glitch {
+  0% { text-shadow: 3px 0 ${red}, -3px 0 ${yellow}; transform: translateX(2px); clip-path: inset(10% 0 55% 0); }
+  25% { text-shadow: -4px 0 ${red}, 4px 0 ${yellow}; transform: translateX(-3px); clip-path: inset(50% 0 10% 0); }
+  50% { text-shadow: 2px 0 ${yellow}, -2px 0 ${red}; transform: translateX(1px); clip-path: inset(25% 0 35% 0); }
+  100% { text-shadow: none; transform: none; clip-path: none; }
+}
 @media (prefers-reduced-motion: no-preference) {
   ${N} .site-brand__fox { animation: kurami-neon-ignite 1.4s steps(1, end); }
 }

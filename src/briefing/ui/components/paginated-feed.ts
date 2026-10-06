@@ -1,3 +1,4 @@
+import {surfaceAttributes} from "../../../ui-library/components/surface.ts";
 import { section } from "../../addons/envelopes.ts";
 import type { BriefingPayload } from "../../model.ts";
 import { escapeHtml } from "../html.ts";
@@ -12,7 +13,7 @@ export function renderPaginatedFeed(payload: BriefingPayload): string {
   const total = section(payload, "news").items.length;
   const pages = Math.max(1, Math.ceil(total / pageSize));
   const newsNote = payload.notes?.find((note) => note.target === "news");
-  return `<section class="digest-feed" aria-labelledby="news-heading" data-paginated-feed data-edition-id="${escapeHtml(payload.edition.id)}" data-page-size="${pageSize}" data-page-param="newsPage">
+  return `<section class="digest-feed"${surfaceAttributes("lead")} aria-labelledby="news-heading" data-paginated-feed data-edition-id="${escapeHtml(payload.edition.id)}" data-page-size="${pageSize}" data-page-param="newsPage">
     ${renderKuramiNote(newsNote, "digest-feed__note")}
     <header class="digest-feed__header">
       <div><p class="section-kicker">${digestText("Утренняя пачка","Morning edition")}</p><h2 id="news-heading" data-feed-heading>${digestText("Новости","News")}</h2><p>${total} ${storyWord(total)} · ${pageSize} ${digestText("на странице","per page")}</p></div>

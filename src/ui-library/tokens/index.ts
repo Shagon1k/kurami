@@ -16,7 +16,7 @@ export const scaleRoles=[
   "font-sans","font-mono","font-note","font-display",
   // Display treatment for page titles, section headings and large figures.
   "display-case","display-tracking","display-glow",
-  // Lead blocks: clip shape (polygon or none) and outer glow (a filter, or none).
+  // Opted-in surfaces (data-ui-surface): bevel size of two corners and the lead-block glow (box-shadow).
   "panel-cut","panel-glow",
   "radius-sm","radius","radius-md","radius-pill",
   "shadow-card","shadow-card-sm","shadow-raised",
