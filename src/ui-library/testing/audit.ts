@@ -11,7 +11,9 @@ export const AUDIT_EXPRESSION = `(() => {
   for (const image of document.images) if (!image.hasAttribute('alt')) issues.push('Image without alt');
   for (const control of document.querySelectorAll('a[href], button, summary')) if (visible(control) && !(control.getAttribute('aria-label')?.trim() || control.textContent?.trim())) issues.push('Unnamed ' + control.tagName.toLowerCase());
   const theme = document.querySelector('[data-theme-toggle]');
-  if (theme && theme.getAttribute('aria-pressed') !== String(document.documentElement.dataset.theme === 'dark')) issues.push('Theme state not exposed');
+  // A theme menu exposes the mode on its pressed option; a legacy toggle exposes it with aria-pressed.
+  const mode = document.querySelector('[data-mode-choice][aria-pressed="true"]')?.getAttribute('data-mode-choice');
+  if (theme && (theme.hasAttribute('aria-haspopup') ? mode !== document.documentElement.dataset.theme : theme.getAttribute('aria-pressed') !== String(document.documentElement.dataset.theme === 'dark'))) issues.push('Theme state not exposed');
   const color = raw => { const match = raw.match(/^rgba?\\(([^)]+)\\)$/); if (!match) return null; const parts = match[1].split(/[ ,/]+/).filter(Boolean).map(Number); return parts.length >= 3 && parts.slice(0, 3).every(Number.isFinite) ? parts : null; };
   const luminance = rgb => rgb.slice(0, 3).map(value => { const v = value / 255; return v <= .04045 ? v / 12.92 : ((v + .055) / 1.055) ** 2.4; }).reduce((sum, value, index) => sum + value * [.2126, .7152, .0722][index], 0);
   for (const element of document.querySelectorAll('body *')) {

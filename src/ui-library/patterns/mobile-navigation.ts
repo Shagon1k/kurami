@@ -55,6 +55,12 @@ ${POPOVER_CSS}
   .mobile-navigation__setting-value { display: flex; align-items: center; gap: var(--space-1); flex: none; }
   .mobile-navigation__language-current { display: grid; place-items: center; width: 44px; height: 44px; color: var(--accent-data); background: color-mix(in srgb,var(--accent-data) 10%,var(--surface-raised)); border-radius: var(--radius); font: 500 .875rem/1.4 var(--font-sans); }
   .mobile-navigation__setting-value .button { font: 500 .875rem/1.4 var(--font-sans); }
+  .mobile-navigation__setting:has([data-theme-menu]) { flex-direction: column; align-items: stretch; }
+  .mobile-navigation [data-theme-menu] { display: block; }
+  .mobile-navigation [data-theme-menu] .theme-switch { display: none; }
+  .mobile-navigation .theme-menu__panel { display: block; position: static; width: auto; max-height: none; padding: 0; border: 0; background: transparent; box-shadow: none; overflow: visible; }
+  .mobile-navigation .theme-menu__option { min-height: 44px; }
+  .mobile-navigation .theme-menu__hint { margin-top: var(--space-2); }
   .mobile-navigation .period-control { position: static; }
   .mobile-navigation .period-control__trigger { display: none; }
   .mobile-navigation .period-control__choices { display: block; position: static; width: auto; box-shadow: none; }
