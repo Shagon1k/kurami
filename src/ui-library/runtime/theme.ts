@@ -62,6 +62,8 @@ function kuramiThemeRuntime(choices: ThemeChoices) {
     panel.style.setProperty("--popover-left", `${Math.round(Math.max(8, Math.min(rect.right - width, innerWidth - width - 8)))}px`);
   };
   apply();
+  // Pages call this after changing the Hub default (cookie) so the current page follows at once.
+  (window as Window & { kuramiThemeRefresh?: () => void }).kuramiThemeRefresh = apply;
   media.addEventListener("change", () => apply());
   addEventListener("storage", event => { if (event.key === modeKey || event.key === themeKey) apply(); });
   document.addEventListener("DOMContentLoaded", apply);

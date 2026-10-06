@@ -31,7 +31,7 @@ node button "Buttons" "and the theme switch" at 0,2
 node table "Table" "callout, disclosure" at 1,2
 node found "Foundations" "reset, fonts, diagrams" at 0,3
 node runtime "Theme runtime" "before first paint" at 1,3
-node theme "Kurami theme" "light and dark" at 0,4
+node theme "Paper and Neon" "modes and dressing" at 0,4
 node roles "Roles" "colour, shape, spacing" at 1,4
 group products "Products" digest docs hub band
 group patterns "Patterns" header shell band
@@ -139,6 +139,36 @@ Digest moves its section navigation to a separate row at tablet widths, so it
 does not overlap the brand or header actions.
 Mobile cards allow labels to wrap; wide tables keep their internal scroll.
 Long identifiers wrap within stacked Docs table rows.
+
+## Themes
+
+The library has two themes. **Paper** is the default: warm paper, ink and one red accent, in light and dark modes. **Neon** draws the fox as a red neon sign:
+
+- red lights the fox outline, lead-block frames, headings and the main action;
+- a calm warm yellow marks data and selection;
+- statuses are muted;
+- the ground is dark and dotted.
+
+Neon is dark only for now.
+
+Neon changes the look, not the layout. A product marks its blocks, and the theme decides how to draw them. These marks change nothing in Paper:
+
+| Mark | In Neon |
+|---|---|
+| `data-ui-surface="panel"` | Grey frame with bevelled corners |
+| `data-ui-surface="lead"` | Red neon lead frame; with `data-ui-attention` it pulses slowly |
+| `renderGauge` | The meter becomes a ring around the value |
+| `renderIcon(…, {tile: true})` | The icon sits on a plate |
+| `data-ui-live` | A short scan when the content refreshes |
+
+Bevels appear where the browser supports them; other browsers show rounded corners. Motion is Neon only and stops with reduced motion:
+
+- the fox lights up;
+- figures count up;
+- the app name glitches on arrival from another app;
+- live blocks scan.
+
+A device picks its theme in the header menu. The default for all devices is set in [Hub settings](@settings).
 
 ## Layers
 

@@ -269,6 +269,29 @@ async function checkThemeRuntime(devtools:Devtools,base:string,path:string):Prom
   await devtools.call("Emulation.setEmulatedMedia",{features:[]});
 }
 
+/** Neon motion on the Hub: figures count up to their exact text, a live refresh scans, reduced motion shows final values. */
+async function checkNeonMotion(devtools:Devtools,base:string):Promise<void> {
+  const page=`${base}/hub/index.html`;
+  await open(devtools,page);
+  await devtools.evaluate(`localStorage.setItem('kurami-theme-name','neon')`);
+  await devtools.call("Emulation.setEmulatedMedia",{features:[{name:"prefers-reduced-motion",value:"no-preference"}]});
+  await open(devtools,page);
+  const read=()=>devtools.evaluate<string[]>(`[...document.querySelectorAll('.stat-card__value')].map(node=>node.textContent)`);
+  const during=await read();
+  await delay(1300);
+  const after=await read();
+  if(JSON.stringify(during)===JSON.stringify(after))throw new Error(`Neon figures did not count up: ${JSON.stringify(after)}`);
+  await devtools.evaluate(`document.querySelector('#hub-dashboard').append(document.createElement('span'))`);
+  await delay(60);
+  if(!await devtools.evaluate<boolean>(`document.querySelector('#hub-dashboard').classList.contains('ui-live-scan')`))throw new Error("Neon live refresh did not scan");
+  await devtools.call("Emulation.setEmulatedMedia",{features:[{name:"prefers-reduced-motion",value:"reduce"}]});
+  await open(devtools,page);
+  const reduced=await read();
+  if(JSON.stringify(reduced)!==JSON.stringify(after))throw new Error(`Reduced motion must show final figures: ${JSON.stringify(reduced)}`);
+  await devtools.evaluate(`localStorage.clear()`);
+  await devtools.call("Emulation.setEmulatedMedia",{features:[]});
+}
+
 async function checkMobileNavigation(devtools:Devtools,width:number,current:string):Promise<void>{
   const geometry=await devtools.evaluate<{icons:number[];labels:boolean;fixed:boolean;header:string;overflow:number}>(`(()=>{const nav=document.querySelector('.mobile-navigation__bar');return {icons:[...nav.querySelectorAll('svg')].map(icon=>icon.getBoundingClientRect().width),labels:[...nav.querySelectorAll('button')].every(button=>button.getBoundingClientRect().height>=44&&button.querySelector('span').getBoundingClientRect().width<=button.getBoundingClientRect().width),fixed:getComputedStyle(nav).position==='fixed',header:getComputedStyle(document.querySelector('[data-site-header]')).position,overflow:document.documentElement.scrollWidth-innerWidth};})()`);
   if(!geometry.fixed||geometry.header!=='static'||geometry.overflow>1||!geometry.labels||geometry.icons.some(size=>size!==26))throw new Error(`Mobile geometry ${current} ${width}: ${JSON.stringify(geometry)}`);
@@ -414,6 +437,7 @@ async function main(){
     await devtools.call("Network.setBlockedURLs",{urls:["https://*"]});
     if(viewports)await devtools.call("Page.addScriptToEvaluateOnNewDocument",{source:`(()=>{const NativeDate=Date;const fixed='2026-09-16T07:00:00Z';window.Date=class extends NativeDate{constructor(...args){super(...(args.length?args:[fixed]));}static now(){return NativeDate.parse(fixed);}};})()`});
     for(const path of ["/digest/daily.html","/en/state-and-truth/","/lab/index.html","/hub/index.html"])await checkThemeRuntime(devtools,`http://127.0.0.1:${port}`,path);
+    await checkNeonMotion(devtools,`http://127.0.0.1:${port}`);
     await checkSiteSwitcher(devtools,`http://127.0.0.1:${port}`);
     await open(devtools,`http://127.0.0.1:${port}/digest/stocks-filled-en.html`);
     const sorting=await devtools.evaluate<boolean>(`(()=>{

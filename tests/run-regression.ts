@@ -44,6 +44,7 @@ const suites = [
   "test:discord",
   "test:discord-plugin",
   "test:docs-approval",
+  "test:appearance",
   "test:backup",
   "test:recovery",
   "test:s3-recovery",
