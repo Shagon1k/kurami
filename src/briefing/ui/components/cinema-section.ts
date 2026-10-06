@@ -11,6 +11,7 @@ import { originalTitleFromBilingual } from "../../cinema/titles.ts";
 import { escapeHtml } from "../html.ts";
 import {digestLanguage,digestText as t} from "../../i18n.ts";
 import {renderDisclosure} from "../../../ui-library/components/disclosure.ts";
+import {FIGURE_ATTRIBUTE} from "../../../ui-library/components/surface.ts";
 
 /** Refresh navigation and controls without rewriting a retained edition's content. */
 export function refreshCinemaUi(html:string):string {
@@ -111,7 +112,7 @@ function boxOffice(envelope: CinemaEnvelope): string {
     .find((entry) => entry.id === section.featuredId);
   const signalLabels={"largest-debut":t("Крупнейший дебют","Biggest debut"),"best-hold":t("Лучшее удержание","Best hold"),"sharpest-drop":t("Самое резкое падение","Sharpest drop"),"rank-movement":t("Движение в чарте","Chart movement"),"estimate-surprise":t("Сюрприз против прогноза","Versus estimate")};
   return `<section class="cinema-block cinema-box-office" id="box-office"><header class="cinema-heading"><div><p class="section-kicker">${t("Прокат · цифры","Box office · numbers")}</p><h2>${t("Пульс проката","Box-office pulse")}</h2></div>${note(envelope, "box-office")}</header>
-    ${featured ? `<article class="cinema-winner"><span>${t("Лидер последнего уикенда","Latest weekend leader")}</span><strong>${escapeHtml(featured.title)}</strong><b>${money(featured.gross.amount, featured.gross.currency)}</b></article>` : ""}
+    ${featured ? `<article class="cinema-winner"><span>${t("Лидер последнего уикенда","Latest weekend leader")}</span><strong>${escapeHtml(featured.title)}</strong><b${FIGURE_ATTRIBUTE}>${money(featured.gross.amount, featured.gross.currency)}</b></article>` : ""}
     ${section.signals.length ? `<div class="cinema-signals">${section.signals.map((signal) => `<article><span>${escapeHtml(signalLabels[signal.kind])}</span><strong>${escapeHtml(signal.filmTitle ?? section.charts.flatMap((chart) => chart.entries).find((entry) => entry.id === signal.filmId)?.title ?? signal.filmId)}</strong><b>${signal.value === undefined ? "" : `${signal.value > 0 ? "+" : ""}${signal.unit === "USD" ? money(signal.value, "USD") : `${Math.round(signal.value)}${signal.unit ?? ""}`}`}</b></article>`).join("")}</div>` : ""}
     ${trend(envelope)}
     <div class="cinema-rank-groups">${rankGroup(section.charts, "weekend")}${rankGroup(section.charts, "ytd")}</div>

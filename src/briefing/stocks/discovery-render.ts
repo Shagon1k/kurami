@@ -1,4 +1,5 @@
 import {escapeHtml as e} from "../ui/html.ts";
+import {FIGURE_ATTRIBUTE} from "../../ui-library/components/surface.ts";
 import {renderSparkline} from "../ui/charts/index.ts";
 import {dayShift} from "./model.ts";
 import {delta,shortDate} from "./format.ts";
@@ -12,7 +13,7 @@ export function renderDiscoveryCard(card:DiscoveryCard,logos?:CompanyLogoDomains
   const ratio=new Intl.NumberFormat(digestLanguage()==="en"?"en-US":"ru-RU",{maximumFractionDigits:2}).format(card.relativeVolume);
   return `<article class="stock-discovery-card" data-stock-discovery-card>
     <header class="stock-discovery-card__identity">${renderCompanyAvatar(card.symbol,logos?.get(card.symbol+":"+card.isin))}<div><span>${e(card.symbol)} · USD</span><h3>${e(card.name)}</h3></div></header>
-    <div class="stock-discovery-card__price"><strong>${e(amount)}</strong>${delta(card.day)}<small>${t("за сессию","session")} · ${e(shortDate(card.date))}</small></div>
+    <div class="stock-discovery-card__price"><strong${FIGURE_ATTRIBUTE}>${e(amount)}</strong>${delta(card.day)}<small>${t("за сессию","session")} · ${e(shortDate(card.date))}</small></div>
     <p>${card.day>0?t("Рост","Rise"):t("Снижение","Fall")} ${t("на повышенном объёме","on elevated volume")}: <strong>×${e(ratio)}</strong> ${t("к среднему за предыдущие 20 сессий.","versus the previous 20-session average.")}</p>
     ${card.points.length>1?`<div class="stock-discovery-card__trend">${renderSparkline(card.points.map(p=>p.adjusted),card.symbol+t(": скорректированные закрытия за месяц, собственный масштаб",": adjusted closes over one month, independent scale"))}<small>${t("Месяц · собственный масштаб","Month · independent scale")}</small></div>`:""}
     <dl><div><dt>${t("За 7 дней","7 days")}</dt><dd>${delta(card.week)}</dd></div><div><dt>${t("За 30 дней","30 days")}</dt><dd>${delta(card.month)}</dd></div></dl>

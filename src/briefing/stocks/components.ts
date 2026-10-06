@@ -8,6 +8,7 @@ import {renderCompanyAvatar} from "../ui/components/company-avatar.ts";
 import type {CompanyLogoDomains} from "./logo-registry.ts";
 import {digestText as t} from "../i18n.ts";
 import {renderLinkButton} from "../../ui-library/components/button.ts";
+import {FIGURE_ATTRIBUTE} from "../../ui-library/components/surface.ts";
 
 export const stockHref=(id:string,period:StockPeriod)=>"/stocks?"+new URLSearchParams({symbols:id,period})+"#stock-"+id;
 export function renderStockDetails(snapshot:StocksSnapshot,params:URLSearchParams,at=new Date().toISOString()):string {
@@ -22,7 +23,7 @@ export function renderStockDetails(snapshot:StocksSnapshot,params:URLSearchParam
   const year=last&&yearBase?(last.adjusted/yearBase.adjusted-1)*100:null;
   const periods=(["1m","3m","1y"] as const).map(period=>renderLinkButton({label:period==="1m"?t("Месяц","Month"):period==="3m"?t("3 месяца","3 months"):t("Год","Year"),variant:"toggle",href:stockHref(id,period),attributes:{"data-stock-period":period,"aria-current":period===selection.period?"true":undefined}})).join("");
   return `<div data-stock-detail-content data-period="${selection.period}">
-    <div class="stock-details__toolbar"><nav class="stocks-periods" aria-label="${t("Период графика","Chart period")} ${e(id)}">${periods}</nav><div class="stock-period-change"><span>${t("За показанный период","Shown period")}</span>${delta(change)}</div></div>
+    <div class="stock-details__toolbar"><nav class="stocks-periods" aria-label="${t("Период графика","Chart period")} ${e(id)}">${periods}</nav><div class="stock-period-change"><span>${t("За показанный период","Shown period")}</span>${delta(change).replace(/^<span/,`<span${FIGURE_ATTRIBUTE}`)}</div></div>
     ${renderTrendChart(chart)}
     <dl class="stock-stats"><div><dt>${t("За 7 дней","7 days")}</dt><dd>${delta(quote.week)}</dd></div><div><dt>${t("За 30 дней","30 days")}</dt><dd>${delta(quote.month)}</dd></div><div><dt>${t("За год","Year")}</dt><dd>${delta(year)}</dd></div><div><dt>${t("Котировка","Quote")}</dt><dd>${e(shortDate(quote.date))} · ${e(series.asset.currency)}</dd></div></dl>
     <div class="stock-details__footer"><p>${e(series.asset.exchange)} · EODHD · ${quote.state==="ready"?t("закрытие сессии","session close"):quote.state==="stale"?t("сохранённые данные устарели","saved data is stale"):t("данные недоступны","data unavailable")}. ${t("График и проценты учитывают сплиты и дивиденды; цена в строке — обычное закрытие. Неполная история не выдаётся за годовую доходность.","The chart and percentage changes account for splits and dividends; the row price is the ordinary close. Incomplete history is not presented as an annual return.")}</p><a href="https://finance.yahoo.com/quote/${encodeURIComponent(series.asset.id+(series.asset.exchange==="XETRA"?".DE":""))}/" target="_blank" rel="noopener noreferrer">${t("Подробнее о компании / ETF","Company / ETF details")} ↗</a></div>

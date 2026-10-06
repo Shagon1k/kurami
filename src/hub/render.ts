@@ -55,7 +55,7 @@ function renderLimit(limit:CodexLimit,lang:HubLanguage):string {
   const label=limitLabel(limit,lang);
   const tone=limit.remainingPercent<=0?"failure":limit.remainingPercent<=20?"warning":"neutral";
   const note=tone==="failure"?tr(lang,"Лимит исчерпан","Limit exhausted"):tone==="warning"?tr(lang,"Мало остатка","Low remaining quota"):"";
-  return `<article class="limit" data-tone="${tone}"><div class="limit__head"><span>${escapeHtml(label)}</span><strong>${left}% ${tr(lang,"осталось","left")}</strong></div><div class="limit__track" role="progressbar" aria-label="${escapeHtml(label)}: ${tr(lang,"использовано","used")} ${used}%" aria-valuenow="${used}" aria-valuemin="0" aria-valuemax="100"><span style="--used:${used}%"></span></div><div class="limit__meta"><span>${used}% ${tr(lang,"использовано","used")}${note?` · ${note}`:""}</span><span>${tr(lang,"Сброс","Resets")} ${escapeHtml(formatTime(limit.resetsAt,lang))}</span></div></article>`;
+  return `<article class="limit" data-tone="${tone}"><div class="limit__head"><span>${escapeHtml(label)}</span><strong${FIGURE_ATTRIBUTE}>${left}% ${tr(lang,"осталось","left")}</strong></div><div class="limit__track" role="progressbar" aria-label="${escapeHtml(label)}: ${tr(lang,"использовано","used")} ${used}%" aria-valuenow="${used}" aria-valuemin="0" aria-valuemax="100"><span style="--used:${used}%"></span></div><div class="limit__meta"><span>${used}% ${tr(lang,"использовано","used")}${note?` · ${note}`:""}</span><span>${tr(lang,"Сброс","Resets")} ${escapeHtml(formatTime(limit.resetsAt,lang))}</span></div></article>`;
 }
 
 
@@ -95,7 +95,7 @@ function renderCodex(codex:CodexSnapshot,lang:HubLanguage):string {
     const priceLabel=tr(lang,"API-экв.","API eq")+(partial?tr(lang," · частично"," · partial"):"");
     const description=tr(lang,"Оценка в USD по текущим Standard-тарифам API, не счёт подписки. Без стоимости инструментов и региональных надбавок.","Estimated USD at current Standard API rates, not subscription spending. Excludes tool charges and regional uplifts.");
     const quality=equivalent?`${tr(lang,"Токены с тарифом","Priced tokens")}: ${value(equivalent.pricedTokens,lang)}; ${tr(lang,"неопределённые параметры кэша/контекста","uncertain cache/context parameters")}: ${value(equivalent.uncertainTokens,lang)}`:"";
-    return `<div class="token-totals">${metric(daysLabel(days,lang),compactNumber(selected.tokens),false,value(selected.tokens,lang),{tone:"accent",plain:true})}<div class="token-cost" title="${escapeHtml(description+" "+quality)}" tabindex="0"><span>${priceLabel}</span><strong>${estimatedUsd(equivalent?.usd)}</strong></div></div><dl class="stat-list token-breakdown"><div><dt>${tr(lang,"Кэшированный вход","Cached input")}</dt><dd title="${escapeHtml(value(selected.cached,lang))}" tabindex="0">${compactNumber(selected.cached)}</dd></div><div><dt>${tr(lang,"Сгенерировано","Output")}</dt><dd title="${escapeHtml(value(selected.output,lang))}" tabindex="0">${compactNumber(selected.output)}</dd></div></dl>`;
+    return `<div class="token-totals">${metric(daysLabel(days,lang),compactNumber(selected.tokens),false,value(selected.tokens,lang),{tone:"accent",plain:true})}<div class="token-cost" title="${escapeHtml(description+" "+quality)}" tabindex="0"><span>${priceLabel}</span><strong${FIGURE_ATTRIBUTE}>${estimatedUsd(equivalent?.usd)}</strong></div></div><dl class="stat-list token-breakdown"><div><dt>${tr(lang,"Кэшированный вход","Cached input")}</dt><dd title="${escapeHtml(value(selected.cached,lang))}" tabindex="0">${compactNumber(selected.cached)}</dd></div><div><dt>${tr(lang,"Сгенерировано","Output")}</dt><dd title="${escapeHtml(value(selected.output,lang))}" tabindex="0">${compactNumber(selected.output)}</dd></div></dl>`;
   });
   const models=periods("models",days=>{
     const selected=stats(days);
@@ -258,7 +258,7 @@ function renderTrend(snapshot:HubSnapshot,lang:HubLanguage):string {
       state:snapshot.sources.git==="partial"?"partial":"ready",message:coverage,
       display:{variant:"embedded",header:false,legend:"hidden",zoom:false,table:"screen-reader"},
     },lang);
-    return `<div class="trend"><strong class="trend-total"><span data-commit-total>${selected.reduce((sum,day)=>sum+day.count,0)}</span> ${tr(lang,"коммитов","commits")}</strong>${chart}</div>`;
+    return `<div class="trend"><strong class="trend-total"><span data-commit-total${FIGURE_ATTRIBUTE}>${selected.reduce((sum,day)=>sum+day.count,0)}</span> ${tr(lang,"коммитов","commits")}</strong>${chart}</div>`;
   });
   const filters=snapshot.projects.map(project=>renderCheckbox({name:"commit-repository",label:project.name,value:project.key,checked:true})).join("");
   return `<section class="section" aria-labelledby="trend-title"><div class="section-heading section-heading--period"><h2 id="trend-title">${tr(lang,"Коммиты","Commits")}</h2><div class="heading-actions"><span data-commit-coverage>${coverage}</span></div></div><div class="repository-filters" role="group" aria-label="${tr(lang,"Репозитории","Repositories")}">${filters}</div><div data-commit-repositories="${escapeHtml(JSON.stringify(snapshot.commitRepositories??{}))}" data-commit-unavailable="${escapeHtml(JSON.stringify(snapshot.projects.filter(project=>project.git.state==="unavailable").map(project=>project.key)))}">${charts}</div></section>`;
