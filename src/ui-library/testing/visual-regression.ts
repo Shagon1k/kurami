@@ -282,6 +282,23 @@ async function checkThemeRuntime(devtools:Devtools,base:string,path:string):Prom
   await devtools.call("Emulation.setEmulatedMedia",{features:[]});
 }
 
+/**
+ * Neon sets headline figures in its display face. A large number (22 px and up) outside headings, tables and
+ * charts must carry the figure mark (FIGURE_ATTRIBUTE) or be a stat value, or Neon leaves it in the text face.
+ */
+async function checkNeonFigures(devtools:Devtools,base:string):Promise<void> {
+  const missing:string[]=[];
+  for(const path of ["/hub/en.html","/digest/daily-filled-en.html","/digest/weekly-filled-en.html","/digest/stocks-filled-en.html","/digest/stocks-discovery-en.html","/digest/cinema-en.html","/digest/review.html","/projects/index.html"]){
+    await open(devtools,`${base}${path}`);
+    await devtools.evaluate(`sessionStorage.setItem('kurami-theme-name','neon');sessionStorage.setItem('kurami-theme','dark')`);
+    await open(devtools,`${base}${path}`);
+    const found=await devtools.evaluate<string[]>(`[...document.querySelectorAll('main *')].filter(el=>{if(el.closest('svg,table,pre,code,h1,h2,h3,dialog,.ui-popover'))return false;const own=[...el.childNodes].filter(node=>node.nodeType===3).map(node=>node.textContent).join('').trim();return /\\d/.test(own)&&own.length<=14&&el.getClientRects().length&&parseFloat(getComputedStyle(el).fontSize)>=22&&!getComputedStyle(el).fontFamily.includes('Tektur');}).map(el=>el.tagName.toLowerCase()+'.'+[...el.classList].join('.')+' "'+el.textContent.trim().slice(0,14)+'"')`);
+    for(const item of found)missing.push(`${path}: ${item}`);
+  }
+  await devtools.evaluate(`sessionStorage.clear()`);
+  if(missing.length)throw new Error(`Large figures without the figure mark: ${missing.join("; ")}`);
+}
+
 /** Neon motion on the Hub: figures count up to their exact text, a refresh flashes only the changed figure, a press rings inside its button, reduced motion shows final values. */
 async function checkNeonMotion(devtools:Devtools,base:string):Promise<void> {
   const page=`${base}/hub/index.html`;
@@ -459,6 +476,7 @@ async function main(){
     if(viewports)await devtools.call("Page.addScriptToEvaluateOnNewDocument",{source:`(()=>{const NativeDate=Date;const fixed='2026-09-16T07:00:00Z';window.Date=class extends NativeDate{constructor(...args){super(...(args.length?args:[fixed]));}static now(){return NativeDate.parse(fixed);}};})()`});
     for(const path of ["/digest/daily.html","/en/state-and-truth/","/lab/index.html","/hub/index.html"])await checkThemeRuntime(devtools,`http://127.0.0.1:${port}`,path);
     await checkNeonMotion(devtools,`http://127.0.0.1:${port}`);
+    await checkNeonFigures(devtools,`http://127.0.0.1:${port}`);
     await checkSiteSwitcher(devtools,`http://127.0.0.1:${port}`);
     await open(devtools,`http://127.0.0.1:${port}/digest/stocks-filled-en.html`);
     const sorting=await devtools.evaluate<boolean>(`(()=>{

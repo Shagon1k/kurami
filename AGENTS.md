@@ -42,7 +42,8 @@ New UI must look right in both without theme-specific product code.
   `surfaceAttributes("panel")` for cards and frames, `"lead"` for the block a page leads with
   (`{attention:true}` when it needs the owner), `renderGauge` for a figure with a meter,
   `renderIcon(name,{tile:true})` for icons on plates, `LIVE_ATTRIBUTE` for regions that refresh
-  (Neon flashes figures that changed), `FIGURE_ATTRIBUTE` for a product's own headline figure.
+  (Neon flashes figures that changed), `FIGURE_ATTRIBUTE` for a product's own headline figure
+  (`test:ui-browser` fails on a large number without it).
   Paper draws nothing for them; Neon frames, rings and animates them.
 - Neon colours rank: red (sign, main action, links), yellow (`accent-data`: data, selection,
   secondary actions), blue (`status-info`: information, quiet controls). Use the roles, never the hex.
