@@ -1,5 +1,4 @@
 import {breakpoints,type ThemeVariant} from "../tokens/index.ts";
-import {NEON_FOX_HEADER_URI} from "../assets/brand/neon-fox.ts";
 
 // Neon: the Kurami fox as a red neon sign, with three colours by rank. Red is the sign: the fox, lead
 // frames, headings, the main action and links. Yellow is second: data, selection, secondary actions and
@@ -106,7 +105,8 @@ ${N}[data-theme="light"] body::before { background:
 ${N} .site-header { background: color-mix(in srgb, var(--surface-page) 88%, transparent); border-bottom-color: transparent; }
 ${N} .site-header::after { content: ""; position: absolute; left: 0; right: 0; bottom: -1px; height: 1px; background: linear-gradient(90deg, transparent, ${red}, transparent); opacity: .75; pointer-events: none; }
 @media (max-width: ${breakpoints.phone}px) { ${N} .site-header:has([data-mobile-navigation]) { background: transparent; } }
-${N} .site-brand__fox { content: url("${NEON_FOX_HEADER_URI}"); }
+${N} img.site-brand__fox { display: none; }
+${N} .site-brand__fox--neon { display: block; filter: none; }
 ${N} .site-brand__name { font-family: var(--font-display); font-weight: 800; text-transform: var(--display-case); letter-spacing: var(--display-tracking); }
 ${N} .site-brand__dot { color: var(--neon-sign); text-shadow: 0 0 8px ${red}; }
 ${N} .site-brand:hover .site-brand__name { color: var(--text-primary); text-shadow: 0 0 14px ${red}aa; }

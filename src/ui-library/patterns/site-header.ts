@@ -4,6 +4,7 @@ import { escapeHtml } from "../foundations/html.ts";
 import { breakpoints } from "../tokens/index.ts";
 import {renderMobileNavigation,MOBILE_NAVIGATION_CSS,type MobileNavigationInput} from "./mobile-navigation.ts";
 import {renderIcon,type IconName} from "../components/icon.ts";
+import {NEON_FOX_HEADER_SVG} from "../assets/brand/neon-fox.ts";
 
 export type NavLink = { href: string; label: string; current?: "page" | "location"; title?: string; disabled?: boolean; hint?: string; external?: boolean; mobileIcon?:IconName };
 export type SiteNavInput = { label: string; links: readonly NavLink[]; scroll?: boolean; attributes?: Record<string, true | string>; hideWhenEmpty?: boolean };
@@ -60,7 +61,7 @@ export function renderSiteHeader(input: SiteHeaderInput): string {
   return `<header class="site-header${nav.collapse ? " site-header--collapsible" : ""}${nav.scroll?" site-header--scroll-nav":""}" data-site-header${input.utilityFloating?' data-floating-utility="true"':""}${attributes(input.attributes)}${input.label ? ` aria-label="${escapeHtml(input.label)}"` : ""}>
     <div class="site-header__inner container">
       <a class="site-brand" href="${safeHref(brand.href)}" aria-label="${escapeHtml(brand.ariaLabel)}">
-        <img class="site-brand__fox" src="${safeHref(brand.foxSrc)}" width="48" height="48" alt="" decoding="async">
+        <img class="site-brand__fox" src="${safeHref(brand.foxSrc)}" width="48" height="48" alt="" decoding="async">${NEON_FOX_HEADER_SVG}
         <span class="site-brand__copy"><span class="site-brand__name">Kurami<span class="site-brand__dot" aria-hidden="true">.</span>${suffix}</span>${meta}</span>
       </a>
       ${renderSiteNav(nav)}${menu}${input.utility?`<div class="site-header__utility">${input.utility}</div>`:""}
@@ -77,6 +78,8 @@ export const SITE_HEADER_CSS = `
 .site-brand { grid-area: brand; justify-self: start; min-width: 0; max-width: 100%; min-height: 48px; display: inline-flex; align-items: center; gap: 12px; color: var(--text-primary); text-decoration: none; white-space: nowrap; border-radius: var(--radius); }
 .site-brand__fox { width: 48px; height: 48px; flex-shrink: 0; object-fit: contain; }
 [data-theme="dark"] .site-brand__fox { filter: drop-shadow(0 0 1px #ffffff8c); }
+/* The neon-tube fox ships with every header and shows only in a theme that asks for it (Neon). */
+.site-brand__fox--neon { display: none; overflow: visible; }
 .site-brand__copy { display: grid; gap: 3px; min-width: 0; }
 .site-brand__name { min-width: 0; overflow: hidden; text-overflow: ellipsis; font-size: 1.375rem; font-weight: 600; line-height: 1.05; letter-spacing: -.055em; }
 .site-brand__dot { color: var(--accent-primary); }
