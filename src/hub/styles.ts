@@ -97,7 +97,7 @@ body { min-height: 100vh; }
 .problem__links { display: flex; align-items: center; flex-wrap: wrap; gap: var(--space-2); flex-shrink: 0; }
 .problem__main > strong { font-size: .87rem; font-weight: 600; overflow-wrap: anywhere; }
 .problem__reasons { display: flex; flex-wrap: wrap; gap: var(--space-2) var(--space-4); margin-top: var(--space-2); color: var(--status-warning); font-size: .78rem; }
-.problem__reasons > span { display: inline-flex; align-items: flex-start; gap: var(--space-2); }
+.problem__reasons > span { display: inline-flex; align-items: center; gap: var(--space-2); }
 .problem__next { margin: var(--space-2) 0 0; color: var(--text-muted); font-size: .78rem; }
 .problem__next { display: flex; align-items: center; gap: var(--space-2); }
 .problem[data-severity="critical"] { border-inline-start: 2px solid var(--status-failure); padding-inline-start: var(--space-3); }
