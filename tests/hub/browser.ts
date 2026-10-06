@@ -16,9 +16,11 @@ let failRead=false,failWrite=false,writeGate:Promise<void>|null=null;
 const settings={version:1,max_llm_running_global:2,ai_triage_daily:5,max_active_global:4,max_previews_global:3,max_preview_builds_global:1,preview_ttl_hours:24,project_wip:{pickflick:2}};
 const server=createHubServer({snapshot:syntheticHubSnapshot,authorize:async()=>"synthetic-owner",controlOrigin:base,
   controls:{execute:async(action,payload={})=>{
-    if(failRead&&["models","settings","composio-check"].includes(action))throw new HubControlError("stale_settings");
+    if(failRead&&["models","settings","server","appearance","composio-check"].includes(action))throw new HubControlError("stale_settings");
     if(action==="models")return {models:[{value:"gpt-6-sol",label:"Sol"},{value:"gpt-6-astra",label:"Astra"}],hermes:"gpt-6-sol",hermesProvider:"openai-codex",codex:codexModel,codexEffort:"high"};
-    if(action==="settings")return {settings:{revision:1,settings,idle:{idle:true}},health:{revision:1,intervalMinutes:20,allowedIntervals:[5,10,12,15,20,30,60]}};
+    if(action==="settings")return {settings:{revision:1,settings,idle:{idle:true}}};
+    if(action==="server")return {health:{revision:1,intervalMinutes:20,allowedIntervals:[5,10,12,15,20,30,60]},devResources:{revision:0,cores:4,testJobs:2,memoryGiB:0,serverCores:8,memoryChoices:[0,8,12,16]}};
+    if(action==="appearance")return {appearance:{revision:0,theme:"paper",mode:null,themes:{paper:["light","dark"],neon:["light","dark"]}}};
     if(action==="composio-check")return {contours:[{contour:"broad",ok:true,tools:3,diff:[],warnings:[]},{contour:"read",ok:true,tools:7,diff:[],warnings:[]},{contour:"automation",ok:true,tools:1,diff:[],warnings:[]}]};
     if(writeGate)await writeGate;
     if(failWrite)throw new HubControlError("command_failed");
@@ -211,6 +213,24 @@ try {
       assert(bounds.width<=width&&bounds.scroll<=bounds.client+1,"settings dialog fits the viewport");
     }
     if(lang==="en")await screenshot("hub-settings");
+    await devtools.evaluate("document.querySelector('[data-dialog-close]').click()");
+    // Server and Appearance have panels of their own; Settings keeps only the run limits.
+    assert.equal(await devtools.evaluate("!document.querySelector('[data-hub-submit=health-apply],[data-hub-submit=appearance-apply]')"),true,"Settings holds only the run limits");
+    await devtools.evaluate("(innerWidth<=620?document.querySelector('[data-mobile-menu=controls]'):document.querySelector('header [data-hub-control=menu]')).click();document.querySelector('[data-hub-control=server]').click()");await wait("!!document.querySelector('[data-hub-submit=dev-resources-apply]')");
+    assert.equal(await devtools.evaluate("!!document.querySelector('[data-hub-submit=health-apply]')&&document.querySelectorAll('[data-hub-submit=dev-resources-apply] select').length===3"),true,"Server shows the health interval and the development limits");
+    await devtools.evaluate("(()=>{const form=document.querySelector('[data-hub-submit=dev-resources-apply]');form.elements.cores.value='2';form.elements.testJobs.value='3';form.requestSubmit();})()");
+    assert.match(await devtools.evaluate<string>("document.querySelector('#hub-control-result').textContent"),/cannot exceed cores|не может быть больше ядер/,"test jobs above cores are refused before confirming");
+    for(const width of [320,390,1280]){
+      await devtools.call("Emulation.setDeviceMetricsOverride",{width,height:1000,deviceScaleFactor:1,mobile:width<500});
+      assert.deepEqual(await devtools.evaluate(AUDIT_EXPRESSION),[],`server panel audit ${lang} ${width}`);
+      const bounds=await devtools.evaluate<{width:number;scroll:number;client:number}>("({width:document.querySelector('dialog').getBoundingClientRect().width,scroll:document.querySelector('dialog').scrollWidth,client:document.querySelector('dialog').clientWidth})");
+      assert(bounds.width<=width&&bounds.scroll<=bounds.client+1,`server dialog fits ${width}`);
+    }
+    if(lang==="en")await screenshot("hub-server");
+    await devtools.evaluate("document.querySelector('[data-dialog-close]').click()");
+    if(lang==="en"){await devtools.evaluate("document.querySelector('header [data-hub-control=menu]').click()");await delay(250);await screenshot("hub-controls-menu");await devtools.evaluate("document.querySelector('header [data-hub-control=menu]').click()");}
+    await devtools.evaluate("(innerWidth<=620?document.querySelector('[data-mobile-menu=controls]'):document.querySelector('header [data-hub-control=menu]')).click();document.querySelector('[data-hub-control=appearance]').click()");await wait("!!document.querySelector('[data-hub-submit=appearance-apply]')");
+    assert.deepEqual(await devtools.evaluate(AUDIT_EXPRESSION),[],`appearance panel audit ${lang}`);
     await devtools.evaluate("document.querySelector('[data-dialog-close]').click()");
     const beforeCheck=actions.length;
     await devtools.evaluate("(innerWidth<=620?document.querySelector('[data-mobile-menu=controls]'):document.querySelector('header [data-hub-control=menu]')).click();document.querySelector('[data-hub-control=composio-check]').click()");

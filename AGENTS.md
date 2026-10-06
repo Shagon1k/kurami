@@ -8,7 +8,7 @@
 - Before asking the owner to release, run the full `npm test`, plus the browser suites the change
   touches (`test:ui-browser`, `test:hub-browser`, `test:web-browser`).
 - Tests run as development work: `bin/kurami-dev-run` puts them in `kurami-dev.slice` at low
-  priority, and `npm test` sizes its pool by Hub → Controls → Settings → Development resources
+  priority, and `npm test` sizes its pool by Hub → Controls → Server → Development resources
   (`KURAMI_TEST_JOBS` overrides). Start long or heavy commands through `bin/kurami-dev-run` too.
 
 ## UI: build pages from `src/ui-library/`

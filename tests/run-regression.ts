@@ -1,6 +1,6 @@
 // Kurami regression runner. `npm test` runs every suite; `npm run test:changed` runs only the suites a change
 // touches (tests/test-plan.ts); `--only=a,b` runs the named ones. "check" and "test:docs" run first, the rest
-// in a pool sized by Hub → Controls → Settings → Development resources (KURAMI_TEST_JOBS overrides), and
+// in a pool sized by Hub → Controls → Server → Development resources (KURAMI_TEST_JOBS overrides), and
 // browser suites last, one at a time. The whole run lives in kurami-dev.slice at low priority.
 import { spawn, spawnSync } from "node:child_process";
 import { resolve } from "node:path";

@@ -29,8 +29,8 @@ export const THEME_SWITCH_CSS = `
 ${INFO_TIP_CSS}`;
 
 const copy = {
-  ru: { button: "Тема", theme: "Тема", mode: "Режим", light: "Светлая", dark: "Тёмная", only: "Только тёмный режим:", session: "Действует, пока открыто приложение. Постоянная тема — в Hub → Настройки → Оформление.", about: "Про выбор темы" },
-  en: { button: "Theme", theme: "Theme", mode: "Mode", light: "Light", dark: "Dark", only: "Dark mode only:", session: "Lasts while the app is open. The lasting theme is set in Hub → Settings → Appearance.", about: "About the theme choice" },
+  ru: { button: "Тема", theme: "Тема", mode: "Режим", light: "Светлая", dark: "Тёмная", only: "Только тёмный режим:", session: "Действует, пока открыто приложение. Постоянная тема — в Hub → Управление → Оформление.", about: "Про выбор темы" },
+  en: { button: "Theme", theme: "Theme", mode: "Mode", light: "Light", dark: "Dark", only: "Dark mode only:", session: "Lasts while the app is open. The lasting theme is set in Hub → Controls → Appearance.", about: "About the theme choice" },
 } as const;
 
 function themeOption(name: string, label: string): string {

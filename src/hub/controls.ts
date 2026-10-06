@@ -35,10 +35,13 @@ export function createHubControls(options:{home?:string;hermesHome?:string;run?:
   const devResourcesPath=resolve(home,"app/src/system/dev-resources/dev-resources.ts");
   const composioPath=resolve(home,"app/src/connectors/composio/cli.ts");
   const hermes=resolve(hermesHome,"hermes-agent/venv/bin/hermes");
-  async function settings(){
-    const [settings,health,appearance,devResources]=await Promise.all([run(node,[settingsPath,"status"]),run(node,[healthPath,"status"]),run(node,[appearancePath,"status"]),run(node,[devResourcesPath,"status"])]);
-    return {settings:JSON.parse(settings),health:JSON.parse(health),appearance:JSON.parse(appearance),devResources:JSON.parse(devResources)};
+  // Three panels: run settings; the server (System Health interval, development resources); appearance.
+  async function settings(){return {settings:JSON.parse(await run(node,[settingsPath,"status"]))};}
+  async function server(){
+    const [health,devResources]=await Promise.all([run(node,[healthPath,"status"]),run(node,[devResourcesPath,"status"])]);
+    return {health:JSON.parse(health),devResources:JSON.parse(devResources)};
   }
+  async function appearance(){return {appearance:JSON.parse(await run(node,[appearancePath,"status"]))};}
   async function models(){
     const [catalog,config,hermesConfig]=await Promise.all([rpc("model/list",{limit:100,includeHidden:false}),rpc("config/read",{includeLayers:false}),readFile(resolve(hermesHome,"config.yaml"),"utf8")]);
     const hermesModel=parse(hermesConfig)?.model;
@@ -57,6 +60,8 @@ export function createHubControls(options:{home?:string;hermesHome?:string;run?:
   }
   async function execute(action:string,payload:Record<string,unknown>={},identity="") :Promise<any>{
     if(action==="settings")return settings();
+    if(action==="server")return server();
+    if(action==="appearance")return appearance();
     if(action==="models")return models();
     if(action==="composio-check")return {contours:await composioCheck()};
     const auditPath=resolve(home,"state/hub/control-audit.jsonl");

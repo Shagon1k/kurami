@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Runs a command as Kurami development work: inside kurami-dev.slice, whose CPU cap and memory cap come from
-# Hub → Controls → Settings → Development resources, at low CPU and disk priority. Every process the
+# Hub → Controls → Server → Development resources, at low CPU and disk priority. Every process the
 # command starts (tests, builds, browsers) inherits both, whatever the project or test framework.
 # Nested calls run the command directly. Without a systemd user session it still lowers the priority.
 set -euo pipefail

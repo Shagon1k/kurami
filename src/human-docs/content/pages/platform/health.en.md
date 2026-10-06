@@ -63,7 +63,7 @@ Under the card sits a picker, "Inspect one of the last 10 runs…". Each option 
 
 ## How often to check
 
-You change the check interval in `/kurami settings`, section **System Health**, or in Hub under Controls → Settings; both use the same command. The allowed values are 5, 10, 12, 15, 20, 30 and 60 minutes; the built-in default is 20. Kurami rewrites the job's schedule in Hermes and posts a line to the maintenance channel. The form is described on [Settings](@settings).
+You change the check interval in `/kurami settings`, section **System Health**, or in Hub under Controls → Server; both use the same command. The allowed values are 5, 10, 12, 15, 20, 30 and 60 minutes; the built-in default is 20. Kurami rewrites the job's schedule in Hermes and posts a line to the maintenance channel. The form is described on [Settings](@settings).
 
 If the "Updated" time in the card footer has stopped moving, the check itself is not running, and no alert says so: the thing that would report the failure is the thing that broke. Hub shows the same sign: after twice the interval plus five minutes (at least 15) it marks System Health "stale" and lists it among its alerts. Look at the state of Hermes; details are in [How monitoring works](@health-internals).
 

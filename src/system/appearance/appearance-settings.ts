@@ -1,5 +1,5 @@
 // Kurami-wide default appearance: the theme and mode every device uses until it picks its own in the
-// header menu. Hub → Controls → Settings writes it; the web gateway turns it into the
+// header menu. Hub → Controls → Appearance writes it; the web gateway turns it into the
 // `kurami-theme-default` cookie that the theme runtime reads before first paint.
 import { readFileSync } from "node:fs";
 import { mkdir, readFile, rename, writeFile } from "node:fs/promises";

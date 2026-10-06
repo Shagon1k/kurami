@@ -8,7 +8,7 @@ order: 20
 next: health
 ---
 
-The `/kurami settings` command opens a Discord panel with the limits Kurami applies while it works. Only you see the panel: the command accepts the single owner and only inside a project server. Pick a section, change a value in its form and press **Apply**. The same settings, with the same ranges, are in [Hub](@hub): Controls → Settings. Hub runs the same command-line tools and the same schema, so the idle gate, the checks and the revisions below apply to both. Hub also records the verified identity in its own audit log.
+The `/kurami settings` command opens a Discord panel with the limits Kurami applies while it works. Only you see the panel: the command accepts the single owner and only inside a project server. Pick a section, change a value in its form and press **Apply**. The same settings, with the same ranges, are in [Hub](@hub): run limits under Controls → Settings, the System Health interval under Controls → Server. Hub runs the same command-line tools and the same schema, so the idle gate, the checks and the revisions below apply to both. Hub also records the verified identity in its own audit log.
 
 ::shot{file="shot-kurami-settings.png" size="card" alt="Kurami settings panel, revision 4: check interval, capacity, AI triage and previews; changes locked because of active runs" caption="Current values and the lock line: it lists everything that is still running."}
 
@@ -43,7 +43,7 @@ Wait until the list is empty and press **Apply** again.
 
 ## Appearance (Hub only)
 
-Hub's Controls → Settings also has an **Appearance** section: the default theme for every device.
+Hub's Controls → **Appearance** sets the default theme for every device.
 
 | Setting | Options | What it is |
 |---|---|---|
@@ -58,7 +58,7 @@ Applying it creates a revision with its author, like the other settings. Hub ref
 
 ## Development resources (Hub only)
 
-The **Development resources** section limits how much of the server development may take: Codex workers of every project, their tests and builds, and Kurami's own tests. All of it runs in a separate systemd slice, `kurami-dev.slice`. Everything started there inherits the limits, whatever the project or test framework.
+Hub's Controls → **Server** has a **Development resources** section. It limits how much of the server development may take: Codex workers of every project, their tests and builds, and Kurami's own tests. All of it runs in a separate systemd slice, `kurami-dev.slice`. Everything started there inherits the limits, whatever the project or test framework.
 
 | Setting | Options | Default | What it is |
 |---|---|---|---|

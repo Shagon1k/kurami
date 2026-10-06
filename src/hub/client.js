@@ -180,7 +180,7 @@ function confirmAction(action,payload,message,changes=[]){
   confirm.focus();
 }
 function controlTitle(action){
-  const titles={models:text('Модели','Models'),settings:text('Настройки','Settings'),'composio-check':text('Проверка Composio','Composio check'),restart:text('Перезапуск Hermes','Restart Hermes'),'codex-reset':text('Сброс лимитов Codex','Reset Codex limits')};
+  const titles={models:text('Модели','Models'),settings:text('Настройки','Settings'),server:text('Сервер','Server'),appearance:text('Оформление','Appearance'),'composio-check':text('Проверка Composio','Composio check'),restart:text('Перезапуск Hermes','Restart Hermes'),'codex-reset':text('Сброс лимитов Codex','Reset Codex limits')};
   document.getElementById('hub-control-dialog-title').textContent=titles[action]??titles[controlView]??text('Управление','Controls');
 }
 async function loadControl(action){
@@ -205,7 +205,7 @@ document.addEventListener("click",event=>{
   showDialog(button);
   const action=button.dataset.hubControl;
   controlTitle(action);
-  if(["models","settings","composio-check"].includes(action)){void loadControl(action);return;}
+  if(["models","settings","server","appearance","composio-check"].includes(action)){void loadControl(action);return;}
   if(action==="codex-reset"){
     controlView=null;
     let key=sessionStorage.getItem("kurami-reset-attempt");
