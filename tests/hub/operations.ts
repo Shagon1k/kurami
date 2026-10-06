@@ -88,5 +88,12 @@ try {
   assert.equal(collectHubOperations(home,join(home,"missing"),join(home,"hermes"),now).healthStale,true);
   writeFileSync(join(home,"state/system-health-snapshot.json"),"{}");
   assert.equal(collectHubOperations(home,join(home,"missing"),join(home,"hermes"),now).health,null,"invalid health data does not break the dashboard");
+  // A controller action failing for more than three hours reaches the owner; a fresh one does not.
+  const failure=(runId:string,hours:number)=>({runId,project:"pickflick",issueNumber:35,action:"park",reason:"Codex turn is still active",kind:"wait",count:40,firstAt:new Date(now.getTime()-hours*3_600_000).toISOString(),lastAt:now.toISOString(),nextAt:now.toISOString()});
+  writeFileSync(join(home,"state/controller-failures.json"),JSON.stringify({version:1,failures:{"r_old:park":failure("r_old",4),"r_new:park":failure("r_new",1)}}));
+  const stuck=collectHubOperations(home,join(home,"missing"),join(home,"hermes"),now).alerts.filter(alert=>alert.code==="controller_stuck");
+  assert.deepEqual(stuck.map(alert=>[alert.subject,alert.detail,alert.next]),[["pickflick #35","park · 4h · 40×","inspect_task"]],"only the run stuck for hours is an alert");
+  writeFileSync(join(home,"state/controller-failures.json"),"not json");
+  assert.equal(collectHubOperations(home,join(home,"missing"),join(home,"hermes"),now).alerts.some(alert=>alert.code==="controller_stuck"),false,"an unreadable ledger raises nothing");
 }finally{rmSync(home,{recursive:true,force:true});}
 console.log("Hub operations: shared health, stale data, repair attribution, durable activity and transcript exclusion verified");

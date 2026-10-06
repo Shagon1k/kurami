@@ -3,7 +3,7 @@ export type HubProblem={id:string;subject:string;title:string;project?:string;it
 export function problemQueue(alerts:HubAlert[]):HubProblem[] {
   const groups=new Map<string,HubProblem>();
   for(const alert of alerts){
-    const task=["ci_unrepaired","review_unrepaired","run_attention","owner_input"].includes(alert.code);
+    const task=["ci_unrepaired","review_unrepaired","run_attention","owner_input","controller_stuck"].includes(alert.code);
     const id=alert.group??(alert.code==="health_issue"||alert.code.startsWith("health_")?"system:health":task&&alert.href?`task:${alert.href}`:alert.id);
     const defaults=alert.code==="poll_stale"?"check_project":alert.code==="orchestrator_unavailable"?"restore_db":alert.code==="health_issue"?"inspect_health":alert.code==="owner_input"?"reply":alert.code==="run_attention"?"inspect_task":task?"start_repair":"check_collector";
     const group=groups.get(id)??{id,subject:id==="system:health"?"System Health":alert.subject,title:alert.title??"",project:alert.project,itemId:alert.itemId,task:alert.task??task,severity:alert.severity,issues:[],href:alert.href,actor:alert.actor??"owner",next:alert.next??defaults};

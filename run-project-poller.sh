@@ -43,6 +43,18 @@ export PATH="${KURAMI_HOME}/runtime/node/bin:/home/shagon1k/.local/bin:/usr/loca
 
 install -d -m 700 "${KURAMI_HOME}/state" "${KURAMI_HOME}/logs"
 
+# Error logs grow forever otherwise: past 8 MB a log becomes <name>.1 and a fresh one starts.
+rotate_log() {
+  local size
+  size="$(stat -c %s "$1" 2>/dev/null || printf 0)"
+  if (( size > 8388608 )); then mv -f "$1" "$1.1" 2>/dev/null || true; fi
+}
+for log in "${ERROR_LOG}" "${CONSUMER_ERROR_LOG}" "${CI_OBSERVER_ERROR_LOG}" "${CONTROLLER_ERROR_LOG}" \
+  "${RUNTIME_BUDGET_ERROR_LOG}" "${DISCORD_NOTIFIER_ERROR_LOG}" "${METADATA_SYNC_ERROR_LOG}" \
+  "${PROJECTS_DIGEST_EVENT_LOG}" "${OBSERVER_ERROR_LOG}"; do
+  rotate_log "${log}"
+done
+
 set -a
 # shellcheck disable=SC1090
 source "${ENV_FILE}"

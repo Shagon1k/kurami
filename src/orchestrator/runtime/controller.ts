@@ -11,6 +11,7 @@ import { baseRunSelect, type RunRow } from "./run-read-model.ts";
 import { planForRequest, type PlannedAction, type RequestRow } from "./request-plan.ts";
 import { previewExpired } from "./run-predicates.ts";
 import { databasePath, fail, orchestratorHome, projectsPath } from "./controller-context.ts";
+import { ControllerFailureLedger, controllerFailuresPath } from "./controller-failures.ts";
 import type { OrchestratorConfig, ProjectsRegistry } from "./controller-types.ts";
 import {
   completeRequest,
@@ -223,7 +224,14 @@ export async function runOrchestratorControllerCli(): Promise<void> {
       reason?: string;
     }
   > = [];
+  // Automatic actions that keep failing back off; owner requests (requestId) always run.
+  const ledger = new ControllerFailureLedger(controllerFailuresPath(orchestratorHome));
   for (const plan of plans) {
+    const backingOff = plan.requestId ? null : ledger.backingOff(plan);
+    if (backingOff) {
+      results.push({ ...plan, status: "deferred", reason: `backoff after ${backingOff.count} failures until ${backingOff.nextAt}` });
+      continue;
+    }
     if (
       ["start", "successor_start", "repair_start", "review_start", "review_fix_start"].includes(plan.action) &&
       llmCount >= config.limits.max_llm_running_global
@@ -233,6 +241,7 @@ export async function runOrchestratorControllerCli(): Promise<void> {
     }
     try {
       const result = executePlannedAction(database, plan);
+      if (!plan.requestId) ledger.recordSuccess(plan);
       results.push({ ...plan, status: "applied", result });
       if (["start", "successor_start", "repair_start", "review_start", "review_fix_start"].includes(plan.action))
         llmCount += 1;
@@ -243,14 +252,20 @@ export async function runOrchestratorControllerCli(): Promise<void> {
         completeRequest(database,plan.requestId,"failed",{
           action:"protocol_remote_handoff_unverified",reason,
         });
+      const failure = plan.requestId ? null : ledger.recordFailure(plan, reason);
       if (process.env.CONTROLLER_QUIET === "1") {
+        // One line per failure, with time and level: "wait" for an expected wait (the Codex turn is still
+        // running), "error" otherwise; count and nextAt show the backoff.
         process.stderr.write(
           `${JSON.stringify({
+            ts: new Date().toISOString(),
+            level: failure?.kind ?? "error",
             ok: false,
             runId: plan.runId,
             project: plan.project,
             issueNumber: plan.issueNumber,
             action: plan.action,
+            ...(failure ? { count: failure.count, nextAt: failure.nextAt } : {}),
             reason,
           })}\n`,
         );
@@ -279,6 +294,8 @@ export async function runOrchestratorControllerCli(): Promise<void> {
   }
   reconcileAfterCycle(database, config);
   database.close();
+  ledger.forgetStale();
+  await ledger.save();
 
   if (process.env.CONTROLLER_QUIET !== "1") {
     process.stdout.write(
@@ -290,7 +307,7 @@ export async function runOrchestratorControllerCli(): Promise<void> {
 if (import.meta.main) {
   runOrchestratorControllerCli().catch((error: unknown) => {
     const message = error instanceof Error ? error.message : String(error);
-    process.stderr.write(`${JSON.stringify({ ok: false, error: message })}\n`);
+    process.stderr.write(`${JSON.stringify({ ts: new Date().toISOString(), level: "error", ok: false, error: message })}\n`);
     process.exitCode = 1;
   });
 }
