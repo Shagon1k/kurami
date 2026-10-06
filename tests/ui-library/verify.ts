@@ -203,8 +203,10 @@ for(const variant of themeVariants){
 assert.ok(THEME_CSS.startsWith(themeCss(paperTheme)),"Paper tokens come first and unchanged");
 const neonRules=NEON_CSS.split("\n").filter(line=>/^\S.*\{/.test(line)&&!line.startsWith("@"));
 assert.ok(neonRules.length>5&&neonRules.every(line=>line.startsWith('html[data-kurami-theme="neon"]')),"Neon dressing never reaches Paper");
-assert.deepEqual(neonTheme.modes.light,undefined,"Neon is dark only for now");
-assert.match(THEME_RUNTIME_JS,/"neon":\["dark"\]/,"runtime knows Neon is dark only");
+assert.ok(neonTheme.modes.dark&&neonTheme.modes.light,"Neon has dark and light modes");
+assert.match(variantCss(neonTheme),/^html\[data-kurami-theme="neon"\] \{[^}]*color-scheme: dark;[^}]*\}\nhtml\[data-kurami-theme="neon"\]\[data-theme="light"\] \{ color-scheme: light;/,"Neon dark is the base, light applies under data-theme=light");
+assert.match(variantCss(neonTheme),/\[data-theme="light"\] \{[^}]*--display-glow: /,"light Neon softens its glow");
+assert.match(THEME_RUNTIME_JS,/"neon":\["dark","light"\]/,"runtime knows Neon's modes, dark first");
 assert.match(THEME_RUNTIME_JS,/kurami-theme-default=/,"runtime reads the Hub default");
 // Stage 2: opt-in surfaces, gauges, icon plates and chart areas draw nothing new in Paper.
 assert.equal(surfaceAttributes("panel")," data-ui-surface=\"panel\"");

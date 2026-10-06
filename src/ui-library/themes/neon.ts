@@ -2,9 +2,10 @@ import type {ThemeVariant} from "../tokens/index.ts";
 
 // Neon: the Kurami fox as a red neon sign. Red marks the sign (fox, lead frames, headings, the main
 // action); a calm warm yellow marks data and selection. Statuses stay quiet, information stays neutral.
-// Dark only for now; the light mode can be added under `modes.light` later.
+// Dark is Neon's identity; the light mode keeps the red sign on a cool daylight ground, with a deep amber
+// in place of yellow (yellow is unreadable on light surfaces).
 // `red` is the sign (outlines, frames, glow); `fill` is the same red deep enough for white text (4.87:1).
-const red="#ff2e4d",fill="#e01238",yellow="#ffd84a";
+const red="#ff2e4d",fill="#e01238",yellow="#ffd84a",amber="#b87d00";
 export const neonTheme:ThemeVariant={
   name:"neon",
   label:"Neon",
@@ -49,6 +50,33 @@ export const neonTheme:ThemeVariant={
     // multi-series charts and sparklines start from neutral white.
     "chart-1":"#e4dee8","chart-2":"#ff6b80","chart-3":"#6fdba6","chart-4":yellow,"chart-5":"#a69dae",
     "diagram-surface":"#100e16","diagram-panel":"#16131e","diagram-ink":"#f6f1f4","diagram-muted":"#a69dae","diagram-accent":red,"diagram-accent-soft":"#2b0c15","diagram-success":"#6fdba6","diagram-warning":"#ffb054",
+  }},
+  light:{colorScheme:"light",colors:{
+    "surface-page":"#f6f4fa",
+    "surface-panel":"#ffffff",
+    "surface-raised":"#ffffff",
+    "surface-section":"#eeebf4",
+    "text-primary":"#16121f",
+    "text-muted":"#5d566b",
+    "text-accent":"#c4102f",
+    "text-on-accent":"#ffffff",
+    "border-default":"#d6d0e0",
+    "border-subtle":"#e6e2ee",
+    "accent-primary":fill,
+    "accent-soft":"#ffe8ec",
+    "accent-data":"#855b00",
+    "status-success":"#0f7343",
+    "status-info":"#3f3a4d",
+    "status-warning":"#9a5200",
+    "status-failure":"#c4102f",
+    "shadow-offset":"#d6d0e0",
+    "focus-ring":fill,
+    "chart-1":"#3f3a4d","chart-2":fill,"chart-3":"#0f7343","chart-4":amber,"chart-5":"#8b84a0",
+    "diagram-surface":"#ffffff","diagram-panel":"#f6f4fa","diagram-ink":"#16121f","diagram-muted":"#5d566b","diagram-accent":fill,"diagram-accent-soft":"#ffe8ec","diagram-success":"#0f7343","diagram-warning":"#9a5200",
+  },scale:{
+    "display-glow":`0 0 14px ${red}40`,
+    "panel-glow":`0 0 0 1px ${fill}, 0 6px 22px -8px ${red}66`,
+    "shadow-raised":"0 10px 28px #2a1f3d26, 0 0 0 1px var(--border-default)",
   }}},
 };
 
@@ -76,6 +104,19 @@ ${N} .button--primary { filter: drop-shadow(0 0 10px ${red}88); }
 ${N} .button--primary:hover:not(:disabled):not([aria-busy="true"]) { color: #fff; background: #c80f31; border-color: #c80f31; filter: drop-shadow(0 0 16px ${red}cc); }
 ${N} .button:active:not(:disabled):not([aria-busy="true"]) { filter: brightness(1.3); }
 ${N} .ui-popover { box-shadow: 0 18px 40px #000c, 0 0 0 1px ${red}55, 0 0 22px -6px ${red}88; }
+/* Light mode: dark dots on daylight, softer glows, the sign red stays. */
+${N}[data-theme="light"] body::before { background:
+  radial-gradient(circle at 1px 1px, #2a1f3d14 1px, transparent 0) 0 0/22px 22px,
+  radial-gradient(48rem 28rem at 105% -5%, ${red}14, transparent 62%),
+  radial-gradient(44rem 26rem at -5% 105%, ${amber}12, transparent 62%); }
+${N}[data-theme="light"] .site-header::after { opacity: .55; }
+${N}[data-theme="light"] .site-brand__dot, ${N}[data-theme="light"] .site-nav__link[aria-current]::after { text-shadow: none; box-shadow: 0 0 8px ${red}66; }
+${N}[data-theme="light"] .page-title { color: var(--text-primary); }
+${N}[data-theme="light"] .button--primary { filter: drop-shadow(0 4px 10px ${red}55); }
+${N}[data-theme="light"] .ui-popover { box-shadow: 0 18px 40px #2a1f3d33, 0 0 0 1px ${fill}55; }
+${N}[data-theme="light"] [data-ui-surface="lead"] { background: var(--surface-panel); }
+${N}[data-theme="light"] .chart__series polyline, ${N}[data-theme="light"] .sparkline polyline { filter: none; }
+
 /* Surfaces: two bevelled corners where the browser supports corner-shape, rounded corners elsewhere. */
 ${N} :is([data-ui-surface], .stat-card:not(.stat-card--plain), .callout, .dialog, .theme-menu__panel) { border-radius: var(--radius-md); }
 @supports (corner-shape: bevel) {
@@ -83,7 +124,8 @@ ${N} :is([data-ui-surface], .stat-card:not(.stat-card--plain), .callout, .dialog
 }
 ${N} [data-ui-surface="panel"], ${N} .stat-card:not(.stat-card--plain) { border-color: var(--border-default); background: var(--surface-panel); box-shadow: none; }
 ${N} [data-ui-surface="lead"] { border-color: ${red}; background: linear-gradient(135deg, color-mix(in srgb, ${red} 9%, var(--surface-panel)), var(--surface-panel) 45%); box-shadow: var(--panel-glow); }
-${N} :is(.section-heading, [data-ui-surface]) :is(h2, h3) { font-family: var(--font-display); text-transform: var(--display-case); letter-spacing: .03em; }
+/* Display type for section and panel titles only; content headings (news, tasks) keep the text face. */
+${N} :is(.section-heading, [data-ui-surface]) h2, ${N} [data-ui-surface="panel"] > h3, ${N} [data-ui-surface="panel"] > .panel-heading h3 { font-family: var(--font-display); text-transform: var(--display-case); letter-spacing: .03em; }
 
 /* Figures: display face; plain figures are white, statuses keep their colour. */
 ${N} .stat-card[data-tone="accent"], ${N} .stat-card[data-tone="info"], ${N} .stat-card[data-tone="neutral"] { --stat-tone: var(--text-primary); }

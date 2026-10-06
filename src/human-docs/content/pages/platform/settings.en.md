@@ -47,8 +47,8 @@ Hub's Controls → Settings also has an **Appearance** section: the default them
 
 | Setting | Options | What it is |
 |---|---|---|
-| Theme | Paper or Neon | Paper is warm paper with one red accent. Neon draws the fox as a red neon sign and marks data in yellow |
-| Mode | Light or Dark | Neon is dark only for now, so Light is unavailable for it |
+| Theme | Paper or Neon | Paper is warm paper with one red accent. Neon draws the fox as a red neon sign and marks data in yellow (amber in light) |
+| Mode | Light or Dark | Both themes have both modes; dark is Neon's main look |
 
 The default applies on devices that have not picked a theme in the header. Every app's header has a theme button. It opens a menu: *Hub default*, Paper, Neon, and below them the light or dark mode. A choice in the menu is stored on that device and applies in every Kurami app. *Hub default* returns the device to the shared default. Until a default is chosen, Paper follows the system mode.
 

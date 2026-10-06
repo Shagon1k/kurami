@@ -35,8 +35,8 @@ const brandAssets=resolve(root,"src/ui-library/assets/brand");
 const requestedWidths=process.argv.find(arg=>arg.startsWith("--widths="))?.slice(9);
 const widths=requestedWidths?requestedWidths.split(",").map(Number):[390,1280];
 if(widths.some(width=>!Number.isInteger(width)||width<320||width>2560)||!widths.length)throw new Error("Invalid audit widths");
-// Paper light and dark, then each theme variant (Neon is dark only).
-const themes=["light","dark","neon"] as const;
+// Paper light and dark, then Neon dark and light.
+const themes=["light","dark","neon","neon-light"] as const;
 // Screenshots: a representative set. The audit covers these plus every Docs route in both languages.
 const availablePages:Record<string,string>={
   "digest-daily":"/digest/daily.html",
@@ -218,11 +218,11 @@ async function checkKeyboard(devtools:Devtools):Promise<{theme:boolean;disclosur
 
 type ThemeState={theme:string;variant:string;mode:string|null;choice:string|null;icon:string|null;stored:string|null;storedTheme:string|null;color:string|null;inHead:boolean};
 const themeState=`({theme:document.documentElement.dataset.theme,variant:document.documentElement.dataset.kuramiTheme??"paper",mode:document.querySelector('[data-mode-choice][aria-pressed="true"]')?.dataset.modeChoice??null,choice:document.querySelector('[data-theme-choice][aria-pressed="true"]')?.dataset.themeChoice??null,icon:document.querySelector('[data-theme-icon]')?.textContent??null,stored:localStorage.getItem('kurami-theme'),storedTheme:localStorage.getItem('kurami-theme-name'),color:document.querySelector('meta[name="theme-color"]')?.getAttribute('content')??null,inHead:Boolean(document.head.querySelector('script[src="/assets/theme.js"]'))})`;
-const surface={paper:{light:"#fbfbf8",dark:"#0a0a0a"},neon:{dark:"#07060b"}} as const;
+const surface={paper:{light:"#fbfbf8",dark:"#0a0a0a"},neon:{light:"#f6f4fa",dark:"#07060b"}} as const;
 
 /**
  * The system mode applies on first visit; a menu choice persists on the device and beats the system and
- * the Hub default; Neon is dark only; "Hub default" clears the device choice; the Hub cookie sets the default.
+ * the Hub default; a first Neon pick starts dark; "Hub default" clears the device choice; the Hub cookie sets the default.
  */
 async function checkThemeRuntime(devtools:Devtools,base:string,path:string):Promise<void> {
   const expect=(state:ThemeState,want:{variant:"paper"|"neon";theme:"light"|"dark";choice:string;stored:string|null;storedTheme:string|null},step:string)=>{
@@ -242,14 +242,21 @@ async function checkThemeRuntime(devtools:Devtools,base:string,path:string):Prom
   await open(devtools,`${base}${path}`);
   expect(await state(),{variant:"paper",theme:"light",choice:"paper",stored:"light",storedTheme:"paper"},"stored beats system");
   await click('[data-theme-choice="neon"]');
-  expect(await state(),{variant:"neon",theme:"dark",choice:"neon",stored:"light",storedTheme:"neon"},"choose Neon");
-  if(!await devtools.evaluate<boolean>(`document.querySelector('[data-mode-choice="light"]').disabled`))throw new Error(`Theme runtime ${path}: Neon offers a light mode`);
+  expect(await state(),{variant:"neon",theme:"light",choice:"neon",stored:"light",storedTheme:"neon"},"choose Neon keeps the chosen mode");
+  await click('[data-mode-choice="dark"]');
+  expect(await state(),{variant:"neon",theme:"dark",choice:"neon",stored:"dark",storedTheme:"neon"},"Neon dark");
   await open(devtools,`${base}${path}`);
-  expect(await state(),{variant:"neon",theme:"dark",choice:"neon",stored:"light",storedTheme:"neon"},"Neon persists");
+  expect(await state(),{variant:"neon",theme:"dark",choice:"neon",stored:"dark",storedTheme:"neon"},"Neon persists");
+  await click('[data-mode-choice="light"]');
   await click('[data-theme-choice="paper"]');
   expect(await state(),{variant:"paper",theme:"light",choice:"paper",stored:"light",storedTheme:"paper"},"back to Paper keeps its mode");
   await click('[data-theme-choice="default"]');
   expect(await state(),{variant:"paper",theme:"dark",choice:"default",stored:null,storedTheme:null},"Hub default clears the device choice");
+  await devtools.call("Emulation.setEmulatedMedia",{features:[{name:"prefers-color-scheme",value:"light"}]});
+  await click('[data-theme-choice="neon"]');
+  expect(await state(),{variant:"neon",theme:"dark",choice:"neon",stored:"dark",storedTheme:"neon"},"first Neon pick starts dark");
+  await click('[data-theme-choice="default"]');
+  await devtools.call("Emulation.setEmulatedMedia",{features:[{name:"prefers-color-scheme",value:"dark"}]});
   await cookie("neon.dark");
   await open(devtools,`${base}${path}`);
   expect(await state(),{variant:"neon",theme:"dark",choice:"default",stored:null,storedTheme:null},"Hub default Neon");
@@ -454,7 +461,7 @@ async function main(){
       await devtools.call("Emulation.setTouchEmulationEnabled",{enabled:width<600,maxTouchPoints:1});
       await devtools.call("Emulation.setDeviceMetricsOverride",{width,height:900,deviceScaleFactor:1,mobile:width<600});
       await open(devtools,`http://127.0.0.1:${port}${path}`);
-      await devtools.evaluate(`(()=>{const style=document.createElement('style');style.textContent='*,*::before,*::after{transition:none!important;animation:none!important;caret-color:transparent!important}';document.head.append(style);(${JSON.stringify(theme)}==='neon'?['[data-theme-choice="neon"]']:['[data-theme-choice="paper"]','[data-mode-choice="'+${JSON.stringify(theme)}+'"]']).forEach(selector=>document.querySelector(selector)?.click());return document.fonts.ready.then(()=>true)})()`);
+      await devtools.evaluate(`(()=>{const style=document.createElement('style');style.textContent='*,*::before,*::after{transition:none!important;animation:none!important;caret-color:transparent!important}';document.head.append(style);(${JSON.stringify(theme)}.startsWith('neon')?['[data-theme-choice="neon"]','[data-mode-choice="'+(${JSON.stringify(theme)}==='neon'?'dark':'light')+'"]']:['[data-theme-choice="paper"]','[data-mode-choice="'+${JSON.stringify(theme)}+'"]']).forEach(selector=>document.querySelector(selector)?.click());return document.fonts.ready.then(()=>true)})()`);
       if(stress){
         await devtools.call("Emulation.setEmulatedMedia",{features:[{name:"prefers-reduced-motion",value:"reduce"}]});
         await devtools.evaluate(`document.documentElement.style.fontSize='200%'; document.querySelectorAll('main details, #hub-dashboard details').forEach(element=>element.open=true);document.fonts.ready`);

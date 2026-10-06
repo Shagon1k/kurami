@@ -80,7 +80,8 @@ function kuramiThemeRuntime(choices: ThemeChoices) {
     if (themeOption) {
       const value = themeOption.dataset.themeChoice!;
       if (value === "default") { write(themeKey, null); write(modeKey, null); }
-      else if (known(value)) { const mode = effective().mode; write(themeKey, value); if (!storedMode()) write(modeKey, mode); }
+      // Paper keeps the current mode; a variant starts in its own first mode (Neon: dark) unless a mode was chosen.
+      else if (known(value)) { const mode = value === "paper" ? effective().mode : choices.modes[value][0]; write(themeKey, value); if (!storedMode()) write(modeKey, mode); }
       apply();
       return;
     }

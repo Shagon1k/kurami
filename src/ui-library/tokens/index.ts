@@ -25,7 +25,8 @@ export const scaleRoles=[
   "space-1","space-2","space-3","space-4","space-5","space-6","space-8","space-10",
 ] as const;
 export type ScaleRole=typeof scaleRoles[number];
-export type ThemeMode={colorScheme:"light"|"dark";colors:Record<ColorRole,string>};
+/** A mode's colours; a variant mode may also override a few scale roles (e.g. softer glows in light). */
+export type ThemeMode={colorScheme:"light"|"dark";colors:Record<ColorRole,string>;scale?:Partial<Record<ScaleRole,string>>};
 export type Theme={name:string;scale:Record<ScaleRole,string>;light:ThemeMode;dark:ThemeMode};
 /** An additional theme applied over Paper with `html[data-kurami-theme="<name>"]`; it may support only some modes. */
 export type ThemeVariant={name:string;label:string;scale:Record<ScaleRole,string>;modes:Partial<Record<"light"|"dark",ThemeMode>>};

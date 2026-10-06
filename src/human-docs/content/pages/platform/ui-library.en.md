@@ -149,7 +149,7 @@ The library has two themes. **Paper** is the default: warm paper, ink and one re
 - statuses are muted;
 - the ground is dark and dotted.
 
-Neon is dark only for now.
+Neon has a dark mode, its main look, and a light one: the same red sign on a cool daylight ground, with deep amber in place of yellow.
 
 Neon changes the look, not the layout. A product marks its blocks, and the theme decides how to draw them. These marks change nothing in Paper:
 
