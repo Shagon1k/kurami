@@ -1,4 +1,17 @@
-import { spawnSync } from "node:child_process";
+// Kurami regression runner. `npm test` runs every suite; `npm run test:changed` runs only the suites a change
+// touches (tests/test-plan.ts); `--only=a,b` runs the named ones. "check" and "test:docs" run first, the rest
+// in a pool sized by Hub → Controls → Settings → Development resources (KURAMI_TEST_JOBS overrides), and
+// browser suites last, one at a time. The whole run lives in kurami-dev.slice at low priority.
+import { spawn, spawnSync } from "node:child_process";
+import { resolve } from "node:path";
+import { readDevResources } from "../src/system/dev-resources/dev-resources.ts";
+import { changedFiles, planSuites } from "./test-plan.ts";
+
+const root = resolve(import.meta.dirname, "..");
+if (process.env.KURAMI_DEV_SLICE !== "1") {
+  const result = spawnSync(resolve(root, "bin/kurami-dev-run"), [process.execPath, ...process.argv.slice(1)], { stdio: "inherit" });
+  process.exit(result.status ?? 1);
+}
 
 const suites = [
   "test:duplication-refactor",
@@ -45,6 +58,7 @@ const suites = [
   "test:discord-plugin",
   "test:docs-approval",
   "test:appearance",
+  "test:dev-resources",
   "test:backup",
   "test:recovery",
   "test:s3-recovery",
@@ -94,24 +108,67 @@ const suites = [
   "test:metadata-scheduler",
 ] as const;
 
-const startedAt = Date.now();
-const npm = process.platform === "win32" ? "npm.cmd" : "npm";
+/** Run before the pool: the type check gates everything, and the docs build feeds later suites. */
+const first = ["check", "test:docs"] as const;
+/** Chrome is heavy: browser suites run after the pool, one at a time. */
+const browser = new Set(["test:hub-browser", "test:web-browser", "test:ui-browser", "test:ui-browser:quick", "test:ui-browser:all"]);
+/** The slowest suites start first, so the pool does not end waiting on one of them. */
+const slow = ["test:codex-protocol", "test:docs-approval", "test:external-ci-delivery-recovery", "test:discord", "test:ci-no-head-recovery", "test:managed-task-recovery", "test:review-fix", "test:projects-site"];
 
-for (const suite of suites) {
-  process.stdout.write(`\n=== ${suite} ===\n`);
-  const result = spawnSync(npm, ["run", suite], {
-    env: process.env,
-    stdio: "inherit",
+const args = process.argv.slice(2);
+const only = args.find(arg => arg.startsWith("--only="))?.slice(7).split(",").filter(Boolean);
+const changedMode = args.includes("--changed");
+let selected: string[];
+if (only) selected = only;
+else if (changedMode) {
+  const changed = changedFiles();
+  // A change that touches the browser check runs its quick variant; the full audit is for releases.
+  const plan = planSuites([...first.slice(1), ...suites, "test:hub-browser", "test:web-browser", "test:ui-browser"], changed);
+  selected = plan.suites.map(suite => suite === "test:ui-browser" ? "test:ui-browser:quick" : suite);
+  process.stdout.write(`${changed.length} changed file(s)${plan.everything ? ` — ${plan.reasons[plan.suites[0]!]} changes every suite` : ""}\n`);
+  for (const suite of plan.suites) process.stdout.write(`  ${suite}  ← ${plan.reasons[suite]}\n`);
+} else selected = [...first, ...suites];
+if (!selected.includes("check")) selected.unshift("check");
+
+const jobs = Math.max(1, Number(process.env.KURAMI_TEST_JOBS) || readDevResources().testJobs);
+const npm = process.platform === "win32" ? "npm.cmd" : "npm";
+const startedAt = Date.now();
+const durations: Record<string, number> = {};
+const failed: string[] = [];
+
+/** Runs one suite with its output buffered; prints it whole when the suite fails, one line when it passes. */
+function runSuite(suite: string): Promise<boolean> {
+  return new Promise(done => {
+    const started = Date.now(), output: Buffer[] = [];
+    const child = spawn(npm, ["run", "-s", suite], { env: process.env, stdio: ["ignore", "pipe", "pipe"] });
+    child.stdout.on("data", chunk => output.push(chunk));
+    child.stderr.on("data", chunk => output.push(chunk));
+    child.on("close", code => {
+      durations[suite] = (Date.now() - started) / 1000;
+      if (code === 0) process.stdout.write(`ok   ${suite} (${durations[suite]!.toFixed(1)}s)\n`);
+      else { failed.push(suite); process.stdout.write(`\nFAIL ${suite} (exit ${code})\n${Buffer.concat(output).toString()}\n`); }
+      done(code === 0);
+    });
   });
-  if (result.error) throw result.error;
-  if (result.status !== 0) {
-    process.stderr.write(
-      `${JSON.stringify({ ok: false, failedSuite: suite, exitCode: result.status })}\n`,
-    );
-    process.exit(result.status ?? 1);
-  }
 }
 
-process.stdout.write(
-  `${JSON.stringify({ ok: true, suites: suites.length, durationMs: Date.now() - startedAt })}\n`,
-);
+async function pool(list: string[], size: number): Promise<void> {
+  const queue = [...list];
+  await Promise.all(Array.from({ length: Math.min(size, queue.length) }, async () => {
+    while (queue.length && !failed.length) await runSuite(queue.shift()!);
+  }));
+}
+
+process.stdout.write(`${selected.length} suite(s), ${jobs} job(s)\n`);
+for (const suite of first) if (selected.includes(suite) && !failed.length) await runSuite(suite);
+const rest = selected.filter(suite => !(first as readonly string[]).includes(suite) && !browser.has(suite));
+rest.sort((a, b) => (slow.indexOf(a) + 1 || 99) - (slow.indexOf(b) + 1 || 99));
+await pool(rest, jobs);
+for (const suite of selected.filter(suite => browser.has(suite))) if (!failed.length) await runSuite(suite);
+
+const durationMs = Date.now() - startedAt;
+if (failed.length) {
+  process.stderr.write(`${JSON.stringify({ ok: false, failedSuites: failed, durationMs })}\n`);
+  process.exit(1);
+}
+process.stdout.write(`${JSON.stringify({ ok: true, suites: selected.length, jobs, durationMs })}\n`);

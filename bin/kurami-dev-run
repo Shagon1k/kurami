@@ -1,0 +1,35 @@
+#!/usr/bin/env bash
+# Runs a command as Kurami development work: inside kurami-dev.slice, whose CPU cap and memory cap come from
+# Hub → Controls → Settings → Development resources, at low CPU and disk priority. Every process the
+# command starts (tests, builds, browsers) inherits both, whatever the project or test framework.
+# Nested calls run the command directly. Without a systemd user session it still lowers the priority.
+set -euo pipefail
+
+if (( $# == 0 )); then
+  printf 'Usage: kurami-dev-run COMMAND [ARGS...]\n' >&2
+  exit 2
+fi
+if [[ "${KURAMI_DEV_SLICE:-}" == "1" ]]; then
+  exec "$@"
+fi
+export KURAMI_DEV_SLICE=1
+
+priority=(nice -n 10)
+if command -v ionice >/dev/null 2>&1; then
+  priority+=(ionice -c 2 -n 7)
+fi
+
+if command -v systemd-run >/dev/null 2>&1 && systemctl --user show-environment >/dev/null 2>&1; then
+  app="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+  unit="${KURAMI_SYSTEMD_USER_DIR:-${XDG_CONFIG_HOME:-$HOME/.config}/systemd/user}/kurami-dev.slice"
+  if [[ ! -f "${unit}" ]]; then
+    node="${NODE_BIN:-$(command -v node || true)}"
+    if [[ -z "${node}" ]] || ! "${node}" "${app}/src/system/dev-resources/dev-resources.ts" ensure >/dev/null; then
+      printf 'kurami-dev-run: could not write kurami-dev.slice; running without its limits\n' >&2
+    fi
+  fi
+  exec systemd-run --user --scope --slice=kurami-dev.slice --quiet --collect -- "${priority[@]}" "$@"
+fi
+
+printf 'kurami-dev-run: no systemd user session; running at low priority without the slice limits\n' >&2
+exec "${priority[@]}" "$@"

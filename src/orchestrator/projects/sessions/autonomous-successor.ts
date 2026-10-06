@@ -58,6 +58,7 @@ const launcherPath = resolve(
   import.meta.dirname,
   "../../../../bin/launch-codex-session.sh",
 );
+const devRunPath = resolve(import.meta.dirname, "../../../../bin/kurami-dev-run");
 
 function fail(message: string): never {
   throw new Error(message);
@@ -377,7 +378,7 @@ export async function runAutonomousSuccessorCli(): Promise<void> {
         "-e", `HERMES_WORKTREE_PATH=${run.worktree_path}`,
         "-e", `HERMES_CANONICAL_REPOSITORY=${resolve(project.workspace.canonical_repository)}`,
         "-e", `HERMES_INITIAL_PROMPT_FILE=${promptPath}`,
-        "-e", `CODEX_BIN=${codexBin}`, launcherPath]);
+        "-e", `CODEX_BIN=${codexBin}`, devRunPath, launcherPath]);
       await new Promise((resolveDelay) => setTimeout(resolveDelay, 1_000));
       if (!tmuxExists(tmuxName)) fail("Successor tmux session exited during startup");
       database.prepare(`UPDATE run_autonomous_successions SET succession_state='running',

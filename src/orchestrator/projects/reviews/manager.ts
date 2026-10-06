@@ -57,6 +57,7 @@ const launcherPath = resolve(
   import.meta.dirname,
   "../../../../bin/launch-ai-review.sh",
 );
+const devRunPath = resolve(import.meta.dirname, "../../../../bin/kurami-dev-run");
 
 function fail(message: string): never {
   throw new Error(message);
@@ -328,6 +329,7 @@ export async function runReviewManagerCli(): Promise<void> {
         `KURAMI_REVIEW_ID=${reviewId}`,
         "-e",
         `NODE_BIN=${process.execPath}`,
+        devRunPath,
         launcherPath,
       ]);
     } catch (error) {

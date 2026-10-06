@@ -56,6 +56,18 @@ The installed app follows this theme too: with Neon it gets the neon fox icon an
 
 Applying it creates a revision with its author, like the other settings. Hub refuses a stale panel. This section does not wait for Kurami to be idle, because appearance does not change runs.
 
+## Development resources (Hub only)
+
+The **Development resources** section limits how much of the server development may take: Codex workers of every project, their tests and builds, and Kurami's own tests. All of it runs in a separate systemd slice, `kurami-dev.slice`. Everything started there inherits the limits, whatever the project or test framework.
+
+| Setting | Options | Default | What it is |
+|---|---|---|---|
+| Cores | 1 to the server's core count | 4 | CPU ceiling for all development together |
+| Test jobs | 1 to the core count | 2 | How many Kurami test suites run at once |
+| Memory | no limit, 8, 12 or 16 GiB | no limit | Memory ceiling for development |
+
+Development also yields CPU to Kurami's services and runs at low disk priority. A new limit applies at once, including to running processes. Applying creates a revision with its author. Kurami does not need to be idle.
+
 ## Revisions, Undo and Reset
 
 Every apply creates a new revision: the number grows, and the values, the previous values and the author's id (Discord, or a fixed id for Hub) are stored in the database with a checksum. The panel remembers the revision it opened with. If someone changed the settings meanwhile, the panel refuses and asks you to reopen it.

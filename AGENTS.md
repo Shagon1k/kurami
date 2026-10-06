@@ -1,5 +1,16 @@
 # Agent notes for Kurami
 
+## Tests: scoped while working, full before a release
+
+- While iterating, run `npm run test:changed`: the type check plus only the suites your change
+  touches (their imports and the paths they read, `tests/test-plan.ts`), the browser check in its
+  quick variant. It lists each suite with the file that selected it.
+- Before asking the owner to release, run the full `npm test`, plus the browser suites the change
+  touches (`test:ui-browser`, `test:hub-browser`, `test:web-browser`).
+- Tests run as development work: `bin/kurami-dev-run` puts them in `kurami-dev.slice` at low
+  priority, and `npm test` sizes its pool by Hub → Controls → Settings → Development resources
+  (`KURAMI_TEST_JOBS` overrides). Start long or heavy commands through `bin/kurami-dev-run` too.
+
 ## UI: build pages from `src/ui-library/`
 
 Every Kurami site (Digest, human docs, any new sub-site) renders through the shared UI library.
@@ -25,7 +36,8 @@ Every Kurami site (Digest, human docs, any new sub-site) renders through the sha
   `productControls` in `src/ui-library/testing/audit.ts`, and declare `UI-Library: exception` with a
   `UI-Reason:` in the PR. Reviewers see the reason in `guard-baseline.json`.
 - Run `npm run test:ui-library`, `npm run test:ui-guard` and `npm run test:ui-browser` for UI
-  changes (see Themes below for which variants to check). When you remove an exception, record it with `node tests/ui-library/guard.ts --update`.
+  changes before a release (see Themes below for which variants to check); while iterating,
+  `npm run test:changed` runs the quick browser check when your change touches it. When you remove an exception, record it with `node tests/ui-library/guard.ts --update`.
 - After changing the library, run `npm run ui:export` so the UI-language skill bundle stays current.
 
 ## Themes: every UI change works in Paper and Neon

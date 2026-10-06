@@ -1,4 +1,5 @@
 import {validAppearance} from "../system/appearance/appearance-settings.ts";
+import {validDevResources} from "../system/dev-resources/dev-resources.ts";
 import {execFile} from "node:child_process";
 import {promisify} from "node:util";
 import {appendFile,mkdir,open,readFile} from "node:fs/promises";
@@ -31,11 +32,12 @@ export function createHubControls(options:{home?:string;hermesHome?:string;run?:
   const settingsPath=resolve(home,"app/src/orchestrator/settings/orchestrator-settings.ts");
   const healthPath=resolve(home,"app/src/system/health/health-settings.ts");
   const appearancePath=resolve(home,"app/src/system/appearance/appearance-settings.ts");
+  const devResourcesPath=resolve(home,"app/src/system/dev-resources/dev-resources.ts");
   const composioPath=resolve(home,"app/src/connectors/composio/cli.ts");
   const hermes=resolve(hermesHome,"hermes-agent/venv/bin/hermes");
   async function settings(){
-    const [settings,health,appearance]=await Promise.all([run(node,[settingsPath,"status"]),run(node,[healthPath,"status"]),run(node,[appearancePath,"status"])]);
-    return {settings:JSON.parse(settings),health:JSON.parse(health),appearance:JSON.parse(appearance)};
+    const [settings,health,appearance,devResources]=await Promise.all([run(node,[settingsPath,"status"]),run(node,[healthPath,"status"]),run(node,[appearancePath,"status"]),run(node,[devResourcesPath,"status"])]);
+    return {settings:JSON.parse(settings),health:JSON.parse(health),appearance:JSON.parse(appearance),devResources:JSON.parse(devResources)};
   }
   async function models(){
     const [catalog,config,hermesConfig]=await Promise.all([rpc("model/list",{limit:100,includeHidden:false}),rpc("config/read",{includeLayers:false}),readFile(resolve(hermesHome,"config.yaml"),"utf8")]);
@@ -104,6 +106,10 @@ export function createHubControls(options:{home?:string;hermesHome?:string;run?:
     }else if(action==="appearance-apply"){
       if(!validAppearance(payload.theme,payload.mode))return bad();
       result=JSON.parse(await run(node,[appearancePath,"apply","--theme",payload.theme,"--mode",String(payload.mode),"--expected-revision",String(integer(payload.revision,0,1e9)),"--actor-id",actor]));
+    }else if(action==="dev-resources-apply"){
+      const limits={cores:Number(payload.cores),testJobs:Number(payload.testJobs),memoryGiB:Number(payload.memoryGiB)};
+      if(!validDevResources(limits))return bad();
+      result=JSON.parse(await run(node,[devResourcesPath,"apply","--cores",String(limits.cores),"--test-jobs",String(limits.testJobs),"--memory-gib",String(limits.memoryGiB),"--expected-revision",String(integer(payload.revision,0,1e9)),"--actor-id",actor]));
     }else if(action==="composio-apply"){
       if(!["broad","read","automation"].includes(String(payload.contour)))return bad();
       const check=(await composioCheck()).find(item=>item.contour===payload.contour)!;
@@ -112,7 +118,7 @@ export function createHubControls(options:{home?:string;hermesHome?:string;run?:
     }else return bad();
     // Audit only bounded action metadata, never subprocess outputs, credentials or config contents.
     try {
-      await appendFile(auditPath,JSON.stringify({at:new Date().toISOString(),action,identity,target:payload.target,model:payload.model,contour:payload.contour,theme:action==="appearance-apply"?payload.theme:undefined,mode:action==="appearance-apply"?payload.mode:undefined,outcome:result?.outcome??result?.action??"ok"})+"\n",{mode:0o600});
+      await appendFile(auditPath,JSON.stringify({at:new Date().toISOString(),action,identity,target:payload.target,model:payload.model,contour:payload.contour,theme:action==="appearance-apply"?payload.theme:undefined,mode:action==="appearance-apply"?payload.mode:undefined,...(action==="dev-resources-apply"?{cores:Number(payload.cores),testJobs:Number(payload.testJobs),memoryGiB:Number(payload.memoryGiB)}:{}),outcome:result?.outcome??result?.action??"ok"})+"\n",{mode:0o600});
     }catch {
       // A completed mutation must not appear to have failed and invite a duplicate action.
       result={...result,auditWarning:true};
