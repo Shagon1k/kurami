@@ -103,7 +103,7 @@ ${STORY_ACTIONS_LAYOUT_CSS}
 .metric-card__label { color: var(--text-muted); font-size: .75rem; }
 .metric-card__value { font-size: clamp(2rem, 3.4vw, 2.375rem); font-weight: 600; line-height: 1; letter-spacing: -.045em; }
 .metric-card__context { align-self: end; margin: 0; color: var(--text-muted); font-size: .6875rem; }
-.metric-card__chip { width: max-content; min-height: 25px; display: inline-flex; align-items: center; justify-content: center; padding: 3px 8px; color: var(--status-success); border: 1px solid currentColor; border-radius: 5px; font-size: .625rem; font-weight: 600; line-height: 1; }
+.metric-card__chip { align-self: start; width: max-content; min-height: 25px; display: inline-flex; align-items: center; justify-content: center; padding: 3px 8px; color: var(--status-success); border: 1px solid currentColor; border-radius: 5px; font-size: .625rem; font-weight: 600; line-height: 1; }
 .metric-card__chip.warning { color: var(--status-warning); }
 .metric-card__note { position: absolute; right: 14px; top: 13px; max-width: 130px; font-size: 18px; text-align: right; }
 
