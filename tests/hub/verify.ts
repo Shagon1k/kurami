@@ -141,6 +141,16 @@ projects:
   assert.match(renderHubDashboard(unnamed,"en"),/Untitled session · abcdefgh/);
   assert.match(renderHubDashboard(unnamed,"ru"),/Сессия без названия · abcdefgh/);
 
+  // Release drift arrives from the background check and shows as one "Release" problem with every item.
+  const drifting=createHubServer({snapshot:()=>snapshot,releaseDrift:{latest:[{code:"checkout_behind",ru:"Рабочая версия позади main на 2 коммита",en:"The live version is 2 commits behind main"},{code:"service_stale",ru:"Не перезапущены после выкладки: hub",en:"Not restarted after the update: hub"}]}});
+  await new Promise<void>(done=>drifting.listen(0,"127.0.0.1",done));
+  try{
+    const fragment=await (await fetch(`http://127.0.0.1:${(drifting.address() as {port:number}).port}/api/fragment?lang=en`)).text();
+    assert.match(fragment,/Release · The live version is 2 commits behind main/);
+    assert.match(fragment,/Release · Not restarted after the update: hub/,"every drift item is listed, not only the first");
+    assert.match(fragment,/Release the changes/);
+  }finally{drifting.close();}
+
   const server=createHubServer({snapshot:()=>snapshot});
   await new Promise<void>(done=>server.listen(0,"127.0.0.1",done));
   const port=(server.address() as {port:number}).port;

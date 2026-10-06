@@ -9,7 +9,7 @@ export function problemQueue(alerts:HubAlert[]):HubProblem[] {
     const group=groups.get(id)??{id,subject:id==="system:health"?"System Health":alert.subject,title:alert.title??"",project:alert.project,itemId:alert.itemId,task:alert.task??task,severity:alert.severity,issues:[],href:alert.href,actor:alert.actor??"owner",next:alert.next??defaults};
     group.itemId??=alert.itemId;
     if(alert.severity==="critical")group.severity="critical";
-    if(!group.issues.some(issue=>issue.code===alert.code&&issue.subject===alert.subject))group.issues.push(alert);
+    if(!group.issues.some(issue=>issue.code===alert.code&&issue.subject===alert.subject&&issue.detail===alert.detail))group.issues.push(alert);
     if(alert.next==="reply"||alert.next==="inspect_task"){group.next=alert.next;group.actor="owner";}
     groups.set(id,group);
   }
