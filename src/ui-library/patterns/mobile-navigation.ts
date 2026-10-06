@@ -7,7 +7,7 @@ export type MobileNavigationInput={app:"hub"|"digest"|"projects"|"docs";lang:"en
 
 export function renderMobileNavigation(input:MobileNavigationInput):string {
   const ru=input.lang==="ru",t=(a:string,b:string)=>ru?a:b;
-  const settings=`<div class="mobile-navigation__settings" data-mobile-slot="more"><div class="mobile-navigation__setting"><span class="mobile-navigation__setting-label">${renderIcon("language")}${t("Язык","Language")}</span><div class="mobile-navigation__setting-value" data-mobile-slot="language"><span class="mobile-navigation__language-current" aria-current="true">${input.lang.toUpperCase()}</span></div></div><div class="mobile-navigation__setting"><span class="mobile-navigation__setting-label">${renderIcon("moon")}${t("Тёмная тема","Dark theme")}</span><div class="mobile-navigation__setting-value" data-mobile-slot="theme"></div></div>${input.app==="hub"?`<div class="mobile-navigation__setting" data-mobile-period-row><span class="mobile-navigation__setting-label">${renderIcon("calendar")}${t("Период","Period")}</span><div class="mobile-navigation__setting-value" data-mobile-slot="period"></div></div>`:""}</div>`;
+  const settings=`<div class="mobile-navigation__settings" data-mobile-slot="more"><div class="mobile-navigation__setting"><span class="mobile-navigation__setting-label">${renderIcon("language")}${t("Язык","Language")}</span><div class="mobile-navigation__setting-value" data-mobile-slot="language"><span class="mobile-navigation__language-current" aria-current="true">${input.lang.toUpperCase()}</span></div></div><div class="mobile-navigation__setting"><span class="mobile-navigation__setting-label">${renderIcon("moon")}${t("Тема","Theme")}</span><div class="mobile-navigation__setting-value" data-mobile-slot="theme"></div></div>${input.app==="hub"?`<div class="mobile-navigation__setting" data-mobile-period-row><span class="mobile-navigation__setting-label">${renderIcon("calendar")}${t("Период","Period")}</span><div class="mobile-navigation__setting-value" data-mobile-slot="period"></div></div>`:""}</div>`;
   const slots=[
     {key:"apps",label:"Apps",title:"Apps",icon:"apps" as const,body:input.apps},
     {key:"sections",label:input.app==="hub"?t("Перейти к","Go to"):input.app==="projects"?t("Проекты","Projects"):t("Разделы","Sections"),title:input.app==="hub"?t("На этой странице","On this page"):input.app==="projects"?t("Проекты","Projects"):t("Разделы","Sections"),icon:input.app==="hub"?"contents" as const:"sections" as const,body:input.sections+'<div data-mobile-slot="sections"></div>'},
@@ -58,7 +58,7 @@ ${POPOVER_CSS}
   .mobile-navigation__setting:has([data-theme-menu]) { flex-direction: column; align-items: stretch; }
   .mobile-navigation [data-theme-menu] { display: block; }
   .mobile-navigation [data-theme-menu] .theme-switch { display: none; }
-  .mobile-navigation .theme-menu__panel { display: block; position: static; width: auto; max-height: none; padding: 0; border: 0; background: transparent; box-shadow: none; overflow: visible; }
+  .mobile-navigation .theme-menu__panel { display: block; position: static; width: auto; max-height: none; padding: 0; border: 0; background: transparent; box-shadow: none; overflow: visible; opacity: 1; transform: none; pointer-events: auto; }
   .mobile-navigation .theme-menu__option { min-height: 44px; }
   .mobile-navigation .theme-menu__hint { margin-top: var(--space-2); }
   .mobile-navigation .period-control { position: static; }

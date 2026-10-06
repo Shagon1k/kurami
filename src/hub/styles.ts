@@ -11,10 +11,11 @@ import {PERIOD_SWITCH_CSS} from "../ui-library/components/period-switch.ts";
 import {ICON_CSS} from "../ui-library/components/icon.ts";
 import {STAT_CARD_CSS} from "../ui-library/components/stat-card.ts";
 import {POPOVER_CSS} from "../ui-library/components/popover.ts";
+import {TOAST_CSS} from "../ui-library/components/toast.ts";
 
 import {CHART_STYLES} from "../ui-library/components/charts/styles.ts";
 
-export const HUB_STYLES=`${THEME_CSS}${FOUNDATION_CSS}${BUTTON_CSS}${THEME_SWITCH_CSS}${SITE_HEADER_CSS}${TABLE_CSS}${DISCLOSURE_CSS}${FORM_CSS}${DIALOG_CSS}${PERIOD_SWITCH_CSS}${ICON_CSS}${STAT_CARD_CSS}${POPOVER_CSS}${CHART_STYLES}
+export const HUB_STYLES=`${TOAST_CSS}${THEME_CSS}${FOUNDATION_CSS}${BUTTON_CSS}${THEME_SWITCH_CSS}${SITE_HEADER_CSS}${TABLE_CSS}${DISCLOSURE_CSS}${FORM_CSS}${DIALOG_CSS}${PERIOD_SWITCH_CSS}${ICON_CSS}${STAT_CARD_CSS}${POPOVER_CSS}${CHART_STYLES}
 body { min-height: 100vh; }
 .hub { padding-block: var(--space-6) var(--space-10); }
 .hub__topline { display: flex; align-items: baseline; justify-content: flex-end; gap: var(--space-4); margin-bottom: var(--space-4); }

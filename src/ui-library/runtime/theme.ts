@@ -7,8 +7,9 @@ type ThemeMode = "light" | "dark";
 type ThemeChoices = { labels: Record<string, string>; modes: Record<string, ThemeMode[]> };
 
 /**
- * Effective theme = this device's choice (localStorage), else the Hub default (the `kurami-theme-default`
- * cookie set by the web gateway, "<theme>.<mode>"), else Paper in the system mode. `data-theme` keeps the
+ * Effective theme = this device's choice (localStorage: theme and its mode), else the Hub default (the
+ * `kurami-theme-default` cookie set by the web gateway, "<theme>.<mode>", both parts), else Paper in the
+ * stored or system mode. `data-theme` keeps the
  * mode (light/dark) as before; `data-kurami-theme` names a non-Paper theme. A theme without the requested
  * mode falls back to the mode it has.
  */
@@ -24,9 +25,11 @@ function kuramiThemeRuntime(choices: ThemeChoices) {
     return match && known(match[1]) ? { theme: match[1], mode: match[2] as ThemeMode } : null;
   };
   const effective = () => {
-    const fallback = hubDefault(), theme = storedTheme() ?? fallback?.theme ?? "paper";
+    const fallback = hubDefault(), device = storedTheme(), theme = device ?? fallback?.theme ?? "paper";
     const modes = choices.modes[theme];
-    let mode = storedMode() ?? fallback?.mode ?? (media.matches ? "dark" : "light");
+    // A device that chose a theme also owns its mode. Without a device theme the Hub default decides both,
+    // so a mode left over from the old light/dark switch does not override the Hub's choice.
+    let mode = (device || !fallback ? storedMode() : null) ?? fallback?.mode ?? (media.matches ? "dark" : "light");
     if (!modes.includes(mode)) mode = modes[0];
     return { theme, mode };
   };

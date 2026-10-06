@@ -115,7 +115,7 @@ try {
   const snapshot=collectHubSnapshot({home,appRepository:join(home,"missing"),codexHome:join(home,"codex")});
   let mutations=0;
   const server=createHubServer({snapshot:()=>snapshot,controlOrigin:"https://hub.test",authorize:async request=>request.headers["x-test-owner"]==="yes"?"owner":null,
-    controls:{execute:async(action)=>{if(action==="models")return {models:[],codex:"Sol",hermes:"Sol",hermesProvider:"openai-codex"};mutations++;return {ok:true,action:"restart_requested"};}}});
+    controls:{execute:async(action,payload)=>{if(action==="models")return {models:[],codex:"Sol",hermes:"Sol",hermesProvider:"openai-codex"};mutations++;if(action==="appearance-apply")return {ok:true,action:"applied",theme:payload?.theme,mode:payload?.mode};return {ok:true,action:"restart_requested"};}}});
   await new Promise<void>(done=>server.listen(0,"127.0.0.1",done));
   const origin=`http://127.0.0.1:${(server.address() as {port:number}).port}`;
   try {
@@ -132,6 +132,9 @@ try {
     assert.equal((await post({action:"models",confirm:true})).status,400);
     assert.equal(mutations,0,"rejected requests cannot run a command");
     assert.equal((await post({action:"restart",confirm:true})).status,200);assert.equal(mutations,1);
+    // The page applies a new default at once, so the response carries it; other actions do not.
+    assert.deepEqual((await (await post({action:"appearance-apply",theme:"neon",mode:"dark",revision:0,confirm:true})).json()).appearance,{theme:"neon",mode:"dark"});
+    assert.equal((await (await post({action:"restart",confirm:true})).json()).appearance,undefined);
     const models=await fetch(origin+"/api/controls?action=models",{headers:{"X-Test-Owner":"yes"}});
     assert.match((await models.json()).html,/data-hub-submit="model-apply"/);
   }finally{await new Promise<void>(done=>server.close(()=>done()));}

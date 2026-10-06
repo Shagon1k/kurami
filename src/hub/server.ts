@@ -100,7 +100,7 @@ export function createHubServer(options:{snapshot?:()=>HubSnapshot;account?:()=>
         if(!payload||typeof payload!=="object"||payload.confirm!==true||typeof payload.action!=="string"||["models","settings","composio-check"].includes(payload.action)){json(400,{ok:false,error:"confirmation_required"});return;}
         if(mutating){json(409,{ok:false,error:"action_in_progress"});return;}
         mutating=true;
-        try{const result=await controls.execute(payload.action,payload,identity);cached=null;json(200,{ok:true,action:result?.action,outcome:result?.outcome,auditWarning:result?.auditWarning===true});}
+        try{const result=await controls.execute(payload.action,payload,identity);cached=null;json(200,{ok:true,action:result?.action,outcome:result?.outcome,auditWarning:result?.auditWarning===true,...(payload.action==="appearance-apply"&&typeof result?.theme==="string"&&typeof result?.mode==="string"?{appearance:{theme:result.theme,mode:result.mode}}:{})});}
         finally{mutating=false;}
       }catch(error){json(error instanceof HubControlError&&error.code==="invalid_request"?400:409,{ok:false,error:error instanceof HubControlError?error.code:"action_failed"});}
       return;

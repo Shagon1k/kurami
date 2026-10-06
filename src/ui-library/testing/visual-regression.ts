@@ -263,6 +263,10 @@ async function checkThemeRuntime(devtools:Devtools,base:string,path:string):Prom
   await cookie("neon.dark");
   await open(devtools,`${base}${path}`);
   expect(await state(),{variant:"neon",theme:"dark",choice:"default",stored:null,storedTheme:null},"Hub default Neon");
+  await devtools.evaluate(`localStorage.setItem('kurami-theme','light')`);
+  await open(devtools,`${base}${path}`);
+  expect(await state(),{variant:"neon",theme:"dark",choice:"default",stored:"light",storedTheme:null},"a mode left by the old switch does not override the Hub default");
+  await devtools.evaluate(`localStorage.removeItem('kurami-theme')`);
   await click('[data-theme-choice="paper"]');
   expect(await state(),{variant:"paper",theme:"dark",choice:"paper",stored:"dark",storedTheme:"paper"},"device beats Hub default");
   await devtools.evaluate(`localStorage.clear()`);await cookie("paper.light");
@@ -344,7 +348,7 @@ async function checkMobileNavigation(devtools:Devtools,width:number,current:stri
   await devtools.evaluate(`document.querySelector('[data-mobile-menu="more"]').click()`);await delay(240);
   if(!await devtools.evaluate(`getComputedStyle(document.querySelector('[data-mobile-menu="more"] svg')).transform!=='none'`))throw new Error('Settings icon should animate with menu state');
   // Settings: horizontal label/value rows, plus the theme row that lists its options inline with touch-size targets.
-  const settings=await devtools.evaluate<{rows:{delta:number;gap:number}[];options:number[];hidden:boolean}>(`(()=>{const rows=[...document.querySelectorAll('#mobile-menu-more .mobile-navigation__setting:not([hidden]):not(:has([data-theme-menu]))')];const theme=document.querySelector('[data-mobile-slot="theme"]');return {rows:rows.map(row=>{const l=row.querySelector('.mobile-navigation__setting-label').getBoundingClientRect(),v=row.querySelector('.mobile-navigation__setting-value').getBoundingClientRect();return {delta:Math.abs((l.top+l.bottom-v.top-v.bottom)/2),gap:v.left-l.right};}),options:[...theme.querySelectorAll('[data-theme-choice],[data-mode-choice]')].map(option=>option.offsetHeight),hidden:theme.querySelector('[data-theme-panel]').hasAttribute('popover')};})()`);
+  const settings=await devtools.evaluate<{rows:{delta:number;gap:number}[];options:number[];hidden:boolean}>(`(()=>{const rows=[...document.querySelectorAll('#mobile-menu-more .mobile-navigation__setting:not([hidden]):not(:has([data-theme-menu]))')];const theme=document.querySelector('[data-mobile-slot="theme"]');return {rows:rows.map(row=>{const l=row.querySelector('.mobile-navigation__setting-label').getBoundingClientRect(),v=row.querySelector('.mobile-navigation__setting-value').getBoundingClientRect();return {delta:Math.abs((l.top+l.bottom-v.top-v.bottom)/2),gap:v.left-l.right};}),options:[...theme.querySelectorAll('[data-theme-choice],[data-mode-choice]')].map(option=>option.offsetHeight),hidden:theme.querySelector('[data-theme-panel]').hasAttribute('popover')||getComputedStyle(theme.querySelector('[data-theme-panel]')).opacity!=='1'||getComputedStyle(theme.querySelector('[data-theme-panel]')).visibility!=='visible'};})()`);
   if(settings.rows.length<1||settings.rows.some(row=>row.delta>=1||row.gap<0)||settings.options.length<5||settings.options.some(height=>height<43.5)||settings.hidden)throw new Error('Settings must have aligned rows and inline theme options with touch targets: '+JSON.stringify(settings));
   const beforeTheme=await devtools.evaluate<string>(`document.documentElement.dataset.theme`);
   await devtools.evaluate(`document.querySelector('[data-mobile-slot="theme"] [data-mode-choice]:not([aria-pressed="true"]):not(:disabled)').click()`);

@@ -354,7 +354,7 @@ button, a { -webkit-tap-highlight-color: transparent; }
   .mobile-navigation__setting:has([data-theme-menu]) { flex-direction: column; align-items: stretch; }
   .mobile-navigation [data-theme-menu] { display: block; }
   .mobile-navigation [data-theme-menu] .theme-switch { display: none; }
-  .mobile-navigation .theme-menu__panel { display: block; position: static; width: auto; max-height: none; padding: 0; border: 0; background: transparent; box-shadow: none; overflow: visible; }
+  .mobile-navigation .theme-menu__panel { display: block; position: static; width: auto; max-height: none; padding: 0; border: 0; background: transparent; box-shadow: none; overflow: visible; opacity: 1; transform: none; pointer-events: auto; }
   .mobile-navigation .theme-menu__option { min-height: 44px; }
   .mobile-navigation .theme-menu__hint { margin-top: var(--space-2); }
   .mobile-navigation .period-control { position: static; }
