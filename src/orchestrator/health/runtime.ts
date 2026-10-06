@@ -1,5 +1,6 @@
 import { spawnSync } from "node:child_process";
 import { mkdir, readdir, readFile, rename, stat, writeFile } from "node:fs/promises";
+import { uploadAgeHours } from "../../system/recovery/s3-recovery.ts";
 import { dirname, resolve } from "node:path";
 import { resolveKuramiHome } from "../../core/kurami-home.ts";
 import { pathToFileURL } from "node:url";
@@ -618,6 +619,8 @@ export async function inspectRuntimeHealth(
   );
   const backupFresh =
     backupAgeHours !== null && backupAgeHours <= backupMaxAgeHours;
+  // The off-site copy follows the local backup; a day of slack covers a slow upload.
+  const offsiteAgeHours = await uploadAgeHours(home);
   const problems: string[] = [];
   if (oomKillsSincePreviousCheck > 0) {
     problems.push(
@@ -637,6 +640,9 @@ export async function inspectRuntimeHealth(
         ? "No state backup exists"
         : `Latest state backup is ${backupAgeHours}h old`,
     );
+  }
+  if (offsiteAgeHours !== null && offsiteAgeHours > backupMaxAgeHours + 24) {
+    problems.push(`Latest off-site recovery upload is ${offsiteAgeHours}h old`);
   }
   if (problemCount(preview) > 0) {
     for (const [kind, values] of Object.entries(preview)) {

@@ -1,6 +1,6 @@
 import { spawnSync } from "node:child_process";
 import { createHash } from "node:crypto";
-import { lstat, readFile, readdir } from "node:fs/promises";
+import { lstat, mkdir, readFile, readdir, rename, writeFile } from "node:fs/promises";
 import { basename, resolve } from "node:path";
 import { resolveKuramiHome } from "../../core/kurami-home.ts";
 
@@ -289,6 +289,27 @@ function formatSummary(result: S3UploadResult): string {
   ].join("\n");
 }
 
+/** Where a verified upload is recorded; System Health warns when the off-site copy grows old. */
+export function uploadReceiptPath(kuramiHome: string): string {
+  return resolve(kuramiHome, "state/recovery-upload.json");
+}
+
+export async function writeUploadReceipt(kuramiHome: string, result: S3UploadResult, at = new Date()): Promise<void> {
+  const path = uploadReceiptPath(kuramiHome), temporary = `${path}.${process.pid}.tmp`;
+  await mkdir(resolve(kuramiHome, "state"), { recursive: true, mode: 0o700 });
+  await writeFile(temporary, `${JSON.stringify({ version: 1, uploadedAt: at.toISOString(), bundle: result.bundle, retained: result.retained })}\n`, { mode: 0o600 });
+  await rename(temporary, path);
+}
+
+/** Age in hours of the last verified upload, or null when there is no receipt (uploads not set up yet). */
+export async function uploadAgeHours(kuramiHome: string, now = Date.now()): Promise<number | null> {
+  try {
+    const receipt = JSON.parse(await readFile(uploadReceiptPath(kuramiHome), "utf8")) as { uploadedAt?: unknown };
+    const at = typeof receipt.uploadedAt === "string" ? Date.parse(receipt.uploadedAt) : NaN;
+    return Number.isFinite(at) ? Math.round(((now - at) / 3_600_000) * 10) / 10 : null;
+  } catch { return null; }
+}
+
 export async function runS3RecoveryCli(): Promise<void> {
   const args = process.argv.slice(2);
   if (args[0] !== "upload-latest" || args.some((arg) => !["upload-latest", "--summary-text"].includes(arg))) {
@@ -301,6 +322,7 @@ export async function runS3RecoveryCli(): Promise<void> {
     await latestBundle(kuramiHome),
     settingsFromEnvironment(),
   );
+  await writeUploadReceipt(kuramiHome, result);
   process.stdout.write(
     args.includes("--summary-text")
       ? `${formatSummary(result)}\n`

@@ -4,9 +4,12 @@ import { chmod, mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises
 import { tmpdir } from "node:os";
 import { basename, resolve } from "node:path";
 import type { S3RecoveryTransport } from "../src/system/recovery/s3-recovery.ts";
+import assert from "node:assert/strict";
 import {
   createCurlS3Transport,
+  uploadAgeHours,
   uploadRecoveryBundle,
+  writeUploadReceipt,
 } from "../src/system/recovery/s3-recovery.ts";
 
 function fail(message: string): never {
@@ -167,6 +170,12 @@ process.stdin.on("end", () => {
       exactPrefix: true,
     })}\n`,
   );
+  // A verified upload leaves a receipt; System Health reads its age.
+  const receiptHome = resolve(root, "receipt-home");
+  assert.equal(await uploadAgeHours(receiptHome), null, "no receipt: uploads are not set up");
+  await writeUploadReceipt(receiptHome, { ok: true, action: "uploaded", bucket: "b", region: "r", bundle: "kurami-recovery-x.age", remotePrefix: "p/", retained: 3, pruned: [] } as never, new Date(Date.UTC(2026, 9, 1, 0, 0)));
+  assert.equal(await uploadAgeHours(receiptHome, Date.UTC(2026, 9, 2, 6, 0)), 30, "age in hours since the upload");
+  assert.equal((await readFile(resolve(receiptHome, "state/recovery-upload.json"), "utf8")).includes("kurami-recovery-x.age"), true);
 } finally {
   await rm(root, { recursive: true, force: true });
 }
