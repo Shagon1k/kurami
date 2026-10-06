@@ -13,7 +13,11 @@ export const colorRoles=[
 export type ColorRole=typeof colorRoles[number];
 // Mode-independent roles: typefaces, shape, elevation, motion and spacing. A theme may change them too.
 export const scaleRoles=[
-  "font-sans","font-mono","font-note",
+  "font-sans","font-mono","font-note","font-display",
+  // Display treatment for page titles, section headings and large figures.
+  "display-case","display-tracking","display-glow",
+  // Lead blocks: clip shape (polygon or none) and outer glow (a filter, or none).
+  "panel-cut","panel-glow",
   "radius-sm","radius","radius-md","radius-pill",
   "shadow-card","shadow-card-sm","shadow-raised",
   "duration-fast","duration-base",
@@ -23,6 +27,8 @@ export const scaleRoles=[
 export type ScaleRole=typeof scaleRoles[number];
 export type ThemeMode={colorScheme:"light"|"dark";colors:Record<ColorRole,string>};
 export type Theme={name:string;scale:Record<ScaleRole,string>;light:ThemeMode;dark:ThemeMode};
+/** An additional theme applied over Paper with `html[data-kurami-theme="<name>"]`; it may support only some modes. */
+export type ThemeVariant={name:string;label:string;scale:Record<ScaleRole,string>;modes:Partial<Record<"light"|"dark",ThemeMode>>};
 
 // Layout breakpoints in px (max-width queries). Custom properties cannot drive media queries, so these are TS constants.
 export const breakpoints={phone:620,tablet:900} as const;

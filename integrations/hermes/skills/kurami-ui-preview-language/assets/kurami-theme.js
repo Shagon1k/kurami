@@ -1,25 +1,87 @@
 // Generated from src/ui-library by `npm run ui:export`. Do not edit; change the library instead.
-(function kuramiThemeRuntime() {
-  const root = document.documentElement, key = "kurami-theme", media = matchMedia("(prefers-color-scheme: dark)");
-  const stored = () => { try { const value = localStorage.getItem(key); return value === "dark" || value === "light" ? value : null; } catch { return null; } };
-  const apply = (theme                  ) => {
-    root.dataset.theme = theme;
+(function kuramiThemeRuntime(choices              ) {
+  const root = document.documentElement, modeKey = "kurami-theme", themeKey = "kurami-theme-name", media = matchMedia("(prefers-color-scheme: dark)");
+  const known = (theme                           )                  => !!theme && Object.hasOwn(choices.modes, theme);
+  const read = (key        ) => { try { return localStorage.getItem(key); } catch { return null; } };
+  const write = (key        , value               ) => { try { if (value === null) localStorage.removeItem(key); else localStorage.setItem(key, value); } catch {} };
+  const storedMode = ()                   => { const value = read(modeKey); return value === "dark" || value === "light" ? value : null; };
+  const storedTheme = () => { const value = read(themeKey); return known(value) ? value : null; };
+  const hubDefault = () => {
+    const match = /(?:^|;\s*)kurami-theme-default=([a-z]+)\.(light|dark)(?:;|$)/.exec(document.cookie);
+    return match && known(match[1]) ? { theme: match[1], mode: match[2]              } : null;
+  };
+  const effective = () => {
+    const fallback = hubDefault(), theme = storedTheme() ?? fallback?.theme ?? "paper";
+    const modes = choices.modes[theme];
+    let mode = storedMode() ?? fallback?.mode ?? (media.matches ? "dark" : "light");
+    if (!modes.includes(mode)) mode = modes[0];
+    return { theme, mode };
+  };
+  const apply = () => {
+    const { theme, mode } = effective(), device = storedTheme(), fallback = hubDefault();
+    root.dataset.theme = mode;
+    if (theme === "paper") delete root.dataset.kuramiTheme; else root.dataset.kuramiTheme = theme;
     for (const button of document.querySelectorAll("[data-theme-toggle]")) {
-      button.setAttribute("aria-pressed", String(theme === "dark"));
+      // A menu trigger exposes expanded state; a legacy toggle (saved Digest editions) exposes the mode.
+      if (!button.hasAttribute("aria-haspopup")) button.setAttribute("aria-pressed", String(mode === "dark"));
+      else (button               ).dataset.themeMode = mode;
       const icon = button.querySelector("[data-theme-icon]");
-      if (icon) icon.textContent = theme === "dark" ? "☀" : "◐";
+      if (icon) icon.textContent = mode === "dark" ? "☀" : "◐";
     }
+    for (const option of document.querySelectorAll                   ("[data-theme-choice]")) {
+      const value = option.dataset.themeChoice;
+      option.setAttribute("aria-pressed", String(value === "default" ? !device : value === device));
+    }
+    for (const option of document.querySelectorAll                   ("[data-mode-choice]")) {
+      const value = option.dataset.modeChoice             ;
+      option.setAttribute("aria-pressed", String(value === mode));
+      option.disabled = !choices.modes[theme].includes(value);
+    }
+    for (const label of document.querySelectorAll("[data-theme-default-label]")) label.textContent = choices.labels[fallback?.theme ?? "paper"];
     const surface = getComputedStyle(root).getPropertyValue("--surface-page").trim();
     if (surface) document.querySelector('meta[name="theme-color"]')?.setAttribute("content", surface);
   };
-  apply(stored() ?? (media.matches ? "dark" : "light"));
-  media.addEventListener("change", event => { if (!stored()) apply(event.matches ? "dark" : "light"); });
-  document.addEventListener("DOMContentLoaded", () => apply(root.dataset.theme === "dark" ? "dark" : "light"));
+  const place = (panel             ) => {
+    const trigger = document.querySelector             (`[popovertarget="${panel.id}"]`);
+    if (!trigger || panel.closest("[data-mobile-slot]")) return;
+    const rect = trigger.getBoundingClientRect(), width = panel.offsetWidth || 248;
+    panel.style.setProperty("--popover-top", `${Math.round(rect.bottom + 8)}px`);
+    panel.style.setProperty("--popover-left", `${Math.round(Math.max(8, Math.min(rect.right - width, innerWidth - width - 8)))}px`);
+  };
+  apply();
+  media.addEventListener("change", () => apply());
+  addEventListener("storage", event => { if (event.key === modeKey || event.key === themeKey) apply(); });
+  document.addEventListener("DOMContentLoaded", apply);
+  document.addEventListener("toggle", event => {
+    const panel = event.target;
+    if (!(panel instanceof HTMLElement) || !panel.matches("[data-theme-panel]")) return;
+    const open = (event               ).newState === "open";
+    document.querySelector(`[popovertarget="${panel.id}"]`)?.setAttribute("aria-expanded", String(open));
+    if (open) place(panel);
+  }, true);
   document.addEventListener("click", event => {
-    if (!(event.target instanceof Element) || !event.target.closest("[data-theme-toggle]")) return;
-    const next = root.dataset.theme === "dark" ? "light" : "dark";
-    try { localStorage.setItem(key, next); } catch {}
-    apply(next);
+    const target = event.target instanceof Element ? event.target : null;
+    const themeOption = target?.closest             ("[data-theme-choice]"), modeOption = target?.closest                   ("[data-mode-choice]");
+    if (themeOption) {
+      const value = themeOption.dataset.themeChoice ;
+      if (value === "default") { write(themeKey, null); write(modeKey, null); }
+      else if (known(value)) { const mode = effective().mode; write(themeKey, value); if (!storedMode()) write(modeKey, mode); }
+      apply();
+      return;
+    }
+    if (modeOption && !modeOption.disabled) {
+      if (!storedTheme()) write(themeKey, effective().theme);
+      write(modeKey, modeOption.dataset.modeChoice );
+      apply();
+      return;
+    }
+    const toggle = target?.closest("[data-theme-toggle]");
+    if (!toggle || toggle.hasAttribute("aria-haspopup")) return;
+    // Legacy toggle: switch the mode; a dark-only theme switches to Paper light.
+    const next            = root.dataset.theme === "dark" ? "light" : "dark";
+    if (!choices.modes[effective().theme].includes(next)) write(themeKey, "paper");
+    write(modeKey, next);
+    apply();
   });
   const menus = () => document.querySelectorAll                    (".site-switcher[open],.site-menu[open],.side-mobile[open]");
   document.addEventListener("pointerdown", event => {
@@ -34,7 +96,7 @@
     if (!(event.target instanceof Element)) return;
     for (const menu of menus()) if (!menu.contains(event.target) || event.target.closest("a[href]")) menu.open = false;
   });
-})();
+})({"labels":{"paper":"Paper","neon":"Neon"},"modes":{"paper":["light","dark"],"neon":["dark"]}});
 (function mobileNavigationRuntime(phoneWidth       ) {
   document.addEventListener('DOMContentLoaded',()=>{
     const found=document.querySelector             ('[data-mobile-navigation]');if(!found)return;const shell            =found;
@@ -161,9 +223,9 @@
       const node=document.querySelector(selector),slot=shell.querySelector(`[data-mobile-slot="${key}"]`);if(!node||!slot)return;
       const anchor=document.createComment('mobile navigation source');node.before(anchor);moves.push({node,anchor,slot});
     }
-    header.querySelectorAll('.site-actions > .button,.site-actions > button').forEach(node=>{
+    header.querySelectorAll('.site-actions > .button,.site-actions > button,.site-actions > [data-theme-menu]').forEach(node=>{
       if(node.matches('[data-hub-control]'))return;
-      const key=node.matches('[data-theme-toggle]')?'theme':node.matches('a[hreflang]')?'language':null;if(!key)return;
+      const key=node.matches('[data-theme-toggle],[data-theme-menu]')?'theme':node.matches('a[hreflang]')?'language':null;if(!key)return;
       const slot=shell.querySelector(`[data-mobile-slot="${key}"]`) ,anchor=document.createComment('mobile setting');node.before(anchor);moves.push({node,anchor,slot});
     });
     if(app==='hub'){move('#hub-controls-popover .controls-menu','controls');if(!moves.some(item=>item.slot.getAttribute('data-mobile-slot')==='controls'))shell.querySelector                   ('[data-mobile-menu="controls"]') .disabled=true;}
@@ -172,7 +234,10 @@
     function adapt(){
       if(!media.matches)close();
       for(const item of moves)if(media.matches)item.slot.append(item.node);else item.anchor.after(item.node);
-      header.querySelectorAll('[data-theme-toggle]').forEach(button=>button.classList.toggle('button--switch',media.matches));
+      header.querySelectorAll('[data-theme-toggle]:not([aria-haspopup])').forEach(button=>button.classList.toggle('button--switch',media.matches));
+      // In the settings sheet the theme menu shows its options inline instead of as a popover.
+      shell.querySelectorAll             ('[data-mobile-slot="theme"] [data-theme-panel]').forEach(panel=>{panel.hidePopover?.();panel.removeAttribute('popover');});
+      header.querySelectorAll             ('.site-actions [data-theme-panel]:not([popover])').forEach(panel=>panel.setAttribute('popover','auto'));
       header.querySelectorAll('[data-hub-control]').forEach(button=>button.classList.toggle('mobile-navigation__action',media.matches));
       const periodRow=shell.querySelector             ('[data-mobile-period-row]');if(periodRow)periodRow.hidden=!periodRow.querySelector('[data-floating-period]');
       fillContents();links();reading();viewport();

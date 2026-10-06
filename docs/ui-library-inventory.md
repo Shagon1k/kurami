@@ -302,3 +302,38 @@ The `toggle` button variant recognizes `aria-current="true"` on links as well as
 `aria-pressed="true"` on buttons. Its selected color, surface and border properties
 let Stocks use the data accent while preserving navigation and no-JavaScript
 fallbacks. These refinements add no new product-specific UI exceptions.
+
+## Themes: Paper and Neon
+
+The original theme is named **Paper** (`themes/kurami.ts`, exported as `paperTheme`/`kuramiTheme`): light and dark modes, applied with `:root` and `html[data-theme="dark"]`.
+
+**Neon** (`themes/neon.ts`) is a theme variant (`ThemeVariant`): the Kurami fox as a red neon sign. Red (`accent-primary`) marks the sign — fox outline, lead-block frames, display headings and the main action. A calm warm yellow (`accent-data`, `focus-ring`, `chart-1`) marks data and selection. Statuses are muted and information (`status-info`) is neutral. Neon has only a dark mode for now; a light mode would be added under `modes.light`. It is applied with `html[data-kurami-theme="neon"]` after Paper, so it wins at equal specificity, and the runtime also sets `data-theme="dark"`.
+
+Neon-specific dressing that a token cannot express lives in `NEON_CSS`: the dotted ground with corner glows, the header sign line, the fox outline (it lights up on load), display type and the primary button glow. It ships inside `THEME_CSS`, and every rule there is scoped to Neon, so Paper is unchanged. The test suite asserts this.
+
+Scale roles added for themed display and lead blocks. Paper sets them to its current values:
+
+| Role | Paper | Neon |
+| --- | --- | --- |
+| `font-display` | Onest | Tektur (self-hosted OFL, latin/cyrillic subsets, loaded only when used) |
+| `display-case`, `display-tracking` | `none`, `-.045em` | `uppercase`, `.01em` |
+| `display-glow` | `none` | red neon text glow |
+| `panel-cut` | `none` | chamfered `clip-path` polygon for lead blocks |
+| `panel-glow` | `none` | red `drop-shadow` filter for lead blocks |
+
+**Theme control.** `renderThemeSwitch(lang)` renders a menu. The header button looks as before and stays filled while the page is dark. It opens a popover with:
+
+- the theme: *Hub default*, Paper or Neon;
+- the mode: light or dark; options a theme lacks are disabled.
+
+On phones the mobile navigation moves the menu into the Settings sheet, where the options show inline with 44 px targets.
+
+**Runtime order.** `runtime/theme.ts` resolves the theme in this order:
+
+1. The device choice: `localStorage` keys `kurami-theme` (mode, the existing key) and `kurami-theme-name`.
+2. The Hub default: the `kurami-theme-default=<theme>.<mode>` cookie set by the web gateway.
+3. Paper in the system mode.
+
+*Hub default* clears the device choice. Every app is served from one origin, so the choice applies everywhere on the device. Saved Digest editions keep their legacy toggle; it switches the mode, and from Neon it switches to Paper light.
+
+`npm run test:ui-browser` checks the runtime order, the keyboard path through the menu and the phone settings sheet. It also screenshots and audits every page in Paper light, Paper dark and Neon.

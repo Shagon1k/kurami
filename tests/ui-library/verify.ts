@@ -2,7 +2,8 @@ import assert from "node:assert/strict";
 import {execFileSync} from "node:child_process";
 import {resolve} from "node:path";
 import {colorRoles,scaleRoles,type Theme} from "../../src/ui-library/tokens/index.ts";
-import {kuramiTheme,themeCss,THEME_CSS} from "../../src/ui-library/themes/index.ts";
+import {kuramiTheme,paperTheme,neonTheme,themeVariants,themeCss,variantCss,THEME_CSS} from "../../src/ui-library/themes/index.ts";
+import {NEON_CSS} from "../../src/ui-library/themes/neon.ts";
 import {BRIEFING_STYLES} from "../../src/briefing/ui/styles.ts";
 import {DOCS_STYLES} from "../../src/human-docs/styles.ts";
 import {HUB_STYLES} from "../../src/hub/styles.ts";
@@ -178,13 +179,31 @@ const injected=injectRuntime(page);
 assert.equal(injected.split(THEME_SCRIPT_TAG).length,2,"one theme script");
 assert.ok(injected.indexOf(THEME_SCRIPT_TAG)<injected.indexOf("</head>"),"theme script runs in head");
 assert.equal(injectRuntime(injected).split(THEME_SCRIPT_TAG).length,2,"injection is idempotent");
-// One switch markup for every site: constant accessible name, state in aria-pressed.
-for(const [lang,name] of [["ru","Тёмная тема"],["en","Dark theme"]] as const){
-  const button=renderThemeSwitch(lang);
-  assert.match(button,/data-theme-toggle[^>]*aria-pressed="false"/);
-  assert.match(button,new RegExp(`<span class="sr-only">${name}</span>`));
-  assert.match(button,/data-theme-icon/);
+// One theme control for every site: a menu button with a constant name that opens theme and mode choices.
+for(const [lang,name,hub] of [["ru","Тема","Как в Hub"],["en","Theme","Hub default"]] as const){
+  const menu=renderThemeSwitch(lang);
+  assert.match(menu,/^<div class="theme-menu" data-theme-menu><button class="button button--icon theme-switch"[^>]*data-theme-toggle[^>]*aria-haspopup="true" aria-expanded="false" popovertarget="kurami-theme-menu"/);
+  assert.match(menu,new RegExp(`<span class="sr-only">${name}</span>`));
+  assert.match(menu,/data-theme-icon/);
+  assert.match(menu,/<div class="ui-popover theme-menu__panel" data-theme-panel id="kurami-theme-menu"[^>]*popover="auto"/);
+  for(const choice of ["default","paper",...themeVariants.map(variant=>variant.name)])assert.match(menu,new RegExp(`data-theme-choice="${choice}"`),choice);
+  for(const mode of ["light","dark"])assert.match(menu,new RegExp(`data-mode-choice="${mode}"`),mode);
+  assert.ok(menu.includes(hub),"Hub default option");
+  assert.doesNotMatch(menu,/aria-pressed="true"/,"the runtime, not the server, marks the current choice");
 }
+// Theme variants: complete tokens, applied only under their own selector, after Paper.
+for(const variant of themeVariants){
+  const css=variantCss(variant);
+  for(const role of colorRoles)assert.match(css,new RegExp(`--${role}: `),`${variant.name} ${role}`);
+  for(const role of scaleRoles)assert.match(css,new RegExp(`--${role}: `),`${variant.name} scale ${role}`);
+  assert.ok(THEME_CSS.indexOf(css)>THEME_CSS.indexOf('html[data-theme="dark"]'),`${variant.name} follows Paper`);
+}
+assert.ok(THEME_CSS.startsWith(themeCss(paperTheme)),"Paper tokens come first and unchanged");
+const neonRules=NEON_CSS.split("\n").filter(line=>/^\S.*\{/.test(line)&&!line.startsWith("@"));
+assert.ok(neonRules.length>5&&neonRules.every(line=>line.startsWith('html[data-kurami-theme="neon"]')),"Neon dressing never reaches Paper");
+assert.deepEqual(neonTheme.modes.light,undefined,"Neon is dark only for now");
+assert.match(THEME_RUNTIME_JS,/"neon":\["dark"\]/,"runtime knows Neon is dark only");
+assert.match(THEME_RUNTIME_JS,/kurami-theme-default=/,"runtime reads the Hub default");
 assert.match(renderLinkButton({label:"RU",href:"/ru/",variant:"icon",attributes:{hreflang:"ru"}}),/^<a class="button button--icon" href="\/ru\/" hreflang="ru">RU<\/a>$/);
 assert.match(renderButton({label:"Reset",variant:"subtle",size:"compact"}),/^<button class="button button--subtle button--compact" type="button">Reset<\/button>$/);
 assert.match(renderLinkButton({label:"More",href:"/more/",variant:"subtle",size:"compact"}),/^<a class="button button--subtle button--compact"/);

@@ -127,9 +127,9 @@ function mobileNavigationRuntime(phoneWidth:number) {
       const node=document.querySelector(selector),slot=shell.querySelector(`[data-mobile-slot="${key}"]`);if(!node||!slot)return;
       const anchor=document.createComment('mobile navigation source');node.before(anchor);moves.push({node,anchor,slot});
     }
-    header.querySelectorAll('.site-actions > .button,.site-actions > button').forEach(node=>{
+    header.querySelectorAll('.site-actions > .button,.site-actions > button,.site-actions > [data-theme-menu]').forEach(node=>{
       if(node.matches('[data-hub-control]'))return;
-      const key=node.matches('[data-theme-toggle]')?'theme':node.matches('a[hreflang]')?'language':null;if(!key)return;
+      const key=node.matches('[data-theme-toggle],[data-theme-menu]')?'theme':node.matches('a[hreflang]')?'language':null;if(!key)return;
       const slot=shell.querySelector(`[data-mobile-slot="${key}"]`)!,anchor=document.createComment('mobile setting');node.before(anchor);moves.push({node,anchor,slot});
     });
     if(app==='hub'){move('#hub-controls-popover .controls-menu','controls');if(!moves.some(item=>item.slot.getAttribute('data-mobile-slot')==='controls'))shell.querySelector<HTMLButtonElement>('[data-mobile-menu="controls"]')!.disabled=true;}
@@ -138,7 +138,10 @@ function mobileNavigationRuntime(phoneWidth:number) {
     function adapt(){
       if(!media.matches)close();
       for(const item of moves)if(media.matches)item.slot.append(item.node);else item.anchor.after(item.node);
-      header.querySelectorAll('[data-theme-toggle]').forEach(button=>button.classList.toggle('button--switch',media.matches));
+      header.querySelectorAll('[data-theme-toggle]:not([aria-haspopup])').forEach(button=>button.classList.toggle('button--switch',media.matches));
+      // In the settings sheet the theme menu shows its options inline instead of as a popover.
+      shell.querySelectorAll<HTMLElement>('[data-mobile-slot="theme"] [data-theme-panel]').forEach(panel=>{panel.hidePopover?.();panel.removeAttribute('popover');});
+      header.querySelectorAll<HTMLElement>('.site-actions [data-theme-panel]:not([popover])').forEach(panel=>panel.setAttribute('popover','auto'));
       header.querySelectorAll('[data-hub-control]').forEach(button=>button.classList.toggle('mobile-navigation__action',media.matches));
       const periodRow=shell.querySelector<HTMLElement>('[data-mobile-period-row]');if(periodRow)periodRow.hidden=!periodRow.querySelector('[data-floating-period]');
       fillContents();links();reading();viewport();

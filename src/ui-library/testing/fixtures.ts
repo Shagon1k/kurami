@@ -1,4 +1,5 @@
 // Synthetic pages for joint Digest/Docs browser regression. No private data; nothing here is fetched.
+import {POPOVER_CSS} from "../components/popover.ts";
 import {upgradeLegacyPayload} from "../../briefing/migrations/addon-format.ts";
 import {renderBriefingPage} from "../../briefing/ui/render-page.ts";
 import {injectSiteNavigation} from "../../briefing/ui/components/site-header.ts";
@@ -34,7 +35,7 @@ export function syntheticProjects(lang:"en"|"ru"="en"):string {
 
 /** Library-only notification fixture, with no product CSS or action endpoints. */
 export function libraryToast():string {
-  return renderDocument({lang:"en",title:"Toast · Kurami lab",favicon:"/favicon.svg",footer:"",skipLabel:"Skip to content",styles:{inline:[THEME_CSS,FOUNDATION_CSS,BUTTON_CSS,ICON_CSS,TOAST_CSS].join('\n')},themeScript:true,
+  return renderDocument({lang:"en",title:"Toast · Kurami lab",favicon:"/favicon.svg",footer:"",skipLabel:"Skip to content",styles:{inline:[THEME_CSS,FOUNDATION_CSS,BUTTON_CSS,ICON_CSS,POPOVER_CSS,THEME_SWITCH_CSS,TOAST_CSS].join('\n')},themeScript:true,
     head:`<script>${TOAST_RUNTIME_JS}\ndocument.addEventListener('DOMContentLoaded',()=>{const trigger=document.querySelector('[data-demo-toast]');const toast=createKuramiToast(document.querySelector('[data-toast-region]'),()=>trigger);trigger.addEventListener('click',()=>toast.show('Request queued.',{tone:'success',duration:0}));toast.show('Request queued.',{tone:'success',duration:0});});</script>`,
     header:renderThemeSwitch("en"),main:`<h1>Notification</h1>${renderButton({label:"Show notification",variant:"secondary",attributes:{"data-demo-toast":true}})}${renderToastRegion("Dismiss notification")}`});
 }
