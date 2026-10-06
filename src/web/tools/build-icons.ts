@@ -53,7 +53,7 @@ try {
   // the ears and glow inside Android's 40% safe circle (the farthest contour point is ~545 units from centre).
   for(const asset of PWA_NEON_ICON_ASSETS){
     const padding=asset.purpose==="maskable"?240:60;
-    const svg=neonFoxSvg({tube:24,blur:7,padding,glow:.85,background:PWA_NEON_BACKGROUND}).replace(/width="\d+" height="\d+"/,`width="${asset.size}" height="${asset.size}"`);
+    const svg=neonFoxSvg({tube:24,blur:11,padding,glow:1.3,background:PWA_NEON_BACKGROUND}).replace(/width="\d+" height="\d+"/,`width="${asset.size}" height="${asset.size}"`);
     const png=await browser.devtools.evaluate<string>(`(async()=>{const image=new Image();image.src=${JSON.stringify("data:image/svg+xml;charset=utf-8,"+encodeURIComponent(svg))};await image.decode();
       const canvas=document.createElement('canvas');canvas.width=canvas.height=${asset.size};canvas.getContext('2d').drawImage(image,0,0);return canvas.toDataURL('image/png').split(',')[1];})()`);
     writeFileSync(resolve(brand,asset.file),Buffer.from(png,"base64"));
