@@ -117,7 +117,7 @@
       "en": "",
       "ru": "",
       "exclusionScope": "docs-only",
-      "exclude": "Adds only the reviewed bilingual Changelog classification for Projects controls and the compact mobile dock; application behavior is unchanged."
+      "exclude": "Adds only the reviewed bilingual Changelog classification for Projects PR controls and compact mobile dock fixes, plus the preceding docs-only classification; application behavior and reader-facing pages are unchanged."
     },
     "8fc9d2ee7da2e9fa59cfcd4657147b38ff6624bc": {
       "category": "fixed",
