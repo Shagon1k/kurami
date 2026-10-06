@@ -180,7 +180,7 @@ function confirmAction(action,payload,message,changes=[]){
   confirm.focus();
 }
 function controlTitle(action){
-  const titles={models:text('Модели','Models'),settings:text('Настройки','Settings'),'composio-check':text('Проверка Composio','Composio check'),restart:text('Перезапуск Hermes','Restart Hermes'),'codex-reset':text('Сброс лимитов Codex','Reset Codex limits')};
+  const titles={models:text('Модели','Models'),settings:text('Настройки','Settings'),server:text('Сервер','Server'),appearance:text('Оформление','Appearance'),'composio-check':text('Проверка Composio','Composio check'),restart:text('Перезапуск Hermes','Restart Hermes'),'codex-reset':text('Сброс лимитов Codex','Reset Codex limits')};
   document.getElementById('hub-control-dialog-title').textContent=titles[action]??titles[controlView]??text('Управление','Controls');
 }
 async function loadControl(action){
@@ -205,7 +205,7 @@ document.addEventListener("click",event=>{
   showDialog(button);
   const action=button.dataset.hubControl;
   controlTitle(action);
-  if(["models","settings","composio-check"].includes(action)){void loadControl(action);return;}
+  if(["models","settings","server","appearance","composio-check"].includes(action)){void loadControl(action);return;}
   if(action==="codex-reset"){
     controlView=null;
     let key=sessionStorage.getItem("kurami-reset-attempt");
@@ -257,6 +257,15 @@ document.addEventListener("submit",event=>{
     if(!changes.length){controlResult.textContent=text("Без изменений","No changes");return;}
     confirmAction(action,{revision:Number(form.dataset.revision),theme:values.theme,mode:values.mode},text('Оформление','Appearance'),changes);
   }
+  if(action==="dev-resources-apply"){
+    const fields=[["cores",text('Ядра','Cores')],["testJobs",text('Потоки тестов','Test jobs')],["memoryGiB",text('Память','Memory')]];
+    const option=(name,value)=>[...form.elements[name].options].find(item=>item.value===value)?.textContent??value;
+    const before=Object.fromEntries(fields.map(([name])=>[name,[...form.elements[name].options].find(item=>item.defaultSelected)?.value]));
+    if(Number(values.testJobs)>Number(values.cores)){controlResult.textContent=text("Потоков тестов не может быть больше ядер","Test jobs cannot exceed cores");return;}
+    const changes=fields.filter(([name])=>before[name]!==values[name]).map(([name,label])=>[label,option(name,before[name]),option(name,values[name])]);
+    if(!changes.length){controlResult.textContent=text("Без изменений","No changes");return;}
+    confirmAction(action,{revision:Number(form.dataset.revision),cores:Number(values.cores),testJobs:Number(values.testJobs),memoryGiB:Number(values.memoryGiB)},text('Ресурсы разработки','Development resources'),changes);
+  }
   if(action==="settings-apply"){
     const settings={project_wip:{}};const current=JSON.parse(form.dataset.current);const changes=[];
     for(const [name,value] of Object.entries(values)){
@@ -279,6 +288,8 @@ async function performAction(button){
     }else if(operation.action==="appearance-apply"&&result.appearance){
       const names={paper:"Paper",neon:"Neon"},modes={light:text("светлая","light"),dark:text("тёмная","dark")};
       reportSuccess(text("Оформление по умолчанию: ","Default appearance: ")+(names[result.appearance.theme]??result.appearance.theme)+" · "+(modes[result.appearance.mode]??result.appearance.mode));
+    }else if(operation.action==="dev-resources-apply"&&result.devResources){
+      reportSuccess(text("Ресурсы разработки: ","Development resources: ")+result.devResources.cores+text(" ядер · "," cores · ")+result.devResources.testJobs+text(" потока тестов"," test jobs"));
     }else reportSuccess(operation.action==="restart"?text("Перезапуск запрошен","Restart requested"):text("Применено","Applied"));
     if(result.auditWarning)controlResult.textContent=(controlResult.textContent?controlResult.textContent+" · ":"")+text("Запись аудита не сохранена","Audit record could not be saved");
     // The gateway sends the new default with the next page; apply it here at once.

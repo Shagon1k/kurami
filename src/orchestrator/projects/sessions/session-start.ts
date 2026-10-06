@@ -29,6 +29,7 @@ import {
   git,
   gitIsAncestor,
   killTmuxSession,
+  devRunPath,
   launcherPath,
   loadRun,
   managedTmuxSessionCount,
@@ -771,6 +772,7 @@ async function launchManagedTmux(run: SessionRun, plan: StartPlan, taskId: strin
     "-e",
     `CODEX_BIN=${plan.codexBin}`,
     ...(taskId ? ["-e", `HERMES_CODEX_TASK_ID=${taskId}`, "-e", `HERMES_CODEX_TASK_OPTIONS=${JSON.stringify({ title:plan.codexTitle, timeoutMs })}`] : []),
+    devRunPath,
     plan.launcherPath,
   ]);
   await new Promise((resolveDelay) => setTimeout(resolveDelay, 1_000));

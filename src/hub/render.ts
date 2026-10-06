@@ -207,8 +207,8 @@ function renderActivity(snapshot:HubSnapshot,lang:HubLanguage):string {
   return `<section class="section activity" aria-labelledby="activity-title"><div class="section-heading"><h2 id="activity-title">${renderIcon("history")}${tr(lang,"Активность","Live Activity")}</h2><div class="activity-filters">${filters}</div></div><div class="activity-log"><ol class="activity-list list-reset">${rows}</ol><p class="activity-empty"${activity.length?" hidden":""}>${tr(lang,"Нет событий","No events")}</p>${more}</div></section>`;
 }
 function renderControls(lang:HubLanguage):string {
-  const buttons:[[string,string,string],...[string,string,string][]]=[["models","Модели","Models"],["settings","Настройки","Settings"],["composio-check","Проверка Composio","Composio check"],["restart","Перезапуск","Restart"]];
-  const icons:IconName[]=["bot","controls","database","clock"];
+  const buttons:[[string,string,string],...[string,string,string][]]=[["models","Модели","Models"],["settings","Настройки","Settings"],["server","Сервер","Server"],["appearance","Оформление","Appearance"],["composio-check","Проверка Composio","Composio check"],["restart","Перезапуск","Restart"]];
+  const icons:IconName[]=["bot","controls","cpu","moon","database","clock"];
   return `<div class="controls-menu">${buttons.map(([action,ru,en],index)=>renderButton({label:tr(lang,ru,en),variant:"quiet",iconPath:iconPath(icons[index]!),visibleLabel:true,attributes:{"data-hub-control":action}})).join("")}</div>`;
 }
 

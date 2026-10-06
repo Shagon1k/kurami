@@ -7,7 +7,7 @@ type ThemeMode = "light" | "dark";
 type ThemeChoices = { modes: Record<string, ThemeMode[]> };
 
 /**
- * The theme comes from Hub → Settings → Appearance: the web gateway sends it as the `kurami-theme-default`
+ * The theme comes from Hub → Controls → Appearance: the web gateway sends it as the `kurami-theme-default`
  * cookie ("<theme>.<mode>"); without it Paper follows the system mode. The header menu switches theme or
  * mode only for this session (sessionStorage: until the app or tab closes, shared by every Kurami app in it).
  * `data-theme` keeps the mode (light/dark); `data-kurami-theme` names a non-Paper theme.

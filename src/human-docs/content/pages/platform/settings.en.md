@@ -8,7 +8,7 @@ order: 20
 next: health
 ---
 
-The `/kurami settings` command opens a Discord panel with the limits Kurami applies while it works. Only you see the panel: the command accepts the single owner and only inside a project server. Pick a section, change a value in its form and press **Apply**. The same settings, with the same ranges, are in [Hub](@hub): Controls → Settings. Hub runs the same command-line tools and the same schema, so the idle gate, the checks and the revisions below apply to both. Hub also records the verified identity in its own audit log.
+The `/kurami settings` command opens a Discord panel with the limits Kurami applies while it works. Only you see the panel: the command accepts the single owner and only inside a project server. Pick a section, change a value in its form and press **Apply**. The same settings, with the same ranges, are in [Hub](@hub): run limits under Controls → Settings, the System Health interval under Controls → Server. Hub runs the same command-line tools and the same schema, so the idle gate, the checks and the revisions below apply to both. Hub also records the verified identity in its own audit log.
 
 ::shot{file="shot-kurami-settings.png" size="card" alt="Kurami settings panel, revision 4: check interval, capacity, AI triage and previews; changes locked because of active runs" caption="Current values and the lock line: it lists everything that is still running."}
 
@@ -43,7 +43,7 @@ Wait until the list is empty and press **Apply** again.
 
 ## Appearance (Hub only)
 
-Hub's Controls → Settings also has an **Appearance** section: the default theme for every device.
+Hub's Controls → **Appearance** sets the default theme for every device.
 
 | Setting | Options | What it is |
 |---|---|---|
@@ -55,6 +55,18 @@ This theme applies always and everywhere. Every app's header has a theme button.
 The installed app follows this theme too: with Neon it gets the neon fox icon and a dark splash. Android picks up the new icon by itself, usually within a day. iPhone keeps the icon it was added with, so it shows the new one only after the app is removed from the Home Screen and added again.
 
 Applying it creates a revision with its author, like the other settings. Hub refuses a stale panel. This section does not wait for Kurami to be idle, because appearance does not change runs.
+
+## Development resources (Hub only)
+
+Hub's Controls → **Server** has a **Development resources** section. It limits how much of the server development may take: Codex workers of every project, their tests and builds, and Kurami's own tests. All of it runs in a separate systemd slice, `kurami-dev.slice`. Everything started there inherits the limits, whatever the project or test framework.
+
+| Setting | Options | Default | What it is |
+|---|---|---|---|
+| Cores | 1 to the server's core count | 4 | CPU ceiling for all development together |
+| Test jobs | 1 to the core count | 2 | How many Kurami test suites run at once |
+| Memory | no limit, 8, 12 or 16 GiB | no limit | Memory ceiling for development |
+
+Development also yields CPU to Kurami's services and runs at low disk priority. A new limit applies at once, including to running processes. Applying creates a revision with its author. Kurami does not need to be idle.
 
 ## Revisions, Undo and Reset
 

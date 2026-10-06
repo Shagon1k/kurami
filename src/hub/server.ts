@@ -87,7 +87,7 @@ export function createHubServer(options:{snapshot?:()=>HubSnapshot;account?:()=>
         const url=new URL(request.url!,controlOrigin);lang=url.searchParams.get("lang")==="ru"?"ru":"en";
         if(request.method==="GET"){
           const action=url.searchParams.get("action")??"";
-          if(!["models","settings","composio-check"].includes(action)){json(400,{ok:false,error:"invalid_request"});return;}
+          if(!["models","settings","server","appearance","composio-check"].includes(action)){json(400,{ok:false,error:"invalid_request"});return;}
           const result=await controls.execute(action,{},identity);
           json(200,{ok:true,html:renderControlView(action,result,lang)});return;
         }
@@ -97,10 +97,10 @@ export function createHubServer(options:{snapshot?:()=>HubSnapshot;account?:()=>
         if(!/^application\/json(?:\s*;|$)/i.test(request.headers["content-type"]??"")){json(415,{ok:false,error:"invalid_request"});return;}
         let body="";for await(const chunk of request){body+=chunk.toString();if(Buffer.byteLength(body)>32_768){json(413,{ok:false,error:"invalid_request"});return;}}
         let payload:any;try{payload=JSON.parse(body);}catch{json(400,{ok:false,error:"invalid_request"});return;}
-        if(!payload||typeof payload!=="object"||payload.confirm!==true||typeof payload.action!=="string"||["models","settings","composio-check"].includes(payload.action)){json(400,{ok:false,error:"confirmation_required"});return;}
+        if(!payload||typeof payload!=="object"||payload.confirm!==true||typeof payload.action!=="string"||["models","settings","server","appearance","composio-check"].includes(payload.action)){json(400,{ok:false,error:"confirmation_required"});return;}
         if(mutating){json(409,{ok:false,error:"action_in_progress"});return;}
         mutating=true;
-        try{const result=await controls.execute(payload.action,payload,identity);cached=null;json(200,{ok:true,action:result?.action,outcome:result?.outcome,auditWarning:result?.auditWarning===true,...(payload.action==="appearance-apply"&&typeof result?.theme==="string"&&typeof result?.mode==="string"?{appearance:{theme:result.theme,mode:result.mode}}:{})});}
+        try{const result=await controls.execute(payload.action,payload,identity);cached=null;json(200,{ok:true,action:result?.action,outcome:result?.outcome,auditWarning:result?.auditWarning===true,...(payload.action==="appearance-apply"&&typeof result?.theme==="string"&&typeof result?.mode==="string"?{appearance:{theme:result.theme,mode:result.mode}}:{}),...(payload.action==="dev-resources-apply"&&Number.isInteger(result?.cores)&&Number.isInteger(result?.testJobs)?{devResources:{cores:result.cores,testJobs:result.testJobs,memoryGiB:result.memoryGiB}}:{})});}
         finally{mutating=false;}
       }catch(error){json(error instanceof HubControlError&&error.code==="invalid_request"?400:409,{ok:false,error:error instanceof HubControlError?error.code:"action_failed"});}
       return;

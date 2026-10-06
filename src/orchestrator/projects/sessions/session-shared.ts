@@ -15,6 +15,8 @@ export const launcherPath = resolve(
   import.meta.dirname,
   "../../../../bin/launch-codex-session.sh",
 );
+/** Development work runs through this wrapper: kurami-dev.slice limits and low priority (dev-resources.ts). */
+export const devRunPath = resolve(import.meta.dirname, "../../../../bin/kurami-dev-run");
 
 export function fail(message: string): never {
   throw new Error(message);
