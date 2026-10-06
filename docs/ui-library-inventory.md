@@ -336,4 +336,4 @@ On phones the mobile navigation moves the menu into the Settings sheet, where th
 
 *Hub default* clears the device choice. Every app is served from one origin, so the choice applies everywhere on the device. Saved Digest editions keep their legacy toggle; it switches the mode, and from Neon it switches to Paper light.
 
-`npm run test:ui-browser` checks the runtime order, the keyboard path through the menu and the phone settings sheet. It also screenshots and audits every page in Paper light, Paper dark and Neon.
+`npm run test:ui-browser` checks the runtime order, the keyboard path through the menu and the phone settings sheet. By default it screenshots and audits one variant of each theme: Paper light and Neon dark. `test:ui-browser:all` adds Paper dark and Neon light, for changes to the library and themes. The guard rejects theme branches (`[data-theme]`, `[data-kurami-theme]`) in product code.

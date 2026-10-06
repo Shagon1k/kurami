@@ -2,7 +2,7 @@
 // every Digest page fixture in light/dark at phone and desktop widths (accessibility and component
 // inventory), and screenshots a representative set, optionally compared with a baseline run.
 // Audit options: --screens-only --viewports --widths=320,390,768,1280
-// Usage: node src/ui-library/testing/visual-regression.ts --out=<dir> [--compare=<baseline dir>] [/absolute/path/to/chromium]
+// Usage: node src/ui-library/testing/visual-regression.ts --out=<dir> [--compare=<baseline dir>] [--themes=light,neon|all] [/absolute/path/to/chromium]
 import {execFileSync} from "node:child_process";
 import {createHash} from "node:crypto";
 import {cpSync,existsSync,mkdirSync,mkdtempSync,readdirSync,readFileSync,rmSync,writeFileSync} from "node:fs";
@@ -35,8 +35,11 @@ const brandAssets=resolve(root,"src/ui-library/assets/brand");
 const requestedWidths=process.argv.find(arg=>arg.startsWith("--widths="))?.slice(9);
 const widths=requestedWidths?requestedWidths.split(",").map(Number):[390,1280];
 if(widths.some(width=>!Number.isInteger(width)||width<320||width>2560)||!widths.length)throw new Error("Invalid audit widths");
-// Paper light and dark, then Neon dark and light.
-const themes=["light","dark","neon","neon-light"] as const;
+// Every theme in one variant by default — Paper light and Neon dark; --themes=all adds Paper dark and Neon light.
+const allThemes=["light","dark","neon","neon-light"] as const;
+const requestedThemes=process.argv.find(arg=>arg.startsWith("--themes="))?.slice(9);
+const themes=(requestedThemes==="all"?[...allThemes]:requestedThemes?requestedThemes.split(","):["light","neon"]) as (typeof allThemes)[number][];
+if(!themes.length||themes.some(theme=>!(allThemes as readonly string[]).includes(theme)))throw new Error(`Unknown theme; use ${allThemes.join(",")} or all`);
 // Screenshots: a representative set. The audit covers these plus every Docs route in both languages.
 const availablePages:Record<string,string>={
   "digest-daily":"/digest/daily.html",

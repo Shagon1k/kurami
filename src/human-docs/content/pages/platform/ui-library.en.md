@@ -170,6 +170,8 @@ Bevels appear where the browser supports them; other browsers show rounded corne
 
 A device picks its theme in the header menu. The default for all devices is set in [Hub settings](@settings).
 
+New UI must work in both themes. Products never branch on the theme: the guard rejects `[data-theme]` and `[data-kurami-theme]` selectors in product code. One variant of each theme is enough to check — Paper light and Neon dark — and `npm run test:ui-browser` screenshots and audits exactly those. The full four-variant run (`test:ui-browser:all`) is for changes to the library and themes.
+
 ## Layers
 
 The layers run from values up to finished pages, and each one knows only about those below it. At the bottom sit *roles*: not "red #e21b16" but "the accent colour" (`--accent-primary`). There are 32 colour roles and 19 others — fonts, radii, shadows, spacing and durations. The Kurami theme sets the role values in a light and a dark form, and the breakpoints for phone and tablet — 620 and 900 pixels — live in constants because `@media` cannot read variables.
