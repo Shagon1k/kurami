@@ -323,17 +323,17 @@ Scale roles added for themed display and lead blocks. Paper sets them to its cur
 
 **Theme control.** `renderThemeSwitch(lang)` renders a menu. The header button looks as before and stays filled while the page is dark. It opens a popover with:
 
-- the theme: *Hub default*, Paper or Neon;
+- the theme: Paper or Neon;
 - the mode: light or dark; options a theme lacks are disabled.
 
 On phones the mobile navigation moves the menu into the Settings sheet, where the options show inline with 44 px targets.
 
 **Runtime order.** `runtime/theme.ts` resolves the theme in this order:
 
-1. The device choice: `localStorage` keys `kurami-theme` (mode, the existing key) and `kurami-theme-name`.
+1. The session choice from the header menu: `sessionStorage` keys `kurami-theme` (mode) and `kurami-theme-name`.
 2. The Hub default: the `kurami-theme-default=<theme>.<mode>` cookie set by the web gateway.
 3. Paper in the system mode.
 
-*Hub default* clears the device choice. Every app is served from one origin, so the choice applies everywhere on the device. Saved Digest editions keep their legacy toggle; it switches the mode, and from Neon it switches to Paper light.
+The Hub default is the lasting theme. A menu choice lasts while the app or tab is open; every app is served from one origin, so it carries between apps in that session, and a new session starts from the default again. Choices stored in `localStorage` by the former per-device switch are deleted on load. Applying a new default in Hub ends the session choice on that page. Saved Digest editions keep their legacy toggle; it switches the mode for the session.
 
 `npm run test:ui-browser` checks the runtime order, the keyboard path through the menu and the phone settings sheet. By default it screenshots and audits one variant of each theme: Paper light and Neon dark. `test:ui-browser:all` adds Paper dark and Neon light, for changes to the library and themes. The guard rejects theme branches (`[data-theme]`, `[data-kurami-theme]`) in product code.

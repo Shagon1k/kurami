@@ -97,7 +97,7 @@ writes remain until dismissed or replaced. The close icon has an accessible name
 The shared header names the current app: Kurami. Hub, Digest, Projects or Docs.
 **Apps** opens the product links; Hermes and Dokploy are separated external links
 that open in another tab. On the unified entry, product links stay on one origin,
-so the saved theme follows you between apps. On phones, a floating capsule dock
+so a theme picked in the header follows you between apps for the rest of the session. On phones, a floating capsule dock
 replaces sticky header navigation. Large icons sit above compact labels; Apps,
 sections, contextual navigation and Settings open menus. Settings contains language
 and theme in horizontal rows behind a gear icon. Sections changes pages; Go to jumps within the
@@ -168,7 +168,7 @@ Bevels appear where the browser supports them; other browsers show rounded corne
 - the app name glitches on arrival from another app;
 - live blocks scan.
 
-A device picks its theme in the header menu. The default for all devices is set in [Hub settings](@settings).
+The theme every app opens with is set in [Hub settings](@settings). The header menu changes it only until the app or tab is closed.
 
 New UI must work in both themes. Products never branch on the theme: the guard rejects `[data-theme]` and `[data-kurami-theme]` selectors in product code. One variant of each theme is enough to check — Paper light and Neon dark — and `npm run test:ui-browser` screenshots and audits exactly those. The full four-variant run (`test:ui-browser:all`) is for changes to the library and themes.
 
@@ -176,7 +176,7 @@ New UI must work in both themes. Products never branch on the theme: the guard r
 
 The layers run from values up to finished pages, and each one knows only about those below it. At the bottom sit *roles*: not "red #e21b16" but "the accent colour" (`--accent-primary`). There are 32 colour roles and 19 others — fonts, radii, shadows, spacing and durations. The Kurami theme sets the role values in a light and a dark form, and the breakpoints for phone and tablet — 620 and 900 pixels — live in constants because `@media` cannot read variables.
 
-Foundations: the style reset, typography, the focus ring, accessibility utilities, the container, the Onest, Fragment Mono and Caveat fonts that sit in the repository together with their OFL licences, and the `inlineDiagram` function that paints diagrams with theme roles. Components are the button, the theme switch, the table, the callout and the disclosure block. Patterns are the site header and the page shell `renderDocument`, which assembles the `<head>`, the skip link, the header, the main content and the footer. A separate runtime reads the stored theme choice or the system setting and applies it before first paint, so the dark theme does not flash light.
+Foundations: the style reset, typography, the focus ring, accessibility utilities, the container, the Onest, Fragment Mono and Caveat fonts that sit in the repository together with their OFL licences, and the `inlineDiagram` function that paints diagrams with theme roles. Components are the button, the theme switch, the table, the callout and the disclosure block. Patterns are the site header and the page shell `renderDocument`, which assembles the `<head>`, the skip link, the header, the main content and the footer. A separate runtime reads the theme picked for this session, the Hub theme or the system setting and applies it before first paint, so the dark theme does not flash light.
 
 ## Rules
 

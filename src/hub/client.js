@@ -33,6 +33,10 @@ document.addEventListener('click',event=>{if(controlsPopover?.classList.contains
 const controlContent=document.getElementById("hub-control-content");
 const confirmation=document.getElementById("hub-control-confirm");
 const controlResult=document.getElementById("hub-control-result");
+const toastRegion=document.querySelector("[data-toast-region]");
+const hubToast=toastRegion&&typeof createKuramiToast==="function"?createKuramiToast(toastRegion,()=>null):null;
+/** Success goes to the shared toast; the dialog line stays for errors and notes. */
+function reportSuccess(message){if(hubToast){controlResult.textContent="";hubToast.show(message,{tone:"success"});}else controlResult.textContent=message;}
 const csrf=document.querySelector('meta[name="hub-control-token"]')?.content??"";
 const text=(ru,en)=>hubLanguage==="ru"?ru:en;
 let pending=null,controlView=null,controlBusy=false,opener=null;
@@ -272,10 +276,13 @@ async function performAction(button){
     if(operation.action==="codex-reset"){
       sessionStorage.removeItem("kurami-reset-attempt");
       controlResult.textContent=["reset","alreadyRedeemed"].includes(result.outcome)?text("Лимиты сброшены","Limits reset"):errorText(result.outcome);
-    }else controlResult.textContent=operation.action==="restart"?text("Перезапуск запрошен","Restart requested"):text("Применено","Applied");
-    if(result.auditWarning)controlResult.textContent+=text(" · Запись аудита не сохранена"," · Audit record could not be saved");
+    }else if(operation.action==="appearance-apply"&&result.appearance){
+      const names={paper:"Paper",neon:"Neon"},modes={light:text("светлая","light"),dark:text("тёмная","dark")};
+      reportSuccess(text("Оформление по умолчанию: ","Default appearance: ")+(names[result.appearance.theme]??result.appearance.theme)+" · "+(modes[result.appearance.mode]??result.appearance.mode));
+    }else reportSuccess(operation.action==="restart"?text("Перезапуск запрошен","Restart requested"):text("Применено","Applied"));
+    if(result.auditWarning)controlResult.textContent=(controlResult.textContent?controlResult.textContent+" · ":"")+text("Запись аудита не сохранена","Audit record could not be saved");
     // The gateway sends the new default with the next page; apply it here at once.
-    if(operation.action==="appearance-apply"&&result.theme&&result.mode){document.cookie=`kurami-theme-default=${result.theme}.${result.mode}; path=/; max-age=31536000; samesite=lax; secure`;window.kuramiThemeRefresh?.();}
+    if(operation.action==="appearance-apply"&&result.appearance){document.cookie=`kurami-theme-default=${result.appearance.theme}.${result.appearance.mode}; path=/; max-age=31536000; samesite=lax${location.protocol==="https:"?"; secure":""}`;window.kuramiThemeRefresh?.();}
     pending=null;confirmation.hidden=true;controlContent.hidden=false;
     if(controlView)await loadControl(controlView);else controlContent.textContent="";
     await refreshHub(true);

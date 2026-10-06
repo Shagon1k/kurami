@@ -31,7 +31,7 @@ Every Kurami site (Digest, human docs, any new sub-site) renders through the sha
 ## Themes: every UI change works in Paper and Neon
 
 Kurami has two themes, each with light and dark modes: **Paper** (default) and **Neon** (the fox
-as a red neon sign). A viewer picks one in the header menu; Hub settings set the default.
+as a red neon sign). Hub settings set the theme every app opens with; the header menu changes it for the current session only.
 New UI must look right in both without theme-specific product code.
 
 - Style only through roles; a role is the contract, its value differs per theme. Use the right

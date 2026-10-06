@@ -161,7 +161,7 @@ try {
     assert.equal(await devtools.evaluate("(()=>{const row=document.querySelector('#hub-control-confirm .dialog__actions'),cancel=row.querySelector('[data-hub-cancel]'),confirm=row.querySelector('[data-hub-confirm]'),r=row.getBoundingClientRect(),a=cancel.getBoundingClientRect(),b=confirm.getBoundingClientRect();return cancel.compareDocumentPosition(confirm)===Node.DOCUMENT_POSITION_FOLLOWING&&a.right<=b.left&&Math.abs(r.right-b.right)<1;})()"),true,"Cancel then Confirm align to the dialog's right edge");
     await delay(100);assert.equal(actions.length,before,"opening confirmation never applies a model");
     if(lang==="en"){
-      await devtools.evaluate("document.querySelector('[data-hub-confirm]').click()");await wait("document.querySelector('#hub-control-result').textContent==='Applied'");
+      await devtools.evaluate("document.querySelector('[data-hub-confirm]').click()");await wait("(()=>{const toast=document.querySelector('[data-toast-region]');return !toast.hidden&&toast.dataset.tone==='success'&&toast.querySelector('[data-toast-message]').textContent==='Applied'&&document.querySelector('#hub-control-result').textContent==='';})()");
       await wait("!document.querySelector('[data-hub-confirm]').hasAttribute('aria-busy')");
       assert.equal(actions.at(-1),"model-apply");
       assert.equal(await devtools.evaluate("document.querySelector('[data-period-key=global][data-period-days=\"7\"]').getAttribute('aria-pressed')"),"true","refresh preserves period selection");
