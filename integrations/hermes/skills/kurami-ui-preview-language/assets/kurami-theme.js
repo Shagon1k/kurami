@@ -2,25 +2,31 @@
 (function kuramiThemeRuntime(choices              ) {
   const root = document.documentElement, modeKey = "kurami-theme", themeKey = "kurami-theme-name", media = matchMedia("(prefers-color-scheme: dark)");
   const known = (theme                           )                  => !!theme && Object.hasOwn(choices.modes, theme);
-  const read = (key        ) => { try { return localStorage.getItem(key); } catch { return null; } };
-  const write = (key        , value               ) => { try { if (value === null) localStorage.removeItem(key); else localStorage.setItem(key, value); } catch {} };
-  const storedMode = ()                   => { const value = read(modeKey); return value === "dark" || value === "light" ? value : null; };
-  const storedTheme = () => { const value = read(themeKey); return known(value) ? value : null; };
+  // Choices used to persist per device; they now last one session, so drop any that are left.
+  try { localStorage.removeItem(modeKey); localStorage.removeItem(themeKey); } catch {}
+  const read = (key        ) => { try { return sessionStorage.getItem(key); } catch { return null; } };
+  const write = (key        , value        ) => { try { sessionStorage.setItem(key, value); } catch {} };
+  const sessionTheme = () => { const value = read(themeKey); return known(value) ? value : null; };
+  const sessionMode = ()                   => { const value = read(modeKey); return value === "dark" || value === "light" ? value : null; };
   const hubDefault = () => {
     const match = /(?:^|;\s*)kurami-theme-default=([a-z]+)\.(light|dark)(?:;|$)/.exec(document.cookie);
     return match && known(match[1]) ? { theme: match[1], mode: match[2]              } : null;
   };
+  const defaults = () => hubDefault() ?? { theme: "paper", mode: (media.matches ? "dark" : "light")              };
+  /** The mode a theme opens in: Paper keeps the current mode; a variant takes the default's mode when it is the default, otherwise its first mode (Neon: dark). */
+  const openingMode = (theme        )            => {
+    const base = defaults();
+    if (theme === "paper") return root.dataset.theme === "dark" ? "dark" : "light";
+    return theme === base.theme ? base.mode : choices.modes[theme][0];
+  };
   const effective = () => {
-    const fallback = hubDefault(), device = storedTheme(), theme = device ?? fallback?.theme ?? "paper";
-    const modes = choices.modes[theme];
-    // A device that chose a theme also owns its mode. Without a device theme the Hub default decides both,
-    // so a mode left over from the old light/dark switch does not override the Hub's choice.
-    let mode = (device || !fallback ? storedMode() : null) ?? fallback?.mode ?? (media.matches ? "dark" : "light");
+    const theme = sessionTheme() ?? defaults().theme, modes = choices.modes[theme];
+    let mode = sessionMode() ?? (sessionTheme() ? openingMode(theme) : defaults().mode);
     if (!modes.includes(mode)) mode = modes[0];
     return { theme, mode };
   };
   const apply = () => {
-    const { theme, mode } = effective(), device = storedTheme(), fallback = hubDefault();
+    const { theme, mode } = effective();
     root.dataset.theme = mode;
     if (theme === "paper") delete root.dataset.kuramiTheme; else root.dataset.kuramiTheme = theme;
     for (const button of document.querySelectorAll("[data-theme-toggle]")) {
@@ -30,16 +36,12 @@
       const icon = button.querySelector("[data-theme-icon]");
       if (icon) icon.textContent = mode === "dark" ? "☀" : "◐";
     }
-    for (const option of document.querySelectorAll                   ("[data-theme-choice]")) {
-      const value = option.dataset.themeChoice;
-      option.setAttribute("aria-pressed", String(value === "default" ? !device : value === device));
-    }
+    for (const option of document.querySelectorAll                   ("[data-theme-choice]")) option.setAttribute("aria-pressed", String(option.dataset.themeChoice === theme));
     for (const option of document.querySelectorAll                   ("[data-mode-choice]")) {
       const value = option.dataset.modeChoice             ;
       option.setAttribute("aria-pressed", String(value === mode));
       option.disabled = !choices.modes[theme].includes(value);
     }
-    for (const label of document.querySelectorAll("[data-theme-default-label]")) label.textContent = choices.labels[fallback?.theme ?? "paper"];
     const surface = getComputedStyle(root).getPropertyValue("--surface-page").trim();
     if (surface) document.querySelector('meta[name="theme-color"]')?.setAttribute("content", surface);
   };
@@ -51,10 +53,12 @@
     panel.style.setProperty("--popover-left", `${Math.round(Math.max(8, Math.min(rect.right - width, innerWidth - width - 8)))}px`);
   };
   apply();
-  // Pages call this after changing the Hub default (cookie) so the current page follows at once.
-  (window                                                ).kuramiThemeRefresh = apply;
+  // Hub calls this after changing the default (cookie): the session override ends and the page shows the new default.
+  (window                                                ).kuramiThemeRefresh = () => {
+    try { sessionStorage.removeItem(modeKey); sessionStorage.removeItem(themeKey); } catch {}
+    apply();
+  };
   media.addEventListener("change", () => apply());
-  addEventListener("storage", event => { if (event.key === modeKey || event.key === themeKey) apply(); });
   document.addEventListener("DOMContentLoaded", apply);
   document.addEventListener("toggle", event => {
     const panel = event.target;
@@ -66,26 +70,22 @@
   document.addEventListener("click", event => {
     const target = event.target instanceof Element ? event.target : null;
     const themeOption = target?.closest             ("[data-theme-choice]"), modeOption = target?.closest                   ("[data-mode-choice]");
-    if (themeOption) {
-      const value = themeOption.dataset.themeChoice ;
-      if (value === "default") { write(themeKey, null); write(modeKey, null); }
-      // Paper keeps the current mode; a variant starts in its own first mode (Neon: dark) unless a mode was chosen.
-      else if (known(value)) { const mode = value === "paper" ? effective().mode : choices.modes[value][0]; write(themeKey, value); if (!storedMode()) write(modeKey, mode); }
+    if (themeOption && known(themeOption.dataset.themeChoice)) {
+      const theme = themeOption.dataset.themeChoice;
+      write(themeKey, theme); write(modeKey, openingMode(theme));
       apply();
       return;
     }
     if (modeOption && !modeOption.disabled) {
-      if (!storedTheme()) write(themeKey, effective().theme);
-      write(modeKey, modeOption.dataset.modeChoice );
+      write(themeKey, effective().theme); write(modeKey, modeOption.dataset.modeChoice );
       apply();
       return;
     }
     const toggle = target?.closest("[data-theme-toggle]");
     if (!toggle || toggle.hasAttribute("aria-haspopup")) return;
-    // Legacy toggle: switch the mode; a dark-only theme switches to Paper light.
-    const next            = root.dataset.theme === "dark" ? "light" : "dark";
-    if (!choices.modes[effective().theme].includes(next)) write(themeKey, "paper");
-    write(modeKey, next);
+    // Legacy toggle: switch the mode for this session; a theme without that mode switches to Paper.
+    const next            = root.dataset.theme === "dark" ? "light" : "dark", theme = effective().theme;
+    write(themeKey, choices.modes[theme].includes(next) ? theme : "paper"); write(modeKey, next);
     apply();
   });
   const menus = () => document.querySelectorAll                    (".site-switcher[open],.site-menu[open],.side-mobile[open]");
@@ -101,7 +101,7 @@
     if (!(event.target instanceof Element)) return;
     for (const menu of menus()) if (!menu.contains(event.target) || event.target.closest("a[href]")) menu.open = false;
   });
-})({"labels":{"paper":"Paper","neon":"Neon"},"modes":{"paper":["light","dark"],"neon":["dark","light"]}});
+})({"modes":{"paper":["light","dark"],"neon":["dark","light"]}});
 (function kuramiNeonMotion() {
   const root = document.documentElement, reduce = matchMedia("(prefers-reduced-motion: reduce)");
   const active = () => root.dataset.kuramiTheme === "neon" && !reduce.matches;

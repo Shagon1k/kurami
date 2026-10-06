@@ -219,7 +219,6 @@ button, a { -webkit-tap-highlight-color: transparent; }
 .theme-menu .theme-menu__option { --button-justify: flex-start; width: 100%; }
 .theme-menu__option::before { content: ""; width: 14px; height: 14px; flex: none; border-radius: 50%; box-shadow: inset 0 0 0 2px currentColor; opacity: .7; }
 .theme-menu__option[aria-pressed="true"]::before { box-shadow: inset 0 0 0 4px currentColor; opacity: 1; }
-.theme-menu__option small { margin-left: auto; color: var(--text-muted); font: 400 .6875rem/1 var(--font-mono); }
 .theme-menu__hint { margin: var(--space-3) 0 0; color: var(--text-muted); font-size: .75rem; line-height: 1.45; }
 
 

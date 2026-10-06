@@ -29,7 +29,7 @@ export function renderControlView(action:string,result:any,lang:HubLanguage):str
   return "";
 }
 
-/** Default appearance for every device that has not picked its own theme in the header menu. */
+/** The theme every Kurami app opens with; the header menu only changes it for one session. */
 function appearanceForm(appearance:{revision:number;theme:string;mode:string|null;themes:Record<string,string[]>}|undefined,lang:HubLanguage):string {
   if(!appearance)return "";
   const labels:Record<string,string>={paper:"Paper",neon:"Neon"};
@@ -37,6 +37,6 @@ function appearanceForm(appearance:{revision:number;theme:string;mode:string|nul
   const modes=[{value:"light",label:tr(lang,"Светлая","Light")},{value:"dark",label:tr(lang,"Тёмная","Dark")}];
   const mode=appearance.mode??"light";
   return `<form class="control-form" data-hub-submit="appearance-apply" data-revision="${appearance.revision}" data-themes="${escapeHtml(JSON.stringify(appearance.themes))}"><h3>${tr(lang,"Оформление","Appearance")}</h3>
-    <p class="control-summary">${tr(lang,"Тема по умолчанию для всех устройств, где тема не выбрана в шапке. «Как в Hub» в меню темы возвращает устройство к ней.","The default for every device that has not picked a theme in the header. “Hub default” in the theme menu returns a device to it.")}</p>
+    <p class="control-summary">${tr(lang,"С этой темой открываются все приложения Kurami на всех устройствах. Меню темы в шапке меняет её только до закрытия приложения.","Every Kurami app opens with this theme on every device. The theme menu in the header changes it only until the app is closed.")}</p>
     ${renderSelectField({name:"theme",label:tr(lang,"Тема","Theme"),value:appearance.theme,options:themes})}${renderSelectField({name:"mode",label:tr(lang,"Режим","Mode"),value:mode,options:modes})}<div class="control-actions">${apply(lang)}</div></form>`;
 }

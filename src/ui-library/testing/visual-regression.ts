@@ -219,67 +219,65 @@ async function checkKeyboard(devtools:Devtools):Promise<{theme:boolean;disclosur
   return {theme:true,disclosure:summary,apps};
 }
 
-type ThemeState={theme:string;variant:string;mode:string|null;choice:string|null;icon:string|null;stored:string|null;storedTheme:string|null;color:string|null;inHead:boolean};
-const themeState=`({theme:document.documentElement.dataset.theme,variant:document.documentElement.dataset.kuramiTheme??"paper",mode:document.querySelector('[data-mode-choice][aria-pressed="true"]')?.dataset.modeChoice??null,choice:document.querySelector('[data-theme-choice][aria-pressed="true"]')?.dataset.themeChoice??null,icon:document.querySelector('[data-theme-icon]')?.textContent??null,stored:localStorage.getItem('kurami-theme'),storedTheme:localStorage.getItem('kurami-theme-name'),color:document.querySelector('meta[name="theme-color"]')?.getAttribute('content')??null,inHead:Boolean(document.head.querySelector('script[src="/assets/theme.js"]'))})`;
+type ThemeState={theme:string;variant:string;mode:string|null;choice:string|null;icon:string|null;stored:string|null;storedTheme:string|null;legacy:string|null;color:string|null;inHead:boolean};
+const themeState=`({theme:document.documentElement.dataset.theme,variant:document.documentElement.dataset.kuramiTheme??"paper",mode:document.querySelector('[data-mode-choice][aria-pressed="true"]')?.dataset.modeChoice??null,choice:document.querySelector('[data-theme-choice][aria-pressed="true"]')?.dataset.themeChoice??null,icon:document.querySelector('[data-theme-icon]')?.textContent??null,stored:sessionStorage.getItem('kurami-theme'),storedTheme:sessionStorage.getItem('kurami-theme-name'),legacy:localStorage.getItem('kurami-theme')??localStorage.getItem('kurami-theme-name'),color:document.querySelector('meta[name="theme-color"]')?.getAttribute('content')??null,inHead:Boolean(document.head.querySelector('script[src="/assets/theme.js"]'))})`;
 const surface={paper:{light:"#fbfbf8",dark:"#0a0a0a"},neon:{light:"#f6f4fa",dark:"#07060b"}} as const;
 
 /**
- * The system mode applies on first visit; a menu choice persists on the device and beats the system and
- * the Hub default; a first Neon pick starts dark; "Hub default" clears the device choice; the Hub cookie sets the default.
+ * The Hub default (cookie) applies on every visit, the system mode without it; a menu choice lasts for the
+ * session only (sessionStorage) and a new session starts from the default again; choices stored by the old
+ * per-device switch are dropped; a Hub change ends the session override.
  */
 async function checkThemeRuntime(devtools:Devtools,base:string,path:string):Promise<void> {
-  const expect=(state:ThemeState,want:{variant:"paper"|"neon";theme:"light"|"dark";choice:string;stored:string|null;storedTheme:string|null},step:string)=>{
-    const expected={theme:want.theme,variant:want.variant,mode:want.theme,choice:want.choice,icon:want.theme==="dark"?"☀":"◐",stored:want.stored,storedTheme:want.storedTheme,color:(surface[want.variant] as Record<string,string>)[want.theme],inHead:true};
+  const expect=(state:ThemeState,want:{variant:"paper"|"neon";theme:"light"|"dark";stored:string|null;storedTheme:string|null},step:string)=>{
+    const expected={theme:want.theme,variant:want.variant,mode:want.theme,choice:want.variant,icon:want.theme==="dark"?"☀":"◐",stored:want.stored,storedTheme:want.storedTheme,legacy:null,color:(surface[want.variant] as Record<string,string>)[want.theme],inHead:true};
     if(JSON.stringify(state)!==JSON.stringify(expected))throw new Error(`Theme runtime ${path} ${step}: ${JSON.stringify(state)} expected ${JSON.stringify(expected)}`);
   };
   const state=()=>devtools.evaluate<ThemeState>(themeState);
   const click=(selector:string)=>devtools.evaluate(`document.querySelector('${selector}').click()`);
   const cookie=(value:string|null)=>devtools.evaluate(value?`document.cookie='kurami-theme-default=${value}; path=/'`:`document.cookie='kurami-theme-default=; path=/; max-age=0'`);
+  const system=(value:"light"|"dark")=>devtools.call("Emulation.setEmulatedMedia",{features:[{name:"prefers-color-scheme",value}]});
+  // A new session: what reopening the app or site gives.
+  const reenter=async()=>{await devtools.evaluate(`sessionStorage.clear()`);await open(devtools,`${base}${path}`);};
   await open(devtools,`${base}${path}`);
-  await devtools.evaluate(`localStorage.clear()`);await cookie(null);
-  await devtools.call("Emulation.setEmulatedMedia",{features:[{name:"prefers-color-scheme",value:"dark"}]});
-  await open(devtools,`${base}${path}`);
-  expect(await state(),{variant:"paper",theme:"dark",choice:"default",stored:null,storedTheme:null},"system dark");
+  await devtools.evaluate(`localStorage.clear()`);await cookie(null);await system("dark");
+  await reenter();
+  expect(await state(),{variant:"paper",theme:"dark",stored:null,storedTheme:null},"system dark");
   await click('[data-mode-choice="light"]');
-  expect(await state(),{variant:"paper",theme:"light",choice:"paper",stored:"light",storedTheme:"paper"},"choose light");
+  expect(await state(),{variant:"paper",theme:"light",stored:"light",storedTheme:"paper"},"choose light");
   await open(devtools,`${base}${path}`);
-  expect(await state(),{variant:"paper",theme:"light",choice:"paper",stored:"light",storedTheme:"paper"},"stored beats system");
+  expect(await state(),{variant:"paper",theme:"light",stored:"light",storedTheme:"paper"},"the choice lasts the session");
   await click('[data-theme-choice="neon"]');
-  expect(await state(),{variant:"neon",theme:"light",choice:"neon",stored:"light",storedTheme:"neon"},"choose Neon keeps the chosen mode");
-  await click('[data-mode-choice="dark"]');
-  expect(await state(),{variant:"neon",theme:"dark",choice:"neon",stored:"dark",storedTheme:"neon"},"Neon dark");
-  await open(devtools,`${base}${path}`);
-  expect(await state(),{variant:"neon",theme:"dark",choice:"neon",stored:"dark",storedTheme:"neon"},"Neon persists");
+  expect(await state(),{variant:"neon",theme:"dark",stored:"dark",storedTheme:"neon"},"Neon opens dark");
   await click('[data-mode-choice="light"]');
+  expect(await state(),{variant:"neon",theme:"light",stored:"light",storedTheme:"neon"},"Neon light");
   await click('[data-theme-choice="paper"]');
-  expect(await state(),{variant:"paper",theme:"light",choice:"paper",stored:"light",storedTheme:"paper"},"back to Paper keeps its mode");
-  await click('[data-theme-choice="default"]');
-  expect(await state(),{variant:"paper",theme:"dark",choice:"default",stored:null,storedTheme:null},"Hub default clears the device choice");
-  await devtools.call("Emulation.setEmulatedMedia",{features:[{name:"prefers-color-scheme",value:"light"}]});
-  await click('[data-theme-choice="neon"]');
-  expect(await state(),{variant:"neon",theme:"dark",choice:"neon",stored:"dark",storedTheme:"neon"},"first Neon pick starts dark");
-  await click('[data-theme-choice="default"]');
-  await devtools.call("Emulation.setEmulatedMedia",{features:[{name:"prefers-color-scheme",value:"dark"}]});
+  expect(await state(),{variant:"paper",theme:"light",stored:"light",storedTheme:"paper"},"back to Paper keeps its mode");
+  await reenter();
+  expect(await state(),{variant:"paper",theme:"dark",stored:null,storedTheme:null},"a new session starts from the default");
+  await devtools.evaluate(`localStorage.setItem('kurami-theme','light');localStorage.setItem('kurami-theme-name','neon')`);
+  await reenter();
+  expect(await state(),{variant:"paper",theme:"dark",stored:null,storedTheme:null},"old per-device choices are dropped");
   await cookie("neon.dark");
-  await open(devtools,`${base}${path}`);
-  expect(await state(),{variant:"neon",theme:"dark",choice:"default",stored:null,storedTheme:null},"Hub default Neon");
-  await devtools.evaluate(`localStorage.setItem('kurami-theme','light')`);
-  await open(devtools,`${base}${path}`);
-  expect(await state(),{variant:"neon",theme:"dark",choice:"default",stored:"light",storedTheme:null},"a mode left by the old switch does not override the Hub default");
-  await devtools.evaluate(`localStorage.removeItem('kurami-theme')`);
+  await reenter();
+  expect(await state(),{variant:"neon",theme:"dark",stored:null,storedTheme:null},"Hub default Neon");
   await click('[data-theme-choice="paper"]');
-  expect(await state(),{variant:"paper",theme:"dark",choice:"paper",stored:"dark",storedTheme:"paper"},"device beats Hub default");
-  await devtools.evaluate(`localStorage.clear()`);await cookie("paper.light");
-  await open(devtools,`${base}${path}`);
-  expect(await state(),{variant:"paper",theme:"light",choice:"default",stored:null,storedTheme:null},"Hub default beats system");
-  await cookie(null);
-  await devtools.call("Emulation.setEmulatedMedia",{features:[{name:"prefers-color-scheme",value:"light"}]});
-  await open(devtools,`${base}${path}`);
-  expect(await state(),{variant:"paper",theme:"light",choice:"default",stored:null,storedTheme:null},"system light");
-  await devtools.call("Emulation.setEmulatedMedia",{features:[{name:"prefers-color-scheme",value:"dark"}]});
+  expect(await state(),{variant:"paper",theme:"dark",stored:"dark",storedTheme:"paper"},"session override of the Hub default");
+  await click('[data-mode-choice="light"]');
+  await click('[data-theme-choice="neon"]');
+  expect(await state(),{variant:"neon",theme:"dark",stored:"dark",storedTheme:"neon"},"the default theme opens in the default mode");
+  await cookie("paper.light");
+  await devtools.evaluate(`window.kuramiThemeRefresh()`);
+  expect(await state(),{variant:"paper",theme:"light",stored:null,storedTheme:null},"a Hub change ends the override");
+  await reenter();
+  expect(await state(),{variant:"paper",theme:"light",stored:null,storedTheme:null},"Hub default beats system");
+  await cookie(null);await system("light");
+  await reenter();
+  expect(await state(),{variant:"paper",theme:"light",stored:null,storedTheme:null},"system light");
+  await system("dark");
   await delay(100);
-  expect(await state(),{variant:"paper",theme:"dark",choice:"default",stored:null,storedTheme:null},"live system change");
-  await devtools.evaluate(`localStorage.clear()`);
+  expect(await state(),{variant:"paper",theme:"dark",stored:null,storedTheme:null},"live system change");
+  await devtools.evaluate(`sessionStorage.clear()`);
   await devtools.call("Emulation.setEmulatedMedia",{features:[]});
 }
 
@@ -287,7 +285,7 @@ async function checkThemeRuntime(devtools:Devtools,base:string,path:string):Prom
 async function checkNeonMotion(devtools:Devtools,base:string):Promise<void> {
   const page=`${base}/hub/index.html`;
   await open(devtools,page);
-  await devtools.evaluate(`localStorage.setItem('kurami-theme-name','neon')`);
+  await devtools.evaluate(`sessionStorage.setItem('kurami-theme-name','neon')`);
   await devtools.call("Emulation.setEmulatedMedia",{features:[{name:"prefers-reduced-motion",value:"no-preference"}]});
   await open(devtools,page);
   const read=()=>devtools.evaluate<string[]>(`[...document.querySelectorAll('.stat-card__value')].map(node=>node.textContent)`);
@@ -302,7 +300,7 @@ async function checkNeonMotion(devtools:Devtools,base:string):Promise<void> {
   await open(devtools,page);
   const reduced=await read();
   if(JSON.stringify(reduced)!==JSON.stringify(after))throw new Error(`Reduced motion must show final figures: ${JSON.stringify(reduced)}`);
-  await devtools.evaluate(`localStorage.clear()`);
+  await devtools.evaluate(`sessionStorage.clear()`);
   await devtools.call("Emulation.setEmulatedMedia",{features:[]});
 }
 
@@ -349,7 +347,7 @@ async function checkMobileNavigation(devtools:Devtools,width:number,current:stri
   if(!await devtools.evaluate(`getComputedStyle(document.querySelector('[data-mobile-menu="more"] svg')).transform!=='none'`))throw new Error('Settings icon should animate with menu state');
   // Settings: horizontal label/value rows, plus the theme row that lists its options inline with touch-size targets.
   const settings=await devtools.evaluate<{rows:{delta:number;gap:number}[];options:number[];hidden:boolean}>(`(()=>{const rows=[...document.querySelectorAll('#mobile-menu-more .mobile-navigation__setting:not([hidden]):not(:has([data-theme-menu]))')];const theme=document.querySelector('[data-mobile-slot="theme"]');return {rows:rows.map(row=>{const l=row.querySelector('.mobile-navigation__setting-label').getBoundingClientRect(),v=row.querySelector('.mobile-navigation__setting-value').getBoundingClientRect();return {delta:Math.abs((l.top+l.bottom-v.top-v.bottom)/2),gap:v.left-l.right};}),options:[...theme.querySelectorAll('[data-theme-choice],[data-mode-choice]')].map(option=>option.offsetHeight),hidden:theme.querySelector('[data-theme-panel]').hasAttribute('popover')||getComputedStyle(theme.querySelector('[data-theme-panel]')).opacity!=='1'||getComputedStyle(theme.querySelector('[data-theme-panel]')).visibility!=='visible'};})()`);
-  if(settings.rows.length<1||settings.rows.some(row=>row.delta>=1||row.gap<0)||settings.options.length<5||settings.options.some(height=>height<43.5)||settings.hidden)throw new Error('Settings must have aligned rows and inline theme options with touch targets: '+JSON.stringify(settings));
+  if(settings.rows.length<1||settings.rows.some(row=>row.delta>=1||row.gap<0)||settings.options.length<4||settings.options.some(height=>height<43.5)||settings.hidden)throw new Error('Settings must have aligned rows and inline theme options with touch targets: '+JSON.stringify(settings));
   const beforeTheme=await devtools.evaluate<string>(`document.documentElement.dataset.theme`);
   await devtools.evaluate(`document.querySelector('[data-mobile-slot="theme"] [data-mode-choice]:not([aria-pressed="true"]):not(:disabled)').click()`);
   if(await devtools.evaluate(`document.documentElement.dataset.theme`)==beforeTheme||!await devtools.evaluate(`document.querySelector('#mobile-menu-more').matches(':popover-open')`))throw new Error('Theme choice must apply without closing Settings');

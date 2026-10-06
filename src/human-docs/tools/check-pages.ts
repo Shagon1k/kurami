@@ -70,7 +70,7 @@ if(shots&&files.length){
       await devtools.call("Emulation.setDeviceMetricsOverride",{width,height:900,deviceScaleFactor:1,mobile:width<600});
       const url=`http://127.0.0.1:${port}/${path.replace(/index\.html$/,"")}`;
       await devtools.call("Page.navigate",{url});
-      await devtools.evaluate(`localStorage.setItem('kurami-theme-name','${theme.name}');localStorage.setItem('kurami-theme','${theme.mode}')`);
+      await devtools.evaluate(`sessionStorage.setItem('kurami-theme-name','${theme.name}');sessionStorage.setItem('kurami-theme','${theme.mode}')`);
       await devtools.call("Page.navigate",{url});
       await new Promise(done=>setTimeout(done,900));
       const height=await devtools.evaluate<number>("document.documentElement.scrollHeight");

@@ -182,15 +182,16 @@ assert.equal(injected.split(THEME_SCRIPT_TAG).length,2,"one theme script");
 assert.ok(injected.indexOf(THEME_SCRIPT_TAG)<injected.indexOf("</head>"),"theme script runs in head");
 assert.equal(injectRuntime(injected).split(THEME_SCRIPT_TAG).length,2,"injection is idempotent");
 // One theme control for every site: a menu button with a constant name that opens theme and mode choices.
-for(const [lang,name,hub] of [["ru","Тема","Как в Hub"],["en","Theme","Hub default"]] as const){
+for(const [lang,name,hint] of [["ru","Тема","Действует, пока открыто приложение"],["en","Theme","Lasts while the app is open"]] as const){
   const menu=renderThemeSwitch(lang);
   assert.match(menu,/^<div class="theme-menu" data-theme-menu><button class="button button--icon theme-switch"[^>]*data-theme-toggle[^>]*aria-haspopup="true" aria-expanded="false" popovertarget="kurami-theme-menu"/);
   assert.match(menu,new RegExp(`<span class="sr-only">${name}</span>`));
   assert.match(menu,/data-theme-icon/);
   assert.match(menu,/<div class="ui-popover theme-menu__panel" data-theme-panel id="kurami-theme-menu"[^>]*popover="auto"/);
-  for(const choice of ["default","paper",...themeVariants.map(variant=>variant.name)])assert.match(menu,new RegExp(`data-theme-choice="${choice}"`),choice);
+  for(const choice of ["paper",...themeVariants.map(variant=>variant.name)])assert.match(menu,new RegExp(`data-theme-choice="${choice}"`),choice);
   for(const mode of ["light","dark"])assert.match(menu,new RegExp(`data-mode-choice="${mode}"`),mode);
-  assert.ok(menu.includes(hub),"Hub default option");
+  assert.doesNotMatch(menu,/data-theme-choice="default"/,"the Hub default is not a menu option");
+  assert.ok(menu.includes(hint),"the menu says the choice lasts the session");
   assert.doesNotMatch(menu,/aria-pressed="true"/,"the runtime, not the server, marks the current choice");
 }
 // Theme variants: complete tokens, applied only under their own selector, after Paper.
@@ -208,6 +209,8 @@ assert.match(variantCss(neonTheme),/^html\[data-kurami-theme="neon"\] \{[^}]*col
 assert.match(variantCss(neonTheme),/\[data-theme="light"\] \{[^}]*--display-glow: /,"light Neon softens its glow");
 assert.match(THEME_RUNTIME_JS,/"neon":\["dark","light"\]/,"runtime knows Neon's modes, dark first");
 assert.match(THEME_RUNTIME_JS,/kurami-theme-default=/,"runtime reads the Hub default");
+assert.match(THEME_RUNTIME_JS,/sessionStorage\.setItem/,"a menu choice lasts the session");
+assert.doesNotMatch(THEME_RUNTIME_JS,/localStorage\.setItem/,"a menu choice never persists on the device");
 // Stage 2: opt-in surfaces, gauges, icon plates and chart areas draw nothing new in Paper.
 assert.equal(surfaceAttributes("panel")," data-ui-surface=\"panel\"");
 assert.equal(surfaceAttributes("lead",{attention:true})," data-ui-surface=\"lead\" data-ui-attention");
