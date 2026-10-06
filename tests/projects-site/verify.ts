@@ -8,12 +8,14 @@ import { DatabaseSync } from "node:sqlite";
 import { collectProjectsSnapshot } from "../../src/projects-site/snapshot.ts";
 import { ProjectsAccess } from "../../src/projects-site/access.ts";
 import { createProjectsServer } from "../../src/projects-site/server.ts";
+import {PROJECTS_CLIENT_VERSION,PROJECTS_CLIENT_JS} from "../../src/projects-site/client-version.ts";
 import { renderProjectsPage, renderProjectPrControl } from "../../src/projects-site/render.ts";
 import { parseFilters, selectItems, projectStageLabel } from "../../src/projects-site/model.ts";
 import { syntheticProjectsSnapshot, syntheticCiChecks } from "./fixture.ts";
 import {parseCiChecks,ciCheckUrl} from "../../src/projects-site/ci-checks.ts";
 import {iconPath} from "../../src/ui-library/components/icon.ts";
 import type {PrActionView} from "../../src/projects-site/pr-actions.ts";
+import {RUN_ACTIONS} from "../../src/projects-site/run-actions.ts";
 
 const home = mkdtempSync(join(tmpdir(), "kurami-projects-"));
 const at = "2026-09-30T10:00:00Z";
@@ -132,6 +134,20 @@ assert.equal(await access.authorize(request(tampered.join("."))), null, "unverif
 assert.equal(await new ProjectsAccess({ team: "", audience: "", ownerEmail: "" }).authorize(request(token())), null);
 
 const fixture = syntheticProjectsSnapshot();
+for(const lang of ['en','ru'] as const)for(const state of ['unreviewed','current','outdated','unverified'] as const){
+  const snapshot=structuredClone(fixture),item=snapshot.items[0]!;
+  item.preview={state:'running',tone:'success',head:state==='unverified'?null:state==='outdated'?'previous':item.ci.head,expiresAt:'2030-01-01T00:00:00Z',reviewed:state!=='unreviewed'};
+  const html=renderProjectsPage(snapshot,new URLSearchParams({item:item.id,lang}));
+  if(state==='unreviewed')assert.doesNotMatch(html,/data-preview-review=/);
+  else {assert.match(html,new RegExp(`data-preview-review="${state}"`));assert.match(html,state==='current'?new RegExp(lang==='ru'?'Превью просмотрено':'Preview reviewed'):new RegExp(lang==='ru'?state==='outdated'?'Просмотрено для предыдущего коммита':'Просмотр превью не подтверждён':state==='outdated'?'Reviewed for an earlier commit':'Preview review not verified'));}
+}
+for(const lang of ["en","ru"] as const)for(const state of ["pending","processing","failed","rejected"]){
+  const snapshot=structuredClone(fixture),item=snapshot.items[0]!;
+  item.runActions!.actions=RUN_ACTIONS.map(action=>({action,label:action,enabled:false,state,hint:null,confirmation:null}));
+  const html=renderProjectsPage(snapshot,new URLSearchParams(`item=item-12&lang=${lang}`));
+  for(const action of RUN_ACTIONS)assert.match(html,new RegExp(`data-run-action-state="${action}" data-request-state="${state}" role="status">${action} · `),'status names its operation, not just Queued below one button');
+  assert.doesNotMatch(html,/>Queued<\/p>|>В очереди<\/p>/,'no bare queued labels remain for any run action');
+}
 for(const lang of ["en","ru"] as const)for(const state of ["queued","running","waiting_ci","resolving","succeeded","needs_attention"]){
   const snapshot=structuredClone(fixture),item=snapshot.items[0]!;
   item.stage="preview_ready";item.reviewFix={state,round:2};item.aiReview={enabled:false,reason:"unstable",head:item.ci.head};
@@ -173,7 +189,7 @@ const iconFixture=structuredClone(fixture);
 iconFixture.projects=["PickFlick","TailorTales","AHurynovich-CV"].map((name,index)=>({...fixture.projects[0]!,key:`project-${index}`,name}));
 const iconPage=renderProjectsPage(iconFixture),mobileProjectNav=iconPage.split('id="mobile-menu-sections"')[1]!.split('</nav>')[0]!;
 for(const icon of ["projects","panda","fox","profile"] as const)assert.ok(mobileProjectNav.includes(iconPath(icon)),`mobile project navigation: ${icon}`);
-assert.doesNotMatch(iconPage.split('<div class="site-header__inner container">')[1]!.split('class="site-actions"')[0]!,/<svg/,'desktop project navigation remains text-only');
+assert.doesNotMatch(iconPage.split('<div class="site-header__inner container">')[1]!.split('</a>\n')[1]!.split('class="site-actions"')[0]!,/<svg/,'desktop project navigation remains text-only');
 const runlessDone=structuredClone(fixture);runlessDone.items=[{...fixture.items[3]!,status:"Done"}];
 assert.match(renderProjectsPage(runlessDone),/>No agent run<\/span>/,"no observed agent run is distinct from GitHub completion");
 assert.match(renderProjectsPage(runlessDone,new URLSearchParams("lang=ru")),/>Нет запуска<\/span>/);
@@ -255,9 +271,13 @@ try {
   authorized = true;
   const page = await fetch(base);
   assert.equal(page.status, 200); assert.match(page.headers.get("cache-control")!, /no-store/);
+  assert.equal(page.headers.get("x-kurami-projects-version"),PROJECTS_CLIENT_VERSION);
   assert.match(page.headers.get("content-security-policy")!, /form-action 'self'/);
   assert.match(await page.text(), /Alpha/);
   assert.match(await (await fetch(base + "/api/fragment?project=beta")).text(), /Beta/);
+  const fragment=await fetch(base+"/api/fragment?item=item-15");
+  assert.equal(fragment.headers.get("x-kurami-projects-version"),PROJECTS_CLIENT_VERSION);
+  assert.equal(await(await fetch(base+"/assets/projects.js?v="+PROJECTS_CLIENT_VERSION)).text(),PROJECTS_CLIENT_JS);
   assert.equal((await fetch(base, { method: "HEAD" })).status, 200);
   assert.equal(await (await fetch(base, { method: "HEAD" })).text(), "");
   assert.equal((await fetch(base + "/config/projects.yaml")).status, 404);

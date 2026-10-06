@@ -3,7 +3,8 @@ import {mkdirSync,readFileSync,writeFileSync} from "node:fs";
 import {resolve} from "node:path";
 import {findBrowser,launchBrowser} from "../../ui-library/testing/devtools.ts";
 import {kuramiTheme} from "../../ui-library/themes/kurami.ts";
-import {PWA_BACKGROUND,PWA_ICON_ASSETS} from "../icons.ts";
+import {PWA_BACKGROUND,PWA_ICON_ASSETS,PWA_NEON_BACKGROUND,PWA_NEON_ICON_ASSETS} from "../icons.ts";
+import {neonFoxSvg} from "../../ui-library/assets/brand/neon-fox.ts";
 
 // Rasterize vector paths at each final size; never resize a raster master.
 const root=resolve(import.meta.dirname,"../../..");
@@ -47,6 +48,16 @@ try {
     assert(PWA_ICON_ASSETS.some(value=>value.file===asset.file));
     writeFileSync(resolve(brand,asset.file),Buffer.from(asset.png,"base64"));
     console.log(`${asset.file}: ${asset.size}px, ${asset.purpose}, mark ${(asset.coverage*100).toFixed(1)}%`);
+  }
+  // Neon: the tube fox drawn at each size. "any" keeps the mark near 90% of the square; "maskable" keeps
+  // the ears and glow inside Android's 40% safe circle (the farthest contour point is ~545 units from centre).
+  for(const asset of PWA_NEON_ICON_ASSETS){
+    const padding=asset.purpose==="maskable"?240:60;
+    const svg=neonFoxSvg({tube:24,blur:7,padding,glow:.85,background:PWA_NEON_BACKGROUND}).replace(/width="\d+" height="\d+"/,`width="${asset.size}" height="${asset.size}"`);
+    const png=await browser.devtools.evaluate<string>(`(async()=>{const image=new Image();image.src=${JSON.stringify("data:image/svg+xml;charset=utf-8,"+encodeURIComponent(svg))};await image.decode();
+      const canvas=document.createElement('canvas');canvas.width=canvas.height=${asset.size};canvas.getContext('2d').drawImage(image,0,0);return canvas.toDataURL('image/png').split(',')[1];})()`);
+    writeFileSync(resolve(brand,asset.file),Buffer.from(png,"base64"));
+    console.log(`${asset.file}: ${asset.size}px, ${asset.purpose}, neon`);
   }
   const preview=resolve(root,"dist/pwa-icons");mkdirSync(preview,{recursive:true});
   const fileData=(file:string)=>"data:image/png;base64,"+readFileSync(resolve(brand,file)).toString("base64");

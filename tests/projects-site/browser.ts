@@ -7,12 +7,18 @@ import { createProjectsServer } from "../../src/projects-site/server.ts";
 import { findBrowser, launchBrowser } from "../../src/ui-library/testing/devtools.ts";
 import { AUDIT_EXPRESSION, inventoryExpression } from "../../src/ui-library/testing/audit.ts";
 import { syntheticProjectsSnapshot } from "./fixture.ts";
+import {RUN_ACTIONS} from "../../src/projects-site/run-actions.ts";
 
 let unavailable = false;
 let dense=false;
 let previewReady=false;
 let semanticNotes=false;
 let reviewFixScenario:string|null=null;
+let runNotesScenario:string|null=null;
+let previewStopOnly=false;
+let previewReviewScenario=false,previewReviewed=false,previewNewHead=false;
+let startScenario:"off"|"idle"|"checking"|"sync"|"admission"|"starting"|"running"|"blocked"="off",startKey="",startWrites=0;
+let startWriteGate:Promise<void>|null=null;
 let ciScenario:"normal"|"failed"|"mixed"|"new-head"="normal";
 let prScenario:"off"|"ready"|"merge"|"all-methods"|"blocked"|"pending"|"syncing"|"unavailable"="off";
 let prWrites:{action:string;method:string|null;confirmed:boolean;key:string}[]=[];
@@ -47,7 +53,25 @@ const serverOptions = { snapshot: () => {
     const item=snapshot.items[0]!;item.stage="preview_ready";item.detail="Preview is running and ready to open.";item.reviewFix={state:reviewFixScenario,round:1};item.aiReview={enabled:false,reason:"unstable",head:item.ci.head};
     item.runActions!.actions=[{action:"review_fix",label:"Fix review findings",enabled:false,confirmation:null,hint:null,state:"pending"},{action:"stop",label:"Cancel run",enabled:true,confirmation:null,hint:null,state:null}];
   }
+  if(runNotesScenario){
+    const item=snapshot.items[0]!,labels:Record<string,string>={preview_stop:'Remove preview',review_fix:'Fix review findings',ci_repair:'Fix CI',preview_start:'Start preview',preview_reviewed:'Preview reviewed',take_control:'Continue in Codex',recover_managed_task:'Recover managed task',stop:'Cancel run',discard_local:'Discard local work',discard_published:'Discard published work'};
+    item.links.preview='https://preview.example.test/';item.aiReview={enabled:false,reason:'unstable',head:item.ci.head};item.reviewFix={state:'succeeded',round:1};
+    item.runActions!.actions=RUN_ACTIONS.map(action=>({action,label:labels[action]!,enabled:false,state:runNotesScenario,hint:null,confirmation:null}));
+    if(previewStopOnly){item.runActions!.actions=item.runActions!.actions.filter(action=>['preview_stop','stop','take_control'].includes(action.action));item.preview.state='outdated';item.preview.tone='warning';item.preview.head=item.review.head;}
+  }
   if(dense)for(let index=0;index<80;index++)snapshot.items.push({...snapshot.items[3]!,id:`bulk-${index}`,number:100+index,title:`Additional task ${index}`});
+  if(previewReviewScenario){const item=snapshot.items[0]!;item.preview={state:previewNewHead?'outdated':'running',tone:previewNewHead?'warning':'success',head:'abcdef0123456789',expiresAt:'2030-01-01T00:00:00Z',reviewed:previewReviewed};item.ci.head=previewNewHead?'fedcba9876543210':item.preview.head;item.links.preview='https://preview.example.test/';item.runActions!.actions=previewReviewed?[]:[{action:'preview_reviewed',label:'Превью проверено',enabled:true,confirmation:null,hint:null,state:null}];}
+  if(startScenario!=="off") {
+    const item=snapshot.items.find(item=>item.id==="item-15")!,statuses=snapshot.projects[0]!.statuses;
+    item.status=["idle","checking","sync"].includes(startScenario)?statuses.backlog:statuses.active;
+    item.statusChange={enabled:startScenario==="idle"||["running","blocked"].includes(startScenario),reason:["checking","sync"].includes(startScenario)?"pending":"eligible",choices:Object.values(statuses).map(value=>({value,label:value,hint:""}))};
+    if(startScenario==="checking"||startScenario==="sync")item.statusChange.request={state:startScenario==="checking"?"checking":"awaiting_sync",target:statuses.active,from:statuses.backlog,key:startKey,checkAvailable:false};
+    const messages={checking:"Checking the task in GitHub before starting.",sync:"Start requested. Waiting for Kurami to observe the status change.",admission:"Task accepted. Waiting for workspace preparation.",starting:"Kurami is preparing the workspace and agent session.",blocked:"Task start is blocked by work limits. Return it to Backlog and retry when capacity is available."};
+    const states={checking:"checking",sync:"awaiting_sync",admission:"awaiting_admission",starting:"starting",blocked:"blocked"} as const;
+    if(startScenario in states){const phase=startScenario as keyof typeof states;item.taskStart={state:states[phase],message:messages[phase]};}
+    if(["admission","starting","running"].includes(startScenario)){item.runId="new-start";item.runState=startScenario==="admission"?"admission_pending":startScenario;}
+    if(startScenario==="blocked"){item.runId="rejected-start";item.runState="rejected";}
+  }
   return snapshot;
 }, cacheMs: 0, authorize: async () => "fixture-owner", origin: "", review: (value: unknown) => {
   const input = value as { head: string; key: string };
@@ -57,6 +81,7 @@ const serverOptions = { snapshot: () => {
 } };
 const completeOptions = { ...serverOptions, prCacheMs:0,runAction:(value:unknown)=>{
   const input=value as {action:string;key:string;confirmed:boolean};actionKeys.push(input.key);
+  if(input.action==='preview_reviewed'){assert.equal(input.confirmed,false);previewReviewed=true;return {state:'created' as const,requestId:'fixture-reviewed',requestState:'applied'};}
   if(input.action==="discard_local") {assert.equal(input.confirmed,true);discarded=true;}
   else {assert.equal(input.action,"preview_start");assert.equal(input.confirmed,false);if(failAction) throw new ProjectsActionError(503,"Действие временно недоступно.");actionAccepted=true;}
   return {state:"created" as const,requestId:"fixture-action",requestState:"pending"};
@@ -70,6 +95,12 @@ const completeOptions = { ...serverOptions, prCacheMs:0,runAction:(value:unknown
   return {state:input.action==="ready"?"applied" as const:"pending" as const,requestId:"fixture-pr"};
 },statusChange: async (value: unknown) => {
   const input = value as {from:string;target:string;key:string;itemId:string};
+  if(input.itemId==="item-15") {
+    assert.equal(input.from,"Backlog");assert.equal(input.target,"In progress");
+    startWrites++;startKey=input.key;startScenario="checking";
+    await startWriteGate;startScenario="sync";
+    return {state:"awaiting_sync" as const,requestId:"start-fixture",target:input.target};
+  }
   assert.equal(input.from,"Human Review"); assert.equal(input.itemId,"item-12"); assert.equal(input.target,"Done");
   statusKeys.push(input.key);
   if (statusConflict) throw new ProjectsActionError(409,"Статус изменился. Обновите страницу.");
@@ -229,8 +260,8 @@ try {
       }
       await devtools.evaluate("document.querySelector('.projects-ci-details summary').click();document.querySelector('#project-details').focus({preventScroll:true})");
       const density=await devtools.evaluate<{reviewHeight:number;reviewWidth:number;groupWidth:number;pillHeight:number;sortIcon:number;actionWidths:boolean}>(`(() => {
-        const review=document.querySelector('[data-review-run]'), group=review.parentElement;
-        return {reviewHeight:review.getBoundingClientRect().height,reviewWidth:review.getBoundingClientRect().width,groupWidth:group.getBoundingClientRect().width,pillHeight:document.querySelector('.projects-detail .pill').getBoundingClientRect().height,sortIcon:parseFloat(getComputedStyle(document.querySelector('[data-sort] .button__svg')).width),actionWidths:[...document.querySelectorAll('[data-run-action]')].every(button=>Math.abs(button.getBoundingClientRect().width-button.parentElement.getBoundingClientRect().width)<1)};
+        const review=document.querySelector('[data-review-run]'), group=review.closest('.projects-action-pair');
+        return {reviewHeight:review.getBoundingClientRect().height,reviewWidth:review.getBoundingClientRect().width,groupWidth:group.getBoundingClientRect().width,pillHeight:document.querySelector('.projects-detail .pill').getBoundingClientRect().height,sortIcon:parseFloat(getComputedStyle(document.querySelector('[data-sort] .button__svg')).width),actionWidths:[...document.querySelectorAll('[data-run-action]')].every(button=>{const pair=button.closest('.projects-action-pair'),columns=pair.children.length,expected=(pair.getBoundingClientRect().width-parseFloat(getComputedStyle(pair).columnGap)*(columns-1))/columns;return Math.abs(button.getBoundingClientRect().width-expected)<1;})};
       })()`);
       assert.ok(density.reviewHeight>=32&&density.reviewHeight<=36,"compact actions retain coarse-pointer targets");
       assert.ok(density.reviewWidth<=density.groupWidth,"contextual review fits within its check row");
@@ -370,6 +401,7 @@ try {
   await devtools.evaluate("window.fetch=normalFetch;document.dispatchEvent(new Event('visibilitychange'))");
   await wait("!!document.querySelector('#project-details')&&!document.querySelector('#projects-dashboard').dataset.refreshing");
   assert.equal(await devtools.evaluate("document.querySelector('[data-review-run]').disabled"),false,"a fresh response restores server-authorized controls");
+  assert.equal(await devtools.evaluate("document.querySelector('[data-toast-region]').hidden"),true,"successful refresh clears only its stale refresh failure");
   failReview=true;
   await devtools.evaluate("document.querySelector('[data-review-run]').click()");
   await wait("document.querySelector('[data-toast-message]').textContent.includes('unavailable')");
@@ -682,6 +714,96 @@ try {
       await devtools.evaluate(`document.querySelector('[data-review-fix-state]').scrollIntoView({block:'center',behavior:'instant'})`);
       const shot=await devtools.call<{data:string}>('Page.captureScreenshot',{format:'png',captureBeyondViewport:false});writeFileSync(resolve(out,'projects-review-fix-queued.png'),Buffer.from(shot.data,'base64'));
     }
+  }
+  reviewFixScenario=null;
+  for(const width of [320,390,1280])for(const lang of ['en','ru'])for(const theme of ['light','dark'])for(const state of ['pending','processing','failed','rejected']){
+    runNotesScenario=state;
+    await devtools.call('Emulation.setDeviceMetricsOverride',{width,height:900,deviceScaleFactor:1,mobile:width<620});
+    await open(`/?item=item-12&lang=${lang}`);
+    await wait("!!document.querySelector('[data-pr-slot] > .projects-run-action-meta > .projects-action-note')");
+    await devtools.evaluate(`if(document.documentElement.dataset.theme!==${JSON.stringify(theme)})document.querySelector('[data-theme-toggle]').click()`);await delay(250);
+    assert.equal(await devtools.evaluate(`(()=>{const notes=[...document.querySelectorAll('[data-run-action-state]')];return notes.length===${RUN_ACTIONS.length}&&notes.every(note=>{const pair=note.closest('.projects-action-pair'),buttons=[...pair.children].map(slot=>slot.firstElementChild),r=note.getBoundingClientRect(),p=pair.getBoundingClientRect();return note.dataset.requestState===${JSON.stringify(state)}&&note.textContent.includes(' · ')&&Math.abs(r.left-p.left)<1&&Math.abs(r.width-p.width)<1&&buttons.every(button=>r.top>=button.getBoundingClientRect().bottom)&&buttons.every(button=>Math.abs(button.getBoundingClientRect().top-buttons[0].getBoundingClientRect().top)<1&&Math.abs(button.getBoundingClientRect().height-buttons[0].getBoundingClientRect().height)<1);})&&[...document.querySelectorAll('.projects-action-pair')].every(pair=>{const visible=[...pair.querySelectorAll('.projects-run-action-meta')].filter(meta=>meta.getBoundingClientRect().height);return visible.every((meta,index)=>index===0||meta.getBoundingClientRect().top>=visible[index-1].getBoundingClientRect().bottom);});})()`),true,'every action note spans its pair without button-column artifacts or overlapping messages');
+    await audit();
+    if(width===390&&lang==='en'&&state==='pending'&&theme==='light'){
+      await devtools.evaluate(`document.querySelector('[data-run-action=preview_stop]').scrollIntoView({block:'center',behavior:'instant'})`);
+      const shot=await devtools.call<{data:string}>('Page.captureScreenshot',{format:'png',captureBeyondViewport:false});writeFileSync(resolve(out,'projects-preview-stop-pending.png'),Buffer.from(shot.data,'base64'));
+    }
+  }
+  previewStopOnly=true;runNotesScenario='pending';
+  for(const width of [320,390,1280])for(const lang of ['en','ru'])for(const theme of ['light','dark']){
+    await devtools.call('Emulation.setDeviceMetricsOverride',{width,height:900,deviceScaleFactor:1,mobile:width<620});await open(`/?item=item-12&lang=${lang}`);
+    await devtools.evaluate(`if(document.documentElement.dataset.theme!==${JSON.stringify(theme)})document.querySelector('[data-theme-toggle]').click()`);await delay(250);
+    assert.equal(await devtools.evaluate(`(()=>{const button=document.querySelector('[data-run-action=preview_stop]'),note=document.querySelector('[data-run-action-state=preview_stop]'),pair=button.closest('.projects-action-pair'),open=pair.querySelector('a'),r=note.getBoundingClientRect(),p=pair.getBoundingClientRect(),b=button.getBoundingClientRect(),a=open.getBoundingClientRect();return button.disabled&&pair.children.length===2&&Math.abs(a.width-b.width)<1&&Math.abs(a.height-b.height)<1&&Math.abs(a.top-b.top)<1&&r.top>=b.bottom&&Math.abs(r.left-p.left)<1&&Math.abs(r.width-p.width)<1&&note.textContent.includes(' · ');})()`),true,'Open preview and pending Remove preview keep an equal button pair with one shared full-width status');
+    await audit();
+    if(width===390&&lang==='en'&&theme==='light'){await devtools.evaluate(`document.querySelector('[data-run-action=preview_stop]').scrollIntoView({block:'center',behavior:'instant'})`);const shot=await devtools.call<{data:string}>('Page.captureScreenshot',{format:'png',captureBeyondViewport:false});writeFileSync(resolve(out,'projects-preview-stop-pending.png'),Buffer.from(shot.data,'base64'));}
+  }
+  previewReviewScenario=true;runNotesScenario=null;previewStopOnly=false;semanticNotes=false;reviewFixScenario=null;
+  prScenario='off';previewReady=false;accepted=false;cancellation=false;actionAccepted=false;statusRequest=null;
+  for(const width of [320,390,1280])for(const lang of ['en','ru'])for(const theme of ['light','dark']){
+    previewReviewed=false;previewNewHead=false;
+    await devtools.call('Emulation.setDeviceMetricsOverride',{width,height:900,deviceScaleFactor:1,mobile:width<620});
+    await open(`/?item=item-12&lang=${lang}`);
+    await devtools.evaluate(`if(document.documentElement.dataset.theme!==${JSON.stringify(theme)})document.querySelector('[data-theme-toggle]').click()`);await delay(200);
+    assert.equal(await devtools.evaluate("!!document.querySelector('[data-preview-review]')"),false);
+    await pointerClick('[data-run-action=preview_reviewed]');
+    await wait("!!document.querySelector('[data-preview-review=current]')");
+    assert.equal(await devtools.evaluate("!!document.querySelector('[data-run-action=preview_reviewed]')"),false);
+    await audit();await open(`/?item=item-12&lang=${lang}`);
+    await wait("!!document.querySelector('[data-preview-review=current]')");
+    if(width===390&&lang==='ru'&&theme==='light'){await devtools.evaluate("document.querySelector('[data-preview-review]').scrollIntoView({block:'center',behavior:'instant'})");const shot=await devtools.call<{data:string}>('Page.captureScreenshot',{format:'png',captureBeyondViewport:false});writeFileSync(resolve(out,'projects-preview-reviewed.png'),Buffer.from(shot.data,'base64'));}
+    previewNewHead=true;await open(`/?item=item-12&lang=${lang}`);
+    await wait("!!document.querySelector('[data-preview-review=outdated]')");await audit();
+    assert.equal(await devtools.evaluate("!!document.querySelector('[data-preview-review=current]')"),false);
+  }
+  previewReviewScenario=false;
+  for(const width of [320,390,1280])for(const lang of ['en','ru'])for(const theme of ['light','dark']){
+    startScenario='idle';startKey='';startWrites=0;
+    let releaseStart!:()=>void;startWriteGate=new Promise<void>(resolve=>{releaseStart=resolve;});
+    await devtools.call('Emulation.setDeviceMetricsOverride',{width,height:900,deviceScaleFactor:1,mobile:width<620});
+    await open(`/?item=item-15&lang=${lang}`);
+    await devtools.evaluate(`if(document.documentElement.dataset.theme!==${JSON.stringify(theme)})document.querySelector('[data-theme-toggle]').click()`);await delay(150);
+    assert.equal(await devtools.evaluate("!!document.querySelector('[data-start-task] select')"),false);
+    assert.equal(await devtools.evaluate("document.querySelector('[data-status-submit]').disabled"),false);
+    assert.ok(await devtools.evaluate("(()=>{const form=document.querySelector('[data-start-task]'),button=form.querySelector('[data-status-submit]');return Math.abs(form.getBoundingClientRect().width-button.getBoundingClientRect().width)<1;})()"),'single Start work button fills its row');
+    await pointerClick('[data-status-submit]');
+    await wait("document.querySelector('[data-status-submit]').getAttribute('aria-busy')==='true'");
+    await devtools.evaluate("document.querySelector('[data-status-submit]').click()");
+    await delay(100);assert.equal(startWrites,1,'double clicking starts one status request');
+    releaseStart();startWriteGate=null;
+    await wait("!!document.querySelector('[data-start-state=awaiting_sync]')");
+    assert.equal(await devtools.evaluate("document.querySelector('[data-status-submit]').disabled"),true);
+    await audit();await open(`/?item=item-15&lang=${lang}`);
+    assert.equal(await devtools.evaluate("document.querySelector('[data-start-task]').dataset.key"),startKey,'reload keeps the same durable start identity');
+    assert.equal(await devtools.evaluate("!!document.querySelector('[data-start-state=awaiting_sync]')"),true);
+    if(width===390&&lang==='ru'&&theme==='light'){const shot=await devtools.call<{data:string}>('Page.captureScreenshot',{format:'png',captureBeyondViewport:false});writeFileSync(resolve(out,'projects-task-start-waiting.png'),Buffer.from(shot.data,'base64'));}
+    for(const phase of ['admission','starting','running','blocked'] as const){
+      startScenario=phase;await open(`/?item=item-15&lang=${lang}`);await audit();
+      if(phase==='running'||phase==='blocked')assert.equal(await devtools.evaluate("!!document.querySelector('[data-status-form] select')"),true);
+      else assert.equal(await devtools.evaluate("document.querySelector('[data-status-submit]').disabled"),true);
+      if(phase==='blocked')assert.equal(await devtools.evaluate("document.querySelector('[data-status-note]').hidden"),false,'admission refusal stays visible and leaves status controls available');
+    }
+    assert.equal(startWrites,1,'refreshing and phase changes never start another request');
+  }
+  for(const lang of ['en','ru']){
+    startScenario='idle';startWrites=0;
+    await devtools.call('Emulation.setDeviceMetricsOverride',{width:390,height:900,deviceScaleFactor:1,mobile:true});
+    await open(`/?item=item-15&lang=${lang}`);
+    await devtools.evaluate("window.beforeUpgradeFetch=fetch;window.fetch=(...args)=>beforeUpgradeFetch(...args).then(response=>{if(!String(args[0]).includes('/api/fragment'))return response;const headers=new Headers(response.headers);headers.set('X-Kurami-Projects-Version','new-server-generation');return new Response(response.body,{status:response.status,headers});})");
+    startScenario='sync';startKey='upgrade-fixture';
+    await devtools.evaluate("document.dispatchEvent(new Event('visibilitychange'))");
+    await wait("document.querySelector('[data-toast-region]').dataset.tone==='warning'&&!document.querySelector('#projects-dashboard').dataset.refreshing");
+    assert.equal(await devtools.evaluate("document.querySelector('[data-start-task]').dataset.startState"),'idle','different-generation fragment never replaces the old card');
+    assert.equal(await devtools.evaluate("document.querySelector('[data-status-submit]').disabled"),true);
+    assert.match(await devtools.evaluate<string>("document.querySelector('[data-toast-message]').textContent"),lang==='ru'?/Перезагрузите/:/Reload/);
+    await devtools.evaluate("document.querySelector('[data-status-submit]').click()");assert.equal(startWrites,0);
+    await devtools.evaluate("window.fetch=beforeUpgradeFetch");startScenario='idle';
+    await open(`/?item=item-15&lang=${lang}`);
+    assert.equal(await devtools.evaluate("document.querySelector('[data-status-submit]').disabled"),false,'full reload restores the current generation');
+    await devtools.evaluate("window.savedRefreshFetch=fetch;window.fetch=(...args)=>String(args[0]).includes('/api/fragment')?Promise.reject(new Error('fixture offline')):savedRefreshFetch(...args);document.dispatchEvent(new Event('visibilitychange'))");
+    await wait("document.querySelector('[data-toast-region]').dataset.tone==='failure'&&!document.querySelector('#projects-dashboard').dataset.refreshing");
+    await devtools.evaluate("window.fetch=savedRefreshFetch;document.dispatchEvent(new Event('visibilitychange'))");
+    await wait("document.querySelector('[data-toast-region]').hidden&&!document.querySelector('#projects-dashboard').dataset.refreshing");
+    await audit();assert.equal(startWrites,0,'refresh recovery never starts the task');
   }
 } finally {
   await browser.close();

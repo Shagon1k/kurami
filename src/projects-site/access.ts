@@ -1,7 +1,7 @@
-import { createPublicKey, verify, type JsonWebKeyInput } from "node:crypto";
+import { createPublicKey, verify } from "node:crypto";
 import type { IncomingMessage } from "node:http";
+import {fetchAccessKeys,AccessVerificationUnavailableError,type AccessKey} from "../web/access-keys.ts";
 
-type AccessKey = JsonWebKeyInput["key"] & { kid: string };
 type AccessOptions = { team: string; audience: string; ownerEmail: string; identityPolicy?: "owner" | "access"; fetchKeys?: typeof fetch; now?: () => number };
 
 /** Validates the signed assertion and the owner's identity before serving private data. */
@@ -14,13 +14,7 @@ export class ProjectsAccess {
   private async refreshKeys(now: number): Promise<void> {
     if (this.fetching) return this.fetching;
     this.fetching = (async () => {
-      const response = await (this.options.fetchKeys ?? fetch)(`${this.options.team}/cdn-cgi/access/certs`, { signal: AbortSignal.timeout(5_000), redirect: "error" });
-      if (!response.ok) throw new Error("Access keys unavailable");
-      const raw = await response.text();
-      if (raw.length > 65_536) throw new Error("Access key response too large");
-      const body = JSON.parse(raw) as { keys?: AccessKey[] };
-      if (!Array.isArray(body.keys) || body.keys.length > 16) throw new Error("Invalid Access keys");
-      this.keys = { at: now, values: body.keys.filter(key => key && typeof key.kid === "string" && key.kty === "RSA") };
+      this.keys = { at: now, values: await fetchAccessKeys(this.options.team,this.options.fetchKeys) };
     })();
     try { await this.fetching; } finally { this.fetching = null; }
   }
@@ -43,8 +37,9 @@ export class ProjectsAccess {
       if (!this.keys || now - this.keys.at >= 3_600_000) await this.refreshKeys(now);
       let key = this.keys?.values.find(key => key.kid === header.kid);
       if (!key && this.keys && now - this.keys.at > 60_000) { await this.refreshKeys(now); key = this.keys?.values.find(key => key.kid === header.kid); }
+      if(claims.exp <= (this.options.now ?? Date.now)() / 1_000)return null;
       if (!key || !verify("RSA-SHA256", Buffer.from(`${parts[0]}.${parts[1]}`), createPublicKey({ key, format: "jwk" }), Buffer.from(parts[2]!, "base64url"))) return null;
       return claims.sub;
-    } catch { return null; }
+    } catch(error) { if(error instanceof AccessVerificationUnavailableError)throw error;return null; }
   }
 }

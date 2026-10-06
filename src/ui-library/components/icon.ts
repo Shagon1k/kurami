@@ -10,6 +10,7 @@ const paths={
   profile:"M3 4h18v16H3zM8 8a2 2 0 1 0 0 4 2 2 0 1 0 0-4M5 17v-1a3 3 0 0 1 6 0v1M14 9h4M14 13h4M14 17h3",
   language:"M3 5h12M9 2v3M5 5c1 5 4 8 8 10M13 5c-1 5-4 8-9 10M14 21l4-10 4 10M16 17h4",
   moon:"M20 15A9 9 0 0 1 9 4a9 9 0 1 0 11 11z",
+  sun:"M12 7.5a4.5 4.5 0 1 0 0 9 4.5 4.5 0 0 0 0-9zM12 2v2.5M12 19.5V22M4.9 4.9l1.8 1.8M17.3 17.3l1.8 1.8M2 12h2.5M19.5 12H22M4.9 19.1l1.8-1.8M17.3 6.7l1.8-1.8",
   home:"M3 11 12 3l9 8M5 9v12h5v-7h4v7h5V9",
   news:"M3 4h18v17H3zM6 7h5v5H6zM14 7h4M14 11h4M6 16h12",
   cinema:"M3 7h18v14H3zM3 7V3h18v4M6 3l3 4M13 3l3 4M9 11l6 3-6 3z",
@@ -29,7 +30,7 @@ const paths={
   project:"M3 6h7l2 2h9v12H3zM3 6V4h7l2 2",
   ci:"M4 4h16v16H4zM8 12l3 3 5-6",
   preview:"M3 4h18v14H3zM8 22h8M12 18v4M3 8h18",
-  refresh:"M20 7v5h-5M4 17v-5h5M5 7a8 8 0 0 1 14 0M19 17a8 8 0 0 1-14 0",
+  refresh:"M4.5 8a8.5 8.5 0 0 1 15 0M19.5 3.5V8H15M19.5 16a8.5 8.5 0 0 1-15 0M4.5 20.5V16H9",
   chevronDown:"M6 9l6 6 6-6",
   work:"M8 6V4h8v2M3 7h18v13H3zM3 12h18M10 11v3h4v-3",
   review:"M9 3h6v3H9zM7 5H4v16h16V5h-3M8 13l3 3 5-6",
@@ -54,5 +55,6 @@ const paths={
 } as const;
 export type IconName=keyof typeof paths;
 export function iconPath(name:IconName):string{return paths[name];}
-export function renderIcon(name:IconName):string{return `<svg class="ui-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="${paths[name]}"/></svg>`;}
+/** `tile` marks an icon that a theme may set on a plate (Neon); Paper draws it as a plain icon. */
+export function renderIcon(name:IconName,options:{tile?:boolean}={}):string{return `<svg class="ui-icon${options.tile?" ui-icon--tile":""}" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="${paths[name]}"/></svg>`;}
 export const ICON_CSS=`.ui-icon { width: var(--icon-size,18px); height: var(--icon-size,18px); color: var(--icon-color,inherit); flex: none; fill: none; stroke: currentColor; stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round; }`;

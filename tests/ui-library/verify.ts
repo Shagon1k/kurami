@@ -2,7 +2,10 @@ import assert from "node:assert/strict";
 import {execFileSync} from "node:child_process";
 import {resolve} from "node:path";
 import {colorRoles,scaleRoles,type Theme} from "../../src/ui-library/tokens/index.ts";
-import {kuramiTheme,themeCss,THEME_CSS} from "../../src/ui-library/themes/index.ts";
+import {kuramiTheme,paperTheme,neonTheme,themeVariants,themeCss,variantCss,THEME_CSS} from "../../src/ui-library/themes/index.ts";
+import {NEON_CSS} from "../../src/ui-library/themes/neon.ts";
+import {CHART_STYLES} from "../../src/ui-library/components/charts/index.ts";
+import {FIGURE_ATTRIBUTE,surfaceAttributes} from "../../src/ui-library/components/surface.ts";
 import {BRIEFING_STYLES} from "../../src/briefing/ui/styles.ts";
 import {DOCS_STYLES} from "../../src/human-docs/styles.ts";
 import {HUB_STYLES} from "../../src/hub/styles.ts";
@@ -19,12 +22,12 @@ import {renderSiteHeader,renderSiteNav,renderSiteSwitcher,SITE_HEADER_CSS} from 
 import {kuramiSites} from "../../src/ui-library/patterns/kurami-sites.ts";
 import {renderSiteFooter} from "../../src/ui-library/patterns/site-footer.ts";
 import {formatSiteDate} from "../../src/ui-library/foundations/date.ts";
-import {renderDocument} from "../../src/ui-library/patterns/page-shell.ts";
+import {renderDocument,VIEWPORT_META,withEdgeToEdgeViewport} from "../../src/ui-library/patterns/page-shell.ts";
 import {renderTable,TABLE_CSS} from "../../src/ui-library/components/table.ts";
 import {renderCallout,CALLOUT_CSS} from "../../src/ui-library/components/callout.ts";
 import {renderDisclosure,DISCLOSURE_CSS} from "../../src/ui-library/components/disclosure.ts";
 import {renderNumberField,renderSelectField,renderSearchField,renderCheckbox} from "../../src/ui-library/components/form.ts";
-import {renderStatCard,renderMeter} from "../../src/ui-library/components/stat-card.ts";
+import {renderStatCard,renderMeter,renderGauge,STAT_CARD_CSS} from "../../src/ui-library/components/stat-card.ts";
 import {renderIcon,iconPath,ICON_CSS} from "../../src/ui-library/components/icon.ts";
 import {renderSelectionControl,SELECTION_CONTROL_CSS} from "../../src/ui-library/components/selection-control.ts";
 import {renderPill} from "../../src/ui-library/components/pill.ts";
@@ -43,6 +46,19 @@ const attributedSelect=renderSelectField({name:"sort",label:"Order",value:"origi
 assert.match(attributedSelect,/<select name="sort" data-stock-sort aria-label="Order &amp; sort">/);
 assert.throws(()=>renderSelectField({name:"sort",label:"Order",value:"original",options:[],attributes:{onchange:"alert(1)"}}),/Unsafe select attribute/);
 assert.match(renderIcon("bellOff"),/aria-hidden="true"/);
+const refreshPath=iconPath("refresh");
+const refreshArcs=[...refreshPath.matchAll(/M([\d.]+) ([\d.]+)a([\d.]+) ([\d.]+) 0 0 1 ?(-?[\d.]+) 0/g)].map(match=>match.slice(1).map(Number));
+const refreshHeads=[...refreshPath.matchAll(/M([\d.]+) ([\d.]+)V([\d.]+)H([\d.]+)/g)].map(match=>match.slice(1).map(Number));
+assert.equal(refreshArcs.length,2);assert.equal(refreshHeads.length,2);
+for(let i=0;i<2;i++){
+  const [x,y,rx,ry,dx]=refreshArcs[i]!,[hx,hy,tipY,endX]=refreshHeads[i]!;
+  assert.equal(hx,x!+dx!,"refresh arc joins its arrowhead without a gap");assert.equal(tipY,y);
+  assert.equal(rx,ry);assert.equal(Math.hypot(x!-12,y!-12),rx,"both arcs share the icon's center");
+  assert.equal(Math.abs(hy!-tipY!),Math.abs(endX!-hx!),"arrowhead arms have equal length");
+}
+for(let i=0;i<4;i++)assert.equal(refreshHeads[0]![i]!+refreshHeads[1]![i]!,24,"refresh heads have half-turn symmetry");
+assert(renderIcon("refresh").includes(`d="${refreshPath}"`));
+assert(renderButton({label:"Sync",variant:"quiet",iconPath:refreshPath,visibleLabel:true}).includes(`d="${refreshPath}"`),"buttons and standalone icons share the corrected path");
 
 const root=resolve(import.meta.dirname,"../..");
 for(const lang of ["en","ru"] as const)for(const app of ["hub","digest","projects","docs"] as const){
@@ -150,6 +166,8 @@ assert(timedPage.includes(formatSiteDate("2026-09-16T07:00:00Z","ru",true)),"Dig
 assert.doesNotMatch(page,/fonts\.(googleapis|gstatic)\.com/,"Digest pages load no third-party fonts");
 const frozen='<html><head><link rel="preconnect" href="https://fonts.googleapis.com"><link href="https://fonts.googleapis.com/css2?family=Onest" rel="stylesheet"></head><body></body></html>';
 const served=injectRuntime(frozen);
+assert.equal((served.match(/name="viewport"/g)??[]).length,1);
+assert.ok(served.includes(VIEWPORT_META),"retained Digest editions opt into edge-to-edge when served");
 assert.doesNotMatch(served,/fonts\.googleapis\.com/,"older editions stop requesting Google Fonts");
 assert.ok(served.includes('url("/assets/onest-latin.woff2")'),"older editions get self-hosted faces");
 assert.equal(injectRuntime(page).includes("@font-face"),page.includes("@font-face"),"current pages are not given a second copy");
@@ -163,13 +181,61 @@ const injected=injectRuntime(page);
 assert.equal(injected.split(THEME_SCRIPT_TAG).length,2,"one theme script");
 assert.ok(injected.indexOf(THEME_SCRIPT_TAG)<injected.indexOf("</head>"),"theme script runs in head");
 assert.equal(injectRuntime(injected).split(THEME_SCRIPT_TAG).length,2,"injection is idempotent");
-// One switch markup for every site: constant accessible name, state in aria-pressed.
-for(const [lang,name] of [["ru","Тёмная тема"],["en","Dark theme"]] as const){
-  const button=renderThemeSwitch(lang);
-  assert.match(button,/data-theme-toggle[^>]*aria-pressed="false"/);
-  assert.match(button,new RegExp(`<span class="sr-only">${name}</span>`));
-  assert.match(button,/data-theme-icon/);
+// One theme control for every site: a menu button with a constant name that opens theme and mode choices.
+for(const [lang,name,hint] of [["ru","Тема","Действует, пока открыто приложение"],["en","Theme","Lasts while the app is open"]] as const){
+  const menu=renderThemeSwitch(lang);
+  assert.match(menu,/^<div class="theme-menu" data-theme-menu><button class="button button--icon theme-switch"[^>]*data-theme-toggle[^>]*aria-haspopup="true" aria-expanded="false" popovertarget="kurami-theme-menu"/);
+  assert.match(menu,new RegExp(`<span class="sr-only">${name}</span>`));
+  assert.match(menu,/data-theme-icon/);
+  assert.match(menu,/<div class="ui-popover theme-menu__panel" data-theme-panel id="kurami-theme-menu"[^>]*popover="auto"/);
+  for(const choice of ["paper",...themeVariants.map(variant=>variant.name)])assert.match(menu,new RegExp(`data-theme-choice="${choice}"`),choice);
+  for(const mode of ["light","dark"])assert.match(menu,new RegExp(`data-mode-choice="${mode}"`),mode);
+  assert.doesNotMatch(menu,/data-theme-choice="default"/,"the Hub default is not a menu option");
+  assert.ok(menu.includes(hint),"the menu says the choice lasts the session");
+  assert.match(menu,/<button class="ui-info"[^>]*aria-controls="kurami-theme-menu-note"/,"the session note sits behind an info button");
+  assert.match(menu,/<p class="ui-info-note" id="kurami-theme-menu-note" role="note" hidden>/,"the note is hidden until asked for");
+  assert.match(menu,/<div class="theme-menu__modes" role="group"[^>]*>(?:<button[^>]*class="button button--toggle button--compact theme-menu__mode"[^>]*data-mode-choice="(?:light|dark)"[^>]*>.*?<\/button>){2}<\/div><\/div><div class="theme-menu__themes"/,"the mode is a small switch in the heading, the themes are cards below it");
+  assert.match(menu,/<span class="theme-menu__swatch" data-swatch="neon" aria-hidden="true"><\/span>Neon/,"each theme card shows a preview");
+  assert.doesNotMatch(menu,/aria-pressed="true"/,"the runtime, not the server, marks the current choice");
 }
+// Theme variants: complete tokens, applied only under their own selector, after Paper.
+for(const variant of themeVariants){
+  const css=variantCss(variant);
+  for(const role of colorRoles)assert.match(css,new RegExp(`--${role}: `),`${variant.name} ${role}`);
+  for(const role of scaleRoles)assert.match(css,new RegExp(`--${role}: `),`${variant.name} scale ${role}`);
+  assert.ok(THEME_CSS.indexOf(css)>THEME_CSS.indexOf('html[data-theme="dark"]'),`${variant.name} follows Paper`);
+}
+assert.ok(THEME_CSS.startsWith(themeCss(paperTheme)),"Paper tokens come first and unchanged");
+const neonRules=NEON_CSS.split("\n").filter(line=>/^\S.*\{/.test(line)&&!line.startsWith("@"));
+assert.ok(neonRules.length>5&&neonRules.every(line=>line.startsWith('html[data-kurami-theme="neon"]')),"Neon dressing never reaches Paper");
+assert.ok(neonTheme.modes.dark&&neonTheme.modes.light,"Neon has dark and light modes");
+assert.match(variantCss(neonTheme),/^html\[data-kurami-theme="neon"\] \{[^}]*color-scheme: dark;[^}]*\}\nhtml\[data-kurami-theme="neon"\]\[data-theme="light"\] \{ color-scheme: light;/,"Neon dark is the base, light applies under data-theme=light");
+assert.match(variantCss(neonTheme),/\[data-theme="light"\] \{[^}]*--display-glow: /,"light Neon softens its glow");
+assert.match(THEME_RUNTIME_JS,/"neon":\["dark","light"\]/,"runtime knows Neon's modes, dark first");
+assert.match(THEME_RUNTIME_JS,/kurami-theme-default=/,"runtime reads the Hub default");
+assert.match(THEME_RUNTIME_JS,/sessionStorage\.setItem/,"a menu choice lasts the session");
+assert.doesNotMatch(THEME_RUNTIME_JS,/localStorage\.setItem/,"a menu choice never persists on the device");
+// Stage 2: opt-in surfaces, gauges, icon plates and chart areas draw nothing new in Paper.
+assert.equal(surfaceAttributes("panel")," data-ui-surface=\"panel\"");
+assert.equal(surfaceAttributes("lead",{attention:true})," data-ui-surface=\"lead\" data-ui-attention");
+const gaugeStat=renderStatCard({label:"CPU",value:"12%",plain:true}),gaugeMeter=renderMeter({value:12,label:"CPU"});
+assert.equal(renderGauge({stat:gaugeStat,meter:gaugeMeter}),`<div class="ui-gauge">${gaugeStat}${gaugeMeter}</div>`);
+assert.throws(()=>renderGauge({stat:"<p>x</p>",meter:gaugeMeter}),/stat card and a meter/);
+assert.match(gaugeMeter,/style="--meter-fill:12%"><span><\/span>/,"the meter exposes its fill to themes");
+assert.match(STAT_CARD_CSS,/\.ui-gauge \{ display: contents; \}/,"a gauge keeps Paper's stacked layout");
+assert.match(renderIcon("alert",{tile:true}),/class="ui-icon ui-icon--tile"/);
+assert.equal(renderIcon("alert"),renderIcon("alert",{tile:false}));
+assert.match(CHART_STYLES,/\.chart__area \{ display: none; \}/,"chart areas are hidden in Paper");
+assert.match(NEON_CSS,/\.chart__area \{ display: inline;/,"Neon fills chart areas");
+assert.match(NEON_CSS,/img\.site-brand__fox \{ display: none; \}\n.*\.site-brand__fox--neon \{ display: block;/,"Neon shows the neon-tube fox; Paper keeps its mark");
+assert.doesNotMatch(THEME_CSS,/url\("data:image/,"no data: images in theme CSS: the apps' CSP (img-src 'self') blocks them");
+assert.match(NEON_CSS,/\.button\[aria-busy="true"\]::before/,"a busy button shows the charge line");
+assert.equal(FIGURE_ATTRIBUTE," data-ui-figure");
+for(const selector of ['[data-ui-surface="lead"]','[data-ui-attention]','.ui-gauge','.ui-icon--tile','.ui-figure-blip','.ui-ripple','.ui-glitch','[data-ui-figure]'])assert.ok(NEON_CSS.includes(selector),`Neon styles ${selector}`);
+assert.match(NEON_CSS,/@supports \(corner-shape: bevel\)/,"bevels only where supported; rounded corners elsewhere");
+assert.match(NEON_CSS,/prefers-reduced-motion: no-preference/,"Neon motion respects reduced motion");
+assert.match(THEME_RUNTIME_JS,/kuramiNeonMotion/,"runtime carries Neon motion");
+assert.match(THEME_RUNTIME_JS,/prefers-reduced-motion: reduce/,"motion checks reduced motion at runtime");
 assert.match(renderLinkButton({label:"RU",href:"/ru/",variant:"icon",attributes:{hreflang:"ru"}}),/^<a class="button button--icon" href="\/ru\/" hreflang="ru">RU<\/a>$/);
 assert.match(renderButton({label:"Reset",variant:"subtle",size:"compact"}),/^<button class="button button--subtle button--compact" type="button">Reset<\/button>$/);
 assert.match(renderLinkButton({label:"More",href:"/more/",variant:"subtle",size:"compact"}),/^<a class="button button--subtle button--compact"/);
@@ -231,6 +297,18 @@ assert.throws(()=>renderLinkButton({label:"X",href:"/",variant:"icon",className:
 assert.throws(()=>renderLinkButton({label:"X",href:"/",variant:"icon",visibleLabel:false}),/requires an icon/);
 assert.match(renderSiteSwitcher(kuramiSites("hub")),/href="https:\/\/kurami\.shagon1k\.win\/ru\/docs\/"/);
 const documentHtml=renderDocument({lang:"en",title:"T",favicon:"/f.svg",styles:{href:"/s.css"},themeScript:true,skipLabel:"Skip",header,main:"<p>m</p>",footer:"<footer></footer>"});
+assert.ok(documentHtml.includes(VIEWPORT_META));
+assert.doesNotMatch(VIEWPORT_META,/user-scalable|maximum-scale/,"edge-to-edge does not disable zoom");
+for(const old of ['', '<meta name="viewport" content="width=device-width">', "<meta content='initial-scale=1, viewport-fit=auto' name='viewport'>",'<meta NAME=viewport content="width=device-width"><meta name="viewport" content="initial-scale=1">']){
+  const rawText='<script>const old=\'<meta name="viewport" content="old">\';</script><style>/* <meta name="viewport"> */</style><!-- <meta name="viewport"> -->';
+  const updated=withEdgeToEdgeViewport(`<html><head>${rawText}${old}</head><body></body></html>`);
+  assert.ok(updated.includes(rawText),"scripts, styles and comments remain unchanged");
+  assert.equal(updated.split(VIEWPORT_META).length,2,"one canonical viewport");
+  assert.equal(withEdgeToEdgeViewport(updated),updated,"viewport upgrade is idempotent");
+}
+const fragment='<div><meta name="viewport" content="fragment"></div>';
+assert.equal(withEdgeToEdgeViewport(fragment),fragment,"API fragments are not documents");
+assert.ok(withEdgeToEdgeViewport('<head><meta content=\'name="viewport"\' name="description"></head>').includes('<meta content=\'name="viewport"\' name="description">'),"attribute values are not treated as attributes");
 assert.match(documentHtml,/<a class="skip-link" href="#main">Skip<\/a>/);
 assert.match(documentHtml,/<main id="main" class="container" tabindex="-1">/);
 assert.ok(documentHtml.indexOf(THEME_SCRIPT_TAG)<documentHtml.indexOf("</head>"));

@@ -18,7 +18,7 @@ and shared sans-serif labels. Docs includes the icon stylesheet explicitly and
 retains its section hierarchy. Project icons cover
 the all-projects folder, panda, fox and profile card.
 
-The dock uses a warm surface, 82% opacity and 12px backdrop blur; text and icons
+The dock uses a warm surface, 72% opacity and 12px backdrop blur; text and icons
 stay opaque. Browsers without backdrop blur keep an opaque surface. Side and lower
 margins detach the capsule from the viewport; the lower margin sits above the
 safe area. At normal text size the dock is 66px high with 56px tap targets and
@@ -302,3 +302,40 @@ The `toggle` button variant recognizes `aria-current="true"` on links as well as
 `aria-pressed="true"` on buttons. Its selected color, surface and border properties
 let Stocks use the data accent while preserving navigation and no-JavaScript
 fallbacks. These refinements add no new product-specific UI exceptions.
+
+## Themes: Paper and Neon
+
+The original theme is named **Paper** (`themes/kurami.ts`, exported as `paperTheme`/`kuramiTheme`): light and dark modes, applied with `:root` and `html[data-theme="dark"]`.
+
+**Neon** (`themes/neon.ts`) is a theme variant (`ThemeVariant`): the Kurami fox as a red neon sign. Red (`accent-primary`) marks the sign — fox outline, lead-block frames, display headings and the main action. Yellow (`accent-data`, `focus-ring`, `chart-4`) is second: data, selection, secondary actions and press feedback. Blue (`status-info`, `chart-1`) is third: information, info tips and quiet controls on hover. Links stay red (`text-accent`). Neon's dark mode is its base and main look. Its light mode keeps the red sign on a cool daylight ground (`#f6f4fa`), with deep amber in place of yellow. It applies under `[data-theme="light"]`, and its `scale` overrides soften the glows. Neon is applied with `html[data-kurami-theme="neon"]` after Paper, so it wins at equal specificity. A first Neon pick on a device with no stored mode starts dark.
+
+Neon-specific dressing that a token cannot express lives in `NEON_CSS`: the scan-line ground with corner glows, the header sign line, the fox drawn as neon tubes (`assets/brand/neon-fox.ts`, also the source of the Neon PWA icons; it lights up on load), display type, buttons by rank, the lit segment on panel edges, the "//" mark on section titles, the press ring, the busy charge line and the changed-figure flash. It ships inside `THEME_CSS`, and every rule there is scoped to Neon, so Paper is unchanged. The test suite asserts this.
+
+Scale roles added for themed display and lead blocks. Paper sets them to its current values:
+
+| Role | Paper | Neon |
+| --- | --- | --- |
+| `font-display` | Onest | Tektur (self-hosted OFL, latin/cyrillic subsets, loaded only when used) |
+| `display-case`, `display-tracking` | `none`, `-.045em` | `uppercase`, `.01em` |
+| `display-glow` | `none` | red neon text glow |
+| `panel-cut` | `none` | chamfered `clip-path` polygon for lead blocks |
+| `panel-glow` | `none` | red `drop-shadow` filter for lead blocks |
+
+**Theme control.** `renderThemeSwitch(lang)` renders a menu. The header button looks as before and stays filled while the page is dark. It opens a popover with:
+
+- the theme: Paper or Neon, as two cards with a small preview;
+- the mode: a sun/moon switch in the heading row, like the language and period switches; options a theme lacks are disabled.
+
+The two kinds of choice look different on purpose, so the menu never reads as four themes. The session note sits behind an "i" (`renderInfoButton`/`renderInfoNote`).
+
+On phones the mobile navigation moves the menu into the Settings sheet, where the options show inline with 44 px targets.
+
+**Runtime order.** `runtime/theme.ts` resolves the theme in this order:
+
+1. The session choice from the header menu: `sessionStorage` keys `kurami-theme` (mode) and `kurami-theme-name`.
+2. The Hub default: the `kurami-theme-default=<theme>.<mode>` cookie set by the web gateway.
+3. Paper in the system mode.
+
+The Hub default is the lasting theme. A menu choice lasts while the app or tab is open; every app is served from one origin, so it carries between apps in that session, and a new session starts from the default again. Choices stored in `localStorage` by the former per-device switch are deleted on load. Applying a new default in Hub ends the session choice on that page. Saved Digest editions keep their legacy toggle; it switches the mode for the session.
+
+`npm run test:ui-browser` checks the runtime order, the keyboard path through the menu and the phone settings sheet. By default it screenshots and audits one variant of each theme: Paper light and Neon dark. `test:ui-browser:all` adds Paper dark and Neon light, for changes to the library and themes. The guard rejects theme branches (`[data-theme]`, `[data-kurami-theme]`) in product code.

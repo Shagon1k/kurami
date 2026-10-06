@@ -29,7 +29,7 @@ function initializeCharts(factory: typeof createChartEngine): void {
       const visible=new Set(spec.series.map((_,index)=>index));
       let windowSize=spec.initialWindow ?? spec.categories.length;
       let tipRevision=0;
-      const hideTip=()=>{tipRevision++;tooltip.hidden=true;};
+      const hideTip=()=>{tipRevision++;if(!tooltip.hidden)tooltip.hidden=true;};
       const showTip=(point:Element)=>{
         tooltip.textContent=point.getAttribute("data-chart-value") ?? "";
         tooltip.hidden=false;
@@ -62,7 +62,7 @@ function initializeCharts(factory: typeof createChartEngine): void {
         for(const series of layout.series) {
           const group=node("g",{class:"chart__series chart__series--"+series.color});
           if(spec.kind==="trend")for(const segment of series.segments)if(segment.length>1)
-            group.append(node("polyline",{points:segment.map(point=>point.x+","+point.y).join(" ")}));
+            group.append(node("polygon",{class:"chart__area",points:segment.map(point=>point.x+","+point.y).join(" ")+" "+segment[segment.length-1].x+","+p.bottom+" "+segment[0].x+","+p.bottom}),node("polyline",{points:segment.map(point=>point.x+","+point.y).join(" ")}));
           for(const point of series.points) {
             const target=node("g",{class:"chart__point"+(point.partial?" chart__point--partial":""),
               "data-chart-point":"","data-chart-series":series.index,"data-chart-index":point.index,"data-chart-value":point.text,
@@ -176,7 +176,7 @@ export const CHART_CLIENT_SCRIPT=`(()=>{
   mount();document.addEventListener("kurami:charts-mount",mount);
   document.addEventListener("pointerdown",event=>{
     document.querySelectorAll("[data-chart]").forEach(root=>{
-      if(!root.contains(event.target)){const tip=root.querySelector("[data-chart-tooltip]");if(tip)tip.hidden=true;}
+      if(!root.contains(event.target)){const tip=root.querySelector<HTMLElement>("[data-chart-tooltip]");if(tip&&!tip.hidden)tip.hidden=true;}
     });
   });
 })();`;

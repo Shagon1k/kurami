@@ -1,12 +1,15 @@
 import type {Theme} from "../tokens/index.ts";
 
-// The Kurami paper-and-signal theme: warm paper surfaces, ink text and one red accent.
+// Paper: the default Kurami theme — warm paper surfaces, ink text and one red accent.
 export const kuramiTheme:Theme={
-  name:"kurami",
+  name:"paper",
   scale:{
     "font-sans":'"Onest", system-ui, -apple-system, "Segoe UI", sans-serif',
     "font-mono":'"Fragment Mono", ui-monospace, SFMono-Regular, Menlo, monospace',
     "font-note":'"Caveat", "Segoe Print", cursive',
+    "font-display":'"Onest", system-ui, -apple-system, "Segoe UI", sans-serif',
+    "display-case":"none","display-tracking":"-.045em","display-glow":"none",
+    "panel-cut":"0px","panel-glow":"none",
     "radius-sm":"2px","radius":"3px","radius-md":"4px","radius-pill":"999px",
     "shadow-card":"4px 4px 0 var(--shadow-offset)",
     "shadow-card-sm":"3px 3px 0 var(--shadow-offset)",

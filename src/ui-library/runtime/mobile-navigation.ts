@@ -37,10 +37,13 @@ function mobileNavigationRuntime(phoneWidth:number) {
       const panel=readingPanel();if(!panel)return;
       const slot=app==='hub'?panel.querySelector('nav'):panel.querySelector('[data-mobile-slot="contents"]');
       if(!slot||slot.querySelector('.toc-mobile__list'))return;
-      slot.replaceChildren();
       const headings=[...document.querySelectorAll<HTMLElement>('main h2')].filter(heading=>heading.textContent?.trim()&&heading.getClientRects().length&&!heading.closest('dialog,.ui-popover,[hidden]'));
-      for(const [index,heading] of headings.entries()){
-        if(!heading.id)heading.id=`mobile-section-${index+1}`;
+      for(const [index,heading] of headings.entries())if(!heading.id)heading.id=`mobile-section-${index+1}`;
+      // Rebuild only when the sections changed: a rebuild under a finger detaches the link being tapped.
+      const current=[...slot.querySelectorAll<HTMLAnchorElement>('a.mobile-navigation__anchor')].map(link=>`${link.getAttribute('href')}\n${link.textContent}`);
+      if(headings.length&&current.join('\n')===headings.map(heading=>`#${heading.id}\n${heading.textContent}`).join('\n'))return;
+      slot.replaceChildren();
+      for(const heading of headings){
         const link=document.createElement('a');link.className='mobile-navigation__anchor';link.href=`#${heading.id}`;link.textContent=heading.textContent;slot.append(link);
       }
       if(!headings.length){const note=document.createElement('p');note.textContent=ru?'На этой странице нет разделов.':'No sections on this page.';slot.append(note);}
@@ -127,9 +130,9 @@ function mobileNavigationRuntime(phoneWidth:number) {
       const node=document.querySelector(selector),slot=shell.querySelector(`[data-mobile-slot="${key}"]`);if(!node||!slot)return;
       const anchor=document.createComment('mobile navigation source');node.before(anchor);moves.push({node,anchor,slot});
     }
-    header.querySelectorAll('.site-actions > .button,.site-actions > button').forEach(node=>{
+    header.querySelectorAll('.site-actions > .button,.site-actions > button,.site-actions > [data-theme-menu]').forEach(node=>{
       if(node.matches('[data-hub-control]'))return;
-      const key=node.matches('[data-theme-toggle]')?'theme':node.matches('a[hreflang]')?'language':null;if(!key)return;
+      const key=node.matches('[data-theme-toggle],[data-theme-menu]')?'theme':node.matches('a[hreflang]')?'language':null;if(!key)return;
       const slot=shell.querySelector(`[data-mobile-slot="${key}"]`)!,anchor=document.createComment('mobile setting');node.before(anchor);moves.push({node,anchor,slot});
     });
     if(app==='hub'){move('#hub-controls-popover .controls-menu','controls');if(!moves.some(item=>item.slot.getAttribute('data-mobile-slot')==='controls'))shell.querySelector<HTMLButtonElement>('[data-mobile-menu="controls"]')!.disabled=true;}
@@ -138,7 +141,10 @@ function mobileNavigationRuntime(phoneWidth:number) {
     function adapt(){
       if(!media.matches)close();
       for(const item of moves)if(media.matches)item.slot.append(item.node);else item.anchor.after(item.node);
-      header.querySelectorAll('[data-theme-toggle]').forEach(button=>button.classList.toggle('button--switch',media.matches));
+      header.querySelectorAll('[data-theme-toggle]:not([aria-haspopup])').forEach(button=>button.classList.toggle('button--switch',media.matches));
+      // In the settings sheet the theme menu shows its options inline instead of as a popover.
+      shell.querySelectorAll<HTMLElement>('[data-mobile-slot="theme"] [data-theme-panel]').forEach(panel=>{panel.hidePopover?.();panel.removeAttribute('popover');});
+      header.querySelectorAll<HTMLElement>('.site-actions [data-theme-panel]:not([popover])').forEach(panel=>panel.setAttribute('popover','auto'));
       header.querySelectorAll('[data-hub-control]').forEach(button=>button.classList.toggle('mobile-navigation__action',media.matches));
       const periodRow=shell.querySelector<HTMLElement>('[data-mobile-period-row]');if(periodRow)periodRow.hidden=!periodRow.querySelector('[data-floating-period]');
       fillContents();links();reading();viewport();
@@ -165,7 +171,7 @@ function mobileNavigationRuntime(phoneWidth:number) {
         }else{replaying=true;try{(link??control)!.click();}finally{replaying=false;}}
       });
     },true);
-    document.addEventListener('pointerdown',event=>{if(active&&event.target instanceof Node&&!shell.contains(event.target)&&!active.contains(event.target))close();});
+    document.addEventListener('pointerdown',event=>{if(active&&event.target instanceof Node&&event.target.isConnected&&!shell.contains(event.target)&&!active.contains(event.target))close();});
     document.addEventListener('click',event=>{
       if(replaying||!pending||!(event.target instanceof Element)||shell.contains(event.target)||event.ctrlKey||event.metaKey||event.shiftKey||event.altKey)return;
       const target=event.target.closest<HTMLElement>('a[href],button,tr,[role="button"]');

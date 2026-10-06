@@ -11,10 +11,11 @@ import {PERIOD_SWITCH_CSS} from "../ui-library/components/period-switch.ts";
 import {ICON_CSS} from "../ui-library/components/icon.ts";
 import {STAT_CARD_CSS} from "../ui-library/components/stat-card.ts";
 import {POPOVER_CSS} from "../ui-library/components/popover.ts";
+import {TOAST_CSS} from "../ui-library/components/toast.ts";
 
 import {CHART_STYLES} from "../ui-library/components/charts/styles.ts";
 
-export const HUB_STYLES=`${THEME_CSS}${FOUNDATION_CSS}${BUTTON_CSS}${THEME_SWITCH_CSS}${SITE_HEADER_CSS}${TABLE_CSS}${DISCLOSURE_CSS}${FORM_CSS}${DIALOG_CSS}${PERIOD_SWITCH_CSS}${ICON_CSS}${STAT_CARD_CSS}${POPOVER_CSS}${CHART_STYLES}
+export const HUB_STYLES=`${TOAST_CSS}${THEME_CSS}${FOUNDATION_CSS}${BUTTON_CSS}${THEME_SWITCH_CSS}${SITE_HEADER_CSS}${TABLE_CSS}${DISCLOSURE_CSS}${FORM_CSS}${DIALOG_CSS}${PERIOD_SWITCH_CSS}${ICON_CSS}${STAT_CARD_CSS}${POPOVER_CSS}${CHART_STYLES}
 body { min-height: 100vh; }
 .hub { padding-block: var(--space-6) var(--space-10); }
 .hub__topline { display: flex; align-items: baseline; justify-content: flex-end; gap: var(--space-4); margin-bottom: var(--space-4); }
@@ -148,6 +149,7 @@ body { min-height: 100vh; }
 .control-fields { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: var(--space-4); }
 .control-actions { display: flex; justify-content: flex-end; flex-wrap: wrap; gap: var(--space-2); margin-top: var(--space-4); }
 .control-summary { font-size: .85rem; overflow-wrap: anywhere; white-space: pre-line; }
+.control-about { display: flex; align-items: center; margin: 0; color: var(--text-muted); font-size: .85rem; }
 .control-form + .control-form { margin-top: var(--space-6); padding-top: var(--space-4); border-top: 1px solid var(--border-subtle); }
 .composio-contours { border: 1px solid var(--border-subtle); border-radius: var(--radius); }
 .composio-contour { padding: var(--space-3); }

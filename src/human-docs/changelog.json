@@ -2,6 +2,116 @@
   "baseline": "4a38c09",
   "publicationBaseline": "788787f077d42fc3b3346a4f4a612947b97ce2e8",
   "commits": {
+    "ee02f37312508acac4d044cfcd223884d7e65bcc": {
+      "category": "improved",
+      "en": "The shared mobile dock sits another 5px lower in Hub, Projects, Digest and Docs, leaving a 3px gap above the bottom safe area. Menus, notifications and reserved content spacing follow the new position. Dock sizing, side margins, transparency and desktop navigation are unchanged.",
+      "ru": "Общий мобильный док в Hub, Projects, Digest и Docs опущен ещё на 5 пикселей: над нижней безопасной областью остаётся зазор 3 пикселя. Меню, уведомления и резерв места для содержимого учитывают новое положение. Размеры дока, боковые отступы, прозрачность и desktop-навигация не изменены.",
+      "page": "ui-library"
+    },
+    "281a6f5fba3268f05bdb8256d3283665df170e0a": {
+      "category": "operations",
+      "en": "",
+      "ru": "",
+      "exclusionScope": "docs-only",
+      "exclude": "Adds only the reviewed bilingual Changelog classification for the lower mobile dock; application behavior is unchanged."
+    },
+    "d777fcbd18b88f8e580fa6bfa85444fa360f5ae6": {
+      "category": "improved",
+      "en": "The shared mobile dock sits 4px lower in Hub, Projects, Digest and Docs, with an 8px gap above the bottom safe area. Menus, notifications and reserved content spacing follow the smaller gap. Side margins, dock sizing, transparency and desktop navigation are unchanged.",
+      "ru": "Общий мобильный док в Hub, Projects, Digest и Docs опущен на 4 пикселя: зазор над нижней безопасной областью составляет 8 пикселей. Меню, уведомления и резерв места для содержимого учитывают уменьшенный зазор. Боковые отступы, размеры дока, прозрачность и desktop-навигация не изменены.",
+      "page": "ui-library"
+    },
+    "16b007307f7b93ff09df68db2770e4da0b430f19": {
+      "category": "operations",
+      "en": "",
+      "ru": "",
+      "exclusionScope": "docs-only",
+      "exclude": "Adds only the reviewed bilingual Changelog classification for the mobile edge-to-edge fix; application behavior is unchanged."
+    },
+    "03bd6c510bad450461c45ca546e28ec9cf247502": {
+      "category": "fixed",
+      "en": "Browser tabs and PWA pages use the shared edge-to-edge viewport, including retained Digest editions and offline pages. The page background extends to screen edges; the dock, menus, dialogs and issue drawer respect safe screen insets. Page spacing reserves the maximum bottom inset where supported to avoid scroll jumps. Native system-bar transparency still depends on the browser and OS and requires a phone check.",
+      "ru": "Вкладки браузера и страницы PWA используют общую оболочку edge-to-edge, включая сохранённые выпуски Digest и офлайн-страницы. Фон страницы доходит до краёв экрана; док, меню, диалоги и карточка issue учитывают безопасные отступы. Страница резервирует максимальный нижний отступ, если браузер это поддерживает, без скачков прокрутки. Прозрачность системной полосы по-прежнему зависит от браузера и ОС и требует проверки на телефоне.",
+      "page": "ui-library"
+    },
+    "309468afd477591799a9f78cc9bf900c28f7f85b": {
+      "category": "operations",
+      "en": "",
+      "ru": "",
+      "exclusionScope": "docs-only",
+      "exclude": "Adds only the reviewed bilingual Changelog classification for the synchronization icon fix; application behavior is unchanged."
+    },
+    "e8caf45bbd2ad41f657a53142818246119e8d373": {
+      "category": "fixed",
+      "en": "The shared synchronization icon has symmetrical circular arcs connected to equal-length arrowheads without gaps. Sync controls, pending status indicators and result-check buttons use the same corrected outline. Icon sizing, stroke width and action behavior are unchanged.",
+      "ru": "Общая иконка синхронизации получила симметричные дуги, соединённые без зазоров с наконечниками равной длины. Sync, отметки ожидающей синхронизации статуса и кнопки проверки результата используют один исправленный контур. Размеры, толщина линии и поведение действий не изменены.",
+      "page": "ui-library"
+    },
+    "f1e4b3a5486c4a72ca569763a1f7f15dd0d82534": {
+      "category": "operations",
+      "en": "",
+      "ru": "",
+      "exclusionScope": "docs-only",
+      "exclude": "Adds only the reviewed bilingual Changelog classification for the Access verification outage fix; application behavior is unchanged."
+    },
+    "8fd56e946984c7b7ff2dc744674ec1472e744b7a": {
+      "category": "fixed",
+      "en": "Access signature verification allows 15 seconds to fetch Cloudflare public keys instead of five. Key endpoint timeouts, network errors and malformed responses return a temporary 503 message rather than Access denied. Invalid assertions remain denied; token expiry is checked again after fetching keys. Hub and Projects share the bounded key-fetch helper and keep private data and actions closed until verification succeeds.",
+      "ru": "Проверка подписи Access ожидает публичные ключи Cloudflare до 15 секунд вместо пяти. Таймауты, сетевые ошибки и некорректные ответы сервиса ключей возвращают временную ошибку 503 вместо отказа в доступе. Неверные токены по-прежнему отклоняются; срок действия повторно проверяется после получения ключей. Hub и Projects используют общую функцию загрузки ключей с ограничениями; приватные данные и действия остаются недоступны до успешной проверки.",
+      "page": "access"
+    },
+    "9a215e7325cac1ce07d7b1ab9e4b26c95f1ea520": {
+      "category": "operations",
+      "en": "",
+      "ru": "",
+      "exclusionScope": "docs-only",
+      "exclude": "Adds only the reviewed bilingual Changelog classification for the Projects refresh compatibility fix; application behavior is unchanged."
+    },
+    "51c07ed2d0f896e68d6cdc02eeb9e29767d7c450": {
+      "category": "fixed",
+      "en": "Projects explicitly stretches its single Start work button across the row and shortens the pre-launch hint. CSS, JavaScript and card fragments share a compatibility version. An open tab receiving a different version keeps its previous card, disables writes and asks for a reload instead of inserting incompatible markup. A successful refresh clears its previous refresh-error notice; unrelated action errors remain visible.",
+      "ru": "Projects явно растягивает единственную кнопку «Начать работу» на всю строку и сокращает пояснение до запуска. CSS, JavaScript и фрагменты карточки используют общую версию совместимости. Если открытая вкладка получает другую версию, она сохраняет прежнюю карточку, блокирует запись и просит перезагрузку вместо подстановки несовместимой разметки. Успешное обновление убирает прежнее сообщение о сбое обновления; ошибки других действий остаются видны.",
+      "page": "owner-controls"
+    },
+    "263b6fd186396bddef57ef8efd75a6ff96100201": {
+      "category": "operations",
+      "en": "",
+      "ru": "",
+      "exclusionScope": "docs-only",
+      "exclude": "Adds only the reviewed bilingual Changelog classification for one-click task start; application behavior is unchanged."
+    },
+    "b1e7074b101ffb8d5f7bde70fc68500f689ad3a9": {
+      "category": "improved",
+      "en": "Projects offers Start work for Backlog issues without a separate status selection and Save. The card shows the request, synchronization, admission and session preparation, preserving waiting after reload through the existing request receipt. Repeated clicks reuse the same request. Admission failures show a reason and leave status controls available; other task states retain the status editor. GitHub polling and the Orchestrator still own task creation.",
+      "ru": "Для issue в Backlog Projects показывает кнопку «Начать работу» без отдельного выбора статуса и сохранения. Карточка показывает запрос, синхронизацию, допуск и подготовку сессии; ожидание сохраняется после перезагрузки по квитанции существующего запроса. Повторные клики используют тот же запрос. Отказ допуска показывает причину и оставляет изменение статуса доступным; для остальных состояний редактор статуса сохранён. Создание запуска остаётся за опросом GitHub и Orchestrator.",
+      "page": "owner-controls"
+    },
+    "f6b3a6d941f839cdf2f588324f48bd74a554eafa": {
+      "category": "operations",
+      "en": "",
+      "ru": "",
+      "exclusionScope": "docs-only",
+      "exclude": "Adds only the reviewed bilingual Changelog classification for the refactor and preview review marker; application behavior is unchanged."
+    },
+    "d147466af26570b5d6da6cc82c0c1ce2b1f6d9d2": {
+      "category": "improved",
+      "en": "Projects keeps a green Preview reviewed marker after acknowledgement. When the current commit differs, an amber marker identifies the reviewed earlier commit; missing commit data does not imply verification. Shared helpers replace duplicated action transport, status presentation, run projections, env parsing and Digest topic updates. Request keys, timeouts, transaction boundaries and merge eligibility are unchanged.",
+      "ru": "Projects сохраняет зелёную отметку «Превью просмотрено» после подтверждения. Если текущий коммит изменился, янтарная отметка сообщает о просмотре предыдущего коммита; отсутствие данных коммита не считается подтверждённым просмотром. Общие функции заменили дублирование запросов действий, сообщений статусов, проекций запусков, разбора env и обновления тем Digest. Ключи запросов, таймауты, границы транзакций и условия мержа не изменены.",
+      "page": "owner-controls"
+    },
+    "122f81d0a3f65694a7cf458b9aaec944ee6cedd4": {
+      "category": "operations",
+      "en": "",
+      "ru": "",
+      "exclusionScope": "docs-only",
+      "exclude": "Adds only the reviewed bilingual Changelog classification for full-width action statuses and dock transparency; application behavior is unchanged."
+    },
+    "e31d327defb5484d05008fd03075ad1141e1beb6": {
+      "category": "fixed",
+      "en": "Projects displays queued, running and failed action statuses in full-width rows below paired buttons, with the operation name. This also covers Remove preview and keeps paired controls aligned. The mobile dock background is now 72% opaque, adding 10 percentage points of transparency; labels, icons, sizing and desktop navigation are unchanged.",
+      "ru": "Projects показывает состояния очереди, выполнения и ошибки в строках на всю ширину под парными кнопками, с названием операции. Это относится и к удалению превью; парные кнопки сохраняют ровное расположение. Непрозрачность фона мобильного дока уменьшена до 72%: прозрачность выросла на 10 процентных пунктов. Подписи, иконки, размеры и desktop-навигация не изменены.",
+      "page": "owner-controls"
+    },
     "a76eca5cd23056f20130229cd769d3895b6788ad": {
       "category": "operations",
       "en": "",

@@ -25,6 +25,7 @@ export const CHART_STYLES = `
 .chart svg { display: block; width: 100%; min-width: 590px; height: auto; margin-top: 8px; }
 .chart[data-chart-mounted] svg { min-width: 0; }
 .chart__grid line { stroke: color-mix(in srgb,var(--border-subtle) 70%,var(--chart-surface)); stroke-width: 1; }
+.chart__area { display: none; }
 .chart__series polyline { fill: none; stroke: var(--chart-color); stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
 .chart__plot:has(.chart__point:hover) .chart__series:not(:has(.chart__point:hover)),
 .chart__plot:has(.chart__point:focus) .chart__series:not(:has(.chart__point:focus)) { opacity: .3; }

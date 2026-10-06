@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import {resolveWebRoute,publicAppUrl} from "../../src/web/routes.ts";
 import {projectDocument,projectHtml,projectCss} from "../../src/web/presentation.ts";
+import {VIEWPORT_META} from "../../src/ui-library/patterns/page-shell.ts";
 
 for(const [url,expected] of [
   ["/",{redirect:"/en/"}],
@@ -29,6 +30,9 @@ assert(projected.includes('src:url("/_apps/docs/assets/font.woff2")'));
 assert(projected.includes('"original":"/assets/original.png"'));
 assert(projected.includes('&lt;a href="/en/original/"&gt;'));
 assert.equal(projectDocument(projected,"docs","en"),projected);
+assert.ok(projected.includes(VIEWPORT_META),"mounted documents get the shared edge-to-edge viewport");
+assert.ok(projectDocument('<html><head><meta name="viewport" content="width=device-width"></head></html>',"digest","ru").includes(VIEWPORT_META),"retained mounted HTML is upgraded");
+assert.equal(projectDocument('<main>Fragment</main>',"projects","en"),'<main>Fragment</main>');
 for(const native of ['<link rel="manifest" href="/en/manifest.webmanifest">',"<link href='/old.json' rel='manifest'>",'<link rel="manifest" href="/a"><link rel="manifest" href="/b">']){
   const result=projectDocument(`<html><head>${native}</head></html>`,"hub","en");
   assert.equal((result.match(/rel="manifest"/g)??[]).length,1);

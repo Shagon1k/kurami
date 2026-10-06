@@ -21,6 +21,7 @@ const rules:Record<string,{pattern:RegExp;advice:string}>={
   "markup:details":{pattern:/<details\b/g,advice:"render disclosures with renderDisclosure, or add class=\"disclosure\" to a product component and list it in testing/audit.ts"},
   "markup:header":{pattern:/<header class=["'](?!site-header)[^"']*["'][^>]*data-|<header\b[^>]*role=["']banner/g,advice:"use the library site header pattern (renderSiteHeader)"},
   "markup:theme-toggle":{pattern:/data-theme-toggle/g,advice:"use renderThemeSwitch; the shared runtime owns theme behaviour"},
+  "css:theme-branch":{pattern:/\[data-(?:kurami-)?theme(?:=|\])/g,advice:"do not branch on the theme in product code; style through roles and the shared surface marks, and put theme-specific looks in src/ui-library/themes"},
   "css:hex-colour":{pattern:/#[0-9a-fA-F]{3}(?:[0-9a-fA-F]{3}(?:[0-9a-fA-F]{2})?)?\b(?![-\w])/g,advice:"use a colour role, e.g. var(--text-muted) or var(--accent-primary); add a role to the theme if none fits"},
   "css:radius":{pattern:/border-radius:\s*\d/g,advice:"use var(--radius-sm), var(--radius) or var(--radius-md)"},
   "css:shadow":{pattern:/box-shadow:\s*-?\d/g,advice:"use var(--shadow-card), var(--shadow-card-sm) or var(--shadow-raised)"},

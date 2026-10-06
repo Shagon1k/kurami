@@ -1,3 +1,5 @@
+import {LATEST_ATTENTION_SQL,LATEST_ATTENTION_VALUE_SQL,LATEST_SUCCESSOR_STATE_SQL,LATEST_SUCCESSOR_THREAD_SQL,ACTIVE_SUCCESSOR_COUNT_SQL,ACTIVE_SUCCESSOR_COUNT_VALUE_SQL} from "../runtime/run-projections.ts";
+import {parseEnvValue} from "../../core/env-value.ts";
 import { technicalWorkerDiagnostic, workerDiagnosticText } from "../integrations/codex/worker-diagnostic.ts";
 import { createHash } from "node:crypto";
 import { execFileSync } from "node:child_process";
@@ -219,20 +221,12 @@ const desiredSurfaceDigestSql = `
   COALESCE(rr.worktree_path, 'worktree:none') || ':' ||
   COALESCE(rr.branch_name, 'branch:none') || ':' ||
   COALESCE(rr.tmux_session_name, 'tmux:none') || ':' ||
-  COALESCE((SELECT reason FROM run_state_history attention_latest
-            WHERE attention_latest.run_id = r.run_id
-              AND attention_latest.to_state = 'needs_attention'
-              AND attention_latest.reason NOT IN (
-                'review_fix_task_archived', 'ci_repair_task_archived'
-              )
-            ORDER BY attention_latest.sequence DESC LIMIT 1), 'attention:none') || ':' ||
+  COALESCE(${LATEST_ATTENTION_VALUE_SQL}, 'attention:none') || ':' ||
   COALESCE((SELECT succession_state || ':' || predecessor_thread_id
             FROM run_autonomous_successions successor_latest
             WHERE successor_latest.run_id = r.run_id
             ORDER BY successor_latest.succession_number DESC LIMIT 1), 'successor:none') || ':' ||
-  (SELECT COUNT(*) FROM run_autonomous_successions successor_active
-   WHERE successor_active.run_id = r.run_id
-     AND successor_active.succession_state IN ('starting','running')) || ':' ||
+  ${ACTIVE_SUCCESSOR_COUNT_VALUE_SQL} || ':' ||
   COALESCE(pl.state, 'preview:none') || ':' ||
   COALESCE(pl.expires_at, 'expiry:none') || ':' ||
   COALESCE(pl.extension_count, 0) || ':' ||
@@ -331,22 +325,7 @@ function parseArguments(): {
   return { command, runId, threadId, apply: args.includes("--apply") };
 }
 
-function parseEnvValue(content: string, key: string): string | undefined {
-  for (const rawLine of content.split(/\r?\n/u)) {
-    const line = rawLine.trim();
-    if (!line || line.startsWith("#")) continue;
-    const match = /^([A-Z][A-Z0-9_]*)=(.*)$/u.exec(line);
-    if (!match || match[1] !== key) continue;
-    let value = match[2].trim();
-    if (
-      (value.startsWith('"') && value.endsWith('"')) ||
-      (value.startsWith("'") && value.endsWith("'"))
-    )
-      value = value.slice(1, -1);
-    return value || undefined;
-  }
-  return undefined;
-}
+
 
 async function loadDiscordToken(): Promise<string> {
   const scoped = process.env.DISCORD_BOT_TOKEN?.trim();
@@ -470,28 +449,10 @@ function loadDesiredCards(
              rr.resource_state, rr.worktree_path, rr.branch_name,
              rr.tmux_session_name, rr.codex_thread_id,
              rr.previous_codex_thread_id,
-             (SELECT reason FROM run_state_history attention_latest
-              WHERE attention_latest.run_id = r.run_id
-                AND attention_latest.to_state = 'needs_attention'
-                AND attention_latest.reason NOT IN (
-                  'review_fix_task_archived', 'ci_repair_task_archived'
-                )
-              ORDER BY attention_latest.sequence DESC LIMIT 1)
-               AS latest_attention_reason,
-             (SELECT succession_state
-              FROM run_autonomous_successions successor_latest
-              WHERE successor_latest.run_id = r.run_id
-              ORDER BY successor_latest.succession_number DESC LIMIT 1)
-               AS latest_autonomous_successor_state,
-             (SELECT predecessor_thread_id
-              FROM run_autonomous_successions successor_latest
-              WHERE successor_latest.run_id = r.run_id
-              ORDER BY successor_latest.succession_number DESC LIMIT 1)
-               AS latest_autonomous_successor_predecessor_thread_id,
-             (SELECT COUNT(*) FROM run_autonomous_successions successor_active
-              WHERE successor_active.run_id = r.run_id
-                AND successor_active.succession_state IN ('starting','running'))
-               AS autonomous_successor_active,
+             ${LATEST_ATTENTION_SQL},
+             ${LATEST_SUCCESSOR_STATE_SQL},
+             ${LATEST_SUCCESSOR_THREAD_SQL},
+             ${ACTIVE_SUCCESSOR_COUNT_SQL},
              ps.hostname AS preview_hostname,
              pl.state AS preview_state,
              pl.expires_at AS preview_expires_at,
@@ -598,28 +559,10 @@ function loadCard(database: DatabaseSync, runId: string): CardRow {
              rr.resource_state, rr.worktree_path, rr.branch_name,
              rr.tmux_session_name, rr.codex_thread_id,
              rr.previous_codex_thread_id,
-             (SELECT reason FROM run_state_history attention_latest
-              WHERE attention_latest.run_id = r.run_id
-                AND attention_latest.to_state = 'needs_attention'
-                AND attention_latest.reason NOT IN (
-                  'review_fix_task_archived', 'ci_repair_task_archived'
-                )
-              ORDER BY attention_latest.sequence DESC LIMIT 1)
-               AS latest_attention_reason,
-             (SELECT succession_state
-              FROM run_autonomous_successions successor_latest
-              WHERE successor_latest.run_id = r.run_id
-              ORDER BY successor_latest.succession_number DESC LIMIT 1)
-               AS latest_autonomous_successor_state,
-             (SELECT predecessor_thread_id
-              FROM run_autonomous_successions successor_latest
-              WHERE successor_latest.run_id = r.run_id
-              ORDER BY successor_latest.succession_number DESC LIMIT 1)
-               AS latest_autonomous_successor_predecessor_thread_id,
-             (SELECT COUNT(*) FROM run_autonomous_successions successor_active
-              WHERE successor_active.run_id = r.run_id
-                AND successor_active.succession_state IN ('starting','running'))
-               AS autonomous_successor_active,
+             ${LATEST_ATTENTION_SQL},
+             ${LATEST_SUCCESSOR_STATE_SQL},
+             ${LATEST_SUCCESSOR_THREAD_SQL},
+             ${ACTIVE_SUCCESSOR_COUNT_SQL},
              ps.hostname AS preview_hostname,
              pl.state AS preview_state,
              pl.expires_at AS preview_expires_at,

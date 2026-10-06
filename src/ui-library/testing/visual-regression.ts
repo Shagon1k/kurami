@@ -2,7 +2,8 @@
 // every Digest page fixture in light/dark at phone and desktop widths (accessibility and component
 // inventory), and screenshots a representative set, optionally compared with a baseline run.
 // Audit options: --screens-only --viewports --widths=320,390,768,1280
-// Usage: node src/ui-library/testing/visual-regression.ts --out=<dir> [--compare=<baseline dir>] [/absolute/path/to/chromium]
+// Usage: node src/ui-library/testing/visual-regression.ts --out=<dir> [--compare=<baseline dir>] [--themes=light,neon|all] [/absolute/path/to/chromium]
+// Manual review: --out=<dir> --serve=<port> serves the fixture site on loopback without running checks.
 import {execFileSync} from "node:child_process";
 import {createHash} from "node:crypto";
 import {cpSync,existsSync,mkdirSync,mkdtempSync,readdirSync,readFileSync,rmSync,writeFileSync} from "node:fs";
@@ -35,7 +36,11 @@ const brandAssets=resolve(root,"src/ui-library/assets/brand");
 const requestedWidths=process.argv.find(arg=>arg.startsWith("--widths="))?.slice(9);
 const widths=requestedWidths?requestedWidths.split(",").map(Number):[390,1280];
 if(widths.some(width=>!Number.isInteger(width)||width<320||width>2560)||!widths.length)throw new Error("Invalid audit widths");
-const themes=["light","dark"] as const;
+// Every theme in one variant by default — Paper light and Neon dark; --themes=all adds Paper dark and Neon light.
+const allThemes=["light","dark","neon","neon-light"] as const;
+const requestedThemes=process.argv.find(arg=>arg.startsWith("--themes="))?.slice(9);
+const themes=(requestedThemes==="all"?[...allThemes]:requestedThemes?requestedThemes.split(","):["light","neon"]) as (typeof allThemes)[number][];
+if(!themes.length||themes.some(theme=>!(allThemes as readonly string[]).includes(theme)))throw new Error(`Unknown theme; use ${allThemes.join(",")} or all`);
 // Screenshots: a representative set. The audit covers these plus every Docs route in both languages.
 const availablePages:Record<string,string>={
   "digest-daily":"/digest/daily.html",
@@ -174,11 +179,23 @@ async function checkKeyboard(devtools:Devtools):Promise<{theme:boolean;disclosur
     await delay(60);
   };
   const theme=await devtools.evaluate<string>(`document.documentElement.dataset.theme`);
+  const escape=async()=>{const key={key:"Escape",code:"Escape",windowsVirtualKeyCode:27,nativeVirtualKeyCode:27};await devtools.call("Input.dispatchKeyEvent",{type:"keyDown",...key});await devtools.call("Input.dispatchKeyEvent",{type:"keyUp",...key});await delay(60);};
   await devtools.evaluate(`(()=>{const button=document.querySelector('[data-mobile-menu="more"]');if(button&&button.getBoundingClientRect().height)button.click();})()`);
-  await devtools.evaluate(`document.querySelector('[data-theme-toggle]').focus()`);
-  await enter();
+  // Desktop: the header button opens the theme menu; phone: the settings sheet shows the options inline.
+  const inline=await devtools.evaluate<boolean>(`!document.querySelector('[data-theme-panel]')?.hasAttribute('popover')`);
+  if(!inline){
+    await devtools.evaluate(`document.querySelector('[data-theme-toggle]').focus()`);
+    await enter();
+    if(!await devtools.evaluate<boolean>(`document.querySelector('[data-theme-panel]').matches(':popover-open')`))throw new Error("Keyboard theme menu did not open on "+await devtools.evaluate("location.pathname"));
+  }
+  const pick=async()=>{await devtools.evaluate(`document.querySelector('[data-mode-choice]:not([aria-pressed="true"]):not(:disabled)').focus()`);await enter();};
+  await pick();
   if(await devtools.evaluate(`document.documentElement.dataset.theme`)===theme)throw new Error("Keyboard theme activation failed on "+await devtools.evaluate("location.pathname"));
-  await enter();
+  await pick();
+  if(!inline){
+    await escape();
+    if(await devtools.evaluate<boolean>(`document.querySelector('[data-theme-panel]').matches(':popover-open')`))throw new Error("Escape did not close the theme menu");
+  }
   await devtools.evaluate(`document.querySelector('[data-mobile-navigation] .ui-popover:popover-open [data-mobile-close]')?.click()`);
   const summary=await devtools.evaluate<boolean>(`(()=>{const element=[...document.querySelectorAll('main details > summary, #hub-dashboard details > summary')].find(el=>el.getBoundingClientRect().height>0);if(!element)return false;element.dataset.auditKeyboard='true';element.focus();return true;})()`);
   if(summary){
@@ -203,38 +220,99 @@ async function checkKeyboard(devtools:Devtools):Promise<{theme:boolean;disclosur
   return {theme:true,disclosure:summary,apps};
 }
 
-type ThemeState={theme:string;pressed:string|null;icon:string|null;stored:string|null;color:string|null;inHead:boolean};
-const themeState=`({theme:document.documentElement.dataset.theme,pressed:document.querySelector('[data-theme-toggle]')?.getAttribute('aria-pressed')??null,icon:document.querySelector('[data-theme-icon]')?.textContent??null,stored:localStorage.getItem('kurami-theme'),color:document.querySelector('meta[name="theme-color"]')?.getAttribute('content')??null,inHead:Boolean(document.head.querySelector('script[src="/assets/theme.js"]'))})`;
+type ThemeState={theme:string;variant:string;mode:string|null;choice:string|null;icon:string|null;stored:string|null;storedTheme:string|null;legacy:string|null;color:string|null;inHead:boolean};
+const themeState=`({theme:document.documentElement.dataset.theme,variant:document.documentElement.dataset.kuramiTheme??"paper",mode:document.querySelector('[data-mode-choice][aria-pressed="true"]')?.dataset.modeChoice??null,choice:document.querySelector('[data-theme-choice][aria-pressed="true"]')?.dataset.themeChoice??null,icon:document.querySelector('[data-theme-icon]')?.textContent??null,stored:sessionStorage.getItem('kurami-theme'),storedTheme:sessionStorage.getItem('kurami-theme-name'),legacy:localStorage.getItem('kurami-theme')??localStorage.getItem('kurami-theme-name'),color:document.querySelector('meta[name="theme-color"]')?.getAttribute('content')??null,inHead:Boolean(document.head.querySelector('script[src="/assets/theme.js"]'))})`;
+const surface={paper:{light:"#fbfbf8",dark:"#0a0a0a"},neon:{light:"#f6f4fa",dark:"#07060b"}} as const;
 
-/** The system theme applies on first visit, the switch persists a choice, and a stored choice beats the system. */
+/**
+ * The Hub default (cookie) applies on every visit, the system mode without it; a menu choice lasts for the
+ * session only (sessionStorage) and a new session starts from the default again; choices stored by the old
+ * per-device switch are dropped; a Hub change ends the session override.
+ */
 async function checkThemeRuntime(devtools:Devtools,base:string,path:string):Promise<void> {
-  const expect=(state:ThemeState,theme:string,stored:string|null,step:string)=>{
-    const want={theme,pressed:String(theme==="dark"),icon:theme==="dark"?"☀":"◐",stored,color:theme==="dark"?"#0a0a0a":"#fbfbf8",inHead:true};
-    if(JSON.stringify(state)!==JSON.stringify(want))throw new Error(`Theme runtime ${path} ${step}: ${JSON.stringify(state)} expected ${JSON.stringify(want)}`);
+  const expect=(state:ThemeState,want:{variant:"paper"|"neon";theme:"light"|"dark";stored:string|null;storedTheme:string|null},step:string)=>{
+    const expected={theme:want.theme,variant:want.variant,mode:want.theme,choice:want.variant,icon:want.theme==="dark"?"☀":"◐",stored:want.stored,storedTheme:want.storedTheme,legacy:null,color:(surface[want.variant] as Record<string,string>)[want.theme],inHead:true};
+    if(JSON.stringify(state)!==JSON.stringify(expected))throw new Error(`Theme runtime ${path} ${step}: ${JSON.stringify(state)} expected ${JSON.stringify(expected)}`);
   };
+  const state=()=>devtools.evaluate<ThemeState>(themeState);
+  const click=(selector:string)=>devtools.evaluate(`document.querySelector('${selector}').click()`);
+  const cookie=(value:string|null)=>devtools.evaluate(value?`document.cookie='kurami-theme-default=${value}; path=/'`:`document.cookie='kurami-theme-default=; path=/; max-age=0'`);
+  const system=(value:"light"|"dark")=>devtools.call("Emulation.setEmulatedMedia",{features:[{name:"prefers-color-scheme",value}]});
+  // A new session: what reopening the app or site gives.
+  const reenter=async()=>{await devtools.evaluate(`sessionStorage.clear()`);await open(devtools,`${base}${path}`);};
   await open(devtools,`${base}${path}`);
-  await devtools.evaluate(`localStorage.clear()`);
-  await devtools.call("Emulation.setEmulatedMedia",{features:[{name:"prefers-color-scheme",value:"dark"}]});
+  await devtools.evaluate(`localStorage.clear()`);await cookie(null);await system("dark");
+  await reenter();
+  expect(await state(),{variant:"paper",theme:"dark",stored:null,storedTheme:null},"system dark");
+  await click('[data-mode-choice="light"]');
+  expect(await state(),{variant:"paper",theme:"light",stored:"light",storedTheme:"paper"},"choose light");
   await open(devtools,`${base}${path}`);
-  expect(await devtools.evaluate<ThemeState>(themeState),"dark",null,"system dark");
-  await devtools.evaluate(`document.querySelector('[data-theme-toggle]').click()`);
-  expect(await devtools.evaluate<ThemeState>(themeState),"light","light","switch to light");
-  await open(devtools,`${base}${path}`);
-  expect(await devtools.evaluate<ThemeState>(themeState),"light","light","stored beats system");
-  await devtools.evaluate(`localStorage.clear()`);
-  await devtools.call("Emulation.setEmulatedMedia",{features:[{name:"prefers-color-scheme",value:"light"}]});
-  await open(devtools,`${base}${path}`);
-  expect(await devtools.evaluate<ThemeState>(themeState),"light",null,"system light");
-  await devtools.call("Emulation.setEmulatedMedia",{features:[{name:"prefers-color-scheme",value:"dark"}]});
+  expect(await state(),{variant:"paper",theme:"light",stored:"light",storedTheme:"paper"},"the choice lasts the session");
+  await click('[data-theme-choice="neon"]');
+  expect(await state(),{variant:"neon",theme:"dark",stored:"dark",storedTheme:"neon"},"Neon opens dark");
+  await click('[data-mode-choice="light"]');
+  expect(await state(),{variant:"neon",theme:"light",stored:"light",storedTheme:"neon"},"Neon light");
+  await click('[data-theme-choice="paper"]');
+  expect(await state(),{variant:"paper",theme:"light",stored:"light",storedTheme:"paper"},"back to Paper keeps its mode");
+  await reenter();
+  expect(await state(),{variant:"paper",theme:"dark",stored:null,storedTheme:null},"a new session starts from the default");
+  await devtools.evaluate(`localStorage.setItem('kurami-theme','light');localStorage.setItem('kurami-theme-name','neon')`);
+  await reenter();
+  expect(await state(),{variant:"paper",theme:"dark",stored:null,storedTheme:null},"old per-device choices are dropped");
+  await cookie("neon.dark");
+  await reenter();
+  expect(await state(),{variant:"neon",theme:"dark",stored:null,storedTheme:null},"Hub default Neon");
+  await click('[data-theme-choice="paper"]');
+  expect(await state(),{variant:"paper",theme:"dark",stored:"dark",storedTheme:"paper"},"session override of the Hub default");
+  await click('[data-mode-choice="light"]');
+  await click('[data-theme-choice="neon"]');
+  expect(await state(),{variant:"neon",theme:"dark",stored:"dark",storedTheme:"neon"},"the default theme opens in the default mode");
+  await cookie("paper.light");
+  await devtools.evaluate(`window.kuramiThemeRefresh()`);
+  expect(await state(),{variant:"paper",theme:"light",stored:null,storedTheme:null},"a Hub change ends the override");
+  await reenter();
+  expect(await state(),{variant:"paper",theme:"light",stored:null,storedTheme:null},"Hub default beats system");
+  await cookie(null);await system("light");
+  await reenter();
+  expect(await state(),{variant:"paper",theme:"light",stored:null,storedTheme:null},"system light");
+  await system("dark");
   await delay(100);
-  expect(await devtools.evaluate<ThemeState>(themeState),"dark",null,"live system change");
-  await devtools.evaluate(`localStorage.clear()`);
+  expect(await state(),{variant:"paper",theme:"dark",stored:null,storedTheme:null},"live system change");
+  await devtools.evaluate(`sessionStorage.clear()`);
+  await devtools.call("Emulation.setEmulatedMedia",{features:[]});
+}
+
+/** Neon motion on the Hub: figures count up to their exact text, a refresh flashes only the changed figure, a press rings inside its button, reduced motion shows final values. */
+async function checkNeonMotion(devtools:Devtools,base:string):Promise<void> {
+  const page=`${base}/hub/index.html`;
+  await open(devtools,page);
+  await devtools.evaluate(`sessionStorage.setItem('kurami-theme-name','neon')`);
+  await devtools.call("Emulation.setEmulatedMedia",{features:[{name:"prefers-reduced-motion",value:"no-preference"}]});
+  await open(devtools,page);
+  const read=()=>devtools.evaluate<string[]>(`[...document.querySelectorAll('.stat-card__value')].map(node=>node.textContent)`);
+  const during=await read();
+  await delay(1300);
+  const after=await read();
+  if(JSON.stringify(during)===JSON.stringify(after))throw new Error(`Neon figures did not count up: ${JSON.stringify(after)}`);
+  // A refresh that changes one figure flashes that figure only.
+  await devtools.evaluate(`(()=>{const values=[...document.querySelectorAll('#hub-dashboard .stat-card__value')];values[0].textContent=values[0].textContent+'0';return 1})()`);
+  await delay(80);
+  const flashed=await devtools.evaluate<number[]>(`[...document.querySelectorAll('#hub-dashboard .stat-card__value')].map((node,index)=>node.classList.contains('ui-figure-blip')?index:-1).filter(index=>index>=0)`);
+  if(JSON.stringify(flashed)!=="[0]")throw new Error(`Neon refresh must flash only the changed figure: ${JSON.stringify(flashed)}`);
+  // A press spreads a ring inside the pressed button only.
+  await devtools.evaluate(`(()=>{const button=document.querySelector('#hub-dashboard .button');const r=button.getBoundingClientRect();button.dispatchEvent(new PointerEvent('pointerdown',{bubbles:true,clientX:r.x+4,clientY:r.y+4}));return 1})()`);
+  if(await devtools.evaluate<number>(`document.querySelectorAll('#hub-dashboard .button > .ui-ripple').length`)!==1)throw new Error("Neon press did not draw a ring in the button");
+  await devtools.call("Emulation.setEmulatedMedia",{features:[{name:"prefers-reduced-motion",value:"reduce"}]});
+  await open(devtools,page);
+  const reduced=await read();
+  if(JSON.stringify(reduced)!==JSON.stringify(after))throw new Error(`Reduced motion must show final figures: ${JSON.stringify(reduced)}`);
+  await devtools.evaluate(`sessionStorage.clear()`);
   await devtools.call("Emulation.setEmulatedMedia",{features:[]});
 }
 
 async function checkMobileNavigation(devtools:Devtools,width:number,current:string):Promise<void>{
   const geometry=await devtools.evaluate<{icons:number[];labels:boolean;fixed:boolean;header:string;overflow:number}>(`(()=>{const nav=document.querySelector('.mobile-navigation__bar');return {icons:[...nav.querySelectorAll('svg')].map(icon=>icon.getBoundingClientRect().width),labels:[...nav.querySelectorAll('button')].every(button=>button.getBoundingClientRect().height>=44&&button.querySelector('span').getBoundingClientRect().width<=button.getBoundingClientRect().width),fixed:getComputedStyle(nav).position==='fixed',header:getComputedStyle(document.querySelector('[data-site-header]')).position,overflow:document.documentElement.scrollWidth-innerWidth};})()`);
-  if(!geometry.fixed||geometry.header!=='static'||geometry.overflow>1||!geometry.labels||geometry.icons.some(size=>size!==26))throw new Error(`Mobile geometry ${current} ${width}: ${JSON.stringify(geometry)}`);
+  if(!geometry.fixed||!['static','relative'].includes(geometry.header)||geometry.overflow>1||!geometry.labels||geometry.icons.some(size=>size!==26))throw new Error(`Mobile geometry ${current} ${width}: ${JSON.stringify(geometry)}`);
   await devtools.evaluate(`document.querySelector('[data-mobile-menu="apps"]').click()`);
   await delay(240);
   const apps=await devtools.evaluate<{current:string;links:string[];fits:boolean}>(`(()=>{const panel=document.querySelector('#mobile-menu-apps'),r=panel.getBoundingClientRect(),bar=document.querySelector('.mobile-navigation__bar').getBoundingClientRect();return {current:panel.querySelector('[aria-current]')?.textContent.trim(),links:[...panel.querySelectorAll('a')].map(link=>link.textContent.trim()),bounds:{left:r.left,right:r.right,bottom:r.bottom,barTop:bar.top,width:innerWidth},fits:r.left>=0&&r.right<=innerWidth&&r.bottom<=bar.top-6.5};})()`);
@@ -273,12 +351,13 @@ async function checkMobileNavigation(devtools:Devtools,width:number,current:stri
   await delay(100);
   await devtools.evaluate(`document.querySelector('[data-mobile-menu="more"]').click()`);await delay(240);
   if(!await devtools.evaluate(`getComputedStyle(document.querySelector('[data-mobile-menu="more"] svg')).transform!=='none'`))throw new Error('Settings icon should animate with menu state');
-  const settings=await devtools.evaluate<{rows:{delta:number;gap:number}[];switchHeight:number}>(`(()=>{const rows=[...document.querySelectorAll('#mobile-menu-more .mobile-navigation__setting:not([hidden])')];return {rows:rows.map(row=>{const l=row.querySelector('.mobile-navigation__setting-label').getBoundingClientRect(),v=row.querySelector('.mobile-navigation__setting-value').getBoundingClientRect();return {delta:Math.abs((l.top+l.bottom-v.top-v.bottom)/2),gap:v.left-l.right};}),switchHeight:document.querySelector('[data-mobile-slot="theme"] .button--switch').getBoundingClientRect().height};})()`);
-  if(settings.rows.length<2||settings.rows.some(row=>row.delta>=1||row.gap<0)||settings.switchHeight<43.5)throw new Error('Settings must have aligned horizontal rows and a usable theme switch: '+JSON.stringify(settings));
+  // Settings: horizontal label/value rows, plus the theme row that lists its options inline with touch-size targets.
+  const settings=await devtools.evaluate<{rows:{delta:number;gap:number}[];options:number[];hidden:boolean}>(`(()=>{const rows=[...document.querySelectorAll('#mobile-menu-more .mobile-navigation__setting:not([hidden]):not(:has([data-theme-menu]))')];const theme=document.querySelector('[data-mobile-slot="theme"]');return {rows:rows.map(row=>{const l=row.querySelector('.mobile-navigation__setting-label').getBoundingClientRect(),v=row.querySelector('.mobile-navigation__setting-value').getBoundingClientRect();return {delta:Math.abs((l.top+l.bottom-v.top-v.bottom)/2),gap:v.left-l.right};}),options:[...theme.querySelectorAll('[data-theme-choice],[data-mode-choice]')].map(option=>option.offsetHeight),hidden:theme.querySelector('[data-theme-panel]').hasAttribute('popover')||getComputedStyle(theme.querySelector('[data-theme-panel]')).opacity!=='1'||getComputedStyle(theme.querySelector('[data-theme-panel]')).visibility!=='visible'};})()`);
+  if(settings.rows.length<1||settings.rows.some(row=>row.delta>=1||row.gap<0)||settings.options.length<4||settings.options.some(height=>height<43.5)||settings.hidden)throw new Error('Settings must have aligned rows and inline theme options with touch targets: '+JSON.stringify(settings));
   const beforeTheme=await devtools.evaluate<string>(`document.documentElement.dataset.theme`);
-  await devtools.evaluate(`document.querySelector('[data-mobile-slot="theme"] [data-theme-toggle]').click()`);
-  if(await devtools.evaluate(`document.documentElement.dataset.theme`)==beforeTheme||!await devtools.evaluate(`document.querySelector('#mobile-menu-more').matches(':popover-open')`))throw new Error('Theme switch must toggle without closing Settings');
-  await devtools.evaluate(`document.querySelector('[data-mobile-slot="theme"] [data-theme-toggle]').click()`);
+  await devtools.evaluate(`document.querySelector('[data-mobile-slot="theme"] [data-mode-choice]:not([aria-pressed="true"]):not(:disabled)').click()`);
+  if(await devtools.evaluate(`document.documentElement.dataset.theme`)==beforeTheme||!await devtools.evaluate(`document.querySelector('#mobile-menu-more').matches(':popover-open')`))throw new Error('Theme choice must apply without closing Settings');
+  await devtools.evaluate(`document.querySelector('[data-mobile-slot="theme"] [data-mode-choice]:not([aria-pressed="true"]):not(:disabled)').click()`);
   if(!await devtools.evaluate(`(()=>{const targets=[...document.querySelectorAll('.mobile-navigation .mobile-navigation__link,.mobile-navigation__action')];return targets.every(node=>{const s=getComputedStyle(node),hierarchy=node.matches('.side-group a[aria-current]');return s.fontSize==='14px'&&(s.fontWeight==='500'||hierarchy&&s.fontWeight==='600')&&s.fontFamily===getComputedStyle(document.querySelector('.mobile-navigation__setting-label')).fontFamily;});})()`))throw new Error('Mobile menu typography must be shared, preserving Docs hierarchy');
   await devtools.evaluate(`document.querySelector('[data-mobile-menu="more"]').click()`);
   await delay(100);
@@ -361,8 +440,11 @@ async function main(){
     if(!path.startsWith(`${served}${sep}`)||!existsSync(path)){response.writeHead(404).end();return;}
     response.writeHead(200,{"content-type":types[path.split(".").at(-1)??""]??"application/octet-stream"}).end(readFileSync(path));
   });
-  await new Promise<void>(done=>server.listen(0,"127.0.0.1",done));
+  // --serve=<port>: keep the fixture site running on loopback for manual review; no checks run.
+  const serve=Number(args.find(arg=>arg.startsWith("--serve="))?.slice(8)??0);
+  await new Promise<void>(done=>server.listen(serve,"127.0.0.1",done));
   const port=(server.address() as {port:number}).port;
+  if(serve){console.log(`Fixture site on http://127.0.0.1:${port}/ (Ctrl+C stops)`);return;}
   const {devtools,close}=await launchBrowser(findBrowser(args.find(arg=>isAbsolute(arg))));
   const manifest:Record<string,string>={};
   const audit:Record<string,string[]>={};
@@ -376,6 +458,7 @@ async function main(){
     await devtools.call("Network.setBlockedURLs",{urls:["https://*"]});
     if(viewports)await devtools.call("Page.addScriptToEvaluateOnNewDocument",{source:`(()=>{const NativeDate=Date;const fixed='2026-09-16T07:00:00Z';window.Date=class extends NativeDate{constructor(...args){super(...(args.length?args:[fixed]));}static now(){return NativeDate.parse(fixed);}};})()`});
     for(const path of ["/digest/daily.html","/en/state-and-truth/","/lab/index.html","/hub/index.html"])await checkThemeRuntime(devtools,`http://127.0.0.1:${port}`,path);
+    await checkNeonMotion(devtools,`http://127.0.0.1:${port}`);
     await checkSiteSwitcher(devtools,`http://127.0.0.1:${port}`);
     await open(devtools,`http://127.0.0.1:${port}/digest/stocks-filled-en.html`);
     const sorting=await devtools.evaluate<boolean>(`(()=>{
@@ -392,7 +475,7 @@ async function main(){
       await devtools.call("Emulation.setTouchEmulationEnabled",{enabled:width<600,maxTouchPoints:1});
       await devtools.call("Emulation.setDeviceMetricsOverride",{width,height:900,deviceScaleFactor:1,mobile:width<600});
       await open(devtools,`http://127.0.0.1:${port}${path}`);
-      await devtools.evaluate(`(()=>{const style=document.createElement('style');style.textContent='*,*::before,*::after{transition:none!important;animation:none!important;caret-color:transparent!important}';document.head.append(style);if(document.documentElement.dataset.theme!==${JSON.stringify(theme)})document.querySelector('[data-theme-toggle]').click();return document.fonts.ready.then(()=>true)})()`);
+      await devtools.evaluate(`(()=>{const style=document.createElement('style');style.textContent='*,*::before,*::after{transition:none!important;animation:none!important;caret-color:transparent!important}';document.head.append(style);(${JSON.stringify(theme)}.startsWith('neon')?['[data-theme-choice="neon"]','[data-mode-choice="'+(${JSON.stringify(theme)}==='neon'?'dark':'light')+'"]']:['[data-theme-choice="paper"]','[data-mode-choice="'+${JSON.stringify(theme)}+'"]']).forEach(selector=>document.querySelector(selector)?.click());return document.fonts.ready.then(()=>true)})()`);
       if(stress){
         await devtools.call("Emulation.setEmulatedMedia",{features:[{name:"prefers-reduced-motion",value:"reduce"}]});
         await devtools.evaluate(`document.documentElement.style.fontSize='200%'; document.querySelectorAll('main details, #hub-dashboard details').forEach(element=>element.open=true);document.fonts.ready`);

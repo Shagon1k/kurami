@@ -1,3 +1,4 @@
+import {surfaceAttributes} from "../../../ui-library/components/surface.ts";
 import { section } from "../../addons/envelopes.ts";
 import type { BriefingPayload } from "../../model.ts";
 import { displayString, escapeHtml, externalUrl } from "../html.ts";
@@ -72,7 +73,7 @@ export function renderMailSection(payload: BriefingPayload): string {
     attributes: { "data-mail-archive": true },
   });
   const sectionNote = payload.notes?.find((note) => note.target === "mail");
-  return `<section class="briefing-panel briefing-panel--mail" aria-labelledby="mail-heading" data-mail-section data-edition-id="${escapeHtml(payload.edition.id)}">
+  return `<section class="briefing-panel briefing-panel--mail"${surfaceAttributes("panel")} aria-labelledby="mail-heading" data-mail-section data-edition-id="${escapeHtml(payload.edition.id)}">
     ${renderKuramiNote(sectionNote, "briefing-panel__note")}
     <header class="briefing-panel__header"><div><p class="section-kicker">Primary · unread</p><h2 id="mail-heading">${digestText("Почта","Mail")}</h2></div><span>${items.length} ${digestText("новых","new")}${actionCount ? ` · ${actionCount} action` : ""}${demoCount ? ` · ${demoCount} demo` : ""}</span></header>
     <div class="mail-list briefing-panel__scroll"${items.length > 4 ? ` data-overflow="true" role="region" tabindex="0" aria-label="${digestText("Все непрочитанные письма","All unread mail")}"` : ""}>${rows}</div>

@@ -5,6 +5,7 @@ import {fileURLToPath} from "node:url";
 import {randomBytes,timingSafeEqual} from "node:crypto";
 import type {IncomingMessage} from "node:http";
 import {HubAccess} from "./access.ts";
+import {AccessVerificationUnavailableError,accessUnavailableMessage} from "../web/access-keys.ts";
 import {createHubControls,HubControlError} from "./controls.ts";
 import {renderControlView} from "./control-view.ts";
 import {readCodexAccount,type CodexAccountSnapshot} from "./codex-account.ts";
@@ -76,7 +77,11 @@ export function createHubServer(options:{snapshot?:()=>HubSnapshot;account?:()=>
       const json=(status:number,value:unknown)=>{response.writeHead(status,{"Cache-Control":"no-store","Content-Type":"application/json; charset=utf-8"}).end(JSON.stringify(value));};
       if(!controls){json(503,{ok:false,error:"controls_unavailable"});return;}
       if(request.method!=="GET"&&request.method!=="POST"){json(405,{ok:false,error:"method_not_allowed"});return;}
-      const identity=await authorize(request).catch(()=>null);
+      let identity:string|null;
+      try{identity=await authorize(request);}catch(error){
+        if(error instanceof AccessVerificationUnavailableError){response.setHeader("Retry-After","10");json(503,{ok:false,error:accessUnavailableMessage(lang)});return;}
+        identity=null;
+      }
       if(!identity){json(403,{ok:false,error:"unauthorized"});return;}
       try{
         const url=new URL(request.url!,controlOrigin);lang=url.searchParams.get("lang")==="ru"?"ru":"en";
@@ -95,7 +100,7 @@ export function createHubServer(options:{snapshot?:()=>HubSnapshot;account?:()=>
         if(!payload||typeof payload!=="object"||payload.confirm!==true||typeof payload.action!=="string"||["models","settings","composio-check"].includes(payload.action)){json(400,{ok:false,error:"confirmation_required"});return;}
         if(mutating){json(409,{ok:false,error:"action_in_progress"});return;}
         mutating=true;
-        try{const result=await controls.execute(payload.action,payload,identity);cached=null;json(200,{ok:true,action:result?.action,outcome:result?.outcome,auditWarning:result?.auditWarning===true});}
+        try{const result=await controls.execute(payload.action,payload,identity);cached=null;json(200,{ok:true,action:result?.action,outcome:result?.outcome,auditWarning:result?.auditWarning===true,...(payload.action==="appearance-apply"&&typeof result?.theme==="string"&&typeof result?.mode==="string"?{appearance:{theme:result.theme,mode:result.mode}}:{})});}
         finally{mutating=false;}
       }catch(error){json(error instanceof HubControlError&&error.code==="invalid_request"?400:409,{ok:false,error:error instanceof HubControlError?error.code:"action_failed"});}
       return;

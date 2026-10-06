@@ -33,6 +33,10 @@ document.addEventListener('click',event=>{if(controlsPopover?.classList.contains
 const controlContent=document.getElementById("hub-control-content");
 const confirmation=document.getElementById("hub-control-confirm");
 const controlResult=document.getElementById("hub-control-result");
+const toastRegion=document.querySelector("[data-toast-region]");
+const hubToast=toastRegion&&typeof createKuramiToast==="function"?createKuramiToast(toastRegion,()=>null):null;
+/** Success goes to the shared toast; the dialog line stays for errors and notes. */
+function reportSuccess(message){if(hubToast){controlResult.textContent="";hubToast.show(message,{tone:"success"});}else controlResult.textContent=message;}
 const csrf=document.querySelector('meta[name="hub-control-token"]')?.content??"";
 const text=(ru,en)=>hubLanguage==="ru"?ru:en;
 let pending=null,controlView=null,controlBusy=false,opener=null;
@@ -223,6 +227,15 @@ function markChangedFields(event){
   const changed=input.type==='number'?Number(input.value)!==Number(original):input.value!==original;
   input.closest('.form-field')?.setAttribute('data-dirty',String(changed&&!input.disabled));
 }
+/** Appearance: a theme offers only its own modes (Neon is dark only for now). */
+function syncAppearanceModes(form){
+  if(!form?.matches?.('[data-hub-submit="appearance-apply"]'))return;
+  const modes=JSON.parse(form.dataset.themes)[form.elements.theme.value]??[];
+  for(const option of form.elements.mode.options)option.disabled=!modes.includes(option.value);
+  if(!modes.includes(form.elements.mode.value))form.elements.mode.value=modes[0];
+}
+document.addEventListener('change',event=>syncAppearanceModes(event.target.closest?.('form')));
+new MutationObserver(()=>document.querySelectorAll('[data-hub-submit="appearance-apply"]').forEach(syncAppearanceModes)).observe(document.body,{childList:true,subtree:true});
 document.addEventListener('input',markChangedFields);
 document.addEventListener('change',markChangedFields);
 document.addEventListener("submit",event=>{
@@ -237,6 +250,13 @@ document.addEventListener("submit",event=>{
     confirmAction(action,{target:form.dataset.target,expectedModel:form.dataset.expectedModel,expectedEffort:form.dataset.target==="codex"?(effort||null):undefined,model:values.model},form.dataset.target,changes);
   }
   if(action==="health-apply")confirmAction(action,{revision:Number(form.dataset.revision),minutes:Number(values.minutes)},'System Health',[[text('Интервал · минуты','Interval · minutes'),[...form.elements.minutes.options].find(option=>option.defaultSelected)?.value,values.minutes]]);
+  if(action==="appearance-apply"){
+    const option=(name,value)=>[...form.elements[name].options].find(item=>item.value===value)?.textContent??value;
+    const before={theme:[...form.elements.theme.options].find(item=>item.defaultSelected)?.value,mode:[...form.elements.mode.options].find(item=>item.defaultSelected)?.value};
+    const changes=[["theme",text('Тема','Theme')],["mode",text('Режим','Mode')]].filter(([name])=>before[name]!==values[name]).map(([name,label])=>[label,option(name,before[name]),option(name,values[name])]);
+    if(!changes.length){controlResult.textContent=text("Без изменений","No changes");return;}
+    confirmAction(action,{revision:Number(form.dataset.revision),theme:values.theme,mode:values.mode},text('Оформление','Appearance'),changes);
+  }
   if(action==="settings-apply"){
     const settings={project_wip:{}};const current=JSON.parse(form.dataset.current);const changes=[];
     for(const [name,value] of Object.entries(values)){
@@ -256,8 +276,13 @@ async function performAction(button){
     if(operation.action==="codex-reset"){
       sessionStorage.removeItem("kurami-reset-attempt");
       controlResult.textContent=["reset","alreadyRedeemed"].includes(result.outcome)?text("Лимиты сброшены","Limits reset"):errorText(result.outcome);
-    }else controlResult.textContent=operation.action==="restart"?text("Перезапуск запрошен","Restart requested"):text("Применено","Applied");
-    if(result.auditWarning)controlResult.textContent+=text(" · Запись аудита не сохранена"," · Audit record could not be saved");
+    }else if(operation.action==="appearance-apply"&&result.appearance){
+      const names={paper:"Paper",neon:"Neon"},modes={light:text("светлая","light"),dark:text("тёмная","dark")};
+      reportSuccess(text("Оформление по умолчанию: ","Default appearance: ")+(names[result.appearance.theme]??result.appearance.theme)+" · "+(modes[result.appearance.mode]??result.appearance.mode));
+    }else reportSuccess(operation.action==="restart"?text("Перезапуск запрошен","Restart requested"):text("Применено","Applied"));
+    if(result.auditWarning)controlResult.textContent=(controlResult.textContent?controlResult.textContent+" · ":"")+text("Запись аудита не сохранена","Audit record could not be saved");
+    // The gateway sends the new default with the next page; apply it here at once.
+    if(operation.action==="appearance-apply"&&result.appearance){document.cookie=`kurami-theme-default=${result.appearance.theme}.${result.appearance.mode}; path=/; max-age=31536000; samesite=lax${location.protocol==="https:"?"; secure":""}`;window.kuramiThemeRefresh?.();}
     pending=null;confirmation.hidden=true;controlContent.hidden=false;
     if(controlView)await loadControl(controlView);else controlContent.textContent="";
     await refreshHub(true);

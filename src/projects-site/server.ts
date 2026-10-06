@@ -6,6 +6,7 @@ import { fileURLToPath } from "node:url";
 import { fontFiles } from "../ui-library/foundations/fonts.ts";
 import { THEME_RUNTIME_JS } from "../ui-library/runtime/theme.ts";
 import { ProjectsAccess } from "./access.ts";
+import {AccessVerificationUnavailableError,accessUnavailableMessage} from "../web/access-keys.ts";
 import { collectProjectsSnapshot } from "./snapshot.ts";
 import { renderProjectsDashboard, renderProjectsPage,renderProjectPrControl } from "./render.ts";
 import { PROJECTS_STYLES } from "./styles.ts";
@@ -15,14 +16,14 @@ import { requestProjectStatus, type StatusResult } from "./status.ts";
 import { requestProjectRunAction } from "./run-actions.ts";
 import {inspectProjectPr,requestProjectPr,type PrActionView,type PrActionResult} from "./pr-actions.ts";
 import {isMountedRequest,mountResponse,WEB_CLIENT_JS} from "../web/presentation.ts";
-import {TOAST_RUNTIME_JS} from "../ui-library/runtime/toast.ts";
+import {PROJECTS_CLIENT_VERSION,PROJECTS_CLIENT_JS} from "./client-version.ts";
 import {WebAccess} from "../web/access.ts";
 import {WEB_ORIGIN} from "../web/routes.ts";
 
 const assetRoot = resolve(import.meta.dirname, "../ui-library/assets");
 const assets = new Map<string, { body: Buffer | string; type: string }>([
   ["/assets/projects.css", { body: PROJECTS_STYLES, type: "text/css; charset=utf-8" }],
-  ["/assets/projects.js", { body: WEB_CLIENT_JS+TOAST_RUNTIME_JS+readFileSync(resolve(import.meta.dirname, "client.js"),"utf8"), type: "text/javascript; charset=utf-8" }],
+  ["/assets/projects.js", { body: PROJECTS_CLIENT_JS, type: "text/javascript; charset=utf-8" }],
   ["/assets/theme.js", { body: WEB_CLIENT_JS+THEME_RUNTIME_JS, type: "text/javascript; charset=utf-8" }],
   ["/assets/kurami-fox.webp", { body: readFileSync(resolve(assetRoot, "brand/kurami-fox-header.webp")), type: "image/webp" }],
   ["/assets/favicon.svg", { body: readFileSync(resolve(assetRoot, "brand/kurami-favicon.svg")), type: "image/svg+xml" }],
@@ -67,6 +68,7 @@ export function createProjectsServer(options: {
   return createServer(async (request, response) => {
     mountResponse(request,response,"projects");
     response.setHeader("Cache-Control", "private, no-store");
+    response.setHeader("X-Kurami-Projects-Version",PROJECTS_CLIENT_VERSION);
     response.setHeader("X-Content-Type-Options", "nosniff");
     response.setHeader("Referrer-Policy", "no-referrer");
     response.setHeader("X-Frame-Options", "DENY");
@@ -96,7 +98,11 @@ export function createProjectsServer(options: {
     if(request.method!=="POST")lang=language(url.searchParams);
     if (url.pathname === "/health") { send(200, "application/json; charset=utf-8", '{"ok":true}'); return; }
     if (url.pathname === "/robots.txt") { send(200, "text/plain; charset=utf-8", "User-agent: *\nDisallow: /\n"); return; }
-    const identity = await authorize(request).catch(() => null);
+    let identity:string|null;
+    try{identity=await authorize(request);}catch(error){
+      if(error instanceof AccessVerificationUnavailableError){response.setHeader("Retry-After","10");send(503,"text/plain; charset=utf-8",accessUnavailableMessage(lang));return;}
+      identity=null;
+    }
     if (!identity) { send(403, "text/plain; charset=utf-8", "Доступ разрешён только владельцу через Cloudflare Access."); return; }
     if (reviewRoute || statusRoute || runRoute||prRoute) {
       if (request.headers.origin !== (options.origin ?? (isMountedRequest(request,"projects")?WEB_ORIGIN:"https://projects.shagon1k.win")) ||

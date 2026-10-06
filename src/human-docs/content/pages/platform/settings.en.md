@@ -41,6 +41,21 @@ Limits change only while Kurami is idle. If a new limit took effect mid-run, par
 
 Wait until the list is empty and press **Apply** again.
 
+## Appearance (Hub only)
+
+Hub's Controls → Settings also has an **Appearance** section: the default theme for every device.
+
+| Setting | Options | What it is |
+|---|---|---|
+| Theme | Paper or Neon | Paper is warm paper with one red accent. Neon draws the fox as a red neon sign and marks data in yellow (amber in light) |
+| Mode | Light or Dark | Both themes have both modes; dark is Neon's main look |
+
+This theme applies always and everywhere. Every app's header has a theme button. It opens a menu: two cards, Paper and Neon, with a light and dark switch in the row above them. A choice in the menu is temporary: it lasts while the app or tab is open, and the next visit opens with the Hub theme again. Until a theme is chosen in Hub, Paper follows the system mode.
+
+The installed app follows this theme too: with Neon it gets the neon fox icon and a dark splash. Android picks up the new icon by itself, usually within a day. iPhone keeps the icon it was added with, so it shows the new one only after the app is removed from the Home Screen and added again.
+
+Applying it creates a revision with its author, like the other settings. Hub refuses a stale panel. This section does not wait for Kurami to be idle, because appearance does not change runs.
+
 ## Revisions, Undo and Reset
 
 Every apply creates a new revision: the number grows, and the values, the previous values and the author's id (Discord, or a fixed id for Hub) are stored in the database with a checksum. The panel remembers the revision it opened with. If someone changed the settings meanwhile, the panel refuses and asks you to reopen it.

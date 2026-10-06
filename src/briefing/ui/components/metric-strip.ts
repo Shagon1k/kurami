@@ -1,3 +1,4 @@
+import {FIGURE_ATTRIBUTE,surfaceAttributes} from "../../../ui-library/components/surface.ts";
 import { section } from "../../addons/envelopes.ts";
 import type { BriefingPayload, KuramiNoteTarget } from "../../model.ts";
 import { displayString, escapeHtml } from "../html.ts";
@@ -111,10 +112,10 @@ export function renderMetricStrip(
   return renderMetricCards(cards,payload.edition.timezone,key=>note(payload,`metric:${key}` as KuramiNoteTarget));
 }
 export function renderMetricCards(cards:MetricCard[],timezone:string,renderNote:(key:string)=>string=()=>""):string {
-  return `<section class="metric-strip" aria-label="${digestText("Коротко о выпуске","Edition at a glance")}">${cards.map((card) => {
+  return `<section class="metric-strip"${surfaceAttributes("panel")} aria-label="${digestText("Коротко о выпуске","Edition at a glance")}">${cards.map((card) => {
     return `<article class="metric-card" data-metric="${escapeHtml(card.key)}">
       <span class="metric-card__label">${escapeHtml(card.label)}</span>
-      <strong class="metric-card__value${card.segments?" metric-card__value--segments":""}"${card.liveClock ? ` data-live-clock data-timezone="${escapeHtml(timezone)}"` : ""}>${card.segments?card.segments.map(segment=>`<span class="metric-card__segment">${renderIcon(segment.icon)}<span>${escapeHtml(String(segment.value))}</span><small>${escapeHtml(segment.label)}</small></span>`).join(""):escapeHtml(card.value)}</strong>
+      <strong class="metric-card__value${card.segments?" metric-card__value--segments":""}"${FIGURE_ATTRIBUTE}${card.liveClock ? ` data-live-clock data-timezone="${escapeHtml(timezone)}"` : ""}>${card.segments?card.segments.map(segment=>`<span class="metric-card__segment">${renderIcon(segment.icon)}<span>${escapeHtml(String(segment.value))}</span><small>${escapeHtml(segment.label)}</small></span>`).join(""):escapeHtml(card.value)}</strong>
       <span class="metric-card__chip${card.warning ? " warning" : ""}">${escapeHtml(card.chip)}</span>
       <p class="metric-card__context">${escapeHtml(card.context)}</p>
       ${renderNote(card.key)}

@@ -48,3 +48,11 @@ The previous built-in call referenced only the existing transparent fox and requ
 `transparent_background: true`. The exact prompt was:
 
 > Use case: precise-object-edit / logo-brand. Input image 1 is the existing Kurami fox logo to preserve, not a style suggestion. Create a high-resolution production master for an Android PWA splash screen and launcher icon. Reconstruct this EXACT fox mark with clean, sharp vector-like anti-aliased edges at 2048x2048 if available, otherwise the highest square resolution. Keep the original symmetric silhouette, proportions, thick pure-black outline, two upright triangular ears with orange inside, orange forehead/muzzle and white cheek cutouts unchanged. Keep the original bright orange color, no palette change, and smooth minimal original gradient only. Center the mark, upright, with roughly 5 percent transparent outer margin. Actual transparent alpha background, no square or circle behind the mark, no shadow, no glow, no lettering, no framing, no added features or decorative detail. This is a fidelity-preserving high-quality reconstruction, NOT a redesign. The output must stay crisp when displayed at 600px wide.
+
+## Neon
+
+Neon draws the same fox contours as neon tubes (`neon-fox.ts`): the head red, the mask orange-red, the
+cheeks yellow, with a soft glow. The header uses a thick-tube SVG inlined in `NEON_CSS`; Paper keeps the
+WebP. The same exporter writes four `kurami-fox-neon-*` PNGs on the dark Neon ground
+(`PWA_NEON_BACKGROUND`); maskable exports keep the ears and glow inside the 40% safe circle. The gateway
+manifest switches icon set, splash and theme colour by the Hub default theme (`pwaAppearance`).

@@ -25,8 +25,35 @@ Every Kurami site (Digest, human docs, any new sub-site) renders through the sha
   `productControls` in `src/ui-library/testing/audit.ts`, and declare `UI-Library: exception` with a
   `UI-Reason:` in the PR. Reviewers see the reason in `guard-baseline.json`.
 - Run `npm run test:ui-library`, `npm run test:ui-guard` and `npm run test:ui-browser` for UI
-  changes. When you remove an exception, record it with `node tests/ui-library/guard.ts --update`.
+  changes (see Themes below for which variants to check). When you remove an exception, record it with `node tests/ui-library/guard.ts --update`.
 - After changing the library, run `npm run ui:export` so the UI-language skill bundle stays current.
+
+## Themes: every UI change works in Paper and Neon
+
+Kurami has two themes, each with light and dark modes: **Paper** (default) and **Neon** (the fox
+as a red neon sign). Hub settings set the theme every app opens with; the header menu changes it for the current session only.
+New UI must look right in both without theme-specific product code.
+
+- Style only through roles; a role is the contract, its value differs per theme. Use the right
+  role: text uses `--text-*` (`--text-accent` for red text), not `--accent-primary` (a fill/line).
+- Never branch on the theme in product code or CSS (`[data-kurami-theme]`, `[data-theme]`).
+  Theme-specific looks live in the library (`src/ui-library/themes/`).
+- Opt new blocks into the shared marks instead of drawing frames yourself:
+  `surfaceAttributes("panel")` for cards and frames, `"lead"` for the block a page leads with
+  (`{attention:true}` when it needs the owner), `renderGauge` for a figure with a meter,
+  `renderIcon(name,{tile:true})` for icons on plates, `LIVE_ATTRIBUTE` for regions that refresh
+  (Neon flashes figures that changed), `FIGURE_ATTRIBUTE` for a product's own headline figure.
+  Paper draws nothing for them; Neon frames, rings and animates them.
+- Neon colours rank: red (sign, main action, links), yellow (`accent-data`: data, selection,
+  secondary actions), blue (`status-info`: information, quiet controls). Use the roles, never the hex.
+- Text that explains a control rather than showing data goes behind `renderInfoButton` +
+  `renderInfoNote`, not in a visible paragraph.
+- Content headings (news, task titles) stay in the text face; section and panel titles take the
+  display face automatically in Neon.
+- Check one variant of each theme: **Paper light** and **Neon dark**. `npm run test:ui-browser`
+  screenshots and audits exactly these by default, and `check-pages.ts --shots` shoots both. Run
+  `npm run test:ui-browser:all` (adds Paper dark and Neon light) when changing the library,
+  tokens or theme files.
 
 ## Docs site: pages are Markdown in `src/human-docs/content/pages/`
 

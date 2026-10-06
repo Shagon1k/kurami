@@ -31,7 +31,7 @@ try {
     await devtools.call("Emulation.setDeviceMetricsOverride",{width,height:1000,deviceScaleFactor:1,mobile:width<600});
     await devtools.call("Page.navigate",{url:`http://127.0.0.1:${port}/${lang}/`});
     await wait("document.readyState==='complete' && document.querySelectorAll('[data-chart-mounted]').length===5");
-    await devtools.evaluate(`document.documentElement.dataset.theme===${JSON.stringify(theme)}||document.querySelector('[data-theme-toggle]').click()`);
+    await devtools.evaluate(`document.documentElement.dataset.theme===${JSON.stringify(theme)}||document.querySelector('[data-mode-choice=${JSON.stringify(theme)}]').click()`);
     await devtools.evaluate("document.fonts.ready");
     await devtools.call("Input.dispatchMouseEvent",{type:"mouseMoved",x:1,y:1});
     assert.equal(await devtools.evaluate("document.documentElement.dataset.theme"),theme);

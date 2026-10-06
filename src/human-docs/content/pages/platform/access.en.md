@@ -65,6 +65,12 @@ request is denied. Hub and Projects retain their own control checks. A separatel
 configured Docs reader identity can read only Docs, not dashboards or controls.
 The existing hostnames remain available until you approve their redirect cutover.
 
+Fetching Cloudflare's public signing keys has a 15-second deadline.
+A timeout, network error or malformed key response returns `503` with a temporary
+sign-in verification message. Refresh the page in a few seconds.
+Invalid or missing assertions still receive `403`; private data and actions remain
+unavailable without a verified signature.
+
 One Kurami PWA covers all four apps. Its fox icons are exported directly from
 vector paths at 512 and 1024 pixels, without enlarging a raster source. The splash
 and launcher icons share the theme's warm beige background. The adaptive icon
@@ -75,6 +81,13 @@ The worker fetches pages from
 the network and shows a connection placeholder offline. It does not save private
 pages or API responses. Deployment and installed-phone checks are separate from
 the local routing tests.
+
+Browser tabs and the installed PWA use the same edge-to-edge page shell and safe
+screen insets. Whether the system gesture strip becomes transparent depends on
+the browser and OS, especially for an installed Android PWA; the page cannot force
+it. Kurami remains in standalone mode, not fullscreen. Verify both a browser tab
+and the installed app on your phone after deployment; desktop emulation checks
+layout, not the native system bars.
 
 Install from the unified entry after signing in. The Apps menu keeps Hub, Digest,
 Projects and Docs in that window, including when you enter through an older address.

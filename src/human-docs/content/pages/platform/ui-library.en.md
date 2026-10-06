@@ -31,7 +31,7 @@ node button "Buttons" "and the theme switch" at 0,2
 node table "Table" "callout, disclosure" at 1,2
 node found "Foundations" "reset, fonts, diagrams" at 0,3
 node runtime "Theme runtime" "before first paint" at 1,3
-node theme "Kurami theme" "light and dark" at 0,4
+node theme "Paper and Neon" "modes and dressing" at 0,4
 node roles "Roles" "colour, shape, spacing" at 1,4
 group products "Products" digest docs hub band
 group patterns "Patterns" header shell band
@@ -42,10 +42,20 @@ group themes "Themes and tokens" theme roles band
 
 ## Compact controls
 
+The shared page shell uses `viewport-fit=cover` in browser tabs and the installed
+PWA. The page background extends to the screen edges; navigation, menus, dialogs
+and the Projects drawer keep controls clear of screen cutouts and system gestures.
+The dock follows the current bottom inset, while the page reserves its maximum
+inset where supported to avoid layout jumps as browser bars retract. Retained
+Digest pages receive the same viewport setting when served.
+
 Action buttons use restrained accents from the existing theme: blue for applying changes or starting a fix,
 amber for operations requiring attention, green for completion and red for cancellation or discarding work.
 Labels and icons remain visible; a color does not mean the request has completed. Disabled buttons stay gray.
 Navigation, popup cancellation and closing controls remain neutral.
+
+The shared sync icon uses two symmetrical circular arcs joined to equal-length
+arrowheads. Buttons and inline status indicators use the same outline.
 
 Open disclosures keep a neutral background on their heading, including nested
 portfolio sections. Following an in-page link briefly highlights its destination
@@ -87,7 +97,7 @@ writes remain until dismissed or replaced. The close icon has an accessible name
 The shared header names the current app: Kurami. Hub, Digest, Projects or Docs.
 **Apps** opens the product links; Hermes and Dokploy are separated external links
 that open in another tab. On the unified entry, product links stay on one origin,
-so the saved theme follows you between apps. On phones, a floating capsule dock
+so a theme picked in the header follows you between apps for the rest of the session. On phones, a floating capsule dock
 replaces sticky header navigation. Large icons sit above compact labels; Apps,
 sections, contextual navigation and Settings open menus. Settings contains language
 and theme in horizontal rows behind a gear icon. Sections changes pages; Go to jumps within the
@@ -96,8 +106,8 @@ background and left rail; an open dock button uses a rounded red-tinted tile wit
 Go to links are text-only. Apps, Sections and Controls use monochrome outline
 icons and shared sans-serif labels; Docs keeps its grouped section hierarchy.
 A repeated click, an outside click or Escape closes a menu.
-The dock leaves space around its sides and above the phone's bottom safe area.
-Its warm surface is 82% opaque with a slight backdrop blur; icons and labels remain opaque.
+The dock keeps at least 12px at the sides and a 3px gap above the phone's bottom safe area.
+Its warm surface is 72% opaque with a slight backdrop blur; icons and labels remain opaque.
 Browsers without backdrop blur use an opaque surface. Menus keep a distinct raised surface.
 Outline icons use a 26px frame with lighter strokes and aligned 13px medium-weight labels, reduced to 12px up to 360px.
 The dock is 66px high at normal text size, with 56px tap targets; enlarged text can increase its height.
@@ -130,11 +140,50 @@ does not overlap the brand or header actions.
 Mobile cards allow labels to wrap; wide tables keep their internal scroll.
 Long identifiers wrap within stacked Docs table rows.
 
+## Themes
+
+The library has two themes. **Paper** is the default: warm paper, ink and one red accent, in light and dark modes. **Neon** draws the fox as a red neon sign. Its colours come in ranks:
+
+- red is first: the fox, lead-block frames, headings with a "//" mark, the main action and links;
+- yellow is second: data, selection, secondary actions and press feedback;
+- blue is third: information, tips and quiet controls on hover;
+- the ground is dark, with fine scan lines.
+
+Neon draws the fox as neon tubes, both in the header and on the installed app's icon. Paper keeps the original fox.
+
+Neon has a dark mode, its main look, and a light one: the same roles in deep tones on a cool daylight ground, with amber for yellow and dark blue for blue.
+
+Neon changes the look, not the layout. A product marks its blocks, and the theme decides how to draw them. These marks change nothing in Paper:
+
+| Mark | In Neon |
+|---|---|
+| `data-ui-surface="panel"` | Grey frame with bevelled corners and a lit red segment on the top edge |
+| `data-ui-surface="lead"` | Red neon lead frame; with `data-ui-attention` it pulses slowly |
+| `renderGauge` | The meter becomes a ring around the value |
+| `renderIcon(…, {tile: true})` | The icon sits on a plate |
+| `data-ui-live` | A figure that changed on refresh flashes yellow |
+| `data-ui-figure` (`FIGURE_ATTRIBUTE`) | A product's own figure takes the same face as figure cards |
+
+Bevels appear where the browser supports them; other browsers show rounded corners. Motion is Neon only and stops with reduced motion:
+
+- the fox lights up;
+- figures count up;
+- the app name glitches on arrival from another app;
+- a yellow ring spreads from the finger inside a pressed button;
+- a busy button runs a yellow line along its bottom edge;
+- changed figures flash.
+
+Text that explains a control rather than showing data sits behind a small "i" (`renderInfoButton` and `renderInfoNote`) and opens on press.
+
+The theme every app opens with is set in [Hub settings](@settings). The header menu changes it only until the app or tab is closed.
+
+New UI must work in both themes. Products never branch on the theme: the guard rejects `[data-theme]` and `[data-kurami-theme]` selectors in product code. One variant of each theme is enough to check — Paper light and Neon dark — and `npm run test:ui-browser` screenshots and audits exactly those. The full four-variant run (`test:ui-browser:all`) is for changes to the library and themes.
+
 ## Layers
 
 The layers run from values up to finished pages, and each one knows only about those below it. At the bottom sit *roles*: not "red #e21b16" but "the accent colour" (`--accent-primary`). There are 32 colour roles and 19 others — fonts, radii, shadows, spacing and durations. The Kurami theme sets the role values in a light and a dark form, and the breakpoints for phone and tablet — 620 and 900 pixels — live in constants because `@media` cannot read variables.
 
-Foundations: the style reset, typography, the focus ring, accessibility utilities, the container, the Onest, Fragment Mono and Caveat fonts that sit in the repository together with their OFL licences, and the `inlineDiagram` function that paints diagrams with theme roles. Components are the button, the theme switch, the table, the callout and the disclosure block. Patterns are the site header and the page shell `renderDocument`, which assembles the `<head>`, the skip link, the header, the main content and the footer. A separate runtime reads the stored theme choice or the system setting and applies it before first paint, so the dark theme does not flash light.
+Foundations: the style reset, typography, the focus ring, accessibility utilities, the container, the Onest, Fragment Mono and Caveat fonts that sit in the repository together with their OFL licences, and the `inlineDiagram` function that paints diagrams with theme roles. Components are the button, the theme switch, the table, the callout and the disclosure block. Patterns are the site header and the page shell `renderDocument`, which assembles the `<head>`, the skip link, the header, the main content and the footer. A separate runtime reads the theme picked for this session, the Hub theme or the system setting and applies it before first paint, so the dark theme does not flash light.
 
 ## Rules
 

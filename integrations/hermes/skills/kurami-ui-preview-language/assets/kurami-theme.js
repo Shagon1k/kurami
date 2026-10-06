@@ -1,25 +1,107 @@
 // Generated from src/ui-library by `npm run ui:export`. Do not edit; change the library instead.
-(function kuramiThemeRuntime() {
-  const root = document.documentElement, key = "kurami-theme", media = matchMedia("(prefers-color-scheme: dark)");
-  const stored = () => { try { const value = localStorage.getItem(key); return value === "dark" || value === "light" ? value : null; } catch { return null; } };
-  const apply = (theme                  ) => {
-    root.dataset.theme = theme;
+(function kuramiThemeRuntime(choices              ) {
+  const root = document.documentElement, modeKey = "kurami-theme", themeKey = "kurami-theme-name", media = matchMedia("(prefers-color-scheme: dark)");
+  const known = (theme                           )                  => !!theme && Object.hasOwn(choices.modes, theme);
+  // Choices used to persist per device; they now last one session, so drop any that are left.
+  try { localStorage.removeItem(modeKey); localStorage.removeItem(themeKey); } catch {}
+  const read = (key        ) => { try { return sessionStorage.getItem(key); } catch { return null; } };
+  const write = (key        , value        ) => { try { sessionStorage.setItem(key, value); } catch {} };
+  const sessionTheme = () => { const value = read(themeKey); return known(value) ? value : null; };
+  const sessionMode = ()                   => { const value = read(modeKey); return value === "dark" || value === "light" ? value : null; };
+  const hubDefault = () => {
+    const match = /(?:^|;\s*)kurami-theme-default=([a-z]+)\.(light|dark)(?:;|$)/.exec(document.cookie);
+    return match && known(match[1]) ? { theme: match[1], mode: match[2]              } : null;
+  };
+  const defaults = () => hubDefault() ?? { theme: "paper", mode: (media.matches ? "dark" : "light")              };
+  /** The mode a theme opens in: Paper keeps the current mode; a variant takes the default's mode when it is the default, otherwise its first mode (Neon: dark). */
+  const openingMode = (theme        )            => {
+    const base = defaults();
+    if (theme === "paper") return root.dataset.theme === "dark" ? "dark" : "light";
+    return theme === base.theme ? base.mode : choices.modes[theme][0];
+  };
+  const effective = () => {
+    const theme = sessionTheme() ?? defaults().theme, modes = choices.modes[theme];
+    let mode = sessionMode() ?? (sessionTheme() ? openingMode(theme) : defaults().mode);
+    if (!modes.includes(mode)) mode = modes[0];
+    return { theme, mode };
+  };
+  const apply = () => {
+    const { theme, mode } = effective();
+    root.dataset.theme = mode;
+    if (theme === "paper") delete root.dataset.kuramiTheme; else root.dataset.kuramiTheme = theme;
     for (const button of document.querySelectorAll("[data-theme-toggle]")) {
-      button.setAttribute("aria-pressed", String(theme === "dark"));
+      // A menu trigger exposes expanded state; a legacy toggle (saved Digest editions) exposes the mode.
+      if (!button.hasAttribute("aria-haspopup")) button.setAttribute("aria-pressed", String(mode === "dark"));
+      else (button               ).dataset.themeMode = mode;
       const icon = button.querySelector("[data-theme-icon]");
-      if (icon) icon.textContent = theme === "dark" ? "☀" : "◐";
+      if (icon) icon.textContent = mode === "dark" ? "☀" : "◐";
+    }
+    for (const option of document.querySelectorAll                   ("[data-theme-choice]")) option.setAttribute("aria-pressed", String(option.dataset.themeChoice === theme));
+    for (const option of document.querySelectorAll                   ("[data-mode-choice]")) {
+      const value = option.dataset.modeChoice             ;
+      option.setAttribute("aria-pressed", String(value === mode));
+      option.disabled = !choices.modes[theme].includes(value);
     }
     const surface = getComputedStyle(root).getPropertyValue("--surface-page").trim();
     if (surface) document.querySelector('meta[name="theme-color"]')?.setAttribute("content", surface);
   };
-  apply(stored() ?? (media.matches ? "dark" : "light"));
-  media.addEventListener("change", event => { if (!stored()) apply(event.matches ? "dark" : "light"); });
-  document.addEventListener("DOMContentLoaded", () => apply(root.dataset.theme === "dark" ? "dark" : "light"));
+  const place = (panel             ) => {
+    const trigger = document.querySelector             (`[popovertarget="${panel.id}"]`);
+    if (!trigger || panel.closest("[data-mobile-slot]")) return;
+    const rect = trigger.getBoundingClientRect(), width = panel.offsetWidth || 248;
+    panel.style.setProperty("--popover-top", `${Math.round(rect.bottom + 8)}px`);
+    panel.style.setProperty("--popover-left", `${Math.round(Math.max(8, Math.min(rect.right - width, innerWidth - width - 8)))}px`);
+  };
+  apply();
+  // Hub calls this after changing the default (cookie): the session override ends and the page shows the new default.
+  (window                                                ).kuramiThemeRefresh = () => {
+    try { sessionStorage.removeItem(modeKey); sessionStorage.removeItem(themeKey); } catch {}
+    apply();
+  };
+  media.addEventListener("change", () => apply());
+  document.addEventListener("DOMContentLoaded", apply);
+  document.addEventListener("toggle", event => {
+    const panel = event.target;
+    if (!(panel instanceof HTMLElement) || !panel.matches("[data-theme-panel]")) return;
+    const open = (event               ).newState === "open";
+    document.querySelector(`[popovertarget="${panel.id}"]`)?.setAttribute("aria-expanded", String(open));
+    if (open) place(panel);
+  }, true);
+  // Info tips: the "i" button shows or hides its note; Escape hides the open ones.
   document.addEventListener("click", event => {
-    if (!(event.target instanceof Element) || !event.target.closest("[data-theme-toggle]")) return;
-    const next = root.dataset.theme === "dark" ? "light" : "dark";
-    try { localStorage.setItem(key, next); } catch {}
-    apply(next);
+    const info = event.target instanceof Element ? event.target.closest                   ("[data-ui-info]") : null;
+    const note = info && document.getElementById(info.getAttribute("aria-controls") ?? "");
+    if (!info || !note) return;
+    note.hidden = !note.hidden; info.setAttribute("aria-expanded", String(!note.hidden));
+  });
+  document.addEventListener("keydown", event => {
+    if (event.key !== "Escape") return;
+    for (const info of document.querySelectorAll                   ('[data-ui-info][aria-expanded="true"]')) {
+      const note = document.getElementById(info.getAttribute("aria-controls") ?? "");
+      if (note) note.hidden = true;
+      info.setAttribute("aria-expanded", "false");
+    }
+  });
+  document.addEventListener("click", event => {
+    const target = event.target instanceof Element ? event.target : null;
+    const themeOption = target?.closest             ("[data-theme-choice]"), modeOption = target?.closest                   ("[data-mode-choice]");
+    if (themeOption && known(themeOption.dataset.themeChoice)) {
+      const theme = themeOption.dataset.themeChoice;
+      write(themeKey, theme); write(modeKey, openingMode(theme));
+      apply();
+      return;
+    }
+    if (modeOption && !modeOption.disabled) {
+      write(themeKey, effective().theme); write(modeKey, modeOption.dataset.modeChoice );
+      apply();
+      return;
+    }
+    const toggle = target?.closest("[data-theme-toggle]");
+    if (!toggle || toggle.hasAttribute("aria-haspopup")) return;
+    // Legacy toggle: switch the mode for this session; a theme without that mode switches to Paper.
+    const next            = root.dataset.theme === "dark" ? "light" : "dark", theme = effective().theme;
+    write(themeKey, choices.modes[theme].includes(next) ? theme : "paper"); write(modeKey, next);
+    apply();
   });
   const menus = () => document.querySelectorAll                    (".site-switcher[open],.site-menu[open],.side-mobile[open]");
   document.addEventListener("pointerdown", event => {
@@ -33,6 +115,75 @@
   document.addEventListener("click", event => {
     if (!(event.target instanceof Element)) return;
     for (const menu of menus()) if (!menu.contains(event.target) || event.target.closest("a[href]")) menu.open = false;
+  });
+})({"modes":{"paper":["light","dark"],"neon":["dark","light"]}});
+(function kuramiNeonMotion() {
+  const root = document.documentElement, reduce = matchMedia("(prefers-reduced-motion: reduce)");
+  const active = () => root.dataset.kuramiTheme === "neon" && !reduce.matches;
+  const countUp = (element         ) => {
+    const text = element.textContent ?? "", match = /^(\D*?)(\d+(?:[.,]\d+)?)(.*)$/s.exec(text);
+    if (!match || element.children.length) return;
+    const [, prefix, number, suffix] = match, separator = number.includes(",") ? "," : ".", decimals = (number.split(/[.,]/)[1] ?? "").length;
+    const end = Number(number.replace(",", ".")), start = performance.now(), duration = 900;
+    if (!Number.isFinite(end) || end === 0) return;
+    const step = (now        ) => {
+      const t = Math.min((now - start) / duration, 1), value = end * (1 - Math.pow(1 - t, 3));
+      element.textContent = prefix + value.toFixed(decimals).replace(".", separator) + suffix;
+      if (t < 1) requestAnimationFrame(step); else element.textContent = text;
+    };
+    requestAnimationFrame(step);
+  };
+  const app = (path        ) => /^\/(?:ru|en)\/(digest|projects|docs)(?:\/|$)/.exec(path)?.[1] ?? "hub";
+  document.addEventListener("pointerdown", event => {
+    if (!active() || !(event.target instanceof Element)) return;
+    const button = event.target.closest             (".button:not(:disabled):not([aria-busy=\"true\"])");
+    if (!button) return;
+    const rect = button.getBoundingClientRect(), layer = document.createElement("span"), ring = document.createElement("span");
+    layer.className = "ui-ripple"; layer.setAttribute("aria-hidden", "true");
+    ring.style.left = `${event.clientX - rect.left}px`; ring.style.top = `${event.clientY - rect.top}px`;
+    // Large enough to reach the far corner of the button.
+    ring.style.setProperty("--ripple-scale", String(Math.ceil(Math.hypot(rect.width, rect.height) / 6)));
+    layer.append(ring); button.append(layer);
+    ring.addEventListener("animationend", () => layer.remove(), { once: true });
+    setTimeout(() => layer.remove(), 800);
+  }, { passive: true });
+  // A figure is known by its card: the metric key or the stat label. Clocks tick on their own and never flash.
+  const figures = (live         ) => {
+    const found = new Map                 ();
+    for (const figure of live.querySelectorAll(".stat-card__value, [data-ui-figure]")) {
+      if (figure.closest("[data-live-clock]") || figure.matches("[data-live-clock]")) continue;
+      const card = figure.closest("[data-metric], .stat-card, .metric-card");
+      const key = card?.getAttribute("data-metric") ?? card?.querySelector(".stat-card__label, .metric-card__label")?.textContent?.trim();
+      if (key && !found.has(key)) found.set(key, figure);
+    }
+    return found;
+  };
+  document.addEventListener("DOMContentLoaded", () => {
+    if (!active()) return;
+    document.querySelectorAll(".stat-card__value, [data-ui-count]").forEach(countUp);
+    try {
+      const from = document.referrer ? new URL(document.referrer) : null;
+      if (from && from.origin === location.origin && app(from.pathname) !== app(location.pathname)) document.querySelector(".site-brand__name")?.classList.add("ui-glitch");
+    } catch {}
+    const regions = [...document.querySelectorAll("[data-ui-live]")], known = new Map                              ();
+    const remember = (live         ) => known.set(live, new Map([...figures(live)].map(([key, figure]) => [key, figure.textContent ?? ""])));
+    let frame = 0;
+    const compare = () => {
+      frame = 0;
+      for (const live of regions) {
+        const before = known.get(live), now = figures(live);
+        if (before && active()) for (const [key, figure] of now) {
+          const previous = before.get(key);
+          if (previous === undefined || previous === figure.textContent) continue;
+          figure.classList.remove("ui-figure-blip"); void (figure               ).offsetWidth; figure.classList.add("ui-figure-blip");
+          setTimeout(() => figure.classList.remove("ui-figure-blip"), 1000);
+        }
+        remember(live);
+      }
+    };
+    const observer = new MutationObserver(() => { if (!frame) frame = requestAnimationFrame(compare); });
+    // Start after the count-up, so the page's own first animation is not mistaken for a refresh.
+    setTimeout(() => { for (const live of regions) { remember(live); observer.observe(live, { childList: true, subtree: true, characterData: true }); } }, 1000);
   });
 })();
 (function mobileNavigationRuntime(phoneWidth       ) {
@@ -71,10 +222,13 @@
       const panel=readingPanel();if(!panel)return;
       const slot=app==='hub'?panel.querySelector('nav'):panel.querySelector('[data-mobile-slot="contents"]');
       if(!slot||slot.querySelector('.toc-mobile__list'))return;
-      slot.replaceChildren();
       const headings=[...document.querySelectorAll             ('main h2')].filter(heading=>heading.textContent?.trim()&&heading.getClientRects().length&&!heading.closest('dialog,.ui-popover,[hidden]'));
-      for(const [index,heading] of headings.entries()){
-        if(!heading.id)heading.id=`mobile-section-${index+1}`;
+      for(const [index,heading] of headings.entries())if(!heading.id)heading.id=`mobile-section-${index+1}`;
+      // Rebuild only when the sections changed: a rebuild under a finger detaches the link being tapped.
+      const current=[...slot.querySelectorAll                   ('a.mobile-navigation__anchor')].map(link=>`${link.getAttribute('href')}\n${link.textContent}`);
+      if(headings.length&&current.join('\n')===headings.map(heading=>`#${heading.id}\n${heading.textContent}`).join('\n'))return;
+      slot.replaceChildren();
+      for(const heading of headings){
         const link=document.createElement('a');link.className='mobile-navigation__anchor';link.href=`#${heading.id}`;link.textContent=heading.textContent;slot.append(link);
       }
       if(!headings.length){const note=document.createElement('p');note.textContent=ru?'На этой странице нет разделов.':'No sections on this page.';slot.append(note);}
@@ -161,9 +315,9 @@
       const node=document.querySelector(selector),slot=shell.querySelector(`[data-mobile-slot="${key}"]`);if(!node||!slot)return;
       const anchor=document.createComment('mobile navigation source');node.before(anchor);moves.push({node,anchor,slot});
     }
-    header.querySelectorAll('.site-actions > .button,.site-actions > button').forEach(node=>{
+    header.querySelectorAll('.site-actions > .button,.site-actions > button,.site-actions > [data-theme-menu]').forEach(node=>{
       if(node.matches('[data-hub-control]'))return;
-      const key=node.matches('[data-theme-toggle]')?'theme':node.matches('a[hreflang]')?'language':null;if(!key)return;
+      const key=node.matches('[data-theme-toggle],[data-theme-menu]')?'theme':node.matches('a[hreflang]')?'language':null;if(!key)return;
       const slot=shell.querySelector(`[data-mobile-slot="${key}"]`) ,anchor=document.createComment('mobile setting');node.before(anchor);moves.push({node,anchor,slot});
     });
     if(app==='hub'){move('#hub-controls-popover .controls-menu','controls');if(!moves.some(item=>item.slot.getAttribute('data-mobile-slot')==='controls'))shell.querySelector                   ('[data-mobile-menu="controls"]') .disabled=true;}
@@ -172,7 +326,10 @@
     function adapt(){
       if(!media.matches)close();
       for(const item of moves)if(media.matches)item.slot.append(item.node);else item.anchor.after(item.node);
-      header.querySelectorAll('[data-theme-toggle]').forEach(button=>button.classList.toggle('button--switch',media.matches));
+      header.querySelectorAll('[data-theme-toggle]:not([aria-haspopup])').forEach(button=>button.classList.toggle('button--switch',media.matches));
+      // In the settings sheet the theme menu shows its options inline instead of as a popover.
+      shell.querySelectorAll             ('[data-mobile-slot="theme"] [data-theme-panel]').forEach(panel=>{panel.hidePopover?.();panel.removeAttribute('popover');});
+      header.querySelectorAll             ('.site-actions [data-theme-panel]:not([popover])').forEach(panel=>panel.setAttribute('popover','auto'));
       header.querySelectorAll('[data-hub-control]').forEach(button=>button.classList.toggle('mobile-navigation__action',media.matches));
       const periodRow=shell.querySelector             ('[data-mobile-period-row]');if(periodRow)periodRow.hidden=!periodRow.querySelector('[data-floating-period]');
       fillContents();links();reading();viewport();
@@ -199,7 +356,7 @@
         }else{replaying=true;try{(link??control) .click();}finally{replaying=false;}}
       });
     },true);
-    document.addEventListener('pointerdown',event=>{if(active&&event.target instanceof Node&&!shell.contains(event.target)&&!active.contains(event.target))close();});
+    document.addEventListener('pointerdown',event=>{if(active&&event.target instanceof Node&&event.target.isConnected&&!shell.contains(event.target)&&!active.contains(event.target))close();});
     document.addEventListener('click',event=>{
       if(replaying||!pending||!(event.target instanceof Element)||shell.contains(event.target)||event.ctrlKey||event.metaKey||event.shiftKey||event.altKey)return;
       const target=event.target.closest             ('a[href],button,tr,[role="button"]');

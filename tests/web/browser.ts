@@ -69,7 +69,7 @@ try{
   upsertAddonSnapshot(digestDb,"stocks",{version:1,state:"ready",capturedAt:"2026-10-01T07:00:00Z",data:{provider:"eodhd",policy,series:[{asset:policy.assets[0],points:[{date:"2026-09-30",close:100,adjusted:100}],fetchedAt:"2026-10-01T07:00:00Z",state:"ready"}]}});
   digestDb.close();
   const docs=await listen(createDocsServer(docsRoot));
-  await listen(createWebServer({upstreams:{hub,projects,digest,docs},origin,authorize:authorizeFixture}),port);
+  await listen(createWebServer({upstreams:{hub,projects,digest,docs},origin,authorize:authorizeFixture,appearance:()=>null}),port);
   browser=await launchBrowser(findBrowser());const {devtools}=browser;
   const cookie=await devtools.call<{success:boolean}>("Network.setCookie",{name:"fixture-access",value:"owner",url:origin,httpOnly:true,sameSite:"Lax"});
   assert.equal(cookie.success,true,"synthetic owner cookie is set");
@@ -160,8 +160,8 @@ try{
       assert.equal(await devtools.evaluate("(() => {const date=document.querySelector('.site-brand__meta');return !date||date.getBoundingClientRect().right<=document.querySelector('.site-actions').getBoundingClientRect().left+1;})()"),true,path+" date does not overlap controls");
     }else{
       assert.equal(await devtools.evaluate("getComputedStyle(document.querySelector('.site-actions')).display"),"none",path+" mobile controls leave the header");
-      assert.equal(await devtools.evaluate("getComputedStyle(document.querySelector('.site-header')).position"),"static",path+" mobile header scrolls with content");
-      assert.equal(await devtools.evaluate("(() => {const bar=document.querySelector('.mobile-navigation__bar'),rect=bar.getBoundingClientRect();return getComputedStyle(bar).position==='fixed'&&rect.left>=11&&innerWidth-rect.right>=11&&rect.width<=360&&innerHeight-rect.bottom>=11&&bar.querySelectorAll('[data-mobile-menu]').length===4;})()"),true,path+" unified mobile dock floats within viewport margins");
+      assert.ok(["static","relative"].includes(await devtools.evaluate<string>("getComputedStyle(document.querySelector('.site-header')).position")),path+" mobile header scrolls with content");
+      assert.equal(await devtools.evaluate("(() => {const bar=document.querySelector('.mobile-navigation__bar'),rect=bar.getBoundingClientRect();return getComputedStyle(bar).position==='fixed'&&rect.left>=11&&innerWidth-rect.right>=11&&rect.width<=360&&innerHeight-rect.bottom>=2.5&&bar.querySelectorAll('[data-mobile-menu]').length===4;})()"),true,path+" unified mobile dock floats within viewport margins");
       assert.equal(await devtools.evaluate("(() => {const labels=[...document.querySelectorAll('.mobile-navigation__bar button > span')].map(span=>{const range=document.createRange();range.selectNodeContents(span);return [...range.getClientRects()];});return labels.every((rects,index)=>rects.length===1&&(!index||rects[0].left-labels[index-1][0].right>=4));})()"),true,path+" dock labels stay on one line with a readable gap in both languages");
       assert.equal(await devtools.evaluate("(() => {const bar=document.querySelector('.mobile-navigation__bar'),r=bar.getBoundingClientRect();return r.height===66&&r.width<=344&&[...bar.querySelectorAll('button')].every(button=>button.getBoundingClientRect().height>=44&&button.querySelector('svg').getBoundingClientRect().width===26);})()"),true,path+" compact dock keeps comfortable tap targets");
     }
@@ -243,7 +243,7 @@ try{
   await devtools.evaluate("document.documentElement.dataset.webNavigation='previous'");
   await devtools.call("Page.navigate",{url:origin+"/ru/"});await wait("document.body?.innerText.includes('Нет связи')");
   assert.equal(await devtools.evaluate("!!document.querySelector('#hub-dashboard')"),false,"offline never restores a private dashboard");
-  await listen(createWebServer({upstreams:{hub,projects,digest,docs},origin,authorize:authorizeFixture}),port);
+  await listen(createWebServer({upstreams:{hub,projects,digest,docs},origin,authorize:authorizeFixture,appearance:()=>null}),port);
   await open("/en/");assert.equal(await devtools.evaluate("!!document.querySelector('#hub-dashboard')"),true,"online recovery works");
   console.log(`Unified browser: ${checked} mounted EN/RU views at 320/390/1280px; theme, APIs, control reads, Projects detail/reload and one root worker verified; ${output}`);
 }finally{

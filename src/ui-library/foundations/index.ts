@@ -9,10 +9,10 @@ export const FOUNDATION_CSS=`${FONT_FACES}${SITE_FOOTER_CSS}
 :root { --container-max: 1320px; }
 *, *::before, *::after { box-sizing: border-box; }
 [hidden] { display: none !important; }
-html { scroll-behavior: smooth; }
+html { scroll-behavior: smooth; scroll-padding-top: env(safe-area-inset-top,0px); background: var(--surface-page); }
 html:has(dialog:modal),body:has(dialog:modal) { overflow: hidden; overscroll-behavior: none; }
 html:has(dialog:modal) { scrollbar-gutter: stable; }
-body { margin: 0; color: var(--text-primary); background: var(--surface-page); font: 400 16px/1.5 var(--font-sans); text-rendering: optimizeLegibility; }
+body { margin: 0; padding: env(safe-area-inset-top,0px) env(safe-area-inset-right,0px) 0 env(safe-area-inset-left,0px); color: var(--text-primary); background: var(--surface-page); font: 400 16px/1.5 var(--font-sans); text-rendering: optimizeLegibility; }
 a { color: inherit; }
 .list-reset { list-style: none; margin: 0; padding: 0; }
 button { font: inherit; }
@@ -20,7 +20,7 @@ button, a { -webkit-tap-highlight-color: transparent; }
 :where(a, button, summary, input, select, textarea, [tabindex]:not([tabindex="-1"])):focus-visible { outline: 3px solid var(--focus-ring); outline-offset: 3px; }
 .container { width: min(var(--container-max, 1320px), calc(100% - 48px)); margin-inline: auto; }
 .skip-link { position: fixed; left: 16px; top: -80px; z-index: 50; padding: 10px 14px; color: var(--text-on-accent); background: var(--accent-primary); }
-.skip-link:focus { top: 16px; }
+.skip-link:focus { top: calc(16px + env(safe-area-inset-top,0px)); left: calc(16px + env(safe-area-inset-left,0px)); }
 .sr-only { position: absolute !important; width: 1px !important; height: 1px !important; padding: 0 !important; margin: -1px !important; overflow: hidden !important; clip: rect(0, 0, 0, 0) !important; white-space: nowrap !important; border: 0 !important; }
 .page-title,h1.page-title { max-width: 24ch; margin: 0 0 var(--space-4); font: 600 clamp(2rem,5vw,3.6rem)/1.08 var(--font-sans); letter-spacing: -.045em; overflow-wrap: anywhere; }
 .page-subtitle { max-width: 62ch; margin: 0; color: var(--text-muted); font: 400 clamp(1rem,1.8vw,1.25rem)/1.5 var(--font-sans); }

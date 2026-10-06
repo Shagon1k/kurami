@@ -1,3 +1,4 @@
+import {prepareTopicUpsert} from "./topic-registry-store.ts";
 import { createHash } from "node:crypto";
 import { readFile, unlink } from "node:fs/promises";
 import type { DatabaseSync } from "node:sqlite";
@@ -133,21 +134,7 @@ export async function persistPublishedRevision(
       SET story_fingerprint = ?, topic_ids_json = ?, updated_at = ?
       WHERE edition_id = ? AND item_id = ? AND item_type = 'story'
     `);
-    const upsertTopic = database.prepare(`
-      INSERT INTO topic_registry (id, label, aliases_json, status, created_at, updated_at)
-      VALUES (?, ?, ?, ?, ?, ?)
-      ON CONFLICT(id) DO UPDATE SET
-        label = excluded.label,
-        aliases_json = CASE
-          WHEN excluded.aliases_json = '[]' THEN topic_registry.aliases_json
-          ELSE excluded.aliases_json
-        END,
-        status = CASE
-          WHEN topic_registry.status = 'active' THEN 'active'
-          ELSE excluded.status
-        END,
-        updated_at = excluded.updated_at
-    `);
+    const upsertTopic = prepareTopicUpsert(database);
     database.prepare("DELETE FROM topic_story_occurrences WHERE edition_id = ?").run(edition.id);
     const insertOccurrence = database.prepare(`
       INSERT OR IGNORE INTO topic_story_occurrences (

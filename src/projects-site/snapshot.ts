@@ -1,4 +1,5 @@
 import { observedStatusRequest, type StatusRequestRow } from "./status-state.ts";
+import {taskStartProgress,type ActivationEvent} from "./task-start.ts";
 import { parseCiChecks } from "./ci-checks.ts";
 import { projectRunActions } from "./run-actions.ts";
 import { inspectAiReview } from "../orchestrator/controls/ai-review.ts";
@@ -18,6 +19,7 @@ type ItemRow = ProjectRunFacts & {
   item_id: string; project: string; issue_number: number | null; title: string | null; content_type: string | null;
   status: string | null; last_seen_at: string; url: string | null; run_id: string | null; run_updated_at: string | null;
   detail: string | null; owner_state: string | null; pull_request_url: string | null; review_url: string | null;
+  trigger_event_id:string|null;rejection_reason:string|null;
   review_pending: number; review_request_failed: number | null; preview_state: string | null; preview_hostname: string | null; preview_expires_at: string | null;
   preview_reviewed_at: string | null; preview_head: string | null;
   guild_id: string | null; parent_channel_id: string | null; thread_id: string | null;
@@ -93,7 +95,7 @@ export function collectProjectsSnapshot(options: { home?: string; now?: Date; co
     database.exec("BEGIN");
     const polls = database.prepare("SELECT project,last_captured_at,last_attempt_state FROM project_poll_state").all() as { project: string; last_captured_at: string | null; last_attempt_state: string }[];
     const rows = database.prepare(`SELECT p.project,p.item_id,p.issue_number,p.title,p.content_type,p.status,p.last_seen_at,p.url,
-      r.run_id,r.state AS run_state,r.owner_state,r.updated_at AS run_updated_at,pc.stage,pc.detail,
+      r.run_id,r.state AS run_state,r.owner_state,r.updated_at AS run_updated_at,r.trigger_event_id,r.rejection_reason,pc.stage,pc.detail,
       ci.head_sha AS ci_head_sha,ci.aggregate_state AS ci_aggregate_state,ci.pull_request_url,ci.checks_json AS ci_checks_json,ci.last_observed_at AS ci_observed_at,${PROJECT_RUN_FACTS_SQL},
       (SELECT github_review_url FROM run_ai_reviews a WHERE a.run_id=r.run_id ORDER BY a.review_number DESC LIMIT 1) AS review_url,
       (SELECT round_number FROM run_review_fix_rounds f WHERE f.run_id=r.run_id ORDER BY f.round_number DESC LIMIT 1) AS review_fix_round_number,
@@ -118,6 +120,7 @@ export function collectProjectsSnapshot(options: { home?: string; now?: Date; co
     const statusEnabled = options.statusEnabled ?? process.env.PROJECTS_STATUS_ENABLED === "1";
     const statusReady = statusEnabled && Boolean(database.prepare("SELECT 1 FROM sqlite_master WHERE type='table' AND name='project_status_requests'").get());
     const statusRequests = statusReady ? database.prepare(`SELECT q.* FROM project_status_requests q WHERE NOT EXISTS(SELECT 1 FROM project_status_requests n WHERE n.project=q.project AND n.item_id=q.item_id AND n.rowid>q.rowid)`).all() as StatusRequestRow[] : [];
+    const latestEvents=statusEnabled?database.prepare(`SELECT e.project,e.item_id,e.event_id,e.from_status,e.to_status,e.observed_at,e.processing_state,e.processing_note FROM project_events e WHERE NOT EXISTS(SELECT 1 FROM project_events n WHERE n.project=e.project AND n.item_id=e.item_id AND n.rowid>e.rowid)`).all() as ActivationEvent[]:[];
     const triageReady=database.prepare("SELECT COUNT(*) AS count FROM sqlite_master WHERE type='table' AND name IN ('project_triage_rankings','project_triage_state')").get() as {count:number};
     const suggestions=triageReady.count===2?database.prepare(`SELECT r.project,r.selected_item_id,r.selected_issue_number,r.suggested_since,r.ranked_at,r.explanation
       FROM project_triage_rankings r JOIN project_triage_state s ON s.project=r.project AND s.factual_hash=r.factual_hash
@@ -148,6 +151,8 @@ export function collectProjectsSnapshot(options: { home?: string; now?: Date; co
         const fresh = projects.find(project => project.key === item.project)?.freshness === "fresh";
         const latest = statusRequests.find(request => request.project === item.project && request.item_id === item.id);
         const state = latest ? observedStatusRequest(latest,item.status,item.observedAt) : null;
+        const runRow=rows.find(row=>row.project===item.project&&row.item_id===item.id)!;
+        item.taskStart=taskStartProgress(item,projects.find(project=>project.key===item.project)!,latest,state,latestEvents.find(event=>event.project===item.project&&event.item_id===item.id),runRow.trigger_event_id,runRow.rejection_reason);
         const pending = ["checking","writing","awaiting_sync","uncertain"].includes(state ?? "");
         const historicalConflict=Boolean(latest&&state==="conflict"&&fresh&&Date.parse(item.observedAt)>Date.parse(latest.updated_at)&&now.getTime()-Date.parse(latest.updated_at)>=PROJECTS_STALE_AFTER_MS);
         const hints: Record<string,string> = item.kind === "Issue" ? {

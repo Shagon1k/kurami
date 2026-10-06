@@ -60,6 +60,8 @@ At the bottom of a managed task, **Cancel run** sits beside the PR action.
 When no PR action is available, its explanation appears below the actions;
 the disabled PR button keeps its place, so **Cancel run** keeps the same width.
 Loading and temporary read failures also preserve both buttons.
+Queued, running and failed actions show their status in a full-width row below the button pair.
+Each status names its action; multiple messages stack without sharing a button column.
 For a draft, **Ready for review** opens a confirmation. For an open non-draft,
 **Merge PR** opens a compact menu of allowed methods: Squash, Rebase or Merge commit.
 Choose a method, then confirm it in the same popup:
@@ -83,9 +85,19 @@ locked. Kurami leaves the Project status unchanged: a configured GitHub workflow
 can move the task to Done after merging. Normal polling then observes that change.
 See [Completion and cleanup](@release-cleanup) for the resulting cleanup.
 
-The status editor stays visible. Issue, PR, review and Discord links use bordered
+For an issue in Backlog, click **Start work**: choosing In progress and saving separately is no longer needed.
+The card immediately shows the start request, then synchronization, admission and session preparation.
+Waiting survives reload through the request receipt, not a UI timer.
+Another click does not create a second request. When a write is unconfirmed, **Check result** checks the same request.
+An admission refusal shows its reason and leaves the status editor available; actual execution replaces the waiting state.
+
+If Projects changes while the page is open, reload when prompted. Kurami keeps the previous card and disables writes instead of combining new markup with older scripts and styles. A successful refresh clears its previous refresh-error notice.
+
+For other states, the status editor stays visible. Issue, PR, review and Discord links use bordered
 buttons in a grid. CI, review and preview share one block,
 with repair actions beside their checks. Preview has its own link and expiry.
+After **Mark reviewed**, its button disappears and **Preview reviewed** stays visible with a green check.
+The mark refers to the exact preview commit. After the PR changes, an amber mark says **Reviewed for an earlier commit**.
 A matching commit appears once; differing commits stay visible. A ready review
 does not mean there are no findings.
 

@@ -1,9 +1,9 @@
 import {createPublicKey,verify} from "node:crypto";
 import type {IncomingMessage} from "node:http";
+import {fetchAccessKeys,AccessVerificationUnavailableError,type AccessKey} from "../web/access-keys.ts";
 
-type Jwk={kid:string;kty:string;[key:string]:unknown};
 export class HubAccess {
-  private keys:{at:number;keys:Jwk[]}|null=null;
+  private keys:{at:number;keys:AccessKey[]}|null=null;
   private team:string;
   private audience:string;
   private fetchKeys:typeof fetch;
@@ -20,15 +20,12 @@ export class HubAccess {
       if(header.alg!=="RS256"||claims.iss!==this.team||!Array.isArray(claims.aud)||!claims.aud.includes(this.audience)||
         !Number.isFinite(claims.exp)||claims.exp<=now||!Number.isFinite(claims.nbf)||claims.nbf>now+30||typeof claims.sub!=="string"||!claims.sub)return null;
       if(!this.keys||Date.now()-this.keys.at>3600_000||!this.keys.keys.some(key=>key.kid===header.kid)){
-        const response=await this.fetchKeys(this.team+"/cdn-cgi/access/certs",{signal:AbortSignal.timeout(5000)});
-        if(!response.ok)return null;
-        const body=await response.json() as {keys:Jwk[]};
-        if(!Array.isArray(body.keys))return null;
-        this.keys={at:Date.now(),keys:body.keys};
+        this.keys={at:Date.now(),keys:await fetchAccessKeys(this.team,this.fetchKeys)};
       }
+      if(claims.exp<=Date.now()/1000)return null;
       const key=this.keys.keys.find(key=>key.kid===header.kid&&key.kty==="RSA");if(!key)return null;
       if(!verify("RSA-SHA256",Buffer.from(parts[0]+"."+parts[1]),createPublicKey({key:key as any,format:"jwk"}),Buffer.from(parts[2]!,"base64url")))return null;
       return claims.sub;
-    }catch{return null;}
+    }catch(error){if(error instanceof AccessVerificationUnavailableError)throw error;return null;}
   }
 }
