@@ -67,6 +67,21 @@
     document.querySelector(`[popovertarget="${panel.id}"]`)?.setAttribute("aria-expanded", String(open));
     if (open) place(panel);
   }, true);
+  // Info tips: the "i" button shows or hides its note; Escape hides the open ones.
+  document.addEventListener("click", event => {
+    const info = event.target instanceof Element ? event.target.closest                   ("[data-ui-info]") : null;
+    const note = info && document.getElementById(info.getAttribute("aria-controls") ?? "");
+    if (!info || !note) return;
+    note.hidden = !note.hidden; info.setAttribute("aria-expanded", String(!note.hidden));
+  });
+  document.addEventListener("keydown", event => {
+    if (event.key !== "Escape") return;
+    for (const info of document.querySelectorAll                   ('[data-ui-info][aria-expanded="true"]')) {
+      const note = document.getElementById(info.getAttribute("aria-controls") ?? "");
+      if (note) note.hidden = true;
+      info.setAttribute("aria-expanded", "false");
+    }
+  });
   document.addEventListener("click", event => {
     const target = event.target instanceof Element ? event.target : null;
     const themeOption = target?.closest             ("[data-theme-choice]"), modeOption = target?.closest                   ("[data-mode-choice]");
@@ -119,6 +134,30 @@
     requestAnimationFrame(step);
   };
   const app = (path        ) => /^\/(?:ru|en)\/(digest|projects|docs)(?:\/|$)/.exec(path)?.[1] ?? "hub";
+  document.addEventListener("pointerdown", event => {
+    if (!active() || !(event.target instanceof Element)) return;
+    const button = event.target.closest             (".button:not(:disabled):not([aria-busy=\"true\"])");
+    if (!button) return;
+    const rect = button.getBoundingClientRect(), layer = document.createElement("span"), ring = document.createElement("span");
+    layer.className = "ui-ripple"; layer.setAttribute("aria-hidden", "true");
+    ring.style.left = `${event.clientX - rect.left}px`; ring.style.top = `${event.clientY - rect.top}px`;
+    // Large enough to reach the far corner of the button.
+    ring.style.setProperty("--ripple-scale", String(Math.ceil(Math.hypot(rect.width, rect.height) / 6)));
+    layer.append(ring); button.append(layer);
+    ring.addEventListener("animationend", () => layer.remove(), { once: true });
+    setTimeout(() => layer.remove(), 800);
+  }, { passive: true });
+  // A figure is known by its card: the metric key or the stat label. Clocks tick on their own and never flash.
+  const figures = (live         ) => {
+    const found = new Map                 ();
+    for (const figure of live.querySelectorAll(".stat-card__value, [data-ui-figure]")) {
+      if (figure.closest("[data-live-clock]") || figure.matches("[data-live-clock]")) continue;
+      const card = figure.closest("[data-metric], .stat-card, .metric-card");
+      const key = card?.getAttribute("data-metric") ?? card?.querySelector(".stat-card__label, .metric-card__label")?.textContent?.trim();
+      if (key && !found.has(key)) found.set(key, figure);
+    }
+    return found;
+  };
   document.addEventListener("DOMContentLoaded", () => {
     if (!active()) return;
     document.querySelectorAll(".stat-card__value, [data-ui-count]").forEach(countUp);
@@ -126,17 +165,25 @@
       const from = document.referrer ? new URL(document.referrer) : null;
       if (from && from.origin === location.origin && app(from.pathname) !== app(location.pathname)) document.querySelector(".site-brand__name")?.classList.add("ui-glitch");
     } catch {}
-    const observer = new MutationObserver(records => {
-      if (!active()) return;
-      for (const record of records) {
-        const live = (record.target instanceof Element ? record.target : record.target.parentElement)?.closest             ("[data-ui-live]");
-        if (!live || live.classList.contains("ui-live-scan")) continue;
-        live.classList.add("ui-live-scan");
-        setTimeout(() => live.classList.remove("ui-live-scan"), 1200);
+    const regions = [...document.querySelectorAll("[data-ui-live]")], known = new Map                              ();
+    const remember = (live         ) => known.set(live, new Map([...figures(live)].map(([key, figure]) => [key, figure.textContent ?? ""])));
+    let frame = 0;
+    const compare = () => {
+      frame = 0;
+      for (const live of regions) {
+        const before = known.get(live), now = figures(live);
+        if (before && active()) for (const [key, figure] of now) {
+          const previous = before.get(key);
+          if (previous === undefined || previous === figure.textContent) continue;
+          figure.classList.remove("ui-figure-blip"); void (figure               ).offsetWidth; figure.classList.add("ui-figure-blip");
+          setTimeout(() => figure.classList.remove("ui-figure-blip"), 1000);
+        }
+        remember(live);
       }
-    });
-    // Start watching after the count-up, so the page's own first animation is not mistaken for a refresh.
-    setTimeout(() => document.querySelectorAll("[data-ui-live]").forEach(live => observer.observe(live, { childList: true, subtree: true, characterData: true })), 1000);
+    };
+    const observer = new MutationObserver(() => { if (!frame) frame = requestAnimationFrame(compare); });
+    // Start after the count-up, so the page's own first animation is not mistaken for a refresh.
+    setTimeout(() => { for (const live of regions) { remember(live); observer.observe(live, { childList: true, subtree: true, characterData: true }); } }, 1000);
   });
 })();
 (function mobileNavigationRuntime(phoneWidth       ) {
@@ -175,10 +222,13 @@
       const panel=readingPanel();if(!panel)return;
       const slot=app==='hub'?panel.querySelector('nav'):panel.querySelector('[data-mobile-slot="contents"]');
       if(!slot||slot.querySelector('.toc-mobile__list'))return;
-      slot.replaceChildren();
       const headings=[...document.querySelectorAll             ('main h2')].filter(heading=>heading.textContent?.trim()&&heading.getClientRects().length&&!heading.closest('dialog,.ui-popover,[hidden]'));
-      for(const [index,heading] of headings.entries()){
-        if(!heading.id)heading.id=`mobile-section-${index+1}`;
+      for(const [index,heading] of headings.entries())if(!heading.id)heading.id=`mobile-section-${index+1}`;
+      // Rebuild only when the sections changed: a rebuild under a finger detaches the link being tapped.
+      const current=[...slot.querySelectorAll                   ('a.mobile-navigation__anchor')].map(link=>`${link.getAttribute('href')}\n${link.textContent}`);
+      if(headings.length&&current.join('\n')===headings.map(heading=>`#${heading.id}\n${heading.textContent}`).join('\n'))return;
+      slot.replaceChildren();
+      for(const heading of headings){
         const link=document.createElement('a');link.className='mobile-navigation__anchor';link.href=`#${heading.id}`;link.textContent=heading.textContent;slot.append(link);
       }
       if(!headings.length){const note=document.createElement('p');note.textContent=ru?'На этой странице нет разделов.':'No sections on this page.';slot.append(note);}
@@ -306,7 +356,7 @@
         }else{replaying=true;try{(link??control) .click();}finally{replaying=false;}}
       });
     },true);
-    document.addEventListener('pointerdown',event=>{if(active&&event.target instanceof Node&&!shell.contains(event.target)&&!active.contains(event.target))close();});
+    document.addEventListener('pointerdown',event=>{if(active&&event.target instanceof Node&&event.target.isConnected&&!shell.contains(event.target)&&!active.contains(event.target))close();});
     document.addEventListener('click',event=>{
       if(replaying||!pending||!(event.target instanceof Element)||shell.contains(event.target)||event.ctrlKey||event.metaKey||event.shiftKey||event.altKey)return;
       const target=event.target.closest             ('a[href],button,tr,[role="button"]');

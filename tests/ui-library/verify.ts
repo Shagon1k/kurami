@@ -5,7 +5,7 @@ import {colorRoles,scaleRoles,type Theme} from "../../src/ui-library/tokens/inde
 import {kuramiTheme,paperTheme,neonTheme,themeVariants,themeCss,variantCss,THEME_CSS} from "../../src/ui-library/themes/index.ts";
 import {NEON_CSS} from "../../src/ui-library/themes/neon.ts";
 import {CHART_STYLES} from "../../src/ui-library/components/charts/index.ts";
-import {surfaceAttributes} from "../../src/ui-library/components/surface.ts";
+import {FIGURE_ATTRIBUTE,surfaceAttributes} from "../../src/ui-library/components/surface.ts";
 import {BRIEFING_STYLES} from "../../src/briefing/ui/styles.ts";
 import {DOCS_STYLES} from "../../src/human-docs/styles.ts";
 import {HUB_STYLES} from "../../src/hub/styles.ts";
@@ -192,6 +192,10 @@ for(const [lang,name,hint] of [["ru","Тема","Действует, пока о
   for(const mode of ["light","dark"])assert.match(menu,new RegExp(`data-mode-choice="${mode}"`),mode);
   assert.doesNotMatch(menu,/data-theme-choice="default"/,"the Hub default is not a menu option");
   assert.ok(menu.includes(hint),"the menu says the choice lasts the session");
+  assert.match(menu,/<button class="ui-info"[^>]*aria-controls="kurami-theme-menu-note"/,"the session note sits behind an info button");
+  assert.match(menu,/<p class="ui-info-note" id="kurami-theme-menu-note" role="note" hidden>/,"the note is hidden until asked for");
+  assert.match(menu,/<div class="theme-menu__modes" role="group"[^>]*>(?:<button[^>]*class="button button--toggle button--compact theme-menu__mode"[^>]*data-mode-choice="(?:light|dark)"[^>]*>.*?<\/button>){2}<\/div><\/div><div class="theme-menu__themes"/,"the mode is a small switch in the heading, the themes are cards below it");
+  assert.match(menu,/<span class="theme-menu__swatch" data-swatch="neon" aria-hidden="true"><\/span>Neon/,"each theme card shows a preview");
   assert.doesNotMatch(menu,/aria-pressed="true"/,"the runtime, not the server, marks the current choice");
 }
 // Theme variants: complete tokens, applied only under their own selector, after Paper.
@@ -223,7 +227,10 @@ assert.match(renderIcon("alert",{tile:true}),/class="ui-icon ui-icon--tile"/);
 assert.equal(renderIcon("alert"),renderIcon("alert",{tile:false}));
 assert.match(CHART_STYLES,/\.chart__area \{ display: none; \}/,"chart areas are hidden in Paper");
 assert.match(NEON_CSS,/\.chart__area \{ display: inline;/,"Neon fills chart areas");
-for(const selector of ['[data-ui-surface="lead"]','[data-ui-attention]','.ui-gauge','.ui-icon--tile','.ui-live-scan','.ui-glitch'])assert.ok(NEON_CSS.includes(selector),`Neon styles ${selector}`);
+assert.match(NEON_CSS,/\.site-brand__fox \{ content: url\("data:image\/svg\+xml,/,"Neon draws the fox as neon tubes; Paper keeps its mark");
+assert.match(NEON_CSS,/\.button\[aria-busy="true"\]::before/,"a busy button shows the charge line");
+assert.equal(FIGURE_ATTRIBUTE," data-ui-figure");
+for(const selector of ['[data-ui-surface="lead"]','[data-ui-attention]','.ui-gauge','.ui-icon--tile','.ui-figure-blip','.ui-ripple','.ui-glitch','[data-ui-figure]'])assert.ok(NEON_CSS.includes(selector),`Neon styles ${selector}`);
 assert.match(NEON_CSS,/@supports \(corner-shape: bevel\)/,"bevels only where supported; rounded corners elsewhere");
 assert.match(NEON_CSS,/prefers-reduced-motion: no-preference/,"Neon motion respects reduced motion");
 assert.match(THEME_RUNTIME_JS,/kuramiNeonMotion/,"runtime carries Neon motion");

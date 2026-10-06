@@ -37,10 +37,13 @@ function mobileNavigationRuntime(phoneWidth:number) {
       const panel=readingPanel();if(!panel)return;
       const slot=app==='hub'?panel.querySelector('nav'):panel.querySelector('[data-mobile-slot="contents"]');
       if(!slot||slot.querySelector('.toc-mobile__list'))return;
-      slot.replaceChildren();
       const headings=[...document.querySelectorAll<HTMLElement>('main h2')].filter(heading=>heading.textContent?.trim()&&heading.getClientRects().length&&!heading.closest('dialog,.ui-popover,[hidden]'));
-      for(const [index,heading] of headings.entries()){
-        if(!heading.id)heading.id=`mobile-section-${index+1}`;
+      for(const [index,heading] of headings.entries())if(!heading.id)heading.id=`mobile-section-${index+1}`;
+      // Rebuild only when the sections changed: a rebuild under a finger detaches the link being tapped.
+      const current=[...slot.querySelectorAll<HTMLAnchorElement>('a.mobile-navigation__anchor')].map(link=>`${link.getAttribute('href')}\n${link.textContent}`);
+      if(headings.length&&current.join('\n')===headings.map(heading=>`#${heading.id}\n${heading.textContent}`).join('\n'))return;
+      slot.replaceChildren();
+      for(const heading of headings){
         const link=document.createElement('a');link.className='mobile-navigation__anchor';link.href=`#${heading.id}`;link.textContent=heading.textContent;slot.append(link);
       }
       if(!headings.length){const note=document.createElement('p');note.textContent=ru?'На этой странице нет разделов.':'No sections on this page.';slot.append(note);}
@@ -168,7 +171,7 @@ function mobileNavigationRuntime(phoneWidth:number) {
         }else{replaying=true;try{(link??control)!.click();}finally{replaying=false;}}
       });
     },true);
-    document.addEventListener('pointerdown',event=>{if(active&&event.target instanceof Node&&!shell.contains(event.target)&&!active.contains(event.target))close();});
+    document.addEventListener('pointerdown',event=>{if(active&&event.target instanceof Node&&event.target.isConnected&&!shell.contains(event.target)&&!active.contains(event.target))close();});
     document.addEventListener('click',event=>{
       if(replaying||!pending||!(event.target instanceof Element)||shell.contains(event.target)||event.ctrlKey||event.metaKey||event.shiftKey||event.altKey)return;
       const target=event.target.closest<HTMLElement>('a[href],button,tr,[role="button"]');

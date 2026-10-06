@@ -149,6 +149,7 @@ body { min-height: 100vh; }
 .control-fields { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: var(--space-4); }
 .control-actions { display: flex; justify-content: flex-end; flex-wrap: wrap; gap: var(--space-2); margin-top: var(--space-4); }
 .control-summary { font-size: .85rem; overflow-wrap: anywhere; white-space: pre-line; }
+.control-about { display: flex; align-items: center; margin: 0; color: var(--text-muted); font-size: .85rem; }
 .control-form + .control-form { margin-top: var(--space-6); padding-top: var(--space-4); border-top: 1px solid var(--border-subtle); }
 .composio-contours { border: 1px solid var(--border-subtle); border-radius: var(--radius); }
 .composio-contour { padding: var(--space-3); }

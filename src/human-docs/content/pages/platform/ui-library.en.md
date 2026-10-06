@@ -142,31 +142,38 @@ Long identifiers wrap within stacked Docs table rows.
 
 ## Themes
 
-The library has two themes. **Paper** is the default: warm paper, ink and one red accent, in light and dark modes. **Neon** draws the fox as a red neon sign:
+The library has two themes. **Paper** is the default: warm paper, ink and one red accent, in light and dark modes. **Neon** draws the fox as a red neon sign. Its colours come in ranks:
 
-- red lights the fox outline, lead-block frames, headings and the main action;
-- a calm warm yellow marks data and selection;
-- statuses are muted;
-- the ground is dark and dotted.
+- red is first: the fox, lead-block frames, headings with a "//" mark, the main action and links;
+- yellow is second: data, selection, secondary actions and press feedback;
+- blue is third: information, tips and quiet controls on hover;
+- the ground is dark, with fine scan lines.
 
-Neon has a dark mode, its main look, and a light one: the same red sign on a cool daylight ground, with deep amber in place of yellow.
+Neon draws the fox as neon tubes, both in the header and on the installed app's icon. Paper keeps the original fox.
+
+Neon has a dark mode, its main look, and a light one: the same roles in deep tones on a cool daylight ground, with amber for yellow and dark blue for blue.
 
 Neon changes the look, not the layout. A product marks its blocks, and the theme decides how to draw them. These marks change nothing in Paper:
 
 | Mark | In Neon |
 |---|---|
-| `data-ui-surface="panel"` | Grey frame with bevelled corners |
+| `data-ui-surface="panel"` | Grey frame with bevelled corners and a lit red segment on the top edge |
 | `data-ui-surface="lead"` | Red neon lead frame; with `data-ui-attention` it pulses slowly |
 | `renderGauge` | The meter becomes a ring around the value |
 | `renderIcon(…, {tile: true})` | The icon sits on a plate |
-| `data-ui-live` | A short scan when the content refreshes |
+| `data-ui-live` | A figure that changed on refresh flashes yellow |
+| `data-ui-figure` (`FIGURE_ATTRIBUTE`) | A product's own figure takes the same face as figure cards |
 
 Bevels appear where the browser supports them; other browsers show rounded corners. Motion is Neon only and stops with reduced motion:
 
 - the fox lights up;
 - figures count up;
 - the app name glitches on arrival from another app;
-- live blocks scan.
+- a yellow ring spreads from the finger inside a pressed button;
+- a busy button runs a yellow line along its bottom edge;
+- changed figures flash.
+
+Text that explains a control rather than showing data sits behind a small "i" (`renderInfoButton` and `renderInfoNote`) and opens on press.
 
 The theme every app opens with is set in [Hub settings](@settings). The header menu changes it only until the app or tab is closed.
 
