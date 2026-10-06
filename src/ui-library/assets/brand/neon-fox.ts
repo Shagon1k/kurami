@@ -21,6 +21,10 @@ export function neonFoxSvg(options:{tube:number;blur:number;padding:number;glow?
     +`<g filter="url(#glow)">${stroke(FOX_CONTOURS.head,NEON_FOX_COLORS.head,tube)}${stroke(FOX_CONTOURS.mask,NEON_FOX_COLORS.mask,tube*.72)}${stroke(FOX_CONTOURS.cheeks,NEON_FOX_COLORS.cheeks,tube*.62)}</g></svg>`;
 }
 
-/** The header mark: thick tubes that stay crisp at 36–48 px with a faint glow; NEON_CSS breathes a brighter one around it. */
-export const NEON_FOX_HEADER_SVG=neonFoxSvg({tube:60,blur:4,padding:60,glow:.5});
-export const NEON_FOX_HEADER_URI=`data:image/svg+xml,${encodeURIComponent(NEON_FOX_HEADER_SVG)}`;
+/**
+ * The header mark: thick tubes that stay crisp at 36–48 px with a faint glow; NEON_CSS breathes a brighter
+ * one around it. It is inline markup, not an image: the apps' CSP (img-src 'self') blocks data: images.
+ */
+export const NEON_FOX_HEADER_SVG=neonFoxSvg({tube:60,blur:4,padding:60,glow:.5})
+  .replace(/^<svg xmlns="http:\/\/www\.w3\.org\/2000\/svg" (viewBox="[^"]+") width="\d+" height="\d+">/,'<svg class="site-brand__fox site-brand__fox--neon" $1 width="48" height="48" aria-hidden="true" focusable="false">')
+  .replaceAll('id="glow"','id="kurami-neon-fox-glow"').replaceAll('url(#glow)','url(#kurami-neon-fox-glow)');
