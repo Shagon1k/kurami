@@ -1,11 +1,11 @@
-import {surfaceAttributes} from "../../ui-library/components/surface.ts";
+import {FIGURE_ATTRIBUTE,surfaceAttributes} from "../../ui-library/components/surface.ts";
 import type {BriefingPayload} from "../model.ts";
 import {escapeHtml as e} from "../ui/html.ts";
 import {renderPageShell} from "../ui/page-shell.ts";
 import {parseStocksSnapshot,stocksBrief,type StocksBrief,type StocksSnapshot} from "./model.ts";
 import {stockSelection,type StockPeriod} from "./view.ts";
 
-import {shortDate,delta,money,formatStockPercent} from "./format.ts";
+import {shortDate,delta,figureDelta,money,formatStockPercent} from "./format.ts";
 export {formatStockPercent} from "./format.ts";
 import {renderStockRow,stockHref} from "./components.ts";
 import {stockInsights} from "./insights.ts";
@@ -27,12 +27,12 @@ export function renderStocksTeaser(payload:BriefingPayload):string {
     .sort((a,b)=>Math.abs(b.day!)-Math.abs(a.day!)||a.asset.id.localeCompare(b.asset.id)).slice(0,3);
   const dates=[...new Set(quotes.flatMap(q=>q.date?[q.date]:[]))].sort();
   const overview=dates.length?dates.map(shortDate).join(" / "):t("даты пока недоступны","dates unavailable");
-  return `<section class="stocks-teaser" aria-labelledby="stocks-heading">
+  return `<section class="stocks-teaser"${surfaceAttributes("panel")} aria-labelledby="stocks-heading">
     <header><div><p class="hero__eyebrow">${t("Закрытие сессии","Session close")} · ${e(overview)}</p><h2 id="stocks-heading">${t("Акции","Stocks")}</h2></div>
     <a class="button button--secondary" href="/stocks">${t("Открыть обзор","Open overview")} →</a></header>
     <div class="stocks-teaser__body">
-      ${benchmark?`<div class="stocks-benchmark"><span>${e(benchmark.asset.id)} · S&P 500 ETF</span><strong>${e(money(benchmark))}</strong>${delta(benchmark.day)}<small>${benchmark.state==="ready"?t("за последнюю сессию","latest session"):t("последние доступные данные","last available data")}</small></div>`:""}
-      <div class="stocks-movers">${movers.length?`<ul>${movers.map(q=>`<li><a href="${e(href([q.asset.id],"1m"))}">${e(q.asset.id)} <span>${e(q.asset.name)}</span></a>${delta(q.day)}</li>`).join("")}</ul>`
+      ${benchmark?`<div class="stocks-benchmark"><span>${e(benchmark.asset.id)} · S&P 500 ETF</span><strong${FIGURE_ATTRIBUTE}>${e(money(benchmark))}</strong>${figureDelta(benchmark.day)}<small>${benchmark.state==="ready"?t("за последнюю сессию","latest session"):t("последние доступные данные","last available data")}</small></div>`:""}
+      <div class="stocks-movers">${movers.length?`<ul>${movers.map(q=>`<li><a href="${e(href([q.asset.id],"1m"))}">${e(q.asset.id)} <span>${e(q.asset.name)}</span></a>${figureDelta(q.day)}</li>`).join("")}</ul>`
         :`<p>${ready.length?t("Среди обновлённых акций нет движения от ","No refreshed stock moved at least ")+brief.data.threshold+t("% за сессию.","% in the session."):t("Свежие котировки пока недоступны. Дайджест продолжает работать.","Fresh quotes are unavailable. The digest continues to work.")}</p>`}
       ${ready.length<quotes.length?`<small class="stocks-warning">${t("Свежие данные","Fresh data")}: ${ready.length}/${quotes.length}. ${t("Остальные не участвуют в подборке движений.","The others are excluded from the move selection.")}</small>`:""}</div>
     </div><p class="stocks-footnote">${t("Проценты учитывают сплиты и дивиденды. Это утренний срез списка наблюдения, не доходность портфеля.","Percentages account for splits and dividends. This is a morning watchlist snapshot, not portfolio performance.")}</p>

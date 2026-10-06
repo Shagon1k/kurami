@@ -157,6 +157,8 @@ const frozen=JSON.stringify(payload.addons.stocks);
 attachStocksBrief(database,payload,config,"2026-09-18T06:00:00Z");
 assert.equal(JSON.stringify(payload.addons.stocks),frozen);
 assert.match(renderStocksTeaser(payload),/Открыть обзор/);
+assert.match(renderStocksTeaser(payload),/<section class="stocks-teaser" data-ui-surface="panel"/,"the Daily stocks block is a themed panel");
+assert.match(renderStocksTeaser(payload),/<strong data-ui-figure>[^<]+<\/strong><span data-ui-figure class="stock-change/,"the benchmark price and change are headline figures");
 await preparePreview(payload,renderBriefingPage(payload),paths);
 database.prepare("UPDATE editions SET state='complete' WHERE id=?").run(payload.edition.id);
 const edition=loadEdition(database,{id:payload.edition.id})!;
