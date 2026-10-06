@@ -29,7 +29,7 @@ function initializeCharts(factory: typeof createChartEngine): void {
       const visible=new Set(spec.series.map((_,index)=>index));
       let windowSize=spec.initialWindow ?? spec.categories.length;
       let tipRevision=0;
-      const hideTip=()=>{tipRevision++;tooltip.hidden=true;};
+      const hideTip=()=>{tipRevision++;if(!tooltip.hidden)tooltip.hidden=true;};
       const showTip=(point:Element)=>{
         tooltip.textContent=point.getAttribute("data-chart-value") ?? "";
         tooltip.hidden=false;
@@ -176,7 +176,7 @@ export const CHART_CLIENT_SCRIPT=`(()=>{
   mount();document.addEventListener("kurami:charts-mount",mount);
   document.addEventListener("pointerdown",event=>{
     document.querySelectorAll("[data-chart]").forEach(root=>{
-      if(!root.contains(event.target)){const tip=root.querySelector("[data-chart-tooltip]");if(tip)tip.hidden=true;}
+      if(!root.contains(event.target)){const tip=root.querySelector<HTMLElement>("[data-chart-tooltip]");if(tip&&!tip.hidden)tip.hidden=true;}
     });
   });
 })();`;

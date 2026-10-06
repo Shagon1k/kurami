@@ -8,7 +8,7 @@ import {resolveWebRoute,WEB_ORIGIN,type WebApp} from "./routes.ts";
 import {readAppearanceDefault} from "../system/appearance/appearance-settings.ts";
 import {fontFiles} from "../ui-library/foundations/fonts.ts";
 import {VIEWPORT_META} from "../ui-library/patterns/page-shell.ts";
-import {PWA_BACKGROUND,PWA_ICON_ASSETS,PWA_LEGACY_ICON_ASSETS,PWA_MANIFEST_ICONS} from "./icons.ts";
+import {PWA_ICON_ASSETS,PWA_LEGACY_ICON_ASSETS,PWA_NEON_ICON_ASSETS,pwaAppearance} from "./icons.ts";
 
 type Options={upstreams?:Record<WebApp,string>;authorize?:(request:IncomingMessage,app:WebApp)=>Promise<WebIdentity|null>;origin?:string;appearance?:()=>string|null};
 
@@ -39,7 +39,7 @@ export function createWebServer(options:Options={}):Server {
     const raw=request.url??"/",route=resolveWebRoute(raw);
     const resource=raw.split("?")[0]!;
     const font=fontFiles.find(font=>resource===`/assets/${font.file}`);
-    const icon=[...PWA_ICON_ASSETS,...PWA_LEGACY_ICON_ASSETS].find(icon=>resource===icon.src);
+    const icon=[...PWA_ICON_ASSETS,...PWA_LEGACY_ICON_ASSETS,...PWA_NEON_ICON_ASSETS].find(icon=>resource===icon.src);
     const pwa=Boolean(font||icon)||["/manifest.webmanifest","/sw.js","/en/offline.html","/ru/offline.html","/assets/kurami-fox.png","/assets/kurami-fox.webp"].includes(resource);
     const app=font?"docs":route&&"app" in route?route.app:"hub";
     let identity:WebIdentity|null;
@@ -67,7 +67,8 @@ export function createWebServer(options:Options={}):Server {
         response.writeHead(200,{"Content-Type":"font/woff2"});response.end(request.method==="HEAD"?undefined:body);return;
       }
       if(resource==="/manifest.webmanifest"){
-        send(200,JSON.stringify({id:"/",name:"Kurami",short_name:"Kurami",start_url:"/en/",scope:"/",display:"standalone",background_color:PWA_BACKGROUND,theme_color:PWA_BACKGROUND,icons:PWA_MANIFEST_ICONS}),"application/manifest+json");return;
+        const installed=pwaAppearance(appearance());
+        send(200,JSON.stringify({id:"/",name:"Kurami",short_name:"Kurami",start_url:"/en/",scope:"/",display:"standalone",background_color:installed.background,theme_color:installed.themeColor,icons:installed.icons}),"application/manifest+json");return;
       }
       if(icon){
         const body=readFileSync(new URL(`../ui-library/assets/brand/${icon.file}`,import.meta.url));

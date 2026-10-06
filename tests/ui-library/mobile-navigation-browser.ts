@@ -80,6 +80,12 @@ try{
       await devtools.evaluate(`document.getElementById('section-4').scrollIntoView({behavior:'instant',block:'start'})`);await delay(60);await click(key);
       assert.equal(await devtools.evaluate(`document.querySelector('#mobile-menu-${key} [aria-current]').getAttribute('href')`),'#section-4','reading follows scroll rather than the old hash');
       await devtools.evaluate(`history.back()`);await closed();
+      // A real tap while the page reacts to pointerdown (chart tooltips hide themselves) still reaches the section.
+      await devtools.evaluate(`(()=>{const tip=document.createElement('div');tip.hidden=true;document.querySelector('main').append(tip);addEventListener('pointerdown',()=>{tip.hidden=true;},true);scrollTo({top:0,behavior:'instant'});})()`);
+      await click(key);await delay(60);
+      const row=await devtools.evaluate<{x:number;y:number}>(`(()=>{const r=document.querySelector('#mobile-menu-${key} a[href="#section-3"]').getBoundingClientRect();return {x:r.x+r.width/2,y:r.y+r.height/2}})()`);
+      await devtools.call('Input.dispatchTouchEvent',{type:'touchStart',touchPoints:[row]});await delay(40);await devtools.call('Input.dispatchTouchEvent',{type:'touchEnd',touchPoints:[]});
+      await closed();await wait(`location.hash==='#section-3'`);await delay(1000);
     }else{
       await click('search');assert.equal(await devtools.evaluate(`document.activeElement.name`),'q');
       await devtools.evaluate(`history.back()`);await closed();

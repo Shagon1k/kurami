@@ -307,9 +307,9 @@ fallbacks. These refinements add no new product-specific UI exceptions.
 
 The original theme is named **Paper** (`themes/kurami.ts`, exported as `paperTheme`/`kuramiTheme`): light and dark modes, applied with `:root` and `html[data-theme="dark"]`.
 
-**Neon** (`themes/neon.ts`) is a theme variant (`ThemeVariant`): the Kurami fox as a red neon sign. Red (`accent-primary`) marks the sign — fox outline, lead-block frames, display headings and the main action. A calm warm yellow (`accent-data`, `focus-ring`, `chart-1`) marks data and selection. Statuses are muted and information (`status-info`) is neutral. Neon's dark mode is its base and main look. Its light mode keeps the red sign on a cool daylight ground (`#f6f4fa`), with deep amber in place of yellow. It applies under `[data-theme="light"]`, and its `scale` overrides soften the glows. Neon is applied with `html[data-kurami-theme="neon"]` after Paper, so it wins at equal specificity. A first Neon pick on a device with no stored mode starts dark.
+**Neon** (`themes/neon.ts`) is a theme variant (`ThemeVariant`): the Kurami fox as a red neon sign. Red (`accent-primary`) marks the sign — fox outline, lead-block frames, display headings and the main action. Yellow (`accent-data`, `focus-ring`, `chart-4`) is second: data, selection, secondary actions and press feedback. Blue (`status-info`, `chart-1`) is third: information, info tips and quiet controls on hover. Links stay red (`text-accent`). Neon's dark mode is its base and main look. Its light mode keeps the red sign on a cool daylight ground (`#f6f4fa`), with deep amber in place of yellow. It applies under `[data-theme="light"]`, and its `scale` overrides soften the glows. Neon is applied with `html[data-kurami-theme="neon"]` after Paper, so it wins at equal specificity. A first Neon pick on a device with no stored mode starts dark.
 
-Neon-specific dressing that a token cannot express lives in `NEON_CSS`: the dotted ground with corner glows, the header sign line, the fox outline (it lights up on load), display type and the primary button glow. It ships inside `THEME_CSS`, and every rule there is scoped to Neon, so Paper is unchanged. The test suite asserts this.
+Neon-specific dressing that a token cannot express lives in `NEON_CSS`: the scan-line ground with corner glows, the header sign line, the fox drawn as neon tubes (`assets/brand/neon-fox.ts`, also the source of the Neon PWA icons; it lights up on load), display type, buttons by rank, the lit segment on panel edges, the "//" mark on section titles, the press ring, the busy charge line and the changed-figure flash. It ships inside `THEME_CSS`, and every rule there is scoped to Neon, so Paper is unchanged. The test suite asserts this.
 
 Scale roles added for themed display and lead blocks. Paper sets them to its current values:
 
@@ -323,8 +323,10 @@ Scale roles added for themed display and lead blocks. Paper sets them to its cur
 
 **Theme control.** `renderThemeSwitch(lang)` renders a menu. The header button looks as before and stays filled while the page is dark. It opens a popover with:
 
-- the theme: Paper or Neon;
-- the mode: light or dark; options a theme lacks are disabled.
+- the theme: Paper or Neon, as two cards with a small preview;
+- the mode: a sun/moon switch in the heading row, like the language and period switches; options a theme lacks are disabled.
+
+The two kinds of choice look different on purpose, so the menu never reads as four themes. The session note sits behind an "i" (`renderInfoButton`/`renderInfoNote`).
 
 On phones the mobile navigation moves the menu into the Settings sheet, where the options show inline with 44 px targets.
 

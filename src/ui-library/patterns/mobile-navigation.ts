@@ -24,7 +24,7 @@ ${POPOVER_CSS}
 .mobile-navigation { --mobile-search-top: 12px; --mobile-search-height: 100dvh; --mobile-navigation-gap: 3px; display: none; }
 @media(max-width:${breakpoints.phone}px) {
   body:has([data-mobile-navigation]) { --mobile-navigation-height: 69px; padding-bottom: calc(var(--mobile-navigation-height) + max(env(safe-area-max-inset-bottom,0px),env(safe-area-inset-bottom,0px)) + var(--space-6)); }
-  .site-header:has([data-mobile-navigation]) { position: static; backdrop-filter: none; background: var(--surface-page); }
+  .site-header:has([data-mobile-navigation]) { position: relative; backdrop-filter: none; background: var(--surface-page); }
   .site-header:has([data-mobile-navigation]) .site-header__inner { grid-template-columns: minmax(0,1fr); grid-template-areas: "brand"; padding-block: var(--space-4); }
   .site-header:has([data-mobile-navigation]) .site-brand { gap: 9px; }
   .site-header:has([data-mobile-navigation]) .site-brand__fox { width: 42px; height: 42px; }
@@ -46,7 +46,8 @@ ${POPOVER_CSS}
   .mobile-navigation .ui-popover:popover-open,.mobile-navigation .ui-popover.is-open { opacity: 1; transform: none; pointer-events: auto; }
   .mobile-navigation .ui-popover[id="mobile-menu-search"] { top: calc(var(--mobile-search-top,12px) + env(safe-area-inset-top,0px)); bottom: auto; max-height: calc(var(--mobile-search-height,100dvh) - 24px - env(safe-area-inset-top,0px) - env(safe-area-inset-bottom,0px)); transform-origin: top center; }
   @starting-style { .mobile-navigation .ui-popover:popover-open { opacity: 0; transform: translateY(12px) scale(.98); } }
-  .mobile-navigation__heading { display: flex; align-items: center; justify-content: space-between; gap: var(--space-3); margin-bottom: var(--space-3); }
+  /* The title and close button stay put while a long panel scrolls. */
+  .mobile-navigation__heading { position: sticky; top: calc(-1 * var(--popover-padding)); z-index: 1; display: flex; align-items: center; justify-content: space-between; gap: var(--space-3); margin: calc(-1 * var(--popover-padding)) 0 var(--space-3); padding-top: var(--popover-padding); padding-bottom: var(--space-2); background: inherit; }
   .mobile-navigation__settings { --control-height: 44px; display: grid; }
   .mobile-navigation__setting { display: flex; align-items: center; justify-content: space-between; gap: var(--space-3); padding-block: var(--space-3); border-top: 1px solid var(--border-subtle); }
   .mobile-navigation__setting:first-child { border-top: 0; }
@@ -59,13 +60,18 @@ ${POPOVER_CSS}
   .mobile-navigation [data-theme-menu] { display: block; }
   .mobile-navigation [data-theme-menu] .theme-switch { display: none; }
   .mobile-navigation .theme-menu__panel { display: block; position: static; width: auto; max-height: none; padding: 0; border: 0; background: transparent; box-shadow: none; overflow: visible; opacity: 1; transform: none; pointer-events: auto; }
-  .mobile-navigation .theme-menu__option { min-height: 44px; }
-  .mobile-navigation .theme-menu__hint { margin-top: var(--space-2); }
+  /* The row already says "Theme": its "i" and the sun/moon switch move to the row's right end, the cards stay below. */
+  .mobile-navigation__setting:has([data-theme-menu]) { position: relative; }
+  .mobile-navigation [data-theme-menu] { position: static; flex: 1 1 auto; min-width: 0; }
+  .mobile-navigation .theme-menu__label { display: none; }
+  .mobile-navigation__setting:has([data-theme-menu]) > .mobile-navigation__setting-label { min-height: 50px; }
+  .mobile-navigation .theme-menu__head { position: absolute; top: var(--space-3); right: 0; margin: 0; }
+  .mobile-navigation .theme-menu .theme-menu__mode { --button-width: 44px; min-height: 44px; }
   .mobile-navigation .period-control { position: static; }
   .mobile-navigation .period-control__trigger { display: none; }
   .mobile-navigation .period-control__choices { display: block; position: static; width: auto; box-shadow: none; }
-  .mobile-navigation .site-switcher__nav { display: grid; position: static; border: 0; box-shadow: none; padding: 0; }
-  .mobile-navigation .site-nav { display: grid; grid-template-columns: minmax(0,1fr); border: 0; padding: 0; gap: var(--space-1); }
+  .mobile-navigation .site-switcher__nav { display: grid; position: static; border: 0; box-shadow: none; padding: 0; background: transparent; }
+  .mobile-navigation .site-nav { display: grid; grid-template-columns: minmax(0,1fr); border: 0; padding: 0; gap: var(--space-1); background: transparent; }
   .mobile-navigation .site-nav__link { justify-content: flex-start; white-space: normal; text-align: start; min-height: 44px; gap: var(--space-3); font: 500 .875rem/1.4 var(--font-sans); }
   .mobile-navigation .ui-icon { --icon-size: 20px; }
   .mobile-navigation__action { --button-icon-size: 20px; min-height: 44px; justify-content: flex-start; padding: var(--space-3); font: 500 .875rem/1.4 var(--font-sans); }

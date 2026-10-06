@@ -41,8 +41,13 @@ New UI must look right in both without theme-specific product code.
 - Opt new blocks into the shared marks instead of drawing frames yourself:
   `surfaceAttributes("panel")` for cards and frames, `"lead"` for the block a page leads with
   (`{attention:true}` when it needs the owner), `renderGauge` for a figure with a meter,
-  `renderIcon(name,{tile:true})` for icons on plates, `LIVE_ATTRIBUTE` for regions that refresh.
+  `renderIcon(name,{tile:true})` for icons on plates, `LIVE_ATTRIBUTE` for regions that refresh
+  (Neon flashes figures that changed), `FIGURE_ATTRIBUTE` for a product's own headline figure.
   Paper draws nothing for them; Neon frames, rings and animates them.
+- Neon colours rank: red (sign, main action, links), yellow (`accent-data`: data, selection,
+  secondary actions), blue (`status-info`: information, quiet controls). Use the roles, never the hex.
+- Text that explains a control rather than showing data goes behind `renderInfoButton` +
+  `renderInfoNote`, not in a visible paragraph.
 - Content headings (news, task titles) stay in the text face; section and panel titles take the
   display face automatically in Neon.
 - Check one variant of each theme: **Paper light** and **Neon dark**. `npm run test:ui-browser`

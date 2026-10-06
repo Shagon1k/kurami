@@ -9,3 +9,6 @@ export function surfaceAttributes(kind:SurfaceKind,options:{attention?:boolean}=
 
 /** Live regions: a theme may play a short scan when their content refreshes. */
 export const LIVE_ATTRIBUTE=" data-ui-live";
+
+/** A headline figure outside the stat card (a product's own metric tile): themes set it like a stat value. */
+export const FIGURE_ATTRIBUTE=" data-ui-figure";

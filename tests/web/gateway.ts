@@ -6,7 +6,8 @@ import {createHubServer} from "../../src/hub/server.ts";
 import {createProjectsServer} from "../../src/projects-site/server.ts";
 import {syntheticHubSnapshot} from "../../src/ui-library/testing/fixtures.ts";
 import {mountResponse} from "../../src/web/presentation.ts";
-import {PWA_BACKGROUND,PWA_LEGACY_ICON_ASSETS,PWA_MANIFEST_ICONS} from "../../src/web/icons.ts";
+import {PWA_BACKGROUND,PWA_LEGACY_ICON_ASSETS,PWA_MANIFEST_ICONS,PWA_NEON_BACKGROUND,PWA_NEON_MANIFEST_ICONS} from "../../src/web/icons.ts";
+import {neonTheme} from "../../src/ui-library/themes/neon.ts";
 import {syntheticProjectsSnapshot} from "../projects-site/fixture.ts";
 import {AccessVerificationUnavailableError} from "../../src/web/access-keys.ts";
 import {VIEWPORT_META} from "../../src/ui-library/patterns/page-shell.ts";
@@ -61,6 +62,18 @@ try{
   const stylesheet=await get("/_apps/hub/assets/hub.css");assert.equal(stylesheet.status,200);assert((await stylesheet.text()).includes('/assets/onest-'));
   const manifest=await get("/manifest.webmanifest");const data=await manifest.json();assert.equal(data.name,"Kurami");assert.equal(data.scope,"/");assert.equal(data.id,"/");assert.deepEqual(data.icons,PWA_MANIFEST_ICONS);
   assert.equal(data.background_color,PWA_BACKGROUND);assert.equal(data.theme_color,PWA_BACKGROUND);
+  // The installed app follows the Hub default: Neon gets the neon fox and its own ground.
+  appearanceDefault="neon.dark";
+  const neon=await (await get("/manifest.webmanifest")).json();
+  assert.deepEqual(neon.icons,PWA_NEON_MANIFEST_ICONS);assert.equal(neon.background_color,PWA_NEON_BACKGROUND);assert.equal(neon.theme_color,PWA_NEON_BACKGROUND);
+  appearanceDefault="neon.light";
+  const neonLight=await (await get("/manifest.webmanifest")).json();
+  assert.deepEqual(neonLight.icons,PWA_NEON_MANIFEST_ICONS);assert.equal(neonLight.background_color,neonTheme.modes.light!.colors["surface-page"],"Neon light opens on the daylight ground");
+  for(const expected of PWA_NEON_MANIFEST_ICONS){
+    const icon=await get(expected.src);assert.equal(icon.status,200,expected.src);
+    const png=Buffer.from(await icon.arrayBuffer());assert.equal(`${png.readUInt32BE(16)}x${png.readUInt32BE(20)}`,expected.sizes);
+  }
+  appearanceDefault="paper.light";
   assert.equal(data.display,"standalone","PWA keeps its normal system bars instead of hiding them in fullscreen");
   for(const path of ["/en/","/ru/projects/","/en/digest/cinema/","/en/docs/projects/","/en/offline.html","/ru/offline.html"]){
     const page=await get(path);assert.equal(page.status,200,path);

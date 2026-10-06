@@ -393,7 +393,7 @@ assert.equal(section(providerWeatherPayload, "weather")?.temperatureC, 20.3);
 assert.equal(section(providerWeatherPayload, "weather")?.feelsLikeC, 21);
 assert.equal(section(providerWeatherPayload, "weather")?.condition, "☁️ Пасмурно");
 assert.equal(section(providerWeatherPayload, "weather")?.summary, "до 22° · осадки 100%");
-assert.match(renderBriefingPage(providerWeatherPayload), /metric-card__value">\+20°<\/strong>/);
+assert.match(renderBriefingPage(providerWeatherPayload), /metric-card__value" data-ui-figure>\+20°<\/strong>/);
 assert.match(html, /\[hidden\]\s*\{\s*display:\s*none !important/);
 assert.match(html, /class="topic-chip"/);
 assert.match(html, /сюда стоит смотреть <span aria-hidden="true">↙<\/span>/);

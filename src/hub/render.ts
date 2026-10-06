@@ -17,7 +17,7 @@ import {API_RATE_DATE,API_RATE_SOURCE,type ModelUsage,type ApiEquivalent} from "
 import {renderBarChart} from "../ui-library/components/charts/index.ts";
 import {renderTable} from "../ui-library/components/table.ts";
 import {renderStatCard,renderMeter,renderGauge,type StatTone} from "../ui-library/components/stat-card.ts";
-import {surfaceAttributes,LIVE_ATTRIBUTE} from "../ui-library/components/surface.ts";
+import {FIGURE_ATTRIBUTE,surfaceAttributes,LIVE_ATTRIBUTE} from "../ui-library/components/surface.ts";
 import {renderIcon,iconPath,type IconName} from "../ui-library/components/icon.ts";
 import {renderCheckbox,renderSelectField} from "../ui-library/components/form.ts";
 import {problemQueue,workFeed} from "./work-feed.ts";
@@ -172,7 +172,7 @@ function renderHealth(snapshot:HubSnapshot,lang:HubLanguage):string {
     const stat=metric(name!,amount!,false,undefined,{plain:true,tone,icon:icons[index]});
     return `<div class="health-cell"${surfaceAttributes("panel")}>${amounts[index]!==null?renderGauge({stat,meter:renderMeter({value:Math.min(100,Math.max(0,amounts[index]!)),label:name!,tone})}):`${stat}<div class="network-state">${escapeHtml(health.network.status)}</div>`}<p class="health-detail">${escapeHtml(details[index]!)}</p></div>`;
   }).join("")}</div>
-    <div class="hub-panel orchestrator-state"${surfaceAttributes("panel")}><h3>${renderIcon("controls")}Project Orchestrator</h3><dl class="orchestrator-grid">${cells.map(cell=>`<div data-tone="${cell.tone}"><dt>${renderIcon(cell.icon)}${escapeHtml(cell.label)}</dt><dd><strong>${escapeHtml(cell.amount)}</strong>${cell.detail?`<span>${escapeHtml(cell.detail)}</span>`:""}</dd></div>`).join("")}</dl></div></section>`;
+    <div class="hub-panel orchestrator-state"${surfaceAttributes("panel")}><h3>${renderIcon("controls")}Project Orchestrator</h3><dl class="orchestrator-grid">${cells.map(cell=>`<div data-tone="${cell.tone}" data-metric="orchestrator:${escapeHtml(cell.icon)}"><dt>${renderIcon(cell.icon)}${escapeHtml(cell.label)}</dt><dd><strong${FIGURE_ATTRIBUTE}>${escapeHtml(cell.amount)}</strong>${cell.detail?`<span>${escapeHtml(cell.detail)}</span>`:""}</dd></div>`).join("")}</dl></div></section>`;
 }
 function renderActivity(snapshot:HubSnapshot,lang:HubLanguage):string {
   const activity=workFeed(snapshot.operations?.activity??[]);

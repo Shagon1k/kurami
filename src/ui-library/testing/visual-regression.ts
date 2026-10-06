@@ -3,6 +3,7 @@
 // inventory), and screenshots a representative set, optionally compared with a baseline run.
 // Audit options: --screens-only --viewports --widths=320,390,768,1280
 // Usage: node src/ui-library/testing/visual-regression.ts --out=<dir> [--compare=<baseline dir>] [--themes=light,neon|all] [/absolute/path/to/chromium]
+// Manual review: --out=<dir> --serve=<port> serves the fixture site on loopback without running checks.
 import {execFileSync} from "node:child_process";
 import {createHash} from "node:crypto";
 import {cpSync,existsSync,mkdirSync,mkdtempSync,readdirSync,readFileSync,rmSync,writeFileSync} from "node:fs";
@@ -281,7 +282,7 @@ async function checkThemeRuntime(devtools:Devtools,base:string,path:string):Prom
   await devtools.call("Emulation.setEmulatedMedia",{features:[]});
 }
 
-/** Neon motion on the Hub: figures count up to their exact text, a live refresh scans, reduced motion shows final values. */
+/** Neon motion on the Hub: figures count up to their exact text, a refresh flashes only the changed figure, a press rings inside its button, reduced motion shows final values. */
 async function checkNeonMotion(devtools:Devtools,base:string):Promise<void> {
   const page=`${base}/hub/index.html`;
   await open(devtools,page);
@@ -293,9 +294,14 @@ async function checkNeonMotion(devtools:Devtools,base:string):Promise<void> {
   await delay(1300);
   const after=await read();
   if(JSON.stringify(during)===JSON.stringify(after))throw new Error(`Neon figures did not count up: ${JSON.stringify(after)}`);
-  await devtools.evaluate(`document.querySelector('#hub-dashboard').append(document.createElement('span'))`);
-  await delay(60);
-  if(!await devtools.evaluate<boolean>(`document.querySelector('#hub-dashboard').classList.contains('ui-live-scan')`))throw new Error("Neon live refresh did not scan");
+  // A refresh that changes one figure flashes that figure only.
+  await devtools.evaluate(`(()=>{const values=[...document.querySelectorAll('#hub-dashboard .stat-card__value')];values[0].textContent=values[0].textContent+'0';return 1})()`);
+  await delay(80);
+  const flashed=await devtools.evaluate<number[]>(`[...document.querySelectorAll('#hub-dashboard .stat-card__value')].map((node,index)=>node.classList.contains('ui-figure-blip')?index:-1).filter(index=>index>=0)`);
+  if(JSON.stringify(flashed)!=="[0]")throw new Error(`Neon refresh must flash only the changed figure: ${JSON.stringify(flashed)}`);
+  // A press spreads a ring inside the pressed button only.
+  await devtools.evaluate(`(()=>{const button=document.querySelector('#hub-dashboard .button');const r=button.getBoundingClientRect();button.dispatchEvent(new PointerEvent('pointerdown',{bubbles:true,clientX:r.x+4,clientY:r.y+4}));return 1})()`);
+  if(await devtools.evaluate<number>(`document.querySelectorAll('#hub-dashboard .button > .ui-ripple').length`)!==1)throw new Error("Neon press did not draw a ring in the button");
   await devtools.call("Emulation.setEmulatedMedia",{features:[{name:"prefers-reduced-motion",value:"reduce"}]});
   await open(devtools,page);
   const reduced=await read();
@@ -306,7 +312,7 @@ async function checkNeonMotion(devtools:Devtools,base:string):Promise<void> {
 
 async function checkMobileNavigation(devtools:Devtools,width:number,current:string):Promise<void>{
   const geometry=await devtools.evaluate<{icons:number[];labels:boolean;fixed:boolean;header:string;overflow:number}>(`(()=>{const nav=document.querySelector('.mobile-navigation__bar');return {icons:[...nav.querySelectorAll('svg')].map(icon=>icon.getBoundingClientRect().width),labels:[...nav.querySelectorAll('button')].every(button=>button.getBoundingClientRect().height>=44&&button.querySelector('span').getBoundingClientRect().width<=button.getBoundingClientRect().width),fixed:getComputedStyle(nav).position==='fixed',header:getComputedStyle(document.querySelector('[data-site-header]')).position,overflow:document.documentElement.scrollWidth-innerWidth};})()`);
-  if(!geometry.fixed||geometry.header!=='static'||geometry.overflow>1||!geometry.labels||geometry.icons.some(size=>size!==26))throw new Error(`Mobile geometry ${current} ${width}: ${JSON.stringify(geometry)}`);
+  if(!geometry.fixed||!['static','relative'].includes(geometry.header)||geometry.overflow>1||!geometry.labels||geometry.icons.some(size=>size!==26))throw new Error(`Mobile geometry ${current} ${width}: ${JSON.stringify(geometry)}`);
   await devtools.evaluate(`document.querySelector('[data-mobile-menu="apps"]').click()`);
   await delay(240);
   const apps=await devtools.evaluate<{current:string;links:string[];fits:boolean}>(`(()=>{const panel=document.querySelector('#mobile-menu-apps'),r=panel.getBoundingClientRect(),bar=document.querySelector('.mobile-navigation__bar').getBoundingClientRect();return {current:panel.querySelector('[aria-current]')?.textContent.trim(),links:[...panel.querySelectorAll('a')].map(link=>link.textContent.trim()),bounds:{left:r.left,right:r.right,bottom:r.bottom,barTop:bar.top,width:innerWidth},fits:r.left>=0&&r.right<=innerWidth&&r.bottom<=bar.top-6.5};})()`);
@@ -434,8 +440,11 @@ async function main(){
     if(!path.startsWith(`${served}${sep}`)||!existsSync(path)){response.writeHead(404).end();return;}
     response.writeHead(200,{"content-type":types[path.split(".").at(-1)??""]??"application/octet-stream"}).end(readFileSync(path));
   });
-  await new Promise<void>(done=>server.listen(0,"127.0.0.1",done));
+  // --serve=<port>: keep the fixture site running on loopback for manual review; no checks run.
+  const serve=Number(args.find(arg=>arg.startsWith("--serve="))?.slice(8)??0);
+  await new Promise<void>(done=>server.listen(serve,"127.0.0.1",done));
   const port=(server.address() as {port:number}).port;
+  if(serve){console.log(`Fixture site on http://127.0.0.1:${port}/ (Ctrl+C stops)`);return;}
   const {devtools,close}=await launchBrowser(findBrowser(args.find(arg=>isAbsolute(arg))));
   const manifest:Record<string,string>={};
   const audit:Record<string,string[]>={};
