@@ -62,6 +62,8 @@ function kuramiThemeRuntime(choices: ThemeChoices) {
     panel.style.setProperty("--popover-left", `${Math.round(Math.max(8, Math.min(rect.right - width, innerWidth - width - 8)))}px`);
   };
   apply();
+  // Pages call this after changing the Hub default (cookie) so the current page follows at once.
+  (window as Window & { kuramiThemeRefresh?: () => void }).kuramiThemeRefresh = apply;
   media.addEventListener("change", () => apply());
   addEventListener("storage", event => { if (event.key === modeKey || event.key === themeKey) apply(); });
   document.addEventListener("DOMContentLoaded", apply);
@@ -78,7 +80,8 @@ function kuramiThemeRuntime(choices: ThemeChoices) {
     if (themeOption) {
       const value = themeOption.dataset.themeChoice!;
       if (value === "default") { write(themeKey, null); write(modeKey, null); }
-      else if (known(value)) { const mode = effective().mode; write(themeKey, value); if (!storedMode()) write(modeKey, mode); }
+      // Paper keeps the current mode; a variant starts in its own first mode (Neon: dark) unless a mode was chosen.
+      else if (known(value)) { const mode = value === "paper" ? effective().mode : choices.modes[value][0]; write(themeKey, value); if (!storedMode()) write(modeKey, mode); }
       apply();
       return;
     }
@@ -111,10 +114,52 @@ function kuramiThemeRuntime(choices: ThemeChoices) {
   });
 }
 
+/**
+ * Neon motion, once per page and never with reduced motion: figures count up, the app name glitches when
+ * arriving from another Kurami app, and `[data-ui-live]` blocks play a short scan when their content changes.
+ */
+function kuramiNeonMotion() {
+  const root = document.documentElement, reduce = matchMedia("(prefers-reduced-motion: reduce)");
+  const active = () => root.dataset.kuramiTheme === "neon" && !reduce.matches;
+  const countUp = (element: Element) => {
+    const text = element.textContent ?? "", match = /^(\D*?)(\d+(?:[.,]\d+)?)(.*)$/s.exec(text);
+    if (!match || element.children.length) return;
+    const [, prefix, number, suffix] = match, separator = number.includes(",") ? "," : ".", decimals = (number.split(/[.,]/)[1] ?? "").length;
+    const end = Number(number.replace(",", ".")), start = performance.now(), duration = 900;
+    if (!Number.isFinite(end) || end === 0) return;
+    const step = (now: number) => {
+      const t = Math.min((now - start) / duration, 1), value = end * (1 - Math.pow(1 - t, 3));
+      element.textContent = prefix + value.toFixed(decimals).replace(".", separator) + suffix;
+      if (t < 1) requestAnimationFrame(step); else element.textContent = text;
+    };
+    requestAnimationFrame(step);
+  };
+  const app = (path: string) => /^\/(?:ru|en)\/(digest|projects|docs)(?:\/|$)/.exec(path)?.[1] ?? "hub";
+  document.addEventListener("DOMContentLoaded", () => {
+    if (!active()) return;
+    document.querySelectorAll(".stat-card__value, [data-ui-count]").forEach(countUp);
+    try {
+      const from = document.referrer ? new URL(document.referrer) : null;
+      if (from && from.origin === location.origin && app(from.pathname) !== app(location.pathname)) document.querySelector(".site-brand__name")?.classList.add("ui-glitch");
+    } catch {}
+    const observer = new MutationObserver(records => {
+      if (!active()) return;
+      for (const record of records) {
+        const live = (record.target instanceof Element ? record.target : record.target.parentElement)?.closest<HTMLElement>("[data-ui-live]");
+        if (!live || live.classList.contains("ui-live-scan")) continue;
+        live.classList.add("ui-live-scan");
+        setTimeout(() => live.classList.remove("ui-live-scan"), 1200);
+      }
+    });
+    // Start watching after the count-up, so the page's own first animation is not mistaken for a refresh.
+    setTimeout(() => document.querySelectorAll("[data-ui-live]").forEach(live => observer.observe(live, { childList: true, subtree: true, characterData: true })), 1000);
+  });
+}
+
 const THEME_CHOICES: ThemeChoices = {
   labels: { paper: "Paper", ...Object.fromEntries(themeVariants.map(variant => [variant.name, variant.label])) },
   modes: { paper: ["light", "dark"], ...Object.fromEntries(themeVariants.map(variant => [variant.name, (["dark", "light"] as const).filter(mode => variant.modes[mode])])) },
 };
 
-export const THEME_RUNTIME_JS = `(${kuramiThemeRuntime.toString()})(${JSON.stringify(THEME_CHOICES)});\n${MOBILE_NAVIGATION_RUNTIME_JS}\n${READING_RUNTIME_JS}`;
+export const THEME_RUNTIME_JS = `(${kuramiThemeRuntime.toString()})(${JSON.stringify(THEME_CHOICES)});\n(${kuramiNeonMotion.toString()})();\n${MOBILE_NAVIGATION_RUNTIME_JS}\n${READING_RUNTIME_JS}`;
 export const THEME_SCRIPT_TAG = '<script src="/assets/theme.js"></script>';

@@ -9,7 +9,7 @@ export const kuramiTheme:Theme={
     "font-note":'"Caveat", "Segoe Print", cursive',
     "font-display":'"Onest", system-ui, -apple-system, "Segoe UI", sans-serif',
     "display-case":"none","display-tracking":"-.045em","display-glow":"none",
-    "panel-cut":"none","panel-glow":"none",
+    "panel-cut":"0px","panel-glow":"none",
     "radius-sm":"2px","radius":"3px","radius-md":"4px","radius-pill":"999px",
     "shadow-card":"4px 4px 0 var(--shadow-offset)",
     "shadow-card-sm":"3px 3px 0 var(--shadow-offset)",

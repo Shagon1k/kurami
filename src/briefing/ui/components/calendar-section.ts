@@ -1,3 +1,4 @@
+import {surfaceAttributes} from "../../../ui-library/components/surface.ts";
 import { section } from "../../addons/envelopes.ts";
 import type { BriefingPayload } from "../../model.ts";
 import { displayString, escapeHtml, externalUrl, records } from "../html.ts";
@@ -81,7 +82,7 @@ export function renderCalendarSection(payload: BriefingPayload): string {
     : `<div class="section-empty"><strong>${section(payload, "calendar").state === "empty" ? digestText("На сегодня событий нет","No events today") : digestText("Календарь пока недоступен","Calendar unavailable")}</strong><span>${section(payload, "calendar").state === "empty" ? digestText("Можно оставить день свободным.","Your day is free.") : digestText("Секция обновится после следующего успешного чтения.","This section will update after the next successful refresh.")}</span></div>`;
 
   const sectionNote = payload.notes?.find((note) => note.target === "calendar");
-  return `<section class="briefing-panel briefing-panel--calendar" aria-labelledby="calendar-heading">
+  return `<section class="briefing-panel briefing-panel--calendar"${surfaceAttributes("panel")} aria-labelledby="calendar-heading">
     ${renderKuramiNote(sectionNote, "briefing-panel__note")}
     <header class="briefing-panel__header"><div><p class="section-kicker">${digestText("Три календаря","Three calendars")}</p><h2 id="calendar-heading">${digestText("Расписание","Schedule")}</h2></div><span>${escapeHtml(conflicts ? `${conflicts} ${digestText("конфликт","conflict")}` : label)}</span></header>
     <div class="agenda-list briefing-panel__scroll"${events.length > 4 ? ` data-overflow="true" role="region" tabindex="0" aria-label="${digestText("Все события на сегодня","All events today")}"` : ""}>${rows}</div>

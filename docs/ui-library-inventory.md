@@ -307,7 +307,7 @@ fallbacks. These refinements add no new product-specific UI exceptions.
 
 The original theme is named **Paper** (`themes/kurami.ts`, exported as `paperTheme`/`kuramiTheme`): light and dark modes, applied with `:root` and `html[data-theme="dark"]`.
 
-**Neon** (`themes/neon.ts`) is a theme variant (`ThemeVariant`): the Kurami fox as a red neon sign. Red (`accent-primary`) marks the sign — fox outline, lead-block frames, display headings and the main action. A calm warm yellow (`accent-data`, `focus-ring`, `chart-1`) marks data and selection. Statuses are muted and information (`status-info`) is neutral. Neon has only a dark mode for now; a light mode would be added under `modes.light`. It is applied with `html[data-kurami-theme="neon"]` after Paper, so it wins at equal specificity, and the runtime also sets `data-theme="dark"`.
+**Neon** (`themes/neon.ts`) is a theme variant (`ThemeVariant`): the Kurami fox as a red neon sign. Red (`accent-primary`) marks the sign — fox outline, lead-block frames, display headings and the main action. A calm warm yellow (`accent-data`, `focus-ring`, `chart-1`) marks data and selection. Statuses are muted and information (`status-info`) is neutral. Neon's dark mode is its base and main look. Its light mode keeps the red sign on a cool daylight ground (`#f6f4fa`), with deep amber in place of yellow. It applies under `[data-theme="light"]`, and its `scale` overrides soften the glows. Neon is applied with `html[data-kurami-theme="neon"]` after Paper, so it wins at equal specificity. A first Neon pick on a device with no stored mode starts dark.
 
 Neon-specific dressing that a token cannot express lives in `NEON_CSS`: the dotted ground with corner glows, the header sign line, the fox outline (it lights up on load), display type and the primary button glow. It ships inside `THEME_CSS`, and every rule there is scoped to Neon, so Paper is unchanged. The test suite asserts this.
 
@@ -336,4 +336,4 @@ On phones the mobile navigation moves the menu into the Settings sheet, where th
 
 *Hub default* clears the device choice. Every app is served from one origin, so the choice applies everywhere on the device. Saved Digest editions keep their legacy toggle; it switches the mode, and from Neon it switches to Paper light.
 
-`npm run test:ui-browser` checks the runtime order, the keyboard path through the menu and the phone settings sheet. It also screenshots and audits every page in Paper light, Paper dark and Neon.
+`npm run test:ui-browser` checks the runtime order, the keyboard path through the menu and the phone settings sheet. By default it screenshots and audits one variant of each theme: Paper light and Neon dark. `test:ui-browser:all` adds Paper dark and Neon light, for changes to the library and themes. The guard rejects theme branches (`[data-theme]`, `[data-kurami-theme]`) in product code.

@@ -1,5 +1,5 @@
 // Author check for docs pages: parses, validates and renders pages in both languages, and can take
-// screenshots so the author sees the page as a reader does.
+// screenshots so the author sees the page as a reader does: in Paper light and Neon dark.
 // Usage: node src/human-docs/tools/check-pages.ts [slug ...] [--shots=/abs/dir] [--width=1280] [--strict-links]
 // Without slugs every page is checked. Links to pages that do not exist yet are listed, not fatal,
 // unless --strict-links is given.
@@ -63,15 +63,21 @@ if(shots&&files.length){
   const {devtools,close}=await launchBrowser(findBrowser());
   try{
     await devtools.call("Page.enable");
-    for(const [path] of files){
+    // Shoot the settled page: Neon motion (the fox lighting up, counting figures) would land mid-frame.
+    await devtools.call("Emulation.setEmulatedMedia",{features:[{name:"prefers-reduced-motion",value:"reduce"}]});
+    // One variant of each theme: Paper light and Neon dark (the full matrix runs in test:ui-browser:all).
+    for(const [path] of files)for(const theme of [{name:"paper",mode:"light"},{name:"neon",mode:"dark"}] as const){
       await devtools.call("Emulation.setDeviceMetricsOverride",{width,height:900,deviceScaleFactor:1,mobile:width<600});
-      await devtools.call("Page.navigate",{url:`http://127.0.0.1:${port}/${path.replace(/index\.html$/,"")}`});
+      const url=`http://127.0.0.1:${port}/${path.replace(/index\.html$/,"")}`;
+      await devtools.call("Page.navigate",{url});
+      await devtools.evaluate(`localStorage.setItem('kurami-theme-name','${theme.name}');localStorage.setItem('kurami-theme','${theme.mode}')`);
+      await devtools.call("Page.navigate",{url});
       await new Promise(done=>setTimeout(done,900));
       const height=await devtools.evaluate<number>("document.documentElement.scrollHeight");
       await devtools.call("Emulation.setDeviceMetricsOverride",{width,height:Math.min(height,14000),deviceScaleFactor:1,mobile:width<600});
       await new Promise(done=>setTimeout(done,250));
       const shot=await devtools.call<{data:string}>("Page.captureScreenshot",{format:"png",captureBeyondViewport:true});
-      const name=`${path.replace(/\/index\.html$/,"").replace(/^(en|ru)\/?(.*)$/,(_m,lang,slug)=>`${slug||"home"}-${lang}`)}-${width}.png`;
+      const name=`${path.replace(/\/index\.html$/,"").replace(/^(en|ru)\/?(.*)$/,(_m,lang,slug)=>`${slug||"home"}-${lang}`)}-${width}-${theme.name}-${theme.mode}.png`;
       writeFileSync(resolve(shots,name),Buffer.from(shot.data,"base64"));
       console.log(`screenshot ${resolve(shots,name)} (${height}px tall)`);
     }

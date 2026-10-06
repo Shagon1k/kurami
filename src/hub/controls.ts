@@ -1,3 +1,4 @@
+import {validAppearance} from "../system/appearance/appearance-settings.ts";
 import {execFile} from "node:child_process";
 import {promisify} from "node:util";
 import {appendFile,mkdir,open,readFile} from "node:fs/promises";
@@ -29,11 +30,12 @@ export function createHubControls(options:{home?:string;hermesHome?:string;run?:
   const actor=process.env.HUB_CONTROL_ACTOR_ID??"0";
   const settingsPath=resolve(home,"app/src/orchestrator/settings/orchestrator-settings.ts");
   const healthPath=resolve(home,"app/src/system/health/health-settings.ts");
+  const appearancePath=resolve(home,"app/src/system/appearance/appearance-settings.ts");
   const composioPath=resolve(home,"app/src/connectors/composio/cli.ts");
   const hermes=resolve(hermesHome,"hermes-agent/venv/bin/hermes");
   async function settings(){
-    const [settings,health]=await Promise.all([run(node,[settingsPath,"status"]),run(node,[healthPath,"status"])]);
-    return {settings:JSON.parse(settings),health:JSON.parse(health)};
+    const [settings,health,appearance]=await Promise.all([run(node,[settingsPath,"status"]),run(node,[healthPath,"status"]),run(node,[appearancePath,"status"])]);
+    return {settings:JSON.parse(settings),health:JSON.parse(health),appearance:JSON.parse(appearance)};
   }
   async function models(){
     const [catalog,config,hermesConfig]=await Promise.all([rpc("model/list",{limit:100,includeHidden:false}),rpc("config/read",{includeLayers:false}),readFile(resolve(hermesHome,"config.yaml"),"utf8")]);
@@ -99,6 +101,9 @@ export function createHubControls(options:{home?:string;hermesHome?:string;run?:
     }else if(action==="health-apply"){
       const minutes=Number(payload.minutes);if(!Number.isInteger(payload.minutes)||!settingsSchema.health.allowedIntervals.includes(minutes))return bad();
       result=JSON.parse(await run(node,[healthPath,"apply","--minutes",String(minutes),"--expected-revision",String(integer(payload.revision,0,1e9)),"--actor-id",actor]));
+    }else if(action==="appearance-apply"){
+      if(!validAppearance(payload.theme,payload.mode))return bad();
+      result=JSON.parse(await run(node,[appearancePath,"apply","--theme",payload.theme,"--mode",String(payload.mode),"--expected-revision",String(integer(payload.revision,0,1e9)),"--actor-id",actor]));
     }else if(action==="composio-apply"){
       if(!["broad","read","automation"].includes(String(payload.contour)))return bad();
       const check=(await composioCheck()).find(item=>item.contour===payload.contour)!;
@@ -107,7 +112,7 @@ export function createHubControls(options:{home?:string;hermesHome?:string;run?:
     }else return bad();
     // Audit only bounded action metadata, never subprocess outputs, credentials or config contents.
     try {
-      await appendFile(auditPath,JSON.stringify({at:new Date().toISOString(),action,identity,target:payload.target,model:payload.model,contour:payload.contour,outcome:result?.outcome??result?.action??"ok"})+"\n",{mode:0o600});
+      await appendFile(auditPath,JSON.stringify({at:new Date().toISOString(),action,identity,target:payload.target,model:payload.model,contour:payload.contour,theme:action==="appearance-apply"?payload.theme:undefined,mode:action==="appearance-apply"?payload.mode:undefined,outcome:result?.outcome??result?.action??"ok"})+"\n",{mode:0o600});
     }catch {
       // A completed mutation must not appear to have failed and invite a duplicate action.
       result={...result,auditWarning:true};

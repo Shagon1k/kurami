@@ -5,16 +5,24 @@ import {fileURLToPath} from "node:url";
 import {WebAccess,type WebIdentity} from "./access.ts";
 import {AccessVerificationUnavailableError,accessUnavailableMessage} from "./access-keys.ts";
 import {resolveWebRoute,WEB_ORIGIN,type WebApp} from "./routes.ts";
+import {readAppearanceDefault} from "../system/appearance/appearance-settings.ts";
 import {fontFiles} from "../ui-library/foundations/fonts.ts";
 import {VIEWPORT_META} from "../ui-library/patterns/page-shell.ts";
 import {PWA_BACKGROUND,PWA_ICON_ASSETS,PWA_LEGACY_ICON_ASSETS,PWA_MANIFEST_ICONS} from "./icons.ts";
 
-type Options={upstreams?:Record<WebApp,string>;authorize?:(request:IncomingMessage,app:WebApp)=>Promise<WebIdentity|null>;origin?:string};
+type Options={upstreams?:Record<WebApp,string>;authorize?:(request:IncomingMessage,app:WebApp)=>Promise<WebIdentity|null>;origin?:string;appearance?:()=>string|null};
+
+/** The Hub default theme travels as a readable cookie on every page, so the theme runtime applies it before first paint. */
+export function appearanceCookie(value:string|null,secure:boolean):string {
+  const flags=`Path=/; SameSite=Lax${secure?"; Secure":""}`;
+  return value&&/^[a-z]+\.(?:light|dark)$/.test(value)?`kurami-theme-default=${value}; Max-Age=31536000; ${flags}`:`kurami-theme-default=; Max-Age=0; ${flags}`;
+}
 const hopHeaders=new Set(["connection","keep-alive","proxy-authenticate","proxy-authorization","te","trailer","transfer-encoding","upgrade"]);
 
 /** Loopback-only gateway: route and stream; product servers own presentation and actions. */
 export function createWebServer(options:Options={}):Server {
   const access=new WebAccess(),authorize=options.authorize??((request,app)=>access.authorize(request,app));
+  const appearance=options.appearance??(()=>readAppearanceDefault());
   const origin=new URL(options.origin??WEB_ORIGIN);
   const upstreams=options.upstreams??{hub:"http://127.0.0.1:8800",digest:"http://127.0.0.1:8787",projects:"http://127.0.0.1:8777",docs:"http://127.0.0.1:8799"};
   for(const target of Object.values(upstreams)){
@@ -85,6 +93,10 @@ export function createWebServer(options:Options={}):Server {
       const nominated=new Set(String(incoming.headers.connection??"").toLowerCase().split(",").map(value=>value.trim()));
       for(const [name,value] of Object.entries(incoming.headers))if(value!==undefined&&!hopHeaders.has(name)&&!nominated.has(name))response.setHeader(name,value);
       response.setHeader("Cache-Control","private, no-store");
+      if(String(incoming.headers["content-type"]??"").startsWith("text/html")){
+        const existing=response.getHeader("set-cookie"),cookies=existing===undefined?[]:Array.isArray(existing)?existing.map(String):[String(existing)];
+        response.setHeader("Set-Cookie",[...cookies,appearanceCookie(appearance(),origin.protocol==="https:")]);
+      }
       response.writeHead(incoming.statusCode??502);
       incoming.on("error",()=>response.destroy());incoming.pipe(response);
     });

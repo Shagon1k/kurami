@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import {once} from "node:events";
 import {createServer,request as httpRequest,type Server} from "node:http";
-import {createWebServer} from "../../src/web/server.ts";
+import {createWebServer,appearanceCookie} from "../../src/web/server.ts";
 import {createHubServer} from "../../src/hub/server.ts";
 import {createProjectsServer} from "../../src/projects-site/server.ts";
 import {syntheticHubSnapshot} from "../../src/ui-library/testing/fixtures.ts";
@@ -28,9 +28,19 @@ try{
     if(request.url==="/en/cinema"){response.writeHead(200,{"Content-Type":"text/html; charset=utf-8","Content-Length":64});response.end('<html><head></head><body><a href="/en/weekly">Weekly</a></body></html>');}
     else {response.writeHead(200,{"Content-Type":"application/json"});response.end(JSON.stringify({path:request.url,app:request.headers["x-kurami-web-app"]}));}
   }));
-  const gateway=await gatewayServer({upstreams:{hub,projects,docs,digest},authorize:async(request,app)=>request.headers["x-test-identity"]==="owner"?{actor:"owner",scope:"owner"}:request.headers["x-test-identity"]==="reader"?{actor:"reader",scope:"docs-reader"}:null});
+  let appearanceDefault:string|null="neon.dark";
+  const gateway=await gatewayServer({appearance:()=>appearanceDefault,upstreams:{hub,projects,docs,digest},authorize:async(request,app)=>request.headers["x-test-identity"]==="owner"?{actor:"owner",scope:"owner"}:request.headers["x-test-identity"]==="reader"?{actor:"reader",scope:"docs-reader"}:null});
   const get=(path:string,identity="owner",extra:RequestInit={})=>fetch(gateway+path,{headers:{host:"kurami.shagon1k.win","x-test-identity":identity},redirect:"manual",...extra});
   assert.equal((await get("/en/","anonymous")).status,403);
+  // The Hub default theme rides on every page as a readable cookie; non-HTML responses do not carry it.
+  const themed=await get("/en/docs/");
+  assert.equal(themed.status,200);
+  assert.deepEqual(themed.headers.getSetCookie().filter(cookie=>cookie.startsWith("kurami-theme-default=")),["kurami-theme-default=neon.dark; Max-Age=31536000; Path=/; SameSite=Lax"]);
+  assert.deepEqual((await get("/en/digest/api/state")).headers.getSetCookie().filter(cookie=>cookie.startsWith("kurami-theme-default=")),[],"JSON keeps no theme cookie");
+  appearanceDefault=null;
+  assert.deepEqual((await get("/en/docs/")).headers.getSetCookie().filter(cookie=>cookie.startsWith("kurami-theme-default=")),["kurami-theme-default=; Max-Age=0; Path=/; SameSite=Lax"],"no default clears the cookie");
+  appearanceDefault="paper.light";
+  assert.equal(appearanceCookie("x; Domain=evil",true),"kurami-theme-default=; Max-Age=0; Path=/; SameSite=Lax; Secure","malformed values never reach the header");
   assert.equal((await get("/en/","reader")).status,403);
   assert.equal((await get("/_apps/projects/api/fragment","reader")).status,403);
   assert.equal((await get("/manifest.webmanifest","reader")).status,403);

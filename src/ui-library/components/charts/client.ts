@@ -62,7 +62,7 @@ function initializeCharts(factory: typeof createChartEngine): void {
         for(const series of layout.series) {
           const group=node("g",{class:"chart__series chart__series--"+series.color});
           if(spec.kind==="trend")for(const segment of series.segments)if(segment.length>1)
-            group.append(node("polyline",{points:segment.map(point=>point.x+","+point.y).join(" ")}));
+            group.append(node("polygon",{class:"chart__area",points:segment.map(point=>point.x+","+point.y).join(" ")+" "+segment[segment.length-1].x+","+p.bottom+" "+segment[0].x+","+p.bottom}),node("polyline",{points:segment.map(point=>point.x+","+point.y).join(" ")}));
           for(const point of series.points) {
             const target=node("g",{class:"chart__point"+(point.partial?" chart__point--partial":""),
               "data-chart-point":"","data-chart-series":series.index,"data-chart-index":point.index,"data-chart-value":point.text,

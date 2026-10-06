@@ -49,6 +49,8 @@ try {
   assert.equal(effortCalls.at(-1)?.method,"config/batchWrite");
   assert.deepEqual(effortCalls.at(-1)?.params.edits.map((item:any)=>[item.keyPath,item.value]),[["model","gpt-6-astra"],["model_reasoning_effort","high"]]);
   await assert.rejects(()=>controls.execute("health-apply",{minutes:7,revision:1}));
+  await assert.rejects(()=>controls.execute("appearance-apply",{theme:"neon",mode:"system",revision:0}),"only light and dark modes exist");
+  await assert.rejects(()=>controls.execute("appearance-apply",{theme:"paper; rm",mode:"dark",revision:0}),"unknown themes are rejected");
   await assert.rejects(()=>controls.execute("settings-apply",{revision:1,settings:{max_llm_running_global:99}}));
   const settings={version:1,...Object.fromEntries(settingsSchema.fields.map(field=>[field.name,field.max])),project_wip:{pickflick:1}};
   for(const field of settingsSchema.fields){

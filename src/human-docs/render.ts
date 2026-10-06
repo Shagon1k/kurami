@@ -1,3 +1,4 @@
+import {surfaceAttributes} from "../ui-library/components/surface.ts";
 import type {Change,Language} from "./changelog.ts";
 import {allPages,homePage,pages,type HumanDocsPage} from "./content.ts";
 import {aliases,groupLabels,groups,sectionLabels,sections,type Section} from "./content/site.ts";
@@ -118,7 +119,7 @@ function container(block:Extract<Block,{type:"container"}>,context:Context):stri
         const href=linkFor(context)(match[2]!).href;
         const target=pageBySlug.get(resolveSlug(match[2]!.slice(1).split("#")[0]!)??"");
         const eyebrow=target&&target.slug!=="home"?`${groupLabels[target.group][context.lang]} · ${readingMinutes(target,context.lang)} ${t.min}`:"";
-        return `<li><a class="card" href="${escape(href)}">${eyebrow?`<span class="card__eyebrow">${escape(eyebrow)}</span>`:""}<strong>${inline(match[1]!,context)}</strong>${match[3]?`<span class="card__text">${inline(match[3],context)}</span>`:""}</a></li>`;
+        return `<li><a class="card"${surfaceAttributes("panel")} href="${escape(href)}">${eyebrow?`<span class="card__eyebrow">${escape(eyebrow)}</span>`:""}<strong>${inline(match[1]!,context)}</strong>${match[3]?`<span class="card__text">${inline(match[3],context)}</span>`:""}</a></li>`;
       }).join("")}</ul>`;
     case "details":
       if(!block.args)throw new Error(`${context.page.slug}: :::details needs a summary`);
