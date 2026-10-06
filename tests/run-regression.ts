@@ -60,6 +60,7 @@ const suites = [
   "test:docs-approval",
   "test:appearance",
   "test:dev-resources",
+  "test:deploy",
   "test:release-drift",
   "test:backup",
   "test:recovery",

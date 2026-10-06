@@ -3,7 +3,7 @@ import {validDevResources} from "../system/dev-resources/dev-resources.ts";
 import {execFile} from "node:child_process";
 import {promisify} from "node:util";
 import {appendFile,mkdir,open,readFile} from "node:fs/promises";
-import {resolve} from "node:path";
+import {dirname,resolve} from "node:path";
 import {createHash} from "node:crypto";
 import {parse} from "yaml";
 import {resolveKuramiHome} from "../core/kurami-home.ts";
@@ -33,13 +33,17 @@ export function createHubControls(options:{home?:string;hermesHome?:string;run?:
   const healthPath=resolve(home,"app/src/system/health/health-settings.ts");
   const appearancePath=resolve(home,"app/src/system/appearance/appearance-settings.ts");
   const devResourcesPath=resolve(home,"app/src/system/dev-resources/dev-resources.ts");
+  const deployPath=resolve(home,"app/src/system/deploy/deploy.ts");
+  // A release restarts services (Hub included) and writes the checkout, which Hub's sandbox cannot:
+  // it runs as its own transient systemd unit and reports progress in state/deploy/last.json.
+  const startRelease=(args:string[])=>run("systemd-run",["--user","--collect","--quiet",`--unit=kurami-release-${Date.now()}`,"-p",`Environment=PATH=${dirname(node)}:/usr/local/bin:/usr/bin:/bin`,"-p",`Environment=KURAMI_HOME=${home}`,"--",node,deployPath,...args,"--actor",actor]);
   const composioPath=resolve(home,"app/src/connectors/composio/cli.ts");
   const hermes=resolve(hermesHome,"hermes-agent/venv/bin/hermes");
   // Three panels: run settings; the server (System Health interval, development resources); appearance.
   async function settings(){return {settings:JSON.parse(await run(node,[settingsPath,"status"]))};}
   async function server(){
-    const [health,devResources]=await Promise.all([run(node,[healthPath,"status"]),run(node,[devResourcesPath,"status"])]);
-    return {health:JSON.parse(health),devResources:JSON.parse(devResources)};
+    const [health,devResources,release]=await Promise.all([run(node,[healthPath,"status"]),run(node,[devResourcesPath,"status"]),run(node,[deployPath,"status"]).catch(()=>null)]);
+    return {health:JSON.parse(health),devResources:JSON.parse(devResources),release:release?JSON.parse(release):null};
   }
   async function appearance(){return {appearance:JSON.parse(await run(node,[appearancePath,"status"]))};}
   async function models(){
@@ -115,6 +119,10 @@ export function createHubControls(options:{home?:string;hermesHome?:string;run?:
       const limits={cores:Number(payload.cores),testJobs:Number(payload.testJobs),memoryGiB:Number(payload.memoryGiB)};
       if(!validDevResources(limits))return bad();
       result=JSON.parse(await run(node,[devResourcesPath,"apply","--cores",String(limits.cores),"--test-jobs",String(limits.testJobs),"--memory-gib",String(limits.memoryGiB),"--expected-revision",String(integer(payload.revision,0,1e9)),"--actor-id",actor]));
+    }else if(action==="release-apply"||action==="release-rollback"){
+      const target=String(payload.target??"");if(!/^[0-9a-f]{40}$/.test(target))return bad();
+      await startRelease(action==="release-apply"?["deploy",target]:["rollback","--to",target]);
+      result={ok:true,action:"started",target};
     }else if(action==="composio-apply"){
       if(!["broad","read","automation"].includes(String(payload.contour)))return bad();
       const check=(await composioCheck()).find(item=>item.contour===payload.contour)!;

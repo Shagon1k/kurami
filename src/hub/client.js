@@ -257,6 +257,11 @@ document.addEventListener("submit",event=>{
     if(!changes.length){controlResult.textContent=text("Без изменений","No changes");return;}
     confirmAction(action,{revision:Number(form.dataset.revision),theme:values.theme,mode:values.mode},text('Оформление','Appearance'),changes);
   }
+  if(action==="release-apply"||action==="release-rollback"){
+    const short=value=>(value||"—").slice(0,7);
+    confirmAction(action,{target:form.dataset.target},action==="release-apply"?text('Выложить main?','Release main?'):text('Откатить выкладку?','Roll back the release?'),[[text('Версия','Version'),short(form.dataset.head),short(form.dataset.target)]]);
+    return;
+  }
   if(action==="dev-resources-apply"){
     const fields=[["cores",text('Ядра','Cores')],["testJobs",text('Потоки тестов','Test jobs')],["memoryGiB",text('Память','Memory')]];
     const option=(name,value)=>[...form.elements[name].options].find(item=>item.value===value)?.textContent??value;
@@ -288,6 +293,8 @@ async function performAction(button){
     }else if(operation.action==="appearance-apply"&&result.appearance){
       const names={paper:"Paper",neon:"Neon"},modes={light:text("светлая","light"),dark:text("тёмная","dark")};
       reportSuccess(text("Оформление по умолчанию: ","Default appearance: ")+(names[result.appearance.theme]??result.appearance.theme)+" · "+(modes[result.appearance.mode]??result.appearance.mode));
+    }else if((operation.action==="release-apply"||operation.action==="release-rollback")&&result.outcome!=="failed"){
+      reportSuccess(operation.action==="release-apply"?text("Выкладка запущена: ","Release started: ")+String(operation.payload.target).slice(0,7):text("Откат запущен: ","Rollback started: ")+String(operation.payload.target).slice(0,7));
     }else if(operation.action==="dev-resources-apply"&&result.devResources){
       reportSuccess(text("Ресурсы разработки: ","Development resources: ")+result.devResources.cores+text(" ядер · "," cores · ")+result.devResources.testJobs+text(" потока тестов"," test jobs"));
     }else reportSuccess(operation.action==="restart"?text("Перезапуск запрошен","Restart requested"):text("Применено","Applied"));
