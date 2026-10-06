@@ -53,6 +53,14 @@ try{
   assert.equal((await get("/en/docs/","reader")).status,200);
   assert.equal((await get("/en/docs/","reader",{method:"POST"})).status,403);
   const root=await get("/");assert.equal(root.status,302);assert.equal(root.headers.get("location"),"/en/");
+  // "/" opens in the remembered language, else the browser's; every language page remembers itself.
+  const rootAs=(headers:Record<string,string>)=>fetch(gateway+"/",{redirect:"manual",headers:{host:"kurami.shagon1k.win","x-test-identity":"owner",...headers}}).then(response=>response.headers.get("location"));
+  assert.equal(await rootAs({"accept-language":"ru-RU,ru;q=0.9,en;q=0.8"}),"/ru/","no cookie: the browser language decides");
+  assert.equal(await rootAs({"accept-language":"ru-RU",cookie:"kurami-lang=en"}),"/en/","the remembered language wins");
+  assert.equal(await rootAs({cookie:"x=1; kurami-lang=ru"}),"/ru/");
+  assert.equal(await rootAs({cookie:"kurami-lang=de"}),"/en/","an unknown value falls back to English");
+  assert.ok((await get("/ru/projects/")).headers.getSetCookie().includes("kurami-lang=ru; Max-Age=31536000; Path=/; SameSite=Lax"),"a Russian page remembers Russian");
+  assert.equal((await get("/_apps/digest/api/state")).headers.getSetCookie().some(cookie=>cookie.startsWith("kurami-lang=")),false,"API calls never change the language");
   const home=await get("/en/");assert.equal(home.status,200);const html=await home.text();assert(html.includes('id="kurami-web-context"'));assert(html.includes('href="/_apps/hub/assets/hub.css?'));assert(html.includes('href="/en/docs/"'));assert(home.headers.get("cache-control")?.includes("no-store"));
   const ru=await get("/ru/");assert((await ru.text()).includes('"language":"ru"'));
   const taskPage=await get("/ru/projects/?project=pickflick");assert.equal(taskPage.status,200);assert((await taskPage.text()).includes('"language":"ru"'));
