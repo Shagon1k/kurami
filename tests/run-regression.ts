@@ -3,6 +3,7 @@
 // in a pool sized by Hub → Controls → Server → Development resources (KURAMI_TEST_JOBS overrides), and
 // browser suites last, one at a time. The whole run lives in kurami-dev.slice at low priority.
 import { spawn, spawnSync } from "node:child_process";
+import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { readDevResources } from "../src/system/dev-resources/dev-resources.ts";
 import { changedFiles, planSuites } from "./test-plan.ts";
@@ -111,20 +112,40 @@ const suites = [
 /** Run before the pool: the type check gates everything, and the docs build feeds later suites. */
 const first = ["check", "test:docs"] as const;
 /** Chrome is heavy: browser suites run after the pool, one at a time. */
-const browser = new Set(["test:hub-browser", "test:web-browser", "test:ui-browser", "test:ui-browser:quick", "test:ui-browser:all"]);
+const browser = new Set(["test:hub-browser", "test:web-browser", "test:mobile-navigation", "test:ui-browser", "test:ui-browser:quick", "test:ui-browser:all"]);
 /** The slowest suites start first, so the pool does not end waiting on one of them. */
 const slow = ["test:codex-protocol", "test:docs-approval", "test:external-ci-delivery-recovery", "test:discord", "test:ci-no-head-recovery", "test:managed-task-recovery", "test:review-fix", "test:projects-site"];
 
 const args = process.argv.slice(2);
 const only = args.find(arg => arg.startsWith("--only="))?.slice(7).split(",").filter(Boolean);
 const changedMode = args.includes("--changed");
+/** Screenshot pages for the quick browser check: only the touched apps' pages, or all of them. */
+function quickPages(changed: string[]): string | undefined {
+  const products: [string, string][] = [["src/hub/", "hub-"], ["src/briefing/", "digest-"], ["src/projects-site/", "projects-"], ["src/human-docs/", "docs-"]];
+  const prefixes = new Set<string>();
+  for (const file of changed) {
+    const product = products.find(([path]) => file.startsWith(path));
+    if (product) prefixes.add(product[1]);
+    else if (/^(src|tests\/ui-library)\//.test(file)) return undefined;
+  }
+  if (!prefixes.size) return undefined;
+  const pages = [...readFileSync(resolve(root, "src/ui-library/testing/visual-regression.ts"), "utf8").matchAll(/^\s*"([a-z0-9-]+)":"\//gm)].map(match => match[1]!);
+  return pages.filter(page => [...prefixes].some(prefix => page.startsWith(prefix))).join(",") || undefined;
+}
+const suiteEnv: Record<string, NodeJS.ProcessEnv> = {};
 let selected: string[];
 if (only) selected = only;
 else if (changedMode) {
   const changed = changedFiles();
-  // A change that touches the browser check runs its quick variant; the full audit is for releases.
-  const plan = planSuites([...first.slice(1), ...suites, "test:hub-browser", "test:web-browser", "test:ui-browser"], changed);
+  // A change that touches the browser check runs its quick variant (the touched apps' pages when the change
+  // stays inside products); the full audit and the library-wide checks are for releases.
+  const plan = planSuites([...first.slice(1), ...suites, "test:hub-browser", "test:web-browser", "test:mobile-navigation", "test:ui-browser"], changed);
   selected = plan.suites.map(suite => suite === "test:ui-browser" ? "test:ui-browser:quick" : suite);
+  const pages = quickPages(changed);
+  if (pages && selected.includes("test:ui-browser:quick")) {
+    suiteEnv["test:ui-browser:quick"] = { ...process.env, KURAMI_UI_PAGES: pages };
+    process.stdout.write(`  quick browser check: ${pages.split(",").length} page(s) of the touched apps\n`);
+  }
   process.stdout.write(`${changed.length} changed file(s)${plan.everything ? ` — ${plan.reasons[plan.suites[0]!]} changes every suite` : ""}\n`);
   for (const suite of plan.suites) process.stdout.write(`  ${suite}  ← ${plan.reasons[suite]}\n`);
 } else selected = [...first, ...suites];
@@ -140,7 +161,7 @@ const failed: string[] = [];
 function runSuite(suite: string): Promise<boolean> {
   return new Promise(done => {
     const started = Date.now(), output: Buffer[] = [];
-    const child = spawn(npm, ["run", "-s", suite], { env: process.env, stdio: ["ignore", "pipe", "pipe"] });
+    const child = spawn(npm, ["run", "-s", suite], { env: suiteEnv[suite] ?? process.env, stdio: ["ignore", "pipe", "pipe"] });
     child.stdout.on("data", chunk => output.push(chunk));
     child.stderr.on("data", chunk => output.push(chunk));
     child.on("close", code => {

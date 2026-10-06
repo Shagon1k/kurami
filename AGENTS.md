@@ -4,7 +4,9 @@
 
 - While iterating, run `npm run test:changed`: the type check plus only the suites your change
   touches (their imports and the paths they read, `tests/test-plan.ts`), the browser check in its
-  quick variant. It lists each suite with the file that selected it.
+  quick variant: only the touched apps' pages when the change stays inside `src/hub`,
+  `src/briefing`, `src/projects-site` or `src/human-docs`, without the library-wide checks. It
+  lists each suite with the file that selected it.
 - Before asking the owner to release, run the full `npm test`, plus the browser suites the change
   touches (`test:ui-browser`, `test:hub-browser`, `test:web-browser`).
 - Tests run as development work: `bin/kurami-dev-run` puts them in `kurami-dev.slice` at low

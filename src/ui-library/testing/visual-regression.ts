@@ -82,7 +82,8 @@ const availablePages:Record<string,string>={
   "docs-run-diagram-ru":"/ru/run-lifecycle/",
   "docs-changelog-en":"/en/changelog/",
 };
-const requestedPages=process.argv.find(arg=>arg.startsWith("--pages="))?.slice(8).split(",");
+// --pages=a,b (or KURAMI_UI_PAGES, set by `npm run test:changed`) limits the screenshot pages.
+const requestedPages=(process.argv.find(arg=>arg.startsWith("--pages="))?.slice(8)??process.env.KURAMI_UI_PAGES)?.split(",").filter(Boolean);
 if(requestedPages?.some(name=>!Object.hasOwn(availablePages,name)))throw new Error("Unknown screenshot page");
 const pages=requestedPages?Object.fromEntries(requestedPages.map(name=>[name,availablePages[name]!])):availablePages;
 const types:Record<string,string>={html:"text/html; charset=utf-8",css:"text/css",js:"text/javascript",svg:"image/svg+xml",png:"image/png",webp:"image/webp",woff2:"font/woff2"};
@@ -474,19 +475,23 @@ async function main(){
     await devtools.call("Network.enable");
     await devtools.call("Network.setBlockedURLs",{urls:["https://*"]});
     if(viewports)await devtools.call("Page.addScriptToEvaluateOnNewDocument",{source:`(()=>{const NativeDate=Date;const fixed='2026-09-16T07:00:00Z';window.Date=class extends NativeDate{constructor(...args){super(...(args.length?args:[fixed]));}static now(){return NativeDate.parse(fixed);}};})()`});
-    for(const path of ["/digest/daily.html","/en/state-and-truth/","/lab/index.html","/hub/index.html"])await checkThemeRuntime(devtools,`http://127.0.0.1:${port}`,path);
-    await checkNeonMotion(devtools,`http://127.0.0.1:${port}`);
-    await checkNeonFigures(devtools,`http://127.0.0.1:${port}`);
-    await checkSiteSwitcher(devtools,`http://127.0.0.1:${port}`);
-    await open(devtools,`http://127.0.0.1:${port}/digest/stocks-filled-en.html`);
-    const sorting=await devtools.evaluate<boolean>(`(()=>{
-      const select=document.querySelector('[data-stock-sort]'),container=document.querySelector('[data-stock-rows]');
-      const rows=[...container.children],order=()=>[...container.children].map(row=>row.dataset.stockRow).join(',');
-      const original=order(),expected=[...rows].sort((a,b)=>Number(b.dataset.stockMove)-Number(a.dataset.stockMove)||Number(a.dataset.stockIndex)-Number(b.dataset.stockIndex)).map(row=>row.dataset.stockRow).join(',');
-      select.value='moves';select.dispatchEvent(new Event('change',{bubbles:true}));const sorted=order()===expected;
-      select.value='original';select.dispatchEvent(new Event('change',{bubbles:true}));return sorted&&order()===original;
-    })()`);
-    if(!sorting)throw new Error("Shared Stocks select must preserve native sorting and original order");
+    // A page-scoped run (KURAMI_UI_PAGES from `npm run test:changed`) checks only those pages; the library-wide
+    // checks below (theme runtime, Neon motion and figures, site switcher, Stocks sorting) run in full runs.
+    if(!process.env.KURAMI_UI_PAGES){
+      for(const path of ["/digest/daily.html","/en/state-and-truth/","/lab/index.html","/hub/index.html"])await checkThemeRuntime(devtools,`http://127.0.0.1:${port}`,path);
+      await checkNeonMotion(devtools,`http://127.0.0.1:${port}`);
+      await checkNeonFigures(devtools,`http://127.0.0.1:${port}`);
+      await checkSiteSwitcher(devtools,`http://127.0.0.1:${port}`);
+      await open(devtools,`http://127.0.0.1:${port}/digest/stocks-filled-en.html`);
+      const sorting=await devtools.evaluate<boolean>(`(()=>{
+        const select=document.querySelector('[data-stock-sort]'),container=document.querySelector('[data-stock-rows]');
+        const rows=[...container.children],order=()=>[...container.children].map(row=>row.dataset.stockRow).join(',');
+        const original=order(),expected=[...rows].sort((a,b)=>Number(b.dataset.stockMove)-Number(a.dataset.stockMove)||Number(a.dataset.stockIndex)-Number(b.dataset.stockIndex)).map(row=>row.dataset.stockRow).join(',');
+        select.value='moves';select.dispatchEvent(new Event('change',{bubbles:true}));const sorted=order()===expected;
+        select.value='original';select.dispatchEvent(new Event('change',{bubbles:true}));return sorted&&order()===original;
+      })()`);
+      if(!sorting)throw new Error("Shared Stocks select must preserve native sorting and original order");
+    }
     const audited:Record<string,string>={...pages};
     if(!screensOnly)for(const lang of ["en","ru"])for(const route of ["","changelog",...docsPages.map(page=>page.slug)])audited[`docs-${lang}-${route||"home"}`]??=`/${lang}/${route?route+"/":""}`;
     for(const [name,path] of Object.entries(audited))if(!Object.values(pages).includes(path)||name in pages)for(const width of widths)for(const theme of themes){
@@ -549,7 +554,7 @@ async function main(){
   if(viewports)writeFileSync(join(output,"layouts.json"),JSON.stringify(layouts,null,2));
   writeFileSync(join(output,"audit.json"),JSON.stringify({audited:auditedCount,screenshots:Object.keys(manifest).length,widths,themes,stress,keyboardChecks,audit,contrastReview},null,2));
   if(Object.keys(audit).length){console.log(JSON.stringify({ok:false,audit},null,1));process.exitCode=1;return;}
-  if(!compare){console.log(JSON.stringify({ok:true,themeRuntime:"verified",audited:auditedCount,screenshots:Object.keys(manifest).length,contrastReviewPages:Object.keys(contrastReview).length,out:output}));return;}
+  if(!compare){console.log(JSON.stringify({ok:true,themeRuntime:process.env.KURAMI_UI_PAGES?"skipped: page-scoped run":"verified",audited:auditedCount,screenshots:Object.keys(manifest).length,contrastReviewPages:Object.keys(contrastReview).length,out:output}));return;}
   const baseline=JSON.parse(readFileSync(resolve(compare,"manifest.json"),"utf8")) as Record<string,string>;
   const changed:Record<string,string>={};
   for(const file of Object.keys({...baseline,...manifest}).sort()){
