@@ -23,6 +23,7 @@ The top header scrolls with the page; desktop keeps its header navigation.
 | Greeting | Title, subtitle and a note from Kurami | frozen |
 | Figures | Mail, stories, local time, weather | mail and weather live, the clock ticks in the browser |
 | "На заметку" (worth noting) | Up to three short hints ([Signals](@signals)) | live |
+| "PR ждут тебя" (PRs waiting for you) | Pull requests in Human Review for more than a day, with a link and the wait; on Sundays the week's totals: tasks completed, median tokens per task and the rework share. Absent when there is nothing to say | frozen at publication |
 | "Расписание" (schedule) | The day's events from three calendars, meeting conflicts | live |
 | "Почта" (mail) | Unread Primary mail with classes ACTION, IMPORTANT, GENERAL | live |
 | "Новости" (news) | Stories, 10 per page, with images and topics | frozen |
