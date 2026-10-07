@@ -42,7 +42,7 @@ oldDatabase.prepare(`INSERT INTO action_receipts(action_id,edition_id,action_typ
   '2026-09-18T06:00:00Z','2026-09-18T06:00:00Z')`).run();
 oldDatabase.close();
 assert.deepEqual((await initializeBriefingStore({...upgradePaths,migrationsDirectory:resolve(root,"migrations/briefing")})).applied,
-  ["013_weekly_mail_observation_failures.sql"]);
+  ["013_weekly_mail_observation_failures.sql","015_edition_reads.sql"]);
 const upgradedDatabase=openBriefingDatabase(upgradePaths);
 assert.equal((upgradedDatabase.prepare("SELECT state FROM action_receipts WHERE action_id='mail:upgrade'")
   .get() as {state:string}).state,"complete");

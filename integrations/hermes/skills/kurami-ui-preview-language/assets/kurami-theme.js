@@ -419,3 +419,30 @@
   };
   if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',mount,{once:true});else mount();
 })();
+document.documentElement.dataset.kuramiMascot=/(?:^|;\s*)kurami-mascot=off(?:;|$)/.test(document.cookie)?"off":"on";
+(()=>{
+  if(!matchMedia('(display-mode: standalone)').matches||!matchMedia('(pointer: coarse)').matches)return;
+  const ru=document.documentElement.lang==='ru',trigger=80,limit=120;
+  const src=typeof kuramiAppUrl==='function'?kuramiAppUrl('/assets/kurami-peek.webp'):'/assets/kurami-peek.webp';
+  let startY=null,pull=0,panel=null,busy=false;
+  const show=()=>{panel=document.createElement('div');panel.className='kurami-pull';panel.setAttribute('aria-hidden','true');
+    panel.innerHTML='<img src="'+src+'" width="96" height="96" alt=""><span></span>';document.body.append(panel);};
+  const text=()=>panel.querySelector('span').textContent=pull>=trigger?(ru?'Отпусти, чтобы обновить':'Release to refresh'):(ru?'Потяни ещё':'Keep pulling');
+  const reset=()=>{panel?.remove();panel=null;pull=0;startY=null;};
+  addEventListener('touchstart',event=>{
+    if(busy||scrollY>0||event.touches.length!==1||event.target.closest('dialog[open],[popover],input,textarea,select,[data-no-pull]'))return;
+    startY=event.touches[0].clientY;
+  },{passive:true});
+  addEventListener('touchmove',event=>{
+    if(startY===null)return;
+    const distance=event.touches[0].clientY-startY;
+    if(distance<=0||scrollY>0){if(panel)reset();return;}
+    pull=Math.min(limit,distance*.5);if(!panel)show();
+    panel.style.setProperty('--pull',pull+'px');panel.classList.toggle('is-ready',pull>=trigger);text();
+  },{passive:true});
+  addEventListener('touchend',async()=>{
+    if(!panel||pull<trigger){reset();return;}
+    busy=true;panel.classList.add('is-refreshing');panel.querySelector('span').textContent=ru?'Обновляю…':'Refreshing…';
+    try{if(typeof window.kuramiRefresh==='function')await window.kuramiRefresh();else{location.reload();return;}}finally{busy=false;reset();}
+  });
+})();

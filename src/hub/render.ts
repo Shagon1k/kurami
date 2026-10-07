@@ -25,6 +25,7 @@ import type {ProblemNext} from "./operations.ts";
 import type {CodexLimit,CodexSnapshot} from "./codex.ts";
 import type {HubProject,HubSnapshot} from "./snapshot.ts";
 import type {UsagePeriod} from "../orchestrator/projects/usage-read-model.ts";
+import {renderKuramiMood,renderKuramiState,type KuramiMood} from "../ui-library/components/kurami-mood.ts";
 
 export type HubLanguage="ru"|"en";
 const tr=(lang:HubLanguage,ru:string,en:string)=>lang==="ru"?ru:en;
@@ -265,6 +266,17 @@ function renderTrend(snapshot:HubSnapshot,lang:HubLanguage):string {
 }
 
 /** One line on how things are: quiet or how many need attention, what is in progress, what waits for the owner. */
+/** Kurami's state for the pulse line: what matters most right now, asleep on a quiet night. */
+export function pulseMood(snapshot:HubSnapshot):KuramiMood {
+  const queue=problemQueue(snapshot.operations?.alerts??[]);
+  if(queue.some(problem=>problem.severity==="critical"))return "alert";
+  if(queue.some(problem=>problem.actor==="owner")||snapshot.totals.attention>0)return "needs-decision";
+  if(queue.length)return "found-problem";
+  if(snapshot.sources.orchestrator==="available"&&snapshot.totals.working>0)return "working";
+  const hour=Number(new Intl.DateTimeFormat("en-GB",{hour:"2-digit",hourCycle:"h23",timeZone:"Europe/Vilnius"}).format(new Date(snapshot.generatedAt)));
+  return hour>=23||hour<6?"asleep":"idle";
+}
+
 function renderPulse(snapshot:HubSnapshot,lang:HubLanguage):string {
   const problems=problemQueue(snapshot.operations?.alerts??[]).length,known=snapshot.sources.orchestrator==="available";
   const plural=(n:number,forms:[string,string,string])=>forms[n%100>=11&&n%100<=14?2:n%10===1?0:n%10>=2&&n%10<=4?1:2];
@@ -272,7 +284,8 @@ function renderPulse(snapshot:HubSnapshot,lang:HubLanguage):string {
   if(known&&snapshot.totals.working>0)parts.push(tr(lang,`${snapshot.totals.working} в работе`,`${snapshot.totals.working} in progress`));
   if(known&&snapshot.totals.attention>0)parts.push(tr(lang,`${snapshot.totals.attention} ${plural(snapshot.totals.attention,["ждёт","ждут","ждут"])} тебя`,`${snapshot.totals.attention} waiting for you`));
   else if(known&&snapshot.totals.review>0)parts.push(tr(lang,`${snapshot.totals.review} на ревью`,`${snapshot.totals.review} in review`));
-  return `<p class="hub__pulse" data-state="${problems?"attention":"quiet"}">${parts.map(part=>`<span>${escapeHtml(part)}</span>`).join("")}</p>`;
+  if(snapshot.digestReadAt)parts.push(`${tr(lang,"Дайджест","Digest")} ✓ ${new Intl.DateTimeFormat(lang==="ru"?"ru-RU":"en-GB",{hour:"2-digit",minute:"2-digit",timeZone:"Europe/Vilnius"}).format(new Date(snapshot.digestReadAt))}`);
+  return `<div class="hub__mood">${renderKuramiMood({mood:pulseMood(snapshot),eager:true})}<p class="hub__pulse" data-state="${problems?"attention":"quiet"}">${parts.map(part=>`<span>${escapeHtml(part)}</span>`).join("")}</p></div>`;
 }
 
 export function renderHubDashboard(snapshot:HubSnapshot,lang:HubLanguage="en"):string {
@@ -309,6 +322,6 @@ main:`<div id="hub-dashboard" class="hub" aria-live="off"${LIVE_ATTRIBUTE}>${ren
 export function renderHubOffline(lang:HubLanguage="en"):string {
   return renderDocument({lang,title:`${tr(lang,"Нет связи","Offline")} · Kurami Hub`,favicon:"/assets/favicon.svg",styles:{href:HUB_CSS_URL},themeScript:true,skipLabel:tr(lang,"К содержимому","Skip to content"),
     header:hubHeader(lang,false),
-    main:`<div class="hub"><div class="hub__topline"><h1>${tr(lang,"Нет связи","Offline")}</h1></div></div>`,
+    main:`<div class="hub">${renderKuramiState({mood:"offline",title:tr(lang,"Нет связи","Offline"),text:tr(lang,"Hub вернётся, как только появится сеть. Данные на сервере в порядке — это только твоё соединение.","Hub comes back as soon as the network does. The server's data is fine; it is only your connection."),headingLevel:1})}</div>`,
     footer:renderSiteFooter({lang,app:"Hub"})});
 }

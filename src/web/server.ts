@@ -5,17 +5,22 @@ import {fileURLToPath} from "node:url";
 import {WebAccess,type WebIdentity} from "./access.ts";
 import {AccessVerificationUnavailableError,accessUnavailableMessage} from "./access-keys.ts";
 import {resolveWebRoute,WEB_ORIGIN,type WebApp} from "./routes.ts";
-import {readAppearanceDefault} from "../system/appearance/appearance-settings.ts";
+import {readAppearanceDefault,readMascotEnabled} from "../system/appearance/appearance-settings.ts";
 import {fontFiles} from "../ui-library/foundations/fonts.ts";
 import {VIEWPORT_META} from "../ui-library/patterns/page-shell.ts";
 import {PWA_ICON_ASSETS,PWA_LEGACY_ICON_ASSETS,PWA_NEON_ICON_ASSETS,pwaAppearance} from "./icons.ts";
 
-type Options={upstreams?:Record<WebApp,string>;authorize?:(request:IncomingMessage,app:WebApp)=>Promise<WebIdentity|null>;origin?:string;appearance?:()=>string|null};
+type Options={upstreams?:Record<WebApp,string>;authorize?:(request:IncomingMessage,app:WebApp)=>Promise<WebIdentity|null>;origin?:string;appearance?:()=>string|null;mascot?:()=>boolean};
 
 /** The Hub default theme travels as a readable cookie on every page, so the theme runtime applies it before first paint. */
 export function appearanceCookie(value:string|null,secure:boolean):string {
   const flags=`Path=/; SameSite=Lax${secure?"; Secure":""}`;
   return value&&/^[a-z]+\.(?:light|dark)$/.test(value)?`kurami-theme-default=${value}; Max-Age=31536000; ${flags}`:`kurami-theme-default=; Max-Age=0; ${flags}`;
+}
+/** Kurami's illustrations switched off in Hub → Appearance travel as `kurami-mascot=off`; on clears it. */
+export function mascotCookie(enabled:boolean,secure:boolean):string {
+  const flags=`Path=/; SameSite=Lax${secure?"; Secure":""}`;
+  return enabled?`kurami-mascot=; Max-Age=0; ${flags}`:`kurami-mascot=off; Max-Age=31536000; ${flags}`;
 }
 const hopHeaders=new Set(["connection","keep-alive","proxy-authenticate","proxy-authorization","te","trailer","transfer-encoding","upgrade"]);
 
@@ -23,6 +28,7 @@ const hopHeaders=new Set(["connection","keep-alive","proxy-authenticate","proxy-
 export function createWebServer(options:Options={}):Server {
   const access=new WebAccess(),authorize=options.authorize??((request,app)=>access.authorize(request,app));
   const appearance=options.appearance??(()=>readAppearanceDefault());
+  const mascot=options.mascot??(()=>readMascotEnabled());
   const origin=new URL(options.origin??WEB_ORIGIN);
   const upstreams=options.upstreams??{hub:"http://127.0.0.1:8800",digest:"http://127.0.0.1:8787",projects:"http://127.0.0.1:8777",docs:"http://127.0.0.1:8799"};
   for(const target of Object.values(upstreams)){
@@ -40,7 +46,7 @@ export function createWebServer(options:Options={}):Server {
     const resource=raw.split("?")[0]!;
     const font=fontFiles.find(font=>resource===`/assets/${font.file}`);
     const icon=[...PWA_ICON_ASSETS,...PWA_LEGACY_ICON_ASSETS,...PWA_NEON_ICON_ASSETS].find(icon=>resource===icon.src);
-    const pwa=Boolean(font||icon)||["/manifest.webmanifest","/sw.js","/en/offline.html","/ru/offline.html","/assets/kurami-fox.png","/assets/kurami-fox.webp"].includes(resource);
+    const pwa=Boolean(font||icon)||["/manifest.webmanifest","/sw.js","/en/offline.html","/ru/offline.html","/assets/kurami-fox.png","/assets/kurami-fox.webp","/assets/kurami-offline.webp"].includes(resource);
     const app=font?"docs":route&&"app" in route?route.app:"hub";
     let identity:WebIdentity|null;
     try{identity=await authorize(request,app);}catch(error){
@@ -80,6 +86,8 @@ export function createWebServer(options:Options={}):Server {
       if(resource.endsWith("offline.html")){
         const ru=resource.startsWith("/ru/");send(200,`<!doctype html><html lang="${ru?"ru":"en"}"><meta charset="utf-8">${VIEWPORT_META}<title>Kurami</title><h1>${ru?"Нет связи":"No connection"}</h1><a href="/${ru?"ru":"en"}/">Kurami</a></html>`,"text/html; charset=utf-8");return;
       }
+      // Kurami without a network: the service worker keeps this one picture for its offline page.
+      if(resource==="/assets/kurami-offline.webp"){response.setHeader("Cache-Control","private, max-age=86400");response.writeHead(200,{"Content-Type":"image/webp"});response.end(request.method==="HEAD"?undefined:readFileSync(new URL("../ui-library/assets/kurami/offline.webp",import.meta.url)));return;}
       const png=resource.endsWith(".png"),body=readFileSync(new URL(`../ui-library/assets/brand/${png?"kurami-fox-transparent.png":"kurami-fox-header.webp"}`,import.meta.url));
       response.writeHead(200,{"Content-Type":png?"image/png":"image/webp"});response.end(request.method==="HEAD"?undefined:body);return;
     }
@@ -96,7 +104,7 @@ export function createWebServer(options:Options={}):Server {
       response.setHeader("Cache-Control","private, no-store");
       if(String(incoming.headers["content-type"]??"").startsWith("text/html")){
         const existing=response.getHeader("set-cookie"),cookies=existing===undefined?[]:Array.isArray(existing)?existing.map(String):[String(existing)];
-        response.setHeader("Set-Cookie",[...cookies,appearanceCookie(appearance(),origin.protocol==="https:")]);
+        response.setHeader("Set-Cookie",[...cookies,appearanceCookie(appearance(),origin.protocol==="https:"),mascotCookie(mascot(),origin.protocol==="https:")]);
       }
       response.writeHead(incoming.statusCode??502);
       incoming.on("error",()=>response.destroy());incoming.pipe(response);

@@ -69,6 +69,7 @@ export const tableNotes:Record<"orchestrator"|"digest",Record<string,Localized<s
     "weekly_daily_observations":{ru:"Одна строка — компактные счётчики одного дня для Weekly, без id писем и текстов.",en:"One row is the compact counters of one day for Weekly, with no message ids or texts."},
     "weekly_mail_actions":{ru:"Одна строка — одно завершённое архивирование почты, учтённое в Weekly, с числом писем.",en:"One row is one completed mail archiving counted in Weekly, with its number of messages."},
     "weekly_mail_observation_failures":{ru:"Одна строка — сбой учёта архивирования почты в Weekly: код ошибки и время, без содержимого писем.",en:"One row is a failure to count a mail archiving in Weekly: an error code and time, with no mail content."},
+    "edition_reads":{ru:"Одна строка — когда дневной выпуск дочитали до конца («Всё. Ты в курсе.»); Hub показывает отметку за сегодня.",en:"One row is when a Daily edition was read to the end (\"That's all. You're up to date.\"); Hub shows today's mark."},
     "weekly_persistence_failures":{ru:"Одна строка — сбой записи Weekly при публикации или обновлении выпуска: операция, код ошибки и время.",en:"One row is a failure to persist Weekly while publishing or refreshing an edition: the operation, an error code and the time."},
   },
 };

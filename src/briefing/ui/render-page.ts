@@ -9,6 +9,7 @@ import { renderMetricStrip, timeMetricCard } from "./components/metric-strip.ts"
 import {digestLanguage,digestText} from "../i18n.ts";
 import {refreshCinemaUi} from "./components/cinema-section.ts";
 import {renderEditionFreshness} from './components/edition-freshness.ts';
+import {renderDailyFinish} from "./components/daily-finish.ts";
 
 function formatDate(payload: BriefingPayload): string {
   const value = new Date(`${payload.edition.localDate}T12:00:00`);
@@ -82,6 +83,6 @@ export function renderBriefingPage(payload: BriefingPayload): string {
       ${overview}
     </div>` : ""}
     ${main}
-    ${afterMain ? `${afterMain}\n    ` : ""}${renderQuality(payload)}
+    ${afterMain ? `${afterMain}\n    ` : ""}${renderDailyFinish(payload)}${renderQuality(payload)}
   `}));
 }

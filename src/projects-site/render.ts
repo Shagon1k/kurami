@@ -23,6 +23,7 @@ import {renderToastRegion} from "../ui-library/components/toast.ts";
 import {renderPill,type PillTone} from "../ui-library/components/pill.ts";
 import {needsOwner,parseFilters,projectStageLabel,selectItems,type ProjectItem,type ProjectSummary,type ProjectsSnapshot,type Signal,type SortKey} from "./model.ts";
 import {tr,sourceText,language,stateLabel,browserMessages,type Language} from "./i18n.ts";
+import {renderKuramiMood,renderKuramiState} from "../ui-library/components/kurami-mood.ts";
 
 export function localTime(value:string|null,lang:Language="en"):string {
   if(!value||!Number.isFinite(Date.parse(value)))return tr("Unknown",lang);
@@ -97,11 +98,15 @@ export function renderProjectsDashboard(snapshot:ProjectsSnapshot,params=new URL
         {html:renderPill({label:item.status??t("No status"),tone:statusTone(item,project)})+(item.statusChange?.request&&["checking","writing","awaiting_sync","uncertain"].includes(item.statusChange.request.state)?`<small class="projects-status-pending">${renderIcon("refresh")}${escape(item.statusChange.request.target)}</small>`:"")},
         {html:`<div class="projects-stage">${stateValue(projectStageLabel(item,lang),runTone(item))}${item.owner==="cli"?`<small>${renderIcon("bot")}AI Agent</small>`:item.owner==="remote"?`<small>${renderIcon("person")}${t("You have control")}</small>`:""}</div>`},
         {html:evidence?`<div class="projects-checks">${evidence}</div>`:"—"}];
-    })}):renderCallout({tone:"note",title:t(snapshot.available?"No matching tasks":"Table unavailable"),body:t(snapshot.available?"Try another project or search.":"The latest snapshot could not be read.")});
+    })}):!snapshot.available?renderKuramiState({mood:"found-problem",title:t("Table unavailable"),text:t("The latest snapshot could not be read.")})
+    :filters.attentionOnly?renderKuramiState({mood:"idle",title:t("Nothing is waiting for you"),text:t("Kurami will show tasks here when they need your answer.")})
+    :renderKuramiState({mood:"idle",title:t("No matching tasks"),text:t("Try another project or search.")});
+  // "Your move": the owner filter shows Kurami with open hands above the tasks that wait for an answer.
+  const yourMove=filters.attentionOnly&&items.length?`<div class="projects-your-move">${renderKuramiMood({mood:"needs-decision"})}<p><strong>${t("Your move")}</strong> · ${items.length} ${t(items.length===1?"task waits for you":"tasks wait for you")}</p></div>`:"";
   return `<div class="projects-overview"><div class="projects-summary"><p>${renderIcon("project")}<span><strong data-visible-count>${items.length}</strong> ${t("of")} ${snapshot.items.length} ${t("tasks")}</span></p><div class="projects-filters">${counter("active",active,"active","work",filters.activeOnly,"Tasks in progress or waiting for your attention.")}${counter("attention",attention,"need you","alert",filters.attentionOnly,"Tasks waiting for your attention.")}</div></div><div class="projects-sync"><span class="projects-sync-indicator projects-sync-indicator--${delayed?"delayed":"fresh"}" aria-hidden="true"></span>${renderButton({label:`${t("Sync")} · ${t(delayed?"Delayed":"Up to date")}`,compactLabel:lang==="ru"?t("Sync short"):t("Sync"),iconPath:iconPath("refresh"),visibleLabel:true,variant:"quiet",attributes:{popovertarget:"projects-sync-popover","data-sync-trigger":true,title:`${t("Sync")} · ${t(delayed?"Delayed":"Up to date")}`}})}${renderPopover({id:"projects-sync-popover",label:t("Sync"),body:freshBody})}</div></div>
     <div class="projects-mobile-sort" aria-label="${t("Sort by")}">${sortControl("task","Task",params,lang)}${sortControl("status","Status",params,lang)}${sortControl("kurami","Kurami",params,lang)}</div>
     ${snapshot.available?"":renderCallout({tone:"warning",title:t("Data temporarily unavailable"),body:t("Check the current state in GitHub or Discord.")})}
-    <div class="projects-grid${selected?" projects-grid--detail":""}"><div class="projects-table-frame"${surfaceAttributes("lead")}>${table}<div data-search-empty hidden>${renderCallout({tone:"note",title:t("No tasks match your search."),body:""})}</div></div>${selected?detail(selected,params,projectOf(selected),snapshot.generatedAt):""}</div>`;
+    <div class="projects-grid${selected?" projects-grid--detail":""}"><div class="projects-table-frame"${surfaceAttributes("lead")}>${yourMove}${table}<div data-search-empty hidden>${renderCallout({tone:"note",title:t("No tasks match your search."),body:""})}</div></div>${selected?detail(selected,params,projectOf(selected),snapshot.generatedAt):""}</div>`;
 }
 function ciDetails(item:ProjectItem,project:ProjectSummary,lang:Language):string {
   const checks=item.ci.checks??[],t=(key:string)=>tr(key,lang);

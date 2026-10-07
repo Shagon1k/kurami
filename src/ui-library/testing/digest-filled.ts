@@ -14,7 +14,11 @@ const media="/media/cinema/2026-09-19/audit-poster.svg";
 export const auditPoster=`<svg xmlns="http://www.w3.org/2000/svg" width="480" height="720" viewBox="0 0 480 720"><rect width="480" height="720" fill="#a38b54"/><circle cx="240" cy="250" r="130" fill="#f5e9c8"/><path d="M0 620L170 390L340 560L480 420V720H0Z" fill="#292720"/><text x="240" y="670" text-anchor="middle" fill="white" font-family="sans-serif" font-size="28">SYNTHETIC POSTER</text></svg>`;
 
 export function syntheticDailyFilled(lang:DigestLanguage="ru"):string {
-  const payload=upgradeLegacyPayload({schemaVersion:1,
+  return withDigestLanguage(lang,()=>renderBriefingPage(syntheticDailyFilledPayload()));
+}
+
+export function syntheticDailyFilledPayload() {
+  return upgradeLegacyPayload({schemaVersion:1,
     edition:{id:"daily:2026-09-16",type:"daily",localDate:"2026-09-16",timezone:"Europe/Vilnius",generatedAt:"2026-09-16T07:00:00Z",status:"complete",retentionUntil:"2026-09-23T07:00:00Z"},
     hero:{title:"Утренний обзор",en:{title:"Morning briefing"}},
     mail:{state:"ready",count:8,items:Array.from({length:8},(_,index)=>({id:`audit-mail-${index}`,provider:"gmail",providerItemId:`audit-message-${index}`,class:"GENERAL",subject:index===0?"Очень длинная тема синтетического письма: подробное уведомление о ходе проекта и следующих встречах":`Synthetic inbox message ${index+1}`}))},
@@ -29,7 +33,6 @@ export function syntheticDailyFilled(lang:DigestLanguage="ru"):string {
       ...(index===0?{media:[{id:"audit-image",kind:"image",src:"/media/audit-illustration.webp",alt:"Synthetic illustration",mimeType:"image/webp"}]}:{}),
     }))},sourceBatches:[],dataQuality:{state:"ready",summary:"Тестовые источники обновлены."},
   });
-  return withDigestLanguage(lang,()=>renderBriefingPage(payload));
 }
 
 export function syntheticCinemaFilled(lang:DigestLanguage="ru",originalEditorial=false):string {

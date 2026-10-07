@@ -12,10 +12,14 @@ import {breakpoints} from "../ui-library/tokens/index.ts";
 import {ICON_CSS} from "../ui-library/components/icon.ts";
 import {TOAST_CSS} from "../ui-library/components/toast.ts";
 import {DISCLOSURE_CSS} from "../ui-library/components/disclosure.ts";
+import {KURAMI_MOOD_CSS} from "../ui-library/components/kurami-mood.ts";
 
-export const PROJECTS_STYLES=[THEME_CSS,FOUNDATION_CSS,BUTTON_CSS,TABLE_CSS,FORM_CSS,CALLOUT_CSS,PILL_CSS,POPOVER_CSS,THEME_SWITCH_CSS,SITE_HEADER_CSS,ICON_CSS,TOAST_CSS,DISCLOSURE_CSS,`
+export const PROJECTS_STYLES=[KURAMI_MOOD_CSS,THEME_CSS,FOUNDATION_CSS,BUTTON_CSS,TABLE_CSS,FORM_CSS,CALLOUT_CSS,PILL_CSS,POPOVER_CSS,THEME_SWITCH_CSS,SITE_HEADER_CSS,ICON_CSS,TOAST_CSS,DISCLOSURE_CSS,`
 [data-projects-app] { --projects-table-height: calc(100dvh - 230px); }
 .projects-page { padding-block: var(--space-5) var(--space-6); }
+.projects-your-move { display: flex; align-items: center; gap: var(--space-3); padding: var(--space-2) var(--space-4); border-bottom: 1px solid var(--border-subtle); }
+.projects-your-move p { margin: 0; color: var(--text-muted); }
+.projects-your-move strong { color: var(--text-primary); }
 .projects-toolbar { display: flex; align-items: center; flex-wrap: wrap; gap: var(--space-3) var(--space-5); }
 .projects-search { width: min(480px,100%); }
 .projects-overview { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: var(--space-2) var(--space-5); margin-block: var(--space-3); }

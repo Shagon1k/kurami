@@ -13,6 +13,8 @@ import {CALLOUT_CSS} from "../../ui-library/components/callout.ts";
 import {DISCLOSURE_CSS} from "../../ui-library/components/disclosure.ts";
 import {FORM_CSS} from "../../ui-library/components/form.ts";
 import {breakpoints} from "../../ui-library/tokens/index.ts";
+import {KURAMI_MOOD_CSS} from "../../ui-library/components/kurami-mood.ts";
+import {DAILY_FINISH_STYLES} from "./components/daily-finish.ts";
 export const STORY_ACTIONS_LAYOUT_CSS=`
 @media (max-width: ${breakpoints.phone}px) {
   .news-story__source, .news-story__actions .reaction-button { --button-width: 100%; }
@@ -68,7 +70,7 @@ export const DIGEST_POLISH_CSS=`
   .cinema-signals { grid-template-columns:repeat(auto-fit,minmax(min(100%,160px),1fr)); }
 }
 `;
-export const BRIEFING_STYLES = `
+export const BRIEFING_STYLES = `${KURAMI_MOOD_CSS}${DAILY_FINISH_STYLES}
 ${THEME_CSS}
 ${FOUNDATION_CSS}
 :root {

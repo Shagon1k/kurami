@@ -11,6 +11,7 @@ import {DOCS_STYLES} from "./styles.ts";
 import {fontFiles} from "../ui-library/foundations/fonts.ts";
 import {THEME_RUNTIME_JS} from "../ui-library/runtime/theme.ts";
 import {projectCss,projectDocument,WEB_CLIENT_JS} from "../web/presentation.ts";
+import {KURAMI_MOODS} from "../ui-library/components/kurami-mood.ts";
 
 const root=resolve(dirname(fileURLToPath(import.meta.url)),"../..");
 const args=process.argv.slice(2);
@@ -68,6 +69,7 @@ for(const [path,html] of rendered){
 for(const diagram of diagrams)writeFileSync(resolve(output,"assets",`diagram-${diagram.id}.svg`),diagram.svg);
 cpSync(resolve(siteRoot,"kurami-fox-transparent.png"),resolve(output,"assets/fox.png"));
 cpSync(resolve(siteRoot,"kurami-fox-header.webp"),resolve(output,"assets/fox.webp"));
+for(const mood of KURAMI_MOODS)cpSync(resolve(root,`src/ui-library/assets/kurami/${mood}.webp`),resolve(output,`assets/kurami-${mood}.webp`));
 cpSync(resolve(siteRoot,"kurami-favicon.svg"),resolve(output,"assets/favicon.svg"));
 for(const font of fontFiles)cpSync(resolve(root,"src/ui-library/assets/fonts",font.file),resolve(output,"assets",font.file));
 for(const file of readdirSync(resolve(root,"src/human-docs/assets")))if(/^shot-[a-z0-9-]+\.png$/.test(file))cpSync(resolve(root,"src/human-docs/assets",file),resolve(output,"assets",file));

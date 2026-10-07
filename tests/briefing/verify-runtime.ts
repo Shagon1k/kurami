@@ -1115,6 +1115,7 @@ assert.deepEqual(initialized.applied, [
   "011_stocks_discovery.sql",
   "012_weekly_persistence_failures.sql",
   "013_weekly_mail_observation_failures.sql",
+  "015_edition_reads.sql",
 ]);
 const snapshotDatabase = openBriefingDatabase(paths);
 try {

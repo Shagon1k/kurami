@@ -18,6 +18,7 @@ import {renderCallout} from "../ui-library/components/callout.ts";
 import {renderDisclosure} from "../ui-library/components/disclosure.ts";
 import {inlineDiagram} from "../ui-library/foundations/diagram.ts";
 import {screenshotDimensions} from "./screenshot-dimensions.ts";
+import {renderKuramiMood} from "../ui-library/components/kurami-mood.ts";
 
 const REPO="https://github.com/Shagon1k/kurami";
 const labels={
@@ -257,7 +258,7 @@ export function renderArticle(page:HumanDocsPage,lang:Language,options:RenderOpt
 export function renderHome(lang:Language,options:RenderOptions={}):RenderedPage {
   if(!homePage)throw new Error("Missing content/pages/home.<lang>.md");
   const context:Context={lang,page:homePage,options,diagrams:[]};
-  const body=`<div class="home"><header class="intro"><p class="eyebrow page-eyebrow">${escape(lang==="ru"?"Kurami · документация":"Kurami · documentation")}</p><h1 class="page-title">${escape(homePage.title[lang])}</h1><p class="lede page-subtitle">${escape(homePage.summary[lang])}</p></header><div class="prose prose--home">${blocksHtml(homePage.blocks[lang],context)}</div></div>`;
+  const body=`<div class="home"><header class="intro intro--kurami"><div><p class="eyebrow page-eyebrow">${escape(lang==="ru"?"Kurami · документация":"Kurami · documentation")}</p><h1 class="page-title">${escape(homePage.title[lang])}</h1><p class="lede page-subtitle">${escape(homePage.summary[lang])}</p></div>${renderKuramiMood({mood:"welcome",eager:true})}</header><div class="prose prose--home">${blocksHtml(homePage.blocks[lang],context)}</div></div>`;
   return {html:shell(lang,homePage.title[lang],homePage.summary[lang],body,undefined,""),diagrams:context.diagrams};
 }
 
@@ -296,7 +297,7 @@ export function renderChangelog(lang:Language,changes:Change[],revision?:string,
 
 export function renderNotFound(lang:Language):string {
   const ru=lang==="ru",title=ru?"Страница не найдена":"Page not found",description=ru?"Этой страницы нет. Найди нужный раздел на главной документации.":"This page does not exist. Find the section you need on the documentation home page.";
-  const body=`<div class="home"><header class="intro"><p class="eyebrow page-eyebrow">404</p><h1 class="page-title">${title}</h1><p class="lede page-subtitle">${description}</p></header>${renderLinkButton({label:ru?"На главную Docs":"Docs home",href:url(lang,""),variant:"secondary"})}</div>`;
+  const body=`<div class="home"><header class="intro intro--kurami"><div><p class="eyebrow page-eyebrow">404</p><h1 class="page-title">${title}</h1><p class="lede page-subtitle">${description}</p></div>${renderKuramiMood({mood:"found-problem",eager:true})}</header>${renderLinkButton({label:ru?"На главную Docs":"Docs home",href:url(lang,""),variant:"secondary"})}</div>`;
   return shell(lang,title,description,body,undefined,"");
 }
 

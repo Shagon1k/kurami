@@ -30,6 +30,7 @@ import {briefingPaths} from "../../briefing/store.ts";
 import {WEB_CLIENT_JS} from "../../web/presentation.ts";
 import {TOAST_RUNTIME_JS} from "../runtime/toast.ts";
 import type {Devtools} from "./devtools.ts";
+import {kuramiMoodAssets} from "../components/kurami-mood.ts";
 
 const root=resolve(import.meta.dirname,"../../..");
 const brandAssets=resolve(root,"src/ui-library/assets/brand");
@@ -160,6 +161,7 @@ async function site():Promise<string> {
   writeFileSync(join(served,"assets/hub.js"),HUB_CLIENT_JS);
   cpSync(join(brandAssets,"kurami-fox-header.webp"),join(served,"assets/kurami-fox.webp"));
   cpSync(join(brandAssets,"kurami-fox-header.webp"),join(served,"assets/kurami-fox-header.webp"));
+  for(const mood of kuramiMoodAssets())writeFileSync(join(served,mood.path.slice(1)),mood.body);
   cpSync(join(brandAssets,"kurami-favicon.svg"),join(served,"favicon.svg"));
   return served;
 }

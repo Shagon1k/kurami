@@ -140,6 +140,10 @@ does not overlap the brand or header actions.
 Mobile cards allow labels to wrap; wide tables keep their internal scroll.
 Long identifiers wrap within stacked Docs table rows.
 
+## Kurami
+
+Kurami the character (not the fox logo) is the `renderKuramiMood` component with twelve states: calm, working, asleep, offline, up to date, peeking, merged, alert, thinking, your move, found a problem, welcome. She always sits in a medallion of one size: a disc behind her, the figure cut only along the lower arc, her head, ears and tails rising over the rim. In Paper the ring is drawn in ink and she breathes slightly; in Neon the ring lights up and glows; while working a spark runs around the ring, on alert she gives a short nudge or the glow quickens. With reduced motion there is no animation. `renderKuramiState` places her next to a heading and a line of text, for empty, offline and error states. In the installed phone app, pull-to-refresh shows her peeking from the top. Hub → Appearance → "Kurami character" turns her off in every app.
+
 ## Themes
 
 The library has two themes. **Paper** is the default: warm paper, ink and one red accent, in light and dark modes. **Neon** draws the fox as a red neon sign. Its colours come in ranks:

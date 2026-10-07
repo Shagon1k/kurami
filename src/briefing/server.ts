@@ -74,6 +74,9 @@ export { removeArchivedMailFromRetainedEditions } from "./addons/mail/actions.ts
 import { removeArchivedMailFromRetainedEditions } from "./addons/mail/actions.ts";
 export { MAIL_AUTOMATION_MAX_ATTEMPTS, mailAutomationFailureKind, assertComposioMailActionSucceeded, type MailActionExecutor, type MailAutomationFailureKind } from "./addons/mail/executor.ts";
 import { composioMailActionExecutor, type MailActionExecutor } from "./addons/mail/executor.ts";
+import { kuramiMoodAssets } from "../ui-library/components/kurami-mood.ts";
+import { DAILY_FINISH_SCRIPT } from "./ui/components/daily-finish.ts";
+import { renderKuramiState } from "../ui-library/components/kurami-mood.ts";
 
 const CSP = [
   "default-src 'self'",
@@ -89,7 +92,7 @@ const CSP = [
   "style-src 'self' 'unsafe-inline'",
 ].join("; ");
 
-const CLIENT_SCRIPT = WEB_CLIENT_JS+`(() => {
+const CLIENT_SCRIPT = WEB_CLIENT_JS+DAILY_FINISH_SCRIPT+`(() => {
   const english = document.documentElement.lang === 'en';
   const tr = (ru, en) => english ? en : ru;
   const locale = english ? 'en-GB' : 'ru-RU';
@@ -734,7 +737,7 @@ function routeEdition(database: DatabaseSync, pathname: string): EditionRow | nu
 function emptyPage(): string {
   return renderPageShell({title:t("Briefing ещё не опубликован","Briefing not published yet"),brand:"Kurami",section:"daily",
     date:new Date().toISOString().slice(0,10),dateLabel:t("Дневной обзор","Daily briefing"),generated:"—",timezone:"Europe/Vilnius",
-    content:`<section class="hero"><div><p class="hero__eyebrow">Daily Briefing</p><h1>${t("Briefing ещё не опубликован","Briefing not published yet")}</h1><p class="hero__subtitle">${t("Здесь появится следующий готовый выпуск. Доступные обзоры можно открыть через навигацию.","The next completed edition will appear here. Available reviews are in the navigation.")}</p></div></section>`});
+    content:`${renderKuramiState({mood:"thinking",title:t("Kurami собирает выпуск","Kurami is putting the edition together"),text:t("Как только выпуск будет готов, он появится здесь.","It appears here as soon as it is ready.")})}<section class="hero"><div><p class="hero__eyebrow">Daily Briefing</p><h1>${t("Briefing ещё не опубликован","Briefing not published yet")}</h1><p class="hero__subtitle">${t("Здесь появится следующий готовый выпуск. Доступные обзоры можно открыть через навигацию.","The next completed edition will appear here. Available reviews are in the navigation.")}</p></div></section>`});
 }
 
 async function serveEdition(
@@ -775,6 +778,7 @@ export async function createBriefingServer(
   const favicon = await readFile(FAVICON_PATH, "utf8");
   const foxLogo = await readFile(FOX_LOGO_PATH);
   const foxHeader = await readFile(FOX_HEADER_PATH);
+  const moodAssets = new Map(kuramiMoodAssets().map(asset => [asset.path, asset.body]));
   const fonts = new Map<string, Buffer>(await Promise.all(fontFiles.map(async font => [`/assets/${font.file}`, await readFile(new URL(font.file, FONT_DIRECTORY))] as const)));
   const database = openBriefingDatabase(paths);
   const runtimeConfig = options.mailActionExecutor === undefined
@@ -859,6 +863,16 @@ export async function createBriefingServer(
         response.end(request.method==="HEAD"?undefined:foxLogo);
         return;
       }
+      const mood = (request.method === "GET" || request.method === "HEAD") ? moodAssets.get(url.pathname) : undefined;
+      if (mood) {
+        response.statusCode = 200;
+        response.setHeader("content-type", "image/webp");
+        response.setHeader("cache-control", "public, max-age=86400");
+        response.setHeader("x-content-type-options", "nosniff");
+        response.setHeader("content-length", String(mood.length));
+        response.end(request.method === "HEAD" ? undefined : mood);
+        return;
+      }
       if ((request.method === "GET" || request.method === "HEAD") && url.pathname === "/assets/kurami-fox.webp") {
         response.statusCode=200;
         response.setHeader("content-type","image/webp");
@@ -903,6 +917,16 @@ export async function createBriefingServer(
         const result = personalizedNewsOrder(stories, profile, policy);
         const mode = requested === "for-you" && profile.ready ? "for-you" : "briefing";
         json(response, 200, { ...result, mode, order: mode === "for-you" ? result.order : stories.map(story => story.id) });
+        return;
+      }
+      // The end of a Daily edition was reached (ui/components/daily-finish.ts); the first time is kept.
+      if (request.method === "POST" && url.pathname === "/api/editions/read") {
+        const input = await body(request);
+        const editionId = requiredString(input.editionId, "editionId");
+        const edition = loadEdition(database, { id: editionId });
+        if (!edition || edition.edition_type !== "daily") throw new Error("Unknown briefing edition");
+        database.prepare("INSERT INTO edition_reads(edition_id,read_at) VALUES(?,?) ON CONFLICT(edition_id) DO NOTHING").run(editionId, new Date().toISOString());
+        json(response, 200, { ok: true, readAt: (database.prepare("SELECT read_at FROM edition_reads WHERE edition_id=?").get(editionId) as { read_at: string }).read_at });
         return;
       }
       if (request.method === "POST" && url.pathname === "/api/items/read") {
