@@ -161,6 +161,8 @@ body { min-height: 100vh; }
 .release-state div { display: grid; gap: 2px; }
 .release-state dt { color: var(--text-muted); font-size: .75rem; }
 .release-state dd { margin: 0; font: 500 .9rem/1.3 var(--font-mono); }
+.release-state__tests { grid-column: 1 / -1; }
+.release-state__tests dd { font: inherit; font-size: .875rem; }
 .release-drift { display: grid; gap: var(--space-1); font-size: .85rem; color: var(--status-warning); }
 .release-steps { display: grid; gap: 2px; font-size: .8rem; }
 .release-steps small { color: var(--text-muted); }

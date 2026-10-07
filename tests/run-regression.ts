@@ -1,12 +1,16 @@
 // Kurami regression runner. `npm test` runs every suite; `npm run test:changed` runs only the suites a change
 // touches (tests/test-plan.ts); `--only=a,b` runs the named ones. "check" and "test:docs" run first, the rest
 // in a pool sized by Hub → Controls → Server → Development resources (KURAMI_TEST_JOBS overrides), and
-// browser suites last, one at a time. The whole run lives in kurami-dev.slice at low priority.
+// browser suites last, one at a time. The whole run lives in kurami-dev.slice at low priority. A run of the
+// whole or the changed set records which tree it tested and reports it on GitHub (src/system/test-receipts.ts).
 import { spawn, spawnSync } from "node:child_process";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
+import { resolveKuramiHome } from "../src/core/kurami-home.ts";
 import { readDevResources } from "../src/system/dev-resources/dev-resources.ts";
 import { changedFiles, planSuites, registeredSuites } from "./test-plan.ts";
+import { reportStatus, workingTree, writeReceipt, type TestReceipt } from "../src/system/test-receipts.ts";
+import { changedFiles, planSuites } from "./test-plan.ts";
 
 const root = resolve(import.meta.dirname, "..");
 if (process.env.KURAMI_DEV_SLICE !== "1") {
@@ -77,6 +81,7 @@ const suites = [
   "test:controller-failures",
   "test:log-rotation",
   "test:deploy",
+  "test:receipts",
   "test:release-drift",
   "test:backup",
   "test:recovery",
@@ -172,6 +177,8 @@ else if (changedMode) {
 } else selected = [...first, ...suites];
 if (!selected.includes("check")) selected.unshift("check");
 
+// The tree under test, for the receipt; a run of hand-picked suites records nothing.
+const testedTree = only ? null : workingTree(root);
 const jobs = Math.max(1, Number(process.env.KURAMI_TEST_JOBS) || readDevResources().testJobs);
 const npm = process.platform === "win32" ? "npm.cmd" : "npm";
 const startedAt = Date.now();
@@ -209,8 +216,22 @@ await pool(rest, jobs);
 for (const suite of selected.filter(suite => browser.has(suite))) if (!failed.length) await runSuite(suite);
 
 const durationMs = Date.now() - startedAt;
+await recordRun(!failed.length, durationMs);
 if (failed.length) {
   process.stderr.write(`${JSON.stringify({ ok: false, failedSuites: failed, durationMs })}\n`);
   process.exit(1);
 }
 process.stdout.write(`${JSON.stringify({ ok: true, suites: selected.length, jobs, durationMs })}\n`);
+
+/** Records which tree passed (or failed) and, when that tree is the commit at HEAD, reports it on GitHub.
+ * Files edited during the run make the result unattributable, so nothing is recorded then. */
+async function recordRun(ok: boolean, durationMs: number): Promise<void> {
+  if (!testedTree || workingTree(root) !== testedTree) return;
+  const head = (spec: string) => spawnSync("git", ["rev-parse", spec], { cwd: root, encoding: "utf8" }).stdout.trim();
+  const receipt: TestReceipt = {
+    tree: testedTree, commit: head("HEAD"), scope: changedMode ? "changed" : "full", ok,
+    suites: selected.length, failedSuites: failed, durationMs, at: new Date().toISOString(),
+  };
+  try { await writeReceipt(resolveKuramiHome("/home/shagon1k/_hermes/_kurami"), receipt); } catch { return; }
+  if (head("HEAD^{tree}") === testedTree && process.env.KURAMI_TEST_STATUS !== "0") process.stdout.write(`${await reportStatus(root, receipt)}\n`);
+}
