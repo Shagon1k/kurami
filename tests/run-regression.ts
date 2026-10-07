@@ -10,7 +10,6 @@ import { resolveKuramiHome } from "../src/core/kurami-home.ts";
 import { readDevResources } from "../src/system/dev-resources/dev-resources.ts";
 import { changedFiles, planSuites, registeredSuites } from "./test-plan.ts";
 import { reportStatus, workingTree, writeReceipt, type TestReceipt } from "../src/system/test-receipts.ts";
-import { changedFiles, planSuites } from "./test-plan.ts";
 
 const root = resolve(import.meta.dirname, "..");
 if (process.env.KURAMI_DEV_SLICE !== "1") {
