@@ -63,9 +63,10 @@ async function main(): Promise<void> {
     );
     execFileSync("bash", ["-n", resolve(appDirectory, "run-project-poller.sh")]);
     const pollerWrapper = await readFile(resolve(appDirectory, "run-project-poller.sh"), "utf8");
+    // The poller accepts exactly the registry's keys (src/core/projects-registry.ts), so every configured
+    // project is allowed without a second list to keep in sync.
     assert(
-      pollerWrapper.includes("tailortales|pickflick|ahurynovich-cv") &&
-        pollerWrapper.includes("<tailortales|pickflick|ahurynovich-cv>"),
+      pollerWrapper.includes('"${KURAMI_HOME}/app/src/core/projects-registry.ts" keys | grep -qxF -- "${PROJECT}"'),
       "Production poller does not allowlist every configured project",
     );
 

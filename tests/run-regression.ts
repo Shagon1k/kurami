@@ -47,6 +47,7 @@ const suites = [
   "test:provision",
   "test:sqlite-locks",
   "test:test-plan",
+  "test:projects-registry",
   "test:release",
   "test:preview-slots",
   "test:preview-ingress",

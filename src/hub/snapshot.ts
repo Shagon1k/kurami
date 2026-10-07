@@ -38,9 +38,6 @@ export type HubSnapshot={
 
 const appRoot=resolve(import.meta.dirname,"../..");
 const fallbackHome=resolve(appRoot,"..");
-const displayNames:Record<string,string>={
-  pickflick:"PickFlick",tailortales:"TailorTales","ahurynovich-cv":"AHurynovich-CV",
-};
 
 function validConfig(value:unknown):value is ProjectConfig {
   if(!value||typeof value!=="object")return false;
@@ -84,11 +81,8 @@ export function collectHubSnapshot(options:{home?:string;appRepository?:string;c
   const now=options.now??new Date();
   const home=options.home??resolveKuramiHome(fallbackHome);
   const config=registry(resolve(home,"config/projects.yaml"));
-  const keys=Object.keys(config).sort((a,b)=>{
-    const order=["pickflick","tailortales","ahurynovich-cv"];
-    const ai=order.indexOf(a),bi=order.indexOf(b);
-    return (ai<0?order.length:ai)-(bi<0?order.length:bi)||a.localeCompare(b);
-  });
+  // Registry order is the display order (src/core/projects-registry.ts).
+  const keys=Object.keys(config);
   const dbPath=resolve(home,"state/orchestrator.db");
   const projectStatus=readProjectStatus(dbPath,config,now);
   const orchestrator=projectStatus.available?"available":"unavailable";
@@ -101,7 +95,7 @@ export function collectHubSnapshot(options:{home?:string;appRepository?:string;c
     allDates.push(...git.dates);
     repositoryDates[key]=git.dates;
     return {
-      key,name:displayNames[key]??key,repository:item.repository,
+      key,name:item.repository.split("/")[1]??key,repository:item.repository,
       boardUrl:`https://github.com/users/${encodeURIComponent(item.owner)}/projects/${item.project_number}`,
       managed:true,
       board:status&&status.poll.state!=="unavailable"?status.board:null,
