@@ -39,7 +39,7 @@ export const PROJECTS_STYLES=[THEME_CSS,FOUNDATION_CSS,BUTTON_CSS,TABLE_CSS,FORM
 .projects-idea__journal time { color: var(--text-muted); font-variant-numeric: tabular-nums; }
 .projects-idea__actions { display: grid; gap: var(--space-3); }
 .projects-idea__form { display: grid; gap: var(--space-2); max-width: 560px; }
-.projects-idea__form > .button { justify-self: start; }
+.projects-idea__submit { display: flex; }
 .projects-idea__form--row { grid-template-columns: minmax(0,260px) auto; align-items: end; }
 .projects-search { width: min(480px,100%); }
 .projects-overview { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: var(--space-2) var(--space-5); margin-block: var(--space-3); }
