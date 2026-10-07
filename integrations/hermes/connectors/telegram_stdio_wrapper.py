@@ -82,7 +82,7 @@ def _capture_paths(edition_id: str, attempt_id: str) -> tuple[Path, Path, Path]:
         raise ValueError("attempt run directory is unavailable")
     run = Path(run_directory)
     resolved = run.resolve()
-    if run.is_symlink() or not _is_within(resolved, runs):
+    if run.is_symlink() or resolved != runs / attempt_id or not _is_within(resolved, runs):
         raise ValueError("capture run directory is outside the briefing runs root")
     return resolved, resolved / "telegram-raw.json", resolved / "telegram-normalized.json"
 
@@ -120,7 +120,18 @@ def _briefing_cli(arguments: list[str]) -> dict[str, Any]:
         timeout=120 if arguments[0] == "refresh-before-publish" else 30,
     )
     if result.returncode != 0:
-        raise RuntimeError("briefing runtime command failed")
+        code = "briefing_runtime_command_failed"
+        if arguments[0] == "advance-attempt" and "telegram-captured" in arguments:
+            try:
+                failure = json.loads(result.stderr) if len(result.stderr) <= 4096 else {}
+                message = failure.get("error", "") if isinstance(failure, dict) else ""
+                if isinstance(message, str) and re.fullmatch(
+                    r"Invalid briefing run transition (?:created|live-collected|telegram-captured|capture-validated|editorialized|prepared|media-ready|commit-planned|telegram-committed|published|notified|failed|skipped) -> telegram-captured", message
+                ):
+                    code = "telegram_capture_stage_race"
+            except (ValueError, TypeError):
+                pass
+        raise CaptureError(code)
     try:
         payload = json.loads(result.stdout)
     except json.JSONDecodeError as error:
@@ -128,6 +139,54 @@ def _briefing_cli(arguments: list[str]) -> dict[str, Any]:
     if not isinstance(payload, dict) or payload.get("ok") is not True:
         raise RuntimeError("briefing runtime rejected the command")
     return payload
+
+
+class CaptureError(RuntimeError):
+    """Only fixed machine codes cross the capture tool's privacy boundary."""
+
+
+CAPTURE_REUSE_STAGES = frozenset({
+    "live-collected", "telegram-captured", "capture-validated", "editorialized",
+    "prepared", "media-ready", "commit-planned", "telegram-committed", "published",
+})
+CAPTURE_ERROR_CODES = frozenset({
+    "telegram_capture_prerequisite", "telegram_capture_stage_race",
+    "telegram_capture_invalid_raw", "telegram_capture_missing_artifacts",
+    "briefing_runtime_command_failed",
+})
+
+
+def _capture_stage(attempt_id: str) -> str:
+    attempt = _briefing_cli(["attempt-status", "--attempt", attempt_id]).get("attempt", {})
+    state = attempt.get("state") if isinstance(attempt, dict) else None
+    if state not in CAPTURE_REUSE_STAGES:
+        raise CaptureError("telegram_capture_prerequisite")
+    return state
+
+
+def _validate_retained_raw(raw_path: Path, config: dict[str, Any], edition_id: str, attempt_id: str) -> None:
+    # Legacy ledgers have no embedded attempt ID: the runtime-owned exact run
+    # directory is their provenance. Never follow artifact links or recapture
+    # on malformed data; the full runtime validator checks normalized coverage.
+    try:
+        if raw_path.is_symlink() or not raw_path.is_file() or raw_path.stat().st_size > 8 * 1024 * 1024:
+            raise ValueError()
+        raw = json.loads(raw_path.read_text(encoding="utf-8"))
+        if raw["sourceKey"] != "news" or raw["profile"] != "telegram-user" or not isinstance(raw["items"], list):
+            raise ValueError()
+        fetched = datetime.fromisoformat(raw["fetchedAt"])
+        if fetched.tzinfo is None or fetched.astimezone(ZoneInfo("Europe/Vilnius")).date().isoformat() != edition_id[6:]:
+            raise ValueError()
+        channels = raw["capture"]["channels"]
+        expected = {(source["key"], int(source["id"]), source["label"]) for source in config["channels"]}
+        actual = {(source["sourceKey"], source["channelId"], source["label"]) for source in channels}
+        if len(channels) != len(expected) or actual != expected:
+            raise ValueError()
+        provenance = raw.get("provenance")
+        if provenance is not None and provenance != {"editionId": edition_id, "attemptId": attempt_id, "configPath": str(config["configPath"])}:
+            raise ValueError()
+    except Exception:
+        raise CaptureError("telegram_capture_invalid_raw") from None
 
 
 def _telegram_capture_config() -> dict[str, Any]:
@@ -537,12 +596,15 @@ async def capture_daily_briefing_batch(
 
     del ctx
     try:
+        # Check before even the local config snapshot, file writes or client discovery.
+        state = _capture_stage(attempt_id)
         _, raw_path, normalized_path = _capture_paths(edition_id, attempt_id)
+        if raw_path.is_symlink() or normalized_path.is_symlink():
+            raise CaptureError("telegram_capture_invalid_raw")
         config = _telegram_capture_config()
         config_path = str(config["configPath"])
         if raw_path.is_file() and normalized_path.is_file():
-            attempt_status = _briefing_cli(["attempt-status", "--attempt", attempt_id]).get("attempt", {})
-            if isinstance(attempt_status, dict) and attempt_status.get("state") == "live-collected":
+            if state == "live-collected":
                 _briefing_cli(["advance-attempt", "--attempt", attempt_id, "--stage", "telegram-captured"])
             report = _briefing_cli(
                 [
@@ -567,6 +629,27 @@ async def capture_daily_briefing_batch(
                 },
                 ensure_ascii=False,
             )
+
+        if raw_path.exists():
+            _validate_retained_raw(raw_path, config, edition_id, attempt_id)
+            # Normalize first; a rejected retained ledger never authorizes a new
+            # provider cutoff. Validation at live-collected does not advance it.
+            try:
+                report = _normalize_and_validate_capture(config_path, raw_path, normalized_path, attempt_id)
+            except Exception:
+                normalized_path.unlink(missing_ok=True)
+                raise CaptureError("telegram_capture_invalid_raw") from None
+            if report.get("complete") is not True:
+                normalized_path.unlink(missing_ok=True)
+                raise CaptureError("telegram_capture_invalid_raw")
+            if state == "live-collected":
+                _briefing_cli(["advance-attempt", "--attempt", attempt_id, "--stage", "telegram-captured"])
+                report = _briefing_cli(["validate-telegram-batch", "--config", config_path,
+                    "--raw", str(raw_path), "--normalized", str(normalized_path), "--attempt", attempt_id])
+            return json.dumps({"ok": report.get("complete") is True, "reused": True,
+                "rawPath": str(raw_path), "normalizedPath": str(normalized_path), "report": report}, ensure_ascii=False)
+        if normalized_path.exists() or state != "live-collected":
+            raise CaptureError("telegram_capture_missing_artifacts")
 
         client = None
         if config["channels"]:
@@ -663,6 +746,7 @@ async def capture_daily_briefing_batch(
             "items": items,
             "diagnostics": [],
         }
+        raw["provenance"] = {"editionId": edition_id, "attemptId": attempt_id, "configPath": config_path}
         _atomic_json(raw_path, raw)
         _briefing_cli(["advance-attempt", "--attempt", attempt_id, "--stage", "telegram-captured"])
         report = _normalize_and_validate_capture(config_path, raw_path, normalized_path, attempt_id)
@@ -677,10 +761,13 @@ async def capture_daily_briefing_batch(
             ensure_ascii=False,
         )
     except Exception as error:
-        return json.dumps(
-            {"ok": False, "error": _safe_error(str(error))},
-            ensure_ascii=False,
-        )
+        code = str(error) if isinstance(error, CaptureError) and str(error) in CAPTURE_ERROR_CODES else "telegram_capture_failed"
+        response = {"ok": False, "error": code, "errorCode": code}
+        if code == "telegram_capture_prerequisite":
+            response["action"] = "Wait for collect-live to receipt live-collected; failed attempts require approved runtime resume. Never skip stages."
+        elif code == "telegram_capture_stage_race":
+            response["action"] = "Inspect the persisted attempt stage; resume only through the approved runtime workflow and reuse retained raw."
+        return json.dumps(response, ensure_ascii=False)
 
 
 @mcp.tool(

@@ -324,6 +324,31 @@ assert plan_ok is False
 wrapper._briefing_cli = original_briefing_cli
 
 
+# Runtime subprocess errors are classified only by allowlisted diagnostics.
+# Never pass stdout/stderr, tokens, arbitrary codes or command paths upstream.
+original_subprocess_run = wrapper.subprocess.run
+for stderr, expected in (
+    (json.dumps({"ok": False, "error": "Invalid briefing run transition created -> telegram-captured"}), "telegram_capture_stage_race"),
+    (json.dumps({"ok": False, "error": "secret-token", "code": "secret-token"}), "briefing_runtime_command_failed"),
+    ("secret-token malformed stderr", "briefing_runtime_command_failed"),
+    ("secret-token" * 1000, "briefing_runtime_command_failed"),
+):
+    wrapper.subprocess.run = lambda *args, stderr=stderr, **kwargs: SimpleNamespace(returncode=1, stdout="secret-token", stderr=stderr)
+    try:
+        original_briefing_cli(["advance-attempt", "--attempt", "fixture", "--stage", "telegram-captured"])
+        raise AssertionError("nonzero exit accepted")
+    except wrapper.CaptureError as error:
+        assert str(error) == expected and "secret-token" not in str(error)
+wrapper.subprocess.run = original_subprocess_run
+
+# Both tracked instructions must keep the stage dependency explicit.
+for instruction in (root / "integrations/hermes/briefing-cron-prompt.md",
+    root / "integrations/hermes/skills/kurami-daily-briefing/SKILL.md"):
+    text = instruction.read_text()
+    assert "collect-live -> capture_daily_briefing_batch" in text
+    assert "parallel" in text and "live-collected" in text and "raw" in text
+
+original_capture_paths = wrapper._capture_paths
 with tempfile.TemporaryDirectory() as capture_home:
     os.environ["KURAMI_HOME"] = capture_home
     local_date = datetime.now(wrapper.ZoneInfo("Europe/Vilnius")).date().isoformat()
@@ -462,17 +487,148 @@ with tempfile.TemporaryDirectory() as capture_home:
     def reused_cli(arguments):
         if arguments[0] == "attempt-status":
             return {"ok": True, "attempt": {"state": "capture-validated"}}
-        return fake_normalize_validate(
-            capture_config["configPath"],
-            Path(captured["rawPath"]),
-            Path(captured["normalizedPath"]),
-            capture_attempt,
-        )
+        assert arguments[0] == "validate-telegram-batch"
+        return {"ok": True, "complete": True}
 
     wrapper._briefing_cli = reused_cli
+    immutable_pair = (Path(captured["rawPath"]).read_bytes(), Path(captured["normalizedPath"]).read_bytes())
     reused = json.loads(asyncio.run(wrapper.capture_daily_briefing_batch(capture_edition, capture_attempt)))
     assert reused["ok"] is True and reused["reused"] is True
     assert capture_calls["count"] == 1
+    pair_bytes = (Path(captured["rawPath"]).read_bytes(), Path(captured["normalizedPath"]).read_bytes())
+    assert pair_bytes == immutable_pair
+    for later_stage in ("telegram-captured", "capture-validated", "editorialized", "prepared", "media-ready", "commit-planned", "telegram-committed", "published"):
+        def later_cli(arguments):
+            assert arguments[0] != "advance-attempt", "reuse must not regress stages"
+            if arguments[0] == "attempt-status":
+                return {"ok": True, "attempt": {"state": later_stage}}
+            return {"ok": True, "complete": True}
+        wrapper._briefing_cli = later_cli
+        later = json.loads(asyncio.run(wrapper.capture_daily_briefing_batch(capture_edition, capture_attempt)))
+        assert later["ok"] and later["reused"]
+        assert pair_bytes == (Path(captured["rawPath"]).read_bytes(), Path(captured["normalizedPath"]).read_bytes())
+
+    # No prerequisite means no config snapshot, network or files, even with a
+    # retained capture. Terminal/failed attempts must be resumed by the runtime.
+    real_paths = wrapper._capture_paths
+    real_config = wrapper._telegram_capture_config
+    for stage in ("created", "failed", "skipped", "notified", "unknown"):
+        wrapper._briefing_cli = lambda arguments, stage=stage: {"ok": True, "attempt": {"state": stage}}
+        wrapper._telegram_capture_config = lambda: (_ for _ in ()).throw(AssertionError("config touched"))
+        before = {p.name: p.read_bytes() for p in capture_run.iterdir()}
+        rejected = json.loads(asyncio.run(wrapper.capture_daily_briefing_batch(capture_edition, capture_attempt)))
+        assert rejected["errorCode"] == "telegram_capture_prerequisite"
+        assert {p.name: p.read_bytes() for p in capture_run.iterdir()} == before
+    wrapper._telegram_capture_config = real_config
+
+    # Reproduce the durable raw write followed by a rejected transition, then
+    # an approved live-collected resume. The retry must not discover/fetch.
+    raw_path = capture_run / "telegram-raw.json"
+    normalized_path = capture_run / "telegram-normalized.json"
+    raw_path.unlink()
+    normalized_path.unlink()
+    wrapper._briefing_cli = lambda arguments: {"ok": True, "attempt": {"state": "created"}}
+    wrapper.get_client = lambda account: (_ for _ in ()).throw(AssertionError("early network"))
+    wrapper._telegram_capture_config = lambda: (_ for _ in ()).throw(AssertionError("early config"))
+    assert json.loads(asyncio.run(wrapper.capture_daily_briefing_batch(capture_edition, capture_attempt)))["errorCode"] == "telegram_capture_prerequisite"
+    assert not list(capture_run.iterdir())
+    wrapper.get_client = lambda account: capture_client
+    wrapper._telegram_capture_config = real_config
+    calls = []
+    fail_transition = True
+    def race_cli(arguments):
+        calls.append(arguments[0])
+        if arguments[0] == "attempt-status":
+            return {"ok": True, "attempt": {"state": "live-collected"}}
+        if arguments[0] == "advance-attempt":
+            if fail_transition:
+                raise wrapper.CaptureError("telegram_capture_stage_race")
+            return {"ok": True}
+        return {"ok": True, "complete": True}
+    wrapper._briefing_cli = race_cli
+    interrupted = json.loads(asyncio.run(wrapper.capture_daily_briefing_batch(capture_edition, capture_attempt)))
+    assert interrupted["errorCode"] == "telegram_capture_stage_race"
+    assert raw_path.is_file() and not normalized_path.exists()
+    frozen = raw_path.read_bytes()
+    import hashlib
+    frozen_hash = hashlib.sha256(frozen).hexdigest()
+    # Exercise the real tracked album normalizer and runtime batch validator
+    # against the fake Telegram output, with disposable local configuration.
+    fixture_config = Path(capture_config["configPath"])
+    fixture_config.parent.mkdir()
+    fixture_config.write_text(json.dumps({"sources": {"news": {"enabled": True,
+        "channels": capture_config["channels"]}}}))
+    fixture_normalized = capture_run / "fixture-normalized.json"
+    normalizer_result = wrapper.subprocess.run([sys.executable,
+        str(root / "integrations/hermes/skills/kurami-daily-briefing/scripts/normalize_telegram_albums.py"),
+        "--input", str(raw_path), "--output", str(fixture_normalized)], capture_output=True, text=True)
+    assert normalizer_result.returncode == 0, "offline album normalizer rejected fixture"
+    validator_script = "import {validateTelegramBatch} from './src/briefing/telegram-batch.ts'; console.log(JSON.stringify(await validateTelegramBatch(...process.argv.slice(1))));"
+    validation_result = wrapper.subprocess.run(["node", "--input-type=module", "-e", validator_script,
+        str(fixture_config), str(raw_path), str(fixture_normalized)], cwd=root, capture_output=True, text=True)
+    assert validation_result.returncode == 0, "offline runtime validator rejected fixture"
+    assert json.loads(validation_result.stdout)["complete"] is True
+    fixture_normalized.unlink()
+    provider_count = capture_calls["count"]
+    def no_provider(*args, **kwargs):
+        raise AssertionError("raw retry must not touch providers")
+    wrapper.get_client = no_provider
+    wrapper.ensure_connected = no_provider
+    wrapper.resolve_entity = no_provider
+    fail_transition = False
+    retried = json.loads(asyncio.run(wrapper.capture_daily_briefing_batch(capture_edition, capture_attempt)))
+    assert retried["ok"] and retried["reused"]
+    assert raw_path.read_bytes() == frozen and hashlib.sha256(raw_path.read_bytes()).hexdigest() == frozen_hash
+    assert capture_calls["count"] == provider_count
+    # Old incident ledgers without the optional new provenance also resume.
+    legacy = json.loads(frozen)
+    del legacy["provenance"]
+    raw_path.write_text(json.dumps(legacy))
+    normalized_path.unlink()
+    assert json.loads(asyncio.run(wrapper.capture_daily_briefing_batch(capture_edition, capture_attempt)))["ok"]
+    # Malformed JSON, wrong config/attempt/date and external symlinks fail closed.
+    invalids = [b"secret-token invalid JSON", json.dumps({**legacy, "capture": {"channels": []}}).encode(),
+        json.dumps({**legacy, "provenance": {"attemptId": "other"}}).encode(),
+        json.dumps({**legacy, "fetchedAt": "2000-01-01T00:00:00+00:00"}).encode()]
+    for invalid in invalids:
+        normalized_path.unlink(missing_ok=True)
+        raw_path.write_bytes(invalid)
+        bad = json.loads(asyncio.run(wrapper.capture_daily_briefing_batch(capture_edition, capture_attempt)))
+        assert bad["errorCode"] == "telegram_capture_invalid_raw" and "secret-token" not in json.dumps(bad)
+        assert raw_path.read_bytes() == invalid and not normalized_path.exists()
+    # A structurally valid raw ledger rejected by full validation also stays
+    # raw-only, with no provider fallback on subsequent calls.
+    raw_path.write_bytes(frozen)
+    original_normalize = wrapper._normalize_and_validate_capture
+    def reject_full_validation(*args):
+        args[2].write_text("invalid derived data")
+        raise RuntimeError("secret-token from validator")
+    wrapper._normalize_and_validate_capture = reject_full_validation
+    assert json.loads(asyncio.run(wrapper.capture_daily_briefing_batch(capture_edition, capture_attempt)))["errorCode"] == "telegram_capture_invalid_raw"
+    assert raw_path.read_bytes() == frozen and not normalized_path.exists()
+    wrapper._normalize_and_validate_capture = original_normalize
+    raw_path.unlink()
+    raw_path.symlink_to(capture_run.parent / "outside.json")
+    assert json.loads(asyncio.run(wrapper.capture_daily_briefing_batch(capture_edition, capture_attempt)))["errorCode"] == "telegram_capture_invalid_raw"
+    raw_path.unlink()
+    # Generic failures never echo provider/config/subprocess contents.
+    wrapper._telegram_capture_config = lambda: (_ for _ in ()).throw(RuntimeError("secret-token https://private/?token=abc"))
+    private = json.loads(asyncio.run(wrapper.capture_daily_briefing_batch(capture_edition, capture_attempt)))
+    assert private == {"ok": False, "error": "telegram_capture_failed", "errorCode": "telegram_capture_failed"}
+    wrapper._telegram_capture_config = real_config
+
+    # Real path ownership rejects nested and external attempt directories.
+    saved_paths = wrapper._capture_paths
+    wrapper._capture_paths = original_capture_paths
+    for directory in (capture_run / "nested", capture_run.parent):
+        wrapper._briefing_cli = lambda arguments, directory=directory: {"ok": True, "attempt": {
+            "editionId": capture_edition, "runDirectory": str(directory), "state": "live-collected"}}
+        try:
+            wrapper._capture_paths(capture_edition, capture_attempt)
+            raise AssertionError("wrong owned directory accepted")
+        except ValueError:
+            pass
+    wrapper._capture_paths = saved_paths
 
     # An explicitly disabled News add-on still writes a validated empty ledger,
     # but must never acquire or connect the Telegram client.
@@ -484,7 +640,7 @@ with tempfile.TemporaryDirectory() as capture_home:
         disabled_run / "telegram-normalized.json",
     )
     wrapper._telegram_capture_config = lambda: {**capture_config, "enabled": False, "channels": []}
-    wrapper._briefing_cli = lambda arguments: {"ok": True}
+    wrapper._briefing_cli = lambda arguments: {"ok": True, "attempt": {"state": "live-collected"}}
 
     def forbidden_client(account):
         raise AssertionError("Disabled News must not connect to Telegram")
@@ -639,4 +795,4 @@ with tempfile.TemporaryDirectory() as temporary_home:
     assert duplicate_media["ok"] is False and "duplicate" in duplicate_media["error"]
     assert media_calls == calls_before_media_rejection
 
-print("Verified exact-ID collection and resumable bounded Telegram media transport.")
+print("Verified exact-ID collection, capture stage ordering/raw-only recovery/privacy, and resumable bounded Telegram media transport.")
