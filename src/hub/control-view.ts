@@ -23,12 +23,20 @@ export function renderControlView(action:string,result:any,lang:HubLanguage):str
   }
   if(action==="server")return `<form class="control-form" data-hub-submit="health-apply" data-revision="${result.health.revision}"><h3>System Health</h3>${renderSelectField({name:"minutes",label:tr(lang,"Интервал · минуты","Interval · minutes"),value:String(result.health.intervalMinutes),options:result.health.allowedIntervals.map((minutes:number)=>({value:String(minutes),label:String(minutes)}))})}<div class="control-actions">${apply(lang)}</div></form>
       ${devResourcesForm(result.devResources,lang)}`;
-  if(action==="appearance")return appearanceForm(result.appearance,lang);
+  if(action==="appearance")return appearanceForm(result.appearance,lang)+pushSection(lang);
   if(action==="composio-check")return `<p class="control-about">${tr(lang,"Что проверяется","What this checks")}${renderInfoButton({id:"hub-composio-about",label:tr(lang,"Что проверяется","What this checks")})}</p>${renderInfoNote({id:"hub-composio-about",text:tr(lang,"Сравнение настроек с ожидаемой конфигурацией. Проверка ничего не меняет и не проверяет доступность провайдеров.","Compares settings with the expected configuration. This check changes nothing and does not test provider availability.")})}<div class="composio-contours">${result.contours.map((item:any)=>{
     const details=(item.diff.length?renderTable({columns:[tr(lang,"Поле","Field"),tr(lang,"Сейчас","Current"),tr(lang,"Будет","Proposed")],rows:item.diff.map((entry:any)=>[String(entry.field),String(entry.before??"—"),String(entry.after??"—")])}):"")+item.warnings.map((warning:string)=>`<p class="control-summary">${escapeHtml(warning)}</p>`).join("");
     return `<section class="composio-contour"><div class="composio-contour__heading">${renderIcon(!item.ok?"alert":item.diff.length?"controls":"check")}<strong>${escapeHtml(item.contour)}</strong><span>${item.ok?`${item.tools} ${tr(lang,"инструм.","tools")}`:tr(lang,"Сбой проверки","Check failed")}</span></div><p class="composio-contour__state">${!item.ok?tr(lang,"Не удалось сравнить конфигурацию","Could not compare configuration"):item.diff.length?`${item.diff.length} ${tr(lang,"изменений","changes")}`:tr(lang,"Синхронизировано","In sync")}</p>${details?renderDisclosure({summary:tr(lang,"Подробности","Details"),body:details,variant:"inline",open:!item.ok||!!item.diff.length}):""}${item.ok&&item.diff.length?`<div class="control-actions">${renderButton({label:tr(lang,"Синхронизировать","Sync"),variant:"subtle",size:"compact",attributes:{"data-hub-control":"composio-apply","data-contour":item.contour,"data-revision":item.revision}})}</div>`:""}</section>`;
   }).join("")}</div><div class="control-actions">${renderButton({label:tr(lang,"Проверить ещё раз","Check again"),variant:"subtle",size:"compact",attributes:{"data-hub-control":"composio-check"}})}</div>`;
   return "";
+}
+
+/** Push notifications on this device. Hidden until the browser proves it can receive them (client.js). */
+function pushSection(lang:HubLanguage):string {
+  return `<section class="control-form push-settings" data-push-settings hidden><h3>${tr(lang,"Уведомления на этом устройстве","Notifications on this device")}</h3>
+    <p class="control-about">${tr(lang,"Когда задача ждёт тебя, что-то сломалось или вышел дайджест, Kurami пришлёт уведомление. Нажатие открывает нужную карточку.","When a task waits for you, something breaks or the Digest is out, Kurami sends a notification. A tap opens the right card.")}</p>
+    <p class="control-summary" data-push-state></p>
+    <div class="control-actions">${renderButton({label:tr(lang,"Включить","Turn on"),type:"button",variant:"primary",attributes:{"data-push-toggle":true}})}</div></section>`;
 }
 
 /** How much of the server development work (Codex workers, tests, builds) may take; see dev-resources.ts. */

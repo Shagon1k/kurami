@@ -9,3 +9,26 @@ self.addEventListener('fetch',event=>{
   if(event.request.method!=='GET'||url.origin!==self.location.origin||event.request.mode!=='navigate')return;
   event.respondWith(fetch(event.request).catch(()=>new Response(`<!doctype html><html lang="${url.pathname.startsWith('/ru/')?'ru':'en'}"><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover"><title>Kurami</title><h1>${url.pathname.startsWith('/ru/')?'Нет связи':'No connection'}</h1><a href="${url.pathname.startsWith('/ru/')?'/ru/':'/en/'}">Kurami</a></html>`,{headers:{'Content-Type':'text/html; charset=utf-8','Cache-Control':'no-store'}})));
 });
+// Push: the message carries nothing; the newest notice comes from Hub through the owner's session, in the
+// language the device subscribed with. A tap opens the page the notice is about.
+self.addEventListener('push',event=>event.waitUntil((async()=>{
+  let notice=null;
+  try {
+    const subscription=await self.registration.pushManager.getSubscription();
+    const response=await fetch('/_apps/hub/api/push/latest?endpoint='+encodeURIComponent(subscription?.endpoint??''),{credentials:'include',cache:'no-store'});
+    if(response.ok)notice=(await response.json()).notice;
+  } catch {}
+  // Every push must show something, or the browser stops delivering them.
+  await self.registration.showNotification(notice?.title??'Kurami',{body:notice?.body??'',tag:notice?.tag??'kurami',icon:'/assets/kurami-fox.png',data:{url:notice?.url??'/'}});
+})()));
+self.addEventListener('notificationclick',event=>{
+  event.notification.close();
+  event.waitUntil((async()=>{
+    const url=new URL(event.notification.data?.url??'/',self.location.origin);
+    if(url.origin!==self.location.origin)return;
+    for(const client of await self.clients.matchAll({type:'window',includeUncontrolled:true})){
+      if('navigate' in client){await client.focus();await client.navigate(url.href);return;}
+    }
+    await self.clients.openWindow(url.href);
+  })());
+});

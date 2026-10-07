@@ -19,6 +19,9 @@ import {renderHubDashboard,renderHubOffline,renderHubPage,type HubLanguage} from
 import {isMountedRequest,mountResponse,WEB_CLIENT_JS} from "../web/presentation.ts";
 import {WebAccess} from "../web/access.ts";
 import {WEB_ORIGIN} from "../web/routes.ts";
+import {resolveKuramiHome} from "../core/kurami-home.ts";
+import {latestFor,subscribe,unsubscribe,vapidKeys,type PushFetch} from "./push/web-push.ts";
+import {pushPass} from "./push/monitor.ts";
 
 const appRoot=resolve(import.meta.dirname,"../..");
 const assetRoot=resolve(appRoot,"src/ui-library/assets");
@@ -42,7 +45,7 @@ const securityHeaders={
   "Content-Security-Policy":"default-src 'none'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self'; font-src 'self'; connect-src 'self'; manifest-src 'self'; worker-src 'self'; base-uri 'none'; frame-ancestors 'none'",
 };
 
-export function createHubServer(options:{snapshot?:()=>HubSnapshot;account?:()=>Promise<CodexAccountSnapshot>;controls?:ReturnType<typeof createHubControls>;authorize?:(request:IncomingMessage)=>Promise<string|null>;controlOrigin?:string}={}):Server {
+export function createHubServer(options:{snapshot?:()=>HubSnapshot;account?:()=>Promise<CodexAccountSnapshot>;controls?:ReturnType<typeof createHubControls>;authorize?:(request:IncomingMessage)=>Promise<string|null>;controlOrigin?:string;home?:string;pushMonitor?:{intervalMs:number;fetchImpl?:PushFetch}}={}):Server {
   const snapshot=options.snapshot??collectHubSnapshot;
   const account=options.account??(options.snapshot?null:readCodexAccount);
   const controls=options.controls??(process.env.HUB_CONTROLS_ENABLED==="true"?createHubControls():null);
@@ -54,6 +57,7 @@ export function createHubServer(options:{snapshot?:()=>HubSnapshot;account?:()=>
   let cached:{at:number;value:HubSnapshot}|null=null;
   let collecting:Promise<HubSnapshot>|null=null;
   let mutating=false;
+  const home=options.home??resolveKuramiHome("/home/shagon1k/_hermes/_kurami");
   async function current():Promise<HubSnapshot> {
     const now=Date.now();
     if(cached&&now-cached.at<45_000)return cached.value;
@@ -65,6 +69,17 @@ export function createHubServer(options:{snapshot?:()=>HubSnapshot;account?:()=>
     })();
     try{return await collecting;}finally{collecting=null;}
   }
+  // Push: every few minutes, announce what is new to subscribed phones (src/hub/push/monitor.ts).
+  if(options.pushMonitor){
+    let pushing=false;
+    setInterval(()=>{if(pushing)return;pushing=true;void current().then(value=>pushPass(home,value,{fetchImpl:options.pushMonitor!.fetchImpl})).catch(()=>{}).finally(()=>{pushing=false;});},options.pushMonitor.intervalMs).unref();
+  }
+  /** Owner identity, exact origin and the control CSRF pair: the same gate as Controls. */
+  function trustedPost(request:IncomingMessage,controlOrigin:string):boolean {
+    const cookie=request.headers.cookie?.split(/;\s*/).find(value=>value.startsWith(cookieName+"="))?.slice(cookieName.length+1);
+    const token=request.headers["x-hub-control-token"];
+    return request.headers.origin===controlOrigin&&!!cookie&&typeof token==="string"&&/^[A-Za-z0-9_-]{43}$/.test(cookie)&&token.length===cookie.length&&timingSafeEqual(Buffer.from(cookie),Buffer.from(token));
+  }
   return createServer(async(request,response)=>{
     mountResponse(request,response,"hub");
     const controlOrigin=options.controlOrigin??(isMountedRequest(request,"hub")?WEB_ORIGIN:origin);
@@ -73,6 +88,26 @@ export function createHubServer(options:{snapshot?:()=>HubSnapshot;account?:()=>
     let lang:HubLanguage;
     try {const url=new URL(request.url??"/","http://localhost");path=url.pathname;lang=(path.startsWith("/ru/")||path==="/ru"||path==="/api/fragment"&&url.searchParams.get("lang")==="ru")?"ru":"en";}
     catch {response.writeHead(400,{"Cache-Control":"no-store"}).end();return;}
+    if(path==="/api/push"||path==="/api/push/key"||path==="/api/push/latest"){
+      const json=(status:number,value:unknown)=>{response.writeHead(status,{"Cache-Control":"no-store","Content-Type":"application/json; charset=utf-8"}).end(JSON.stringify(value));};
+      let identity:string|null=null;
+      try{identity=await authorize(request);}catch{}
+      if(!identity){json(403,{ok:false,error:"unauthorized"});return;}
+      try{
+        const url=new URL(request.url!,controlOrigin);
+        if(request.method==="GET"&&path==="/api/push/key"){json(200,{ok:true,publicKey:vapidKeys(home).publicKey});return;}
+        if(request.method==="GET"&&path==="/api/push/latest"){json(200,{ok:true,notice:latestFor(home,url.searchParams.get("endpoint")??"")});return;}
+        if(request.method!=="POST"||path!=="/api/push"){json(405,{ok:false,error:"method_not_allowed"});return;}
+        if(!trustedPost(request,controlOrigin)){json(403,{ok:false,error:"invalid_origin"});return;}
+        let body="";for await(const chunk of request){body+=chunk.toString();if(body.length>4096){json(413,{ok:false,error:"invalid_request"});return;}}
+        const payload=JSON.parse(body) as {action?:unknown;endpoint?:unknown;lang?:unknown};
+        if(typeof payload.endpoint!=="string"){json(400,{ok:false,error:"invalid_request"});return;}
+        if(payload.action==="subscribe")json(200,{ok:true,devices:subscribe(home,payload.endpoint,payload.lang==="ru"?"ru":"en")});
+        else if(payload.action==="unsubscribe")json(200,{ok:true,devices:unsubscribe(home,payload.endpoint)});
+        else json(400,{ok:false,error:"invalid_request"});
+      }catch{json(400,{ok:false,error:"invalid_request"});}
+      return;
+    }
     if(path==="/api/controls"){
       const json=(status:number,value:unknown)=>{response.writeHead(status,{"Cache-Control":"no-store","Content-Type":"application/json; charset=utf-8"}).end(JSON.stringify(value));};
       if(!controls){json(503,{ok:false,error:"controls_unavailable"});return;}
@@ -144,5 +179,5 @@ export function createHubServer(options:{snapshot?:()=>HubSnapshot;account?:()=>
 if(process.argv[1]&&resolve(process.argv[1])===fileURLToPath(import.meta.url)){
   const port=Number(process.env.HUB_PORT??8800);
   if(!Number.isInteger(port)||port<1||port>65535)throw new Error("Invalid HUB_PORT");
-  createHubServer().listen(port,"127.0.0.1",()=>console.log(`Kurami Hub listening on 127.0.0.1:${port}`));
+  createHubServer({pushMonitor:{intervalMs:120_000}}).listen(port,"127.0.0.1",()=>console.log(`Kurami Hub listening on 127.0.0.1:${port}`));
 }

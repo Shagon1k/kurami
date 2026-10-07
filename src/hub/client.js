@@ -160,6 +160,42 @@ async function api(action,payload){
   if(!response.ok||!result.ok)throw new Error(errorText(result.error));
   return result;
 }
+// Push notifications: subscribe this device through the gateway's service worker; Hub stores the endpoint.
+const pushSupported=()=>'serviceWorker' in navigator&&'PushManager' in window&&'Notification' in window;
+async function pushRequest(path,payload){
+  const response=await fetch(kuramiAppUrl(path),payload?{method:"POST",credentials:"same-origin",cache:"no-store",headers:{"Content-Type":"application/json","X-Hub-Control-Token":csrf},body:JSON.stringify(payload)}:{credentials:"same-origin",cache:"no-store"});
+  const result=await response.json();if(!response.ok||!result.ok)throw new Error(errorText(result.error));return result;
+}
+async function initPush(root){
+  const section=root.querySelector("[data-push-settings]");if(!section||!pushSupported())return;
+  const registration=await navigator.serviceWorker.ready.catch(()=>null);if(!registration)return;
+  const state=section.querySelector("[data-push-state]"),button=section.querySelector("[data-push-toggle]");
+  const label=button.querySelector(".button__label--full")??button;
+  const render=async()=>{
+    const subscribed=Boolean(await registration.pushManager.getSubscription());
+    const denied=Notification.permission==="denied";
+    state.textContent=denied?text("Уведомления запрещены в настройках браузера.","Notifications are blocked in the browser settings."):subscribed?text("Включены на этом устройстве.","On for this device."):text("Выключены на этом устройстве.","Off for this device.");
+    label.textContent=subscribed?text("Выключить","Turn off"):text("Включить","Turn on");
+    button.disabled=denied;button.dataset.haptic=subscribed?"tap":"confirm";
+  };
+  section.hidden=false;await render();
+  button.addEventListener("click",async()=>{
+    button.disabled=true;
+    try{
+      const existing=await registration.pushManager.getSubscription();
+      if(existing){await pushRequest("/api/push",{action:"unsubscribe",endpoint:existing.endpoint});await existing.unsubscribe();hubToast?.show(text("Уведомления выключены","Notifications are off"),{tone:"info"});}
+      else{
+        if(await Notification.requestPermission()!=="granted"){await render();return;}
+        const {publicKey}=await pushRequest("/api/push/key");
+        const key=Uint8Array.from(atob(publicKey.replace(/-/g,"+").replace(/_/g,"/")),char=>char.charCodeAt(0));
+        const subscription=await registration.pushManager.subscribe({userVisibleOnly:true,applicationServerKey:key});
+        await pushRequest("/api/push",{action:"subscribe",endpoint:subscription.endpoint,lang:hubLanguage});
+        hubToast?.show(text("Уведомления включены","Notifications are on"),{tone:"success"});
+      }
+    }catch(error){hubToast?.show(error.message||text("Не получилось","That did not work"),{tone:"failure"});}
+    finally{await render();}
+  });
+}
 function showDialog(button){
   if(!dialog)return;
   if(!dialog.open)opener=controlsPopover?.contains(button)?controlsTrigger:button;
@@ -188,7 +224,7 @@ async function loadControl(action){
   controlView=action;pending=null;confirmation.hidden=true;controlContent.hidden=false;
   controlTitle(action);controlContent.textContent=action==='composio-check'?text('Проверяем конфигурацию Composio…','Checking Composio configuration…'):text("Загрузка…","Loading…");
   controlContent.setAttribute('aria-busy','true');
-  try{const result=await api(action);if(version===controlReadVersion&&dialog.open&&controlView===action)controlContent.innerHTML=result.html;}
+  try{const result=await api(action);if(version===controlReadVersion&&dialog.open&&controlView===action){controlContent.innerHTML=result.html;void initPush(controlContent);}}
   catch(error){if(version===controlReadVersion&&dialog.open&&controlView===action)controlContent.textContent=error.message;}
   finally{if(version===controlReadVersion)controlContent.removeAttribute('aria-busy');}
 }
