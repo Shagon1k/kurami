@@ -8,6 +8,14 @@ export type WebLanguage="en"|"ru";
 export type WebRoute={app:WebApp;language:WebLanguage;upstream:string}|{redirect:string}|null;
 const oldHosts:Record<string,WebApp>={"hub.shagon1k.win":"hub","digest.shagon1k.win":"digest","projects.shagon1k.win":"projects","docs.shagon1k.win":"docs"};
 
+/** Where each PWA shortcut (long press on the app icon) leads, below the language prefix. */
+export const SHORTCUT_TARGETS:Record<string,string>={digest:"digest/",alerts:"#alerts-title",projects:"projects/"};
+export const PWA_SHORTCUTS=[
+  {open:"digest",ru:["Дайджест","Дайджест"],en:["Digest","Digest"]},
+  {open:"alerts",ru:["Требует внимания","Внимание"],en:["Needs attention","Alerts"]},
+  {open:"projects",ru:["Задачи","Задачи"],en:["Tasks","Tasks"]},
+] as const;
+
 /** Namespace infrastructure separately from translated document routes. */
 export function appPath(app:WebApp,language:WebLanguage,path="/"):string {
   if(!path.startsWith("/")||path.startsWith("//"))throw new Error("Expected a local app path");
@@ -28,7 +36,11 @@ function safeRequestTarget(raw:string):boolean {
 export function resolveWebRoute(raw:string):WebRoute {
   if(!safeRequestTarget(raw))return null;
   const url=new URL(raw,WEB_ORIGIN),path=url.pathname;
-  if(path==="/"||path==="/index.html")return {redirect:"/en/"+url.search};
+  if(path==="/"||path==="/index.html"){
+    // Home-screen shortcuts open `/?open=…`; the gateway swaps /en/ for the preferred language.
+    const shortcut=Object.hasOwn(SHORTCUT_TARGETS,url.searchParams.get("open")??"")?SHORTCUT_TARGETS[url.searchParams.get("open")!]:undefined;
+    return {redirect:shortcut?`/en/${shortcut}`:"/en/"+url.search};
+  }
   if(/^\/(en|ru)$/.test(path))return {redirect:path+"/"+url.search};
   const infrastructure=path.match(/^\/_apps\/(hub|digest|projects|docs)(\/.*)$/);
   if(infrastructure){

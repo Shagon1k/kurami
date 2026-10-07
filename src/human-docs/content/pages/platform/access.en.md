@@ -77,7 +77,8 @@ follow the theme chosen in Hub: in Paper the fox sits on warm beige, in Neon it 
 drawn as neon tubes on the dark ground. The adaptive icon keeps the mark within
 Android's safe area; the launcher owns its final shape. The app opens in the
 language of the last page you opened (the `kurami-lang` cookie), and before that
-in the browser's language.
+in the browser's language. A long press on the icon offers the shortcuts Digest,
+Needs attention (the Hub problem list) and Tasks (Projects), in the same language.
 New icon URLs do not force an installed Android app to update immediately;
 Chrome may ask you to confirm the changed icon in the app menu.
 The worker fetches pages from

@@ -4,7 +4,7 @@ import {resolve} from "node:path";
 import {fileURLToPath} from "node:url";
 import {WebAccess,type WebIdentity} from "./access.ts";
 import {AccessVerificationUnavailableError,accessUnavailableMessage} from "./access-keys.ts";
-import {resolveWebRoute,WEB_ORIGIN,type WebApp} from "./routes.ts";
+import {PWA_SHORTCUTS,resolveWebRoute,WEB_ORIGIN,type WebApp} from "./routes.ts";
 import {readAppearanceDefault} from "../system/appearance/appearance-settings.ts";
 import {fontFiles} from "../ui-library/foundations/fonts.ts";
 import {VIEWPORT_META} from "../ui-library/patterns/page-shell.ts";
@@ -81,8 +81,10 @@ export function createWebServer(options:Options={}):Server {
         response.writeHead(200,{"Content-Type":"font/woff2"});response.end(request.method==="HEAD"?undefined:body);return;
       }
       if(resource==="/manifest.webmanifest"){
-        const installed=pwaAppearance(appearance());
-        send(200,JSON.stringify({id:"/",name:"Kurami",short_name:"Kurami",start_url:"/",scope:"/",display:"standalone",background_color:installed.background,theme_color:installed.themeColor,icons:installed.icons}),"application/manifest+json");return;
+        // Shortcut names follow the last chosen language (the manifest is fetched with cookies).
+        const installed=pwaAppearance(appearance()),language=preferredLanguage(request.headers.cookie,request.headers["accept-language"]);
+        response.setHeader("Vary","Cookie, Accept-Language");
+        send(200,JSON.stringify({id:"/",name:"Kurami",short_name:"Kurami",start_url:"/",scope:"/",display:"standalone",background_color:installed.background,theme_color:installed.themeColor,icons:installed.icons,lang:language,shortcuts:PWA_SHORTCUTS.map(shortcut=>({name:shortcut[language][0],short_name:shortcut[language][1],url:`/?open=${shortcut.open}`,icons:installed.icons.slice(0,1)}))}),"application/manifest+json");return;
       }
       if(icon){
         const body=readFileSync(new URL(`../ui-library/assets/brand/${icon.file}`,import.meta.url));

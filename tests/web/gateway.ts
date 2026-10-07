@@ -61,6 +61,17 @@ try{
   assert.equal(await rootAs({cookie:"kurami-lang=de"}),"/en/","an unknown value falls back to English");
   assert.ok((await get("/ru/projects/")).headers.getSetCookie().includes("kurami-lang=ru; Max-Age=31536000; Path=/; SameSite=Lax"),"a Russian page remembers Russian");
   assert.equal((await get("/_apps/digest/api/state")).headers.getSetCookie().some(cookie=>cookie.startsWith("kurami-lang=")),false,"API calls never change the language");
+  // Home-screen shortcuts: `/?open=…` lands in the preferred language; the manifest names them in it.
+  const rootUrl=(path:string,cookie="")=>fetch(gateway+path,{redirect:"manual",headers:{host:"kurami.shagon1k.win","x-test-identity":"owner",cookie}}).then(response=>response.headers.get("location"));
+  assert.equal(await rootUrl("/?open=digest","kurami-lang=ru"),"/ru/digest/");
+  assert.equal(await rootUrl("/?open=alerts"),"/en/#alerts-title");
+  assert.equal(await rootUrl("/?open=projects","kurami-lang=ru"),"/ru/projects/");
+  assert.equal(await rootUrl("/?open=constructor"),"/en/?open=constructor","an unknown shortcut is an ordinary home visit");
+  const shortcutManifest=(cookie:string)=>fetch(gateway+"/manifest.webmanifest",{headers:{host:"kurami.shagon1k.win","x-test-identity":"owner",cookie}}).then(response=>response.json()) as Promise<{lang:string;shortcuts:{name:string;url:string}[]}>;
+  const ruManifest=await shortcutManifest("kurami-lang=ru");
+  assert.equal(ruManifest.lang,"ru");
+  assert.deepEqual(ruManifest.shortcuts.map(shortcut=>[shortcut.name,shortcut.url]),[["Дайджест","/?open=digest"],["Требует внимания","/?open=alerts"],["Задачи","/?open=projects"]]);
+  assert.equal((await shortcutManifest("kurami-lang=en")).shortcuts[1]?.name,"Needs attention");
   const home=await get("/en/");assert.equal(home.status,200);const html=await home.text();assert(html.includes('id="kurami-web-context"'));assert(html.includes('href="/_apps/hub/assets/hub.css?'));assert(html.includes('href="/en/docs/"'));assert(home.headers.get("cache-control")?.includes("no-store"));
   const ru=await get("/ru/");assert((await ru.text()).includes('"language":"ru"'));
   const taskPage=await get("/ru/projects/?project=pickflick");assert.equal(taskPage.status,200);assert((await taskPage.text()).includes('"language":"ru"'));
