@@ -2,7 +2,7 @@
 // systemctl, Discord and docs server. Nothing here touches GitHub, Discord or the live docs.
 import assert from "node:assert/strict";
 import {execFileSync} from "node:child_process";
-import {chmodSync,existsSync,mkdirSync,mkdtempSync,readFileSync,rmSync,utimesSync,writeFileSync} from "node:fs";
+import {chmodSync,cpSync,existsSync,mkdirSync,mkdtempSync,readFileSync,rmSync,utimesSync,writeFileSync} from "node:fs";
 import {createServer,type Server} from "node:http";
 import {tmpdir} from "node:os";
 import {resolve} from "node:path";
@@ -15,6 +15,7 @@ import {surfaceFor} from "../src/human-docs/approval/surface.ts";
 import {DiscordClient} from "../src/human-docs/approval/discord.ts";
 import {releaseDocs,tick,type WorkerConfig} from "../src/human-docs/approval/worker.ts";
 import {releaseCopiesToPrune} from "../src/human-docs/approval/releases.ts";
+import {historyForRevision} from "../src/human-docs/changelog-history.ts";
 
 const appRoot=resolve(import.meta.dirname,"..");
 const scratch=mkdtempSync(resolve(tmpdir(),"kurami-docs-approval-"));
@@ -63,9 +64,16 @@ mkdirSync(docsState,{recursive:true});
 const source=resolve(docsState,"audit-source");
 sh(scratch,"git","clone","--quiet",remote,source);
 for(const repo of [source])sh(repo,"git","config","user.email","test@example.invalid"),sh(repo,"git","config","user.name","Docs Test");
+// Exercise local edits too: release builds run in clean fixture worktrees.
+for(const path of ["src/human-docs","tests/human-docs","docs/human-docs-operations.md"])cpSync(resolve(appRoot,path),resolve(source,path),{recursive:true});
+sh(source,"git","add","src/human-docs","tests/human-docs","docs/human-docs-operations.md");
+sh(source,"git","commit","--quiet","--allow-empty","-m","Docs fixture under test");
+sh(source,"git","push","--quiet",remote,"HEAD:refs/heads/main");
 const oldRelease=resolve(docsState,"release");
 mkdirSync(resolve(oldRelease,"en"),{recursive:true});
-writeFileSync(resolve(oldRelease,"build.json"),JSON.stringify({mode:"release",docsSha:"a".repeat(40),revision:null}));
+const confirmedHistory=historyForRevision("ee02f37312508acac4d044cfcd223884d7e65bcc");
+writeFileSync(resolve(oldRelease,"build.json"),JSON.stringify({mode:"release",docsSha:"a".repeat(40),revision:null,changelogRevision:confirmedHistory.revision}));
+writeFileSync(resolve(oldRelease,"changelog-history.json"),JSON.stringify(confirmedHistory));
 writeFileSync(resolve(oldRelease,"en/index.html"),"old");
 
 const hermes=resolve(scratch,"hermes");
@@ -242,6 +250,12 @@ try{
   const main=sh(source,"git","--git-dir",remote,"rev-parse","refs/heads/main");
   assert.equal(row.published_docs_sha,main);
   assert.equal(JSON.parse(readFileSync(resolve(docsState,"release/build.json"),"utf8")).docsSha,main);
+  assert.equal(JSON.parse(readFileSync(resolve(docsState,"release/build.json"),"utf8")).revision,null);
+  assert.deepEqual(JSON.parse(readFileSync(resolve(docsState,"release/changelog-history.json"),"utf8")),JSON.parse(JSON.stringify(confirmedHistory)));
+  for(const lang of ["en","ru"])for(const change of confirmedHistory.changes[lang as "en"|"ru"]){
+    assert.ok(readFileSync(resolve(docsState,`release/${lang}/changelog/index.html`),"utf8").includes(`/commit/${change.sha}`));
+    assert.ok(readFileSync(resolve(docsState,`release/unified/${lang}/changelog/index.html`),"utf8").includes(`/commit/${change.sha}`));
+  }
   assert.ok(readFileSync(resolve(docsState,"release/ru/docs-process/index.html"),"utf8").includes("Ещё одно уточнение для проверки."));
   assert.equal(readFileSync(resolve(docsState,`rollback-${"a".repeat(40)}/en/index.html`),"utf8"),"old");
   assert.match(readFileSync(resolve(scratch,"systemctl.log"),"utf8"),/--user restart kurami-human-docs/);
@@ -288,6 +302,23 @@ try{
   await runControl(store,"reject",committed.proposalId,{apply:true},surface);
   await tick(config,store,surface);
   assert.equal(JSON.parse(readFileSync(ghState,"utf8")).prs[row.pr_number!].state,"CLOSED");
+
+  // Recover a legacy empty docs-only publication using the controller's old
+  // successful assertion, even though main now contains newer application code.
+  const recoveryRoot=resolve(home,"state/recovery-docs");
+  mkdirSync(resolve(recoveryRoot,"release"),{recursive:true});
+  writeFileSync(resolve(recoveryRoot,"release/build.json"),JSON.stringify({mode:"release",docsSha:main,revision:null}));
+  mkdirSync(resolve(home,"state/web"),{recursive:true});
+  const controllerManifest=resolve(home,"state/web/deployment.json");
+  writeFileSync(controllerManifest,JSON.stringify({status:"succeeded",appSha:confirmedHistory.revision}),{mode:0o600});
+  await releaseDocs({...config,releaseRoot:recoveryRoot},main);
+  const recoveredInfo=JSON.parse(readFileSync(resolve(recoveryRoot,"release/build.json"),"utf8"));
+  assert.equal(recoveredInfo.revision,null,"old evidence must not claim newer sources are deployed");
+  assert.equal(recoveredInfo.changelogRevision,confirmedHistory.revision);
+  assert.deepEqual(JSON.parse(readFileSync(resolve(recoveryRoot,"release/changelog-history.json"),"utf8")),JSON.parse(JSON.stringify(confirmedHistory)));
+  rmSync(controllerManifest);
+  await releaseDocs({...config,releaseRoot:recoveryRoot},main);
+  assert.deepEqual(JSON.parse(readFileSync(resolve(recoveryRoot,"release/changelog-history.json"),"utf8")),JSON.parse(JSON.stringify(confirmedHistory)),"the next docs-only publication retains the recovered history without a manifest");
 
   // 7. A release whose smoke check fails is rolled back to the previous site.
   const liveBefore=readFileSync(resolve(docsState,"release/build.json"),"utf8");

@@ -270,8 +270,9 @@ export function renderAlias(lang:Language,from:string,to:string):string {
   return shell(lang,target.title[lang],target.summary[lang],body,target.section,to).replace("<head>",`<head>\n  <meta http-equiv="refresh" content="0; url=${href}">\n  <link rel="canonical" href="${href}">`);
 }
 
-export function renderChangelog(lang:Language,changes:Change[],revision?:string,published=false,docsSha?:string):string {
+export function renderChangelog(lang:Language,changes:Change[],revision?:string,published=false,docsSha?:string,historyRevision?:string):string {
   if(docsSha&&!/^[0-9a-f]{40}$/.test(docsSha))throw new Error("Invalid documentation revision");
+  if(historyRevision&&(!published||!/^[0-9a-f]{40}$/.test(historyRevision)))throw new Error("Invalid confirmed changelog revision");
   const ru=lang==="ru";
   const t=labels[lang],title=t.changelog;
   const byDate=new Map<string,Change[]>();
@@ -283,7 +284,9 @@ export function renderChangelog(lang:Language,changes:Change[],revision?:string,
   }).join("")}</section>`).join("");
   const status=revision
     ?`${t.latest}. ${ru?"Даты в списке — дни коммитов, не дни развёртывания.":"List dates are commit days, not deployment days."}`
-    :published?t.awaiting:t.unpublished;
+    :historyRevision
+      ?ru?`Сохранена подтверждённая история до версии ${historyRevision.slice(0,12)}. Новые изменения приложения в этот выпуск документации не добавлены. Даты в списке — дни коммитов, не дни развёртывания.`:`Confirmed history is preserved through revision ${historyRevision.slice(0,12)}. This documentation release adds no new application changes. List dates are commit days, not deployment days.`
+      :published?t.awaiting:t.unpublished;
   const empty=revision
     ?ru?"После начальной точки пока нет опубликованных изменений.":"No published changes since the baseline."
     :published

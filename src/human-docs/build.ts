@@ -5,7 +5,10 @@ import {fileURLToPath} from "node:url";
 import {allPages,pages} from "./content.ts";
 import {assertContent} from "./content/schema.ts";
 import {aliases} from "./content/site.ts";
-import {readDeploymentManifest,changesForDeployedSha,assertDocsSourceMatchesDeployment,type Language} from "./changelog.ts";
+import {readDeploymentManifest,assertDocsSourceMatchesDeployment,type Language} from "./changelog.ts";
+import {assertHistoryRetained,historyForRevision,readPublishedHistory} from "./changelog-history.ts";
+import {existingDeploymentManifest} from "./deployment.ts";
+import {docsStateDir,kuramiHome} from "./approval/store.ts";
 import {renderAlias,renderArticle,renderChangelog,renderHome,renderNotFound,resolveSlug} from "./render.ts";
 import {DOCS_STYLES} from "./styles.ts";
 import {fontFiles} from "../ui-library/foundations/fonts.ts";
@@ -14,12 +17,25 @@ import {projectCss,projectDocument,WEB_CLIENT_JS} from "../web/presentation.ts";
 
 const root=resolve(dirname(fileURLToPath(import.meta.url)),"../..");
 const args=process.argv.slice(2);
-const isPreview=args.length===1 && args[0]==="--preview";
-const isDocsRelease=args.length===1 && args[0]==="--docs-release";
-const hasManifest=args.length===2 && args[0]==="--deployment-manifest";
-if(!isPreview&&!isDocsRelease&&!hasManifest) throw new Error("Use --preview, --docs-release, or --deployment-manifest <trusted path>");
-const revision=hasManifest?readDeploymentManifest(resolve(args[1])):undefined;
-if(revision)assertDocsSourceMatchesDeployment(revision);
+const mode=args.shift();
+const isPreview=mode==="--preview",isDocsRelease=mode==="--docs-release",hasManifest=mode==="--deployment-manifest";
+const manifest=hasManifest?args.shift():undefined;
+let historyDirectory=resolve(docsStateDir(),"release"),allowHistoryOnly=false;
+while(args.length){
+  const flag=args.shift();
+  if(flag==="--changelog-from"&&args[0])historyDirectory=resolve(args.shift()!);
+  else if(flag==="--allow-history-only"&&hasManifest)allowHistoryOnly=true;
+  else throw new Error(`Unknown docs build argument: ${flag}`);
+}
+if((!isPreview&&!isDocsRelease&&!hasManifest)||(hasManifest&&!manifest)||(isPreview&&process.argv.length!==3))throw new Error("Use --preview, --docs-release, or --deployment-manifest <trusted path>");
+let revision=manifest?readDeploymentManifest(resolve(manifest)):undefined;
+if(revision){
+  try{assertDocsSourceMatchesDeployment(revision);}
+  catch(error){
+    if(!allowHistoryOnly||!(error instanceof Error)||error.message!=="Docs checkout includes application changes newer than the verified deployment")throw error;
+    revision=undefined;
+  }
+}
 if(!isPreview && execFileSync("git",["status","--porcelain"],{cwd:root,encoding:"utf8"}).trim())throw new Error("Release docs build requires a clean working tree");
 const docsSha=isPreview?null:execFileSync("git",["rev-parse","HEAD"],{cwd:root,encoding:"utf8"}).trim();
 const sourceSha=revision??docsSha??execFileSync("git",["rev-parse","HEAD"],{cwd:root,encoding:"utf8"}).trim();
@@ -30,7 +46,13 @@ for(const [from,to] of Object.entries(aliases)){
   if(allPages.some(page=>page.slug===from))throw new Error(`Alias ${from} shadows a real page`);
   if(!allPages.some(page=>page.slug===to))throw new Error(`Alias ${from} points to missing page ${to}`);
 }
-const changes=revision?({en:changesForDeployedSha(revision,"en"),ru:changesForDeployedSha(revision,"ru")}):{en:[],ru:[]};
+const previous=isPreview?undefined:readPublishedHistory(historyDirectory);
+// Docs-only publication carries the last confirmed snapshot. On migration, recover it
+// from the controller's private success assertion without claiming newer app code is live.
+const historyManifest=isPreview?undefined:manifest??existingDeploymentManifest(kuramiHome());
+const history=revision?historyForRevision(revision):previous??(historyManifest?historyForRevision(readDeploymentManifest(historyManifest)):undefined);
+if(!isPreview)assertHistoryRetained(previous,history);
+const changes=history?.changes??{en:[],ru:[]};
 for(const lang of ["en","ru"] as Language[])for(const change of changes[lang])if(change.page&&!resolveSlug(change.page))throw new Error(`Changelog links to missing route: ${change.page}`);
 // Validate everything before replacing a previous build; a failed release gate leaves it untouched.
 const rendered:[string,string][]=[];
@@ -44,7 +66,7 @@ for(const lang of ["en","ru"] as Language[]){
     rendered.push([`${lang}/${page.slug}/index.html`,article.html]);diagrams.push(...article.diagrams);
   }
   for(const [from,to] of Object.entries(aliases))rendered.push([`${lang}/${from}/index.html`,renderAlias(lang,from,to)]);
-  rendered.push([`${lang}/changelog/index.html`,renderChangelog(lang,changes[lang],revision,!isPreview,docsSha??undefined)]);
+  rendered.push([`${lang}/changelog/index.html`,renderChangelog(lang,changes[lang],revision,!isPreview,docsSha??undefined,history?.revision)]);
 }
 const routes=new Set([...pages.map(page=>page.slug),...Object.keys(aliases),"changelog"]);
 for(const [path,html] of rendered){
@@ -75,6 +97,7 @@ writeFileSync(resolve(output,"assets/docs.css"),DOCS_STYLES);
 writeFileSync(resolve(output,"assets/theme.js"),WEB_CLIENT_JS+THEME_RUNTIME_JS);
 mkdirSync(resolve(output,"unified/assets"),{recursive:true});
 writeFileSync(resolve(output,"unified/assets/docs.css"),projectCss(DOCS_STYLES,"docs","en"));
-writeFileSync(resolve(output,"build.json"),JSON.stringify({revision:revision??null,docsSha,mode:isPreview?"preview":"release",pages:rendered.length,webMount:true},null,2));
+if(history)writeFileSync(resolve(output,"changelog-history.json"),JSON.stringify(history,null,2));
+writeFileSync(resolve(output,"build.json"),JSON.stringify({revision:revision??null,changelogRevision:history?.revision??null,docsSha,mode:isPreview?"preview":"release",pages:rendered.length,webMount:true},null,2));
 if(!existsSync(resolve(output,"en/index.html")))throw new Error("Docs build produced no home page");
 console.log(`Built ${rendered.length} pages and ${diagrams.length} diagrams into ${output} (${revision??(isDocsRelease?"docs-only release; no verified app deploy":"unpublished preview")})`);

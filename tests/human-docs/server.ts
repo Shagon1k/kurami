@@ -15,6 +15,7 @@ try {
   writeFileSync(join(root,"build.json"),JSON.stringify({mode:"release",revision:null,docsSha:revision}));
   assert.doesNotThrow(()=>createDocsServer(root));
   writeFileSync(join(root,"build.json"),JSON.stringify({mode:"release",revision,docsSha:revision}));
+  writeFileSync(join(root,"changelog-history.json"),"private build metadata");
   for(const path of ["ru/index.html","en/index.html","en/changelog/index.html","assets/docs.css","assets/fox.webp","assets/shot-project-board.png","assets/diagram-run-lifecycle-1-en.svg","assets/diagram-run-lifecycle-1-ru.svg"]){
     const destination=join(root,path);
     mkdirSync(dirname(destination),{recursive:true});
@@ -51,6 +52,7 @@ try {
       ["/assets/diagrams/../build.json",404,""],
       ["/assets/other/x.svg",404,""],
       ["/build.json",404,""],
+      ["/changelog-history.json",404,""],
       ["/%2e%2e/build.json",404,""],
       ["/ru/missing/",404,""],
       ["/src/human-docs/content.ts",404,""],

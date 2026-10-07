@@ -320,14 +320,19 @@ export async function releaseDocs(config:WorkerConfig,mergedSha:string):Promise<
   try{
     const manifest=existingDeploymentManifest(config.home);
     const revision=manifest?readDeploymentManifest(manifest):null;
-    run(config.node,["src/human-docs/build.ts",...(manifest?["--deployment-manifest",manifest]:["--docs-release"])],{cwd:build,timeoutMs:5*60_000});
+    const current=resolve(config.releaseRoot,"release");
+    const previousInfo=existsSync(resolve(current,"build.json"))?JSON.parse(readFileSync(resolve(current,"build.json"),"utf8")):undefined;
+    const previousRevision=previousInfo?.changelogRevision??previousInfo?.revision;
+    run(config.node,["src/human-docs/build.ts",...(manifest?["--deployment-manifest",manifest,"--allow-history-only"]:["--docs-release"]),"--changelog-from",current],{cwd:build,timeoutMs:5*60_000,env:{KURAMI_HOME:config.home}});
     const output=resolve(build,"dist/human-docs");
-    const info=JSON.parse(readFileSync(resolve(output,"build.json"),"utf8")) as {mode?:string;docsSha?:string;revision?:string|null};
-    if(info.mode!=="release"||info.docsSha!==tip||info.revision!==revision)throw new Error("the docs build produced an unexpected build.json");
+    const info=JSON.parse(readFileSync(resolve(output,"build.json"),"utf8")) as {mode?:string;docsSha?:string;revision?:string|null;changelogRevision?:string|null};
+    if(info.mode!=="release"||info.docsSha!==tip||(info.revision!==revision&&!(manifest&&info.revision===null&&info.changelogRevision===(previousRevision??revision))))throw new Error("the docs build produced an unexpected build.json");
+    // Validate against the fetched release checkout: the running worker can be
+    // older than the newly confirmed application's revision and ledger.
+    run(config.node,["--input-type=module","-e",'import {assertHistoryRetained,readPublishedHistory} from "./src/human-docs/changelog-history.ts"; assertHistoryRetained(readPublishedHistory(process.argv[1]),readPublishedHistory(process.argv[2]));',current,output],{cwd:build});
     const stage=resolve(config.releaseRoot,`stage-${tip}`);
     rmSync(stage,{recursive:true,force:true});
     cpSync(output,stage,{recursive:true});
-    const current=resolve(config.releaseRoot,"release");
     const previous=readDocsSha(current)??"unknown";
     let rollback=resolve(config.releaseRoot,`rollback-${previous}`);
     if(existsSync(rollback))rollback=`${rollback}-${stamp}`;

@@ -7,7 +7,7 @@ import {WEB_ORIGIN,publicAppUrl} from "../../web/routes.ts";
 /** Retained native route mapping; internal variants are not native routes. */
 export function routeFor(release:string,file:string):string|undefined {
   const path=`/${relative(release,file).split("\\").join("/")}`;
-  if(path==="/build.json"||path.startsWith("/unified/"))return undefined;
+  if(path==="/build.json"||path==="/changelog-history.json"||path.startsWith("/unified/"))return undefined;
   return path.endsWith("/index.html")?path.slice(0,-"index.html".length):path;
 }
 function files(root:string):string[] {

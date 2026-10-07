@@ -16,13 +16,14 @@ import {DOCS_STYLES} from "../../src/human-docs/styles.ts";
 import {assertSyntheticFixture,syntheticDailyHtml} from "../../src/human-docs/fixtures/synthetic-daily.ts";
 import {evaluateDocsImpact} from "./impact.ts";
 import {routeFor} from "../../src/human-docs/tools/verify-access.ts";
+import {assertHistoryRetained,historyForRevision,readPublishedHistory} from "../../src/human-docs/changelog-history.ts";
 
 const releaseFixture=resolve("/tmp/kurami-docs-release-fixture");
 // Historical assertions keep their original baseline; new publication has its own verified start.
 const changesForDeployedSha=(sha:string,lang:Language)=>publicationChanges(sha,lang,true);
 assert.deepEqual(publicationChanges("788787f077d42fc3b3346a4f4a612947b97ce2e8","en"),[]);
 assert.throws(()=>publicationChanges("596c877dfa0f7d1a82bfaacfed1c1194fdbd6b26","en"),/older than/);
-for(const path of ["build.json","unified/en/index.html","unified/ru/access/index.html","unified/assets/docs.css"])assert.equal(routeFor(releaseFixture,join(releaseFixture,path)),undefined);
+for(const path of ["build.json","changelog-history.json","unified/en/index.html","unified/ru/access/index.html","unified/assets/docs.css"])assert.equal(routeFor(releaseFixture,join(releaseFixture,path)),undefined);
 assert.equal(routeFor(releaseFixture,join(releaseFixture,"en/index.html")),"/en/");
 assert.equal(routeFor(releaseFixture,join(releaseFixture,"ru/access/index.html")),"/ru/access/");
 assert.equal(routeFor(releaseFixture,join(releaseFixture,"assets/docs.css")),"/assets/docs.css");
@@ -160,6 +161,24 @@ for(const lang of ["en","ru"] as const){
 const slugs={has:(slug:string)=>Boolean(resolveSlug(slug))};
 const scratch=mkdtempSync(join(tmpdir(),"kurami-docs-test-"));
 try {
+  const confirmedSha="ee02f37312508acac4d044cfcd223884d7e65bcc";
+  const confirmed=historyForRevision(confirmedSha);
+  assert.ok(confirmed.changes.en.length>0);
+  writeFileSync(join(scratch,"build.json"),JSON.stringify({mode:"release",docsSha:confirmedSha,revision:null,changelogRevision:confirmedSha}));
+  assert.throws(()=>readPublishedHistory(scratch),/history is missing/);
+  writeFileSync(join(scratch,"changelog-history.json"),JSON.stringify(confirmed));
+  assert.deepEqual(readPublishedHistory(scratch),JSON.parse(JSON.stringify(confirmed)));
+  assertHistoryRetained(confirmed,confirmed);
+  assert.throws(()=>assertHistoryRetained(confirmed,undefined),/remove confirmed/);
+  assert.throws(()=>assertHistoryRetained(confirmed,{...confirmed,changes:{en:[],ru:confirmed.changes.ru}}),/remove confirmed en/);
+  assert.throws(()=>assertHistoryRetained(confirmed,historyForRevision("788787f077d42fc3b3346a4f4a612947b97ce2e8")),/backwards/);
+  writeFileSync(join(scratch,"changelog-history.json"),JSON.stringify({...confirmed,changes:{...confirmed.changes,ru:[]}}));
+  assert.throws(()=>readPublishedHistory(scratch),/languages disagree/);
+  for(const lang of ["en","ru"] as const){
+    const html=renderChangelog(lang,confirmed.changes[lang],undefined,true,confirmedSha,confirmedSha);
+    assert.ok(html.includes(lang==="ru"?"Сохранена подтверждённая история":"Confirmed history is preserved"));
+    assert.ok(html.includes(`/commit/${confirmedSha}`));
+  }
   const manifest=join(scratch,"deployment.json");
   const sha=execFileSync("git",["rev-parse","HEAD"],{cwd:root,encoding:"utf8"}).trim();
   writeFileSync(manifest,JSON.stringify({status:"succeeded",appSha:sha}));
