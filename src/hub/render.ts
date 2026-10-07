@@ -265,9 +265,20 @@ function renderTrend(snapshot:HubSnapshot,lang:HubLanguage):string {
   return `<section class="section" aria-labelledby="trend-title"><div class="section-heading section-heading--period"><h2 id="trend-title">${tr(lang,"Коммиты","Commits")}</h2><div class="heading-actions"><span data-commit-coverage>${coverage}</span></div></div><div class="repository-filters" role="group" aria-label="${tr(lang,"Репозитории","Repositories")}">${filters}</div><div data-commit-repositories="${escapeHtml(JSON.stringify(snapshot.commitRepositories??{}))}" data-commit-unavailable="${escapeHtml(JSON.stringify(snapshot.projects.filter(project=>project.git.state==="unavailable").map(project=>project.key)))}">${charts}</div></section>`;
 }
 
+/** One line on how things are: quiet or how many need attention, what is in progress, what waits for the owner. */
+function renderPulse(snapshot:HubSnapshot,lang:HubLanguage):string {
+  const problems=problemQueue(snapshot.operations?.alerts??[]).length,known=snapshot.sources.orchestrator==="available";
+  const plural=(n:number,forms:[string,string,string])=>forms[n%100>=11&&n%100<=14?2:n%10===1?0:n%10>=2&&n%10<=4?1:2];
+  const parts=[problems?tr(lang,`${problems} ${plural(problems,["требует","требуют","требуют"])} внимания`,`${problems} need${problems===1?"s":""} attention`):tr(lang,"Всё спокойно","All quiet")];
+  if(known&&snapshot.totals.working>0)parts.push(tr(lang,`${snapshot.totals.working} в работе`,`${snapshot.totals.working} in progress`));
+  if(known&&snapshot.totals.attention>0)parts.push(tr(lang,`${snapshot.totals.attention} ${plural(snapshot.totals.attention,["ждёт","ждут","ждут"])} тебя`,`${snapshot.totals.attention} waiting for you`));
+  else if(known&&snapshot.totals.review>0)parts.push(tr(lang,`${snapshot.totals.review} на ревью`,`${snapshot.totals.review} in review`));
+  return `<p class="hub__pulse" data-state="${problems?"attention":"quiet"}">${parts.map(part=>`<span>${escapeHtml(part)}</span>`).join("")}</p>`;
+}
+
 export function renderHubDashboard(snapshot:HubSnapshot,lang:HubLanguage="en"):string {
   const orchestratorAvailable=snapshot.sources.orchestrator==="available";
-  return `<div class="hub__topline"><h1 class="sr-only">Kurami Hub</h1><p class="hub__live">${escapeHtml(formatTime(snapshot.generatedAt,lang))}</p></div>${renderAlerts(snapshot,lang)}
+  return `<div class="hub__topline"><h1 class="sr-only">Kurami Hub</h1>${renderPulse(snapshot,lang)}<p class="hub__live">${escapeHtml(formatTime(snapshot.generatedAt,lang))}</p></div>${renderAlerts(snapshot,lang)}
     <section class="overview-grid" aria-label="${tr(lang,"Показатели системы","System metrics")}">
       <div class="hub-panel task-summary"${surfaceAttributes("panel")}><h2>${tr(lang,"Задачи","Tasks")}</h2><div class="task-summary__metrics">
       <div class="task-summary__cell">${metric(tr(lang,"В работе","In progress"),orchestratorAvailable?value(snapshot.totals.working,lang):"—",false,undefined,{tone:"accent",icon:"work",plain:true})}</div>

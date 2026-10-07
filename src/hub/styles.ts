@@ -18,7 +18,12 @@ import {CHART_STYLES} from "../ui-library/components/charts/styles.ts";
 export const HUB_STYLES=`${TOAST_CSS}${THEME_CSS}${FOUNDATION_CSS}${BUTTON_CSS}${THEME_SWITCH_CSS}${SITE_HEADER_CSS}${TABLE_CSS}${DISCLOSURE_CSS}${FORM_CSS}${DIALOG_CSS}${PERIOD_SWITCH_CSS}${ICON_CSS}${STAT_CARD_CSS}${POPOVER_CSS}${CHART_STYLES}
 body { min-height: 100vh; }
 .hub { padding-block: var(--space-6) var(--space-10); }
-.hub__topline { display: flex; align-items: baseline; justify-content: flex-end; gap: var(--space-4); margin-bottom: var(--space-4); }
+.hub__topline { display: flex; align-items: baseline; justify-content: space-between; flex-wrap: wrap; gap: var(--space-2) var(--space-4); margin-bottom: var(--space-4); }
+.hub__pulse { display: flex; flex-wrap: wrap; gap: 0 var(--space-2); color: var(--text-muted); font-size: .9rem; }
+.hub__pulse span:first-child { color: var(--text-primary); font-weight: 600; }
+.hub__pulse[data-state="attention"] span:first-child { color: var(--status-warning); }
+.hub__pulse span + span::before { content: "·"; margin-inline-end: var(--space-2); color: var(--text-muted); }
+.hub__live { margin-inline-start: auto; }
 .hub__topline h1 { margin: 0; font-size: clamp(1.9rem,3vw,2.6rem); line-height: 1.1; letter-spacing: -.05em; }
 .hub__topline p { margin: 0; }
 .hub__live { display: inline-flex; align-items: center; gap: var(--space-2); color: var(--status-success); font: 500 .75rem/1.4 var(--font-mono); }
