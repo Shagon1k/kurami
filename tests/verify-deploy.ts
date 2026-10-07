@@ -1,6 +1,7 @@
 // Unified deploy on a real git checkout with a scripted drift check and recorded commands: a release does
 // only what drift asks for, in order; an up-to-date release changes nothing; a failing step rolls back;
-// `rollback` returns to the previous release; a dirty checkout or a commit off main is refused.
+// `rollback` returns to the previous release; a dirty checkout or a commit off main is refused. Tests run
+// before anything moves unless the tree already passed; a failing run leaves the server as it was.
 import assert from "node:assert/strict";
 import {execFileSync} from "node:child_process";
 import {mkdirSync,mkdtempSync,readFileSync,rmSync,writeFileSync} from "node:fs";
@@ -8,6 +9,7 @@ import {tmpdir} from "node:os";
 import {join} from "node:path";
 import {deploy,readLastDeploy,rollback,type DeployContext,type Runner} from "../src/system/deploy/deploy.ts";
 import type {DriftItem} from "../src/system/release-drift.ts";
+import {writeReceipt} from "../src/system/test-receipts.ts";
 
 const root=mkdtempSync(join(tmpdir(),"kurami-deploy-")),app=join(root,"app"),home=join(root,"home"),origin=join(root,"origin.git");
 const env={...process.env,GIT_AUTHOR_NAME:"t",GIT_AUTHOR_EMAIL:"t@t",GIT_COMMITTER_NAME:"t",GIT_COMMITTER_EMAIL:"t@t"};
@@ -21,7 +23,8 @@ const run:Runner=async(command,args,options)=>{
 };
 let driftQueue:DriftItem[][]=[];
 const item=(code:DriftItem["code"],en="x"):DriftItem=>({code,ru:en,en});
-const context:DeployContext={app,home,run,drift:async()=>driftQueue.shift()??[]};
+const tested:string[]=[];let testsFail=false;
+const context:DeployContext={app,home,run,drift:async()=>driftQueue.shift()??[],test:async commit=>{tested.push(commit);if(testsFail)throw new Error("test:hub failed");}};
 try{
   mkdirSync(app,{recursive:true});mkdirSync(home,{recursive:true});
   execFileSync("git",["init","-q","--bare","-b","main",origin]);
@@ -37,11 +40,12 @@ try{
   mkdirSync(join(app,"dist/human-docs"),{recursive:true});writeFileSync(join(app,"dist/human-docs/build.json"),JSON.stringify({docsSha:two}));
   const released=await deploy(context,"origin/main","42");
   assert.equal(released.status,"succeeded");assert.equal(git("rev-parse","HEAD"),two);
-  assert.deepEqual(released.steps.map(step=>[step.name,step.status]),[["Move checkout","done"],["Orchestrator migrations","done"],["Digest build","done"],["Docs release","done"],["Hermes copies","skipped"],["Restart services","done"],["Check","done"]]);
+  assert.deepEqual(released.steps.map(step=>[step.name,step.status]),[["Tests","done"],["Move checkout","done"],["Orchestrator migrations","done"],["Digest build","done"],["Docs release","done"],["Hermes copies","skipped"],["Restart services","done"],["Check","done"]]);
   assert.deepEqual(calls,["npm run -s db:init","npm run -s briefing:build","npm run -s docs:build-docs-release","systemctl --user restart kurami-human-docs","npm run -s docs:verify-access","npm run -s docs:prune-releases -- --apply","systemctl --user restart kurami-hub kurami-briefing"]);
   assert.equal(JSON.parse(readFileSync(join(home,"state/human-docs/release/build.json"),"utf8")).docsSha,two,"the new docs release is live");
   assert.equal(JSON.parse(readFileSync(join(home,`state/human-docs/rollback-${one}/build.json`),"utf8")).docsSha,one,"the previous release is kept for rollback");
   assert.equal((await readLastDeploy(home))?.status,"succeeded");
+  assert.deepEqual(tested,[two],"a commit with no test run on record is tested first");
 
   // Nothing to do: every step is skipped.
   calls.length=0;driftQueue=[[],[],[]];
@@ -56,14 +60,29 @@ try{
   assert.equal(git("rev-parse","HEAD"),two,"the checkout is back where it was");
   assert.equal((await readLastDeploy(home))?.status,"rolled_back");
 
-  // rollback returns to the commit before the last successful release.
-  calls.length=0;driftQueue=[[],[],[]];
+  // rollback returns to the commit before the last successful release, without a test run.
+  calls.length=0;driftQueue=[[],[],[]];tested.length=0;
   const back=await rollback(context,"42");
   assert.equal(back.action,"rollback");assert.equal(git("rev-parse","HEAD"),one);
+  assert.deepEqual(tested,[]);
+
+  // A tree that already passed is not tested again; failing tests stop the release before anything moves.
+  await writeReceipt(home,{tree:git("rev-parse",`${two}^{tree}`),commit:two,scope:"full",ok:true,suites:100,failedSuites:[],durationMs:1,at:"2026-10-06T10:00:00.000Z"});
+  driftQueue=[[],[],[]];
+  assert.equal((await deploy(context,two,"42")).steps[0]?.detail,"passed 2026-10-06 10:00 UTC");
+  assert.deepEqual(tested,[]);
+  testsFail=true;calls.length=0;
+  await assert.rejects(deploy(context,three,"42"),/test:hub failed/);
+  assert.equal(git("rev-parse","HEAD"),two,"failing tests leave the checkout alone");
+  assert.equal((await readLastDeploy(home))?.status,"failed");assert.deepEqual(calls,[]);
+  driftQueue=[[],[],[]];
+  const forced=await deploy(context,three,"42","deploy",{skipTests:true});
+  assert.equal(forced.steps[0]?.detail,"skipped by the owner");assert.match(forced.notes.join(" "),/without tests/);
+  testsFail=false;
 
   // Refusals: a commit off main, uncommitted changes.
   await assert.rejects(deploy(context,"HEAD~5","42"),/./);
   writeFileSync(join(app,"a.txt"),"dirty");
   await assert.rejects(deploy(context,"origin/main","42"),/uncommitted changes/);
-  console.log(JSON.stringify({ok:true,deploy:"ordered convergence, no-op release, rollback on failure, rollback command, refusals"}));
+  console.log(JSON.stringify({ok:true,deploy:"ordered convergence, no-op release, rollback on failure, rollback command, test gate, refusals"}));
 }finally{rmSync(root,{recursive:true,force:true});}

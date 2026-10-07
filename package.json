@@ -74,6 +74,8 @@
     "test:appearance": "node tests/verify-appearance-settings.ts",
     "test:dev-resources": "node tests/verify-dev-resources.ts",
     "test:deploy": "node tests/verify-deploy.ts",
+    "test:receipts": "node tests/verify-test-receipts.ts",
+    "test:report": "node src/system/test-receipts.ts report",
     "test:release-drift": "node tests/verify-release-drift.ts",
     "test:docs-approval": "node tests/verify-docs-approval.ts",
     "plugins:check": "bash bin/sync-hermes-plugin.sh --check",

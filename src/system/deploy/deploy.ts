@@ -3,13 +3,16 @@
 // the docs release, the Hermes copies and restarts of the services whose code changed (decided by the same
 // read-only release-drift check Hub shows). It ends by checking that nothing lags; if a step fails it goes
 // back to the previous commit the same way. `rollback` returns to the commit before the last release.
+// A commit is released only after the regression suites passed on its exact tree: with no such run on
+// record, the release runs them first in a scratch worktree (a few minutes) and stops if they fail.
 // Progress goes to state/deploy/last.json (Hub shows it), each release to state/deploy/history.jsonl.
 import { execFile } from "node:child_process";
-import { cp, mkdir, readFile, rename, rm, writeFile, appendFile, open } from "node:fs/promises";
+import { cp, mkdir, readFile, rename, rm, symlink, writeFile, appendFile, open } from "node:fs/promises";
 import { resolve } from "node:path";
 import { promisify } from "node:util";
 import { resolveKuramiHome } from "../../core/kurami-home.ts";
 import { checkReleaseDrift, type DriftItem } from "../release-drift.ts";
+import { passedFull } from "../test-receipts.ts";
 
 const exec = promisify(execFile);
 export type StepStatus = "running" | "done" | "skipped" | "failed";
@@ -20,7 +23,12 @@ export type DeployRecord = {
   steps: DeployStep[]; notes: string[];
 };
 export type Runner = (command: string, args: string[], options: { cwd: string; timeoutMs?: number }) => Promise<string>;
-export type DeployContext = { app: string; home: string; run: Runner; drift: () => Promise<DriftItem[]>; now?: () => Date };
+export type DeployContext = {
+  app: string; home: string; run: Runner; drift: () => Promise<DriftItem[]>; now?: () => Date;
+  /** Runs the full regression on a commit; throws when it fails. Defaults to a scratch worktree. */
+  test?: (commit: string) => Promise<void>;
+};
+export type DeployOptions = { skipTests?: boolean };
 
 const defaultRunner: Runner = async (command, args, options) =>
   (await exec(command, args, { cwd: options.cwd, timeout: options.timeoutMs ?? 600_000, maxBuffer: 20_000_000, env: { ...process.env, GIT_TERMINAL_PROMPT: "0" } })).stdout.trim();
@@ -132,6 +140,18 @@ async function releaseDocs(context: DeployContext): Promise<void> {
   await run("npm", ["run", "-s", "docs:prune-releases", "--", "--apply"], { cwd: app });
 }
 
+/** The full regression on `commit`, in a scratch worktree beside the live checkout; it records its receipt. */
+async function testInWorktree(context: DeployContext, commit: string): Promise<void> {
+  const { app, home, run } = context, directory = resolve(home, "state/deploy/test-tree");
+  const git = (...args: string[]) => run("git", args, { cwd: app });
+  await rm(directory, { recursive: true, force: true }); await git("worktree", "prune");
+  await git("worktree", "add", "--detach", "-q", directory, commit);
+  try {
+    await symlink(resolve(app, "node_modules"), resolve(directory, "node_modules"));
+    await run(process.execPath, ["tests/run-regression.ts"], { cwd: directory, timeoutMs: 60 * 60_000 });
+  } finally { await git("worktree", "remove", "--force", directory).catch(() => undefined); }
+}
+
 async function withLock<T>(home: string, work: () => Promise<T>): Promise<T> {
   const paths = deployPaths(home);
   await mkdir(paths.directory, { recursive: true, mode: 0o700 });
@@ -150,7 +170,7 @@ async function withLock<T>(home: string, work: () => Promise<T>): Promise<T> {
 }
 
 /** Moves the checkout to `target` (a commit on main) and converges; on failure returns to where it was. */
-export async function deploy(context: DeployContext, target: string, actor: string, action: "deploy" | "rollback" = "deploy"): Promise<DeployRecord> {
+export async function deploy(context: DeployContext, target: string, actor: string, action: "deploy" | "rollback" = "deploy", options: DeployOptions = {}): Promise<DeployRecord> {
   const { app, home, run } = context;
   const git = (...args: string[]) => run("git", args, { cwd: app });
   return withLock(home, async () => {
@@ -160,6 +180,18 @@ export async function deploy(context: DeployContext, target: string, actor: stri
     await git("merge-base", "--is-ancestor", to, "origin/main").catch(() => { throw new Error(`${to.slice(0, 7)} is not on main`); });
     const now = context.now?.() ?? new Date();
     const release = new Release(context, { id: `${now.toISOString()}-${to.slice(0, 7)}`, action, from, to, actor, status: "running", startedAt: now.toISOString(), steps: [], notes: [] });
+    // Before anything moves: a failure here leaves the server as it was.
+    try {
+      await release.step("Tests", async () => {
+        if (from === to) return { skipped: true, detail: "already live" };
+        if (action === "rollback") return { skipped: true, detail: "an earlier release" };
+        if (options.skipTests) { release.record.notes.push("Released without tests (--skip-tests)."); return { skipped: true, detail: "skipped by the owner" }; }
+        const passed = await passedFull(home, await git("rev-parse", `${to}^{tree}`));
+        if (passed) return { skipped: true, detail: `passed ${passed.at.slice(0, 16).replace("T", " ")} UTC` };
+        await (context.test ?? (commit => testInWorktree(context, commit)))(to);
+        return { detail: "passed" };
+      });
+    } catch (error) { await release.finish("failed"); throw error; }
     try {
       await release.step(action === "rollback" ? "Return checkout" : "Move checkout", async () => {
         if (from === to) return { skipped: true, detail: "already there" };
@@ -196,9 +228,12 @@ export async function runDeployCli(argv = process.argv.slice(2)): Promise<Deploy
     const git = (...args: string[]) => defaultRunner("git", args, { cwd: app, timeoutMs: 20_000 }).catch(() => null);
     const head = await git("rev-parse", "HEAD"), remote = (await git("ls-remote", "origin", "refs/heads/main"))?.split(/\s+/)[0] ?? null;
     const previous = await previousRelease(home);
-    return { ok: true, head, remote, rollbackTo: previous?.from ?? null, last: await readLastDeploy(home), drift: await context.drift() };
+    // Whether main already passed the regression; the release runs it first otherwise.
+    const remoteTree = remote ? await git("rev-parse", "--verify", "-q", `${remote}^{tree}`) : null;
+    const tested = remoteTree ? (await passedFull(home, remoteTree))?.at ?? null : null;
+    return { ok: true, head, remote, tested, rollbackTo: previous?.from ?? null, last: await readLastDeploy(home), drift: await context.drift() };
   }
-  if (command === "deploy" && target) return deploy(context, target, actor);
+  if (command === "deploy" && target) return deploy(context, target, actor, "deploy", { skipTests: argv.includes("--skip-tests") });
   if (command === "rollback") {
     // Hub passes the commit it showed; refuse if the history moved meanwhile.
     const expected = argv.includes("--to") ? argv[argv.indexOf("--to") + 1] : undefined;
@@ -206,7 +241,7 @@ export async function runDeployCli(argv = process.argv.slice(2)): Promise<Deploy
     if (expected && previous?.from !== expected) throw new Error("The rollback target changed since the panel opened");
     return rollback(context, actor);
   }
-  throw new Error("Usage: deploy.ts status | deploy <commit|origin/main> [--actor ID] | rollback [--to COMMIT] [--actor ID]");
+  throw new Error("Usage: deploy.ts status | deploy <commit|origin/main> [--skip-tests] [--actor ID] | rollback [--to COMMIT] [--actor ID]");
 }
 
 if (import.meta.main) {
