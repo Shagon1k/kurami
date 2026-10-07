@@ -4,6 +4,7 @@ import type {Localized} from "./content/schema.ts";
 
 export const tableNotes:Record<"orchestrator"|"digest",Record<string,Localized<string>>>={
   orchestrator:{
+    "project_capture_requests":{ru:"Быстрый ввод «+»: текст владельца ждёт, пока Kurami заведёт по нему issue в выбранном проекте — по шаблону репозитория или как есть; здесь же номер и ссылка результата.",en:"Quick capture (\"+\"): the owner's text waits until Kurami files it as an issue in the chosen project, from the repository's issue form or as written; the result number and link are kept here."},
     "project_pr_requests":{ru:"Подтверждённое владельцем снятие draft или слияние PR: точный коммит, способ слияния, ключ повторного запроса и результат GitHub.",en:"An owner-confirmed draft promotion or PR merge: the exact commit, merge method, retry key and GitHub result."},
     "project_action_requests":{ru:"Один запрос действия из Projects: ключ повторного нажатия, проверенное состояние запуска и связь с общей очередью или подтверждением превью.",en:"One Projects action request: its retry key, verified run state and link to the shared queue or preview acknowledgement."},
     "project_status_requests":{ru:"Одно изменение статуса из Projects: исходный и целевой статусы, состояние записи в GitHub и подтверждение обычной синхронизацией.",en:"One status change from Projects: the original and target states, the GitHub write state and confirmation by normal sync."},

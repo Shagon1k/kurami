@@ -1,5 +1,5 @@
 import {SITE_HEADER_CSS,renderSiteHeader as renderKuramiHeader,renderSiteNav} from "../../../ui-library/patterns/site-header.ts";
-import {kuramiSites} from "../../../ui-library/patterns/kurami-sites.ts";
+import {kuramiSites,renderQuickCaptureLink} from "../../../ui-library/patterns/kurami-sites.ts";
 import {renderThemeSwitch} from "../../../ui-library/components/theme-switch.ts";
 import {THEME_SWITCH_CSS} from "../../../ui-library/components/theme-switch.ts";
 import {THEME_CSS} from "../../../ui-library/themes/index.ts";
@@ -43,7 +43,7 @@ export function renderSiteHeader(input:{section:SiteSection;label?:string;date?:
     brand:{href:digestPath("/"),suffix:"Digest",ariaLabel:digestText("Kurami — последний дневной выпуск","Kurami — latest Daily edition"),foxSrc:"/assets/kurami-fox.webp",meta:input.date&&input.dateLabel?{label:formatSiteDate(input.date,lang),datetime:input.date}:undefined},
     nav:{...navigation(input.links??[],input.section),scroll:true},
     sites:kuramiSites("digest",lang),
-    actions:renderLinkButton({label:other.toUpperCase(),href:digestPath(relative,other),variant:"icon",ariaLabel:digestText("Переключить на английский","Switch to Russian"),attributes:{hreflang:other}})+renderThemeSwitch(lang),
+    actions:renderQuickCaptureLink(digestLanguage())+renderLinkButton({label:other.toUpperCase(),href:digestPath(relative,other),variant:"icon",ariaLabel:digestText("Переключить на английский","Switch to Russian"),attributes:{hreflang:other}})+renderThemeSwitch(lang),
   });
 }
 /** Refresh shared controls on frozen editions without changing their content. */

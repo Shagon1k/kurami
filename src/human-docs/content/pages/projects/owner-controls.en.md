@@ -138,13 +138,18 @@ dialog. A queued request is not proof that the action has completed: check the
 card's current state.
 
 
-### Add to backlog
+### Quick task "+"
 
-The **Capture** button above the table opens a short form: project, title and details. **Create issue** files an issue in the project's repository and puts its card on the board in Backlog, where Kurami picks it up as usual. Kurami itself gets a plain issue with no board. If GitHub does not answer, the text stays in the form; pressing again never creates a duplicate.
+**+** in the header of any Kurami app opens a short form: the project and one field, "What should happen", in your
+own words. **Hand to Kurami** queues it: Kurami picks the fitting issue form of the project's repository (bug,
+feature, tech debt…), fills its fields from your text and files the issue with the form's labels; a managed
+project's card goes straight onto the board in Backlog. Your note is kept in the issue under a spoiler. It usually
+takes about a minute; a notice tells you the number. When the model is unavailable the issue is filed as written,
+so nothing is lost. A repeated tap creates no duplicate.
 
 The form also opens from:
 
-- the **Add to backlog** shortcut on a long press of the app icon;
+- the **Quick task** shortcut on a long press of the app icon;
 - **Share → Kurami** on Android, including from a Kurami page itself: the shared title, text and link fill the form.
 
 ### Ideas

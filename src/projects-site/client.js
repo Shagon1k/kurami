@@ -547,11 +547,13 @@
       const button=captureForm.querySelector('[type=submit]');if(button.getAttribute('aria-busy')==='true')return;
       button.setAttribute('aria-busy','true');button.disabled=true;
       try{
+        const key=captureForm.dataset.key;
         const response=await fetch(kuramiAppUrl('/api/capture'),{method:'POST',headers:{'content-type':'application/json'},cache:'no-store',signal:AbortSignal.timeout(30000),
-          body:JSON.stringify({key:captureForm.dataset.key,project:captureForm.elements.project.value,title:captureForm.elements.title.value,note:captureForm.elements.note.value,shared:captureForm.dataset.shared,source:captureForm.dataset.source})});
+          body:JSON.stringify({key,project:captureForm.elements.project.value,text:captureForm.elements.text.value,shared:captureForm.dataset.shared,source:captureForm.dataset.source})});
         const result=await response.json().catch(()=>({}));
-        if(!response.ok)throw new Error(result.error||t('GitHub is unavailable right now. The text stays in the form; try again.'));
-        toast.show(`${t('Created')}: #${result.number} · ${t(result.onBoard?'on the board in Backlog':'as an issue')}`,{tone:'success'});
+        if(!response.ok)throw new Error(result.error||t('Kurami cannot take the request right now. The text stays in the form; try again.'));
+        toast.show(t('Kurami is writing the task up. It will be in Backlog in about a minute.'),{tone:'info'});
+        void followCapture(key);
         captureForm.reset();captureForm.dataset.key=crypto.randomUUID();captureForm.dataset.shared='';captureForm.dataset.source='';
         for(const context of captureForm.querySelectorAll('.projects-capture__context'))context.remove();
         closeCapture();
@@ -559,6 +561,17 @@
       finally{button.removeAttribute('aria-busy');button.disabled=false;}
     });
     if(capture.hasAttribute('data-open-on-load'))capture.showModal();
+  }
+  // Waits for Kurami to file the quick task (a few seconds to a few minutes) and reports the issue.
+  async function followCapture(key){
+    for(let attempt=0;attempt<60;attempt++){
+      await new Promise(done=>setTimeout(done,attempt<5?3000:6000));
+      let result;
+      try{const response=await fetch(kuramiAppUrl(`/api/capture/status?key=${encodeURIComponent(key)}`),{cache:'no-store'});if(!response.ok)continue;result=await response.json();}catch{continue;}
+      if(result.state==='created'){toast.show(`${t('Created')}: #${result.number} · ${t(result.onBoard?'on the board in Backlog':'as an issue')}${result.filledBy==='plain'?` · ${t('as written')}`:''}`,{tone:'success'});return;}
+      if(result.state==='failed'){toast.show(result.error||t('The task was not filed.'),{tone:'failure'});return;}
+    }
+    toast.show(t('Kurami is still on it; the task will appear on the board.'),{tone:'info'});
   }
   // Ideas block: notes, status and "make it a task"; the block is re-read from the page afterwards.
   async function refreshIdeas(){

@@ -14,7 +14,7 @@ export const PWA_SHORTCUTS=[
   {open:"digest",ru:["Дайджест","Дайджест"],en:["Digest","Digest"]},
   {open:"alerts",ru:["Требует внимания","Внимание"],en:["Needs attention","Alerts"]},
   {open:"projects",ru:["Задачи","Задачи"],en:["Tasks","Tasks"]},
-  {open:"capture",ru:["Записать в бэклог","Записать"],en:["Add to backlog","Capture"]},
+  {open:"capture",ru:["Быстрая задача","Задача"],en:["Quick task","Task"]},
 ] as const;
 
 /** Namespace infrastructure separately from translated document routes. */

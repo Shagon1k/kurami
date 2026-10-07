@@ -29,6 +29,7 @@ export const PROJECTS_STYLES=[KURAMI_MOOD_CSS,THEME_CSS,FOUNDATION_CSS,BUTTON_CS
 .projects-your-move strong { color: var(--text-primary); }
 .projects-toolbar { display: flex; align-items: center; flex-wrap: wrap; gap: var(--space-3) var(--space-5); }
 .projects-capture { display: grid; gap: var(--space-3); }
+.projects-capture__hint { margin: 0; color: var(--text-muted); font-size: .8rem; }
 .projects-capture__context { display: grid; gap: var(--space-1); margin: 0; padding: var(--space-2) var(--space-3); border-inline-start: 2px solid var(--border-default); color: var(--text-muted); font-size: .8rem; overflow-wrap: anywhere; white-space: pre-line; }
 .projects-capture__context span { color: var(--text-primary); font-weight: 600; }
 .projects-ideas { display: grid; gap: var(--space-3); margin-top: var(--space-6); padding: var(--space-4) var(--space-5); border: 1px solid var(--border-default); border-radius: var(--radius-md); background: var(--surface-raised); box-shadow: var(--shadow-card-sm); }

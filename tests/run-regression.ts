@@ -67,6 +67,7 @@ const suites = [
   "test:chronicle",
   "test:kurami-moods",
   "test:ideas",
+  "test:quick-capture",
   "test:release",
   "test:preview-slots",
   "test:preview-ingress",

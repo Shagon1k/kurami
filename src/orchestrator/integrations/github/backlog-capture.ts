@@ -5,7 +5,7 @@ import { promisify } from "node:util";
 
 export type BacklogTarget = { repository: string; board?: { owner: string; number: number; statusField: string; backlog: string } };
 export type BacklogIssue = { number: number; url: string; onBoard: boolean };
-export type BacklogClient = { create(target: BacklogTarget, title: string, body: string): Promise<BacklogIssue> };
+export type BacklogClient = { create(target: BacklogTarget, title: string, body: string, labels?: string[]): Promise<BacklogIssue> };
 const exec = promisify(execFile);
 
 async function gh(args: string[], input?: unknown): Promise<any> {
@@ -22,8 +22,8 @@ const ADD = `mutation Add($project:ID!,$content:ID!) { addProjectV2ItemById(inpu
 const SET = `mutation Set($project:ID!,$item:ID!,$field:ID!,$option:String!) { updateProjectV2ItemFieldValue(input:{projectId:$project,itemId:$item,fieldId:$field,value:{singleSelectOptionId:$option}}) { projectV2Item { id } } }`;
 
 export const githubBacklog: BacklogClient = {
-  async create(target, title, body) {
-    const issue = await gh(["api", `repos/${target.repository}/issues`, "--method", "POST", "--input", "-"], { title, body }) as { number?: number; html_url?: string; node_id?: string };
+  async create(target, title, body, labels = []) {
+    const issue = await gh(["api", `repos/${target.repository}/issues`, "--method", "POST", "--input", "-"], labels.length ? { title, body, labels } : { title, body }) as { number?: number; html_url?: string; node_id?: string };
     if (!Number.isInteger(issue.number) || typeof issue.html_url !== "string" || typeof issue.node_id !== "string") throw new Error("GitHub issue response unavailable");
     if (!target.board) return { number: issue.number!, url: issue.html_url, onBoard: false };
     // The issue exists either way; a board failure is reported, not retried, so it is never created twice.

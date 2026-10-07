@@ -1,47 +1,55 @@
-// Backlog capture: a managed project gets an issue on its board in Backlog, Kurami a plain issue; input is
-// checked again on the server; a repeated submit returns the same issue; only Kurami pages count as a source;
-// the share target and the shortcut land on the prefilled form.
+// Quick capture: the request is checked on the server and queued once per key; the worker starts outside the
+// service; a failed start marks the request and says so; only Kurami pages count as a source; the share target
+// and the shortcut land on the prefilled form; the "+" sits in every app's header.
 import assert from "node:assert/strict";
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { join, resolve } from "node:path";
 import { captureSource, captureTargets, createCaptureAction } from "../../src/projects-site/capture.ts";
 import { renderCaptureDialog } from "../../src/projects-site/render.ts";
 import { resolveWebRoute } from "../../src/web/routes.ts";
-import type { BacklogTarget } from "../../src/orchestrator/integrations/github/backlog-capture.ts";
+import { renderQuickCaptureLink } from "../../src/ui-library/patterns/kurami-sites.ts";
+import { execFileSync } from "node:child_process";
 import type { ProjectsSnapshot } from "../../src/projects-site/model.ts";
 
 const home = mkdtempSync(join(tmpdir(), "kurami-capture-"));
 try {
-  mkdirSync(join(home, "config"));
-  writeFileSync(join(home, "config/projects.yaml"), `version: 1\nprojects:\n  pickflick:\n    owner: Shagon1k\n    project_number: 3\n    repository: Shagon1k/PickFlick\n    status_field: Status\n    statuses: {backlog: Backlog, active: In progress, review: Human Review, done: Done, deferred: Deferred}\n`);
+  mkdirSync(join(home, "config")); mkdirSync(join(home, "state"));
+  writeFileSync(join(home, "config/projects.yaml"), `version: 1\nprojects:\n  pickflick:\n    owner: Shagon1k\n    project_number: 3\n    repository: Shagon1k/PickFlick\n    status_field: Status\n    statuses: {backlog: Backlog, active: In progress, review: Human Review, done: Done, deferred: Deferred}\n    workspace: {canonical_repository: /nowhere/PickFlick}\n`);
+  const app = resolve(import.meta.dirname, "../..");
+  execFileSync(process.execPath, [resolve(app, "src/orchestrator/state/init-run-store.ts")], { env: { ...process.env, KURAMI_HOME: home, ORCHESTRATOR_MIGRATIONS_DIR: resolve(app, "migrations") }, stdio: ["ignore", "ignore", "pipe"] });
   assert.deepEqual(captureTargets(home).map(target => [target.key, target.name, target.target.board?.backlog ?? null]), [["pickflick", "PickFlick", "Backlog"], ["kurami", "Kurami", null]]);
 
-  const created: { target: BacklogTarget; title: string; body: string }[] = [];
-  const capture = createCaptureAction({ home, client: { create: async (target, title, body) => { created.push({ target, title, body }); return { number: 41 + created.length, url: `https://github.com/${target.repository}/issues/${41 + created.length}`, onBoard: Boolean(target.board) }; } } });
-  const result = await capture({ key: "capture-key-1", project: "pickflick", title: "  Watchlist   loses order ", note: "After a refresh.", shared: "line one\nline two", source: "https://kurami.shagon1k.win/ru/digest/" }, "owner");
-  assert.deepEqual(result, { state: "created", project: "pickflick", number: 42, url: "https://github.com/Shagon1k/PickFlick/issues/42", onBoard: true });
-  assert.equal(created[0]!.title, "Watchlist loses order");
-  assert.equal(created[0]!.body, "After a refresh.\n\n> line one\n> line two\n\nСтраница: https://kurami.shagon1k.win/ru/digest/\n\n_Записано через Kurami._");
-  assert.deepEqual(await capture({ key: "capture-key-1", project: "pickflick", title: "Watchlist loses order" }, "owner"), result, "a repeated submit returns the same issue");
-  assert.equal(created.length, 1);
-  assert.equal(((await capture({ key: "capture-key-2", project: "kurami", title: "Idea for Hub" }, "owner")) as { onBoard: boolean }).onBoard, false, "Kurami ideas are plain issues");
-  for (const bad of [{ project: "unknown", title: "Valid title" }, { project: "kurami", title: "ab" }, { project: "kurami", title: "x".repeat(201) }, { project: "kurami", title: "Valid", note: "x".repeat(4001) }, { project: "kurami", title: "Valid", key: "short" }])
-    await assert.rejects(capture({ key: "capture-key-3", ...bad }, "owner"));
-  const failing = createCaptureAction({ home, client: { create: async () => { throw new Error("HTTP 502 with private details"); } } });
-  await assert.rejects(failing({ key: "capture-key-4", project: "kurami", title: "Valid title" }, "owner"), (error: Error) => /GitHub сейчас недоступен/.test(error.message) && !/private/.test(error.message));
+  const started: string[] = [];
+  const capture = createCaptureAction({ home, start: async (_home, key) => { started.push(key); } });
+  const queued = await capture.submit({ key: "capture-key-1", project: "pickflick", text: "  Watchlist loses order after a refresh ", shared: "line one", source: "https://kurami.shagon1k.win/ru/digest/" }, "owner");
+  assert.deepEqual(queued, { key: "capture-key-1", state: "queued", project: "pickflick" });
+  assert.deepEqual(started, ["capture-key-1"], "the worker starts once");
+  assert.deepEqual((await capture.submit({ key: "capture-key-1", project: "pickflick", text: "again" }, "owner") as { state: string }).state, "queued", "a repeated submit returns the queued request");
+  assert.equal(started.length, 1);
+  assert.deepEqual(capture.status("capture-key-1"), { key: "capture-key-1", state: "queued", project: "pickflick", number: null, url: null, onBoard: false, filledBy: null, error: null });
+  for (const bad of [{ project: "unknown", text: "Valid text" }, { project: "kurami", text: "ab" }, { project: "kurami", text: "x".repeat(4001) }, { project: "kurami", text: "Valid", key: "short" }])
+    await assert.rejects(capture.submit({ key: "capture-key-3", ...bad }, "owner"));
+  assert.throws(() => capture.status("../../etc"), /Некорректный запрос/);
+  assert.throws(() => capture.status("missing-key-1"), /Запрос не найден/);
+
+  const failing = createCaptureAction({ home, start: async () => { throw new Error("no systemd"); } });
+  await assert.rejects(failing.submit({ key: "capture-key-4", project: "kurami", text: "Valid text" }, "owner"), (error: Error) => /не может взяться/.test(error.message));
+  assert.equal((failing.status("capture-key-4") as { state: string }).state, "failed", "a request that could not start is marked, not left queued");
 
   assert.equal(captureSource("https://kurami.shagon1k.win/en/"), "https://kurami.shagon1k.win/en/");
   assert.equal(captureSource("https://example.org/phish"), null, "only Kurami pages are cited");
 
-  // Entry points: Share → Kurami and the shortcut open the prefilled form.
+  // Entry points: Share → Kurami and the shortcut open the prefilled form; "+" in every header.
   assert.deepEqual(resolveWebRoute("/share?title=Bug&text=Steps&url=https%3A%2F%2Fexample.org%2Fx"), { redirect: "/en/projects/?capture=1&title=Bug&text=Steps&url=https%3A%2F%2Fexample.org%2Fx" });
   assert.deepEqual(resolveWebRoute("/?open=capture"), { redirect: "/en/projects/?capture=1" });
+  assert.match(renderQuickCaptureLink("ru"), /href="https:\/\/kurami\.shagon1k\.win\/ru\/projects\/\?capture=1"[^>]*aria-label="Быстрая задача"/);
   const snapshot = { generatedAt: "2026-10-07T05:00:00Z", available: true, projects: [{ key: "pickflick", name: "PickFlick" }], items: [] } as unknown as ProjectsSnapshot;
   const dialog = renderCaptureDialog(snapshot, new URLSearchParams({ lang: "ru", capture: "1", title: "Bug <b>", text: "Steps", source: "https://kurami.shagon1k.win/ru/" }));
   assert.match(dialog, /<dialog data-open-on-load id="projects-capture"/);
-  assert.match(dialog, /value="Bug &lt;b&gt;"/, "shared text is escaped");
+  assert.match(dialog, /Быстрая задача[\s\S]*Что сделать\?[\s\S]*Bug &lt;b&gt;<\/textarea>/, "one field in the owner's words, escaped");
+  assert.match(dialog, /Kurami оформит задачу по шаблону проекта[\s\S]*Передать Kurami/);
   assert.match(dialog, /<option value="kurami" selected>Kurami<\/option>/, "a report from a Kurami page goes to Kurami");
   assert.doesNotMatch(renderCaptureDialog(snapshot, new URLSearchParams()), /data-open-on-load/);
-  console.log(JSON.stringify({ ok: true, capture: "board vs plain issue, server checks, idempotent submit, safe source, share target, shortcut, prefill" }));
+  console.log(JSON.stringify({ ok: true, capture: "server checks, queued once, worker start and its failure, status, safe source, share target, shortcut, header +, one-field form" }));
 } finally { rmSync(home, { recursive: true, force: true }); }

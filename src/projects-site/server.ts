@@ -43,7 +43,7 @@ export function createProjectsServer(options: {
   runAction?: (input: unknown, actor: string) => ReviewResult;
   prInspect?: (project:string,itemId:string) => Promise<PrActionView>;
   prAction?: (input:unknown,actor:string) => Promise<PrActionResult>;
-  capture?: (input:unknown,actor:string) => Promise<object>;
+  capture?: { submit:(input:unknown,actor:string)=>Promise<object>; status:(key:string)=>object };
   ideas?: (input:unknown,actor:string) => Promise<object>;
   prCacheMs?:number;
   origin?: string;
@@ -128,7 +128,7 @@ export function createProjectsServer(options: {
           const result=await ideas(input,identity);cached=null;
           send(200,"application/json; charset=utf-8",JSON.stringify(result));
         } else if(captureRoute&&capture) {
-          send(201,"application/json; charset=utf-8",JSON.stringify(await capture(input,identity)));
+          send(202,"application/json; charset=utf-8",JSON.stringify(await capture.submit(input,identity)));
         } else if(prRoute&&prAction) {
           const result=await prAction(input,identity);cached=null;prCache.clear();
           send(result.state==="applied"?200:["failed","conflict"].includes(result.state)?409:202,"application/json; charset=utf-8",JSON.stringify(result));
@@ -150,6 +150,11 @@ export function createProjectsServer(options: {
       return;
     }
     try {
+      if(url.pathname==="/api/capture/status"&&capture) {
+        try { send(200,"application/json; charset=utf-8",JSON.stringify(capture.status(url.searchParams.get("key")??""))); }
+        catch(error) { send(error instanceof ProjectsActionError?error.status:503,"application/json; charset=utf-8",JSON.stringify({error:error instanceof ProjectsActionError?error.message:"Данные временно недоступны."})); }
+        return;
+      }
       if(url.pathname==="/api/pr-controls"&&prInspect) {
         const project=url.searchParams.get("project")??"",item=url.searchParams.get("item")??"";
         if(!/^[a-z0-9_-]{1,100}$/.test(project)||!item||item.length>200)throw new ProjectsActionError(400,"Invalid PR action or missing confirmation.");

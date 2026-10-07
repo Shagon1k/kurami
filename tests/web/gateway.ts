@@ -70,7 +70,7 @@ try{
   const shortcutManifest=(cookie:string)=>fetch(gateway+"/manifest.webmanifest",{headers:{host:"kurami.shagon1k.win","x-test-identity":"owner",cookie}}).then(response=>response.json()) as Promise<{lang:string;shortcuts:{name:string;url:string}[]}>;
   const ruManifest=await shortcutManifest("kurami-lang=ru");
   assert.equal(ruManifest.lang,"ru");
-  assert.deepEqual(ruManifest.shortcuts.map(shortcut=>[shortcut.name,shortcut.url]),[["Дайджест","/?open=digest"],["Требует внимания","/?open=alerts"],["Задачи","/?open=projects"],["Записать в бэклог","/?open=capture"]]);
+  assert.deepEqual(ruManifest.shortcuts.map(shortcut=>[shortcut.name,shortcut.url]),[["Дайджест","/?open=digest"],["Требует внимания","/?open=alerts"],["Задачи","/?open=projects"],["Быстрая задача","/?open=capture"]]);
   assert.equal((await shortcutManifest("kurami-lang=en")).shortcuts[1]?.name,"Needs attention");
   const shareTarget=(await (await get("/manifest.webmanifest")).json() as {share_target:unknown}).share_target;
   assert.deepEqual(shareTarget,{action:"/share",method:"GET",enctype:"application/x-www-form-urlencoded",params:{title:"title",text:"text",url:"url"}},"Share → Kurami lands on the capture form");
