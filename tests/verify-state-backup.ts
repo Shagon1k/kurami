@@ -10,6 +10,7 @@ import {
 } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { resolve } from "node:path";
+import { captureIdea } from "../src/system/ideas/ideas.ts";
 import { DatabaseSync } from "node:sqlite";
 import { createBackup, formatBackupSummary } from "../src/system/recovery/backup-state.ts";
 
@@ -49,6 +50,7 @@ try {
   `);
   const health = new DatabaseSync(resolve(root, "state/system-health.db"));
   health.exec("PRAGMA journal_mode=WAL; PRAGMA wal_autocheckpoint=0; CREATE TABLE cycles(value TEXT); INSERT INTO cycles VALUES('committed-in-wal')");
+  captureIdea(root, { summary: "Keep ideas in the backup" }, "owner");
   await createBackup(root, new Date("2026-08-15T03:15:00Z"), 2);
   const last = await createBackup(root, new Date("2026-08-16T03:15:00Z"), 2);
   // Keep the writer open until after the snapshot so committed WAL data is required.
@@ -67,6 +69,9 @@ try {
   if (((await stat(resolve(last.directory, "briefing.db"))).mode & 0o777) !== 0o600) {
     throw new Error("Digest snapshot is not private");
   }
+  const ideasCopy = new DatabaseSync(resolve(last.directory, "ideas.db"), { readOnly: true });
+  if ((ideasCopy.prepare("SELECT summary FROM ideas").get() as { summary: string }).summary !== "Keep ideas in the backup") throw new Error("Ideas backup missed the pool");
+  ideasCopy.close();
   for (const name of ["briefing.db", "config__briefing.yaml", "config__briefing-topics.yaml"]) {
     const file = last.manifest.files.find(file => file.name === name);
     if (!file || file.bytes === 0 || !/^[a-f0-9]{64}$/.test(file.sha256)) {

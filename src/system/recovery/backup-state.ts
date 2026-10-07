@@ -169,6 +169,7 @@ export async function createBackup(
     for (const [relativePath, name] of [
       ["state/system-health.db", "system-health.db"],
       ["state/briefing/briefing.db", "briefing.db"],
+      ["state/ideas.db", "ideas.db"],
     ] as const) {
       const source = resolve(home, relativePath);
       try {

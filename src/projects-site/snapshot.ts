@@ -1,4 +1,5 @@
 import { observedStatusRequest, type StatusRequestRow } from "./status-state.ts";
+import { collectIdeasView } from "./ideas.ts";
 import {taskStartProgress,type ActivationEvent} from "./task-start.ts";
 import { parseCiChecks } from "./ci-checks.ts";
 import { projectRunActions } from "./run-actions.ts";
@@ -178,7 +179,7 @@ export function collectProjectsSnapshot(options: { home?: string; now?: Date; co
       }
     }
     items.sort((a, b) => Number(needsOwner(b, projects.find(p => p.key === b.project)!)) - Number(needsOwner(a, projects.find(p => p.key === a.project)!)));
-    return { generatedAt: now.toISOString(), available: true, projects, items };
-  } catch { return unavailable; }
+    return { generatedAt: now.toISOString(), available: true, projects, items, ideas: collectIdeasView(home) };
+  } catch { return { ...unavailable, ideas: collectIdeasView(home) }; }
   finally { database?.close(); }
 }

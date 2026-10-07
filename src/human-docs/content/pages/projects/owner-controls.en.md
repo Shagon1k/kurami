@@ -142,6 +142,18 @@ The form also opens from:
 - the **Add to backlog** shortcut on a long press of the app icon;
 - **Share → Kurami** on Android, including from a Kurami page itself: the shared title, text and link fill the form.
 
+### Ideas
+
+Not everything is a task. The **Capture** form has a **Task / Idea** switch: an idea keeps a thought without
+starting anything. Only the gist in one phrase is required; what prompted it, where it belongs (a project, Kurami
+or Other), a first step and "when" are optional. You can also share an idea in Discord: Kurami keeps the message
+verbatim and asks at most three of the missing questions — answer "skip" to any of them.
+
+Open ideas (new and thinking) sit in the **Ideas** block under the table. Each one unfolds: details, a journal of
+notes and status changes (entries are only ever added), a note field, and the status — thinking, parked, closed.
+**Create issue** files an issue in the chosen project or in Kurami and records the link on the idea; an idea in
+Other cannot become a task until you pick a project. Ideas are stored in Kurami and included in the daily backup.
+
 ## What the card shows
 
 Read the card from the top. First comes the stage (**Ready for review**) and a one-line explanation. The **Control** line appears only when it matters who holds the task: `AI Agent` means managed Codex is working, `You` means the task was handed to you. Below is a compact table of CI, AI review, Preview and Policy, then details for each check and a line of links: issue, PR, preview, Codex. The footer has a short run id and the update time in local time.

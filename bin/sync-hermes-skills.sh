@@ -23,6 +23,7 @@ readonly hermes_home="${HERMES_HOME:-/home/shagon1k/_hermes/_core}"
 readonly target_root="${hermes_home}/skills"
 readonly -a skills=(
   kurami-daily-briefing
+  kurami-ideas
   kurami-investment-review
   kurami-project-readiness
   kurami-run-control

@@ -534,9 +534,20 @@
   // Backlog capture: open from the toolbar or prefilled from a share/shortcut; create the issue on submit.
   const capture=document.getElementById('projects-capture'),captureForm=capture?.querySelector('[data-capture-form]');
   function closeCapture(){capture.close();if(new URL(location.href).searchParams.get('capture')){const url=new URL(location.href);for(const key of ['capture','title','text','url','source'])url.searchParams.delete(key);history.replaceState(history.state,'',url);}}
+  // Task or Idea: one form, two field sets; the hidden set is disabled so its required fields do not block submit.
+  function setCaptureKind(kind){
+    captureForm.dataset.kind=kind;
+    for(const button of captureForm.querySelectorAll('[data-capture-kind]'))button.setAttribute('aria-pressed',String(button.dataset.captureKind===kind));
+    for(const fields of captureForm.querySelectorAll('[data-capture-fields]')){const on=fields.dataset.captureFields===kind;fields.disabled=!on;fields.hidden=!on;}
+    const submit=captureForm.querySelector('[data-capture-submit]');submit.textContent=submit.dataset[kind==='idea'?'labelIdea':'labelTask'];
+    document.getElementById('projects-capture-title').textContent=t(kind==='idea'?'Save an idea':'Add to backlog');
+    (kind==='idea'?captureForm.elements.summary:captureForm.elements.title).focus();
+  }
   if(capture&&captureForm){
     document.addEventListener('click',event=>{
-      if(event.target.closest?.('[data-capture-open]')){capture.showModal();captureForm.elements.title.focus();}
+      const kind=event.target.closest?.('[data-capture-kind]');
+      if(kind&&captureForm.contains(kind)){setCaptureKind(kind.dataset.captureKind);return;}
+      if(event.target.closest?.('[data-capture-open]')){capture.showModal();(captureForm.dataset.kind==='idea'?captureForm.elements.summary:captureForm.elements.title).focus();}
       else if(capture.contains(event.target)&&event.target.closest?.('[data-dialog-close]'))closeCapture();
     });
     captureForm.addEventListener('submit',async event=>{
@@ -544,12 +555,15 @@
       const button=captureForm.querySelector('[type=submit]');if(button.getAttribute('aria-busy')==='true')return;
       button.setAttribute('aria-busy','true');button.disabled=true;
       try{
-        const response=await fetch(kuramiAppUrl('/api/capture'),{method:'POST',headers:{'content-type':'application/json'},cache:'no-store',signal:AbortSignal.timeout(30000),
-          body:JSON.stringify({key:captureForm.dataset.key,project:captureForm.elements.project.value,title:captureForm.elements.title.value,note:captureForm.elements.note.value,shared:captureForm.dataset.shared,source:captureForm.dataset.source})});
+        const idea=captureForm.dataset.kind==='idea',elements=captureForm.elements;
+        const response=await fetch(kuramiAppUrl(idea?'/api/ideas':'/api/capture'),{method:'POST',headers:{'content-type':'application/json'},cache:'no-store',signal:AbortSignal.timeout(30000),
+          body:JSON.stringify(idea?{action:'capture',key:captureForm.dataset.key,summary:elements.summary.value,context:elements.context.value,area:elements.area.value,firstStep:elements.firstStep.value,horizon:elements.horizon.value,shared:captureForm.dataset.shared,source:captureForm.dataset.source}
+            :{key:captureForm.dataset.key,project:elements.project.value,title:elements.title.value,note:elements.note.value,shared:captureForm.dataset.shared,source:captureForm.dataset.source})});
         const result=await response.json().catch(()=>({}));
-        if(!response.ok)throw new Error(result.error||t('GitHub is unavailable right now. The text stays in the form; try again.'));
-        toast.show(`${t('Created')}: #${result.number} · ${t(result.onBoard?'on the board in Backlog':'as an issue')}`,{tone:'success'});
-        captureForm.reset();captureForm.dataset.key=crypto.randomUUID();captureForm.dataset.shared='';captureForm.dataset.source='';
+        if(!response.ok)throw new Error(result.error||t(idea?'The idea was not saved. The text stays in the form; try again.':'GitHub is unavailable right now. The text stays in the form; try again.'));
+        if(idea){toast.show(t('Idea saved. It is in the Ideas block under the tasks.'),{tone:'success'});refreshIdeas();}
+        else toast.show(`${t('Created')}: #${result.number} · ${t(result.onBoard?'on the board in Backlog':'as an issue')}`,{tone:'success'});
+        const kind=captureForm.dataset.kind;captureForm.reset();captureForm.dataset.kind=kind;captureForm.dataset.key=crypto.randomUUID();captureForm.dataset.shared='';captureForm.dataset.source='';
         for(const context of captureForm.querySelectorAll('.projects-capture__context'))context.remove();
         closeCapture();
       }catch(error){toast.show(error.message,{tone:'failure'});}
@@ -557,6 +571,33 @@
     });
     if(capture.hasAttribute('data-open-on-load'))capture.showModal();
   }
+  // Ideas block: notes, status and "make it a task"; the block is re-read from the page afterwards.
+  async function refreshIdeas(){
+    const block=document.getElementById('projects-ideas');if(!block)return;
+    try{
+      const response=await fetch(location.href,{cache:'no-store',headers:{accept:'text/html'}});if(!response.ok)return;
+      const next=new DOMParser().parseFromString(await response.text(),'text/html').getElementById('projects-ideas');if(!next)return;
+      const open=new Set([...block.querySelectorAll('details[open][data-disclosure-key]')].map(item=>item.dataset.disclosureKey));
+      for(const item of next.querySelectorAll('details[data-disclosure-key]'))if(open.has(item.dataset.disclosureKey))item.open=true;
+      block.replaceWith(next);
+    }catch{}
+  }
+  document.addEventListener('submit',async event=>{
+    const form=event.target.closest?.('[data-idea-form]');if(!form)return;
+    event.preventDefault();
+    const button=form.querySelector('[type=submit]');if(button.getAttribute('aria-busy')==='true')return;
+    button.setAttribute('aria-busy','true');button.disabled=true;
+    const action=form.dataset.ideaForm,body={action,id:Number(form.dataset.idea)};
+    if(action==='note')body.note=form.elements.note.value;if(action==='status')body.status=form.elements.status.value;if(action==='task')body.target=form.elements.target.value;
+    try{
+      const response=await fetch(kuramiAppUrl('/api/ideas'),{method:'POST',headers:{'content-type':'application/json'},cache:'no-store',signal:AbortSignal.timeout(30000),body:JSON.stringify(body)});
+      const result=await response.json().catch(()=>({}));
+      if(!response.ok)throw new Error(result.error||t('Data is temporarily unavailable.'));
+      toast.show(t(action==='task'?'The idea became a task.':action==='note'?'Note added.':'Status saved.'),{tone:'success'});
+      await refreshIdeas();
+    }catch(error){toast.show(error.message,{tone:'failure'});}
+    finally{button.removeAttribute('aria-busy');button.disabled=false;}
+  });
   filter();updateLayout();updateProjectTabs(new URL(location.href));loadPrControl();
   if(mobile.matches&&dashboard.querySelector('#project-details'))dashboard.querySelector('#project-details').focus({preventScroll:true});
 })();

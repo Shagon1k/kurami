@@ -1,4 +1,5 @@
 import {stateLabel} from "./i18n.ts";
+import type { IdeasView } from "./ideas.ts";
 import type { ProjectAttention, ProjectStatuses } from "../orchestrator/projects/status-read-model.ts";
 
 export type Freshness = "fresh" | "stale" | "unavailable";
@@ -25,7 +26,7 @@ export type ProjectItem = {
   prActions?:import("./pr-actions.ts").PrActionView;
   links: { issue: string | null; pr: string | null; discord: string | null; review: string | null; preview: string | null };
 };
-export type ProjectsSnapshot = { generatedAt: string; available: boolean; projects: ProjectSummary[]; items: ProjectItem[] };
+export type ProjectsSnapshot = { generatedAt: string; available: boolean; projects: ProjectSummary[]; items: ProjectItem[]; ideas?: IdeasView };
 export type SortKey="task"|"status"|"kurami";
 export type ViewFilters={project:string;activeOnly:boolean;attentionOnly:boolean;sort:SortKey|null;direction:"asc"|"desc"};
 

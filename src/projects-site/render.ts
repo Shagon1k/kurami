@@ -19,6 +19,7 @@ import {renderIcon,iconPath,type IconName} from "../ui-library/components/icon.t
 import {renderPopover} from "../ui-library/components/popover.ts";
 import {renderDisclosure} from "../ui-library/components/disclosure.ts";
 import {ciCheckUrl} from "./ci-checks.ts";
+import {renderIdeaFields,renderIdeasBlock} from "./ideas.ts";
 import type {PrActionView} from "./pr-actions.ts";
 import {renderToastRegion} from "../ui-library/components/toast.ts";
 import {renderPill,type PillTone} from "../ui-library/components/pill.ts";
@@ -217,13 +218,18 @@ export function renderCaptureDialog(snapshot:ProjectsSnapshot,params:URLSearchPa
   const source=params.get("source")??"";
   const projects=[...snapshot.projects.map(project=>({value:project.key,label:project.name})),{value:"kurami",label:"Kurami"}];
   const selected=params.get("project")&&projects.some(project=>project.value===params.get("project"))?params.get("project")!:source?"kurami":projects[0]!.value;
-  const body=`<form class="projects-capture" data-capture-form data-key="${randomUUID()}" data-source="${escape(source)}" data-shared="${escape(shared)}">
+  const kind=(value:"task"|"idea",label:string)=>renderButton({label:t(label),variant:"toggle",type:"button",size:"compact",visibleLabel:true,attributes:{"data-capture-kind":value,"aria-pressed":value==="task"?"true":"false"}});
+  const body=`<form class="projects-capture" data-capture-form data-kind="task" data-key="${randomUUID()}" data-source="${escape(source)}" data-shared="${escape(shared)}">
+    <div class="projects-capture__kind" role="group" aria-label="${escape(t("What to capture"))}">${kind("task","Task")}${kind("idea","Idea")}</div>
+    <fieldset class="projects-capture__fields" data-capture-fields="task"><legend class="sr-only">${t("Task")}</legend>
     ${renderSelectField({name:"project",label:t("Project"),value:selected,options:projects})}
     ${renderTextField({name:"title",label:t("Title"),value:(params.get("title")??"").slice(0,200),placeholder:t("What happened or what should change"),required:true,maxLength:200,autofocus:true})}
     ${renderTextField({name:"note",label:t("Details"),placeholder:t("Steps, expectations, anything that helps later"),maxLength:4000,rows:4})}
+    </fieldset>
+    ${renderIdeaFields(snapshot.projects,params,lang)}
     ${shared?`<p class="projects-capture__context"><span>${t("Shared text")}</span>${escape(shared)}</p>`:""}
     ${source?`<p class="projects-capture__context"><span>${t("From page")}</span>${escape(source)}</p>`:""}
-    ${renderDialogActions(renderButton({label:t("Cancel"),variant:"subtle",type:"button",attributes:{"data-dialog-close":true}})+renderButton({label:t("Create issue"),variant:"primary",type:"submit",busyLabel:"…",attributes:{"data-haptic":"confirm"}}))}</form>`;
+    ${renderDialogActions(renderButton({label:t("Cancel"),variant:"subtle",type:"button",attributes:{"data-dialog-close":true}})+renderButton({label:t("Create issue"),variant:"primary",type:"submit",busyLabel:"…",attributes:{"data-haptic":"confirm","data-capture-submit":true,"data-label-task":t("Create issue"),"data-label-idea":t("Save idea")}}))}</form>`;
   return renderDialog({id:"projects-capture",title:t("Add to backlog"),body,closeLabel:t("Cancel")}).replace("<dialog ",`<dialog${open?" data-open-on-load":""} `);
 }
 
@@ -236,5 +242,5 @@ export function renderProjectsPage(snapshot:ProjectsSnapshot,params=new URLSearc
     header:renderSiteHeader({mobile:{app:"projects",lang},brand:{href:projectLink(""),ariaLabel:"Kurami Projects",foxSrc:"/assets/kurami-fox.webp",suffix:"Projects"},
       nav:{label:t("Projects"),scroll:true,attributes:{"data-project-tabs":true},links:[{href:projectLink(""),label:t("All projects"),mobileIcon:"projects",current:!filters.project?"page":undefined},...snapshot.projects.map(project=>({href:projectLink(project.key),label:project.name,mobileIcon:projectIcon(project.name),current:filters.project===project.key?"page" as const:undefined}))]},sites:kuramiSites("projects",lang),
       actions:renderLinkButton({label:lang==="en"?"RU":"EN",href:`/?${otherLanguage}`,variant:"icon",ariaLabel:lang==="en"?"Switch to Russian":"Переключить на английский",attributes:{"data-language-link":true,hreflang:lang==="en"?"ru":"en"}})+renderThemeSwitch(lang)}),
-    main:`<div data-projects-app data-messages="${escape(JSON.stringify(browserMessages(lang)))}" data-status-messages="${escape(JSON.stringify(browserStatusPresentation(lang)))}"><h1 class="sr-only">${t("Tasks")}</h1><div class="projects-toolbar">${renderButton({label:t("Capture"),iconPath:iconPath("plus"),visibleLabel:true,variant:"secondary",type:"button",attributes:{"data-capture-open":true}})}<form class="projects-search" role="search" method="get">${renderSearchField({name:"q",label:t("Search tasks"),labelHidden:true,icon:true,value:params.get("q")??"",placeholder:t("Search by title or issue number")})}<input type="hidden" name="lang" value="${lang}"><input type="hidden" name="active" value="${filters.activeOnly?"1":""}"><input type="hidden" name="attention" value="${filters.attentionOnly?"1":""}">${filters.project?`<input type="hidden" name="project" value="${escape(filters.project)}">`:""}</form></div><div id="projects-dashboard"${LIVE_ATTRIBUTE}>${renderProjectsDashboard(snapshot,params)}</div>${renderCaptureDialog(snapshot,params)}${renderToastRegion(t("Dismiss notification"))}</div>`,mainClass:"projects-page",footer:renderSiteFooter({lang,app:"Projects",updated:localTime(snapshot.generatedAt,lang)})});
+    main:`<div data-projects-app data-messages="${escape(JSON.stringify(browserMessages(lang)))}" data-status-messages="${escape(JSON.stringify(browserStatusPresentation(lang)))}"><h1 class="sr-only">${t("Tasks")}</h1><div class="projects-toolbar">${renderButton({label:t("Capture"),iconPath:iconPath("plus"),visibleLabel:true,variant:"secondary",type:"button",attributes:{"data-capture-open":true}})}<form class="projects-search" role="search" method="get">${renderSearchField({name:"q",label:t("Search tasks"),labelHidden:true,icon:true,value:params.get("q")??"",placeholder:t("Search by title or issue number")})}<input type="hidden" name="lang" value="${lang}"><input type="hidden" name="active" value="${filters.activeOnly?"1":""}"><input type="hidden" name="attention" value="${filters.attentionOnly?"1":""}">${filters.project?`<input type="hidden" name="project" value="${escape(filters.project)}">`:""}</form></div><div id="projects-dashboard"${LIVE_ATTRIBUTE}>${renderProjectsDashboard(snapshot,params)}</div>${renderIdeasBlock(snapshot.ideas,snapshot.projects,lang)}${renderCaptureDialog(snapshot,params)}${renderToastRegion(t("Dismiss notification"))}</div>`,mainClass:"projects-page",footer:renderSiteFooter({lang,app:"Projects",updated:localTime(snapshot.generatedAt,lang)})});
 }

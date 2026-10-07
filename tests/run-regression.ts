@@ -46,6 +46,7 @@ const suites = [
   "test:admission",
   "test:provision",
   "test:capture",
+  "test:ideas",
   "test:release",
   "test:preview-slots",
   "test:preview-ingress",

@@ -21,6 +21,26 @@ export const PROJECTS_STYLES=[THEME_CSS,FOUNDATION_CSS,BUTTON_CSS,TABLE_CSS,FORM
 .projects-capture { display: grid; gap: var(--space-3); }
 .projects-capture__context { display: grid; gap: var(--space-1); margin: 0; padding: var(--space-2) var(--space-3); border-inline-start: 2px solid var(--border-default); color: var(--text-muted); font-size: .8rem; overflow-wrap: anywhere; white-space: pre-line; }
 .projects-capture__context span { color: var(--text-primary); font-weight: 600; }
+.projects-capture__kind { display: flex; gap: var(--space-2); }
+.projects-capture__fields { display: grid; gap: var(--space-3); min-width: 0; margin: 0; padding: 0; border: 0; }
+.projects-capture__fields[hidden] { display: none; }
+.projects-ideas { display: grid; gap: var(--space-2); margin-top: var(--space-6); }
+.projects-ideas__heading { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2) var(--space-3); }
+.projects-ideas__heading h2 { margin: 0; font-size: 1rem; }
+.projects-ideas__heading p, .projects-ideas__empty { margin: 0; color: var(--text-muted); font-size: .8rem; }
+.projects-ideas__item { --disclosure-summary-width: 100%; padding-block: var(--space-1); border-bottom: 1px solid var(--border-subtle); overflow-wrap: anywhere; }
+.projects-idea { display: grid; gap: var(--space-3); padding-block: var(--space-2) var(--space-4); }
+.projects-idea__meta { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2) var(--space-3); color: var(--text-muted); font-size: .75rem; }
+.projects-idea__fields { display: grid; gap: var(--space-2); margin: 0; }
+.projects-idea__field dt { color: var(--text-muted); font-size: .7rem; }
+.projects-idea__field dd { margin: 0; white-space: pre-line; overflow-wrap: anywhere; }
+.projects-idea__journal { display: grid; gap: var(--space-1); padding-inline-start: var(--space-3); border-inline-start: 2px solid var(--border-subtle); font-size: .78rem; }
+.projects-idea__journal li { display: flex; flex-wrap: wrap; gap: var(--space-2); }
+.projects-idea__journal time { color: var(--text-muted); font-variant-numeric: tabular-nums; }
+.projects-idea__actions { display: grid; gap: var(--space-3); }
+.projects-idea__form { display: grid; gap: var(--space-2); max-width: 560px; }
+.projects-idea__form > .button { justify-self: start; }
+.projects-idea__form--row { grid-template-columns: minmax(0,260px) auto; align-items: end; }
 .projects-search { width: min(480px,100%); }
 .projects-overview { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: var(--space-2) var(--space-5); margin-block: var(--space-3); }
 .projects-summary { --button-icon-size: 14px; display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2); min-height: var(--control-height); }
