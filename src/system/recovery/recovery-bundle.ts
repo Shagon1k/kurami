@@ -242,6 +242,8 @@ async function copyVerifiedSnapshot(
   if (health) assertDatabaseIntegrity(resolve(stageDirectory, health.path));
   const briefing = copied.find((file) => file.path === "snapshot/briefing.db");
   if (briefing) assertDatabaseIntegrity(resolve(stageDirectory, briefing.path));
+  const ideas = copied.find((file) => file.path === "snapshot/ideas.db");
+  if (ideas) assertDatabaseIntegrity(resolve(stageDirectory, ideas.path));
   copied.push(
     await copyPrivateFile(
       manifestPath,
@@ -537,6 +539,9 @@ export async function verifyRecoveryBundle(
     }
     if (manifest.files.some(file => file.path === "snapshot/briefing.db")) {
       assertDatabaseIntegrity(resolve(root, "snapshot/briefing.db"));
+    }
+    if (manifest.files.some(file => file.path === "snapshot/ideas.db")) {
+      assertDatabaseIntegrity(resolve(root, "snapshot/ideas.db"));
     }
     return {
       ok: true,

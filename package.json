@@ -77,6 +77,7 @@
     "test:kurami-status": "node tests/verify-kurami-status.ts",
     "test:chronicle": "node tests/verify-chronicle.ts",
     "test:kurami-moods": "node tests/ui-library/verify-kurami-moods.ts",
+    "test:ideas": "node tests/projects-site/verify-ideas.ts",
     "test:release": "node tests/verify-completed-release.ts",
     "test:preview-slots": "node tests/verify-preview-slots.ts",
     "test:preview-ingress": "node tests/verify-preview-ingress.ts",

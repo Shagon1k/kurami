@@ -560,6 +560,33 @@
     });
     if(capture.hasAttribute('data-open-on-load'))capture.showModal();
   }
+  // Ideas block: notes, status and "make it a task"; the block is re-read from the page afterwards.
+  async function refreshIdeas(){
+    const block=document.getElementById('projects-ideas');if(!block)return;
+    try{
+      const response=await fetch(location.href,{cache:'no-store',headers:{accept:'text/html'}});if(!response.ok)return;
+      const next=new DOMParser().parseFromString(await response.text(),'text/html').getElementById('projects-ideas');if(!next)return;
+      const open=new Set([...block.querySelectorAll('details[open][data-disclosure-key]')].map(item=>item.dataset.disclosureKey));
+      for(const item of next.querySelectorAll('details[data-disclosure-key]'))if(open.has(item.dataset.disclosureKey))item.open=true;
+      block.replaceWith(next);
+    }catch{}
+  }
+  document.addEventListener('submit',async event=>{
+    const form=event.target.closest?.('[data-idea-form]');if(!form)return;
+    event.preventDefault();
+    const button=form.querySelector('[type=submit]');if(button.getAttribute('aria-busy')==='true')return;
+    button.setAttribute('aria-busy','true');button.disabled=true;
+    const action=form.dataset.ideaForm,body={action,id:Number(form.dataset.idea)};
+    if(action==='note')body.note=form.elements.note.value;if(action==='status')body.status=form.elements.status.value;if(action==='task')body.target=form.elements.target.value;
+    try{
+      const response=await fetch(kuramiAppUrl('/api/ideas'),{method:'POST',headers:{'content-type':'application/json'},cache:'no-store',signal:AbortSignal.timeout(30000),body:JSON.stringify(body)});
+      const result=await response.json().catch(()=>({}));
+      if(!response.ok)throw new Error(result.error||t('Data is temporarily unavailable.'));
+      toast.show(t(action==='task'?'The idea became a task.':action==='note'?'Note added.':'Status saved.'),{tone:'success'});
+      await refreshIdeas();
+    }catch(error){toast.show(error.message,{tone:'failure'});}
+    finally{button.removeAttribute('aria-busy');button.disabled=false;}
+  });
   filter();updateLayout();updateProjectTabs(new URL(location.href));loadPrControl();
   if(mobile.matches&&dashboard.querySelector('#project-details'))dashboard.querySelector('#project-details').focus({preventScroll:true});
 })();

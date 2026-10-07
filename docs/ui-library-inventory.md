@@ -349,3 +349,11 @@ with `color:` in `config/projects.yaml` or assigned by registry order. `componen
 Projects puts the bar on the row's first cell on desktop and on the whole stacked row on phones, and colours
 the project icon with it. Hub uses the same bar on its activity feed and project table. The hues avoid red and amber, so a bar never reads as a status; attention and
 selection keep their background tints.
+
+## Accent marks and rich disclosure rows
+
+`mark-glow` (scale role) is the glow around a small accent mark drawn in `currentColor` — a bar or a dot:
+`none` in Paper, a neon glow in Neon (softer in its light mode). Products set the mark's colour from a role and
+`box-shadow: var(--mark-glow)`, so the look follows the theme without product code branching on it.
+`renderDisclosure` takes `summaryHtml` (trusted markup) when the folded row needs more than text — the Projects
+ideas block shows a number, the gist and tags there; the product escapes what goes inside.

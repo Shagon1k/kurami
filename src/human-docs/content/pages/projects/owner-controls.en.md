@@ -144,6 +144,19 @@ The form also opens from:
 - the **Add to backlog** shortcut on a long press of the app icon;
 - **Share → Kurami** on Android, including from a Kurami page itself: the shared title, text and link fill the form.
 
+### Ideas
+
+Not everything is a task. Tell an idea to any Kurami chat: Discord or Telegram, a Claude Code or Codex session,
+later the site chat. They all share one `kurami-ideas` skill and one pool. Only the gist is required; Kurami
+keeps the message verbatim and asks at most three of the missing questions (what prompted it, where it belongs,
+a first step, when) — answer "skip" to any of them. Saving an idea starts nothing.
+
+Open ideas (new and thinking) sit in the **Ideas** block under the table: number, gist, project, "when" and the
+date. An idea unfolds into its details, a journal of notes and status changes (entries are only ever added), a
+new note, and its status — thinking, parked, closed. **Create issue** files an issue in the chosen project or in
+Kurami and records the link on the idea; an idea in Other needs a project first. Ideas are stored in Kurami and
+included in the daily backup.
+
 ## What the card shows
 
 Read the card from the top. First comes the stage (**Ready for review**) and a one-line explanation. The **Control** line appears only when it matters who holds the task: `AI Agent` means managed Codex is working, `You` means the task was handed to you. Below is a compact table of CI, AI review, Preview and Policy, then details for each check and a line of links: issue, PR, preview, Codex. The footer has a short run id and the update time in local time.

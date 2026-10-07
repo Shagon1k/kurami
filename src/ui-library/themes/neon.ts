@@ -18,6 +18,7 @@ export const neonTheme:ThemeVariant={
     "display-case":"uppercase","display-tracking":".01em",
     "display-glow":`0 0 2px #fff6, 0 0 18px ${red}99, 0 0 42px ${red}55`,
     "panel-cut":"14px",
+    "mark-glow":"0 0 6px currentColor, 0 0 16px currentColor",
     "panel-glow":`0 0 0 1px ${red}, 0 0 18px ${red}88, inset 0 0 22px -12px ${red}88`,
     "radius-sm":"4px","radius":"6px","radius-md":"8px","radius-pill":"999px",
     "shadow-card":"inset 0 0 0 1px var(--border-default)",
@@ -79,6 +80,7 @@ export const neonTheme:ThemeVariant={
   },scale:{
     "display-glow":`0 0 14px ${red}40`,
     "panel-glow":`0 0 0 1px ${fill}, 0 6px 22px -8px ${red}66`,
+    "mark-glow":"0 0 6px currentColor",
     "shadow-raised":"0 10px 28px #2a1f3d26, 0 0 0 1px var(--border-default)",
   }}},
 };

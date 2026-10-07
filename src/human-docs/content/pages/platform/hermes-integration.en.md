@@ -77,11 +77,12 @@ The plugin decides and stores nothing. For every press it runs a short Kurami CL
 
 ## Skills and MCP servers
 
-A skill is a folder of instructions that Hermes attaches to an agent session. Kurami ships five.
+A skill is a folder of instructions that Hermes attaches to an agent session. Kurami ships six.
 
 | Skill | What for |
 |---|---|
 | `kurami-daily-briefing` | building the morning edition: the agent's editorial work, the runtime does the rest |
+| `kurami-ideas` | saves ideas from chat into the ideas pool and brings them back on request; starts nothing. The same file is installed for Claude Code and Codex, so any agent can take an idea |
 | `kurami-investment-review` | preparing a portfolio review on explicit request |
 | `kurami-project-readiness` | a read-only "is the project ready" check |
 | `kurami-run-control` | text commands for controlling a run when there is no button |
