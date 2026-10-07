@@ -73,7 +73,7 @@
   const toastRegion=document.querySelector('[data-toast-region]');
   const toastHome=app;
   const toast=createKuramiToast(toastRegion,()=>dashboard.querySelector('#project-details')??(search?.getClientRects().length?search:document.querySelector('[data-mobile-menu="search"]')));
-  const notify=(message,tone='info',duration)=>toast.show(message,{tone,duration});
+  const notify=(message,tone='info',duration,celebrate=false)=>toast.show(message,{tone,duration,celebrate});
   if (!dashboard) return;
   let refreshing = false;
   let requestingReview = false;
@@ -141,7 +141,8 @@
       unconfirmed:t('PR action unconfirmed. Check its result in GitHub.'),
       response:async(result,response)=>{
         if(!response.ok)throw new Error(result.error||t('GitHub did not complete this PR action.'));
-        notify(t(result.state==='applied'?(button.dataset.prAction==='ready'?'PR ready for review.':'PR merged.'):result.state==='uncertain'?'PR action unconfirmed. Check its result in GitHub.':'GitHub is processing this PR action.'),result.state==='applied'?'success':'warning');
+        const merged=result.state==='applied'&&button.dataset.prAction!=='ready';
+        notify(t(result.state==='applied'?(button.dataset.prAction==='ready'?'PR ready for review.':'PR merged. One less thing to worry about.'):result.state==='uncertain'?'PR action unconfirmed. Check its result in GitHub.':'GitHub is processing this PR action.'),result.state==='applied'?'success':'warning',undefined,merged);
       },after:()=>refresh(),
     });
   }
