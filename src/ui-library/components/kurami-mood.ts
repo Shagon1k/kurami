@@ -13,9 +13,10 @@ export type KuramiMood = typeof KURAMI_MOODS[number];
 /** Flat names: the gateway serves an app's files only directly under /assets/. */
 export const kuramiMoodPath = (mood: KuramiMood): string => `/assets/kurami-${mood}.webp`;
 
-/** The files every app registers, so the mounted pages can load them from their own origin path. */
+/** The files every app registers, so the mounted pages can load them from their own origin path. The path climbs
+ * to the repository root, so the same files are found from src and from the compiled dist (Digest). */
 export function kuramiMoodAssets(): { path: string; body: Buffer }[] {
-  return KURAMI_MOODS.map(mood => ({ path: kuramiMoodPath(mood), body: readFileSync(new URL(`../assets/kurami/${mood}.webp`, import.meta.url)) }));
+  return KURAMI_MOODS.map(mood => ({ path: kuramiMoodPath(mood), body: readFileSync(new URL(`../../../src/ui-library/assets/kurami/${mood}.webp`, import.meta.url)) }));
 }
 
 /** Kurami in her medallion: a disc behind her, the figure cut only along the lower arc, everything above
