@@ -4,7 +4,10 @@
 //   CI failed            → one CI repair (never a second one for the task),
 //   CI passed, no review → AI Review of this commit,
 //   review found critical or important issues → one round of review fixes (never a second round).
-// Merging stays with the owner. Requests go through the same guarded paths as the owner's buttons on
+// Merging stays with the owner. Separately, "take the next task" (also per project, off by default) starts
+// triage's suggested next Backlog task once the project has nothing in progress or in review — one task at
+// a time, through the same guarded status change as "Start work" on Projects.
+// Requests go through the same guarded paths as the owner's buttons on
 // Projects (`requestProjectsReview`, `requestProjectRunAction`): they check sync freshness, eligibility and the
 // commit, so the autopilot can only ask for what the owner could ask for at that moment.
 import { createHash } from "node:crypto";
@@ -17,14 +20,21 @@ import { resolveKuramiHome } from "../../core/kurami-home.ts";
 import { projectRunStatus, readProjectStatus, type CurrentProjectRun, type ProjectStatuses } from "../projects/status-read-model.ts";
 import { requestProjectsReview } from "../../projects-site/actions.ts";
 import { projectRunActions, requestProjectRunAction } from "../../projects-site/run-actions.ts";
+import { collectProjectsSnapshot } from "../../projects-site/snapshot.ts";
+import { requestProjectStatus } from "../../projects-site/status.ts";
+import { canStartTask } from "../../projects-site/task-start.ts";
+import type { ProjectsSnapshot } from "../../projects-site/model.ts";
 
-export type AutopilotSettings = { version: 1; revision: number; projects: Record<string, boolean>; actorId?: string; appliedAt?: string };
-export type AutopilotStep = { runId: string; project: string; itemId: string; head: string; action: "ci_repair" | "ai_review" | "review_fix" };
+export type AutopilotSettings = { version: 1; revision: number; projects: Record<string, boolean>; next?: Record<string, boolean>; actorId?: string; appliedAt?: string };
+export type AutopilotStep = { runId: string; project: string; itemId: string; head: string; action: "ci_repair" | "ai_review" | "review_fix" | "start" };
 type Ledger = Record<string, { at: string; outcome: "requested" | "refused"; tries: number }>;
 export type AutopilotDeps = {
   review: (input: unknown, actor: string) => unknown;
   action: (input: unknown, actor: string) => unknown;
   fingerprint: (runId: string) => { fingerprint: string; enabled: Set<string> };
+  /** Projects as the Projects page sees them, for picking the next task. */
+  projects?: () => ProjectsSnapshot;
+  start?: (input: unknown, actor: string) => Promise<unknown>;
 };
 
 const ACTOR = "autopilot";
@@ -75,6 +85,8 @@ function defaultDeps(home: string): AutopilotDeps {
   return {
     review: (input, actor) => requestProjectsReview(input, actor, { home }),
     action: (input, actor) => requestProjectRunAction(input, actor, { home }),
+    projects: () => collectProjectsSnapshot({ home, statusEnabled: true }),
+    start: (input, actor) => requestProjectStatus(input, actor, { home }),
     fingerprint: runId => {
       const database = new DatabaseSync(resolve(home, "state/orchestrator.db"), { readOnly: true, timeout: 1_000 });
       try {
@@ -85,11 +97,22 @@ function defaultDeps(home: string): AutopilotDeps {
   };
 }
 
+/** The task to start next in a project, or null: only when nothing is in progress or in review there
+ *  (one task at a time), and only triage's suggestion that "Start work" would accept right now. */
+export function nextTaskToStart(snapshot: ProjectsSnapshot, projectKey: string): { itemId: string; from: string; target: string; observedAt: string } | null {
+  const project = snapshot.projects.find(entry => entry.key === projectKey);
+  if (!snapshot.available || !project || project.freshness !== "fresh") return null;
+  const items = snapshot.items.filter(item => item.project === projectKey);
+  if (items.some(item => item.status === project.statuses.active || item.status === project.statuses.review)) return null;
+  const next = items.find(item => item.suggestedNext && canStartTask(item, project));
+  return next ? { itemId: next.id, from: next.status!, target: project.statuses.active, observedAt: next.observedAt } : null;
+}
+
 /** One pass for every project with the autopilot on. Returns what it asked for. */
 export async function runAutopilot(home: string, now = new Date(), deps: AutopilotDeps = defaultDeps(home)): Promise<AutopilotStep[]> {
   const settings = readAutopilotSettings(home);
   const enabled = Object.entries(settings.projects).filter(([, on]) => on).map(([key]) => key);
-  if (!enabled.length) return [];
+  if (!enabled.length && !Object.values(settings.next ?? {}).some(Boolean)) return [];
   const registry = (parse(readFileSync(resolve(home, "config/projects.yaml"), "utf8")) as { projects?: Record<string, { statuses: ProjectStatuses }> }).projects ?? {};
   const status = readProjectStatus(resolve(home, "state/orchestrator.db"), registry, now);
   if (!status.available) return [];
@@ -116,6 +139,25 @@ export async function runAutopilot(home: string, now = new Date(), deps: Autopil
     } catch {}
     ledger[key] = { at: now.toISOString(), outcome, tries: (previous?.tries ?? 0) + 1 };
   }
+  // Take the next task, one at a time, in projects where that is switched on.
+  const takeNext = Object.entries(settings.next ?? {}).filter(([, on]) => on).map(([key]) => key);
+  if (takeNext.length && deps.projects && deps.start) {
+    let snapshot: ProjectsSnapshot | null = null;
+    try { snapshot = deps.projects(); } catch {}
+    for (const project of snapshot ? takeNext : []) {
+      const task = nextTaskToStart(snapshot!, project);
+      if (!task) continue;
+      const key = `start:${project}:${task.itemId}`, previous = ledger[key];
+      if (previous?.outcome === "requested" || (previous && (previous.tries >= MAX_TRIES || now.getTime() - Date.parse(previous.at) < RETRY_MINUTES * 60_000))) continue;
+      let outcome: "requested" | "refused" = "refused";
+      try {
+        const id = createHash("sha256").update(key).digest("hex");
+        await deps.start({ project, itemId: task.itemId, from: task.from, target: task.target, observedAt: task.observedAt, key: `${id.slice(0, 8)}-${id.slice(8, 12)}-${id.slice(12, 16)}-${id.slice(16, 20)}-${id.slice(20, 32)}` }, ACTOR);
+        outcome = "requested"; asked.push({ runId: "", project, itemId: task.itemId, head: "", action: "start" });
+      } catch {}
+      ledger[key] = { at: now.toISOString(), outcome, tries: (previous?.tries ?? 0) + 1 };
+    }
+  }
   // Forget steps older than two weeks: their commits are long gone.
   for (const [key, entry] of Object.entries(ledger)) if (now.getTime() - Date.parse(entry.at) > 14 * 86_400_000) delete ledger[key];
   await writeAtomically(autopilotPaths(home).ledger, ledger);
@@ -133,22 +175,22 @@ export async function runAutopilotCli(argv = process.argv.slice(2)): Promise<Rec
   const registry = (parse(readFileSync(resolve(home, "config/projects.yaml"), "utf8")) as { projects?: Record<string, { repository?: string }> }).projects ?? {};
   const projects = Object.keys(registry).sort();
   const view = (action: string, state: AutopilotSettings) => ({ ok: true, action, revision: state.revision,
-    projects: Object.fromEntries(projects.map(key => [key, state.projects[key] === true])), names: Object.fromEntries(projects.map(key => [key, registry[key]?.repository?.split("/")[1] ?? key])) });
+    projects: Object.fromEntries(projects.map(key => [key, state.projects[key] === true])), next: Object.fromEntries(projects.map(key => [key, state.next?.[key] === true])), names: Object.fromEntries(projects.map(key => [key, registry[key]?.repository?.split("/")[1] ?? key])) });
   if (command === "status") return view("status", current);
   if (command === "run") return { ok: true, asked: await runAutopilot(home) };
-  if (command !== "apply") fail("Usage: autopilot.ts status | run | apply --projects key,key --expected-revision N --actor-id ID");
+  if (command !== "apply") fail("Usage: autopilot.ts status | run | apply --projects key,key --next key,key --expected-revision N --actor-id ID");
   const options: Record<string, string> = {};
   for (let index = 0; index < args.length; index += 2) {
     const flag = args[index], value = args[index + 1];
-    if (!["--projects", "--expected-revision", "--actor-id"].includes(flag ?? "") || value === undefined) fail(`Unknown autopilot argument: ${flag ?? "missing"}`);
+    if (!["--projects", "--next", "--expected-revision", "--actor-id"].includes(flag ?? "") || value === undefined) fail(`Unknown autopilot argument: ${flag ?? "missing"}`);
     options[flag!.slice(2)] = value;
   }
-  const on = (options.projects ?? "").split(",").filter(Boolean);
-  if (on.some(key => !projects.includes(key))) fail("Unknown project");
+  const on = (options.projects ?? "").split(",").filter(Boolean), takeNext = (options.next ?? "").split(",").filter(Boolean);
+  if ([...on, ...takeNext].some(key => !projects.includes(key))) fail("Unknown project");
   if (!/^\d+$/.test(options["expected-revision"] ?? "") || !/^\d{1,40}$/.test(options["actor-id"] ?? "")) fail("Invalid revision or actor ID");
   if (Number(options["expected-revision"]) !== current.revision) fail(`Autopilot settings changed since this panel opened: expected revision ${options["expected-revision"]}, current revision ${current.revision}`);
-  const next: AutopilotSettings = { version: 1, revision: current.revision + 1, projects: Object.fromEntries(projects.map(key => [key, on.includes(key)])), actorId: options["actor-id"], appliedAt: new Date().toISOString() };
-  if (projects.every(key => (current.projects[key] === true) === next.projects[key])) return view("unchanged", current);
+  const next: AutopilotSettings = { version: 1, revision: current.revision + 1, projects: Object.fromEntries(projects.map(key => [key, on.includes(key)])), next: Object.fromEntries(projects.map(key => [key, takeNext.includes(key)])), actorId: options["actor-id"], appliedAt: new Date().toISOString() };
+  if (projects.every(key => (current.projects[key] === true) === next.projects[key] && (current.next?.[key] === true) === next.next![key])) return view("unchanged", current);
   await writeAtomically(autopilotPaths(home).settings, next);
   return view("applied", next);
 }

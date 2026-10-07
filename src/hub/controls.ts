@@ -120,9 +120,10 @@ export function createHubControls(options:{home?:string;hermesHome?:string;run?:
       if(!validDevResources(limits))return bad();
       result=JSON.parse(await run(node,[devResourcesPath,"apply","--cores",String(limits.cores),"--test-jobs",String(limits.testJobs),"--memory-gib",String(limits.memoryGiB),"--expected-revision",String(integer(payload.revision,0,1e9)),"--actor-id",actor]));
     }else if(action==="autopilot-apply"){
-      const projects=Array.isArray(payload.projects)?payload.projects:null;
-      if(!projects||projects.length>20||projects.some((key:unknown)=>typeof key!=="string"||!/^[a-z0-9-]{1,64}$/.test(key)))return bad();
-      result=JSON.parse(await run(node,[autopilotPath,"apply","--projects",projects.join(","),"--expected-revision",String(integer(payload.revision,0,1e9)),"--actor-id",actor]));
+      const list=(value:unknown)=>Array.isArray(value)&&value.length<=20&&value.every(key=>typeof key==="string"&&/^[a-z0-9-]{1,64}$/.test(key))?value as string[]:null;
+      const projects=list(payload.projects),next=list(payload.next??[]);
+      if(!projects||!next)return bad();
+      result=JSON.parse(await run(node,[autopilotPath,"apply","--projects",projects.join(","),"--next",next.join(","),"--expected-revision",String(integer(payload.revision,0,1e9)),"--actor-id",actor]));
     }else if(action==="composio-apply"){
       if(!["broad","read","automation"].includes(String(payload.contour)))return bad();
       const check=(await composioCheck()).find(item=>item.contour===payload.contour)!;

@@ -78,7 +78,9 @@ Hub's Controls → **Settings** has an **Autopilot** section, switched on per pr
 | CI passed, no review of this commit | AI Review of this commit |
 | AI Review found critical or important issues | one round of fixes, once per task |
 
-Each step is asked for once per commit and goes through the same checks as the Projects buttons: fresh sync, an available action, the same commit. When a check fails, the autopilot retries at most every 15 minutes and at most four times. The steps spend the Codex limit. Merging and anything after the review stay with you. The setting lives in `state/autopilot-settings.json` with a revision, and the steps taken in `state/autopilot-ledger.json`.
+Each step is asked for once per commit and goes through the same checks as the Projects buttons: fresh sync, an available action, the same commit. When a check fails, the autopilot retries at most every 15 minutes and at most four times. The steps spend the Codex limit. Merging and anything after the review stay with you.
+
+A second switch, **Take the next task**, is also per project and also off. When the project has nothing in progress or in review, Kurami starts the task triage marked as next, the same way the Projects "Start work" button does, with the same checks. Tasks are taken strictly one at a time: the next one starts only when the current one is finished. The autopilot tries to start each task once. The setting lives in `state/autopilot-settings.json` with a revision, and the steps taken in `state/autopilot-ledger.json`.
 
 ## Revisions, Undo and Reset
 

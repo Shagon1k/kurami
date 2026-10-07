@@ -267,10 +267,12 @@ document.addEventListener("submit",event=>{
     confirmAction(action,{revision:Number(form.dataset.revision),cores:Number(values.cores),testJobs:Number(values.testJobs),memoryGiB:Number(values.memoryGiB)},text('Ресурсы разработки','Development resources'),changes);
   }
   if(action==="autopilot-apply"){
-    const boxes=[...form.querySelectorAll('input[name="autopilot"]')];
-    const changes=boxes.filter(box=>box.checked!==box.defaultChecked).map(box=>[box.closest('label')?.textContent.trim()??box.value,box.defaultChecked?text('вкл','on'):text('выкл','off'),box.checked?text('вкл','on'):text('выкл','off')]);
+    const boxes=[...form.querySelectorAll('input[name="autopilot"]')],nextBoxes=[...form.querySelectorAll('input[name="autopilot-next"]')];
+    const state=box=>box.checked?text('вкл','on'):text('выкл','off'),was=box=>box.defaultChecked?text('вкл','on'):text('выкл','off');
+    const changes=[...boxes.map(box=>[box,text('до решения','to decision')]),...nextBoxes.map(box=>[box,text('следующая задача','next task')])].filter(([box])=>box.checked!==box.defaultChecked)
+      .map(([box,kind])=>[`${box.closest('label')?.textContent.trim()??box.value} · ${kind}`,was(box),state(box)]);
     if(!changes.length){controlResult.textContent=text("Без изменений","No changes");return;}
-    confirmAction(action,{revision:Number(form.dataset.revision),projects:boxes.filter(box=>box.checked).map(box=>box.value)},text('Автопилот','Autopilot'),changes);
+    confirmAction(action,{revision:Number(form.dataset.revision),projects:boxes.filter(box=>box.checked).map(box=>box.value),next:nextBoxes.filter(box=>box.checked).map(box=>box.value)},text('Автопилот','Autopilot'),changes);
   }
   if(action==="settings-apply"){
     const settings={project_wip:{}};const current=JSON.parse(form.dataset.current);const changes=[];

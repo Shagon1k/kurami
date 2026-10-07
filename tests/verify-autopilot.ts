@@ -8,7 +8,8 @@ import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { DatabaseSync } from "node:sqlite";
-import { nextAutopilotStep, runAutopilot, type AutopilotDeps } from "../src/orchestrator/runtime/autopilot.ts";
+import { nextAutopilotStep, nextTaskToStart, runAutopilot, type AutopilotDeps } from "../src/orchestrator/runtime/autopilot.ts";
+import type { ProjectsSnapshot } from "../src/projects-site/model.ts";
 import type { CurrentProjectRun } from "../src/orchestrator/projects/status-read-model.ts";
 
 const head = "abcdef1234567";
@@ -51,7 +52,7 @@ try {
   database.close();
 
   const cli = (...args: string[]) => JSON.parse(execFileSync(process.execPath, [resolve(app, "src/orchestrator/runtime/autopilot.ts"), ...args], { env, encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] }));
-  assert.deepEqual(cli("status"), { ok: true, action: "status", revision: 0, projects: { pickflick: false, tailortales: false }, names: { pickflick: "PickFlick", tailortales: "TailorTales" } });
+  assert.deepEqual(cli("status"), { ok: true, action: "status", revision: 0, projects: { pickflick: false, tailortales: false }, next: { pickflick: false, tailortales: false }, names: { pickflick: "PickFlick", tailortales: "TailorTales" } });
 
   const calls: string[] = [];
   let refuse = false;
@@ -77,5 +78,26 @@ try {
   assert.equal(input.head, head); assert.match(input.key, /^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/);
   assert.deepEqual(await runAutopilot(home, later(60), deps), [], "asked once per commit");
   assert.equal(calls.length, 2);
-  console.log(JSON.stringify({ ok: true, autopilot: "step rules, off by default, revisioned settings, once per commit, retry spacing" }));
+
+  // Take the next task: one at a time, only triage's suggestion that "Start work" accepts, once per task.
+  const statuses = { backlog: "Backlog", active: "In progress", review: "Human Review", done: "Done", deferred: "Deferred" };
+  const item = (id: string, status: string, patch: Record<string, unknown> = {}) => ({ id, project: "tailortales", number: Number(id.slice(1)), kind: "Issue", status, observedAt: "2026-10-07T04:00:00Z",
+    links: { issue: "https://github.com/Shagon1k/TailorTales/issues/1" }, runId: null, runState: null, ...patch });
+  const board = (items: unknown[], freshness = "fresh") => ({ generatedAt: "2026-10-07T05:00:00Z", available: true, projects: [{ key: "tailortales", name: "TailorTales", statuses, freshness }], items }) as unknown as ProjectsSnapshot;
+  const suggested = { suggestedNext: { since: "2026-10-06T00:00:00Z", rankedAt: "2026-10-06T00:00:00Z", explanation: "Next" } };
+  assert.deepEqual(nextTaskToStart(board([item("i1", "Backlog"), item("i2", "Backlog", suggested), item("i3", "Done")]), "tailortales"), { itemId: "i2", from: "Backlog", target: "In progress", observedAt: "2026-10-07T04:00:00Z" });
+  assert.equal(nextTaskToStart(board([item("i2", "Backlog", suggested), item("i4", "In progress")]), "tailortales"), null, "one at a time: something is in progress");
+  assert.equal(nextTaskToStart(board([item("i2", "Backlog", suggested), item("i5", "Human Review")]), "tailortales"), null, "review counts as unfinished");
+  assert.equal(nextTaskToStart(board([item("i1", "Backlog")]), "tailortales"), null, "no suggestion, no start");
+  assert.equal(nextTaskToStart(board([item("i2", "Backlog", suggested)], "stale"), "tailortales"), null, "stale board, no start");
+  assert.equal(nextTaskToStart(board([item("i2", "Backlog", { ...suggested, runId: "r_x", runState: "running" })]), "tailortales"), null, "a live run is not started again");
+
+  const starts: unknown[] = [];
+  const nextDeps: AutopilotDeps = { ...deps, projects: () => board([item("i2", "Backlog", suggested)]), start: async input => { starts.push(input); } };
+  assert.deepEqual(await runAutopilot(home, later(120), nextDeps), [], "take-next is off by default");
+  assert.equal(cli("apply", "--projects", "pickflick", "--next", "tailortales", "--expected-revision", "1", "--actor-id", "7").action, "applied");
+  assert.deepEqual((await runAutopilot(home, later(121), nextDeps)).map(entry => [entry.action, entry.itemId]), [["start", "i2"]]);
+  assert.equal((starts[0] as { target: string }).target, "In progress");
+  assert.deepEqual(await runAutopilot(home, later(122), nextDeps), [], "a task is started once");
+  console.log(JSON.stringify({ ok: true, autopilot: "step rules, off by default, revisioned settings, once per commit, retry spacing, next task one at a time" }));
 } finally { rmSync(home, { recursive: true, force: true }); }
