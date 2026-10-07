@@ -75,6 +75,7 @@
     "test:mail-learning": "node tests/briefing/verify-mail-learning.ts",
     "test:capture": "node tests/projects-site/verify-capture.ts",
     "test:kurami-status": "node tests/verify-kurami-status.ts",
+    "test:chronicle": "node tests/verify-chronicle.ts",
     "test:release": "node tests/verify-completed-release.ts",
     "test:preview-slots": "node tests/verify-preview-slots.ts",
     "test:preview-ingress": "node tests/verify-preview-ingress.ts",

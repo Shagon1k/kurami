@@ -79,6 +79,7 @@ import { renderOfflineNews } from "./ui/offline-news.ts";
 import { HERO_MOOD_SCRIPT } from "./ui/components/hero-mood.ts";
 import { decideRule, recordArchived, ruleSuggestion } from "./mail-learning.ts";
 import type { MailClass } from "./model.ts";
+import { weeklyChronicle } from "./weekly/chronicle.ts";
 
 const CSP = [
   "default-src 'self'",
@@ -1114,7 +1115,7 @@ export async function createBriefingServer(
           const review=preview?buildWeeklyReview(database,weeklyLocalDate(new Date().toISOString(),timezone),timezone):loadWeeklyReview(database);
           sendHeaders(response,"text/html; charset=utf-8");
           response.statusCode=200;
-          response.end(injectRuntime(injectSiteNavigation(renderWeeklyPage(review,preview),publishedSiteLinks(database,true,new Date().toISOString(),options.stocks??runtimeConfig?.stocks.enabled??false),"weekly",requestedPath)));
+          response.end(injectRuntime(injectSiteNavigation(renderWeeklyPage(review,preview,weeklyChronicle(paths.home,new Date())),publishedSiteLinks(database,true,new Date().toISOString(),options.stocks??runtimeConfig?.stocks.enabled??false),"weekly",requestedPath)));
           return;
         }
         // News only, for the service worker's offline copy (ui/offline-news.ts).

@@ -25,6 +25,7 @@ import type {ProblemNext} from "./operations.ts";
 import type {CodexLimit,CodexSnapshot} from "./codex.ts";
 import type {HubProject,HubSnapshot} from "./snapshot.ts";
 import type {UsagePeriod} from "../orchestrator/projects/usage-read-model.ts";
+import type {ChronicleDay,ChronicleEvent,ChronicleKind} from "../orchestrator/projects/chronicle.ts";
 
 export type HubLanguage="ru"|"en";
 const tr=(lang:HubLanguage,ru:string,en:string)=>lang==="ru"?ru:en;
@@ -160,6 +161,18 @@ function renderAlerts(snapshot:HubSnapshot,lang:HubLanguage):string {
 }
 /** Managed projects are named by the registry (via the snapshot); Kurami's own areas have fixed names. */
 const projectName=(snapshot:HubSnapshot,key:string)=>snapshot.projects.find(project=>project.key===key)?.name??({kurami:"Kurami",digest:"Digest",other:"—"} as Record<string,string>)[key]??key;
+/** The week as a story: per day, what moved in the projects (src/orchestrator/projects/chronicle.ts). */
+function renderChronicle(snapshot:HubSnapshot,lang:HubLanguage):string {
+  const days=snapshot.chronicle;
+  if(!days?.length)return "";
+  const words:Record<ChronicleKind,{icon:IconName;text:[string,string]}>={started:{icon:"play",text:["взята в работу","started"]},review:{icon:"review",text:["отправлена на ревью","sent to review"]},
+    returned:{icon:"back",text:["вернулась в работу","returned to work"]},done:{icon:"check",text:["завершена","done"]},ci_repair:{icon:"ci",text:["исправление CI","CI repair"]},ai_review:{icon:"spark",text:["AI Review","AI Review"]}};
+  const detail=(event:ChronicleEvent)=>event.kind==="ai_review"?(/^\d+$/.test(event.detail??"")?(Number(event.detail)?tr(lang,` · существенных замечаний: ${event.detail}`,` · major findings: ${event.detail}`):tr(lang," · без существенных замечаний"," · no major findings")):` · ${event.detail}`):event.kind==="ci_repair"&&event.detail?` · ${({succeeded:tr(lang,"удалось","succeeded"),failed:tr(lang,"не удалось","failed")} as Record<string,string>)[event.detail]??event.detail}`:"";
+  const day=(entry:ChronicleDay)=>`<li class="chronicle__day"><h3>${escapeHtml(new Intl.DateTimeFormat(lang==="ru"?"ru-RU":"en-GB",{weekday:"short",day:"numeric",month:"short",timeZone:"UTC"}).format(new Date(entry.day+"T12:00:00Z")))}</h3><ul class="list-reset">${entry.events.map(event=>`<li data-kind="${event.kind}">${renderIcon(words[event.kind].icon)}<span><strong>${escapeHtml(snapshot.projects.find(project=>project.key===event.project)?.name??event.project)}${event.issue?` #${event.issue}`:""}</strong> ${escapeHtml(tr(lang,...words[event.kind].text))}${escapeHtml(detail(event))}${event.title?` <small>${escapeHtml(event.title)}</small>`:""}</span></li>`).join("")}</ul></li>`;
+  const recent=days.slice(0,2),older=days.slice(2);
+  return `<section class="section chronicle" aria-labelledby="chronicle-title"><div class="section-heading"><h2 id="chronicle-title">${renderIcon("history")}${tr(lang,"Летопись недели","The week in projects")}</h2><span>${days.reduce((sum,entry)=>sum+entry.events.length,0)} ${tr(lang,"событий","events")}</span></div>
+    <ol class="list-reset chronicle__days">${recent.map(day).join("")}</ol>${older.length?renderDisclosure({summary:tr(lang,`Ещё ${older.length} дн.`,`${older.length} more days`),key:"chronicle-more",body:`<ol class="list-reset chronicle__days">${older.map(day).join("")}</ol>`}):""}</section>`;
+}
 function renderHealth(snapshot:HubSnapshot,lang:HubLanguage):string {
   const health=snapshot.operations?.health;
   const systemHeading=`<div class="section-heading"><h2 id="health-title">System Health</h2><span>${health?escapeHtml(formatTime(health.checkedAt,lang)):"—"}${snapshot.operations?.healthStale?` · ${tr(lang,"устарело","stale")}`:""}</span></div>`;
@@ -302,7 +315,7 @@ export function renderHubDashboard(snapshot:HubSnapshot,lang:HubLanguage="en"):s
     </section>
     ${renderHealth(snapshot,lang)}
     <section class="section" aria-labelledby="projects-title"><div class="section-heading"><h2 id="projects-title">${tr(lang,"Проекты","Projects")}</h2></div>${periods("commits",days=>projectRows(snapshot.projects,lang,days))}${renderUsage(snapshot,lang)}</section>
-    ${renderTrend(snapshot,lang)}${renderCodex(snapshot.codex,lang)}${renderActivity(snapshot,lang)}`;
+    ${renderTrend(snapshot,lang)}${renderCodex(snapshot.codex,lang)}${renderActivity(snapshot,lang)}${renderChronicle(snapshot,lang)}`;
 }
 
 function hubHeader(lang:HubLanguage,controls=true):string {

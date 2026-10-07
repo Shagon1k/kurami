@@ -3,6 +3,7 @@ import {WEEKLY_STYLES} from "../weekly/styles.ts";
 import {STOCKS_STYLES} from "../stocks/styles.ts";
 import {ENGINEERING_STYLES} from "../engineering/render.ts";
 import {HERO_MOOD_STYLES} from "./components/hero-mood.ts";
+import {WEEKLY_CHRONICLE_STYLES} from "../weekly/chronicle.ts";
 import {COMPANY_AVATAR_STYLES} from "./components/company-avatar.ts";
 import {KURAMI_COMMENT_STYLES} from "./components/kurami-comment.ts";
 import {THEME_CSS} from "../../ui-library/themes/index.ts";
@@ -432,6 +433,7 @@ ${ENGINEERING_STYLES}
 .digest-feed__offline:not([data-ready]) { display: none; }
 .digest-feed__offline[aria-pressed="true"] { border-color: var(--status-success); color: var(--status-success); }
 ${HERO_MOOD_STYLES}
+${WEEKLY_CHRONICLE_STYLES}
 ${COMPANY_AVATAR_STYLES}
 ${KURAMI_COMMENT_STYLES}
 ${DIGEST_POLISH_CSS}

@@ -98,7 +98,10 @@ export function syntheticWeeklyReview(partial=false):WeeklyReview {
 }
 
 export function syntheticWeeklyFilled(lang:DigestLanguage="ru",partial=false):string {
-  return withDigestLanguage(lang,()=>renderWeeklyPage(syntheticWeeklyReview(partial)));
+  const chronicle={names:{pickflick:"PickFlick",tailortales:"TailorTales"},days:[
+    {day:"2026-09-19",events:[{at:"2026-09-19T09:00:00Z",project:"pickflick",issue:120,title:"Club invitations",kind:"done" as const}]},
+    {day:"2026-09-17",events:[{at:"2026-09-17T09:00:00Z",project:"tailortales",issue:41,title:"Bedtime story pacing",kind:"review" as const},{at:"2026-09-17T12:00:00Z",project:"pickflick",issue:123,title:"Update watchlist",kind:"started" as const}]}]};
+  return withDigestLanguage(lang,()=>renderWeeklyPage(syntheticWeeklyReview(partial),false,partial?null:chronicle));
 }
 
 export function syntheticStocksSnapshot():StocksSnapshot {

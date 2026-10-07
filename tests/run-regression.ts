@@ -64,6 +64,7 @@ const suites = [
   "test:mail-learning",
   "test:capture",
   "test:kurami-status",
+  "test:chronicle",
   "test:release",
   "test:preview-slots",
   "test:preview-ingress",
