@@ -1,10 +1,73 @@
 version: 1
 
 projects:
+  pickflick:
+    owner: Shagon1k
+    project_number: 3
+    repository: Shagon1k/PickFlick
+    icon: panda
+    status_field: Status
+    human_control_label: human-control
+    telegram:
+      chat_id: "234109954"
+      topic_id: "509547"
+    discord:
+      guild_id: "1538486166330933358"
+      channel_id: "1538490579699245119"
+    statuses:
+      backlog: Backlog
+      active: In progress
+      review: Human Review
+      done: Done
+      deferred: Deferred
+    workspace:
+      canonical_repository: /home/shagon1k/_projects/PickFlick
+      worktree_root: /home/shagon1k/_projects/.worktrees/pickflick
+      base_branch: main
+      branch_prefix: PF
+    ci:
+      enabled: true
+      required_checks:
+        - Secret scan
+        - Lint, type-check, test
+        - Integration and runtime smoke
+        - UI smoke
+        - Production images
+        - Delivery gate
+      missing_grace_minutes: 10
+    triage:
+      enabled: true
+      priority_field: Priority
+      effort_field: Effort
+    preview:
+      adapter: compose
+      required_label: preview-required
+      compose_file: compose.preview.yaml
+      services:
+        postgres: postgres
+        redis: redis
+        minio: minio
+        minio_init: minio-init
+        release: release
+        api: api
+        worker: worker
+        web: web
+      health:
+        frontend: { service: web, path: / }
+        backend: { service: api, path: /health/ready }
+        minio: { service: minio, path: /minio/health/live }
+      secrets_file: /home/shagon1k/_hermes/_kurami/secrets/pickflick-preview.env
+      required_secret_keys:
+        - GOOGLE_CLIENT_ID
+        - GOOGLE_CLIENT_SECRET
+      runtime_variables:
+        AUTH_BASE_URL: ${PREVIEW_URL}
+
   tailortales:
     owner: Shagon1k
     project_number: 2
     repository: Shagon1k/TailorTales
+    icon: fox
     status_field: Status
     human_control_label: human-control
     telegram:
@@ -82,71 +145,11 @@ projects:
           NEXT_PUBLIC_SITE_URL: ${PREVIEW_URL}
           NEXT_PUBLIC_STORAGE_URL: ${PREVIEW_ASSETS_URL}
 
-  pickflick:
-    owner: Shagon1k
-    project_number: 3
-    repository: Shagon1k/PickFlick
-    status_field: Status
-    human_control_label: human-control
-    telegram:
-      chat_id: "234109954"
-      topic_id: "509547"
-    discord:
-      guild_id: "1538486166330933358"
-      channel_id: "1538490579699245119"
-    statuses:
-      backlog: Backlog
-      active: In progress
-      review: Human Review
-      done: Done
-      deferred: Deferred
-    workspace:
-      canonical_repository: /home/shagon1k/_projects/PickFlick
-      worktree_root: /home/shagon1k/_projects/.worktrees/pickflick
-      base_branch: main
-      branch_prefix: PF
-    ci:
-      enabled: true
-      required_checks:
-        - Secret scan
-        - Lint, type-check, test
-        - Integration and runtime smoke
-        - UI smoke
-        - Production images
-        - Delivery gate
-      missing_grace_minutes: 10
-    triage:
-      enabled: true
-      priority_field: Priority
-      effort_field: Effort
-    preview:
-      adapter: compose
-      required_label: preview-required
-      compose_file: compose.preview.yaml
-      services:
-        postgres: postgres
-        redis: redis
-        minio: minio
-        minio_init: minio-init
-        release: release
-        api: api
-        worker: worker
-        web: web
-      health:
-        frontend: { service: web, path: / }
-        backend: { service: api, path: /health/ready }
-        minio: { service: minio, path: /minio/health/live }
-      secrets_file: /home/shagon1k/_hermes/_kurami/secrets/pickflick-preview.env
-      required_secret_keys:
-        - GOOGLE_CLIENT_ID
-        - GOOGLE_CLIENT_SECRET
-      runtime_variables:
-        AUTH_BASE_URL: ${PREVIEW_URL}
-
   ahurynovich-cv:
     owner: Shagon1k
     project_number: 1
     repository: Shagon1k/AHurynovich-CV
+    icon: profile
     status_field: Status
     human_control_label: human-control
     discord:

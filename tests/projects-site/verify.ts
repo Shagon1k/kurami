@@ -186,7 +186,8 @@ for(const lang of ["en","ru"]){
   assert.match(saveButton,/\sdisabled(?:\s|>)/,"unchanged status Save remains disabled");
 }
 const iconFixture=structuredClone(fixture);
-iconFixture.projects=["PickFlick","TailorTales","AHurynovich-CV"].map((name,index)=>({...fixture.projects[0]!,key:`project-${index}`,name}));
+// Icons come from the registry's `icon` field (src/core/projects-registry.ts), not from the name.
+iconFixture.projects=([["PickFlick","panda"],["TailorTales","fox"],["AHurynovich-CV","profile"]] as const).map(([name,icon],index)=>({...fixture.projects[0]!,key:`project-${index}`,name,icon}));
 const iconPage=renderProjectsPage(iconFixture),mobileProjectNav=iconPage.split('id="mobile-menu-sections"')[1]!.split('</nav>')[0]!;
 for(const icon of ["projects","panda","fox","profile"] as const)assert.ok(mobileProjectNav.includes(iconPath(icon)),`mobile project navigation: ${icon}`);
 assert.doesNotMatch(iconPage.split('<div class="site-header__inner container">')[1]!.split('</a>\n')[1]!.split('class="site-actions"')[0]!,/<svg/,'desktop project navigation remains text-only');

@@ -35,7 +35,15 @@ Each entry in `deploy/config/projects.yaml` needs:
 - the exact `owner/repository` name;
 - the exact single-select `status_field` name;
 - distinct configured values for `backlog`, `active`, `review`, `done`, and
-  `deferred`.
+  `deferred`;
+- optionally an `icon` for Projects navigation (`panda`, `fox`, `profile`,
+  `book`, `news`, `cinema`, `chart`; anything else shows the generic project
+  icon).
+
+The registry is the only list of projects: Hub and Projects show them in
+registry order under the repository's name, and `run-project-poller.sh` accepts
+exactly the registered keys (`src/core/projects-registry.ts`). A new project
+still needs its own Hermes cron job calling the poller with its key.
 
 Live readiness additionally proves that the repository and Project are readable,
 the configured base branch exists, and the Project exposes the configured status

@@ -16,13 +16,11 @@ readonly OBSERVER="${KURAMI_HOME}/app/src/orchestrator/projects/sessions/observe
 readonly ENV_FILE="${KURAMI_HOME}/secrets/github.env"
 readonly PROJECT="${1:-}"
 
-case "${PROJECT}" in
-  tailortales|pickflick|ahurynovich-cv) ;;
-  *)
-    printf 'Usage: %s <tailortales|pickflick|ahurynovich-cv>\n' "$0" >&2
-    exit 64
-    ;;
-esac
+# Any project from config/projects.yaml; the key also names lock and log files, so it is checked strictly.
+if [[ ! "${PROJECT}" =~ ^[a-z0-9-]{1,64}$ ]] || ! KURAMI_HOME="${KURAMI_HOME}" "${NODE_BIN}" "${KURAMI_HOME}/app/src/core/projects-registry.ts" keys | grep -qxF -- "${PROJECT}"; then
+  printf 'Usage: %s <project key from config/projects.yaml>\n' "$0" >&2
+  exit 64
+fi
 
 readonly LOCK_FILE="${KURAMI_HOME}/state/project-poller-${PROJECT}.lock"
 readonly CONSUMER_LOCK_FILE="${KURAMI_HOME}/state/project-event-consumer.lock"
