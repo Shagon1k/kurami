@@ -60,7 +60,8 @@ export function workingTree(root: string): string | null {
   const index = resolve(tmpdir(), `kurami-test-index-${process.pid}-${Date.now()}`), env = { ...process.env, GIT_INDEX_FILE: index };
   try {
     try { copyFileSync(resolve(root, real), index); } catch {}
-    if (git(["add", "-A", "--", ".", ":!node_modules"], env).status !== 0) return null;
+    // node_modules (a directory or a worktree's symlink) is ignored by .gitignore, so `add -A` skips it.
+    if (git(["add", "-A", "--", "."], env).status !== 0) return null;
     const tree = git(["write-tree"], env).stdout.trim();
     return /^[0-9a-f]{40}$/.test(tree) ? tree : null;
   } finally { rmSync(index, { force: true }); }
