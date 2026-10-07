@@ -1,5 +1,6 @@
 import { section } from "./addons/envelopes.ts";
 import {publicDigestUrl} from "./public-url.ts";
+import {WEB_ORIGIN,publicAppUrl} from "../web/routes.ts";
 import { createHash } from "node:crypto";
 import { readFile } from "node:fs/promises";
 import { resolve } from "node:path";
@@ -59,6 +60,26 @@ const PROGRESS: Record<BriefingRunState, { step: number; label: string }> = {
   failed: { step: 0, label: "Сборка остановлена" },
   skipped: { step: 0, label: "Запуск не потребовался" },
 };
+
+/** What Kurami is doing while the run sits in a state: the next stage, said in the first person. */
+const NOW: Partial<Record<BriefingRunState, string>> = {
+  created: "Подключаю источники…",
+  "live-collected": "Листаю Telegram…",
+  "telegram-captured": "Сверяю и объединяю материалы…",
+  "capture-validated": "Пишу сюжеты…",
+  editorialized: "Рисую картинки…",
+  prepared: "Рисую картинки…",
+  "media-ready": "Навожу порядок в Telegram…",
+  "commit-planned": "Навожу порядок в Telegram…",
+  "telegram-committed": "Публикую страницу…",
+};
+const STEPS = 10;
+/** `🦊▰▰▰▰▱▱▱▱▱▱ 4/10`: the fox walks the bar. */
+export function progressBar(step: number): string {
+  const done = Math.max(0, Math.min(STEPS, step));
+  return `🦊${"▰".repeat(done)}${"▱".repeat(STEPS - done)} ${done}/${STEPS}`;
+}
+const COLORS = { success: 0x2f855a, failure: 0xe11d1d, running: 0xd97706, skipped: 0x6b7280 };
 
 const ADDON_LINKS: Record<string, { label: string; path: string; emoji: string }> = {
   cinema: { label: "Cinema", path: "/cinema", emoji: "🎬" },
@@ -154,7 +175,7 @@ function addonButtons(payload: BriefingPayload | null, baseUrl: string): JsonRec
   });
 }
 
-function runCardMessage(input: {
+export function runCardMessage(input: {
   attempt: BriefingRunAttempt;
   payload: BriefingPayload | null;
   timeZone: string;
@@ -167,7 +188,9 @@ function runCardMessage(input: {
   const progress = PROGRESS[attempt.state];
   const success = attempt.state === "published" || attempt.state === "notified";
   const failure = attempt.state === "failed";
-  const state: CardState = success ? "success" : failure ? "failure" : "running";
+  const skipped = attempt.state === "skipped";
+  // A skipped day is final like a success; only its look differs.
+  const state: CardState = success || skipped ? "success" : failure ? "failure" : "running";
   const counts = payloadCounts(payload);
   const fields: JsonRecord[] = success
     ? [
@@ -184,7 +207,7 @@ function runCardMessage(input: {
           },
           { name: "Причина", value: safeErrorCode(attempt.errorCode), inline: false },
         ]
-      : [{ name: "Прогресс", value: `${progress.step} / 10`, inline: true }];
+      : skipped ? [] : [{ name: "Прогресс", value: progressBar(progress.step), inline: false }];
   const addonNames = Object.keys(payload?.addons ?? {}).sort()
     .filter(id=>id!=="weekly"||Boolean(payload?.addons.weekly?.data.review))
     .flatMap((id) => ADDON_LINKS[id] ? [`${ADDON_LINKS[id]!.emoji} ${ADDON_LINKS[id]!.label}`] : []);
@@ -193,11 +216,13 @@ function runCardMessage(input: {
   }
   const description = success
     ? attempt.recoveryStartedAt
-      ? "✅ Выпуск восстановлен автоматически"
-      : "✅ Выпуск опубликован"
+      ? "✅ Выпуск восстановлен автоматически. Кофе — и вперёд."
+      : "✅ Выпуск опубликован. Кофе — и вперёд."
     : failure
       ? "❌ Выпуск не опубликован. Карточка обновится при восстановлении."
-      : `⏳ ${progress.label}`;
+      : skipped
+        ? "💤 Сегодня без выпуска."
+        : `⏳ ${NOW[attempt.state] ?? progress.label}`;
   const components = success
     ? [{
         type: 1,
@@ -206,7 +231,9 @@ function runCardMessage(input: {
           ...addonButtons(payload, baseUrl),
         ].slice(0, 5),
       }]
-    : [];
+    : failure
+      ? [{ type: 1, components: [{ type: 2, style: 5, label: "Открыть в Hub", url: WEB_ORIGIN + publicAppUrl("/", "hub", "ru") }] }]
+      : [];
   return {
     state,
     publicationUrl,
@@ -215,7 +242,7 @@ function runCardMessage(input: {
       embeds: [{
         title: `Daily Digest · ${displayDate(localDate, timeZone)}`,
         description,
-        color: success ? 0x2f855a : failure ? 0xe11d1d : 0xd97706,
+        color: success ? COLORS.success : failure ? COLORS.failure : skipped ? COLORS.skipped : COLORS.running,
         fields,
         footer: { text: `Обновлено ${displayTime(attempt.updatedAt, timeZone)} · Europe/Vilnius` },
       }],

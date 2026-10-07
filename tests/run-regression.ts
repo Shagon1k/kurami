@@ -49,6 +49,7 @@ const suites = [
   "test:test-plan",
   "test:projects-registry",
   "test:forecasts",
+  "test:digest-run-card",
   "test:release",
   "test:preview-slots",
   "test:preview-ingress",

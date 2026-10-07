@@ -63,6 +63,7 @@
     "test:test-plan": "node tests/verify-test-plan.ts",
     "test:projects-registry": "node tests/verify-projects-registry.ts",
     "test:forecasts": "node tests/verify-forecasts.ts",
+    "test:digest-run-card": "node tests/briefing/verify-run-card.ts",
     "test:release": "node tests/verify-completed-release.ts",
     "test:preview-slots": "node tests/verify-preview-slots.ts",
     "test:preview-ingress": "node tests/verify-preview-ingress.ts",
