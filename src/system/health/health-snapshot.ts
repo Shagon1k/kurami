@@ -1,14 +1,15 @@
 import {mkdir, rename, writeFile} from "node:fs/promises";
 import {dirname} from "node:path";
 import type {RuntimeHealthResult} from "../../orchestrator/health/runtime.ts";
+import type {DiskForecast} from "./disk-trend.ts";
 
 /** Public metrics shared by the Discord health card and Hub; no process arguments or paths. */
-export function healthSurfaceSnapshot(result:RuntimeHealthResult) {
+export function healthSurfaceSnapshot(result:RuntimeHealthResult,diskForecast:DiskForecast|null=null) {
   return {version:1 as const,checkedAt:result.checkedAt,ok:result.ok,
     server:result.server,cpuStatistics:result.cpuStatistics,
     network:{status:result.networkConnectivity.status,latencyMs:result.networkConnectivity.latencyMs},
     speed:result.networkSpeed?{downloadMbps:result.networkSpeed.downloadMbps,uploadMbps:result.networkSpeed.uploadMbps,checkedAt:result.networkSpeed.checkedAt}:null,
-    disk:result.resourceGuard.disk,
+    disk:result.resourceGuard.disk,diskForecast,
     orchestrator:{database:result.databaseIntegrity,containers:result.containerRuntime,
       previews:result.activePreviewLeases,worktrees:result.resourceGuard.worktrees.global,
       worktreeLimit:result.resourceGuard.worktrees.maxGlobal,quarantined:result.resourceGuard.quarantines.quarantined,
@@ -31,9 +32,9 @@ export function validHealthSurfaceSnapshot(value:any):value is HealthSurfaceSnap
   }catch{return false;}
 }
 
-export async function writeHealthSurfaceSnapshot(path:string,result:RuntimeHealthResult):Promise<void> {
+export async function writeHealthSurfaceSnapshot(path:string,result:RuntimeHealthResult,diskForecast:DiskForecast|null=null):Promise<void> {
   await mkdir(dirname(path),{recursive:true});
   const temporary=`${path}.${process.pid}.tmp`;
-  await writeFile(temporary,JSON.stringify(healthSurfaceSnapshot(result))+"\n",{mode:0o600});
+  await writeFile(temporary,JSON.stringify(healthSurfaceSnapshot(result,diskForecast))+"\n",{mode:0o600});
   await rename(temporary,path);
 }

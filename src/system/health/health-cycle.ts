@@ -7,6 +7,7 @@ import { inspectRuntimeHealth, writeRuntimeHealthCounterState, type RuntimeHealt
 import { evaluateHealthAlerts, readHealthAlertState, writeHealthAlertState, type HealthAlertState, type HealthAlertDecision } from "./server-health.ts";
 import { healthHistory, readHealthHistory, writeHealthHistory, type HealthHistoryEntry } from "./health-history.ts";
 import { writeHealthSurfaceSnapshot } from "./health-snapshot.ts";
+import { addDiskDay, diskForecast, readDiskDays, writeDiskDays } from "./disk-trend.ts";
 
 process.umask(0o077);
 
@@ -79,9 +80,13 @@ export async function collectHealthCycle(home: string, inspect = inspectRuntimeH
     }
     database.prepare("INSERT OR REPLACE INTO health_cycle VALUES(1,?)").run(JSON.stringify(cycle));
     database.exec("COMMIT");
+    // The disk series lives beside the cycle: one reading a day is enough for a forecast.
+    const diskPath = resolve(home, "state/disk-daily.json");
+    const diskDays = addDiskDay(await readDiskDays(diskPath), result.checkedAt, result.resourceGuard.disk.usedPercent);
     // Compatibility files are projections; delivery never owns measurements or hysteresis.
     await Promise.all([
-      writeHealthSurfaceSnapshot(resolve(home, "state/system-health-snapshot.json"), result),
+      writeDiskDays(diskPath, diskDays),
+      writeHealthSurfaceSnapshot(resolve(home, "state/system-health-snapshot.json"), result, diskForecast(diskDays, result.resourceGuard.disk.blockPercent)),
       writeHealthHistory(resolve(home, "state/system-health-history.json"), cycle.history),
       writeHealthAlertState(resolve(home, "state/runtime-health-alert.json"), cycle.alerts),
       writeRuntimeHealthCounterState(resolve(home, "state/runtime-health-counters.json"), result.oomKillCount),

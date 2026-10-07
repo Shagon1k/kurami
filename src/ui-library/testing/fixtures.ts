@@ -122,7 +122,7 @@ export function syntheticHubSnapshot():HubSnapshot {
       limits:[{name:"primary",usedPercent:42,remainingPercent:58,windowMinutes:10080,resetsAt:"2026-09-20T10:00:00Z",observedAt:"2026-09-16T06:59:00Z"}],updatedAt:"2026-09-16T06:59:00Z",account:{state:"live",resetCredits:2,observedAt:"2026-09-16T06:59:00Z",limits:[]}},
     operations:{healthStale:false,health:{version:1,checkedAt:"2026-09-16T06:59:00Z",ok:true,
       server:{hostname:"shagserv",cpuUsedPercent:12.3,cpuCores:8,loadAverage:[.8,.9,1.1],memoryUsedPercent:36.7,memoryUsedGiB:8.4,memoryTotalGiB:22.9,memoryAvailableGiB:14.5,swapUsedGiB:0,swapTotalGiB:0,uptimeSeconds:864000},
-      cpuStatistics:{windowMinutes:8,sampleCount:32,averagePercent:10.2,peakPercent:28.1},network:{status:"online",latencyMs:18.4},speed:{downloadMbps:1202.9,uploadMbps:85.1,checkedAt:"2026-09-16T06:00:00Z"},disk:{usedPercent:18,availableGiB:158.1,state:"normal"},
+      cpuStatistics:{windowMinutes:8,sampleCount:32,averagePercent:10.2,peakPercent:28.1},network:{status:"online",latencyMs:18.4},speed:{downloadMbps:1202.9,uploadMbps:85.1,checkedAt:"2026-09-16T06:00:00Z"},disk:{usedPercent:18,availableGiB:158.1,state:"normal"},diskForecast:{days:34,thresholdPercent:85,percentPerDay:0.2},
       orchestrator:{database:"ok",containers:{total:12,running:12,unhealthy:0},previews:2,worktrees:3,worktreeLimit:6,quarantined:0,backupAgeHours:8.2,backupMaxAgeHours:84,backupFresh:true},issues:[]},
       alerts:[
         {id:"sample-ci",group:"task:pickflick:123",project:"pickflick",title:"Update watchlist",task:true,next:"start_repair",actor:"owner",severity:"warning",code:"ci_unrepaired",subject:"PickFlick #123",href:"https://github.com/Shagon1k/PickFlick/pull/123"},

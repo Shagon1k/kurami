@@ -49,13 +49,25 @@ function limitLabel(limit:CodexLimit,lang:HubLanguage):string {
   return `${limit.windowMinutes} ${tr(lang,"мин.","min")}`;
 }
 
+/** When the limit runs out at the pace of the current window, if that comes before the reset. Needs a tenth of
+ * the window (at least an hour) behind it, so a burst right after a reset does not predict anything. */
+export function limitRunsOutAt(limit:CodexLimit):string|null {
+  const observed=Date.parse(limit.observedAt),resets=Date.parse(limit.resetsAt),window=limit.windowMinutes*60_000;
+  const elapsed=observed-(resets-window);
+  if(!Number.isFinite(elapsed)||elapsed<Math.max(window/10,3_600_000)||limit.usedPercent<=0||limit.remainingPercent<=0)return null;
+  const runsOut=observed+limit.remainingPercent*elapsed/limit.usedPercent;
+  return runsOut<resets?new Date(runsOut).toISOString():null;
+}
+
 function renderLimit(limit:CodexLimit,lang:HubLanguage):string {
   const used=Math.round(limit.usedPercent);
   const left=Math.round(limit.remainingPercent);
   const label=limitLabel(limit,lang);
   const tone=limit.remainingPercent<=0?"failure":limit.remainingPercent<=20?"warning":"neutral";
   const note=tone==="failure"?tr(lang,"Лимит исчерпан","Limit exhausted"):tone==="warning"?tr(lang,"Мало остатка","Low remaining quota"):"";
-  return `<article class="limit" data-tone="${tone}"><div class="limit__head"><span>${escapeHtml(label)}</span><strong${FIGURE_ATTRIBUTE}>${left}% ${tr(lang,"осталось","left")}</strong></div><div class="limit__track" role="progressbar" aria-label="${escapeHtml(label)}: ${tr(lang,"использовано","used")} ${used}%" aria-valuenow="${used}" aria-valuemin="0" aria-valuemax="100"><span style="--used:${used}%"></span></div><div class="limit__meta"><span>${used}% ${tr(lang,"использовано","used")}${note?` · ${note}`:""}</span><span>${tr(lang,"Сброс","Resets")} ${escapeHtml(formatTime(limit.resetsAt,lang))}</span></div></article>`;
+  const runsOut=limitRunsOutAt(limit);
+  const forecast=runsOut?`<p class="limit__forecast">${renderIcon("clock")}<span>${tr(lang,`В этом темпе закончится ${escapeHtml(formatTime(runsOut,lang))}, до сброса`,`At this pace it runs out ${escapeHtml(formatTime(runsOut,lang))}, before the reset`)}</span></p>`:"";
+  return `<article class="limit" data-tone="${tone}"><div class="limit__head"><span>${escapeHtml(label)}</span><strong${FIGURE_ATTRIBUTE}>${left}% ${tr(lang,"осталось","left")}</strong></div><div class="limit__track" role="progressbar" aria-label="${escapeHtml(label)}: ${tr(lang,"использовано","used")} ${used}%" aria-valuenow="${used}" aria-valuemin="0" aria-valuemax="100"><span style="--used:${used}%"></span></div><div class="limit__meta"><span>${used}% ${tr(lang,"использовано","used")}${note?` · ${note}`:""}</span><span>${tr(lang,"Сброс","Resets")} ${escapeHtml(formatTime(limit.resetsAt,lang))}</span></div>${forecast}</article>`;
 }
 
 
@@ -163,7 +175,7 @@ function renderHealth(snapshot:HubSnapshot,lang:HubLanguage):string {
     {label:"Backup",amount:state.backupAgeHours==null?"—":`${state.backupAgeHours}h`,detail:`${tr(lang,"максимум","maximum")} ${state.backupMaxAgeHours}h`,icon:"history",tone:state.backupFresh?"success":"warning"}];
   const details=[`${server.cpuCores} cores · avg ${health.cpuStatistics.averagePercent??"—"}% · peak ${health.cpuStatistics.peakPercent??"—"}%`,
     `${server.memoryUsedGiB}/${server.memoryTotalGiB} GiB`,health.speed?`${Math.round(health.speed.downloadMbps)}↓ / ${Math.round(health.speed.uploadMbps)}↑ Mbps · ${formatTime(health.speed.checkedAt,lang)}`:health.network.status,
-    `${health.disk.availableGiB} GiB ${tr(lang,"свободно","free")}`];
+    `${health.disk.availableGiB} GiB ${tr(lang,"свободно","free")}${health.diskForecast?` · ${tr(lang,`${health.diskForecast.thresholdPercent}% через ≈${health.diskForecast.days} дн.`,`${health.diskForecast.thresholdPercent}% in ≈${health.diskForecast.days} d`)}`:""}`];
   const keys=["server:cpu","server:memory","network","disk"];
   const icons:IconName[]=["cpu","ram","network","disk"];
   const amounts=[server.cpuUsedPercent,server.memoryUsedPercent,null,health.disk.usedPercent];
