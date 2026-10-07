@@ -132,6 +132,16 @@ table preserves the notification; on phones it remains available inside the task
 dialog. A queued request is not proof that the action has completed: check the
 card's current state.
 
+
+### Add to backlog
+
+The **Capture** button above the table opens a short form: project, title and details. **Create issue** files an issue in the project's repository and puts its card on the board in Backlog, where Kurami picks it up as usual. Kurami itself gets a plain issue with no board. If GitHub does not answer, the text stays in the form; pressing again never creates a duplicate.
+
+The form also opens from:
+
+- the **Add to backlog** shortcut on a long press of the app icon;
+- **Share → Kurami** on Android, including from a Kurami page itself: the shared title, text and link fill the form.
+
 ## What the card shows
 
 Read the card from the top. First comes the stage (**Ready for review**) and a one-line explanation. The **Control** line appears only when it matters who holds the task: `AI Agent` means managed Codex is working, `You` means the task was handed to you. Below is a compact table of CI, AI review, Preview and Policy, then details for each check and a line of links: issue, PR, preview, Codex. The footer has a short run id and the update time in local time.

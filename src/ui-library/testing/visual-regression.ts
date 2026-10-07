@@ -30,6 +30,7 @@ import {briefingPaths} from "../../briefing/store.ts";
 import {WEB_CLIENT_JS} from "../../web/presentation.ts";
 import {TOAST_RUNTIME_JS} from "../runtime/toast.ts";
 import type {Devtools} from "./devtools.ts";
+import {PROJECT_ACTION_REQUEST_JS} from "../../projects-site/action-request.ts";
 
 const root=resolve(import.meta.dirname,"../../..");
 const brandAssets=resolve(root,"src/ui-library/assets/brand");
@@ -76,6 +77,7 @@ const availablePages:Record<string,string>={
   "hub-long-en":"/hub/long-en.html",
   "projects-home":"/projects/index.html",
   "projects-home-ru":"/projects/ru.html",
+  "projects-capture-ru":"/projects/capture-ru.html",
   "docs-home-en":"/en/",
   "docs-overview-ru":"/ru/what-is-kurami/",
   "docs-reference-table-en":"/en/data-stores/",
@@ -155,8 +157,10 @@ async function site():Promise<string> {
   mkdirSync(join(served,"projects"),{recursive:true});
   writeFileSync(join(served,"projects/index.html"),syntheticProjects());
   writeFileSync(join(served,"projects/ru.html"),syntheticProjects("ru"));
+  writeFileSync(join(served,"projects/capture-ru.html"),syntheticProjects("ru",{capture:"1",title:"Сводка недели теряет порядок после обновления",text:"Синтетический пересланный текст",source:"https://kurami.shagon1k.win/ru/digest/"}));
   writeFileSync(join(served,"assets/projects.css"),PROJECTS_STYLES);
-  writeFileSync(join(served,"assets/projects.js"),WEB_CLIENT_JS+TOAST_RUNTIME_JS+readFileSync(join(root,"src/projects-site/client.js"),"utf8"));
+  // The same bundle as production (client-version.ts), so the fixture runs the real client.
+  writeFileSync(join(served,"assets/projects.js"),WEB_CLIENT_JS+TOAST_RUNTIME_JS+PROJECT_ACTION_REQUEST_JS+readFileSync(join(root,"src/projects-site/client.js"),"utf8"));
   writeFileSync(join(served,"assets/hub.js"),HUB_CLIENT_JS);
   cpSync(join(brandAssets,"kurami-fox-header.webp"),join(served,"assets/kurami-fox.webp"));
   cpSync(join(brandAssets,"kurami-fox-header.webp"),join(served,"assets/kurami-fox-header.webp"));

@@ -3,6 +3,7 @@ import {FOUNDATION_CSS} from "../ui-library/foundations/index.ts";
 import {BUTTON_CSS} from "../ui-library/components/button.ts";
 import {TABLE_CSS} from "../ui-library/components/table.ts";
 import {FORM_CSS} from "../ui-library/components/form.ts";
+import {DIALOG_CSS} from "../ui-library/components/dialog.ts";
 import {CALLOUT_CSS} from "../ui-library/components/callout.ts";
 import {PILL_CSS} from "../ui-library/components/pill.ts";
 import {POPOVER_CSS} from "../ui-library/components/popover.ts";
@@ -13,10 +14,13 @@ import {ICON_CSS} from "../ui-library/components/icon.ts";
 import {TOAST_CSS} from "../ui-library/components/toast.ts";
 import {DISCLOSURE_CSS} from "../ui-library/components/disclosure.ts";
 
-export const PROJECTS_STYLES=[THEME_CSS,FOUNDATION_CSS,BUTTON_CSS,TABLE_CSS,FORM_CSS,CALLOUT_CSS,PILL_CSS,POPOVER_CSS,THEME_SWITCH_CSS,SITE_HEADER_CSS,ICON_CSS,TOAST_CSS,DISCLOSURE_CSS,`
+export const PROJECTS_STYLES=[THEME_CSS,FOUNDATION_CSS,BUTTON_CSS,TABLE_CSS,FORM_CSS,DIALOG_CSS,CALLOUT_CSS,PILL_CSS,POPOVER_CSS,THEME_SWITCH_CSS,SITE_HEADER_CSS,ICON_CSS,TOAST_CSS,DISCLOSURE_CSS,`
 [data-projects-app] { --projects-table-height: calc(100dvh - 230px); }
 .projects-page { padding-block: var(--space-5) var(--space-6); }
 .projects-toolbar { display: flex; align-items: center; flex-wrap: wrap; gap: var(--space-3) var(--space-5); }
+.projects-capture { display: grid; gap: var(--space-3); }
+.projects-capture__context { display: grid; gap: var(--space-1); margin: 0; padding: var(--space-2) var(--space-3); border-inline-start: 2px solid var(--border-default); color: var(--text-muted); font-size: .8rem; overflow-wrap: anywhere; white-space: pre-line; }
+.projects-capture__context span { color: var(--text-primary); font-weight: 600; }
 .projects-search { width: min(480px,100%); }
 .projects-overview { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: var(--space-2) var(--space-5); margin-block: var(--space-3); }
 .projects-summary { --button-icon-size: 14px; display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2); min-height: var(--control-height); }

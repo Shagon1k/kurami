@@ -19,6 +19,8 @@ import {isMountedRequest,mountResponse,WEB_CLIENT_JS} from "../web/presentation.
 import {PROJECTS_CLIENT_VERSION,PROJECTS_CLIENT_JS} from "./client-version.ts";
 import {WebAccess} from "../web/access.ts";
 import {WEB_ORIGIN} from "../web/routes.ts";
+import {createCaptureAction} from "./capture.ts";
+import {resolveKuramiHome} from "../core/kurami-home.ts";
 
 const assetRoot = resolve(import.meta.dirname, "../ui-library/assets");
 const assets = new Map<string, { body: Buffer | string; type: string }>([
@@ -39,6 +41,7 @@ export function createProjectsServer(options: {
   runAction?: (input: unknown, actor: string) => ReviewResult;
   prInspect?: (project:string,itemId:string) => Promise<PrActionView>;
   prAction?: (input:unknown,actor:string) => Promise<PrActionResult>;
+  capture?: (input:unknown,actor:string) => Promise<object>;
   prCacheMs?:number;
   origin?: string;
 } = {}): Server {
@@ -57,6 +60,7 @@ export function createProjectsServer(options: {
   const prInspect=options.prInspect??(process.env.PROJECTS_CONTROLS_ENABLED==="1"?inspectProjectPr:null);
   const prAction=options.prAction??(process.env.PROJECTS_CONTROLS_ENABLED==="1"?requestProjectPr:null);
   const prCache=new Map<string,{at:number;value:Promise<PrActionView>}>();
+  const capture=options.capture??(process.env.PROJECTS_CONTROLS_ENABLED==="1"?createCaptureAction({home:resolveKuramiHome("/home/shagon1k/_hermes/_kurami")}):null);
   let cached: { at: number; value: ProjectsSnapshot } | null = null;
   function current(): ProjectsSnapshot {
     const now = Date.now();
@@ -87,7 +91,8 @@ export function createProjectsServer(options: {
     const statusRoute = request.method === "POST" && request.url === "/api/status" && statusChange;
     const runRoute = request.method === "POST" && request.url === "/api/run-action" && runAction;
     const prRoute=request.method==="POST"&&request.url==="/api/pr-action"&&prAction;
-    if (request.method !== "GET" && request.method !== "HEAD" && !reviewRoute && !statusRoute && !runRoute&&!prRoute) {
+    const captureRoute=request.method==="POST"&&request.url==="/api/capture"&&capture;
+    if (request.method !== "GET" && request.method !== "HEAD" && !reviewRoute && !statusRoute && !runRoute&&!prRoute&&!captureRoute) {
       response.setHeader("Allow", "GET, HEAD");
       send(405, "text/plain; charset=utf-8", "Method not allowed"); return;
     }
@@ -104,7 +109,7 @@ export function createProjectsServer(options: {
       identity=null;
     }
     if (!identity) { send(403, "text/plain; charset=utf-8", "Доступ разрешён только владельцу через Cloudflare Access."); return; }
-    if (reviewRoute || statusRoute || runRoute||prRoute) {
+    if (reviewRoute || statusRoute || runRoute||prRoute||captureRoute) {
       if (request.headers.origin !== (options.origin ?? (isMountedRequest(request,"projects")?WEB_ORIGIN:"https://projects.shagon1k.win")) ||
         request.headers["content-type"] !== "application/json" ||
         request.headers["sec-fetch-site"] && request.headers["sec-fetch-site"] !== "same-origin") {
@@ -113,12 +118,14 @@ export function createProjectsServer(options: {
       try {
         const body = await new Promise<string>((done, reject) => {
           let size = 0; const chunks: Buffer[] = [];
-          request.on("data", (chunk: Buffer) => { size += chunk.length; if (size > 4096) reject(new ProjectsActionError(413, "Запрос слишком большой.")); else chunks.push(chunk); });
+          request.on("data", (chunk: Buffer) => { size += chunk.length; if (size > (captureRoute ? 16_384 : 4096)) reject(new ProjectsActionError(413, "Запрос слишком большой.")); else chunks.push(chunk); });
           request.on("end", () => done(Buffer.concat(chunks).toString("utf8"))); request.on("error", reject);
         });
         let input: unknown;
         try { input = JSON.parse(body); } catch { throw new ProjectsActionError(400, "Некорректный запрос."); }
-        if(prRoute&&prAction) {
+        if(captureRoute&&capture) {
+          send(201,"application/json; charset=utf-8",JSON.stringify(await capture(input,identity)));
+        } else if(prRoute&&prAction) {
           const result=await prAction(input,identity);cached=null;prCache.clear();
           send(result.state==="applied"?200:["failed","conflict"].includes(result.state)?409:202,"application/json; charset=utf-8",JSON.stringify(result));
         } else if (statusRoute && statusChange) {

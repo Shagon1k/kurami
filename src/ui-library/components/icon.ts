@@ -51,6 +51,7 @@ const paths={
   database:"M4 6c0-4 16-4 16 0s-16 4-16 0M4 6v12c0 4 16 4 16 0V6M4 12c0 4 16 4 16 0",
   box:"M3 7 12 2l9 5v10l-9 5-9-5zM3 7l9 5 9-5M12 12v10",
   branch:"M6 3v13M6 16a3 3 0 1 0 0 6 3 3 0 1 0 0-6M17 2a3 3 0 1 0 0 6 3 3 0 1 0 0-6M17 8v2a6 6 0 0 1-6 6H6",
+  plus:"M12 5v14M5 12h14",
   message:"M3 4h18v13H8l-5 4zM7 8h10M7 12h7",
 } as const;
 export type IconName=keyof typeof paths;
