@@ -30,7 +30,7 @@ const messages:Record<string,string>={
   "Confirm":"Подтвердить", "Confirm merge":"Подтвердить слияние",
   "Squash and merge":"Смержить через Squash", "Rebase and merge":"Смержить через Rebase", "Create merge commit":"Создать merge-коммит",
   "Merge this PR into":"Смержить этот PR в", "Mark this draft ready for review":"Снять draft с PR",
-  "PR ready for review.":"PR готов к ревью.", "PR merged.":"PR смержен.", "PR closed.":"PR закрыт.",
+  "PR ready for review.":"PR готов к ревью.", "PR merged.":"PR смержен.", "PR merged. One less thing to worry about.":"PR влит. Минус одна забота.", "PR closed.":"PR закрыт.",
   "PR actions unlock when current work finishes.":"Действия с PR доступны после завершения текущей работы.",
   "PR actions require an active or review task.":"Действия с PR доступны для задачи в работе или на ревью.",
   "PR actions are temporarily unavailable.":"Действия с PR временно недоступны.",

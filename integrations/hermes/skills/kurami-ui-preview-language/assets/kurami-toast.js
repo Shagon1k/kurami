@@ -24,6 +24,9 @@ function createKuramiToast(region, returnFocus) {
     region.dataset.tone=tone;
     for(const icon of region.querySelectorAll('[data-toast-icon]'))icon.hidden=icon.dataset.toastIcon!==tone;
     region.hidden=false;message.textContent=String(text);
+    // A finished piece of work gets a short spark on the icon (CSS, skipped under reduced motion).
+    region.removeAttribute('data-celebrate');
+    if(options.celebrate===true){void region.offsetWidth;region.setAttribute('data-celebrate','');}
     remaining=options.duration??(['warning','failure'].includes(tone)?0:8000);
     resume();
   }

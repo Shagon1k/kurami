@@ -93,6 +93,8 @@ library. A single notice appears at the bottom-right without taking focus.
 Success and ordinary information expire after eight seconds; hovering, keyboard
 focus or a hidden page pauses the timer. Errors, warnings and pending status
 writes remain until dismissed or replaced. The close icon has an accessible name.
+Finished work (for example a PR merged from Projects: "PR merged. One less thing to worry about.")
+gets a short spark on the icon; with reduced motion there is none.
 
 The shared header names the current app: Kurami. Hub, Digest, Projects or Docs.
 **Apps** opens the product links; Hermes and Dokploy are separated external links
