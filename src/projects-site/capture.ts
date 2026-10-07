@@ -4,6 +4,7 @@
 // polls the request until it shows the issue.
 import { execFile } from "node:child_process";
 import { existsSync } from "node:fs";
+import { homedir } from "node:os";
 import { dirname, resolve } from "node:path";
 import { promisify } from "node:util";
 import { captureTargets as orchestratorTargets, type CaptureTarget } from "../orchestrator/projects/capture/quick-capture.ts";
@@ -26,11 +27,12 @@ export function captureSource(value: unknown): string | null {
   try { const url = new URL(value); return url.origin === WEB_ORIGIN ? url.href.slice(0, 500) : null; } catch { return null; }
 }
 
-/** Starts the worker for one request as its own transient user unit (the service itself is sandboxed). */
+/** Starts the worker for one request as its own transient user unit (the service itself is sandboxed); its
+ * PATH reaches codex in ~/.local/bin, as the project poller's does. */
 export type CaptureStarter = (home: string, key: string) => Promise<void>;
 const systemdStarter: CaptureStarter = async (home, key) => {
   const node = process.execPath, worker = resolve(home, "app/src/orchestrator/projects/capture/quick-capture.ts");
-  await exec("systemd-run", ["--user", "--collect", "--quiet", `--unit=kurami-capture-${key.slice(0, 32)}`, "-p", `Environment=PATH=${dirname(node)}:/usr/local/bin:/usr/bin:/bin`,
+  await exec("systemd-run", ["--user", "--collect", "--quiet", `--unit=kurami-capture-${key.slice(0, 32)}`, "-p", `Environment=PATH=${dirname(node)}:${homedir()}/.local/bin:/usr/local/bin:/usr/bin:/bin`,
     "-p", `Environment=KURAMI_HOME=${home}`, "--", node, worker, "--key", key], { timeout: 10_000 });
 };
 
