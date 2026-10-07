@@ -24,6 +24,17 @@ try {
   // The poller refuses keys outside the registry before touching anything.
   const poller = spawnSync("bash", [resolve(app, "run-project-poller.sh"), "../../etc"], { encoding: "utf8" });
   assert.equal(poller.status, 64);
+  // ...and accepts a registered one. The gate (the script up to its key check) runs against a scratch home,
+  // so nothing is polled; KURAMI_HOME is readonly there, which once made every key fail.
+  const script = readFileSync(resolve(app, "run-project-poller.sh"), "utf8"), gateEnd = script.indexOf("\nfi\n", script.indexOf("projects-registry.ts")) + 4;
+  mkdirSync(join(home, "runtime/node/bin"), { recursive: true });
+  execFileSync("ln", ["-s", process.execPath, join(home, "runtime/node/bin/node")]);
+  execFileSync("ln", ["-s", app, join(home, "app")]);
+  const gate = join(home, "gate.sh");
+  writeFileSync(gate, script.slice(0, gateEnd).replace('readonly KURAMI_HOME="/home/shagon1k/_hermes/_kurami"', `readonly KURAMI_HOME="${home}"`) + 'echo accepted\n');
+  const accepted = spawnSync("bash", [gate, "zeta"], { encoding: "utf8" });
+  assert.deepEqual([accepted.status, accepted.stdout.trim(), accepted.stderr], [0, "accepted", ""], "a registered key passes the gate");
+  assert.equal(spawnSync("bash", [gate, "beta"], { encoding: "utf8" }).status, 64, "a skipped (malformed) entry does not");
 
   for (const file of ["src/hub/snapshot.ts", "src/hub/render.ts", "src/projects-site/render.ts", "run-project-poller.sh"])
     assert.doesNotMatch(readFileSync(resolve(app, file), "utf8"), /pickflick|tailortales|ahurynovich/i, `${file} has no hard-coded project list`);

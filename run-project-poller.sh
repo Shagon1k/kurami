@@ -17,7 +17,8 @@ readonly ENV_FILE="${KURAMI_HOME}/secrets/github.env"
 readonly PROJECT="${1:-}"
 
 # Any project from config/projects.yaml; the key also names lock and log files, so it is checked strictly.
-if [[ ! "${PROJECT}" =~ ^[a-z0-9-]{1,64}$ ]] || ! KURAMI_HOME="${KURAMI_HOME}" "${NODE_BIN}" "${KURAMI_HOME}/app/src/core/projects-registry.ts" keys | grep -qxF -- "${PROJECT}"; then
+# KURAMI_HOME is readonly here, so it reaches the registry through env(1), not a prefix assignment.
+if [[ ! "${PROJECT}" =~ ^[a-z0-9-]{1,64}$ ]] || ! env KURAMI_HOME="${KURAMI_HOME}" "${NODE_BIN}" "${KURAMI_HOME}/app/src/core/projects-registry.ts" keys | grep -qxF -- "${PROJECT}"; then
   printf 'Usage: %s <project key from config/projects.yaml>\n' "$0" >&2
   exit 64
 fi
