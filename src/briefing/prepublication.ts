@@ -12,6 +12,8 @@ import { renderBriefingPage } from "./ui/render-page.ts";
 import {attachWeeklyReview} from "./weekly/lifecycle.ts";
 import {isSunday} from "./weekly/model.ts";
 import {attachStocksBrief} from "./stocks/lifecycle.ts";
+import {portfolioNotes} from "./investment-review/portfolio-notes.ts";
+import type {StocksBrief} from "./stocks/model.ts";
 
 export async function refreshBeforePublication(editionId:string, attemptId:string, environment:NodeJS.ProcessEnv=process.env,
   collect:typeof collectDynamicBriefingSnapshot=collectDynamicBriefingSnapshot, now=()=>new Date()) {
@@ -59,6 +61,12 @@ export async function refreshBeforePublication(editionId:string, attemptId:strin
     try {attachStocksBrief(cache,payload,config.stocks,refreshedAt);}
     catch {console.warn("Stocks snapshot unavailable; Daily continues");}
     finally {cache.close();}
+    // The investment review's reminders for this morning ride on the stocks block.
+    try {
+      const notes=await portfolioNotes(paths.stateDirectory,payload.edition.localDate);
+      const brief=payload.addons.stocks as unknown as StocksBrief|undefined;
+      if(brief?.data&&notes&&(notes.remind||notes.watch.length))brief.data.portfolio=notes;
+    } catch {console.warn("Portfolio notes unavailable; Daily continues");}
   }
   refreshDataQuality(payload,payload.live?.refreshedAt??refreshedAt);
   const validated=parseBriefingPayload(payload);

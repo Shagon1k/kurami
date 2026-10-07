@@ -16,7 +16,18 @@ import {renderReviewPanel,REVIEW_PANEL_STYLES} from "../investment-review/panel.
 import type {StoredReview} from "../investment-review/store.ts";
 import {digestLanguage,digestText as t} from "../i18n.ts";
 import {renderSelectField} from "../../ui-library/components/form.ts";
+import {renderButton} from "../../ui-library/components/button.ts";
+import {BASELINE_MAX_AGE_DAYS} from "../investment-review/portfolio-notes.ts";
 const href=(ids:string[],period:StockPeriod,anchor=true)=>"/stocks?"+new URLSearchParams({symbols:ids.join(","),period}).toString()+(anchor?"#stock-"+ids[0]:"");
+
+/** The investment review's notes for this morning: watch dates that came due, and the baseline reminder. */
+function portfolioNotesBlock(brief:StocksBrief):string {
+  const notes=brief.data.portfolio;
+  if(!notes||(!notes.remind&&!notes.watch.length))return "";
+  const watch=notes.watch.map(item=>`<p>${t("Сегодня по плану","Due today")}: <strong>${e(item.symbol)}</strong> — ${e(item.text)}</p>`).join("");
+  const remind=notes.remind?`<p data-portfolio-note>${t(`Состав портфеля подтверждён ${notes.ageDays} дн. назад; без подтверждения через ${Math.max(0,BASELINE_MAX_AGE_DAYS-notes.ageDays)} дн. воскресный обзор не запустится.`,`The portfolio positions were confirmed ${notes.ageDays} days ago; without a confirmation the Sunday review stops in ${Math.max(0,BASELINE_MAX_AGE_DAYS-notes.ageDays)} days.`)} ${renderButton({label:t("Состав не менялся","Positions unchanged"),variant:"secondary",size:"compact",type:"button",busyLabel:"…",attributes:{"data-portfolio-confirm":true,"data-haptic":"confirm"}})}</p>`:"";
+  return `<div class="stocks-portfolio-notes">${watch}${remind}</div>`;
+}
 
 export function renderStocksTeaser(payload:BriefingPayload):string {
   const brief=payload.addons.stocks as unknown as StocksBrief|undefined;
@@ -35,7 +46,7 @@ export function renderStocksTeaser(payload:BriefingPayload):string {
       <div class="stocks-movers">${movers.length?`<ul>${movers.map(q=>`<li><a href="${e(href([q.asset.id],"1m"))}">${e(q.asset.id)} <span>${e(q.asset.name)}</span></a>${figureDelta(q.day)}</li>`).join("")}</ul>`
         :`<p>${ready.length?t("Среди обновлённых акций нет движения от ","No refreshed stock moved at least ")+brief.data.threshold+t("% за сессию.","% in the session."):t("Свежие котировки пока недоступны. Дайджест продолжает работать.","Fresh quotes are unavailable. The digest continues to work.")}</p>`}
       ${ready.length<quotes.length?`<small class="stocks-warning">${t("Свежие данные","Fresh data")}: ${ready.length}/${quotes.length}. ${t("Остальные не участвуют в подборке движений.","The others are excluded from the move selection.")}</small>`:""}</div>
-    </div><p class="stocks-footnote">${t("Проценты учитывают сплиты и дивиденды. Это утренний срез списка наблюдения, не доходность портфеля.","Percentages account for splits and dividends. This is a morning watchlist snapshot, not portfolio performance.")}</p>
+    </div>${portfolioNotesBlock(brief)}<p class="stocks-footnote">${t("Проценты учитывают сплиты и дивиденды. Это утренний срез списка наблюдения, не доходность портфеля.","Percentages account for splits and dividends. This is a morning watchlist snapshot, not portfolio performance.")}</p>
   </section>`;
 }
 

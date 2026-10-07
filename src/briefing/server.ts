@@ -74,6 +74,7 @@ export { removeArchivedMailFromRetainedEditions } from "./addons/mail/actions.ts
 import { removeArchivedMailFromRetainedEditions } from "./addons/mail/actions.ts";
 export { MAIL_AUTOMATION_MAX_ATTEMPTS, mailAutomationFailureKind, assertComposioMailActionSucceeded, type MailActionExecutor, type MailAutomationFailureKind } from "./addons/mail/executor.ts";
 import { composioMailActionExecutor, type MailActionExecutor } from "./addons/mail/executor.ts";
+import { confirmBaseline } from "./investment-review/portfolio-notes.ts";
 
 const CSP = [
   "default-src 'self'",
@@ -373,8 +374,21 @@ ${COMPANY_AVATAR_CLIENT_SCRIPT}
   });
 
   document.addEventListener('click', async (event) => {
-    const target = event.target instanceof Element ? event.target.closest('[data-story-toggle], [data-reaction], [data-media-lightbox], [data-media-close], [data-mail-archive]') : null;
+    const target = event.target instanceof Element ? event.target.closest('[data-story-toggle], [data-reaction], [data-media-lightbox], [data-media-close], [data-mail-archive], [data-portfolio-confirm]') : null;
     if (!target) return;
+    if (target.hasAttribute('data-portfolio-confirm')) {
+      const note = target.closest('[data-portfolio-note]');
+      target.disabled = true;
+      target.setAttribute('aria-busy', 'true');
+      try {
+        const result = await request('/api/portfolio/confirm', {});
+        if (note) note.textContent = tr('Состав портфеля подтверждён на ', 'Portfolio positions confirmed as of ') + result.asOf + '.';
+      } catch (error) {
+        target.disabled = false;
+        if (note) note.append(' ' + tr('Не получилось, попробуй ещё раз.', 'That did not work; try again.'));
+      } finally { target.removeAttribute('aria-busy'); }
+      return;
+    }
     if (target.hasAttribute('data-mail-archive')) {
       const section = target.closest('[data-mail-section]');
       if (!section) return;
@@ -903,6 +917,13 @@ export async function createBriefingServer(
         const result = personalizedNewsOrder(stories, profile, policy);
         const mode = requested === "for-you" && profile.ready ? "for-you" : "briefing";
         json(response, 200, { ...result, mode, order: mode === "for-you" ? result.order : stories.map(story => story.id) });
+        return;
+      }
+      // "Positions unchanged" from Daily: re-dates the portfolio baseline (investment-review/portfolio-notes.ts).
+      if (request.method === "POST" && url.pathname === "/api/portfolio/confirm") {
+        await body(request);
+        const today = new Intl.DateTimeFormat("en-CA", { timeZone: "Europe/Vilnius", year: "numeric", month: "2-digit", day: "2-digit" }).format(new Date());
+        json(response, 200, { ok: true, ...(await confirmBaseline(paths.stateDirectory, today)) });
         return;
       }
       if (request.method === "POST" && url.pathname === "/api/items/read") {

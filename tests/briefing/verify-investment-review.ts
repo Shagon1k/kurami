@@ -9,10 +9,12 @@ import {renderKuramiComment,KURAMI_COMMENT_STYLES} from "../../src/briefing/ui/c
 import {extractSecFacts,collectIssuerEvidence,mergeCollectedEvidence} from "../../src/briefing/investment-review/collect.ts";
 import {acceptReview,loadReview,reviewFreshness} from "../../src/briefing/investment-review/store.ts";
 import {renderReviewPanel} from "../../src/briefing/investment-review/panel.ts";
+import {confirmBaseline,portfolioNotes} from "../../src/briefing/investment-review/portfolio-notes.ts";
+import {dayShift} from "../../src/briefing/stocks/model.ts";
 import {primaryPacket,mergePrimaryEvidence} from "../../src/briefing/investment-review/primary-evidence.ts";
 import {createHash} from "node:crypto";
 import {applyVuaa,buildFundSnapshot} from "../../src/briefing/investment-review/vanguard.ts";
-import {mkdtemp,rm,readFile} from "node:fs/promises";
+import {mkdtemp,mkdir,rm,readFile,stat,writeFile} from "node:fs/promises";
 import {assets,source,input,draft} from "../fixtures/briefing/investment-review.ts";
 import {tmpdir} from "node:os";
 import {join} from "node:path";
@@ -188,4 +190,32 @@ try{
   assert.equal(renderReviewPanel([],"2026-09-18T06:00:00Z"),"");
   assert(JSON.parse(await readFile(join(directory,"latest-weekly.json"),"utf8")).id===saved.id);
 }finally{await rm(directory,{recursive:true,force:true});}
+// Watch dates: optional, a real day from the review date up to 120 days ahead, for positions and ideas.
+const dated=(revisitOn:unknown)=>({...structuredClone(draft),positions:draft.positions.map((p,i)=>i===0?{...p,revisitOn}:p)}) as ReviewDraft;
+assert.equal(validateReviewDraft(input,dated(input.asOfDate)).positions[0]!.revisitOn,input.asOfDate);
+for(const badDate of [dayShift(input.asOfDate,-1),dayShift(input.asOfDate,121),"2026-02-30","soon",20261001])assert.throws(()=>validateReviewDraft(input,dated(badDate)),String(badDate));
+assert.equal(validateReviewDraft(withIdea,{...ideaDraft,ideas:[{...ideaDraft.ideas![0]!,revisitOn:dayShift(input.asOfDate,30)}]}).ideas![0]!.revisitOn,dayShift(input.asOfDate,30));
+
+// Daily ↔ review: the reminder comes on the watch day and from day 25 of the baseline; "Positions unchanged"
+// re-dates the latest baseline, resetting the month counters in a new month.
+const state=await mkdtemp(join(tmpdir(),"kurami-portfolio-"));
+try{
+  const portfolio=join(state,"portfolio");await mkdir(portfolio,{recursive:true,mode:0o700});
+  const baseline={...structuredClone(input.baseline),asOfLocalDate:"2026-08-20",unknowns:{currentMonthExecutedTrades:2,currentMonthNewContributionsEUR:100}};
+  await writeFile(join(portfolio,"baseline-2026-08-20.json"),JSON.stringify(baseline),{mode:0o600});
+  const watched={...structuredClone(input),mode:"weekly" as const};
+  const watchedDraft={...dated(dayShift(input.asOfDate,3)),inputDigest:inputDigest(watched)};
+  await acceptReview(join(portfolio,"reviews"),watched,watchedDraft,input.asOfDate+"T08:00:00Z");
+  const due=dayShift(input.asOfDate,3);
+  const notes=await portfolioNotes(state,due);
+  assert.deepEqual(notes?.watch,[{symbol:watchedDraft.positions[0]!.symbol,text:watchedDraft.positions[0]!.revisitWhen}]);
+  assert.equal((await portfolioNotes(state,dayShift(due,1)))?.watch.length,0,"only on the day itself");
+  assert.equal((await portfolioNotes(state,"2026-09-13"))?.remind,false);
+  assert.deepEqual(await portfolioNotes(state,"2026-09-14"),{asOf:"2026-08-20",ageDays:25,remind:true,watch:[]});
+  assert.deepEqual(await confirmBaseline(state,"2026-09-14"),{asOf:"2026-09-14",changed:true});
+  assert.deepEqual(JSON.parse(await readFile(join(portfolio,"baseline-2026-09-14.json"),"utf8")).unknowns,{currentMonthExecutedTrades:0,currentMonthNewContributionsEUR:0},"a new month starts from zero");
+  assert.equal(((await stat(join(portfolio,"baseline-2026-09-14.json"))).mode&0o777),0o600);
+  assert.deepEqual(await confirmBaseline(state,"2026-09-14"),{asOf:"2026-09-14",changed:false});
+  assert.equal((await portfolioNotes(state,"2026-09-15"))?.ageDays,1);
+}finally{await rm(state,{recursive:true,force:true});}
 console.log("SEC periods/aliases/identity/partial banks, separate accepted slots, failed-update preservation, freshness and compact reader verified.");
