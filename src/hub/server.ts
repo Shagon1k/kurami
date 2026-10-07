@@ -15,6 +15,9 @@ import {kuramiTheme} from "../ui-library/themes/index.ts";
 import {HUB_STYLES} from "./styles.ts";
 import {HUB_CLIENT_JS} from "./assets.ts";
 import {collectHubSnapshot,type HubSnapshot} from "./snapshot.ts";
+import {ReleaseDriftMonitor,type DriftItem} from "../system/release-drift.ts";
+import {resolveKuramiHome} from "../core/kurami-home.ts";
+import type {HubAlert} from "./operations.ts";
 import {renderHubDashboard,renderHubOffline,renderHubPage,type HubLanguage} from "./render.ts";
 import {isMountedRequest,mountResponse,WEB_CLIENT_JS} from "../web/presentation.ts";
 import {WebAccess} from "../web/access.ts";
@@ -42,8 +45,10 @@ const securityHeaders={
   "Content-Security-Policy":"default-src 'none'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self'; font-src 'self'; connect-src 'self'; manifest-src 'self'; worker-src 'self'; base-uri 'none'; frame-ancestors 'none'",
 };
 
-export function createHubServer(options:{snapshot?:()=>HubSnapshot;account?:()=>Promise<CodexAccountSnapshot>;controls?:ReturnType<typeof createHubControls>;authorize?:(request:IncomingMessage)=>Promise<string|null>;controlOrigin?:string}={}):Server {
+export function createHubServer(options:{releaseDrift?:{latest:DriftItem[]};snapshot?:()=>HubSnapshot;account?:()=>Promise<CodexAccountSnapshot>;controls?:ReturnType<typeof createHubControls>;authorize?:(request:IncomingMessage)=>Promise<string|null>;controlOrigin?:string}={}):Server {
   const snapshot=options.snapshot??collectHubSnapshot;
+  // Whether the server runs what main holds; checked in the background, never on a request.
+  const releaseDrift=options.releaseDrift??(options.snapshot?{latest:[]}:(()=>{const monitor=new ReleaseDriftMonitor({app:resolve(import.meta.dirname,"../.."),home:resolveKuramiHome("/home/shagon1k/_hermes/_kurami")});monitor.start();return monitor;})());
   const account=options.account??(options.snapshot?null:readCodexAccount);
   const controls=options.controls??(process.env.HUB_CONTROLS_ENABLED==="true"?createHubControls():null);
   const access=new HubAccess();
@@ -60,7 +65,9 @@ export function createHubServer(options:{snapshot?:()=>HubSnapshot;account?:()=>
     if(collecting)return collecting;
     collecting=(async()=>{
       const base=snapshot();const live=account?await account():null;
-      const value={...base,codex:{...base.codex,...(live?{account:live,limits:live.state==="live"?live.limits:base.codex.limits}:{})}};
+      const drift:HubAlert[]=releaseDrift.latest.map(item=>({id:`release-${item.code}`,severity:"warning",code:"release_drift",subject:"Kurami",group:"system:release",title:"",next:"release",actor:"owner",detail:item.code,texts:{ru:item.ru,en:item.en}}));
+      const operations=base.operations?{...base.operations,alerts:[...base.operations.alerts,...drift]}:base.operations;
+      const value={...base,operations,codex:{...base.codex,...(live?{account:live,limits:live.state==="live"?live.limits:base.codex.limits}:{})}};
       cached={at:Date.now(),value};return value;
     })();
     try{return await collecting;}finally{collecting=null;}

@@ -4,15 +4,13 @@
 // files or sits under one of those directories. Build and dependency files trigger every suite.
 // For iteration only: the full `npm test` still runs before a release.
 import {execFileSync} from "node:child_process";
-import {existsSync,readFileSync,statSync} from "node:fs";
-import {dirname,relative,resolve} from "node:path";
+import {existsSync,readFileSync} from "node:fs";
+import {relative,resolve} from "node:path";
+import {firstTouched,moduleClosure,type ModuleClosure} from "../src/core/module-closure.ts";
 
 const root=resolve(import.meta.dirname,"..");
 const everything=[/^package(-lock)?\.json$/,/^tsconfig[^/]*\.json$/,/^tests\/(run-regression|test-plan)\.ts$/];
-const code=/\.(ts|mts|js|mjs|py)$/;
-const repoPrefix=/^(src|bin|tests|integrations|migrations|config)\//;
 
-type Watch={files:Set<string>;directories:Set<string>};
 
 function scripts():Record<string,string>{return JSON.parse(readFileSync(resolve(root,"package.json"),"utf8")).scripts;}
 
@@ -30,39 +28,9 @@ export function scriptFiles(name:string,all=scripts(),seen=new Set<string>()):st
   return files;
 }
 
-function resolvePath(from:string,spec:string):string|null{
-  const base=spec.startsWith(".")?resolve(root,dirname(from),spec):resolve(root,spec);
-  for(const candidate of [base,`${base}.ts`,`${base}/index.ts`])if(existsSync(candidate))return relative(root,candidate);
-  return null;
-}
-
-/** Imports and named repository paths of one file. */
-function references(file:string):string[]{
-  const source=readFileSync(resolve(root,file),"utf8"),found:string[]=[];
-  const add=(spec:string)=>{if(spec.includes("${")||spec.includes("*"))return;const path=resolvePath(file,spec);if(path&&!path.startsWith(".."))found.push(path);};
-  for(const match of source.matchAll(/(?:from\s*|import\s*\(\s*|import\s+)["']([^"']+)["']/g))if(match[1]!.startsWith("."))add(match[1]!);
-  for(const match of source.matchAll(/["'`]((?:\.{1,2}\/)+[\w@./-]+|(?:src|bin|tests|integrations|migrations|config)\/[\w@./-]+)["'`]/g))add(match[1]!);
-  // A path next to the module without "./" ("content/pages", "fixtures/x.json"): only if it exists there.
-  for(const match of source.matchAll(/["'`]([\w@-]+\/[\w@./-]+)["'`]/g)){const near=resolve(root,dirname(file),match[1]!);if(existsSync(near))found.push(relative(root,near));}
-  // Python joins paths with "/": root / "integrations" / "hermes".
-  for(const match of source.matchAll(/\/\s*"([\w.-]+)"((?:\s*\/\s*"[\w.-]+")*)/g)){
-    const parts=[match[1]!,...[...match[2]!.matchAll(/"([\w.-]+)"/g)].map(part=>part[1]!)].join("/");
-    if(repoPrefix.test(`${parts}/`))add(parts);
-  }
-  return found;
-}
-
 /** Every file a suite runs or imports, and every path it names, followed transitively through code. */
-export function suiteWatch(name:string,all=scripts()):Watch{
-  const watch:Watch={files:new Set(),directories:new Set()},queue=[...scriptFiles(name,all)];
-  while(queue.length){
-    const file=queue.pop()!;
-    if(watch.files.has(file)||watch.directories.has(file))continue;
-    if(statSync(resolve(root,file)).isDirectory()){watch.directories.add(file);continue;}
-    watch.files.add(file);
-    if(code.test(file))queue.push(...references(file));
-  }
-  return watch;
+export function suiteWatch(name:string,all=scripts()):ModuleClosure{
+  return moduleClosure(root,scriptFiles(name,all));
 }
 
 /** Changed files: commits since the merge base with origin/main, staged, unstaged and untracked work. */
@@ -77,8 +45,7 @@ export function planSuites(suites:readonly string[],changed:readonly string[]):{
   if(trigger)return {suites:[...suites],reasons:Object.fromEntries(suites.map(suite=>[suite,trigger])),everything:true};
   const all=scripts(),reasons:Record<string,string>={};
   for(const suite of suites){
-    const watch=suiteWatch(suite,all);
-    const hit=changed.find(file=>watch.files.has(file)||[...watch.directories].some(directory=>file.startsWith(`${directory}/`)));
+    const hit=firstTouched(suiteWatch(suite,all),changed);
     if(hit)reasons[suite]=hit;
   }
   return {suites:suites.filter(suite=>suite in reasons),reasons,everything:false};

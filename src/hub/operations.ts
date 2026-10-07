@@ -13,8 +13,8 @@ import {localDay} from "../core/codex-usage.ts";
 import {kuramiEntryHref} from "../ui-library/patterns/kurami-sites.ts";
 import {controllerFailuresPath,isStuck,readControllerFailures} from "../orchestrator/runtime/controller-failures.ts";
 
-export type HubAlert={id:string;severity:"warning"|"critical";code:string;subject:string;href?:string;group?:string;project?:string;itemId?:string;title?:string;prNumber?:number;task?:boolean;next?:ProblemNext;actor?:"owner"|"agent"|"system";detail?:string};
-export type ProblemNext="start_repair"|"wait_repair"|"reply"|"inspect_task"|"check_collector"|"check_project"|"inspect_health"|"restore_db";
+export type HubAlert={id:string;severity:"warning"|"critical";code:string;subject:string;href?:string;group?:string;project?:string;itemId?:string;title?:string;prNumber?:number;task?:boolean;next?:ProblemNext;actor?:"owner"|"agent"|"system";detail?:string;texts?:{ru:string;en:string}};
+export type ProblemNext="start_repair"|"wait_repair"|"reply"|"inspect_task"|"check_collector"|"check_project"|"inspect_health"|"restore_db"|"release";
 export type HubActivity={id:string;at:string;source:string;subject:string;event:string;href?:string;group?:string;project?:string;agent?:string;sessionId?:string;turnId?:string;limited?:boolean;runId?:string;currentRunId?:string;head?:string;result?:string;taskState?:string};
 export type HubOperations={health:HealthSurfaceSnapshot|null;healthStale:boolean;alerts:HubAlert[];activity:HubActivity[]};
 

@@ -92,6 +92,7 @@ Sync appears only when there is a difference to confirm.
 |---|---|
 | "stale" next to System Health | no fresh health cycle; check the Hermes job ([How monitoring works](@health-internals)) |
 | a Project "Stale snapshot" alert | the last board poll failed or is older than 15 minutes |
+| a Kurami "Release" alert | the server does not run what `main` holds: the live version is behind or has uncommitted changes, a service was not restarted after its code changed, the Digest build or the docs are not updated, or the Hermes copies are out of sync. Hub checks this in the background every 10 minutes |
 | "Local snapshot" in Limits, Reset disabled | the account request failed; bars come from local logs |
 | a partial label or `*` | some logs are unavailable, tokens or USD may be higher |
 | "Offline · last available data" | the browser got no update; the values are old |
