@@ -12,6 +12,7 @@ import { renderBriefingPage } from "./ui/render-page.ts";
 import {attachWeeklyReview} from "./weekly/lifecycle.ts";
 import {isSunday} from "./weekly/model.ts";
 import {attachStocksBrief} from "./stocks/lifecycle.ts";
+import {engineeringBrief,readEngineering} from "./engineering/model.ts";
 
 export async function refreshBeforePublication(editionId:string, attemptId:string, environment:NodeJS.ProcessEnv=process.env,
   collect:typeof collectDynamicBriefingSnapshot=collectDynamicBriefingSnapshot, now=()=>new Date()) {
@@ -59,6 +60,13 @@ export async function refreshBeforePublication(editionId:string, attemptId:strin
     try {attachStocksBrief(cache,payload,config.stocks,refreshedAt);}
     catch {console.warn("Stocks snapshot unavailable; Daily continues");}
     finally {cache.close();}
+  }
+  if(payload.edition.type==="daily") {
+    try {
+      const engineering=readEngineering(paths.home,now(),{week:isSunday(payload.edition.localDate)});
+      if(engineering)payload.addons.engineering=engineeringBrief(engineering,refreshedAt) as unknown as import("./model.ts").BriefingAddonEnvelope;
+      else delete payload.addons.engineering;
+    } catch {delete payload.addons.engineering;console.warn("Engineering signals unavailable; Daily continues");}
   }
   refreshDataQuality(payload,payload.live?.refreshedAt??refreshedAt);
   const validated=parseBriefingPayload(payload);

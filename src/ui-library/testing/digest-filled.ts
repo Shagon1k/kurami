@@ -7,6 +7,7 @@ import {shiftDate,type WeeklyReview} from "../../briefing/weekly/model.ts";
 import {renderStocksPage} from "../../briefing/stocks/render.ts";
 import {parseStocksConfig} from "../../briefing/stocks/config.ts";
 import {dayShift,type StocksSnapshot} from "../../briefing/stocks/model.ts";
+import {engineeringBrief} from "../../briefing/engineering/model.ts";
 
 const at="2026-09-20T07:00:00Z";
 const media="/media/cinema/2026-09-19/audit-poster.svg";
@@ -29,6 +30,10 @@ export function syntheticDailyFilled(lang:DigestLanguage="ru"):string {
       ...(index===0?{media:[{id:"audit-image",kind:"image",src:"/media/audit-illustration.webp",alt:"Synthetic illustration",mimeType:"image/webp"}]}:{}),
     }))},sourceBatches:[],dataQuality:{state:"ready",summary:"Тестовые источники обновлены."},
   });
+  payload.addons.engineering=engineeringBrief({waiting:[
+    {project:"PickFlick",number:158,title:"Синтетическая задача с длинным названием для проверки обрезки строки на телефоне",url:"https://example.org/pull/158",hours:44},
+    {project:"TailorTales",number:121,title:"Synthetic review",url:"https://example.org/pull/121",hours:73}],
+    week:{completed:5,measured:4,medianTokens:1_240_000,reworkPercent:20}},at) as unknown as typeof payload.addons[string];
   return withDigestLanguage(lang,()=>renderBriefingPage(payload));
 }
 
