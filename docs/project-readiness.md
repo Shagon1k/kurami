@@ -38,7 +38,10 @@ Each entry in `deploy/config/projects.yaml` needs:
   `deferred`;
 - optionally an `icon` for Projects navigation (`panda`, `fox`, `profile`,
   `book`, `news`, `cinema`, `chart`; anything else shows the generic project
-  icon).
+  icon);
+- optionally a `color` for its tasks in Projects (`blue`, `teal`, `green`,
+  `violet`, `pink`, `gold`; without it, or with another value, the colour
+  follows the registry order).
 
 The registry is the only list of projects: Hub and Projects show them in
 registry order under the repository's name, and `run-project-poller.sh` accepts

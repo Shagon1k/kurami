@@ -13,8 +13,9 @@ import {breakpoints} from "../ui-library/tokens/index.ts";
 import {ICON_CSS} from "../ui-library/components/icon.ts";
 import {TOAST_CSS} from "../ui-library/components/toast.ts";
 import {DISCLOSURE_CSS} from "../ui-library/components/disclosure.ts";
+import {PROJECT_COLOR_CSS} from "../ui-library/components/project-color.ts";
 
-export const PROJECTS_STYLES=[THEME_CSS,FOUNDATION_CSS,BUTTON_CSS,TABLE_CSS,FORM_CSS,DIALOG_CSS,CALLOUT_CSS,PILL_CSS,POPOVER_CSS,THEME_SWITCH_CSS,SITE_HEADER_CSS,ICON_CSS,TOAST_CSS,DISCLOSURE_CSS,`
+export const PROJECTS_STYLES=[THEME_CSS,FOUNDATION_CSS,BUTTON_CSS,TABLE_CSS,FORM_CSS,DIALOG_CSS,CALLOUT_CSS,PILL_CSS,POPOVER_CSS,THEME_SWITCH_CSS,SITE_HEADER_CSS,ICON_CSS,TOAST_CSS,DISCLOSURE_CSS,PROJECT_COLOR_CSS,`
 [data-projects-app] { --projects-table-height: calc(100dvh - 230px); }
 .projects-page { padding-block: var(--space-5) var(--space-6); }
 .projects-toolbar { display: flex; align-items: center; flex-wrap: wrap; gap: var(--space-3) var(--space-5); }
@@ -44,6 +45,8 @@ export const PROJECTS_STYLES=[THEME_CSS,FOUNDATION_CSS,BUTTON_CSS,TABLE_CSS,FORM
 .projects-checks-heading { display: flex; align-items: center; justify-content: center; min-height: var(--control-height); }
 .projects-row--attention { background: color-mix(in srgb,var(--status-warning) 3%,var(--surface-raised)); }
 .projects-row--selected { background: var(--accent-soft); }
+.projects-row > th { box-shadow: var(--project-edge,none); }
+.projects-task-meta > .ui-icon:first-child { --icon-color: var(--project-color,inherit); }
 .projects-task { display: grid; gap: var(--space-2); min-width: 140px; max-width: 480px; font-weight: 600; line-height: 1.45; }
 .projects-task-meta { display: flex; align-items: center; flex-wrap: wrap; gap: var(--space-2); color: var(--text-muted); font-size: .7rem; font-weight: 400; }
 .projects-task-meta { --icon-size: 14px; }
@@ -144,6 +147,8 @@ export const PROJECTS_STYLES=[THEME_CSS,FOUNDATION_CSS,BUTTON_CSS,TABLE_CSS,FORM
   .projects-sync-indicator { display: block; }
   .projects-mobile-sort { display: flex; flex-wrap: wrap; gap: var(--space-1); margin-bottom: var(--space-2); }
   .projects-table { --table-stack-row-padding: var(--space-3) var(--space-4); --table-stack-label-display: none; }
+  .projects-row { box-shadow: var(--project-edge,none); }
+  .projects-row > th { box-shadow: none; }
   .projects-task { max-width: none; min-width: 0; }
   .projects-checks { padding-block: var(--space-1); }
   .projects-detail { --projects-detail-padding: var(--space-4); --projects-detail-bottom-padding: var(--space-4); }

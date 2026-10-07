@@ -1,4 +1,5 @@
 import {THEME_CSS} from "../ui-library/themes/index.ts";
+import {PROJECT_COLOR_CSS} from "../ui-library/components/project-color.ts";
 import {FOUNDATION_CSS} from "../ui-library/foundations/index.ts";
 import {BUTTON_CSS} from "../ui-library/components/button.ts";
 import {THEME_SWITCH_CSS} from "../ui-library/components/theme-switch.ts";
@@ -15,7 +16,7 @@ import {TOAST_CSS} from "../ui-library/components/toast.ts";
 
 import {CHART_STYLES} from "../ui-library/components/charts/styles.ts";
 
-export const HUB_STYLES=`${TOAST_CSS}${THEME_CSS}${FOUNDATION_CSS}${BUTTON_CSS}${THEME_SWITCH_CSS}${SITE_HEADER_CSS}${TABLE_CSS}${DISCLOSURE_CSS}${FORM_CSS}${DIALOG_CSS}${PERIOD_SWITCH_CSS}${ICON_CSS}${STAT_CARD_CSS}${POPOVER_CSS}${CHART_STYLES}
+export const HUB_STYLES=`${TOAST_CSS}${THEME_CSS}${FOUNDATION_CSS}${BUTTON_CSS}${THEME_SWITCH_CSS}${SITE_HEADER_CSS}${TABLE_CSS}${DISCLOSURE_CSS}${FORM_CSS}${DIALOG_CSS}${PERIOD_SWITCH_CSS}${ICON_CSS}${PROJECT_COLOR_CSS}${STAT_CARD_CSS}${POPOVER_CSS}${CHART_STYLES}
 body { min-height: 100vh; }
 .hub { padding-block: var(--space-6) var(--space-10); }
 .chronicle__days { display: grid; gap: var(--space-4); }
@@ -139,6 +140,7 @@ body { min-height: 100vh; }
 .activity-list,.activity-more-list { display: grid; }
 .work-item { min-width: 0; display: grid; grid-template-columns: 24px minmax(0,1fr) minmax(120px,.3fr) var(--control-height) max-content; align-items: center; column-gap: var(--space-3); padding: var(--space-3) var(--space-4); border-bottom: 1px solid var(--border-subtle); }
 .work-item[hidden] { display: none; }
+.work-item { box-shadow: var(--project-edge,none); }
 .work-item__row { display: contents; }
 .work-item__icon { grid-column: 1; grid-row: 1; display: grid; place-items: center; color: var(--accent-data); }
 .work-item[data-tone="failure"] .work-item__icon { color: var(--status-failure); }
@@ -187,6 +189,7 @@ body { min-height: 100vh; }
 .model-table { --table-cell-padding: 10px 5px; }
 .project-table { --table-cell-padding: 13px 10px; border: 1px solid var(--border-subtle); border-radius: var(--radius-md); background: var(--surface-raised); }
 .project-table table { min-width: 680px; }
+.project-table th[scope="row"] { box-shadow: var(--project-edge,none); }
 .project-table th[scope="row"] a { color: var(--text-primary); text-decoration: none; }
 .project-table th[scope="row"] a:hover { color: var(--text-accent); text-decoration: underline; }
 .project-table td:last-child { color: var(--text-muted); font-size: .75rem; white-space: nowrap; }

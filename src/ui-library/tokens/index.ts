@@ -8,9 +8,14 @@ export const colorRoles=[
   "status-success","status-warning","status-failure","status-info",
   "shadow-offset","focus-ring",
   "chart-1","chart-2","chart-3","chart-4","chart-5",
+  // Project identity: one hue per managed project (the left bar on its tasks). Never a status, so no red or amber.
+  "project-blue","project-teal","project-green","project-violet","project-pink","project-gold",
   "diagram-surface","diagram-panel","diagram-ink","diagram-muted","diagram-accent","diagram-accent-soft","diagram-success","diagram-warning",
 ] as const;
 export type ColorRole=typeof colorRoles[number];
+/** The names a project may pick in config/projects.yaml (`color:`); each is the `project-<name>` colour role. */
+export const projectColors=["blue","teal","green","violet","pink","gold"] as const;
+export type ProjectColor=typeof projectColors[number];
 // Mode-independent roles: typefaces, shape, elevation, motion and spacing. A theme may change them too.
 export const scaleRoles=[
   "font-sans","font-mono","font-note","font-display",

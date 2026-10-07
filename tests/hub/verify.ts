@@ -16,6 +16,14 @@ for(const [remaining,tone]of [[20.1,'neutral'],[20,'warning'],[0.1,'warning'],[0
   const fixture=syntheticHubSnapshot();fixture.codex.limits[0]!.remainingPercent=remaining;
   assert.match(renderHubDashboard(fixture),new RegExp(`<article class="limit" data-tone="${tone}"`));
 }
+// Project colours: the project table and the activity feed carry each project's hue (the left bar).
+{
+  const fixture=syntheticHubSnapshot(),page=renderHubDashboard(fixture),first=fixture.projects[0]!;
+  assert.ok(first.color,"fixture projects have a hue");
+  assert.match(page,new RegExp(`<tr class="project-row project-color--${first.color}">`),"project table row");
+  assert.match(page,new RegExp(`<li class="work-item project-color--${first.color}"[^>]*data-work-project="${first.key}"`),"activity item");
+  assert.match(page,/<li class="work-item" [^>]*data-work-project="kurami"/,"Kurami's own work has no project hue");
+}
 try {
   mkdirSync(join(home,"config"));mkdirSync(join(home,"state"));
   writeFileSync(join(home,"config/projects.yaml"),`version: 1

@@ -20,7 +20,9 @@ Open Projects through the Apps menu. Choose a project in the header, search for
 a task, or sort by task, status and Kurami state. The interface defaults to
 English. On phones, the bottom panel opens Projects and Search; Settings contains
 language and theme in horizontal rows. Outline project icons distinguish folders,
-a panda, a fox and a profile card; selected links have a left rail. Search opens at the top of the visible screen and adjusts to
+a panda, a fox and a profile card; selected links have a left rail. Each project has its own colour:
+a bar on the left edge of the row and the project icon tell tasks apart in the mixed list (the bar glows in Neon).
+The warm background still means "your decision needed". Search opens at the top of the visible screen and adjusts to
 the keyboard. Desktop keeps project links and language in the header. The
 table scrolls within the window, with more space inside each row. On mobile a
 task fills the screen: swipe right

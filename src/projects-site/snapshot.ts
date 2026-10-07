@@ -13,9 +13,9 @@ import { PROJECTS_STALE_AFTER_MS, needsOwner, type ProjectItem, type ProjectsSna
 import {hasActivePrRequest} from "../orchestrator/controls/pr-boundary.ts";
 
 import { technicalWorkerDiagnostic, workerDiagnosticText } from "../orchestrator/integrations/codex/worker-diagnostic.ts";
-import { PROJECT_ICONS } from "../core/projects-registry.ts";
+import { PROJECT_ICONS, projectColor } from "../core/projects-registry.ts";
 
-type Config = { owner: string; project_number: number; status_field?: string; repository: string; icon?: string; statuses: ProjectStatuses; discord?: { guild_id: string; channel_id: string } };
+type Config = { owner: string; project_number: number; status_field?: string; repository: string; icon?: string; color?: string; statuses: ProjectStatuses; discord?: { guild_id: string; channel_id: string } };
 type ItemRow = ProjectRunFacts & {
   item_id: string; project: string; issue_number: number | null; title: string | null; content_type: string | null;
   status: string | null; last_seen_at: string; url: string | null; run_id: string | null; run_updated_at: string | null;
@@ -90,7 +90,7 @@ export function collectProjectsSnapshot(options: { home?: string; now?: Date; co
   let database: DatabaseSync | undefined;
   try {
     const configs = projectsRegistry(resolve(home, "config/projects.yaml"));
-    unavailable.projects = Object.entries(configs).map(([key, config]) => ({ key, name: config.repository.split("/")[1]!, icon: (PROJECT_ICONS as readonly string[]).includes(config.icon ?? "") ? config.icon : "project", repository: config.repository,
+    unavailable.projects = Object.entries(configs).map(([key, config], index) => ({ key, name: config.repository.split("/")[1]!, icon: (PROJECT_ICONS as readonly string[]).includes(config.icon ?? "") ? config.icon : "project", color: projectColor(config.color, index), repository: config.repository,
       boardUrl: `https://github.com/users/${config.owner}/projects/${config.project_number}`, statuses: config.statuses, capturedAt: null, freshness: "unavailable" }));
     database = new DatabaseSync(resolve(home, "state/orchestrator.db"), { readOnly: true, timeout: 1_000 });
     database.exec("BEGIN");

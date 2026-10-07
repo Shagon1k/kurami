@@ -1,10 +1,11 @@
 import {stateLabel} from "./i18n.ts";
 import type { ProjectAttention, ProjectStatuses } from "../orchestrator/projects/status-read-model.ts";
+import type { ProjectColor } from "../ui-library/tokens/index.ts";
 
 export type Freshness = "fresh" | "stale" | "unavailable";
 export type Signal = { state: string; tone: "neutral" | "success" | "warning" | "failure"; head: string | null };
 export type CiCheck = { name: string; state: "passed" | "failed" | "pending" | "missing" | "unknown"; detailsUrl: string | null };
-export type ProjectSummary = { key: string; name: string; icon?: string; repository: string; boardUrl: string; statuses: ProjectStatuses; capturedAt: string | null; freshness: Freshness };
+export type ProjectSummary = { key: string; name: string; icon?: string; color?: ProjectColor; repository: string; boardUrl: string; statuses: ProjectStatuses; capturedAt: string | null; freshness: Freshness };
 export type StatusChange = { enabled: boolean; reason: "eligible" | "stale" | "unsupported" | "unavailable" | "pending" | "pr_pending"; choices: {value: string; label: string; hint: string}[];
   request?: {state: import("./status-state.ts").StatusRequestState; target: string; from: string | null; key: string; checkAvailable: boolean}; };
 export type ProjectItem = {

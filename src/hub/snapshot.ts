@@ -5,6 +5,8 @@ import {homedir} from "node:os";
 import {collectHubOperations,type HubOperations} from "./operations.ts";
 import {parse} from "yaml";
 import {resolveKuramiHome} from "../core/kurami-home.ts";
+import {projectColor} from "../core/projects-registry.ts";
+import type {ProjectColor} from "../ui-library/tokens/index.ts";
 import {collectCodexSnapshot,type CodexSnapshot} from "./codex.ts";
 import {readProjectStatus} from "../orchestrator/projects/status-read-model.ts";
 import {readProjectUsage,type ProjectUsage} from "../orchestrator/projects/usage-read-model.ts";
@@ -12,7 +14,7 @@ import {readThreadUsage} from "../core/codex-usage.ts";
 import {readChronicle,type ChronicleDay} from "../orchestrator/projects/chronicle.ts";
 
 type ProjectConfig={
-  owner:string;project_number:number;repository:string;
+  owner:string;project_number:number;repository:string;color?:string;
   statuses:{backlog:string;active:string;review:string;done:string;deferred:string};
   workspace:{canonical_repository:string;base_branch:string};
 };
@@ -20,7 +22,7 @@ type Registry={projects:Record<string,ProjectConfig>};
 
 export type Week={start:string;count:number};
 export type HubProject={
-  key:string;name:string;repository:string;boardUrl:string;
+  key:string;name:string;repository:string;boardUrl:string;color?:ProjectColor;
   managed:boolean;board:{backlog:number;active:number;review:number;done:number;deferred:number}|null;
   runs:{working:number;attention:number;ciFailed:number}|null;
   poll:{capturedAt:string|null;state:"fresh"|"stale"|"unavailable"};
@@ -90,14 +92,14 @@ export function collectHubSnapshot(options:{home?:string;appRepository?:string;c
   const orchestrator=projectStatus.available?"available":"unavailable";
   const allDates:number[]=[];
   const repositoryDates:Record<string,number[]>={};
-  const projects:HubProject[]=keys.map(key=>{
+  const projects:HubProject[]=keys.map((key,index)=>{
     const item=config[key]!;
     const status=projectStatus.projects[key];
     const git=gitHistory(item.workspace.canonical_repository,item.workspace.base_branch,now);
     allDates.push(...git.dates);
     repositoryDates[key]=git.dates;
     return {
-      key,name:item.repository.split("/")[1]??key,repository:item.repository,
+      key,name:item.repository.split("/")[1]??key,repository:item.repository,color:projectColor(item.color,index),
       boardUrl:`https://github.com/users/${encodeURIComponent(item.owner)}/projects/${item.project_number}`,
       managed:true,
       board:status&&status.poll.state!=="unavailable"?status.board:null,

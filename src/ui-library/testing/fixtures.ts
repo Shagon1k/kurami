@@ -135,7 +135,7 @@ export function syntheticHubSnapshot():HubSnapshot {
       {day:"2026-09-13",events:[{at:"2026-09-13T09:00:00Z",project:"tailortales",issue:38,title:"Illustrations",kind:"returned"}]},
     ],
     weeks:Array.from({length:12},(_,index)=>({start:new Date(Date.UTC(2026,5,29+index*7)).toISOString().slice(0,10),count:[0,2,1,4,3,6,8,11,7,13,4,9][index]!})),
-    projects:[...projects.map(([key,name,number,review,commits7,commits30])=>({key,name,repository:`Shagon1k/${name}`,boardUrl:`https://github.com/users/Shagon1k/projects/${number}`,managed:true,
+    projects:[...projects.map(([key,name,number,review,commits7,commits30],index)=>({key,name,repository:`Shagon1k/${name}`,boardUrl:`https://github.com/users/Shagon1k/projects/${number}`,color:(["blue","gold","teal"] as const)[index%3],managed:true,
       board:{backlog:12,active:1,review,done:20,deferred:2},runs:{working:key==="pickflick"?2:0,attention:key==="pickflick"?1:0,ciFailed:0},
       poll:{capturedAt:"2026-09-16T06:58:00Z",state:"fresh" as const},git:{commits7,commits30,latestAt:"2026-09-16T06:30:00Z",state:"available" as const}})),
       {key:"kurami",name:"Kurami",repository:"Shagon1k/Kurami",boardUrl:"https://github.com/Shagon1k/Kurami",managed:false,board:null,runs:null,

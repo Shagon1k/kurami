@@ -13,7 +13,9 @@ import { renderProjectsPage, renderProjectPrControl } from "../../src/projects-s
 import { parseFilters, selectItems, projectStageLabel } from "../../src/projects-site/model.ts";
 import { syntheticProjectsSnapshot, syntheticCiChecks } from "./fixture.ts";
 import {parseCiChecks,ciCheckUrl} from "../../src/projects-site/ci-checks.ts";
-import {iconPath} from "../../src/ui-library/components/icon.ts";
+import {iconPath,renderIcon as renderIconMarkup} from "../../src/ui-library/components/icon.ts";
+import {PROJECTS_STYLES} from "../../src/projects-site/styles.ts";
+import {projectColorClass} from "../../src/ui-library/components/project-color.ts";
 import type {PrActionView} from "../../src/projects-site/pr-actions.ts";
 import {RUN_ACTIONS} from "../../src/projects-site/run-actions.ts";
 
@@ -191,6 +193,16 @@ iconFixture.projects=([["PickFlick","panda"],["TailorTales","fox"],["AHurynovich
 const iconPage=renderProjectsPage(iconFixture),mobileProjectNav=iconPage.split('id="mobile-menu-sections"')[1]!.split('</nav>')[0]!;
 for(const icon of ["projects","panda","fox","profile"] as const)assert.ok(mobileProjectNav.includes(iconPath(icon)),`mobile project navigation: ${icon}`);
 assert.doesNotMatch(iconPage.split('<div class="site-header__inner container">')[1]!.split('</a>\n')[1]!.split('class="site-actions"')[0]!,/<svg/,'desktop project navigation remains text-only');
+// Project colours: each row carries its project's hue class (the left bar) and its project icon; attention keeps its own tint.
+const colourRows=[...renderProjectsPage(fixture).matchAll(/<tr class="(projects-row[^"]*)"/g)].map(match=>match[1]!);
+assert.ok(colourRows.some(row=>row.includes("project-color--teal"))&&colourRows.some(row=>row.includes("project-color--violet")),"rows carry their project's hue");
+assert.ok(colourRows.every(row=>/project-color--(teal|violet)/.test(row)),"every row has a hue");
+const pandaFixture=structuredClone(fixture);pandaFixture.projects[0]!.icon="panda";
+assert.ok(renderProjectsPage(pandaFixture).includes(`<div class="projects-task-meta">${renderIconMarkup("panda")}`),"the row shows the project's own icon");
+assert.match(PROJECTS_STYLES,/\.projects-row > th \{ box-shadow: var\(--project-edge,none\); \}/);
+assert.match(PROJECTS_STYLES,/\.project-color--gold \{ --project-color: var\(--project-gold\); \}/);
+assert.match(PROJECTS_STYLES,/html\[data-kurami-theme="neon"\] \[class\*="project-color--"\] \{ --project-edge: inset 3px 0 0 var\(--project-color\), inset 14px/,"Neon lights the bar");
+assert.throws(()=>projectColorClass("red" as never),/Unknown project color/);
 const runlessDone=structuredClone(fixture);runlessDone.items=[{...fixture.items[3]!,status:"Done"}];
 assert.match(renderProjectsPage(runlessDone),/>No agent run<\/span>/,"no observed agent run is distinct from GitHub completion");
 assert.match(renderProjectsPage(runlessDone,new URLSearchParams("lang=ru")),/>Нет запуска<\/span>/);
