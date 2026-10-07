@@ -60,6 +60,8 @@ export type ResourceGuardAnalysis = {
     usedPercent: number;
     availableGiB: number;
     state: "normal" | "warning" | "blocked" | "emergency";
+    /** At this usage new work stops being admitted; the disk forecast counts days to it. */
+    blockPercent?: number;
   };
   worktrees: {
     global: number;
@@ -234,6 +236,7 @@ export function analyzeResourceGuard(
       usedPercent: rounded(inventory.diskUsedPercent),
       availableGiB: rounded(inventory.diskAvailableGiB),
       state: diskState,
+      blockPercent: limits.disk_admission_block_percent,
     },
     worktrees: {
       global: globalWorktrees,

@@ -82,6 +82,8 @@ body { min-height: 100vh; }
 .limit[data-tone]:not([data-tone="neutral"]) .limit__track span { background: var(--limit-tone); }
 .control-changes { --table-font-size: .78rem; --table-cell-padding: var(--space-2); margin-block: var(--space-3); overflow-wrap: anywhere; }
 .limit__meta { color: var(--text-muted); font: .7rem/1.3 var(--font-mono); }
+.limit__forecast { display: flex; align-items: center; gap: var(--space-1); margin: var(--space-1) 0 0; color: var(--status-warning); font-size: .75rem; }
+.limit__forecast svg { inline-size: 14px; block-size: 14px; flex: none; }
 .limit-history { padding-top: var(--space-5); }
 .limit-history .panel-heading { margin-bottom: var(--space-2); color: var(--text-muted); font-size: .75rem; }
 .limit-history__legend { display: flex; justify-content: center; gap: var(--space-4); margin-top: var(--space-2); color: var(--text-muted); font-size: .7rem; }

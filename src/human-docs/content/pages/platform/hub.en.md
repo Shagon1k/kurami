@@ -18,10 +18,10 @@ Top to bottom:
 |---|---|
 | **Alerts** | the problem queue, shown only when something is wrong; one entry per PR or task with reasons, who acts and the next step |
 | **Tasks** | tasks in progress, in Human Review and needing the owner; next to them commits and API-equivalent USD for the period |
-| **System Health** | CPU, RAM, network and disk with meters, plus the Project Orchestrator panel: State DB, Docker, previews, worktrees, quarantine, backup |
+| **System Health** | CPU, RAM, network and disk with meters, plus the Project Orchestrator panel: State DB, Docker, previews, worktrees, quarantine, backup. Under the disk: how many days until it reaches the threshold where new tasks stop being admitted (85%), shown when usage has grown for at least a week and the date is under 60 days away |
 | **Projects** | a row per project: cards, commits for 7 and 30 days, poll freshness; a collapsed **Usage** block with completed tasks and tokens per task |
 | **Commits** | a chart by rolling 24-hour buckets with repository checkboxes |
-| **Codex** | **Tokens**, **Limits** with a reset button and a daily usage chart, **Models** with tokens and USD |
+| **Codex** | **Tokens**, **Limits** with a reset button and a daily usage chart, **Models** with tokens and USD. When a limit would run out before its reset at the current window's pace, it shows when |
 | **Live Activity** | recent work grouped by task or session, with Project and Agent filters |
 
 Kurami in the project table is a repository, not an admitted project: it only has commits. The System Health numbers are the same measurements as the Discord card ([Server health](@health)).
