@@ -21,16 +21,13 @@ active running lease, an allowed hostname and an unexpired TTL. Rendering
 escapes issue titles, descriptions of run stages and other source text.
 
 The existing Cloudflare Zero Trust policy controls access to the tunnel route.
-Projects binds to loopback and serves pages, fragments, assets and enabled
-controls without a second application login. Audit records use
-`projects-origin`, which identifies the entry point rather than a verified user.
-Forwarded identity headers are not treated as a verified actor.
-
-Set `PROJECTS_ACCESS_ENABLED=1` to additionally require signed Cloudflare Access
-assertions. In that mode, `access.ts` verifies issuer, algorithm, time bounds,
-application type, audience, signature and owner email. Missing configuration
-denies access only when this mode is enabled. The optional validation follows
-[Cloudflare's JWT validation guidance](https://developers.cloudflare.com/cloudflare-one/access-controls/applications/http-apps/authorization-cookie/validating-json/).
+Projects binds to loopback and is reached only through the unified gateway at
+`kurami.shagon1k.win`; the old `projects.shagon1k.win` host is gone. The gateway
+verifies the signed Cloudflare Access assertion (`src/web/access.ts`, which uses
+`access.ts` for issuer, algorithm, time bounds, audience, signature and owner email)
+and marks the request as mounted. A request that does not come through the
+gateway gets no owner identity and is refused; controls accept only the
+`https://kurami.shagon1k.win` origin.
 
 Public `/health` returns process liveness only; `/robots.txt` disallows indexing.
 Responses are private and are not cached by the browser. CSP restricts scripts,
@@ -50,8 +47,7 @@ npm run test:projects-browser
 
 `PROJECTS_PORT` defaults to the reserved port. `KURAMI_HOME` selects the directory
 containing `config/projects.yaml` and `state/orchestrator.db`; set it explicitly
-when running from a worktree. Optional application validation uses `PROJECTS_ACCESS_ENABLED=1`,
-`PROJECTS_ACCESS_TEAM`, `PROJECTS_ACCESS_AUDIENCE`, and `PROJECTS_OWNER_EMAIL`.
+when running from a worktree. Access is verified by the gateway (`KURAMI_WEB_ACCESS_*`).
 The tracked systemd unit reads an optional untracked Projects environment file.
 Normal tunnel hosting does not require this file or the Access variables.
 
@@ -198,15 +194,9 @@ paths or production services are required.
 
 ## Delivery and recovery
 
-The service unit is `deploy/systemd/kurami-projects.service`. The owner confirmed
-that the Cloudflare route and its Zero Trust policy are configured. The origin
-serves `projects.shagon1k.win` on `http://127.0.0.1:8777`; no separate application
-Access configuration is required.
-
-For optional application validation, set `PROJECTS_ACCESS_ENABLED=1`,
-`PROJECTS_ACCESS_TEAM`, the dedicated Projects application
-`PROJECTS_ACCESS_AUDIENCE`, and `PROJECTS_OWNER_EMAIL` in
-`$KURAMI_HOME/secrets/projects-site.env` (mode `0600`). Do not reuse the Hub audience.
+The service unit is `deploy/systemd/kurami-projects.service`. It listens on `http://127.0.0.1:8777` and is mounted by the gateway under
+`kurami.shagon1k.win/<lang>/projects/`; the old `projects.shagon1k.win` route and
+the `PROJECTS_ACCESS_*` variables are retired.
 After changing runtime values, run
 `systemctl --user restart kurami-projects.service`.
 `curl http://127.0.0.1:8777/health` checks liveness; opening the hostname checks

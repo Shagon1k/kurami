@@ -101,7 +101,7 @@ try {
 
   let authorized=false,writes=0;const server=createProjectsServer({authorize:async()=>authorized?"owner":null,snapshot:()=>collectProjectsSnapshot(options),runAction:()=>{writes++;return {state:"created",requestId:"fixture",requestState:"pending"};}});
   await new Promise<void>(done=>server.listen(0,"127.0.0.1",done));const base=`http://127.0.0.1:${(server.address() as {port:number}).port}`;
-  const headers={Origin:"https://projects.shagon1k.win","Content-Type":"application/json"};
+  const headers={Origin:"https://kurami.shagon1k.win","Content-Type":"application/json"};
   const post=(extra:Record<string,string>={},body=JSON.stringify(input("stop")))=>fetch(base+"/api/run-action",{method:"POST",headers:{...headers,...extra},body});
   try {assert.equal((await post()).status,403);authorized=true;assert.equal((await post({Origin:"https://evil.example"})).status,403);assert.equal((await post({"Sec-Fetch-Site":"cross-site"})).status,403);assert.equal((await post({"Content-Type":"text/plain"})).status,403);assert.equal((await post({},"not json")).status,400);assert.equal((await post({},"x".repeat(5000))).status,413);assert.equal(writes,0);assert.equal((await post()).status,202);assert.equal(writes,1);}
   finally {await new Promise<void>(done=>server.close(()=>done()));}

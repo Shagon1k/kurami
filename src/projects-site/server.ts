@@ -5,7 +5,6 @@ import { resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { fontFiles } from "../ui-library/foundations/fonts.ts";
 import { THEME_RUNTIME_JS } from "../ui-library/runtime/theme.ts";
-import { ProjectsAccess } from "./access.ts";
 import {AccessVerificationUnavailableError,accessUnavailableMessage} from "../web/access-keys.ts";
 import { collectProjectsSnapshot } from "./snapshot.ts";
 import { renderProjectsDashboard, renderProjectsPage,renderProjectPrControl } from "./render.ts";
@@ -42,14 +41,10 @@ export function createProjectsServer(options: {
   prCacheMs?:number;
   origin?: string;
 } = {}): Server {
-  const access = new ProjectsAccess({ team: process.env.PROJECTS_ACCESS_TEAM ?? "", audience: process.env.PROJECTS_ACCESS_AUDIENCE ?? "", ownerEmail: process.env.PROJECTS_OWNER_EMAIL ?? "" });
-  const accessEnabled = process.env.PROJECTS_ACCESS_ENABLED ?? "0";
-  if (accessEnabled !== "0" && accessEnabled !== "1") throw new Error("Invalid PROJECTS_ACCESS_ENABLED");
-  const nativeAuthorize = accessEnabled === "1"
-    ? (request:IncomingMessage) => access.authorize(request)
-    : async () => "projects-origin";
+  // Projects is reached only through the unified gateway; the old projects.* host is gone, so a request that
+  // did not come through the gateway has no owner identity.
   const webAccess=new WebAccess();
-  const authorize=options.authorize??(async(request:IncomingMessage)=>isMountedRequest(request,"projects")?(await webAccess.authorize(request,"projects"))?.actor??null:nativeAuthorize(request));
+  const authorize=options.authorize??(async(request:IncomingMessage)=>isMountedRequest(request,"projects")?(await webAccess.authorize(request,"projects"))?.actor??null:null);
   const snapshot = options.snapshot ?? collectProjectsSnapshot;
   const review = options.review ?? (process.env.PROJECTS_CONTROLS_ENABLED === "1" ? requestProjectsReview : null);
   const statusChange = options.statusChange ?? (process.env.PROJECTS_STATUS_ENABLED === "1" ? requestProjectStatus : null);
@@ -105,7 +100,7 @@ export function createProjectsServer(options: {
     }
     if (!identity) { send(403, "text/plain; charset=utf-8", "Доступ разрешён только владельцу через Cloudflare Access."); return; }
     if (reviewRoute || statusRoute || runRoute||prRoute) {
-      if (request.headers.origin !== (options.origin ?? (isMountedRequest(request,"projects")?WEB_ORIGIN:"https://projects.shagon1k.win")) ||
+      if (request.headers.origin !== (options.origin ?? WEB_ORIGIN) ||
         request.headers["content-type"] !== "application/json" ||
         request.headers["sec-fetch-site"] && request.headers["sec-fetch-site"] !== "same-origin") {
         send(403, "application/json", JSON.stringify({ error: "Запрос разрешён только со страницы Projects." })); return;
