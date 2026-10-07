@@ -84,8 +84,7 @@ order: 50
 |---|---|
 | `KURAMI_HOME`, `HERMES_HOME` | корневые каталоги Kurami и Hermes |
 | `BRIEFING_PORT`, `DOCS_PORT`, `HUB_PORT` | порты сайтов на локальном адресе |
-| `HUB_CONTROLS_ENABLED`, `HUB_CONTROL_ORIGIN` | включают действия владельца в Hub и задают точный origin, который они принимают |
-| `HUB_ACCESS_TEAM`, `HUB_ACCESS_AUDIENCE` | команда и приложение Cloudflare Access, которые проверяют действия; если их нет, действия не выполняются |
+| `HUB_CONTROLS_ENABLED` | включает действия владельца в Hub; они принимают только origin `kurami.shagon1k.win` и личность Access, проверенную шлюзом |
 | `HUB_CONTROL_ACTOR_ID` | числовой автор, которого изменения настроек из Hub записывают в историю ревизий, по умолчанию 0 |
 | `HUB_CODEX_HOME` | где Hub ищет состояние Codex, по умолчанию `~/.codex` |
 | `KURAMI_BACKUP_RETENTION` | сколько снимков хранить, по умолчанию 14 |

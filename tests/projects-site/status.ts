@@ -150,7 +150,7 @@ try {
   const server=createProjectsServer({authorize:async()=>authorized?"owner":null,snapshot:()=>collectProjectsSnapshot({home,now:instant}),statusChange:async()=>{outbound++;return {state:"awaiting_sync",requestId:"fixture",target:"Doing"};}});
   await new Promise<void>(done=>server.listen(0,"127.0.0.1",done));
   const base=`http://127.0.0.1:${(server.address() as {port:number}).port}`;
-  const headers={Origin:"https://projects.shagon1k.win","Content-Type":"application/json"};
+  const headers={Origin:"https://kurami.shagon1k.win","Content-Type":"application/json"};
   const post=(extra:Record<string,string>={},body=JSON.stringify(input()))=>fetch(base+"/api/status",{method:"POST",headers:{...headers,...extra},body});
   try {
     assert.equal((await post()).status,403); authorized=true;

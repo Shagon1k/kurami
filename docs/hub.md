@@ -52,7 +52,7 @@ The browser requests a new server-rendered fragment every minute while the page 
 
 ## Keep the origin private
 
-Put the hostname behind an owner-only Cloudflare Access policy. The read surfaces rely on that edge policy. Controls additionally validate the signed Access JWT against `HUB_ACCESS_TEAM` and `HUB_ACCESS_AUDIENCE`; configure these for the Hub application. The supplied service contains the current Hub team and audience. Missing configuration fails closed. Do not expose the loopback port directly. The service worker caches only the generic offline page and static assets; it does not cache dashboard values.
+Hub is served only through the unified gateway at `kurami.shagon1k.win`, behind the owner-only Cloudflare Access policy; the old `hub.shagon1k.win` host is gone. The gateway verifies the signed Access JWT and marks the request as mounted; a request that does not come through the gateway gets no owner identity.
 
 CSS and client JavaScript URLs contain a content hash. The service worker checks the network before cached static assets and falls back to its cache only on network failure. Activation removes older Hub static caches, not unrelated caches. Regression tests cover an installed v7 worker, repeated ordinary visits, stale cache recovery and the offline shell.
 
@@ -60,7 +60,7 @@ CSS and client JavaScript URLs contain a content hash. The service worker checks
 
 Open Controls from the icon button in the site header. Its anchored popover lists Models, Settings, Composio and Restart. Selecting an action opens the existing configuration or confirmation dialog; Back returns to the popover. Escape and outside clicks dismiss the popover without applying an action. Reset stays beside the current limits. Opening these views does not apply an action.
 
-Set `HUB_CONTROLS_ENABLED=true` and `HUB_CONTROL_ORIGIN=https://hub.shagon1k.win` to enable the API. Mutations require an authenticated Access identity, an exact Origin match, an HttpOnly `__Host-` CSRF cookie with the matching request token, and explicit confirmation. Concurrent mutations are rejected. Successful actions append bounded metadata to `state/hub/control-audit.jsonl`; no command outputs or secrets enter that audit.
+Set `HUB_CONTROLS_ENABLED=true` to enable the API; it accepts only the `https://kurami.shagon1k.win` origin. Mutations require an authenticated Access identity, an exact Origin match, an HttpOnly `__Host-` CSRF cookie with the matching request token, and explicit confirmation. Concurrent mutations are rejected. Successful actions append bounded metadata to `state/hub/control-audit.jsonl`; no command outputs or secrets enter that audit.
 
 Hub checks that the audit file is writable before a mutation. If saving the record fails after the action completes, the response still reports the completed action and displays an audit warning. Do not repeat a completed action to repair its audit record.
 

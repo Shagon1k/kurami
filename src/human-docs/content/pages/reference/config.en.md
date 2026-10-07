@@ -84,8 +84,7 @@ News topics and their checks live separately in `deploy/config/briefing-topics.y
 |---|---|
 | `KURAMI_HOME`, `HERMES_HOME` | the Kurami and Hermes root folders |
 | `BRIEFING_PORT`, `DOCS_PORT`, `HUB_PORT` | the sites' ports on the local address |
-| `HUB_CONTROLS_ENABLED`, `HUB_CONTROL_ORIGIN` | switch on the Hub owner controls and set the exact origin they accept |
-| `HUB_ACCESS_TEAM`, `HUB_ACCESS_AUDIENCE` | the Cloudflare Access team and application the controls verify; if missing, controls refuse to run |
+| `HUB_CONTROLS_ENABLED` | switches on the Hub owner controls; they accept only the `kurami.shagon1k.win` origin and the Access identity the gateway verified |
 | `HUB_CONTROL_ACTOR_ID` | the numeric actor that Hub settings changes record in the revision history, 0 by default |
 | `HUB_CODEX_HOME` | where Hub looks for Codex state, `~/.codex` by default |
 | `KURAMI_BACKUP_RETENTION` | how many snapshots to keep, 14 by default |

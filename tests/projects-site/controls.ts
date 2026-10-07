@@ -97,7 +97,7 @@ try {
   const base = `http://127.0.0.1:${(server.address() as {port:number}).port}`;
   try {
     const post = (headers: Record<string,string>,body = JSON.stringify(input())) => fetch(base+"/api/ai-review",{method:"POST",headers,body});
-    const headers = { Origin: "https://projects.shagon1k.win", "Content-Type": "application/json" };
+    const headers = { Origin: "https://kurami.shagon1k.win", "Content-Type": "application/json" };
     assert.equal((await post(headers)).status,403); authorized=true;
     assert.equal((await post({...headers,Origin:"https://evil.example"})).status,403);
     assert.equal((await post({"Content-Type":"application/json"})).status,403);

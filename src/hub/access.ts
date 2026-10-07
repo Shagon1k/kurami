@@ -7,7 +7,7 @@ export class HubAccess {
   private team:string;
   private audience:string;
   private fetchKeys:typeof fetch;
-  constructor(team=process.env.HUB_ACCESS_TEAM??"",audience=process.env.HUB_ACCESS_AUDIENCE??"",fetchKeys=fetch){this.team=team;this.audience=audience;this.fetchKeys=fetchKeys;}
+  constructor(team="",audience="",fetchKeys=fetch){this.team=team;this.audience=audience;this.fetchKeys=fetchKeys;}
   async authorize(request:IncomingMessage):Promise<string|null> {
     if(!/^https:\/\/[a-z0-9-]+\.cloudflareaccess\.com$/.test(this.team)||!this.audience)return null;
     const token=request.headers["cf-access-jwt-assertion"];

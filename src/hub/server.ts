@@ -4,7 +4,6 @@ import {resolve} from "node:path";
 import {fileURLToPath} from "node:url";
 import {randomBytes,timingSafeEqual} from "node:crypto";
 import type {IncomingMessage} from "node:http";
-import {HubAccess} from "./access.ts";
 import {AccessVerificationUnavailableError,accessUnavailableMessage} from "../web/access-keys.ts";
 import {createHubControls,HubControlError} from "./controls.ts";
 import {renderControlView} from "./control-view.ts";
@@ -46,10 +45,11 @@ export function createHubServer(options:{snapshot?:()=>HubSnapshot;account?:()=>
   const snapshot=options.snapshot??collectHubSnapshot;
   const account=options.account??(options.snapshot?null:readCodexAccount);
   const controls=options.controls??(process.env.HUB_CONTROLS_ENABLED==="true"?createHubControls():null);
-  const access=new HubAccess();
+  // Hub is reached only through the unified gateway (kurami.shagon1k.win); the old hub.* host is gone, so a
+  // request that did not come through the gateway has no owner identity.
   const webAccess=new WebAccess();
-  const authorize=options.authorize??(async(request)=>isMountedRequest(request,"hub")?(await webAccess.authorize(request,"hub"))?.actor??null:access.authorize(request));
-  const origin=options.controlOrigin??process.env.HUB_CONTROL_ORIGIN??"https://hub.shagon1k.win";
+  const authorize=options.authorize??(async(request)=>isMountedRequest(request,"hub")?(await webAccess.authorize(request,"hub"))?.actor??null:null);
+  const origin=options.controlOrigin??WEB_ORIGIN;
   const cookieName="__Host-kurami-control";
   let cached:{at:number;value:HubSnapshot}|null=null;
   let collecting:Promise<HubSnapshot>|null=null;
