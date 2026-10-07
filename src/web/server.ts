@@ -13,6 +13,18 @@ import {PWA_ICON_ASSETS,PWA_LEGACY_ICON_ASSETS,PWA_NEON_ICON_ASSETS,pwaAppearanc
 type Options={upstreams?:Record<WebApp,string>;authorize?:(request:IncomingMessage,app:WebApp)=>Promise<WebIdentity|null>;origin?:string;appearance?:()=>string|null};
 
 /** The Hub default theme travels as a readable cookie on every page, so the theme runtime applies it before first paint. */
+/** The language of the last page opened; "/" and the installed app start there. */
+export function languageCookie(language:"en"|"ru",secure:boolean):string {
+  return `kurami-lang=${language}; Max-Age=31536000; Path=/; SameSite=Lax${secure?"; Secure":""}`;
+}
+
+/** "/" opens in the remembered language, else the browser's, else English. */
+export function preferredLanguage(cookie:string|undefined,acceptLanguage:string|undefined):"en"|"ru" {
+  const remembered=/(?:^|;\s*)kurami-lang=(en|ru)(?:;|$)/.exec(cookie??"")?.[1];
+  if(remembered==="en"||remembered==="ru")return remembered;
+  return /^\s*ru\b/i.test(acceptLanguage??"")?"ru":"en";
+}
+
 export function appearanceCookie(value:string|null,secure:boolean):string {
   const flags=`Path=/; SameSite=Lax${secure?"; Secure":""}`;
   return value&&/^[a-z]+\.(?:light|dark)$/.test(value)?`kurami-theme-default=${value}; Max-Age=31536000; ${flags}`:`kurami-theme-default=; Max-Age=0; ${flags}`;
@@ -57,7 +69,9 @@ export function createWebServer(options:Options={}):Server {
     if(request.method==="POST"&&request.headers.origin!==origin.origin){send(403,"Unexpected origin");return;}
     if(route&&"redirect" in route){
       if(!["GET","HEAD"].includes(request.method??"")){send(405,"Method not allowed");return;}
-      response.writeHead(302,{Location:route.redirect});response.end();return;
+      const home=resource==="/"||resource==="/index.html";
+      const location=home?route.redirect.replace(/^\/en\//,`/${preferredLanguage(request.headers.cookie,request.headers["accept-language"])}/`):route.redirect;
+      response.writeHead(302,{Location:location});response.end();return;
     }
     if(pwa){
       if(!["GET","HEAD"].includes(request.method??"")){send(405,"Method not allowed");return;}
@@ -68,7 +82,7 @@ export function createWebServer(options:Options={}):Server {
       }
       if(resource==="/manifest.webmanifest"){
         const installed=pwaAppearance(appearance());
-        send(200,JSON.stringify({id:"/",name:"Kurami",short_name:"Kurami",start_url:"/en/",scope:"/",display:"standalone",background_color:installed.background,theme_color:installed.themeColor,icons:installed.icons}),"application/manifest+json");return;
+        send(200,JSON.stringify({id:"/",name:"Kurami",short_name:"Kurami",start_url:"/",scope:"/",display:"standalone",background_color:installed.background,theme_color:installed.themeColor,icons:installed.icons}),"application/manifest+json");return;
       }
       if(icon){
         const body=readFileSync(new URL(`../ui-library/assets/brand/${icon.file}`,import.meta.url));
@@ -96,7 +110,7 @@ export function createWebServer(options:Options={}):Server {
       response.setHeader("Cache-Control","private, no-store");
       if(String(incoming.headers["content-type"]??"").startsWith("text/html")){
         const existing=response.getHeader("set-cookie"),cookies=existing===undefined?[]:Array.isArray(existing)?existing.map(String):[String(existing)];
-        response.setHeader("Set-Cookie",[...cookies,appearanceCookie(appearance(),origin.protocol==="https:")]);
+        response.setHeader("Set-Cookie",[...cookies,appearanceCookie(appearance(),origin.protocol==="https:"),...(/^\/(en|ru)(\/|$)/.test(resource)?[languageCookie(route.language,origin.protocol==="https:")]:[])]);
       }
       response.writeHead(incoming.statusCode??502);
       incoming.on("error",()=>response.destroy());incoming.pipe(response);

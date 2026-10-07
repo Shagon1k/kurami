@@ -72,9 +72,12 @@ Invalid or missing assertions still receive `403`; private data and actions rema
 unavailable without a verified signature.
 
 One Kurami PWA covers all four apps. Its fox icons are exported directly from
-vector paths at 512 and 1024 pixels, without enlarging a raster source. The splash
-and launcher icons share the theme's warm beige background. The adaptive icon
-keeps the mark within Android's safe area; the launcher owns its final shape.
+vector paths at 512 and 1024 pixels, without enlarging a raster source. The icons and splash
+follow the theme chosen in Hub: in Paper the fox sits on warm beige, in Neon it is
+drawn as neon tubes on the dark ground. The adaptive icon keeps the mark within
+Android's safe area; the launcher owns its final shape. The app opens in the
+language of the last page you opened (the `kurami-lang` cookie), and before that
+in the browser's language.
 New icon URLs do not force an installed Android app to update immediately;
 Chrome may ask you to confirm the changed icon in the app menu.
 The worker fetches pages from
