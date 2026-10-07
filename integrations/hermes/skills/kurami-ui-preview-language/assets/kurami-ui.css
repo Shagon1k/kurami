@@ -438,6 +438,17 @@ button, a { -webkit-tap-highlight-color: transparent; }
 }
 
 
+html[data-brand-moment="winter"] .site-brand__dot, html[data-brand-moment="autumn"] .site-brand__dot { font-size: 0; }
+html[data-brand-moment="winter"] .site-brand__dot::after { content: "\2744\FE0E"; font-size: 1.1rem; margin-inline-start: 2px; vertical-align: .15em; }
+html[data-brand-moment="autumn"] .site-brand__dot::after { content: ""; display: inline-block; font-size: 1rem; width: .42em; height: .42em; margin-inline: 2px 1px; background: currentColor; border-radius: 0 100% 0 100%; rotate: -25deg; vertical-align: .02em; }
+html[data-brand-moment="birthday"] .site-brand { position: relative; }
+html[data-brand-moment="birthday"] .site-brand::before { content: ""; position: absolute; inset-inline-start: 15px; top: -9px; width: 16px; height: 16px; z-index: 1; pointer-events: none;
+  background: var(--accent-primary); clip-path: polygon(50% 0, 100% 100%, 0 100%); rotate: -14deg; }
+.site-brand.ui-sneeze .site-brand__fox { animation: kurami-fox-sneeze .6s ease-in-out; transform-origin: 50% 80%; }
+@keyframes kurami-fox-sneeze { 0%, 100% { rotate: 0deg; } 30% { rotate: -6deg; } 55% { rotate: 4deg; scale: .96; } 75% { rotate: -2deg; } }
+@media (prefers-reduced-motion: reduce) { .site-brand.ui-sneeze .site-brand__fox { animation: none; } }
+
+
 
 .table { --table-stack-row-display: block; --table-stack-row-columns: none; --table-stack-header-column: auto; --table-stack-cell-width: 100%; max-width: 100%; max-height: var(--table-max-height,none); overflow: auto; overscroll-behavior: var(--table-overscroll,auto); }
 .table table { width: 100%; border-collapse: collapse; font-size: var(--table-font-size, .84rem); }
