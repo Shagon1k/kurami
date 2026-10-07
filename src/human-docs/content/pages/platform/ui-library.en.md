@@ -94,6 +94,13 @@ Success and ordinary information expire after eight seconds; hovering, keyboard
 focus or a hidden page pauses the timer. Errors, warnings and pending status
 writes remain until dismissed or replaced. The close icon has an accessible name.
 
+On an Android phone the apps answer with a light vibration (`runtime/haptics.ts`,
+shipped in every app's shared script): a short tick for a primary button, a
+double tick for confirming an action, a pulse for a success notice and a stronger
+double buzz for a warning or error. Nothing vibrates with a mouse, on iOS (which
+has no vibration API for pages) or when the system asks to reduce motion. A
+control opts in with `data-haptic="tap|confirm"` and out with `data-haptic="off"`.
+
 The shared header names the current app: Kurami. Hub, Digest, Projects or Docs.
 **Apps** opens the product links; Hermes and Dokploy are separated external links
 that open in another tab. On the unified entry, product links stay on one origin,

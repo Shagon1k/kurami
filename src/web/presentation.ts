@@ -2,6 +2,7 @@ import type {IncomingMessage,ServerResponse} from "node:http";
 import {publicAppUrl,WEB_ORIGIN,type WebApp,type WebLanguage} from "./routes.ts";
 import {escapeHtml} from "../ui-library/foundations/html.ts";
 import {withEdgeToEdgeViewport} from "../ui-library/patterns/page-shell.ts";
+import {HAPTICS_RUNTIME_JS} from "../ui-library/runtime/haptics.ts";
 
 export function projectCss(css:string,app:WebApp,language:WebLanguage):string {
   return css.replace(/url\(\s*(["']?)(\/assets\/[^\s)"']+)\1\s*\)/gi,(_,quote,path)=>`url(${quote}${publicAppUrl(path,app,language)}${quote})`);
@@ -53,7 +54,7 @@ function kuramiAppLanguage(){const state=document.getElementById('kurami-web-con
 if(document.getElementById('kurami-web-context')&&'serviceWorker' in navigator){
   addEventListener('load',()=>navigator.serviceWorker.register('/sw.js').catch(()=>{}));
 }
-`;
+`+HAPTICS_RUNTIME_JS;
 
 export function isMountedRequest(request:IncomingMessage,app:WebApp):boolean {
   if(request.headers["x-kurami-web-app"]!==app)return false;

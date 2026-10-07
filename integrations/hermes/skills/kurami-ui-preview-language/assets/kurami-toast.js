@@ -25,6 +25,7 @@ function createKuramiToast(region, returnFocus) {
     for(const icon of region.querySelectorAll('[data-toast-icon]'))icon.hidden=icon.dataset.toastIcon!==tone;
     region.hidden=false;message.textContent=String(text);
     remaining=options.duration??(['warning','failure'].includes(tone)?0:8000);
+    if(tone!=='info')globalThis.kuramiHaptic?.(tone);
     resume();
   }
   dismiss.addEventListener('click',hide);
