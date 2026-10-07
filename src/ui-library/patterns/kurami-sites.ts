@@ -11,7 +11,7 @@ export function kuramiEntryHref(app:KuramiSite,lang:"ru"|"en"):string {
 /** "+" in every app's header: a quick task, filed by Kurami in Projects (Projects opens the form in place). */
 export function renderQuickCaptureLink(lang:"ru"|"en"):string {
   const label=lang==="ru"?"Быстрая задача":"Quick task";
-  return renderLinkButton({label,href:`${kuramiEntryHref("projects",lang)}?capture=1`,variant:"icon",iconPath:iconPath("plus"),ariaLabel:label,attributes:{"data-quick-capture":true}});
+  return renderLinkButton({label,href:`${kuramiEntryHref("projects",lang)}?capture=1`,variant:"icon",iconPath:iconPath("plus"),visibleLabel:false,attributes:{"data-quick-capture":true}});
 }
 
 export function kuramiSites(current:KuramiSite,lang:"ru"|"en"="ru"):SiteSwitcherInput {
