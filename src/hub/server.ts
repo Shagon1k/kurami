@@ -23,6 +23,7 @@ import {WebAccess} from "../web/access.ts";
 import {WEB_ORIGIN} from "../web/routes.ts";
 import {latestFor,subscribe,unsubscribe,vapidKeys,type PushFetch} from "./push/web-push.ts";
 import {pushPass} from "./push/monitor.ts";
+import {kuramiMoodAssets} from "../ui-library/components/kurami-mood.ts";
 
 const appRoot=resolve(import.meta.dirname,"../..");
 const assetRoot=resolve(appRoot,"src/ui-library/assets");
@@ -37,6 +38,7 @@ const assets=new Map<string,{body:Buffer|string;type:string;cache:string}>([
   ["/sw.js",{body:readFileSync(resolve(hubRoot,"sw.js")),type:"text/javascript; charset=utf-8",cache:"no-cache"}],
 ]);
 for(const lang of ["ru","en"] as const)assets.set(`/${lang}/manifest.webmanifest`,{body:JSON.stringify({name:"Kurami Hub",short_name:"Kurami",description:lang==="ru"?"Личная главная страница Kurami":"Kurami personal dashboard",lang,start_url:`/${lang}/`,scope:"/",display:"standalone",background_color:kuramiTheme.light.colors["surface-page"],theme_color:kuramiTheme.light.colors["surface-page"],icons:[{src:"/assets/fox.png",sizes:"512x512",type:"image/png",purpose:"any"}]}),type:"application/manifest+json; charset=utf-8",cache:"private, max-age=300"});
+for(const mood of kuramiMoodAssets())assets.set(mood.path,{body:mood.body,type:"image/webp",cache:"private, max-age=86400"});
 for(const font of fontFiles)assets.set(`/assets/${font.file}`,{body:readFileSync(resolve(assetRoot,"fonts",font.file)),type:"font/woff2",cache:"private, max-age=86400"});
 
 const securityHeaders={
@@ -141,7 +143,7 @@ export function createHubServer(options:{releaseDrift?:{latest:DriftItem[]};snap
         if(!payload||typeof payload!=="object"||payload.confirm!==true||typeof payload.action!=="string"||["models","settings","server","appearance","composio-check"].includes(payload.action)){json(400,{ok:false,error:"confirmation_required"});return;}
         if(mutating){json(409,{ok:false,error:"action_in_progress"});return;}
         mutating=true;
-        try{const result=await controls.execute(payload.action,payload,identity);cached=null;json(200,{ok:true,action:result?.action,outcome:result?.outcome,auditWarning:result?.auditWarning===true,...(payload.action==="appearance-apply"&&typeof result?.theme==="string"&&typeof result?.mode==="string"?{appearance:{theme:result.theme,mode:result.mode}}:{}),...(payload.action==="dev-resources-apply"&&Number.isInteger(result?.cores)&&Number.isInteger(result?.testJobs)?{devResources:{cores:result.cores,testJobs:result.testJobs,memoryGiB:result.memoryGiB}}:{})});}
+        try{const result=await controls.execute(payload.action,payload,identity);cached=null;json(200,{ok:true,action:result?.action,outcome:result?.outcome,auditWarning:result?.auditWarning===true,...(payload.action==="appearance-apply"&&typeof result?.theme==="string"&&typeof result?.mode==="string"?{appearance:{theme:result.theme,mode:result.mode,mascot:result.mascot!==false}}:{}),...(payload.action==="dev-resources-apply"&&Number.isInteger(result?.cores)&&Number.isInteger(result?.testJobs)?{devResources:{cores:result.cores,testJobs:result.testJobs,memoryGiB:result.memoryGiB}}:{})});}
         finally{mutating=false;}
       }catch(error){json(error instanceof HubControlError&&error.code==="invalid_request"?400:409,{ok:false,error:error instanceof HubControlError?error.code:"action_failed"});}
       return;

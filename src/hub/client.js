@@ -120,6 +120,8 @@ document.addEventListener('click',event=>{
   setPeriod(key,days);
   try{localStorage.setItem('kurami-hub-period-'+key,days);}catch{}
 });
+// Pull-to-refresh in the installed app refreshes the dashboard in place (ui-library kurami-mood.ts).
+window.kuramiRefresh=()=>refreshHub(true);
 async function refreshHub(force=false){
   if(!dashboard||refreshing||document.visibilityState!=="visible"||!force&&(dashboard.contains(document.activeElement)||dialog?.open))return;
   refreshing=true;
@@ -288,10 +290,11 @@ document.addEventListener("submit",event=>{
   if(action==="health-apply")confirmAction(action,{revision:Number(form.dataset.revision),minutes:Number(values.minutes)},'System Health',[[text('Интервал · минуты','Interval · minutes'),[...form.elements.minutes.options].find(option=>option.defaultSelected)?.value,values.minutes]]);
   if(action==="appearance-apply"){
     const option=(name,value)=>[...form.elements[name].options].find(item=>item.value===value)?.textContent??value;
-    const before={theme:[...form.elements.theme.options].find(item=>item.defaultSelected)?.value,mode:[...form.elements.mode.options].find(item=>item.defaultSelected)?.value};
-    const changes=[["theme",text('Тема','Theme')],["mode",text('Режим','Mode')]].filter(([name])=>before[name]!==values[name]).map(([name,label])=>[label,option(name,before[name]),option(name,values[name])]);
+    const initial=name=>[...form.elements[name].options].find(item=>item.defaultSelected)?.value;
+    const before={theme:initial("theme"),mode:initial("mode"),mascot:initial("mascot")};
+    const changes=[["theme",text('Тема','Theme')],["mode",text('Режим','Mode')],["mascot",text('Персонаж Kurami','Kurami character')]].filter(([name])=>before[name]!==values[name]).map(([name,label])=>[label,option(name,before[name]),option(name,values[name])]);
     if(!changes.length){controlResult.textContent=text("Без изменений","No changes");return;}
-    confirmAction(action,{revision:Number(form.dataset.revision),theme:values.theme,mode:values.mode},text('Оформление','Appearance'),changes);
+    confirmAction(action,{revision:Number(form.dataset.revision),theme:values.theme,mode:values.mode,mascot:values.mascot},text('Оформление','Appearance'),changes);
   }
   if(action==="release-apply"||action==="release-rollback"){
     const short=value=>(value||"—").slice(0,7);
@@ -344,6 +347,7 @@ async function performAction(button){
     }else reportSuccess(operation.action==="restart"?text("Перезапуск запрошен","Restart requested"):text("Применено","Applied"));
     if(result.auditWarning)controlResult.textContent=(controlResult.textContent?controlResult.textContent+" · ":"")+text("Запись аудита не сохранена","Audit record could not be saved");
     // The gateway sends the new default with the next page; apply it here at once.
+    if(operation.action==="appearance-apply"&&result.appearance&&typeof result.appearance.mascot==="boolean"){document.cookie=result.appearance.mascot?`kurami-mascot=; path=/; max-age=0; samesite=lax`:`kurami-mascot=off; path=/; max-age=31536000; samesite=lax${location.protocol==="https:"?"; secure":""}`;document.documentElement.dataset.kuramiMascot=result.appearance.mascot?"on":"off";}
     if(operation.action==="appearance-apply"&&result.appearance){document.cookie=`kurami-theme-default=${result.appearance.theme}.${result.appearance.mode}; path=/; max-age=31536000; samesite=lax${location.protocol==="https:"?"; secure":""}`;window.kuramiThemeRefresh?.();}
     pending=null;confirmation.hidden=true;controlContent.hidden=false;
     if(controlView)await loadControl(controlView);else controlContent.textContent="";

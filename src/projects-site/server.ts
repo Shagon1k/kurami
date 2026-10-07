@@ -20,6 +20,7 @@ import {WebAccess} from "../web/access.ts";
 import {WEB_ORIGIN} from "../web/routes.ts";
 import {createCaptureAction} from "./capture.ts";
 import {resolveKuramiHome} from "../core/kurami-home.ts";
+import { kuramiMoodAssets } from "../ui-library/components/kurami-mood.ts";
 
 const assetRoot = resolve(import.meta.dirname, "../ui-library/assets");
 const assets = new Map<string, { body: Buffer | string; type: string }>([
@@ -29,6 +30,7 @@ const assets = new Map<string, { body: Buffer | string; type: string }>([
   ["/assets/kurami-fox.webp", { body: readFileSync(resolve(assetRoot, "brand/kurami-fox-header.webp")), type: "image/webp" }],
   ["/assets/favicon.svg", { body: readFileSync(resolve(assetRoot, "brand/kurami-favicon.svg")), type: "image/svg+xml" }],
 ]);
+for (const mood of kuramiMoodAssets()) assets.set(mood.path, { body: mood.body, type: "image/webp" });
 for (const font of fontFiles) assets.set(`/assets/${font.file}`, { body: readFileSync(resolve(assetRoot, "fonts", font.file)), type: "font/woff2" });
 
 export function createProjectsServer(options: {

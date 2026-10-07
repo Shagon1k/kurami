@@ -117,8 +117,8 @@ export function createHubControls(options:{home?:string;hermesHome?:string;run?:
       const minutes=Number(payload.minutes);if(!Number.isInteger(payload.minutes)||!settingsSchema.health.allowedIntervals.includes(minutes))return bad();
       result=JSON.parse(await run(node,[healthPath,"apply","--minutes",String(minutes),"--expected-revision",String(integer(payload.revision,0,1e9)),"--actor-id",actor]));
     }else if(action==="appearance-apply"){
-      if(!validAppearance(payload.theme,payload.mode))return bad();
-      result=JSON.parse(await run(node,[appearancePath,"apply","--theme",payload.theme,"--mode",String(payload.mode),"--expected-revision",String(integer(payload.revision,0,1e9)),"--actor-id",actor]));
+      if(!validAppearance(payload.theme,payload.mode)||payload.mascot!==undefined&&!["on","off"].includes(String(payload.mascot)))return bad();
+      result=JSON.parse(await run(node,[appearancePath,"apply","--theme",payload.theme,"--mode",String(payload.mode),...(payload.mascot?["--mascot",String(payload.mascot)]:[]),"--expected-revision",String(integer(payload.revision,0,1e9)),"--actor-id",actor]));
     }else if(action==="dev-resources-apply"){
       const limits={cores:Number(payload.cores),testJobs:Number(payload.testJobs),memoryGiB:Number(payload.memoryGiB)};
       if(!validDevResources(limits))return bad();

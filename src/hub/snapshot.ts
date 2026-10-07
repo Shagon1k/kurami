@@ -12,6 +12,7 @@ import {readProjectStatus} from "../orchestrator/projects/status-read-model.ts";
 import {readProjectUsage,type ProjectUsage} from "../orchestrator/projects/usage-read-model.ts";
 import {readThreadUsage} from "../core/codex-usage.ts";
 import {readChronicle,type ChronicleDay} from "../orchestrator/projects/chronicle.ts";
+import {todaysDigestRead} from "./digest-read.ts";
 
 type ProjectConfig={
   owner:string;project_number:number;repository:string;color?:string;
@@ -34,6 +35,7 @@ export type HubSnapshot={
   operations?:HubOperations;
   usage?:ProjectUsage;
   chronicle?:ChronicleDay[]|null;
+  digestReadAt?:string|null;
   commitDays?:Week[];
   commitRepositories?:Record<string,Week[]>;
   totals:{working:number;review:number;attention:number;commits30:number};
@@ -137,7 +139,7 @@ export function collectHubSnapshot(options:{home?:string;appRepository?:string;c
   const commitDays=dailyCounts(allDates),commitRepositories=Object.fromEntries(Object.entries(repositoryDates).map(([key,dates])=>[key,dailyCounts(dates)]));
   const usage=readProjectUsage(dbPath,keys,now,(ids,until)=>readThreadUsage(codexHome,ids,until));
   const chronicle=readChronicle(dbPath,config,now);
-  return {generatedAt:now.toISOString(),projects,weeks,commitDays,commitRepositories,usage,chronicle,codex:collectCodexSnapshot({home:codexHome,now}),operations,
+  return {generatedAt:now.toISOString(),projects,weeks,commitDays,commitRepositories,usage,chronicle,digestReadAt:todaysDigestRead(home,now),codex:collectCodexSnapshot({home:codexHome,now}),operations,
     totals:{working:projects.reduce((sum,project)=>sum+(project.runs?.working??0),0),
       review:projects.reduce((sum,project)=>sum+(project.board?.review??0),0),
       attention:projects.reduce((sum,project)=>sum+(project.runs?.attention??0),0),

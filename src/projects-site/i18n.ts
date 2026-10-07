@@ -77,6 +77,8 @@ const messages:Record<string,string>={
   "Shared text":"Пересланный текст", "From page":"Со страницы", "Created":"Создано", "on the board in Backlog":"на доске в Backlog", "as an issue":"как issue",
   "Choose a project.":"Выбери проект.", "The title needs 3 to 200 characters.":"Заголовок — от 3 до 200 символов.", "The description is too long.":"Описание слишком длинное.",
   "GitHub is unavailable right now. The text stays in the form; try again.":"GitHub сейчас недоступен. Текст сохранён в форме — попробуй ещё раз.",
+  "Nothing is waiting for you":"Тебя никто не ждёт", "Kurami will show tasks here when they need your answer.":"Когда задачам понадобится твой ответ, Kurami покажет их здесь.",
+  "Your move":"Твой ход", "task waits for you":"задача ждёт тебя", "tasks wait for you":"задач ждут тебя",
 };
 const englishByRussian=new Map(Object.entries(messages).map(([en,ru])=>[ru,en]));
 export function tr(value:string,lang:Language):string{return lang==="ru"?messages[value]??value:value;}

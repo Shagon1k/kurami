@@ -80,7 +80,7 @@ function devResourcesForm(resources:{revision:number;cores:number;testJobs:numbe
 }
 
 /** The theme every Kurami app opens with; the header menu only changes it for one session. */
-function appearanceForm(appearance:{revision:number;theme:string;mode:string|null;themes:Record<string,string[]>}|undefined,lang:HubLanguage):string {
+function appearanceForm(appearance:{revision:number;theme:string;mode:string|null;mascot?:boolean;themes:Record<string,string[]>}|undefined,lang:HubLanguage):string {
   if(!appearance)return "";
   const labels:Record<string,string>={paper:"Paper",neon:"Neon"};
   const themes=Object.keys(appearance.themes).map(value=>({value,label:labels[value]??value}));
@@ -88,5 +88,5 @@ function appearanceForm(appearance:{revision:number;theme:string;mode:string|nul
   const mode=appearance.mode??"light";
   return `<form class="control-form" data-hub-submit="appearance-apply" data-revision="${appearance.revision}" data-themes="${escapeHtml(JSON.stringify(appearance.themes))}"><h3>${tr(lang,"Оформление","Appearance")}${renderInfoButton({id:"hub-appearance-about",label:tr(lang,"Про оформление","About appearance")})}</h3>
     ${renderInfoNote({id:"hub-appearance-about",text:tr(lang,"С этой темой открываются все приложения Kurami на всех устройствах. Меню темы в шапке меняет её только до закрытия приложения.","Every Kurami app opens with this theme on every device. The theme menu in the header changes it only until the app is closed.")})}
-    ${renderSelectField({name:"theme",label:tr(lang,"Тема","Theme"),value:appearance.theme,options:themes})}${renderSelectField({name:"mode",label:tr(lang,"Режим","Mode"),value:mode,options:modes})}<div class="control-actions">${apply(lang)}</div></form>`;
+    ${renderSelectField({name:"theme",label:tr(lang,"Тема","Theme"),value:appearance.theme,options:themes})}${renderSelectField({name:"mode",label:tr(lang,"Режим","Mode"),value:mode,options:modes})}${renderSelectField({name:"mascot",label:tr(lang,"Персонаж Kurami","Kurami character"),value:appearance.mascot===false?"off":"on",options:[{value:"on",label:tr(lang,"Показывать","Show")},{value:"off",label:tr(lang,"Скрыть","Hide")}]})}<div class="control-actions">${apply(lang)}</div></form>`;
 }

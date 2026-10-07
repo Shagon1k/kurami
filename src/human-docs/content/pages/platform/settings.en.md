@@ -49,6 +49,7 @@ Hub's Controls → **Appearance** sets the default theme for every device.
 |---|---|---|
 | Theme | Paper or Neon | Paper is warm paper with one red accent. Neon draws the fox as a red neon sign and marks data in yellow (amber in light) |
 | Mode | Light or Dark | Both themes have both modes; dark is Neon's main look |
+| Kurami character | Show or Hide | Kurami's illustrations in their medallion: in Hub's pulse line, at the end of Daily, on empty, offline and error pages, in Docs and on pull-to-refresh. Hide removes them from every app at once; the fox logo stays |
 
 This theme applies always and everywhere. Every app's header has a theme button. It opens a menu: two cards, Paper and Neon, with a light and dark switch in the row above them. A choice in the menu is temporary: it lasts while the app or tab is open, and the next visit opens with the Hub theme again. Until a theme is chosen in Hub, Paper follows the system mode.
 

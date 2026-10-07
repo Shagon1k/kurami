@@ -15,8 +15,9 @@ import {POPOVER_CSS} from "../ui-library/components/popover.ts";
 import {TOAST_CSS} from "../ui-library/components/toast.ts";
 
 import {CHART_STYLES} from "../ui-library/components/charts/styles.ts";
+import {KURAMI_MOOD_CSS} from "../ui-library/components/kurami-mood.ts";
 
-export const HUB_STYLES=`${TOAST_CSS}${THEME_CSS}${FOUNDATION_CSS}${BUTTON_CSS}${THEME_SWITCH_CSS}${SITE_HEADER_CSS}${TABLE_CSS}${DISCLOSURE_CSS}${FORM_CSS}${DIALOG_CSS}${PERIOD_SWITCH_CSS}${ICON_CSS}${PROJECT_COLOR_CSS}${STAT_CARD_CSS}${POPOVER_CSS}${CHART_STYLES}
+export const HUB_STYLES=`${KURAMI_MOOD_CSS}${TOAST_CSS}${THEME_CSS}${FOUNDATION_CSS}${BUTTON_CSS}${THEME_SWITCH_CSS}${SITE_HEADER_CSS}${TABLE_CSS}${DISCLOSURE_CSS}${FORM_CSS}${DIALOG_CSS}${PERIOD_SWITCH_CSS}${ICON_CSS}${PROJECT_COLOR_CSS}${STAT_CARD_CSS}${POPOVER_CSS}${CHART_STYLES}
 body { min-height: 100vh; }
 .hub { padding-block: var(--space-6) var(--space-10); }
 .chronicle__days { display: grid; gap: var(--space-4); }
@@ -28,6 +29,7 @@ body { min-height: 100vh; }
 .chronicle__day li[data-kind="returned"] svg { color: var(--status-warning); }
 .chronicle__days + * { margin-top: var(--space-3); }
 .hub__topline { display: flex; align-items: baseline; justify-content: space-between; flex-wrap: wrap; gap: var(--space-2) var(--space-4); margin-bottom: var(--space-4); }
+.hub__mood { display: flex; align-items: center; gap: var(--space-3); min-width: 0; }
 .hub__pulse { display: flex; flex-wrap: wrap; gap: 0 var(--space-2); color: var(--text-muted); font-size: .9rem; }
 .hub__pulse span:first-child { color: var(--text-primary); font-weight: 600; }
 .hub__pulse[data-state="attention"] span:first-child { color: var(--status-warning); }

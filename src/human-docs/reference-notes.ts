@@ -71,6 +71,7 @@ export const tableNotes:Record<"orchestrator"|"digest",Record<string,Localized<s
     "weekly_mail_observation_failures":{ru:"Одна строка — сбой учёта архивирования почты в Weekly: код ошибки и время, без содержимого писем.",en:"One row is a failure to count a mail archiving in Weekly: an error code and time, with no mail content."},
     "mail_sender_signals":{ru:"Одна строка — отправитель и сколько раз его письма архивировали из Daily; по ней Kurami предлагает правило. Только адрес.",en:"One row is a sender and how many times their mail was archived from Daily; Kurami proposes a rule from it. The address only."},
     "mail_sender_rules":{ru:"Одна строка — решение владельца об отправителе: показывать его письма с выбранным классом или решать по каждому письму. Только адрес, без писем.",en:"One row is the owner's decision about a sender: show their mail with the chosen class, or decide per message. The address only, no mail."},
+    "edition_reads":{ru:"Одна строка — когда дневной выпуск дочитали до конца («Всё. Ты в курсе.»); Hub показывает отметку за сегодня.",en:"One row is when a Daily edition was read to the end (\"That's all. You're up to date.\"); Hub shows today's mark."},
     "weekly_persistence_failures":{ru:"Одна строка — сбой записи Weekly при публикации или обновлении выпуска: операция, код ошибки и время.",en:"One row is a failure to persist Weekly while publishing or refreshing an edition: the operation, an error code and the time."},
   },
 };

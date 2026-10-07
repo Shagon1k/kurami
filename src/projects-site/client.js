@@ -160,6 +160,8 @@
     const empty = dashboard.querySelector('[data-search-empty]');
     if (empty) empty.hidden = !rows.length || count > 0;
   }
+  // Pull-to-refresh in the installed app refreshes the list in place (ui-library kurami-mood.ts).
+  window.kuramiRefresh = () => refresh();
   async function refresh(url = new URL(location.href), focusDetails = false) {
     if (refreshing || confirmingAction || confirmingPr || gesture || settling) return;
     refreshing = true;

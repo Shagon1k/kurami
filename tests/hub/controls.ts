@@ -51,6 +51,7 @@ try {
   await assert.rejects(()=>controls.execute("health-apply",{minutes:7,revision:1}));
   await assert.rejects(()=>controls.execute("appearance-apply",{theme:"neon",mode:"system",revision:0}),"only light and dark modes exist");
   await assert.rejects(()=>controls.execute("appearance-apply",{theme:"paper; rm",mode:"dark",revision:0}),"unknown themes are rejected");
+  await assert.rejects(()=>controls.execute("appearance-apply",{theme:"paper",mode:"dark",mascot:"maybe",revision:0}),"the Kurami switch is on or off");
   await assert.rejects(()=>controls.execute("dev-resources-apply",{cores:2,testJobs:3,memoryGiB:0,revision:0}),"test jobs cannot exceed cores");
   // Releases start as their own systemd unit with an exact commit; anything else is refused.
   for(const target of ["main","a".repeat(39),"A".repeat(40),"a".repeat(40)+"; rm"])await assert.rejects(()=>controls.execute("release-apply",{target}),"only an exact commit is released");
@@ -131,7 +132,7 @@ try {
   const snapshot=collectHubSnapshot({home,appRepository:join(home,"missing"),codexHome:join(home,"codex")});
   let mutations=0;
   const server=createHubServer({snapshot:()=>snapshot,controlOrigin:"https://hub.test",authorize:async request=>request.headers["x-test-owner"]==="yes"?"owner":null,
-    controls:{execute:async(action,payload)=>{if(action==="models")return {models:[],codex:"Sol",hermes:"Sol",hermesProvider:"openai-codex"};mutations++;if(action==="appearance-apply")return {ok:true,action:"applied",theme:payload?.theme,mode:payload?.mode};return {ok:true,action:"restart_requested"};}}});
+    controls:{execute:async(action,payload)=>{if(action==="models")return {models:[],codex:"Sol",hermes:"Sol",hermesProvider:"openai-codex"};mutations++;if(action==="appearance-apply")return {ok:true,action:"applied",theme:payload?.theme,mode:payload?.mode,mascot:payload?.mascot!=="off"};return {ok:true,action:"restart_requested"};}}});
   await new Promise<void>(done=>server.listen(0,"127.0.0.1",done));
   const origin=`http://127.0.0.1:${(server.address() as {port:number}).port}`;
   try {
@@ -149,7 +150,8 @@ try {
     assert.equal(mutations,0,"rejected requests cannot run a command");
     assert.equal((await post({action:"restart",confirm:true})).status,200);assert.equal(mutations,1);
     // The page applies a new default at once, so the response carries it; other actions do not.
-    assert.deepEqual((await (await post({action:"appearance-apply",theme:"neon",mode:"dark",revision:0,confirm:true})).json()).appearance,{theme:"neon",mode:"dark"});
+    assert.deepEqual((await (await post({action:"appearance-apply",theme:"neon",mode:"dark",revision:0,confirm:true})).json()).appearance,{theme:"neon",mode:"dark",mascot:true});
+    assert.deepEqual((await (await post({action:"appearance-apply",theme:"paper",mode:"light",mascot:"off",revision:1,confirm:true})).json()).appearance,{theme:"paper",mode:"light",mascot:false},"the Kurami switch comes back too, so the page hides her at once");
     assert.equal((await (await post({action:"restart",confirm:true})).json()).appearance,undefined);
     const models=await fetch(origin+"/api/controls?action=models",{headers:{"X-Test-Owner":"yes"}});
     assert.match((await models.json()).html,/data-hub-submit="model-apply"/);
