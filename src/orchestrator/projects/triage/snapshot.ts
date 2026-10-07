@@ -5,6 +5,7 @@ import { resolve } from "node:path";
 import { DatabaseSync } from "node:sqlite";
 import { resolveKuramiHome } from "../../../core/kurami-home.ts";
 import { parse } from "yaml";
+import { openOrchestratorDatabase } from "../../state/database.ts";
 
 process.umask(0o077);
 
@@ -629,12 +630,8 @@ export async function runTriageSnapshotCli(): Promise<void> {
     ([project, config]) =>
       (!selectedProject || project === selectedProject) && config.triage?.enabled !== false,
   );
-  const database = new DatabaseSync(
-    resolve(orchestratorHome, "state/orchestrator.db"),
-    { timeout: 5_000 },
-  );
+  const database = openOrchestratorDatabase(resolve(orchestratorHome, "state/orchestrator.db"));
   try {
-    database.exec("PRAGMA foreign_keys=ON; PRAGMA busy_timeout=5000;");
     const checkedAt = new Date().toISOString();
     const results: PersistedTriageSnapshot[] = [];
     for (const [project, config] of entries) {

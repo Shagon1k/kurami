@@ -3,6 +3,7 @@ import { resolve } from "node:path";
 import { DatabaseSync } from "node:sqlite";
 import { resolveKuramiHome } from "../../../core/kurami-home.ts";
 import type { TriageFacts, TriageItemFact } from "./snapshot.ts";
+import { openOrchestratorDatabase } from "../../state/database.ts";
 
 process.umask(0o077);
 
@@ -254,12 +255,8 @@ function selectedProjectFromArgs(args: string[]): string | null {
 
 export async function runTriageRankCli(): Promise<void> {
   const orchestratorHome = resolveKuramiHome(resolve(import.meta.dirname, "../../../../.."));
-  const database = new DatabaseSync(
-    resolve(orchestratorHome, "state/orchestrator.db"),
-    { timeout: 5_000 },
-  );
+  const database = openOrchestratorDatabase(resolve(orchestratorHome, "state/orchestrator.db"));
   try {
-    database.exec("PRAGMA foreign_keys=ON; PRAGMA busy_timeout=5000;");
     const selectedProject = selectedProjectFromArgs(process.argv.slice(2));
     const rows = database
       .prepare(`

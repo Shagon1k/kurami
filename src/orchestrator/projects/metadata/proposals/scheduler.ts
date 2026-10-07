@@ -10,6 +10,7 @@ import {
   type AssessmentPlan,
 } from "./manager.ts";
 import { loadEffectiveOrchestratorConfig } from "../../../settings/runtime-settings.ts";
+import { openOrchestratorDatabase } from "../../../state/database.ts";
 
 process.umask(0o077);
 
@@ -375,10 +376,7 @@ export async function runMetadataProposalSchedulerCli(): Promise<void> {
     (dailyLimit ?? 41) > 40
   )
     fail("Invalid orchestrator AI capacity configuration");
-  const database = new DatabaseSync(resolve(orchestratorHome, "state/orchestrator.db"), {
-    timeout: 5_000,
-  });
-  database.exec("PRAGMA foreign_keys=ON; PRAGMA busy_timeout=5000;");
+  const database = openOrchestratorDatabase(resolve(orchestratorHome, "state/orchestrator.db"));
   try {
     const result = runDailyProposalCycle(
       database,

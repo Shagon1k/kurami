@@ -7,6 +7,7 @@ import type {
   TriageItemFact,
 } from "../../triage/snapshot.ts";
 import { loadEffectiveOrchestratorConfig } from "../../../settings/runtime-settings.ts";
+import { openOrchestratorDatabase } from "../../../state/database.ts";
 
 process.umask(0o077);
 
@@ -671,11 +672,7 @@ export function skipBatch(
 export async function runMetadataProposalManagerCli(): Promise<void> {
   const args = process.argv.slice(2);
   const orchestratorHome = resolveKuramiHome(resolve(import.meta.dirname, "../../../../../.."));
-  const database = new DatabaseSync(
-    resolve(orchestratorHome, "state/orchestrator.db"),
-    { timeout: 5_000 },
-  );
-  database.exec("PRAGMA foreign_keys=ON; PRAGMA busy_timeout=5000;");
+  const database = openOrchestratorDatabase(resolve(orchestratorHome, "state/orchestrator.db"));
   try {
     if (args[0] === "prepare") {
       const parsed = parsePrepareArgs(args);

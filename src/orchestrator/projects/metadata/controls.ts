@@ -3,6 +3,7 @@ import { resolve } from "node:path";
 import { DatabaseSync } from "node:sqlite";
 import { resolveKuramiHome } from "../../../core/kurami-home.ts";
 import { skipBatch } from "./proposals/manager.ts";
+import { openOrchestratorDatabase } from "../../state/database.ts";
 
 process.umask(0o077);
 
@@ -528,10 +529,7 @@ function parseArguments(args: string[]): {
 export async function runMetadataProposalControlsCli(): Promise<void> {
   const parsed = parseArguments(process.argv.slice(2));
   const orchestratorHome = resolveKuramiHome(resolve(import.meta.dirname, "../../../../.."));
-  const database = new DatabaseSync(resolve(orchestratorHome, "state/orchestrator.db"), {
-    timeout: 5_000,
-  });
-  database.exec("PRAGMA foreign_keys=ON; PRAGMA busy_timeout=5000;");
+  const database = openOrchestratorDatabase(resolve(orchestratorHome, "state/orchestrator.db"));
   try {
     let result: Record<string, unknown>;
     if (parsed.action === "status") result = status(database, parsed.batchId);

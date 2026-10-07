@@ -15,6 +15,7 @@ import {
   type DiscordObject,
 } from "../../../discord/ui.ts";
 import type { TriageStats } from "../triage/snapshot.ts";
+import { openOrchestratorDatabase } from "../../state/database.ts";
 
 process.umask(0o077);
 
@@ -602,12 +603,8 @@ export async function runDiscordProjectsDigestCli(): Promise<void> {
     fail("discord.digest_channel_id must be configured");
   if (selectedProject && !registry.projects[selectedProject])
     fail(`Unknown project: ${selectedProject}`);
-  const database = new DatabaseSync(
-    resolve(orchestratorHome, "state/orchestrator.db"),
-    { timeout: 5_000 },
-  );
+  const database = openOrchestratorDatabase(resolve(orchestratorHome, "state/orchestrator.db"));
   try {
-    database.exec("PRAGMA foreign_keys=ON; PRAGMA busy_timeout=5000;");
     const rows = loadRows(database, selectedProject).filter(
       (row) => Boolean(registry.projects[row.project]),
     );

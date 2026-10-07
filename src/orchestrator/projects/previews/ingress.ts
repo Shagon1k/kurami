@@ -12,6 +12,7 @@ import { isAbsolute, relative, resolve } from "node:path";
 import { pathToFileURL } from "node:url";
 import { DatabaseSync } from "node:sqlite";
 import { resolveKuramiHome } from "../../../core/kurami-home.ts";
+import { openOrchestratorDatabase } from "../../state/database.ts";
 import { parse } from "yaml";
 import {
   CODEX_DEEPLINK_HOST,
@@ -320,9 +321,8 @@ export async function runPreviewIngressCli(): Promise<void> {
     fail(`Refusing ingress mutation in mode=${config.mode}`);
   }
 
-  const database = new DatabaseSync(databasePath, { timeout: 5_000 });
+  const database = openOrchestratorDatabase(databasePath);
   try {
-    database.exec("PRAGMA foreign_keys = ON; PRAGMA busy_timeout = 5000;");
     const routes = activeRoutes(database);
     const rendered = renderRoutes(routes);
     const current = await readOptional(routesPath);

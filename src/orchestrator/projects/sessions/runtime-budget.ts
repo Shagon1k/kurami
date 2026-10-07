@@ -7,6 +7,7 @@ import { DatabaseSync } from "node:sqlite";
 import { parse } from "yaml";
 import { taskForSession, markTaskFailure } from "../../integrations/codex/task-store.ts";
 import { stopProtocolTask, releaseProtocolTask } from "./protocol-session.ts";
+import { openOrchestratorDatabase } from "../../state/database.ts";
 
 process.umask(0o077);
 
@@ -487,9 +488,8 @@ export async function runRuntimeBudgetCli(): Promise<void> {
   validateRuntimeBudgetConfig(config);
   if (apply && config.mode !== "live")
     fail(`Refusing runtime mutation in mode=${config.mode}`);
-  const database = new DatabaseSync(databasePath, { timeout: 5_000 });
+  const database = openOrchestratorDatabase(databasePath);
   try {
-    database.exec("PRAGMA foreign_keys=ON; PRAGMA busy_timeout=5000;");
     const inspection = inspectRuntimeBudgets(database, config);
     if (!apply) {
       process.stdout.write(

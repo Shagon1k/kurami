@@ -90,7 +90,7 @@ The schema grows by files `migrations/NNN_name.sql`. `npm run db:init` applies n
 
 | Situation | What Kurami does | What you do |
 |---|---|---|
-| The database is busy for more than five seconds | The step fails with an error, the next minute repeats it | Nothing |
+| The database is busy for more than five seconds | The step fails with an error, the next minute repeats it. A failed wait and a transaction longer than a second go to `logs/sqlite-locks.jsonl` with the process and the code site | Nothing; if the errors are frequent, the log shows who holds the database |
 | A process is killed mid-transaction | SQLite rolls it back, the database stays intact | Nothing |
 | The database diverged from Git or tmux | The resource guard finds the discrepancy and blocks admission | Sort out the resource; do not edit the database by hand |
 | Database corruption | The integrity check in the health job reports the problem | Restore from a backup: [Recovery](@recovery) |
@@ -103,6 +103,7 @@ The schema grows by files `migrations/NNN_name.sql`. `npm run db:init` applies n
 
 :::code-map
 - `src/orchestrator/state/init-run-store.ts` — applying migrations, WAL, integrity check
+- `src/orchestrator/state/database.ts` — opening the database for writing: shared settings and lock measurement
 - `migrations/001_initial_run_store.sql` — events, runs, resources, history
 - `migrations/002_project_snapshots.sql` — the board snapshot and poll health
 - `migrations/006_run_controls.sql` — the owner command queue

@@ -3,6 +3,7 @@ import { spawnSync } from "node:child_process";
 import { resolve } from "node:path";
 import { resolveKuramiHome } from "../../../core/kurami-home.ts";
 import { DatabaseSync } from "node:sqlite";
+import { openOrchestratorDatabase } from "../../state/database.ts";
 
 process.umask(0o077);
 
@@ -251,10 +252,9 @@ function recoverClearedApprovalBlock(
 
 export function runSessionObserverCli(): void {
   const project = parseProject();
-  const database = new DatabaseSync(databasePath, { timeout: 5_000 });
+  const database = openOrchestratorDatabase(databasePath);
   const notifications: string[] = [];
   try {
-    database.exec("PRAGMA foreign_keys = ON; PRAGMA busy_timeout = 5000;");
     const runs = database
       .prepare(
         `

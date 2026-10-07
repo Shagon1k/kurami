@@ -5,6 +5,7 @@ import { resolve } from "node:path";
 import { resolveKuramiHome } from "../../core/kurami-home.ts";
 import { DatabaseSync } from "node:sqlite";
 import { parse } from "yaml";
+import { openOrchestratorDatabase } from "../state/database.ts";
 
 process.umask(0o077);
 
@@ -361,8 +362,7 @@ export async function runTelegramFallbackCli(): Promise<void> {
     await readFile(projectsPath, "utf8"),
   ) as ProjectsRegistry;
   if (registry.version !== 1) fail("Unsupported projects config version");
-  const database = new DatabaseSync(databasePath, { timeout: 5_000 });
-  database.exec("PRAGMA foreign_keys = ON; PRAGMA busy_timeout = 5000;");
+  const database = openOrchestratorDatabase(databasePath);
   const cards = loadPendingCards(database);
   const events = loadPendingEvents(database);
   if (!apply) {

@@ -5,6 +5,7 @@ import { resolve } from "node:path";
 import { resolveKuramiHome } from "../../core/kurami-home.ts";
 import { DatabaseSync } from "node:sqlite";
 import { parse } from "yaml";
+import { openOrchestratorDatabase } from "../state/database.ts";
 
 process.umask(0o077);
 
@@ -283,9 +284,8 @@ export async function runProjectStatusCli(): Promise<void> {
   const { action, runId, apply } = parseArguments();
   const registry = parse(await readFile(projectsPath, "utf8")) as ProjectsRegistry;
   if (registry.version !== 1) fail("Unsupported projects registry version");
-  const database = new DatabaseSync(databasePath, { timeout: 5_000 });
+  const database = openOrchestratorDatabase(databasePath);
   try {
-    database.exec("PRAGMA foreign_keys = ON; PRAGMA busy_timeout = 5000;");
     const run = loadRun(database, runId);
     const config = registry.projects[run.project];
     if (!config) fail(`Unknown project: ${run.project}`);
