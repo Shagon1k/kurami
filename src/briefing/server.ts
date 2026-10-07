@@ -74,6 +74,7 @@ export { removeArchivedMailFromRetainedEditions } from "./addons/mail/actions.ts
 import { removeArchivedMailFromRetainedEditions } from "./addons/mail/actions.ts";
 export { MAIL_AUTOMATION_MAX_ATTEMPTS, mailAutomationFailureKind, assertComposioMailActionSucceeded, type MailActionExecutor, type MailAutomationFailureKind } from "./addons/mail/executor.ts";
 import { composioMailActionExecutor, type MailActionExecutor } from "./addons/mail/executor.ts";
+import { HERO_MOOD_SCRIPT } from "./ui/components/hero-mood.ts";
 
 const CSP = [
   "default-src 'self'",
@@ -89,7 +90,7 @@ const CSP = [
   "style-src 'self' 'unsafe-inline'",
 ].join("; ");
 
-const CLIENT_SCRIPT = WEB_CLIENT_JS+`(() => {
+const CLIENT_SCRIPT = WEB_CLIENT_JS+HERO_MOOD_SCRIPT+`(() => {
   const english = document.documentElement.lang === 'en';
   const tr = (ru, en) => english ? en : ru;
   const locale = english ? 'en-GB' : 'ru-RU';

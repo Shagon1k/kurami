@@ -1,6 +1,7 @@
 import { CHART_STYLES } from "./charts/styles.ts";
 import {WEEKLY_STYLES} from "../weekly/styles.ts";
 import {STOCKS_STYLES} from "../stocks/styles.ts";
+import {HERO_MOOD_STYLES} from "./components/hero-mood.ts";
 import {COMPANY_AVATAR_STYLES} from "./components/company-avatar.ts";
 import {KURAMI_COMMENT_STYLES} from "./components/kurami-comment.ts";
 import {THEME_CSS} from "../../ui-library/themes/index.ts";
@@ -420,6 +421,7 @@ ${STORY_ACTIONS_LAYOUT_CSS}
 ${CHART_STYLES}
 ${WEEKLY_STYLES}
 ${STOCKS_STYLES}
+${HERO_MOOD_STYLES}
 ${COMPANY_AVATAR_STYLES}
 ${KURAMI_COMMENT_STYLES}
 ${DIGEST_POLISH_CSS}

@@ -9,6 +9,7 @@ import { renderMetricStrip, timeMetricCard } from "./components/metric-strip.ts"
 import {digestLanguage,digestText} from "../i18n.ts";
 import {refreshCinemaUi} from "./components/cinema-section.ts";
 import {renderEditionFreshness} from './components/edition-freshness.ts';
+import {GREETINGS,weatherKind} from "./components/hero-mood.ts";
 
 function formatDate(payload: BriefingPayload): string {
   const value = new Date(`${payload.edition.localDate}T12:00:00`);
@@ -51,6 +52,9 @@ export function renderBriefingPage(payload: BriefingPayload): string {
   const defaultTitle=payload.edition.type==="cinema"?digestText("Кинообзор","Cinema briefing"):digestText("Утренний брифинг","Morning briefing");
   const payloadTitle = digestLanguage()==="en"?displayString(enHero?.title,defaultTitle):displayString(payload.hero.title,defaultTitle);
   const title = payload.edition.type === "daily" ? digestText("Доброе утро, Alex.","Good morning, Alex.") : payloadTitle;
+  // Daily's greeting and corner tint follow the reader's time of day and today's weather (hero-mood.ts).
+  const weather=payload.edition.type==="daily"?weatherKind(payload):null;
+  const heroMood=payload.edition.type==="daily"?` data-hero-mood data-daypart="morning" data-timezone="${escapeHtml(payload.edition.timezone)}"${weather?` data-weather="${weather}"`:""} data-greetings="${escapeHtml(JSON.stringify(Object.fromEntries(Object.entries(GREETINGS).map(([part,[ru,en]])=>[part,digestText(ru,en)]))))}"`:"";
   const subtitle = digestLanguage()==="en"?displayString(enHero?.subtitle,formatDate(payload)):displayString(payload.hero.subtitle, formatDate(payload));
   const generated = new Intl.DateTimeFormat(digestLanguage()==="en"?"en-GB":"ru-RU", {
     hour: "2-digit",
@@ -68,7 +72,7 @@ export function renderBriefingPage(payload: BriefingPayload): string {
   const main = renderAddonSlot(payload, "main");
   const afterMain = renderAddonSlot(payload, "after-main");
   const utilityTitle = payload.edition.type === "cinema" ? "Kurami Cinema" : "Kurami Daily Briefing";
-  return refreshCinemaUi(renderPageShell({title,brand:utilityTitle,section:payload.edition.type,date:payload.edition.localDate,dateLabel:formatDate(payload),generated,updatedAt:payload.edition.generatedAt,timezone:payload.edition.timezone,content:`\n    <section class="hero">
+  return refreshCinemaUi(renderPageShell({title,brand:utilityTitle,section:payload.edition.type,date:payload.edition.localDate,dateLabel:formatDate(payload),generated,updatedAt:payload.edition.generatedAt,timezone:payload.edition.timezone,content:`\n    <section class="hero"${heroMood}>
       <div><p class="hero__eyebrow">${escapeHtml(payloadTitle)} · ${escapeHtml(payload.edition.localDate)}</p>
         <h1>${escapeHtml(title)}</h1>
         <p class="hero__subtitle">${escapeHtml(subtitle)}</p></div>

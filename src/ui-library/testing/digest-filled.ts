@@ -19,7 +19,7 @@ export function syntheticDailyFilled(lang:DigestLanguage="ru"):string {
     hero:{title:"Утренний обзор",en:{title:"Morning briefing"}},
     mail:{state:"ready",count:8,items:Array.from({length:8},(_,index)=>({id:`audit-mail-${index}`,provider:"gmail",providerItemId:`audit-message-${index}`,class:"GENERAL",subject:index===0?"Очень длинная тема синтетического письма: подробное уведомление о ходе проекта и следующих встречах":`Synthetic inbox message ${index+1}`}))},
     calendar:{state:"ready",events:Array.from({length:4},(_,index)=>({id:`audit-event-${index}`,title:index===0?"Встреча с длинным исходным названием и несколькими участниками":`Synthetic meeting ${index+1}`,start:`2026-09-16T${10+index}:00:00+03:00`,end:`2026-09-16T${11+index}:00:00+03:00`,location:"Synthetic meeting room",description:"Описание встречи для проверки плотности и переносов."})),allDayEvents:[]},
-    weather:{state:"ready",temperatureC:18,location:"Synthetic City"},
+    weather:{state:"ready",temperatureC:18,location:"Synthetic City",condition:"🌧️ Дождь"},
     news:{state:"ready",pageSize:10,items:Array.from({length:6},(_,index)=>({
       id:`audit-story-${index}`,fingerprint:`audit-fingerprint-${index}`,headline:"Длинный редакционный заголовок синтетической новости для проверки карточки на телефоне",
       summary:"Тестовое содержание для проверки плотности, порядка действий и переноса длинных слов. Никаких реальных новостей или личных данных.",details:["Подробность синтетического сюжета для проверки раскрытия."],

@@ -20,7 +20,7 @@ The top header scrolls with the page; desktop keeps its header navigation.
 
 | Block | What it shows | Frozen or live |
 |---|---|---|
-| Greeting | Title, subtitle and a note from Kurami | frozen |
+| Greeting | Title, subtitle and a note from Kurami. "Good morning" becomes afternoon, evening or night by the time in the edition's time zone, and the corner of the header is tinted by the time of day and today's weather (rain, snow, fog) | text frozen, greeting and tint live |
 | Figures | Mail, stories, local time, weather | mail and weather live, the clock ticks in the browser |
 | "На заметку" (worth noting) | Up to three short hints ([Signals](@signals)) | live |
 | "Расписание" (schedule) | The day's events from three calendars, meeting conflicts | live |
