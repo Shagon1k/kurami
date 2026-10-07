@@ -74,6 +74,7 @@ export { removeArchivedMailFromRetainedEditions } from "./addons/mail/actions.ts
 import { removeArchivedMailFromRetainedEditions } from "./addons/mail/actions.ts";
 export { MAIL_AUTOMATION_MAX_ATTEMPTS, mailAutomationFailureKind, assertComposioMailActionSucceeded, type MailActionExecutor, type MailAutomationFailureKind } from "./addons/mail/executor.ts";
 import { composioMailActionExecutor, type MailActionExecutor } from "./addons/mail/executor.ts";
+import { weeklyChronicle } from "./weekly/chronicle.ts";
 
 const CSP = [
   "default-src 'self'",
@@ -1029,7 +1030,7 @@ export async function createBriefingServer(
           const review=preview?buildWeeklyReview(database,weeklyLocalDate(new Date().toISOString(),timezone),timezone):loadWeeklyReview(database);
           sendHeaders(response,"text/html; charset=utf-8");
           response.statusCode=200;
-          response.end(injectRuntime(injectSiteNavigation(renderWeeklyPage(review,preview),publishedSiteLinks(database,true,new Date().toISOString(),options.stocks??runtimeConfig?.stocks.enabled??false),"weekly",requestedPath)));
+          response.end(injectRuntime(injectSiteNavigation(renderWeeklyPage(review,preview,weeklyChronicle(paths.home,new Date())),publishedSiteLinks(database,true,new Date().toISOString(),options.stocks??runtimeConfig?.stocks.enabled??false),"weekly",requestedPath)));
           return;
         }
         const edition = routeEdition(database, pathname);

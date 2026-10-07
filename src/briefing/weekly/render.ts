@@ -6,6 +6,7 @@ import {renderBarChart} from "../ui/charts/index.ts";
 import {parseWeeklyReview,type WeeklyReview} from "./model.ts";
 import {digestLanguage,digestText as t} from "../i18n.ts";
 import {renderTable} from "../../ui-library/components/table.ts";
+import {renderWeeklyChronicle} from "./chronicle.ts";
 
 const dateLabel=(date:string)=>new Intl.DateTimeFormat(digestLanguage()==="en"?"en-GB":"ru-RU",{day:"numeric",month:"short",timeZone:"UTC"}).format(new Date(date+"T12:00:00Z"));
 const duration=(minutes:number|null)=>minutes===null?"—":Math.floor(minutes/60)+t(" ч"," h")+(minutes%60?" "+minutes%60+t(" мин"," min"):"");
@@ -39,7 +40,7 @@ export function renderWeeklyTeaser(payload:BriefingPayload):string {
     <a class="button button--secondary" href="/weekly">${t("Открыть обзор","Open review")} →</a></section>`;
 }
 
-export function renderWeeklyPage(raw:WeeklyReview|null,preview=false):string {
+export function renderWeeklyPage(raw:WeeklyReview|null,preview=false,chronicle:Parameters<typeof renderWeeklyChronicle>[0]=null):string {
   if(!raw) return renderPageShell({title:t("Неделя","Weekly"),brand:"Kurami Weekly",section:"weekly",date:new Date().toISOString().slice(0,10),dateLabel:t("По воскресеньям","Sundays"),generated:"—",timezone:"Europe/Vilnius",
     content:`<section class="hero"><div><p class="hero__eyebrow">Weekly Review</p><h1>${t("Здесь будет ваша неделя","Your week will appear here")}</h1><p class="hero__subtitle">${t("Обзор появится вместе с воскресным Daily в 09:00. Сейчас накапливаются наблюдения.","The review appears with Sunday's 09:00 Daily edition. Observations are still accumulating.")}</p><a href="/">${t("Вернуться к Daily","Back to Daily")} →</a></div></section>`});
   const review=parseWeeklyReview(raw),d=review.data,period=dateLabel(d.start)+" — "+dateLabel(d.end);
@@ -72,5 +73,5 @@ export function renderWeeklyPage(raw:WeeklyReview|null,preview=false):string {
     </section>
     <details class="disclosure weekly-method"><summary>${t("Как посчитано","How it is calculated")}</summary><p>${t("Календарь отражает запланированные события, без отменённых, отклонённых и демонстрационных. События на весь день не превращаются в рабочие часы. Почтовые наблюдения привязаны к дню получения, а не к дате страницы. Действия вне Daily не выдаются за архивирование через дайджест. Все выводы рассчитаны по фиксированным правилам, без дополнительных запросов к AI.","Calendar time covers scheduled events, excluding cancelled, declined and demo events. All-day events are not converted into work hours. Mail observations follow the day they were received, not the page date. Actions outside Daily are not counted as archiving through the digest. Every conclusion follows fixed rules, without additional AI requests.")}</p></details>`;
   return renderPageShell({title:t("Недельный обзор","Weekly review"),brand:"Kurami Weekly",section:"weekly",date:d.publicationDate,dateLabel:period,
-    generated:new Intl.DateTimeFormat(digestLanguage()==="en"?"en-GB":"ru-RU",{timeZone:d.timezone,hour:"2-digit",minute:"2-digit"}).format(new Date(review.capturedAt)),updatedAt:review.capturedAt,timezone:d.timezone,content});
+    generated:new Intl.DateTimeFormat(digestLanguage()==="en"?"en-GB":"ru-RU",{timeZone:d.timezone,hour:"2-digit",minute:"2-digit"}).format(new Date(review.capturedAt)),updatedAt:review.capturedAt,timezone:d.timezone,content:content+renderWeeklyChronicle(chronicle)});
 }

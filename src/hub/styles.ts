@@ -18,6 +18,14 @@ import {CHART_STYLES} from "../ui-library/components/charts/styles.ts";
 export const HUB_STYLES=`${TOAST_CSS}${THEME_CSS}${FOUNDATION_CSS}${BUTTON_CSS}${THEME_SWITCH_CSS}${SITE_HEADER_CSS}${TABLE_CSS}${DISCLOSURE_CSS}${FORM_CSS}${DIALOG_CSS}${PERIOD_SWITCH_CSS}${ICON_CSS}${STAT_CARD_CSS}${POPOVER_CSS}${CHART_STYLES}
 body { min-height: 100vh; }
 .hub { padding-block: var(--space-6) var(--space-10); }
+.chronicle__days { display: grid; gap: var(--space-4); }
+.chronicle__day h3 { margin: 0 0 var(--space-2); color: var(--text-muted); font-size: .75rem; letter-spacing: .04em; text-transform: uppercase; }
+.chronicle__day ul { display: grid; gap: var(--space-2); }
+.chronicle__day li { display: grid; grid-template-columns: 18px minmax(0,1fr); gap: var(--space-2); align-items: start; font-size: .85rem; }
+.chronicle__day li small { display: block; color: var(--text-muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.chronicle__day li[data-kind="done"] svg { color: var(--status-success); }
+.chronicle__day li[data-kind="returned"] svg { color: var(--status-warning); }
+.chronicle__days + * { margin-top: var(--space-3); }
 .hub__topline { display: flex; align-items: baseline; justify-content: flex-end; gap: var(--space-4); margin-bottom: var(--space-4); }
 .hub__topline h1 { margin: 0; font-size: clamp(1.9rem,3vw,2.6rem); line-height: 1.1; letter-spacing: -.05em; }
 .hub__topline p { margin: 0; }

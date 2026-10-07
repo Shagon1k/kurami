@@ -129,6 +129,11 @@ export function syntheticHubSnapshot():HubSnapshot {
         {id:"sample-review",group:"task:pickflick:123",project:"pickflick",title:"Update watchlist",task:true,next:"start_repair",actor:"owner",severity:"warning",code:"review_unrepaired",detail:"2",subject:"PickFlick #123",href:"https://github.com/Shagon1k/PickFlick/pull/123"}],
       activity:[]},
     totals:{working:2,review:3,attention:1,commits30:42},
+    chronicle:[
+      {day:"2026-09-16",events:[{at:"2026-09-16T05:10:00Z",project:"pickflick",issue:123,title:"Update watchlist",kind:"ai_review",detail:"2"},{at:"2026-09-16T05:40:00Z",project:"tailortales",issue:41,title:"Bedtime story pacing with a long synthetic title for truncation",kind:"review"}]},
+      {day:"2026-09-15",events:[{at:"2026-09-15T08:00:00Z",project:"pickflick",issue:120,title:"Club invitations",kind:"done"},{at:"2026-09-15T12:20:00Z",project:"pickflick",issue:123,title:"Update watchlist",kind:"ci_repair",detail:"succeeded"},{at:"2026-09-15T16:00:00Z",project:"ahurynovich-cv",issue:7,title:"Projects page",kind:"started"}]},
+      {day:"2026-09-13",events:[{at:"2026-09-13T09:00:00Z",project:"tailortales",issue:38,title:"Illustrations",kind:"returned"}]},
+    ],
     weeks:Array.from({length:12},(_,index)=>({start:new Date(Date.UTC(2026,5,29+index*7)).toISOString().slice(0,10),count:[0,2,1,4,3,6,8,11,7,13,4,9][index]!})),
     projects:[...projects.map(([key,name,number,review,commits7,commits30])=>({key,name,repository:`Shagon1k/${name}`,boardUrl:`https://github.com/users/Shagon1k/projects/${number}`,managed:true,
       board:{backlog:12,active:1,review,done:20,deferred:2},runs:{working:key==="pickflick"?2:0,attention:key==="pickflick"?1:0,ciFailed:0},

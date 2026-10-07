@@ -23,6 +23,7 @@ Top to bottom:
 | **Commits** | a chart by rolling 24-hour buckets with repository checkboxes |
 | **Codex** | **Tokens**, **Limits** with a reset button and a daily usage chart, **Models** with tokens and USD |
 | **Live Activity** | recent work grouped by task or session, with Project and Agent filters |
+| **The week in projects** | day by day for the last 7 days: which tasks started, went to review, came back, were finished, where CI was repaired and what AI Review found. The last two days are open, the rest folded; the same chronicle ends Weekly |
 
 Kurami in the project table is a repository, not an admitted project: it only has commits. The System Health numbers are the same measurements as the Discord card ([Server health](@health)).
 
