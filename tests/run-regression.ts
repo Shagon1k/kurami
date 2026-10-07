@@ -51,6 +51,7 @@ const suites = [
   "test:forecasts",
   "test:digest-run-card",
   "test:digest-engineering",
+  "test:push",
   "test:release",
   "test:preview-slots",
   "test:preview-ingress",

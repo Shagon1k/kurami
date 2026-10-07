@@ -82,6 +82,12 @@ use amber; Undo stays neutral. The confirmation changes its accent to match the 
 
 Opening a view changes nothing. An action runs only when all of this holds: a valid Cloudflare Access identity, the exact Hub origin, a matching CSRF cookie and token, explicit confirmation, and no other action in progress. Settings keep their idle gate and revision check. Every completed action adds a short record to `state/hub/control-audit.jsonl`, with no outputs or secrets. If saving that record fails after the action, Hub still reports success and shows an audit warning; do not repeat the action.
 
+### Notifications on the phone
+
+**Appearance** has a "Notifications on this device" section. **Turn on** asks for the browser's permission and subscribes this device; **Turn off** unsubscribes it. Kurami sends a notification when a task waits for you or something breaks (the same as Alerts) and when the morning Digest is out. A tap opens the task card, the Hub problem list or the edition. Each situation arrives once; situations that already existed when you turned notifications on do not.
+
+The push message itself is empty: Google's or Apple's service only wakes the app, which then fetches the text from Hub through your Access sign-in, so task text never passes through their servers. Hub looks for new situations every two minutes. Subscriptions and the signing key live in `state/web-push/`. On iPhone only an app added to the Home Screen can receive notifications.
+
 Each control opens its own named dialog, without an extra Back button. The menu
 closes on a second trigger click, outside click or Escape. Composio check is
 read-only and does not test provider availability. Check again repeats the read;
