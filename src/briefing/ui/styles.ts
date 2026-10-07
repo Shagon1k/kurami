@@ -420,6 +420,11 @@ ${STORY_ACTIONS_LAYOUT_CSS}
 ${CHART_STYLES}
 ${WEEKLY_STYLES}
 ${STOCKS_STYLES}
+/* Offline reading (offline-news.ts). */
+.offline-news-banner { margin: var(--space-4) 0 0; padding: var(--space-2) var(--space-3); border-inline-start: 3px solid var(--status-warning); background: var(--surface-raised); font-size: .85rem; }
+/* Shown only when this browser can keep an offline copy (the client marks it ready). */
+.digest-feed__offline:not([data-ready]) { display: none; }
+.digest-feed__offline[aria-pressed="true"] { border-color: var(--status-success); color: var(--status-success); }
 ${COMPANY_AVATAR_STYLES}
 ${KURAMI_COMMENT_STYLES}
 ${DIGEST_POLISH_CSS}

@@ -25,7 +25,7 @@ The top header scrolls with the page; desktop keeps its header navigation.
 | "На заметку" (worth noting) | Up to three short hints ([Signals](@signals)) | live |
 | "Расписание" (schedule) | The day's events from three calendars, meeting conflicts | live |
 | "Почта" (mail) | Unread Primary mail with classes ACTION, IMPORTANT, GENERAL | live |
-| "Новости" (news) | Stories, 10 per page, with images and topics | frozen |
+| "Новости" (news) | Stories, 10 per page, with images and topics. **Read offline** keeps a stories-only copy on the device (no mail, schedule or images); without a connection Digest opens it with its time | frozen |
 | Teasers | Stocks, cinema, week — when the add-on is on | frozen at publication ([add-ons](@addons)) |
 | Quality strip | "Источники обновлены" (sources updated) or "Есть оговорки по данным" (data caveats) | recomputed on refresh |
 
