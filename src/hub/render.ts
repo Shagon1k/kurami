@@ -19,6 +19,7 @@ import {renderTable} from "../ui-library/components/table.ts";
 import {renderStatCard,renderMeter,renderGauge,type StatTone} from "../ui-library/components/stat-card.ts";
 import {FIGURE_ATTRIBUTE,surfaceAttributes,LIVE_ATTRIBUTE} from "../ui-library/components/surface.ts";
 import {renderIcon,iconPath,type IconName} from "../ui-library/components/icon.ts";
+import {projectColorClass} from "../ui-library/components/project-color.ts";
 import {renderCheckbox,renderSelectField} from "../ui-library/components/form.ts";
 import {problemQueue,workFeed} from "./work-feed.ts";
 import type {ProblemNext} from "./operations.ts";
@@ -200,7 +201,8 @@ function renderActivity(snapshot:HubSnapshot,lang:HubLanguage):string {
     const failed=["failed","needs_attention","collect_failed","compose_failed","promote_failed","turn_aborted"].includes(item.event)||item.result==="CI:failed";
     const success=["published","passed","ready","archived","promote_completed"].includes(item.event);
     const icon:IconName=failed?"alert":success?"check":item.event==="parked_review"?"review":item.agent==="Kurami"?"history":"bot";
-    return `<li class="work-item" data-tone="${failed?"failure":success?"success":"accent"}" data-work-id="${escapeHtml(item.id)}" data-work-at="${escapeHtml(item.at)}" data-work-project="${escapeHtml(item.project)}" data-work-agent="${escapeHtml(item.agent)}"${index>=5?" hidden":""}><div class="work-item__row"><span class="work-item__icon">${renderIcon(icon)}</span><div class="work-item__body"><strong title="${escapeHtml(subject)}">${item.project!=="other"?`${escapeHtml(projectName(snapshot,item.project))} · `:""}${escapeHtml(subject)}</strong><div class="work-item__meta"><span>${escapeHtml(item.agent)}</span><span>${escapeHtml(state)}</span></div></div><div class="work-item__result">${item.result?`<span>${escapeHtml(result(item.result))}</span>`:""}<time datetime="${escapeHtml(item.at)}" title="${escapeHtml(formatTime(item.at,lang))}">${escapeHtml(relative(item.at))}</time></div><div class="work-item__link">${item.href?renderLinkButton({label:"↗",ariaLabel:linkLabel,attributes:{title:linkLabel},href:item.href,variant:"icon"}):""}</div></div>${detail}</li>`;
+    const color=snapshot.projects.find(project=>project.key===item.project)?.color;
+    return `<li class="work-item${color?` ${projectColorClass(color)}`:""}" data-tone="${failed?"failure":success?"success":"accent"}" data-work-id="${escapeHtml(item.id)}" data-work-at="${escapeHtml(item.at)}" data-work-project="${escapeHtml(item.project)}" data-work-agent="${escapeHtml(item.agent)}"${index>=5?" hidden":""}><div class="work-item__row"><span class="work-item__icon">${renderIcon(icon)}</span><div class="work-item__body"><strong title="${escapeHtml(subject)}">${item.project!=="other"?`${escapeHtml(projectName(snapshot,item.project))} · `:""}${escapeHtml(subject)}</strong><div class="work-item__meta"><span>${escapeHtml(item.agent)}</span><span>${escapeHtml(state)}</span></div></div><div class="work-item__result">${item.result?`<span>${escapeHtml(result(item.result))}</span>`:""}<time datetime="${escapeHtml(item.at)}" title="${escapeHtml(formatTime(item.at,lang))}">${escapeHtml(relative(item.at))}</time></div><div class="work-item__link">${item.href?renderLinkButton({label:"↗",ariaLabel:linkLabel,attributes:{title:linkLabel},href:item.href,variant:"icon"}):""}</div></div>${detail}</li>`;
   }).join("");
   const options=(key:"project"|"agent")=>[{value:"all",label:tr(lang,"Все","All")},...[...new Set(activity.map(item=>item[key]))].map(value=>({value,label:key==="project"?projectName(snapshot,value):value}))];
   const filters=renderSelectField({name:"activity-project",label:tr(lang,"Проект","Project"),value:"all",options:options("project")})+renderSelectField({name:"activity-agent",label:tr(lang,"Агент","Agent"),value:"all",options:options("agent")});
@@ -226,7 +228,7 @@ function projectRows(projects:HubProject[],lang:HubLanguage,days:Period):string 
       value(project.board?.active,lang),value(project.board?.review,lang),
       value(project.git.state==="available"?(days===7?project.git.commits7:project.git.commits30):null,lang),
       projectStatus(project,lang),
-    ]),rowHeaders:true,className:"project-table"});
+    ]),rowClassNames:projects.map(project=>`project-row${project.color?` ${projectColorClass(project.color)}`:""}`),rowHeaders:true,className:"project-table"});
 }
 
 

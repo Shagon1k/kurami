@@ -347,5 +347,5 @@ Six `project-*` colour roles (blue, teal, green, violet, pink, gold) give each m
 with `color:` in `config/projects.yaml` or assigned by registry order. `components/project-color.ts` maps
 `project-color--<hue>` to `--project-color` and `--project-edge` (a 3px inset left bar; Neon adds a glow).
 Projects puts the bar on the row's first cell on desktop and on the whole stacked row on phones, and colours
-the project icon with it. The hues avoid red and amber, so a bar never reads as a status; attention and
+the project icon with it. Hub uses the same bar on its activity feed and project table. The hues avoid red and amber, so a bar never reads as a status; attention and
 selection keep their background tints.

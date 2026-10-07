@@ -42,6 +42,8 @@ The problem queue groups CI and review trouble of one PR into a single entry wit
 Live Activity merges existing journals: run transitions, CI and review states, Codex and Hermes session starts, Daily and Cinema publications. It reads the last seven days and shows five work items, "More" adds up to fifteen. A finished Codex turn means only "idle": a task is done by its board transition, not by a quiet session.
 
 The activity link sits beside the title on phones; titles use at most two lines.
+
+A managed project's work items and its row in the project table carry the project's colour as a left bar, the same as in Projects; Kurami's own work has none.
 Events shows the full title and pairs a turn's start and finish when their session
 and turn IDs match. That pair includes a duration, not an AI summary. Raw events
 remain available. Partial retained history is labelled. Internal Guardian
