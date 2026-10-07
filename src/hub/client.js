@@ -266,6 +266,12 @@ document.addEventListener("submit",event=>{
     if(!changes.length){controlResult.textContent=text("Без изменений","No changes");return;}
     confirmAction(action,{revision:Number(form.dataset.revision),cores:Number(values.cores),testJobs:Number(values.testJobs),memoryGiB:Number(values.memoryGiB)},text('Ресурсы разработки','Development resources'),changes);
   }
+  if(action==="autopilot-apply"){
+    const boxes=[...form.querySelectorAll('input[name="autopilot"]')];
+    const changes=boxes.filter(box=>box.checked!==box.defaultChecked).map(box=>[box.closest('label')?.textContent.trim()??box.value,box.defaultChecked?text('вкл','on'):text('выкл','off'),box.checked?text('вкл','on'):text('выкл','off')]);
+    if(!changes.length){controlResult.textContent=text("Без изменений","No changes");return;}
+    confirmAction(action,{revision:Number(form.dataset.revision),projects:boxes.filter(box=>box.checked).map(box=>box.value)},text('Автопилот','Autopilot'),changes);
+  }
   if(action==="settings-apply"){
     const settings={project_wip:{}};const current=JSON.parse(form.dataset.current);const changes=[];
     for(const [name,value] of Object.entries(values)){

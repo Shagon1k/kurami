@@ -1,6 +1,6 @@
 import {escapeHtml} from "../ui-library/foundations/html.ts";
 import {renderButton} from "../ui-library/components/button.ts";
-import {renderSelectField,renderNumberField} from "../ui-library/components/form.ts";
+import {renderSelectField,renderNumberField,renderCheckbox} from "../ui-library/components/form.ts";
 import {renderTable} from "../ui-library/components/table.ts";
 import {renderDisclosure} from "../ui-library/components/disclosure.ts";
 import {renderIcon} from "../ui-library/components/icon.ts";
@@ -19,7 +19,7 @@ export function renderControlView(action:string,result:any,lang:HubLanguage):str
   if(action==="settings"){
     const state=result.settings;const current=state.settings;const locked=!state.idle.idle;
     const schema=state.schema??settingsSchema;
-    return `<form class="control-form" data-hub-submit="settings-apply" data-revision="${state.revision}" data-current="${escapeHtml(JSON.stringify(current))}">${locked?`<p class="control-summary">${tr(lang,"Изменение доступно после завершения активной работы","Changes unlock when active work finishes")}</p>`:""}<div class="control-fields">${schema.fields.map((field:typeof settingsSchema.fields[number])=>renderNumberField({name:field.name,label:field.label[lang],value:current[field.name],min:field.min,max:field.max,disabled:locked})).join("")}${Object.entries(current.project_wip).map(([name,value])=>renderNumberField({name:`project_wip.${name}`,label:`${name} · WIP`,value:Number(value),min:schema.projectWip.min,max:schema.projectWip.max,disabled:locked})).join("")}</div><div class="control-actions">${apply(lang,locked)}${["reset","rollback"].map(operation=>renderButton({label:operation==="reset"?tr(lang,"По умолчанию","Defaults"):tr(lang,"Откатить","Undo"),variant:operation==="reset"?"warning":"secondary",disabled:locked||operation==="rollback"&&state.revision===0,attributes:{"data-hub-control":`settings-${operation}`,"data-revision":state.revision}})).join("")}</div></form>`;
+    return `<form class="control-form" data-hub-submit="settings-apply" data-revision="${state.revision}" data-current="${escapeHtml(JSON.stringify(current))}">${locked?`<p class="control-summary">${tr(lang,"Изменение доступно после завершения активной работы","Changes unlock when active work finishes")}</p>`:""}<div class="control-fields">${schema.fields.map((field:typeof settingsSchema.fields[number])=>renderNumberField({name:field.name,label:field.label[lang],value:current[field.name],min:field.min,max:field.max,disabled:locked})).join("")}${Object.entries(current.project_wip).map(([name,value])=>renderNumberField({name:`project_wip.${name}`,label:`${name} · WIP`,value:Number(value),min:schema.projectWip.min,max:schema.projectWip.max,disabled:locked})).join("")}</div><div class="control-actions">${apply(lang,locked)}${["reset","rollback"].map(operation=>renderButton({label:operation==="reset"?tr(lang,"По умолчанию","Defaults"):tr(lang,"Откатить","Undo"),variant:operation==="reset"?"warning":"secondary",disabled:locked||operation==="rollback"&&state.revision===0,attributes:{"data-hub-control":`settings-${operation}`,"data-revision":state.revision}})).join("")}</div></form>`+autopilotForm(result.autopilot,lang);
   }
   if(action==="server")return `<form class="control-form" data-hub-submit="health-apply" data-revision="${result.health.revision}"><h3>System Health</h3>${renderSelectField({name:"minutes",label:tr(lang,"Интервал · минуты","Interval · minutes"),value:String(result.health.intervalMinutes),options:result.health.allowedIntervals.map((minutes:number)=>({value:String(minutes),label:String(minutes)}))})}<div class="control-actions">${apply(lang)}</div></form>
       ${devResourcesForm(result.devResources,lang)}`;
@@ -29,6 +29,15 @@ export function renderControlView(action:string,result:any,lang:HubLanguage):str
     return `<section class="composio-contour"><div class="composio-contour__heading">${renderIcon(!item.ok?"alert":item.diff.length?"controls":"check")}<strong>${escapeHtml(item.contour)}</strong><span>${item.ok?`${item.tools} ${tr(lang,"инструм.","tools")}`:tr(lang,"Сбой проверки","Check failed")}</span></div><p class="composio-contour__state">${!item.ok?tr(lang,"Не удалось сравнить конфигурацию","Could not compare configuration"):item.diff.length?`${item.diff.length} ${tr(lang,"изменений","changes")}`:tr(lang,"Синхронизировано","In sync")}</p>${details?renderDisclosure({summary:tr(lang,"Подробности","Details"),body:details,variant:"inline",open:!item.ok||!!item.diff.length}):""}${item.ok&&item.diff.length?`<div class="control-actions">${renderButton({label:tr(lang,"Синхронизировать","Sync"),variant:"subtle",size:"compact",attributes:{"data-hub-control":"composio-apply","data-contour":item.contour,"data-revision":item.revision}})}</div>`:""}</section>`;
   }).join("")}</div><div class="control-actions">${renderButton({label:tr(lang,"Проверить ещё раз","Check again"),variant:"subtle",size:"compact",attributes:{"data-hub-control":"composio-check"}})}</div>`;
   return "";
+}
+
+/** Autopilot per project: brings tasks in Human Review to the owner's decision (src/orchestrator/runtime/autopilot.ts). */
+function autopilotForm(state:{revision:number;projects:Record<string,boolean>;names?:Record<string,string>}|null|undefined,lang:HubLanguage):string {
+  if(!state)return "";
+  const boxes=Object.entries(state.projects).map(([key,on])=>renderCheckbox({name:"autopilot",value:key,label:state.names?.[key]??key,checked:on})).join("");
+  return `<form class="control-form" data-hub-submit="autopilot-apply" data-revision="${state.revision}"><h3>${tr(lang,"Автопилот","Autopilot")}${renderInfoButton({id:"hub-autopilot-about",label:tr(lang,"Что делает автопилот","What the autopilot does")})}</h3>
+    ${renderInfoNote({id:"hub-autopilot-about",text:tr(lang,"Для задач в Human Review с PR Kurami сам просит следующий шаг: исправить CI, если он упал (один раз), AI Review нового коммита, один раунд правок по существенным замечаниям. Слияние всегда за тобой. Шаги тратят лимит Codex, как если бы ты нажал кнопки сам.","For tasks in Human Review with a PR, Kurami asks for the next step itself: a CI repair when CI failed (once), AI Review of a new commit, one round of fixes for major findings. Merging always stays with you. The steps spend the Codex limit as if you pressed the buttons yourself.")})}
+    <div class="control-fields">${boxes}</div><div class="control-actions">${apply(lang)}</div></form>`;
 }
 
 /** How much of the server development work (Codex workers, tests, builds) may take; see dev-resources.ts. */

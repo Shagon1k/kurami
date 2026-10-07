@@ -68,6 +68,18 @@ Hub's Controls → **Server** has a **Development resources** section. It limits
 
 Development also yields CPU to Kurami's services and runs at low disk priority. A new limit applies at once, including to running processes. Applying creates a revision with its author. Kurami does not need to be idle.
 
+## Autopilot (Hub only)
+
+Hub's Controls → **Settings** has an **Autopilot** section, switched on per project; it is off by default. For a task in Human Review with an open PR, Kurami asks for the next step itself, as if you pressed the button on Projects:
+
+| PR state | What the autopilot asks for |
+|---|---|
+| CI failed | a CI repair, once per task |
+| CI passed, no review of this commit | AI Review of this commit |
+| AI Review found critical or important issues | one round of fixes, once per task |
+
+Each step is asked for once per commit and goes through the same checks as the Projects buttons: fresh sync, an available action, the same commit. When a check fails, the autopilot retries at most every 15 minutes and at most four times. The steps spend the Codex limit. Merging and anything after the review stay with you. The setting lives in `state/autopilot-settings.json` with a revision, and the steps taken in `state/autopilot-ledger.json`.
+
 ## Revisions, Undo and Reset
 
 Every apply creates a new revision: the number grows, and the values, the previous values and the author's id (Discord, or a fixed id for Hub) are stored in the database with a checksum. The panel remembers the revision it opened with. If someone changed the settings meanwhile, the panel refuses and asks you to reopen it.

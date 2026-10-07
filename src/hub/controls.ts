@@ -33,10 +33,14 @@ export function createHubControls(options:{home?:string;hermesHome?:string;run?:
   const healthPath=resolve(home,"app/src/system/health/health-settings.ts");
   const appearancePath=resolve(home,"app/src/system/appearance/appearance-settings.ts");
   const devResourcesPath=resolve(home,"app/src/system/dev-resources/dev-resources.ts");
+  const autopilotPath=resolve(home,"app/src/orchestrator/runtime/autopilot.ts");
   const composioPath=resolve(home,"app/src/connectors/composio/cli.ts");
   const hermes=resolve(hermesHome,"hermes-agent/venv/bin/hermes");
   // Three panels: run settings; the server (System Health interval, development resources); appearance.
-  async function settings(){return {settings:JSON.parse(await run(node,[settingsPath,"status"]))};}
+  async function settings(){
+    const [settings,autopilot]=await Promise.all([run(node,[settingsPath,"status"]),run(node,[autopilotPath,"status"]).catch(()=>null)]);
+    return {settings:JSON.parse(settings),autopilot:autopilot?JSON.parse(autopilot):null};
+  }
   async function server(){
     const [health,devResources]=await Promise.all([run(node,[healthPath,"status"]),run(node,[devResourcesPath,"status"])]);
     return {health:JSON.parse(health),devResources:JSON.parse(devResources)};
@@ -115,6 +119,10 @@ export function createHubControls(options:{home?:string;hermesHome?:string;run?:
       const limits={cores:Number(payload.cores),testJobs:Number(payload.testJobs),memoryGiB:Number(payload.memoryGiB)};
       if(!validDevResources(limits))return bad();
       result=JSON.parse(await run(node,[devResourcesPath,"apply","--cores",String(limits.cores),"--test-jobs",String(limits.testJobs),"--memory-gib",String(limits.memoryGiB),"--expected-revision",String(integer(payload.revision,0,1e9)),"--actor-id",actor]));
+    }else if(action==="autopilot-apply"){
+      const projects=Array.isArray(payload.projects)?payload.projects:null;
+      if(!projects||projects.length>20||projects.some((key:unknown)=>typeof key!=="string"||!/^[a-z0-9-]{1,64}$/.test(key)))return bad();
+      result=JSON.parse(await run(node,[autopilotPath,"apply","--projects",projects.join(","),"--expected-revision",String(integer(payload.revision,0,1e9)),"--actor-id",actor]));
     }else if(action==="composio-apply"){
       if(!["broad","read","automation"].includes(String(payload.contour)))return bad();
       const check=(await composioCheck()).find(item=>item.contour===payload.contour)!;
