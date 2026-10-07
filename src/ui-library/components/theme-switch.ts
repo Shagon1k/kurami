@@ -10,9 +10,8 @@ import { iconPath } from "./icon.ts";
 // The runtime (runtime/theme.ts) applies the choice, keeps the pressed states in sync and positions the menu; on phones the mobile navigation
 // moves the whole menu into its settings sheet, where the options show inline.
 export const THEME_SWITCH_CSS = `
-.theme-switch .button__icon { font-size: 19px; }
-/* The trigger keeps the look of the former switch: filled while the page is dark. */
-.theme-switch[data-theme-mode="dark"],.theme-switch[data-theme-mode="dark"]:hover:not(:disabled):not([aria-busy="true"]) { color: var(--text-on-accent); background: var(--accent-primary); border-color: var(--accent-primary); }
+/* The trigger is a plain icon button like its neighbours (apps, language): one palette icon for the whole
+   appearance, whatever the mode. */
 .theme-menu { position: relative; display: inline-flex; }
 .theme-menu__panel { --popover-width: 280px; --popover-padding: var(--space-3); }
 /* Two kinds of choice that must not read as four themes: the theme is a pair of cards with a preview,
@@ -55,9 +54,9 @@ export function renderThemeSwitch(lang: keyof typeof copy = "ru"): string {
     label: t.button,
     variant: "icon",
     className: "theme-switch",
-    icon: "◐",
+    iconPath: iconPath("palette"),
     attributes: { "data-theme-toggle": true, "aria-haspopup": "true", "aria-expanded": "false", popovertarget: id },
-  }).replace('class="button__icon"', 'class="button__icon" data-theme-icon');
+  });
   const panel = renderPopover({ id, label: t.theme, body }).replace('class="ui-popover"', 'class="ui-popover theme-menu__panel" data-theme-panel');
   return `<div class="theme-menu" data-theme-menu>${trigger}${panel}</div>`;
 }

@@ -238,7 +238,7 @@ const surface={paper:{light:"#fbfbf8",dark:"#0a0a0a"},neon:{light:"#f6f4fa",dark
  */
 async function checkThemeRuntime(devtools:Devtools,base:string,path:string):Promise<void> {
   const expect=(state:ThemeState,want:{variant:"paper"|"neon";theme:"light"|"dark";stored:string|null;storedTheme:string|null},step:string)=>{
-    const expected={theme:want.theme,variant:want.variant,mode:want.theme,choice:want.variant,icon:want.theme==="dark"?"☀":"◐",stored:want.stored,storedTheme:want.storedTheme,legacy:null,color:(surface[want.variant] as Record<string,string>)[want.theme],inHead:true};
+    const expected={theme:want.theme,variant:want.variant,mode:want.theme,choice:want.variant,icon:null,stored:want.stored,storedTheme:want.storedTheme,legacy:null,color:(surface[want.variant] as Record<string,string>)[want.theme],inHead:true};
     if(JSON.stringify(state)!==JSON.stringify(expected))throw new Error(`Theme runtime ${path} ${step}: ${JSON.stringify(state)} expected ${JSON.stringify(expected)}`);
   };
   const state=()=>devtools.evaluate<ThemeState>(themeState);

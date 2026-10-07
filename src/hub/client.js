@@ -172,12 +172,11 @@ async function initPush(root){
   const section=root.querySelector("[data-push-settings]");if(!section||!pushSupported())return;
   const registration=await navigator.serviceWorker.ready.catch(()=>null);if(!registration)return;
   const state=section.querySelector("[data-push-state]"),button=section.querySelector("[data-push-toggle]");
-  const label=button.querySelector(".button__label--full")??button;
   const render=async()=>{
     const subscribed=Boolean(await registration.pushManager.getSubscription());
     const denied=Notification.permission==="denied";
     state.textContent=denied?text("Уведомления запрещены в настройках браузера.","Notifications are blocked in the browser settings."):subscribed?text("Включены на этом устройстве.","On for this device."):text("Выключены на этом устройстве.","Off for this device.");
-    label.textContent=subscribed?text("Выключить","Turn off"):text("Включить","Turn on");
+    button.setAttribute("aria-pressed",String(subscribed));
     button.disabled=denied;button.dataset.haptic=subscribed?"tap":"confirm";
   };
   section.hidden=false;await render();
@@ -205,15 +204,17 @@ function showDialog(button){
   if(!dialog.open)dialog.showModal();
 }
 function confirmAction(action,payload,message,changes=[]){
-  pending={action,payload};
+  pending={action,payload,changes};
   controlContent.hidden=true;confirmation.hidden=false;
   document.getElementById("hub-confirm-message").textContent=message;
   const table=document.getElementById("hub-confirm-changes");table.hidden=!changes.length;
   const body=table.querySelector('tbody');body.replaceChildren();
   for(const change of changes){const row=document.createElement('tr');change.forEach((value,index)=>{const cell=document.createElement(index?'td':'th');if(!index)cell.scope='row';cell.textContent=String(value);row.append(cell);});body.append(row);}
   const confirm=dialog.querySelector("[data-hub-confirm]");
-  confirm.classList.remove("button--info","button--warning","button--subtle");
-  const tone=["restart","codex-reset","settings-reset"].includes(action)?"warning":action==="settings-rollback"?"subtle":"info";
+  // One rule site-wide: Confirm is the primary button; interrupting or spending something is a warning; going
+  // back to an earlier release is the one destructive confirmation.
+  confirm.classList.remove("button--primary","button--info","button--warning","button--subtle","button--danger");
+  const tone=action==="release-rollback"?"danger":["restart","codex-reset","settings-reset","settings-rollback"].includes(action)?"warning":"primary";
   confirm.classList.add("button--"+tone);
   confirm.focus();
 }
@@ -337,14 +338,15 @@ async function performAction(button){
     if(operation.action==="codex-reset"){
       sessionStorage.removeItem("kurami-reset-attempt");
       controlResult.textContent=["reset","alreadyRedeemed"].includes(result.outcome)?text("Лимиты сброшены","Limits reset"):errorText(result.outcome);
-    }else if(operation.action==="appearance-apply"&&result.appearance){
-      const names={paper:"Paper",neon:"Neon"},modes={light:text("светлая","light"),dark:text("тёмная","dark")};
-      reportSuccess(text("Оформление по умолчанию: ","Default appearance: ")+(names[result.appearance.theme]??result.appearance.theme)+" · "+(modes[result.appearance.mode]??result.appearance.mode));
     }else if((operation.action==="release-apply"||operation.action==="release-rollback")&&result.outcome!=="failed"){
       reportSuccess(operation.action==="release-apply"?text("Выкладка запущена: ","Release started: ")+String(operation.payload.target).slice(0,7):text("Откат запущен: ","Rollback started: ")+String(operation.payload.target).slice(0,7));
     }else if(operation.action==="dev-resources-apply"&&result.devResources){
       reportSuccess(text("Ресурсы разработки: ","Development resources: ")+result.devResources.cores+text(" ядер · "," cores · ")+result.devResources.testJobs+text(" потока тестов"," test jobs"));
-    }else reportSuccess(operation.action==="restart"?text("Перезапуск запрошен","Restart requested"):text("Применено","Applied"));
+    }else{
+      // The toast names exactly what was confirmed (label: new value), so it never reports an unrelated setting.
+      const saved=(operation.changes??[]).map(([label,,after])=>`${label}: ${after}`).join(" · ");
+      reportSuccess(operation.action==="restart"?text("Перезапуск запрошен","Restart requested"):saved?text("Сохранено · ","Saved · ")+saved:text("Применено","Applied"));
+    }
     if(result.auditWarning)controlResult.textContent=(controlResult.textContent?controlResult.textContent+" · ":"")+text("Запись аудита не сохранена","Audit record could not be saved");
     // The gateway sends the new default with the next page; apply it here at once.
     if(operation.action==="appearance-apply"&&result.appearance&&typeof result.appearance.mascot==="boolean"){document.cookie=result.appearance.mascot?`kurami-mascot=; path=/; max-age=0; samesite=lax`:`kurami-mascot=off; path=/; max-age=31536000; samesite=lax${location.protocol==="https:"?"; secure":""}`;document.documentElement.dataset.kuramiMascot=result.appearance.mascot?"on":"off";}

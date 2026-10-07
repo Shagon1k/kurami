@@ -124,7 +124,7 @@ ${N}[data-theme="light"] .page-title { color: var(--text-primary); }
 
 /* Buttons by rank: the main action is the red sign, secondary actions are yellow, quiet controls light up
    blue, a chosen toggle is yellow. */
-${N} .button--primary { filter: drop-shadow(0 0 10px ${red}88); }
+${N} .button--primary:not(:disabled) { filter: drop-shadow(0 0 10px ${red}88); }
 ${N} .button--primary:hover:not(:disabled):not([aria-busy="true"]) { color: #fff; background: #c80d1a; border-color: #c80d1a; filter: drop-shadow(0 0 16px ${red}cc); }
 ${N} .button--secondary { color: var(--neon-volt); background: color-mix(in srgb, var(--neon-volt) 6%, transparent); border-color: color-mix(in srgb, var(--neon-volt) 60%, transparent); box-shadow: 0 0 12px -5px var(--neon-volt); }
 ${N} .button--secondary:hover:not(:disabled):not([aria-busy="true"]) { color: var(--neon-volt); background: color-mix(in srgb, var(--neon-volt) 14%, transparent); border-color: var(--neon-volt); box-shadow: 0 0 16px -4px var(--neon-volt); }
@@ -146,7 +146,7 @@ ${N}[data-theme="light"] .ui-popover { box-shadow: 0 18px 40px #2a1f3d33, 0 0 0 
 ${N} [data-mobile-slot] .ui-popover { box-shadow: none; }
 ${N} .mobile-navigation__bar { box-shadow: 0 0 0 1px ${red}40, 0 0 24px -10px ${red}aa, 0 18px 40px #000c; }
 ${N}[data-theme="light"] .mobile-navigation__bar { box-shadow: 0 0 0 1px ${fill}33, 0 12px 30px #2a1f3d33; }
-${N}[data-theme="light"] .button--primary { filter: drop-shadow(0 4px 10px ${red}55); }
+${N}[data-theme="light"] .button--primary:not(:disabled) { filter: drop-shadow(0 4px 10px ${red}55); }
 ${N}[data-theme="light"] [data-ui-surface="lead"] { background: var(--surface-panel); }
 ${N}[data-theme="light"] .chart__series polyline, ${N}[data-theme="light"] .sparkline polyline { filter: none; }
 

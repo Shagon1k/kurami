@@ -36,7 +36,7 @@ html[data-kurami-theme="neon"][data-theme="light"] .page-title { color: var(--te
 
 /* Buttons by rank: the main action is the red sign, secondary actions are yellow, quiet controls light up
    blue, a chosen toggle is yellow. */
-html[data-kurami-theme="neon"] .button--primary { filter: drop-shadow(0 0 10px #ff223388); }
+html[data-kurami-theme="neon"] .button--primary:not(:disabled) { filter: drop-shadow(0 0 10px #ff223388); }
 html[data-kurami-theme="neon"] .button--primary:hover:not(:disabled):not([aria-busy="true"]) { color: #fff; background: #c80d1a; border-color: #c80d1a; filter: drop-shadow(0 0 16px #ff2233cc); }
 html[data-kurami-theme="neon"] .button--secondary { color: var(--neon-volt); background: color-mix(in srgb, var(--neon-volt) 6%, transparent); border-color: color-mix(in srgb, var(--neon-volt) 60%, transparent); box-shadow: 0 0 12px -5px var(--neon-volt); }
 html[data-kurami-theme="neon"] .button--secondary:hover:not(:disabled):not([aria-busy="true"]) { color: var(--neon-volt); background: color-mix(in srgb, var(--neon-volt) 14%, transparent); border-color: var(--neon-volt); box-shadow: 0 0 16px -4px var(--neon-volt); }
@@ -58,7 +58,7 @@ html[data-kurami-theme="neon"][data-theme="light"] .ui-popover { box-shadow: 0 1
 html[data-kurami-theme="neon"] [data-mobile-slot] .ui-popover { box-shadow: none; }
 html[data-kurami-theme="neon"] .mobile-navigation__bar { box-shadow: 0 0 0 1px #ff223340, 0 0 24px -10px #ff2233aa, 0 18px 40px #000c; }
 html[data-kurami-theme="neon"][data-theme="light"] .mobile-navigation__bar { box-shadow: 0 0 0 1px #e3101f33, 0 12px 30px #2a1f3d33; }
-html[data-kurami-theme="neon"][data-theme="light"] .button--primary { filter: drop-shadow(0 4px 10px #ff223355); }
+html[data-kurami-theme="neon"][data-theme="light"] .button--primary:not(:disabled) { filter: drop-shadow(0 4px 10px #ff223355); }
 html[data-kurami-theme="neon"][data-theme="light"] [data-ui-surface="lead"] { background: var(--surface-panel); }
 html[data-kurami-theme="neon"][data-theme="light"] .chart__series polyline, html[data-kurami-theme="neon"][data-theme="light"] .sparkline polyline { filter: none; }
 
@@ -240,9 +240,8 @@ button, a { -webkit-tap-highlight-color: transparent; }
 @media (pointer: coarse) { .button--compact { min-height: var(--control-height); } }
 
 
-.theme-switch .button__icon { font-size: 19px; }
-/* The trigger keeps the look of the former switch: filled while the page is dark. */
-.theme-switch[data-theme-mode="dark"],.theme-switch[data-theme-mode="dark"]:hover:not(:disabled):not([aria-busy="true"]) { color: var(--text-on-accent); background: var(--accent-primary); border-color: var(--accent-primary); }
+/* The trigger is a plain icon button like its neighbours (apps, language): one palette icon for the whole
+   appearance, whatever the mode. */
 .theme-menu { position: relative; display: inline-flex; }
 .theme-menu__panel { --popover-width: 280px; --popover-padding: var(--space-3); }
 /* Two kinds of choice that must not read as four themes: the theme is a pair of cards with a preview,
@@ -261,8 +260,9 @@ button, a { -webkit-tap-highlight-color: transparent; }
 .ui-info::before { content: ""; position: absolute; inset: -11px; }
 .ui-info:hover, .ui-info[aria-expanded="true"] { color: var(--surface-page); background: var(--status-info); border-color: var(--status-info); }
 .ui-info:focus-visible { outline: 3px solid var(--focus-ring); outline-offset: 2px; }
-.ui-info-note { margin: var(--space-2) 0 0; padding: var(--space-2) var(--space-3); color: var(--text-primary); background: color-mix(in srgb, var(--status-info) 7%, var(--surface-raised)); border: 1px solid color-mix(in srgb, var(--status-info) 35%, var(--border-default)); border-radius: var(--radius); font: 400 .8rem/1.5 var(--font-sans); text-transform: none; letter-spacing: 0; }
-.ui-info-note[hidden] { display: none; }
+/* A true tooltip: a popover in the top layer (above dialogs and sheets), placed by the runtime next to its button. */
+.ui-info-note { position: fixed; inset: auto; top: var(--info-top, 0px); left: var(--info-left, 0px); z-index: 90; width: max-content; max-width: min(320px, calc(100vw - 16px)); margin: 0; padding: var(--space-2) var(--space-3); box-shadow: var(--shadow-raised); color: var(--text-primary); background: color-mix(in srgb, var(--status-info) 7%, var(--surface-raised)); border: 1px solid color-mix(in srgb, var(--status-info) 35%, var(--border-default)); border-radius: var(--radius); font: 400 .8rem/1.5 var(--font-sans); text-transform: none; letter-spacing: 0; }
+.ui-info-note:not(:popover-open) { display: none; }
 
 
 .site-header { position: sticky; top: 0; z-index: 30; width: 100%; color: var(--text-primary); background: color-mix(in srgb, var(--surface-page) 94%, transparent); border-bottom: 1px solid var(--border-default); backdrop-filter: blur(14px); transition: box-shadow 160ms ease, border-color 160ms ease, background 160ms ease; }

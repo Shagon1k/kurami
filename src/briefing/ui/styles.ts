@@ -98,7 +98,7 @@ ${STORY_ACTIONS_LAYOUT_CSS}
 .hero { position: relative; min-height: 310px; display: grid; grid-template-columns: minmax(0, 1fr) 280px; align-items: end; gap: 40px; padding: 70px 0 38px; }
 .hero__eyebrow, .section-kicker { margin: 0 0 10px; color: var(--text-muted); font: 400 .625rem/1.3 var(--font-mono); letter-spacing: .08em; text-transform: uppercase; }
 .hero__subtitle { margin-top: var(--space-4); }
-.kurami-note { color: var(--accent-primary); font: 600 24px/1 var(--font-note); }
+.kurami-note { color: var(--accent-primary); font: 600 24px/1 var(--font-note); text-shadow: var(--display-glow); }
 .kurami-note--none { transform: none; }
 .kurami-note--negative { transform: rotate(-3deg); }
 .kurami-note--positive { transform: rotate(2deg); }
@@ -438,7 +438,6 @@ ${ENGINEERING_STYLES}
 .offline-news-banner { margin: var(--space-4) 0 0; padding: var(--space-2) var(--space-3); border-inline-start: 3px solid var(--status-warning); background: var(--surface-raised); font-size: .85rem; }
 /* Shown only when this browser can keep an offline copy (the client marks it ready). */
 .digest-feed__offline:not([data-ready]) { display: none; }
-.digest-feed__offline[aria-pressed="true"] { border-color: var(--status-success); color: var(--status-success); }
 ${HERO_MOOD_STYLES}
 ${WEEKLY_CHRONICLE_STYLES}
 ${COMPANY_AVATAR_STYLES}

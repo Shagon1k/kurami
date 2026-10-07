@@ -33,7 +33,8 @@
       // A menu trigger exposes expanded state; a legacy toggle (saved Digest editions) exposes the mode.
       if (!button.hasAttribute("aria-haspopup")) button.setAttribute("aria-pressed", String(mode === "dark"));
       else (button               ).dataset.themeMode = mode;
-      const icon = button.querySelector("[data-theme-icon]");
+      // Only the legacy toggle of saved editions swaps a glyph; the menu trigger keeps its palette icon.
+      const icon = button.hasAttribute("aria-haspopup") ? null : button.querySelector("[data-theme-icon]");
       if (icon) icon.textContent = mode === "dark" ? "☀" : "◐";
     }
     for (const option of document.querySelectorAll                   ("[data-theme-choice]")) option.setAttribute("aria-pressed", String(option.dataset.themeChoice === theme));
@@ -67,20 +68,41 @@
     document.querySelector(`[popovertarget="${panel.id}"]`)?.setAttribute("aria-expanded", String(open));
     if (open) place(panel);
   }, true);
-  // Info tips: the "i" button shows or hides its note; Escape hides the open ones.
+  // Info tips: the "i" button is the note's popover invoker, so a click opens and closes it and a click
+  // elsewhere or Escape closes it (light dismiss). A fine pointer also previews it on hover; a click on a
+  // hovered note keeps it open. The note is placed below its button, or above it near the bottom edge.
+  const noteOf = (info                ) => info ? document.getElementById(info.getAttribute("aria-controls") ?? "") : null;
+  const infoOf = (note         ) => document.querySelector             (`[data-ui-info][aria-controls="${note.id}"]`);
+  const placeNote = (info             , note             ) => {
+    const rect = info.getBoundingClientRect(), width = note.offsetWidth, height = note.offsetHeight, gap = 8;
+    const below = rect.bottom + gap, top = below + height > innerHeight - gap && rect.top - gap - height > gap ? rect.top - gap - height : below;
+    note.style.setProperty("--info-top", `${Math.round(top)}px`);
+    note.style.setProperty("--info-left", `${Math.round(Math.min(Math.max(gap, rect.left + rect.width / 2 - width / 2), innerWidth - width - gap))}px`);
+  };
+  document.addEventListener("toggle", event => {
+    const note = event.target               ;
+    if (!note.classList?.contains("ui-info-note")) return;
+    const info = infoOf(note), open = note.matches(":popover-open");
+    if (!info) return;
+    info.setAttribute("aria-expanded", String(open));
+    if (open) placeNote(info, note); else delete info.dataset.hovered;
+  }, true);
   document.addEventListener("click", event => {
-    const info = event.target instanceof Element ? event.target.closest                   ("[data-ui-info]") : null;
-    const note = info && document.getElementById(info.getAttribute("aria-controls") ?? "");
-    if (!info || !note) return;
-    note.hidden = !note.hidden; info.setAttribute("aria-expanded", String(!note.hidden));
+    const info = event.target instanceof Element ? event.target.closest             ("[data-ui-info]") : null;
+    // A click on a note opened by hover keeps it open instead of toggling it shut.
+    if (info?.dataset.hovered !== undefined && noteOf(info)?.matches(":popover-open")) { event.preventDefault(); delete info.dataset.hovered; }
   });
-  document.addEventListener("keydown", event => {
-    if (event.key !== "Escape") return;
-    for (const info of document.querySelectorAll                   ('[data-ui-info][aria-expanded="true"]')) {
-      const note = document.getElementById(info.getAttribute("aria-controls") ?? "");
-      if (note) note.hidden = true;
-      info.setAttribute("aria-expanded", "false");
-    }
+  const hover = matchMedia("(hover: hover) and (pointer: fine)");
+  document.addEventListener("pointerover", event => {
+    const info = hover.matches && event.target instanceof Element ? event.target.closest             ("[data-ui-info]") : null;
+    const note = noteOf(info);
+    if (!info || !note || note.matches(":popover-open") || typeof note.showPopover !== "function") return;
+    info.dataset.hovered = ""; note.showPopover();
+  });
+  document.addEventListener("pointerout", event => {
+    const info = event.target instanceof Element ? event.target.closest             ("[data-ui-info]") : null;
+    if (info?.dataset.hovered === undefined || info.contains(event.relatedTarget               )) return;
+    noteOf(info)?.hidePopover();
   });
   document.addEventListener("click", event => {
     const target = event.target instanceof Element ? event.target : null;

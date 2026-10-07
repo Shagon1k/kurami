@@ -165,9 +165,13 @@ body { min-height: 100vh; }
 .activity-empty { padding: var(--space-4); color: var(--text-muted); font-size: .8rem; }
 .controls-menu { display: grid; gap: var(--space-1); --button-justify: flex-start; }
 .control-buttons { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: var(--space-3); }
-.control-form { display: grid; gap: var(--space-4); }
-.control-fields { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: var(--space-4); }
-.control-actions { display: flex; justify-content: flex-end; flex-wrap: wrap; gap: var(--space-2); margin-top: var(--space-4); }
+/* Each settings section is a card (Neon frames it as a panel); inside, one rhythm and no browser margins. */
+.control-form { display: grid; gap: var(--space-3); padding: var(--space-4); border: 1px solid var(--border-subtle); border-radius: var(--radius-md); background: var(--surface-panel); }
+.control-form > h3 { display: flex; align-items: center; gap: var(--space-1); margin: 0; font-size: .95rem; }
+.control-form p { margin: 0; }
+.control-fields { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: var(--space-3); }
+.control-fields:has(> .form-check) { gap: 0 var(--space-4); }
+.control-actions { display: flex; justify-content: flex-end; flex-wrap: wrap; gap: var(--space-2); }
 .control-summary { font-size: .85rem; overflow-wrap: anywhere; white-space: pre-line; }
 .control-about { display: flex; align-items: center; margin: 0; color: var(--text-muted); font-size: .85rem; }
 .release-state { display: grid; grid-template-columns: repeat(2, minmax(0,1fr)); gap: var(--space-2); margin: 0; }
@@ -181,7 +185,7 @@ body { min-height: 100vh; }
 .release-steps small { color: var(--text-muted); }
 .release .control-actions { gap: var(--space-2); }
 .release-action { display: contents; }
-.control-form + .control-form { margin-top: var(--space-6); padding-top: var(--space-4); border-top: 1px solid var(--border-subtle); }
+.control-form + .control-form { margin-top: var(--space-3); }
 .composio-contours { border: 1px solid var(--border-subtle); border-radius: var(--radius); }
 .composio-contour { padding: var(--space-3); }
 .composio-contour + .composio-contour { border-top: 1px solid var(--border-subtle); }

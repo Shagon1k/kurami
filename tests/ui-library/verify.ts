@@ -185,15 +185,15 @@ assert.equal(injectRuntime(injected).split(THEME_SCRIPT_TAG).length,2,"injection
 for(const [lang,name,hint] of [["ru","Тема","Действует, пока открыто приложение"],["en","Theme","Lasts while the app is open"]] as const){
   const menu=renderThemeSwitch(lang);
   assert.match(menu,/^<div class="theme-menu" data-theme-menu><button class="button button--icon theme-switch"[^>]*data-theme-toggle[^>]*aria-haspopup="true" aria-expanded="false" popovertarget="kurami-theme-menu"/);
-  assert.match(menu,new RegExp(`<span class="sr-only">${name}</span>`));
-  assert.match(menu,/data-theme-icon/);
+  assert.match(menu,new RegExp(`aria-label="${name}"`),"the icon trigger is named");
+  assert.ok(menu.includes(iconPath("palette"))&&!/data-theme-icon/.test(menu),"one palette icon, no mode glyph");
   assert.match(menu,/<div class="ui-popover theme-menu__panel" data-theme-panel id="kurami-theme-menu"[^>]*popover="auto"/);
   for(const choice of ["paper",...themeVariants.map(variant=>variant.name)])assert.match(menu,new RegExp(`data-theme-choice="${choice}"`),choice);
   for(const mode of ["light","dark"])assert.match(menu,new RegExp(`data-mode-choice="${mode}"`),mode);
   assert.doesNotMatch(menu,/data-theme-choice="default"/,"the Hub default is not a menu option");
   assert.ok(menu.includes(hint),"the menu says the choice lasts the session");
   assert.match(menu,/<button class="ui-info"[^>]*aria-controls="kurami-theme-menu-note"/,"the session note sits behind an info button");
-  assert.match(menu,/<p class="ui-info-note" id="kurami-theme-menu-note" role="note" hidden>/,"the note is hidden until asked for");
+  assert.match(menu,/<p class="ui-info-note" id="kurami-theme-menu-note" role="tooltip" popover="auto">/,"the note is a popover tooltip, closed until asked for");
   assert.match(menu,/<div class="theme-menu__modes" role="group"[^>]*>(?:<button[^>]*class="button button--toggle button--compact theme-menu__mode"[^>]*data-mode-choice="(?:light|dark)"[^>]*>.*?<\/button>){2}<\/div><\/div><div class="theme-menu__themes"/,"the mode is a small switch in the heading, the themes are cards below it");
   assert.match(menu,/<span class="theme-menu__swatch" data-swatch="neon" aria-hidden="true"><\/span>Neon/,"each theme card shows a preview");
   assert.doesNotMatch(menu,/aria-pressed="true"/,"the runtime, not the server, marks the current choice");

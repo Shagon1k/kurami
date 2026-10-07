@@ -105,8 +105,8 @@ const CLIENT_SCRIPT = WEB_CLIENT_JS+HERO_MOOD_SCRIPT+DAILY_FINISH_SCRIPT+`(() =>
   // Read offline (news only): asks the gateway's service worker to keep or drop its copy (ui/offline-news.ts).
   const offlineButton = document.querySelector('[data-offline-news]');
   if (offlineButton && 'serviceWorker' in navigator && 'caches' in window && document.getElementById('kurami-web-context')) {
-    const label = offlineButton.querySelector('.button__label--full') ?? offlineButton;
-    const render = (on) => { offlineButton.setAttribute('aria-pressed', String(on)); label.textContent = on ? tr('Без сети: вкл', 'Offline: on') : tr('Читать без сети', 'Read offline'); };
+    // A toggle keeps its label; the pressed state (library toggle) shows that the copy is kept.
+    const render = (on) => { offlineButton.setAttribute('aria-pressed', String(on)); };
     caches.has('kurami-offline-news').then(on => { offlineButton.dataset.ready = ''; render(on); }).catch(() => {});
     navigator.serviceWorker.addEventListener('message', event => { if (event.data?.type === 'offline-news' && !event.data.ok) render(false); });
     offlineButton.addEventListener('click', async () => {
