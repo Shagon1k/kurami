@@ -53,6 +53,7 @@ function nextLocalDate(localDate: string): string {
 
 export { refreshDataQuality } from "./addons/quality.ts";
 import { refreshDataQuality } from "./addons/quality.ts";
+import { loadSenderRules } from "./mail-learning.ts";
 
 export function updatePayload(
   original: BriefingPayload,
@@ -119,11 +120,12 @@ export async function runDigestCentralPoller(
     retry: { attempts: 3, timeoutMs: 12_000, initialDelayMs: 300, maximumDelayMs: 2_000 },
   });
   const editions: PollerResult["editions"] = [];
+  const senderRules = loadSenderRules(paths.databasePath);
   for (const row of retained) {
     try {
       const original = parseBriefingPayload(JSON.parse(row.payload_json) as unknown);
       const payload = structuredClone(original);
-      applyLiveAddons(payload, snapshot, { refreshedAt, enabled });
+      applyLiveAddons(payload, snapshot, { refreshedAt, enabled, senderRules });
       refreshDerivedAddons(payload, { at: new Date().toISOString(), settings: { signals: config.signals, weekly:config.weekly } });
       refreshDataQuality(payload, refreshedAt);
       const validated = parseBriefingPayload(payload);

@@ -58,6 +58,7 @@ const suites = [
   "test:offline-news",
   "test:autopilot",
   "test:hero-mood",
+  "test:mail-learning",
   "test:release",
   "test:preview-slots",
   "test:preview-ingress",

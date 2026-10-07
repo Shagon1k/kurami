@@ -43,6 +43,7 @@ import {
   type BriefingRunMode,
   type BriefingRunState,
 } from "./run-attempt.ts";
+import { loadSenderRules } from "./mail-learning.ts";
 
 type Command = "refresh-before-publish" | "completion-context" | "resume-completion" | "assert-complete" | "init" | "start-attempt" | "attempt-status" | "advance-attempt" | "guard-run" | "collect-live" | "rank-preview" | "compose" | "topic-pool" | "prepare-preview" | "render-preview" | "rerender-preview" | "revise-published" | "build-media-manifest" | "media-ready" | "import-media" | "validate-telegram-batch" | "telegram-capture-config" | "telegram-commit-plan" | "finalize" | "notify-release" | "inspect" | "cleanup";
 
@@ -267,6 +268,7 @@ export async function runBriefingCli(argv = process.argv.slice(2)): Promise<unkn
         configPath: args.configPath!,
         rawPath: args.rawPath!,
         normalizedPath: args.normalizedPath!,
+        senderRules: loadSenderRules(paths.databasePath),
         outputPath: args.outputPath!,
       });
       const policy = await loadTopicPolicy(paths.home, process.env, topicRegistry(database));
@@ -300,6 +302,7 @@ export async function runBriefingCli(argv = process.argv.slice(2)): Promise<unkn
         configPath: args.configPath!,
         rawPath: args.rawPath!,
         normalizedPath: args.normalizedPath!,
+        senderRules: loadSenderRules(paths.databasePath),
         outputPath: args.outputPath!,
         ...(cinema ? { addonSnapshots: { cinema } } : {}),
       });

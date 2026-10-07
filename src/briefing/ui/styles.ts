@@ -164,6 +164,9 @@ ${STORY_ACTIONS_LAYOUT_CSS}
 .mail-row__copy strong a { text-decoration-thickness: 1px; text-underline-offset: 3px; }
 .mail-row__copy p { display: -webkit-box; overflow: hidden; -webkit-box-orient: vertical; -webkit-line-clamp: 2; margin: 4px 0 0; color: var(--text-muted); font-size: .6875rem; line-height: 1.5; }
 .mail-actions { display: grid; grid-template-columns: auto 1fr auto; align-items: center; gap: 12px; padding-top: 18px; border-top: 1px solid var(--border-default); }
+.mail-suggestion { display: grid; gap: 8px; margin-top: 14px; padding: 10px 12px; border-inline-start: 3px solid var(--status-info); background: var(--surface-raised); font-size: .85rem; }
+.mail-suggestion p { margin: 0; overflow-wrap: anywhere; }
+.mail-suggestion__actions { display: flex; flex-wrap: wrap; gap: 8px; }
 .mail-actions__select-all { width: max-content; }
 .mail-actions > span { color: var(--text-muted); font-size: .625rem; }
 .mail-actions__status { grid-column: 1 / -1; min-height: 1em; }

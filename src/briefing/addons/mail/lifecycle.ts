@@ -3,6 +3,7 @@ import type { BriefingPayload, MailItem } from "../../model.ts";
 import { fetchGmailSnapshot, type NormalizedGmailMessage } from "../../providers/composio-gmail.ts";
 import { requireCaller, type LiveAddon } from "../live-contract.ts";
 import { providerComplete } from "../provider-state.ts";
+import { senderKey } from "../../mail-learning.ts";
 
 export function classifyMail(item: NormalizedGmailMessage): "ACTION" | "IMPORTANT" | "GENERAL" {
   if (item.classification === "IMPORTANT") return "IMPORTANT";
@@ -44,7 +45,9 @@ export const mailLifecycle: LiveAddon = {
         ...prior, state: result.state, count: result.value.unreadCount, fetchedAt: result.fetchedAt,
         items: result.value.items.map(item => {
           const normalized = mailItem(item);
-          const override = context.classifications?.[item.id] ?? context.classifications?.[item.providerItemId];
+          // The owner's sender rules (mail-learning.ts) win over the model's and the keyword classification.
+          const key = senderKey(item.sender);
+          const override = (key ? context.senderRules?.[key] : undefined) ?? context.classifications?.[item.id] ?? context.classifications?.[item.providerItemId];
           return override ? { ...normalized, class: override } : normalized;
         }),
       });

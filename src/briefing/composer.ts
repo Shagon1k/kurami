@@ -26,6 +26,7 @@ export async function composeBriefingPayload(input: {
   normalizedPath: string;
   outputPath?: string;
   addonSnapshots?: Record<string, BriefingAddonEnvelope>;
+  senderRules?: Record<string, import("./model.ts").MailClass>;
 }): Promise<{ payload: BriefingPayload; report: TelegramBatchReport; outputPath?: string }> {
   const [draftValue, liveValue, normalizedValue, enabled, signals, weekly] = await Promise.all([
     readFile(input.draftPath, "utf8").then(JSON.parse),
@@ -72,7 +73,7 @@ export async function composeBriefingPayload(input: {
     };
   }
   applyLiveAddons(base, snapshot, {
-    initial: true, refreshedAt: snapshot.refreshedAt, classifications: draft.mailClassifications,
+    initial: true, refreshedAt: snapshot.refreshedAt, classifications: draft.mailClassifications, senderRules: input.senderRules,
   });
   base.edition.status = base.live?.state === "partial" ? "partial" : "complete";
   refreshDataQuality(base, snapshot.refreshedAt);
