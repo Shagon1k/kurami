@@ -46,6 +46,7 @@ const suites = [
   "test:admission",
   "test:provision",
   "test:forecasts",
+  "test:kurami-status",
   "test:release",
   "test:preview-slots",
   "test:preview-ingress",

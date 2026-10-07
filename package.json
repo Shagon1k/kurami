@@ -60,6 +60,7 @@
     "test:admission": "node tests/verify-dry-run-admission.ts",
     "test:provision": "node tests/verify-worktree-provision.ts",
     "test:forecasts": "node tests/verify-forecasts.ts",
+    "test:kurami-status": "node tests/verify-kurami-status.ts",
     "test:release": "node tests/verify-completed-release.ts",
     "test:preview-slots": "node tests/verify-preview-slots.ts",
     "test:preview-ingress": "node tests/verify-preview-ingress.ts",
