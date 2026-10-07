@@ -89,6 +89,7 @@
     "test:dev-resources": "node tests/verify-dev-resources.ts",
     "test:controller-failures": "node tests/verify-controller-failures.ts",
     "test:log-rotation": "node tests/verify-log-rotation.ts",
+    "test:deploy": "node tests/verify-deploy.ts",
     "test:release-drift": "node tests/verify-release-drift.ts",
     "test:docs-approval": "node tests/verify-docs-approval.ts",
     "plugins:check": "bash bin/sync-hermes-plugin.sh --check",

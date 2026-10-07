@@ -52,6 +52,16 @@ try {
   await assert.rejects(()=>controls.execute("appearance-apply",{theme:"neon",mode:"system",revision:0}),"only light and dark modes exist");
   await assert.rejects(()=>controls.execute("appearance-apply",{theme:"paper; rm",mode:"dark",revision:0}),"unknown themes are rejected");
   await assert.rejects(()=>controls.execute("dev-resources-apply",{cores:2,testJobs:3,memoryGiB:0,revision:0}),"test jobs cannot exceed cores");
+  // Releases start as their own systemd unit with an exact commit; anything else is refused.
+  for(const target of ["main","a".repeat(39),"A".repeat(40),"a".repeat(40)+"; rm"])await assert.rejects(()=>controls.execute("release-apply",{target}),"only an exact commit is released");
+  const sha="0123456789abcdef0123456789abcdef01234567";
+  const started=await controls.execute("release-apply",{target:sha},"owner");
+  assert.equal(started.action,"started");
+  const spawn=calls.at(-1)!;
+  assert.equal(spawn.binary,"systemd-run");
+  assert.deepEqual(spawn.args!.slice(spawn.args!.indexOf("--")+3,spawn.args!.indexOf("--")+5),["deploy",sha],"the release runs deploy.ts deploy <commit>");
+  await controls.execute("release-rollback",{target:sha},"owner");
+  assert.deepEqual(calls.at(-1)!.args!.slice(calls.at(-1)!.args!.indexOf("--")+3,calls.at(-1)!.args!.indexOf("--")+6),["rollback","--to",sha],"a rollback names the commit the owner saw");
   await assert.rejects(()=>controls.execute("dev-resources-apply",{cores:"4; rm",testJobs:1,memoryGiB:0,revision:0}),"limits are integers");
   await assert.rejects(()=>controls.execute("dev-resources-apply",{cores:2,testJobs:1,memoryGiB:5,revision:0}),"memory is one of the offered caps");
   for(const projects of ["pickflick",["pickflick; rm"],["PickFlick"],Array.from({length:21},(_,index)=>`p${index}`)])

@@ -19,7 +19,7 @@ const server=createHubServer({snapshot:syntheticHubSnapshot,authorize:async()=>"
     if(failRead&&["models","settings","server","appearance","composio-check"].includes(action))throw new HubControlError("stale_settings");
     if(action==="models")return {models:[{value:"gpt-6-sol",label:"Sol"},{value:"gpt-6-astra",label:"Astra"}],hermes:"gpt-6-sol",hermesProvider:"openai-codex",codex:codexModel,codexEffort:"high"};
     if(action==="settings")return {settings:{revision:1,settings,idle:{idle:true}}};
-    if(action==="server")return {health:{revision:1,intervalMinutes:20,allowedIntervals:[5,10,12,15,20,30,60]},devResources:{revision:0,cores:4,testJobs:2,memoryGiB:0,serverCores:8,memoryChoices:[0,8,12,16]}};
+    if(action==="server")return {health:{revision:1,intervalMinutes:20,allowedIntervals:[5,10,12,15,20,30,60]},devResources:{revision:0,cores:4,testJobs:2,memoryGiB:0,serverCores:8,memoryChoices:[0,8,12,16]},release:{head:"a".repeat(40),remote:"b".repeat(40),rollbackTo:"c".repeat(40),drift:[{code:"checkout_behind",ru:"Рабочая версия позади main на 2 коммита",en:"The live version is 2 commits behind main"}],last:{action:"deploy",status:"succeeded",to:"a".repeat(40),startedAt:"2026-09-16T09:00:00Z",steps:[{name:"Move checkout",status:"done"},{name:"Digest build",status:"skipped"}],notes:[]}}};
     if(action==="appearance")return {appearance:{revision:0,theme:"paper",mode:null,themes:{paper:["light","dark"],neon:["light","dark"]}}};
     if(action==="composio-check")return {contours:[{contour:"broad",ok:true,tools:3,diff:[],warnings:[]},{contour:"read",ok:true,tools:7,diff:[],warnings:[]},{contour:"automation",ok:true,tools:1,diff:[],warnings:[]}]};
     if(writeGate)await writeGate;
@@ -218,6 +218,10 @@ try {
     assert.equal(await devtools.evaluate("!document.querySelector('[data-hub-submit=health-apply],[data-hub-submit=appearance-apply]')"),true,"Settings holds only the run limits");
     await devtools.evaluate("(innerWidth<=620?document.querySelector('[data-mobile-menu=controls]'):document.querySelector('header [data-hub-control=menu]')).click();document.querySelector('[data-hub-control=server]').click()");await wait("!!document.querySelector('[data-hub-submit=dev-resources-apply]')");
     assert.equal(await devtools.evaluate("!!document.querySelector('[data-hub-submit=health-apply]')&&document.querySelectorAll('[data-hub-submit=dev-resources-apply] select').length===3"),true,"Server shows the health interval and the development limits");
+    assert.equal(await devtools.evaluate("document.querySelector('[data-hub-submit=release-apply] button').disabled===false&&!!document.querySelector('[data-hub-submit=release-rollback]')&&document.querySelector('.release-drift').textContent.length>0"),true,"Server shows the release state, drift and both release actions");
+    await devtools.evaluate("document.querySelector('[data-hub-submit=release-apply]').requestSubmit()");
+    assert.equal(await devtools.evaluate("document.querySelectorAll('#hub-confirm-changes tbody tr').length"),1,"a release asks to confirm the exact version change");
+    await devtools.evaluate("document.querySelector('[data-hub-cancel]').click()");
     await devtools.evaluate("(()=>{const form=document.querySelector('[data-hub-submit=dev-resources-apply]');form.elements.cores.value='2';form.elements.testJobs.value='3';form.requestSubmit();})()");
     assert.match(await devtools.evaluate<string>("document.querySelector('#hub-control-result').textContent"),/cannot exceed cores|не может быть больше ядер/,"test jobs above cores are refused before confirming");
     for(const width of [320,390,1280]){

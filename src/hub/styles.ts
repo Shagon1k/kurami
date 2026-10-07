@@ -157,6 +157,15 @@ body { min-height: 100vh; }
 .control-actions { display: flex; justify-content: flex-end; flex-wrap: wrap; gap: var(--space-2); margin-top: var(--space-4); }
 .control-summary { font-size: .85rem; overflow-wrap: anywhere; white-space: pre-line; }
 .control-about { display: flex; align-items: center; margin: 0; color: var(--text-muted); font-size: .85rem; }
+.release-state { display: grid; grid-template-columns: repeat(2, minmax(0,1fr)); gap: var(--space-2); margin: 0; }
+.release-state div { display: grid; gap: 2px; }
+.release-state dt { color: var(--text-muted); font-size: .75rem; }
+.release-state dd { margin: 0; font: 500 .9rem/1.3 var(--font-mono); }
+.release-drift { display: grid; gap: var(--space-1); font-size: .85rem; color: var(--status-warning); }
+.release-steps { display: grid; gap: 2px; font-size: .8rem; }
+.release-steps small { color: var(--text-muted); }
+.release .control-actions { gap: var(--space-2); }
+.release-action { display: contents; }
 .control-form + .control-form { margin-top: var(--space-6); padding-top: var(--space-4); border-top: 1px solid var(--border-subtle); }
 .composio-contours { border: 1px solid var(--border-subtle); border-radius: var(--radius); }
 .composio-contour { padding: var(--space-3); }

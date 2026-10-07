@@ -67,7 +67,7 @@ field to its original value removes the accent; locked fields remain neutral.
 In Codex limits, a remaining quota of 20% or less is amber; an exhausted quota is
 red. The low/exhausted label remains visible without relying on colour.
 
-The **Controls** icon opens four actions from the desktop header or the phone's bottom panel; **Reset** sits beside the limits.
+The **Controls** icon opens six actions from the desktop header or the phone's bottom panel; **Reset** sits beside the limits.
 
 Apply buttons and their confirmations use a light blue accent. Reset credits, Restart and restoring Defaults
 use amber; Undo stays neutral. The confirmation changes its accent to match the operation, not the menu you opened.
@@ -75,7 +75,9 @@ use amber; Undo stays neutral. The confirmation changes its accent to match the 
 | Action | What it does |
 |---|---|
 | **Models** | sets the default model for new Codex sessions and for Hermes (provider `openai-codex`) |
-| **Settings** | the same Kurami settings and health interval as `/kurami settings` ([Settings](@settings)) |
+| **Settings** | the same Kurami settings as `/kurami settings` ([Settings](@settings)) |
+| **Server** | release (below), the health check interval and [development resources](@settings) |
+| **Appearance** | the default theme for every app ([Settings](@settings)) |
 | **Composio check** | compares three connector configurations and applies a changed one after you confirm the shown diff ([Connector authority](@connector-authority)) |
 | **Restart** | asks the Hermes gateway to restart after the current turn; the host and Codex sessions stay up |
 | **Reset** | spends one earned credit to reset the Codex limits |
@@ -92,6 +94,14 @@ Each control opens its own named dialog, without an extra Back button. The menu
 closes on a second trigger click, outside click or Escape. Composio check is
 read-only and does not test provider availability. Check again repeats the read;
 Sync appears only when there is a difference to confirm.
+
+### Release
+
+The **Release** section in **Server** shows which commit the server runs and which commit `main` holds, what lags (the same as the Release alert), and the last release with its steps.
+
+**Release main** moves the live version to `main` and does only what is needed, in order: orchestrator database migrations when `migrations/` changed; the Digest build; the docs release, keeping the previous one for rollback; syncing the Hermes copies; restarting services whose code changed. It ends with a check that nothing lags. If a step fails, the release returns to the previous version and brings the services back to it. The button is disabled when there is nothing to release.
+
+**Roll back** returns to the commit before the last successful release with the same steps. Both buttons ask you to confirm the exact version change, and a release refuses uncommitted changes in the live version or a commit that is not on `main`. A release runs as its own systemd job, so restarting Hub does not interrupt it; history goes to `state/deploy/history.jsonl`. After a sync, the Discord plugin takes effect only once the Hermes gateway restarts (**Restart**).
 
 ## When it looks wrong
 

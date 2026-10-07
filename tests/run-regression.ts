@@ -76,6 +76,7 @@ const suites = [
   "test:dev-resources",
   "test:controller-failures",
   "test:log-rotation",
+  "test:deploy",
   "test:release-drift",
   "test:backup",
   "test:recovery",
