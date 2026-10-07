@@ -75,7 +75,7 @@ function baselineSummary(value:unknown):{baseline:PortfolioBaseline;date:string}
     ||!(b.unknowns.currentMonthNewContributionsEUR===null||Number.isFinite(b.unknowns.currentMonthNewContributionsEUR)&&b.unknowns.currentMonthNewContributionsEUR>=0))throw Error("Invalid portfolio baseline");
   return {baseline:b,date:b.asOfLocalDate};
 }
-async function resolveBaseline(portfolioDirectory:string,explicit:string|undefined){
+export async function resolveBaseline(portfolioDirectory:string,explicit:string|undefined){
   if(explicit){
     const path=resolve(explicit),summary=baselineSummary(await readPrivateJson(path));
     return {path,...summary};

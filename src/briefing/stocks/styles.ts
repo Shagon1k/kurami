@@ -62,6 +62,8 @@ export const STOCKS_STYLES=`
 .stock-change.is-down { color:var(--text-accent); }
 .stocks-warning { color:var(--status-warning); }
 .stocks-footnote { margin:16px 0 0; color:var(--text-muted); font-size:.75rem; line-height:1.6; }
+.stocks-portfolio-notes { display:grid; gap:8px; margin-top:16px; padding:12px 14px; border-inline-start:3px solid var(--status-warning); background:var(--surface-raised); font-size:.875rem; }
+.stocks-portfolio-notes p { display:flex; flex-wrap:wrap; align-items:center; gap:6px 10px; margin:0; }
 .stocks-observations { padding:0 0 28px; }
 .stocks-observations ul { display:grid; grid-template-columns:repeat(auto-fit,minmax(min(100%,230px),1fr)); gap:16px; list-style:none; padding:16px 0 0; margin:0; }
 .stocks-observations li { border-left:2px solid var(--border-default); padding:0 16px; }

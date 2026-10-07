@@ -96,12 +96,15 @@ export const LEARNING_REFERENCE_URLS=[
   "https://www.investor.gov/introduction-investing/investing-basics/glossary/diversification",
   "https://www.sec.gov/about/reports-publications/investorpubsbegfinstmtguide"
 ];
-export type ReviewIdea={symbol:string;factIds:string[];rationale:string;portfolioMeaning:string;counterargument:string;alternative:string;valuationGap:string;revisitWhen:string};
+/** `revisitOn`: the day `revisitWhen` comes due (earnings, a filing, an index change), when the review knows it; Daily mentions it that morning. */
+export type ReviewIdea={symbol:string;factIds:string[];rationale:string;portfolioMeaning:string;counterargument:string;alternative:string;valuationGap:string;revisitWhen:string;revisitOn?:string};
 export type ReviewAction="review"|"maintain"|"no-add"|"wait"|"consider-add"|"consider-trim"|"consider-exit"|"not-assessed";
-export type ReviewDraft={version:3;inputDigest:string;headline:string;summary:string[];positions:Array<{symbol:string;action:ReviewAction;adviceReason:string;blockingInfo:string|null;factIds:string[];rationale:string;portfolioMeaning:string;counterargument:string;revisitWhen:string;learningIds:string[]}>;learningNotes:LearningNote[];ideas?:ReviewIdea[];nextSteps:string[];proposedOrders:never[]};
+export type ReviewDraft={version:3;inputDigest:string;headline:string;summary:string[];positions:Array<{symbol:string;action:ReviewAction;adviceReason:string;blockingInfo:string|null;factIds:string[];rationale:string;portfolioMeaning:string;counterargument:string;revisitWhen:string;revisitOn?:string;learningIds:string[]}>;learningNotes:LearningNote[];ideas?:ReviewIdea[];nextSteps:string[];proposedOrders:never[]};
 export function validateReviewDraft(input:ReviewInput,value:unknown):ReviewDraft {
   const d=value as ReviewDraft,metrics=calculateReview(input),ids=new Set(input.baseline.positions.map(p=>p.symbol)),seen=new Set<string>(),facts=new Map(input.facts.map(f=>[f.id,f]));
   const text=(v:unknown,max=1600)=>typeof v==="string"&&v.length>0&&v.length<=max;
+  // A watch date is optional, a real day, not before the review and at most four months ahead.
+  const revisit=(v:unknown)=>v===undefined||dateOnly(v)&&v>=input.asOfDate&&v<=dayShift(input.asOfDate,120);
   if(d?.version!==3||d.inputDigest!==metrics.inputDigest||!text(d.headline,150)||!Array.isArray(d.summary)||d.summary.length<1||d.summary.length>3||!d.summary.every(v=>text(v))
     ||!Array.isArray(d.positions)||d.positions.length!==ids.size||!Array.isArray(d.nextSteps)||d.nextSteps.length>5||!d.nextSteps.every(v=>text(v))
     ||!Array.isArray(d.proposedOrders)||d.proposedOrders.length||!Array.isArray(d.learningNotes)||d.learningNotes.length>3)throw Error("Invalid review draft or execution proposal");
@@ -125,7 +128,7 @@ export function validateReviewDraft(input:ReviewInput,value:unknown):ReviewDraft
         const f=facts.get(id),h=input.fundHoldings;
         return !f||(f.symbol!==p.symbol&&!(h&&metrics.fundHoldingsUsable&&p.symbol in h.weights&&f.symbol===h.fundSymbol&&f.sourceId===h.sourceId));
       })||![p.rationale,p.portfolioMeaning,p.counterargument,p.revisitWhen].every(v=>text(v))
-      ||!Array.isArray(p.learningIds)||p.learningIds.length>2||new Set(p.learningIds).size!==p.learningIds.length||p.learningIds.some(id=>!lessons.has(id)))throw Error("Invalid position review");
+      ||!Array.isArray(p.learningIds)||p.learningIds.length>2||new Set(p.learningIds).size!==p.learningIds.length||p.learningIds.some(id=>!lessons.has(id))||!revisit(p.revisitOn))throw Error("Invalid position review");
     p.learningIds.forEach(id=>usedLessons.add(id));
     if(p.action!=="not-assessed"&&!p.factIds.some(id=>facts.get(id)?.symbol===p.symbol))throw Error("Assessment requires position-specific evidence");
     if(["consider-add","consider-trim","consider-exit"].includes(p.action)&&(!metrics.complete||metrics.requiresPositionConfirmation))throw Error("Action consideration requires current complete valuation");
@@ -139,7 +142,7 @@ export function validateReviewDraft(input:ReviewInput,value:unknown):ReviewDraft
       if(!idea||!candidates.has(idea.symbol)||ideaIds.has(idea.symbol)||!Array.isArray(idea.factIds)||!idea.factIds.length
         ||new Set(idea.factIds).size!==idea.factIds.length||idea.factIds.some(id=>facts.get(id)?.symbol!==idea.symbol)
         ||![idea.rationale,idea.portfolioMeaning,idea.counterargument,idea.alternative,idea.valuationGap,idea.revisitWhen].every(v=>text(v,900))
-        ||Object.keys(idea).some(k=>!["symbol","factIds","rationale","portfolioMeaning","counterargument","alternative","valuationGap","revisitWhen"].includes(k)))throw Error("Invalid long-term idea");
+        ||!revisit(idea.revisitOn)||Object.keys(idea).some(k=>!["symbol","factIds","rationale","portfolioMeaning","counterargument","alternative","valuationGap","revisitWhen","revisitOn"].includes(k)))throw Error("Invalid long-term idea");
       ideaIds.add(idea.symbol);
     }
   }

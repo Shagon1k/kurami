@@ -64,16 +64,23 @@ become current-month usage or an assumed unused allowance.
     blockingInfo: specific missing decisive information for review, otherwise null,
     factIds: [existing position-specific fact IDs],
     rationale, portfolioMeaning, counterargument, revisitWhen,
+    revisitOn: YYYY-MM-DD, // optional, see below
     learningIds: [IDs of up to two relevant notes]
   }],
   learningNotes: [{id, term, explanation, example, limitation,
     reference: {title, url}}], // maximum three, collapsed by default
   ideas: [{symbol, factIds, rationale, portfolioMeaning, counterargument,
-    alternative, valuationGap, revisitWhen}], // optional, zero to two
+    alternative, valuationGap, revisitWhen, revisitOn?}], // optional, zero to two
   nextSteps: at most 5 short paragraphs,
   proposedOrders: []
 }
 ```
+
+`revisitOn` is the calendar day `revisitWhen` comes due — an announced earnings
+date, filing deadline or index change taken from the provided sources. Omit it
+when the evidence gives no exact day; never estimate one. It must not be before
+`asOfDate` and at most 120 days after it. Daily shows a one-line reminder on
+that morning.
 
 Every held symbol appears exactly once. `not-assessed` must not be presented as
 an implicit hold recommendation. Each assessment requires evidence for that

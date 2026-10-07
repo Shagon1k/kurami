@@ -4,7 +4,8 @@ export type StockPoint={date:string;close:number;adjusted:number};
 export type StockSeries={asset:StockAsset;points:StockPoint[];fetchedAt:string|null;state:"ready"|"stale"|"unavailable";issue?:string};
 export type StocksSnapshot={version:1;state:"ready"|"partial"|"failed";capturedAt:string;data:{provider:"eodhd";policy:StocksConfig;series:StockSeries[];issue?:string}};
 export type StockQuote={asset:StockAsset;date:string|null;price:number|null;day:number|null;week:number|null;month:number|null;state:StockSeries["state"]};
-export type StocksBrief={version:1;state:"ready"|"partial"|"failed";capturedAt:string;data:{provider:"eodhd";benchmark:string;threshold:number;quotes:StockQuote[]}};
+/** `portfolio`: notes from the investment review for this morning (investment-review/portfolio-notes.ts), when there are any. */
+export type StocksBrief={version:1;state:"ready"|"partial"|"failed";capturedAt:string;data:{provider:"eodhd";benchmark:string;threshold:number;quotes:StockQuote[];portfolio?:import("../investment-review/portfolio-notes.ts").PortfolioNotes}};
 export const dayShift=(date:string,days:number)=>new Date(Date.parse(date+"T12:00:00Z")+days*86400000).toISOString().slice(0,10);
 export const marketDate=(at:string,timezone:string)=>new Intl.DateTimeFormat("en-CA",{timeZone:timezone,year:"numeric",month:"2-digit",day:"2-digit"}).format(new Date(at));
 export function parseStockPoints(value:unknown,from:string,to:string):StockPoint[] {

@@ -34,6 +34,10 @@ All sums, shares and stress scenarios (−30% and −50%) are computed by code, 
 
 Kurami does not know what you bought yesterday. The composition of the portfolio is a file that you confirm yourself: a private directory holds `baseline-<date>.json` with tickers, ISINs and quantities. If the file is older than 30 days, the Sunday run is rejected: "the current portfolio composition is not confirmed". Then update the file.
 
+From day 25 Daily reminds you in the stocks block. If the positions have not changed, press **Состав не менялся** (positions unchanged) there: Kurami saves the same composition with today's date, zeroing the trade and contribution counters in a new month. If positions changed, update the file yourself.
+
+When the review gives a position or idea an exact day to come back to it (an earnings, filing or index-change date from the sources), Daily says so in the stocks block that morning: «Сегодня по плану: NVDA — …» (due today). The date comes only from sources and at most 120 days ahead; without an exact date only the "what to watch" text remains.
+
 The panel on the page always reminds you: «Нужно подтвердить текущий состав» (the current composition must be confirmed). This is intended: it does not check the analysis against a real account, so every "Keep" or "Consider" refers to the composition at the confirmation date. If positions changed, treat the advice as out of date until the next report.
 
 ## Discord messages
