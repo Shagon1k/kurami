@@ -357,3 +357,18 @@ selection keep their background tints.
 `box-shadow: var(--mark-glow)`, so the look follows the theme without product code branching on it.
 `renderDisclosure` takes `summaryHtml` (trusted markup) when the folded row needs more than text — the Projects
 ideas block shows a number, the gist and tags there; the product escapes what goes inside.
+
+## Buttons, toggles, tooltips and Kurami's bubble
+
+- **One button rule.** `primary` is the one final commit on a screen (a dialog's Confirm, Create issue, starting a
+  task). A form step that leads to a confirmation (Apply) is `secondary`; Cancel is `subtle`; spending or
+  interrupting something (restart, reset limits) is `warning`; going back to an earlier release or deleting is
+  `danger`; merging a PR is `success`. `info` is not used for actions.
+- **Toggles.** An on/off control is a `toggle` button with a constant label and `aria-pressed` (Read offline,
+  notifications); the pressed state, not a changing label, shows that it is on.
+- **Info tips.** `renderInfoButton` is the popover invoker of `renderInfoNote`, a tooltip in the top layer placed
+  next to its button by the theme runtime: click or hover opens it, a click elsewhere or Escape closes it.
+- **Kurami says.** `renderKuramiSays({ mood, body, placement })` puts a speech bubble beside (`side`, pulse lines,
+  below her on phones) or above (`top`, empty states) the medallion; Neon outlines the bubble with the sign.
+  `renderKuramiState` uses it. The merge toast shows a 64 px medallion sticker on its edge: the only place the
+  medallion is smaller than 120 px.

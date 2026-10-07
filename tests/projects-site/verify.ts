@@ -177,7 +177,7 @@ for(const lang of ['en','ru']){
 semantics.items[0]!.preview.state='stopped';
 assert.doesNotMatch(renderProjectsPage(semantics,new URLSearchParams('item=item-12')),/data-preview-expiry=/,'a retired environment does not warn about an old expiry');
 const accented=structuredClone(fixture);
-const actionTones={ci_repair:"info",review_fix:"info",preview_stop:"warning",preview_reviewed:"success",stop:"danger",discard_local:"danger",discard_published:"danger",take_control:"subtle",preview_start:"subtle",recover_managed_task:"subtle"};
+const actionTones={ci_repair:"secondary",review_fix:"secondary",preview_stop:"warning",preview_reviewed:"success",stop:"danger",discard_local:"danger",discard_published:"danger",take_control:"subtle",preview_start:"subtle",recover_managed_task:"subtle"};
 accented.items[0]!.runActions!.actions=(Object.keys(actionTones) as (keyof typeof actionTones)[]).map(action=>({action,label:action,enabled:true,confirmation:null,hint:null,state:null}));
 for(const lang of ["en","ru"]){
   const html=renderProjectsPage(accented,new URLSearchParams(`item=item-12&lang=${lang}`));

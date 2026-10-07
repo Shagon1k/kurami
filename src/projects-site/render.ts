@@ -26,7 +26,7 @@ import {renderToastRegion} from "../ui-library/components/toast.ts";
 import {renderPill,type PillTone} from "../ui-library/components/pill.ts";
 import {needsOwner,parseFilters,projectStageLabel,selectItems,type ProjectItem,type ProjectSummary,type ProjectsSnapshot,type Signal,type SortKey} from "./model.ts";
 import {tr,sourceText,language,stateLabel,browserMessages,type Language} from "./i18n.ts";
-import {renderKuramiMood,renderKuramiState} from "../ui-library/components/kurami-mood.ts";
+import {renderKuramiSays,renderKuramiState} from "../ui-library/components/kurami-mood.ts";
 
 export function localTime(value:string|null,lang:Language="en"):string {
   if(!value||!Number.isFinite(Date.parse(value)))return tr("Unknown",lang);
@@ -101,7 +101,7 @@ export function renderProjectsDashboard(snapshot:ProjectsSnapshot,params=new URL
     :filters.attentionOnly?renderKuramiState({mood:"idle",title:t("Nothing is waiting for you"),text:t("Kurami will show tasks here when they need your answer.")})
     :renderKuramiState({mood:"idle",title:t("No matching tasks"),text:t("Try another project or search.")});
   // "Your move": the owner filter shows Kurami with open hands above the tasks that wait for an answer.
-  const yourMove=filters.attentionOnly&&items.length?`<div class="projects-your-move">${renderKuramiMood({mood:"needs-decision"})}<p><strong>${t("Your move")}</strong> · ${items.length} ${t(items.length===1?"task waits for you":"tasks wait for you")}</p></div>`:"";
+  const yourMove=filters.attentionOnly&&items.length?renderKuramiSays({mood:"needs-decision",placement:"side",className:"projects-your-move",body:`<p><strong>${t("Your move")}</strong> · ${items.length} ${t(items.length===1?"task waits for you":"tasks wait for you")}</p>`}):"";
   return `<div class="projects-overview"><div class="projects-summary"><p>${renderIcon("project")}<span><strong data-visible-count>${items.length}</strong> ${t("of")} ${snapshot.items.length} ${t("tasks")}</span></p><div class="projects-filters">${counter("active",active,"active","work",filters.activeOnly,"Tasks in progress or waiting for your attention.")}${counter("attention",attention,"need you","alert",filters.attentionOnly,"Tasks waiting for your attention.")}</div></div><div class="projects-sync"><span class="projects-sync-indicator projects-sync-indicator--${delayed?"delayed":"fresh"}" aria-hidden="true"></span>${renderButton({label:`${t("Sync")} · ${t(delayed?"Delayed":"Up to date")}`,compactLabel:lang==="ru"?t("Sync short"):t("Sync"),iconPath:iconPath("refresh"),visibleLabel:true,variant:"quiet",attributes:{popovertarget:"projects-sync-popover","data-sync-trigger":true,title:`${t("Sync")} · ${t(delayed?"Delayed":"Up to date")}`}})}${renderPopover({id:"projects-sync-popover",label:t("Sync"),body:freshBody})}</div></div>
     <div class="projects-mobile-sort" aria-label="${t("Sort by")}">${sortControl("task","Task",params,lang)}${sortControl("status","Status",params,lang)}${sortControl("kurami","Kurami",params,lang)}</div>
     ${snapshot.available?"":renderCallout({tone:"warning",title:t("Data temporarily unavailable"),body:t("Check the current state in GitHub or Discord.")})}

@@ -28,7 +28,7 @@ The top header scrolls with the page; desktop keeps its header navigation.
 | "Почта" (mail) | Unread Primary mail with classes ACTION, IMPORTANT, GENERAL. Kurami learns from archiving: once one sender's mail has been archived four times, the block asks how to show it — as general, as important, or decided per message. An accepted rule applies from the next mail refresh; only the sender's address is stored | live |
 | "Новости" (news) | Stories, 10 per page, with images and topics. **Read offline** keeps a stories-only copy on the device (no mail, schedule or images); without a connection Digest opens it with its time | frozen |
 | Teasers | Stocks, cinema, week — when the add-on is on | frozen at publication ([add-ons](@addons)) |
-| Finish | Kurami with the OK sign, "Всё. Ты в курсе." (that's all, you're up to date), reading time and story count. When the block comes into view the edition is marked read: a stamp appears, and Hub shows "Дайджест ✓ 08:05" | live |
+| Finish | Kurami with the OK sign, "Всё. Ты в курсе." (that's all, you're up to date), reading time and story count. When the block comes into view the edition is marked read: "✓ finished at 08:15" appears in Kurami's handwriting, and Hub shows "Дайджест ✓ 08:05" | live |
 | Quality strip | "Источники обновлены" (sources updated) or "Есть оговорки по данным" (data caveats) | recomputed on refresh |
 
 If a source does not answer, the block does not go blank. It keeps the last good data and gets an "outdated" mark with the time of the last success. An empty block without a mark means there is really no data.

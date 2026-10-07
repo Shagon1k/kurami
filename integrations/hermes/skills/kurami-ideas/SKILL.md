@@ -52,15 +52,29 @@ Reply with the number and the gist: «Записала идею #12: "Свой �
 | about one idea | `show <id>` |
 | to add a thought or a decision | `note <id> --text …` |
 | to think about it / park it / close it | `status <id> --to thinking`, `parked` or `closed` |
+| to make it a task in a project | see "Making an idea a task" |
 
 Name ideas by number and gist; quote the journal only when asked.
+
+## Making an idea a task
+
+Only when he asks for it in so many words ("сделай идею 3 задачей в PickFlick").
+
+1. `show <id>` for the gist, context, first step and original message.
+2. Read the project's repository from `$KURAMI_HOME/config/projects.yaml`
+   (`kurami` means `Shagon1k/kurami`; `other` needs him to name a project).
+3. If the repository has issue forms (`.github/ISSUE_TEMPLATE/*.yml` in its
+   `workspace.canonical_repository`), pick the fitting one and fill its fields
+   from the idea; otherwise write a short body: what, why, first step.
+4. `gh issue create --repo <owner/repo> --title … --body …` (labels from the
+   form, if any). Projects picks the new issue up with the next poll.
+5. `status <id> --to task --task-url <issue URL>`, then reply with the link.
 
 ## Limits
 
 - Never start, plan or assign work because of an idea, even in a coding session.
-  Turning an idea into a task is his explicit step: Projects → Ideas → "Create
-  issue". `status --to task` needs the issue link and only records a task he
-  already created.
+  Making it a task files an issue and nothing more; starting it stays his step
+  in Projects.
 - Do not save secrets, passwords, tokens or other people's private data. If the
   message contains them, save the idea without them and say so.
 - One idea per capture. If he lists several, save each one and say how many.

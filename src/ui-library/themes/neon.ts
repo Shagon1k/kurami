@@ -92,6 +92,8 @@ const N='html[data-kurami-theme="neon"]';
  * `--neon-sign`, `--neon-volt` and `--neon-blue` are the three ranks in the current mode.
  */
 export const NEON_CSS=`
+${N} .kurami-says__bubble { border-color: var(--neon-sign); box-shadow: 0 0 0 1px color-mix(in srgb, var(--neon-sign) 35%, transparent), 0 0 18px -6px var(--neon-sign); }
+${N} .kurami-says__bubble::before { border-color: var(--neon-sign); }
 ${N} [class*="project-color--"] { --project-edge: inset 3px 0 0 var(--project-color), inset 14px 0 16px -14px var(--project-color); }
 ${N} { --neon-sign: ${red}; --neon-volt: var(--accent-data); --neon-blue: var(--status-info); }
 ${N}[data-theme="light"] { --neon-sign: ${fill}; }

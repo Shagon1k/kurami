@@ -80,7 +80,7 @@ An unresolved write still blocks PR actions. A conflict notice clears after two 
 Merging submits the displayed head SHA without bypassing GitHub rules.
 Stacked PRs, non-default target branches and merge queues remain managed in GitHub.
 
-When a merge is confirmed, the notice celebrates: Kurami herself appears in it in place of the check mark
+When a merge is confirmed, the notice celebrates: a small Kurami sticker on its left edge in place of the check mark
 (not when the character is switched off in Hub, and without motion when the device asks for less).
 
 GitHub accepting a merge request does not mean the PR has merged. **Check result**
@@ -155,10 +155,9 @@ keeps the message verbatim and asks at most three of the missing questions (what
 a first step, when) — answer "skip" to any of them. Saving an idea starts nothing.
 
 Open ideas (new and thinking) sit in the **Ideas** block under the table: number, gist, project, "when" and the
-date. An idea unfolds into its details, a journal of notes and status changes (entries are only ever added), a
-new note, and its status — thinking, parked, closed. **Create issue** files an issue in the chosen project or in
-Kurami and records the link on the idea; an idea in Other needs a project first. Ideas are stored in Kurami and
-included in the daily backup.
+date. An idea unfolds into its details, a journal of notes and status changes (entries are only ever added) and
+a field for a new note. Parking, closing or turning an idea into a task is a request in any chat ("park idea
+3", "make idea 3 a task in PickFlick"). Ideas are stored in Kurami and included in the daily backup.
 
 ## What the card shows
 

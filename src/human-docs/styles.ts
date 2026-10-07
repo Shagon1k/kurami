@@ -14,7 +14,10 @@ import {KURAMI_MOOD_CSS} from "../ui-library/components/kurami-mood.ts";
 // (glance, steps, compare, cards, terms, guarantees, code map, figures, screenshots). Roles only.
 export const DOCS_STYLES = `${THEME_CSS}${FOUNDATION_CSS}${BUTTON_CSS}
 ${KURAMI_MOOD_CSS}
-.intro--kurami { display: flex; align-items: center; justify-content: space-between; gap: var(--space-5); }
+/* Kurami greets (home) or explains (404) herself: her medallion beside the title, the lede as her speech bubble. */
+.intro--kurami { gap: var(--space-5); }
+.intro--kurami .kurami-says__bubble { margin-top: var(--space-3); }
+.intro--kurami .kurami-says__bubble .lede { margin: 0; }
 ${THEME_SWITCH_CSS}
 ${ICON_CSS}
 ${SITE_HEADER_CSS}

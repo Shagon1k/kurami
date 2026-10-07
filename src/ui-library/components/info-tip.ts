@@ -11,7 +11,7 @@ export const INFO_TIP_CSS = `
 .ui-info:hover, .ui-info[aria-expanded="true"] { color: var(--surface-page); background: var(--status-info); border-color: var(--status-info); }
 .ui-info:focus-visible { outline: 3px solid var(--focus-ring); outline-offset: 2px; }
 /* A true tooltip: a popover in the top layer (above dialogs and sheets), placed by the runtime next to its button. */
-.ui-info-note { position: fixed; inset: auto; top: var(--info-top, 0px); left: var(--info-left, 0px); z-index: 90; width: max-content; max-width: min(320px, calc(100vw - 16px)); margin: 0; padding: var(--space-2) var(--space-3); box-shadow: var(--shadow-raised); color: var(--text-primary); background: color-mix(in srgb, var(--status-info) 7%, var(--surface-raised)); border: 1px solid color-mix(in srgb, var(--status-info) 35%, var(--border-default)); border-radius: var(--radius); font: 400 .8rem/1.5 var(--font-sans); text-transform: none; letter-spacing: 0; }
+.ui-info-note { --info-top: 0px; --info-left: 0px; position: fixed; inset: auto; top: var(--info-top); left: var(--info-left); z-index: 90; width: max-content; max-width: min(320px, calc(100vw - 16px)); margin: 0; padding: var(--space-2) var(--space-3); box-shadow: var(--shadow-raised); color: var(--text-primary); background: color-mix(in srgb, var(--status-info) 7%, var(--surface-raised)); border: 1px solid color-mix(in srgb, var(--status-info) 35%, var(--border-default)); border-radius: var(--radius); font: 400 .8rem/1.5 var(--font-sans); text-transform: none; letter-spacing: 0; }
 .ui-info-note:not(:popover-open) { display: none; }
 `;
 

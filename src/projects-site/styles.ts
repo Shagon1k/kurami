@@ -19,7 +19,7 @@ import {KURAMI_MOOD_CSS} from "../ui-library/components/kurami-mood.ts";
 export const PROJECTS_STYLES=[KURAMI_MOOD_CSS,THEME_CSS,FOUNDATION_CSS,BUTTON_CSS,TABLE_CSS,FORM_CSS,DIALOG_CSS,CALLOUT_CSS,PILL_CSS,POPOVER_CSS,THEME_SWITCH_CSS,SITE_HEADER_CSS,ICON_CSS,TOAST_CSS,DISCLOSURE_CSS,PROJECT_COLOR_CSS,`
 [data-projects-app] { --projects-table-height: calc(100dvh - 230px); }
 .projects-page { padding-block: var(--space-5) var(--space-6); }
-.projects-your-move { display: flex; align-items: center; gap: var(--space-3); padding: var(--space-2) var(--space-4); border-bottom: 1px solid var(--border-subtle); }
+.projects-your-move { padding: var(--space-3) var(--space-4); border-bottom: 1px solid var(--border-subtle); }
 .projects-your-move p { margin: 0; color: var(--text-muted); }
 .projects-your-move strong { color: var(--text-primary); }
 .projects-toolbar { display: flex; align-items: center; flex-wrap: wrap; gap: var(--space-3) var(--space-5); }

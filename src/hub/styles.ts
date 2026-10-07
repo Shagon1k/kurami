@@ -30,7 +30,8 @@ body { min-height: 100vh; }
 .chronicle__day li[data-kind="returned"] svg { color: var(--status-warning); }
 .chronicle__days + * { margin-top: var(--space-3); }
 .hub__topline { display: flex; align-items: baseline; justify-content: space-between; flex-wrap: wrap; gap: var(--space-2) var(--space-4); margin-bottom: var(--space-4); }
-.hub__mood { display: flex; align-items: center; gap: var(--space-3); min-width: 0; }
+.hub__mood { min-width: 0; }
+.hub__mood .hub__pulse { margin: 0; }
 .hub__pulse { display: flex; flex-wrap: wrap; gap: 0 var(--space-2); color: var(--text-muted); font-size: .9rem; }
 .hub__pulse span:first-child { color: var(--text-primary); font-weight: 600; }
 .hub__pulse[data-state="attention"] span:first-child { color: var(--status-warning); }

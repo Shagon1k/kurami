@@ -21,8 +21,8 @@ export function renderDailyFinish(payload: BriefingPayload): string {
     ${renderKuramiMood({ mood: "done" })}
     <div class="daily-finish__copy">
       <h2 id="daily-finish-heading">${digestText("Всё. Ты в курсе.", "That's all. You're up to date.")}</h2>
-      <p>${digestText(`≈ ${readingMinutes(payload)} мин чтения · ${stories} ${stories % 10 === 1 && stories % 100 !== 11 ? "сюжет" : stories % 10 >= 2 && stories % 10 <= 4 && (stories % 100 < 12 || stories % 100 > 14) ? "сюжета" : "сюжетов"}`, `≈ ${readingMinutes(payload)} min read · ${stories} ${stories === 1 ? "story" : "stories"}`)}</p></div>
-      <p class="daily-finish__stamp" data-read-stamp data-label="${digestText("дочитано", "finished")}" data-label-at="${digestText("дочитано в", "finished at")}" hidden></p>
+      <p>${digestText(`≈ ${readingMinutes(payload)} мин чтения · ${stories} ${stories % 10 === 1 && stories % 100 !== 11 ? "сюжет" : stories % 10 >= 2 && stories % 10 <= 4 && (stories % 100 < 12 || stories % 100 > 14) ? "сюжета" : "сюжетов"}`, `≈ ${readingMinutes(payload)} min read · ${stories} ${stories === 1 ? "story" : "stories"}`)}</p>
+      <p class="daily-finish__stamp" data-read-stamp data-label="${digestText("дочитано", "finished")}" data-label-at="${digestText("дочитано в", "finished at")}" hidden></p></div>
   </section>`;
 }
 
@@ -51,7 +51,7 @@ export const DAILY_FINISH_STYLES = `
 .daily-finish__copy h2 { margin: 0; font-size: clamp(1.5rem, 3vw, 2rem); }
 .daily-finish__copy p { margin: 0; color: var(--text-muted); }
 /* Kurami's handwriting under the line, as on her notes in the feed; the theme's display glow lights it in Neon. */
-.daily-finish__stamp { justify-self: start; color: var(--text-accent); font: 600 1.5rem/1.1 var(--font-note); rotate: -2deg; text-shadow: var(--display-glow); }
+.daily-finish__copy .daily-finish__stamp { justify-self: start; margin: 0; color: var(--accent-primary); font: 600 1.5rem/1.1 var(--font-note); rotate: -2deg; text-shadow: var(--display-glow); }
 .daily-finish.is-read .daily-finish__stamp { animation: daily-stamp .5s cubic-bezier(.2,.9,.3,1.4); }
 @keyframes daily-stamp { from { scale: 1.8; opacity: 0; } to { scale: 1; opacity: 1; } }
 @media (prefers-reduced-motion: reduce) { .daily-finish.is-read .daily-finish__stamp { animation: none; } }

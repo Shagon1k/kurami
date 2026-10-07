@@ -27,7 +27,7 @@ import type {CodexLimit,CodexSnapshot} from "./codex.ts";
 import type {HubProject,HubSnapshot} from "./snapshot.ts";
 import type {UsagePeriod} from "../orchestrator/projects/usage-read-model.ts";
 import type {ChronicleDay,ChronicleEvent,ChronicleKind} from "../orchestrator/projects/chronicle.ts";
-import {renderKuramiMood,renderKuramiState,type KuramiMood} from "../ui-library/components/kurami-mood.ts";
+import {renderKuramiSays,renderKuramiState,type KuramiMood} from "../ui-library/components/kurami-mood.ts";
 
 export type HubLanguage="ru"|"en";
 const tr=(lang:HubLanguage,ru:string,en:string)=>lang==="ru"?ru:en;
@@ -325,7 +325,8 @@ function renderPulse(snapshot:HubSnapshot,lang:HubLanguage):string {
   if(known&&snapshot.totals.attention>0)parts.push(tr(lang,`${snapshot.totals.attention} ${plural(snapshot.totals.attention,["ждёт","ждут","ждут"])} тебя`,`${snapshot.totals.attention} waiting for you`));
   else if(known&&snapshot.totals.review>0)parts.push(tr(lang,`${snapshot.totals.review} на ревью`,`${snapshot.totals.review} in review`));
   if(snapshot.digestReadAt)parts.push(`${tr(lang,"Дайджест","Digest")} ✓ ${new Intl.DateTimeFormat(lang==="ru"?"ru-RU":"en-GB",{hour:"2-digit",minute:"2-digit",timeZone:"Europe/Vilnius"}).format(new Date(snapshot.digestReadAt))}`);
-  return `<div class="hub__mood">${renderKuramiMood({mood:pulseMood(snapshot),eager:true})}<p class="hub__pulse" data-state="${problems?"attention":"quiet"}">${parts.map(part=>`<span>${escapeHtml(part)}</span>`).join("")}${ideasReminder(snapshot,lang)}</p></div>`;
+  // Kurami says the pulse: her mood beside a speech bubble with the line.
+  return renderKuramiSays({mood:pulseMood(snapshot),eager:true,placement:"side",className:"hub__mood",body:`<p class="hub__pulse" data-state="${problems?"attention":"quiet"}">${parts.map(part=>`<span>${escapeHtml(part)}</span>`).join("")}${ideasReminder(snapshot,lang)}</p>`});
 }
 
 export function renderHubDashboard(snapshot:HubSnapshot,lang:HubLanguage="en"):string {

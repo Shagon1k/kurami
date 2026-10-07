@@ -6,6 +6,7 @@
 // encoding turned the transparent background into a faint square.
 import { readFileSync } from "node:fs";
 import { escapeHtml } from "../foundations/html.ts";
+import { breakpoints } from "../tokens/index.ts";
 
 export const KURAMI_MOODS = ["idle", "working", "asleep", "offline", "done", "peek", "celebrate", "alert", "thinking", "needs-decision", "found-problem", "welcome"] as const;
 export type KuramiMood = typeof KURAMI_MOODS[number];
@@ -31,9 +32,17 @@ export function renderKuramiMood(input: { mood: KuramiMood; label?: string; clas
 }
 
 /** A whole-page or empty-section state: Kurami, a short heading and one line of what to do. */
+/** Kurami says it: the medallion with a speech bubble. `side` (pulse lines) puts the bubble beside her and
+ * below her on phones; `top` (banners, empty states) puts it above her like a comic line. `body` is trusted
+ * markup from the product. Switched off, the bubble stays as a plain card without its tail. */
+export function renderKuramiSays(input: { mood: KuramiMood; body: string; placement?: "side" | "top"; className?: string; eager?: boolean }): string {
+  if (input.className && !/^[a-z0-9_-]+(?: [a-z0-9_-]+)*$/.test(input.className)) throw new Error("Unsafe Kurami bubble class");
+  return `<div class="kurami-says kurami-says--${input.placement ?? "side"}${input.className ? ` ${input.className}` : ""}">${renderKuramiMood({ mood: input.mood, eager: input.eager })}<div class="kurami-says__bubble">${input.body}</div></div>`;
+}
+
 export function renderKuramiState(input: { mood: KuramiMood; title: string; text?: string; action?: string; headingLevel?: 1 | 2 | 3 }): string {
   const level = input.headingLevel ?? 2;
-  return `<div class="kurami-state" data-kurami-state="${input.mood}">${renderKuramiMood({ mood: input.mood, eager: true })}<div class="kurami-state__copy"><h${level}>${escapeHtml(input.title)}</h${level}>${input.text ? `<p>${escapeHtml(input.text)}</p>` : ""}${input.action ?? ""}</div></div>`;
+  return `<div class="kurami-state" data-kurami-state="${input.mood}">${renderKuramiSays({ mood: input.mood, placement: "top", eager: true, body: `<div class="kurami-state__copy"><h${level}>${escapeHtml(input.title)}</h${level}>${input.text ? `<p>${escapeHtml(input.text)}</p>` : ""}${input.action ?? ""}</div>` })}</div>`;
 }
 
 /** Before first paint: Hub → Appearance can switch Kurami off for every app (the gateway's cookie). */
@@ -109,7 +118,19 @@ html[data-kurami-theme="neon"] .kurami-mood[data-kurami-mood="alert"] { --kurami
 @keyframes kurami-glow { 0%, 100% { filter: drop-shadow(0 0 2px var(--kurami-ring)) drop-shadow(0 0 5px var(--kurami-ring)); } 50% { filter: drop-shadow(0 0 3px var(--kurami-ring)) drop-shadow(0 0 12px var(--kurami-ring)); } }
 html[data-kurami-mascot="off"] .kurami-mood { display: none; }
 html[data-kurami-mascot="off"] .kurami-state { padding-block: var(--space-4); }
-.kurami-state { display: flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: var(--space-4) var(--space-6); padding-block: var(--space-6); text-align: start; }
+.kurami-state { display: flex; justify-content: center; padding-block: var(--space-6); text-align: start; }
+/* Speech bubble (renderKuramiSays). The tail is a turned square sharing the bubble's fill and border. */
+.kurami-says { display: flex; align-items: center; gap: var(--space-4); min-width: 0; }
+.kurami-says--top { flex-direction: column-reverse; align-items: flex-start; gap: var(--space-3); }
+.kurami-says__bubble { position: relative; min-width: 0; max-width: 60ch; padding: var(--space-3) var(--space-4); border: 1px solid var(--border-default); border-radius: 16px; background: var(--surface-raised); box-shadow: var(--shadow-card-sm); }
+.kurami-says__bubble::before { content: ""; position: absolute; width: 14px; height: 14px; background: inherit; border: solid var(--border-default); border-width: 0 0 1px 1px; }
+.kurami-says--side .kurami-says__bubble::before { left: -8px; top: 50%; translate: 0 -50%; rotate: 45deg; }
+.kurami-says--top .kurami-says__bubble::before { left: 53px; bottom: -8px; rotate: -45deg; }
+html[data-kurami-mascot="off"] .kurami-says__bubble::before { display: none; }
+@media (max-width: ${breakpoints.phone}px) {
+  .kurami-says--side { flex-direction: column; align-items: flex-start; gap: var(--space-3); }
+  .kurami-says--side .kurami-says__bubble::before { left: 53px; top: -8px; translate: none; rotate: 135deg; }
+}
 .kurami-state__copy { display: grid; gap: var(--space-2); max-width: 36ch; }
 .kurami-state__copy :is(h1, h2, h3) { margin: 0; }
 .kurami-state__copy p { margin: 0; color: var(--text-muted); }
