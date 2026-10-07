@@ -159,11 +159,11 @@ try {
     await delay(200);assert.deepEqual(await devtools.evaluate(AUDIT_EXPRESSION),[],'comparison table contrast and accessibility');
     if(lang==='en')await screenshot('hub-model-confirmation','dialog');
     const before=actions.length;assert.equal(await devtools.evaluate("document.querySelector('#hub-control-confirm').hidden"),false);
-    assert.equal(await devtools.evaluate("document.querySelector('[data-hub-confirm]').classList.contains('button--info')"),true,"applying a model uses the informational accent");
+    assert.equal(await devtools.evaluate("document.querySelector('[data-hub-confirm]').classList.contains('button--primary')"),true,"applying a model: Confirm is the one primary button");
     assert.equal(await devtools.evaluate("(()=>{const row=document.querySelector('#hub-control-confirm .dialog__actions'),cancel=row.querySelector('[data-hub-cancel]'),confirm=row.querySelector('[data-hub-confirm]'),r=row.getBoundingClientRect(),a=cancel.getBoundingClientRect(),b=confirm.getBoundingClientRect();return cancel.compareDocumentPosition(confirm)===Node.DOCUMENT_POSITION_FOLLOWING&&a.right<=b.left&&Math.abs(r.right-b.right)<1;})()"),true,"Cancel then Confirm align to the dialog's right edge");
     await delay(100);assert.equal(actions.length,before,"opening confirmation never applies a model");
     if(lang==="en"){
-      await devtools.evaluate("document.querySelector('[data-hub-confirm]').click()");await wait("(()=>{const toast=document.querySelector('[data-toast-region]');return !toast.hidden&&toast.dataset.tone==='success'&&toast.querySelector('[data-toast-message]').textContent==='Applied'&&document.querySelector('#hub-control-result').textContent==='';})()");
+      await devtools.evaluate("document.querySelector('[data-hub-confirm]').click()");await wait("(()=>{const toast=document.querySelector('[data-toast-region]');return !toast.hidden&&toast.dataset.tone==='success'&&toast.querySelector('[data-toast-message]').textContent.startsWith('Saved · ')&&document.querySelector('#hub-control-result').textContent==='';})()");
       await wait("!document.querySelector('[data-hub-confirm]').hasAttribute('aria-busy')");
       assert.equal(actions.at(-1),"model-apply");
       assert.equal(await devtools.evaluate("document.querySelector('[data-period-key=global][data-period-days=\"7\"]').getAttribute('aria-pressed')"),"true","refresh preserves period selection");
@@ -185,7 +185,7 @@ try {
     await devtools.evaluate("document.querySelector('[data-hub-control=codex-reset]').click()");
     await delay(80);
     assert.equal(actions.length,before+(lang==="en"?1:0),"reset waits for confirmation");
-    assert.equal(await devtools.evaluate("document.querySelector('[data-hub-confirm]').classList.contains('button--warning')&&!document.querySelector('[data-hub-confirm]').classList.contains('button--info')"),true,"consuming a reset switches the confirmation to caution without a stale informational class");
+    assert.equal(await devtools.evaluate("document.querySelector('[data-hub-confirm]').classList.contains('button--warning')&&!document.querySelector('[data-hub-confirm]').classList.contains('button--primary')"),true,"consuming a reset switches the confirmation to caution without a stale informational class");
     await devtools.evaluate("document.querySelector('[data-hub-cancel]').click()");
     await devtools.evaluate("(innerWidth<=620?document.querySelector('[data-mobile-menu=controls]'):document.querySelector('header [data-hub-control=menu]')).click();document.querySelector('[data-hub-control=settings]').click()");await wait("!!document.querySelector('[data-hub-submit=settings-apply]')");
     await devtools.evaluate("(()=>{const input=document.querySelector('[data-hub-submit=settings-apply] input');input.value=String(Number(input.defaultValue)+1);input.dispatchEvent(new Event('input',{bubbles:true}));})()");
@@ -195,9 +195,9 @@ try {
     assert.equal(await devtools.evaluate("document.querySelectorAll('#hub-confirm-changes tbody tr').length"),1,'confirmation lists only changed fields');
     await devtools.evaluate("document.querySelector('[data-hub-cancel]').click();(()=>{const input=document.querySelector('[data-hub-submit=settings-apply] input');input.value=input.defaultValue;input.dispatchEvent(new Event('input',{bubbles:true}));})()");
     assert.equal(await devtools.evaluate("document.querySelector('[data-hub-submit=settings-apply] .form-field').dataset.dirty"),'false','returning a setting to its original value removes the accent');
-    for(const [action,tone]of [['settings-reset','warning'],['settings-rollback','subtle']]){
+    for(const [action,tone]of [['settings-reset','warning'],['settings-rollback','warning']]){
       await devtools.evaluate(`document.querySelector('[data-hub-control=${action}]').click()`);
-      assert.equal(await devtools.evaluate(`document.querySelector('[data-hub-confirm]').classList.contains('button--${tone}')&&[...document.querySelector('[data-hub-confirm]').classList].filter(c=>['button--info','button--warning','button--subtle'].includes(c)).length===1`),true,'confirmation accent switches for '+action);
+      assert.equal(await devtools.evaluate(`document.querySelector('[data-hub-confirm]').classList.contains('button--${tone}')&&[...document.querySelector('[data-hub-confirm]').classList].filter(c=>['button--primary','button--info','button--warning','button--subtle','button--danger'].includes(c)).length===1`),true,'confirmation accent switches for '+action);
       await delay(200);assert.deepEqual(await devtools.evaluate(AUDIT_EXPRESSION),[],action+' accent contrast');
       await devtools.evaluate("document.querySelector('[data-hub-cancel]').click()");
     }
