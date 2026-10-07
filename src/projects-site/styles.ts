@@ -20,6 +20,11 @@ export const PROJECTS_STYLES=[KURAMI_MOOD_CSS,THEME_CSS,FOUNDATION_CSS,BUTTON_CS
 [data-projects-app] { --projects-table-height: calc(100dvh - 230px); }
 .projects-page { padding-block: var(--space-5) var(--space-6); }
 .projects-your-move { padding: var(--space-3) var(--space-4); border-bottom: 1px solid var(--border-subtle); }
+/* A one-line banner keeps the bubble beside Kurami on phones too (the pulse moves it below her). */
+@media (max-width: ${breakpoints.phone}px) {
+  .projects-your-move.kurami-says--side { flex-direction: row; align-items: center; }
+  .projects-your-move.kurami-says--side .kurami-says__bubble::before { left: -8px; top: 50%; translate: 0 -50%; rotate: 45deg; }
+}
 .projects-your-move p { margin: 0; color: var(--text-muted); }
 .projects-your-move strong { color: var(--text-primary); }
 .projects-toolbar { display: flex; align-items: center; flex-wrap: wrap; gap: var(--space-3) var(--space-5); }
