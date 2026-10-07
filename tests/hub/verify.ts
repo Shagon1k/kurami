@@ -136,6 +136,12 @@ projects:
     const keys=[...dashboard.matchAll(/data-disclosure-key="([^"]+)"/g)].map(match=>match[1]);
     assert.equal(new Set(keys).size,keys.length,"all Hub disclosures have distinct restoration keys, including periods and raw events");
   }
+  // Pulse line: quiet with no alerts; otherwise how many need attention, plus work in progress and the owner's queue.
+  const quiet=syntheticHubSnapshot();quiet.operations!.alerts=[];quiet.totals={...quiet.totals,working:2,attention:1};
+  assert.match(renderHubDashboard(quiet,"ru"),/<p class="hub__pulse" data-state="quiet"><span>Всё спокойно<\/span><span>2 в работе<\/span><span>1 ждёт тебя<\/span><\/p>/);
+  quiet.totals={...quiet.totals,working:0,attention:0,review:0};
+  assert.match(renderHubDashboard(quiet,"en"),/<p class="hub__pulse" data-state="quiet"><span>All quiet<\/span><\/p>/);
+  assert.match(renderHubDashboard(attention,"en"),/<p class="hub__pulse" data-state="attention"><span>\d+ needs? attention<\/span>/);
   const unnamed=syntheticHubSnapshot();
   unnamed.operations!.activity=[{id:"unknown",group:"codex:abcdefgh-1234",sessionId:"abcdefgh-1234",source:"Codex",agent:"Codex",at:unnamed.generatedAt,subject:" ",event:"session_started"}];
   assert.match(renderHubDashboard(unnamed,"en"),/Untitled session · abcdefgh/);

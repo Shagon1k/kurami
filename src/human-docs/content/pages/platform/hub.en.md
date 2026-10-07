@@ -16,6 +16,7 @@ Top to bottom:
 
 | Area | What it shows |
 |---|---|
+| **Pulse** | one line above everything: "All quiet" or how many objects need attention, then tasks in progress and tasks waiting for the owner (or in review); the snapshot time on the right |
 | **Alerts** | the problem queue, shown only when something is wrong; one entry per PR or task with reasons, who acts and the next step |
 | **Tasks** | tasks in progress, in Human Review and needing the owner; next to them commits and API-equivalent USD for the period |
 | **System Health** | CPU, RAM, network and disk with meters, plus the Project Orchestrator panel: State DB, Docker, previews, worktrees, quarantine, backup |
