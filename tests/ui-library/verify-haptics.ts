@@ -60,7 +60,7 @@ for (const options of [{ coarse: false }, { reduced: true }, { vibrate: false }]
 
 // Toasts call the global helper by tone; info stays silent.
 const toastPage = page();
-const region = { hidden: true, dataset: {} as Record<string, string>, querySelector: () => ({ textContent: "", addEventListener() {} }), querySelectorAll: () => [], addEventListener() {}, contains: () => false };
+const region = { hidden: true, dataset: {} as Record<string, string>, setAttribute() {}, removeAttribute() {}, querySelector: () => ({ textContent: "", addEventListener() {} }), querySelectorAll: () => [], addEventListener() {}, contains: () => false };
 Object.assign(toastPage.context, { performance: { now: () => 0 }, setTimeout: () => 1, clearTimeout() {}, queueMicrotask() {} });
 (toastPage.context.document as Record<string, unknown>).hidden = false;
 runInNewContext(`${TOAST_RUNTIME_JS};globalThis.toast=createKuramiToast(region,()=>null);`, Object.assign(toastPage.context, { region }));
