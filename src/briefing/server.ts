@@ -115,6 +115,9 @@ const CLIENT_SCRIPT = WEB_CLIENT_JS+HERO_MOOD_SCRIPT+DAILY_FINISH_SCRIPT+`(() =>
       const registration = await navigator.serviceWorker.ready;
       registration.active?.postMessage({ type: 'offline-news', enabled: on, lang: document.documentElement.lang === 'en' ? 'en' : 'ru' });
       render(on);
+    });
+  }
+
   // Mail learning: one rule proposal at a time for a sender that keeps being archived (mail-learning.ts).
   const mailSuggestion = document.querySelector('[data-mail-suggestion]');
   if (mailSuggestion) {
