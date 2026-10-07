@@ -1,4 +1,5 @@
 import type {BriefingPayload} from "../model.ts";
+import {surfaceAttributes} from "../../ui-library/components/surface.ts";
 import {escapeHtml as e} from "../ui/html.ts";
 import {renderPageShell} from "../ui/page-shell.ts";
 import {renderMetricCards,type MetricCard} from "../ui/components/metric-strip.ts";
@@ -33,7 +34,7 @@ function englishInsights(review:WeeklyReview):string[] {
 export function renderWeeklyTeaser(payload:BriefingPayload):string {
   const raw=payload.addons.weekly?.data.review;if(!raw)return "";
   const review=parseWeeklyReview(raw),d=review.data;
-  return `<section class="weekly-teaser" aria-labelledby="weekly-teaser-heading">
+  return `<section class="weekly-teaser"${surfaceAttributes("panel")} aria-labelledby="weekly-teaser-heading">
     <div><p class="hero__eyebrow">${t("Воскресный обзор","Sunday review")} · ${e(dateLabel(d.start))} — ${e(dateLabel(d.end))}</p>
     <h2 id="weekly-teaser-heading">${t("Неделя в нескольких цифрах","The week in numbers")}</h2>
     <p>${e(duration(d.totals.calendarMinutes))} ${t("в календаре","on the calendar")} · ${d.totals.more+d.totals.less} ${t("реакций на сюжеты","story reactions")} · ${t("данные календаря за","calendar data for")} ${d.coverage.calendar}/7 ${t("дней","days")}</p></div>
@@ -62,12 +63,12 @@ export function renderWeeklyPage(raw:WeeklyReview|null,preview=false,chronicle:P
     <h1>${t("Неделя, без лишнего шума.","The week, without the noise.")}</h1><p class="hero__subtitle">${e(period)} · ${t("семь завершённых дней","seven completed days")}</p><a href="/">← ${t("К Daily","Daily")}</a></div></section>
     ${review.state!=="ready"?`<aside class="weekly-caveat"><strong>${t("Пока неполная история.","History is incomplete.")}</strong> ${t("Календарь","Calendar")}: ${d.coverage.calendar}/7 ${t("дней","days")}, ${t("почта","mail")}: ${d.coverage.mail}/7, ${t("новости","news")}: ${d.coverage.news}/7. ${t("Уже удалённые данные не восстанавливались; неполные недели не сравниваю как полные.","Deleted data was not restored; incomplete weeks are not compared as full weeks.")}</aside>`:""}
     <div class="weekly-metrics">${renderMetricCards(cards,d.timezone)}</div>
-    <section class="weekly-observations" aria-labelledby="weekly-notes"><p class="hero__eyebrow">${t("По вашим данным","From your data")}</p><h2 id="weekly-notes">${t("Что заметила Курами","What Kurami noticed")}</h2>
+    <section class="weekly-observations section-heading" aria-labelledby="weekly-notes"><p class="hero__eyebrow">${t("По вашим данным","From your data")}</p><h2 id="weekly-notes">${t("Что заметила Курами","What Kurami noticed")}</h2>
       ${(digestLanguage()==="en"?englishInsights(review):d.insights).length?`<ol>${(digestLanguage()==="en"?englishInsights(review):d.insights).map(text=>`<li>${e(text)}</li>`).join("")}</ol>`:`<p>${t("Пока недостаточно наблюдений для содержательных выводов.","Not enough observations for meaningful conclusions yet.")}</p>`}
       ${d.calendarDeltaMinutes!==null?`<p>${t("Относительно прошлой полной недели","Compared with the previous full week")}: ${d.calendarDeltaMinutes>0?"+":""}${d.calendarDeltaMinutes} ${t("минут в календаре","calendar minutes")}.</p>`:""}
     </section>
     <div class="weekly-charts">${calendar}${mail}</div>
-    <section class="weekly-topics" aria-labelledby="weekly-topics"><h2 id="weekly-topics">${t("На что вы реагировали","What you reacted to")}</h2>
+    <section class="weekly-topics"${surfaceAttributes("panel")} aria-labelledby="weekly-topics"><h2 id="weekly-topics">${t("На что вы реагировали","What you reacted to")}</h2>
       <p>${t("Сигналы интереса, не оценка самих событий. Тема может встречаться в нескольких сюжетах; баланс — 🔔 минус 🔕, а не вес Interest Profile.","These are interest signals, not judgments about events. A topic may appear in several stories; balance is 🔔 minus 🔕, not an Interest Profile weight.")}</p>
       ${d.topics.length?topicTable:`<p>${t("За этот период реакций на сюжеты нет.","No story reactions in this period.")}</p>`}
     </section>

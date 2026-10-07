@@ -80,8 +80,8 @@ An unresolved write still blocks PR actions. A conflict notice clears after two 
 Merging submits the displayed head SHA without bypassing GitHub rules.
 Stacked PRs, non-default target branches and merge queues remain managed in GitHub.
 
-When a merge is confirmed, the notice celebrates: Kurami herself pops up above it for a moment (not when
-the character is switched off in Hub, and without motion when the device asks for less).
+When a merge is confirmed, the notice celebrates: Kurami herself appears in it in place of the check mark
+(not when the character is switched off in Hub, and without motion when the device asks for less).
 
 GitHub accepting a merge request does not mean the PR has merged. **Check result**
 rechecks the same request after 30 seconds without issuing another write.

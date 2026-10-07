@@ -1,6 +1,6 @@
 // Kurami herself (not the fox logo): twelve illustrated states that tell how things are at a glance —
 // calm, working, asleep, offline, done, peeking, celebrating, pointing at a problem, thinking, waiting for
-// the owner, found a problem, welcome. One 320 px WebP each (sharp at 2× for the 88 px medallion and its rising head), served by every app
+// the owner, found a problem, welcome. One 320 px WebP each (sharp at 2× for the 120 px medallion and its rising head), served by every app
 // under /assets/kurami-<mood>.webp from src/ui-library/assets/kurami. Loaded lazily; decorative unless a
 // caller passes a label, since the text next to it always says the same thing. Lossless WebP at 320 px: lossy
 // encoding turned the transparent background into a faint square.
@@ -74,7 +74,7 @@ export const KURAMI_PULL_REFRESH_JS = String.raw`(()=>{
  * little below the disc's centre (fading over a few pixels, so tails crossing it leave no step) plus the
  * disc itself — the figure is cut only along the lower arc. */
 export const KURAMI_MOOD_CSS = `
-.kurami-mood { --kurami-size: 88px; --kurami-ring: color-mix(in srgb, var(--accent-primary) 45%, transparent); --kurami-disc: color-mix(in srgb, var(--accent-primary) 9%, var(--surface-panel));
+.kurami-mood { --kurami-size: 120px; --kurami-ring: color-mix(in srgb, var(--accent-primary) 45%, transparent); --kurami-disc: color-mix(in srgb, var(--accent-primary) 9%, var(--surface-panel));
   position: relative; display: block; flex: none; width: var(--kurami-size); height: var(--kurami-size); margin-top: calc(var(--kurami-size) * .14); user-select: none; }
 .kurami-mood__ring { position: absolute; inset: 0; width: 100%; height: 100%; overflow: visible; }
 .kurami-mood__disc { fill: var(--kurami-disc); }

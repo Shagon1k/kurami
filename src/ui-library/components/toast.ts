@@ -20,9 +20,16 @@ export const TOAST_CSS=`
   opacity: 0; animation: toast-sparks .9s ease-out; }
 @keyframes toast-celebrate { 0% { transform: scale(.6) rotate(-20deg); } 45% { transform: scale(1.35) rotate(8deg); } 100% { transform: none; } }
 @keyframes toast-sparks { 0% { opacity: 1; scale: .3; } 70% { opacity: 1; } 100% { opacity: 0; scale: 1.6; } }
-.toast__kurami { position: absolute; inset-inline-end: var(--space-3); bottom: calc(100% - var(--space-2)); display: none; pointer-events: none; }
-.toast[data-celebrate] .toast__kurami { display: block; animation: toast-kurami .6s cubic-bezier(.2,.9,.3,1.3) both; }
-@keyframes toast-kurami { from { opacity: 0; transform: translateY(18px) scale(.6); } to { opacity: 1; transform: none; } }
+/* A celebrated notice with Kurami (Projects): she takes the icon's place inside the toast, so nothing covers the page;
+   switched off in Hub, the toast keeps its plain icon. */
+.toast__kurami { display: none; }
+.toast[data-celebrate]:has(> .toast__kurami) { grid-template-columns: auto minmax(0,1fr) auto; align-items: center; }
+.toast[data-celebrate] > .toast__kurami { display: block; animation: toast-kurami .6s cubic-bezier(.2,.9,.3,1.3) both; }
+.toast[data-celebrate]:has(> .toast__kurami) > .toast__icon { display: none; }
+html[data-kurami-mascot="off"] .toast[data-celebrate] > .toast__kurami { display: none; }
+html[data-kurami-mascot="off"] .toast[data-celebrate]:has(> .toast__kurami) { grid-template-columns: 18px minmax(0,1fr) auto; align-items: start; }
+html[data-kurami-mascot="off"] .toast[data-celebrate]:has(> .toast__kurami) > .toast__icon { display: grid; }
+@keyframes toast-kurami { from { opacity: 0; transform: scale(.6) rotate(-6deg); } to { opacity: 1; transform: none; } }
 @media (prefers-reduced-motion: reduce) { .toast[data-celebrate] .toast__icon, .toast[data-celebrate] .toast__icon::after, .toast[data-celebrate] .toast__kurami { animation: none; } }
 .toast__message { margin: 0; padding-block: var(--space-2); font-size: .8rem; line-height: 1.5; overflow-wrap: anywhere; }
 `;
