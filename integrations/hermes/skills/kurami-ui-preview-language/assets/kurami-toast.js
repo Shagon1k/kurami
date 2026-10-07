@@ -28,6 +28,7 @@ function createKuramiToast(region, returnFocus) {
     region.removeAttribute('data-celebrate');
     if(options.celebrate===true){void region.offsetWidth;region.setAttribute('data-celebrate','');}
     remaining=options.duration??(['warning','failure'].includes(tone)?0:8000);
+    if(tone!=='info')globalThis.kuramiHaptic?.(tone);
     resume();
   }
   dismiss.addEventListener('click',hide);
