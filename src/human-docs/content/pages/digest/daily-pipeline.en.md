@@ -59,6 +59,10 @@ The capture fixes which posts belong to today's edition and never moves that bou
 
 Each channel gets a status: `empty` (nothing to read), `ready` (exactly as many collected as are unread), `partial` (fewer collected) or `failed` (the dialog is unavailable). Then albums are merged: messages sharing a group id become one post, and images are separated from other attachments. A check compares three id lists — declared, collected and normalized. A capture is *complete* only if every channel is `ready` without gaps or `empty`. Only a complete capture moves the attempt to `capture-validated`; with an incomplete one the build stops here.
 
+The runtime completes `collect-live` and receipts `live-collected` before Telegram capture starts. These calls run sequentially, not in parallel. The connector checks the stage before reading its configuration snapshot, writing files or connecting to Telegram. A `created`, failed or terminal attempt is rejected with a bounded machine code.
+
+If raw capture survived an interrupted transition, an approved runtime resume can reuse it. The connector checks its owned directory, date, source identity and configured channels, then normalizes and validates without fetching Telegram again. Raw bytes and the morning cutoff stay unchanged. Invalid retained raw stops the build instead of triggering recapture. Existing raw and normalized artifacts remain reusable at later active stages without moving the attempt backwards. Publication and acknowledgement gates are unchanged.
+
 ## The agent's single step
 
 The agent reads the batch in pages of 50 posts and writes `editorial-draft.json` — that is all of its creative work. For each story it gives the posts that went in, a headline and a short retelling in Russian, paragraphs of detail, topics with canonical English ids and four ratings: importance, urgency, public interest, confidence.

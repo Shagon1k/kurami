@@ -121,6 +121,12 @@ Default manual experiments to `dry-run`. Generation never archives Gmail;
    unread Gmail, and weather only from that normalized artifact. Do not call
    generic Composio MCP tools from the agent: their missing `readOnlyHint`
    would require an interactive approval that cron cannot grant.
+   Enforce collect-live -> capture_daily_briefing_batch strictly in sequence.
+   Wait for collect-live to return successfully with the persisted attempt at
+   `live-collected` before Telegram capture. Never run collect-live and capture
+   in parallel, including within a multi-tool batch. An existing snapshot alone
+   is not the stage receipt; inspect attempt-status when resuming. Do not skip
+   stages or reopen failed attempts yourself.
    Preserve configured calendar keys, event IDs, timing, location,
    description, conflicts, and Gmail provider message/thread IDs.
    The enabled Signals add-on may extend the calendar input through tomorrow.
@@ -157,7 +163,12 @@ Default manual experiments to `dry-run`. Generation never archives Gmail;
    `read_daily_briefing_batch_page` calls with that same edition and attempt
    until `nextOffset` is null; account for
    every returned item. A retry with an already-valid capture reuses the frozen
-   artifacts instead of moving the morning cutoff.
+   artifacts instead of moving the morning cutoff. After an approved runtime
+   resume to `live-collected`, a durable raw-only ledger is normalized and
+   validated without Telegram discovery or fetch, preserving its exact bytes
+   and cutoff. Invalid retained raw or mismatched configuration fails closed;
+   do not delete it or fall back to recapture. A prerequisite or stage-race
+   machine code calls for inspecting the persisted stage, not bypassing it.
 
    Preserve the per-channel cutoff, exact fetched message IDs, and collection
    state in `addons.news.data.sourceBatches`, including the configured source key and

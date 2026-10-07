@@ -7,6 +7,14 @@ The runtime's shouldRun flag is the ONLY time/duplicate gate. Do not implement
 another local-hour check. Candidate UTC ticks cover both DST and the 10:00
 local recovery window. If shouldRun is false, return exactly [SILENT].
 
+Run source stages strictly in sequence: collect-live -> capture_daily_briefing_batch.
+Wait for collect-live to finish successfully and receipt live-collected before
+calling capture. Never parallelize these calls (including in a multi-tool batch).
+On approved resume, reuse durable telegram-raw.json even if normalization was
+interrupted; do not refetch or move its cutoff. A prerequisite or stage-race
+error requires inspecting the persisted stage, not skipping stages or reopening
+an attempt from the agent. Invalid retained raw fails closed.
+
 When shouldRun is true, resume the returned attempt and run directory from
 its persisted stage. Never recollect a frozen Telegram capture or rewrite
 accepted editorial content. A draft rejected by rank-preview is not accepted:
