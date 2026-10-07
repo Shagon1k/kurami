@@ -2,6 +2,7 @@
 // synchronously in <head>, so the stored or system theme applies before first paint.
 import {MOBILE_NAVIGATION_RUNTIME_JS} from "./mobile-navigation.ts";
 import {READING_RUNTIME_JS} from './reading.ts';
+import {BRAND_MOMENTS_RUNTIME_JS} from './brand-moments.ts';
 import {themeVariants} from "../themes/index.ts";
 type ThemeMode = "light" | "dark";
 type ThemeChoices = { modes: Record<string, ThemeMode[]> };
@@ -210,5 +211,5 @@ const THEME_CHOICES: ThemeChoices = {
   modes: { paper: ["light", "dark"], ...Object.fromEntries(themeVariants.map(variant => [variant.name, (["dark", "light"] as const).filter(mode => variant.modes[mode])])) },
 };
 
-export const THEME_RUNTIME_JS = `(${kuramiThemeRuntime.toString()})(${JSON.stringify(THEME_CHOICES)});\n(${kuramiNeonMotion.toString()})();\n${MOBILE_NAVIGATION_RUNTIME_JS}\n${READING_RUNTIME_JS}`;
+export const THEME_RUNTIME_JS = `(${kuramiThemeRuntime.toString()})(${JSON.stringify(THEME_CHOICES)});\n(${kuramiNeonMotion.toString()})();\n${MOBILE_NAVIGATION_RUNTIME_JS}\n${READING_RUNTIME_JS}\n${BRAND_MOMENTS_RUNTIME_JS}`;
 export const THEME_SCRIPT_TAG = '<script src="/assets/theme.js"></script>';

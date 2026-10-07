@@ -5,6 +5,7 @@ import { breakpoints } from "../tokens/index.ts";
 import {renderMobileNavigation,MOBILE_NAVIGATION_CSS,type MobileNavigationInput} from "./mobile-navigation.ts";
 import {renderIcon,type IconName} from "../components/icon.ts";
 import {NEON_FOX_HEADER_SVG} from "../assets/brand/neon-fox.ts";
+import { BRAND_MOMENTS_CSS } from "../runtime/brand-moments.ts";
 
 export type NavLink = { href: string; label: string; current?: "page" | "location"; title?: string; disabled?: boolean; hint?: string; external?: boolean; mobileIcon?:IconName };
 export type SiteNavInput = { label: string; links: readonly NavLink[]; scroll?: boolean; attributes?: Record<string, true | string>; hideWhenEmpty?: boolean };
@@ -162,4 +163,5 @@ export const SITE_HEADER_CSS = `
   .site-header--collapsible .site-brand__name { font-size: .95rem; }
 }
 ${MOBILE_NAVIGATION_CSS}
+${BRAND_MOMENTS_CSS}
 `;

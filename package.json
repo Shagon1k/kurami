@@ -68,6 +68,7 @@
     "test:push": "node tests/hub/verify-push.ts",
     "test:toast-celebrate": "node tests/ui-library/verify-toast-celebrate.ts",
     "test:haptics": "node tests/ui-library/verify-haptics.ts",
+    "test:brand-moments": "node tests/ui-library/verify-brand-moments.ts",
     "test:release": "node tests/verify-completed-release.ts",
     "test:preview-slots": "node tests/verify-preview-slots.ts",
     "test:preview-ingress": "node tests/verify-preview-ingress.ts",

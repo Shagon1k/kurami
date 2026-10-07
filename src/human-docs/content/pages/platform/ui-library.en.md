@@ -103,6 +103,10 @@ double buzz for a warning or error. Nothing vibrates with a mouse, on iOS (which
 has no vibration API for pages) or when the system asks to reduce motion. A
 control opts in with `data-haptic="tap|confirm"` and out with `data-haptic="off"`.
 
+The dot in the header's "Kurami." follows the season: a snowflake in December and January, a leaf in
+October. On 16 August, Kurami's birthday, the fox wears a party hat. On the page the logo itself links to,
+five quick taps on the fox make it sneeze; with reduced motion it stays still.
+
 The shared header names the current app: Kurami. Hub, Digest, Projects or Docs.
 **Apps** opens the product links; Hermes and Dokploy are separated external links
 that open in another tab. On the unified entry, product links stay on one origin,

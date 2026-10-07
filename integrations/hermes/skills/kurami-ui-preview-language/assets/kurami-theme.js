@@ -419,3 +419,22 @@
   };
   if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',mount,{once:true});else mount();
 })();
+(()=>{
+  const moment=(function brandMoment(date      )                                          {
+  const month = date.getMonth() + 1, day = `${String(month).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
+  return day === "08-16" ? "birthday" : month === 12 || month === 1 ? "winter" : month === 10 ? "autumn" : null;
+})(new Date());
+  if(moment)document.documentElement.dataset.brandMoment=moment;
+  let taps=[];
+  document.addEventListener('click',event=>{
+    const fox=event.target instanceof Element?event.target.closest('.site-brand__fox'):null;
+    const brand=fox?.closest('a.site-brand');
+    if(!brand||new URL(brand.href,location.href).pathname!==location.pathname)return;
+    event.preventDefault();
+    const now=Date.now();taps=[...taps.filter(at=>now-at<2000),now];
+    if(taps.length<5)return;
+    taps=[];brand.classList.remove('ui-sneeze');void brand.offsetWidth;brand.classList.add('ui-sneeze');
+    brand.querySelector('.site-brand__name')?.classList.add('ui-glitch');
+    setTimeout(()=>{brand.classList.remove('ui-sneeze');brand.querySelector('.site-brand__name')?.classList.remove('ui-glitch');},900);
+  });
+})();
