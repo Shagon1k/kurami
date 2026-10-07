@@ -82,7 +82,9 @@ New icon URLs do not force an installed Android app to update immediately;
 Chrome may ask you to confirm the changed icon in the app menu.
 The worker fetches pages from
 the network and shows a connection placeholder offline. It does not save private
-pages or API responses. Deployment and installed-phone checks are separate from
+pages or API responses. The one exception is "Read offline" in Daily's news: after
+you agree on this device it keeps one page with the stories only, no mail, schedule
+or images; turning it off deletes it. Deployment and installed-phone checks are separate from
 the local routing tests.
 
 Browser tabs and the installed PWA use the same edge-to-edge page shell and safe

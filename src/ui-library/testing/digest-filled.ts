@@ -15,6 +15,10 @@ const media="/media/cinema/2026-09-19/audit-poster.svg";
 export const auditPoster=`<svg xmlns="http://www.w3.org/2000/svg" width="480" height="720" viewBox="0 0 480 720"><rect width="480" height="720" fill="#a38b54"/><circle cx="240" cy="250" r="130" fill="#f5e9c8"/><path d="M0 620L170 390L340 560L480 420V720H0Z" fill="#292720"/><text x="240" y="670" text-anchor="middle" fill="white" font-family="sans-serif" font-size="28">SYNTHETIC POSTER</text></svg>`;
 
 export function syntheticDailyFilled(lang:DigestLanguage="ru"):string {
+  return withDigestLanguage(lang,()=>renderBriefingPage(syntheticDailyFilledPayload()));
+}
+
+export function syntheticDailyFilledPayload() {
   const payload=upgradeLegacyPayload({schemaVersion:1,
     edition:{id:"daily:2026-09-16",type:"daily",localDate:"2026-09-16",timezone:"Europe/Vilnius",generatedAt:"2026-09-16T07:00:00Z",status:"complete",retentionUntil:"2026-09-23T07:00:00Z"},
     hero:{title:"Утренний обзор",en:{title:"Morning briefing"}},
@@ -34,7 +38,7 @@ export function syntheticDailyFilled(lang:DigestLanguage="ru"):string {
     {project:"PickFlick",number:158,title:"Синтетическая задача с длинным названием для проверки обрезки строки на телефоне",url:"https://example.org/pull/158",hours:44},
     {project:"TailorTales",number:121,title:"Synthetic review",url:"https://example.org/pull/121",hours:73}],
     week:{completed:5,measured:4,medianTokens:1_240_000,reworkPercent:20}},at) as unknown as typeof payload.addons[string];
-  return withDigestLanguage(lang,()=>renderBriefingPage(payload));
+  return payload;
 }
 
 export function syntheticCinemaFilled(lang:DigestLanguage="ru",originalEditorial=false):string {

@@ -75,6 +75,7 @@ import { removeArchivedMailFromRetainedEditions } from "./addons/mail/actions.ts
 export { MAIL_AUTOMATION_MAX_ATTEMPTS, mailAutomationFailureKind, assertComposioMailActionSucceeded, type MailActionExecutor, type MailAutomationFailureKind } from "./addons/mail/executor.ts";
 import { composioMailActionExecutor, type MailActionExecutor } from "./addons/mail/executor.ts";
 import { confirmBaseline } from "./investment-review/portfolio-notes.ts";
+import { renderOfflineNews } from "./ui/offline-news.ts";
 
 const CSP = [
   "default-src 'self'",
@@ -94,6 +95,22 @@ const CLIENT_SCRIPT = WEB_CLIENT_JS+`(() => {
   const english = document.documentElement.lang === 'en';
   const tr = (ru, en) => english ? en : ru;
   const locale = english ? 'en-GB' : 'ru-RU';
+  // Read offline (news only): asks the gateway's service worker to keep or drop its copy (ui/offline-news.ts).
+  const offlineButton = document.querySelector('[data-offline-news]');
+  if (offlineButton && 'serviceWorker' in navigator && 'caches' in window && document.getElementById('kurami-web-context')) {
+    const label = offlineButton.querySelector('.button__label--full') ?? offlineButton;
+    const render = (on) => { offlineButton.setAttribute('aria-pressed', String(on)); label.textContent = on ? tr('Без сети: вкл', 'Offline: on') : tr('Читать без сети', 'Read offline'); };
+    caches.has('kurami-offline-news').then(on => { offlineButton.dataset.ready = ''; render(on); }).catch(() => {});
+    navigator.serviceWorker.addEventListener('message', event => { if (event.data?.type === 'offline-news' && !event.data.ok) render(false); });
+    offlineButton.addEventListener('click', async () => {
+      const on = offlineButton.getAttribute('aria-pressed') !== 'true';
+      if (on && !confirm(tr('Сохранять новости на этом устройстве для чтения без сети? Почта, расписание и картинки не сохраняются.', 'Keep the news on this device for reading offline? Mail, schedule and images are not stored.'))) return;
+      const registration = await navigator.serviceWorker.ready;
+      registration.active?.postMessage({ type: 'offline-news', enabled: on, lang: document.documentElement.lang === 'en' ? 'en' : 'ru' });
+      render(on);
+    });
+  }
+
   const request = async (path, body) => {
     const response = await fetch(kuramiAppUrl(path), {
       method: 'POST',
@@ -1051,6 +1068,14 @@ export async function createBriefingServer(
           sendHeaders(response,"text/html; charset=utf-8");
           response.statusCode=200;
           response.end(injectRuntime(injectSiteNavigation(renderWeeklyPage(review,preview),publishedSiteLinks(database,true,new Date().toISOString(),options.stocks??runtimeConfig?.stocks.enabled??false),"weekly",requestedPath)));
+          return;
+        }
+        // News only, for the service worker's offline copy (ui/offline-news.ts).
+        if(pathname==="/offline-news") {
+          const current=loadEdition(database,{type:"daily",current:true});
+          if(!current){text(response,404,"Not found\n");return;}
+          sendHeaders(response,"text/html; charset=utf-8");response.setHeader("cache-control","private, no-store");response.statusCode=200;
+          response.end(injectRuntime(renderOfflineNews(parseBriefingPayload(JSON.parse(current.payload_json)),new Date())));
           return;
         }
         const edition = routeEdition(database, pathname);

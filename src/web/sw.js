@@ -1,4 +1,18 @@
-// Never retain private documents, API responses, authentication pages or mutations.
+// Never retain private documents, API responses, authentication pages or mutations. The one exception is the
+// owner's explicit "Read offline" in Daily: one news-only page (no mail, calendar or images), kept under
+// OFFLINE_NEWS and shown when Digest opens without a network. Turning it off deletes it.
+const OFFLINE_NEWS='kurami-offline-news';
+async function saveOfflineNews(lang){
+  const response=await fetch(`/${lang==='en'?'en':'ru'}/digest/offline-news`,{credentials:'include',cache:'no-store'});
+  if(!response.ok||!(response.headers.get('content-type')??'').startsWith('text/html'))return false;
+  await (await caches.open(OFFLINE_NEWS)).put('/offline-news',response);
+  return true;
+}
+self.addEventListener('message',event=>{
+  const data=event.data;
+  if(data?.type!=='offline-news')return;
+  event.waitUntil((data.enabled?saveOfflineNews(data.lang):caches.delete(OFFLINE_NEWS)).then(ok=>event.source?.postMessage({type:'offline-news',enabled:Boolean(data.enabled),ok:ok!==false})));
+});
 self.addEventListener('install',()=>self.skipWaiting());
 self.addEventListener('activate',event=>event.waitUntil((async()=>{
   for(const name of await caches.keys())if(name.startsWith('kurami-web-'))await caches.delete(name);
@@ -7,7 +21,18 @@ self.addEventListener('activate',event=>event.waitUntil((async()=>{
 self.addEventListener('fetch',event=>{
   const url=new URL(event.request.url);
   if(event.request.method!=='GET'||url.origin!==self.location.origin||event.request.mode!=='navigate')return;
-  event.respondWith(fetch(event.request).catch(()=>new Response(`<!doctype html><html lang="${url.pathname.startsWith('/ru/')?'ru':'en'}"><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover"><title>Kurami</title><h1>${url.pathname.startsWith('/ru/')?'Нет связи':'No connection'}</h1><a href="${url.pathname.startsWith('/ru/')?'/ru/':'/en/'}">Kurami</a></html>`,{headers:{'Content-Type':'text/html; charset=utf-8','Cache-Control':'no-store'}})));
+  const digest=/^\/(en|ru)\/digest(\/|$)/.exec(url.pathname);
+  event.respondWith(fetch(event.request).then(response=>{
+    // While on, each Daily visit refreshes the copy, at most every half hour.
+    // caches.has comes first: opening the cache would create it and turn offline reading on by itself.
+    if(digest&&response.ok)event.waitUntil(caches.has(OFFLINE_NEWS).then(async enabled=>{
+      if(!enabled)return;
+      const saved=await (await caches.open(OFFLINE_NEWS)).match('/offline-news');
+      if(saved&&Date.now()-Date.parse(saved.headers.get('date')??'')<1800000)return;
+      await saveOfflineNews(digest[1]);
+    }).catch(()=>{}));
+    return response;
+  }).catch(async()=>(digest&&await caches.has(OFFLINE_NEWS)?await (await caches.open(OFFLINE_NEWS)).match('/offline-news'):null)??new Response(`<!doctype html><html lang="${url.pathname.startsWith('/ru/')?'ru':'en'}"><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover"><title>Kurami</title><h1>${url.pathname.startsWith('/ru/')?'Нет связи':'No connection'}</h1><a href="${url.pathname.startsWith('/ru/')?'/ru/':'/en/'}">Kurami</a></html>`,{headers:{'Content-Type':'text/html; charset=utf-8','Cache-Control':'no-store'}})));
 });
 // Push: the message carries nothing; the newest notice comes from Hub through the owner's session, in the
 // language the device subscribed with. A tap opens the page the notice is about.

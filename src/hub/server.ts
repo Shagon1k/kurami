@@ -21,7 +21,6 @@ import {renderHubDashboard,renderHubOffline,renderHubPage,type HubLanguage} from
 import {isMountedRequest,mountResponse,WEB_CLIENT_JS} from "../web/presentation.ts";
 import {WebAccess} from "../web/access.ts";
 import {WEB_ORIGIN} from "../web/routes.ts";
-import {resolveKuramiHome} from "../core/kurami-home.ts";
 import {latestFor,subscribe,unsubscribe,vapidKeys,type PushFetch} from "./push/web-push.ts";
 import {pushPass} from "./push/monitor.ts";
 

@@ -55,6 +55,7 @@ const suites = [
   "test:toast-celebrate",
   "test:haptics",
   "test:brand-moments",
+  "test:offline-news",
   "test:release",
   "test:preview-slots",
   "test:preview-ingress",

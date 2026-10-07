@@ -26,7 +26,7 @@ The top header scrolls with the page; desktop keeps its header navigation.
 | "PR ждут тебя" (PRs waiting for you) | Pull requests in Human Review for more than a day, with a link and the wait; on Sundays the week's totals: tasks completed, median tokens per task and the rework share. Absent when there is nothing to say | frozen at publication |
 | "Расписание" (schedule) | The day's events from three calendars, meeting conflicts | live |
 | "Почта" (mail) | Unread Primary mail with classes ACTION, IMPORTANT, GENERAL | live |
-| "Новости" (news) | Stories, 10 per page, with images and topics | frozen |
+| "Новости" (news) | Stories, 10 per page, with images and topics. **Read offline** keeps a stories-only copy on the device (no mail, schedule or images); without a connection Digest opens it with its time | frozen |
 | Teasers | Stocks, cinema, week — when the add-on is on | frozen at publication ([add-ons](@addons)) |
 | Quality strip | "Источники обновлены" (sources updated) or "Есть оговорки по данным" (data caveats) | recomputed on refresh |
 

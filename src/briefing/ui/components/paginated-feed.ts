@@ -18,6 +18,7 @@ export function renderPaginatedFeed(payload: BriefingPayload): string {
     <header class="digest-feed__header">
       <div><p class="section-kicker">${digestText("Утренняя пачка","Morning edition")}</p><h2 id="news-heading" data-feed-heading>${digestText("Новости","News")}</h2><p>${total} ${storyWord(total)} · ${pageSize} ${digestText("на странице","per page")}</p></div>
       <span class="digest-feed__count">Telegram · ${total}</span>
+      ${renderButton({ label: digestText("Читать без сети","Read offline"), variant: "secondary", size: "compact", type: "button", className: "digest-feed__offline", attributes: { "data-offline-news": true, "aria-pressed": "false" } })}
     </header>
     ${total ? renderFeedOrderControl() : ""}
     <div class="digest-feed__items">${section(payload, "news").items.map((story, index) => renderNewsStory({ edition: payload.edition, story, index, notes: payload.notes })).join("")}</div>
