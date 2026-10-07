@@ -76,6 +76,7 @@ const canonicalOperatorFiles = [
   resolve(root, "docs/technical-reference.md"),
   resolve(root, "docs/recovery.md"),
   resolve(root, "integrations/hermes/skills/kurami-run-control/SKILL.md"),
+  resolve(root, "integrations/hermes/skills/kurami-status/SKILL.md"),
   resolve(root, "integrations/hermes/skills/kurami-project-readiness/SKILL.md"),
 ];
 for (const path of canonicalOperatorFiles) {

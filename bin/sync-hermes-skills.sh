@@ -26,6 +26,7 @@ readonly -a skills=(
   kurami-investment-review
   kurami-project-readiness
   kurami-run-control
+  kurami-status
   kurami-ui-preview-language
 )
 

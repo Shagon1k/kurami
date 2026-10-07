@@ -85,6 +85,7 @@ A skill is a folder of instructions that Hermes attaches to an agent session. Ku
 | `kurami-investment-review` | preparing a portfolio review on explicit request |
 | `kurami-project-readiness` | a read-only "is the project ready" check |
 | `kurami-run-control` | text commands for controlling a run when there is no button |
+| `kurami-status` | answers about the current state: what waits for you or is broken, how much Codex limit is left and whether it lasts until the reset, how the server is, what is in today's calendar. Read-only: Hermes runs `src/system/ask/kurami-status.ts` and answers in its own words |
 | `kurami-ui-preview-language` | a single visual language for pages |
 
 An MCP server is an external set of tools that Hermes connects to itself. Each has an allowed-tools list (`include`) and a trust level.
