@@ -4,6 +4,7 @@ import { basename, dirname, relative, resolve } from "node:path";
 import { resolveKuramiHome } from "../../../core/kurami-home.ts";
 import { DatabaseSync } from "node:sqlite";
 import { parse } from "yaml";
+import { openOrchestratorDatabase } from "../../state/database.ts";
 
 process.umask(0o077);
 
@@ -561,9 +562,8 @@ export async function runReleaseWorktreeCli(): Promise<void> {
   const registry = parse(await readFile(projectsPath, "utf8")) as ProjectsRegistry;
   if (registry.version !== 1) fail(`Unsupported projects registry version`);
 
-  const database = new DatabaseSync(databasePath, { timeout: 5_000 });
+  const database = openOrchestratorDatabase(databasePath);
   try {
-    database.exec("PRAGMA foreign_keys = ON; PRAGMA busy_timeout = 5000;");
     const run = loadRun(database, runId);
     let plan: ReleasePlan;
     try {

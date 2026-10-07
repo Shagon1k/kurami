@@ -6,6 +6,7 @@ import { AppServerClient, detachedCodexEnvironment } from "./app-server.ts";
 import { markTaskFailure, recordTurnCompleted, taskForSession, type ProtocolTask } from "./task-store.ts";
 
 import { completedWorkerSummary } from "./worker-diagnostic.ts";
+import { openOrchestratorDatabase } from "../../state/database.ts";
 
 const delay = (ms: number) => new Promise<void>((done) => setTimeout(done, ms));
 
@@ -139,8 +140,7 @@ export async function executeManagedTask(database: DatabaseSync, task: ProtocolT
 if (import.meta.main) {
   process.umask(0o077);
   const home = process.env.KURAMI_HOME!;
-  const database = new DatabaseSync(resolve(home,"state/orchestrator.db"), { timeout:5_000 });
-  database.exec("PRAGMA foreign_keys=ON; PRAGMA busy_timeout=5000");
+  const database = openOrchestratorDatabase(resolve(home,"state/orchestrator.db"));
   try {
     const task = database.prepare("SELECT * FROM run_codex_tasks WHERE task_id=?").get(process.env.HERMES_CODEX_TASK_ID!) as ProtocolTask;
     if (!task || task.released_at) throw new Error("Missing exact managed task claim");

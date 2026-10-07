@@ -7,6 +7,7 @@ import { dirname, resolve } from "node:path";
 import { resolveKuramiHome } from "../../core/kurami-home.ts";
 import { DatabaseSync } from "node:sqlite";
 import { parse } from "yaml";
+import { openOrchestratorDatabase } from "../state/database.ts";
 
 process.umask(0o077);
 
@@ -470,14 +471,13 @@ export async function runProjectPollerCli(): Promise<void> {
   }
 
   const capturedAt = new Date().toISOString();
-  const database = new DatabaseSync(databasePath, { timeout: 5_000 });
+  const database = openOrchestratorDatabase(databasePath);
   const rateLimits: Record<string, unknown> = {};
   const transitions: Transition[] = [];
   const modes: Array<"baseline" | "poll"> = [];
   let itemCount = 0;
 
   try {
-    database.exec("PRAGMA foreign_keys = ON; PRAGMA busy_timeout = 5000;");
 
     for (const [project, config] of projects) {
       const attemptedAt = new Date().toISOString();

@@ -1,12 +1,12 @@
 import { createHash, randomUUID } from "node:crypto";
 import { existsSync } from "node:fs";
 import { resolve } from "node:path";
-import { DatabaseSync } from "node:sqlite";
 import { resolveKuramiHome } from "../core/kurami-home.ts";
 import { inspectAiReview, reviewContextMatches } from "../orchestrator/controls/ai-review.ts";
 import { projectsRegistry } from "./snapshot.ts";
 import { PROJECTS_STALE_AFTER_MS } from "./model.ts";
 import {hasActivePrRequest} from "../orchestrator/controls/pr-boundary.ts";
+import { openOrchestratorDatabase } from "../orchestrator/state/database.ts";
 
 export type ReviewInput = { runId: string; project: string; itemId: string; head: string; key: string };
 export type ReviewResult = { state: "created" | "existing"; requestId: string; requestState: string };
@@ -35,10 +35,10 @@ export function requestProjectsReview(value: unknown, actor: string, options: { 
   if (!project) throw new ProjectsActionError(409, "Проект больше недоступен. Обновите страницу.");
   const databasePath = resolve(home, "state/orchestrator.db");
   if (!existsSync(databasePath)) throw new ProjectsActionError(503, "Данные временно недоступны.");
-  const database = new DatabaseSync(databasePath, { timeout: 1_000 });
+  const database = openOrchestratorDatabase(databasePath, { timeoutMs: 1_000 });
   let began = false;
   try {
-    database.exec("PRAGMA foreign_keys=ON; BEGIN IMMEDIATE"); began = true;
+    database.exec("BEGIN IMMEDIATE"); began = true;
     // Missing schema support fails before any write. The origin never runs migrations.
     database.prepare("SELECT request_id FROM run_control_project_context LIMIT 1").get();
     const idempotencyKey = "projects:" + createHash("sha256").update(JSON.stringify([actor,input.runId,input.head,input.key])).digest("hex");

@@ -8,6 +8,7 @@ import {
   loadEffectiveOrchestratorConfig,
   type RuntimeSettingsBaseConfig,
 } from "../../settings/runtime-settings.ts";
+import { openOrchestratorDatabase } from "../../state/database.ts";
 
 process.umask(0o077);
 
@@ -749,9 +750,8 @@ export async function runPreviewManagerCli(): Promise<void> {
     fail(`Refusing preview mutation in mode=${config.mode}`);
   }
 
-  const database = new DatabaseSync(databasePath, { timeout: 5_000 });
+  const database = openOrchestratorDatabase(databasePath);
   try {
-    database.exec("PRAGMA foreign_keys = ON; PRAGMA busy_timeout = 5000;");
     if (args.command === "inspect") inspect(database);
     else if (args.command === "allocate") {
       allocate(database, config, args.runId!, args.apply);

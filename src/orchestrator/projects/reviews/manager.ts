@@ -5,6 +5,7 @@ import { relative, resolve } from "node:path";
 import { resolveKuramiHome } from "../../../core/kurami-home.ts";
 import { DatabaseSync } from "node:sqlite";
 import { parse } from "yaml";
+import { openOrchestratorDatabase } from "../../state/database.ts";
 
 process.umask(0o077);
 
@@ -194,8 +195,7 @@ export async function runReviewManagerCli(): Promise<void> {
     readFile(projectsPath, "utf8"),
   ])).map((content) => parse(content)) as [Config, Registry];
   if (config.version !== 1 || registry.version !== 1) fail("Unsupported configuration version");
-  const database = new DatabaseSync(databasePath, { timeout: 5_000 });
-  database.exec("PRAGMA foreign_keys = ON; PRAGMA busy_timeout = 5000;");
+  const database = openOrchestratorDatabase(databasePath);
   try {
     const run = loadRun(database, args.runId);
     const project = registry.projects[run.project];

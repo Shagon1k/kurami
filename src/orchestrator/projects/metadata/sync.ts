@@ -5,6 +5,7 @@ import { resolve } from "node:path";
 import { DatabaseSync } from "node:sqlite";
 import { resolveKuramiHome } from "../../../core/kurami-home.ts";
 import { parse } from "yaml";
+import { openOrchestratorDatabase } from "../../state/database.ts";
 
 process.umask(0o077);
 
@@ -663,9 +664,8 @@ export async function runMetadataSyncCli(): Promise<void> {
   const home = resolveKuramiHome(resolve(import.meta.dirname, "../../../../.."));
   const registry = parse(await readFile(resolve(home, "config/projects.yaml"), "utf8")) as ProjectsRegistry;
   if (registry.version !== 1) fail("Unsupported projects registry version");
-  const database = new DatabaseSync(resolve(home, "state/orchestrator.db"), { timeout: 5_000 });
+  const database = openOrchestratorDatabase(resolve(home, "state/orchestrator.db"));
   try {
-    database.exec("PRAGMA foreign_keys=ON; PRAGMA busy_timeout=5000;");
     const recovered = apply ? recoverStaleSyncs(database, project) : [];
     const planned = planNextSync(database, project);
     if (!planned) {

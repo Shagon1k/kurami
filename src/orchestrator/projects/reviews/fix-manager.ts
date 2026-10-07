@@ -1,12 +1,12 @@
 import { resolve } from "node:path";
 import { resolveKuramiHome } from "../../../core/kurami-home.ts";
-import { DatabaseSync } from "node:sqlite";
 import {
   createGitHubAppInstallationToken,
   loadGitHubAppCredentialsFromFile,
   loadOwnerGitHubTokenFromFile,
 } from "../../integrations/github/app-auth.ts";
 import { replyAndResolveReviewThread } from "../../integrations/github/review-threads.ts";
+import { openOrchestratorDatabase } from "../../state/database.ts";
 
 process.umask(0o077);
 
@@ -35,8 +35,7 @@ export async function runReviewFixManagerCli(): Promise<void> {
     fail(
       "Usage: review-fix-manager.ts <resolve|recover> --round-id <round_id> [--apply]",
     );
-  const database = new DatabaseSync(databasePath, { timeout: 5_000 });
-  database.exec("PRAGMA foreign_keys=ON; PRAGMA busy_timeout=5000;");
+  const database = openOrchestratorDatabase(databasePath);
   try {
     if (command === "recover") {
       const recovery = database

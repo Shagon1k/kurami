@@ -11,6 +11,7 @@ import { resolveKuramiHome } from "../../core/kurami-home.ts";
 import { pathToFileURL } from "node:url";
 import { DatabaseSync } from "node:sqlite";
 import { parse } from "yaml";
+import { openOrchestratorDatabase } from "../state/database.ts";
 
 export type ResourceGuardLimits = {
   max_managed_worktrees_global: number;
@@ -675,11 +676,8 @@ export async function runResourceGuardCli(): Promise<void> {
   ]);
   if (projects.version !== 1 || config.version !== 1) fail("Unsupported config version");
   validateResourceGuardLimits(config.limits);
-  const database = new DatabaseSync(resolve(kuramiHome, "state/orchestrator.db"), {
-    timeout: 5_000,
-  });
+  const database = openOrchestratorDatabase(resolve(kuramiHome, "state/orchestrator.db"));
   try {
-    database.exec("PRAGMA foreign_keys=ON; PRAGMA busy_timeout=5000;");
     let result = inspectResourceGuard(
       database,
       projects,

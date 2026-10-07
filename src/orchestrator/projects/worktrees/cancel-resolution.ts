@@ -5,6 +5,7 @@ import { resolveKuramiHome } from "../../../core/kurami-home.ts";
 import { DatabaseSync } from "node:sqlite";
 import { readFile } from "node:fs/promises";
 import { parse } from "yaml";
+import { openOrchestratorDatabase } from "../../state/database.ts";
 
 process.umask(0o077);
 
@@ -490,9 +491,8 @@ export async function runCancelResolutionCli(): Promise<void> {
   const args = parseArguments();
   const registry = parse(await readFile(projectsPath, "utf8")) as ProjectsRegistry;
   if (registry.version !== 1) fail("Unsupported projects registry version");
-  const database = new DatabaseSync(databasePath, { timeout: 5_000 });
+  const database = openOrchestratorDatabase(databasePath);
   try {
-    database.exec("PRAGMA foreign_keys = ON; PRAGMA busy_timeout = 5000;");
     const run = loadRun(database, args.runId);
     const plan =
       args.command === "discard"

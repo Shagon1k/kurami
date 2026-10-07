@@ -23,6 +23,7 @@ import {
   assertPreviewSourceRevision,
   requireExactHeadSha,
 } from "../runtime.ts";
+import { openOrchestratorDatabase } from "../../../state/database.ts";
 
 process.umask(0o077);
 
@@ -779,9 +780,8 @@ export async function runPreviewComposeRuntimeCli(): Promise<void> {
   }
   if (config.limits.preview_ttl_hours > 168) fail("Invalid preview_ttl_hours");
 
-  const database = new DatabaseSync(databasePath, { timeout: 5_000 });
+  const database = openOrchestratorDatabase(databasePath);
   try {
-    database.exec("PRAGMA foreign_keys = ON; PRAGMA busy_timeout = 5000;");
     const record = loadRuntime(database, args.runId);
     const expectedHeadSha =
       args.command === "up" ? requireExactHeadSha(record.ci_head_sha) : undefined;

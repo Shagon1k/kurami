@@ -14,6 +14,7 @@ import {
   autonomousSuccessorStartFailedReason,
   isFailedAutonomousSuccessorRecovery,
 } from "../../runtime/recovery.ts";
+import { openOrchestratorDatabase } from "../../state/database.ts";
 
 process.umask(0o077);
 
@@ -275,8 +276,7 @@ export async function runAutonomousSuccessorCli(): Promise<void> {
   const registry = parse(await readFile(projectsPath, "utf8")) as {
     projects: Record<string, Project>;
   };
-  const database = new DatabaseSync(databasePath, { timeout: 5_000 });
-  database.exec("PRAGMA foreign_keys=ON; PRAGMA busy_timeout=5000;");
+  const database = openOrchestratorDatabase(databasePath);
   try {
     const run = loadRun(database, runId);
     const project = registry.projects[run.project];

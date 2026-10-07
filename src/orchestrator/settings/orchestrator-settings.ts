@@ -13,6 +13,7 @@ import {
   type RuntimeSettingsBaseConfig,
   type SettingsIdleInspection,
 } from "./runtime-settings.ts";
+import { openOrchestratorDatabase } from "../state/database.ts";
 
 process.umask(0o077);
 
@@ -208,11 +209,7 @@ export async function runOrchestratorSettingsCli(): Promise<void> {
     ),
   ].sort();
   if (allowedGuildIds.length === 0) fail("Projects registry has no allowed Discord guilds");
-  const database = new DatabaseSync(resolve(orchestratorHome, "state/orchestrator.db"), {
-    readOnly: args.command === "status",
-    timeout: 5_000,
-  });
-  database.exec("PRAGMA foreign_keys=ON; PRAGMA busy_timeout=5000;");
+  const database = openOrchestratorDatabase(resolve(orchestratorHome, "state/orchestrator.db"), { readOnly: args.command === "status" });
   try {
     if (args.command === "status") {
       const idle = inspectSettingsIdle(database);

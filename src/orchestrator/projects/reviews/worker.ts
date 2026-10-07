@@ -13,6 +13,7 @@ import {
   assertNoSecretLikeText,
   serializeUntrustedPromptData,
 } from "../../security/prompt-safety.ts";
+import { openOrchestratorDatabase } from "../../state/database.ts";
 
 process.umask(0o077);
 
@@ -483,8 +484,7 @@ export async function runAiReviewWorkerCli(): Promise<void> {
   const reviewId = reviewIndex >= 0 ? args[reviewIndex + 1]?.trim() : undefined;
   if (!reviewId || !/^air_[a-f0-9]+$/u.test(reviewId) || args.length !== 2)
     fail("Usage: ai-review-worker.ts --review-id <review_id>");
-  const database = new DatabaseSync(databasePath, { timeout: 5_000 });
-  database.exec("PRAGMA foreign_keys = ON; PRAGMA busy_timeout = 5000;");
+  const database = openOrchestratorDatabase(databasePath);
   try {
     const row = loadReview(database, reviewId);
     const credentials = await loadGitHubAppCredentials(orchestratorHome);

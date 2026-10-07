@@ -17,6 +17,7 @@ import {
   projectWipLimit,
   type RuntimeSettingsBaseConfig,
 } from "../settings/runtime-settings.ts";
+import { openOrchestratorDatabase } from "../state/database.ts";
 
 process.umask(0o077);
 
@@ -682,11 +683,10 @@ export async function runProjectEventConsumerCli(): Promise<void> {
     fail("Unsupported projects or orchestrator config version");
   }
   validateResourceGuardLimits(baseConfig.limits);
-  const database = new DatabaseSync(databasePath, { timeout: 5_000 });
+  const database = openOrchestratorDatabase(databasePath);
   const results: EventResult[] = [];
 
   try {
-    database.exec("PRAGMA foreign_keys = ON; PRAGMA busy_timeout = 5000;");
     database.exec("BEGIN IMMEDIATE");
     try {
       const config = effectiveOrchestratorConfig(

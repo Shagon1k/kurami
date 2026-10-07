@@ -16,6 +16,7 @@ import {
   serializeUntrustedPromptData,
 } from "../../../security/prompt-safety.ts";
 import type { TriageFacts } from "../../triage/snapshot.ts";
+import { openOrchestratorDatabase } from "../../../state/database.ts";
 
 process.umask(0o077);
 
@@ -424,10 +425,7 @@ export async function runMetadataProposalWorkerCli(): Promise<void> {
   if (!batchId || !/^pmb_[a-f0-9]+$/u.test(batchId) || args.some((arg) => !known.has(arg)))
     fail("Usage: metadata-proposal-worker.ts --batch-id <batch_id> [--apply]");
   const orchestratorHome = resolveKuramiHome(resolve(import.meta.dirname, "../../../../../.."));
-  const database = new DatabaseSync(resolve(orchestratorHome, "state/orchestrator.db"), {
-    timeout: 5_000,
-  });
-  database.exec("PRAGMA foreign_keys=ON; PRAGMA busy_timeout=5000;");
+  const database = openOrchestratorDatabase(resolve(orchestratorHome, "state/orchestrator.db"));
   try {
     const batch = loadBatch(database, batchId);
     const candidates = sourceCandidates(batch);

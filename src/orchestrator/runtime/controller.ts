@@ -24,6 +24,7 @@ import {
   reconcileAfterCycle,
   reconcileBeforePlanning,
 } from "./controller-cycle.ts";
+import { openOrchestratorDatabase } from "../state/database.ts";
 
 process.umask(0o077);
 
@@ -200,8 +201,7 @@ export async function runOrchestratorControllerCli(): Promise<void> {
   if (config.mode !== "live" && apply)
     fail(`Refusing mutation in mode=${config.mode}`);
 
-  const database = new DatabaseSync(databasePath, { timeout: 5_000 });
-  database.exec("PRAGMA foreign_keys = ON; PRAGMA busy_timeout = 5000;");
+  const database = openOrchestratorDatabase(databasePath);
   if (apply) {
     await reconcileProtocolTasks(database);
     reconcileBeforePlanning(database, config);

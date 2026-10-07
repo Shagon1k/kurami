@@ -35,6 +35,7 @@ import type {
   ReviewFixOperation,
   SessionRun,
 } from "./session-types.ts";
+import { openOrchestratorDatabase } from "../../state/database.ts";
 
 export { initialPrompt, reviewFixPrompt } from "./prompts.ts";
 
@@ -886,9 +887,8 @@ export async function runSessionManagerCli(): Promise<void> {
     fail("Invalid max_tmux_sessions_global");
   }
 
-  const database = new DatabaseSync(databasePath, { timeout: 5_000 });
+  const database = openOrchestratorDatabase(databasePath);
   try {
-    database.exec("PRAGMA foreign_keys = ON; PRAGMA busy_timeout = 5000;");
     if (args.action === "inspect") {
       inspectSession(database, args.runId);
       return;

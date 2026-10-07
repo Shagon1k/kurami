@@ -36,6 +36,7 @@ import {
   inspectManagedReviewFixRecovery,
   loadManagedReviewFixRecoverySnapshot,
 } from "../runtime/managed-task-recovery.ts";
+import { openOrchestratorDatabase } from "../state/database.ts";
 
 process.umask(0o077);
 
@@ -1069,9 +1070,8 @@ function managedRecoveryEligible(
     card.review_fix_state !== "needs_attention"
   )
     return false;
-  const database = new DatabaseSync(databasePath, { timeout: 5_000 });
+  const database = openOrchestratorDatabase(databasePath);
   try {
-    database.exec("PRAGMA foreign_keys=ON; PRAGMA busy_timeout=5000;");
     const snapshot = loadManagedReviewFixRecoverySnapshot(database, card.run_id);
     return Boolean(
       snapshot && inspectManagedReviewFixRecovery(snapshot, project).eligible,
@@ -2132,8 +2132,7 @@ export async function runDiscordControlsCli(): Promise<void> {
   if (!/^\d{5,30}$/u.test(resourceGuardChannelId)) {
     fail("Invalid resource_guard_alerts_channel_id");
   }
-  const database = new DatabaseSync(databasePath, { timeout: 5_000 });
-  database.exec("PRAGMA foreign_keys = ON; PRAGMA busy_timeout = 5000;");
+  const database = openOrchestratorDatabase(databasePath);
   if (command === "show") {
     const selectedRunId = runId ?? runIdForThread(database, threadId!);
     const card = loadCard(database, selectedRunId);

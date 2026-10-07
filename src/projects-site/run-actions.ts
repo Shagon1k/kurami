@@ -10,6 +10,7 @@ import { ProjectsActionError, type ReviewResult } from "./actions.ts";
 import { projectsRegistry } from "./snapshot.ts";
 import { PROJECTS_STALE_AFTER_MS } from "./model.ts";
 import {hasActivePrRequest} from "../orchestrator/controls/pr-boundary.ts";
+import { openOrchestratorDatabase } from "../orchestrator/state/database.ts";
 
 export const RUN_ACTIONS = ["take_control","preview_start","preview_stop","preview_reviewed","ci_repair","review_fix","recover_managed_task","stop","discard_local","discard_published"] as const;
 export type RunAction = typeof RUN_ACTIONS[number];
@@ -84,9 +85,9 @@ export function requestProjectRunAction(value: unknown, actor: string, options: 
   if (!project) throw new ProjectsActionError(409,"Проект больше недоступен.");
   const path = resolve(home,"state/orchestrator.db");
   if (!existsSync(path)) throw new ProjectsActionError(503,"Данные временно недоступны.");
-  const database = new DatabaseSync(path,{timeout:1000}); let began = false;
+  const database = openOrchestratorDatabase(path,{timeoutMs:1000}); let began = false;
   try {
-    database.exec("PRAGMA foreign_keys=ON; BEGIN IMMEDIATE"); began=true;
+    database.exec("BEGIN IMMEDIATE"); began=true;
     const key = "projects-action:" + createHash("sha256").update(JSON.stringify([actor,input.runId,input.project,input.itemId,input.action,input.fingerprint,input.key])).digest("hex");
     const previous = database.prepare("SELECT a.request_id,q.request_state FROM project_action_requests a LEFT JOIN run_control_requests q ON q.request_id=a.request_id WHERE a.idempotency_key=?").get(key) as {request_id:string|null;request_state:string|null} | undefined;
     if (previous) { database.exec("COMMIT"); began=false; return {state:"existing",requestId:previous.request_id ?? key,requestState:previous.request_state ?? "applied"}; }
