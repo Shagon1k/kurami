@@ -59,6 +59,7 @@
     "db:init": "node src/orchestrator/state/init-run-store.ts",
     "test:admission": "node tests/verify-dry-run-admission.ts",
     "test:provision": "node tests/verify-worktree-provision.ts",
+    "test:digest-run-card": "node tests/briefing/verify-run-card.ts",
     "test:release": "node tests/verify-completed-release.ts",
     "test:preview-slots": "node tests/verify-preview-slots.ts",
     "test:preview-ingress": "node tests/verify-preview-ingress.ts",

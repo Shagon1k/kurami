@@ -522,14 +522,15 @@ async function verifyReleaseNotifier(): Promise<void> {
     assert.equal(headers.get("authorization"), "Bot test-notifier-token");
     const startedBody = JSON.parse(String(requests[0]?.init?.body)) as {
       content: string;
-      embeds: Array<{ title: string; description: string }>;
+      embeds: Array<{ title: string; description: string; fields: Array<{ name: string; value: string }> }>;
       components: unknown[];
       nonce: string;
       enforce_nonce: boolean;
     };
     assert.equal(startedBody.content, "");
     assert.equal(startedBody.embeds[0]?.title, "Daily Digest · 31 августа");
-    assert.match(startedBody.embeds[0]?.description ?? "", /Подключаю источники/u);
+    assert.equal(startedBody.embeds[0]?.description, "⏳ Подключаю источники…");
+    assert.equal(startedBody.embeds[0]?.fields[0]?.value, "🦊▰▱▱▱▱▱▱▱▱▱ 1/10", "the fox walks the progress bar");
     assert.deepEqual(startedBody.components, []);
     assert.match(startedBody.nonce, /^\d{1,20}$/u);
     assert.equal(startedBody.enforce_nonce, true);
@@ -652,7 +653,9 @@ async function verifyFailureAndRecoveryReuseOneCard(): Promise<void> {
   assert.equal(failure.cardState, "failure");
   const failureBody = JSON.parse(String(requests[1]?.init?.body)) as {
     embeds: Array<{ fields: Array<{ name: string; value: string }> }>;
+    components: Array<{ components: Array<{ label: string; url: string }> }>;
   };
+  assert.deepEqual(failureBody.components[0]?.components.map(button => [button.label, button.url]), [["Открыть в Hub", "https://kurami.shagon1k.win/ru/"]], "a failed run links to Hub");
   assert.deepEqual(failureBody.embeds[0]?.fields, [
     { name: "Последний завершённый этап", value: "Почта, расписание и погода собраны", inline: false },
     { name: "Причина", value: "telegram capture unavailable", inline: false },
