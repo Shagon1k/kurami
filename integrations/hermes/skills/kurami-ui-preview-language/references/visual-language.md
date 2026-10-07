@@ -67,6 +67,7 @@ values there, never copy them into a page.
 | `status-success` / `status-warning` / `status-failure` | Semantic state; always paired with text or an icon |
 | `shadow-offset`, `focus-ring` | Offset shadow colour and keyboard focus |
 | `chart-1` … `chart-5` | Chart series in order |
+| `project-blue` … `project-gold` | One hue per managed project (`project-color--<hue>` sets `--project-color` and `--project-edge`, the left bar); never a status |
 | `diagram-*` | The six-colour palette of explanatory diagrams |
 
 Do not lower semantic alert text to decorative opacity. Backgrounds may be subtle; the label and message must remain readable.

@@ -39,6 +39,7 @@ export const kuramiTheme:Theme={
     "shadow-offset":"#d9d4c9",
     "focus-ring":"#e21b16",
     "chart-1":"#5a85aa","chart-2":"#d17b50","chart-3":"#668979","chart-4":"#a18350","chart-5":"#86847b",
+    "project-blue":"#3f73a8","project-teal":"#24807c","project-green":"#4c8236","project-violet":"#7656ad","project-pink":"#b0457a","project-gold":"#9a7a2c",
     "diagram-surface":"#ffffff","diagram-panel":"#faf8f2","diagram-ink":"#0b0b0b","diagram-muted":"#5e5e59","diagram-accent":"#e21b16","diagram-accent-soft":"#fff0ed","diagram-success":"#147844","diagram-warning":"#9b5b00",
   }},
   dark:{colorScheme:"dark",colors:{
@@ -62,6 +63,7 @@ export const kuramiTheme:Theme={
     "shadow-offset":"#050505",
     "focus-ring":"#ff4b45",
     "chart-1":"#88afd0","chart-2":"#e8a17e","chart-3":"#9cbbab","chart-4":"#ccb17c","chart-5":"#b5b2a7",
+    "project-blue":"#7fb0e0","project-teal":"#6cc6c2","project-green":"#94c97a","project-violet":"#b39ae6","project-pink":"#e88ab4","project-gold":"#d9b860",
     "diagram-surface":"#111110","diagram-panel":"#1d1d19","diagram-ink":"#f7f7f3","diagram-muted":"#aaa9a2","diagram-accent":"#ff4b45","diagram-accent-soft":"#2a1110","diagram-success":"#67e5a0","diagram-warning":"#ffd06e",
   }},
 };

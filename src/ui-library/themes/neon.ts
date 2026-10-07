@@ -50,6 +50,7 @@ export const neonTheme:ThemeVariant={
     // chart-4 is the single-series default (Paper's data gold), so one-line charts and bars are yellow;
     // multi-series charts start from blue, then red.
     "chart-1":blue,"chart-2":"#ff5c5c","chart-3":"#6fdba6","chart-4":yellow,"chart-5":"#a69dae",
+    "project-blue":blue,"project-teal":"#2ee6d6","project-green":"#5cff8a","project-violet":"#b47cff","project-pink":"#ff5cc8","project-gold":yellow,
     "diagram-surface":"#100e16","diagram-panel":"#16131e","diagram-ink":"#f6f1f4","diagram-muted":"#a69dae","diagram-accent":red,"diagram-accent-soft":"#2a0a0e","diagram-success":"#6fdba6","diagram-warning":"#ffb054",
   }},
   light:{colorScheme:"light",colors:{
@@ -73,6 +74,7 @@ export const neonTheme:ThemeVariant={
     "shadow-offset":"#d6d0e0",
     "focus-ring":fill,
     "chart-1":deepBlue,"chart-2":fill,"chart-3":"#0f7343","chart-4":"#b87d00","chart-5":"#8b84a0",
+    "project-blue":deepBlue,"project-teal":"#0b7c78","project-green":"#1f7a2e","project-violet":"#6b3fc7","project-pink":"#b8237f","project-gold":amber,
     "diagram-surface":"#ffffff","diagram-panel":"#f6f4fa","diagram-ink":"#16121f","diagram-muted":"#5d566b","diagram-accent":fill,"diagram-accent-soft":"#ffe8e8","diagram-success":"#0f7343","diagram-warning":"#9a5200",
   },scale:{
     "display-glow":`0 0 14px ${red}40`,
@@ -88,6 +90,7 @@ const N='html[data-kurami-theme="neon"]';
  * `--neon-sign`, `--neon-volt` and `--neon-blue` are the three ranks in the current mode.
  */
 export const NEON_CSS=`
+${N} [class*="project-color--"] { --project-edge: inset 3px 0 0 var(--project-color), inset 14px 0 16px -14px var(--project-color); }
 ${N} { --neon-sign: ${red}; --neon-volt: var(--accent-data); --neon-blue: var(--status-info); }
 ${N}[data-theme="light"] { --neon-sign: ${fill}; }
 ${N} body { isolation: isolate; background: var(--surface-page); }

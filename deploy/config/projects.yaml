@@ -6,6 +6,7 @@ projects:
     project_number: 3
     repository: Shagon1k/PickFlick
     icon: panda
+    color: blue
     status_field: Status
     human_control_label: human-control
     telegram:
@@ -68,6 +69,7 @@ projects:
     project_number: 2
     repository: Shagon1k/TailorTales
     icon: fox
+    color: gold
     status_field: Status
     human_control_label: human-control
     telegram:
@@ -150,6 +152,7 @@ projects:
     project_number: 1
     repository: Shagon1k/AHurynovich-CV
     icon: profile
+    color: teal
     status_field: Status
     human_control_label: human-control
     discord:

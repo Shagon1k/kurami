@@ -8,8 +8,8 @@ export function syntheticProjectsSnapshot(): ProjectsSnapshot {
   const statuses = { backlog: "Backlog", active: "In progress", review: "Human Review", done: "Done", deferred: "Deferred" };
   const snapshot: ProjectsSnapshot = { generatedAt: "2026-09-30T10:00:00Z", available: true,
     projects: [
-      { key: "alpha", name: "Alpha", repository: "Example/Alpha", boardUrl: "https://github.com/users/Example/projects/1", statuses, capturedAt: "2026-09-30T09:59:30Z", freshness: "fresh" },
-      { key: "beta", name: "Beta", repository: "Example/Beta", boardUrl: "https://github.com/users/Example/projects/2", statuses, capturedAt: "2026-09-30T09:54:00Z", freshness: "stale" },
+      { key: "alpha", name: "Alpha", color: "teal", repository: "Example/Alpha", boardUrl: "https://github.com/users/Example/projects/1", statuses, capturedAt: "2026-09-30T09:59:30Z", freshness: "fresh" },
+      { key: "beta", name: "Beta", color: "violet", repository: "Example/Beta", boardUrl: "https://github.com/users/Example/projects/2", statuses, capturedAt: "2026-09-30T09:54:00Z", freshness: "stale" },
     ], items: [] };
   function item(index: number, fields: Partial<ProjectItem>): ProjectItem {
     return { id: `item-${index}`, project: "alpha", number: index, title: "Синтетическая задача", kind: "Issue", status: "Backlog",

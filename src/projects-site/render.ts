@@ -15,6 +15,7 @@ import {renderTable} from "../ui-library/components/table.ts";
 import {renderSearchField,renderSelectField} from "../ui-library/components/form.ts";
 import {renderCallout} from "../ui-library/components/callout.ts";
 import {renderIcon,iconPath,type IconName} from "../ui-library/components/icon.ts";
+import {projectColorClass} from "../ui-library/components/project-color.ts";
 import {renderPopover} from "../ui-library/components/popover.ts";
 import {renderDisclosure} from "../ui-library/components/disclosure.ts";
 import {ciCheckUrl} from "./ci-checks.ts";
@@ -86,10 +87,10 @@ export function renderProjectsDashboard(snapshot:ProjectsSnapshot,params=new URL
   const table=items.length?renderTable({className:"projects-table",stack:true,rowHeaders:true,columns,
     headers:[{html:sortControl("task","Task",params,lang)},{html:sortControl("status","Status",params,lang)},{html:sortControl("kurami","Kurami",params,lang)},{html:`<span class="projects-checks-heading">${t("Checks")}</span>`}],
     sortDirections:(["task","status","kurami",null] as const).map(key=>key&&filters.sort===key?filters.direction==="desc"?"descending":"ascending":"none"),
-    rowClassNames:items.map(item=>`projects-row${needsOwner(item,projectOf(item))?" projects-row--attention":""}${selected?.id===item.id?" projects-row--selected":""}`),
+    rowClassNames:items.map(item=>`projects-row${projectOf(item).color?` ${projectColorClass(projectOf(item).color!)}`:""}${needsOwner(item,projectOf(item))?" projects-row--attention":""}${selected?.id===item.id?" projects-row--selected":""}`),
     rows:items.map(item=>{
       const project=projectOf(item),identifier=item.number?`#${item.number}`:t("Draft"),evidence=checks(item,lang);
-      return [{html:`<div class="projects-task" data-search="${escape(`${project.name} ${identifier} ${item.title} ${item.status??""}`.toLocaleLowerCase(lang))}"><div class="projects-task-meta">${renderIcon("project")}<span>${escape(project.name)}</span><span class="projects-task-id">${escape(identifier)}</span>${needsOwner(item,project)?`<span class="projects-attention" title="${t("Your decision needed")}">${renderIcon("alert")}<span class="sr-only">${t("Your decision needed")}</span></span>`:""}</div>${renderLinkButton({label:item.title||t("Untitled task"),href:itemUrl(params,item.id),variant:"text",attributes:{"data-item-link":item.id}})}${item.suggestedNext?`<div class="projects-suggestion">${renderPill({label:t("Suggested next"),tone:"info",icon:"spark",title:t("Suggested in Discord digest")})}</div>`:""}</div>`},
+      return [{html:`<div class="projects-task" data-search="${escape(`${project.name} ${identifier} ${item.title} ${item.status??""}`.toLocaleLowerCase(lang))}"><div class="projects-task-meta">${renderIcon((project.icon??"project") as IconName)}<span>${escape(project.name)}</span><span class="projects-task-id">${escape(identifier)}</span>${needsOwner(item,project)?`<span class="projects-attention" title="${t("Your decision needed")}">${renderIcon("alert")}<span class="sr-only">${t("Your decision needed")}</span></span>`:""}</div>${renderLinkButton({label:item.title||t("Untitled task"),href:itemUrl(params,item.id),variant:"text",attributes:{"data-item-link":item.id}})}${item.suggestedNext?`<div class="projects-suggestion">${renderPill({label:t("Suggested next"),tone:"info",icon:"spark",title:t("Suggested in Discord digest")})}</div>`:""}</div>`},
         {html:renderPill({label:item.status??t("No status"),tone:statusTone(item,project)})+(item.statusChange?.request&&["checking","writing","awaiting_sync","uncertain"].includes(item.statusChange.request.state)?`<small class="projects-status-pending">${renderIcon("refresh")}${escape(item.statusChange.request.target)}</small>`:"")},
         {html:`<div class="projects-stage">${stateValue(projectStageLabel(item,lang),runTone(item))}${item.owner==="cli"?`<small>${renderIcon("bot")}AI Agent</small>`:item.owner==="remote"?`<small>${renderIcon("person")}${t("You have control")}</small>`:""}</div>`},
         {html:evidence?`<div class="projects-checks">${evidence}</div>`:"—"}];

@@ -207,11 +207,12 @@ Components read only semantic custom properties:
 --status-success --status-warning --status-failure --status-info
 --shadow-offset  --focus-ring
 --chart-1 … --chart-5
+--project-blue --project-teal --project-green --project-violet --project-pink --project-gold
 --diagram-surface --diagram-panel --diagram-ink --diagram-muted
 --diagram-accent --diagram-accent-soft --diagram-success --diagram-warning
 ```
 
-The authoritative lists live in `src/ui-library/tokens/index.ts`: **32 colour roles per mode** (the names above, with `text-on-accent` in place of `text-inverse`) and **19 scale roles** (three font roles, three radii, three shadows, two durations and eleven spacing steps `space-1` … `space-10`). Colour roles are filled separately for light and dark; scale roles are mode-independent. The diagram roles include `diagram-success` and `diagram-warning`, so exported diagram SVGs follow the theme.
+The authoritative lists live in `src/ui-library/tokens/index.ts`: **38 colour roles per mode** (the names above, with `text-on-accent` in place of `text-inverse`) and **19 scale roles** (three font roles, three radii, three shadows, two durations and eleven spacing steps `space-1` … `space-10`). Colour roles are filled separately for light and dark; scale roles are mode-independent. The diagram roles include `diagram-success` and `diagram-warning`, so exported diagram SVGs follow the theme.
 
 A theme is a complete set of values for these properties. Light and dark are modes of the Kurami theme; a second theme would ship its own light and dark sets and components would not change. During migration the old names (`--paper`, `--ink`, `--signal` …) stay as aliases of the new ones, so unmigrated Digest and Docs CSS keeps working, and each alias is deleted once nothing reads it.
 
@@ -246,7 +247,7 @@ Implemented in seven commits, one per migration step. Each step kept Digest pixe
 | Product components did not move for formal reuse | Story, mail, agenda, Cinema, Stocks, Kurami notes and state messages stay in `src/briefing/ui`; Docs maps and article layout stay in `src/human-docs`. |
 | No competing `shared-ui` location | `src/shared-ui` is deleted; brand assets and fonts live only in `src/ui-library/assets`; the skill holds generated copies checked for freshness. |
 | Light/dark did not regress | `npm run test:ui-browser` checks theme behaviour and audits overflow, names and AA contrast on Digest, Docs and a library-only page in both themes; Docs browser QA passes 360 combinations. |
-| A new theme is a token-set swap | `Theme` requires 32 colour roles per mode and 19 scale roles (`src/ui-library/tokens/index.ts`); the contract test builds a different theme without touching components and rejects incomplete ones. |
+| A new theme is a token-set swap | `Theme` requires 38 colour roles per mode and 19 scale roles (`src/ui-library/tokens/index.ts`); the contract test builds a different theme without touching components and rejects incomplete ones. |
 | A sub-site needs no Digest/Docs CSS | The `library-subsite` fixture renders header, table, callout, disclosure and buttons from the library plus six lines of layout and passes the same audit. |
 | The skill references real components | The skill names library and Digest functions and `src/ui-library` paths; the test fails if any name or path does not exist, or if the skill restates colours, Google Fonts or templates. |
 | Joint browser regression | `npm run test:ui-browser -- --compare=<baseline dir>` compares screenshots of both products and reports the share of changed pixels. |
@@ -339,3 +340,12 @@ On phones the mobile navigation moves the menu into the Settings sheet, where th
 The Hub default is the lasting theme. A menu choice lasts while the app or tab is open; every app is served from one origin, so it carries between apps in that session, and a new session starts from the default again. Choices stored in `localStorage` by the former per-device switch are deleted on load. Applying a new default in Hub ends the session choice on that page. Saved Digest editions keep their legacy toggle; it switches the mode for the session.
 
 `npm run test:ui-browser` checks the runtime order, the keyboard path through the menu and the phone settings sheet. By default it screenshots and audits one variant of each theme: Paper light and Neon dark. `test:ui-browser:all` adds Paper dark and Neon light, for changes to the library and themes. The guard rejects theme branches (`[data-theme]`, `[data-kurami-theme]`) in product code.
+
+## Project colours
+
+Six `project-*` colour roles (blue, teal, green, violet, pink, gold) give each managed project one hue, picked
+with `color:` in `config/projects.yaml` or assigned by registry order. `components/project-color.ts` maps
+`project-color--<hue>` to `--project-color` and `--project-edge` (a 3px inset left bar; Neon adds a glow).
+Projects puts the bar on the row's first cell on desktop and on the whole stacked row on phones, and colours
+the project icon with it. The hues avoid red and amber, so a bar never reads as a status; attention and
+selection keep their background tints.
