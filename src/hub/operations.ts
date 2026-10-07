@@ -11,6 +11,7 @@ import {settingsSchema} from "../orchestrator/settings/settings-schema.ts";
 import {codexLaunchUrl} from "../orchestrator/integrations/codex/deeplink.ts";
 import {localDay} from "../core/codex-usage.ts";
 import {kuramiEntryHref} from "../ui-library/patterns/kurami-sites.ts";
+import {controllerFailuresPath,isStuck,readControllerFailures} from "../orchestrator/runtime/controller-failures.ts";
 
 export type HubAlert={id:string;severity:"warning"|"critical";code:string;subject:string;href?:string;group?:string;project?:string;itemId?:string;title?:string;prNumber?:number;task?:boolean;next?:ProblemNext;actor?:"owner"|"agent"|"system";detail?:string};
 export type ProblemNext="start_repair"|"wait_repair"|"reply"|"inspect_task"|"check_collector"|"check_project"|"inspect_health"|"restore_db";
@@ -63,6 +64,13 @@ export function collectHubOperations(home:string,codexHome:string,hermesHome:str
         actor:ownerAction?"owner":busy?"agent":"owner",next:ownerAction??(busy?"wait_repair":"start_repair"),
         detail:issue.code==="review_unrepaired"?String(status.majorFindings):checks});
     }
+  }
+  // An automatic controller action that has kept failing for hours: the task waits on the owner.
+  for(const failure of Object.values(readControllerFailures(controllerFailuresPath(home))).filter(failure=>isStuck(failure,now))){
+    const row=projectStatus.runs.find(run=>run.run_id===failure.runId);
+    const href=row?safeLink(row.pull_request_url)??safeLink(`https://github.com/${row.repository}/issues/${row.issue_number}`):undefined;
+    const hours=Math.floor((now.getTime()-Date.parse(failure.firstAt))/3_600_000);
+    alerts.push({id:`controller-${failure.runId}-${failure.action}`,severity:"warning",code:"controller_stuck",subject:`${short(failure.project)} #${failure.issueNumber}`,href,group:href??`task:${failure.project}:${failure.issueNumber}`,project:failure.project,task:true,actor:"owner",next:"inspect_task",detail:`${failure.action} · ${hours}h · ${failure.count}×`});
   }
   const cutoff=new Date(now.getTime()-7*86400_000).toISOString();
   const runContext=(runId:string)=>{

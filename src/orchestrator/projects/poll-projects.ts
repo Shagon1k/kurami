@@ -2,6 +2,7 @@
 import { execFileSync } from "node:child_process";
 import { createHash } from "node:crypto";
 import { appendFile, chmod, mkdir, readFile } from "node:fs/promises";
+import { rotateIfLarge } from "../../core/log-rotation.ts";
 import { dirname, resolve } from "node:path";
 import { resolveKuramiHome } from "../../core/kurami-home.ts";
 import { DatabaseSync } from "node:sqlite";
@@ -212,6 +213,7 @@ async function loadRegistry(): Promise<Registry> {
 
 async function appendRunLog(record: unknown): Promise<void> {
   await mkdir(dirname(runLogPath), { recursive: true, mode: 0o700 });
+  await rotateIfLarge(runLogPath);
   await appendFile(runLogPath, `${JSON.stringify(record)}\n`, {
     encoding: "utf8",
     mode: 0o600,

@@ -105,6 +105,8 @@ Before starting Codex the controller compares the number of running Codex and AI
 
 If a child script fails, the step is deferred and repeated in the next cycle. The command stays in the queue, except review, fix and recovery starts: their commands are marked `failed`, because a repeat could restart work that has already begun.
 
+An automatic step that keeps failing for the same run backs off. The first five failures retry every minute; after that the pause doubles (2, 4, 8 … up to 30 minutes), and a success resets it. If the step has kept failing for three hours, Hub shows the task as **Controller stuck** with the step and the failure count. A failure that only means "the Codex turn is still running" is logged as a wait, not an error. Owner commands never back off. Each line in `controller-errors.log` carries a time and a level.
+
 ::::example Run TT-42 in one hour
 :::steps
 - **Controller** — at 10:01 the rule `provision` creates the branch and copy: `admission_pending` → `starting`.
@@ -126,6 +128,7 @@ If a child script fails, the step is deferred and repeated in the next cycle. Th
 | The Codex limit is taken | The run waits in `starting`, the step is deferred | Wait or raise the limit in [settings](@settings) |
 | The server was rebooted | State is intact in the database; the tmux sessions are gone | Watch the card: the session error shows there |
 | The controller runs in `dry_run` | It refuses to change anything | Switch to `mode: live` deliberately |
+| The same automatic step keeps failing | It retries with growing pauses; after three hours Hub shows **Controller stuck** | Open the task card and decide: wait, cancel the run or fix the session by hand |
 
 :::guarantees
 - The controller picks at most one step per run per cycle.
