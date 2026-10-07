@@ -35,8 +35,8 @@ export function syntheticDailyFilledPayload() {
     }))},sourceBatches:[],dataQuality:{state:"ready",summary:"Тестовые источники обновлены."},
   });
   payload.addons.engineering=engineeringBrief({waiting:[
-    {project:"PickFlick",number:158,title:"Синтетическая задача с длинным названием для проверки обрезки строки на телефоне",url:"https://example.org/pull/158",hours:44},
-    {project:"TailorTales",number:121,title:"Synthetic review",url:"https://example.org/pull/121",hours:73}],
+    {project:"PickFlick",number:158,title:"Синтетическая задача с длинным названием для проверки обрезки строки на телефоне",url:"https://example.org/pull/158",hours:44,color:"blue"},
+    {project:"TailorTales",number:121,title:"Synthetic review",url:"https://example.org/pull/121",hours:73,color:"gold"}],
     week:{completed:5,measured:4,medianTokens:1_240_000,reworkPercent:20}},at) as unknown as typeof payload.addons[string];
   return payload;
 }

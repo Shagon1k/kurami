@@ -33,15 +33,16 @@ try {
   database.close();
 
   const data = readEngineering(home, now, { week: false })!;
-  assert.deepEqual(data.waiting, [{ project: "PickFlick", number: 133, title: "Update watchlist", url: "https://github.com/Shagon1k/PickFlick/pull/133", hours: 50 }]);
+  assert.deepEqual(data.waiting, [{ project: "PickFlick", number: 133, title: "Update watchlist", url: "https://github.com/Shagon1k/PickFlick/pull/133", hours: 50, color: "blue" }], "the colour follows registry order when none is set");
   assert.equal(data.week, null, "weekday: no weekly totals");
 
   const payload = { addons: { engineering: engineeringBrief(data, now.toISOString()) } } as unknown as BriefingPayload;
   const html = renderEngineeringBlock(payload);
   assert.match(html, /PR ждут тебя дольше суток: 1/);
-  assert.match(html, /href="https:\/\/github\.com\/Shagon1k\/PickFlick\/pull\/133">PickFlick #133<\/a><span>Update watchlist<\/span><strong data-ui-figure>2 дн\.<\/strong>/);
+  assert.match(html, /<li class="project-color--blue"><a href="https:\/\/github\.com\/Shagon1k\/PickFlick\/pull\/133">PickFlick #133<\/a><span>Update watchlist<\/span><strong data-ui-figure>2 дн\.<\/strong>/);
   assert.equal(renderEngineeringBlock({ addons: { engineering: engineeringBrief({ waiting: [], week: null }, now.toISOString()) } } as unknown as BriefingPayload), "", "nothing to say, nothing shown");
   const sunday = renderEngineeringBlock({ addons: { engineering: engineeringBrief({ waiting: [], week: { completed: 5, measured: 4, medianTokens: 1_240_000, reworkPercent: 20.4 } }, now.toISOString()) } } as unknown as BriefingPayload);
   assert.match(sunday, /За неделю: <strong data-ui-figure>5<\/strong> задач завершено · медиана <strong data-ui-figure>1\.2M<\/strong> токенов на задачу · доработки 20%/);
-  console.log(JSON.stringify({ ok: true, engineering: "waiting over a day, fresh excluded, empty hidden, weekly line" }));
+  assert.doesNotMatch(renderEngineeringBlock({ addons: { engineering: engineeringBrief({ waiting: [{ ...data.waiting[0]!, color: "red\" onmouseover=\"x" as never }], week: null }, now.toISOString()) } } as unknown as BriefingPayload), /onmouseover|project-color--red/, "only library hues become a class");
+  console.log(JSON.stringify({ ok: true, engineering: "waiting over a day, fresh excluded, empty hidden, weekly line, project colour" }));
 } finally { rmSync(home, { recursive: true, force: true }); }

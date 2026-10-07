@@ -1,9 +1,11 @@
 import {renderButton} from "./button.ts";
 import {renderIcon,iconPath} from "./icon.ts";
+import {renderKuramiMood} from "./kurami-mood.ts";
 
-/** One notice at a time. The runtime sets untrusted messages with textContent. */
-export function renderToastRegion(closeLabel:string):string {
-  return `<aside class="toast" data-toast-region data-tone="info" hidden><span class="toast__icon" aria-hidden="true">${(["info","success","warning","failure"] as const).map(tone=>`<span data-toast-icon="${tone}" hidden>${renderIcon(tone==="success"?"check":tone==="info"?"bell":"alert")}</span>`).join("")}</span><p class="toast__message" data-toast-message role="status" aria-live="polite" aria-atomic="true"></p>${renderButton({label:closeLabel,ariaLabel:closeLabel,variant:"icon",size:"compact",iconPath:iconPath("close"),attributes:{"data-toast-dismiss":true}})}</aside>`;
+/** One notice at a time. The runtime sets untrusted messages with textContent. With `kurami`, a celebrated
+ * notice (finished work) also brings Kurami herself, in her celebrate mood, above the toast for a moment. */
+export function renderToastRegion(closeLabel:string,options:{kurami?:boolean}={}):string {
+  return `<aside class="toast" data-toast-region data-tone="info" hidden>${options.kurami?`<span class="toast__kurami" aria-hidden="true">${renderKuramiMood({mood:"celebrate"})}</span>`:""}<span class="toast__icon" aria-hidden="true">${(["info","success","warning","failure"] as const).map(tone=>`<span data-toast-icon="${tone}" hidden>${renderIcon(tone==="success"?"check":tone==="info"?"bell":"alert")}</span>`).join("")}</span><p class="toast__message" data-toast-message role="status" aria-live="polite" aria-atomic="true"></p>${renderButton({label:closeLabel,ariaLabel:closeLabel,variant:"icon",size:"compact",iconPath:iconPath("close"),attributes:{"data-toast-dismiss":true}})}</aside>`;
 }
 
 export const TOAST_CSS=`
@@ -18,6 +20,9 @@ export const TOAST_CSS=`
   opacity: 0; animation: toast-sparks .9s ease-out; }
 @keyframes toast-celebrate { 0% { transform: scale(.6) rotate(-20deg); } 45% { transform: scale(1.35) rotate(8deg); } 100% { transform: none; } }
 @keyframes toast-sparks { 0% { opacity: 1; scale: .3; } 70% { opacity: 1; } 100% { opacity: 0; scale: 1.6; } }
-@media (prefers-reduced-motion: reduce) { .toast[data-celebrate] .toast__icon, .toast[data-celebrate] .toast__icon::after { animation: none; } }
+.toast__kurami { position: absolute; inset-inline-end: var(--space-3); bottom: calc(100% - var(--space-2)); display: none; pointer-events: none; }
+.toast[data-celebrate] .toast__kurami { display: block; animation: toast-kurami .6s cubic-bezier(.2,.9,.3,1.3) both; }
+@keyframes toast-kurami { from { opacity: 0; transform: translateY(18px) scale(.6); } to { opacity: 1; transform: none; } }
+@media (prefers-reduced-motion: reduce) { .toast[data-celebrate] .toast__icon, .toast[data-celebrate] .toast__icon::after, .toast[data-celebrate] .toast__kurami { animation: none; } }
 .toast__message { margin: 0; padding-block: var(--space-2); font-size: .8rem; line-height: 1.5; overflow-wrap: anywhere; }
 `;

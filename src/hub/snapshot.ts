@@ -5,6 +5,7 @@ import {homedir} from "node:os";
 import {collectHubOperations,type HubOperations} from "./operations.ts";
 import {parse} from "yaml";
 import {resolveKuramiHome} from "../core/kurami-home.ts";
+import {listIdeas} from "../system/ideas/ideas.ts";
 import {projectColor} from "../core/projects-registry.ts";
 import type {ProjectColor} from "../ui-library/tokens/index.ts";
 import {collectCodexSnapshot,type CodexSnapshot} from "./codex.ts";
@@ -36,6 +37,8 @@ export type HubSnapshot={
   usage?:ProjectUsage;
   chronicle?:ChronicleDay[]|null;
   digestReadAt?:string|null;
+  /** Open ideas in the pool and when the most recently touched one changed (src/system/ideas/ideas.ts). */
+  ideas?:{open:number;touchedAt:string|null}|null;
   commitDays?:Week[];
   commitRepositories?:Record<string,Week[]>;
   totals:{working:number;review:number;attention:number;commits30:number};
@@ -81,6 +84,11 @@ function gitHistory(path:string,branch:string,now:Date):{dates:number[];latestAt
     const dates=output.split("\n").map(dateMs).filter((value):value is number=>value!==null&&value<=now.getTime());
     return {dates,latestAt,state:"available"};
   } catch {return {dates:[],latestAt:null,state:"unavailable"};}
+}
+
+function openIdeas(home:string):{open:number;touchedAt:string|null}|null {
+  const pool=listIdeas(home,{open:true,limit:1});
+  return pool.available?{open:pool.openCount,touchedAt:pool.ideas[0]?.updatedAt??null}:null;
 }
 
 export function collectHubSnapshot(options:{home?:string;appRepository?:string;codexHome?:string;now?:Date}={}):HubSnapshot {
@@ -139,7 +147,7 @@ export function collectHubSnapshot(options:{home?:string;appRepository?:string;c
   const commitDays=dailyCounts(allDates),commitRepositories=Object.fromEntries(Object.entries(repositoryDates).map(([key,dates])=>[key,dailyCounts(dates)]));
   const usage=readProjectUsage(dbPath,keys,now,(ids,until)=>readThreadUsage(codexHome,ids,until));
   const chronicle=readChronicle(dbPath,config,now);
-  return {generatedAt:now.toISOString(),projects,weeks,commitDays,commitRepositories,usage,chronicle,digestReadAt:todaysDigestRead(home,now),codex:collectCodexSnapshot({home:codexHome,now}),operations,
+  return {generatedAt:now.toISOString(),projects,weeks,commitDays,commitRepositories,usage,chronicle,digestReadAt:todaysDigestRead(home,now),ideas:openIdeas(home),codex:collectCodexSnapshot({home:codexHome,now}),operations,
     totals:{working:projects.reduce((sum,project)=>sum+(project.runs?.working??0),0),
       review:projects.reduce((sum,project)=>sum+(project.board?.review??0),0),
       attention:projects.reduce((sum,project)=>sum+(project.runs?.attention??0),0),

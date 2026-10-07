@@ -17,6 +17,7 @@ import {DISCLOSURE_CSS} from "../../ui-library/components/disclosure.ts";
 import {FORM_CSS} from "../../ui-library/components/form.ts";
 import {breakpoints} from "../../ui-library/tokens/index.ts";
 import {KURAMI_MOOD_CSS} from "../../ui-library/components/kurami-mood.ts";
+import {PROJECT_COLOR_CSS} from "../../ui-library/components/project-color.ts";
 import {DAILY_FINISH_STYLES} from "./components/daily-finish.ts";
 export const STORY_ACTIONS_LAYOUT_CSS=`
 @media (max-width: ${breakpoints.phone}px) {
@@ -75,6 +76,7 @@ export const DIGEST_POLISH_CSS=`
 `;
 export const BRIEFING_STYLES = `${KURAMI_MOOD_CSS}${DAILY_FINISH_STYLES}
 ${THEME_CSS}
+${PROJECT_COLOR_CSS}
 ${FOUNDATION_CSS}
 :root {
   --header-offset: 104px;

@@ -3,7 +3,7 @@
 import assert from "node:assert/strict";
 import { runInNewContext } from "node:vm";
 import { TOAST_RUNTIME_JS } from "../../src/ui-library/runtime/toast.ts";
-import { TOAST_CSS } from "../../src/ui-library/components/toast.ts";
+import { renderToastRegion, TOAST_CSS } from "../../src/ui-library/components/toast.ts";
 
 const attributes = new Set<string>();
 const region = {
@@ -19,5 +19,9 @@ toast.show("PR merged", { tone: "success", celebrate: true });
 assert.ok(attributes.has("data-celebrate"));
 toast.show("Saved", { tone: "success" });
 assert.ok(!attributes.has("data-celebrate"), "an ordinary notice does not celebrate");
-assert.match(TOAST_CSS, /@media \(prefers-reduced-motion: reduce\) \{ \.toast\[data-celebrate\] \.toast__icon, \.toast\[data-celebrate\] \.toast__icon::after \{ animation: none; \} \}/);
-console.log(JSON.stringify({ ok: true, toastCelebrate: "flag on, flag cleared, reduced motion" }));
+assert.match(TOAST_CSS, /@media \(prefers-reduced-motion: reduce\) \{ \.toast\[data-celebrate\] \.toast__icon, \.toast\[data-celebrate\] \.toast__icon::after, \.toast\[data-celebrate\] \.toast__kurami \{ animation: none; \} \}/);
+// Projects brings Kurami herself to a celebrated notice; other apps keep the plain toast.
+assert.match(renderToastRegion("Close", { kurami: true }), /<span class="toast__kurami" aria-hidden="true"><span class="kurami-mood" data-kurami-mood="celebrate"/);
+assert.doesNotMatch(renderToastRegion("Close"), /toast__kurami/);
+assert.match(TOAST_CSS, /\.toast\[data-celebrate\] \.toast__kurami \{ display: block;/);
+console.log(JSON.stringify({ ok: true, toastCelebrate: "flag on, flag cleared, reduced motion, Kurami on Projects" }));

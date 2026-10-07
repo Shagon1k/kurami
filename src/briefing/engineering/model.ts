@@ -9,8 +9,10 @@ import type { BriefingAddonEnvelope, BriefingPayload } from "../model.ts";
 import { readProjectStatus, type ProjectStatuses } from "../../orchestrator/projects/status-read-model.ts";
 import { readProjectUsage, type UsagePeriod } from "../../orchestrator/projects/usage-read-model.ts";
 import { readThreadUsage } from "../../core/codex-usage.ts";
+import { projectColor } from "../../core/projects-registry.ts";
+import type { ProjectColor } from "../../ui-library/tokens/index.ts";
 
-export type WaitingPullRequest = { project: string; number: number | null; title: string; url: string; hours: number };
+export type WaitingPullRequest = { project: string; number: number | null; title: string; url: string; hours: number; color?: ProjectColor };
 export type EngineeringData = { waiting: WaitingPullRequest[]; week: UsagePeriod | null };
 export type EngineeringBrief = Omit<BriefingAddonEnvelope, "data"> & { version: 1; data: EngineeringData };
 
@@ -18,7 +20,7 @@ export type EngineeringBrief = Omit<BriefingAddonEnvelope, "data"> & { version: 
 export const WAITING_HOURS = 24;
 const MAX_WAITING = 5;
 
-type Registry = Record<string, { statuses: ProjectStatuses; repository?: string }>;
+type Registry = Record<string, { statuses: ProjectStatuses; repository?: string; color?: string }>;
 
 /** When each item last entered the review status (from the project events the poller records), and its title. */
 function reviewFacts(databasePath: string, items: { project: string; issue: number; status: string }[]): Map<string, { since: string | null; title: string }> {
@@ -50,7 +52,8 @@ export function readEngineering(home: string, now: Date, options: { week: boolea
     const hours = Number.isFinite(at) ? Math.floor((now.getTime() - at) / 3_600_000) : null;
     if (hours === null || hours < WAITING_HOURS) return [];
     const number = Number(/\/pull\/(\d+)/.exec(run.pull_request_url ?? "")?.[1]) || null;
-    return [{ project: registry[run.project]?.repository?.split("/")[1] ?? run.project, number, title: (fact?.title ?? "").slice(0, 120), url: run.pull_request_url!, hours }];
+    return [{ project: registry[run.project]?.repository?.split("/")[1] ?? run.project, number, title: (fact?.title ?? "").slice(0, 120), url: run.pull_request_url!, hours,
+      color: projectColor(registry[run.project]?.color, Object.keys(registry).indexOf(run.project)) }];
   }).sort((left, right) => right.hours - left.hours).slice(0, MAX_WAITING);
   let week: UsagePeriod | null = null;
   if (options.week) {

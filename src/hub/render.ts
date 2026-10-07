@@ -164,13 +164,14 @@ function renderAlerts(snapshot:HubSnapshot,lang:HubLanguage):string {
 /** Managed projects are named by the registry (via the snapshot); Kurami's own areas have fixed names. */
 const projectName=(snapshot:HubSnapshot,key:string)=>snapshot.projects.find(project=>project.key===key)?.name??({kurami:"Kurami",digest:"Digest",other:"—"} as Record<string,string>)[key]??key;
 /** The week as a story: per day, what moved in the projects (src/orchestrator/projects/chronicle.ts). */
+const chronicleColor=(snapshot:HubSnapshot,key:string)=>{const color=snapshot.projects.find(project=>project.key===key)?.color;return color?` class="${projectColorClass(color)}"`:"";};
 function renderChronicle(snapshot:HubSnapshot,lang:HubLanguage):string {
   const days=snapshot.chronicle;
   if(!days?.length)return "";
   const words:Record<ChronicleKind,{icon:IconName;text:[string,string]}>={started:{icon:"play",text:["взята в работу","started"]},review:{icon:"review",text:["отправлена на ревью","sent to review"]},
     returned:{icon:"back",text:["вернулась в работу","returned to work"]},done:{icon:"check",text:["завершена","done"]},ci_repair:{icon:"ci",text:["исправление CI","CI repair"]},ai_review:{icon:"spark",text:["AI Review","AI Review"]}};
   const detail=(event:ChronicleEvent)=>event.kind==="ai_review"?(/^\d+$/.test(event.detail??"")?(Number(event.detail)?tr(lang,` · существенных замечаний: ${event.detail}`,` · major findings: ${event.detail}`):tr(lang," · без существенных замечаний"," · no major findings")):` · ${event.detail}`):event.kind==="ci_repair"&&event.detail?` · ${({succeeded:tr(lang,"удалось","succeeded"),failed:tr(lang,"не удалось","failed")} as Record<string,string>)[event.detail]??event.detail}`:"";
-  const day=(entry:ChronicleDay)=>`<li class="chronicle__day"><h3>${escapeHtml(new Intl.DateTimeFormat(lang==="ru"?"ru-RU":"en-GB",{weekday:"short",day:"numeric",month:"short",timeZone:"UTC"}).format(new Date(entry.day+"T12:00:00Z")))}</h3><ul class="list-reset">${entry.events.map(event=>`<li data-kind="${event.kind}">${renderIcon(words[event.kind].icon)}<span><strong>${escapeHtml(snapshot.projects.find(project=>project.key===event.project)?.name??event.project)}${event.issue?` #${event.issue}`:""}</strong> ${escapeHtml(tr(lang,...words[event.kind].text))}${escapeHtml(detail(event))}${event.title?` <small>${escapeHtml(event.title)}</small>`:""}</span></li>`).join("")}</ul></li>`;
+  const day=(entry:ChronicleDay)=>`<li class="chronicle__day"><h3>${escapeHtml(new Intl.DateTimeFormat(lang==="ru"?"ru-RU":"en-GB",{weekday:"short",day:"numeric",month:"short",timeZone:"UTC"}).format(new Date(entry.day+"T12:00:00Z")))}</h3><ul class="list-reset">${entry.events.map(event=>`<li${chronicleColor(snapshot,event.project)} data-kind="${event.kind}">${renderIcon(words[event.kind].icon)}<span><strong>${escapeHtml(snapshot.projects.find(project=>project.key===event.project)?.name??event.project)}${event.issue?` #${event.issue}`:""}</strong> ${escapeHtml(tr(lang,...words[event.kind].text))}${escapeHtml(detail(event))}${event.title?` <small>${escapeHtml(event.title)}</small>`:""}</span></li>`).join("")}</ul></li>`;
   const recent=days.slice(0,2),older=days.slice(2);
   return `<section class="section chronicle" aria-labelledby="chronicle-title"><div class="section-heading"><h2 id="chronicle-title">${renderIcon("history")}${tr(lang,"Летопись недели","The week in projects")}</h2><span>${days.reduce((sum,entry)=>sum+entry.events.length,0)} ${tr(lang,"событий","events")}</span></div>
     <ol class="list-reset chronicle__days">${recent.map(day).join("")}</ol>${older.length?renderDisclosure({summary:tr(lang,`Ещё ${older.length} дн.`,`${older.length} more days`),key:"chronicle-more",body:`<ol class="list-reset chronicle__days">${older.map(day).join("")}</ol>`}):""}</section>`;
@@ -305,6 +306,17 @@ export function pulseMood(snapshot:HubSnapshot):KuramiMood {
   return hour>=23||hour<6?"asleep":"idle";
 }
 
+/** Now and then: when no open idea has been touched for a week, the pulse links to the pool in Projects. */
+export function ideasReminder(snapshot:HubSnapshot,lang:HubLanguage):string {
+  const ideas=snapshot.ideas,touched=Date.parse(ideas?.touchedAt??"");
+  if(!ideas?.open||!Number.isFinite(touched))return "";
+  const days=Math.floor((Date.parse(snapshot.generatedAt)-touched)/86_400_000);
+  if(days<7)return "";
+  const n=ideas.open,form=n%100>=11&&n%100<=14?2:n%10===1?0:n%10>=2&&n%10<=4?1:2;
+  const text=tr(lang,`${n} ${["идея","идеи","идей"][form]} без движения ${days} дн.`,`${n} idea${n===1?"":"s"} untouched for ${days} days`);
+  return `<span><a class="hub__pulse-ideas" href="${escapeHtml(kuramiEntryHref("projects",lang))}#projects-ideas">${escapeHtml(text)}</a></span>`;
+}
+
 function renderPulse(snapshot:HubSnapshot,lang:HubLanguage):string {
   const problems=problemQueue(snapshot.operations?.alerts??[]).length,known=snapshot.sources.orchestrator==="available";
   const plural=(n:number,forms:[string,string,string])=>forms[n%100>=11&&n%100<=14?2:n%10===1?0:n%10>=2&&n%10<=4?1:2];
@@ -313,7 +325,7 @@ function renderPulse(snapshot:HubSnapshot,lang:HubLanguage):string {
   if(known&&snapshot.totals.attention>0)parts.push(tr(lang,`${snapshot.totals.attention} ${plural(snapshot.totals.attention,["ждёт","ждут","ждут"])} тебя`,`${snapshot.totals.attention} waiting for you`));
   else if(known&&snapshot.totals.review>0)parts.push(tr(lang,`${snapshot.totals.review} на ревью`,`${snapshot.totals.review} in review`));
   if(snapshot.digestReadAt)parts.push(`${tr(lang,"Дайджест","Digest")} ✓ ${new Intl.DateTimeFormat(lang==="ru"?"ru-RU":"en-GB",{hour:"2-digit",minute:"2-digit",timeZone:"Europe/Vilnius"}).format(new Date(snapshot.digestReadAt))}`);
-  return `<div class="hub__mood">${renderKuramiMood({mood:pulseMood(snapshot),eager:true})}<p class="hub__pulse" data-state="${problems?"attention":"quiet"}">${parts.map(part=>`<span>${escapeHtml(part)}</span>`).join("")}</p></div>`;
+  return `<div class="hub__mood">${renderKuramiMood({mood:pulseMood(snapshot),eager:true})}<p class="hub__pulse" data-state="${problems?"attention":"quiet"}">${parts.map(part=>`<span>${escapeHtml(part)}</span>`).join("")}${ideasReminder(snapshot,lang)}</p></div>`;
 }
 
 export function renderHubDashboard(snapshot:HubSnapshot,lang:HubLanguage="en"):string {

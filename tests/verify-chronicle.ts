@@ -39,6 +39,7 @@ try {
   assert.match(html, /<h2 id="chronicle-title">.*Летопись недели<\/h2><span>6 событий<\/span>/);
   assert.match(html, /PickFlick #123<\/strong> исправление CI · удалось/);
   assert.match(html, /Ещё 1 дн\./, "older days fold away");
+  assert.match(html, /<li class="project-color--blue" data-kind="[a-z_]+"><svg[^]*?PickFlick #123/, "an event carries its project's colour");
   const empty = syntheticHubSnapshot(); empty.chronicle = [];
   assert.doesNotMatch(renderHubDashboard(empty, "en"), /chronicle-title/);
   const weekly = withDigestLanguage("ru", () => renderWeeklyChronicle({ names: { pickflick: "PickFlick" }, days: [{ day: "2026-10-07", events: [{ at: "2026-10-07T08:00:00Z", project: "pickflick", issue: 1, title: "Task <1>", kind: "done" }] }] }));

@@ -23,6 +23,7 @@ body { min-height: 100vh; }
 .chronicle__days { display: grid; gap: var(--space-4); }
 .chronicle__day h3 { margin: 0 0 var(--space-2); color: var(--text-muted); font-size: .75rem; letter-spacing: .04em; text-transform: uppercase; }
 .chronicle__day ul { display: grid; gap: var(--space-2); }
+.chronicle__day li[class*="project-color--"] { padding-inline-start: var(--space-2); box-shadow: var(--project-edge); }
 .chronicle__day li { display: grid; grid-template-columns: 18px minmax(0,1fr); gap: var(--space-2); align-items: start; font-size: .85rem; }
 .chronicle__day li small { display: block; color: var(--text-muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .chronicle__day li[data-kind="done"] svg { color: var(--status-success); }

@@ -6,7 +6,7 @@ import {join} from "node:path";
 import {DatabaseSync} from "node:sqlite";
 import {collectHubSnapshot} from "../../src/hub/snapshot.ts";
 import {createHubServer} from "../../src/hub/server.ts";
-import {renderHubPage,renderHubDashboard} from "../../src/hub/render.ts";
+import {renderHubPage,renderHubDashboard,ideasReminder} from "../../src/hub/render.ts";
 import {compactNumber} from "../../src/hub/format.ts";
 import {createProjectStore} from "./project-store.ts";
 import {syntheticHubSnapshot} from "../../src/ui-library/testing/fixtures.ts";
@@ -23,6 +23,16 @@ for(const [remaining,tone]of [[20.1,'neutral'],[20,'warning'],[0.1,'warning'],[0
   assert.match(page,new RegExp(`<tr class="project-row project-color--${first.color}">`),"project table row");
   assert.match(page,new RegExp(`<li class="work-item project-color--${first.color}"[^>]*data-work-project="${first.key}"`),"activity item");
   assert.match(page,/<li class="work-item" [^>]*data-work-project="kurami"/,"Kurami's own work has no project hue");
+}
+// Ideas reminder: only when open ideas exist and none was touched for a week; it links to the pool in Projects.
+{
+  const fixture=syntheticHubSnapshot();fixture.generatedAt="2026-10-20T10:00:00Z";
+  assert.equal(ideasReminder({...fixture,ideas:null},"ru"),"","no pool, no line");
+  assert.equal(ideasReminder({...fixture,ideas:{open:0,touchedAt:"2026-10-01T10:00:00Z"}},"ru"),"","no open ideas, no line");
+  assert.equal(ideasReminder({...fixture,ideas:{open:3,touchedAt:"2026-10-15T10:00:00Z"}},"ru"),"","touched this week, no line");
+  assert.match(ideasReminder({...fixture,ideas:{open:3,touchedAt:"2026-10-11T09:00:00Z"}},"ru"),/<a class="hub__pulse-ideas" href="[^"]*projects\/#projects-ideas">3 идеи без движения 9 дн\.<\/a>/);
+  assert.match(ideasReminder({...fixture,ideas:{open:1,touchedAt:"2026-10-01T10:00:00Z"}},"en"),/1 idea untouched for 19 days/);
+  assert.match(renderHubDashboard({...fixture,ideas:{open:5,touchedAt:"2026-10-01T10:00:00Z"}},"ru"),/class="hub__pulse"[^>]*>.*5 идей без движения 19 дн\./,"the line sits in the pulse");
 }
 try {
   mkdirSync(join(home,"config"));mkdirSync(join(home,"state"));
