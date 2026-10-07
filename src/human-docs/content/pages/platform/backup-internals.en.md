@@ -107,6 +107,7 @@ The longest gap is three days, or 72 hours. The health check limit is 84 hours, 
 | No `age` key set | stages 2 and 3 are skipped without a message; the summary has no bundle lines | read the summary and add the key |
 | Size or sum in S3 does not match | the job fails, the local bundle stays | retry, check the AWS keys |
 | Backup older than 84 hours | the health check raises a critical problem | find out why the job does not run |
+| The last S3 upload is older than 108 hours | every successful upload leaves a receipt, `state/recovery-upload.json`; the health check raises a critical problem when it is older than the backup limit plus a day. Without a receipt (upload not set up) the check stays quiet | read the backup job summary: is the upload failing |
 
 :::guarantees
 - The snapshot holds no secrets: the manifest is marked `secretsIncluded: false`, and a bundle will not be built without that mark.

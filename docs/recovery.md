@@ -121,9 +121,16 @@ restoration remains an explicit operator action following the order below.
 2. Clone this repository into the application path and run `npm ci` followed by
    `npm run check` with the pinned orchestrator Node runtime.
 3. Copy `deploy/config/*` into the parent orchestrator `config/` directory and
-   install `deploy/systemd/kurami-preview-ingress.service` as a user unit.
-4. Install the tracked Hermes scripts, Discord plugin, and run-control skill
-   from `integrations/hermes/` into the matching `$HERMES_HOME` directories.
+   install every user unit from `deploy/systemd/` (including the
+   `kurami-projects.service.d/` drop-in) into `~/.config/systemd/user/`:
+   `kurami-hub`, `kurami-briefing`, `kurami-projects`, `kurami-web`,
+   `kurami-human-docs`, `kurami-preview-ingress`, `kurami-cpu-statistics`,
+   `kurami-daily-briefing-guard` (service and timer) and
+   `kurami-digest-central-poller` (service and timer).
+4. Install the tracked Hermes scripts from `integrations/hermes/` into
+   `$HERMES_HOME`, then the Discord plugin and skills with
+   `bin/sync-hermes-plugin.sh --apply` and `bin/sync-hermes-skills.sh --apply`
+   (both have a `--check` mode for verification).
 5. Restore secrets with mode `0600` and owner `shagon1k:shagon1k`.
 6. Restore the newest verified SQLite backup. Run `npm run db:init` instead only
    when historical run state is intentionally discarded.
@@ -140,10 +147,16 @@ restoration remains an explicit operator action following the order below.
    Older backups without `briefing.db` cannot restore Digest history.
 7. Restore canonical project clones and verify every repository/path in
    `config/projects.yaml`.
-8. Enable rootless Docker, Hermes Gateway, and preview ingress. Run
-   `systemctl --user daemon-reload` before starting user units.
-9. Recreate cron jobs from the inventory below. Do not reuse old job IDs.
-10. Reconcile ingress and finish all validation before resuming pollers.
+8. Build what runs from builds: `npm run briefing:build` (Digest runs from
+   `dist/briefing`), then the docs release: `npm run docs:build-docs-release`
+   and copy `dist/human-docs` to `state/human-docs/release`.
+9. Run `systemctl --user daemon-reload`, then enable and start rootless Docker,
+   Hermes Gateway and every unit from step 3 (the two timers with
+   `--now`). The development slice `kurami-dev.slice` is written on first use
+   by `bin/kurami-dev-run` (or `node src/system/dev-resources/dev-resources.ts
+   ensure`) with the limits from Hub → Controls → Server.
+10. Recreate cron jobs from the inventory below. Do not reuse old job IDs.
+11. Reconcile ingress and finish all validation before resuming pollers.
 
 ## Secret inventory
 
@@ -259,16 +272,23 @@ cmp integrations/hermes/skills/kurami-run-control/agents/openai.yaml \
 Then verify services and scheduler:
 
 ```bash
-systemctl --user is-active docker.service
-systemctl --user is-active hermes-gateway.service
-systemctl --user is-active kurami-preview-ingress.service
+systemctl --user is-active docker.service hermes-gateway.service \
+  kurami-preview-ingress.service kurami-hub.service kurami-briefing.service \
+  kurami-projects.service kurami-web.service kurami-human-docs.service \
+  kurami-cpu-statistics.service kurami-daily-briefing-guard.timer \
+  kurami-digest-central-poller.timer
+bin/sync-hermes-plugin.sh --check && bin/sync-hermes-skills.sh --check
 HERMES_HOME="$HERMES_HOME" hermes cron status
 docker system df
 ```
 
 The healthy baseline is an integrity-clean SQLite database, rootless Docker,
 no unexplained preview leases or Compose projects, synchronized ingress, twelve
-active Hermes cron jobs, and no secrets in Git.
+active Hermes cron jobs, and no secrets in Git. After a day, Hub should show no
+**Release** alert (the server runs what `main` holds) and System Health no backup
+warning. When off-site upload is configured, every verified upload writes
+`state/recovery-upload.json`; System Health warns when it is older than the
+local backup limit plus a day.
 
 ## Safety
 
