@@ -1,7 +1,7 @@
 // The ideas pool: only the gist is required; a repeated submit returns the same idea; the journal is
 // append-only; "task" needs the issue link; ideas arrive through chats (the CLI behind the kurami-ideas skill,
 // installed for Hermes, Claude Code and Codex); Projects notes, moves and turns an idea into an issue in the
-// chosen project; the block renders in both themes' terms; all words are translated.
+// the block renders in both themes' terms; all words are translated.
 import assert from "node:assert/strict";
 import { execFileSync } from "node:child_process";
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
@@ -16,7 +16,6 @@ import { PROJECTS_STYLES } from "../../src/projects-site/styles.ts";
 import { mkdtempSync as tempDir, readFileSync, existsSync } from "node:fs";
 import { createProjectsServer } from "../../src/projects-site/server.ts";
 import { browserMessages } from "../../src/projects-site/i18n.ts";
-import type { BacklogTarget } from "../../src/orchestrator/integrations/github/backlog-capture.ts";
 import type { ProjectsSnapshot } from "../../src/projects-site/model.ts";
 
 const app = resolve(import.meta.dirname, "../.."), home = mkdtempSync(join(tmpdir(), "kurami-ideas-"));
@@ -52,24 +51,14 @@ try {
   assert.equal(cli("list", "--open").openCount, 2);
   assert.throws(() => execFileSync(process.execPath, [resolve(app, "src/system/ideas/ideas.ts"), "capture", "--summary", "x"], { env: { ...process.env, KURAMI_HOME: home }, stdio: "pipe" }), (error: { status: number; stderr: Buffer }) => error.status === 2 && /"ok":false/.test(error.stderr.toString()));
 
-  // Projects actions: no capture from the page; notes, status and an issue filed once.
-  mkdirSync(join(home, "config"), { recursive: true });
-  writeFileSync(join(home, "config/projects.yaml"), "version: 1\nprojects:\n  pickflick:\n    owner: Shagon1k\n    project_number: 3\n    repository: Shagon1k/PickFlick\n    status_field: Status\n    statuses: {backlog: Backlog, active: In progress, review: Human Review, done: Done, deferred: Deferred}\n");
-  const created: { target: BacklogTarget; title: string; body: string }[] = [];
-  const act = createIdeasAction({ home, client: { create: async (target, title, body) => { created.push({ target, title, body }); return { number: 7, url: `https://github.com/${target.repository}/issues/7`, onBoard: Boolean(target.board) }; } } });
-  await assert.rejects(act({ action: "capture", summary: "Watch party mode" }, "owner"), /Некорректный запрос/, "the page does not capture ideas");
-  const site = { idea: captureIdea(home, { summary: "Watch party mode", context: "Friends asked", area: "pickflick", original: "a link", source: "chat" }, "owner") };
+  // Projects actions: only a note. Capture, status and "make it a task" are chat requests (the skill and its CLI).
+  const act = createIdeasAction({ home });
+  const site = { idea: captureIdea(home, { summary: "Watch party mode", context: "Friends asked", area: "kurami", original: "a link", source: "chat" }, "owner") };
   await act({ action: "note", id: site.idea.id, note: "Maybe after v2" }, "owner");
-  await assert.rejects(act({ action: "status", id: site.idea.id, status: "task" }, "owner"), /Некорректный запрос/, "task only through the task action");
+  assert.equal(readIdea(home, site.idea.id)!.notes.at(-1)!.text, "Maybe after v2");
+  for (const action of ["capture", "status", "task"]) await assert.rejects(act({ action, id: site.idea.id, status: "parked", target: "kurami", summary: "x".repeat(5) }, "owner"), /Некорректный запрос/, `${action} is not a page action`);
   await assert.rejects(act({ action: "note", id: site.idea.id, note: "" }, "owner"), /Проверь поля идеи/);
-  await assert.rejects(act({ action: "task", id: site.idea.id, target: "unknown" }, "owner"), /Выбери проект/);
   await assert.rejects(act({ action: "note", id: 999, note: "x" }, "owner"), /Идея не найдена/);
-  const task = await act({ action: "task", id: site.idea.id, target: "pickflick" }, "owner") as { url: string; onBoard: boolean };
-  assert.deepEqual([task.url, task.onBoard, created[0]!.title], ["https://github.com/Shagon1k/PickFlick/issues/7", true, "Watch party mode"]);
-  assert.match(created[0]!.body, /\*\*Что натолкнуло:\*\* Friends asked[\s\S]*> a link[\s\S]*идея #\d+/);
-  assert.equal(((await act({ action: "task", id: site.idea.id, target: "pickflick" }, "owner")) as { url: string }).url, task.url);
-  assert.equal(created.length, 1, "a second request does not file another issue");
-  assert.equal(readIdea(home, site.idea.id)!.status, "task");
 
   // Rendering: the capture form stays about tasks; the block is a framed panel (Neon dresses it) with numbered,
   // tagged rows, a handwritten Kurami note and an accent bar that glows only where the theme's mark-glow says so.
@@ -82,8 +71,8 @@ try {
   assert.match(block, /data-disclosure-key="idea:\d+"><summary><span class="projects-idea__head"><span class="projects-idea__number">#\d+<\/span><span class="projects-idea__gist">Keyed idea<\/span><span class="projects-idea__tags">.*Думаю.*Kurami.*В этом месяце/);
   assert.match(PROJECTS_STYLES, /\.projects-ideas__item::before \{[^}]*color: var\(--accent-data\)[^}]*box-shadow: var\(--mark-glow\)/);
   assert.match(PROJECTS_STYLES, /\.projects-ideas__note \{[^}]*var\(--font-note\)[^}]*text-shadow: var\(--display-glow\)/);
-  assert.match(block, /data-idea-form="task"[\s\S]*<option value="kurami" selected>Kurami<\/option>/, "Kurami ideas default to a Kurami issue");
-  assert.doesNotMatch(block, /data-idea-form="task"[^]*<option value="other"/, "a life idea cannot become a project issue");
+  assert.doesNotMatch(block, /data-idea-form="(status|task)"/, "only notes on the page");
+  assert.match(block, /<div class="projects-ideas__heading"><h2 id="projects-ideas-title">Идеи<\/h2><span class="projects-ideas__count">\d+ открыт/, "a plain heading (Neon adds its sign) and a quiet count");
   const hostile = renderIdeasBlock({ available: true, openCount: 1, ideas: [{ ...view.ideas[0]!, summary: "<script>x</script>", context: "<b>", notes: [] }] }, snapshot.projects, "en");
   assert.match(hostile, /<span class="projects-idea__gist">&lt;script&gt;x&lt;\/script&gt;<\/span>/);
   assert.doesNotMatch(hostile, /<script>x|<b>/, "idea text is escaped");

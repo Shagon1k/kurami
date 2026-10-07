@@ -26,12 +26,15 @@ export function renderWeeklyChronicle(chronicle: { days: ChronicleDay[]; names: 
   if (!chronicle?.days.length) return "";
   const date = (day: string) => new Intl.DateTimeFormat(digestLanguage() === "en" ? "en-GB" : "ru-RU", { weekday: "long", day: "numeric", month: "long", timeZone: "UTC" }).format(new Date(day + "T12:00:00Z"));
   const days = chronicle.days.map(day => `<li><h3>${e(date(day.day))}</h3><ul>${day.events.map(event => `<li data-kind="${event.kind}"><strong>${e(chronicle.names[event.project] ?? event.project)}${event.issue ? ` #${event.issue}` : ""}</strong> ${e(t(...WORDS[event.kind]))}${event.title ? ` — ${e(event.title)}` : ""}</li>`).join("")}</ul></li>`).join("");
-  return `<section class="weekly-chronicle"${surfaceAttributes("panel")} aria-labelledby="weekly-chronicle-heading"><h2 id="weekly-chronicle-heading">${t("Летопись проектов", "The week in projects")}</h2><ol>${days}</ol></section>`;
+  return `<section class="weekly-chronicle"${surfaceAttributes("panel")} aria-labelledby="weekly-chronicle-heading"><h2 id="weekly-chronicle-heading">${t("Летопись проектов", "The week in projects")}</h2><ol class="weekly-chronicle__days" tabindex="0" aria-labelledby="weekly-chronicle-heading">${days}</ol></section>`;
 }
 
 export const WEEKLY_CHRONICLE_STYLES = `
 .weekly-chronicle { margin-top: 36px; padding: 24px; border: 1px solid var(--border-default); background: var(--surface-panel); border-radius: var(--radius); }
 .weekly-chronicle h2 { margin: 0 0 16px; }
+/* A busy week scrolls inside the block instead of stretching the page (focusable, so the keyboard scrolls it too). */
+.weekly-chronicle .weekly-chronicle__days { max-height: 26rem; overflow-y: auto; overscroll-behavior: contain; padding-inline-end: 6px; }
+.weekly-chronicle__days:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 4px; }
 .weekly-chronicle ol, .weekly-chronicle ul { display: grid; gap: 10px; margin: 0; padding: 0; list-style: none; }
 .weekly-chronicle h3 { margin: 0 0 6px; color: var(--text-muted); font-size: .8rem; font-weight: 600; }
 .weekly-chronicle h3::first-letter { text-transform: uppercase; }
