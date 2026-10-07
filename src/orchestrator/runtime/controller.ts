@@ -12,6 +12,7 @@ import { planForRequest, type PlannedAction, type RequestRow } from "./request-p
 import { previewExpired } from "./run-predicates.ts";
 import { databasePath, fail, orchestratorHome, projectsPath } from "./controller-context.ts";
 import { ControllerFailureLedger, controllerFailuresPath } from "./controller-failures.ts";
+import { runAutopilot } from "./autopilot.ts";
 import type { OrchestratorConfig, ProjectsRegistry } from "./controller-types.ts";
 import {
   completeRequest,
@@ -297,9 +298,15 @@ export async function runOrchestratorControllerCli(): Promise<void> {
   ledger.forgetStale();
   await ledger.save();
 
+  // Autopilot (off unless enabled per project): asks for the next review step of tasks in Human Review.
+  // Its requests are picked up by the next cycle like the owner's.
+  let autopilot: unknown[] = [];
+  try { autopilot = await runAutopilot(orchestratorHome); }
+  catch (error) { process.stderr.write(`${JSON.stringify({ ts: new Date().toISOString(), level: "warn", ok: false, autopilot: error instanceof Error ? error.message : String(error) })}\n`); }
+
   if (process.env.CONTROLLER_QUIET !== "1") {
     process.stdout.write(
-      `${JSON.stringify({ ok: true, apply: true, activeLlm: llmCount, results })}\n`,
+      `${JSON.stringify({ ok: true, apply: true, activeLlm: llmCount, results, ...(autopilot.length ? { autopilot } : {}) })}\n`,
     );
   }
 }

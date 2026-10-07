@@ -54,6 +54,9 @@ try {
   await assert.rejects(()=>controls.execute("dev-resources-apply",{cores:2,testJobs:3,memoryGiB:0,revision:0}),"test jobs cannot exceed cores");
   await assert.rejects(()=>controls.execute("dev-resources-apply",{cores:"4; rm",testJobs:1,memoryGiB:0,revision:0}),"limits are integers");
   await assert.rejects(()=>controls.execute("dev-resources-apply",{cores:2,testJobs:1,memoryGiB:5,revision:0}),"memory is one of the offered caps");
+  for(const projects of ["pickflick",["pickflick; rm"],["PickFlick"],Array.from({length:21},(_,index)=>`p${index}`)])
+    await assert.rejects(()=>controls.execute("autopilot-apply",{projects,revision:0}),error=>error instanceof HubControlError&&error.code==="invalid_request","autopilot takes a short list of project keys");
+  await assert.rejects(()=>controls.execute("autopilot-apply",{projects:[],next:["x; rm"],revision:0}),error=>error instanceof HubControlError&&error.code==="invalid_request","take-next takes project keys too");
   await assert.rejects(()=>controls.execute("settings-apply",{revision:1,settings:{max_llm_running_global:99}}));
   const settings={version:1,...Object.fromEntries(settingsSchema.fields.map(field=>[field.name,field.max])),project_wip:{pickflick:1}};
   for(const field of settingsSchema.fields){

@@ -1,6 +1,6 @@
 import {escapeHtml} from "../ui-library/foundations/html.ts";
 import {renderButton} from "../ui-library/components/button.ts";
-import {renderSelectField,renderNumberField} from "../ui-library/components/form.ts";
+import {renderSelectField,renderNumberField,renderCheckbox} from "../ui-library/components/form.ts";
 import {renderTable} from "../ui-library/components/table.ts";
 import {renderDisclosure} from "../ui-library/components/disclosure.ts";
 import {renderIcon} from "../ui-library/components/icon.ts";
@@ -19,7 +19,7 @@ export function renderControlView(action:string,result:any,lang:HubLanguage):str
   if(action==="settings"){
     const state=result.settings;const current=state.settings;const locked=!state.idle.idle;
     const schema=state.schema??settingsSchema;
-    return `<form class="control-form" data-hub-submit="settings-apply" data-revision="${state.revision}" data-current="${escapeHtml(JSON.stringify(current))}">${locked?`<p class="control-summary">${tr(lang,"Изменение доступно после завершения активной работы","Changes unlock when active work finishes")}</p>`:""}<div class="control-fields">${schema.fields.map((field:typeof settingsSchema.fields[number])=>renderNumberField({name:field.name,label:field.label[lang],value:current[field.name],min:field.min,max:field.max,disabled:locked})).join("")}${Object.entries(current.project_wip).map(([name,value])=>renderNumberField({name:`project_wip.${name}`,label:`${name} · WIP`,value:Number(value),min:schema.projectWip.min,max:schema.projectWip.max,disabled:locked})).join("")}</div><div class="control-actions">${apply(lang,locked)}${["reset","rollback"].map(operation=>renderButton({label:operation==="reset"?tr(lang,"По умолчанию","Defaults"):tr(lang,"Откатить","Undo"),variant:operation==="reset"?"warning":"secondary",disabled:locked||operation==="rollback"&&state.revision===0,attributes:{"data-hub-control":`settings-${operation}`,"data-revision":state.revision}})).join("")}</div></form>`;
+    return `<form class="control-form" data-hub-submit="settings-apply" data-revision="${state.revision}" data-current="${escapeHtml(JSON.stringify(current))}">${locked?`<p class="control-summary">${tr(lang,"Изменение доступно после завершения активной работы","Changes unlock when active work finishes")}</p>`:""}<div class="control-fields">${schema.fields.map((field:typeof settingsSchema.fields[number])=>renderNumberField({name:field.name,label:field.label[lang],value:current[field.name],min:field.min,max:field.max,disabled:locked})).join("")}${Object.entries(current.project_wip).map(([name,value])=>renderNumberField({name:`project_wip.${name}`,label:`${name} · WIP`,value:Number(value),min:schema.projectWip.min,max:schema.projectWip.max,disabled:locked})).join("")}</div><div class="control-actions">${apply(lang,locked)}${["reset","rollback"].map(operation=>renderButton({label:operation==="reset"?tr(lang,"По умолчанию","Defaults"):tr(lang,"Откатить","Undo"),variant:operation==="reset"?"warning":"secondary",disabled:locked||operation==="rollback"&&state.revision===0,attributes:{"data-hub-control":`settings-${operation}`,"data-revision":state.revision}})).join("")}</div></form>`+autopilotForm(result.autopilot,lang);
   }
   if(action==="server")return `<form class="control-form" data-hub-submit="health-apply" data-revision="${result.health.revision}"><h3>System Health</h3>${renderSelectField({name:"minutes",label:tr(lang,"Интервал · минуты","Interval · minutes"),value:String(result.health.intervalMinutes),options:result.health.allowedIntervals.map((minutes:number)=>({value:String(minutes),label:String(minutes)}))})}<div class="control-actions">${apply(lang)}</div></form>
       ${devResourcesForm(result.devResources,lang)}`;
@@ -37,6 +37,17 @@ function pushSection(lang:HubLanguage):string {
     <p class="control-about">${tr(lang,"Когда задача ждёт тебя, что-то сломалось или вышел дайджест, Kurami пришлёт уведомление. Нажатие открывает нужную карточку.","When a task waits for you, something breaks or the Digest is out, Kurami sends a notification. A tap opens the right card.")}</p>
     <p class="control-summary" data-push-state></p>
     <div class="control-actions">${renderButton({label:tr(lang,"Включить","Turn on"),type:"button",variant:"primary",attributes:{"data-push-toggle":true}})}</div></section>`;
+}
+
+/** Autopilot per project: brings tasks in Human Review to the owner's decision (src/orchestrator/runtime/autopilot.ts). */
+function autopilotForm(state:{revision:number;projects:Record<string,boolean>;next?:Record<string,boolean>;names?:Record<string,string>}|null|undefined,lang:HubLanguage):string {
+  if(!state)return "";
+  const boxes=Object.entries(state.projects).map(([key,on])=>renderCheckbox({name:"autopilot",value:key,label:state.names?.[key]??key,checked:on})).join("");
+  const nextBoxes=Object.keys(state.projects).map(key=>renderCheckbox({name:"autopilot-next",value:key,label:state.names?.[key]??key,checked:state.next?.[key]===true})).join("");
+  return `<form class="control-form" data-hub-submit="autopilot-apply" data-revision="${state.revision}"><h3>${tr(lang,"Автопилот","Autopilot")}${renderInfoButton({id:"hub-autopilot-about",label:tr(lang,"Что делает автопилот","What the autopilot does")})}</h3>
+    ${renderInfoNote({id:"hub-autopilot-about",text:tr(lang,"Для задач в Human Review с PR Kurami сам просит следующий шаг: исправить CI, если он упал (один раз), AI Review нового коммита, один раунд правок по существенным замечаниям. Слияние всегда за тобой. Шаги тратят лимит Codex, как если бы ты нажал кнопки сам.","For tasks in Human Review with a PR, Kurami asks for the next step itself: a CI repair when CI failed (once), AI Review of a new commit, one round of fixes for major findings. Merging always stays with you. The steps spend the Codex limit as if you pressed the buttons yourself.")})}
+    <p class="control-summary">${tr(lang,"Доводить до решения","Bring to a decision")}</p><div class="control-fields">${boxes}</div>
+    <p class="control-summary">${tr(lang,"Брать следующую задачу — по одной: когда в проекте нет задач в работе и на ревью, Kurami сам начинает задачу, которую триаж отметил следующей","Take the next task — one at a time: when the project has nothing in progress or in review, Kurami starts the task triage marked as next")}</p><div class="control-fields">${nextBoxes}</div><div class="control-actions">${apply(lang)}</div></form>`;
 }
 
 /** How much of the server development work (Codex workers, tests, builds) may take; see dev-resources.ts. */
