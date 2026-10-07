@@ -62,6 +62,7 @@ const suites = [
   "test:autopilot",
   "test:hero-mood",
   "test:mail-learning",
+  "test:capture",
   "test:release",
   "test:preview-slots",
   "test:preview-ingress",

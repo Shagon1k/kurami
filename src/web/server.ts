@@ -69,7 +69,7 @@ export function createWebServer(options:Options={}):Server {
     if(request.method==="POST"&&request.headers.origin!==origin.origin){send(403,"Unexpected origin");return;}
     if(route&&"redirect" in route){
       if(!["GET","HEAD"].includes(request.method??"")){send(405,"Method not allowed");return;}
-      const home=resource==="/"||resource==="/index.html";
+      const home=resource==="/"||resource==="/index.html"||resource==="/share";
       const location=home?route.redirect.replace(/^\/en\//,`/${preferredLanguage(request.headers.cookie,request.headers["accept-language"])}/`):route.redirect;
       response.writeHead(302,{Location:location});response.end();return;
     }
@@ -84,7 +84,7 @@ export function createWebServer(options:Options={}):Server {
         // Shortcut names follow the last chosen language (the manifest is fetched with cookies).
         const installed=pwaAppearance(appearance()),language=preferredLanguage(request.headers.cookie,request.headers["accept-language"]);
         response.setHeader("Vary","Cookie, Accept-Language");
-        send(200,JSON.stringify({id:"/",name:"Kurami",short_name:"Kurami",start_url:"/",scope:"/",display:"standalone",background_color:installed.background,theme_color:installed.themeColor,icons:installed.icons,lang:language,shortcuts:PWA_SHORTCUTS.map(shortcut=>({name:shortcut[language][0],short_name:shortcut[language][1],url:`/?open=${shortcut.open}`,icons:installed.icons.slice(0,1)}))}),"application/manifest+json");return;
+        send(200,JSON.stringify({id:"/",name:"Kurami",short_name:"Kurami",start_url:"/",scope:"/",display:"standalone",background_color:installed.background,theme_color:installed.themeColor,icons:installed.icons,lang:language,share_target:{action:"/share",method:"GET",enctype:"application/x-www-form-urlencoded",params:{title:"title",text:"text",url:"url"}},shortcuts:PWA_SHORTCUTS.map(shortcut=>({name:shortcut[language][0],short_name:shortcut[language][1],url:`/?open=${shortcut.open}`,icons:installed.icons.slice(0,1)}))}),"application/manifest+json");return;
       }
       if(icon){
         const body=readFileSync(new URL(`../ui-library/assets/brand/${icon.file}`,import.meta.url));

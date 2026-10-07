@@ -13,6 +13,13 @@ export function renderSelectField(input:{name:string;label:string;value:string;o
   }).join("");
   return `<label class="form-field"><span>${escapeHtml(input.label)}</span><span class="form-select"><select name="${escapeHtml(input.name)}"${attributes}${input.disabled?" disabled":""}>${input.options.map(option=>`<option value="${escapeHtml(option.value)}"${option.value===input.value?" selected":""}>${escapeHtml(option.label)}</option>`).join("")}</select>${renderIcon("chevronDown")}</span></label>`;
 }
+/** A one-line or multi-line text field. Lengths are enforced by the browser and must be checked again on the server. */
+export function renderTextField(input:{name:string;label:string;value?:string;placeholder?:string;required?:boolean;maxLength:number;rows?:number;autofocus?:boolean}):string {
+  if(!Number.isInteger(input.maxLength)||input.maxLength<1)throw new Error("Invalid text field length");
+  const common=` name="${escapeHtml(input.name)}" maxlength="${input.maxLength}"${input.placeholder?` placeholder="${escapeHtml(input.placeholder)}"`:""}${input.required?" required":""}${input.autofocus?" autofocus":""}`;
+  const control=input.rows?`<textarea${common} rows="${input.rows}">${escapeHtml(input.value??"")}</textarea>`:`<input${common} type="text" value="${escapeHtml(input.value??"")}">`;
+  return `<label class="form-field"><span>${escapeHtml(input.label)}</span>${control}</label>`;
+}
 export function renderNumberField(input:{name:string;label:string;value:number;min:number;max:number;disabled?:boolean}):string {
   for(const number of [input.value,input.min,input.max])if(!Number.isFinite(number))throw new Error("Invalid numeric field");
   return `<label class="form-field"><span>${escapeHtml(input.label)}</span><input name="${escapeHtml(input.name)}" type="number" value="${input.value}" min="${input.min}" max="${input.max}" step="1" required${input.disabled?" disabled":""}></label>`;
@@ -24,6 +31,8 @@ ${SELECTION_CONTROL_CSS}
 .form-field { display: grid; grid-template-columns: var(--form-field-columns,minmax(0,1fr)); align-items: var(--form-field-align,start); align-content: start; gap: var(--space-2); min-width: 0; font-size: .8rem; }
 .form-field > span { color: var(--text-muted); }
 .form-field :is(input,select) { width: 100%; min-width: 0; min-height: var(--control-height); padding: var(--space-2) var(--space-3); border: 1px solid var(--border-default); border-radius: var(--radius); color: var(--text-primary); background: var(--surface-raised); font: inherit; transition: border-color var(--duration-fast), background var(--duration-fast); }
+.form-field textarea { width: 100%; min-width: 0; min-height: calc(var(--control-height) * 2); padding: var(--space-2) var(--space-3); border: 1px solid var(--border-default); border-radius: var(--radius); color: var(--text-primary); background: var(--surface-raised); font: inherit; line-height: 1.45; resize: vertical; }
+.form-field textarea:hover:not(:disabled) { border-color: var(--text-muted); }
 .form-field :is(input,select):hover:not(:disabled) { border-color: var(--text-muted); }
 .form-search { position: relative; display: block; }
 .form-search > .ui-icon { position: absolute; inset-inline-start: var(--space-3); top: 50%; transform: translateY(-50%); pointer-events: none; color: var(--text-muted); }

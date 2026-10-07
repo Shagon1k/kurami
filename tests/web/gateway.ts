@@ -70,8 +70,11 @@ try{
   const shortcutManifest=(cookie:string)=>fetch(gateway+"/manifest.webmanifest",{headers:{host:"kurami.shagon1k.win","x-test-identity":"owner",cookie}}).then(response=>response.json()) as Promise<{lang:string;shortcuts:{name:string;url:string}[]}>;
   const ruManifest=await shortcutManifest("kurami-lang=ru");
   assert.equal(ruManifest.lang,"ru");
-  assert.deepEqual(ruManifest.shortcuts.map(shortcut=>[shortcut.name,shortcut.url]),[["Дайджест","/?open=digest"],["Требует внимания","/?open=alerts"],["Задачи","/?open=projects"]]);
+  assert.deepEqual(ruManifest.shortcuts.map(shortcut=>[shortcut.name,shortcut.url]),[["Дайджест","/?open=digest"],["Требует внимания","/?open=alerts"],["Задачи","/?open=projects"],["Записать в бэклог","/?open=capture"]]);
   assert.equal((await shortcutManifest("kurami-lang=en")).shortcuts[1]?.name,"Needs attention");
+  const shareTarget=(await (await get("/manifest.webmanifest")).json() as {share_target:unknown}).share_target;
+  assert.deepEqual(shareTarget,{action:"/share",method:"GET",enctype:"application/x-www-form-urlencoded",params:{title:"title",text:"text",url:"url"}},"Share → Kurami lands on the capture form");
+  assert.equal(await rootUrl("/share?title=Bug","kurami-lang=ru"),"/ru/projects/?capture=1&title=Bug","a share follows the preferred language");
   const home=await get("/en/");assert.equal(home.status,200);const html=await home.text();assert(html.includes('id="kurami-web-context"'));assert(html.includes('href="/_apps/hub/assets/hub.css?'));assert(html.includes('href="/en/docs/"'));assert(home.headers.get("cache-control")?.includes("no-store"));
   const ru=await get("/ru/");assert((await ru.text()).includes('"language":"ru"'));
   const taskPage=await get("/ru/projects/?project=pickflick");assert.equal(taskPage.status,200);assert((await taskPage.text()).includes('"language":"ru"'));

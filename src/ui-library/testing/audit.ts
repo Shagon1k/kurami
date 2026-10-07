@@ -6,7 +6,9 @@ export const AUDIT_EXPRESSION = `(() => {
   const contrastReview = [];
   window.__kuramiContrastReview = contrastReview;
   document.querySelectorAll('[data-contrast-review]').forEach(element => element.removeAttribute('data-contrast-review'));
-  const visible = element => { for (let parent = element.parentElement; parent; parent = parent.parentElement) if (parent.matches('details:not([open])') && !parent.querySelector(':scope > summary')?.contains(element)) return false; const style = getComputedStyle(element), box = element.getBoundingClientRect(); return style.display !== 'none' && style.visibility !== 'hidden' && box.width > 0 && box.height > 0; };
+  // An open modal makes the rest of the page inert and dims it: only the dialog is audited then.
+  const modal = document.querySelector('dialog:modal');
+  const visible = element => { if (modal && !modal.contains(element)) return false; for (let parent = element.parentElement; parent; parent = parent.parentElement) if (parent.matches('details:not([open])') && !parent.querySelector(':scope > summary')?.contains(element)) return false; const style = getComputedStyle(element), box = element.getBoundingClientRect(); return style.display !== 'none' && style.visibility !== 'hidden' && box.width > 0 && box.height > 0; };
   if (document.documentElement.scrollWidth > document.documentElement.clientWidth + 1) issues.push('Horizontal page overflow');
   for (const image of document.images) if (!image.hasAttribute('alt')) issues.push('Image without alt');
   for (const control of document.querySelectorAll('a[href], button, summary')) if (visible(control) && !(control.getAttribute('aria-label')?.trim() || control.textContent?.trim())) issues.push('Unnamed ' + control.tagName.toLowerCase());

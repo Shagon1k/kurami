@@ -12,7 +12,8 @@ import {kuramiSites} from "../ui-library/patterns/kurami-sites.ts";
 import {renderThemeSwitch} from "../ui-library/components/theme-switch.ts";
 import {renderButton,renderLinkButton,type ButtonVariant} from "../ui-library/components/button.ts";
 import {renderTable} from "../ui-library/components/table.ts";
-import {renderSearchField,renderSelectField} from "../ui-library/components/form.ts";
+import {renderSearchField,renderSelectField,renderTextField} from "../ui-library/components/form.ts";
+import {renderDialog,renderDialogActions} from "../ui-library/components/dialog.ts";
 import {renderCallout} from "../ui-library/components/callout.ts";
 import {renderIcon,iconPath,type IconName} from "../ui-library/components/icon.ts";
 import {renderPopover} from "../ui-library/components/popover.ts";
@@ -204,6 +205,24 @@ function statusForm(item:ProjectItem,lang:Language,project:ProjectSummary):strin
   const tone=item.taskStart?.state==="blocked"?"warning":presentation?.tone??noteTone(request?.state??control.reason);
   return `<form class="projects-status-form" method="post" action="/api/status" data-status-form data-project="${escape(item.project)}" data-item="${escape(item.id)}" data-from="${escape(JSON.stringify(from))}" data-observed-at="${escape(item.observedAt)}" data-key="${pending&&request?escape(request.key):randomUUID()}" data-check="${pending}" data-target="${escape(selected)}" data-hints="${escape(JSON.stringify(Object.fromEntries(control.choices.map(choice=>[choice.value,sourceText(choice.hint,lang)]))))}"><div class="projects-status-controls">${renderSelectField({name:"target",label:t("Status"),value:selected,options:choices,disabled:!control.enabled})}${renderButton({label:t(pending?"Check result":"Save"),iconPath:iconPath(pending?"refresh":"check"),visibleLabel:true,variant:pending?"subtle":"info",type:"submit",disabled:pending?!request?.checkAvailable:true,busyLabel:"…",attributes:{"data-status-submit":true}})}</div><p class="projects-status-note" data-status-note data-note-tone="${tone}" data-default-note="${escape(note)}"${control.enabled&&!request&&!item.taskStart?" hidden":""}>${escape(note)}</p></form>`;
 }
+/** The backlog capture form. `?capture=1` (from a shortcut, Share → Kurami or "Add to backlog") opens it
+ * prefilled: a shared title and text, the Kurami page it was sent from. Submits to /api/capture. */
+export function renderCaptureDialog(snapshot:ProjectsSnapshot,params:URLSearchParams):string {
+  const lang=language(params),t=(key:string)=>tr(key,lang),open=params.get("capture")==="1";
+  const shared=[params.get("text"),params.get("url")].filter(Boolean).join("\n").slice(0,1000);
+  const source=params.get("source")??"";
+  const projects=[...snapshot.projects.map(project=>({value:project.key,label:project.name})),{value:"kurami",label:"Kurami"}];
+  const selected=params.get("project")&&projects.some(project=>project.value===params.get("project"))?params.get("project")!:source?"kurami":projects[0]!.value;
+  const body=`<form class="projects-capture" data-capture-form data-key="${randomUUID()}" data-source="${escape(source)}" data-shared="${escape(shared)}">
+    ${renderSelectField({name:"project",label:t("Project"),value:selected,options:projects})}
+    ${renderTextField({name:"title",label:t("Title"),value:(params.get("title")??"").slice(0,200),placeholder:t("What happened or what should change"),required:true,maxLength:200,autofocus:true})}
+    ${renderTextField({name:"note",label:t("Details"),placeholder:t("Steps, expectations, anything that helps later"),maxLength:4000,rows:4})}
+    ${shared?`<p class="projects-capture__context"><span>${t("Shared text")}</span>${escape(shared)}</p>`:""}
+    ${source?`<p class="projects-capture__context"><span>${t("From page")}</span>${escape(source)}</p>`:""}
+    ${renderDialogActions(renderButton({label:t("Cancel"),variant:"subtle",type:"button",attributes:{"data-dialog-close":true}})+renderButton({label:t("Create issue"),variant:"primary",type:"submit",busyLabel:"…",attributes:{"data-haptic":"confirm"}}))}</form>`;
+  return renderDialog({id:"projects-capture",title:t("Add to backlog"),body,closeLabel:t("Cancel")}).replace("<dialog ",`<dialog${open?" data-open-on-load":""} `);
+}
+
 export function renderProjectsPage(snapshot:ProjectsSnapshot,params=new URLSearchParams()):string {
   const lang=language(params),t=(key:string)=>tr(key,lang),filters=parseFilters(params);
   const projectLink=(key:string)=>{const next=new URLSearchParams(params);next.delete("item");next.delete("view");next.delete("status");if(key)next.set("project",key);else next.delete("project");return "/"+(next.size?`?${next}`:"");};
@@ -213,5 +232,5 @@ export function renderProjectsPage(snapshot:ProjectsSnapshot,params=new URLSearc
     header:renderSiteHeader({mobile:{app:"projects",lang},brand:{href:projectLink(""),ariaLabel:"Kurami Projects",foxSrc:"/assets/kurami-fox.webp",suffix:"Projects"},
       nav:{label:t("Projects"),scroll:true,attributes:{"data-project-tabs":true},links:[{href:projectLink(""),label:t("All projects"),mobileIcon:"projects",current:!filters.project?"page":undefined},...snapshot.projects.map(project=>({href:projectLink(project.key),label:project.name,mobileIcon:(project.icon??"project") as IconName,current:filters.project===project.key?"page" as const:undefined}))]},sites:kuramiSites("projects",lang),
       actions:renderLinkButton({label:lang==="en"?"RU":"EN",href:`/?${otherLanguage}`,variant:"icon",ariaLabel:lang==="en"?"Switch to Russian":"Переключить на английский",attributes:{"data-language-link":true,hreflang:lang==="en"?"ru":"en"}})+renderThemeSwitch(lang)}),
-    main:`<div data-projects-app data-messages="${escape(JSON.stringify(browserMessages(lang)))}" data-status-messages="${escape(JSON.stringify(browserStatusPresentation(lang)))}"><h1 class="sr-only">${t("Tasks")}</h1><div class="projects-toolbar"><form class="projects-search" role="search" method="get">${renderSearchField({name:"q",label:t("Search tasks"),labelHidden:true,icon:true,value:params.get("q")??"",placeholder:t("Search by title or issue number")})}<input type="hidden" name="lang" value="${lang}"><input type="hidden" name="active" value="${filters.activeOnly?"1":""}"><input type="hidden" name="attention" value="${filters.attentionOnly?"1":""}">${filters.project?`<input type="hidden" name="project" value="${escape(filters.project)}">`:""}</form></div><div id="projects-dashboard"${LIVE_ATTRIBUTE}>${renderProjectsDashboard(snapshot,params)}</div>${renderToastRegion(t("Dismiss notification"))}</div>`,mainClass:"projects-page",footer:renderSiteFooter({lang,app:"Projects",updated:localTime(snapshot.generatedAt,lang)})});
+    main:`<div data-projects-app data-messages="${escape(JSON.stringify(browserMessages(lang)))}" data-status-messages="${escape(JSON.stringify(browserStatusPresentation(lang)))}"><h1 class="sr-only">${t("Tasks")}</h1><div class="projects-toolbar">${renderButton({label:t("Capture"),iconPath:iconPath("plus"),visibleLabel:true,variant:"secondary",type:"button",attributes:{"data-capture-open":true}})}<form class="projects-search" role="search" method="get">${renderSearchField({name:"q",label:t("Search tasks"),labelHidden:true,icon:true,value:params.get("q")??"",placeholder:t("Search by title or issue number")})}<input type="hidden" name="lang" value="${lang}"><input type="hidden" name="active" value="${filters.activeOnly?"1":""}"><input type="hidden" name="attention" value="${filters.attentionOnly?"1":""}">${filters.project?`<input type="hidden" name="project" value="${escape(filters.project)}">`:""}</form></div><div id="projects-dashboard"${LIVE_ATTRIBUTE}>${renderProjectsDashboard(snapshot,params)}</div>${renderCaptureDialog(snapshot,params)}${renderToastRegion(t("Dismiss notification"))}</div>`,mainClass:"projects-page",footer:renderSiteFooter({lang,app:"Projects",updated:localTime(snapshot.generatedAt,lang)})});
 }

@@ -532,6 +532,32 @@
   });
   setInterval(() => { if (!busy() && !document.hidden && !getSelection()?.toString() && !dashboard.querySelector(':popover-open')) refresh(); }, 30000);
   document.addEventListener('visibilitychange', () => { if (!busy() && !document.hidden && !getSelection()?.toString() && !dashboard.querySelector(':popover-open')) refresh(); });
+  // Backlog capture: open from the toolbar or prefilled from a share/shortcut; create the issue on submit.
+  const capture=document.getElementById('projects-capture'),captureForm=capture?.querySelector('[data-capture-form]');
+  function closeCapture(){capture.close();if(new URL(location.href).searchParams.get('capture')){const url=new URL(location.href);for(const key of ['capture','title','text','url','source'])url.searchParams.delete(key);history.replaceState(history.state,'',url);}}
+  if(capture&&captureForm){
+    document.addEventListener('click',event=>{
+      if(event.target.closest?.('[data-capture-open]')){capture.showModal();captureForm.elements.title.focus();}
+      else if(capture.contains(event.target)&&event.target.closest?.('[data-dialog-close]'))closeCapture();
+    });
+    captureForm.addEventListener('submit',async event=>{
+      event.preventDefault();
+      const button=captureForm.querySelector('[type=submit]');if(button.getAttribute('aria-busy')==='true')return;
+      button.setAttribute('aria-busy','true');button.disabled=true;
+      try{
+        const response=await fetch(kuramiAppUrl('/api/capture'),{method:'POST',headers:{'content-type':'application/json'},cache:'no-store',signal:AbortSignal.timeout(30000),
+          body:JSON.stringify({key:captureForm.dataset.key,project:captureForm.elements.project.value,title:captureForm.elements.title.value,note:captureForm.elements.note.value,shared:captureForm.dataset.shared,source:captureForm.dataset.source})});
+        const result=await response.json().catch(()=>({}));
+        if(!response.ok)throw new Error(result.error||t('GitHub is unavailable right now. The text stays in the form; try again.'));
+        toast.show(`${t('Created')}: #${result.number} · ${t(result.onBoard?'on the board in Backlog':'as an issue')}`,{tone:'success'});
+        captureForm.reset();captureForm.dataset.key=crypto.randomUUID();captureForm.dataset.shared='';captureForm.dataset.source='';
+        for(const context of captureForm.querySelectorAll('.projects-capture__context'))context.remove();
+        closeCapture();
+      }catch(error){toast.show(error.message,{tone:'failure'});}
+      finally{button.removeAttribute('aria-busy');button.disabled=false;}
+    });
+    if(capture.hasAttribute('data-open-on-load'))capture.showModal();
+  }
   filter();updateLayout();updateProjectTabs(new URL(location.href));loadPrControl();
   if(mobile.matches&&dashboard.querySelector('#project-details'))dashboard.querySelector('#project-details').focus({preventScroll:true});
 })();

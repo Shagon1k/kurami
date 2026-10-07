@@ -9,11 +9,12 @@ export type WebRoute={app:WebApp;language:WebLanguage;upstream:string}|{redirect
 const oldHosts:Record<string,WebApp>={"hub.shagon1k.win":"hub","digest.shagon1k.win":"digest","projects.shagon1k.win":"projects","docs.shagon1k.win":"docs"};
 
 /** Where each PWA shortcut (long press on the app icon) leads, below the language prefix. */
-export const SHORTCUT_TARGETS:Record<string,string>={digest:"digest/",alerts:"#alerts-title",projects:"projects/"};
+export const SHORTCUT_TARGETS:Record<string,string>={digest:"digest/",alerts:"#alerts-title",projects:"projects/",capture:"projects/?capture=1"};
 export const PWA_SHORTCUTS=[
   {open:"digest",ru:["Дайджест","Дайджест"],en:["Digest","Digest"]},
   {open:"alerts",ru:["Требует внимания","Внимание"],en:["Needs attention","Alerts"]},
   {open:"projects",ru:["Задачи","Задачи"],en:["Tasks","Tasks"]},
+  {open:"capture",ru:["Записать в бэклог","Записать"],en:["Add to backlog","Capture"]},
 ] as const;
 
 /** Namespace infrastructure separately from translated document routes. */
@@ -40,6 +41,12 @@ export function resolveWebRoute(raw:string):WebRoute {
     // Home-screen shortcuts open `/?open=…`; the gateway swaps /en/ for the preferred language.
     const shortcut=Object.hasOwn(SHORTCUT_TARGETS,url.searchParams.get("open")??"")?SHORTCUT_TARGETS[url.searchParams.get("open")!]:undefined;
     return {redirect:shortcut?`/en/${shortcut}`:"/en/"+url.search};
+  }
+  // Android's Share → Kurami (manifest share_target): the shared title, text and link prefill the capture form.
+  if(path==="/share"){
+    const shared=new URLSearchParams({capture:"1"});
+    for(const key of ["title","text","url"]){const value=url.searchParams.get(key)?.slice(0,1000);if(value)shared.set(key,value);}
+    return {redirect:`/en/projects/?${shared}`};
   }
   if(/^\/(en|ru)$/.test(path))return {redirect:path+"/"+url.search};
   const infrastructure=path.match(/^\/_apps\/(hub|digest|projects|docs)(\/.*)$/);
