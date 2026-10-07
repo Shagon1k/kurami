@@ -71,6 +71,7 @@
     "test:brand-moments": "node tests/ui-library/verify-brand-moments.ts",
     "test:offline-news": "node tests/briefing/verify-offline-news.ts",
     "test:autopilot": "node tests/verify-autopilot.ts",
+    "test:hero-mood": "node tests/briefing/verify-hero-mood.ts",
     "test:release": "node tests/verify-completed-release.ts",
     "test:preview-slots": "node tests/verify-preview-slots.ts",
     "test:preview-ingress": "node tests/verify-preview-ingress.ts",
