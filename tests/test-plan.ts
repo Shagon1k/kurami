@@ -72,6 +72,32 @@ export function changedFiles(base="origin/main"):string[]{
   return [...new Set([...git("diff","--name-only",mergeBase),...git("ls-files","--others","--exclude-standard")])].sort();
 }
 
+/** Registering suites is not a change to every suite: a package.json that differs only in test:* scripts,
+ * and a runner that differs only by new lines in its suite list, are taken out of the global triggers;
+ * the suites they register are returned so the run includes them. Anything else stays global. */
+export function registeredSuites(changed:readonly string[],base="origin/main",repository=root):{changed:string[];added:string[]}{
+  const git=(...args:string[])=>execFileSync("git",args,{cwd:repository,encoding:"utf8"});
+  let mergeBase:string;
+  try{mergeBase=git("merge-base",base,"HEAD").trim();}catch{return {changed:[...changed],added:[]};}
+  let rest=[...changed];const added:string[]=[];
+  if(changed.includes("package.json")){
+    try{
+      const before=JSON.parse(git("show",`${mergeBase}:package.json`)) as {scripts?:Record<string,string>},after=JSON.parse(readFileSync(resolve(repository,"package.json"),"utf8")) as {scripts?:Record<string,string>};
+      const {scripts:oldScripts={},...oldRest}=before,{scripts:newScripts={},...newRest}=after;
+      const differing=[...new Set([...Object.keys(oldScripts),...Object.keys(newScripts)])].filter(key=>oldScripts[key]!==newScripts[key]);
+      if(JSON.stringify(oldRest)===JSON.stringify(newRest)&&differing.every(key=>/^test:[a-z0-9:-]+$/.test(key)&&key in newScripts)){
+        rest=rest.filter(file=>file!=="package.json");added.push(...differing);
+      }
+    }catch{}
+  }
+  if(changed.includes("tests/run-regression.ts")){
+    const lines=git("diff","--unified=0",mergeBase,"--","tests/run-regression.ts").split("\n").filter(line=>/^[+-](?![+-])/.test(line));
+    const entries=lines.map(line=>/^\+\s*"(test:[a-z0-9:-]+)",\s*$/.exec(line)?.[1]);
+    if(lines.length&&entries.every(Boolean)){rest=rest.filter(file=>file!=="tests/run-regression.ts");added.push(...entries as string[]);}
+  }
+  return {changed:rest,added:[...new Set(added)]};
+}
+
 export function planSuites(suites:readonly string[],changed:readonly string[]):{suites:string[];reasons:Record<string,string>;everything:boolean}{
   const trigger=changed.find(file=>everything.some(pattern=>pattern.test(file)));
   if(trigger)return {suites:[...suites],reasons:Object.fromEntries(suites.map(suite=>[suite,trigger])),everything:true};
