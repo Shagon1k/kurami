@@ -73,10 +73,16 @@ export function renderMailSection(payload: BriefingPayload): string {
     attributes: { "data-mail-archive": true },
   });
   const sectionNote = payload.notes?.find((note) => note.target === "mail");
+  // Filled by the client from /api/mail/suggestion when a sender keeps being archived (mail-learning.ts).
+  const suggestion = `<div class="mail-suggestion" data-mail-suggestion hidden><p data-mail-suggestion-text></p><div class="mail-suggestion__actions">${
+    renderButton({ label: digestText("Показывать как обычные","Show as general"), variant: "secondary", size: "compact", type: "button", attributes: { "data-mail-rule": "GENERAL" } })}${
+    renderButton({ label: digestText("Это важное","It is important"), variant: "subtle", size: "compact", type: "button", attributes: { "data-mail-rule": "IMPORTANT" } })}${
+    renderButton({ label: digestText("Не надо","No rule"), variant: "quiet", size: "compact", type: "button", attributes: { "data-mail-rule": "none" } })}</div></div>`;
   return `<section class="briefing-panel briefing-panel--mail"${surfaceAttributes("panel")} aria-labelledby="mail-heading" data-mail-section data-edition-id="${escapeHtml(payload.edition.id)}">
     ${renderKuramiNote(sectionNote, "briefing-panel__note")}
     <header class="briefing-panel__header"><div><p class="section-kicker">Primary · unread</p><h2 id="mail-heading">${digestText("Почта","Mail")}</h2></div><span>${items.length} ${digestText("новых","new")}${actionCount ? ` · ${actionCount} action` : ""}${demoCount ? ` · ${demoCount} demo` : ""}</span></header>
     <div class="mail-list briefing-panel__scroll"${items.length > 4 ? ` data-overflow="true" role="region" tabindex="0" aria-label="${digestText("Все непрочитанные письма","All unread mail")}"` : ""}>${rows}</div>
+    ${suggestion}
     ${items.length ? `<footer class="mail-actions">${selectAll}<span data-mail-selection>${actionableCount ? digestText("0 выбрано","0 selected") : digestText("Нет доступных Gmail-писем","No actionable Gmail messages")}</span>${archiveButton}<span class="mail-actions__status" data-mail-status role="status" aria-live="polite">${actionableCount ? "" : digestText("Демо-письма не изменяют Gmail.","Demo mail does not change Gmail.")}</span></footer>` : ""}
   </section>`;
 }

@@ -39,6 +39,8 @@ export type LiveApplyContext = {
   enabled?: AddonSwitches;
   initial?: boolean;
   classifications?: Record<string, MailClass>;
+  /** Owner rules by sender address (mail-learning.ts). */
+  senderRules?: Record<string, MailClass>;
   calendarItems?: NormalizedCalendarEvent[] | null;
 };
 export type LiveAddon = {

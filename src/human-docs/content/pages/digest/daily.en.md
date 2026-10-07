@@ -24,7 +24,7 @@ The top header scrolls with the page; desktop keeps its header navigation.
 | Figures | Mail, stories, local time, weather | mail and weather live, the clock ticks in the browser |
 | "На заметку" (worth noting) | Up to three short hints ([Signals](@signals)) | live |
 | "Расписание" (schedule) | The day's events from three calendars, meeting conflicts | live |
-| "Почта" (mail) | Unread Primary mail with classes ACTION, IMPORTANT, GENERAL | live |
+| "Почта" (mail) | Unread Primary mail with classes ACTION, IMPORTANT, GENERAL. Kurami learns from archiving: once one sender's mail has been archived four times, the block asks how to show it — as general, as important, or decided per message. An accepted rule applies from the next mail refresh; only the sender's address is stored | live |
 | "Новости" (news) | Stories, 10 per page, with images and topics | frozen |
 | Teasers | Stocks, cinema, week — when the add-on is on | frozen at publication ([add-ons](@addons)) |
 | Quality strip | "Источники обновлены" (sources updated) or "Есть оговорки по данным" (data caveats) | recomputed on refresh |

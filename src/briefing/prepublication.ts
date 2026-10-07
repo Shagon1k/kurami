@@ -12,6 +12,7 @@ import { renderBriefingPage } from "./ui/render-page.ts";
 import {attachWeeklyReview} from "./weekly/lifecycle.ts";
 import {isSunday} from "./weekly/model.ts";
 import {attachStocksBrief} from "./stocks/lifecycle.ts";
+import {loadSenderRules} from "./mail-learning.ts";
 
 export async function refreshBeforePublication(editionId:string, attemptId:string, environment:NodeJS.ProcessEnv=process.env,
   collect:typeof collectDynamicBriefingSnapshot=collectDynamicBriefingSnapshot, now=()=>new Date()) {
@@ -44,7 +45,7 @@ export async function refreshBeforePublication(editionId:string, attemptId:strin
     localDate:payload.edition.localDate,timeZone:config.timeZone,weatherLocation:config.weatherLocation,
     retry:{attempts:2,timeoutMs:12_000,initialDelayMs:300,maximumDelayMs:1000},
     });
-    applyLiveAddons(payload,snapshot,{refreshedAt:now().toISOString(),enabled});
+    applyLiveAddons(payload,snapshot,{refreshedAt:now().toISOString(),enabled,senderRules:loadSenderRules(paths.databasePath)});
   }
   const refreshedAt=now().toISOString();
   refreshDerivedAddons(payload,{at:refreshedAt,settings:{signals:config.signals,weekly:config.weekly}});

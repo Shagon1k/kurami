@@ -74,6 +74,8 @@ export { removeArchivedMailFromRetainedEditions } from "./addons/mail/actions.ts
 import { removeArchivedMailFromRetainedEditions } from "./addons/mail/actions.ts";
 export { MAIL_AUTOMATION_MAX_ATTEMPTS, mailAutomationFailureKind, assertComposioMailActionSucceeded, type MailActionExecutor, type MailAutomationFailureKind } from "./addons/mail/executor.ts";
 import { composioMailActionExecutor, type MailActionExecutor } from "./addons/mail/executor.ts";
+import { decideRule, recordArchived, ruleSuggestion } from "./mail-learning.ts";
+import type { MailClass } from "./model.ts";
 
 const CSP = [
   "default-src 'self'",
@@ -93,6 +95,35 @@ const CLIENT_SCRIPT = WEB_CLIENT_JS+`(() => {
   const english = document.documentElement.lang === 'en';
   const tr = (ru, en) => english ? en : ru;
   const locale = english ? 'en-GB' : 'ru-RU';
+  // Mail learning: one rule proposal at a time for a sender that keeps being archived (mail-learning.ts).
+  const mailSuggestion = document.querySelector('[data-mail-suggestion]');
+  if (mailSuggestion) {
+    fetch(kuramiAppUrl('/api/mail/suggestion'), { cache: 'no-store' }).then(response => response.ok ? response.json() : null).then(result => {
+      const suggestion = result?.suggestion;
+      if (!suggestion) return;
+      mailSuggestion.querySelector('[data-mail-suggestion-text]').textContent = tr(
+        'Письма от ' + suggestion.sender + ' ты архивировал ' + suggestion.archived + ' раз. Как их показывать дальше?',
+        'You archived mail from ' + suggestion.sender + ' ' + suggestion.archived + ' times. How should it be shown from now on?');
+      mailSuggestion.dataset.sender = suggestion.sender;
+      mailSuggestion.hidden = false;
+    }).catch(() => {});
+    mailSuggestion.addEventListener('click', async event => {
+      const button = event.target instanceof Element ? event.target.closest('[data-mail-rule]') : null;
+      if (!button) return;
+      const choice = button.getAttribute('data-mail-rule');
+      mailSuggestion.querySelectorAll('[data-mail-rule]').forEach(control => { control.disabled = true; });
+      try {
+        await request('/api/mail/rule', { sender: mailSuggestion.dataset.sender, class: choice === 'none' ? null : choice });
+        mailSuggestion.querySelector('[data-mail-suggestion-text]').textContent = choice === 'none'
+          ? tr('Хорошо, решаешь по каждому письму.', 'Fine, you decide per message.')
+          : tr('Готово: правило действует со следующего обновления почты.', 'Done: the rule applies from the next mail refresh.');
+        mailSuggestion.querySelector('.mail-suggestion__actions')?.remove();
+      } catch {
+        mailSuggestion.querySelectorAll('[data-mail-rule]').forEach(control => { control.disabled = false; });
+      }
+    });
+  }
+
   const request = async (path, body) => {
     const response = await fetch(kuramiAppUrl(path), {
       method: 'POST',
@@ -923,6 +954,17 @@ export async function createBriefingServer(
         json(response, 200, { ok: true, reaction: input.reaction });
         return;
       }
+      if (request.method === "GET" && url.pathname === "/api/mail/suggestion") {
+        json(response, 200, { ok: true, suggestion: ruleSuggestion(database) });
+        return;
+      }
+      if (request.method === "POST" && url.pathname === "/api/mail/rule") {
+        const input = await body(request);
+        const mailClass = input.class === null ? null : ["ACTION", "IMPORTANT", "GENERAL"].includes(String(input.class)) ? input.class as MailClass : undefined;
+        if (mailClass === undefined) throw new Error("Invalid mail class");
+        json(response, 200, { ok: true, sender: decideRule(database, input.sender, mailClass), class: mailClass });
+        return;
+      }
       if (request.method === "POST" && url.pathname === "/api/mail/read-and-archive") {
         if (!mailActionExecutor) throw new Error("Gmail automation is not configured");
         const input = await body(request);
@@ -957,6 +999,13 @@ export async function createBriefingServer(
             messageIds: action.providerMessageIds,
           });
           finishMailReadAndArchive(database, action, { ok: true, receipt: executed.receipt });
+          // Learning: each archived sender counts towards a rule proposal (mail-learning.ts).
+          try {
+            const archivedIds = new Set(action.itemIds);
+            const edition = loadEdition(database, { id: editionId });
+            const archived = edition ? section(parseBriefingPayload(JSON.parse(edition.payload_json)), "mail").items.filter(item => archivedIds.has(item.id)).map(item => item.sender) : [];
+            recordArchived(database, archived);
+          } catch {}
           let refreshedEditions: string[] = [];
           let refreshWarning: string | undefined;
           try {
