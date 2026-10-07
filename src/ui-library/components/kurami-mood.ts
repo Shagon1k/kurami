@@ -112,8 +112,8 @@ html[data-kurami-mascot="off"] .kurami-state { padding-block: var(--space-4); }
 .kurami-state__copy { display: grid; gap: var(--space-2); max-width: 36ch; }
 .kurami-state__copy :is(h1, h2, h3) { margin: 0; }
 .kurami-state__copy p { margin: 0; color: var(--text-muted); }
-.kurami-pull { position: fixed; inset: 0 0 auto; z-index: 90; display: grid; justify-items: center; gap: 4px; pointer-events: none;
-  transform: translateY(calc(var(--pull, 0px) - 100%)); transition: transform .12s ease-out; padding-top: env(safe-area-inset-top, 0px); }
+.kurami-pull { --pull: 0px; position: fixed; inset: 0 0 auto; z-index: 90; display: grid; justify-items: center; gap: 4px; pointer-events: none;
+  transform: translateY(calc(var(--pull) - 100%)); transition: transform .12s ease-out; padding-top: env(safe-area-inset-top, 0px); }
 .kurami-pull img { width: 96px; height: 96px; }
 .kurami-pull span { padding: 2px 10px; border-radius: 999px; background: var(--surface-raised); color: var(--text-muted); font-size: .75rem; box-shadow: var(--shadow-card-sm, none); }
 .kurami-pull.is-ready span { color: var(--text-primary); }

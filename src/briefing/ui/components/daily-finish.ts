@@ -47,9 +47,8 @@ export const DAILY_FINISH_STYLES = `
 .daily-finish__copy { position: relative; display: grid; gap: 6px; }
 .daily-finish__copy h2 { margin: 0; font-size: clamp(1.5rem, 3vw, 2rem); }
 .daily-finish__copy p { margin: 0; color: var(--text-muted); }
-.daily-finish__stamp { position: absolute; inset: -34px auto auto 55%; color: var(--accent-primary) !important; font: 600 28px/1 var(--font-note); rotate: -8deg; pointer-events: none; }
+.daily-finish__stamp { position: absolute; inset: -34px auto auto 55%; color: var(--accent-primary) !important; font: 600 28px/1 var(--font-note); rotate: -8deg; text-shadow: var(--display-glow); pointer-events: none; }
 .daily-finish.is-read .daily-finish__stamp { animation: daily-stamp .5s cubic-bezier(.2,.9,.3,1.4); }
 @keyframes daily-stamp { from { scale: 1.8; opacity: 0; } to { scale: 1; opacity: 1; } }
-html[data-kurami-theme="neon"] .daily-finish__stamp { font: 700 22px/1 var(--font-display); letter-spacing: .12em; text-transform: uppercase; rotate: 0deg; text-shadow: 0 0 6px currentColor, 0 0 16px currentColor; }
 @media (prefers-reduced-motion: reduce) { .daily-finish.is-read .daily-finish__stamp { animation: none; } }
 `;

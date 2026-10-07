@@ -12,9 +12,9 @@ import {KURAMI_MOOD_CSS} from "../ui-library/components/kurami-mood.ts";
 
 // Docs layout only: side menu by depth, article column, right-hand contents, and the docs blocks
 // (glance, steps, compare, cards, terms, guarantees, code map, figures, screenshots). Roles only.
-export const DOCS_STYLES = `${KURAMI_MOOD_CSS}
+export const DOCS_STYLES = `${THEME_CSS}${FOUNDATION_CSS}${BUTTON_CSS}
+${KURAMI_MOOD_CSS}
 .intro--kurami { display: flex; align-items: center; justify-content: space-between; gap: var(--space-5); }
-${THEME_CSS}${FOUNDATION_CSS}${BUTTON_CSS}
 ${THEME_SWITCH_CSS}
 ${ICON_CSS}
 ${SITE_HEADER_CSS}
