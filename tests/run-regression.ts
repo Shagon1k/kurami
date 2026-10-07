@@ -6,7 +6,7 @@ import { spawn, spawnSync } from "node:child_process";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { readDevResources } from "../src/system/dev-resources/dev-resources.ts";
-import { changedFiles, planSuites } from "./test-plan.ts";
+import { changedFiles, planSuites, registeredSuites } from "./test-plan.ts";
 
 const root = resolve(import.meta.dirname, "..");
 if (process.env.KURAMI_DEV_SLICE !== "1") {
@@ -46,6 +46,7 @@ const suites = [
   "test:admission",
   "test:provision",
   "test:sqlite-locks",
+  "test:test-plan",
   "test:release",
   "test:preview-slots",
   "test:preview-ingress",
@@ -140,10 +141,13 @@ const suiteEnv: Record<string, NodeJS.ProcessEnv> = {};
 let selected: string[];
 if (only) selected = only;
 else if (changedMode) {
-  const changed = changedFiles();
+  // Registering a suite (a test:* script, a line in the list below) does not rerun every suite.
+  const registration = registeredSuites(changedFiles());
+  const changed = registration.changed;
   // A change that touches the browser check runs its quick variant (the touched apps' pages when the change
   // stays inside products); the full audit and the library-wide checks are for releases.
   const plan = planSuites([...first.slice(1), ...suites, "test:hub-browser", "test:web-browser", "test:mobile-navigation", "test:ui-browser"], changed);
+  for (const suite of registration.added) if (!plan.suites.includes(suite) && (suites as readonly string[]).includes(suite)) { plan.suites.push(suite); plan.reasons[suite] = "newly registered"; }
   selected = plan.suites.map(suite => suite === "test:ui-browser" ? "test:ui-browser:quick" : suite);
   const pages = quickPages(changed);
   if (pages && selected.includes("test:ui-browser:quick")) {
