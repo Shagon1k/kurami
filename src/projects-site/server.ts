@@ -129,7 +129,7 @@ export function createProjectsServer(options: {
         try { input = JSON.parse(body); } catch { throw new ProjectsActionError(400, "Некорректный запрос."); }
         if(ideasRoute&&ideas) {
           const result=await ideas(input,identity);cached=null;
-          send((result as {state:string}).state==="captured"?201:200,"application/json; charset=utf-8",JSON.stringify(result));
+          send(200,"application/json; charset=utf-8",JSON.stringify(result));
         } else if(captureRoute&&capture) {
           send(201,"application/json; charset=utf-8",JSON.stringify(await capture(input,identity)));
         } else if(prRoute&&prAction) {

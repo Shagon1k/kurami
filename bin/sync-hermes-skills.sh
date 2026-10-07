@@ -23,11 +23,19 @@ readonly hermes_home="${HERMES_HOME:-/home/shagon1k/_hermes/_core}"
 readonly target_root="${hermes_home}/skills"
 readonly -a skills=(
   kurami-daily-briefing
-  kurami-ideas
   kurami-investment-review
   kurami-project-readiness
   kurami-run-control
   kurami-ui-preview-language
+)
+# Skills every agent needs, not only Hermes: Claude Code and Codex sessions get them too (the same
+# file), so an idea told to any of them lands in the same pool. A missing agent home is skipped.
+readonly -a shared_skills=(
+  kurami-ideas
+)
+readonly -a agent_roots=(
+  "${CLAUDE_CONFIG_DIR:-${HOME}/.claude}/skills"
+  "${CODEX_HOME:-${HOME}/.codex}/skills"
 )
 
 if [[ ! -d "${source_root}" ]]; then
@@ -62,30 +70,41 @@ validate_source() {
 }
 
 drift=0
-for skill in "${skills[@]}"; do
+sync_skill() {
+  local skill="$1" root="$2"
+  local source="${source_root}/${skill}/" target="${root}/${skill}/" changes remaining
   validate_source "${skill}"
-  source="${source_root}/${skill}/"
-  target="${target_root}/${skill}/"
-
   if [[ "${mode}" == "--check" ]]; then
     changes="$(rsync --archive --checksum --delete --exclude='*.pre-*' --dry-run --itemize-changes -- "${source}" "${target}")"
     if [[ -n "${changes}" ]]; then
-      printf '%s: drift\n%s\n' "${skill}" "${changes}"
+      printf '%s → %s: drift\n%s\n' "${skill}" "${root}" "${changes}"
       drift=1
     else
-      printf '%s: synchronized\n' "${skill}"
+      printf '%s → %s: synchronized\n' "${skill}" "${root}"
     fi
-    continue
+    return
   fi
-
-  install -d -m 0755 -- "${target_root}/${skill}"
+  install -d -m 0755 -- "${root}/${skill}"
   rsync --archive --checksum --delete --exclude='*.pre-*' -- "${source}" "${target}"
   remaining="$(rsync --archive --checksum --delete --exclude='*.pre-*' --dry-run --itemize-changes -- "${source}" "${target}")"
   if [[ -n "${remaining}" ]]; then
-    printf 'Post-sync verification failed for %s\n%s\n' "${skill}" "${remaining}" >&2
+    printf 'Post-sync verification failed for %s in %s\n%s\n' "${skill}" "${root}" "${remaining}" >&2
     exit 1
   fi
-  printf '%s: installed\n' "${skill}"
+  printf '%s → %s: installed\n' "${skill}" "${root}"
+}
+
+for skill in "${skills[@]}" "${shared_skills[@]}"; do
+  sync_skill "${skill}" "${target_root}"
+done
+for root in "${agent_roots[@]}"; do
+  if [[ ! -d "$(dirname -- "${root}")" ]]; then
+    printf '%s: agent not installed, skipped\n' "$(dirname -- "${root}")"
+    continue
+  fi
+  for skill in "${shared_skills[@]}"; do
+    sync_skill "${skill}" "${root}"
+  done
 done
 
 if [[ "${mode}" == "--check" && "${drift}" -ne 0 ]]; then

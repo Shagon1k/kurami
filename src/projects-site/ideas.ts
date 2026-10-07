@@ -1,17 +1,18 @@
-// The ideas pool on Projects: a small block under the task table and the "Idea" side of the capture form.
-// Ideas are not tasks: nothing here starts work. "Make it a task" files an issue in the chosen project
+// The ideas pool on Projects: a small block under the task table. Ideas arrive through chats (the kurami-ideas
+// skill); here the owner reads them, adds notes, moves them and turns one into a task. Nothing here starts work. "Make it a task" files an issue in the chosen project
 // (or Kurami) and records the link on the idea. The store and its rules live in src/system/ideas/ideas.ts.
 import { githubBacklog, type BacklogClient } from "../orchestrator/integrations/github/backlog-capture.ts";
-import { addIdeaNote, captureIdea, IdeaError, IDEA_HORIZONS, listIdeas, readIdea, setIdeaStatus, type Idea, type IdeaNote, type IdeaStatus } from "../system/ideas/ideas.ts";
+import { addIdeaNote, IdeaError, listIdeas, readIdea, setIdeaStatus, type Idea, type IdeaNote, type IdeaStatus } from "../system/ideas/ideas.ts";
 import { formatSiteDate } from "../ui-library/foundations/date.ts";
 import { escapeHtml as escape } from "../ui-library/foundations/html.ts";
 import { renderButton, renderLinkButton } from "../ui-library/components/button.ts";
 import { renderDisclosure } from "../ui-library/components/disclosure.ts";
 import { renderSelectField, renderTextField } from "../ui-library/components/form.ts";
-import { iconPath } from "../ui-library/components/icon.ts";
+import { iconPath, renderIcon } from "../ui-library/components/icon.ts";
+import { surfaceAttributes } from "../ui-library/components/surface.ts";
 import { renderPill, type PillTone } from "../ui-library/components/pill.ts";
 import { ProjectsActionError } from "./actions.ts";
-import { captureSource, captureTargets } from "./capture.ts";
+import { captureTargets } from "./capture.ts";
 import { tr, type Language } from "./i18n.ts";
 import type { ProjectSummary } from "./model.ts";
 
@@ -30,18 +31,6 @@ export function ideaAreas(projects: ProjectSummary[], lang: Language): { value: 
   return [...projects.map(project => ({ value: project.key, label: project.name })), { value: "kurami", label: "Kurami" }, { value: "other", label: tr("Other", lang) }];
 }
 
-/** The capture form's idea fields; shown when the form switches from Task to Idea. */
-export function renderIdeaFields(projects: ProjectSummary[], params: URLSearchParams, lang: Language): string {
-  const t = (key: string) => tr(key, lang), source = params.get("source");
-  return `<fieldset class="projects-capture__fields" data-capture-fields="idea" disabled hidden><legend class="sr-only">${t("Idea")}</legend>
-    ${renderTextField({ name: "summary", label: t("The gist in one phrase"), value: (params.get("title") ?? "").slice(0, 200), placeholder: t("Only this is required"), required: true, maxLength: 200 })}
-    ${renderTextField({ name: "context", label: t("What prompted it"), placeholder: t("Optional"), maxLength: 2000, rows: 2 })}
-    ${renderSelectField({ name: "area", label: t("Where it belongs"), value: source ? "kurami" : "other", options: ideaAreas(projects, lang) })}
-    ${renderTextField({ name: "firstStep", label: t("First step, or how we know it is done"), placeholder: t("Optional"), maxLength: 1000, rows: 2 })}
-    ${renderSelectField({ name: "horizon", label: t("When"), value: "", options: [{ value: "", label: t("Not decided") }, ...IDEA_HORIZONS.map(value => ({ value, label: t(HORIZON_LABEL[value]!) }))] })}
-  </fieldset>`;
-}
-
 const when = (value: string, lang: Language) => formatSiteDate(value, lang, false);
 
 function journal(notes: IdeaNote[], lang: Language): string {
@@ -51,40 +40,42 @@ function journal(notes: IdeaNote[], lang: Language): string {
 }
 
 function ideaBody(item: Idea & { notes?: IdeaNote[] }, projects: ProjectSummary[], lang: Language): string {
-  const t = (key: string) => tr(key, lang), areas = ideaAreas(projects, lang);
-  const area = areas.find(entry => entry.value === item.area)?.label;
-  const meta = [renderPill({ label: t(STATUS_LABEL[item.status]), tone: STATUS_TONE[item.status] }), area && `<span>${escape(area)}</span>`, item.horizon && `<span>${escape(t(HORIZON_LABEL[item.horizon]!))}</span>`, `<span>${escape(t("Saved"))} ${escape(when(item.createdAt, lang))}</span>`].filter(Boolean).join("");
+  const t = (key: string) => tr(key, lang), taskTargets = ideaAreas(projects, lang).filter(entry => entry.value !== "other");
   const field = (label: string, value: string | null) => value ? `<div class="projects-idea__field"><dt>${escape(t(label))}</dt><dd>${escape(value)}</dd></div>` : "";
   const fields = [field("What prompted it", item.context), field("First step", item.firstStep), field("Original message", item.original)].join("");
-  const taskTargets = areas.filter(entry => entry.value !== "other");
   const forms = `<div class="projects-idea__actions">
     <form class="projects-idea__form" data-idea-form="note" data-idea="${item.id}">${renderTextField({ name: "note", label: t("Add a note"), placeholder: t("A thought, a link, a decision"), required: true, maxLength: 2000, rows: 2 })}<div class="projects-idea__submit">${renderButton({ label: t("Add note"), variant: "subtle", size: "compact", type: "submit", busyLabel: "…" })}</div></form>
+    <div class="projects-idea__row">
     <form class="projects-idea__form projects-idea__form--row" data-idea-form="status" data-idea="${item.id}">${renderSelectField({ name: "status", label: t("Status"), value: item.status, options: (["new", "thinking", "parked", "closed"] as const).map(value => ({ value, label: t(STATUS_LABEL[value]) })) })}${renderButton({ label: t("Save"), variant: "subtle", size: "compact", type: "submit", busyLabel: "…" })}</form>
     <form class="projects-idea__form projects-idea__form--row" data-idea-form="task" data-idea="${item.id}">${renderSelectField({ name: "target", label: t("Make it a task in"), value: taskTargets.some(entry => entry.value === item.area) ? item.area! : "kurami", options: taskTargets })}${renderButton({ label: t("Create issue"), variant: "secondary", size: "compact", type: "submit", busyLabel: "…", iconPath: iconPath("plus"), visibleLabel: true, attributes: { "data-haptic": "confirm" } })}</form>
+    </div>
   </div>`;
-  return `<div class="projects-idea"><div class="projects-idea__meta">${meta}</div>${fields ? `<dl class="projects-idea__fields">${fields}</dl>` : ""}${journal(item.notes ?? [], lang)}${item.taskUrl ? renderLinkButton({ label: t("Open the task"), href: item.taskUrl, variant: "link", iconPath: iconPath("arrow") }) : forms}</div>`;
+  return `<div class="projects-idea">${fields ? `<dl class="projects-idea__fields">${fields}</dl>` : ""}${journal(item.notes ?? [], lang)}${item.taskUrl ? renderLinkButton({ label: t("Open the task"), href: item.taskUrl, variant: "link", iconPath: iconPath("arrow") }) : forms}</div>`;
+}
+
+/** The folded row: number, gist, then where it belongs, when, and the day it was saved. */
+function ideaSummary(item: Idea, projects: ProjectSummary[], lang: Language): string {
+  const t = (key: string) => tr(key, lang), area = ideaAreas(projects, lang).find(entry => entry.value === item.area)?.label;
+  const tags = [item.status === "thinking" && renderPill({ label: t(STATUS_LABEL.thinking), tone: STATUS_TONE.thinking }), area && `<span>${escape(area)}</span>`,
+    item.horizon && `<span>${escape(t(HORIZON_LABEL[item.horizon]!))}</span>`, `<time datetime="${escape(item.createdAt)}">${escape(when(item.createdAt, lang))}</time>`].filter(Boolean).join("");
+  return `<span class="projects-idea__head"><span class="projects-idea__number">#${item.id}</span><span class="projects-idea__gist">${escape(item.summary)}</span><span class="projects-idea__tags">${tags}</span></span>`;
 }
 
 /** The block under the task table: open ideas, each folded; empty and unreadable states say so plainly. */
 export function renderIdeasBlock(view: IdeasView | undefined, projects: ProjectSummary[], lang: Language): string {
   const t = (key: string) => tr(key, lang);
   const content = !view?.available ? `<p class="projects-ideas__empty">${escape(t("Ideas cannot be read right now."))}</p>`
-    : !view.ideas.length ? `<p class="projects-ideas__empty">${escape(t("No open ideas. Capture → Idea keeps a thought without making it a task."))}</p>`
-    : view.ideas.map(item => renderDisclosure({ summary: item.summary, body: ideaBody(item, projects, lang), key: `idea:${item.id}`, className: "projects-ideas__item" })).join("");
-  return `<section class="projects-ideas" id="projects-ideas" aria-labelledby="projects-ideas-title"><div class="projects-ideas__heading"><h2 id="projects-ideas-title">${escape(t("Ideas"))}</h2>${view?.openCount ? renderPill({ label: String(view.openCount), tone: "info" }) : ""}<p>${escape(t("Not tasks yet — kept so they are not lost."))}</p></div>${content}</section>`;
+    : !view.ideas.length ? `<p class="projects-ideas__empty">${escape(t("No open ideas. Tell any Kurami chat: “save an idea: …”."))}</p>`
+    : `<div class="projects-ideas__list">${view.ideas.map(item => renderDisclosure({ summary: item.summary, summaryHtml: ideaSummary(item, projects, lang), body: ideaBody(item, projects, lang), key: `idea:${item.id}`, className: "projects-ideas__item" })).join("")}</div>`;
+  return `<section class="projects-ideas" id="projects-ideas" aria-labelledby="projects-ideas-title"${surfaceAttributes("panel")}><div class="projects-ideas__heading">${renderIcon("spark", { tile: true })}<h2 id="projects-ideas-title">${escape(t("Ideas"))}</h2>${view?.openCount ? `<span class="projects-ideas__count">${view.openCount}</span>` : ""}<p class="projects-ideas__note">${escape(t("thoughts for later, not tasks"))}</p></div>${content}</section>`;
 }
 
-/** POST /api/ideas: capture, note, status, task. Errors are short Russian messages the page translates. */
+/** POST /api/ideas: note, status, task. Errors are short Russian messages the page translates. */
 export function createIdeasAction(options: { home: string; client?: BacklogClient; now?: () => Date }) {
   const client = options.client ?? githubBacklog, inFlight = new Set<number>();
   return async (input: unknown, actor: string) => {
     const value = (input ?? {}) as Record<string, unknown>, now = options.now?.() ?? new Date();
     try {
-      if (value.action === "capture") {
-        const shared = typeof value.shared === "string" ? value.shared.trim().slice(0, 1000) : "", source = captureSource(value.source);
-        const original = [shared, source && `Страница: ${source}`].filter(Boolean).join("\n\n") || undefined;
-        return { state: "captured", idea: captureIdea(options.home, { summary: value.summary, context: value.context, area: value.area, firstStep: value.firstStep, horizon: value.horizon, original, source: "site", key: value.key }, actor, now) };
-      }
       const id = Number(value.id);
       if (value.action === "note") return { state: "noted", idea: addIdeaNote(options.home, id, value.note, actor, now) };
       if (value.action === "status") {

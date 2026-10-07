@@ -3,7 +3,8 @@
 // where it belongs, a first step, when) let the owner come back without retelling it. Each idea has an
 // append-only journal of notes and status changes. Capturing an idea never starts work: "make it a task" is
 // a separate, explicit step that files an issue and records its link here.
-// Stored in state/ideas.db; Projects shows and edits it, the Hermes skill kurami-ideas captures from Discord.
+// Stored in state/ideas.db. Ideas arrive through chats: every agent (Hermes in Discord and Telegram, Claude Code,
+// Codex, the site chat) has the kurami-ideas skill and this CLI. Projects shows the pool and edits it.
 import { existsSync, mkdirSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { DatabaseSync } from "node:sqlite";
@@ -16,7 +17,8 @@ export type IdeaStatus = typeof IDEA_STATUSES[number];
 export const OPEN_IDEA_STATUSES: readonly IdeaStatus[] = ["new", "thinking"];
 export const IDEA_HORIZONS = ["someday", "month", "soon"] as const;
 export type IdeaHorizon = typeof IDEA_HORIZONS[number];
-export const IDEA_SOURCES = ["site", "discord", "cli"] as const;
+/** Where the idea was told: a chat surface or the agent that heard it. */
+export const IDEA_SOURCES = ["discord", "telegram", "claude", "codex", "chat", "cli"] as const;
 export type IdeaSource = typeof IDEA_SOURCES[number];
 
 export type Idea = {
@@ -45,7 +47,7 @@ CREATE TABLE IF NOT EXISTS ideas (
   horizon TEXT CHECK (horizon IN ('someday','month','soon')),
   status TEXT NOT NULL DEFAULT 'new' CHECK (status IN ('new','thinking','task','parked','closed')),
   task_url TEXT,
-  source TEXT NOT NULL CHECK (source IN ('site','discord','cli')),
+  source TEXT NOT NULL CHECK (source IN ('discord','telegram','claude','codex','chat','cli')),
   capture_key TEXT UNIQUE,
   created_at TEXT NOT NULL,
   updated_at TEXT NOT NULL
@@ -196,13 +198,13 @@ function option(args: string[], name: string): string | undefined {
 export function runIdeasCli(args: string[], home = resolveKuramiHome("/home/shagon1k/_hermes/_kurami")): Record<string, unknown> {
   const [command, ...rest] = args, actor = option(rest, "actor") ?? "kurami";
   if (command === "capture") return { ok: true, idea: captureIdea(home, { summary: option(rest, "summary"), original: option(rest, "original"), context: option(rest, "context"), area: option(rest, "area"),
-    firstStep: option(rest, "first-step"), horizon: option(rest, "when"), source: option(rest, "source") ?? "discord", key: option(rest, "key") }, actor) };
+    firstStep: option(rest, "first-step"), horizon: option(rest, "when"), source: option(rest, "source") ?? "cli", key: option(rest, "key") }, actor) };
   if (command === "list") { const result = listIdeas(home, { open: rest.includes("--open"), limit: Number(option(rest, "limit") ?? 20) }); if (!result.available) fail("The ideas store cannot be read"); return { ok: true, ...result }; }
   const id = Number(rest[0]);
   if (command === "show") return { ok: true, idea: readIdea(home, id) ?? fail("Unknown idea") };
   if (command === "note") return { ok: true, idea: addIdeaNote(home, id, option(rest, "text"), actor) };
   if (command === "status") return { ok: true, idea: setIdeaStatus(home, id, option(rest, "to"), actor, { taskUrl: option(rest, "task-url") }) };
-  return fail("Usage: ideas.ts capture --summary <text> [--original --context --area --first-step --when someday|month|soon --key] | list [--open] [--limit N] | show <id> | note <id> --text <text> | status <id> --to <status> [--task-url <issue>]");
+  return fail("Usage: ideas.ts capture --summary <text> [--original --context --area --first-step --when someday|month|soon --source discord|telegram|claude|codex|chat --key --actor] | list [--open] [--limit N] | show <id> | note <id> --text <text> | status <id> --to <status> [--task-url <issue>]");
 }
 
 if (import.meta.main) {

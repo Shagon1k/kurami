@@ -144,15 +144,16 @@ The form also opens from:
 
 ### Ideas
 
-Not everything is a task. The **Capture** form has a **Task / Idea** switch: an idea keeps a thought without
-starting anything. Only the gist in one phrase is required; what prompted it, where it belongs (a project, Kurami
-or Other), a first step and "when" are optional. You can also share an idea in Discord: Kurami keeps the message
-verbatim and asks at most three of the missing questions — answer "skip" to any of them.
+Not everything is a task. Tell an idea to any Kurami chat: Discord or Telegram, a Claude Code or Codex session,
+later the site chat. They all share one `kurami-ideas` skill and one pool. Only the gist is required; Kurami
+keeps the message verbatim and asks at most three of the missing questions (what prompted it, where it belongs,
+a first step, when) — answer "skip" to any of them. Saving an idea starts nothing.
 
-Open ideas (new and thinking) sit in the **Ideas** block under the table. Each one unfolds: details, a journal of
-notes and status changes (entries are only ever added), a note field, and the status — thinking, parked, closed.
-**Create issue** files an issue in the chosen project or in Kurami and records the link on the idea; an idea in
-Other cannot become a task until you pick a project. Ideas are stored in Kurami and included in the daily backup.
+Open ideas (new and thinking) sit in the **Ideas** block under the table: number, gist, project, "when" and the
+date. An idea unfolds into its details, a journal of notes and status changes (entries are only ever added), a
+new note, and its status — thinking, parked, closed. **Create issue** files an issue in the chosen project or in
+Kurami and records the link on the idea; an idea in Other needs a project first. Ideas are stored in Kurami and
+included in the daily backup.
 
 ## What the card shows
 

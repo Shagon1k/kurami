@@ -339,3 +339,11 @@ On phones the mobile navigation moves the menu into the Settings sheet, where th
 The Hub default is the lasting theme. A menu choice lasts while the app or tab is open; every app is served from one origin, so it carries between apps in that session, and a new session starts from the default again. Choices stored in `localStorage` by the former per-device switch are deleted on load. Applying a new default in Hub ends the session choice on that page. Saved Digest editions keep their legacy toggle; it switches the mode for the session.
 
 `npm run test:ui-browser` checks the runtime order, the keyboard path through the menu and the phone settings sheet. By default it screenshots and audits one variant of each theme: Paper light and Neon dark. `test:ui-browser:all` adds Paper dark and Neon light, for changes to the library and themes. The guard rejects theme branches (`[data-theme]`, `[data-kurami-theme]`) in product code.
+
+## Accent marks and rich disclosure rows
+
+`mark-glow` (scale role) is the glow around a small accent mark drawn in `currentColor` — a bar or a dot:
+`none` in Paper, a neon glow in Neon (softer in its light mode). Products set the mark's colour from a role and
+`box-shadow: var(--mark-glow)`, so the look follows the theme without product code branching on it.
+`renderDisclosure` takes `summaryHtml` (trusted markup) when the folded row needs more than text — the Projects
+ideas block shows a number, the gist and tags there; the product escapes what goes inside.

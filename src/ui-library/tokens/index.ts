@@ -18,6 +18,8 @@ export const scaleRoles=[
   "display-case","display-tracking","display-glow",
   // Opted-in surfaces (data-ui-surface): bevel size of two corners and the lead-block glow (box-shadow).
   "panel-cut","panel-glow",
+  // A glow around a small accent mark (a bar, a dot) drawn in currentColor; none in calm themes.
+  "mark-glow",
   "radius-sm","radius","radius-md","radius-pill",
   "shadow-card","shadow-card-sm","shadow-raised",
   "duration-fast","duration-base",
