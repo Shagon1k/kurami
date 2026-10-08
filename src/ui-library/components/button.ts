@@ -2,7 +2,7 @@
 import { escapeHtml } from "../foundations/html.ts";
 import { breakpoints } from "../tokens/index.ts";
 
-export type ButtonVariant = "primary" | "secondary" | "subtle" | "quiet" | "icon" | "text" | "danger" | "success" | "info" | "warning" | "link" | "toggle" | "navigation" | "switch";
+export type ButtonVariant = "primary" | "secondary" | "subtle" | "quiet" | "icon" | "text" | "danger" | "success" | "info" | "warning" | "link" | "toggle" | "navigation" | "switch" | "sort";
 export type ButtonSize = "regular" | "compact";
 
 type AttributeValue = string | number | boolean | undefined;
@@ -73,6 +73,9 @@ export const BUTTON_CSS = `
 .button__count { font: 600 .78rem/1.2 var(--font-mono); }
 .button--quiet { padding-inline: var(--space-2); background: transparent; border-color: transparent; }
 .button--quiet:hover:not(:disabled):not([aria-busy="true"]) { color: var(--text-primary); background: var(--surface-panel); border-color: var(--border-default); }
+.button--sort { --button-icon-size: 14px; padding-inline: 0; border: 0; background: transparent; color: var(--text-muted); font: inherit; font-weight: 500; }
+.button--sort:hover:not(:disabled):not([aria-busy="true"]) { color: var(--text-primary); background: transparent; }
+.button--sort[aria-pressed="true"] { color: var(--text-primary); font-weight: 600; text-decoration: underline; text-decoration-color: var(--accent-data); text-decoration-thickness: 2px; text-underline-offset: .45em; }
 .button--link { padding: 0; border: 0; color: var(--text-accent); background: transparent; font-weight: 500; text-decoration: underline; text-underline-offset: .2em; }
 .button--link:hover:not(:disabled):not([aria-busy="true"]) { color: var(--text-primary); background: transparent; border-color: transparent; }
 .button--link .button__svg { inline-size: 14px; block-size: 14px; }

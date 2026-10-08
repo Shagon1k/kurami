@@ -22,6 +22,7 @@ import {createCaptureAction} from "./capture.ts";
 import {createIdeasAction} from "./ideas.ts";
 import {resolveKuramiHome} from "../core/kurami-home.ts";
 import { kuramiMoodAssets } from "../ui-library/components/kurami-mood.ts";
+import { configurePortalVoice } from "../portal-presence/voice.ts";
 
 const assetRoot = resolve(import.meta.dirname, "../ui-library/assets");
 const assets = new Map<string, { body: Buffer | string; type: string }>([
@@ -31,7 +32,7 @@ const assets = new Map<string, { body: Buffer | string; type: string }>([
   ["/assets/kurami-fox.webp", { body: readFileSync(resolve(assetRoot, "brand/kurami-fox-header.webp")), type: "image/webp" }],
   ["/assets/favicon.svg", { body: readFileSync(resolve(assetRoot, "brand/kurami-favicon.svg")), type: "image/svg+xml" }],
 ]);
-for (const mood of kuramiMoodAssets()) assets.set(mood.path, { body: mood.body, type: "image/webp" });
+for (const mood of kuramiMoodAssets()) assets.set(mood.path, { body: mood.body, type: mood.type });
 for (const font of fontFiles) assets.set(`/assets/${font.file}`, { body: readFileSync(resolve(assetRoot, "fonts", font.file)), type: "font/woff2" });
 
 export function createProjectsServer(options: {
@@ -174,6 +175,7 @@ export function createProjectsServer(options: {
 }
 
 if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
+  configurePortalVoice(resolveKuramiHome("/home/shagon1k/_hermes/_kurami"));
   const port = Number(process.env.PROJECTS_PORT ?? 8777);
   if (!Number.isInteger(port) || port < 1 || port > 65535) throw new Error("Invalid PROJECTS_PORT");
   createProjectsServer().listen(port, "127.0.0.1", () => console.log(`Kurami Projects listening on 127.0.0.1:${port}`));

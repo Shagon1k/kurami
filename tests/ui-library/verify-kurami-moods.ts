@@ -23,8 +23,13 @@ import type { AddressInfo } from "node:net";
 // Assets: twelve moods, each a lossless WebP (exact transparency) under 110 KB, at flat paths the gateway accepts for a mounted app.
 assert.equal(KURAMI_MOODS.length, 12);
 for (const asset of kuramiMoodAssets()) {
-  assert.ok(asset.body.subarray(0, 4).toString() === "RIFF" && asset.body.subarray(8, 12).toString() === "WEBP", `${asset.path} is WebP`);
-  assert.ok(asset.body.length < 110_000, `${asset.path} stays small`);
+  if(asset.type==="image/webp"){
+    assert.ok(asset.body.subarray(0, 4).toString() === "RIFF" && asset.body.subarray(8, 12).toString() === "WEBP", `${asset.path} is WebP`);
+    assert.ok(asset.body.length < 110_000, `${asset.path} stays small`);
+  }else{
+    assert.equal(asset.type,"image/png");assert.equal(asset.body.subarray(1,4).toString(),"PNG");
+    assert.equal(asset.body.readUInt32BE(16),1024);assert.equal(asset.body.readUInt32BE(20),1024);
+  }
   assert.ok(resolveWebRoute(`/_apps/hub${asset.path}`), `${asset.path} passes the gateway`);
 }
 assert.equal(kuramiMoodPath("done"), "/assets/kurami-done.webp");
@@ -33,7 +38,7 @@ assert.equal(kuramiMoodPath("done"), "/assets/kurami-done.webp");
 // Medallion: a decorative span with the ring and the figure, lazy by default, labelled when asked.
 const idle = renderKuramiMood({ mood: "idle" });
 assert.match(idle, /^<span class="kurami-mood" data-kurami-mood="idle" aria-hidden="true"><svg class="kurami-mood__ring"/);
-assert.match(idle, /<img class="kurami-mood__figure" src="\/assets\/kurami-idle\.webp" width="160" height="160" alt="" loading="lazy" decoding="async"><\/span>$/);
+assert.match(idle, /<img class="kurami-mood__figure" src="\/assets\/kurami-idle\.webp" srcset="[^\"]+320w, [^\"]+1024w" sizes="[^\"]+" width="160" height="160" alt="" loading="lazy" decoding="async"><\/span>$/);
 assert.match(renderKuramiMood({ mood: "welcome", label: "Kurami <waves>", eager: true }), /role="img" aria-label="Kurami &lt;waves&gt;"[\s\S]*loading="eager"/);
 assert.throws(() => renderKuramiMood({ mood: "angry" as never }));
 // One size everywhere; the cut is only along the lower arc (the top band stays unmasked); motion has a reduced-motion guard.

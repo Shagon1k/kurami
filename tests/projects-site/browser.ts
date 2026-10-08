@@ -143,6 +143,9 @@ async function audit(): Promise<void> {
   assert.deepEqual(await devtools.evaluate(AUDIT_EXPRESSION), []);
   assert.deepEqual(await devtools.evaluate(inventoryExpression()), []);
 }
+async function chooseMode(mode:string):Promise<void>{
+  await devtools.evaluate(`document.querySelector('[data-mode-choice="${mode}"]').click();document.querySelector('[data-theme-panel][popover]')?.hidePopover()`);
+}
 async function pointerClick(selector:string):Promise<void> {
   const point=await devtools.evaluate<{x:number;y:number}>(`(()=>{const button=document.querySelector(${JSON.stringify(selector)});button.scrollIntoView({behavior:'instant',block:'nearest'});const r=button.getBoundingClientRect();return{x:r.x+r.width/2,y:r.y+r.height/2}})()`);
   await devtools.call('Input.dispatchMouseEvent',{type:'mousePressed',button:'left',clickCount:1,...point});
@@ -187,7 +190,7 @@ try {
     await devtools.call("Emulation.setTouchEmulationEnabled",{enabled:width<600});
     await open("/");
     for (const theme of ["light", "dark"]) {
-      await devtools.evaluate(`if(document.documentElement.dataset.theme!==${JSON.stringify(theme)})document.querySelector('[data-theme-toggle]').click()`);
+      await chooseMode(theme);
       await delay(250);
       await audit();
       if(width<600)await mobileOverview();
@@ -553,7 +556,7 @@ try {
   unavailable=false;await open('/');
   await devtools.evaluate("window.testRegion=document.querySelector('[data-toast-region]').cloneNode(true);document.body.append(testRegion);window.testToast=createKuramiToast(testRegion,()=>document.querySelector('input[name=q]'));testToast.show('<img src=x onerror=alert(1)>',{tone:'warning'});");
   assert.equal(await devtools.evaluate("testRegion.querySelector('[data-toast-message]').textContent"),'<img src=x onerror=alert(1)>',"message is text, never HTML");
-  assert.equal(await devtools.evaluate("testRegion.querySelector('img')"),null);
+  assert.equal(await devtools.evaluate("testRegion.querySelector('[data-toast-message] img')===null"),true);
   await delay(250);
   assert.equal(await devtools.evaluate("testRegion.hidden"),false,"warnings persist without a timer");
   await devtools.evaluate("testToast.show('Timed',{tone:'success',duration:200});testRegion.querySelector('button').focus()");
@@ -577,7 +580,7 @@ try {
     await devtools.call("Emulation.setDeviceMetricsOverride",{width,height:1000,deviceScaleFactor:1,mobile:width<600});
     for(const theme of ["light","dark"]) {
       prScenario="merge";await open('/?item=item-12');await wait("!!document.querySelector('[data-pr-action]')");
-      await devtools.evaluate(`if(document.documentElement.dataset.theme!==${JSON.stringify(theme)})document.querySelector('[data-theme-toggle]').click()`);
+      await chooseMode(theme);
       await delay(250);
       assert.equal(await devtools.evaluate("(()=>{const cancel=document.querySelector('[data-run-action=stop]'),pr=document.querySelector('[data-pr-action]');return cancel.closest('.projects-action-pair')===pr.closest('.projects-action-pair')&&Math.abs(cancel.getBoundingClientRect().height-pr.getBoundingClientRect().height)<1})()"),true,"cancel and PR action pair have equal heights");
       await audit();
@@ -674,7 +677,7 @@ try {
     await wait(["syncing","unavailable","blocked"].includes(scenario)?"!!document.querySelector('[data-pr-slot] > .projects-run-action-meta > .projects-action-note')":"!!document.querySelector('[data-pr-action]:not(:disabled)')");
     const after=await devtools.evaluate<number[]>("(()=>{const cancel=document.querySelector('[data-run-action=stop]').getBoundingClientRect(),pr=document.querySelector('[data-pr-slot] button').getBoundingClientRect();return [cancel.width,pr.width]})()");
     assert.deepEqual(after,before,'loading, unavailable and available PR controls preserve both button widths');
-    await devtools.evaluate(`if(document.documentElement.dataset.theme!==${JSON.stringify(theme)})document.querySelector('[data-theme-toggle]').click()`);
+    await chooseMode(theme);
     await delay(250);
     if(['syncing','unavailable','blocked'].includes(scenario))assert.equal(await devtools.evaluate("(()=>{const cancel=document.querySelector('[data-run-action=stop]').getBoundingClientRect(),slot=document.querySelector('[data-pr-slot]'),button=slot.querySelector('button'),pr=button.getBoundingClientRect(),note=slot.querySelector('.projects-action-note').getBoundingClientRect(),row=slot.closest('.projects-action-pair').getBoundingClientRect();return button.disabled&&Math.abs(cancel.width-pr.width)<1&&Math.abs(cancel.top-pr.top)<1&&Math.abs(cancel.height-pr.height)<1&&Math.abs(note.width-row.width)<1&&note.top>=cancel.bottom&&Math.abs(note.left-cancel.left)<1})()"),true,'disabled PR control keeps its half-width slot; explanation spans the row: '+width+' '+lang+' '+scenario);
     await devtools.evaluate("document.querySelector('.projects-ci-details summary').scrollIntoView({block:'center',behavior:'instant'})");
@@ -695,7 +698,7 @@ try {
   for(const lang of ['en','ru'])for(const theme of ['light','dark']){
     await devtools.call('Emulation.setDeviceMetricsOverride',{width:390,height:900,deviceScaleFactor:1,mobile:true});
     await open(`/?item=item-12&lang=${lang}`);
-    await devtools.evaluate(`if(document.documentElement.dataset.theme!==${JSON.stringify(theme)})document.querySelector('[data-theme-toggle]').click()`);await delay(200);
+    await chooseMode(theme);await delay(200);
     assert.equal(await devtools.evaluate("document.querySelector('.projects-findings [data-note-tone=failure]').textContent.startsWith('1 ')"),true,'critical finding has a separate severity accent');
     assert.equal(await devtools.evaluate("document.querySelector('[data-preview-expiry]').dataset.noteTone"),'warning','live preview expiry has a last-hour caution');
     await audit();
@@ -721,7 +724,7 @@ try {
     await devtools.call('Emulation.setDeviceMetricsOverride',{width,height:900,deviceScaleFactor:1,mobile:width<620});
     await open(`/?item=item-12&lang=${lang}`);
     await wait("!!document.querySelector('[data-pr-slot] > .projects-run-action-meta > .projects-action-note')");
-    await devtools.evaluate(`if(document.documentElement.dataset.theme!==${JSON.stringify(theme)})document.querySelector('[data-theme-toggle]').click()`);await delay(250);
+    await chooseMode(theme);await delay(250);
     assert.equal(await devtools.evaluate(`(()=>{const notes=[...document.querySelectorAll('[data-run-action-state]')];return notes.length===${RUN_ACTIONS.length}&&notes.every(note=>{const pair=note.closest('.projects-action-pair'),buttons=[...pair.children].map(slot=>slot.firstElementChild),r=note.getBoundingClientRect(),p=pair.getBoundingClientRect();return note.dataset.requestState===${JSON.stringify(state)}&&note.textContent.includes(' · ')&&Math.abs(r.left-p.left)<1&&Math.abs(r.width-p.width)<1&&buttons.every(button=>r.top>=button.getBoundingClientRect().bottom)&&buttons.every(button=>Math.abs(button.getBoundingClientRect().top-buttons[0].getBoundingClientRect().top)<1&&Math.abs(button.getBoundingClientRect().height-buttons[0].getBoundingClientRect().height)<1);})&&[...document.querySelectorAll('.projects-action-pair')].every(pair=>{const visible=[...pair.querySelectorAll('.projects-run-action-meta')].filter(meta=>meta.getBoundingClientRect().height);return visible.every((meta,index)=>index===0||meta.getBoundingClientRect().top>=visible[index-1].getBoundingClientRect().bottom);});})()`),true,'every action note spans its pair without button-column artifacts or overlapping messages');
     await audit();
     if(width===390&&lang==='en'&&state==='pending'&&theme==='light'){
@@ -732,7 +735,7 @@ try {
   previewStopOnly=true;runNotesScenario='pending';
   for(const width of [320,390,1280])for(const lang of ['en','ru'])for(const theme of ['light','dark']){
     await devtools.call('Emulation.setDeviceMetricsOverride',{width,height:900,deviceScaleFactor:1,mobile:width<620});await open(`/?item=item-12&lang=${lang}`);
-    await devtools.evaluate(`if(document.documentElement.dataset.theme!==${JSON.stringify(theme)})document.querySelector('[data-theme-toggle]').click()`);await delay(250);
+    await chooseMode(theme);await delay(250);
     assert.equal(await devtools.evaluate(`(()=>{const button=document.querySelector('[data-run-action=preview_stop]'),note=document.querySelector('[data-run-action-state=preview_stop]'),pair=button.closest('.projects-action-pair'),open=pair.querySelector('a'),r=note.getBoundingClientRect(),p=pair.getBoundingClientRect(),b=button.getBoundingClientRect(),a=open.getBoundingClientRect();return button.disabled&&pair.children.length===2&&Math.abs(a.width-b.width)<1&&Math.abs(a.height-b.height)<1&&Math.abs(a.top-b.top)<1&&r.top>=b.bottom&&Math.abs(r.left-p.left)<1&&Math.abs(r.width-p.width)<1&&note.textContent.includes(' · ');})()`),true,'Open preview and pending Remove preview keep an equal button pair with one shared full-width status');
     await audit();
     if(width===390&&lang==='en'&&theme==='light'){await devtools.evaluate(`document.querySelector('[data-run-action=preview_stop]').scrollIntoView({block:'center',behavior:'instant'})`);const shot=await devtools.call<{data:string}>('Page.captureScreenshot',{format:'png',captureBeyondViewport:false});writeFileSync(resolve(out,'projects-preview-stop-pending.png'),Buffer.from(shot.data,'base64'));}
@@ -743,7 +746,7 @@ try {
     previewReviewed=false;previewNewHead=false;
     await devtools.call('Emulation.setDeviceMetricsOverride',{width,height:900,deviceScaleFactor:1,mobile:width<620});
     await open(`/?item=item-12&lang=${lang}`);
-    await devtools.evaluate(`if(document.documentElement.dataset.theme!==${JSON.stringify(theme)})document.querySelector('[data-theme-toggle]').click()`);await delay(200);
+    await chooseMode(theme);await delay(200);
     assert.equal(await devtools.evaluate("!!document.querySelector('[data-preview-review]')"),false);
     await pointerClick('[data-run-action=preview_reviewed]');
     await wait("!!document.querySelector('[data-preview-review=current]')");
@@ -761,7 +764,7 @@ try {
     let releaseStart!:()=>void;startWriteGate=new Promise<void>(resolve=>{releaseStart=resolve;});
     await devtools.call('Emulation.setDeviceMetricsOverride',{width,height:900,deviceScaleFactor:1,mobile:width<620});
     await open(`/?item=item-15&lang=${lang}`);
-    await devtools.evaluate(`if(document.documentElement.dataset.theme!==${JSON.stringify(theme)})document.querySelector('[data-theme-toggle]').click()`);await delay(150);
+    await chooseMode(theme);await delay(150);
     assert.equal(await devtools.evaluate("!!document.querySelector('[data-start-task] select')"),false);
     assert.equal(await devtools.evaluate("document.querySelector('[data-status-submit]').disabled"),false);
     assert.ok(await devtools.evaluate("(()=>{const form=document.querySelector('[data-start-task]'),button=form.querySelector('[data-status-submit]');return Math.abs(form.getBoundingClientRect().width-button.getBoundingClientRect().width)<1;})()"),'single Start work button fills its row');

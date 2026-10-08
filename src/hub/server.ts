@@ -24,6 +24,7 @@ import {WEB_ORIGIN} from "../web/routes.ts";
 import {latestFor,subscribe,unsubscribe,vapidKeys,type PushFetch} from "./push/web-push.ts";
 import {pushPass} from "./push/monitor.ts";
 import {kuramiMoodAssets} from "../ui-library/components/kurami-mood.ts";
+import {cachedPortalVoice,configurePortalVoice,portalVoice,voiceKey} from "../portal-presence/voice.ts";
 
 const appRoot=resolve(import.meta.dirname,"../..");
 const assetRoot=resolve(appRoot,"src/ui-library/assets");
@@ -38,7 +39,7 @@ const assets=new Map<string,{body:Buffer|string;type:string;cache:string}>([
   ["/sw.js",{body:readFileSync(resolve(hubRoot,"sw.js")),type:"text/javascript; charset=utf-8",cache:"no-cache"}],
 ]);
 for(const lang of ["ru","en"] as const)assets.set(`/${lang}/manifest.webmanifest`,{body:JSON.stringify({name:"Kurami Hub",short_name:"Kurami",description:lang==="ru"?"Личная главная страница Kurami":"Kurami personal dashboard",lang,start_url:`/${lang}/`,scope:"/",display:"standalone",background_color:kuramiTheme.light.colors["surface-page"],theme_color:kuramiTheme.light.colors["surface-page"],icons:[{src:"/assets/fox.png",sizes:"512x512",type:"image/png",purpose:"any"}]}),type:"application/manifest+json; charset=utf-8",cache:"private, max-age=300"});
-for(const mood of kuramiMoodAssets())assets.set(mood.path,{body:mood.body,type:"image/webp",cache:"private, max-age=86400"});
+for(const mood of kuramiMoodAssets())assets.set(mood.path,{body:mood.body,type:mood.type,cache:"private, max-age=86400"});
 for(const font of fontFiles)assets.set(`/assets/${font.file}`,{body:readFileSync(resolve(assetRoot,"fonts",font.file)),type:"font/woff2",cache:"private, max-age=86400"});
 
 const securityHeaders={
@@ -96,6 +97,17 @@ export function createHubServer(options:{releaseDrift?:{latest:DriftItem[]};snap
     let lang:HubLanguage;
     try {const url=new URL(request.url??"/","http://localhost");path=url.pathname;lang=(path.startsWith("/ru/")||path==="/ru"||path==="/api/fragment"&&url.searchParams.get("lang")==="ru")?"ru":"en";}
     catch {response.writeHead(400,{"Cache-Control":"no-store"}).end();return;}
+    if(path==="/api/portal-voice"){
+      if(request.method!=="GET"){response.writeHead(405,{Allow:"GET","Cache-Control":"no-store"}).end();return;}
+      let identity:string|null=null;try{identity=await authorize(request);}catch{}
+      if(!identity){response.writeHead(403,{"Cache-Control":"no-store"}).end();return;}
+      const query=new URL(request.url!,"http://localhost").searchParams,key=query.get("key")??"",language=query.get("lang")==="ru"?"ru":"en";
+      const docs={portal:"docs",mood:"welcome",reason:"docs-home"} as const;
+      if(key===voiceKey(docs,language,home))portalVoice(docs,language,home);
+      const cached=cachedPortalVoice(key,language,home);
+      response.writeHead(cached?200:204,{"Cache-Control":"no-store","Content-Type":"application/json; charset=utf-8"});
+      response.end(cached?JSON.stringify({key,lang:language,lines:cached.lines}):undefined);return;
+    }
     if(path==="/api/push"||path==="/api/push/key"||path==="/api/push/latest"){
       const json=(status:number,value:unknown)=>{response.writeHead(status,{"Cache-Control":"no-store","Content-Type":"application/json; charset=utf-8"}).end(JSON.stringify(value));};
       let identity:string|null=null;
@@ -185,6 +197,7 @@ export function createHubServer(options:{releaseDrift?:{latest:DriftItem[]};snap
 }
 
 if(process.argv[1]&&resolve(process.argv[1])===fileURLToPath(import.meta.url)){
+  configurePortalVoice(resolveKuramiHome("/home/shagon1k/_hermes/_kurami"));
   const port=Number(process.env.HUB_PORT??8800);
   if(!Number.isInteger(port)||port<1||port>65535)throw new Error("Invalid HUB_PORT");
   createHubServer({pushMonitor:{intervalMs:120_000}}).listen(port,"127.0.0.1",()=>console.log(`Kurami Hub listening on 127.0.0.1:${port}`));

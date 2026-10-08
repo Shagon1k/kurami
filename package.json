@@ -76,7 +76,7 @@
     "test:capture": "node tests/projects-site/verify-capture.ts",
     "test:kurami-status": "node tests/verify-kurami-status.ts",
     "test:chronicle": "node tests/verify-chronicle.ts",
-    "test:kurami-moods": "node tests/ui-library/verify-kurami-moods.ts",
+    "test:kurami-moods": "node tests/ui-library/verify-kurami-moods.ts && node tests/ui-library/verify-portal-voice.ts",
     "test:ideas": "node tests/projects-site/verify-ideas.ts",
     "test:quick-capture": "node tests/verify-quick-capture.ts",
     "test:release": "node tests/verify-completed-release.ts",

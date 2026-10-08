@@ -18,6 +18,8 @@ import {renderBriefingPage} from "./ui/render-page.ts";
 import {refreshEditionFreshness} from './ui/components/edition-freshness.ts';
 import {refreshCinemaUi} from "./ui/components/cinema-section.ts";
 import {digestText as t,digestLanguage,withDigestLanguage,type DigestLanguage} from "./i18n.ts";
+import {renderDailyFinish,DAILY_FINISH_STYLES} from "./ui/components/daily-finish.ts";
+import {KURAMI_MOOD_CSS} from "../ui-library/components/kurami-mood.ts";
 import {renderFontPreloads} from "../ui-library/foundations/fonts.ts";
 import {formatSiteDate} from "../ui-library/foundations/date.ts";
 import {renderSiteFooter} from "../ui-library/patterns/site-footer.ts";
@@ -81,6 +83,8 @@ import { decideRule, recordArchived, ruleSuggestion } from "./mail-learning.ts";
 import type { MailClass } from "./model.ts";
 import { weeklyChronicle } from "./weekly/chronicle.ts";
 import { kuramiMoodAssets } from "../ui-library/components/kurami-mood.ts";
+import { configurePortalVoice } from "../portal-presence/voice.ts";
+import { resolveKuramiHome } from "../core/kurami-home.ts";
 import { DAILY_FINISH_SCRIPT } from "./ui/components/daily-finish.ts";
 import { renderKuramiState } from "../ui-library/components/kurami-mood.ts";
 
@@ -825,13 +829,19 @@ async function serveEdition(
     response.end(injectRuntime(injectSiteNavigation(emptyPage(),publishedSiteLinks(database,weeklyEnabled,new Date().toISOString(),stocksEnabled),"daily",requestedPath)));
     return;
   }
-  const html = language === "en"
-    ? renderBriefingPage(parseBriefingPayload(JSON.parse(edition.payload_json)))
+  const payload=parseBriefingPayload(JSON.parse(edition.payload_json));
+  let html = language === "en"
+    ? renderBriefingPage(payload)
     : await readEditionHtml(edition, paths);
+  if(edition.edition_type==="daily"&&html.includes("data-daily-finish")){
+    // The edition's stories stay frozen; the portal companion uses the current voice and layout.
+    html=html.replace(/<section\b[^>]*\bdata-daily-finish\b[^>]*>[\s\S]*?<\/section>/i,()=>renderDailyFinish(payload));
+    if(!html.includes(".kurami-presence {"))html=html.replace(/<\/head>/i,`<style>${KURAMI_MOOD_CSS}${DAILY_FINISH_STYLES}</style></head>`);
+  }
   sendHeaders(response, "text/html; charset=utf-8");
   response.statusCode = 200;
   const footer=renderSiteFooter({lang:language,app:"Digest",updated:formatSiteDate(edition.published_at??edition.prepared_at,language,true)});
-  response.end(injectRuntime(injectSiteNavigation(refreshEditionFreshness(html,parseBriefingPayload(JSON.parse(edition.payload_json))),publishedSiteLinks(database,weeklyEnabled,new Date().toISOString(),stocksEnabled),edition.edition_type,requestedPath), editionClientState(database, edition.id),footer));
+  response.end(injectRuntime(injectSiteNavigation(refreshEditionFreshness(html,payload),publishedSiteLinks(database,weeklyEnabled,new Date().toISOString(),stocksEnabled),edition.edition_type,requestedPath), editionClientState(database, edition.id),footer));
 }
 
 export async function createBriefingServer(
@@ -930,7 +940,7 @@ export async function createBriefingServer(
       const mood = (request.method === "GET" || request.method === "HEAD") ? moodAssets.get(url.pathname) : undefined;
       if (mood) {
         response.statusCode = 200;
-        response.setHeader("content-type", "image/webp");
+        response.setHeader("content-type", url.pathname.endsWith("-hd.png") ? "image/png" : "image/webp");
         response.setHeader("cache-control", "public, max-age=86400");
         response.setHeader("x-content-type-options", "nosniff");
         response.setHeader("content-length", String(mood.length));
@@ -1190,6 +1200,7 @@ export async function runBriefingServer(): Promise<void> {
 }
 
 if (import.meta.main) {
+  configurePortalVoice(resolveKuramiHome("/home/shagon1k/_hermes/_kurami"));
   runBriefingServer().catch((error: unknown) => {
     const message = error instanceof Error ? error.message : String(error);
     process.stderr.write(`${JSON.stringify({ ok: false, error: message })}\n`);

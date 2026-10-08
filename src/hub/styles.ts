@@ -37,7 +37,8 @@ body { min-height: 100vh; }
 .hub__pulse span:first-child { color: var(--text-primary); font-weight: 600; }
 .hub__pulse[data-state="attention"] span:first-child { color: var(--status-warning); }
 .hub__pulse span + span::before { content: "·"; margin-inline-end: var(--space-2); color: var(--text-muted); }
-.hub__live { margin-inline-start: auto; }
+.hub__mood { max-width: 68rem; }
+.hub__live { margin-top: var(--space-2); }
 .hub__topline h1 { margin: 0; font-size: clamp(1.9rem,3vw,2.6rem); line-height: 1.1; letter-spacing: -.05em; }
 .hub__topline p { margin: 0; }
 .hub__live { display: inline-flex; align-items: center; gap: var(--space-2); color: var(--status-success); font: 500 .75rem/1.4 var(--font-mono); }

@@ -31,7 +31,7 @@ ${SELECTION_CONTROL_CSS}
 .form-field { display: grid; grid-template-columns: var(--form-field-columns,minmax(0,1fr)); align-items: var(--form-field-align,start); align-content: start; gap: var(--space-2); min-width: 0; font-size: .8rem; }
 .form-field > span { color: var(--text-muted); }
 .form-field :is(input,select) { width: 100%; min-width: 0; min-height: var(--control-height); padding: var(--space-2) var(--space-3); border: 1px solid var(--border-default); border-radius: var(--radius); color: var(--text-primary); background: var(--surface-raised); font: inherit; transition: border-color var(--duration-fast), background var(--duration-fast); }
-.form-field textarea { width: 100%; min-width: 0; min-height: calc(var(--control-height) * 2); padding: var(--space-2) var(--space-3); border: 1px solid var(--border-default); border-radius: var(--radius); color: var(--text-primary); background: var(--surface-raised); font: inherit; line-height: 1.45; resize: vertical; }
+.form-field textarea { width: 100%; min-width: 0; min-height: var(--form-textarea-min-height,calc(var(--control-height) * 2)); padding: var(--space-2) var(--space-3); border: 1px solid var(--border-default); border-radius: var(--radius); color: var(--text-primary); background: var(--surface-raised); font: inherit; font-size: var(--form-textarea-font-size,inherit); line-height: 1.45; resize: vertical; }
 .form-field textarea:hover:not(:disabled) { border-color: var(--text-muted); }
 .form-field :is(input,select):hover:not(:disabled) { border-color: var(--text-muted); }
 .form-search { position: relative; display: block; }

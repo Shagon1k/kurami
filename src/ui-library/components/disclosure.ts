@@ -4,11 +4,11 @@ import {renderIcon} from "./icon.ts";
 
 /** `body` is trusted markup from a product renderer; the summary is escaped. `summaryHtml` (trusted markup) replaces
  * it when the folded row needs more than text, e.g. a number and tags; the product escapes what goes inside. */
-export function renderDisclosure(input: { summary: string; summaryHtml?: string; body: string; boxed?: boolean; open?: boolean; className?: string; key?:string; id?:string; variant?:"plain"|"inline"|"row" }): string {
+export function renderDisclosure(input: { summary: string; summaryHtml?: string; body: string; boxed?: boolean; open?: boolean; className?: string; key?:string; id?:string; group?:string; variant?:"plain"|"inline"|"row" }): string {
   if (input.className && !/^[a-z0-9_-]+(?: [a-z0-9_-]+)*$/.test(input.className)) throw new Error("Unsafe disclosure class");
   if(input.id && !/^[A-Za-z][A-Za-z0-9_:.-]*$/.test(input.id))throw new Error("Invalid disclosure ID");
   const classes = ["disclosure", input.boxed && "disclosure--boxed", (input.variant==="inline"||input.variant==="row")&&"disclosure--inline", input.variant==="row"&&"disclosure--row", input.className].filter(Boolean).join(" ");
-  return `<details class="${classes}"${input.id?` id="${escapeHtml(input.id)}"`:""}${input.key?` data-disclosure-key="${escapeHtml(input.key)}"`:""}${input.open ? " open" : ""}><summary>${input.variant==="inline"||input.variant==="row"?`<span class="disclosure__chevron" aria-hidden="true">${renderIcon("chevronDown")}</span>`:""}${input.summaryHtml ?? escapeHtml(input.summary)}</summary>${input.body}</details>`;
+  return `<details class="${classes}"${input.group?` name="${escapeHtml(input.group)}"`:""}${input.id?` id="${escapeHtml(input.id)}"`:""}${input.key?` data-disclosure-key="${escapeHtml(input.key)}"`:""}${input.open ? " open" : ""}><summary>${input.variant==="inline"||input.variant==="row"?`<span class="disclosure__chevron" aria-hidden="true">${renderIcon("chevronDown")}</span>`:""}${input.summaryHtml ?? escapeHtml(input.summary)}</summary>${input.body}</details>`;
 }
 
 export const DISCLOSURE_CSS = `

@@ -579,9 +579,13 @@
     try{
       const response=await fetch(location.href,{cache:'no-store',headers:{accept:'text/html'}});if(!response.ok)return;
       const next=new DOMParser().parseFromString(await response.text(),'text/html').getElementById('projects-ideas');if(!next)return;
-      const open=new Set([...block.querySelectorAll('details[open][data-disclosure-key]')].map(item=>item.dataset.disclosureKey));
-      for(const item of next.querySelectorAll('details[data-disclosure-key]'))if(open.has(item.dataset.disclosureKey))item.open=true;
+      const open=block.querySelector('details[open][data-disclosure-key]')?.dataset.disclosureKey;
+      const focus=document.activeElement?.closest?.('[data-idea-form="note"]')?.dataset.idea;
+      const drafts=new Map([...block.querySelectorAll('[data-idea-form="note"]')].map(form=>{const field=form.elements.note;return [form.dataset.idea,{text:field.value,height:field.style.height,start:field.selectionStart,end:field.selectionEnd}];}));
+      for(const item of next.querySelectorAll('details[data-disclosure-key]'))item.open=item.dataset.disclosureKey===open;
+      for(const form of next.querySelectorAll('[data-idea-form="note"]'))if(drafts.has(form.dataset.idea)){const saved=drafts.get(form.dataset.idea);form.elements.note.value=saved.text;form.elements.note.style.height=saved.height;}
       block.replaceWith(next);
+      if(focus){const field=next.querySelector('[data-idea-form="note"][data-idea="'+CSS.escape(focus)+'"] textarea'),saved=drafts.get(focus);if(field&&saved){field.focus({preventScroll:true});field.setSelectionRange(saved.start,saved.end);}}
     }catch{}
   }
   document.addEventListener('submit',async event=>{
@@ -596,9 +600,24 @@
       const result=await response.json().catch(()=>({}));
       if(!response.ok)throw new Error(result.error||t('Data is temporarily unavailable.'));
       toast.show(t(action==='task'?'The idea became a task.':action==='note'?'Note added.':'Status saved.'),{tone:'success'});
+      if(action==='note'&&form.elements.note.value===body.note)form.elements.note.value='';
       await refreshIdeas();
     }catch(error){toast.show(error.message,{tone:'failure'});}
     finally{button.removeAttribute('aria-busy');button.disabled=false;}
+  });
+  document.addEventListener('change',event=>{
+    const select=event.target.closest?.('.projects-mobile-sort select');if(!select)return;
+    const url=new URL(location.href),[key,direction]=select.value.split(':');
+    if(key){url.searchParams.set('sort',key);url.searchParams.set('dir',direction);}else{url.searchParams.delete('sort');url.searchParams.delete('dir');}
+    navigate(url,false);
+  });
+  document.addEventListener('toggle',event=>{
+    const item=event.target;if(!item.matches?.('.projects-ideas__item')||!item.open)return;
+    for(const other of item.closest('.projects-ideas__list').querySelectorAll('details[open]'))if(other!==item)other.open=false;
+  },true);
+  document.addEventListener('input',event=>{
+    const field=event.target;if(!field.matches?.('[data-idea-form="note"] textarea'))return;
+    field.style.height='auto';field.style.height=Math.max(field.scrollHeight,96)+'px';
   });
   filter();updateLayout();updateProjectTabs(new URL(location.href));loadPrControl();
   if(mobile.matches&&dashboard.querySelector('#project-details'))dashboard.querySelector('#project-details').focus({preventScroll:true});

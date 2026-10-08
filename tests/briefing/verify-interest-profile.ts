@@ -37,7 +37,8 @@ const payload=parseBriefingPayload({schemaVersion:2,formatVersion:3,
  addons:{news:{version:2,state:"ready",capturedAt:now,data:{section:{state:"ready",pageSize:10,items:stories}}}},
  dataQuality:{state:"ready"},
 });
-await writeFile(resolve(paths.previewDirectory,"interest.html"),renderBriefingPage(payload));
+const retainedHtml=renderBriefingPage(payload).replace(/<section\b[^>]*data-daily-finish[^>]*>[\s\S]*?<\/section>/,'<section data-daily-finish>Old portal companion</section>').replace('.kurami-presence {','.old-presence {');
+await writeFile(resolve(paths.previewDirectory,"interest.html"),retainedHtml);
 db.prepare(`INSERT INTO editions(id,edition_type,local_date,timezone,state,payload_json,html_path,content_digest,is_current,prepared_at,published_at,retention_until,updated_at)
 VALUES(?,'daily','2026-09-16','Europe/Vilnius','complete',?,'pages/preview/interest.html','frozen',1,?,?,?,?)`)
  .run(payload.edition.id,JSON.stringify(payload),now,now,payload.edition.retentionUntil,now);
@@ -99,6 +100,15 @@ await once(server,"listening");
 const address=server.address() as {port:number};
 const base="http://127.0.0.1:"+address.port;
 try {
+ for(const lang of ['ru','en']){
+   const response=await fetch(base+`/${lang}/daily/2026-09-16`);
+   assert.equal(response.status,200);
+   const html=await response.text();
+   assert.doesNotMatch(html,/Old portal companion/);
+   assert.match(html,/data-kurami-presence="[a-f0-9]{64}"/);
+   assert.ok(html.includes('.kurami-presence {'),"retained editions receive the companion's current styles");
+   assert.equal((html.match(/data-daily-finish(?:\s|>)/g)??[]).length,1);
+ }
  const order=await fetch(base+"/api/news/order?editionId="+payload.edition.id+"&mode=for-you").then(r=>r.json()) as {mode:string;order:string[]};
  assert.equal(order.mode,"for-you");
  assert.deepEqual([...order.order].sort(),stories.map(story=>story.id).sort());

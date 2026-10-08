@@ -18,7 +18,8 @@ import {renderCallout} from "../ui-library/components/callout.ts";
 import {renderDisclosure} from "../ui-library/components/disclosure.ts";
 import {inlineDiagram} from "../ui-library/foundations/diagram.ts";
 import {screenshotDimensions} from "./screenshot-dimensions.ts";
-import {renderKuramiMood} from "../ui-library/components/kurami-mood.ts";
+import {renderKuramiMood,renderKuramiPresence} from "../ui-library/components/kurami-mood.ts";
+import {portalVoice} from "../portal-presence/voice.ts";
 
 const REPO="https://github.com/Shagon1k/kurami";
 const labels={
@@ -258,7 +259,8 @@ export function renderArticle(page:HumanDocsPage,lang:Language,options:RenderOpt
 export function renderHome(lang:Language,options:RenderOptions={}):RenderedPage {
   if(!homePage)throw new Error("Missing content/pages/home.<lang>.md");
   const context:Context={lang,page:homePage,options,diagrams:[]};
-  const body=`<div class="home"><header class="intro intro--kurami kurami-says kurami-says--side">${renderKuramiMood({mood:"welcome",eager:true})}<div><p class="eyebrow page-eyebrow">${escape(lang==="ru"?"Kurami · документация":"Kurami · documentation")}</p><h1 class="page-title">${escape(homePage.title[lang])}</h1><div class="kurami-says__bubble"><p class="lede page-subtitle">${escape(homePage.summary[lang])}</p></div></div></header><div class="prose prose--home">${blocksHtml(homePage.blocks[lang],context)}</div></div>`;
+  const voice=portalVoice({portal:"docs",mood:"welcome",reason:"docs-home"},lang);
+  const body=`<div class="home"><header class="intro"><p class="eyebrow page-eyebrow">${escape(lang==="ru"?"Kurami · документация":"Kurami · documentation")}</p><h1 class="page-title">${escape(homePage.title[lang])}</h1><p class="lede page-subtitle">${escape(homePage.summary[lang])}</p></header>${renderKuramiPresence({...voice,mood:"welcome",action:renderLinkButton({label:lang==="ru"?"Карта системы":"System map",href:url(lang,"architecture"),variant:"secondary"})})}<div class="prose prose--home">${blocksHtml(homePage.blocks[lang],context)}</div></div>`;
   return {html:shell(lang,homePage.title[lang],homePage.summary[lang],body,undefined,""),diagrams:context.diagrams};
 }
 

@@ -23,7 +23,7 @@ export function projectHtml(html:string,app:WebApp,language:WebLanguage):string 
         return code>0&&code<=0x10ffff?String.fromCodePoint(code):"�";
       });
       return `${space}${attribute}=${quote}${escapeHtml(publicAppUrl(value,app,language))}${quote}`;
-    });
+    }).replace(/(\ssrcset=)(["'])([^"']*)\2/gi,(_,attribute,quote,value:string)=>`${attribute}${quote}${value.replace(/(^|,\s*)(\/assets\/[a-z0-9_.-]+)(?=\s|,|$)/gi,(_match,separator,path)=>separator+publicAppUrl(path,app,language))}${quote}`);
     const redirect=/^<meta\b/i.test(projected)&&/http-equiv=["']refresh["']/i.test(projected)
       ?projected.replace(/\bcontent=(["'])(\d+;\s*url=)([^"']+)\1/i,(_,quote,prefix,url)=>`content=${quote}${prefix}${escapeHtml(publicAppUrl(url,app,language))}${quote}`)
       :projected;

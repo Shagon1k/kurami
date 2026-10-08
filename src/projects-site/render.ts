@@ -26,7 +26,8 @@ import {renderToastRegion} from "../ui-library/components/toast.ts";
 import {renderPill,type PillTone} from "../ui-library/components/pill.ts";
 import {needsOwner,parseFilters,projectStageLabel,selectItems,type ProjectItem,type ProjectSummary,type ProjectsSnapshot,type Signal,type SortKey} from "./model.ts";
 import {tr,sourceText,language,stateLabel,browserMessages,type Language} from "./i18n.ts";
-import {renderKuramiSays,renderKuramiState} from "../ui-library/components/kurami-mood.ts";
+import {renderKuramiPresence,renderKuramiState} from "../ui-library/components/kurami-mood.ts";
+import {portalVoice} from "../portal-presence/voice.ts";
 
 export function localTime(value:string|null,lang:Language="en"):string {
   if(!value||!Number.isFinite(Date.parse(value)))return tr("Unknown",lang);
@@ -69,7 +70,7 @@ function navigation(label:string,raw:string|null,lang:Language):string {
 }
 function sortControl(key:SortKey,label:string,params:URLSearchParams,lang:Language):string {
   const filters=parseFilters(params);const selected=filters.sort===key;
-  return renderButton({label:tr(label,lang),variant:"quiet",className:"projects-sort",iconPath:iconPath("sort"),iconPosition:"end",visibleLabel:true,ariaLabel:`${tr("Sort by",lang)} ${tr(label,lang)}${selected?` · ${filters.direction}`:""}`,attributes:{"data-sort":key,"aria-pressed":selected?"true":"false"}});
+  return renderButton({label:tr(label,lang),variant:"sort",className:"projects-sort",iconPath:iconPath(selected?filters.direction==="desc"?"sortDescending":"sortAscending":"sort"),iconPosition:"end",visibleLabel:true,ariaLabel:`${tr("Sort by",lang)} ${tr(label,lang)}${selected?` · ${tr(filters.direction==="desc"?"Descending":"Ascending",lang)}`:""}`,attributes:{"data-sort":key,"aria-pressed":selected?"true":"false"}});
 }
 function checks(item:ProjectItem,lang:Language):string {
   return [["CI","ci",item.ci],["AI Review","review",item.review],["Preview","preview",item.preview]].map(([name,icon,value])=>{
@@ -108,9 +109,12 @@ export function renderProjectsDashboard(snapshot:ProjectsSnapshot,params=new URL
     :filters.attentionOnly?renderKuramiState({mood:"idle",title:t("Nothing is waiting for you"),text:t("Kurami will show tasks here when they need your answer.")})
     :renderKuramiState({mood:"idle",title:t("No matching tasks"),text:t("Try another project or search.")});
   // "Your move": the owner filter shows Kurami with open hands above the tasks that wait for an answer.
-  const yourMove=filters.attentionOnly&&items.length?renderKuramiSays({mood:"needs-decision",placement:"side",className:"projects-your-move",body:`<p><strong>${t("Your move")}</strong> · ${items.length} ${yourMoveWords(items.length,lang)}</p>`}):"";
+  const voice=filters.attentionOnly&&items.length?portalVoice({portal:"projects",mood:"needs-decision",reason:"owner-attention",facts:{count:items.length,project:filters.project}},lang):null;
+  const firstTask=new URLSearchParams(params);if(items.length)firstTask.set("item",items[0]!.id);
+  const yourMove=voice?renderKuramiPresence({...voice,mood:"needs-decision",className:"projects-your-move",meta:`<p>${items.length} ${yourMoveWords(items.length,lang)}</p>`,action:renderLinkButton({label:t("Open task"),href:`/?${firstTask}`,variant:"secondary",attributes:{"data-item-link":items[0]!.id}})}):"";
+  const mobileSort=renderSelectField({name:"sort",label:t("Sort by"),value:filters.sort?`${filters.sort}:${filters.direction}`:"",options:[{value:"",label:t("Default order")},...([['task','Task'],['status','Status'],['kurami','Kurami']] as const).flatMap(([key,label])=>[{value:`${key}:asc`,label:`${t(label)} · ↑ ${t("Ascending")}`},{value:`${key}:desc`,label:`${t(label)} · ↓ ${t("Descending")}`}])]});
   return `<div class="projects-overview"><div class="projects-summary"><p>${renderIcon("project")}<span><strong data-visible-count>${items.length}</strong> ${t("of")} ${snapshot.items.length} ${t("tasks")}</span></p><div class="projects-filters">${counter("active",active,"active","work",filters.activeOnly,"Tasks in progress or waiting for your attention.")}${counter("attention",attention,"need you","alert",filters.attentionOnly,"Tasks waiting for your attention.")}</div></div><div class="projects-sync"><span class="projects-sync-indicator projects-sync-indicator--${delayed?"delayed":"fresh"}" aria-hidden="true"></span>${renderButton({label:`${t("Sync")} · ${t(delayed?"Delayed":"Up to date")}`,compactLabel:lang==="ru"?t("Sync short"):t("Sync"),iconPath:iconPath("refresh"),visibleLabel:true,variant:"quiet",attributes:{popovertarget:"projects-sync-popover","data-sync-trigger":true,title:`${t("Sync")} · ${t(delayed?"Delayed":"Up to date")}`}})}${renderPopover({id:"projects-sync-popover",label:t("Sync"),body:freshBody})}</div></div>
-    <div class="projects-mobile-sort" aria-label="${t("Sort by")}">${sortControl("task","Task",params,lang)}${sortControl("status","Status",params,lang)}${sortControl("kurami","Kurami",params,lang)}</div>
+    <div class="projects-mobile-sort" aria-label="${t("Sort by")}">${mobileSort}</div>
     ${snapshot.available?"":renderCallout({tone:"warning",title:t("Data temporarily unavailable"),body:t("Check the current state in GitHub or Discord.")})}
     <div class="projects-grid${selected?" projects-grid--detail":""}"><div class="projects-table-frame"${surfaceAttributes("lead")}>${yourMove}${table}<div data-search-empty hidden>${renderCallout({tone:"note",title:t("No tasks match your search."),body:""})}</div></div>${selected?detail(selected,params,projectOf(selected),snapshot.generatedAt):""}</div>`;
 }

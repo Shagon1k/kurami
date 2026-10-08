@@ -15,6 +15,7 @@ import {injectRuntime} from "../../src/briefing/server.ts";
 import {renderPageShell} from "../../src/briefing/ui/page-shell.ts";
 import {existsSync} from "node:fs";
 import {THEME_RUNTIME_JS,THEME_SCRIPT_TAG} from "../../src/ui-library/runtime/theme.ts";
+import {KURAMI_PRESENCE_RUNTIME_JS} from "../../src/ui-library/components/kurami-mood.ts";
 import {renderThemeSwitch} from "../../src/ui-library/components/theme-switch.ts";
 import {renderButton,renderLinkButton} from "../../src/ui-library/components/button.ts";
 import {validateRenderedHtml} from "../../src/briefing/html-artifacts.ts";
@@ -214,7 +215,7 @@ assert.match(variantCss(neonTheme),/\[data-theme="light"\] \{[^}]*--display-glow
 assert.match(THEME_RUNTIME_JS,/"neon":\["dark","light"\]/,"runtime knows Neon's modes, dark first");
 assert.match(THEME_RUNTIME_JS,/kurami-theme-default=/,"runtime reads the Hub default");
 assert.match(THEME_RUNTIME_JS,/sessionStorage\.setItem/,"a menu choice lasts the session");
-assert.doesNotMatch(THEME_RUNTIME_JS,/localStorage\.setItem/,"a menu choice never persists on the device");
+assert.doesNotMatch(THEME_RUNTIME_JS.replace(KURAMI_PRESENCE_RUNTIME_JS,""),/localStorage\.setItem/,"a menu choice never persists on the device");
 // Stage 2: opt-in surfaces, gauges, icon plates and chart areas draw nothing new in Paper.
 assert.equal(surfaceAttributes("panel")," data-ui-surface=\"panel\"");
 assert.equal(surfaceAttributes("lead",{attention:true})," data-ui-surface=\"lead\" data-ui-attention");

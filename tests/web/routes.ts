@@ -43,5 +43,11 @@ assert.equal(projectCss('url(/assets/font.woff2)',"hub","en"),'url(/_apps/hub/as
 assert.equal(projectHtml('<a href="/?q=a&amp;project=b&amp;lang=ru">Task</a>',"projects","en"),'<a href="/ru/projects/?q=a&amp;project=b">Task</a>');
 assert.equal(projectHtml('<meta http-equiv="refresh" content="0; url=/en/new-page/">',"docs","en"),'<meta http-equiv="refresh" content="0; url=/en/docs/new-page/">');
 assert.equal(projectHtml('<div data-src="/original/source" data-href="/original/link"></div>',"docs","en"),'<div data-src="/original/source" data-href="/original/link"></div>');
+const responsive='<img src="/assets/kurami-idle.webp" srcset="/assets/kurami-idle.webp 320w, /assets/kurami-idle-hd.png 1024w">';
+const mountedResponsive=projectHtml(responsive,"hub","ru");
+assert.equal(mountedResponsive,'<img src="/_apps/hub/assets/kurami-idle.webp" srcset="/_apps/hub/assets/kurami-idle.webp 320w, /_apps/hub/assets/kurami-idle-hd.png 1024w">');
+assert.equal(projectHtml(mountedResponsive,"hub","ru"),mountedResponsive);
+assert.deepEqual(resolveWebRoute("/_apps/hub/assets/kurami-idle-hd.png"),{app:"hub",language:"en",upstream:"/assets/kurami-idle-hd.png"});
+assert.deepEqual(resolveWebRoute("/_apps/hub/api/portal-voice?key=test&lang=ru"),{app:"hub",language:"ru",upstream:"/api/portal-voice?key=test&lang=ru"});
 assert.equal(resolveWebRoute("/en/#fake-route"),null);
 console.log("Unified routes: locale, app boundaries, query preservation, archive projection and traversal rejection verified");

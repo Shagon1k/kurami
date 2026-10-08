@@ -65,8 +65,9 @@ const source=resolve(docsState,"audit-source");
 sh(scratch,"git","clone","--quiet",remote,source);
 for(const repo of [source])sh(repo,"git","config","user.email","test@example.invalid"),sh(repo,"git","config","user.name","Docs Test");
 // Exercise local edits too: release builds run in clean fixture worktrees.
-for(const path of ["src/human-docs","tests/human-docs","docs/human-docs-operations.md"])cpSync(resolve(appRoot,path),resolve(source,path),{recursive:true});
-sh(source,"git","add","src/human-docs","tests/human-docs","docs/human-docs-operations.md");
+const fixturePaths=["src/human-docs","src/ui-library","src/portal-presence","tests/human-docs","docs/human-docs-operations.md"];
+for(const path of fixturePaths)cpSync(resolve(appRoot,path),resolve(source,path),{recursive:true});
+sh(source,"git","add",...fixturePaths);
 sh(source,"git","commit","--quiet","--allow-empty","-m","Docs fixture under test");
 sh(source,"git","push","--quiet",remote,"HEAD:refs/heads/main");
 const oldRelease=resolve(docsState,"release");

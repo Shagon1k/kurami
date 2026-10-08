@@ -3,8 +3,9 @@
 // edition as read (once per device); Hub's pulse line then shows "Дайджест ✓ 08:05".
 import type { BriefingPayload } from "../../model.ts";
 import { section } from "../../addons/envelopes.ts";
-import { renderKuramiMood } from "../../../ui-library/components/kurami-mood.ts";
-import { digestText } from "../../i18n.ts";
+import { renderKuramiPresence } from "../../../ui-library/components/kurami-mood.ts";
+import { portalVoice } from "../../../portal-presence/voice.ts";
+import { digestLanguage, digestText } from "../../i18n.ts";
 import { escapeHtml } from "../html.ts";
 
 const WORDS_PER_MINUTE = 200;
@@ -17,12 +18,11 @@ export function readingMinutes(payload: BriefingPayload): number {
 export function renderDailyFinish(payload: BriefingPayload): string {
   if (payload.edition.type !== "daily") return "";
   const stories = section(payload, "news").items.length;
+  const voice=portalVoice({portal:"digest",mood:"done",reason:"reading-finish",facts:{edition:payload.edition.id,stories}},digestLanguage());
   return `<section class="daily-finish" data-daily-finish data-edition-id="${escapeHtml(payload.edition.id)}" aria-labelledby="daily-finish-heading">
-    ${renderKuramiMood({ mood: "done" })}
     <div class="daily-finish__copy">
       <h2 id="daily-finish-heading">${digestText("Всё. Ты в курсе.", "That's all. You're up to date.")}</h2>
-      <p>${digestText(`≈ ${readingMinutes(payload)} мин чтения · ${stories} ${stories % 10 === 1 && stories % 100 !== 11 ? "сюжет" : stories % 10 >= 2 && stories % 10 <= 4 && (stories % 100 < 12 || stories % 100 > 14) ? "сюжета" : "сюжетов"}`, `≈ ${readingMinutes(payload)} min read · ${stories} ${stories === 1 ? "story" : "stories"}`)}</p>
-      <p class="daily-finish__stamp" data-read-stamp data-label="${digestText("дочитано", "finished")}" data-label-at="${digestText("дочитано в", "finished at")}" hidden></p></div>
+    </div>${renderKuramiPresence({...voice,mood:"done",meta:`<p>${digestText(`≈ ${readingMinutes(payload)} мин чтения · ${stories} ${stories % 10 === 1 && stories % 100 !== 11 ? "сюжет" : stories % 10 >= 2 && stories % 10 <= 4 && (stories % 100 < 12 || stories % 100 > 14) ? "сюжета" : "сюжетов"}`, `≈ ${readingMinutes(payload)} min read · ${stories} ${stories === 1 ? "story" : "stories"}`)}</p><p class="daily-finish__stamp" data-read-stamp data-label="${digestText("дочитано", "finished")}" data-label-at="${digestText("дочитано в", "finished at")}" hidden></p>`})}
   </section>`;
 }
 
@@ -46,12 +46,12 @@ export const DAILY_FINISH_SCRIPT = String.raw`
 `;
 
 export const DAILY_FINISH_STYLES = `
-.daily-finish { display: flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: 16px 32px; margin-top: 48px; padding: 24px 0 8px; border-top: 1px solid var(--border-default); }
+.daily-finish { display: grid; gap: var(--space-4); margin-top: var(--space-8); padding: var(--space-5) 0 var(--space-2); border-top: 1px solid var(--border-default); }
 .daily-finish__copy { position: relative; display: grid; gap: 6px; }
 .daily-finish__copy h2 { margin: 0; font-size: clamp(1.5rem, 3vw, 2rem); }
 .daily-finish__copy p { margin: 0; color: var(--text-muted); }
 /* Kurami's handwriting under the line, as on her notes in the feed; the theme's display glow lights it in Neon. */
-.daily-finish__copy .daily-finish__stamp { justify-self: start; margin: 0; color: var(--accent-primary); font: 600 1.5rem/1.1 var(--font-note); rotate: -2deg; text-shadow: var(--display-glow); }
+.daily-finish__stamp { margin: var(--space-2) 0 0; color: var(--text-accent); font: 600 1.25rem/1.1 var(--font-note); rotate: -2deg; text-shadow: var(--display-glow); }
 .daily-finish.is-read .daily-finish__stamp { animation: daily-stamp .5s cubic-bezier(.2,.9,.3,1.4); }
 @keyframes daily-stamp { from { scale: 1.8; opacity: 0; } to { scale: 1; opacity: 1; } }
 @media (prefers-reduced-motion: reduce) { .daily-finish.is-read .daily-finish__stamp { animation: none; } }

@@ -23,6 +23,8 @@ const paths={
   bellOff:"M3 3l18 18M7 7v7l-2 3h12M10 4a5 5 0 0 1 7 5v4M10 21h4",
   back:"M14 5l-7 7 7 7M7 12h14",
   sort:"M8 4v16M4 8l4-4 4 4M16 20V4M12 16l4 4 4-4",
+  sortAscending:"M12 20V4M6 10l6-6 6 6",
+  sortDescending:"M12 4v16M6 14l6 6 6-6",
   stop:"M6 6h12v12H6z",
   play:"M8 4l12 8-12 8z",
   spark:"M12 2l3 7 7 3-7 3-3 7-3-7-7-3 7-3z",

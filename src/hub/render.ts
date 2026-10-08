@@ -27,7 +27,8 @@ import type {CodexLimit,CodexSnapshot} from "./codex.ts";
 import type {HubProject,HubSnapshot} from "./snapshot.ts";
 import type {UsagePeriod} from "../orchestrator/projects/usage-read-model.ts";
 import type {ChronicleDay,ChronicleEvent,ChronicleKind} from "../orchestrator/projects/chronicle.ts";
-import {renderKuramiSays,renderKuramiState,type KuramiMood} from "../ui-library/components/kurami-mood.ts";
+import {renderKuramiPresence,renderKuramiState,type KuramiMood} from "../ui-library/components/kurami-mood.ts";
+import {portalVoice} from "../portal-presence/voice.ts";
 
 export type HubLanguage="ru"|"en";
 const tr=(lang:HubLanguage,ru:string,en:string)=>lang==="ru"?ru:en;
@@ -320,18 +321,20 @@ export function ideasReminder(snapshot:HubSnapshot,lang:HubLanguage):string {
 function renderPulse(snapshot:HubSnapshot,lang:HubLanguage):string {
   const problems=problemQueue(snapshot.operations?.alerts??[]).length,known=snapshot.sources.orchestrator==="available";
   const plural=(n:number,forms:[string,string,string])=>forms[n%100>=11&&n%100<=14?2:n%10===1?0:n%10>=2&&n%10<=4?1:2];
-  const parts=[problems?tr(lang,`${problems} ${plural(problems,["требует","требуют","требуют"])} внимания`,`${problems} need${problems===1?"s":""} attention`):tr(lang,"Всё спокойно","All quiet")];
+  const parts=[problems?tr(lang,`${problems} ${plural(problems,["требует","требуют","требуют"])} внимания`,`${problems} need${problems===1?"s":""} attention`):known?tr(lang,"Всё спокойно","All quiet"):tr(lang,"Состояние недоступно","State unavailable")];
   if(known&&snapshot.totals.working>0)parts.push(tr(lang,`${snapshot.totals.working} в работе`,`${snapshot.totals.working} in progress`));
   if(known&&snapshot.totals.attention>0)parts.push(tr(lang,`${snapshot.totals.attention} ${plural(snapshot.totals.attention,["ждёт","ждут","ждут"])} тебя`,`${snapshot.totals.attention} waiting for you`));
   else if(known&&snapshot.totals.review>0)parts.push(tr(lang,`${snapshot.totals.review} на ревью`,`${snapshot.totals.review} in review`));
   if(snapshot.digestReadAt)parts.push(`${tr(lang,"Дайджест","Digest")} ✓ ${new Intl.DateTimeFormat(lang==="ru"?"ru-RU":"en-GB",{hour:"2-digit",minute:"2-digit",timeZone:"Europe/Vilnius"}).format(new Date(snapshot.digestReadAt))}`);
-  // Kurami says the pulse: her mood beside a speech bubble with the line.
-  return renderKuramiSays({mood:pulseMood(snapshot),eager:true,placement:"side",className:"hub__mood",body:`<p class="hub__pulse" data-state="${problems?"attention":"quiet"}">${parts.map(part=>`<span>${escapeHtml(part)}</span>`).join("")}${ideasReminder(snapshot,lang)}</p>`});
+  const mood=known?pulseMood(snapshot):"offline";
+  const voice=portalVoice({portal:"hub",mood,reason:"system-pulse",facts:{known,problems,working:snapshot.totals.working,attention:snapshot.totals.attention,review:snapshot.totals.review}},lang);
+  const action=snapshot.totals.attention>0?renderLinkButton({label:tr(lang,"Открыть задачи","Open tasks"),href:`${kuramiEntryHref("projects",lang)}?attention=1`,variant:"secondary"}):"";
+  return renderKuramiPresence({...voice,mood,className:"hub__mood",meta:`<p class="hub__pulse" data-state="${problems?"attention":"quiet"}">${parts.map(part=>`<span>${escapeHtml(part)}</span>`).join("")}${ideasReminder(snapshot,lang)}</p><p class="hub__live">${escapeHtml(formatTime(snapshot.generatedAt,lang))}</p>`,action});
 }
 
 export function renderHubDashboard(snapshot:HubSnapshot,lang:HubLanguage="en"):string {
   const orchestratorAvailable=snapshot.sources.orchestrator==="available";
-  return `<div class="hub__topline"><h1 class="sr-only">Kurami Hub</h1>${renderPulse(snapshot,lang)}<p class="hub__live">${escapeHtml(formatTime(snapshot.generatedAt,lang))}</p></div>${renderAlerts(snapshot,lang)}
+  return `<div class="hub__topline"><h1 class="sr-only">Kurami Hub</h1>${renderPulse(snapshot,lang)}</div>${renderAlerts(snapshot,lang)}
     <section class="overview-grid" aria-label="${tr(lang,"Показатели системы","System metrics")}">
       <div class="hub-panel task-summary"${surfaceAttributes("panel")}><h2>${tr(lang,"Задачи","Tasks")}</h2><div class="task-summary__metrics">
       <div class="task-summary__cell">${metric(tr(lang,"В работе","In progress"),orchestratorAvailable?value(snapshot.totals.working,lang):"—",false,undefined,{tone:"accent",icon:"work",plain:true})}</div>

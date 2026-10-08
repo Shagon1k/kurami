@@ -251,6 +251,11 @@ composedItem.preview.head=null;
 const mixed=renderProjectsPage(composed,new URLSearchParams("item=item-12")).split('<aside class="projects-detail"')[1]!;
 assert.match(mixed,/Unverified<\/code>/,"unknown evidence heads remain explicit rather than borrowing a shared commit");
 assert.deepEqual(selectItems(fixture,parseFilters(new URLSearchParams("attention=1"))).map(item=>item.id),["item-12","item-24"],"attention view includes review and waiting owner input, not agent work");
+for(const lang of ["en","ru"]){
+  const attentionPage=renderProjectsPage(fixture,new URLSearchParams(`attention=1&lang=${lang}`));
+  assert.match(attentionPage,/data-kurami-presence="[a-f0-9]{64}"/);
+  assert.match(attentionPage,/href="\/\?attention=1&amp;lang=(?:en|ru)&amp;item=item-12"[^>]*data-item-link="item-12"/);
+}
 const reviewOnly=structuredClone(fixture);reviewOnly.items=[fixture.items[0]!,fixture.items[3]!];
 const reviewOnlyPage=renderProjectsPage(reviewOnly,new URLSearchParams("active=1"));
 assert.match(reviewOnlyPage,/data-task-filter="active"[^>]*>[\s\S]*?<strong class="button__count">1<\/strong> <span[^>]*>active<\/span>/,"active count includes review even when no card is in the working status");

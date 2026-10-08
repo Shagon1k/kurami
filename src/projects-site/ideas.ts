@@ -42,7 +42,7 @@ function ideaBody(item: Idea & { notes?: IdeaNote[] }, projects: ProjectSummary[
   const field = (label: string, value: string | null) => value ? `<div class="projects-idea__field"><dt>${escape(t(label))}</dt><dd>${escape(value)}</dd></div>` : "";
   const fields = [field("What prompted it", item.context), field("First step", item.firstStep), field("Original message", item.original)].join("");
   const forms = `<div class="projects-idea__actions">
-    <form class="projects-idea__form" data-idea-form="note" data-idea="${item.id}">${renderTextField({ name: "note", label: t("Add a note"), placeholder: t("A thought, a link, a decision"), required: true, maxLength: 2000, rows: 2 })}<div class="projects-idea__submit">${renderButton({ label: t("Add note"), variant: "subtle", size: "compact", type: "submit", busyLabel: "…" })}</div></form>
+    <form class="projects-idea__form" data-idea-form="note" data-idea="${item.id}">${renderTextField({ name: "note", label: t("Add a thought"), placeholder: t("A thought, a link, a decision"), required: true, maxLength: 2000, rows: 3 })}<div class="projects-idea__submit">${renderButton({ label: t("Add note"), variant: "secondary", type: "submit", busyLabel: "…" })}</div></form>
   </div>`;
   return `<div class="projects-idea">${fields ? `<dl class="projects-idea__fields">${fields}</dl>` : ""}${journal(item.notes ?? [], lang)}${item.taskUrl ? renderLinkButton({ label: t("Open the task"), href: item.taskUrl, variant: "link", iconPath: iconPath("arrow") }) : forms}</div>`;
 }
@@ -60,7 +60,7 @@ export function renderIdeasBlock(view: IdeasView | undefined, projects: ProjectS
   const t = (key: string) => tr(key, lang);
   const content = !view?.available ? `<p class="projects-ideas__empty">${escape(t("Ideas cannot be read right now."))}</p>`
     : !view.ideas.length ? `<p class="projects-ideas__empty">${escape(t("No open ideas. Tell any Kurami chat: “save an idea: …”."))}</p>`
-    : `<div class="projects-ideas__list">${view.ideas.map(item => renderDisclosure({ summary: item.summary, summaryHtml: ideaSummary(item, projects, lang), body: ideaBody(item, projects, lang), key: `idea:${item.id}`, className: "projects-ideas__item" })).join("")}</div>`;
+    : `<div class="projects-ideas__list">${view.ideas.map(item => renderDisclosure({ summary: item.summary, summaryHtml: ideaSummary(item, projects, lang), body: ideaBody(item, projects, lang), key: `idea:${item.id}`, group: "projects-ideas", className: "projects-ideas__item" })).join("")}</div>`;
   return `<section class="projects-ideas" id="projects-ideas" aria-labelledby="projects-ideas-title"${surfaceAttributes("panel")}><div class="projects-ideas__heading"><h2 id="projects-ideas-title">${escape(t("Ideas"))}</h2>${view?.openCount ? `<span class="projects-ideas__count">${view.openCount} ${escape(t(view.openCount === 1 ? "open idea" : "open ideas"))}</span>` : ""}<p class="projects-ideas__note">${escape(t("thoughts for later, not tasks"))}</p></div>${content}</section>`;
 }
 
