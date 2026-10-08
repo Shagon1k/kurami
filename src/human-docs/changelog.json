@@ -2,6 +2,12 @@
   "baseline": "4a38c09",
   "publicationBaseline": "788787f077d42fc3b3346a4f4a612947b97ce2e8",
   "commits": {
+    "cf1b7f62088d97d4b9758a745d9f041fc29420a9": {
+      "category": "fixed",
+      "en": "Chat requests to record a task or future work go into the ideas pool unless another destination, such as GitHub or a project backlog, is explicitly named. Requests to implement changes now remain work requests. Hermes, Claude Code and Codex share these routing rules.",
+      "ru": "Просьбы в чате записать задачу или работу на потом сохраняются в пул идей, если явно не названо другое место, например GitHub или backlog проекта. Просьбы внести изменения сейчас остаются поручениями на работу. Hermes, Claude Code и Codex используют одинаковые правила.",
+      "page": "owner-controls"
+    },
     "ee02f37312508acac4d044cfcd223884d7e65bcc": {
       "category": "improved",
       "en": "The shared mobile dock sits another 5px lower in Hub, Projects, Digest and Docs, leaving a 3px gap above the bottom safe area. Menus, notifications and reserved content spacing follow the new position. Dock sizing, side margins, transparency and desktop navigation are unchanged.",
