@@ -103,6 +103,12 @@ export function createHubServer(options:{releaseDrift?:{latest:DriftItem[]};snap
       if(!identity){response.writeHead(403,{"Cache-Control":"no-store"}).end();return;}
       const query=new URL(request.url!,"http://localhost").searchParams,key=query.get("key")??"",language=query.get("lang")==="ru"?"ru":"en";
       const docs={portal:"docs",mood:"welcome",reason:"docs-home"} as const;
+      if(query.has("context")){
+        if(query.get("context")!=="docs-home"){response.writeHead(400,{"Cache-Control":"no-store"}).end();return;}
+        const voice=portalVoice(docs,language,home);
+        response.writeHead(200,{"Cache-Control":"no-store","Content-Type":"application/json; charset=utf-8"});
+        response.end(JSON.stringify({key:voice.key,lang:language,lines:voice.lines}));return;
+      }
       if(key===voiceKey(docs,language,home))portalVoice(docs,language,home);
       const cached=cachedPortalVoice(key,language,home);
       response.writeHead(cached?200:204,{"Cache-Control":"no-store","Content-Type":"application/json; charset=utf-8"});

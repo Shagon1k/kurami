@@ -54,11 +54,11 @@ export const HERO_MOOD_STYLES = `
 .hero[data-hero-mood][data-daypart="evening"] { --hero-tint: color-mix(in srgb, var(--status-failure) 16%, transparent); }
 .hero[data-hero-mood][data-daypart="night"] { --hero-tint: color-mix(in srgb, var(--text-accent, var(--status-info)) 20%, transparent); }
 .hero[data-hero-mood]::before { content: ""; position: absolute; inset: 0 0 0 40%; z-index: -1; pointer-events: none;
-  background: radial-gradient(60% 70% at 85% 25%, var(--hero-tint), transparent 70%); }
+  background: radial-gradient(ellipse closest-side at 65% 35%, var(--hero-tint), transparent); }
 .hero[data-weather="cloudy"]::before { filter: saturate(.6); }
 .hero[data-weather="rain"]::after, .hero[data-weather="storm"]::after, .hero[data-weather="snow"]::after, .hero[data-weather="fog"]::after {
   content: ""; position: absolute; inset: 0 0 0 55%; z-index: -1; pointer-events: none; opacity: .5;
-  mask-image: radial-gradient(70% 80% at 85% 30%, black, transparent 75%); }
+  mask-image: radial-gradient(ellipse closest-side at 65% 35%, black, transparent); }
 .hero[data-weather="rain"]::after, .hero[data-weather="storm"]::after { background: repeating-linear-gradient(105deg, transparent 0 14px, color-mix(in srgb, var(--status-info) 35%, transparent) 14px 15px); }
 .hero[data-weather="storm"]::after { opacity: .7; }
 .hero[data-weather="snow"]::after { background: radial-gradient(circle, color-mix(in srgb, var(--text-muted) 55%, transparent) 1.2px, transparent 1.8px) 0 0 / 18px 18px; }

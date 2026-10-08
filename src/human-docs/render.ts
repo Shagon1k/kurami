@@ -260,7 +260,7 @@ export function renderHome(lang:Language,options:RenderOptions={}):RenderedPage 
   if(!homePage)throw new Error("Missing content/pages/home.<lang>.md");
   const context:Context={lang,page:homePage,options,diagrams:[]};
   const voice=portalVoice({portal:"docs",mood:"welcome",reason:"docs-home"},lang);
-  const body=`<div class="home"><header class="intro"><p class="eyebrow page-eyebrow">${escape(lang==="ru"?"Kurami · документация":"Kurami · documentation")}</p><h1 class="page-title">${escape(homePage.title[lang])}</h1><p class="lede page-subtitle">${escape(homePage.summary[lang])}</p></header>${renderKuramiPresence({...voice,mood:"welcome",action:renderLinkButton({label:lang==="ru"?"Карта системы":"System map",href:url(lang,"architecture"),variant:"secondary"})})}<div class="prose prose--home">${blocksHtml(homePage.blocks[lang],context)}</div></div>`;
+  const body=`<div class="home"><header class="intro"><p class="eyebrow page-eyebrow">${escape(lang==="ru"?"Kurami · документация":"Kurami · documentation")}</p><h1 class="page-title">${escape(homePage.title[lang])}</h1><p class="lede page-subtitle">${escape(homePage.summary[lang])}</p></header>${renderKuramiPresence({...voice,mood:"welcome",voiceContext:"docs-home",action:renderLinkButton({label:lang==="ru"?"Карта системы":"System map",href:url(lang,"architecture"),variant:"secondary"})})}<div class="prose prose--home">${blocksHtml(homePage.blocks[lang],context)}</div></div>`;
   return {html:shell(lang,homePage.title[lang],homePage.summary[lang],body,undefined,""),diagrams:context.diagrams};
 }
 

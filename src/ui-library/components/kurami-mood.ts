@@ -44,9 +44,9 @@ export function renderKuramiSays(input: { mood: KuramiMood; body: string; placem
 }
 
 /** A personal line with factual metadata and actions kept outside the speech bubble. */
-export function renderKuramiPresence(input: { mood: KuramiMood; speech: string; key: string; lines?: string[]; meta?: string; action?: string; className?: string }): string {
+export function renderKuramiPresence(input: { mood: KuramiMood; speech: string; key: string; lines?: string[]; meta?: string; action?: string; className?: string; voiceContext?: "docs-home" }): string {
   if (input.className && !/^[a-z0-9_-]+(?: [a-z0-9_-]+)*$/.test(input.className)) throw new Error("Unsafe Kurami presence class");
-  return `<div class="kurami-presence${input.className ? ` ${input.className}` : ""}" data-kurami-presence="${escapeHtml(input.key)}" data-kurami-voice-lines="${escapeHtml(JSON.stringify(input.lines??[input.speech]))}">`
+  return `<div class="kurami-presence${input.className ? ` ${input.className}` : ""}" data-kurami-presence="${escapeHtml(input.key)}" data-kurami-voice-lines="${escapeHtml(JSON.stringify(input.lines??[input.speech]))}"${input.voiceContext ? ` data-kurami-voice-context="${escapeHtml(input.voiceContext)}"` : ""}>`
     + renderKuramiMood({ mood: input.mood, eager: true })
     + `<div class="kurami-says__bubble kurami-presence__bubble"><p data-kurami-speech>${escapeHtml(input.speech)}</p></div>`
     + `<div class="kurami-presence__footer">${input.meta ? `<div class="kurami-presence__meta">${input.meta}</div>` : ""}${input.action ? `<div class="kurami-presence__action">${input.action}</div>` : ""}</div></div>`;
@@ -77,9 +77,14 @@ export const KURAMI_PRESENCE_RUNTIME_JS = String.raw`(()=>{
       const mood=scene.querySelector('[data-kurami-mood]')?.dataset.kuramiMood,slot=scene.parentElement?.id||scene.className;
       if(slots.has(slot)&&slots.get(slot)!==mood)scene.dataset.kuramiReact='true';slots.set(slot,mood);
       if(!/^[a-f0-9]{64}$/.test(key)||requested.has(key))continue;requested.add(key);
-      fetch('/_apps/hub/api/portal-voice?key='+key+'&lang='+lang,{cache:'no-store',signal:AbortSignal.timeout(5000)}).then(response=>response.ok?response.json():null).then(value=>{
-        if(value?.key!==key||value.lang!==lang||!Array.isArray(value.lines)||value.lines.length<2||value.lines.length>4||!value.lines.every(line=>typeof line==='string'&&line.length>=12&&line.length<=220&&!/[<>]/.test(line)))return;
-        try{localStorage.setItem(prefix+key,JSON.stringify({lang,at:Date.now(),lines:value.lines}));const keys=Object.keys(localStorage).filter(item=>item.startsWith(prefix));if(keys.length>40)keys.slice(0,keys.length-40).forEach(item=>localStorage.removeItem(item));}catch{}
+      const live=scene.dataset.kuramiVoiceContext==='docs-home';
+      fetch('/_apps/hub/api/portal-voice?key='+key+'&lang='+lang+(live?'&context=docs-home':''),{cache:'no-store',signal:AbortSignal.timeout(5000)}).then(response=>response.ok?response.json():null).then(value=>{
+        if(!/^[a-f0-9]{64}$/.test(value?.key)||(!live&&value.key!==key)||value.lang!==lang||!Array.isArray(value.lines)||value.lines.length<2||value.lines.length>4||!value.lines.every(line=>typeof line==='string'&&line.length>=12&&line.length<=220&&!/[<>]/.test(line)))return;
+        if(live&&value.key!==key){
+          if(!active.has(value.key))active.set(value.key,value.lines[Math.floor(Math.random()*value.lines.length)]);
+          scene.dataset.kuramiPresence=value.key;scene.dataset.kuramiVoiceLines=JSON.stringify(value.lines);requested.add(value.key);target.textContent=active.get(value.key);
+        }
+        try{localStorage.setItem(prefix+value.key,JSON.stringify({lang,at:Date.now(),lines:value.lines}));const keys=Object.keys(localStorage).filter(item=>item.startsWith(prefix));if(keys.length>40)keys.slice(0,keys.length-40).forEach(item=>localStorage.removeItem(item));}catch{}
       }).catch(()=>{});
     }
   }
@@ -177,7 +182,7 @@ html[data-kurami-mascot="off"] .kurami-says__bubble::before { display: none; }
 .kurami-presence { --kurami-presence-size: 150px; display: grid; grid-template-columns: var(--kurami-presence-size) minmax(0,1fr); gap: var(--space-3) var(--space-4); align-items: start; width: 100%; max-width: 68rem; }
 .kurami-presence .kurami-mood { --kurami-size: var(--kurami-presence-size); grid-column: 1; grid-row: 1 / span 2; }
 .kurami-presence__bubble { grid-column: 2; grid-row: 1; width: 100%; max-width: none; align-self: center; }
-.kurami-presence__bubble::before { left: -8px; top: 32px; rotate: 45deg; }
+.kurami-presence__bubble::before { left: -8px; top: min(50%, calc(var(--kurami-presence-size) / 2)); translate: 0 -50%; rotate: 45deg; }
 .kurami-presence__bubble p { margin: 0; max-width: 56ch; font-size: 1.05rem; line-height: 1.5; color: var(--text-primary); }
 .kurami-presence__footer { grid-column: 2; grid-row: 2; display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2) var(--space-4); min-width: 0; }
 .kurami-presence__meta { flex: 1 1 16rem; min-width: 0; color: var(--text-muted); font-size: .8rem; }

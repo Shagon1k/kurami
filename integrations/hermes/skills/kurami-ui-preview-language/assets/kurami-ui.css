@@ -757,7 +757,7 @@ html[data-kurami-mascot="off"] .kurami-says__bubble::before { display: none; }
 .kurami-presence { --kurami-presence-size: 150px; display: grid; grid-template-columns: var(--kurami-presence-size) minmax(0,1fr); gap: var(--space-3) var(--space-4); align-items: start; width: 100%; max-width: 68rem; }
 .kurami-presence .kurami-mood { --kurami-size: var(--kurami-presence-size); grid-column: 1; grid-row: 1 / span 2; }
 .kurami-presence__bubble { grid-column: 2; grid-row: 1; width: 100%; max-width: none; align-self: center; }
-.kurami-presence__bubble::before { left: -8px; top: 32px; rotate: 45deg; }
+.kurami-presence__bubble::before { left: -8px; top: min(50%, calc(var(--kurami-presence-size) / 2)); translate: 0 -50%; rotate: 45deg; }
 .kurami-presence__bubble p { margin: 0; max-width: 56ch; font-size: 1.05rem; line-height: 1.5; color: var(--text-primary); }
 .kurami-presence__footer { grid-column: 2; grid-row: 2; display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2) var(--space-4); min-width: 0; }
 .kurami-presence__meta { flex: 1 1 16rem; min-width: 0; color: var(--text-muted); font-size: .8rem; }

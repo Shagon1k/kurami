@@ -502,9 +502,14 @@ document.documentElement.dataset.kuramiMascot=/(?:^|;\s*)kurami-mascot=off(?:;|$
       const mood=scene.querySelector('[data-kurami-mood]')?.dataset.kuramiMood,slot=scene.parentElement?.id||scene.className;
       if(slots.has(slot)&&slots.get(slot)!==mood)scene.dataset.kuramiReact='true';slots.set(slot,mood);
       if(!/^[a-f0-9]{64}$/.test(key)||requested.has(key))continue;requested.add(key);
-      fetch('/_apps/hub/api/portal-voice?key='+key+'&lang='+lang,{cache:'no-store',signal:AbortSignal.timeout(5000)}).then(response=>response.ok?response.json():null).then(value=>{
-        if(value?.key!==key||value.lang!==lang||!Array.isArray(value.lines)||value.lines.length<2||value.lines.length>4||!value.lines.every(line=>typeof line==='string'&&line.length>=12&&line.length<=220&&!/[<>]/.test(line)))return;
-        try{localStorage.setItem(prefix+key,JSON.stringify({lang,at:Date.now(),lines:value.lines}));const keys=Object.keys(localStorage).filter(item=>item.startsWith(prefix));if(keys.length>40)keys.slice(0,keys.length-40).forEach(item=>localStorage.removeItem(item));}catch{}
+      const live=scene.dataset.kuramiVoiceContext==='docs-home';
+      fetch('/_apps/hub/api/portal-voice?key='+key+'&lang='+lang+(live?'&context=docs-home':''),{cache:'no-store',signal:AbortSignal.timeout(5000)}).then(response=>response.ok?response.json():null).then(value=>{
+        if(!/^[a-f0-9]{64}$/.test(value?.key)||(!live&&value.key!==key)||value.lang!==lang||!Array.isArray(value.lines)||value.lines.length<2||value.lines.length>4||!value.lines.every(line=>typeof line==='string'&&line.length>=12&&line.length<=220&&!/[<>]/.test(line)))return;
+        if(live&&value.key!==key){
+          if(!active.has(value.key))active.set(value.key,value.lines[Math.floor(Math.random()*value.lines.length)]);
+          scene.dataset.kuramiPresence=value.key;scene.dataset.kuramiVoiceLines=JSON.stringify(value.lines);requested.add(value.key);target.textContent=active.get(value.key);
+        }
+        try{localStorage.setItem(prefix+value.key,JSON.stringify({lang,at:Date.now(),lines:value.lines}));const keys=Object.keys(localStorage).filter(item=>item.startsWith(prefix));if(keys.length>40)keys.slice(0,keys.length-40).forEach(item=>localStorage.removeItem(item));}catch{}
       }).catch(()=>{});
     }
   }

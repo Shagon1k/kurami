@@ -1,5 +1,5 @@
 import {createHash} from "node:crypto";
-import {existsSync, mkdirSync, readFileSync, renameSync, writeFileSync, unlinkSync} from "node:fs";
+import {existsSync, mkdirSync, readFileSync, renameSync, writeFileSync, unlinkSync, statSync} from "node:fs";
 import {resolve} from "node:path";
 import {execFile} from "node:child_process";
 import {homedir} from "node:os";
@@ -12,17 +12,18 @@ export type PresenceContext={portal:"hub"|"projects"|"digest"|"docs";mood:Kurami
 export type PortalVoice={key:string;speech:string;lines:string[];language:VoiceLanguage};
 type CachedVoice={key:string;language:VoiceLanguage;lines:string[];createdAt:string};
 export const VOICE_TTL_MS=12*60*60*1000;
-const profile="kurami-portal-voice-v1";
+const profile="kurami-portal-voice-v2";
 const hash=(value:string)=>createHash("sha256").update(value).digest("hex");
 const homeDefault=()=>resolveKuramiHome("/home/shagon1k/_hermes/_kurami");
 export const voiceDirectory=(home:string)=>resolve(home,"state/briefing/portal-voice");
 export const soulPath=(home:string)=>resolve(home,"../_core/SOUL.md");
-let soulMemo:{path:string;at:number;version:string}|undefined;
+let soulMemo:{path:string;signature:string;version:string}|undefined;
 function soulVersion(home:string):string {
   const path=soulPath(home);
-  if(soulMemo?.path===path&&Date.now()-soulMemo.at<300_000)return soulMemo.version;
+  let signature="missing";try{const stat=statSync(path);signature=`${stat.ino}:${stat.size}:${stat.mtimeMs}:${stat.ctimeMs}`;}catch{}
+  if(soulMemo?.path===path&&soulMemo.signature===signature)return soulMemo.version;
   let content="";try{content=readFileSync(path,"utf8");}catch{}
-  const version=hash(profile+content);soulMemo={path,at:Date.now(),version};return version;
+  const version=hash(profile+content);soulMemo={path,signature,version};return version;
 }
 export function voiceKey(context:PresenceContext,language:VoiceLanguage,home=homeDefault()):string {
   const facts=Object.fromEntries(Object.entries(context.facts??{}).sort(([a],[b])=>a.localeCompare(b)));
@@ -30,15 +31,15 @@ export function voiceKey(context:PresenceContext,language:VoiceLanguage,home=hom
 }
 export function fallbackLines(context:PresenceContext,language:VoiceLanguage):string[] {
   const ru=language==="ru";
-  if(context.portal==="docs")return ru?["Тут разобрано, как всё устроено. Начни с карты системы.","Начни с общей картины. В детали нырнём по мере надобности.","Если потеряешься в деталях, вернись к карте системы."]:["This is how it all fits together. Start with the system map.","Start with the bigger picture. We can get into the details as you need them.","If the details get tangled, come back to the system map."];
-  if(context.portal==="digest")return ru?["Всё, ты в курсе. Можно выдохнуть.","На сегодня картина собрана. Новости могут немного побыть без тебя.","Добрались до конца. Теперь можно заняться своим днём."]:["You're up to date. Take a breath.","That's the picture for today. The news can manage without you for a bit.","We made it to the end. Time to get on with your day."];
+  if(context.portal==="docs")return ru?["Я за то, чтобы сначала увидеть карту, а потом лезть в проводку. Начни с устройства системы.","Заглядывай под капот. Мне нравится, когда понятно, что работает и почему.","Если детали начнут путаться, вернись к карте системы. Я тоже не люблю разгадывать архитектуру по следам.","Всё устройство системы здесь. Можно любопытствовать — ломать ради этого ничего не придётся."]:["I like seeing the map before poking at the wiring. Start with the system overview.","Have a look under the hood. I like knowing what works and why.","If the details get tangled, come back to the system map. Architecture should not be a guessing game.","The system is laid out here. You can be curious without breaking anything. A good arrangement, if you ask me."];
+  if(context.portal==="digest")return ru?["Всё, Лёш, ты в курсе. Теперь можно закрыть новости — они и без тебя умеют устраивать драму.","Дочитал. Красиво. На сегодня хватит чужих сюжетов — займись своим.","Вот и всё. Отпусти ленту на минутку, она никуда не сбежит.","Выпуск закончился. Я бы на этом и остановилась — бесконечный скролл сегодня обойдётся без тебя."]:["All caught up, Alex. You can close the news now; it can manage its own drama for a while.","Made it to the end. Nice. Enough of everyone else’s stories for now; go live a bit of your own.","That’s the edition. Let go of the feed for a minute. It is not going anywhere.","Edition finished. I would stop here; the endless scroll can do without you today."];
   switch(context.mood){
-    case "needs-decision":return ru?["Тут нужен твой взгляд. Как решишь — продолжим.","На этом шаге нужен ты. Давай выберем, как двигаться дальше.","Оставила тебе место за рулём. Посмотри, что ждёт решения."]:["I need your take here. Once you decide, we can move on.","This step needs you. Let's choose where to go next.","Your turn at the wheel. Have a look at what needs a decision."];
-    case "alert":case "found-problem":return ru?["Есть проблема, которая требует внимания. Посмотри подробности.","Здесь стоит разобраться с проблемой. Всё известное — в подробностях."]:["There's a problem that needs attention. Open the details.","This needs a closer look. The details show what we know."];
-    case "offline":return ru?["Сейчас не вижу актуальное состояние. Давай дождёмся данных.","Данные пока недоступны. Как появятся, будет понятнее."]:["I can't see the current state right now. Let's wait for fresh data.","The data is unavailable for now. We'll know more when it returns."];
-    case "working":return ru?["Работа идёт. Текущий этап можно посмотреть в задачах.","Процессы ещё крутятся. Загляни в задачи, если хочется подробностей.","Пока всё в работе. Результаты будем оценивать по мере готовности."]:["Work is moving along. The tasks show the current step.","Things are still running. Open the tasks if you want the details.","Still in progress. We'll look at the results as they become ready."];
-    case "asleep":return ru?["Сейчас спокойно. Остальное можно оставить до утра.","Тихая смена. Можно немного отдохнуть."]:["It's quiet right now. The rest can wait until morning.","A quiet shift. Get some rest if you can."];
-    default:return ru?["Срочного ничего. Можно спокойно выбрать, чем займёмся дальше.","Сейчас спокойно. Давай без спешки.","Спокойный момент. Можно оглядеться и выбрать следующий шаг."]:["Nothing urgent. We can take our time choosing what's next.","It's quiet right now. No need to rush.","A quiet moment. Have a look around and pick the next step."];
+    case "needs-decision":return ru?["Лёш, тут твой ход. Решать за тебя не буду — хотя кнопки нажимать умею.","Дальше нужен твой выбор. Можно не торопиться, но от одного моего выразительного взгляда задача не решится.","Тут нужен ты. Открой задачу, посмотри варианты — последнее слово твоё."]:["Your move, Alex. I will not decide for you, tempting as the buttons may be.","This needs your choice. No rush, but my pointed look will only get us so far.","This one needs you. Open the task and look at the options; the final call is yours."];
+    case "alert":case "found-problem":return ru?["Есть проблема. Сначала посмотри подробности — гадать о причине я не хочу.","Здесь нужно внимание. Открой подробности: сначала факты, потом решение."]:["There is a problem. Open the details first; I do not want to guess at the cause.","This needs attention. Open the details: facts first, then a decision."];
+    case "offline":return ru?["Свежих данных не вижу. Делать вид, что всё хорошо, не буду.","Данные сейчас недоступны. Я лучше скажу «не знаю», чем нарисую тебе красивую картину."]:["I cannot see fresh data. I am not going to pretend everything is fine.","The data is unavailable. I would rather say I do not know than paint you a pretty picture."];
+    case "working":return ru?["Работа идёт. Я за результат, который можно проверить; текущий этап — в задачах.","Всё ещё в работе. Красивые обещания подождут, в задачах видно, что происходит.","Процессы крутятся. Если любопытно, загляни в задачи — я бы тоже полезла смотреть."]:["Work is moving along. I like results we can actually check; the tasks show the current step.","Still in progress. Pretty promises can wait; the tasks show what is happening.","Things are running. Have a peek at the tasks if you are curious. I would, too."];
+    case "asleep":return ru?["Тихо. Мне нравится. Можно закрыть вкладку и немного побыть человеком без панели управления.","Сейчас спокойно. Если собирался отдохнуть — я за, Лёш."]:["Quiet. I like it. You can close the tab and be a person without a dashboard for a while.","It is quiet right now. If you were thinking of getting some rest, you have my vote, Alex."];
+    default:return ru?["Срочного ничего. Люблю моменты, когда панель не требует героизма.","Сейчас спокойно. Можно оглядеться без соревнования «кто быстрее нажмёт все кнопки».","Ничего срочного. Выбирай, чем займёшься; я за спокойные решения без лишней суеты."]:["Nothing urgent. I like it when the dashboard does not demand heroics.","It is quiet. Have a look around; no prizes for pressing every button first.","Nothing urgent. Pick what you want to do next; I am all for a decision without the fuss."];
   }
 }
 export function validateVoiceLines(value:unknown,language:VoiceLanguage):string[] {
