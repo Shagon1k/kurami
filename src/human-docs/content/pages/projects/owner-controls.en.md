@@ -159,6 +159,10 @@ later the site chat. They all share one `kurami-ideas` skill and one pool. Only 
 keeps the message verbatim and asks at most three of the missing questions (what prompted it, where it belongs,
 a first step, when) — answer "skip" to any of them. Saving an idea starts nothing.
 
+Requests such as "add a task", "record a task" and "we should do this later" also go into the ideas pool.
+To record a task elsewhere, name the destination: "create an issue in GitHub" or "add a task to the
+PickFlick backlog". A request to change or implement something now starts work.
+
 Open ideas (new and thinking) sit in the **Ideas** block under the table: number, gist, project, "when" and the
 date. An idea unfolds into its details, a journal of notes and status changes (entries are only ever added) and
 a field for a new note. Parking, closing or turning an idea into a task is a request in any chat ("park idea

@@ -1,12 +1,24 @@
 ---
 name: kurami-ideas
-description: Keep the owner's spontaneous ideas, plans and thoughts that are not (yet) a task in Kurami's ideas pool, and bring them back on request. Use in any chat — Discord, Telegram, a Claude Code or Codex session, the Kurami site chat — when he shares an idea ("идея:", "запиши идею", "мысль на потом", "а что если…", "hold this idea"), asks what ideas he has, adds a thought to one, or parks or closes one. Never use it to start work on an idea.
+description: Save the owner's ideas and future-work reminders in Kurami's ideas pool, and bring them back on request. Use in any chat — Discord, Telegram, a Claude Code or Codex session, the Kurami site chat — for "запиши идею", "добавь задачу", "надо потом", "мысль на потом", "а что если…", "hold this idea", or requests to list, annotate, park or close ideas. A request to record a task belongs here unless he explicitly names another destination such as GitHub or a project board. Do not use for requests to implement changes now or start work.
 ---
 
 # Kurami Ideas
 
 An idea is a thought worth keeping, not a task. Saving it starts nothing. There
 is one pool for every agent and chat; the owner sees it in Projects → Ideas.
+
+## Routing a request
+
+When he asks to record future work ("добавь задачу", "запиши задачу", "надо потом"),
+save it here even if he calls it a task. The word "задача" alone does not select
+GitHub. For example, "Добавь задачу проработать SOUL Курами, сейчас слишком
+вычурно" is an idea capture with `--area kurami`.
+
+Follow an explicitly named destination: "создай issue в GitHub" or "добавь
+задачу в backlog PickFlick" selects that destination. Converting an existing
+idea to a project task uses "Making an idea a task" below. Requests to change
+or implement something now are work requests, not captures.
 
 ```text
 KURAMI_HOME=/home/shagon1k/_hermes/_kurami
