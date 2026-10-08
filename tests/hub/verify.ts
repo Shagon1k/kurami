@@ -21,6 +21,9 @@ for(const [remaining,tone]of [[20.1,'neutral'],[20,'warning'],[0.1,'warning'],[0
   const fixture=syntheticHubSnapshot(),page=renderHubDashboard(fixture),first=fixture.projects[0]!;
   assert.ok(first.color,"fixture projects have a hue");
   assert.match(page,new RegExp(`<tr class="project-row project-color--${first.color}">`),"project table row");
+  // Phones read the table as cards: the library stack layout, each figure with its column label.
+  assert.match(page,/<div class="table table--stack project-table"/,"the project table stacks on phones");
+  assert.match(page,/<td><span class="table__label" aria-hidden="true">Commits<\/span>/,"each figure keeps its column label");
   assert.match(page,new RegExp(`<li class="work-item project-color--${first.color}"[^>]*data-work-project="${first.key}"`),"activity item");
   assert.match(page,/<li class="work-item" [^>]*data-work-project="kurami"/,"Kurami's own work has no project hue");
 }

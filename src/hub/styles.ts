@@ -16,6 +16,7 @@ import {TOAST_CSS} from "../ui-library/components/toast.ts";
 
 import {CHART_STYLES} from "../ui-library/components/charts/styles.ts";
 import {KURAMI_MOOD_CSS} from "../ui-library/components/kurami-mood.ts";
+import {breakpoints} from "../ui-library/tokens/index.ts";
 
 export const HUB_STYLES=`${KURAMI_MOOD_CSS}${TOAST_CSS}${THEME_CSS}${FOUNDATION_CSS}${BUTTON_CSS}${THEME_SWITCH_CSS}${SITE_HEADER_CSS}${TABLE_CSS}${DISCLOSURE_CSS}${FORM_CSS}${DIALOG_CSS}${PERIOD_SWITCH_CSS}${ICON_CSS}${PROJECT_COLOR_CSS}${STAT_CARD_CSS}${POPOVER_CSS}${CHART_STYLES}
 body { min-height: 100vh; }
@@ -201,6 +202,16 @@ body { min-height: 100vh; }
 .project-table th[scope="row"] a { color: var(--text-primary); text-decoration: none; }
 .project-table th[scope="row"] a:hover { color: var(--text-accent); text-decoration: underline; }
 .project-table td:last-child { color: var(--text-muted); font-size: .75rem; white-space: nowrap; }
+/* Phones: each project is a card (library stack layout): the name across, three figures in a row with their
+   labels, the source line below; the project colour runs along the whole card. */
+@media (max-width: ${breakpoints.phone}px) {
+  .project-table { --table-stack-row-display: grid; --table-stack-row-columns: repeat(3,minmax(0,1fr)); --table-stack-header-column: 1 / -1; --table-stack-row-padding: var(--space-3) var(--space-4); }
+  .project-table table { min-width: 0; }
+  .project-table .project-row { column-gap: var(--space-3); box-shadow: var(--project-edge,none); }
+  .project-table .project-row:last-child { border-bottom: 0; }
+  .project-table th[scope="row"] { box-shadow: none; padding-bottom: var(--space-2); }
+  .project-table td:last-child { grid-column: 1 / -1; white-space: normal; }
+}
 .repository-filters { display: flex; flex-wrap: wrap; gap: var(--space-2) var(--space-4); margin-bottom: var(--space-3); }
 .trend { padding: var(--space-4); border: 1px solid var(--border-subtle); border-radius: var(--radius-md); background: var(--surface-raised); }
 .trend-total { color: var(--text-muted); font-size: .85rem; font-weight: 400; }

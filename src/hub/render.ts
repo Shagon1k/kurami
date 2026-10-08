@@ -255,7 +255,7 @@ function projectRows(projects:HubProject[],lang:HubLanguage,days:Period):string 
       value(project.board?.active,lang),value(project.board?.review,lang),
       value(project.git.state==="available"?(days===7?project.git.commits7:project.git.commits30):null,lang),
       projectStatus(project,lang),
-    ]),rowClassNames:projects.map(project=>`project-row${project.color?` ${projectColorClass(project.color)}`:""}`),rowHeaders:true,className:"project-table"});
+    ]),rowClassNames:projects.map(project=>`project-row${project.color?` ${projectColorClass(project.color)}`:""}`),rowHeaders:true,stack:true,className:"project-table"});
 }
 
 
