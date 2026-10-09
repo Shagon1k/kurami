@@ -93,16 +93,18 @@ export const KURAMI_PRESENCE_RUNTIME_JS = String.raw`(()=>{
 })();`;
 
 /** Pull-to-refresh for the installed app (a standalone window has no browser refresh gesture): at the top
- * of the page a pull brings Kurami peeking in from the top edge; releasing past the line refreshes —
+ * of the page a pull brings a compact portrait and label into view; releasing past the line refreshes —
  * in place where the app exposes window.kuramiRefresh (Hub, Projects), otherwise by reloading. */
 export const KURAMI_PULL_REFRESH_JS = String.raw`(()=>{
   if(!matchMedia('(display-mode: standalone)').matches||!matchMedia('(pointer: coarse)').matches)return;
   const ru=document.documentElement.lang==='ru',trigger=80,limit=120;
-  const src=typeof kuramiAppUrl==='function'?kuramiAppUrl('/assets/kurami-peek.webp'):'/assets/kurami-peek.webp';
+  const portrait=${JSON.stringify(renderKuramiMood({mood:"thinking",eager:true}))};
+  const asset=path=>typeof kuramiAppUrl==='function'?kuramiAppUrl(path):path;
   let startY=null,pull=0,panel=null,busy=false;
+  const mood=value=>{const figure=panel.querySelector('img');panel.querySelector('[data-kurami-mood]').dataset.kuramiMood=value;figure.src=asset('/assets/kurami-'+value+'.webp');figure.srcset=asset('/assets/kurami-'+value+'.webp')+' 320w, '+asset('/assets/kurami-'+value+'-hd.png')+' 1024w';figure.sizes='50px';};
   const show=()=>{panel=document.createElement('div');panel.className='kurami-pull';panel.setAttribute('aria-hidden','true');
-    panel.innerHTML='<img src="'+src+'" width="96" height="96" alt=""><span></span>';document.body.append(panel);};
-  const text=()=>panel.querySelector('span').textContent=pull>=trigger?(ru?'Отпусти, чтобы обновить':'Release to refresh'):(ru?'Потяни ещё':'Keep pulling');
+    panel.innerHTML='<span class="kurami-pull__portrait">'+portrait+'</span><span class="kurami-pull__label"></span>';mood('thinking');document.body.append(panel);};
+  const text=()=>panel.querySelector('.kurami-pull__label').textContent=pull>=trigger?(ru?'Отпусти, чтобы обновить':'Release to refresh'):(ru?'Потяни ещё':'Keep pulling');
   const reset=()=>{panel?.remove();panel=null;pull=0;startY=null;};
   addEventListener('touchstart',event=>{
     if(busy||scrollY>0||event.touches.length!==1||event.target.closest('dialog[open],[popover],input,textarea,select,[data-no-pull]'))return;
@@ -117,9 +119,10 @@ export const KURAMI_PULL_REFRESH_JS = String.raw`(()=>{
   },{passive:true});
   addEventListener('touchend',async()=>{
     if(!panel||pull<trigger){reset();return;}
-    busy=true;panel.classList.add('is-refreshing');panel.querySelector('span').textContent=ru?'Обновляю…':'Refreshing…';
+    busy=true;panel.classList.add('is-refreshing');mood('working');panel.querySelector('.kurami-pull__label').textContent=ru?'Обновляю…':'Refreshing…';
     try{if(typeof window.kuramiRefresh==='function')await window.kuramiRefresh();else{location.reload();return;}}finally{busy=false;reset();}
   });
+  addEventListener('touchcancel',()=>{if(!busy)reset();});
 })();`;
 
 /* Geometry (all relative to --kurami-size, the disc's diameter): the figure is 1.25× the disc, its top
@@ -199,14 +202,15 @@ html[data-kurami-mascot="off"] .kurami-presence__bubble, html[data-kurami-mascot
   .kurami-presence__footer { grid-column: 1 / -1; }
   .kurami-presence__action { flex: 1 1 9rem; --button-width: 100%; }
 }
-.kurami-pull { --pull: 0px; position: fixed; inset: 0 0 auto; z-index: 90; display: grid; justify-items: center; gap: 4px; pointer-events: none;
-  transform: translateY(calc(var(--pull) - 100%)); transition: transform .12s ease-out; padding-top: env(safe-area-inset-top, 0px); }
-.kurami-pull img { width: 96px; height: 96px; }
-.kurami-pull span { padding: 2px 10px; border-radius: 999px; background: var(--surface-raised); color: var(--text-muted); font-size: .75rem; box-shadow: var(--shadow-card-sm, none); }
-.kurami-pull.is-ready span { color: var(--text-primary); }
-.kurami-pull.is-refreshing { transform: translateY(calc(80px - 100%)); }
-.kurami-pull.is-refreshing img { animation: kurami-pull-bob .9s ease-in-out infinite; }
-html[data-kurami-mascot="off"] .kurami-pull img { display: none; }
-@keyframes kurami-pull-bob { 50% { translate: 0 6px; } }
-@media (prefers-reduced-motion: reduce) { .kurami-pull, .kurami-pull.is-refreshing img { transition: none; animation: none; } }
+.kurami-pull { --pull: 0px; position: fixed; inset-inline: max(var(--space-3),env(safe-area-inset-left)) max(var(--space-3),env(safe-area-inset-right)); top: calc(var(--space-2) + env(safe-area-inset-top,0px)); z-index: 90;
+  display: grid; grid-template-columns: 52px minmax(0,1fr); align-items: center; gap: var(--space-2); width: max-content; max-width: calc(100% - var(--space-3) * 2 - env(safe-area-inset-left) - env(safe-area-inset-right)); margin-inline: auto; padding: var(--space-2) var(--space-3); pointer-events: none;
+  border: 1px solid var(--border-default); border-radius: var(--radius); background: var(--surface-raised); box-shadow: var(--shadow-raised); transform: translateY(calc(min(var(--pull),80px) - 80px)); transition: transform .12s ease-out; }
+.kurami-pull__portrait { display: grid; justify-items: center; padding-block: var(--space-1); }
+.kurami-pull .kurami-mood { --kurami-size: 40px; margin: 0; }
+.kurami-pull__label { color: var(--text-muted); font-size: .75rem; }
+.kurami-pull.is-ready .kurami-pull__label { color: var(--text-primary); }
+.kurami-pull.is-refreshing { transform: translateY(0); }
+html[data-kurami-mascot="off"] .kurami-pull { grid-template-columns: minmax(0,1fr); }
+html[data-kurami-mascot="off"] .kurami-pull__portrait { display: none; }
+@media (prefers-reduced-motion: reduce) { .kurami-pull { transition: none; } }
 `;

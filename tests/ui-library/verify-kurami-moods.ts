@@ -41,8 +41,7 @@ assert.match(idle, /^<span class="kurami-mood" data-kurami-mood="idle" aria-hidd
 assert.match(idle, /<img class="kurami-mood__figure" src="\/assets\/kurami-idle\.webp" srcset="[^\"]+320w, [^\"]+1024w" sizes="[^\"]+" width="160" height="160" alt="" loading="lazy" decoding="async"><\/span>$/);
 assert.match(renderKuramiMood({ mood: "welcome", label: "Kurami <waves>", eager: true }), /role="img" aria-label="Kurami &lt;waves&gt;"[\s\S]*loading="eager"/);
 assert.throws(() => renderKuramiMood({ mood: "angry" as never }));
-// One size everywhere; the cut is only along the lower arc (the top band stays unmasked); motion has a reduced-motion guard.
-assert.equal(KURAMI_MOOD_CSS.match(/--kurami-size: \d+px/g)?.length, 1, "a single size");
+// The cut is only along the lower arc (the top band stays unmasked); motion has a reduced-motion guard.
 assert.match(KURAMI_MOOD_CSS, /linear-gradient\(#000 0 57%, transparent 63%\), radial-gradient\(40% 40% at 50% 48%, #000 99%, transparent 100%\)/);
 assert.match(KURAMI_MOOD_CSS, /@media \(prefers-reduced-motion: no-preference\) \{/);
 assert.match(renderKuramiState({ mood: "offline", title: "No <net>", text: "Wait", headingLevel: 1 }), /<h1>No &lt;net&gt;<\/h1><p>Wait<\/p>/);

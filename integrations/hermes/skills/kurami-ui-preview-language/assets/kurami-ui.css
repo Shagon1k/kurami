@@ -685,18 +685,14 @@ html[data-brand-moment="birthday"] .site-brand::before { content: ""; position: 
   opacity: 0; animation: toast-sparks .9s ease-out; }
 @keyframes toast-celebrate { 0% { transform: scale(.6) rotate(-20deg); } 45% { transform: scale(1.35) rotate(8deg); } 100% { transform: none; } }
 @keyframes toast-sparks { 0% { opacity: 1; scale: .3; } 70% { opacity: 1; } 100% { opacity: 0; scale: 1.6; } }
-/* A celebrated notice with Kurami (Projects): a small medallion sticker on the toast's left edge, slightly
-   turned, so the toast keeps its size and nothing covers the page. The one place the medallion is smaller.
-   Switched off in Hub, the toast stays plain. */
 .toast__kurami { display: none; }
-.toast[data-celebrate]:has(> .toast__kurami) { grid-template-columns: minmax(0,1fr) auto; padding-inline-start: 52px; }
-.toast[data-celebrate] > .toast__kurami { position: absolute; inset-inline-start: -22px; top: 50%; display: block; translate: 0 -50%; rotate: -8deg; animation: toast-kurami .55s cubic-bezier(.2,.9,.3,1.3) both; }
+.toast[data-celebrate]:has(> .toast__kurami) { grid-template-columns: 80px minmax(0,1fr) auto; align-items: center; }
+.toast[data-celebrate] > .toast__kurami { display: grid; justify-items: center; padding-block: var(--space-2); rotate: -8deg; animation: toast-kurami .55s cubic-bezier(.2,.9,.3,1.3) both; }
 .toast[data-celebrate] > .toast__kurami .kurami-mood { --kurami-size: 64px; margin: 0; }
 .toast[data-celebrate]:has(> .toast__kurami) > .toast__icon { display: none; }
 html[data-kurami-mascot="off"] .toast[data-celebrate] > .toast__kurami { display: none; }
 html[data-kurami-mascot="off"] .toast[data-celebrate]:has(> .toast__kurami) { grid-template-columns: 18px minmax(0,1fr) auto; padding-inline-start: var(--space-3); }
 html[data-kurami-mascot="off"] .toast[data-celebrate]:has(> .toast__kurami) > .toast__icon { display: grid; }
-@media (max-width: 620px) { .toast[data-celebrate] > .toast__kurami { inset-inline-start: -8px; } }
 @keyframes toast-kurami { from { opacity: 0; scale: .5; rotate: -30deg; } to { opacity: 1; scale: 1; rotate: -8deg; } }
 @media (prefers-reduced-motion: reduce) { .toast[data-celebrate] .toast__icon, .toast[data-celebrate] .toast__icon::after, .toast[data-celebrate] .toast__kurami { animation: none; } }
 .toast__message { margin: 0; padding-block: var(--space-2); font-size: .8rem; line-height: 1.5; overflow-wrap: anywhere; }
@@ -774,13 +770,14 @@ html[data-kurami-mascot="off"] .kurami-presence__bubble, html[data-kurami-mascot
   .kurami-presence__footer { grid-column: 1 / -1; }
   .kurami-presence__action { flex: 1 1 9rem; --button-width: 100%; }
 }
-.kurami-pull { --pull: 0px; position: fixed; inset: 0 0 auto; z-index: 90; display: grid; justify-items: center; gap: 4px; pointer-events: none;
-  transform: translateY(calc(var(--pull) - 100%)); transition: transform .12s ease-out; padding-top: env(safe-area-inset-top, 0px); }
-.kurami-pull img { width: 96px; height: 96px; }
-.kurami-pull span { padding: 2px 10px; border-radius: 999px; background: var(--surface-raised); color: var(--text-muted); font-size: .75rem; box-shadow: var(--shadow-card-sm, none); }
-.kurami-pull.is-ready span { color: var(--text-primary); }
-.kurami-pull.is-refreshing { transform: translateY(calc(80px - 100%)); }
-.kurami-pull.is-refreshing img { animation: kurami-pull-bob .9s ease-in-out infinite; }
-html[data-kurami-mascot="off"] .kurami-pull img { display: none; }
-@keyframes kurami-pull-bob { 50% { translate: 0 6px; } }
-@media (prefers-reduced-motion: reduce) { .kurami-pull, .kurami-pull.is-refreshing img { transition: none; animation: none; } }
+.kurami-pull { --pull: 0px; position: fixed; inset-inline: max(var(--space-3),env(safe-area-inset-left)) max(var(--space-3),env(safe-area-inset-right)); top: calc(var(--space-2) + env(safe-area-inset-top,0px)); z-index: 90;
+  display: grid; grid-template-columns: 52px minmax(0,1fr); align-items: center; gap: var(--space-2); width: max-content; max-width: calc(100% - var(--space-3) * 2 - env(safe-area-inset-left) - env(safe-area-inset-right)); margin-inline: auto; padding: var(--space-2) var(--space-3); pointer-events: none;
+  border: 1px solid var(--border-default); border-radius: var(--radius); background: var(--surface-raised); box-shadow: var(--shadow-raised); transform: translateY(calc(min(var(--pull),80px) - 80px)); transition: transform .12s ease-out; }
+.kurami-pull__portrait { display: grid; justify-items: center; padding-block: var(--space-1); }
+.kurami-pull .kurami-mood { --kurami-size: 40px; margin: 0; }
+.kurami-pull__label { color: var(--text-muted); font-size: .75rem; }
+.kurami-pull.is-ready .kurami-pull__label { color: var(--text-primary); }
+.kurami-pull.is-refreshing { transform: translateY(0); }
+html[data-kurami-mascot="off"] .kurami-pull { grid-template-columns: minmax(0,1fr); }
+html[data-kurami-mascot="off"] .kurami-pull__portrait { display: none; }
+@media (prefers-reduced-motion: reduce) { .kurami-pull { transition: none; } }

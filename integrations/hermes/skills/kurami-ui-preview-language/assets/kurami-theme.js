@@ -464,11 +464,13 @@ document.documentElement.dataset.kuramiMascot=/(?:^|;\s*)kurami-mascot=off(?:;|$
 (()=>{
   if(!matchMedia('(display-mode: standalone)').matches||!matchMedia('(pointer: coarse)').matches)return;
   const ru=document.documentElement.lang==='ru',trigger=80,limit=120;
-  const src=typeof kuramiAppUrl==='function'?kuramiAppUrl('/assets/kurami-peek.webp'):'/assets/kurami-peek.webp';
+  const portrait="<span class=\"kurami-mood\" data-kurami-mood=\"thinking\" aria-hidden=\"true\"><svg class=\"kurami-mood__ring\" viewBox=\"0 0 100 100\" focusable=\"false\"><circle class=\"kurami-mood__disc\" cx=\"50\" cy=\"50\" r=\"48\"/><circle class=\"kurami-mood__line\" cx=\"50\" cy=\"50\" r=\"48\" pathLength=\"100\"/><circle class=\"kurami-mood__spark\" cx=\"50\" cy=\"50\" r=\"48\" pathLength=\"100\"/></svg><img class=\"kurami-mood__figure\" src=\"/assets/kurami-thinking.webp\" srcset=\"/assets/kurami-thinking.webp 320w, /assets/kurami-thinking-hd.png 1024w\" sizes=\"(max-width: 620px) 104px, 188px\" width=\"160\" height=\"160\" alt=\"\" loading=\"eager\" decoding=\"async\"></span>";
+  const asset=path=>typeof kuramiAppUrl==='function'?kuramiAppUrl(path):path;
   let startY=null,pull=0,panel=null,busy=false;
+  const mood=value=>{const figure=panel.querySelector('img');panel.querySelector('[data-kurami-mood]').dataset.kuramiMood=value;figure.src=asset('/assets/kurami-'+value+'.webp');figure.srcset=asset('/assets/kurami-'+value+'.webp')+' 320w, '+asset('/assets/kurami-'+value+'-hd.png')+' 1024w';figure.sizes='50px';};
   const show=()=>{panel=document.createElement('div');panel.className='kurami-pull';panel.setAttribute('aria-hidden','true');
-    panel.innerHTML='<img src="'+src+'" width="96" height="96" alt=""><span></span>';document.body.append(panel);};
-  const text=()=>panel.querySelector('span').textContent=pull>=trigger?(ru?'Отпусти, чтобы обновить':'Release to refresh'):(ru?'Потяни ещё':'Keep pulling');
+    panel.innerHTML='<span class="kurami-pull__portrait">'+portrait+'</span><span class="kurami-pull__label"></span>';mood('thinking');document.body.append(panel);};
+  const text=()=>panel.querySelector('.kurami-pull__label').textContent=pull>=trigger?(ru?'Отпусти, чтобы обновить':'Release to refresh'):(ru?'Потяни ещё':'Keep pulling');
   const reset=()=>{panel?.remove();panel=null;pull=0;startY=null;};
   addEventListener('touchstart',event=>{
     if(busy||scrollY>0||event.touches.length!==1||event.target.closest('dialog[open],[popover],input,textarea,select,[data-no-pull]'))return;
@@ -483,9 +485,10 @@ document.documentElement.dataset.kuramiMascot=/(?:^|;\s*)kurami-mascot=off(?:;|$
   },{passive:true});
   addEventListener('touchend',async()=>{
     if(!panel||pull<trigger){reset();return;}
-    busy=true;panel.classList.add('is-refreshing');panel.querySelector('span').textContent=ru?'Обновляю…':'Refreshing…';
+    busy=true;panel.classList.add('is-refreshing');mood('working');panel.querySelector('.kurami-pull__label').textContent=ru?'Обновляю…':'Refreshing…';
     try{if(typeof window.kuramiRefresh==='function')await window.kuramiRefresh();else{location.reload();return;}}finally{busy=false;reset();}
   });
+  addEventListener('touchcancel',()=>{if(!busy)reset();});
 })();(()=>{
   const active=new Map(),requested=new Set(),slots=new Map(),bound=new WeakSet(),prefix='kurami-voice:',ttl=43200000;
   function apply(){

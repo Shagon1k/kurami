@@ -23,8 +23,7 @@ assert.match(TOAST_CSS, /@media \(prefers-reduced-motion: reduce\) \{ \.toast\[d
 // Projects brings Kurami herself to a celebrated notice; other apps keep the plain toast.
 assert.match(renderToastRegion("Close", { kurami: true }), /<span class="toast__kurami" aria-hidden="true"><span class="kurami-mood" data-kurami-mood="celebrate"/);
 assert.doesNotMatch(renderToastRegion("Close"), /toast__kurami/);
-// Kurami is a small sticker on the toast's left edge (the one smaller medallion); switched off, the icon returns.
-assert.match(TOAST_CSS, /\.toast\[data-celebrate\] > \.toast__kurami \{ position: absolute; inset-inline-start: -22px;/);
+// The compact portrait remains optional; switched off, the normal status icon returns.
 assert.match(TOAST_CSS, /\.toast\[data-celebrate\] > \.toast__kurami \.kurami-mood \{ --kurami-size: 64px;/);
 assert.match(TOAST_CSS, /html\[data-kurami-mascot="off"\] \.toast\[data-celebrate\]:has\(> \.toast__kurami\) > \.toast__icon \{ display: grid; \}/);
 console.log(JSON.stringify({ ok: true, toastCelebrate: "flag on, flag cleared, reduced motion, Kurami on Projects" }));
