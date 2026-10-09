@@ -24,6 +24,20 @@ const review = reviewFixPrompt(run, { requestId: "q", roundId: "f", roundNumber:
 assert.ok(review.includes("speculative improvements, dependency upgrades"));
 assert.ok(!review.includes("published upstream security fix"));
 
+const autonomous = initialPrompt({ ...run, interaction_policy: "autonomous" });
+const humanControl = initialPrompt({ ...run, interaction_policy: "human_control" });
+const simplicityReminder = "Follow the repository's Simplicity and scope guidance. Choose the simplest clear authorized implementation; avoid speculative abstractions, defensive branches, or recovery mechanisms. Preserve required safety and verification.";
+for (const [kind, writerPrompt] of Object.entries({ autonomous, humanControl, repair: prompt, reviewFix: review })) {
+  assert.equal(writerPrompt.split(simplicityReminder).length - 1, 1, `${kind}: one shared simplicity reminder`);
+}
+assert.ok(humanControl.includes("stop before modifying files or external state until Alex explicitly approves"));
+for (const writerPrompt of [prompt, review]) {
+  assert.ok(writerPrompt.includes("exact PR head SHA source-head"));
+  assert.ok(writerPrompt.includes("Refuse to edit or push if the PR, branch, worktree HEAD, or remote head no longer matches it."));
+  assert.ok(writerPrompt.includes("repository-required verification"));
+  assert.ok(writerPrompt.includes("never force-push, rebase, merge"));
+}
+
 const final = (text: string) => ({ type: "agentMessage", phase: "final_answer", text });
 for (const items of [null, [{ type: "userMessage", text: "instructions" }], [{ type: "commandExecution", stdout: "error" }], [{ type: "agentMessage", phase: "commentary", text: "progress" }], [{ type: "agentMessage", text: "ambiguous phase" }], [{ type: "agentMessage", phase: "final", text: "not the installed protocol phase" }]])
   assert.equal(completedWorkerSummary(items), null);

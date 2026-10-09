@@ -328,6 +328,22 @@ index aaaaaaa..bbbbbbb 100644
       "Prefetched private PR context or the zero-approval contract is missing",
     );
 
+    for (const phrase of [
+      "actual requirements", "both likelihood and impact",
+      "preserving security, authorization, data integrity, and explicit acceptance requirements",
+      "For proposed additions, identify a concrete scenario and impact",
+      "smallest sufficient fix", "Low-impact hypotheticals are not blockers",
+      "acceptable limitations are not defects", "Do not manufacture simplicity findings",
+      "this diff introduces a concrete maintenance or correctness cost",
+      "with evidence and a proportionate simplification",
+      "fewer lines or a preferred style alone are not grounds for a finding",
+      "read-only independent review", "Do not modify files, Git state, GitHub, or any external state",
+      `Review only the diff ${"a".repeat(40)}..${"b".repeat(40)}`,
+      `The worktree HEAD must remain exactly ${"b".repeat(40)}`,
+      "Return at most 10 findings", "changed RIGHT-side line",
+      "Return only JSON with this exact shape", "An empty findings array is a valid successful review",
+    ]) assert(instructions.includes(phrase), `Review prompt contract missing: ${phrase}`);
+
     const fakeCodex = resolve(home, "fake-codex-review.mjs");
     const archiveLog = resolve(home, "review-archives.log");
     const requestLog = resolve(home, "review-request.log");

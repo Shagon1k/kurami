@@ -113,6 +113,10 @@ The controller checks that the branch has exactly one open PR with the expected 
 
 Codex must return JSON: a short summary and up to ten findings with severity (`critical`, `important`, `suggestion`), confidence, file and line. The script rejects the answer if it contains secret-like strings, more than ten findings or an unsafe path. Before publishing it checks the PR, base, commit and the cleanliness of the copy once more. Findings on changed lines go out as inline comments, the rest into the review body. The review is always published as `COMMENT`, without approval or a change request. The card then shows `N Critical · N Important · N Suggestions`.
 
+The review prompt weighs likelihood and impact against actual requirements. Proposed additions need a concrete scenario, impact and the smallest sufficient fix. Low-impact hypotheticals are not blockers, and acceptable limitations are not defects; security, authorization, data integrity and explicit acceptance requirements remain protected.
+
+Simplicity is not a finding quota. A complexity finding needs evidence of a concrete maintenance or correctness cost introduced by the diff and a proportionate simplification. Fewer lines or a preferred style alone do not justify a finding. A review with no findings is valid; the read-only, exact-SHA and JSON contracts stay unchanged.
+
 ## Fixing review comments
 
 A review fix is a fresh Codex task that edits exactly the discussion threads that were unresolved when you pressed **Fix Review**. The button appears if the ready review of the current commit has at least one finding.

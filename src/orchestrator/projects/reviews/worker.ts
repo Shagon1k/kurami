@@ -319,6 +319,8 @@ export function buildReviewInstructions(
     "This is a read-only independent review. Do not modify files, Git state, GitHub, or any external state.",
     "Report only concrete actionable risks introduced by this diff: requirement correctness, bugs/regressions and edge cases, security/privacy/permissions, concurrency/idempotency/cleanup, migrations/backward compatibility/deploy/runtime consequences, missing tests, or unrelated scope expansion.",
     "Do not report formatting handled by tooling, subjective style preferences, speculative refactors, or findings without a concrete failure scenario and evidence.",
+    "Assess proportionality against actual requirements, weighing both likelihood and impact while preserving security, authorization, data integrity, and explicit acceptance requirements. For proposed additions, identify a concrete scenario and impact, and recommend the smallest sufficient fix. Low-impact hypotheticals are not blockers; acceptable limitations are not defects.",
+    "Do not manufacture simplicity findings. Report complexity only when this diff introduces a concrete maintenance or correctness cost, with evidence and a proportionate simplification; fewer lines or a preferred style alone are not grounds for a finding.",
     "Return at most 10 findings. Every finding must point to a changed RIGHT-side line in the pull request diff.",
     'Return only JSON with this exact shape: {"summary":"short review summary","findings":[{"severity":"critical|important|suggestion","confidence":"high|medium|low","title":"short title","body":"failure scenario, impact, evidence, and minimal direction","path":"relative/file/path","line":123}]}',
     "An empty findings array is a valid successful review.",

@@ -47,6 +47,12 @@ The worker uses `workspace-write`, with write access to the copy, its isolated G
 
 The launcher reads the existing writer credential from `secrets/github.env`, which must have private permissions. The prompt file has mode 600 and is deleted after reading. The technical worker receives the writer's `GH_TOKEN`; unrelated secrets and reviewer GitHub App credentials are removed. Credentials, prompts and command payloads are not stored in protocol receipts. Structured AI review keeps its separate read-only app-server path and exact output schema.
 
+## Simplicity and authorized scope
+
+The initial task, CI repair and review fix share one short simplicity reminder. It directs Codex to the repository's `Simplicity and scope` guidance and the simplest clear authorized implementation. Speculative abstractions, defensive branches and recovery mechanisms are discouraged; required safety and verification remain intact.
+
+Repository `AGENTS.md` governs work in that repository, including manual coding. Kurami's own instructions govern Kurami, not managed application repositories. The reminder does not grant new authority: human-control still stops before edits, and repair tasks retain their exact-SHA and evidence boundaries. Existing sessions are not rewritten by a prompt-source change.
+
 ## Starting and completing a task
 
 A task claim records the run, task kind, context id and exact supervisor name. A unique active-task constraint prevents two protocol writers for one run. CI repair and review fix also retain their exact source SHA and original evidence snapshot.
