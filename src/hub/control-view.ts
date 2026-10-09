@@ -16,7 +16,16 @@ export function renderControlView(action:string,result:any,lang:HubLanguage):str
   if(action==="models")return ["hermes","codex"].map(target=>{
     const disabled=target==="hermes"&&result.hermesProvider!=="openai-codex";
     const options=[...result.models];if(!options.some(item=>item.value===result[target]))options.unshift({value:result[target],label:result[target]});
-    return `<form class="control-form"${surfaceAttributes("panel")} data-hub-submit="model-apply" data-target="${target}" data-expected-model="${escapeHtml(result[target])}" data-effort="${escapeHtml(result.codexEffort??"")}" data-models="${escapeHtml(JSON.stringify(result.models))}"><h3>${target==="hermes"?"Hermes":tr(lang,"Codex · новые сессии","Codex · new sessions")}</h3>${renderSelectField({name:"model",label:target==="hermes"?result.hermesProvider:tr(lang,"Модель по умолчанию","Default model"),value:result[target],options,disabled})}<div class="control-actions">${apply(lang,disabled)}</div></form>`;
+    const selected=result.models.find((item:any)=>item.value===result.codex);
+    const efforts:string[]=selected?.efforts??[];
+    const current=result.codexEffort??"";
+    const effortOptions=efforts.map(value=>({value,label:value}));
+    // Do not silently turn an unset (or unsupported) current value into the first option.
+    if(!efforts.includes(current))effortOptions.unshift({value:current,label:current?`${current} · ${tr(lang,"не поддерживается","unsupported")}`:tr(lang,"Не задан · оставить","Not set · keep unset")});
+    const effortField=target==="codex"?renderSelectField({name:"effort",label:tr(lang,"Уровень рассуждений","Reasoning effort"),value:current,options:effortOptions,disabled:!efforts.length,attributes:{"aria-describedby":"codex-effort-status"}}):"";
+    const blocked=target==="codex"&&(!result.codexVersion||!!current&&!efforts.includes(current));
+    const status=!result.codexVersion?tr(lang,"Версия настроек недоступна. Открой панель заново.","Settings version unavailable. Reopen this panel."):!efforts.length?tr(lang,"Модель не сообщает доступные уровни. Сохранение доступно, только если уровень уже не задан.","This model lists no supported levels. Saving is available only if effort is already unset."):current&&!efforts.includes(current)?tr(lang,"Текущий уровень не поддерживается. Выбери доступный уровень.","The current effort is unsupported. Choose a supported level."):"";
+    return `<form class="control-form"${surfaceAttributes("panel")} data-hub-submit="model-apply" data-target="${target}" data-expected-model="${escapeHtml(result[target])}" data-effort="${escapeHtml(current)}" data-version="${escapeHtml(result.codexVersion??"")}" data-models="${escapeHtml(JSON.stringify(result.models))}"><h3>${target==="hermes"?"Hermes":tr(lang,"Codex · новые сессии","Codex · new sessions")}</h3>${target==="codex"?'<div class="control-fields">':""}${renderSelectField({name:"model",label:target==="hermes"?result.hermesProvider:tr(lang,"Модель по умолчанию","Default model"),value:result[target],options,disabled})}${effortField}${target==="codex"?"</div>":""}${target==="codex"?`<p class="control-summary" id="codex-effort-status" role="status"${status?"":" hidden"}>${status}</p>`:""}<div class="control-actions">${apply(lang,disabled||blocked)}</div></form>`;
   }).join("");
   if(action==="settings"){
     const state=result.settings;const current=state.settings;const locked=!state.idle.idle;

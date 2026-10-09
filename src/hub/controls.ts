@@ -51,10 +51,12 @@ export function createHubControls(options:{home?:string;hermesHome?:string;run?:
   }
   async function appearance(){return {appearance:JSON.parse(await run(node,[appearancePath,"status"]))};}
   async function models(){
-    const [catalog,config,hermesConfig]=await Promise.all([rpc("model/list",{limit:100,includeHidden:false}),rpc("config/read",{includeLayers:false}),readFile(resolve(hermesHome,"config.yaml"),"utf8")]);
+    const [catalog,config,hermesConfig]=await Promise.all([rpc("model/list",{limit:100,includeHidden:false}),rpc("config/read",{includeLayers:true}),readFile(resolve(hermesHome,"config.yaml"),"utf8")]);
     const hermesModel=parse(hermesConfig)?.model;
     return {models:(catalog.data??[]).filter((item:any)=>!item.hidden).map((item:any)=>({value:item.model,label:item.displayName??item.model,efforts:(item.supportedReasoningEfforts??[]).map((entry:any)=>entry.reasoningEffort),defaultEffort:item.defaultReasoningEffort})),
-      codex:config.config?.model??"",codexEffort:config.config?.model_reasoning_effort??null,codexVersion:config.origins?.model?.version??null,
+      codex:config.config?.model??"",codexEffort:config.config?.model_reasoning_effort??null,
+      // Guard the destination file, not the origin of model (which may be a different layer).
+      codexVersion:config.layers?.find((layer:any)=>layer.name?.type==="user"&&!layer.name.profile&&!layer.disabledReason)?.version??null,
       hermes:hermesModel?.default??"",hermesProvider:hermesModel?.provider??""};
   }
   async function composioCheck(){
@@ -87,12 +89,15 @@ export function createHubControls(options:{home?:string;hermesHome?:string;run?:
       if(!current.models.some((item:any)=>item.value===model))return bad();
       if(payload.expectedModel!==current[payload.target])throw new HubControlError("stale_settings");
       if(payload.target==="codex"){
-        if(payload.expectedEffort!==undefined&&payload.expectedEffort!==current.codexEffort)throw new HubControlError("stale_settings");
+        if(payload.expectedEffort!==current.codexEffort||!current.codexVersion||payload.expectedVersion!==current.codexVersion)throw new HubControlError("stale_settings");
         const selected=current.models.find((item:any)=>item.value===model)!;
-        const changeEffort=current.codexEffort&&selected.efforts.length&&!selected.efforts.includes(current.codexEffort);
-        if(changeEffort){
-          await rpc("config/batchWrite",{expectedVersion:current.codexVersion,edits:[{keyPath:"model",value:model,mergeStrategy:"replace"},{keyPath:"model_reasoning_effort",value:selected.defaultEffort,mergeStrategy:"replace"}]});
-        }else await rpc("config/value/write",{keyPath:"model",value:model,mergeStrategy:"replace",expectedVersion:current.codexVersion});
+        // Null means keep an already-unset effort, not erase an explicit setting.
+        const effort=payload.effort;
+        if(effort===null?current.codexEffort!==null:typeof effort!=="string"||!selected.efforts.includes(effort))return bad();
+        await rpc("config/batchWrite",{expectedVersion:current.codexVersion,edits:[
+          {keyPath:"model",value:model,mergeStrategy:"replace"},
+          ...(effort===null?[]:[{keyPath:"model_reasoning_effort",value:effort,mergeStrategy:"replace"}]),
+        ]});
       }else {
         if(current.hermesProvider!=="openai-codex")throw new HubControlError("provider_unsupported");
         await run(hermes,["config","set","model.default",model]);

@@ -27,27 +27,83 @@ try {
   const controls=createHubControls({home,hermesHome:join(home,"hermes"),run:async(binary,args)=>{calls.push({binary,args});return JSON.stringify({ok:true,action:"applied"});},rpc:async(method,params)=>{
     calls.push({method,params});
     if(method==="model/list")return {data:[{model:"gpt-6-sol",displayName:"Sol"},{model:"gpt-6-astra",displayName:"Astra"}]};
-    if(method==="config/read")return {config:{model:"gpt-6-sol"},origins:{model:{version:"sha256:test"}}};
+    if(method==="config/read")return {config:{model:"gpt-6-sol"},layers:[{name:{type:"user",profile:null},version:"sha256:test"}]};
     if(method==="account/rateLimitResetCredit/consume")return {outcome:"alreadyRedeemed"};
     return {rateLimitResetCredits:{availableCount:2}};
   }});
   await assert.rejects(()=>controls.execute("model-apply",{target:"codex",model:"gpt-6-astra",expectedModel:"old"}),error=>error instanceof HubControlError&&error.code==="stale_settings");
-  assert(!calls.some(call=>call.method?.includes("write")),"stale model panel cannot change config");
+  assert(!calls.some(call=>/write/i.test(call.method??"")),"stale model panel cannot change config");
   await assert.rejects(()=>controls.execute("model-apply",{target:"codex",model:"$(anything)",expectedModel:"gpt-6-sol"}));
-  await controls.execute("model-apply",{target:"codex",model:"gpt-6-astra",expectedModel:"gpt-6-sol"},"owner");
-  const write=calls.find(call=>call.method==="config/value/write");
+  await controls.execute("model-apply",{target:"codex",model:"gpt-6-astra",expectedModel:"gpt-6-sol",expectedEffort:null,expectedVersion:"sha256:test",effort:null},"owner");
+  const write=calls.find(call=>call.method==="config/batchWrite");
   assert.equal(write?.params.expectedVersion,"sha256:test");
-  assert.equal(write?.params.value,"gpt-6-astra");
+  assert.deepEqual(write?.params.edits,[{keyPath:"model",value:"gpt-6-astra",mergeStrategy:"replace"}]);
   const effortCalls:{method:string;params:any}[]=[];
   const effortControls=createHubControls({home,hermesHome:join(home,"hermes"),rpc:async(method,params)=>{
     effortCalls.push({method,params});
     if(method==="model/list")return {data:[{model:"gpt-6-astra",supportedReasoningEfforts:[{reasoningEffort:"high"}],defaultReasoningEffort:"high"}]};
-    if(method==="config/read")return {config:{model:"gpt-6-sol",model_reasoning_effort:"xhigh"},origins:{model:{version:"sha256:effort"}}};
+    if(method==="config/read")return {config:{model:"gpt-6-sol",model_reasoning_effort:"xhigh"},layers:[{name:{type:"user",profile:null},version:"sha256:effort"}]};
     return {};
   }});
-  await effortControls.execute("model-apply",{target:"codex",model:"gpt-6-astra",expectedModel:"gpt-6-sol",expectedEffort:"xhigh"},"owner");
+  await effortControls.execute("model-apply",{target:"codex",model:"gpt-6-astra",expectedModel:"gpt-6-sol",expectedEffort:"xhigh",expectedVersion:"sha256:effort",effort:"high"},"owner");
   assert.equal(effortCalls.at(-1)?.method,"config/batchWrite");
   assert.deepEqual(effortCalls.at(-1)?.params.edits.map((item:any)=>[item.keyPath,item.value]),[["model","gpt-6-astra"],["model_reasoning_effort","high"]]);
+  // Synthetic config state: user-file version is independent from model's origin.
+  let configEffort:string|null="high",version:string|null="user:1",race=false;
+  const writes:any[]=[];
+  const modelCatalog=[{model:"gpt-6-sol",supportedReasoningEfforts:[{reasoningEffort:"medium"},{reasoningEffort:"high"}],defaultReasoningEffort:"high"},{model:"no-levels",supportedReasoningEfforts:[]}];
+  const guarded=createHubControls({home,hermesHome:join(home,"hermes"),rpc:async(method,params)=>{
+    if(method==="model/list")return {data:modelCatalog};
+    if(method==="config/read"){
+      assert.equal(params.includeLayers,true);
+      return {config:{model:"gpt-6-sol",model_reasoning_effort:configEffort},origins:{model:{version:"model-origin:unchanged"}},layers:version?[{name:{type:"user",profile:null},version}]:[]};
+    }
+    assert.equal(method,"config/batchWrite","both values must use one atomic write");
+    assert.equal(params.expectedVersion,version);
+    if(race)throw new Error("config version conflict");
+    writes.push(params);return {};
+  }});
+  const input={target:"codex",model:"gpt-6-sol",expectedModel:"gpt-6-sol",expectedEffort:"high",expectedVersion:"user:1",effort:"medium"};
+  await guarded.execute("model-apply",input);
+  assert.deepEqual(writes[0].edits,[{keyPath:"model",value:"gpt-6-sol",mergeStrategy:"replace"},{keyPath:"model_reasoning_effort",value:"medium",mergeStrategy:"replace"}],"effort-only medium save");
+  for(const effort of ["xhigh","invalid",undefined,42,null]){
+    await assert.rejects(()=>guarded.execute("model-apply",{...input,effort}),error=>error instanceof HubControlError&&error.code==="invalid_request");
+  }
+  for(const stale of [{expectedEffort:null},{expectedEffort:undefined},{expectedVersion:undefined},{expectedVersion:"old"},{expectedModel:"old"}]){
+    await assert.rejects(()=>guarded.execute("model-apply",{...input,...stale}),error=>error instanceof HubControlError&&error.code==="stale_settings");
+  }
+  configEffort="medium";
+  await assert.rejects(()=>guarded.execute("model-apply",input),error=>error instanceof HubControlError&&error.code==="stale_settings","effort-only concurrent change");
+  configEffort="high";version="user:2";
+  await assert.rejects(()=>guarded.execute("model-apply",input),error=>error instanceof HubControlError&&error.code==="stale_settings","version-only concurrent change");
+  version=null;
+  await assert.rejects(()=>guarded.execute("model-apply",{...input,expectedVersion:null}),error=>error instanceof HubControlError&&error.code==="stale_settings","missing destination version fails closed");
+  version="user:1";race=true;
+  await assert.rejects(()=>guarded.execute("model-apply",input),/version conflict/,"write-time conflict propagates; no unconditional retry");
+  race=false;
+  await assert.rejects(()=>guarded.execute("model-apply",{...input,model:"no-levels"}),error=>error instanceof HubControlError&&error.code==="invalid_request");
+  assert.equal(writes.length,1,"invalid, stale and raced requests wrote nothing");
+  configEffort=null;
+  await guarded.execute("model-apply",{...input,model:"no-levels",expectedEffort:null,effort:null});
+  assert.deepEqual(writes.at(-1).edits,[{keyPath:"model",value:"no-levels",mergeStrategy:"replace"}],"unset stays unset without an invented level");
+  await guarded.execute("model-apply",{...input,expectedEffort:null});
+  assert.equal(writes.at(-1).edits[1].value,"medium","unset effort can be explicitly set");
+  await controls.execute("model-apply",{target:"hermes",model:"gpt-6-astra",expectedModel:"gpt-6-sol"});
+  assert.deepEqual(calls.at(-1)?.args,["config","set","model.default","gpt-6-astra"],"Hermes still changes only its model");
+  for(const lang of ["en","ru"] as const){
+    const state=await guarded.execute("models");
+    const html=renderControlView("models",{...state,codexEffort:"medium"},lang);
+    assert.equal((html.match(/name="effort"/g)??[]).length,1,"only Codex has the effort selector");
+    assert.match(html,/value="medium" selected/);
+    assert.match(html,/data-version="user:1"/);
+    assert.match(html,/aria-describedby="codex-effort-status"/);
+    const unset=renderControlView("models",{...state,codex:"no-levels"},lang);
+    assert.match(unset,/<select name="effort"[^>]* disabled/);
+    assert.match(unset,/<option value="" selected/);
+    const unsupported=renderControlView("models",{...state,codexEffort:"xhigh"},lang);
+    assert.match(unsupported,/<option value="xhigh" selected/);
+    assert.match(unsupported,/<button[^>]*disabled/);
+  }
   await assert.rejects(()=>controls.execute("health-apply",{minutes:7,revision:1}));
   await assert.rejects(()=>controls.execute("appearance-apply",{theme:"neon",mode:"system",revision:0}),"only light and dark modes exist");
   await assert.rejects(()=>controls.execute("appearance-apply",{theme:"paper; rm",mode:"dark",revision:0}),"unknown themes are rejected");

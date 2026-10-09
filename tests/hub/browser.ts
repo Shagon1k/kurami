@@ -11,20 +11,21 @@ import {HubControlError} from "../../src/hub/controls.ts";
 
 const allocator=createServer();await new Promise<void>(done=>allocator.listen(0,"127.0.0.1",done));
 const port=(allocator.address() as {port:number}).port;await new Promise<void>(done=>allocator.close(()=>done()));
-const base=`http://127.0.0.1:${port}`;const actions:string[]=[];let codexModel="gpt-6-sol";
+const base=`http://127.0.0.1:${port}`;const actions:string[]=[];let codexModel="gpt-6-sol",codexEffort:string|null="high";
+let lastModelPayload:Record<string,unknown>={};
 let failRead=false,failWrite=false,writeGate:Promise<void>|null=null;
 const settings={version:1,max_llm_running_global:2,ai_triage_daily:5,max_active_global:4,max_previews_global:3,max_preview_builds_global:1,preview_ttl_hours:24,project_wip:{pickflick:2}};
 const server=createHubServer({snapshot:syntheticHubSnapshot,authorize:async()=>"synthetic-owner",controlOrigin:base,
   controls:{execute:async(action,payload={})=>{
     if(failRead&&["models","settings","server","appearance","composio-check"].includes(action))throw new HubControlError("stale_settings");
-    if(action==="models")return {models:[{value:"gpt-6-sol",label:"Sol"},{value:"gpt-6-astra",label:"Astra"}],hermes:"gpt-6-sol",hermesProvider:"openai-codex",codex:codexModel,codexEffort:"high"};
+    if(action==="models")return {models:[{value:"gpt-6-sol",label:"Sol",efforts:["medium","high","xhigh"],defaultEffort:"high"},{value:"gpt-6-astra",label:"Astra",efforts:["medium","high"],defaultEffort:"high"},{value:"no-default",label:"No default",efforts:["low"],defaultEffort:"invalid"},{value:"no-levels",label:"No levels",efforts:[]}],hermes:"gpt-6-sol",hermesProvider:"openai-codex",codex:codexModel,codexEffort,codexVersion:"user:browser"};
     if(action==="settings")return {settings:{revision:1,settings,idle:{idle:true}}};
     if(action==="server")return {health:{revision:1,intervalMinutes:20,allowedIntervals:[5,10,12,15,20,30,60]},devResources:{revision:0,cores:4,testJobs:2,memoryGiB:0,serverCores:8,memoryChoices:[0,8,12,16]},release:{head:"a".repeat(40),remote:"b".repeat(40),tested:null,rollbackTo:"c".repeat(40),drift:[{code:"checkout_behind",ru:"Рабочая версия позади main на 2 коммита",en:"The live version is 2 commits behind main"}],last:{action:"deploy",status:"succeeded",to:"a".repeat(40),startedAt:"2026-09-16T09:00:00Z",steps:[{name:"Move checkout",status:"done"},{name:"Digest build",status:"skipped"}],notes:[]}}};
     if(action==="appearance")return {appearance:{revision:0,theme:"paper",mode:null,themes:{paper:["light","dark"],neon:["light","dark"]}}};
     if(action==="composio-check")return {contours:[{contour:"broad",ok:true,tools:3,diff:[],warnings:[]},{contour:"read",ok:true,tools:7,diff:[],warnings:[]},{contour:"automation",ok:true,tools:1,diff:[],warnings:[]}]};
     if(writeGate)await writeGate;
     if(failWrite)throw new HubControlError("command_failed");
-    actions.push(action);if(action==="model-apply")codexModel=String(payload.model);
+    actions.push(action);if(action==="model-apply"){lastModelPayload=payload;codexModel=String(payload.model);codexEffort=payload.effort as string|null;}
     return {ok:true,action:"applied",outcome:action==="codex-reset"?"reset":undefined};
   }}});
 await new Promise<void>(done=>server.listen(port,"127.0.0.1",done));
@@ -150,6 +151,54 @@ try {
     assert.equal(await devtools.evaluate("document.querySelector('#hub-controls-popover').matches(':popover-open')"),false);
     assert.equal(await devtools.evaluate("document.querySelector('#hub-control-dialog-title').textContent"),lang==='en'?'Models':'Модели');
     assert.equal(await devtools.evaluate("!!document.querySelector('dialog [data-hub-control=menu]')"),false,"modal does not contain an extra Back action");
+    assert.equal(await devtools.evaluate("document.querySelectorAll('form[data-target=hermes] [name=effort]').length"),0);
+    if(lang==='en'){
+      const choose=async(name:string,value:string)=>devtools.evaluate(`(()=>{const input=document.querySelector('form[data-target=codex] [name=${name}]');input.value=${JSON.stringify(value)};input.dispatchEvent(new Event('change',{bubbles:true}));})()`);
+      const effortValue=()=>devtools.evaluate<string>("document.querySelector('form[data-target=codex] [name=effort]').value");
+      await choose('effort','medium');await choose('model','gpt-6-astra');
+      assert.equal(await effortValue(),'medium','model transition preserves a supported choice');
+      await choose('model','gpt-6-sol');await choose('effort','xhigh');await choose('model','gpt-6-astra');
+      assert.equal(await effortValue(),'high','unsupported effort falls back to advertised default');
+      assert.match(await devtools.evaluate<string>("document.querySelector('#codex-effort-status').textContent"),/xhigh.*high/);
+      await choose('model','no-default');
+      assert.equal(await effortValue(),'','invalid catalog default is never offered');
+      assert.equal(await devtools.evaluate("document.querySelector('form[data-target=codex] button[type=submit]').disabled"),true);
+      await choose('effort','low');
+      assert.equal(await devtools.evaluate("document.querySelector('form[data-target=codex] button[type=submit]').disabled"),false);
+      await choose('model','no-levels');
+      assert.equal(await devtools.evaluate("document.querySelector('form[data-target=codex] [name=effort]').disabled"),true);
+      assert.equal(await devtools.evaluate("document.querySelector('form[data-target=codex] button[type=submit]').disabled"),true,'no supported levels cannot save an explicit effort');
+      await choose('model','gpt-6-sol');await choose('effort','medium');
+      assert.equal(await devtools.evaluate("document.querySelector('form[data-target=codex] [name=effort]').closest('.form-field').dataset.dirty"),'true');
+      for(const [theme,mode] of [['paper','light'],['neon','dark']]){
+        for(const width of [390,1280]){
+          await devtools.call('Emulation.setDeviceMetricsOverride',{width,height:1100,deviceScaleFactor:1,mobile:width<500});
+          await devtools.evaluate(`document.querySelector('[data-theme-choice=${theme}]').click();document.querySelector('[data-mode-choice=${mode}]').click()`);
+          await delay(200);assert.deepEqual(await devtools.evaluate(AUDIT_EXPRESSION),[],`effort ${theme} ${width}`);
+          assert.equal(await devtools.evaluate("document.querySelector('dialog').scrollWidth<=document.querySelector('dialog').clientWidth"),true);
+          await screenshot(`hub-effort-${theme}-${width}`,'dialog');
+        }
+      }
+      await devtools.evaluate("document.querySelector('[data-theme-choice=paper]').click();document.querySelector('[data-mode-choice=light]').click();document.querySelector('form[data-target=codex]').requestSubmit()");
+      assert.equal(await devtools.evaluate("document.querySelector('#hub-confirm-changes tbody tr:last-child td:last-child').textContent"),'medium');
+      await devtools.evaluate("document.querySelector('[data-hub-cancel]').click()");
+      assert.equal(await effortValue(),'medium','cancel keeps the proposed effort without writing');
+      await devtools.evaluate("document.querySelector('form[data-target=codex]').requestSubmit();document.querySelector('[data-hub-confirm]').click()");
+      await wait("!document.querySelector('[data-hub-confirm]').hasAttribute('aria-busy') && !!document.querySelector('form[data-target=codex] [name=effort]')");
+      assert.deepEqual(lastModelPayload,{action:'model-apply',confirm:true,target:'codex',model:'gpt-6-sol',expectedModel:'gpt-6-sol',expectedEffort:'high',expectedVersion:'user:browser',effort:'medium'},'effort-only save submits both values and the observed version');
+      assert.equal(codexEffort,'medium');
+      assert.equal(await effortValue(),'medium','reloaded control displays saved effort');
+      codexEffort=null;
+      await devtools.evaluate("loadControl('models')");
+      assert.equal(await effortValue(),'','unset is not silently replaced by first option');
+      await choose('model','no-levels');
+      assert.equal(await devtools.evaluate("document.querySelector('form[data-target=codex] button[type=submit]').disabled"),false,'an unset effort can remain unset with no supported levels');
+      await devtools.evaluate("document.querySelector('form[data-target=codex]').requestSubmit()");
+      assert.equal(await devtools.evaluate("pending.payload.effort"),null,'disabled unset selector submits null explicitly');
+      await devtools.evaluate("document.querySelector('[data-hub-cancel]').click()");
+      codexEffort='medium';
+      await devtools.evaluate("loadControl('models')");
+    }
     const proposed=codexModel==='gpt-6-astra'?'gpt-6-sol':'gpt-6-astra';
     await devtools.evaluate(`document.querySelector('form[data-target=codex] select').value=${JSON.stringify(proposed)};document.querySelector('form[data-target=codex] select').dispatchEvent(new Event('change',{bubbles:true}))`);
     assert.equal(await devtools.evaluate("document.querySelector('form[data-target=codex] .form-field').dataset.dirty"),'true','changed model has an informational field accent');

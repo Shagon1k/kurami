@@ -266,6 +266,34 @@ function markChangedFields(event){
   const changed=input.type==='number'?Number(input.value)!==Number(original):input.value!==original;
   input.closest('.form-field')?.setAttribute('data-dirty',String(changed&&!input.disabled));
 }
+/** Codex effort options follow the selected model; fallback is visible before confirmation. */
+function syncCodexEfforts(event){
+  const form=event.target.closest?.('form[data-target="codex"]');
+  if(!form||!['model','effort'].includes(event.target.name))return;
+  const selected=JSON.parse(form.dataset.models).find(model=>model.value===form.elements.model.value);
+  const levels=selected?.efforts??[],select=form.elements.effort;
+  let message='';
+  if(event.target.name==='model'){
+    const previous=select.value;
+    let next=previous;
+    if(previous&&!levels.includes(previous)){
+      next=levels.includes(selected?.defaultEffort)?selected.defaultEffort:'';
+      message=next?text(`Уровень ${previous} не поддерживается; предложен ${next}. Проверь перед подтверждением.`,`Effort ${previous} is unsupported; proposed ${next}. Review before confirming.`):text('Выбери доступный уровень рассуждений.','Choose a supported reasoning effort.');
+    }
+    const options=levels.map(value=>new Option(value,value,value===form.dataset.effort,value===next));
+    if(!form.dataset.effort||!next)options.unshift(new Option(!form.dataset.effort?text('Не задан · оставить','Not set · keep unset'):text('Выбери уровень','Choose effort'),'',''===form.dataset.effort,next===''));
+    select.replaceChildren(...options);select.value=next;
+  }
+  select.disabled=!levels.length;
+  const valid=select.value?levels.includes(select.value):!form.dataset.effort;
+  if(!valid)message=text('Выбери доступный уровень рассуждений.','Choose a supported reasoning effort.');
+  if(!levels.length)message=text('Модель не сообщает доступные уровни. Сохранение доступно, только если уровень уже не задан.','This model lists no supported levels. Saving is available only if effort is already unset.');
+  if(!form.dataset.version)message=text('Версия настроек недоступна. Открой панель заново.','Settings version unavailable. Reopen this panel.');
+  const status=form.querySelector('#codex-effort-status');status.textContent=message;status.hidden=!message;
+  form.querySelector('button[type="submit"]').disabled=!valid||!form.dataset.version;
+  select.closest('.form-field').setAttribute('data-dirty',String(select.value!==form.dataset.effort&&!select.disabled));
+}
+document.addEventListener('change',syncCodexEfforts);
 /** Appearance: a theme offers only its own modes (Neon is dark only for now). */
 function syncAppearanceModes(form){
   if(!form?.matches?.('[data-hub-submit="appearance-apply"]'))return;
@@ -284,9 +312,14 @@ document.addEventListener("submit",event=>{
   const values=Object.fromEntries(new FormData(form));const action=form.dataset.hubSubmit;
   if(action==="model-apply"){
     const selected=JSON.parse(form.dataset.models).find(model=>model.value===values.model);
-    const effort=form.dataset.effort,changes=[[text('Модель','Model'),form.dataset.expectedModel,values.model]];
-    if(form.dataset.target==="codex"&&effort&&selected?.efforts?.length&&!selected.efforts.includes(effort))changes.push(['Reasoning',effort,selected.defaultEffort]);
-    confirmAction(action,{target:form.dataset.target,expectedModel:form.dataset.expectedModel,expectedEffort:form.dataset.target==="codex"?(effort||null):undefined,model:values.model},form.dataset.target,changes);
+    const codex=form.dataset.target==='codex';
+    const effort=codex?(form.elements.effort.value||null):undefined;
+    const changes=[[text('Модель','Model'),form.dataset.expectedModel,values.model]];
+    if(codex){
+      if(!form.dataset.version||(effort===null?!!form.dataset.effort:!selected?.efforts?.includes(effort)))return;
+      changes.push([text('Уровень рассуждений','Reasoning effort'),form.dataset.effort||text('Не задан','Not set'),effort??text('Не задан','Not set')]);
+    }
+    confirmAction(action,{target:form.dataset.target,expectedModel:form.dataset.expectedModel,...(codex?{expectedEffort:form.dataset.effort||null,expectedVersion:form.dataset.version,effort}:{}),model:values.model},form.dataset.target,changes);
   }
   if(action==="health-apply")confirmAction(action,{revision:Number(form.dataset.revision),minutes:Number(values.minutes)},'System Health',[[text('Интервал · минуты','Interval · minutes'),[...form.elements.minutes.options].find(option=>option.defaultSelected)?.value,values.minutes]]);
   if(action==="appearance-apply"){

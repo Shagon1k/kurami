@@ -77,7 +77,7 @@ use amber; Undo stays neutral. The confirmation changes its accent to match the 
 
 | Action | What it does |
 |---|---|
-| **Models** | sets the default model for new Codex sessions and for Hermes (provider `openai-codex`) |
+| **Models** | sets the default model and reasoning effort for new Codex sessions; Hermes keeps its separate model control (provider `openai-codex`) |
 | **Settings** | the same Kurami settings as `/kurami settings` ([Settings](@settings)) |
 | **Server** | release (below), the health check interval and [development resources](@settings) |
 | **Appearance** | the default theme for every app ([Settings](@settings)) |
@@ -86,6 +86,14 @@ use amber; Undo stays neutral. The confirmation changes its accent to match the 
 | **Reset** | spends one earned credit to reset the Codex limits |
 
 Opening a view changes nothing. An action runs only when all of this holds: a valid Cloudflare Access identity, the exact Hub origin, a matching CSRF cookie and token, explicit confirmation, and no other action in progress. Settings keep their idle gate and revision check. Every completed action adds a short record to `state/hub/control-audit.jsonl`, with no outputs or secrets. If saving that record fails after the action, Hub still reports success and shows an audit warning; do not repeat the action.
+
+### Codex model and reasoning effort
+
+In **Models → Codex · new sessions**, choose **Reasoning effort** beside **Default model**. You can keep the model and change only the effort, for example to `medium`. Apply opens a comparison of both values; Confirm saves them together. Existing sessions are unchanged.
+
+The effort list follows the selected model. A supported choice is preserved when you change models. Otherwise Hub proposes the advertised default and shows a warning before confirmation. If no valid default exists, choose a supported level yourself. An unset effort stays unset until you choose one. When the model lists no supported levels, the selector is disabled: an unset effort can stay unset, but an explicit effort blocks saving.
+
+Hub checks the previous model, effort and config-file version. If another action changed them, reopen Models and review the latest values before applying again.
 
 ### Notifications on the phone
 
