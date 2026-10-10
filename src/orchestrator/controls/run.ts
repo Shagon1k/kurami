@@ -479,6 +479,7 @@ export function requestRunControl(
       .prepare(
         `SELECT action FROM run_control_requests
          WHERE run_id = ? AND request_state IN ('pending','processing')
+           AND NOT (? = 'preview_stop' AND action = 'preview_start' AND request_state = 'pending')
            AND (
              action = 'review_fix' OR
              action = 'recover_managed_task' OR
@@ -488,7 +489,7 @@ export function requestRunControl(
            )
          LIMIT 1`,
       )
-      .get(runId, action, action) as { action: string } | undefined;
+      .get(runId, action, action, action) as { action: string } | undefined;
     if (conflictingRequest && action !== "stop" && conflictingRequest.action !== action)
       fail(`Action conflicts with queued ${conflictingRequest.action}`);
     if (action === "stop" && run.stop_reason === "cancelled") {
@@ -764,6 +765,19 @@ export function requestRunControl(
     `,
       )
       .get(idempotencyKey) as { request_id: string; request_state: string };
+    if (action === "preview_stop" && stored.request_id === plan.requestId) {
+      // Supersede only unclaimed starts, atomically with the supported stop request.
+      // A processing start remains a conflict: its runtime side effect may be active.
+      database.prepare(`
+        UPDATE run_control_requests
+        SET request_state = 'rejected',
+            result_json = json_object('reason', 'preview_start_superseded_by_stop',
+                                      'supersededByRequestId', ?),
+            updated_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now'),
+            completed_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
+        WHERE run_id = ? AND action = 'preview_start' AND request_state = 'pending'
+      `).run(stored.request_id, runId);
+    }
     presentPendingRequest(database, runId, action);
     if (ownsTransaction) database.exec("COMMIT");
     return {
@@ -891,7 +905,11 @@ export function availableRunControls(database: DatabaseSync, runId: string, opti
     if (!pendingActions.has("take_control"))
       availableActions.push("take_control");
   if (projectSupportsPreview(String(selected.project),home)) {
-    if (!reviewFixBusy && previewState && !pendingActions.has("preview_stop"))
+    const previewStartProcessing = (
+      selected.requests as Array<{ action?: unknown; request_state?: unknown }>
+    ).some(request => request.action === "preview_start" && request.request_state === "processing");
+    if (!reviewFixBusy && !previewStartProcessing &&
+        (previewState || pendingActions.has("preview_start")) && !pendingActions.has("preview_stop"))
       availableActions.push("preview_stop");
     if (
       !reviewFixBusy &&

@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import type { DatabaseSync } from "node:sqlite";
+import { DatabaseSync } from "node:sqlite";
 import { planAutomatic } from "../src/orchestrator/runtime/automatic-plan.ts";
 import {
   reconcileAfterAppliedAction,
@@ -173,8 +173,19 @@ executePlannedAction(database, action("claim_remote"), effects);
 assert.deepEqual(calls.splice(0), ["internal:claim_remote"]);
 executePlannedAction(database, action("handoff"), effects);
 assert.deepEqual(calls.splice(0), ["external:handoff", "complete:rq-1:applied"]);
-executePlannedAction(database, action("preview_expire", "rejected"), effects);
-assert.deepEqual(calls.splice(0), ["external:preview_expire", "complete:rq-1:rejected"]);
+const expiryDatabase = new DatabaseSync(":memory:");
+expiryDatabase.exec(`CREATE TABLE run_control_requests (
+  request_id TEXT, run_id TEXT, action TEXT, request_state TEXT, updated_at TEXT
+); INSERT INTO run_control_requests VALUES ('rq-1','run-1','preview_start','pending',NULL)`);
+try {
+  executePlannedAction(expiryDatabase, action("preview_expire", "rejected"), {
+    ...effects,
+    complete: (_received, requestId, state) => calls.push(`complete:${requestId}:${state}`),
+  });
+  assert.deepEqual(calls.splice(0), ["external:preview_expire", "complete:rq-1:rejected"]);
+} finally {
+  expiryDatabase.close();
+}
 executePlannedAction(database, action("discard_cancelled"), effects);
 assert.deepEqual(calls.splice(0), ["external:discard_cancelled", "complete:rq-1:applied"]);
 executePlannedAction(database, action("discard_published_cancelled"), effects);

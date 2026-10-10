@@ -83,7 +83,11 @@ A build starts only when every check passes, and each check guards against one s
 5. All six of the slot's ports are free.
 6. Fewer than two builds are running: the lease moves to `provisioning`.
 
-If a check fails before step 6, the lease stays `leased` and the controller retries every minute. The card meanwhile stays at "Preview queued". A failure after step 6 moves the lease to `failed`.
+If a check fails before step 6, the lease stays `leased`; a failure after step 6 moves it to `failed`. A startup-step error completes the `preview_start` request as `failed`: the controller does not restart it every minute. The lease retains ownership of the slot until supported preview removal.
+
+**Stop preview** can replace an unclaimed `pending preview_start`, even after a slot has been allocated. In one transaction, the old request becomes `rejected` with reason `preview_start_superseded_by_stop` and a reference to the new stop request. Repeating Stop returns the same outstanding request. The controller removes the preview through normal `down`; the run, PR, branch and working copy are preserved.
+
+Before allocation or startup, the controller atomically claims the request as `processing`. Stop cannot replace that request: the owner receives a refusal until the current step finishes. A previously planned but superseded start cannot execute either. If the controller crashes, a `processing` request stays protected; there is no automatic reset without proof that the external step ended. An accepted Stop is not proof of cleanup: completion requires an applied request and a released lease.
 
 ## Lease states
 
@@ -145,8 +149,8 @@ Run `r_9f3a0c17d2b4`, branch `PF-33_watchlist-sharing`, PR #41, commit `4be1d9c`
 
 | Situation | What Kurami does | What you do |
 |---|---|---|
-| No memory, disk or ports, all slots taken or two builders busy | the lease stays `leased`, retry every minute, card at Preview queued | wait, or remove the preview |
-| The PR has no SHA from CI, the working copy is dirty or `HEAD` differs | an error on every step, the lease stays `leased` | push a commit, wait for CI |
+| No memory, disk or ports, all slots taken or two builders busy | slot allocation may retry; a startup-step error fails the Start request and retains any allocated lease | remove the preview, then request a new start when capacity is available |
+| The PR has no SHA from CI, the working copy is dirty or `HEAD` differs | Start request `failed`; the lease stays `leased`, with no automatic startup retry | fix the source evidence, remove the preview, then request a new start |
 | The build or health check failed | lease `failed`, Preview failed event, stage Needs attention | press Remove preview, fix the cause, start again |
 | Caddy did not reload | the previous routes are restored; if that fails too, both errors are reported | fix the Caddy unit |
 | The deadline passed | `down` with reason `preview_ttl_expired` | start again, or extend in the last two hours |

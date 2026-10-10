@@ -1,3 +1,4 @@
+import "./verify-preview-stop-recovery.ts";
 import { execFileSync } from "node:child_process";
 import { copyFile, mkdir, mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
@@ -682,6 +683,13 @@ async function main(): Promise<void> {
       actions.r_preview === "preview_allocate",
       "Preview should allocate only on request",
     );
+    const processingStore = new DatabaseSync(databasePath);
+    processingStore.prepare("UPDATE run_control_requests SET request_state='processing' WHERE request_id='rq_preview'").run();
+    const processingPlan = runNode(controller, [], testHome) as unknown as { plans: Plan[] };
+    assert(!processingPlan.plans.some(plan => plan.runId === "r_preview"),
+      "A processing preview request must block automatic run plans as well as duplicate startup");
+    processingStore.prepare("UPDATE run_control_requests SET request_state='pending' WHERE request_id='rq_preview'").run();
+    processingStore.close();
     assert(
       actions.r_stop === "request_stop",
       "Stop request should be explicit",

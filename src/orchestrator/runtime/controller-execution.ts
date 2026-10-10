@@ -390,28 +390,65 @@ export function executePlannedAction(
     "request_complete",
     "request_reject",
   ].includes(plan.action);
-  const result = internal
-    ? effects.internal(database, plan)
-    : effects.external(plan);
-  if (
-    plan.requestId &&
-    ["handoff", "successor_start", "preview_up", "preview_down", "preview_expire", "preview_extend", "repair_start", "review_start", "review_fix_start", "recover_managed_task"].includes(plan.action)
-  ) {
-    effects.complete(database, plan.requestId, plan.requestOutcome ?? "applied", result);
+  const previewRequest = Boolean(plan.requestId) &&
+    ["preview_allocate", "preview_up", "preview_down", "preview_expire", "preview_extend"].includes(plan.action);
+  if (previewRequest) {
+    // Claim before calling the runtime: a Stop transaction can supersede a pending
+    // start, but cannot race its external side effect or execute a stale plan.
+    const claimed = database.prepare(`
+      UPDATE run_control_requests
+      SET request_state = 'processing',
+          updated_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
+      WHERE request_id = ? AND run_id = ? AND request_state = 'pending'
+        AND action IN ('preview_start', 'preview_stop')
+    `).run(plan.requestId!, plan.runId);
+    if (claimed.changes !== 1) fail("Preview request changed before execution");
   }
-  if (
-    plan.requestId &&
-    ["discard_cancelled", "discard_published_cancelled"].includes(plan.action)
-  ) {
-    const action = (result as { action?: string } | null)?.action;
-    effects.complete(
-      database,
-      plan.requestId,
-      ["discarded_local_work", "discarded_published_work"].includes(action ?? "")
-        ? "applied"
-        : "rejected",
-      result,
-    );
+  try {
+    const result = internal
+      ? effects.internal(database, plan)
+      : effects.external(plan);
+    if (
+      plan.requestId &&
+      ["handoff", "successor_start", "preview_up", "preview_down", "preview_expire", "preview_extend", "repair_start", "review_start", "review_fix_start", "recover_managed_task"].includes(plan.action)
+    ) {
+      effects.complete(database, plan.requestId, plan.requestOutcome ?? "applied", result);
+    }
+    if (
+      plan.requestId &&
+      ["discard_cancelled", "discard_published_cancelled"].includes(plan.action)
+    ) {
+      const action = (result as { action?: string } | null)?.action;
+      effects.complete(
+        database,
+        plan.requestId,
+        ["discarded_local_work", "discarded_published_work"].includes(action ?? "")
+          ? "applied"
+          : "rejected",
+        result,
+      );
+    }
+    return result;
+  } catch (error) {
+    if (previewRequest && plan.action === "preview_up") {
+      // Startup failures are terminal for this owner request, not an unbounded
+      // restart loop. Keep the lease for controller-owned Stop cleanup.
+      effects.complete(database, plan.requestId!, "failed", {
+        action: "preview_start_failed",
+        reason: error instanceof Error ? error.message : String(error),
+      });
+    }
+    throw error;
+  } finally {
+    if (previewRequest) {
+      // Allocation is the first step of Start. Failed cleanup/extension retains
+      // the existing retry policy; never reset a terminal/superseded request.
+      database.prepare(`
+        UPDATE run_control_requests
+        SET request_state = 'pending',
+            updated_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
+        WHERE request_id = ? AND request_state = 'processing'
+      `).run(plan.requestId!);
+    }
   }
-  return result;
 }

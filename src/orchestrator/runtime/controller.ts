@@ -103,9 +103,11 @@ function buildPlans(
     )
     .all() as RequestRow[];
   const requestedRuns = new Set(
-    requests
-      .filter((row) => row.stop_reason !== "cancelled")
-      .map((row) => row.run_id),
+    (database.prepare(`
+      SELECT DISTINCT q.run_id FROM run_control_requests q JOIN runs r USING (run_id)
+      WHERE q.request_state IN ('pending', 'processing')
+        AND (r.stop_reason IS NULL OR r.stop_reason <> 'cancelled')
+    `).all() as Array<{ run_id: string }>).map((row) => row.run_id),
   );
   const automatic = database
     .prepare(
