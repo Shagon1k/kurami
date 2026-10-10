@@ -2,6 +2,12 @@
   "baseline": "4a38c09",
   "publicationBaseline": "788787f077d42fc3b3346a4f4a612947b97ce2e8",
   "commits": {
+    "41a32c06a336aa9c7a0ac60921c8a26ccdbf8d8c": {
+      "category": "fixed",
+      "en": "- Portals keep their lower rim visible; empty states stay in one row and speech appears smoothly.\n- Projects uses softer colour accents, fits review labels, avoids duplicate history and shows mobile tasks in batches.\n- Mail clears immediately after archive; Daily moves reading time to News and aligns the finish stamp right; Cinema highlights box office.\n- Docs uses desktop space and supports concise Markdown in Changelog; Apps shares Theme menu styling.",
+      "ru": "- У портала видна нижняя дуга; пустые состояния остаются в одной строке, а реплика появляется плавно.\n- В Projects приглушены цветовые акценты, помещаются статусы, история не дублируется, а задачи на телефоне раскрываются порциями.\n- Почта очищается сразу после архивации; время чтения перенесено в News, отметка завершения выровнена вправо; Cinema выделяет прокат.\n- Docs использует место на компьютере и поддерживает краткий Markdown в ченжлоге; Apps оформлено как меню темы.",
+      "page": "ui-library"
+    },
     "cf1b7f62088d97d4b9758a745d9f041fc29420a9": {
       "category": "fixed",
       "en": "- Chat requests to record a task or future work go into the ideas pool unless another destination, such as GitHub or a project backlog, is explicitly named.\n- Requests to implement changes now remain work requests.\n- Hermes, Claude Code and Codex share these routing rules.",
