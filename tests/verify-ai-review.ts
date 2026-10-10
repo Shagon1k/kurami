@@ -1,4 +1,5 @@
 import { setTimeout as delay } from "node:timers/promises";
+import { verifyReviewSnapshots } from "./ai-review-snapshot.ts";
 import { execFileSync } from "node:child_process";
 import { generateKeyPairSync, verify as verifySignature } from "node:crypto";
 import { copyFile, mkdir, mkdtemp, readFile, readdir, realpath, rm, writeFile } from "node:fs/promises";
@@ -41,6 +42,7 @@ function runNode(script: string, args: string[], home: string): JsonObject {
 }
 
 async function main(): Promise<void> {
+  verifyReviewSnapshots();
   const app = resolve(import.meta.dirname, "..");
   const home = await realpath(await mkdtemp(resolve(tmpdir(), "kurami-ai-review-test-")));
   try {

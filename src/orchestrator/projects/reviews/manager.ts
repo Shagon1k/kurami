@@ -188,6 +188,16 @@ function discoverPull(run: Run, project: Project): PullSummary & { baseSha: stri
   return { ...pull, baseSha };
 }
 
+export function reviewStartHead(database: DatabaseSync, requestId: string, worktree: string,
+  pull: Pick<PullSummary, "headRefOid" | "url">): string {
+  if (git(worktree, ["status", "--porcelain"])) fail("AI review requires a clean managed worktree");
+  const head = pull.headRefOid;
+  if (!/^[a-f0-9]{40,64}$/u.test(head)) fail("GitHub returned an invalid pull request head SHA");
+  if (!reviewContextMatches(database, requestId, head, pull.url))
+    fail("Projects review request refers to a different pull request or commit; refresh and request again");
+  return head;
+}
+
 export async function runReviewManagerCli(): Promise<void> {
   const args = parseArguments();
   const [config, registry] = (await Promise.all([
@@ -240,14 +250,9 @@ export async function runReviewManagerCli(): Promise<void> {
       !(await stat(worktree)).isDirectory()
     )
       fail("Managed worktree path is invalid");
-    if (git(worktree, ["status", "--porcelain"]))
-      fail("AI review requires a clean managed worktree");
     const pull = discoverPull(run, project);
-    const head = git(worktree, ["rev-parse", "HEAD"]);
-    if (!reviewContextMatches(database, args.requestId, head, pull.url))
-      fail("Projects review request refers to a different pull request or commit; refresh and request again");
-    if (head !== pull.headRefOid)
-      fail(`AI review exact SHA mismatch: worktree=${head}, pull=${pull.headRefOid}`);
+    const head = reviewStartHead(database, args.requestId, worktree, pull);
+
     if (
       database
         .prepare(
@@ -293,6 +298,15 @@ export async function runReviewManagerCli(): Promise<void> {
     if (managedTmuxCount() >= config.limits.max_tmux_sessions_global)
       fail("Managed tmux session limit reached");
     if (tmuxExists(tmuxSessionName)) fail("Review tmux session already exists");
+
+    const latestPull = discoverPull(run, project);
+    if (latestPull.number !== pull.number || latestPull.url !== pull.url ||
+        latestPull.headRefOid !== head || latestPull.baseSha !== pull.baseSha)
+      fail("Pull request changed before AI review start; request again");
+    if (JSON.stringify(loadRun(database, args.runId)) !== JSON.stringify(run) ||
+        !database.prepare("SELECT 1 FROM run_control_requests WHERE request_id=? AND run_id=? AND action='ai_review' AND request_state='pending'").get(args.requestId, run.run_id) ||
+        reviewStartHead(database, args.requestId, worktree, latestPull) !== head)
+      fail("AI review ownership, resources or request changed before start");
 
     database
       .prepare(

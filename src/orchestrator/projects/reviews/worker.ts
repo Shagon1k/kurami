@@ -1,4 +1,5 @@
 import { execFileSync } from "node:child_process";
+import { createReviewSnapshot, removeReviewSnapshot, reviewSnapshotMatches, reviewSnapshotPath } from "./snapshot.ts";
 import { resolve } from "node:path";
 import { resolveKuramiHome } from "../../../core/kurami-home.ts";
 import { DatabaseSync } from "node:sqlite";
@@ -356,7 +357,7 @@ function loadSourceContext(row: ReviewRow, token: string): {
   };
 }
 
-function pullMatchesReview(row: ReviewRow, pull: PullDetails): boolean {
+export function pullMatchesReview(row: ReviewRow, pull: PullDetails): boolean {
   return (
     pull.state === "open" &&
     pull.base?.ref === row.base_ref &&
@@ -480,6 +481,22 @@ function markTerminal(
     .run(state, reason.slice(0, 500), reviewId);
 }
 
+// Recheck immediately before every POST and after its response. GitHub has no
+// compare-and-swap for PR reviews: commit_id pins any in-flight race to the old SHA.
+export function publishReviewWithFences(publication: ReviewPublication, findings: ReviewFinding[],
+  isCurrent: () => boolean, publish: (candidate: ReviewPublication) => PublishedReview): PublishedReview | null {
+  if (!isCurrent()) return null;
+  let published: PublishedReview;
+  try {
+    published = publish(publication);
+  } catch (error) {
+    if (!shouldRetryWithoutInlineComments(error, publication)) throw error;
+    if (!isCurrent()) return null;
+    published = publish({ inlineFindings: [], summaryOnlyFindings: findings });
+  }
+  return isCurrent() ? published : null;
+}
+
 export async function runAiReviewWorkerCli(): Promise<void> {
   const args = process.argv.slice(2);
   const reviewIndex = args.indexOf("--review-id");
@@ -487,6 +504,7 @@ export async function runAiReviewWorkerCli(): Promise<void> {
   if (!reviewId || !/^air_[a-f0-9]+$/u.test(reviewId) || args.length !== 2)
     fail("Usage: ai-review-worker.ts --review-id <review_id>");
   const database = openOrchestratorDatabase(databasePath);
+  let snapshotCreated = false;
   try {
     const row = loadReview(database, reviewId);
     const credentials = await loadGitHubAppCredentials(orchestratorHome);
@@ -503,6 +521,18 @@ export async function runAiReviewWorkerCli(): Promise<void> {
       process.stdout.write(
         `${JSON.stringify({ ok: true, reviewId, state: "superseded" })}\n`,
       );
+      return;
+    }
+    row.worktree_path = reviewSnapshotPath(orchestratorHome, reviewId);
+    if (!/^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/u.test(row.repository)) fail("Invalid review repository");
+    createReviewSnapshot(row.worktree_path, `https://github.com/${row.repository}.git`,
+      row.pull_request_number, row.head_sha, row.base_sha, installationToken);
+    snapshotCreated = true;
+    const currentPull = (): PullDetails => JSON.parse(gh(
+      ["api", `repos/${row.repository}/pulls/${row.pull_request_number}`], undefined, installationToken,
+    )) as PullDetails;
+    if (!pullMatchesReview(row, currentPull()) || !reviewSnapshotMatches(row.worktree_path, row.head_sha)) {
+      markTerminal(database, reviewId, "superseded", "Pull request changed during AI review snapshot preparation");
       return;
     }
     const codexBin = process.env.CODEX_BIN?.trim() || run("which", ["codex"]);
@@ -568,12 +598,11 @@ export async function runAiReviewWorkerCli(): Promise<void> {
         ? (JSON.parse(response) as PublishedReview)
         : resolvePublishedReviewAfterEmptyResponse(row, reviewId, installationToken);
     };
-    let published: PublishedReview;
-    try {
-      published = publish(publication);
-    } catch (error) {
-      if (!shouldRetryWithoutInlineComments(error, publication)) throw error;
-      published = publish({ inlineFindings: [], summaryOnlyFindings: parsed.findings });
+    const published = publishReviewWithFences(publication, parsed.findings,
+      () => pullMatchesReview(row, currentPull()) && reviewSnapshotMatches(row.worktree_path, row.head_sha), publish);
+    if (!published) {
+      markTerminal(database, reviewId, "superseded", "Pull request or snapshot changed during AI review publication; any published review remains pinned to the reviewed SHA");
+      return;
     }
     const critical = parsed.findings.filter((finding) => finding.severity === "critical").length;
     const important = parsed.findings.filter((finding) => finding.severity === "important").length;
@@ -610,7 +639,11 @@ export async function runAiReviewWorkerCli(): Promise<void> {
     }
     throw error;
   } finally {
-    database.close();
+    try {
+      if (snapshotCreated) removeReviewSnapshot(orchestratorHome, reviewId);
+    } finally {
+      database.close();
+    }
   }
 }
 
