@@ -64,6 +64,10 @@ A fallback shows only what it can prove: AP has no history, so the dynamics char
 
 Trailers are selected without a model. A title must contain trailer or teaser; clips such as interviews, reactions and breakdowns are dropped, as are re-releases of old films. Points: an official channel 1000, an aggregator channel 500, plus a bonus for the type (main 80, final 60, teaser 40). Duplicates by film title are removed, and at most three are taken from one channel. So it is better to show seven trailers than to hand the page to one studio.
 
+`compose` keeps each distinct source diagnostic once, in first-seen order, including when a frozen candidate repeats the same channel error. It leaves the frozen file and source references unchanged. Usable trailers remain visible in a `partial` block; without usable trailers, a failed block stays `failed`. Other blocks can still form a partial snapshot, subject to the usual acceptance rule. Validation still rejects malformed diagnostics and duplicate provenance.
+
+Composio rejections retain only a bounded provider `log_id` reference when available. Raw error bodies and credentials are not included in diagnostics; the reference allows an operator to correlate a failure with provider logs.
+
 ## Where the model works
 
 The model chooses news and writes the Russian text for it. Code freezes a pool of up to 45 candidates beforehand: points from 100, plus for notable events, minus for reviews and listicles, plus for freshness. The agent writes `cinema-editorial-draft.json`: up to 15 stories with a headline (12–150 characters) and a summary (45–420) and up to three notes no longer than four words. The composer accepts only candidates whose points are not below the fifteenth's minus 12, reorders them itself and applies the per-publisher cap. A candidate outside the band is an exception, and the agent fixes the draft or runs `fallback`, which honestly turns the news block off.
