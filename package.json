@@ -140,6 +140,7 @@
     "test:ai-review": "node tests/verify-ai-review.ts",
     "test:project-resilience": "node tests/verify-project-resilience.ts",
     "test:review-fix": "node tests/verify-review-fix.ts",
+    "test:managed-source-refresh": "node tests/verify-managed-source-refresh.ts",
     "test:managed-task-recovery": "node tests/verify-managed-task-recovery.ts",
     "test:triage-snapshot": "node tests/verify-triage-snapshot.ts",
     "test:projects-digest": "node tests/verify-triage-digest.ts",

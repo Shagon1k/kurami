@@ -1,4 +1,5 @@
 import { execFileSync } from "node:child_process";
+import { resolve } from "node:path";
 import { isProtocolThread } from "../integrations/codex/task-store.ts";
 import { protocolRemoteBlocker } from "../projects/sessions/protocol-session.ts";
 import type { DatabaseSync } from "node:sqlite";
@@ -349,20 +350,31 @@ export function applyInternal(database: DatabaseSync, plan: PlannedAction): unkn
   }
 }
 
-export function runExternal(plan: PlannedAction): unknown {
+export function runExternal(plan: PlannedAction, execute: (args: string[]) => string = args => executeExternalCommand(args, plan.action)): unknown {
   const args = externalCommand(plan.action, plan.runId, plan.requestId, plan.roundId);
   if (!args) fail(`No external command for ${plan.action}`);
-  const stdout = execFileSync(process.execPath, args, {
+  if (["review_fix_start", "repair_start", "preview_allocate", "preview_up"].includes(plan.action)) {
+    execute([
+      resolve(import.meta.dirname, "../projects/worktrees/refresh-source.ts"),
+      "--run-id", plan.runId, "--action", plan.action,
+      ...(plan.requestId ? ["--request-id", plan.requestId] : []), "--apply",
+    ]);
+  }
+  const stdout = execute(args).trim();
+  const lastLine = stdout.split("\n").filter(Boolean).at(-1);
+  return lastLine ? JSON.parse(lastLine) : null;
+}
+
+function executeExternalCommand(args: string[], action: ControllerAction): string {
+  return execFileSync(process.execPath, args, {
     encoding: "utf8",
     env: {
       ...process.env,
       KURAMI_HOME: orchestratorHome,
-      KURAMI_CONTROLLER_ACTION: plan.action,
+      KURAMI_CONTROLLER_ACTION: action,
     },
     stdio: ["ignore", "pipe", "pipe"],
-  }).trim();
-  const lastLine = stdout.split("\n").filter(Boolean).at(-1);
-  return lastLine ? JSON.parse(lastLine) : null;
+  });
 }
 
 export type ControllerActionEffects = {

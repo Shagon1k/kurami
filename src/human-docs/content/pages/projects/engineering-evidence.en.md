@@ -82,7 +82,9 @@ There is one snapshot row per run and it is overwritten. A content digest lets t
 
 A CI fix is up to two fresh Codex tasks, each started by your **Attempt CI fix** button. The button appears when CI is `failed` or `missing`, the run is in `parked_review`, the thread is known and fewer than two attempts were made. The limit of two bounds the cost and the "fix — red again" loop; after the second red attempt you decide.
 
-The controller checks that the working copy is clean and stands exactly on `source_head_sha`, and refuses otherwise. It then starts a new session with a prompt: here is the SHA, here are the failed checks as untrusted data, read the logs through `gh`, make the smallest fix, commit and push to the same branch. The prompt forbids force-push, rebase, merging and a second PR. When Codex finishes its turn, the controller releases the session and the task waits for CI.
+The controller checks that the working copy is clean and stands exactly on `source_head_sha`, and refuses otherwise. Before a CI fix, review fix or preview starts, a shared source preflight can fast-forward a stale managed branch to that exact live PR head. This requires a clean, unowned parked run, no active writer/session or preview runtime, the configured repository and branch, and matching live PR and remote heads. Dirty or divergent local work is preserved and refused: there is no reset or rebase. If the source moves during validation, admission stops; an already completed safe fast-forward is retained. Fetch uses the existing protected owner credential, without changing reviewer permissions or persisting credentials in Git configuration.
+
+It then starts a new session with a prompt: here is the SHA, here are the failed checks as untrusted data, read the logs through `gh`, make the smallest fix, commit and push to the same branch. The prompt forbids force-push, rebase, merging and a second PR. When Codex finishes its turn, the controller releases the session and the task waits for CI.
 
 ```diagram
 kind: graph
