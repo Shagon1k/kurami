@@ -5,6 +5,7 @@ import { escapeHtml } from "../html.ts";
 import { renderKuramiNote } from "./kurami-note.ts";
 import { renderNewsStory } from "./news-story.ts";
 import { renderButton } from "../../../ui-library/components/button.ts";
+import { readingMinutes } from "./daily-finish.ts";
 import { renderFeedOrderControl } from "./feed-order-control.ts";
 import {digestLanguage,digestText} from "../../i18n.ts";
 
@@ -16,7 +17,8 @@ export function renderPaginatedFeed(payload: BriefingPayload): string {
   return `<section class="digest-feed"${surfaceAttributes("lead")} aria-labelledby="news-heading" data-paginated-feed data-edition-id="${escapeHtml(payload.edition.id)}" data-page-size="${pageSize}" data-page-param="newsPage">
     ${renderKuramiNote(newsNote, "digest-feed__note")}
     <header class="digest-feed__header">
-      <div><p class="section-kicker">${digestText("Утренняя пачка","Morning edition")}</p><h2 id="news-heading" data-feed-heading>${digestText("Новости","News")}</h2><p>${total} ${storyWord(total)} · ${pageSize} ${digestText("на странице","per page")}</p></div>
+      <div class="digest-feed__kicker"><p class="section-kicker">${digestText("Утренняя пачка","Morning edition")}</p><span class="digest-feed__reading-time">${digestText(`≈ ${readingMinutes(payload)} мин чтения`, `≈ ${readingMinutes(payload)} min read`)}</span></div>
+      <div><h2 id="news-heading" data-feed-heading>${digestText("Новости","News")}</h2><p>${total} ${storyWord(total)} · ${pageSize} ${digestText("на странице","per page")}</p></div>
       <div class="digest-feed__aside"><span class="digest-feed__count">Telegram · ${total}</span>
       ${renderButton({ label: digestText("Читать без сети","Read offline"), variant: "toggle", size: "compact", type: "button", className: "digest-feed__offline", attributes: { "data-offline-news": true, "aria-pressed": "false" } })}</div>
     </header>

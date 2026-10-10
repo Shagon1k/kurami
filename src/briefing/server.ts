@@ -469,6 +469,15 @@ ${COMPANY_AVATAR_CLIENT_SCRIPT}
         });
         if (status) status.textContent = result.alreadyComplete ? tr('Уже обработано', 'Already processed') : tr('Прочитано и отправлено в архив', 'Read and archived');
         refreshMailSelection(section);
+        const remaining=[...section.querySelectorAll('[data-mail-item]:not(.is-archived)')];
+        const count=section.querySelector('[data-mail-count]');
+        const actions=remaining.filter(row=>row.dataset.mailClass==='action').length,demos=remaining.filter(row=>row.classList.contains('is-demo')).length;
+        if(count)count.textContent=remaining.length+tr(' новых',' new')+(actions?' · '+actions+' action':'')+(demos?' · '+demos+' demo':'');
+        if(!remaining.length){
+          section.querySelector('[data-mail-cleared]')?.removeAttribute('hidden');
+          const list=section.querySelector('.mail-list');if(list)list.hidden=true;
+          section.querySelector('.mail-actions')?.setAttribute('hidden','');
+        }
       } catch {
         if (status) status.textContent = tr('Не удалось обработать. Письма оставлены без изменений.', 'Could not process mail. Messages were left unchanged.');
         target.disabled = false;

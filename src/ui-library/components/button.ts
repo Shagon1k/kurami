@@ -138,6 +138,11 @@ export function renderButton(input: ButtonInput): string {
   return `<button class="${classes}" type="${type}"${ariaLabel}${busyLabel}${attributes}${disabled}>${input.variant==="switch"?`<span class="sr-only">${escapeHtml(input.label)}</span>`:content}</button>`;
 }
 
+/** Native details trigger with the shared button appearance. */
+export function renderSummaryButton(input: Omit<ButtonInput,"type"|"disabled"|"busyLabel">): string {
+  return renderButton(input).replace(/^<button /,"<summary ").replace(' type="button"',"").replace(/<\/button>$/,"</summary>");
+}
+
 /** Navigation that looks like a button; `href` must be a site-relative or https URL. */
 export function renderLinkButton(input: { label: string; href: string; variant: ButtonVariant; size?: ButtonSize; ariaLabel?: string; iconPath?: string; visibleLabel?: boolean; truncate?: boolean; className?: string; target?: "_blank"; attributes?: Record<string, AttributeValue> }): string {
   if (!/^(?:\/(?!\/)|https:\/\/)/.test(input.href)) throw new Error("Unsafe link button href");

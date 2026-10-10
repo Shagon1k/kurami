@@ -95,6 +95,7 @@ export const NEON_CSS=`
 ${N} .kurami-says__bubble { border-color: var(--neon-sign); box-shadow: 0 0 0 1px color-mix(in srgb, var(--neon-sign) 35%, transparent), 0 0 18px -6px var(--neon-sign); }
 ${N} .kurami-says__bubble::before { border-color: var(--neon-sign); }
 ${N} [class*="project-color--"] { --project-edge: inset 3px 0 0 var(--project-color), inset 14px 0 16px -14px var(--project-color); }
+${N} .project-identity { --project-icon-glow: drop-shadow(0 0 4px var(--project-color)); }
 ${N} { --neon-sign: ${red}; --neon-volt: var(--accent-data); --neon-blue: var(--status-info); }
 ${N}[data-theme="light"] { --neon-sign: ${fill}; }
 ${N} body { isolation: isolate; background: var(--surface-page); }
@@ -164,6 +165,7 @@ ${N} :is([data-ui-surface="panel"], .stat-card:not(.stat-card--plain))::after { 
 ${N} .stat-card:not(.stat-card--plain)::after { width: 32px; background: var(--neon-volt); box-shadow: 0 0 10px var(--neon-volt); }
 ${N} .ui-gauge > .stat-card::after { content: none; }
 ${N} [data-ui-surface="lead"] { border-color: var(--neon-sign); background: linear-gradient(135deg, color-mix(in srgb, ${red} 9%, var(--surface-panel)), var(--surface-panel) 45%); box-shadow: var(--panel-glow); }
+${N} [data-ui-surface="lead"][data-ui-surface-fill="quiet"] { background: var(--surface-panel); }
 /* Display type for section and panel titles only; content headings (news, tasks) keep the text face.
    Section titles carry a red "//"; a title that starts with its own icon lights the icon instead. */
 ${N} :is(.section-heading, [data-ui-surface]) h2, ${N} [data-ui-surface="panel"] > h3, ${N} [data-ui-surface="panel"] > .panel-heading h3 { font-family: var(--font-display); text-transform: var(--display-case); letter-spacing: .03em; }

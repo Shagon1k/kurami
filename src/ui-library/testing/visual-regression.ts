@@ -393,7 +393,7 @@ async function checkMobileNavigation(devtools:Devtools,width:number,current:stri
   await devtools.evaluate(`document.querySelector('[data-mobile-menu="more"]').click()`);
   await devtools.call('Emulation.setEmulatedMedia',{features:[]});
   await devtools.call('Emulation.setDeviceMetricsOverride',{width:1280,height:900,deviceScaleFactor:1,mobile:false});await delay(80);
-  if(!await devtools.evaluate(`!!document.querySelector('.site-actions [data-theme-toggle]:not(.button--switch)')&&!document.querySelector('.site-header__inner .site-nav svg,.site-header__inner .site-switcher svg')&&(!document.querySelector('.projects-search')||!!document.querySelector('.projects-toolbar .projects-search'))&&(!document.querySelector('[data-floating-period]')||!!document.querySelector('.site-header__utility [data-floating-period]'))`))throw new Error('Desktop controls not restored unchanged');
+  if(!await devtools.evaluate(`!!document.querySelector('.site-actions [data-theme-toggle]:not(.button--switch)')&&!document.querySelector('.site-header__inner .site-nav svg,.site-header__inner .site-switcher__nav svg')&&(!document.querySelector('.projects-search')||!!document.querySelector('.projects-toolbar .projects-search'))&&(!document.querySelector('[data-floating-period]')||!!document.querySelector('.site-header__utility [data-floating-period]'))`))throw new Error('Desktop controls not restored unchanged');
   await devtools.call('Emulation.setDeviceMetricsOverride',{width,height:900,deviceScaleFactor:1,mobile:true});await delay(80);
   if(!await devtools.evaluate(`!!document.querySelector('[data-mobile-slot="more"] [data-theme-toggle]')`))throw new Error('Mobile controls not restored');
 }

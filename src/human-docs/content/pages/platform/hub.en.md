@@ -12,6 +12,8 @@ Hub is one "how is the whole system doing" page in a browser. Most of it only re
 
 ## What is on the page
 
+Kurami’s opening line appears after its saved variant is chosen, with a short fade and room reserved for the text.
+
 Top to bottom:
 
 | Area | What it shows |
@@ -45,7 +47,7 @@ Live Activity merges existing journals: run transitions, CI and review states, C
 
 The activity link sits beside the title on phones; titles use at most two lines.
 
-A managed project's work items and its row in the project table carry the project's colour as a left bar, the same as in Projects; Kurami's own work has none.
+A managed project's work items and its row in the project table carry the project's colour as a left bar; in Projects the color accents the project icon and name; Kurami's own work has none.
 Events shows the full title and pairs a turn's start and finish when their session
 and turn IDs match. That pair includes a duration, not an AI summary. Raw events
 remain available. Partial retained history is labelled. Internal Guardian

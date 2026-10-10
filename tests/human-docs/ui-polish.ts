@@ -38,6 +38,12 @@ for(const lang of ["en","ru"] as const){
   assert.ok(changelog.includes(`title="${sha}"`));
   assert.ok(!changelog.includes('/commit/'),"docs-only version does not fabricate application entries");
   assert.ok(!renderChangelog(lang,[],undefined,false,sha).includes('class="changelog-version"'),"preview does not claim a published docs version");
+  const formatted=renderChangelog(lang,[{sha,date:"2026-10-10",category:"fixed",copy:"- Keep `Human Review` on one line.\n- Refresh **Mail** immediately.\n\n```sh\necho '<safe>'\n```"}]);
+  assert.ok(formatted.includes('<ul><li>Keep <code>Human Review</code> on one line.</li>'));
+  assert.ok(formatted.includes('<strong>Mail</strong>'));
+  assert.ok(formatted.includes("echo '&lt;safe&gt;'"));
+  assert.throws(()=>renderChangelog(lang,[{sha,date:"2026-10-10",category:"fixed",copy:'<script>alert(1)</script>'}]),/raw HTML/);
+  assert.throws(()=>renderChangelog(lang,[{sha,date:"2026-10-10",category:"fixed",copy:'[Unsafe](javascript:alert)'}]),/unsupported link/);
   const missing=renderNotFound(lang),mounted=projectDocument(missing,"docs",lang);
   assert.ok(missing.includes(lang==="en"?"Page not found":"Страница не найдена"));
   assert.ok(missing.includes(`href="/${lang}/"`));

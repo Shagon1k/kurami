@@ -3,7 +3,9 @@
 import { escapeHtml } from "../foundations/html.ts";
 import { breakpoints } from "../tokens/index.ts";
 import {renderMobileNavigation,MOBILE_NAVIGATION_CSS,type MobileNavigationInput} from "./mobile-navigation.ts";
-import {renderIcon,type IconName} from "../components/icon.ts";
+import {renderIcon,iconPath,type IconName} from "../components/icon.ts";
+import {renderSummaryButton} from "../components/button.ts";
+import {POPOVER_CSS} from "../components/popover.ts";
 import {NEON_FOX_HEADER_SVG} from "../assets/brand/neon-fox.ts";
 import { BRAND_MOMENTS_CSS } from "../runtime/brand-moments.ts";
 
@@ -47,7 +49,9 @@ export function renderSiteNav(input: SiteNavInput, className = "site-nav", mobil
 }
 
 export function renderSiteSwitcher(input: SiteSwitcherInput): string {
-  return `<details class="site-switcher"><summary aria-label="${escapeHtml(input.label)}"><span class="site-switcher__icon" aria-hidden="true"></span><span class="site-switcher__title">${escapeHtml(input.summary)}</span></summary>${renderSiteNav({label:input.label,links:input.links},"site-switcher__nav")}</details>`;
+  const trigger=renderSummaryButton({label:input.summary,ariaLabel:input.label,variant:"icon",iconPath:iconPath("apps")});
+  const menu=renderSiteNav({label:input.label,links:input.links},"site-switcher__nav").replace('class="site-switcher__nav"','class="ui-popover is-open site-switcher__nav"');
+  return `<details class="site-switcher">${trigger}${menu}</details>`;
 }
 
 export function renderSiteHeader(input: SiteHeaderInput): string {
@@ -72,6 +76,7 @@ export function renderSiteHeader(input: SiteHeaderInput): string {
 }
 
 export const SITE_HEADER_CSS = `
+${POPOVER_CSS}
 .site-header { position: sticky; top: 0; z-index: 30; width: 100%; color: var(--text-primary); background: color-mix(in srgb, var(--surface-page) 94%, transparent); border-bottom: 1px solid var(--border-default); backdrop-filter: blur(14px); transition: box-shadow 160ms ease, border-color 160ms ease, background 160ms ease; }
 .site-header.is-scrolled { background: color-mix(in srgb, var(--surface-page) 97%, transparent); border-bottom-color: color-mix(in srgb, var(--border-default) 72%, var(--text-primary)); box-shadow: var(--shadow-raised); }
 .site-header__inner { position: relative; min-height: 84px; display: grid; grid-template-columns: minmax(0,1fr) auto auto; grid-template-areas: "brand nav actions"; align-items: center; gap: 24px; padding-block: 12px; }
@@ -101,12 +106,10 @@ export const SITE_HEADER_CSS = `
 .site-nav[hidden] { display: none; }
 .site-actions { grid-area: actions; justify-self: end; display: flex; align-items: center; gap: 6px; padding-left: 20px; border-left: 1px solid var(--border-default); }
 .site-switcher { position: relative; }
-.site-switcher summary { min-height: var(--control-height); display: inline-flex; align-items: center; gap: 12px; padding: 0 12px; border: 1px solid var(--border-default); border-radius: var(--radius); background: var(--surface-panel); color: var(--text-primary); cursor: pointer; list-style: none; font-size: .8125rem; font-weight: 600; white-space: nowrap; }
+.site-switcher summary { list-style: none; }
 .site-switcher summary::-webkit-details-marker { display: none; }
-.site-switcher summary:hover, .site-switcher[open] summary { border-color: var(--accent-primary); }
-.site-switcher summary:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 4px; }
-.site-switcher__icon { width: 5px; height: 5px; margin: 0 9px 9px 0; flex: none; background: currentColor; box-shadow: 9px 0 currentColor, 0 9px currentColor, 9px 9px currentColor; }
-.site-switcher__nav { position: absolute; top: calc(100% + 8px); right: 0; z-index: 2; min-width: 164px; display: grid; gap: 2px; padding: 6px; border: 1px solid var(--border-default); border-radius: var(--radius); background: var(--surface-raised); box-shadow: var(--shadow-card); }
+.site-switcher__nav { position: absolute; inset: auto; top: calc(100% + 8px); right: 0; z-index: 2; width: max-content; min-width: 164px; display: grid; gap: 2px; }
+.site-switcher__nav .site-nav__link:not(.site-nav__link--disabled):is(:hover,:focus-visible) { color: var(--text-primary); background: color-mix(in srgb,var(--status-info) 10%,var(--surface-raised)); }
 .site-switcher__nav .site-nav__link { justify-content: flex-start; min-height: var(--control-height); }
 .site-switcher__nav .site-nav__link[aria-current] { color: var(--text-accent); }
 .site-switcher__nav .site-nav__link[aria-current]::after { left: 0; right: auto; top: 12px; bottom: 12px; width: 2px; height: auto; }
@@ -143,8 +146,6 @@ export const SITE_HEADER_CSS = `
   .site-brand__fox { width: 42px; height: 42px; }
   .site-brand__name { font-size: 1.25rem; }
   .site-actions { border-left: 0; padding-left: 0; }
-  .site-switcher summary { width: var(--control-height); justify-content: center; padding: 0; }
-  .site-switcher__title { display: none; }
   .site-switcher { position: static; }
   .site-switcher__nav { top: calc(100% + 4px); right: 0; }
   .site-nav { justify-self: stretch; gap: 4px; border-top: 1px solid var(--border-default); padding-top: 4px; }

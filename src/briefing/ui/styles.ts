@@ -182,8 +182,11 @@ ${STORY_ACTIONS_LAYOUT_CSS}
 
 .digest-feed { position: relative; scroll-margin-top: var(--header-offset); margin-top: 52px; padding: clamp(28px, 3.4vw, 44px); background: var(--surface-section); border: 1px solid var(--border-default); border-radius: var(--radius); box-shadow: var(--shadow-card); }
 .digest-feed__note { position: absolute; right: 32px; top: 24px; }
-.digest-feed__header { display: flex; align-items: end; justify-content: space-between; gap: 30px; padding: 0 0 24px; }
+.digest-feed__header { display: grid; grid-template-columns: minmax(0,1fr) auto; align-items: end; gap: var(--space-3) 30px; padding: 0 0 24px; }
+.digest-feed__kicker { grid-column: 1 / -1; display: flex; justify-content: space-between; align-items: baseline; gap: var(--space-3); padding-right: var(--space-5); }
+.digest-feed__kicker .section-kicker { margin: 0; }
 /* The source count and "Read offline" travel together on the right, so nothing floats mid-row. */
+.digest-feed__reading-time { color: var(--text-muted); font-size: .75rem; }
 .digest-feed__aside { display: flex; flex-wrap: wrap; align-items: center; justify-content: flex-end; gap: var(--space-2) var(--space-3); }
 .digest-feed__header h2 { margin: 0; font-size: clamp(36px, 4vw, 54px); font-weight: 600; line-height: 1; letter-spacing: -.05em; scroll-margin-top: var(--header-offset); }
 .digest-feed__header h2:focus { outline: 2px solid var(--accent-primary); outline-offset: 6px; }
@@ -388,7 +391,7 @@ ${STORY_ACTIONS_LAYOUT_CSS}
   .mail-actions__select-all { grid-column: 1; }
   .mail-actions__submit { grid-column: 2; grid-row: 1 / span 2; }
   .digest-feed { margin-top: 36px; padding: 24px 16px; box-shadow: var(--shadow-card-sm); }
-  .digest-feed__header { align-items: start; flex-direction: column; gap: 10px; }
+  .digest-feed__header { grid-template-columns: minmax(0,1fr); align-items: start; gap: 10px; }
   .digest-feed__aside { justify-content: flex-start; }
   .news-story { grid-template-columns: 24px minmax(0, 1fr); gap: 10px; padding: 22px 12px; }
   /* Keep the ordinal as a compact lead-in, then let the actual story use the

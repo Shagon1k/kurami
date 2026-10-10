@@ -151,6 +151,18 @@ try{
       await devtools.evaluate("document.querySelector('[data-mail-select-all]').click()");
       assert.equal(await devtools.evaluate("[...document.querySelectorAll('[data-mail-select]:not(:disabled)')].every(input=>input.closest('[data-mail-item]').dataset.selected==='true')"),true,path+' Select all accents all actionable messages');
       assert.equal(await devtools.evaluate("document.querySelectorAll('[data-edition-freshness]').length"),1,path+' separate edition/source metadata survives retained-page injection');
+      await devtools.evaluate(`window.mailFetch=fetch;window.mailFail=true;window.fetch=(url,options)=>String(url).includes('/api/mail/read-and-archive')?Promise.resolve(new Response(JSON.stringify(mailFail?{error:'fixture failure'}:{alreadyComplete:false}),{status:mailFail?503:200,headers:{'content-type':'application/json'}})):mailFetch(url,options);document.querySelector('[data-mail-archive]').click()`);
+      await wait("!document.querySelector('[data-mail-archive]').hasAttribute('aria-busy')");
+      assert.equal(await devtools.evaluate("document.querySelectorAll('[data-mail-item]:not(.is-archived)').length"),1,'a failed archive leaves mail visible');
+      await devtools.evaluate("mailFail=false;document.querySelector('[data-mail-archive]').click()");
+      await wait("!document.querySelector('[data-mail-cleared]').hidden");
+      assert.match(await devtools.evaluate<string>("document.querySelector('[data-mail-count]').textContent"),/^0 /);
+      assert.equal(await devtools.evaluate("document.querySelector('.mail-actions').hidden"),true,'empty mail hides inactive controls immediately');
+      assert.match(await devtools.evaluate<string>("document.querySelector('[data-mail-cleared]').textContent"),lang==='en'?/Primary inbox clear/:/Primary inbox чист/);
+      await devtools.evaluate("window.fetch=mailFetch");
+      assert.equal(await devtools.evaluate("document.querySelector('.daily-finish').textContent.includes('min read')||document.querySelector('.daily-finish').textContent.includes('мин чтения')"),false,'reading estimate no longer appears at the finish');
+      assert.equal(await devtools.evaluate("!!document.querySelector('#news-heading').closest('header').querySelector('.digest-feed__reading-time')"),true);
+
     }
     assert.equal(await devtools.evaluate("document.querySelector('.site-brand__fox').naturalWidth>0"),true,path+" fox loaded");
     assert.deepEqual(await devtools.evaluate(AUDIT_EXPRESSION),[],path+" "+width);

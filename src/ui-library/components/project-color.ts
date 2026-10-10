@@ -17,5 +17,7 @@ export const PROJECT_COLOR_CSS=`
 .project-color--violet { --project-color: var(--project-violet); }
 .project-color--pink { --project-color: var(--project-pink); }
 .project-color--gold { --project-color: var(--project-gold); }
+.project-identity { display: inline-flex; align-items: center; gap: var(--space-2); color: color-mix(in srgb,var(--project-color,var(--text-muted)) 45%,var(--text-muted)); }
+.project-identity .ui-icon { --icon-color: var(--project-color,inherit); filter: var(--project-icon-glow,none); }
 :is(${projectColors.map(color=>`.project-color--${color}`).join(", ")}) { --project-edge: inset 3px 0 0 var(--project-color); }
 `;

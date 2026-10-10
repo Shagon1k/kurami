@@ -73,6 +73,8 @@ The docs server starts only with `mode: release` and a 40-character `docsSha`, s
 
 ## Changelog
 
+Descriptions support basic Markdown: short lists, inline code and fenced code blocks. Structure the existing amount of information without adding detail. The home page places the introduction and Kurami side by side on desktop.
+
 The ledger `changelog.json` stores Russian and English explanations keyed by full commit SHA. New publication starts at a verified baseline; older entries remain stored without being presented as confirmed deployment history. Every later reader-visible commit must be described. Docs-only changes can be excluded after their paths are checked; internal changes need a specific reason. Empty merges are skipped. An undescribed commit stops the build. Dates are commit dates, not deployment dates. Confirmed entries are saved in the `changelog-history.json` artifact and carried through docs-only updates. The build and publication stop if a new version loses entries in either language or moves the confirmed cutoff backwards.
 
 The unified Docs verifier checks anonymous Access redirects and mounted file bytes separately. Without a private owner session it checks the loopback origin, not authenticated edge access. With that session it compares the same files through the unified public entry. It does not send the old Docs service token to the owner-only route.

@@ -3,7 +3,7 @@ import type {Change,Language} from "./changelog.ts";
 import {allPages,homePage,pages,type HumanDocsPage} from "./content.ts";
 import {aliases,groupLabels,groups,sectionLabels,sections,type Section} from "./content/site.ts";
 import {assertSourcePath,walk} from "./content/schema.ts";
-import {headingId,plainInline,renderInline,wordCount,escapeText as escape,type Block} from "./markdown.ts";
+import {headingId,plainInline,renderInline,parseBlocks,wordCount,escapeText as escape,type Block} from "./markdown.ts";
 import {renderDiagram} from "./diagrams/kit.ts";
 import {generatedReference} from "./reference.ts";
 import {renderLinkButton} from "../ui-library/components/button.ts";
@@ -260,7 +260,7 @@ export function renderHome(lang:Language,options:RenderOptions={}):RenderedPage 
   if(!homePage)throw new Error("Missing content/pages/home.<lang>.md");
   const context:Context={lang,page:homePage,options,diagrams:[]};
   const voice=portalVoice({portal:"docs",mood:"welcome",reason:"docs-home"},lang);
-  const body=`<div class="home"><header class="intro"><p class="eyebrow page-eyebrow">${escape(lang==="ru"?"Kurami · документация":"Kurami · documentation")}</p><h1 class="page-title">${escape(homePage.title[lang])}</h1><p class="lede page-subtitle">${escape(homePage.summary[lang])}</p></header>${renderKuramiPresence({...voice,mood:"welcome",voiceContext:"docs-home",action:renderLinkButton({label:lang==="ru"?"Карта системы":"System map",href:url(lang,"architecture"),variant:"secondary"})})}<div class="prose prose--home">${blocksHtml(homePage.blocks[lang],context)}</div></div>`;
+  const body=`<div class="home"><div class="home__welcome"><header class="intro"><p class="eyebrow page-eyebrow">${escape(lang==="ru"?"Kurami · документация":"Kurami · documentation")}</p><h1 class="page-title">${escape(homePage.title[lang])}</h1><p class="lede page-subtitle">${escape(homePage.summary[lang])}</p></header>${renderKuramiPresence({...voice,mood:"welcome",voiceContext:"docs-home",action:renderLinkButton({label:lang==="ru"?"Карта системы":"System map",href:url(lang,"architecture"),variant:"secondary"})})}</div><div class="prose prose--home">${blocksHtml(homePage.blocks[lang],context)}</div></div>`;
   return {html:shell(lang,homePage.title[lang],homePage.summary[lang],body,undefined,""),diagrams:context.diagrams};
 }
 
@@ -281,9 +281,12 @@ export function renderChangelog(lang:Language,changes:Change[],revision?:string,
   const byDate=new Map<string,Change[]>();
   for(const change of changes)byDate.set(change.date,[...(byDate.get(change.date)??[]),change]);
   const categories={en:{new:"New",improved:"Improved",fixed:"Fixed",operations:"Operations"},ru:{new:"Новое",improved:"Улучшено",fixed:"Исправлено",operations:"Эксплуатация"}};
+  const context:Context={lang,page:homePage!,options:{},diagrams:[]};
   const cards=[...byDate].map(([date,items])=>`<section class="change-day"><h2>${escape(date)}</h2>${items.map(change=>{
     const page=change.page?resolveSlug(change.page):undefined;
-    return `<div class="change"><span class="change__category">${categories[lang][change.category]}</span><a href="${REPO}/commit/${change.sha}" rel="noopener noreferrer">${t.source} ${change.sha.slice(0,7)}</a><p>${escape(change.copy)}</p>${page?`<a href="${url(lang,page)}">${t.readPage} ↗</a>`:""}</div>`;
+    const blocks=parseBlocks(change.copy,`changelog ${change.sha}`);
+    walk(blocks,block=>{if(block.type==="container"||block.type==="leaf"||block.type==="code"&&block.lang==="diagram")throw new Error("Changelog supports text, lists, headings, tables and code only");});
+    return `<div class="change"><span class="change__category">${categories[lang][change.category]}</span><a href="${REPO}/commit/${change.sha}" rel="noopener noreferrer">${t.source} ${change.sha.slice(0,7)}</a><div class="prose change__copy">${blocksHtml(blocks,context)}</div>${page?`<a href="${url(lang,page)}">${t.readPage} ↗</a>`:""}</div>`;
   }).join("")}</section>`).join("");
   const status=revision
     ?`${t.latest}. ${ru?"Даты в списке — дни коммитов, не дни развёртывания.":"List dates are commit days, not deployment days."}`

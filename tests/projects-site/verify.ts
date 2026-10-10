@@ -193,13 +193,13 @@ iconFixture.projects=([["PickFlick","panda"],["TailorTales","fox"],["AHurynovich
 const iconPage=renderProjectsPage(iconFixture),mobileProjectNav=iconPage.split('id="mobile-menu-sections"')[1]!.split('</nav>')[0]!;
 for(const icon of ["projects","panda","fox","profile"] as const)assert.ok(mobileProjectNav.includes(iconPath(icon)),`mobile project navigation: ${icon}`);
 assert.doesNotMatch(iconPage.split('<div class="site-header__inner container">')[1]!.split('</a>\n')[1]!.split('class="site-actions"')[0]!,/<svg/,'desktop project navigation remains text-only');
-// Project colours: each row carries its project's hue class (the left bar) and its project icon; attention keeps its own tint.
+// Project colours are carried by the icon and name; attention keeps its own tint.
 const colourRows=[...renderProjectsPage(fixture).matchAll(/<tr class="(projects-row[^"]*)"/g)].map(match=>match[1]!);
 assert.ok(colourRows.some(row=>row.includes("project-color--teal"))&&colourRows.some(row=>row.includes("project-color--violet")),"rows carry their project's hue");
 assert.ok(colourRows.every(row=>/project-color--(teal|violet)/.test(row)),"every row has a hue");
 const pandaFixture=structuredClone(fixture);pandaFixture.projects[0]!.icon="panda";
-assert.ok(renderProjectsPage(pandaFixture).includes(`<div class="projects-task-meta">${renderIconMarkup("panda")}`),"the row shows the project's own icon");
-assert.match(PROJECTS_STYLES,/\.projects-row > th \{ box-shadow: var\(--project-edge,none\); \}/);
+assert.ok(renderProjectsPage(pandaFixture).includes(`<div class="projects-task-meta"><span class="project-identity">${renderIconMarkup("panda")}`),"the row shows the project's own icon");
+assert.doesNotMatch(PROJECTS_STYLES,/\.projects-row(?: > th)? \{ box-shadow: var\(--project-edge/);
 assert.match(PROJECTS_STYLES,/\.project-color--gold \{ --project-color: var\(--project-gold\); \}/);
 assert.match(PROJECTS_STYLES,/html\[data-kurami-theme="neon"\] \[class\*="project-color--"\] \{ --project-edge: inset 3px 0 0 var\(--project-color\), inset 14px/,"Neon lights the bar");
 assert.throws(()=>projectColorClass("red" as never),/Unknown project color/);

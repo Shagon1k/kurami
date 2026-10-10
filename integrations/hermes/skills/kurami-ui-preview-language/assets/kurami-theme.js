@@ -490,6 +490,7 @@ document.documentElement.dataset.kuramiMascot=/(?:^|;\s*)kurami-mascot=off(?:;|$
   });
   addEventListener('touchcancel',()=>{if(!busy)reset();});
 })();(()=>{
+  document.documentElement.dataset.kuramiVoice='on';
   const active=new Map(),requested=new Set(),slots=new Map(),bound=new WeakSet(),prefix='kurami-voice:',ttl=43200000;
   function apply(){
     for(const scene of document.querySelectorAll('[data-kurami-presence]')){
@@ -502,6 +503,7 @@ document.documentElement.dataset.kuramiMascot=/(?:^|;\s*)kurami-mascot=off(?:;|$
         const index=Math.floor(Math.random()*bank.length);active.set(key,bank[index]||target.textContent);
       }
       target.textContent=active.get(key);
+      scene.dataset.kuramiVoiceReady='true';
       const mood=scene.querySelector('[data-kurami-mood]')?.dataset.kuramiMood,slot=scene.parentElement?.id||scene.className;
       if(slots.has(slot)&&slots.get(slot)!==mood)scene.dataset.kuramiReact='true';slots.set(slot,mood);
       if(!/^[a-f0-9]{64}$/.test(key)||requested.has(key))continue;requested.add(key);

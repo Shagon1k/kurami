@@ -1,6 +1,5 @@
-// The end of a Daily edition: Kurami with the OK sign, "Всё. Ты в курсе.", how long the edition takes to read
-// and, once read, "✓ дочитано в 08:15" in her handwriting. When the block comes into view, the client marks the
-// edition as read (once per device); Hub's pulse line then shows "Дайджест ✓ 08:05".
+// At the end of Daily, Kurami shows the completion stamp in her handwriting. When the block comes into
+// view, the client marks the edition as read (once per device); Hub's pulse then shows "Дайджест ✓ 08:05".
 import type { BriefingPayload } from "../../model.ts";
 import { section } from "../../addons/envelopes.ts";
 import { renderKuramiPresence } from "../../../ui-library/components/kurami-mood.ts";
@@ -22,7 +21,7 @@ export function renderDailyFinish(payload: BriefingPayload): string {
   return `<section class="daily-finish" data-daily-finish data-edition-id="${escapeHtml(payload.edition.id)}" aria-labelledby="daily-finish-heading">
     <div class="daily-finish__copy">
       <h2 id="daily-finish-heading">${digestText("Всё. Ты в курсе.", "That's all. You're up to date.")}</h2>
-    </div>${renderKuramiPresence({...voice,mood:"done",meta:`<div class="daily-finish__meta"><p>${digestText(`≈ ${readingMinutes(payload)} мин чтения · ${stories} ${stories % 10 === 1 && stories % 100 !== 11 ? "сюжет" : stories % 10 >= 2 && stories % 10 <= 4 && (stories % 100 < 12 || stories % 100 > 14) ? "сюжета" : "сюжетов"}`, `≈ ${readingMinutes(payload)} min read · ${stories} ${stories === 1 ? "story" : "stories"}`)}</p><p class="daily-finish__stamp" data-read-stamp data-label="${digestText("дочитано", "finished")}" data-label-at="${digestText("дочитано в", "finished at")}" hidden></p></div>`})}
+    </div>${renderKuramiPresence({...voice,mood:"done",meta:`<div class="daily-finish__meta"><p class="daily-finish__stamp" data-read-stamp data-label="${digestText("дочитано", "finished")}" data-label-at="${digestText("дочитано в", "finished at")}" hidden></p></div>`})}
   </section>`;
 }
 
@@ -46,11 +45,11 @@ export const DAILY_FINISH_SCRIPT = String.raw`
 `;
 
 export const DAILY_FINISH_STYLES = `
-.daily-finish { display: grid; gap: var(--space-4); margin-top: var(--space-8); padding: var(--space-5) 0 var(--space-2); border-top: 1px solid var(--border-default); }
+.daily-finish { --kurami-presence-max-width: none; display: grid; gap: var(--space-4); margin-top: var(--space-8); padding: var(--space-5) 0 var(--space-2); border-top: 1px solid var(--border-default); }
 .daily-finish__copy { position: relative; display: grid; gap: 6px; }
 .daily-finish__copy h2 { margin: 0; font-size: clamp(1.5rem, 3vw, 2rem); }
 .daily-finish__copy p { margin: 0; color: var(--text-muted); }
-.daily-finish__meta { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2) var(--space-4); }
+.daily-finish__meta { display: flex; justify-content: flex-end; width: 100%; text-align: right; }
 .daily-finish__meta p { white-space: nowrap; }
 .daily-finish__stamp { margin: 0; color: var(--text-accent); font: 600 1.25rem/1.1 var(--font-note); rotate: -2deg; text-shadow: var(--display-glow); }
 .daily-finish.is-read .daily-finish__stamp { animation: daily-stamp .5s cubic-bezier(.2,.9,.3,1.4); }

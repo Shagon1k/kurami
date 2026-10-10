@@ -21,12 +21,14 @@ a task, or sort by task, status and Kurami state. The interface defaults to
 English. On phones, the bottom panel opens Projects and Search; Settings contains
 language and theme in horizontal rows. Outline project icons distinguish folders,
 a panda, a fox and a profile card; selected links have a left rail. Each project has its own colour:
-a bar on the left edge of the row and the project icon tell tasks apart in the mixed list (the bar glows in Neon).
-The warm background still means "your decision needed". Search opens at the top of the visible screen and adjusts to
+the project icon and name tell tasks apart in the mixed list; Neon adds a soft glow around the icon.
+A subtle warm tint means "your decision needed"; a selected task has a quiet blue tint. Search opens at the top of the visible screen and adjusts to
 the keyboard. Desktop keeps project links and language in the header. The
 table scrolls within the window, with more space inside each row. On mobile a
 task fills the screen: swipe right
 to return to the list and left to reopen the last task.
+
+On phones, ten tasks appear initially. **Show more** reveals the next ten. Search checks the whole list, and refreshing keeps the number already revealed. Reopening the current task adds no duplicate browser-history entry.
 
 The **active** and **need you** counters on the left are filter buttons. Active
 shows work in progress and tasks waiting for your attention; backlog, deferred
@@ -136,7 +138,6 @@ writes stay until you close them or another result replaces them. Refreshing the
 table preserves the notification; on phones it remains available inside the task
 dialog. A queued request is not proof that the action has completed: check the
 card's current state.
-
 
 ### Quick task "+"
 

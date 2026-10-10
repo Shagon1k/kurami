@@ -14,5 +14,6 @@ export const PILL_CSS=`
 .pill--warning { --pill-color: var(--status-warning); }
 .pill--failure { --pill-color: var(--status-failure); }
 .pill__dot { width: 4px; height: 4px; border-radius: var(--radius-pill); background: currentColor; flex: none; }
+.pill { white-space: var(--pill-white-space,normal); }
 .pill .ui-icon { width: 12px; height: 12px; }
 `;

@@ -214,6 +214,15 @@ try {
         const shot=await devtools.call<{data:string}>("Page.captureScreenshot",{format:"png",captureBeyondViewport:true});
         writeFileSync(resolve(out,`projects-attention-${width}.png`),Buffer.from(shot.data,"base64"));
       }
+      if(width===1280){
+        const before=await devtools.evaluate<number>('history.length');
+        await devtools.evaluate("document.querySelector('.projects-your-move [data-item-link]').click()");
+        await wait("!!document.querySelector('#project-details') && !document.querySelector('#projects-dashboard').dataset.refreshing");
+        await devtools.evaluate("document.querySelector('.projects-your-move [data-item-link]').click();document.querySelector('.projects-your-move [data-item-link]').click()");
+        assert.equal(await devtools.evaluate('history.length'),before+1,'reopening the same task does not add history entries');
+        assert.equal(await devtools.evaluate("getComputedStyle(document.querySelector('.projects-table .pill')).whiteSpace"),'nowrap');
+        await devtools.evaluate('history.back()');await wait("!document.querySelector('#project-details') && !document.querySelector('#projects-dashboard').dataset.refreshing");
+      }
       await devtools.evaluate("document.querySelector('[data-task-filter=active]').click()");
       await wait("location.search.includes('active=1') && !location.search.includes('attention=1') && !document.querySelector('#projects-dashboard').dataset.refreshing");
       assert.equal(await devtools.evaluate("document.querySelectorAll('.projects-table tbody tr').length"),3);
@@ -430,6 +439,19 @@ try {
   await devtools.evaluate("document.querySelector('.projects-table').scrollTop=400;document.dispatchEvent(new Event('visibilitychange'))");
   await wait("!document.querySelector('#projects-dashboard').dataset.refreshing");
   assert.equal(await devtools.evaluate("document.querySelector('.projects-table').scrollTop"),400,"background updates preserve table position");
+  await devtools.call("Emulation.setDeviceMetricsOverride",{width:390,height:1000,deviceScaleFactor:1,mobile:true});
+  await open("/");
+  assert.equal(await devtools.evaluate("document.querySelectorAll('.projects-table tbody tr:not([hidden])').length"),10);
+  await devtools.evaluate("document.querySelector('[data-show-more-tasks]').click()");
+  assert.equal(await devtools.evaluate("document.querySelectorAll('.projects-table tbody tr:not([hidden])').length"),20);
+  await devtools.evaluate('window.kuramiRefresh()');
+  assert.equal(await devtools.evaluate("document.querySelectorAll('.projects-table tbody tr:not([hidden])').length"),20,'refresh preserves revealed rows');
+  await devtools.evaluate("const input=document.querySelector('input[name=q]');input.value='Additional task 79';input.dispatchEvent(new Event('input'))");
+  assert.equal(await devtools.evaluate("document.querySelectorAll('.projects-table tbody tr:not([hidden])').length"),1,'search finds tasks beyond the revealed page');
+  assert.equal(await devtools.evaluate("document.querySelector('[data-tasks-more]').hidden"),true);
+  await devtools.evaluate("document.querySelector('input[name=q]').value='';document.querySelector('input[name=q]').dispatchEvent(new Event('input'))");
+  assert.equal(await devtools.evaluate("document.querySelectorAll('.projects-table tbody tr:not([hidden])').length"),10,'changing the query resets the page size');
+  await devtools.call("Emulation.setDeviceMetricsOverride",{width:1280,height:1000,deviceScaleFactor:1,mobile:false});
   dense=false;
   await open("/?lang=ru");
   assert.equal(await devtools.evaluate("document.documentElement.lang"),"ru");

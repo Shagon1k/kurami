@@ -42,7 +42,7 @@ assert.match(idle, /<img class="kurami-mood__figure" src="\/assets\/kurami-idle\
 assert.match(renderKuramiMood({ mood: "welcome", label: "Kurami <waves>", eager: true }), /role="img" aria-label="Kurami &lt;waves&gt;"[\s\S]*loading="eager"/);
 assert.throws(() => renderKuramiMood({ mood: "angry" as never }));
 // The cut is only along the lower arc (the top band stays unmasked); motion has a reduced-motion guard.
-assert.match(KURAMI_MOOD_CSS, /linear-gradient\(#000 0 57%, transparent 63%\), radial-gradient\(40% 40% at 50% 48%, #000 99%, transparent 100%\)/);
+assert.match(KURAMI_MOOD_CSS, /linear-gradient\(#000 0 24%, transparent 30%\), radial-gradient\(37% 37% at 50% 48%, #000 99%, transparent 100%\)/);
 assert.match(KURAMI_MOOD_CSS, /@media \(prefers-reduced-motion: no-preference\) \{/);
 assert.match(renderKuramiState({ mood: "offline", title: "No <net>", text: "Wait", headingLevel: 1 }), /<h1>No &lt;net&gt;<\/h1><p>Wait<\/p>/);
 
@@ -82,14 +82,14 @@ quiet.totals.working = 2; assert.equal(pulseMood(quiet), "working");
 quiet.totals.attention = 1; assert.equal(pulseMood(quiet), "needs-decision");
 assert.match(renderHubDashboard({ ...syntheticHubSnapshot(), digestReadAt: "2026-09-16T05:05:00Z" }, "ru"), /<span>Дайджест ✓ 08:05<\/span>/);
 
-// Daily finish: reading time from the stories, both languages, the read stamp script.
+// Daily finish: completion only, with no reading estimate or story count at the bottom.
 const payload = syntheticDailyFilledPayload();
 assert.ok(readingMinutes(payload) >= 1);
 const ru = withDigestLanguage("ru", () => renderDailyFinish(payload)), en = withDigestLanguage("en", () => renderDailyFinish(payload));
 assert.match(ru, /<h2 id="daily-finish-heading">Всё\. Ты в курсе\.<\/h2>/);
-assert.match(ru, /мин чтения · 6 сюжетов/);
+assert.doesNotMatch(ru, /мин чтения|6 сюжетов/);
 assert.match(en, /<h2 id="daily-finish-heading">That's all\. You're up to date\.<\/h2>/);
-assert.match(en, /min read · 6 stories/);
+assert.doesNotMatch(en, /min read|6 stories/);
 assert.match(en, /data-kurami-mood="done"/);
 
 // Every Kurami phrase added for the moods has an English twin in the code that renders it.

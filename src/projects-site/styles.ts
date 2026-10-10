@@ -69,13 +69,14 @@ export const PROJECTS_STYLES=[KURAMI_MOOD_CSS,THEME_CSS,FOUNDATION_CSS,BUTTON_CS
 .projects-grid { display: grid; grid-template-columns: minmax(0,1fr); gap: var(--space-4); align-items: start; }
 .projects-grid--detail { grid-template-columns: minmax(0,1fr) 360px; }
 .projects-table-frame { min-width: 0; border: 1px solid var(--border-default); border-radius: var(--radius-md); background: var(--surface-raised); box-shadow: var(--shadow-card-sm); overflow: hidden; }
-.projects-table { --table-font-size: .82rem; --table-cell-padding: var(--space-3); --table-head-padding: var(--space-2) var(--space-3); --table-head-background: var(--surface-section); }
+.projects-table { --pill-white-space: nowrap; --table-font-size: .82rem; --table-cell-padding: var(--space-3); --table-head-padding: var(--space-2) var(--space-3); --table-head-background: var(--surface-panel); }
 .projects-sort { --button-icon-size: 14px; }
 .projects-checks-heading { display: flex; align-items: center; justify-content: center; min-height: var(--control-height); }
-.projects-row--attention { background: color-mix(in srgb,var(--status-warning) 3%,var(--surface-raised)); }
-.projects-row--selected { background: var(--accent-soft); }
-.projects-row > th { box-shadow: var(--project-edge,none); }
-.projects-task-meta > .ui-icon:first-child { --icon-color: var(--project-color,inherit); }
+.projects-row--attention { background: color-mix(in srgb,var(--status-warning) 3%,var(--surface-panel)); }
+.projects-row--selected { background: color-mix(in srgb,var(--status-info) 7%,var(--surface-panel)); }
+.projects-table th[scope="row"] { width: 48%; }
+.projects-table td:nth-child(2) { min-width: 120px; }
+.projects-more { display: none; justify-content: center; padding: var(--space-3); border-top: 1px solid var(--border-subtle); }
 .projects-task { display: grid; gap: var(--space-2); min-width: 140px; max-width: 480px; font-weight: 600; line-height: 1.45; }
 .projects-task-meta { display: flex; align-items: center; flex-wrap: wrap; gap: var(--space-2); color: var(--text-muted); font-size: .7rem; font-weight: 400; }
 .projects-task-meta { --icon-size: 14px; }
@@ -177,8 +178,8 @@ export const PROJECTS_STYLES=[KURAMI_MOOD_CSS,THEME_CSS,FOUNDATION_CSS,BUTTON_CS
   .projects-mobile-sort { display: block; margin-bottom: var(--space-2); }
   .projects-idea__submit { --button-width: 100%; }
   .projects-table { --table-stack-row-padding: var(--space-3) var(--space-4); --table-stack-label-display: none; }
-  .projects-row { box-shadow: var(--project-edge,none); }
-  .projects-row > th { box-shadow: none; }
+  .projects-more:not([hidden]) { display: flex; }
+  .projects-table th[scope="row"] { width: auto; }
   .projects-task { max-width: none; min-width: 0; }
   .projects-ideas { padding: var(--space-3) var(--space-4); }
   .projects-ideas__note { margin-left: 0; flex-basis: 100%; }

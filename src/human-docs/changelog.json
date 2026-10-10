@@ -4,8 +4,8 @@
   "commits": {
     "cf1b7f62088d97d4b9758a745d9f041fc29420a9": {
       "category": "fixed",
-      "en": "Chat requests to record a task or future work go into the ideas pool unless another destination, such as GitHub or a project backlog, is explicitly named. Requests to implement changes now remain work requests. Hermes, Claude Code and Codex share these routing rules.",
-      "ru": "Просьбы в чате записать задачу или работу на потом сохраняются в пул идей, если явно не названо другое место, например GitHub или backlog проекта. Просьбы внести изменения сейчас остаются поручениями на работу. Hermes, Claude Code и Codex используют одинаковые правила.",
+      "en": "- Chat requests to record a task or future work go into the ideas pool unless another destination, such as GitHub or a project backlog, is explicitly named.\n- Requests to implement changes now remain work requests.\n- Hermes, Claude Code and Codex share these routing rules.",
+      "ru": "- Просьбы в чате записать задачу или работу на потом сохраняются в пул идей, если явно не названо другое место, например GitHub или backlog проекта.\n- Просьбы внести изменения сейчас остаются поручениями на работу.\n- Hermes, Claude Code и Codex используют одинаковые правила.",
       "page": "owner-controls"
     },
     "ee02f37312508acac4d044cfcd223884d7e65bcc": {

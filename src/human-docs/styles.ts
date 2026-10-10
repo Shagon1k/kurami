@@ -188,6 +188,11 @@ h1 { max-width: 20ch; margin-bottom: var(--space-4); font-size: clamp(2.2rem, 5v
 
 /* Home */
 .home { width: 100%; }
+.home__welcome { margin-bottom: var(--space-8); }
+@media (min-width: 1000px) {
+  .home__welcome { display: grid; grid-template-columns: minmax(0,1fr) minmax(0,1fr); align-items: center; gap: var(--space-8); padding-bottom: var(--space-8); border-bottom: 1px solid var(--border-default); }
+  .home__welcome .intro { padding: 0; margin: 0; border: 0; }
+}
 .home .intro h1 { max-width: 16ch; }
 .prose--home .cards { grid-template-columns: repeat(3, minmax(0, 1fr)); }
 .prose--home > p, .prose--home > ul { max-width: 68ch; }
@@ -199,6 +204,10 @@ h1 { max-width: 20ch; margin-bottom: var(--space-4); font-size: clamp(2.2rem, 5v
 .change { padding: 13px 0; border-top: 1px solid var(--border-default); }
 .change__category { display: inline-block; margin-right: 8px; color: var(--text-accent); font: .67rem var(--font-mono); text-transform: uppercase; }
 .change p { margin: 6px 0 0; font-size: .91rem; }
+.change__copy { margin-top: var(--space-2); font-size: .91rem; }
+.change__copy > * + * { margin-top: var(--space-2); }
+.change__copy .codeblock { margin-top: var(--space-2); }
+.change__copy h2, .change__copy h3, .change__copy h4 { font-family: var(--font-sans); font-size: 1rem; margin-block: var(--space-3) var(--space-1); }
 .change a { color: var(--text-muted); font-size: .75rem; }
 .footer { padding: 32px 0; border-top: 1px solid var(--border-default); color: var(--text-muted); font-size: .75rem; }
 

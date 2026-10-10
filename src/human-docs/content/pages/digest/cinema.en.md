@@ -12,6 +12,8 @@ Cinema is a separate page, `/cinema`, with a review of the cinema week. Every Sa
 
 ## The four blocks
 
+**Box-office pulse** is the lead section, using the same red frame in Neon as News in Daily.
+
 Below the title, section links take you to Box office, Trailers, Premieres and News. Only blocks present in the edition have a link. The links scroll with the page; they do not add a fixed header row.
 
 Rankings show five films initially. **Show top 10** reveals the remaining rows through the shared SVG disclosure control.

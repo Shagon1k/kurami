@@ -15,6 +15,8 @@
   document.addEventListener('visibilitychange',()=>{if(!document.hidden)updateExpiry();});
   const requestHeaders={'Content-Type':'application/json','Accept-Language':document.documentElement.lang};
   const mobile=matchMedia('(max-width:900px)');
+  const taskListMobile=matchMedia('(max-width:620px)'),taskPageSize=10;
+  let taskLimit=taskPageSize,taskFilterKey='';
   let lastDetailUrl=null;
   let returnFocus=null;
   let gesture=null;
@@ -150,11 +152,16 @@
     updateExpiry();
     const query = (search?.value ?? '').trim().toLocaleLowerCase(document.documentElement.lang);
     const rows = [...dashboard.querySelectorAll('.projects-table tbody tr')];
+    const key=query+'|'+[...dashboard.querySelectorAll('[data-task-filter]')].map(button=>button.getAttribute('aria-pressed')).join('|')+'|'+(new URL(location.href).searchParams.get('project')??'');
+    if(key!==taskFilterKey){taskLimit=taskPageSize;taskFilterKey=key;}
     let count = 0;
     for (const row of rows) {
-      row.hidden = !(row.querySelector('[data-search]')?.dataset.search ?? '').includes(query);
-      if (!row.hidden) count++;
+      const matches=(row.querySelector('[data-search]')?.dataset.search ?? '').includes(query);
+      if(matches)count++;
+      row.hidden=!matches || taskListMobile.matches && count>taskLimit;
     }
+    const more=dashboard.querySelector('[data-tasks-more]');
+    if(more)more.hidden=!taskListMobile.matches || count<=taskLimit;
     const total = dashboard.querySelector('[data-visible-count]');
     if (total && rows.length) total.textContent = String(count);
     const empty = dashboard.querySelector('[data-search-empty]');
@@ -256,9 +263,16 @@
       if(pendingHistory){const next=pendingHistory;pendingHistory=null;refresh(next,true).then(()=>{if(!next.searchParams.has('item'))restoreTaskFocus();});}
     }
   }
+  taskListMobile.addEventListener('change',()=>filter());
   search?.addEventListener('input',()=>{filter();const url=new URL(location.href);if(search.value)url.searchParams.set('q',search.value);else url.searchParams.delete('q');history.replaceState(history.state,'',url);updateProjectTabs(url);});
   document.querySelector('.projects-search')?.addEventListener('submit',event=>{event.preventDefault();filter();});
   document.addEventListener('click', event => {
+    if(event.target.closest('[data-show-more-tasks]')){
+      const shown=dashboard.querySelectorAll('.projects-table tbody tr:not([hidden])').length;
+      taskLimit+=taskPageSize;filter();
+      dashboard.querySelectorAll('.projects-table tbody tr:not([hidden])')[shown]?.querySelector('[data-item-link]')?.focus();
+      return;
+    }
     const taskFilter=event.target.closest('[data-task-filter]');
     if(taskFilter){
       if(refreshing||busy())return;
@@ -332,6 +346,7 @@
     dismissConfirmation(false);
     if(search?.value)url.searchParams.set('q',search.value);else url.searchParams.delete('q');
     const oldDetail=dashboard.querySelector('#project-details');
+    if(viewKey(url)===viewKey(new URL(location.href))){if(focusDetails)oldDetail?.focus({preventScroll:true});return;}
     if(mobile.matches&&oldDetail&&!url.searchParams.has('item')&&!settledExit)await slide(oldDetail,0,innerWidth);
     settledExit=false;
     const cached=cachedView(url,focusDetails);

@@ -38,7 +38,7 @@ export function renderKuramiMood(input: { mood: KuramiMood; label?: string; clas
 /** Kurami says it: the medallion with a speech bubble. `side` (pulse lines) puts the bubble beside her and
  * below her on phones; `top` (banners, empty states) puts it above her like a comic line. `body` is trusted
  * markup from the product. Switched off, the bubble stays as a plain card without its tail. */
-export function renderKuramiSays(input: { mood: KuramiMood; body: string; placement?: "side" | "top"; className?: string; eager?: boolean }): string {
+export function renderKuramiSays(input: { mood: KuramiMood; body: string; placement?: "side" | "top" | "inline"; className?: string; eager?: boolean }): string {
   if (input.className && !/^[a-z0-9_-]+(?: [a-z0-9_-]+)*$/.test(input.className)) throw new Error("Unsafe Kurami bubble class");
   return `<div class="kurami-says kurami-says--${input.placement ?? "side"}${input.className ? ` ${input.className}` : ""}">${renderKuramiMood({ mood: input.mood, eager: input.eager })}<div class="kurami-says__bubble">${input.body}</div></div>`;
 }
@@ -54,7 +54,7 @@ export function renderKuramiPresence(input: { mood: KuramiMood; speech: string; 
 
 export function renderKuramiState(input: { mood: KuramiMood; title: string; text?: string; action?: string; headingLevel?: 1 | 2 | 3 }): string {
   const level = input.headingLevel ?? 2;
-  return `<div class="kurami-state" data-kurami-state="${input.mood}">${renderKuramiSays({ mood: input.mood, placement: "top", eager: true, body: `<div class="kurami-state__copy"><h${level}>${escapeHtml(input.title)}</h${level}>${input.text ? `<p>${escapeHtml(input.text)}</p>` : ""}${input.action ?? ""}</div>` })}</div>`;
+  return `<div class="kurami-state" data-kurami-state="${input.mood}">${renderKuramiSays({ mood: input.mood, placement: "inline", eager: true, body: `<div class="kurami-state__copy"><h${level}>${escapeHtml(input.title)}</h${level}>${input.text ? `<p>${escapeHtml(input.text)}</p>` : ""}${input.action ?? ""}</div>` })}</div>`;
 }
 
 /** Before first paint: Hub → Appearance can switch Kurami off for every app (the gateway's cookie). */
@@ -62,6 +62,7 @@ export const KURAMI_MASCOT_RUNTIME_JS = `document.documentElement.dataset.kurami
 
 /** Keep the current line during polling; fetch prepared variants for a later visit. */
 export const KURAMI_PRESENCE_RUNTIME_JS = String.raw`(()=>{
+  document.documentElement.dataset.kuramiVoice='on';
   const active=new Map(),requested=new Set(),slots=new Map(),bound=new WeakSet(),prefix='kurami-voice:',ttl=43200000;
   function apply(){
     for(const scene of document.querySelectorAll('[data-kurami-presence]')){
@@ -74,6 +75,7 @@ export const KURAMI_PRESENCE_RUNTIME_JS = String.raw`(()=>{
         const index=Math.floor(Math.random()*bank.length);active.set(key,bank[index]||target.textContent);
       }
       target.textContent=active.get(key);
+      scene.dataset.kuramiVoiceReady='true';
       const mood=scene.querySelector('[data-kurami-mood]')?.dataset.kuramiMood,slot=scene.parentElement?.id||scene.className;
       if(slots.has(slot)&&slots.get(slot)!==mood)scene.dataset.kuramiReact='true';slots.set(slot,mood);
       if(!/^[a-f0-9]{64}$/.test(key)||requested.has(key))continue;requested.add(key);
@@ -125,10 +127,8 @@ export const KURAMI_PULL_REFRESH_JS = String.raw`(()=>{
   addEventListener('touchcancel',()=>{if(!busy)reset();});
 })();`;
 
-/* Geometry (all relative to --kurami-size, the disc's diameter): the figure is 1.25× the disc, its top
- * 0.1× above the disc, so the head and ears rise over the rim. The mask keeps everything above a line a
- * little below the disc's centre (fading over a few pixels, so tails crossing it leave no step) plus the
- * disc itself — the figure is cut only along the lower arc. */
+/* The figure breaks out only above the upper quarter of the portal. Inside the portal, the mask stops
+ * before the ring so the lower rim and working spark remain visible. */
 export const KURAMI_MOOD_CSS = `
 .kurami-mood { --kurami-size: 120px; --kurami-glow: 12px; --kurami-ring: color-mix(in srgb, var(--accent-primary) 45%, transparent); --kurami-disc: color-mix(in srgb, var(--accent-primary) 9%, var(--surface-panel));
   position: relative; display: block; flex: none; width: var(--kurami-size); height: var(--kurami-size); margin-top: calc(var(--kurami-size) * .14); user-select: none; }
@@ -137,8 +137,8 @@ export const KURAMI_MOOD_CSS = `
 .kurami-mood__line { fill: none; stroke: var(--kurami-ring); stroke-width: 1.6; }
 .kurami-mood__spark { fill: none; stroke: none; }
 .kurami-mood__figure { position: absolute; left: 50%; top: calc(var(--kurami-size) * -.1); width: calc(var(--kurami-size) * 1.25); height: calc(var(--kurami-size) * 1.25); max-width: none; translate: -50% 0; -webkit-user-drag: none;
-  -webkit-mask-image: linear-gradient(#000 0 57%, transparent 63%), radial-gradient(40% 40% at 50% 48%, #000 99%, transparent 100%);
-  mask-image: linear-gradient(#000 0 57%, transparent 63%), radial-gradient(40% 40% at 50% 48%, #000 99%, transparent 100%); }
+  -webkit-mask-image: linear-gradient(#000 0 24%, transparent 30%), radial-gradient(37% 37% at 50% 48%, #000 99%, transparent 100%);
+  mask-image: linear-gradient(#000 0 24%, transparent 30%), radial-gradient(37% 37% at 50% 48%, #000 99%, transparent 100%); }
 html[data-kurami-theme="neon"] .kurami-mood { --kurami-ring: var(--neon-sign, var(--accent-primary)); --kurami-disc: color-mix(in srgb, var(--neon-sign, var(--accent-primary)) 7%, var(--surface-page)); }
 html[data-kurami-theme="neon"] .kurami-mood__line { stroke-width: 1.8; filter: drop-shadow(0 0 2px var(--kurami-ring)) drop-shadow(0 0 6px var(--kurami-ring)); }
 html[data-kurami-theme="neon"] .kurami-mood[data-kurami-mood="asleep"] { --kurami-ring: color-mix(in srgb, var(--neon-sign, var(--accent-primary)) 45%, transparent); }
@@ -170,23 +170,31 @@ html[data-kurami-mascot="off"] .kurami-state { padding-block: var(--space-4); }
 /* Speech bubble (renderKuramiSays). The tail is a turned square sharing the bubble's fill and border. */
 .kurami-says { display: flex; align-items: center; gap: var(--space-4); min-width: 0; }
 .kurami-says--top { flex-direction: column-reverse; align-items: flex-start; gap: var(--space-3); }
+.kurami-says--inline { display: grid; grid-template-columns: auto minmax(0,1fr); }
 .kurami-says__bubble { position: relative; min-width: 0; max-width: 60ch; padding: var(--space-3) var(--space-4); border: 1px solid var(--border-default); border-radius: 16px; background: var(--surface-raised); box-shadow: var(--shadow-card-sm); }
 .kurami-says__bubble::before { content: ""; position: absolute; width: 14px; height: 14px; background: inherit; border: solid var(--border-default); border-width: 0 0 1px 1px; }
 .kurami-says--side .kurami-says__bubble::before { left: -8px; top: 50%; translate: 0 -50%; rotate: 45deg; }
+.kurami-says--inline .kurami-says__bubble::before { left: -8px; top: 50%; translate: 0 -50%; rotate: 45deg; }
 .kurami-says--top .kurami-says__bubble::before { left: 53px; bottom: -8px; rotate: -45deg; }
 html[data-kurami-mascot="off"] .kurami-says__bubble::before { display: none; }
 @media (max-width: ${breakpoints.phone}px) {
+  .kurami-says--inline .kurami-mood { --kurami-size: 72px; }
+  .kurami-says--inline .kurami-says__bubble { padding: var(--space-3); }
+  .kurami-state__copy :is(h1,h2,h3) { font-size: 1.1rem; }
   .kurami-says--side { flex-direction: column; align-items: flex-start; gap: var(--space-3); }
   .kurami-says--side .kurami-says__bubble::before { left: 53px; top: -8px; translate: none; rotate: 135deg; }
 }
 .kurami-state__copy { display: grid; gap: var(--space-2); max-width: 36ch; }
 .kurami-state__copy :is(h1, h2, h3) { margin: 0; }
 .kurami-state__copy p { margin: 0; color: var(--text-muted); }
-.kurami-presence { --kurami-presence-size: 150px; display: grid; grid-template-columns: var(--kurami-presence-size) minmax(0,1fr); gap: var(--space-3) var(--space-4); align-items: start; width: 100%; max-width: 68rem; }
+.kurami-presence { --kurami-presence-size: 150px; display: grid; grid-template-columns: var(--kurami-presence-size) minmax(0,1fr); gap: var(--space-3) var(--space-4); align-items: start; width: 100%; max-width: var(--kurami-presence-max-width,68rem); }
 .kurami-presence .kurami-mood { --kurami-size: var(--kurami-presence-size); grid-column: 1; grid-row: 1 / span 2; }
 .kurami-presence__bubble { grid-column: 2; grid-row: 1; width: 100%; max-width: none; align-self: center; }
 .kurami-presence__bubble::before { left: -8px; top: min(50%, calc(var(--kurami-presence-size) / 2)); translate: 0 -50%; rotate: 45deg; }
 .kurami-presence__bubble p { margin: 0; max-width: 56ch; font-size: 1.05rem; line-height: 1.5; color: var(--text-primary); }
+html[data-kurami-voice="on"] .kurami-presence:not([data-kurami-voice-ready]) [data-kurami-speech] { opacity: 0; }
+html[data-kurami-voice="on"] [data-kurami-speech] { transition: opacity var(--duration-fast); min-height: 3em; }
+@media (prefers-reduced-motion: reduce) { html[data-kurami-voice="on"] [data-kurami-speech] { transition: none; } }
 .kurami-presence__footer { grid-column: 2; grid-row: 2; display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2) var(--space-4); min-width: 0; }
 .kurami-presence__meta { flex: 1 1 16rem; min-width: 0; color: var(--text-muted); font-size: .8rem; }
 .kurami-presence__meta p { margin: 0; }

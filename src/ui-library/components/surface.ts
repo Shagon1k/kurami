@@ -3,8 +3,8 @@
 // `attention` adds a slow pulse to a lead block that needs the owner.
 export type SurfaceKind="panel"|"lead";
 
-export function surfaceAttributes(kind:SurfaceKind,options:{attention?:boolean}={}):string {
-  return ` data-ui-surface="${kind}"${options.attention?" data-ui-attention":""}`;
+export function surfaceAttributes(kind:SurfaceKind,options:{attention?:boolean;quiet?:boolean}={}):string {
+  return ` data-ui-surface="${kind}"${options.attention?" data-ui-attention":""}${options.quiet?' data-ui-surface-fill="quiet"':""}`;
 }
 
 /** Live regions: a theme may play a short scan when their content refreshes. */
