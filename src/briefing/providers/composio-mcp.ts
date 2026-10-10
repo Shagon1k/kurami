@@ -55,6 +55,19 @@ export function extractComposioPayload(value: unknown): unknown {
   throw new ProviderError("composio_empty_payload", "Composio returned no structured payload");
 }
 
+/** Retain only the provider's bounded correlation ID, never its error body. */
+export function composioRejectionError(response: unknown): ProviderError {
+  let payload: unknown;
+  try { payload = extractComposioPayload(response); } catch { payload = undefined; }
+  const logId = isRecord(payload) && typeof payload.log_id === "string"
+    && /^log_[A-Za-z0-9]{1,64}$/u.test(payload.log_id) ? payload.log_id : undefined;
+  return new ProviderError(
+    "composio_tool_error",
+    `Composio read tool rejected the request${logId ? `; reference=${logId}` : ""}`,
+    true,
+  );
+}
+
 export type ComposioReadConnection = {
   mcpUrl: string;
   apiKey: string;
@@ -139,11 +152,7 @@ export function createComposioReadToolCaller(
       if (aborted) throw new ProviderError("provider_timeout", "Provider request timed out", true);
       const response = await client.callTool({ name, arguments: arguments_ });
       if (response.isError) {
-        throw new ProviderError(
-          "composio_tool_error",
-          "Composio read tool rejected the request",
-          true,
-        );
+        throw composioRejectionError(response);
       }
       return extractComposioPayload(response);
     } catch (error) {

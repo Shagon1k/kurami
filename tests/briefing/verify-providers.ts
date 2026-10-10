@@ -21,6 +21,23 @@ import {
   mapWeatherCode,
 } from "../../src/briefing/providers/open-meteo.ts";
 
+import { composioRejectionError } from "../../src/briefing/providers/composio-mcp.ts";
+
+// A provider error is untrusted: preserve only a bounded top-level log reference.
+const safeRejection = composioRejectionError({
+  content: [{ type: "text", text: JSON.stringify({ log_id: "log_Example123", error: "Bearer secret https://private.invalid" }) }],
+});
+assert.equal(safeRejection.message, "Composio read tool rejected the request; reference=log_Example123");
+assert.equal(providerIssue(safeRejection).message.includes("log_Example123"), true);
+for (const response of [
+  { structuredContent: { log_id: "log_secret\nAuthorization: Bearer hidden", error: "hidden" } },
+  { structuredContent: { data: { log_id: "log_NestedText" }, error: "hidden" } },
+  { content: [{ type: "text", text: "not-json secret" }] },
+  { structuredContent: { log_id: "log_" + "a".repeat(65) } },
+]) {
+  assert.equal(composioRejectionError(response).message, "Composio read tool rejected the request");
+}
+
 const fixedNow = () => new Date("2026-08-31T09:00:00.000Z");
 
 async function verifyRetryAndTimeout(): Promise<void> {

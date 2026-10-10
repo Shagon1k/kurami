@@ -152,14 +152,16 @@ export function composeCinemaEnvelope(input: {
       language: candidate.language,
       localDate: candidate.localDate,
       coverage: candidate.coverage,
-      boxOffice: candidate.boxOffice,
-      trailers: { state: trailerState, capturedAt: candidate.capturedAt, items: trailers, provenance: trailers.length ? candidate.trailers.provenance : [], diagnostics: candidate.trailers.diagnostics },
-      premieres: { state: premiereState, capturedAt: candidate.capturedAt, items: premieres, provenance: premieres.length ? candidate.premieres.provenance : [], diagnostics: candidate.premieres.diagnostics },
-      news: { state: newsState, capturedAt: candidate.capturedAt, items: news, provenance: [...new Set(news.map((item) => item.sourceId))], diagnostics: candidate.news.diagnostics },
+      // Frozen candidates can repeat the same failure for several source requests.
+      // Normalize diagnostics here without weakening the envelope's unique-list contract.
+      boxOffice: { ...candidate.boxOffice, ...(candidate.boxOffice.diagnostics === undefined ? {} : { diagnostics: [...new Set(candidate.boxOffice.diagnostics)] }) },
+      trailers: { state: trailerState, capturedAt: candidate.capturedAt, items: trailers, provenance: trailers.length ? candidate.trailers.provenance : [], diagnostics: [...new Set(candidate.trailers.diagnostics)] },
+      premieres: { state: premiereState, capturedAt: candidate.capturedAt, items: premieres, provenance: premieres.length ? candidate.premieres.provenance : [], diagnostics: [...new Set(candidate.premieres.diagnostics)] },
+      news: { state: newsState, capturedAt: candidate.capturedAt, items: news, provenance: [...new Set(news.map((item) => item.sourceId))], diagnostics: [...new Set(candidate.news.diagnostics)] },
       notes: validatedNotes(draft, selectedNewsIds),
       quality: {
         summary: failed || partial ? `Срез собран частично: ${failed} недоступно, ${partial} неполно.` : "Все Cinema-разделы собраны и проверены.",
-        diagnostics: candidate.diagnostics,
+        diagnostics: [...new Set(candidate.diagnostics)],
       },
       provenance: candidate.provenance,
     },

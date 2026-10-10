@@ -1,0 +1,317 @@
+{
+  "version": 1,
+  "capturedAt": "2026-10-10T06:01:49.997Z",
+  "localDate": "2026-10-10",
+  "market": "LT",
+  "timezone": "Europe/Vilnius",
+  "language": "ru",
+  "coverage": {
+    "boxOffice": {
+      "start": "2026-10-02T00:00:00.000Z",
+      "end": "2026-10-05T00:00:00.000Z"
+    },
+    "trailers": {
+      "start": "2026-10-03T06:00:00.000Z",
+      "end": "2026-10-10T06:00:00.000Z"
+    },
+    "premieres": {
+      "start": "2026-10-11T21:00:00.000Z",
+      "end": "2026-10-18T21:00:00.000Z"
+    },
+    "news": {
+      "start": "2026-10-03T06:00:00.000Z",
+      "end": "2026-10-10T06:00:00.000Z"
+    }
+  },
+  "boxOffice": {
+    "state": "partial",
+    "capturedAt": "2026-10-10T06:01:49.997Z",
+    "featuredId": "fixture:source-or-item-1",
+    "charts": [
+      {
+        "id": "us-weekend",
+        "label": "США — уикенд",
+        "region": "US/CA",
+        "period": "weekend",
+        "entries": [
+          {
+            "id": "fixture:source-or-item-1",
+            "title": "Synthetic Cinema fixture content",
+            "rank": 1,
+            "gross": {
+              "amount": 32031011,
+              "currency": "USD"
+            },
+            "cumulativeGross": {
+              "amount": 32031011,
+              "currency": "USD"
+            },
+            "weeks": 1,
+            "sourceId": "fixture:source-or-item-2"
+          }
+        ]
+      },
+      {
+        "id": "domestic-ytd",
+        "label": "США — с начала года",
+        "region": "US/CA",
+        "period": "ytd",
+        "entries": [
+          {
+            "id": "fixture:source-or-item-3",
+            "title": "Synthetic Cinema fixture content",
+            "rank": 1,
+            "gross": {
+              "amount": 955365202,
+              "currency": "USD"
+            },
+            "sourceId": "fixture:source-or-item-2",
+            "distributor": "Synthetic Cinema fixture content"
+          }
+        ]
+      },
+      {
+        "id": "worldwide-ytd",
+        "label": "Мировой прокат — с начала года",
+        "region": "WORLD",
+        "period": "ytd",
+        "entries": [
+          {
+            "id": "fixture:source-or-item-3",
+            "title": "Synthetic Cinema fixture content",
+            "rank": 1,
+            "gross": {
+              "amount": 2506251053,
+              "currency": "USD"
+            },
+            "sourceId": "fixture:source-or-item-2",
+            "distributor": "Synthetic Cinema fixture content"
+          }
+        ]
+      },
+      {
+        "id": "lt-weekend",
+        "label": "Литва — уикенд",
+        "region": "LT",
+        "period": "weekend",
+        "entries": [
+          {
+            "id": "fixture:source-or-item-4",
+            "title": "Synthetic Cinema fixture content",
+            "rank": 1,
+            "gross": {
+              "amount": 149519.91,
+              "currency": "EUR"
+            },
+            "cumulativeGross": {
+              "amount": 205015.54,
+              "currency": "EUR"
+            },
+            "weeks": 1,
+            "admissions": 16731,
+            "showCount": 159,
+            "releaseDate": "2026-10-02",
+            "distributor": "Synthetic Cinema fixture content",
+            "sourceId": "fixture:source-or-item-5"
+          }
+        ]
+      }
+    ],
+    "signals": [],
+    "trend": [],
+    "provenance": [
+      "fixture:source-or-item-2",
+      "fixture:source-or-item-6",
+      "fixture:source-or-item-5"
+    ],
+    "diagnostics": [
+      "world-weekend:omitted:world_below_domestic:fixture-1",
+      "world-weekend:omitted:world_below_domestic:fixture-2",
+      "world-weekend:omitted:world_below_domestic:fixture-3"
+    ]
+  },
+  "trailers": {
+    "state": "partial",
+    "candidates": [
+      {
+        "id": "fixture:source-or-item-7",
+        "videoId": "abcdefghijk",
+        "title": "Synthetic Cinema fixture content",
+        "description": "Synthetic Cinema fixture content",
+        "publisher": "Fixture studio",
+        "publisherChannelId": "UCaaaaaaaaaaaaaaaaaaaaaa",
+        "publisherRole": "official",
+        "publishedAt": "2026-10-08T14:00:00.000Z",
+        "sourceUrl": "https://example.com/fixture",
+        "thumbnailUrl": "https://example.com/fixture",
+        "trailerType": "main",
+        "filmKey": "Synthetic Cinema fixture content",
+        "score": 1106
+      }
+    ],
+    "provenance": [
+      "fixture:source-or-item-8"
+    ],
+    "diagnostics": [
+      "youtube:composio_tool_error:Composio read tool rejected the request",
+      "youtube:composio_tool_error:Composio read tool rejected the request",
+      "youtube:composio_tool_error:Composio read tool rejected the request",
+      "youtube:composio_tool_error:Composio read tool rejected the request",
+      "youtube:composio_tool_error:Composio read tool rejected the request",
+      "youtube:composio_tool_error:Composio read tool rejected the request",
+      "youtube:composio_tool_error:Composio read tool rejected the request",
+      "youtube:composio_tool_error:Composio read tool rejected the request",
+      "youtube:composio_tool_error:Composio read tool rejected the request",
+      "youtube:composio_tool_error:Composio read tool rejected the request",
+      "youtube:composio_tool_error:Composio read tool rejected the request",
+      "youtube:composio_tool_error:Composio read tool rejected the request",
+      "youtube:composio_tool_error:Composio read tool rejected the request"
+    ]
+  },
+  "premieres": {
+    "state": "ready",
+    "candidates": [
+      {
+        "id": "fixture:source-or-item-9",
+        "localTitle": "Synthetic Cinema fixture content",
+        "releaseDate": "2026-10-12",
+        "sourceUrl": "https://example.com/fixture",
+        "posterUrl": "https://example.com/fixture",
+        "genres": [
+          "Documentary",
+          "Music"
+        ],
+        "runtimeMinutes": 98,
+        "ageRating": "N-13",
+        "directors": [
+          "Fixture label"
+        ],
+        "cast": [
+          "Fixture label"
+        ]
+      }
+    ],
+    "provenance": [
+      "fixture:source-or-item-10"
+    ],
+    "diagnostics": []
+  },
+  "news": {
+    "state": "ready",
+    "candidates": [
+      {
+        "id": "fixture:source-or-item-11",
+        "publisher": "Variety",
+        "title": "Synthetic Cinema fixture content",
+        "excerpt": "Synthetic Cinema fixture content",
+        "publishedAt": "2026-10-10T05:59:30.000Z",
+        "sourceUrl": "https://example.com/fixture",
+        "categories": [
+          "Fixture label",
+          "Fixture label",
+          "Fixture label",
+          "Fixture label",
+          "Fixture label",
+          "Fixture label",
+          "Fixture label"
+        ],
+        "imageUrl": "https://example.com/fixture",
+        "score": 165
+      }
+    ],
+    "provenance": [
+      "fixture:source-or-item-12",
+      "fixture:source-or-item-13",
+      "fixture:source-or-item-14",
+      "fixture:source-or-item-15"
+    ],
+    "diagnostics": []
+  },
+  "provenance": [
+    {
+      "id": "fixture:source-or-item-2",
+      "provider": "Box Office Watch",
+      "url": "https://example.com/fixture",
+      "fetchedAt": "2026-10-10T06:01:49.997Z",
+      "region": "US/WORLD",
+      "period": "2026-10-04"
+    },
+    {
+      "id": "fixture:source-or-item-6",
+      "provider": "Kinopoisk",
+      "url": "https://example.com/fixture",
+      "fetchedAt": "2026-10-10T06:01:49.997Z",
+      "region": "WORLD",
+      "period": "2026-10-04",
+      "evidence": "Synthetic Cinema fixture content"
+    },
+    {
+      "id": "fixture:source-or-item-5",
+      "provider": "Lithuanian Film Centre",
+      "url": "https://example.com/fixture",
+      "fetchedAt": "2026-10-10T06:01:49.997Z",
+      "region": "LT",
+      "period": "2026-10-02/2026-10-04"
+    },
+    {
+      "id": "fixture:source-or-item-10",
+      "provider": "cinema.lt",
+      "url": "https://example.com/fixture",
+      "fetchedAt": "2026-10-10T06:01:49.997Z",
+      "region": "LT"
+    },
+    {
+      "id": "fixture:source-or-item-12",
+      "provider": "Variety",
+      "url": "https://example.com/fixture",
+      "fetchedAt": "2026-10-10T06:01:49.997Z",
+      "period": "2026-10-03T06:00:00.000Z/2026-10-10T06:00:00.000Z"
+    },
+    {
+      "id": "fixture:source-or-item-14",
+      "provider": "Deadline",
+      "url": "https://example.com/fixture",
+      "fetchedAt": "2026-10-10T06:01:49.997Z",
+      "period": "2026-10-03T06:00:00.000Z/2026-10-10T06:00:00.000Z"
+    },
+    {
+      "id": "fixture:source-or-item-13",
+      "provider": "The Hollywood Reporter",
+      "url": "https://example.com/fixture",
+      "fetchedAt": "2026-10-10T06:01:49.997Z",
+      "period": "2026-10-03T06:00:00.000Z/2026-10-10T06:00:00.000Z"
+    },
+    {
+      "id": "fixture:source-or-item-15",
+      "provider": "IndieWire",
+      "url": "https://example.com/fixture",
+      "fetchedAt": "2026-10-10T06:01:49.997Z",
+      "period": "2026-10-03T06:00:00.000Z/2026-10-10T06:00:00.000Z"
+    },
+    {
+      "id": "fixture:source-or-item-8",
+      "provider": "YouTube",
+      "url": "https://example.com/fixture",
+      "fetchedAt": "2026-10-10T06:01:49.997Z",
+      "period": "2026-10-03T06:00:00.000Z/2026-10-10T06:00:00.000Z"
+    }
+  ],
+  "diagnostics": [
+    "world-weekend:omitted:world_below_domestic:fixture-1",
+    "world-weekend:omitted:world_below_domestic:fixture-2",
+    "world-weekend:omitted:world_below_domestic:fixture-3",
+    "youtube:composio_tool_error:Composio read tool rejected the request",
+    "youtube:composio_tool_error:Composio read tool rejected the request",
+    "youtube:composio_tool_error:Composio read tool rejected the request",
+    "youtube:composio_tool_error:Composio read tool rejected the request",
+    "youtube:composio_tool_error:Composio read tool rejected the request",
+    "youtube:composio_tool_error:Composio read tool rejected the request",
+    "youtube:composio_tool_error:Composio read tool rejected the request",
+    "youtube:composio_tool_error:Composio read tool rejected the request",
+    "youtube:composio_tool_error:Composio read tool rejected the request",
+    "youtube:composio_tool_error:Composio read tool rejected the request",
+    "youtube:composio_tool_error:Composio read tool rejected the request",
+    "youtube:composio_tool_error:Composio read tool rejected the request",
+    "youtube:composio_tool_error:Composio read tool rejected the request"
+  ]
+}

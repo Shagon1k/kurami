@@ -12,7 +12,7 @@ import { kinopoiskReaderUrl, parseKinopoiskWeekend } from "../../src/briefing/ci
 import { parseCinemaRss } from "../../src/briefing/cinema/providers/rss.ts";
 import { normalizeTmdbMovieResults } from "../../src/briefing/cinema/providers/tmdb.ts";
 import { normalizeYouTubeCandidates } from "../../src/briefing/cinema/providers/youtube.ts";
-import { collectCinemaCandidate } from "../../src/briefing/cinema/collector.ts";
+import { collectCinemaCandidate, type CinemaCollectionCandidate } from "../../src/briefing/cinema/collector.ts";
 import { runCinemaCli } from "../../src/briefing/cinema/cli.ts";
 import { selectNewsCandidates, selectTrailerCandidates } from "../../src/briefing/cinema/selection.ts";
 import { composeCinemaEnvelope, composeCinemaFallbackEnvelope } from "../../src/briefing/cinema/composer.ts";
@@ -551,6 +551,85 @@ const fallback = composeCinemaFallbackEnvelope({ candidate: collected, config })
 assert.equal(fallback.data.news.state, "failed");
 assert.equal(fallback.data.news.items.length, 0);
 assert.equal(fallback.state, "partial");
+
+// Sanitized, bounded 2026-10-10 frozen candidate: one usable trailer,
+// 13 identical Composio errors, partial box office, ready premieres/news.
+// Labels/URLs/IDs are synthetic; windows, failure shape and source links are retained.
+const duplicateCandidate: CinemaCollectionCandidate = JSON.parse(await fixture("duplicate-trailer-diagnostics.json"));
+const duplicateCandidateBefore = structuredClone(duplicateCandidate);
+const trailerError = "youtube:composio_tool_error:Composio read tool rejected the request";
+assert.equal(duplicateCandidate.trailers.diagnostics.length, 13);
+assert.ok(duplicateCandidate.trailers.diagnostics.every((item) => item === trailerError));
+const duplicateDraft = {
+  version: 1,
+  localDate: duplicateCandidate.localDate,
+  news: duplicateCandidate.news.candidates.map((item) => ({
+    candidateId: item.id,
+    headline: "Синтетическая новость для проверки сборки Cinema",
+    summary: "Синтетический пересказ проверяет сборку сохранённого кандидата и не утверждает фактов о реальных фильмах.",
+  })),
+  notes: [],
+};
+const composeDuplicate = (candidate = duplicateCandidate) => composeCinemaEnvelope({ candidate, config, draft: duplicateDraft });
+const duplicateComposed = composeDuplicate();
+assert.equal(duplicateComposed.state, "partial");
+assert.equal(duplicateComposed.data.trailers.state, "partial");
+assert.equal(duplicateComposed.data.trailers.items.length, 1);
+assert.deepEqual(duplicateComposed.data.trailers.diagnostics, [trailerError]);
+assert.deepEqual(duplicateComposed.data.trailers.provenance, duplicateCandidate.trailers.provenance);
+assert.deepEqual(duplicateComposed.data.provenance, duplicateCandidate.provenance);
+assert.deepEqual(duplicateComposed.data.boxOffice, duplicateCandidate.boxOffice);
+assert.equal(duplicateComposed.data.premieres.state, "ready");
+assert.equal(duplicateComposed.data.premieres.items.length, 1);
+assert.equal(duplicateComposed.data.news.state, "ready");
+assert.equal(duplicateComposed.data.news.items.length, 1);
+assert.deepEqual(duplicateComposed.data.quality.diagnostics, [...new Set(duplicateCandidate.diagnostics)]);
+assert.match(duplicateComposed.data.quality.summary, /частично/u);
+assert.equal(cinemaEnvelopePromotable(duplicateComposed), true);
+assert.deepEqual(duplicateCandidate, duplicateCandidateBefore, "composition must not rewrite frozen input");
+
+const failedTrailers = structuredClone(duplicateCandidate);
+failedTrailers.trailers = { ...failedTrailers.trailers, state: "failed", candidates: [], provenance: [] };
+const failedTrailerEnvelope = composeDuplicate(failedTrailers);
+assert.equal(failedTrailerEnvelope.state, "partial");
+assert.equal(failedTrailerEnvelope.data.trailers.state, "failed");
+assert.deepEqual(failedTrailerEnvelope.data.trailers.items, []);
+assert.deepEqual(failedTrailerEnvelope.data.trailers.diagnostics, [trailerError]);
+assert.equal(failedTrailerEnvelope.data.news.state, "ready");
+assert.equal(cinemaEnvelopePromotable(failedTrailerEnvelope), true);
+const duplicateFallback = composeCinemaFallbackEnvelope({ candidate: duplicateCandidate, config });
+assert.equal(duplicateFallback.state, "partial");
+assert.equal(duplicateFallback.data.news.state, "failed");
+assert.deepEqual(duplicateFallback.data.trailers.diagnostics, [trailerError]);
+assert.ok(duplicateFallback.data.quality.diagnostics.includes("cinema-news:editorial_unavailable"));
+
+// All diagnostic boundaries normalize exact duplicates in first-seen order,
+// but the parser still rejects duplicate lists and malformed/over-limit values.
+for (const section of ["boxOffice", "trailers", "premieres", "news"] as const) {
+  const repeated = structuredClone(duplicateCandidate);
+  repeated[section].diagnostics = [trailerError, trailerError, "fixture:distinct_failure", trailerError];
+  assert.deepEqual(composeDuplicate(repeated).data[section].diagnostics, [trailerError, "fixture:distinct_failure"]);
+  const invalidEnvelope = structuredClone(duplicateComposed);
+  invalidEnvelope.data[section].diagnostics = [trailerError, trailerError];
+  assert.throws(() => parseCinemaEnvelope(invalidEnvelope), /diagnostics must be unique/u);
+}
+const duplicateQuality = structuredClone(duplicateComposed);
+duplicateQuality.data.quality.diagnostics = [trailerError, trailerError];
+assert.throws(() => parseCinemaEnvelope(duplicateQuality), /diagnostics must be unique/u);
+for (const diagnostics of [[" "], Array.from({ length: 21 }, (_, index) => `fixture:error-${index}`)]) {
+  const invalid = structuredClone(duplicateCandidate);
+  invalid.trailers.diagnostics = diagnostics;
+  assert.throws(() => composeDuplicate(invalid), /diagnostics.*(?:non-empty text|at most 20 items)/u);
+}
+const tooManyQuality = structuredClone(duplicateCandidate);
+tooManyQuality.diagnostics = Array.from({ length: 41 }, (_, index) => `fixture:error-${index}`);
+assert.throws(() => composeDuplicate(tooManyQuality), /quality.diagnostics must contain at most 40 items/u);
+const duplicateProvenance = structuredClone(duplicateCandidate);
+duplicateProvenance.trailers.provenance.push(duplicateProvenance.trailers.provenance[0]!);
+assert.throws(() => composeDuplicate(duplicateProvenance), /provenance must be unique/u);
+const missingProvenance = structuredClone(duplicateCandidate);
+missingProvenance.provenance = missingProvenance.provenance.filter((item) => item.provider !== "YouTube");
+assert.throws(() => composeDuplicate(missingProvenance), /missing provenance for YouTube/u);
 
 const source = (id: string, provider: string, url: string) => ({
   id,
