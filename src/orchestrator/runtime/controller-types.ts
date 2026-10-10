@@ -21,4 +21,5 @@ export type ProjectsRegistry = {
 
 export type ProgressRow = RunRow & {
   title: string | null;
+  repository: string;
 };

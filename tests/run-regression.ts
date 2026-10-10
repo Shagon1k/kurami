@@ -69,6 +69,7 @@ const suites = [
   "test:ideas",
   "test:quick-capture",
   "test:release",
+  "test:lifecycle-feedback",
   "test:preview-slots",
   "test:preview-ingress",
   "test:preview-ttl",

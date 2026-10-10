@@ -61,7 +61,7 @@ Inside Kurami there are five parts, each with one job. The **board poll** reads 
 - **Controller** — creates the branch `TT-42_add-dark-mode-toggle` and a working copy, and starts Codex the next minute.
 - **Codex** — writes code for forty minutes, pushes commits and opens a PR. Kurami follows CI for that exact commit.
 - **Kurami** — sees that Codex finished its turn, releases the session and moves the card to Human Review. Discord shows "Ready for review".
-- **You** — read the PR, optionally ask for an AI review or a preview, merge the PR and move the card to Done. Kurami confirms that the PR really is merged and removes the branch and working copy.
+- **You** — read the PR, optionally ask for an AI review or a preview, and merge the PR. Kurami verifies the exact managed delivery, stops its preview and releases the clean, unowned working copy. Accepting the whole issue and moving it to Done remain separate decisions.
 :::
 ::::
 

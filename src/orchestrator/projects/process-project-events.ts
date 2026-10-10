@@ -18,6 +18,17 @@ import {
   type RuntimeSettingsBaseConfig,
 } from "../settings/runtime-settings.ts";
 import { openOrchestratorDatabase } from "../state/database.ts";
+import { lifecycleFeedbackKey, type LifecycleSnapshot } from "./lifecycle-feedback.ts";
+
+export const ISSUE_STATE_OBSERVATION_NOTE = "Issue close/reopen observed; no automatic run start, cancellation or Project move. Owner board intent is unchanged.";
+
+/** Separate observation lane: never pass close/reopen to status admission. */
+export function acknowledgeIssueStateObservation(database: DatabaseSync, eventId: string): boolean {
+  const event = database.prepare("SELECT event_kind FROM project_events WHERE event_id=?").get(eventId);
+  if (event?.event_kind !== "issue_state") return false;
+  markEvent(database, eventId, "ignored", ISSUE_STATE_OBSERVATION_NOTE);
+  return true;
+}
 
 process.umask(0o077);
 
@@ -456,6 +467,21 @@ function createRun(
       : `${config.mode === "dry_run" ? "Dry-run" : "Live run"} created`,
   );
 
+  // Explicit new-trigger enqueue, committed with admission and its event outcome.
+  // INSERT-only: replay cannot overwrite a delivery revision or create fence,
+  // and old rejected runs without this enqueue never become a rollout backfill.
+  if (rejected && config.mode === "live") {
+    const snapshot: LifecycleSnapshot = {
+      runId, revision: 0, endpoint: { repository: event.repository, issueNumber: event.issue_number },
+      runState: state, cancelled: false, newerRunId: null, projectState: event.to_status,
+      cleanup: "done", reason: wipRejected ? "WIP limit; activation refused" : "Resource guard; activation refused",
+      expectedPr: null, merge: null, request: null,
+    };
+    database.prepare(`INSERT OR IGNORE INTO github_lifecycle_snapshots
+      (delivery_key,revision,snapshot_json) VALUES(?,0,?)`)
+      .run(lifecycleFeedbackKey(snapshot), JSON.stringify(snapshot));
+  }
+
   return {
     eventId: event.event_id,
     action: rejected ? "rejected" : "created",
@@ -732,6 +758,10 @@ export async function runProjectEventConsumerCli(): Promise<void> {
         .all() as EventRow[];
 
       for (const event of events) {
+        if (acknowledgeIssueStateObservation(database, event.event_id)) {
+          results.push({ eventId: event.event_id, action: "ignored", reason: ISSUE_STATE_OBSERVATION_NOTE });
+          continue;
+        }
         const project = projects.projects[event.project];
         if (!project) {
           const reason = `Unknown project: ${event.project}`;
@@ -770,6 +800,14 @@ export async function runProjectEventConsumerCli(): Promise<void> {
       throw error;
     }
 
+    // The existing poller wrapper captures stdout for owner-visible trigger feedback.
+    // No run means there is no authenticated run comment or run progress card.
+    for (const result of results) {
+      const hasRun = database.prepare(`SELECT 1 FROM runs r JOIN project_events e
+        ON e.project=r.project AND e.item_id=r.item_id WHERE e.event_id=? LIMIT 1`).get(result.eventId);
+      if (!hasRun && process.env.CONSUMER_QUIET === "1") process.stdout.write(`${JSON.stringify({ event: "project_trigger_outcome", eventId: result.eventId, action: result.action,
+        feedback: "No eligible run: outcome retained in event ledger; no run started or cancelled by an issue observation." })}\n`);
+    }
     if (process.env.CONSUMER_QUIET !== "1") {
       process.stdout.write(
         `${JSON.stringify({

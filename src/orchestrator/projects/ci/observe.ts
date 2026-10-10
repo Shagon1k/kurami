@@ -5,6 +5,8 @@ import { resolve } from "node:path";
 import { resolveKuramiHome } from "../../../core/kurami-home.ts";
 import { DatabaseSync } from "node:sqlite";
 import { parse } from "yaml";
+import { requestMergedDeliveryCompletion } from "./merged-delivery.ts";
+import type { SourceProject } from "../worktrees/refresh-source.ts";
 import { openOrchestratorDatabase } from "../../state/database.ts";
 
 process.umask(0o077);
@@ -28,8 +30,7 @@ type ValidatedCiPolicy =
       required_checks: string[];
       missing_grace_minutes: number;
     };
-type ProjectConfig = {
-  repository: string;
+type ProjectConfig = SourceProject & {
   ci?: CiPolicy;
 };
 type ProjectsRegistry = {
@@ -60,7 +61,7 @@ type PullRequest = {
   merged_at?: string | null;
   merge_commit_sha?: string | null;
   head: { ref: string; sha: string; repo: { full_name: string } | null };
-  base: { repo: { full_name: string } | null };
+  base: { ref?: string; repo: { full_name: string } | null };
 };
 type CheckRun = {
   id: number;
@@ -311,6 +312,7 @@ function pullRequests(
 function observeRun(
   run: RunRow,
   policy: ValidatedCiPolicy,
+  baseBranch: string,
   existing: ExistingSnapshot | undefined,
   now: string,
 ): Observation {
@@ -321,22 +323,16 @@ function observeRun(
       const closed = pullRequests(run.repository, run.branch_name, "closed")
         .filter((pull) => Boolean(pull.merged_at))
         .sort((left, right) => Date.parse(right.merged_at ?? "") - Date.parse(left.merged_at ?? ""));
+      if (closed.length > 1) throw new Error("Multiple merged PRs match the managed branch");
       const merged = closed[0];
       if (merged) {
-        return {
-          pullRequestNumber: merged.number,
-          pullRequestUrl: merged.html_url,
-          pullRequestTitle: merged.title,
-          headSha: merged.head.sha,
-          aggregateState: existing?.head_sha === merged.head.sha
-            ? existing.aggregate_state
-            : "passed",
-          checks: [],
-          error: null,
-          merged: true,
-        };
+        if (merged.state !== "closed" || merged.base.ref !== baseBranch ||
+          merged.number !== existing?.pull_request_number ||
+          merged.html_url !== existing.pull_request_url || merged.head.sha !== existing.head_sha)
+          throw new Error("Merged PR does not match the tracked managed delivery");
+        discoveredPull = merged;
       }
-      return {
+      if (!discoveredPull) return {
         pullRequestNumber: null,
         pullRequestUrl: null,
         pullRequestTitle: null,
@@ -347,7 +343,7 @@ function observeRun(
         merged: false,
       };
     }
-    if (pulls.length !== 1)
+    if (pulls.length !== 1 && !discoveredPull)
       return {
         pullRequestNumber: null,
         pullRequestUrl: null,
@@ -358,7 +354,7 @@ function observeRun(
         error: "Multiple pull requests match the managed branch",
         merged: false,
       };
-    const pull = pulls[0]!;
+    const pull = discoveredPull ?? pulls[0]!;
     discoveredPull = pull;
     if (!policy.enabled) {
       return {
@@ -369,7 +365,7 @@ function observeRun(
         aggregateState: "passed",
         checks: [],
         error: null,
-        merged: false,
+        merged: Boolean(pull.merged_at),
       };
     }
     const firstObservedAt =
@@ -397,7 +393,7 @@ function observeRun(
       aggregateState: normalized.aggregateState,
       checks: normalized.checks,
       error: null,
-      merged: false,
+      merged: Boolean(pull.merged_at),
     };
   } catch (error) {
     return {
@@ -540,20 +536,6 @@ function storeObservation(
         )
     `)
     .run(observation.headSha, observation.headSha, run.run_id, observation.headSha);
-  if (observation.merged) {
-    database
-      .prepare(`
-        UPDATE runs
-        SET completion_requested_at = COALESCE(
-              completion_requested_at,
-              strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
-            ),
-            updated_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
-        WHERE run_id = ? AND state IN ('parked_review', 'remote_owned')
-          AND stop_reason IS NULL
-      `)
-      .run(run.run_id);
-  }
 }
 
 export async function runCiObserverCli(): Promise<void> {
@@ -585,7 +567,7 @@ export async function runCiObserverCli(): Promise<void> {
       const now = new Date().toISOString();
       const observation =
         run.repository === projectConfig.repository
-          ? observeRun(run, policy, existing, now)
+          ? observeRun(run, policy, projectConfig.workspace.base_branch, existing, now)
           : {
               pullRequestNumber: null,
               pullRequestUrl: null,
@@ -597,7 +579,13 @@ export async function runCiObserverCli(): Promise<void> {
               merged: false,
             };
       if (apply) storeObservation(database, run, observation, now);
+      const delivery = apply && observation.merged && observation.pullRequestNumber &&
+        observation.pullRequestUrl && observation.headSha
+        ? requestMergedDeliveryCompletion(database, projectConfig, run.run_id, {
+            number: observation.pullRequestNumber, url: observation.pullRequestUrl, headSha: observation.headSha,
+          }) : null;
       results.push({
+        delivery,
         runId: run.run_id,
         state: observation.aggregateState,
         headSha: observation.headSha,

@@ -4,6 +4,7 @@ import { basename, dirname, relative, resolve } from "node:path";
 import { resolveKuramiHome } from "../../../core/kurami-home.ts";
 import { DatabaseSync } from "node:sqlite";
 import { parse } from "yaml";
+import { validateMergedDeliverySource } from "../ci/merged-delivery.ts";
 import { openOrchestratorDatabase } from "../../state/database.ts";
 
 process.umask(0o077);
@@ -36,6 +37,7 @@ type RunResource = {
   tmux_session_name: string | null;
   preview_id: string | null;
   active_preview_lease: number;
+  merged_delivery_json: string | null;
 };
 
 type ReleasePlan = {
@@ -123,6 +125,7 @@ function verifyMergedPullRequest(
   baseBranch: string,
   branchName: string,
   headSha: string,
+  expected?: { number: number; url: string },
 ): {
   verified: boolean;
   number: number | null;
@@ -169,7 +172,8 @@ function verifyMergedPullRequest(
     const candidates = JSON.parse(result.stdout) as PullRequestEvidence[];
     const merged = candidates.find(
       (pullRequest) =>
-        pullRequest.mergedAt !== null && pullRequest.headRefOid === headSha,
+        pullRequest.mergedAt !== null && pullRequest.headRefOid === headSha &&
+        (!expected || (pullRequest.number === expected.number && pullRequest.url === expected.url)),
     );
     return merged
       ? { verified: true, number: merged.number, url: merged.url, error: null }
@@ -201,6 +205,9 @@ function loadRun(database: DatabaseSync, runId: string): RunResource {
              r.execution_mode, r.stop_reason, rr.resource_state, rr.base_sha,
              rr.worktree_path, rr.branch_name, rr.tmux_session_name,
              rr.preview_id,
+             (SELECT h.details_json FROM run_state_history h WHERE h.run_id=r.run_id
+              AND h.reason='merged_delivery_completion_requested'
+              ORDER BY h.sequence DESC LIMIT 1) AS merged_delivery_json,
              EXISTS (
                SELECT 1 FROM preview_leases pl
                WHERE pl.run_id = r.run_id AND pl.state <> 'released'
@@ -326,12 +333,17 @@ async function buildPlan(
   let mergedPullRequestNumber: number | null = null;
   let mergedPullRequestUrl: string | null = null;
   let mergeVerificationError: string | null = null;
-  if (refreshRemote && !mergedIntoBase) {
+  const delivery = run.stop_reason === "completed" && run.merged_delivery_json
+    ? JSON.parse(run.merged_delivery_json) as { number: number; url: string; headSha: string }
+    : null;
+  if (delivery && headSha !== delivery.headSha) fail("Merged delivery source changed; refusing release");
+  if (refreshRemote && (!mergedIntoBase || delivery)) {
     const pullRequest = verifyMergedPullRequest(
       project.repository,
       project.workspace.base_branch,
       run.branch_name,
       headSha,
+      delivery ?? undefined,
     );
     completionVerified = pullRequest.verified;
     mergeEvidence = pullRequest.verified ? "github_pr" : null;
@@ -380,12 +392,13 @@ async function buildPlan(
   };
 }
 
-function claimRelease(database: DatabaseSync, run: RunResource): void {
+function claimRelease(database: DatabaseSync, run: RunResource, validate?: () => void): void {
   database.exec("BEGIN IMMEDIATE");
   try {
     const current = loadRun(database, run.run_id);
+    if (validate) validate();
     if (
-      current.run_state !== run.run_state ||
+      current.run_state !== run.run_state || current.stop_reason !== run.stop_reason ||
       !["provisioned", "partial", "releasing"].includes(current.resource_state) ||
       current.tmux_session_name !== null
     ) {
@@ -603,7 +616,9 @@ export async function runReleaseWorktreeCli(): Promise<void> {
       return;
     }
 
-    claimRelease(database, run);
+    claimRelease(database, run, run.stop_reason === "completed" && run.merged_delivery_json
+      ? () => validateMergedDeliverySource(database, registry.projects[run.project]!, run.run_id, plan.headSha)
+      : undefined);
     try {
       if (plan.worktreeExists) {
         git(plan.canonicalRepository, ["worktree", "remove", plan.worktreePath]);

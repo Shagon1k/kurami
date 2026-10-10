@@ -36,6 +36,14 @@ self ctl "delete copy and branch"
 note ctl "archived"
 ```
 
+## Merge is delivery, not issue acceptance
+
+A merged exact managed PR can complete a quiescent `parked_review` run without a Project Done transition. Kurami checks the tracked PR identity, exact HEAD and passing CI, clean canonical worktree, no active owner or worker, no newer run or pending control, and owner-reviewed exact preview evidence when `preview-required` applies. A previously released reviewed preview still counts for that SHA. Remote-owned work is retained, not seized.
+
+The observer records `merged_delivery_completion_requested`, not a synthetic Done event. The ordinary controller then removes preview routing/runtime and releases its lease before the guarded worktree release. Release checks the same PR and source again; only successful removal produces `archived` / `released` and a Completed run card. A refusal preserves work and reports its reason; cancellation is never turned into completion.
+
+This does **not** close the issue or change its Project status. A partial PR uses `Refs #N`; the remaining acceptance stays open and the owner chooses Backlog or a follow-up. For fully accepted deliveries, GitHub closing keywords (`Closes #N`) can close the issue on merge into the default branch; a configured Project closed-issue automation can then move it to Done. Kurami neither enables that automation nor claims a partial delivery satisfies the issue.
+
 ## Two intents
 
 Kurami tells two intents apart and records them in `stop_reason`: `completed` — you finished the work, `cancelled` — you discarded it. The distinction matters because deleting after completion is safe when the commits are already in the main branch, while deleting after cancellation can lose someone's work.

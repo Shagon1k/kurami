@@ -81,6 +81,8 @@ type SnapshotItem = {
 };
 
 type Transition = {
+  eventKind: "project_status" | "issue_state";
+  previousIssueState: string | null;
   eventId: string;
   observedAt: string;
   project: string;
@@ -276,7 +278,7 @@ async function fetchProject(
   return { items, rateLimit };
 }
 
-function persistProjectSnapshot(
+export function persistProjectSnapshot(
   database: DatabaseSync,
   project: string,
   capturedAt: string,
@@ -290,15 +292,15 @@ function persistProjectSnapshot(
     .get(project) as { last_captured_at: string } | undefined;
   const mode = pollState ? "poll" : "baseline";
   const getPrevious = database.prepare(`
-    SELECT status, last_seen_at
+    SELECT status, issue_state, last_seen_at
     FROM project_items
     WHERE project = ? AND item_id = ?
   `);
   const upsertItem = database.prepare(`
     INSERT INTO project_items (
       project, item_id, content_id, content_type, repository, issue_number,
-      title, url, status, present, first_seen_at, last_seen_at
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?, ?)
+      title, url, status, issue_state, present, first_seen_at, last_seen_at
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?, ?)
     ON CONFLICT(project, item_id) DO UPDATE SET
       content_id = excluded.content_id,
       content_type = excluded.content_type,
@@ -307,6 +309,7 @@ function persistProjectSnapshot(
       title = excluded.title,
       url = excluded.url,
       status = excluded.status,
+      issue_state = excluded.issue_state,
       present = 1,
       last_seen_at = excluded.last_seen_at
   `);
@@ -314,8 +317,8 @@ function persistProjectSnapshot(
     INSERT INTO project_events (
       event_id, observed_at, project, item_id, content_id, content_type,
       repository, issue_number, title, url, from_status, to_status,
-      payload_json
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      payload_json, event_kind
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     ON CONFLICT(event_id) DO NOTHING
   `);
   const markAbsent = database.prepare(
@@ -345,59 +348,69 @@ function persistProjectSnapshot(
 
     for (const item of items) {
       const previous = getPrevious.get(project, item.itemId) as
-        | { status: string | null; last_seen_at: string }
+        | { status: string | null; issue_state: string | null; last_seen_at: string }
         | undefined;
 
-      if (mode === "poll" && previous && previous.status !== item.status) {
-        const eventId = createHash("sha256")
-          .update(
-            [
-              project,
-              item.itemId,
-              previous.last_seen_at,
-              previous.status ?? "none",
-              item.status ?? "none",
-            ].join("\u0000"),
-          )
-          .digest("hex");
-        const transition: Transition = {
-          eventId,
-          observedAt: capturedAt,
-          project,
-          itemId: item.itemId,
-          contentId: item.contentId,
-          contentType: item.contentType,
-          repository: item.repository,
-          number: item.number,
-          title: item.title,
-          url: item.url,
-          from: previous.status,
-          to: item.status,
-          issueState: item.issueState,
-          labels: item.labels,
-          hasDescription: item.hasDescription,
-        };
-        const insertion = insertEvent.run(
-          eventId,
-          capturedAt,
-          project,
-          item.itemId,
-          item.contentId,
-          item.contentType ?? "Unknown",
-          item.repository,
-          item.number,
-          item.title,
-          item.url,
-          previous.status,
-          item.status,
-          JSON.stringify(transition),
-        );
+      for (const eventKind of ["project_status", "issue_state"] as const) {
+        const changed = previous && (eventKind === "project_status"
+          ? previous.status !== item.status
+          : previous.issue_state !== null && item.issueState !== null && previous.issue_state !== item.issueState);
+        if (mode === "poll" && previous && changed) {
+          const eventId = createHash("sha256")
+            .update(
+              [
+                eventKind,
+                item.issueState ?? "none",
+                project,
+                item.itemId,
+                previous.last_seen_at,
+                previous.status ?? "none",
+                item.status ?? "none",
+              ].join("\u0000"),
+            )
+            .digest("hex");
+          const transition: Transition = {
+            eventKind,
+            previousIssueState: previous.issue_state,
+            eventId,
+            observedAt: capturedAt,
+            project,
+            itemId: item.itemId,
+            contentId: item.contentId,
+            contentType: item.contentType,
+            repository: item.repository,
+            number: item.number,
+            title: item.title,
+            url: item.url,
+            from: previous.status,
+            to: item.status,
+            issueState: item.issueState,
+            labels: item.labels,
+            hasDescription: item.hasDescription,
+          };
+          const insertion = insertEvent.run(
+            eventId,
+            capturedAt,
+            project,
+            item.itemId,
+            item.contentId,
+            item.contentType ?? "Unknown",
+            item.repository,
+            item.number,
+            item.title,
+            item.url,
+            previous.status,
+            item.status,
+            JSON.stringify(transition),
+            eventKind,
+          );
 
-        if (Number(insertion.changes) === 1) {
-          transitions.push(transition);
+          if (Number(insertion.changes) === 1) {
+            transitions.push(transition);
+          }
         }
-      }
 
+      }
       upsertItem.run(
         project,
         item.itemId,
@@ -408,6 +421,7 @@ function persistProjectSnapshot(
         item.title,
         item.url,
         item.status,
+        item.issueState,
         capturedAt,
         capturedAt,
       );
@@ -454,6 +468,7 @@ function formatTransitions(transitions: Transition[]): string {
       const issue = transition.number === null ? "item" : `#${transition.number}`;
       const title = transition.title ?? "Untitled item";
       const url = transition.url ? `\n${transition.url}` : "";
+      if (transition.eventKind === "issue_state") return `${transition.project} ${issue}: issue ${transition.previousIssueState} → ${transition.issueState}. Observed only: no automatic start, cancellation or board move.\n${title}${url}`;
       return `${transition.project} ${issue}: ${transition.from ?? "No status"} → ${transition.to ?? "No status"}\n${title}${url}`;
     })
     .join("\n\n");

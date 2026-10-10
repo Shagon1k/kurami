@@ -1,4 +1,5 @@
 import { createHash } from "node:crypto";
+import { lifecycleFeedbackKey } from "../projects/lifecycle-feedback.ts";
 import type { DatabaseSync } from "node:sqlite";
 import { baseRunSelect, previewNeedsExtension } from "./run-read-model.ts";
 import { previewEvidenceCurrent, previewRequirementSatisfied, projectDiscoveryFresh } from "./run-predicates.ts";
@@ -368,7 +369,7 @@ export function reconcileProgressCards(
   const runs = database
     .prepare(
       `
-    SELECT base.*, pe.title
+    SELECT base.*, pe.title, r.repository
     FROM (${baseRunSelect()}) AS base
     JOIN runs r ON r.run_id = base.run_id
     JOIN project_events pe ON pe.event_id = r.trigger_event_id
@@ -423,6 +424,10 @@ export function reconcileProgressCards(
   const heartbeatBucket = Math.floor(Date.now() / (5 * 60 * 1_000));
   for (const run of runs) {
     const progress = progressFor(run, config);
+    const feedback = database.prepare("SELECT delivery_error FROM github_lifecycle_feedback WHERE delivery_key=?").get(
+      lifecycleFeedbackKey({ runId: run.run_id, endpoint: { repository: run.repository, issueNumber: run.issue_number } }),
+    );
+    if (feedback?.delivery_error) progress.detail += `\nTicket feedback pending: ${feedback.delivery_error}.`;
     const digest = createHash("sha256")
       .update(
         JSON.stringify({

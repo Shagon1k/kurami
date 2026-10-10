@@ -26,6 +26,7 @@ import {
   reconcileBeforePlanning,
 } from "./controller-cycle.ts";
 import { openOrchestratorDatabase } from "../state/database.ts";
+import { deliverControllerTicketFeedback } from "../projects/lifecycle-feedback-production.ts";
 
 process.umask(0o077);
 
@@ -296,6 +297,7 @@ export async function runOrchestratorControllerCli(): Promise<void> {
     }
   }
   reconcileAfterCycle(database, config);
+  if (await deliverControllerTicketFeedback(database, orchestratorHome)) reconcileAfterCycle(database, config);
   database.close();
   ledger.forgetStale();
   await ledger.save();

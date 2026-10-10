@@ -70,6 +70,10 @@ try {
   await assert.rejects(requestProjectStatus(input("Done"),"owner",options),/Предыдущее/);
   assert.equal(mutations.length,1);
 
+  // Preserve the schema-34 compatibility assertions above; run the current
+  // production poller against the current schema rather than a frozen fixture.
+  for(const file of readdirSync(migrations).filter(name=>/^\d+_.*\.sql$/.test(name) && name > "034_project_status_requests.sql").sort()) database.exec(readFileSync(join(migrations,file),"utf8"));
+
   // Exercise the unmodified normal poller against a synthetic GitHub response.
   const responsePath=join(home,"remote.json"); const pollGh=join(home,"bin/gh");
   writeFileSync(pollGh,`#!${process.execPath}\nimport {readFileSync} from 'node:fs';process.stdout.write(readFileSync(process.env.FIXTURE_REMOTE,'utf8'));\n`,{mode:0o700});

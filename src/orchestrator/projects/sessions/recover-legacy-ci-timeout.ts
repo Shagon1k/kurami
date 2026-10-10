@@ -30,6 +30,10 @@ function command(executable: string, args: string[]): string {
 export function assertNoLegacyWriter(worktree: string, session: string): void {
   const tmux = spawnSync("tmux", ["has-session", "-t", `=${session}`], { encoding: "utf8" });
   requireEvidence(tmux.status === 1, "original supervisor alive or tmux evidence unavailable");
+  assertNoWorktreeWriter(worktree);
+}
+
+export function assertNoWorktreeWriter(worktree: string): void {
   // Check any local Codex process, including a detached app-server, using this copy.
   for (const pid of readdirSync("/proc").filter((value) => /^\d+$/u.test(value))) {
     let argv: string;
