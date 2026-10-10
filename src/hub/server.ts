@@ -71,7 +71,9 @@ export function createHubServer(options:{releaseDrift?:{latest:DriftItem[]};snap
     if(collecting)return collecting;
     collecting=(async()=>{
       const base=snapshot();const live=account?await account():null;
-      const drift:HubAlert[]=releaseDrift.latest.map(item=>({id:`release-${item.code}`,severity:"warning",code:"release_drift",subject:"Kurami",group:"system:release",title:"",next:"release",actor:"owner",detail:item.code,texts:{ru:item.ru,en:item.en}}));
+      const pending=releaseDrift.latest.some(item=>item.code==="checkout_dirty");
+      const visibleDrift=pending?releaseDrift.latest.filter(item=>item.code==="checkout_dirty"||item.code==="checkout_behind"):releaseDrift.latest;
+      const drift:HubAlert[]=visibleDrift.map(item=>({id:`release-${item.code}`,severity:"warning",code:"release_drift",subject:"Kurami",group:"system:release",title:"",next:"release",actor:"owner",detail:item.code,texts:item.code==="checkout_dirty"?{ru:"Есть изменения для следующего релиза",en:"Changes await the next release"}:{ru:item.ru,en:item.en}}));
       const operations=base.operations?{...base.operations,alerts:[...base.operations.alerts,...drift]}:base.operations;
       const value={...base,operations,codex:{...base.codex,...(live?{account:live,limits:live.state==="live"?live.limits:base.codex.limits}:{})}};
       cached={at:Date.now(),value};return value;

@@ -87,6 +87,11 @@ New UI must look right in both without theme-specific product code.
   screenshots and audits exactly these by default, and `check-pages.ts --shots` shoots both. Run
   `npm run test:ui-browser:all` (adds Paper dark and Neon light) when changing the library,
   tokens or theme files.
+- Browser audits use 39 representative pages, including both languages, app states, tables and
+  diagrams: 156 page/width/theme combinations by default, 312 with all four variants. Use
+  `npm run test:ui-browser:full` to add every documentation route (1360 combinations), when
+  changing documentation layout across routes or before a broad visual audit. Do not repeat
+  the full documentation sweep for a local component or product change.
 
 ## Docs site: pages are Markdown in `src/human-docs/content/pages/`
 

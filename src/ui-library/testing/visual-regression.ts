@@ -1,7 +1,6 @@
-// Joint Digest + Docs browser regression. Checks the theme runtime, then audits every Docs route and
-// every Digest page fixture in light/dark at phone and desktop widths (accessibility and component
-// inventory), and screenshots a representative set, optionally compared with a baseline run.
-// Audit options: --screens-only --viewports --widths=320,390,768,1280
+// Joint app browser regression. Audits and screenshots representative page types at phone and desktop
+// widths, including both languages and themes. --all-docs also audits every documentation route.
+// Audit options: --screens-only --all-docs --viewports --widths=320,390,768,1280
 // Usage: node src/ui-library/testing/visual-regression.ts --out=<dir> [--compare=<baseline dir>] [--themes=light,neon|all] [/absolute/path/to/chromium]
 // Manual review: --out=<dir> --serve=<port> serves the fixture site on loopback without running checks.
 import {execFileSync} from "node:child_process";
@@ -43,7 +42,7 @@ const allThemes=["light","dark","neon","neon-light"] as const;
 const requestedThemes=process.argv.find(arg=>arg.startsWith("--themes="))?.slice(9);
 const themes=(requestedThemes==="all"?[...allThemes]:requestedThemes?requestedThemes.split(","):["light","neon"]) as (typeof allThemes)[number][];
 if(!themes.length||themes.some(theme=>!(allThemes as readonly string[]).includes(theme)))throw new Error(`Unknown theme; use ${allThemes.join(",")} or all`);
-// Screenshots: a representative set. The audit covers these plus every Docs route in both languages.
+// A representative set for both audits and screenshots; --all-docs adds every Docs route.
 const availablePages:Record<string,string>={
   "digest-daily":"/digest/daily.html",
   "digest-daily-en":"/digest/daily-en.html",
@@ -443,6 +442,7 @@ async function main(){
   const out=args.find(arg=>arg.startsWith("--out="))?.slice(6);
   const compare=args.find(arg=>arg.startsWith("--compare="))?.slice(10);
   const screensOnly=args.includes("--screens-only");
+  const allDocs=args.includes("--all-docs")&&!screensOnly;
   const viewports=args.includes("--viewports");
   const stress=args.includes("--stress");
   const keyboard=args.includes("--keyboard");
@@ -499,7 +499,7 @@ async function main(){
       if(!sorting)throw new Error("Shared Stocks select must preserve native sorting and original order");
     }
     const audited:Record<string,string>={...pages};
-    if(!screensOnly)for(const lang of ["en","ru"])for(const route of ["","changelog",...docsPages.map(page=>page.slug)])audited[`docs-${lang}-${route||"home"}`]??=`/${lang}/${route?route+"/":""}`;
+    if(allDocs)for(const lang of ["en","ru"])for(const route of ["","changelog",...docsPages.map(page=>page.slug)])audited[`docs-${lang}-${route||"home"}`]??=`/${lang}/${route?route+"/":""}`;
     for(const [name,path] of Object.entries(audited))if(!Object.values(pages).includes(path)||name in pages)for(const width of widths)for(const theme of themes){
       await devtools.call("Emulation.setTouchEmulationEnabled",{enabled:width<600,maxTouchPoints:1});
       await devtools.call("Emulation.setDeviceMetricsOverride",{width,height:900,deviceScaleFactor:1,mobile:width<600});
@@ -558,7 +558,7 @@ async function main(){
   }finally{await close();server.close();rmSync(served,{recursive:true,force:true});}
   writeFileSync(join(output,"manifest.json"),JSON.stringify(manifest,null,2));
   if(viewports)writeFileSync(join(output,"layouts.json"),JSON.stringify(layouts,null,2));
-  writeFileSync(join(output,"audit.json"),JSON.stringify({audited:auditedCount,screenshots:Object.keys(manifest).length,widths,themes,stress,keyboardChecks,audit,contrastReview},null,2));
+  writeFileSync(join(output,"audit.json"),JSON.stringify({coverage:allDocs?"all-docs":"representative",audited:auditedCount,screenshots:Object.keys(manifest).length,widths,themes,stress,keyboardChecks,audit,contrastReview},null,2));
   if(Object.keys(audit).length){console.log(JSON.stringify({ok:false,audit},null,1));process.exitCode=1;return;}
   if(!compare){console.log(JSON.stringify({ok:true,themeRuntime:process.env.KURAMI_UI_PAGES?"skipped: page-scoped run":"verified",audited:auditedCount,screenshots:Object.keys(manifest).length,contrastReviewPages:Object.keys(contrastReview).length,out:output}));return;}
   const baseline=JSON.parse(readFileSync(resolve(compare,"manifest.json"),"utf8")) as Record<string,string>;

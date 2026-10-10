@@ -178,6 +178,23 @@ projects:
     assert.match(fragment,/Release the changes/);
   }finally{drifting.close();}
 
+  const pending=createHubServer({snapshot:()=>snapshot,releaseDrift:{latest:[
+    {code:"checkout_dirty",ru:"В рабочей версии есть незакоммиченные правки",en:"The live version has uncommitted changes"},
+    {code:"service_stale",ru:"Не перезапущены после выкладки: briefing",en:"Not restarted after the update: briefing"},
+    {code:"hermes_copy_stale",ru:"Hermes: не синхронизированы навыки",en:"Hermes: skills not synchronized"},
+    {code:"checkout_behind",ru:"Рабочая версия позади main на 2 коммита",en:"The live version is 2 commits behind main"},
+  ]}});
+  await new Promise<void>(done=>pending.listen(0,"127.0.0.1",done));
+  try{
+    const url=`http://127.0.0.1:${(pending.address() as {port:number}).port}/api/fragment`;
+    const en=await (await fetch(`${url}?lang=en`)).text();
+    assert.match(en,/Release · Changes await the next release/);
+    assert.match(en,/Release · The live version is 2 commits behind main/,"remote drift remains visible while changes are pending");
+    assert.doesNotMatch(en,/Not restarted after the update: briefing|Hermes: skills not synchronized/,"pending release steps do not become extra dashboard warnings");
+    const ru=await (await fetch(`${url}?lang=ru`)).text();
+    assert.match(ru,/Есть изменения для следующего релиза/);
+  }finally{pending.close();}
+
   const server=createHubServer({snapshot:()=>snapshot});
   await new Promise<void>(done=>server.listen(0,"127.0.0.1",done));
   const port=(server.address() as {port:number}).port;

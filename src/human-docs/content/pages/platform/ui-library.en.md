@@ -155,7 +155,7 @@ Long identifiers wrap within stacked Docs table rows.
 
 ## Kurami
 
-Kurami the character (not the fox logo) is the `renderKuramiMood` component with twelve states: calm, working, asleep, offline, up to date, peeking, merged, alert, thinking, your move, found a problem, welcome. She always sits in a medallion of one size: a disc behind her, the figure clipped inside the ring, with her head, ears and tails free to break out across the upper 70% of the portal. The lower 30% stays inside the ring, leaving its rim and working spark visible. In Paper the ring is drawn in ink and she breathes slightly; in Neon the ring lights up and glows; while working a spark runs around the ring, on alert she gives a short nudge or the glow quickens. With reduced motion there is no animation. `renderKuramiState` places her next to a heading and a line of text, for empty, offline and error states, including phones. In the installed phone app, pull-to-refresh shows her peeking from the top. Hub → Appearance → "Kurami character" turns her off in every app.
+Kurami the character (not the fox logo) is the `renderKuramiMood` component with twelve states: calm, working, asleep, offline, up to date, peeking, merged, alert, thinking, your move, found a problem, welcome. She always sits in a medallion of one size: a disc behind her, the figure clipped inside the ring, with her head, ears and tails free to break out across the upper 60% of the portal. The lower 40% stays inside the ring, leaving its rim and working spark visible. In Paper the ring is drawn in ink and she breathes slightly; in Neon the ring lights up and glows; while working a spark runs around the ring, on alert she gives a short nudge or the glow quickens. With reduced motion there is no animation. `renderKuramiState` places her next to a heading and a line of text, for empty, offline and error states, including phones. In the installed phone app, pull-to-refresh shows her peeking from the top. Hub → Appearance → "Kurami character" turns her off in every app.
 
 ## Themes
 
@@ -196,7 +196,7 @@ Text that explains a control rather than showing data sits behind a small "i" (`
 
 The theme every app opens with is set in [Hub settings](@settings). The header menu changes it only until the app or tab is closed.
 
-New UI must work in both themes. Products never branch on the theme: the guard rejects `[data-theme]` and `[data-kurami-theme]` selectors in product code. One variant of each theme is enough to check — Paper light and Neon dark — and `npm run test:ui-browser` screenshots and audits exactly those. The full four-variant run (`test:ui-browser:all`) is for changes to the library and themes.
+New UI must work in both themes. Products never branch on the theme: the guard rejects `[data-theme]` and `[data-kurami-theme]` selectors in product code. One variant of each theme is enough to check — Paper light and Neon dark — and `npm run test:ui-browser` screenshots and audits exactly those. The four-variant run (`test:ui-browser:all`) is for changes to the library and themes. Both commands audit 39 representative pages: 156 page/width/theme combinations by default, or 312 with all four variants. `test:ui-browser:full` adds every documentation route, for changes to documentation layout across routes or a broad visual audit. During iteration, `test:changed` selects the affected suites and quick browser checks.
 
 ## Layers
 
