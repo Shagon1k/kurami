@@ -2,7 +2,7 @@ import { execFileSync } from "node:child_process";
 import { mkdtempSync, mkdirSync, readdirSync, readFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { resolve } from "node:path";
-import { DatabaseSync } from "node:sqlite";
+import { openOrchestratorDatabase } from "../../src/orchestrator/state/database.ts";
 import { claimProtocolTask, taskForSession } from "../../src/orchestrator/integrations/codex/task-store.ts";
 
 export function protocolRepository() {
@@ -19,8 +19,7 @@ export function protocolRepository() {
   git("-C",canonical,"worktree","add","-q","-b","fixture",worktree,"main");
   mkdirSync(resolve(root,"state"));
   const dbPath=resolve(root,"state/orchestrator.db");
-  const database = new DatabaseSync(dbPath);
-  database.exec("PRAGMA foreign_keys=ON");
+  const database = openOrchestratorDatabase(dbPath);
   const migrations = resolve(import.meta.dirname,"../../migrations");
   for (const file of readdirSync(migrations).filter((name)=>/^\d+_.*\.sql$/u.test(name)).sort())
     database.exec(readFileSync(resolve(migrations,file),"utf8"));
