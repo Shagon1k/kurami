@@ -2,6 +2,25 @@
   "baseline": "4a38c09",
   "publicationBaseline": "788787f077d42fc3b3346a4f4a612947b97ce2e8",
   "commits": {
+    "0c1114ed93e3d1f8d3365403e65837b3648b93b6": {
+      "category": "improved",
+      "en": "- Release preparation shows one warning; the full list of pending steps stays in Server controls.\n- Kurami breaks out across the upper 60% of the portal.\n- Visual audits use representative pages; the full documentation sweep runs separately.",
+      "ru": "- Подготовка релиза показывается одним предупреждением; полный список невыполненных шагов остаётся в Server.\n- Kurami выступает наружу в верхних 60% портала.\n- Визуальный аудит проверяет представительные страницы; обход всей документации запускается отдельно.",
+      "page": "hub"
+    },
+    "ab304be552950eab2b86278579f0ab47ded15c30": {
+      "category": "fixed",
+      "en": "Apps keeps its label, opens beside its button and uses the shared blue hover. Quick task capture appears only in Projects; Kurami can break out across the upper part of the portal.",
+      "ru": "У Apps сохранена подпись, меню открывается у кнопки и использует общий синий hover. Быстрое создание задачи доступно только в Projects; Kurami может выступать наружу в верхней части портала.",
+      "page": "ui-library"
+    },
+    "e3c6a1b6c27df8ab15edcd318f356b53a9d36694": {
+      "category": "operations",
+      "en": "",
+      "ru": "",
+      "exclusionScope": "docs-only",
+      "exclude": "Adds only the bilingual Changelog classification for the UI polish patch; application behavior is unchanged."
+    },
     "41a32c06a336aa9c7a0ac60921c8a26ccdbf8d8c": {
       "category": "fixed",
       "en": "- Portals keep their lower rim visible; empty states stay in one row and speech appears smoothly.\n- Projects uses softer colour accents, fits review labels, avoids duplicate history and shows mobile tasks in batches.\n- Mail clears immediately after archive; Daily moves reading time to News and aligns the finish stamp right; Cinema highlights box office.\n- Docs uses desktop space and supports concise Markdown in Changelog; Apps shares Theme menu styling.",
