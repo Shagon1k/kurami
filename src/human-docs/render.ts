@@ -11,7 +11,7 @@ import {renderThemeSwitch} from "../ui-library/components/theme-switch.ts";
 import {type IconName} from "../ui-library/components/icon.ts";
 import {renderSiteHeader} from "../ui-library/patterns/site-header.ts";
 import {renderSiteFooter} from "../ui-library/patterns/site-footer.ts";
-import {kuramiSites,renderQuickCaptureLink} from "../ui-library/patterns/kurami-sites.ts";
+import {kuramiSites} from "../ui-library/patterns/kurami-sites.ts";
 import {renderDocument} from "../ui-library/patterns/page-shell.ts";
 import {renderTable} from "../ui-library/components/table.ts";
 import {renderCallout} from "../ui-library/components/callout.ts";
@@ -212,7 +212,7 @@ function shell(lang:Language,title:string,description:string,body:string,active:
       brand:{href:url(lang,""),ariaLabel:lang==="ru"?"Kurami docs — главная":"Kurami docs — home",foxSrc:"/assets/fox.webp",suffix:"Docs"},
       nav:{label:t.primaryNav,links,collapse:{label:t.sections}},
       sites:kuramiSites("docs",lang),
-      actions:renderQuickCaptureLink(lang)+renderLinkButton({label:other.toUpperCase(),href:url(other,alternateSlug),variant:"icon",ariaLabel:t.choose,attributes:{hreflang:other}})+renderThemeSwitch(lang),
+      actions:renderLinkButton({label:other.toUpperCase(),href:url(other,alternateSlug),variant:"icon",ariaLabel:t.choose,attributes:{hreflang:other}})+renderThemeSwitch(lang),
     }),
     main:body,mainClass:"page",
     footer:renderSiteFooter({lang,app:"Docs"}),

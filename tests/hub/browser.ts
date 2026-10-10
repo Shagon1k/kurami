@@ -120,6 +120,22 @@ try {
     const menuActions=actions.length;
     await devtools.evaluate("document.querySelector('.site-switcher > summary').click()");
     assert.equal(await devtools.evaluate("document.querySelector('.site-switcher').open"),true);
+    assert.equal(await devtools.evaluate("document.querySelectorAll('[data-quick-capture]').length"),0,'Hub has no Projects quick task');
+    const savedTheme=await devtools.evaluate<{theme:string;variant?:string}>("({theme:document.documentElement.dataset.theme,variant:document.documentElement.dataset.kuramiTheme})");
+    for(const [variant,mode] of [['paper','light'],['paper','dark'],['neon','dark'],['neon','light']]){
+      await devtools.evaluate(`document.documentElement.dataset.theme=${JSON.stringify(mode)};document.documentElement.dataset.kuramiTheme=${JSON.stringify(variant)}`);
+      const menuLayout=await devtools.evaluate<any>("(() => {const menu=document.querySelector('.site-switcher'),trigger=menu.querySelector('summary'),nav=menu.querySelector('nav'),t=trigger.getBoundingClientRect(),n=nav.getBoundingClientRect(),links=[...nav.querySelectorAll('a')].map(a=>a.getBoundingClientRect()),theme=document.querySelector('[data-theme-panel]');return {label:trigger.textContent.trim(),rightGap:n.right-t.right,topGap:n.top-t.bottom,left:n.left,stacked:links.every((r,i)=>!i||r.top>=links[i-1].bottom),surface:getComputedStyle(nav).backgroundColor===getComputedStyle(theme).backgroundColor,shadow:getComputedStyle(nav).boxShadow===getComputedStyle(theme).boxShadow,x:links[1].x+links[1].width/2,y:links[1].y+links[1].height/2};})()");
+      assert.equal(menuLayout.label,lang==='en'?'Apps':'Приложения');assert.ok(Math.abs(menuLayout.rightGap)<=1);assert.ok(Math.abs(menuLayout.topGap-8)<=1);assert.ok(menuLayout.left>=0&&menuLayout.stacked&&menuLayout.surface&&menuLayout.shadow,JSON.stringify({variant,mode,menuLayout}));
+      await devtools.call('Input.dispatchMouseEvent',{type:'mouseMoved',x:menuLayout.x,y:menuLayout.y});
+      await wait("document.querySelector('.site-switcher nav a:nth-child(2)').getAnimations().every(a=>a.playState!=='running')");
+      const hover=await devtools.evaluate<any>("(() => {const link=document.querySelector('.site-switcher nav a:nth-child(2)'),probe=document.createElement('span');probe.style.background='color-mix(in srgb,var(--status-info) 10%,var(--surface-raised))';document.body.append(probe);const result={actual:getComputedStyle(link).backgroundColor,expected:getComputedStyle(probe).backgroundColor,hovered:link.matches(':hover')};probe.remove();return result;})()");
+      assert.ok(hover.hovered&&hover.actual===hover.expected,`${variant} ${mode}: Apps link has blue hover ${JSON.stringify(hover)}`);
+      if(lang==='en'){
+        const clip=await devtools.evaluate<any>("(() => {const t=document.querySelector('.site-switcher > summary').getBoundingClientRect(),n=document.querySelector('.site-switcher > nav').getBoundingClientRect();return {x:n.left-8,y:t.top-8,width:n.width+16,height:n.bottom-t.top+16,scale:1};})()");
+        const shot=await devtools.call<{data:string}>('Page.captureScreenshot',{format:'png',clip});writeFileSync(resolve(output,`hub-apps-${variant}-${mode}.png`),Buffer.from(shot.data,'base64'));
+      }
+    }
+    await devtools.evaluate(`document.documentElement.dataset.theme=${JSON.stringify(savedTheme.theme)};${savedTheme.variant?`document.documentElement.dataset.kuramiTheme=${JSON.stringify(savedTheme.variant)}`:"delete document.documentElement.dataset.kuramiTheme"}`);
     await devtools.call("Input.dispatchMouseEvent",{type:"mousePressed",button:"left",clickCount:1,x:4,y:400});
     await devtools.call("Input.dispatchMouseEvent",{type:"mouseReleased",button:"left",clickCount:1,x:4,y:400});
     assert.equal(await devtools.evaluate("document.querySelector('.site-switcher').open"),false,"Apps closes on outside click");

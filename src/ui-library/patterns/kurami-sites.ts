@@ -1,17 +1,9 @@
 import type {SiteSwitcherInput} from "./site-header.ts";
-import {renderLinkButton} from "../components/button.ts";
-import {iconPath} from "../components/icon.ts";
 
 export type KuramiSite="hub"|"digest"|"docs"|"projects";
 export const KURAMI_WEB_ORIGIN="https://kurami.shagon1k.win";
 export function kuramiEntryHref(app:KuramiSite,lang:"ru"|"en"):string {
   return `${KURAMI_WEB_ORIGIN}/${lang}/${app==="hub"?"":app+"/"}`;
-}
-
-/** "+" in every app's header: a quick task, filed by Kurami in Projects (Projects opens the form in place). */
-export function renderQuickCaptureLink(lang:"ru"|"en"):string {
-  const label=lang==="ru"?"Быстрая задача":"Quick task";
-  return renderLinkButton({label,href:`${kuramiEntryHref("projects",lang)}?capture=1`,variant:"icon",iconPath:iconPath("plus"),visibleLabel:false,attributes:{"data-quick-capture":true}});
 }
 
 export function kuramiSites(current:KuramiSite,lang:"ru"|"en"="ru"):SiteSwitcherInput {

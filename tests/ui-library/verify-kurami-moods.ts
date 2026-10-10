@@ -42,7 +42,7 @@ assert.match(idle, /<img class="kurami-mood__figure" src="\/assets\/kurami-idle\
 assert.match(renderKuramiMood({ mood: "welcome", label: "Kurami <waves>", eager: true }), /role="img" aria-label="Kurami &lt;waves&gt;"[\s\S]*loading="eager"/);
 assert.throws(() => renderKuramiMood({ mood: "angry" as never }));
 // The cut is only along the lower arc (the top band stays unmasked); motion has a reduced-motion guard.
-assert.match(KURAMI_MOOD_CSS, /linear-gradient\(#000 0 24%, transparent 30%\), radial-gradient\(37% 37% at 50% 48%, #000 99%, transparent 100%\)/);
+assert.match(KURAMI_MOOD_CSS, /linear-gradient\(#000 0 63%, transparent 65%\), radial-gradient\(37% 37% at 50% 48%, #000 99%, transparent 100%\)/);
 assert.match(KURAMI_MOOD_CSS, /@media \(prefers-reduced-motion: no-preference\) \{/);
 assert.match(renderKuramiState({ mood: "offline", title: "No <net>", text: "Wait", headingLevel: 1 }), /<h1>No &lt;net&gt;<\/h1><p>Wait<\/p>/);
 

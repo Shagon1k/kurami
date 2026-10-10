@@ -141,7 +141,7 @@ card's current state.
 
 ### Quick task "+"
 
-**+** in the header of any Kurami app opens a short form: the project and one field, "What should happen", in your
+**+** in the Projects header opens a short form: the project and one field, "What should happen", in your
 own words. **Hand to Kurami** queues it: Kurami picks the fitting issue form of the project's repository (bug,
 feature, tech debt…), fills its fields from your text and files the issue with the form's labels; a managed
 project's card goes straight onto the board in Backlog. Your note is kept in the issue under a spoiler. It usually

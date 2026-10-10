@@ -135,6 +135,7 @@ try{
     await devtools.call("Emulation.setDeviceMetricsOverride",{width,height:900,deviceScaleFactor:1,mobile:width<600});
     await open(path);
     assert.equal(await devtools.evaluate("document.documentElement.lang"),lang,path);
+    assert.equal(await devtools.evaluate("document.querySelectorAll('[data-quick-capture]').length"),path.includes("/projects/")?1:0,path+" quick task belongs only to Projects");
     assert.equal(await devtools.evaluate("document.querySelectorAll('link[rel=manifest]').length"),1,path);
     assert.equal(await devtools.evaluate("document.querySelector('link[rel=manifest]').crossOrigin"),"use-credentials",path+" credentialed manifest");
     assert.equal(await devtools.evaluate("document.querySelectorAll('.site-footer').length"),1,path+" one common footer");
@@ -168,6 +169,10 @@ try{
     assert.deepEqual(await devtools.evaluate(AUDIT_EXPRESSION),[],path+" "+width);
     assert.equal(await devtools.evaluate("document.documentElement.scrollWidth>innerWidth+1"),false,path+" overflow");
     if(width>620){
+      assert.equal(await devtools.evaluate("document.querySelector('.site-switcher > summary').textContent.trim()"),lang==='en'?'Apps':'Приложения',path+' visible Apps label');
+      await devtools.evaluate("document.querySelector('.site-switcher > summary').click()");
+      assert.equal(await devtools.evaluate("(() => {const t=document.querySelector('.site-switcher > summary').getBoundingClientRect(),n=document.querySelector('.site-switcher > nav').getBoundingClientRect(),links=[...document.querySelectorAll('.site-switcher > nav > a')].map(a=>a.getBoundingClientRect());return Math.abs(n.right-t.right)<=1&&Math.abs(n.top-t.bottom-8)<=1&&n.left>=0&&links.every((r,i)=>!i||r.top>=links[i-1].bottom);})()"),true,path+' Apps stays under its trigger with one link per row');
+      await devtools.evaluate("document.querySelector('.site-switcher > summary').click()");
       assert.equal(await devtools.evaluate("(() => {const name=document.querySelector('.site-brand__name').getBoundingClientRect(),actions=document.querySelector('.site-actions').getBoundingClientRect();return name.right<=actions.left+1;})()"),true,path+" brand does not overlap controls");
       assert.equal(await devtools.evaluate("(() => {const date=document.querySelector('.site-brand__meta');return !date||date.getBoundingClientRect().right<=document.querySelector('.site-actions').getBoundingClientRect().left+1;})()"),true,path+" date does not overlap controls");
     }else{

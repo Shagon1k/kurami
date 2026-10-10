@@ -49,7 +49,7 @@ export function renderSiteNav(input: SiteNavInput, className = "site-nav", mobil
 }
 
 export function renderSiteSwitcher(input: SiteSwitcherInput): string {
-  const trigger=renderSummaryButton({label:input.summary,ariaLabel:input.label,variant:"icon",iconPath:iconPath("apps")});
+  const trigger=renderSummaryButton({label:input.summary,ariaLabel:input.label,variant:"icon",iconPath:iconPath("apps"),visibleLabel:true,className:"site-switcher__trigger"});
   const menu=renderSiteNav({label:input.label,links:input.links},"site-switcher__nav").replace('class="site-switcher__nav"','class="ui-popover is-open site-switcher__nav"');
   return `<details class="site-switcher">${trigger}${menu}</details>`;
 }
@@ -106,9 +106,10 @@ ${POPOVER_CSS}
 .site-nav[hidden] { display: none; }
 .site-actions { grid-area: actions; justify-self: end; display: flex; align-items: center; gap: 6px; padding-left: 20px; border-left: 1px solid var(--border-default); }
 .site-switcher { position: relative; }
+.site-switcher .site-switcher__trigger { --button-width: auto; padding-inline: var(--space-3); }
 .site-switcher summary { list-style: none; }
 .site-switcher summary::-webkit-details-marker { display: none; }
-.site-switcher__nav { position: absolute; inset: auto; top: calc(100% + 8px); right: 0; z-index: 2; width: max-content; min-width: 164px; display: grid; gap: 2px; }
+.site-switcher > .ui-popover.site-switcher__nav { position: absolute; inset: auto; top: calc(100% + 8px); right: 0; z-index: 2; width: max-content; min-width: 164px; display: grid; gap: 2px; }
 .site-switcher__nav .site-nav__link:not(.site-nav__link--disabled):is(:hover,:focus-visible) { color: var(--text-primary); background: color-mix(in srgb,var(--status-info) 10%,var(--surface-raised)); }
 .site-switcher__nav .site-nav__link { justify-content: flex-start; min-height: var(--control-height); }
 .site-switcher__nav .site-nav__link[aria-current] { color: var(--text-accent); }
@@ -147,7 +148,7 @@ ${POPOVER_CSS}
   .site-brand__name { font-size: 1.25rem; }
   .site-actions { border-left: 0; padding-left: 0; }
   .site-switcher { position: static; }
-  .site-switcher__nav { top: calc(100% + 4px); right: 0; }
+  .site-switcher > .ui-popover.site-switcher__nav { top: calc(100% + 4px); right: 0; }
   .site-nav { justify-self: stretch; gap: 4px; border-top: 1px solid var(--border-default); padding-top: 4px; }
   .site-header__utility { justify-self: stretch; border-top: 1px solid var(--border-subtle); padding-top: var(--space-1); }
   .site-header[data-floating-utility] .site-header__inner { grid-template-areas: "brand actions"; padding-block: 10px; }

@@ -285,7 +285,7 @@ assert.match(footer,/href="https:\/\/kurami\.shagon1k\.win\/en\/docs\/"/);
 assert.throws(()=>renderSiteFooter({lang:"en",app:"X",credit:{label:"x",href:"javascript:bad()"}}),/Invalid footer credit/);
 assert.equal(formatSiteDate("bad","en"),"—");
 assert.equal(formatSiteDate("2026-09-12","en"),"12 Sept 2026");
-assert.match(sites,/<summary class="button button--icon" aria-label="Apps">/);
+assert.match(sites,/<summary class="button button--icon site-switcher__trigger" aria-label="Apps">[\s\S]*?<span>Apps<\/span><\/summary>/);
 assert.match(sites,/href="https:\/\/kurami\.shagon1k\.win\/en\/"[^>]*>Hub<\/a>/);
 assert.match(sites,/href="https:\/\/kurami\.shagon1k\.win\/en\/docs\/" aria-current="location">Docs<\/a>/);
 assert.match(sites,/href="https:\/\/hermes\.shagon1k\.win\/" target="_blank" rel="noopener noreferrer"[^>]*>Hermes<span/);

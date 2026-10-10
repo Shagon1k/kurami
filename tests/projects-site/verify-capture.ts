@@ -1,6 +1,6 @@
 // Quick capture: the request is checked on the server and queued once per key; the worker starts outside the
 // service; a failed start marks the request and says so; only Kurami pages count as a source; the share target
-// and the shortcut land on the prefilled form; the "+" sits in every app's header.
+// and the shortcut land on the prefilled form; the "+" belongs to Projects.
 import assert from "node:assert/strict";
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
@@ -8,7 +8,6 @@ import { join, resolve } from "node:path";
 import { captureSource, captureTargets, createCaptureAction } from "../../src/projects-site/capture.ts";
 import { renderCaptureDialog } from "../../src/projects-site/render.ts";
 import { resolveWebRoute } from "../../src/web/routes.ts";
-import { renderQuickCaptureLink } from "../../src/ui-library/patterns/kurami-sites.ts";
 import { execFileSync } from "node:child_process";
 import type { ProjectsSnapshot } from "../../src/projects-site/model.ts";
 
@@ -40,10 +39,9 @@ try {
   assert.equal(captureSource("https://kurami.shagon1k.win/en/"), "https://kurami.shagon1k.win/en/");
   assert.equal(captureSource("https://example.org/phish"), null, "only Kurami pages are cited");
 
-  // Entry points: Share → Kurami and the shortcut open the prefilled form; "+" in every header.
+  // Entry points: Share → Kurami and the shortcut open the prefilled form.
   assert.deepEqual(resolveWebRoute("/share?title=Bug&text=Steps&url=https%3A%2F%2Fexample.org%2Fx"), { redirect: "/en/projects/?capture=1&title=Bug&text=Steps&url=https%3A%2F%2Fexample.org%2Fx" });
   assert.deepEqual(resolveWebRoute("/?open=capture"), { redirect: "/en/projects/?capture=1" });
-  assert.match(renderQuickCaptureLink("ru"), /href="https:\/\/kurami\.shagon1k\.win\/ru\/projects\/\?capture=1"[^>]*aria-label="Быстрая задача"/);
   const snapshot = { generatedAt: "2026-10-07T05:00:00Z", available: true, projects: [{ key: "pickflick", name: "PickFlick" }], items: [] } as unknown as ProjectsSnapshot;
   const dialog = renderCaptureDialog(snapshot, new URLSearchParams({ lang: "ru", capture: "1", title: "Bug <b>", text: "Steps", source: "https://kurami.shagon1k.win/ru/" }));
   assert.match(dialog, /<dialog data-open-on-load id="projects-capture"/);

@@ -127,8 +127,9 @@ export const KURAMI_PULL_REFRESH_JS = String.raw`(()=>{
   addEventListener('touchcancel',()=>{if(!busy)reset();});
 })();`;
 
-/* The figure breaks out only above the upper quarter of the portal. Inside the portal, the mask stops
- * before the ring so the lower rim and working spark remain visible. */
+/* The upper 70% of the portal lets the figure break out; its lower arc contains the rest.
+ * With the figure at -10% and scaled to 125%, portal height 70% maps to image height 64%.
+ * A narrow blend joins that band to the inner disc, leaving the lower rim and working spark clear. */
 export const KURAMI_MOOD_CSS = `
 .kurami-mood { --kurami-size: 120px; --kurami-glow: 12px; --kurami-ring: color-mix(in srgb, var(--accent-primary) 45%, transparent); --kurami-disc: color-mix(in srgb, var(--accent-primary) 9%, var(--surface-panel));
   position: relative; display: block; flex: none; width: var(--kurami-size); height: var(--kurami-size); margin-top: calc(var(--kurami-size) * .14); user-select: none; }
@@ -137,8 +138,8 @@ export const KURAMI_MOOD_CSS = `
 .kurami-mood__line { fill: none; stroke: var(--kurami-ring); stroke-width: 1.6; }
 .kurami-mood__spark { fill: none; stroke: none; }
 .kurami-mood__figure { position: absolute; left: 50%; top: calc(var(--kurami-size) * -.1); width: calc(var(--kurami-size) * 1.25); height: calc(var(--kurami-size) * 1.25); max-width: none; translate: -50% 0; -webkit-user-drag: none;
-  -webkit-mask-image: linear-gradient(#000 0 24%, transparent 30%), radial-gradient(37% 37% at 50% 48%, #000 99%, transparent 100%);
-  mask-image: linear-gradient(#000 0 24%, transparent 30%), radial-gradient(37% 37% at 50% 48%, #000 99%, transparent 100%); }
+  -webkit-mask-image: linear-gradient(#000 0 63%, transparent 65%), radial-gradient(37% 37% at 50% 48%, #000 99%, transparent 100%);
+  mask-image: linear-gradient(#000 0 63%, transparent 65%), radial-gradient(37% 37% at 50% 48%, #000 99%, transparent 100%); }
 html[data-kurami-theme="neon"] .kurami-mood { --kurami-ring: var(--neon-sign, var(--accent-primary)); --kurami-disc: color-mix(in srgb, var(--neon-sign, var(--accent-primary)) 7%, var(--surface-page)); }
 html[data-kurami-theme="neon"] .kurami-mood__line { stroke-width: 1.8; filter: drop-shadow(0 0 2px var(--kurami-ring)) drop-shadow(0 0 6px var(--kurami-ring)); }
 html[data-kurami-theme="neon"] .kurami-mood[data-kurami-mood="asleep"] { --kurami-ring: color-mix(in srgb, var(--neon-sign, var(--accent-primary)) 45%, transparent); }

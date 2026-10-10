@@ -4,7 +4,7 @@ import {formatSiteDate} from "../ui-library/foundations/date.ts";
 import {renderDocument} from "../ui-library/patterns/page-shell.ts";
 import {renderSiteFooter} from "../ui-library/patterns/site-footer.ts";
 import {renderSiteHeader} from "../ui-library/patterns/site-header.ts";
-import {kuramiSites,kuramiEntryHref,renderQuickCaptureLink} from "../ui-library/patterns/kurami-sites.ts";
+import {kuramiSites,kuramiEntryHref} from "../ui-library/patterns/kurami-sites.ts";
 import {renderThemeSwitch} from "../ui-library/components/theme-switch.ts";
 import {renderButton,renderLinkButton} from "../ui-library/components/button.ts";
 import {renderPeriodSwitch} from "../ui-library/components/period-switch.ts";
@@ -352,7 +352,7 @@ export function renderHubDashboard(snapshot:HubSnapshot,lang:HubLanguage="en"):s
 function hubHeader(lang:HubLanguage,controls=true):string {
   const other:HubLanguage=lang==="ru"?"en":"ru";
   const menu=renderButton({label:tr(lang,"Управление","Controls"),variant:"icon",iconPath:iconPath("controls"),disabled:!controls,attributes:{"data-hub-control":"menu",popovertarget:"hub-controls-popover","aria-expanded":"false","aria-controls":"hub-controls-popover"}});
-  return renderSiteHeader({mobile:{app:"hub",lang},brand:{href:`/${lang}/`,ariaLabel:tr(lang,"Kurami Hub — главная","Kurami Hub — home"),foxSrc:"/assets/fox.webp",suffix:"Hub"},nav:{label:tr(lang,"Разделы Hub","Hub sections"),links:[],hideWhenEmpty:true},sites:kuramiSites("hub",lang),utility:controls?periodSwitch("global",lang,tr(lang,"Вся статистика","All statistics")):undefined,utilityFloating:controls,actions:menu+renderQuickCaptureLink(lang)+renderLinkButton({label:other.toUpperCase(),href:`/${other}/`,variant:"icon",ariaLabel:tr(lang,"Переключить на английский","Switch to Russian"),attributes:{hreflang:other}})+renderThemeSwitch(lang)});
+  return renderSiteHeader({mobile:{app:"hub",lang},brand:{href:`/${lang}/`,ariaLabel:tr(lang,"Kurami Hub — главная","Kurami Hub — home"),foxSrc:"/assets/fox.webp",suffix:"Hub"},nav:{label:tr(lang,"Разделы Hub","Hub sections"),links:[],hideWhenEmpty:true},sites:kuramiSites("hub",lang),utility:controls?periodSwitch("global",lang,tr(lang,"Вся статистика","All statistics")):undefined,utilityFloating:controls,actions:menu+renderLinkButton({label:other.toUpperCase(),href:`/${other}/`,variant:"icon",ariaLabel:tr(lang,"Переключить на английский","Switch to Russian"),attributes:{hreflang:other}})+renderThemeSwitch(lang)});
 }
 
 export function renderHubPage(snapshot:HubSnapshot,lang:HubLanguage="en",csrfToken=""):string {
