@@ -40,7 +40,13 @@ function statusText(row:ProposalRow):string {
     ].filter(Boolean).join(" ");
     case "revising":return "Applying the discussion remarks. The card updates once the edits pass the checks.";
     case "publishing":return "Publishing: merging the PR and releasing the docs. This takes up to a couple of minutes.";
-    case "published":return `Published. The docs were built from \`${(row.published_docs_sha??"").slice(0,7)}\`; the previous release is kept for rollback.`;
+    case "published":{
+      const sync=row.checkout_sync_json?JSON.parse(row.checkout_sync_json):null;
+      const note=sync?.status==="synced"||sync?.status==="already_at_target"
+        ?`Server checkout synchronized to the exact docs SHA \`${sync.target}\` (docs-only; not an application deployment).`
+        :`Server checkout sync pending/blocked for \`${row.published_docs_sha??"unknown"}\`${sync?.reason?`: ${sync.reason}`:""}. Docs remain published; release-drift checks remain active.`;
+      return `Published. The docs were built from \`${(row.published_docs_sha??"").slice(0,7)}\`; the previous release is kept for rollback.\n${note}`;
+    }
     case "rejected":return "Rejected. The PR is closed; the branch stays on GitHub.";
     case "empty":return "Nothing to change.";
     case "failed":return row.merged_sha

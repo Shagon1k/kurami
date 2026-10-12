@@ -101,7 +101,7 @@
     "test:receipts": "node tests/verify-test-receipts.ts",
     "test:report": "node src/system/test-receipts.ts report",
     "test:release-drift": "node tests/verify-release-drift.ts",
-    "test:docs-approval": "node tests/verify-docs-approval.ts",
+    "test:docs-approval": "node tests/verify-docs-checkout-sync.ts && node tests/verify-docs-approval.ts",
     "plugins:check": "bash bin/sync-hermes-plugin.sh --check",
     "test:discord-plugin": "KURAMI_DISCORD_PLUGIN_DIR=${KURAMI_DISCORD_PLUGIN_DIR:-integrations/hermes/plugins/kurami-discord-controls} python3 tests/verify-discord-plugin.py",
     "test:backup": "node tests/verify-state-backup.ts",

@@ -174,7 +174,7 @@ for(const file of ["gh.mjs","codex.mjs","systemctl"])chmodSync(resolve(bin,file)
 
 let clock=Date.now();
 const config:WorkerConfig={
-  home,sourceClone:source,repo:"Shagon1k/kurami",releaseRoot:docsState,appRoot,docsUrl:docsServer.url,service:"kurami-human-docs",
+  home,sourceClone:source,repo:"Shagon1k/kurami",releaseRoot:docsState,appRoot:source,docsUrl:docsServer.url,service:"kurami-human-docs",
   node:process.execPath,gh:resolve(bin,"gh.mjs"),codex:resolve(bin,"codex.mjs"),systemctl:resolve(bin,"systemctl"),
   now:()=>new Date(clock),
 };
@@ -245,12 +245,23 @@ try{
   assert.equal(store.get(draft.proposalId).state,"ready");
 
   // 5. Publish merges exactly the shown head, builds docs from main, swaps the release and keeps a rollback.
+  mkdirSync(resolve(home,"state/deploy"),{recursive:true});
+  writeFileSync(resolve(home,"state/deploy/lock"),String(process.pid));
+  const sourceHeadBefore=sh(source,"git","rev-parse","HEAD");
   await runControl(store,"publish",draft.proposalId,{apply:true,actorId:"42"},surface);
   await tick(config,store,surface);
   row=store.get(draft.proposalId);
   assert.equal(row.state,"published",row.last_error??"");
   const main=sh(source,"git","--git-dir",remote,"rev-parse","refs/heads/main");
   assert.equal(row.published_docs_sha,main);
+  const checkoutSync=JSON.parse(row.checkout_sync_json!);
+  assert.equal(checkoutSync.status,"blocked");assert.equal(checkoutSync.target,main);
+  assert.match(checkoutSync.reason,/Another release/);
+  assert.equal(sh(source,"git","rev-parse","HEAD"),sourceHeadBefore);
+  assert.ok(store.events(draft.proposalId).some(event=>event.type==="checkout-sync"&&(event.details as {target:string}).target===main));
+  assert.match(JSON.stringify(cardPayload(row)),/Server checkout sync pending\/blocked/);
+  assert.match(JSON.stringify(cardPayload(row)),/Docs remain published/);
+  rmSync(resolve(home,"state/deploy/lock"));
   assert.equal(JSON.parse(readFileSync(resolve(docsState,"release/build.json"),"utf8")).docsSha,main);
   assert.equal(JSON.parse(readFileSync(resolve(docsState,"release/build.json"),"utf8")).revision,null);
   assert.deepEqual(JSON.parse(readFileSync(resolve(docsState,"release/changelog-history.json"),"utf8")),JSON.parse(JSON.stringify(confirmedHistory)));
