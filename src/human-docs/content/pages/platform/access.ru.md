@@ -12,24 +12,19 @@ Cloudflare Access проверяет твою личность до переда
 
 ```diagram
 kind: graph
-title: Путь запроса снаружи
-desc: Запрос идёт через Cloudflare Access и туннель к локальным портам сервера. Сайты Digest, документации и Hub слушают напрямую. Превью идут через Caddy, который открывает маршрут только для работающего превью.
-node you "Ты" "браузер" owner at 0,0
-node access "Cloudflare Access" "вход по личности" external at 1,0
-node tunnel "Cloudflare Tunnel" "маршрут на сервер" external at 2,0
-node digest "Digest" "127.0.0.1:8787" at 0,2
-node docs "Документация" "127.0.0.1:8799" at 1,2
-node hub "Hub" "127.0.0.1:8800" at 2,2
-node caddy "Caddy" "127.0.0.1:9180" at 1,3
-node preview "Превью" "порт на запуск" at 1,4
-group vps "Сервер" digest docs hub caddy preview
+title: Приватные приложения и отдельные превью
+desc: Access и туннель передают запросы приложений общему шлюзу. Он проверяет токен и направляет запрос в loopback-сервисы Hub, Digest, Projects и Docs. Адреса превью идут через отдельный маршрут Caddy, доступный только для работающей аренды.
+node you "Владелец" "браузер" owner at 0,0
+node access "Access и туннель" "проверка на входе" external at 0,1
+node gateway "Общий шлюз" "127.0.0.1:8888" at 0,2
+node apps "Четыре приложения" "loopback-сервисы" at 0,3
+node caddy "Caddy" "вход превью" at 1,2
+node preview "Превью" "работающая аренда" at 1,3
 edge you -> access "HTTPS"
-edge access -> tunnel "разрешено"
-edge tunnel -> digest
-edge tunnel -> docs
-edge tunnel -> hub
-edge tunnel -> caddy
-edge caddy -> preview "только работающие"
+edge access -> gateway "приложения"
+edge gateway -> apps "маршруты"
+edge access -> caddy "адрес превью" dashed
+edge caddy -> preview "активный маршрут"
 ```
 
 ## Что где доступно
@@ -63,7 +58,7 @@ edge caddy -> preview "только работающие"
 Без настройки, с неверным токеном или чужим origin при записи запрос отклоняется.
 Hub и Projects сохраняют собственные проверки управления. Отдельно настроенная
 служебная личность читателя Docs может только читать Docs, но не панели или controls.
-Старые адреса остаются доступны до твоего решения о переходе на перенаправления.
+Удалённые домены приложений не являются запасными входами; loopback-сервисы остаются источниками общего шлюза.
 
 Получение публичных ключей Cloudflare для проверки подписи ограничено 15 секундами.
 Таймаут, ошибка сети или некорректный ответ ключей возвращают `503` с сообщением

@@ -48,12 +48,12 @@ edge editions -> daily "page"
 
 ## The registry and failure modes
 
-The registry is a static list of eight modules: mail, calendar, news, weather, cinema, signals, weekly, stocks. It sets the order of blocks on the page, their places (slots) and the failure rule. The list is static on purpose: order and id uniqueness are checked at load time, and dynamic plugin loading is not needed for one owner.
+The registry is a static list of nine modules: mail, calendar, news, weather, cinema, signals, weekly, stocks, engineering. It sets the order of blocks on the page, their places (slots) and the failure rule. The list is static on purpose: order and id uniqueness are checked at load time, and dynamic plugin loading is not needed for one owner.
 
 | Mode | Who | What happens on an error |
 |---|---|---|
 | `propagate` | mail, calendar, news, weather | The error rises and stops publication: this is the core content of the edition |
-| `isolate` | cinema, signals, weekly, stocks | The block is replaced by fallback markup or disappears, the page stays |
+| `isolate` | cinema, signals, weekly, stocks, engineering | The block is replaced by fallback markup or disappears, the page stays |
 
 Teasers sit under the news in the order Stocks, Cinema, Weekly. Signals sit higher, under the figures at the top of the page.
 
@@ -69,6 +69,12 @@ The kind of an add-on determines who updates it and when. That is why one module
 | Independent | Discovery, logos, Investment Review | The poll or the Sunday job | Not included |
 
 Live add-ons read providers: web sources in parallel, Composio calls one at a time over a single connection. One failure does not hinder the others: a block keeps its previous value with the status `stale`. Derived add-ons do not call providers; they compute from their neighbours' data.
+
+## More than registry modules
+
+Engineering is the ninth registry module. Before publication it copies the owner-waiting PR list from the Run Store into the edition; on Sundays it also adds week totals. Rendering is isolated, and the copy does not issue run controls or approve a PR.
+
+Not every Digest capability is a registry add-on. Mail learning records archiving and proposes a sender rule that requires an owner decision. Investment Review supplies source-backed watch dates and a separate portfolio-baseline confirmation. Offline reading stores only selected news on the consenting device. The request-time project chronicle belongs to the Weekly page, not its saved observation totals. Their lifecycles remain separate.
 
 ## The envelope and the snapshot table
 

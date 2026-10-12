@@ -42,6 +42,12 @@ The first week is always incomplete. Editions are kept for seven days, and the m
 
 The "Read and archive" button is described in [The morning edition](@daily). Weekly counts only its presses: each confirmed action produces one record with the number of mails. If the record fails, the mails are archived anyway: the next hourly poll counts what was missed and never counts one action twice.
 
+## Project history is a separate read
+
+The week in projects block reads the Run Store when the Weekly page is requested. It shows the latest seven days of observed board moves, completed CI repairs and AI reviews, with at most twelve events per local day. This rolling period is separate from the Sunday–Saturday period of the saved review. Reloading may therefore change project history without republishing the Weekly totals or Daily teaser.
+
+A quiet or unavailable project history produces no block; its absence does not prove that every project was idle. A long history scrolls inside its own keyboard-focusable region. Hub uses the same read-only chronicle.
+
 ## When something is wrong
 
 | Situation | What you see | What to do |

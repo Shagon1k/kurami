@@ -77,6 +77,12 @@ The review gets into the edition in two steps. Before publication the attach ste
 The data is invented; the formulas are taken from the code.
 ::::
 
+## Project history is a separate read
+
+The week in projects block reads the Run Store when the Weekly page is requested. It shows the latest seven days of observed board moves, completed CI repairs and AI reviews, with at most twelve events per local day. This rolling period is separate from the Sunday–Saturday period of the saved review. Reloading may therefore change project history without republishing the Weekly totals or Daily teaser.
+
+A quiet or unavailable project history produces no block; its absence does not prove that every project was idle. A long history scrolls inside its own keyboard-focusable region. Hub uses the same read-only chronicle.
+
 ## When something goes wrong
 
 | Situation | What Kurami does | What you do |
@@ -100,6 +106,7 @@ The data is invented; the formulas are taken from the code.
 - `src/briefing/weekly/build.ts` — building the seven-day review
 - `src/briefing/weekly/lifecycle.ts` — history, attach, snapshot publication
 - `src/briefing/weekly/persistence.ts` — `persistOptionalWeekly`: the `SAVEPOINT` and failure record
+- `src/briefing/weekly/chronicle.ts` — request-time project history, separate from the saved review
 - `src/briefing/weekly/render.ts` — the teaser and the `/weekly` page
 - `src/briefing/addons/weekly.ts` — the Weekly marker and the teaser slot
 - `migrations/briefing/` — the `weekly_*` tables
