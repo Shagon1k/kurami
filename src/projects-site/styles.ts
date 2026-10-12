@@ -191,7 +191,7 @@ export const PROJECTS_STYLES=[KURAMI_MOOD_CSS,THEME_CSS,FOUNDATION_CSS,BUTTON_CS
 
 .projects-review-controls { display:flex; flex-wrap:wrap; gap:var(--space-2); margin-block:var(--space-2); }
 .projects-review-options { display:grid; gap:var(--space-1); }
-.projects-review-profile { display:grid; gap:var(--space-2); padding-block:var(--space-3); }
+.projects-review-profile { display:grid; gap:var(--space-2); padding-block:var(--space-2); }
 .projects-review-profile + .projects-review-profile { border-top:1px solid var(--border-default); }
 
 `].join("\n");
