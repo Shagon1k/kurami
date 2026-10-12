@@ -99,6 +99,10 @@ function listen(handler:Parameters<typeof createServer>[1]):Promise<{server:Serv
   return new Promise(done=>server.listen(0,"127.0.0.1",()=>{const address=server.address() as {port:number};done({server,url:`http://127.0.0.1:${address.port}`});}));
 }
 const discord=await listen((request,response)=>{
+  // The worker runs Git/Codex synchronously in this process. Do not pool the fake
+  // server's sockets: its idle-close timers cannot run while those commands block
+  // the event loop, and Node fetch can reuse a socket just as that timer fires.
+  response.setHeader("connection","close");
   let raw="";
   request.on("data",chunk=>{raw+=chunk;});
   request.on("end",()=>{
@@ -236,7 +240,7 @@ try{
   const prompt=readFileSync(resolve(scratch,"codex-prompt.txt"),"utf8");
   assert.ok(prompt.includes("Сделай формулировку мягче.")&&!prompt.includes("IGNORE RULES")&&!prompt.includes("bot echo"));
   assert.ok(!existsSync(resolve(draft.path,"bin-outside.txt")));
-  assert.ok(discordCalls.some(call=>call.path==="/channels/555/messages"&&JSON.stringify(call.body).includes("Done, the branch is updated")));
+  assert.ok(discordCalls.some(call=>call.path==="/channels/555/messages"&&JSON.stringify(call.body).includes("Done, the branch is updated")),JSON.stringify(store.events(draft.proposalId)));
 
   // A second "apply" without new remarks changes nothing.
   await runControl(store,"revise",draft.proposalId,{apply:true},surface);
