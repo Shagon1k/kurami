@@ -2,6 +2,12 @@
   "baseline": "4a38c09",
   "publicationBaseline": "788787f077d42fc3b3346a4f4a612947b97ce2e8",
   "commits": {
+    "ab2b2f558f5e3b9a191940e46feb41807e1653e3": {
+      "category": "fixed",
+      "en": "- A stopped Codex writer without a reviewable PR and head SHA waits for an owner decision instead of claiming review readiness.\n- App and Discord separate the stop status, sanitized report and named session link; unavailable CI and review evidence stays quiet.\n- Managed writers use a workspace-local pnpm store and the permitted direct API path for personal GitHub Projects.",
+      "ru": "- Остановленный Codex без PR для ревью и head SHA ждёт решения владельца и не объявляется готовым к ревью.\n- App и Discord разделяют статус остановки, очищенный отчёт и именованную ссылку на сессию; недоступные CI и ревью не загромождают карточку.\n- Managed writers используют pnpm store внутри рабочей копии и разрешённый прямой API для личных GitHub Projects.",
+      "page": "project-orchestrator"
+    },
     "0c1114ed93e3d1f8d3365403e65837b3648b93b6": {
       "category": "improved",
       "en": "- Release preparation shows one warning; the full list of pending steps stays in Server controls.\n- Kurami breaks out across the upper 60% of the portal.\n- Visual audits use representative pages; the full documentation sweep runs separately.",
