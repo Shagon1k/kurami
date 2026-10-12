@@ -1,3 +1,4 @@
+import { readReviewEvidence, type ReviewEvidence } from "../projects/reviews/read-model.ts";
 import {LATEST_ATTENTION_SQL,LATEST_ATTENTION_VALUE_SQL,LATEST_SUCCESSOR_STATE_SQL,LATEST_SUCCESSOR_THREAD_SQL,ACTIVE_SUCCESSOR_COUNT_SQL,ACTIVE_SUCCESSOR_COUNT_VALUE_SQL} from "../runtime/run-projections.ts";
 import {parseEnvValue} from "../../core/env-value.ts";
 import { technicalWorkerDiagnostic, workerDiagnosticText } from "../integrations/codex/worker-diagnostic.ts";
@@ -78,6 +79,7 @@ type CiEventPayload = {
   checks: CiCheck[];
 };
 type CardRow = {
+  clarity?: ReviewEvidence;
   run_id: string;
   stage: string;
   detail: string;
@@ -242,7 +244,7 @@ const desiredSurfaceDigestSql = `
   COALESCE(r.completion_requested_at, 'completion:none') || ':' ||
   COALESCE(r.preview_requirement_satisfied_at, 'preview-satisfied:none') || ':' ||
   COALESCE(ps.hostname, 'host:none') || ':' ||
-  COALESCE(r.stop_reason, 'stop:none') || ':discord-ux-v13'
+  COALESCE(r.stop_reason, 'stop:none') || ':discord-ux-v14'
   || ':' || COALESCE(ci.content_digest, 'ci:none') || ':' ||
   (SELECT COUNT(*) FROM run_ci_repair_attempts repair_count
    WHERE repair_count.run_id = r.run_id) || ':' ||
@@ -253,12 +255,14 @@ const desiredSurfaceDigestSql = `
                    critical_count || ':' || important_count || ':' ||
                    suggestion_count
             FROM run_ai_reviews review_latest
-            WHERE review_latest.run_id = r.run_id
+            WHERE review_latest.run_id = r.run_id AND review_latest.review_profile='general'
             ORDER BY review_latest.review_number DESC LIMIT 1), 'review:none') || ':' ||
+  COALESCE((SELECT review_state || ':' || head_sha || ':' || critical_count || ':' || important_count || ':' || suggestion_count || ':' || COALESCE(github_review_url,'') FROM run_ai_reviews a WHERE a.run_id=r.run_id AND a.review_profile='clarity' ORDER BY a.review_number DESC LIMIT 1),'clarity:none') || ':' ||
   (SELECT COUNT(*) FROM run_control_requests review_request
    WHERE review_request.run_id = r.run_id
      AND review_request.action = 'ai_review'
      AND review_request.request_state IN ('pending', 'processing')) || ':' ||
+  COALESCE((SELECT request_id || ':' || review_profile || ':' || request_state FROM run_control_requests q WHERE q.run_id=r.run_id AND q.action IN ('ai_review','review_fix') ORDER BY q.rowid DESC LIMIT 1),'review-request:none') || ':' ||
   COALESCE((SELECT round_state || ':' || round_number
             FROM run_review_fix_rounds fix_latest
             WHERE fix_latest.run_id = r.run_id
@@ -489,13 +493,13 @@ function loadDesiredCards(
              ci.last_error AS ci_last_error,
              ${PROJECT_RUN_FACTS_SQL},
              (SELECT COALESCE(github_review_url, pull_request_url)
-              FROM run_ai_reviews ar WHERE ar.run_id = r.run_id
+              FROM run_ai_reviews ar WHERE ar.run_id = r.run_id AND ar.review_profile='general'
               ORDER BY ar.review_number DESC LIMIT 1) AS ai_review_url,
              (SELECT failure_reason FROM run_ai_reviews ar
-              WHERE ar.run_id = r.run_id
+              WHERE ar.run_id = r.run_id AND ar.review_profile='general'
               ORDER BY ar.review_number DESC LIMIT 1) AS ai_review_failure_reason,
              (SELECT COUNT(*) FROM run_control_requests q
-              WHERE q.run_id = r.run_id AND q.action = 'ai_review'
+              WHERE q.run_id = r.run_id AND q.action = 'ai_review' AND q.review_profile='general'
                 AND q.request_state IN ('pending', 'processing'))
                AS ai_review_request_active_count,
              (SELECT round_number FROM run_review_fix_rounds rf
@@ -543,9 +547,13 @@ function loadDesiredCards(
       ORDER BY r.created_at, r.run_id
     `,
     )
-    .all(maxDeliveryAttempts).map(row => ({ ...row, technical_worker_detail: workerDiagnosticText(technicalWorkerDiagnostic(database, String(row.run_id))) })) as CardRow[];
+    .all(maxDeliveryAttempts).map(row => withClarityReview(database, { ...row, technical_worker_detail: workerDiagnosticText(technicalWorkerDiagnostic(database, String(row.run_id))) } as CardRow));
 }
 
+function withClarityReview(database:DatabaseSync,card:CardRow):CardRow {
+  card.clarity=readReviewEvidence(database,card.run_id,"clarity",card.ci_head_sha);
+  return card;
+}
 function loadCard(database: DatabaseSync, runId: string): CardRow {
   const card = database
     .prepare(
@@ -599,13 +607,13 @@ function loadCard(database: DatabaseSync, runId: string): CardRow {
              ci.last_error AS ci_last_error,
              ${PROJECT_RUN_FACTS_SQL},
              (SELECT COALESCE(github_review_url, pull_request_url)
-              FROM run_ai_reviews ar WHERE ar.run_id = r.run_id
+              FROM run_ai_reviews ar WHERE ar.run_id = r.run_id AND ar.review_profile='general'
               ORDER BY ar.review_number DESC LIMIT 1) AS ai_review_url,
              (SELECT failure_reason FROM run_ai_reviews ar
-              WHERE ar.run_id = r.run_id
+              WHERE ar.run_id = r.run_id AND ar.review_profile='general'
               ORDER BY ar.review_number DESC LIMIT 1) AS ai_review_failure_reason,
              (SELECT COUNT(*) FROM run_control_requests q
-              WHERE q.run_id = r.run_id AND q.action = 'ai_review'
+              WHERE q.run_id = r.run_id AND q.action = 'ai_review' AND q.review_profile='general'
                 AND q.request_state IN ('pending', 'processing'))
                AS ai_review_request_active_count,
              (SELECT round_number FROM run_review_fix_rounds rf
@@ -632,7 +640,7 @@ function loadCard(database: DatabaseSync, runId: string): CardRow {
   if (terminalStages.has(card.stage))
     fail(`Run controls are closed: ${card.stage}`);
   card.technical_worker_detail = workerDiagnosticText(technicalWorkerDiagnostic(database, runId));
-  return card;
+  return withClarityReview(database,card);
 }
 
 function runIdForThread(database: DatabaseSync, threadId: string): string {
@@ -863,6 +871,7 @@ function presentedStage(
         "Fix Review was requested; capturing the current unresolved GitHub review threads.",
     };
   }
+  if (card.stage === "review_ready" && ["queued","running"].includes(card.clarity?.state??"")) return {label:card.clarity?.state==="queued"?"Clarity Review queued":"Clarity Review running",detail:"The independent read-only reviewer is checking code complexity on this PR commit."};
   if (
     card.stage === "review_ready" &&
     card.ai_review_request_active_count > 0 &&
@@ -989,17 +998,14 @@ function aiReviewField(
   card: CardRow,
   pullRequest: PullRequest | null,
 ): DiscordObject | null {
-  if (!card.ai_review_state) return null;
-  if (
-    card.ai_review_request_active_count > 0 &&
-    card.ai_review_state !== "running"
-  )
-    return null;
+  const name="🔎 General Review";
+  if (card.ai_review_request_active_count > 0 && card.ai_review_state !== "running") return {name,value:"⏳ Queued"};
+  if (!card.ai_review_state) return {name,value:"Not run"};
   const sha = card.ai_review_head_sha
     ? `\n\`${card.ai_review_head_sha.slice(0, 7)}\``
     : "";
   if (card.ai_review_state === "running")
-    return { name: "AI review", value: `**🔍 Reviewing PR**${sha}` };
+    return { name, value: `**🔍 Reviewing PR**${sha}` };
   if (card.ai_review_state === "ready") {
     const counts = [
       `${card.ai_review_critical_count} Critical`,
@@ -1020,29 +1026,42 @@ function aiReviewField(
         ? "PR changed after this review. Review fixes are still being validated."
         : card.review_fix_state === "needs_attention"
           ? "PR changed after this review. The review fix needs attention before another AI review."
-          : "PR changed after this review. Run AI Code Review again.";
+          : "PR changed after this review. Run this review profile again.";
       return {
-        name: "AI review",
+        name,
         value: `**↪️ Outdated**\n${detail}${sha}`,
       };
     }
     return {
-      name: "AI review",
+      name,
       value: `${status}\n${counts}${sha}`,
     };
   }
   if (card.ai_review_state === "superseded")
     return {
-      name: "AI review",
+      name,
       value: `**↪️ Superseded**\nThe pull request head changed before publication.${sha}`,
     };
   return {
-    name: "AI review",
+    name,
     value: truncate(
       `**⚠️ Failed**${card.ai_review_failure_reason ? `\n${card.ai_review_failure_reason}` : ""}${sha}`,
       1_024,
     ),
   };
+}
+
+function clarityReviewField(review:ReviewEvidence|undefined):{name:string;value:string} {
+  if(!review)return {name:"🧩 Clarity Review",value:"Not run"};
+  const states:Record<string,string>={none:"Not run",queued:"⏳ Queued",running:"🔍 Reviewing PR",ready:"✅ Ready",outdated:"↪️ Outdated",superseded:"↪️ Superseded",unverified:"⚠️ Unverified",failed:"⚠️ Failed",request_failed:"⚠️ Did not start"};
+  const progress:Record<string,string>={queued:"Fixes queued",running:"Fixing findings",waiting_ci:"Fixes pushed; waiting for CI",resolving:"Resolving review threads",succeeded:"Fixes completed",needs_attention:"Fixes need attention"};
+  return {name:"🧩 Clarity Review",value:truncate([
+    states[review.state]??review.state,
+    review.state==="ready"?`${review.critical} Critical · ${review.important} Important · ${review.suggestions} Suggestions`:null,
+    review.url?`[Open review](${review.url})`:null,
+    review.head?`\`${review.head.slice(0,7)}\``:null,
+    review.fix?`${progress[review.fix.state]??review.fix.state}${review.fix.round?` · Round ${review.fix.round}`:""}`:null,
+  ].filter(Boolean).join("\n"),1024)};
 }
 
 function stageColor(stage: string): number {
@@ -1207,6 +1226,8 @@ export function controlComponents(
         button("Attempt CI fix", 1, `kurami:ci_repair:${card.run_id}`),
       );
     const reviewHead = pullRequest?.headSha ?? card.ci_head_sha;
+    const clarity = card.clarity;
+    const reviewBusy=card.ai_review_state==="running"||["running","queued"].includes(clarity?.state??"")||card.ai_review_request_active_count>0;
     const sameHeadAlreadyReviewed =
       status.reviewCurrent &&
       ["running", "ready"].includes(card.ai_review_state ?? "");
@@ -1220,12 +1241,10 @@ export function controlComponents(
       card.previous_codex_thread_id === null &&
       !["ci_repair_queued", "ci_repair_working"].includes(card.stage) &&
       card.ai_review_request_active_count === 0 &&
-      !sameHeadAlreadyReviewed &&
-      card.ai_review_state !== "running";
-    if (aiReviewEligible)
-      controls.push(
-        button("AI Code Review", 1, `kurami:ai_review:${card.run_id}`),
-      );
+      !reviewBusy;
+    const reviewOptions:SelectOption[]=[];
+    if(aiReviewEligible&&!sameHeadAlreadyReviewed)reviewOptions.push({label:"General",value:"ai_review",emoji:{name:"🔎"}});
+    if(aiReviewEligible&&!(clarity?.state==="ready"&&clarity.head===reviewHead))reviewOptions.push({label:"Clarity",value:"clarity_review",emoji:{name:"🧩"}});
     const currentReviewHasFindings = status.reviewFindings > 0;
     const reviewFixEligible =
       !preservedCancellation &&
@@ -1233,7 +1252,7 @@ export function controlComponents(
       card.owner_state === "none" &&
       Boolean(card.codex_thread_id) &&
       card.previous_codex_thread_id === null &&
-      currentReviewHasFindings &&
+      !reviewBusy &&
       card.review_fix_request_active_count === 0 &&
       !status.reviewFixBusy &&
       ![
@@ -1244,10 +1263,10 @@ export function controlComponents(
         "review_fix_waiting",
         "review_fix_resolving",
       ].includes(card.stage);
-    if (reviewFixEligible)
-      controls.push(
-        button("Fix Review", 1, `kurami:review_fix:${card.run_id}`),
-      );
+    const fixOptions:SelectOption[]=[];
+    if(reviewFixEligible&&currentReviewHasFindings)fixOptions.push({label:"General",value:"review_fix",emoji:{name:"🔎"}});
+    if(reviewFixEligible&&clarity?.state==="ready"&&clarity.head===reviewHead&&clarity.critical+clarity.important+clarity.suggestions>0)
+      fixOptions.push({label:"Clarity",value:"clarity_fix",emoji:{name:"🧩"}});
     const cancellationStarted =
       card.stop_reason === "cancelled" ||
       (card.stage === "stopping" && card.stop_reason !== "completed") ||
@@ -1297,6 +1316,8 @@ export function controlComponents(
         ]),
       );
     }
+    if(reviewOptions.length)rows.push(actionRow([stringSelect(`kurami:review_actions:${card.run_id}`,"Run review…",reviewOptions)]));
+    if(fixOptions.length)rows.push(actionRow([stringSelect(`kurami:fix_actions:${card.run_id}`,"Fix findings…",fixOptions)]));
     return rows;
   }
   return [];
@@ -1397,6 +1418,7 @@ export function threadControlPayload(
     name: string;
     value: string;
   } | null;
+  const clarity = clarityReviewField(card.clarity);
   const preview = previewField(card, pullRequest);
   const policy = previewPolicyField(card);
   const remote = remoteCodexContext(card, project);
@@ -1404,9 +1426,10 @@ export function threadControlPayload(
   if (ci) statusRows.unshift(["CI", plainStatus(ci.value)]);
   if (review)
     statusRows.push([
-      "AI review",
+      "General",
       plainStatus(review.value).replace(/\s*·\s*Open review\b/u, ""),
     ]);
+  if(clarity)statusRows.push(["Clarity",plainStatus(clarity.value).replace(/\s*·\s*Open review\b/u,"" )]);
   if (preview)
     statusRows.push([
       "Preview",
@@ -1417,7 +1440,7 @@ export function threadControlPayload(
       "Policy",
       card.preview_requirement_satisfied_at ? "Satisfied" : "Required",
     ]);
-  const detailSections = [ci, review, preview, policy]
+  const detailSections = [ci, review, clarity, preview, policy]
     .filter((field): field is { name: string; value: string } => Boolean(field))
     .map((field) => `**${field.name}**\n${field.value}`);
   if (card.technical_worker_detail) detailSections.push(`**Technical worker**\n${card.technical_worker_detail}`);

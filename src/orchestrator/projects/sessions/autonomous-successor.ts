@@ -191,7 +191,7 @@ async function buildContext(
   const review = database.prepare(`
     SELECT review_number, review_state, head_sha, critical_count,
            important_count, suggestion_count, findings_json
-    FROM run_ai_reviews WHERE run_id = ?
+    FROM run_ai_reviews WHERE run_id = ? AND review_profile='general'
     ORDER BY review_number DESC LIMIT 1
   `).get(run.run_id) ?? null;
 

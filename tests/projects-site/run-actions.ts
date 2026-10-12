@@ -45,6 +45,7 @@ try {
   database.prepare("INSERT INTO preview_leases(lease_id,run_id,slot_number,state,compose_project_name,released_at,release_reason,expires_at,runtime_adapter,artifact_root,artifact_digest,artifact_file_count,artifact_total_bytes,reviewed_at,reviewed_by,reviewed_via) VALUES('lease_static','r_current',2,'released','synthetic-static',?,'owner_stopped',?,'static','/tmp/synthetic-artifact','digest',2,100,?,'cli:owner','cli')").run(at,expires,at);
   const oldRows=database.prepare("SELECT * FROM preview_leases ORDER BY lease_id").all();
   const objects=database.prepare("SELECT type,name FROM sqlite_master WHERE tbl_name='preview_leases' AND type IN ('index','trigger') ORDER BY type,name").all();
+  database.exec(readFileSync(join(migrations,"041_review_profiles.sql"),"utf8"));
   assert.equal(collectProjectsSnapshot({...options,controlsEnabled:true}).items[0]!.runActions!.reason,"unavailable");
   database.exec("BEGIN IMMEDIATE");database.exec(readFileSync(join(migrations,"035_projects_run_actions.sql"),"utf8"));database.exec("COMMIT");
   assert.deepEqual(database.prepare("SELECT * FROM preview_leases ORDER BY lease_id").all(),oldRows,"populated migration preserves compose/static leases and their Discord/CLI provenance");

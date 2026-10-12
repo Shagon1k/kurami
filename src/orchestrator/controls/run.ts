@@ -1,3 +1,4 @@
+import { parseReviewProfile, type ReviewProfile } from "../projects/reviews/profiles.ts";
 import {LATEST_ATTENTION_SQL,LATEST_SUCCESSOR_STATE_SQL,LATEST_SUCCESSOR_THREAD_SQL,ACTIVE_SUCCESSOR_COUNT_SQL} from "../runtime/run-projections.ts";
 import { technicalWorkerDiagnostic } from "../integrations/codex/worker-diagnostic.ts";
 import { aiReviewStable } from "./ai-review.ts";
@@ -167,6 +168,7 @@ function parseArguments(): {
   runId?: string;
   action?: Action;
   via: RequestSource;
+  profile: ReviewProfile;
   project?: string;
   issue?: number;
   discordThreadId?: string;
@@ -176,6 +178,8 @@ function parseArguments(): {
   const command = args[0] as Command | undefined;
   const runId = valueAfter(args, "--run-id");
   const action = valueAfter(args, "--action") as Action | undefined;
+  const profile = parseReviewProfile(valueAfter(args, "--profile"));
+  if (args.includes("--profile") && (command !== "request" || !["ai_review", "review_fix"].includes(action ?? ""))) fail("--profile requires a review action");
   const via = (valueAfter(args, "--via") ?? "cli") as RequestSource;
   const project = valueAfter(args, "--project");
   const issueValue = valueAfter(args, "--issue");
@@ -228,6 +232,7 @@ function parseArguments(): {
     runId,
     action,
     via,
+    profile,
     project,
     issue,
     discordThreadId,
@@ -238,6 +243,7 @@ function parseArguments(): {
 export function runControlStatus(
   database: DatabaseSync,
   runId: string,
+  profile: ReviewProfile = "general",
 ): Record<string, unknown> {
   const run = database
     .prepare(
@@ -281,20 +287,21 @@ export function runControlStatus(
            (SELECT attempt_state FROM run_ci_repair_attempts a
             WHERE a.run_id = r.run_id
             ORDER BY a.attempt_number DESC LIMIT 1) AS ci_repair_state,
+           (SELECT COUNT(*) FROM run_ai_reviews a WHERE a.run_id=r.run_id AND a.review_state='running') AS review_active_count,
            (SELECT review_state FROM run_ai_reviews ar
-            WHERE ar.run_id = r.run_id
+            WHERE ar.run_id = r.run_id AND ar.review_profile='${profile}'
             ORDER BY ar.review_number DESC LIMIT 1) AS ai_review_state,
            (SELECT head_sha FROM run_ai_reviews ar
-            WHERE ar.run_id = r.run_id
+            WHERE ar.run_id = r.run_id AND ar.review_profile='${profile}'
             ORDER BY ar.review_number DESC LIMIT 1) AS ai_review_head_sha,
            (SELECT critical_count FROM run_ai_reviews ar
-            WHERE ar.run_id = r.run_id
+            WHERE ar.run_id = r.run_id AND ar.review_profile='${profile}'
             ORDER BY ar.review_number DESC LIMIT 1) AS ai_review_critical_count,
            (SELECT important_count FROM run_ai_reviews ar
-            WHERE ar.run_id = r.run_id
+            WHERE ar.run_id = r.run_id AND ar.review_profile='${profile}'
             ORDER BY ar.review_number DESC LIMIT 1) AS ai_review_important_count,
            (SELECT suggestion_count FROM run_ai_reviews ar
-            WHERE ar.run_id = r.run_id
+            WHERE ar.run_id = r.run_id AND ar.review_profile='${profile}'
             ORDER BY ar.review_number DESC LIMIT 1) AS ai_review_suggestion_count
            ,(SELECT round_state FROM run_review_fix_rounds rf
              WHERE rf.run_id = r.run_id
@@ -317,7 +324,7 @@ export function runControlStatus(
   const requests = database
     .prepare(
       `
-    SELECT request_id, action, request_state, requested_via, result_json,
+    SELECT request_id, action, review_profile, request_state, requested_via, result_json,
            created_at, completed_at
     FROM run_control_requests
     WHERE run_id = ?
@@ -420,8 +427,10 @@ export function requestRunControl(
   action: Action,
   via: RequestSource,
   apply: boolean,
-  options: { home?: string; idempotencyKey?: string } = {},
+  options: { home?: string; idempotencyKey?: string; profile?: ReviewProfile } = {},
 ): Record<string, unknown> {
+  const profile = parseReviewProfile(options.profile);
+  if (profile !== "general" && !["ai_review", "review_fix"].includes(action)) fail("Profile requires a review action");
   const ownsTransaction = !database.isTransaction;
   if (ownsTransaction) database.exec("BEGIN IMMEDIATE");
   const home = options.home ?? orchestratorHome;
@@ -709,7 +718,7 @@ export function requestRunControl(
     const existing = database
       .prepare(
         `
-      SELECT request_id, request_state
+      SELECT request_id, request_state, review_profile
       FROM run_control_requests
       WHERE run_id = ? AND action = ?
         AND request_state IN ('pending', 'processing')
@@ -717,9 +726,10 @@ export function requestRunControl(
     `,
       )
       .get(runId, action) as
-      | { request_id: string; request_state: string }
+      | { request_id: string; request_state: string; review_profile: string }
       | undefined;
     if (existing) {
+      if (existing.review_profile !== profile) fail("Another review profile is already queued; wait for its result");
       if (apply) presentPendingRequest(database, runId, action);
       if (ownsTransaction) database.exec("COMMIT");
       return {
@@ -736,6 +746,7 @@ export function requestRunControl(
       requestId: `rq_${randomUUID().replaceAll("-", "")}`,
       runId,
       requestedAction: action,
+      profile,
       via,
       idempotencyKey,
     };
@@ -751,12 +762,12 @@ export function requestRunControl(
       .prepare(
         `
       INSERT INTO run_control_requests (
-        request_id, run_id, action, requested_via, idempotency_key
-      ) VALUES (?, ?, ?, ?, ?)
+        request_id, run_id, action, requested_via, idempotency_key, review_profile
+      ) VALUES (?, ?, ?, ?, ?, ?)
       ON CONFLICT(idempotency_key) DO NOTHING
     `,
       )
-      .run(plan.requestId, runId, action, via, idempotencyKey);
+      .run(plan.requestId, runId, action, via, idempotencyKey, profile);
     const stored = database
       .prepare(
         `
@@ -840,8 +851,8 @@ function controls(
 }
 
 /** The existing control menu, reusable by owner interfaces without starting a CLI. */
-export function availableRunControls(database: DatabaseSync, runId: string, options: {home?:string;now?:number} = {}): Record<string,unknown> {
-  const selected = runControlStatus(database,runId);
+export function availableRunControls(database: DatabaseSync, runId: string, options: {home?:string;now?:number;profile?:ReviewProfile} = {}): Record<string,unknown> {
+  const selected = runControlStatus(database,runId,parseReviewProfile(options.profile));
   if(hasActivePrRequest(database,runId))return {...selected,available_actions:["status"]};
   if (["rejected","cancelled","archived","failed"].includes(String(selected.state))) return {...selected,available_actions:["status"]};
   const home = options.home ?? orchestratorHome;
@@ -947,7 +958,7 @@ export function availableRunControls(database: DatabaseSync, runId: string, opti
     Boolean(selected.worktree_path) &&
     Boolean(selected.branch_name) &&
     !repairCleanupPending &&
-    String(selected.ai_review_state) !== "running" &&
+    Number(selected.review_active_count) === 0 &&
     !(
       String(selected.ai_review_state) === "ready" &&
       (!selected.ci_head_sha ||
@@ -970,6 +981,7 @@ export function availableRunControls(database: DatabaseSync, runId: string, opti
     Boolean(selected.codex_thread_id) &&
     !repairCleanupPending &&
     currentAiReviewHasFindings &&
+    Number(selected.review_active_count) === 0 &&
     !["running", "waiting_ci", "resolving"].includes(
       String(selected.review_fix_state),
     ) &&
@@ -995,7 +1007,7 @@ export function runRunControlsCli(): void {
               issue: args.issue,
               discordThreadId: args.discordThreadId,
             })
-          : requestRunControl(database, args.runId!, args.action!, args.via, args.apply);
+          : requestRunControl(database, args.runId!, args.action!, args.via, args.apply, {profile:args.profile});
     process.stdout.write(`${JSON.stringify({ ok: true, ...result })}\n`);
   } finally {
     database.close();

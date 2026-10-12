@@ -1,3 +1,4 @@
+import type { ReviewProfile } from "../orchestrator/projects/reviews/profiles.ts";
 import {stateLabel} from "./i18n.ts";
 import type { IdeasView } from "./ideas.ts";
 import type { ProjectAttention, ProjectStatuses } from "../orchestrator/projects/status-read-model.ts";
@@ -9,7 +10,9 @@ export type CiCheck = { name: string; state: "passed" | "failed" | "pending" | "
 export type ProjectSummary = { key: string; name: string; icon?: string; color?: ProjectColor; repository: string; boardUrl: string; statuses: ProjectStatuses; capturedAt: string | null; freshness: Freshness };
 export type StatusChange = { enabled: boolean; reason: "eligible" | "stale" | "unsupported" | "unavailable" | "pending" | "pr_pending"; choices: {value: string; label: string; hint: string}[];
   request?: {state: import("./status-state.ts").StatusRequestState; target: string; from: string | null; key: string; checkAvailable: boolean}; };
+export type ProfileReview = Signal & {critical:number;important:number;suggestions:number;url:string|null;requestFailed:boolean;control?:{enabled:boolean;reason:string;head:string|null};fixActions?:import("./run-actions.ts").RunActionView;fix?:{state:string;round:number|null};fixStartupFailure?:string|null};
 export type ProjectItem = {
+  reviews?: Record<ReviewProfile,ProfileReview>;
   id: string; project: string; number: number | null; title: string; kind: string; status: string | null;
   observedAt: string; runUpdatedAt: string | null; runId: string | null; runState: string | null;
   stage: string | null; detail: string | null; owner: string | null;

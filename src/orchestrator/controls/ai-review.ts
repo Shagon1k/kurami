@@ -1,3 +1,4 @@
+import { type ReviewProfile } from "../projects/reviews/profiles.ts";
 import type { DatabaseSync } from "node:sqlite";
 
 export type AiReviewStableState = {
@@ -16,7 +17,7 @@ export type AiReviewInspection = {
   eligible: boolean; reason: string; head: string | null; prUrl: string | null;
   project: string; itemId: string; repository: string;
 };
-export function inspectAiReview(database: DatabaseSync, runId: string): AiReviewInspection | null {
+export function inspectAiReview(database: DatabaseSync, runId: string, profile: ReviewProfile = "general"): AiReviewInspection | null {
   const row = database.prepare(`SELECT r.project,r.item_id,r.repository,r.state,r.owner_state,r.execution_mode,r.stop_reason,
     rr.resource_state,rr.tmux_session_name,rr.worktree_path,rr.branch_name,rr.previous_codex_thread_id,
     ci.head_sha,ci.pull_request_url,
@@ -26,8 +27,8 @@ export function inspectAiReview(database: DatabaseSync, runId: string): AiReview
     (SELECT COUNT(*) FROM run_ai_reviews a WHERE a.run_id=r.run_id AND a.review_state='running') AS active_review_count,
     (SELECT COUNT(*) FROM run_review_fix_rounds a WHERE a.run_id=r.run_id AND a.round_state IN ('running','waiting_ci','resolving')) AS active_fix_count,
     (SELECT COUNT(*) FROM run_control_requests q WHERE q.run_id=r.run_id AND q.request_state IN ('pending','processing')) AS pending_count,
-    EXISTS(SELECT 1 FROM run_ai_reviews a WHERE a.run_id=r.run_id AND a.head_sha=ci.head_sha AND a.review_state='ready') AS ready
-    FROM runs r JOIN run_resources rr USING(run_id) LEFT JOIN run_ci_snapshots ci USING(run_id) WHERE r.run_id=?`).get(runId) as
+    EXISTS(SELECT 1 FROM run_ai_reviews a WHERE a.run_id=r.run_id AND a.head_sha=ci.head_sha AND a.review_profile=? AND a.review_state='ready') AS ready
+    FROM runs r JOIN run_resources rr USING(run_id) LEFT JOIN run_ci_snapshots ci USING(run_id) WHERE r.run_id=?`).get(profile, runId) as
     (AiReviewStableState & { project: string; item_id: string; repository: string; execution_mode: string; stop_reason: string | null;
       previous_codex_thread_id: string | null; head_sha: string | null; pull_request_url: string | null;
       superseded: number; present: number; active_fix_count: number; pending_count: number; ready: number }) | undefined;

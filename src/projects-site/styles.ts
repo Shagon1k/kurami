@@ -188,4 +188,10 @@ export const PROJECTS_STYLES=[KURAMI_MOOD_CSS,THEME_CSS,FOUNDATION_CSS,BUTTON_CS
   .projects-checks { padding-block: var(--space-1); }
   .projects-detail { --projects-detail-padding: var(--space-4); --projects-detail-bottom-padding: var(--space-4); }
 }
+
+.projects-review-controls { display:flex; flex-wrap:wrap; gap:var(--space-2); margin-block:var(--space-2); }
+.projects-review-options { display:grid; gap:var(--space-1); }
+.projects-review-profile { display:grid; gap:var(--space-2); padding-block:var(--space-3); }
+.projects-review-profile + .projects-review-profile { border-top:1px solid var(--border-default); }
+
 `].join("\n");

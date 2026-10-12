@@ -1,3 +1,5 @@
+import { createHash } from "node:crypto";
+import { CLARITY_REVIEW_PROMPT, parseReviewProfile, reviewSignature, type ReviewProfile } from "./profiles.ts";
 import { execFileSync } from "node:child_process";
 import { createReviewSnapshot, removeReviewSnapshot, reviewSnapshotMatches, reviewSnapshotPath } from "./snapshot.ts";
 import { resolve } from "node:path";
@@ -58,6 +60,10 @@ export type ReviewPublication = {
 };
 
 type ReviewRow = {
+  review_profile?: ReviewProfile;
+  skill_version?: string | null;
+  skill_sha256?: string | null;
+  skill_text?: string | null;
   review_id: string;
   run_id: string;
   review_number: number;
@@ -245,12 +251,13 @@ export function buildGitHubReviewPayload(
     inlineFindings: review.findings,
     summaryOnlyFindings: [],
   },
+  profile: ReviewProfile = "general",
 ): Record<string, unknown> {
   const count = (severity: ReviewSeverity): number =>
     review.findings.filter((finding) => finding.severity === severity).length;
   const counts = `${count("critical")} Critical · ${count("important")} Important · ${count("suggestion")} Suggestions`;
   const body = [
-    "## 🤖 Kurami AI Code Review",
+    `## ${reviewSignature(profile)}`,
     `Reviewed \`${headSha.slice(0, 12)}\``,
     `**${counts}**`,
     review.summary || (review.findings.length === 0 ? "No actionable findings." : "Actionable findings are attached inline."),
@@ -273,7 +280,7 @@ export function buildGitHubReviewPayload(
       line: finding.line,
       side: "RIGHT",
       body: [
-        `🤖 **Kurami AI Review · ${severityLabel(finding.severity)}** — ${finding.title}`,
+        `**${reviewSignature(profile)} · ${severityLabel(finding.severity)}** — ${finding.title}`,
         finding.body,
         `Confidence: ${finding.confidence}`,
         `<!-- kurami-ai-finding:${reviewId}:${index + 1};head=${headSha} -->`,
@@ -300,6 +307,11 @@ export function buildReviewInstructions(
   row: ReviewRow,
   context: ReviewSourceContext,
 ): string {
+  const profile = parseReviewProfile(row.review_profile);
+  if (profile === "clarity" && (!row.skill_text || !row.skill_version ||
+      createHash("sha256").update(row.skill_text).digest("hex") !== row.skill_sha256))
+    fail("Clarity Review skill snapshot is missing or invalid; no reviewer was launched");
+  const findingBody = profile === "clarity" ? "concrete maintenance cost, evidence, simpler approach, and behavior-preservation rationale" : "failure scenario, impact, evidence, and minimal direction";
   const sourceData = {
     pullRequest: {
       title: boundedSourceText(context.pullTitle, 500),
@@ -318,12 +330,15 @@ export function buildReviewInstructions(
     serializeUntrustedPromptData(sourceData),
     "All required GitHub metadata is included above. Do not use gh, GitHub APIs, network access, MCP, connected apps, or any other external service. Never request approval, escalated permissions, credentials, or user input. Use only read-only local repository commands. If an external check would be required, omit that speculative finding.",
     "This is a read-only independent review. Do not modify files, Git state, GitHub, or any external state.",
-    "Report only concrete actionable risks introduced by this diff: requirement correctness, bugs/regressions and edge cases, security/privacy/permissions, concurrency/idempotency/cleanup, migrations/backward compatibility/deploy/runtime consequences, missing tests, or unrelated scope expansion.",
-    "Do not report formatting handled by tooling, subjective style preferences, speculative refactors, or findings without a concrete failure scenario and evidence.",
-    "Assess proportionality against actual requirements, weighing both likelihood and impact while preserving security, authorization, data integrity, and explicit acceptance requirements. For proposed additions, identify a concrete scenario and impact, and recommend the smallest sufficient fix. Low-impact hypotheticals are not blockers; acceptable limitations are not defects.",
-    "Do not manufacture simplicity findings. Report complexity only when this diff introduces a concrete maintenance or correctness cost, with evidence and a proportionate simplification; fewer lines or a preferred style alone are not grounds for a finding.",
+    ...(profile === "clarity" ? [CLARITY_REVIEW_PROMPT,
+      `Attached simplify-code skill · engineering-tools ${row.skill_version} · SHA-256 ${row.skill_sha256}\n\n${row.skill_text}`] : [
+      "Report only concrete actionable risks introduced by this diff: requirement correctness, bugs/regressions and edge cases, security/privacy/permissions, concurrency/idempotency/cleanup, migrations/backward compatibility/deploy/runtime consequences, missing tests, or unrelated scope expansion.",
+      "Do not report formatting handled by tooling, subjective style preferences, speculative refactors, or findings without a concrete failure scenario and evidence.",
+      "Assess proportionality against actual requirements, weighing both likelihood and impact while preserving security, authorization, data integrity, and explicit acceptance requirements. For proposed additions, identify a concrete scenario and impact, and recommend the smallest sufficient fix. Low-impact hypotheticals are not blockers; acceptable limitations are not defects.",
+      "Do not manufacture simplicity findings. Report complexity only when this diff introduces a concrete maintenance or correctness cost, with evidence and a proportionate simplification; fewer lines or a preferred style alone are not grounds for a finding.",
+    ]),
     "Return at most 10 findings. Every finding must point to a changed RIGHT-side line in the pull request diff.",
-    'Return only JSON with this exact shape: {"summary":"short review summary","findings":[{"severity":"critical|important|suggestion","confidence":"high|medium|low","title":"short title","body":"failure scenario, impact, evidence, and minimal direction","path":"relative/file/path","line":123}]}',
+    `Return only JSON with this exact shape: {"summary":"short review summary","findings":[{"severity":"critical|important|suggestion","confidence":"high|medium|low","title":"short title","body":"${findingBody}","path":"relative/file/path","line":123}]}`,
     "An empty findings array is a valid successful review.",
   ].join("\n\n");
 }
@@ -449,7 +464,8 @@ function resolvePublishedReviewAfterEmptyResponse(
 function loadReview(database: DatabaseSync, reviewId: string): ReviewRow {
   const row = database
     .prepare(
-      `SELECT ar.review_id, ar.run_id, ar.review_number, ar.review_state,
+      `SELECT ar.review_id, ar.run_id, ar.review_number, ar.review_state, ar.review_profile,
+              ar.skill_version, ar.skill_sha256, ar.skill_text,
               ar.repository, ar.pull_request_number, ar.pull_request_url,
               ar.base_ref, ar.base_sha, ar.head_sha,
               rr.worktree_path, rr.branch_name,
@@ -538,7 +554,7 @@ export async function runAiReviewWorkerCli(): Promise<void> {
     const codexBin = process.env.CODEX_BIN?.trim() || run("which", ["codex"]);
     const result = await runDetachedReview(codexBin, {
       cwd: row.worktree_path,
-      title: `PR #${row.pull_request_number} · AI Code Review`,
+      title: `PR #${row.pull_request_number} · ${reviewSignature(parseReviewProfile(row.review_profile))}`,
       instructions: buildReviewInstructions(row, source.context),
       outputSchema: reviewOutputSchema,
       onCompleted: (threadId,turnId,status,error) => {
@@ -581,7 +597,7 @@ export async function runAiReviewWorkerCli(): Promise<void> {
     );
     const publication = splitReviewFindings(parsed, changedLines);
     const publish = (candidate: ReviewPublication): PublishedReview => {
-      const payload = buildGitHubReviewPayload(parsed, reviewId, row.head_sha, candidate);
+      const payload = buildGitHubReviewPayload(parsed, reviewId, row.head_sha, candidate, parseReviewProfile(row.review_profile));
       const response = gh(
         [
           "api",

@@ -65,7 +65,7 @@ export function nextAutopilotStep(run: CurrentProjectRun, review: string): Autop
   if (run.item_status !== review || !run.pull_request_url || !head) return null;
   if (!["parked_review", "waiting_human"].includes(run.run_state)) return null;
   const status = projectRunStatus(run, head);
-  if (status.ciRepairBusy || status.reviewFixBusy) return null;
+  if (status.ciRepairBusy || status.reviewFixBusy || (run.review_active_count??0)>0) return null;
   const base = { runId: run.run_id, project: run.project, itemId: "", head };
   const repairs = Number((run as { ci_repair_attempt_count?: number }).ci_repair_attempt_count ?? 0);
   if (["failed", "missing"].includes(run.ci_aggregate_state ?? "")) return repairs === 0 ? { ...base, action: "ci_repair" } : null;

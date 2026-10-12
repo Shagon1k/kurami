@@ -142,7 +142,7 @@ export function recoverCiNoNewHead(database: DatabaseSync, project: Project, app
     requireEvidence(ci?.repository === evidence.repository && ci.pull_request_number === evidence.pullNumber &&
       ci.pull_request_url === prUrl && ci.head_sha === evidence.sourceSha && ci.aggregate_state === "failed" && ci.last_error === null &&
       age >= 0 && age <= 120_000, "fresh failed CI evidence missing");
-    const review = database.prepare("SELECT * FROM run_ai_reviews WHERE run_id=? ORDER BY review_number DESC LIMIT 1").get(evidence.runId);
+    const review = database.prepare("SELECT * FROM run_ai_reviews WHERE run_id=? AND review_profile='general' ORDER BY review_number DESC LIMIT 1").get(evidence.runId);
     requireEvidence(review?.review_state === "ready" && review.repository === evidence.repository && review.pull_request_number === evidence.pullNumber &&
       review.pull_request_url === prUrl && review.head_sha === evidence.sourceSha && review.base_sha === base?.sha &&
       review.base_ref === base?.ref && review.completed_at && review.failure_reason === null && review.github_review_id &&

@@ -143,11 +143,11 @@ export function baseRunSelect(): string {
              WHERE review_active.run_id = r.run_id
                AND review_active.review_state = 'running') AS review_active_count
            ,(SELECT review_state FROM run_ai_reviews review_latest
-             WHERE review_latest.run_id = r.run_id
+             WHERE review_latest.run_id = r.run_id AND review_latest.review_profile='general'
              ORDER BY review_latest.review_number DESC LIMIT 1)
               AS latest_review_state
            ,(SELECT head_sha FROM run_ai_reviews review_latest
-             WHERE review_latest.run_id = r.run_id
+             WHERE review_latest.run_id = r.run_id AND review_latest.review_profile='general'
              ORDER BY review_latest.review_number DESC LIMIT 1)
               AS latest_review_head_sha
            ,(SELECT COUNT(*) FROM run_review_fix_rounds fix_active

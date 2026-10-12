@@ -23,7 +23,7 @@ function discord(facts: ProjectRunFacts): string {
 }
 assert.deepEqual(projectRunStatus(base).attention.map(issue => issue.code), ["ci_unrepaired", "review_unrepaired"]);
 assert(discord(base).includes("kurami:ci_repair:r_shared"));
-assert(discord(base).includes("kurami:review_fix:r_shared"));
+assert(discord(base).includes('"value":"review_fix"'));
 for (const fields of [
   {ci_repair_state: "running", ci_repair_head_sha: "current-head"},
   {ci_repair_state: "waiting_ci", ci_repair_head_sha: "old-head", ci_repair_result_head_sha: "current-head"},
@@ -44,14 +44,14 @@ for (const fields of [{review_fix_request_active_count: 1}, {review_fix_state: "
   const facts = {...base, ...fields};
   assert.equal(projectRunStatus(facts).reviewFixBusy, true);
   assert.deepEqual(projectRunStatus(facts).attention, []);
-  assert(!discord(facts).includes("kurami:review_fix:r_shared"));
+  assert(!discord(facts).includes('"value":"review_fix"'));
 }
 const staleReview = {...base, ai_review_head_sha: "old-head"};
 assert.equal(projectRunStatus(staleReview).reviewFindings, 0);
-assert(!discord(staleReview).includes("kurami:review_fix:r_shared"));
+assert(!discord(staleReview).includes('"value":"review_fix"'));
 const suggestions = {...base, ai_review_critical_count: 0, ai_review_important_count: 0};
 assert(!projectRunStatus(suggestions).attention.some(issue => issue.code === "review_unrepaired"), "suggestions alone do not raise alerts");
-assert(discord(suggestions).includes("kurami:review_fix:r_shared"), "owner can still choose to fix suggestions");
+assert(discord(suggestions).includes('"value":"review_fix"'), "owner can still choose to fix suggestions");
 for (const stage of ["cancelled", "completed", "cancelled_work_preserved"]) assert.deepEqual(projectRunStatus({...base, stage}).attention, []);
 assert.equal(projectRunStatus({...base, run_state: "failed"}).attention[0].severity, "critical");
 assert.equal(projectRunStatus({...base, run_state: "waiting_human"}).attention[0].code, "owner_input");
@@ -84,7 +84,7 @@ try {
   assert.equal(model.projects.project.board.done, 1);
   assert.equal(model.projects.project.poll.state, "fresh");
   assert.deepEqual(model.runs.flatMap(run => projectRunStatus(run).attention).map(issue => issue.code), ["review_unrepaired"]);
-  db.prepare("INSERT INTO run_control_requests VALUES(?,?,?)").run("r_review", "review_fix", "pending");
+  db.prepare("INSERT INTO run_control_requests(run_id,action,request_state) VALUES(?,?,?)").run("r_review", "review_fix", "pending");
   const queued = readProjectStatus(path, registry, new Date(at));
   assert.deepEqual(queued.runs.flatMap(run => projectRunStatus(run).attention), []);
   assert.equal(readProjectStatus(path, registry, new Date("2026-09-30T11:00:00Z")).projects.project.poll.state, "stale");

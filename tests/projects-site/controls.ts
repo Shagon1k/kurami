@@ -49,6 +49,7 @@ try {
   assert.deepEqual(tables.map(table => database.prepare(`SELECT * FROM ${table}`).all()),before,"populated v32 upgrade preserves every control and dependent record");
   assert.deepEqual(database.prepare("SELECT name FROM sqlite_master WHERE type='index' AND tbl_name<>'run_control_project_context' ORDER BY name").all(),indexes,"all original indexes survive");
   assert.deepEqual(database.prepare("PRAGMA foreign_key_check").all(),[]);
+  for (const file of readdirSync(migrations).filter(name=>/^\d+_.*\.sql$/.test(name)&&name>"033_projects_controls.sql").sort()) database.exec(readFileSync(join(migrations,file),"utf8"));
   assert.equal(collectProjectsSnapshot({ ...options, controlsEnabled: true }).items[0]!.aiReview?.enabled,true);
   for(const phase of ["running","waiting_ci","resolving","needs_attention","succeeded"]){
     database.prepare("UPDATE run_review_fix_rounds SET round_state=? WHERE round_id='fix1'").run(phase);

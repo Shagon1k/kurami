@@ -14,6 +14,8 @@ The card is edited in place. After every event Kurami posts it again below the e
 
 ::shot{file="shot-run-ready-review.png" size="card" alt="Run card PF-33 at Ready for review: CI failed, preview required, buttons Continue in Codex, Start preview, Attempt CI fix, AI Code Review and a More actions menu." caption="Up to four buttons in a row, the rest under More actions. Links to the issue and PR sit on their own line, not on buttons."}
 
+Use **Run review** to choose **General** (correctness and operational risks) or **Clarity** (unnecessary code complexity). Both results remain visible separately with their reviewed commits. **Fix findings** selects whose findings to fix. Clarity is manual and optional; General remains the autopilot review.
+
 ## The Projects page
 
 Open Projects through the Apps menu. Choose a project in the header, search for

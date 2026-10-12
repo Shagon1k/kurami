@@ -52,6 +52,7 @@ try {
   for(const file of readdirSync(migrations).filter(name=>/^\d+_.*\.sql$/.test(name) && name < "034_").sort()) database.exec(readFileSync(join(migrations,file),"utf8"));
   database.prepare("INSERT INTO project_items(project,item_id,content_id,content_type,repository,issue_number,title,url,status,present,first_seen_at,last_seen_at) VALUES('alpha','PVTI_item','issue12','Issue','Example/Alpha',12,'Fixture','https://github.com/Example/Alpha/issues/12','Backlog',1,?,?)").run(at,at);
   database.prepare("INSERT INTO project_poll_state(project,initialized_at,last_captured_at,item_count,last_attempt_state) VALUES('alpha',?,?,1,'succeeded')").run(at,at);
+  database.exec(readFileSync(join(migrations,"041_review_profiles.sql"),"utf8"));
   const initial = itemState();
   assert.equal(collectProjectsSnapshot({home,now:instant,statusEnabled:true}).available,true);
   assert.equal(collectProjectsSnapshot({home,now:instant,statusEnabled:true}).items[0]!.statusChange?.reason,"unavailable","missing migration does not break inspection");
@@ -72,7 +73,7 @@ try {
 
   // Preserve the schema-34 compatibility assertions above; run the current
   // production poller against the current schema rather than a frozen fixture.
-  for(const file of readdirSync(migrations).filter(name=>/^\d+_.*\.sql$/.test(name) && name > "034_project_status_requests.sql").sort()) database.exec(readFileSync(join(migrations,file),"utf8"));
+  for(const file of readdirSync(migrations).filter(name=>/^\d+_.*\.sql$/.test(name) && name > "034_project_status_requests.sql" && !name.startsWith("041_")).sort()) database.exec(readFileSync(join(migrations,file),"utf8"));
 
   // Exercise the unmodified normal poller against a synthetic GitHub response.
   const responsePath=join(home,"remote.json"); const pollGh=join(home,"bin/gh");

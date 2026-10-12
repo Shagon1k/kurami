@@ -135,6 +135,22 @@
   });
   window.addEventListener('resize',positionPr);
   document.addEventListener('scroll',positionPr,true);
+  function positionReviewMenus() {
+    for(const panel of dashboard.querySelectorAll('.projects-review-controls [popover]:popover-open')) {
+      const trigger=dashboard.querySelector(`[popovertarget="${panel.id}"]`),anchor=trigger.getBoundingClientRect(),rect=panel.getBoundingClientRect();
+      const viewport=window.visualViewport,top=viewport?.offsetTop??0,height=viewport?.height??innerHeight,left=viewport?.offsetLeft??0,width=viewport?.width??innerWidth;
+      const below=anchor.bottom+8,above=anchor.top-rect.height-8;
+      panel.style.setProperty('--popover-left',`${Math.max(left+8,Math.min(anchor.left,left+width-rect.width-8))}px`);
+      panel.style.setProperty('--popover-top',`${Math.max(top+8,Math.min(below+rect.height<=top+height-8?below:above,top+height-rect.height-8))}px`);
+    }
+  }
+  document.addEventListener('toggle',event=>{
+    if(!event.target.closest?.('.projects-review-controls'))return;
+    dashboard.querySelector(`[popovertarget="${event.target.id}"]`)?.setAttribute('aria-expanded',String(event.newState==='open'));
+    if(event.newState==='open')positionReviewMenus();
+  },true);
+  window.addEventListener('resize',positionReviewMenus);
+  document.addEventListener('scroll',positionReviewMenus,true);
   async function submitPr(button,method) {
     const slot=button.closest('[data-pr-slot]');
     return requestAction(button,{kind:'action',path:'/api/pr-action',timeout:45000,
@@ -176,6 +192,7 @@
     const previousFocus = document.activeElement;
     const focusedToast=toastRegion.contains(previousFocus);
     const focusedItem = previousFocus?.getAttribute('data-item-link');
+    const focusedProfile = previousFocus?.getAttribute('data-review-profile');
     const focusedReview = previousFocus?.getAttribute('data-review-run');
     const focusedAction = previousFocus?.getAttribute('data-run-action');
     const focusedPr=previousFocus?.getAttribute('data-pr-action');
@@ -240,10 +257,10 @@
       else if (focusedDetails) dashboard.querySelector('#project-details')?.focus({ preventScroll: true });
       else if (focusedClose) dashboard.querySelector('[data-item-close]')?.focus({ preventScroll: true });
       else if (focusedFilter) dashboard.querySelector(`[data-task-filter="${focusedFilter}"]`)?.focus({ preventScroll: true });
-      else if (focusedReview) [...dashboard.querySelectorAll('[data-review-run]')].find(el => el.dataset.reviewRun === focusedReview && !el.disabled)?.focus({ preventScroll: true });
+      else if (focusedReview) restoreActionFocus([...dashboard.querySelectorAll('[data-review-run]')].find(el => el.dataset.reviewRun === focusedReview && el.dataset.reviewProfile === focusedProfile));
       else if (focusedAction) {
-        const button = [...dashboard.querySelectorAll('[data-run-action]')].find(el => el.dataset.runAction === focusedAction && !el.disabled);
-        (button ?? dashboard.querySelector('#project-details'))?.focus({preventScroll:true});
+        const button = [...dashboard.querySelectorAll('[data-run-action]')].find(el => el.dataset.runAction === focusedAction && el.dataset.reviewProfile === focusedProfile && !el.disabled);
+        restoreActionFocus(button);
       }
       else if(focusedPr)dashboard.querySelector('#project-details')?.focus({preventScroll:true});
       else if (focusedStatus) {
@@ -449,10 +466,15 @@
   function cancelGesture(){const start=gesture;gesture=null;if(start?.panel){if(!start.detail)start.panel.remove();else start.panel.style.removeProperty('transform');start.panel.removeAttribute('data-dragging');}motionFinished();}
   function cancelMotion(){motionVersion++;settling=false;delete dashboard.dataset.transitioning;document.querySelectorAll('.projects-detail:not([data-exited])').forEach(panel=>{panel.getAnimations().forEach(animation=>animation.cancel());panel.style.removeProperty('transform');});motionFinished();}
   document.addEventListener('pointercancel',cancelGesture,{passive:true});
+  function restoreActionFocus(button) {
+    const panel=button?.closest('[popover]');
+    const target=panel?document.querySelector(`[popovertarget="${panel.id}"]`):button;
+    (target??dashboard.querySelector('#project-details'))?.focus({preventScroll:true});
+  }
   async function submitReview(button) {
     if(busy())return;
     return requestAction(button,{kind:'review',path:'/api/ai-review',timeout:10000,
-      body:{runId:button.dataset.reviewRun,project:button.dataset.reviewProject,itemId:button.dataset.reviewItem,head:button.dataset.reviewHead,key:button.dataset.reviewKey},
+      body:{runId:button.dataset.reviewRun,project:button.dataset.reviewProject,itemId:button.dataset.reviewItem,head:button.dataset.reviewHead,key:button.dataset.reviewKey,profile:button.dataset.reviewProfile||"general"},
       unconfirmed:t("Could not confirm the request. Retry safely: another click will not create a duplicate."),
       response:async(result,response)=>{
         if(!response.ok)throw new Error(result.error||t("Could not request AI Review."));
@@ -471,7 +493,7 @@
   }
   async function submitRunAction(button,confirmed) {
     return requestAction(button,{kind:'action',path:'/api/run-action',timeout:10000,
-      body:{runId:button.dataset.runId,project:button.dataset.runProject,itemId:button.dataset.runItem,action:button.dataset.runAction,fingerprint:button.dataset.runFingerprint,key:button.dataset.runKey,confirmed},
+      body:{runId:button.dataset.runId,project:button.dataset.runProject,itemId:button.dataset.runItem,action:button.dataset.runAction,fingerprint:button.dataset.runFingerprint,key:button.dataset.runKey,confirmed,profile:button.dataset.reviewProfile||"general"},
       unconfirmed:t("Could not confirm the request. Another click checks the same request without a duplicate."),
       response:async(result,response)=>{
         if(!response.ok){await refresh();throw new Error(result.error||t("Could not request this action."));}

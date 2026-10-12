@@ -33,11 +33,11 @@ node fix "Fix" "fresh Codex task" at 0,1
 node card "Discord card" "CI and AI review" external at 2,2
 edge pr -> ci "checks"
 edge ci -> snap "records"
-edge owner -> review "AI Code Review"
+edge owner -> review "Run review"
 edge pr -> review "diff"
 edge review -> reviews "result"
 edge review -> pr "review" dashed
-edge owner -> fix "Fix Review"
+edge owner -> fix "Fix findings"
 edge fix -> pr "new commit"
 edge snap -> card
 edge reviews -> card
@@ -115,9 +115,9 @@ For a protocol worker, run-control status, Discord and Projects retain the bound
 
 ## AI review
 
-An AI review is an independent read-only Codex pass over the diff between the PR base and its commit, published as one native GitHub review. You start it with the **AI Code Review** button in a calm state, when nobody owns the working copy. You can start it while CI is still running: it writes nothing.
+An AI review is an independent read-only Codex pass over the diff between the PR base and its commit, published as one native GitHub review. Choose **Run review → General** or **Clarity** in Projects or the Discord card to start it in a calm state, when nobody owns the working copy. You can start it while CI is still running: it writes nothing.
 
-The controller checks that the branch has exactly one open PR with the expected base, and that the managed copy is clean. The reviewer fetches the live PR head and exact base into a private detached snapshot; an externally advanced PR or a divergent clean local branch does not require moving the managed copy. Local commits and branch refs are preserved. The snapshot is removed on exit; controller reconciliation cleans snapshots after a disappeared worker. The reviewer App needs repository Contents read access for this fetch. Projects requests still have to match the commit and PR shown when requested. If this commit already has a ready review, a second one is not started. A separate tmux session `rv-tt-42-3f9a1c-1` performs the review; it has no `GH_TOKEN`: the script obtains a short-lived token of the GitHub App `kurami-ai`, reads the PR and the issue and passes them to Codex as data. The child Codex runs in a `read-only` sandbox without approvals, every variable holding a secret is removed from its environment, and any permission request is declined and counted as an error.
+The controller checks that the branch has exactly one open PR with the expected base, and that the managed copy is clean. The reviewer fetches the live PR head and exact base into a private detached snapshot; an externally advanced PR or a divergent clean local branch does not require moving the managed copy. Local commits and branch refs are preserved. The snapshot is removed on exit; controller reconciliation cleans snapshots after a disappeared worker. The reviewer App needs repository Contents read access for this fetch. Projects requests still have to match the commit and PR shown when requested. If this commit already has a ready review for the selected profile, a second one for that profile is not started. A separate tmux session `rv-tt-42-3f9a1c-1` performs the review; it has no `GH_TOKEN`: the script obtains a short-lived token of the GitHub App `kurami-ai`, reads the PR and the issue and passes them to Codex as data. The child Codex runs in a `read-only` sandbox without approvals, every variable holding a secret is removed from its environment, and any permission request is declined and counted as an error.
 
 Codex must return JSON: a short summary and up to ten findings with severity (`critical`, `important`, `suggestion`), confidence, file and line. The script rejects the answer if it contains secret-like strings, more than ten findings or an unsafe path. Before publishing it checks the PR, base, commit and the cleanliness of the copy once more. Findings on changed lines go out as inline comments, the rest into the review body. The review is always published as `COMMENT`, without approval or a change request. The card then shows `N Critical · N Important · N Suggestions`.
 
@@ -125,9 +125,17 @@ The review prompt weighs likelihood and impact against actual requirements. Prop
 
 Simplicity is not a finding quota. A complexity finding needs evidence of a concrete maintenance or correctness cost introduced by the diff and a proportionate simplification. Fewer lines or a preferred style alone do not justify a finding. A review with no findings is valid; the read-only, exact-SHA and JSON contracts stay unchanged.
 
+General checks correctness, security and concrete operational risks. Clarity Review focuses on unnecessary complexity and the cost of understanding, changing or debugging code. Each profile has its own session, reviewed SHA, counts and PR link. Clarity is optional and manual; it does not replace General or become an autopilot or completion requirement.
+
+Clarity receives the full installed `engineering-tools:simplify-code` skill together with its role prompt and the shared read-only output contract. Kurami saves the exact skill text, plugin version and SHA-256 with the review before launching the agent. Missing or invalid skill content stops startup. A later manual plugin update affects future reviews; existing reviews retain their original edition. Automatic skill updates are outside this feature.
+
+The publisher adds **🔎 Kurami · General Review** or **🧩 Kurami · Clarity Review** to the review body and every inline comment. Attribution comes from the selected profile, rather than generated text.
+
 ## Fixing review comments
 
-A review fix is a fresh Codex task that edits exactly the discussion threads that were unresolved when you pressed **Fix Review**. The button appears if the ready review of the current commit has at least one finding.
+A review fix is a fresh Codex task that edits exactly the discussion threads that were unresolved when you selected **Fix findings → General** or **Clarity**. The button appears if the ready review of the current commit has at least one finding.
+
+The selected profile determines which AI comments enter the fix. General also includes your unresolved threads; Clarity includes only its own AI findings. Summary findings without an inline anchor use the same profile filter.
 
 The controller takes an immutable snapshot: unresolved, non-outdated threads whose first comment was left by `kurami-ai` with the current commit's marker, or by you. Your replies inside a thread become clarifications. There are at most twenty threads. Comments added later go into the next round. Codex gets the snapshot as data and must push a fix, but not reply in the threads and not wait for CI.
 
@@ -135,13 +143,13 @@ After that Kurami runs the round itself. When a new commit with green CI appears
 
 ```diagram
 kind: sequence
-desc: You press Fix Review. The controller snapshots the unresolved threads and starts Codex. Codex pushes a new commit. After green CI the kurami-ai bot replies in the threads, and the owner's token resolves them.
+desc: You select Fix findings. The controller snapshots the unresolved threads and starts Codex. Codex pushes a new commit. After green CI the kurami-ai bot replies in the threads, and the owner's token resolves them.
 actor you "You" owner
 actor ctl "Controller"
 actor codex "Codex"
 actor gh "GitHub" external
 actor bot "kurami-ai"
-msg you -> ctl "Fix Review"
+msg you -> ctl "Fix findings"
 msg ctl -> gh "thread snapshot"
 msg ctl -> codex "fix N comments"
 msg codex -> gh "push new SHA"
@@ -155,9 +163,9 @@ msg ctl -> gh "resolve threads" dashed
 The data is invented. PR #57 of run `r_3f9a1c7e5b2d4a8c6e01`, TailorTales.
 :::steps
 - **CI observer** — 10:32 finds PR #57 at commit `a41f0c2`. The required checks are not there yet: result `pending`. At 10:36 both are green, result `passed`.
-- **You** — 10:45 you press **AI Code Review**. The controller starts `rv-tt-42-3f9a1c-1` for base `9c1d4e7` and commit `a41f0c2`.
+- **You** — 10:45 you press **Run review → General**. The controller starts `rv-tt-42-3f9a1c-1` for base `9c1d4e7` and commit `a41f0c2`.
 - **Reviewer** — 10:52 publishes the review: 0 Critical · 2 Important · 1 Suggestions, three inline comments marked `head=a41f0c2`.
-- **You** — 11:05 you press **Fix Review**. Round 1 takes three threads on commit `a41f0c2`.
+- **You** — 11:05 you press **Fix findings → General**. Round 1 takes three threads on commit `a41f0c2`.
 - **Codex** — 11:22 pushes `e77b3d0` and ends its turn. The round waits for CI.
 - **CI observer** — 11:29 sees `passed` on `e77b3d0`. The round moves to `resolving`: the bot replies in three threads, your token resolves them.
 - **Kurami** — AI review on the card now reads "Outdated": the review was for `a41f0c2`, and the PR stands at `e77b3d0`. You start a new review.
@@ -172,7 +180,7 @@ The data is invented. PR #57 of run `r_3f9a1c7e5b2d4a8c6e01`, TailorTales.
 | Several PRs are open on the branch, or GitHub did not answer | result `unknown`, the reason is in the snapshot; a fix is unavailable | close the extra PRs, wait |
 | No new commit 10 minutes after a CI fix | the attempt and the run go to `needs_attention` | take control |
 | The second attempt is red too | the run goes to `needs_attention` (`ci_repair_attempt_budget_exhausted`) | fix it by hand |
-| The PR moved during the review | the review is `superseded`, nothing is published | run AI Code Review again |
+| The PR moved during the review | the review is `superseded`, nothing is published | run the selected review profile again |
 | The review process disappeared | after 15 seconds the review is `failed` | run it again |
 | The reviewer's answer looks like a secret or is invalid | the review is `failed`, nothing is published | run it again |
 | Codex left unsaved edits without advancing the commit | the round and the run go to `needs_attention`, work is preserved | take the work over by hand |
