@@ -14,6 +14,7 @@ let dense=false;
 let previewReady=false;
 let semanticNotes=false;
 let reviewFixScenario:string|null=null;
+let reviewFixRefused=false;
 let runNotesScenario:string|null=null;
 let previewStopOnly=false;
 let previewReviewScenario=false,previewReviewed=false,previewNewHead=false;
@@ -52,6 +53,10 @@ const serverOptions = { snapshot: () => {
   if(reviewFixScenario){
     const item=snapshot.items[0]!;item.stage="preview_ready";item.detail="Preview is running and ready to open.";item.reviewFix={state:reviewFixScenario,round:1};item.aiReview={enabled:false,reason:"unstable",head:item.ci.head};
     item.runActions!.actions=[{action:"review_fix",label:"Fix review findings",enabled:false,confirmation:null,hint:null,state:"pending"},{action:"stop",label:"Cancel run",enabled:true,confirmation:null,hint:null,state:null}];
+  }
+  if(reviewFixRefused){
+    const item=snapshot.items[0]!;
+    item.review.state='ready';item.reviewFixStartupFailure='Review fixes did not start: a process still owns the managed working copy. Cleanup must finish before retrying.';
   }
   if(runNotesScenario){
     const item=snapshot.items[0]!,labels:Record<string,string>={preview_stop:'Remove preview',review_fix:'Fix review findings',ci_repair:'Fix CI',preview_start:'Start preview',preview_reviewed:'Preview reviewed',take_control:'Continue in Codex',recover_managed_task:'Recover managed task',stop:'Cancel run',discard_local:'Discard local work',discard_published:'Discard published work'};
@@ -741,6 +746,19 @@ try {
     }
   }
   reviewFixScenario=null;
+  reviewFixRefused=true;
+  for(const width of [320,1280])for(const lang of ['en','ru'])for(const variant of ['paper','neon']){
+    await devtools.call('Emulation.setDeviceMetricsOverride',{width,height:900,deviceScaleFactor:1,mobile:width<620});
+    await open(`/?item=item-12&lang=${lang}`);
+    await devtools.evaluate(`document.querySelector('[data-theme-choice="${variant}"]').click()`);
+    await chooseMode(variant==='paper'?'light':'dark');await delay(200);
+    const note=await devtools.evaluate<string>("document.querySelector('.projects-detail .callout--warning')?.textContent??''");
+    assert.match(note,lang==='en'?/process still owns/:/процесс ещё использует/);
+    await audit();
+    const shot=await devtools.call<{data:string}>('Page.captureScreenshot',{format:'png',captureBeyondViewport:false});
+    writeFileSync(resolve(out,`projects-review-fix-refused-${width}-${lang}-${variant}.png`),Buffer.from(shot.data,'base64'));
+  }
+  reviewFixRefused=false;
   for(const width of [320,390,1280])for(const lang of ['en','ru'])for(const theme of ['light','dark'])for(const state of ['pending','processing','failed','rejected']){
     runNotesScenario=state;
     await devtools.call('Emulation.setDeviceMetricsOverride',{width,height:900,deviceScaleFactor:1,mobile:width<620});

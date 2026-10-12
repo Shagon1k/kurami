@@ -1,3 +1,4 @@
+import { reviewFixStartupFailure } from "./review-fix-failure.ts";
 import { observedStatusRequest, type StatusRequestRow } from "./status-state.ts";
 import { collectIdeasView } from "./ideas.ts";
 import {taskStartProgress,type ActivationEvent} from "./task-start.ts";
@@ -27,6 +28,7 @@ type ItemRow = ProjectRunFacts & {
   guild_id: string | null; parent_channel_id: string | null; thread_id: string | null;
   ci_checks_json: string | null; ci_observed_at: string | null;
   review_fix_round_number: number | null;
+  review_fix_startup_failure?: string | null;
 };
 
 export function projectsRegistry(path: string): Record<string, Config> {
@@ -71,6 +73,7 @@ function itemFromRow(row: ItemRow, config: Config, now: Date): ProjectItem {
     ci: { state: row.ci_aggregate_state ?? "none", tone: row.ci_aggregate_state === "passed" ? "success" : ["failed", "missing"].includes(row.ci_aggregate_state ?? "") ? "failure" : "neutral", head: row.ci_head_sha,
       checks: parseCiChecks(row.ci_checks_json, config.repository), observedAt: row.ci_observed_at },
     reviewRequestFailed: Boolean(row.review_request_failed),
+    reviewFixStartupFailure: row.review_fix_startup_failure ?? null,
     reviewFix: row.review_fix_request_active_count > 0 && !["running","waiting_ci","resolving"].includes(row.review_fix_state??"")
       ? {state:"queued",round:null} : row.review_fix_state ? {state:row.review_fix_state,round:row.review_fix_round_number} : undefined,
     review: { state: reviewState, tone: ["outdated", "superseded", "unverified"].includes(reviewState) ? "warning" : ["failed","request_failed"].includes(reviewState) ? "failure" : reviewState === "ready" ? (run?.majorFindings ? "warning" : "success") : "neutral",
@@ -128,6 +131,7 @@ export function collectProjectsSnapshot(options: { home?: string; now?: Date; co
       FROM project_triage_rankings r JOIN project_triage_state s ON s.project=r.project AND s.factual_hash=r.factual_hash
       WHERE r.selected_item_id IS NOT NULL`).all() as {project:string;selected_item_id:string;selected_issue_number:number;suggested_since:string;ranked_at:string;explanation:string}[]:[];
     for (const row of rows) if (row.run_id) {
+      row.review_fix_startup_failure = reviewFixStartupFailure(database, row.run_id, row.ci_head_sha, row.pull_request_url);
       const diagnostic = workerDiagnosticText(technicalWorkerDiagnostic(database, row.run_id));
       if (diagnostic) row.detail = [row.detail, diagnostic].filter(Boolean).join(" · ");
     }

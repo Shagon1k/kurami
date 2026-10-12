@@ -67,6 +67,10 @@ A completed turn does not prove that code was committed, pushed, reviewed or acc
 
 ## Restart, cancellation and limits
 
+For a completion-validated TUI park, Kurami snapshots the exact managed pane's process tree before tmux exits. Surviving captured processes receive SIGTERM, with PID and process start-time checks before signalling. Ownership is released only after those processes stop. A private receipt binds cleanup retries to the same run, session, thread and host boot. This is not a working-directory or process-name kill: unrelated workers and Remote handoff retain their existing behavior. Historical orphans without captured ancestry are not automatically terminated.
+
+Projects shows a safe startup-refusal note when the latest review-fix request failed for the displayed PR and commit. The note does not erase ready AI-review evidence or change action eligibility. A newer request or a different PR/head suppresses the old refusal; raw subprocess diagnostics, paths and credentials are never rendered.
+
 Controller restarts read the persisted task and completion receipt. If a worker disappears before acknowledging process exit, the controller reads only that exact saved thread and turn from stored protocol history. It does not resume the thread or submit another turn. Even recovered completion does not establish process shutdown: ownership stays fenced in `needs_attention` until the uncertain process state is resolved.
 
 A lost `turn/start` response is an ambiguous dispatch. Kurami records the uncertainty and stops the private process; it does not retry the request. This prevents a restart from silently creating a second turn.

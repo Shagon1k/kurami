@@ -18,6 +18,7 @@ export type ProjectItem = {
   attention: ProjectAttention[];
   aiReview?: { enabled: boolean; reason: string; head: string | null };
   reviewFix?: { state: string; round: number | null };
+  reviewFixStartupFailure?: string | null;
   suggestedNext?: {since:string;rankedAt:string;explanation:string};
   reviewRequestFailed?: boolean;
   statusChange?: StatusChange;

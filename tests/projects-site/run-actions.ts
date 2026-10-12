@@ -10,6 +10,8 @@ import { requestRunControl } from "../../src/orchestrator/controls/run.ts";
 import { loadRepairContext,loadReviewFixContext } from "../../src/orchestrator/projects/sessions/session-start.ts";
 import { collectProjectsSnapshot } from "../../src/projects-site/snapshot.ts";
 import { createProjectsServer } from "../../src/projects-site/server.ts";
+import { renderProjectsDashboard } from "../../src/projects-site/render.ts";
+import { reviewFixStartupFailure } from "../../src/projects-site/review-fix-failure.ts";
 
 const home=mkdtempSync(join(tmpdir(),"kurami-project-run-actions-"));
 const now=new Date();const at=now.toISOString();const expires=new Date(now.getTime()+3_600_000).toISOString();
@@ -96,6 +98,30 @@ try {
   reset();database.exec("INSERT INTO run_control_requests(request_id,run_id,action,requested_via,idempotency_key,request_state) VALUES('q_review','r_current','ai_review','discord','review-fixture','applied')");
   database.prepare("INSERT INTO run_ai_reviews(review_id,run_id,request_id,review_number,review_state,repository,pull_request_number,pull_request_url,base_ref,base_sha,head_sha,tmux_session_name,important_count) VALUES('review_current','r_current','q_review',1,'ready','Example/Alpha',20,?,'main',?,?,'synthetic-review',1)").run(pr,otherHead,head);
   const fix=requestProjectRunAction(input("review_fix"),"owner",options);
+  database.prepare("UPDATE run_control_requests SET request_state='failed',result_json=? WHERE request_id=?")
+    .run(JSON.stringify({action:"review_fix_start_failed",reason:"Legacy CI recovery refused: live writer uses preserved worktree /private/path password=synthetic-secret https://user:pass@host"}),fix.requestId);
+  const beforeFailure=view();
+  const failedSnapshot=collectProjectsSnapshot({...options,controlsEnabled:true});
+  const failedItem=failedSnapshot.items[0]!;
+  assert.match(failedItem.reviewFixStartupFailure!,/process still owns/);
+  assert.equal(failedItem.review.state,"ready","a startup refusal does not erase valid AI review evidence");
+  assert.deepEqual(view().actions.map(({state,...action})=>action),beforeFailure.actions.map(({state,...action})=>action),"display outcome does not change control eligibility");
+  const failureHtml=renderProjectsDashboard(failedSnapshot,new URLSearchParams({item:"item12"}));
+  assert.match(failureHtml,/Review fixes did not start/);
+  assert.doesNotMatch(failureHtml,/synthetic-secret|private\/path|user:pass/);
+  assert.equal(reviewFixStartupFailure(database,"r_current",otherHead,pr),null,"different head suppresses old failure");
+  assert.equal(reviewFixStartupFailure(database,"r_current",head,pr+"1"),null,"different PR suppresses old failure");
+  database.prepare("UPDATE run_control_requests SET result_json=? WHERE request_id=?").run('null',fix.requestId);
+  assert.equal(reviewFixStartupFailure(database,"r_current",head,pr),null);
+  database.prepare("UPDATE run_control_requests SET result_json=? WHERE request_id=?").run(JSON.stringify({action:"review_fix_start_failed",reason:"password=synthetic-secret "+"x".repeat(5000)}),fix.requestId);
+  assert.ok(reviewFixStartupFailure(database,"r_current",head,pr)!.length<200);
+  assert.doesNotMatch(reviewFixStartupFailure(database,"r_current",head,pr)!,/synthetic-secret/);
+  database.exec("INSERT INTO run_control_requests(request_id,run_id,action,requested_via,idempotency_key,request_state) VALUES('q_new_fix','r_current','review_fix','discord','new-review-fixture','pending')");
+  assert.equal(reviewFixStartupFailure(database,"r_current",head,pr),null,"new pending request suppresses old refusal");
+  database.exec("UPDATE run_control_requests SET request_state='applied' WHERE request_id='q_new_fix'");
+  assert.equal(reviewFixStartupFailure(database,"r_current",head,pr),null,"new successful request suppresses old refusal");
+  database.exec("DELETE FROM run_control_requests WHERE request_id='q_new_fix'");
+  database.exec("UPDATE run_control_requests SET request_state='pending',result_json=NULL WHERE action='review_fix'");
   database.prepare("UPDATE run_ci_snapshots SET head_sha=?").run(otherHead);
   await assert.rejects(loadReviewFixContext(database,run,{owner:"Example"} as Parameters<typeof loadReviewFixContext>[2],fix.requestId),/different PR or commit/);
 

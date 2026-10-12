@@ -1,4 +1,4 @@
-import { execFileSync } from "node:child_process";
+import { execFileSync, spawn } from "node:child_process";
 import {
   chmod,
   copyFile,
@@ -49,6 +49,7 @@ async function main(): Promise<void> {
     await mkdtemp(resolve(tmpdir(), "kurami-autonomous-successor-")),
   );
   const fakeBin = resolve(home, "fake-bin");
+  const paneProcess = spawn(process.execPath, ["-e", "setInterval(()=>{},1000)"], { stdio: "ignore" });
   const fakeTmuxState = resolve(home, "tmux-alive");
   const fakeTmuxFailState = resolve(home, "tmux-fail-next-start");
   const fakeTmuxLog = resolve(home, "tmux-calls.log");
@@ -122,6 +123,9 @@ case "$1" in
   has-session)
     test -f "$FAKE_TMUX_STATE"
     ;;
+  list-panes)
+    printf '%s\n' "$FAKE_PANE_PID"
+    ;;
   capture-pane)
     printf '%s\n' 'No further work is needed.' \
       '─ Worked for 1m 00s ─' \
@@ -154,6 +158,7 @@ esac
     const env = {
       ...process.env,
       KURAMI_HOME: home,
+      FAKE_PANE_PID: String(paneProcess.pid),
       ORCHESTRATOR_MIGRATIONS_DIR: resolve(app, "migrations"),
       CODEX_BIN: process.execPath,
       PATH: `${fakeBin}${delimiter}${process.env.PATH ?? ""}`,
@@ -696,6 +701,7 @@ esac
       })}\n`,
     );
   } finally {
+    paneProcess.kill("SIGTERM");
     await rm(home, { recursive: true, force: true });
   }
 }
