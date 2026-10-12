@@ -142,10 +142,10 @@ function previewReviewNote(item:ProjectItem,lang:Language):string {
 function reviewPanel(item:ProjectItem,lang:Language,commonHead:string|null):string {
   const t=(key:string)=>tr(key,lang);
   const reviews=item.reviews??{general:{...item.review,url:item.links.review,requestFailed:Boolean(item.reviewRequestFailed),control:item.aiReview,fix:item.reviewFix,fixActions:item.runActions,fixStartupFailure:item.reviewFixStartupFailure},clarity:{state:"none",tone:"neutral" as const,head:null,critical:0,important:0,suggestions:0,url:null,requestFailed:false}};
-  const menu=(label:string,body:string)=>{
+  const menu=(label:string,body:string,enabled:boolean)=>{
     if(!body)return "";
     const id=`projects-review-menu-${randomUUID()}`;
-    return renderButton({label:t(label),iconPath:iconPath("chevronDown"),visibleLabel:true,variant:"subtle",size:"compact",attributes:{popovertarget:id,"aria-expanded":"false"}})+renderPopover({id,label:t(label),body:`<div class="projects-review-options">${body}</div>`});
+    return `<div class="projects-action-menu">`+renderButton({label:t(label),iconPath:iconPath("chevronDown"),visibleLabel:true,variant:"subtle",size:"compact",disabled:!enabled,attributes:{popovertarget:id,"aria-expanded":"false"}})+renderPopover({id,label:t(label),body:`<div class="projects-review-options projects-action-options">${body}</div>`})+`</div>`;
   };
   const fixActive=Object.values(reviews).some(review=>review.fix&&["queued","running","waiting_ci","resolving"].includes(review.fix.state));
   const launch=REVIEW_PROFILES.map(profile=>{
@@ -174,7 +174,7 @@ function reviewPanel(item:ProjectItem,lang:Language,commonHead:string|null):stri
     const failure=review.requestFailed?renderCallout({tone:"warning",title:t("AI Review did not start"),body:t("Refresh and retry for the current PR commit.")}):review.fixStartupFailure?renderCallout({tone:"warning",title:t("Review fixes did not start"),body:t(review.fixStartupFailure)}):"";
     return `<div class="projects-review-profile" data-review-result="${profile}"><div class="projects-evidence-heading"><span class="projects-evidence-label"><strong>${profile==="general"?"🔎 General":"🧩 Clarity"}</strong></span>${signal(review,lang)}</div>${review.head&&review.head!==commonHead?`<code title="${escape(review.head)}">${escape(review.head.slice(0,12))}</code>`:""}${findings}${link}${note}${failure}</div>`;
   }).join("");
-  return `<div class="projects-evidence-row"><div class="projects-evidence-label">${renderIcon("review")}<strong>${t("AI Review")}</strong></div><div class="projects-review-controls">${menu("Run review",launch)}${menu("Fix findings",fixes)}</div>${rows}</div>`;
+  return `<div class="projects-evidence-row"><div class="projects-evidence-label">${renderIcon("review")}<strong>${t("AI Review")}</strong></div><div class="projects-review-controls">${menu("Run review",launch,REVIEW_PROFILES.some(profile=>reviews[profile].control?.enabled))}${menu("Fix findings",fixes,REVIEW_PROFILES.some(profile=>reviews[profile].fixActions?.actions.some(action=>action.action==="review_fix"&&action.enabled)))}</div>${rows}</div>`;
 }
 function detail(item:ProjectItem,params:URLSearchParams,project:ProjectSummary,at:string):string {
   const lang=language(params),t=(key:string)=>tr(key,lang);
@@ -211,9 +211,9 @@ export function renderProjectPrControl(view:PrActionView|undefined,lang:Language
   const note=view.reason?actionNote(t(view.reason),view.noteTone??(view.enabled?"info":"warning")):"";
   const labels={squash:"Squash",rebase:"Rebase",merge:"Merge commit"};
   const confirmLabels={squash:"Squash and merge",rebase:"Rebase and merge",merge:"Create merge commit"};
-  const choices=merge?`<div class="projects-pr-methods" data-pr-choices>${view.methods.map(method=>renderButton({label:t(labels[method]),variant:"quiet",attributes:{"data-pr-method":method,"data-pr-confirm-label":t(confirmLabels[method])}})).join("")}</div>`:"";
+  const choices=merge?`<div class="projects-pr-methods projects-action-options" data-pr-choices>${view.methods.map(method=>renderButton({label:t(labels[method]),variant:"quiet",attributes:{"data-pr-method":method,"data-pr-confirm-label":t(confirmLabels[method])}})).join("")}</div>`:"";
   const confirm=`<div data-pr-confirmation${merge?" hidden":""}><p class="projects-action-note">${escape(t(merge?"Merge this PR into":"Mark this draft ready for review"))} ${merge?escape(view.base):""} · #${view.number} · <code>${escape(view.head.slice(0,12))}</code>?</p><div class="projects-confirm-buttons">${renderButton({label:t("Cancel"),variant:"quiet",attributes:{"data-pr-dismiss":true}})}${renderButton({label:t(merge?"Confirm merge":"Confirm"),variant:merge?"success":"subtle",attributes:{"data-pr-confirm":true,"data-haptic":"confirm"}})}</div></div>`;
-  return button+`<div class="projects-run-action-meta">${note}<div class="projects-pr-popover">${renderPopover({id,label:t(merge?"Merge method":"Ready for review"),body:choices+confirm})}</div></div>`;
+  return button+`<div class="projects-run-action-meta">${note}<div class="projects-pr-popover projects-action-menu">${renderPopover({id,label:t(merge?"Merge method":"Ready for review"),body:choices+confirm})}</div></div>`;
 }
 function runActions(item:ProjectItem,lang:Language,actions:string[],leading="",trailing=""):string {
   const wrap=(control:string,notes="")=>`<div class="projects-run-action">${control}<div class="projects-run-action-meta">${notes}</div></div>`;

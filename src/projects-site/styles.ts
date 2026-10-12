@@ -149,8 +149,8 @@ export const PROJECTS_STYLES=[KURAMI_MOOD_CSS,THEME_CSS,FOUNDATION_CSS,BUTTON_CS
 .projects-action-pair > .projects-run-action > :first-child { grid-row: 1; }
 .projects-action-pair > .projects-run-action > .projects-run-action-meta { grid-column: 1 / -1; }
 .projects-action-pair > .projects-run-action > .projects-run-action-meta:empty { display: none; }
-.projects-pr-popover { --popover-width: 300px; --popover-padding: var(--space-3); --button-width: auto; }
-.projects-pr-methods { display: grid; --button-width: 100%; --button-justify: flex-start; }
+.projects-action-menu { min-width: 0; --popover-width: 300px; --popover-padding: var(--space-3); --button-width: 100%; }
+.projects-action-options { display: grid; gap: var(--space-2); --button-width: 100%; --button-justify: flex-start; }
 .projects-action-note,.projects-status-note,.projects-info { color: var(--status-info); font-size: .74rem; line-height: 1.5; margin: var(--space-2) 0 0; }
 .projects-confirm-buttons { --button-width: auto; display: flex; flex-wrap: wrap; justify-content: flex-end; gap: var(--space-2); margin-top: var(--space-2); }
 .projects-update { color: var(--text-muted); font-size: .7rem; line-height: 1.6; margin: var(--space-2) 0 0; }
@@ -189,8 +189,9 @@ export const PROJECTS_STYLES=[KURAMI_MOOD_CSS,THEME_CSS,FOUNDATION_CSS,BUTTON_CS
   .projects-detail { --projects-detail-padding: var(--space-4); --projects-detail-bottom-padding: var(--space-4); }
 }
 
-.projects-review-controls { display:flex; flex-wrap:wrap; gap:var(--space-2); margin-block:var(--space-2); }
-.projects-review-options { display:grid; gap:var(--space-1); }
+.projects-review-controls { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:var(--space-2); margin-block:var(--space-2); }
+.projects-review-controls:has(> :only-child) { grid-template-columns:minmax(0,1fr); }
+.projects-review-controls:empty { display:none; }
 .projects-review-profile { display:grid; gap:var(--space-2); padding-block:var(--space-2); }
 .projects-review-profile + .projects-review-profile { border-top:1px solid var(--border-default); }
 

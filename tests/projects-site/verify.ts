@@ -136,6 +136,16 @@ assert.equal(await access.authorize(request(tampered.join("."))), null, "unverif
 assert.equal(await new ProjectsAccess({ team: "", audience: "", ownerEmail: "" }).authorize(request(token())), null);
 
 const fixture = syntheticProjectsSnapshot();
+for (const enabled of [false,true]) {
+  const snapshot=structuredClone(fixture);
+  snapshot.items[0]!.aiReview={enabled,reason:enabled?"eligible":"stale",head:"abcdef0123456789"};
+  const html=renderProjectsPage(snapshot,new URLSearchParams("item=item-12&lang=en"));
+  const trigger=html.match(/<button[^>]*popovertarget="projects-review-menu-[^"]+"[^>]*>/)?.[0];
+  assert.ok(trigger,"review selector is present");
+  assert.equal(/\sdisabled(?:\s|>)/.test(trigger),!enabled,
+    "the review selector is disabled when all its available profiles are disabled");
+}
+
 for(const lang of ['en','ru'] as const)for(const state of ['unreviewed','current','outdated','unverified'] as const){
   const snapshot=structuredClone(fixture),item=snapshot.items[0]!;
   item.preview={state:'running',tone:'success',head:state==='unverified'?null:state==='outdated'?'previous':item.ci.head,expiresAt:'2030-01-01T00:00:00Z',reviewed:state!=='unreviewed'};

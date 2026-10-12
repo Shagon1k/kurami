@@ -624,6 +624,7 @@ try {
       await devtools.evaluate("document.querySelector('[data-pr-action]').click()");
       assert.equal(await devtools.evaluate("document.activeElement.dataset.prMethod"),'squash');
       assert.deepEqual(await devtools.evaluate("[...document.querySelectorAll('[data-pr-method]')].map(option=>option.dataset.prMethod)"),['squash','rebase']);
+      assert.equal(await devtools.evaluate("(()=>{const buttons=[...document.querySelectorAll('[data-pr-method]')];return buttons.slice(1).every((button,index)=>button.getBoundingClientRect().top-buttons[index].getBoundingClientRect().bottom>=8)})()"),true,"merge methods have a clear gap");
       assert.equal(await devtools.evaluate("document.querySelector('select[name=merge-method]')"),null,"no additional select in the card");
       assert.equal(prWrites.length,0,"opening method menu performs no write");
       assert.equal(await devtools.evaluate("document.querySelector('[data-pr-action]').getBoundingClientRect().top"),before,"popup never changes the card layout");
@@ -864,6 +865,8 @@ try {
     await devtools.evaluate(`document.querySelector('[data-theme-choice="${theme}"]').click()`);await chooseMode(theme==="neon"?"dark":"light");await delay(250);
     assert.equal(await devtools.evaluate("document.querySelectorAll('[data-review-result]').length"),2);
     assert.equal(await devtools.evaluate("!!document.querySelector('[data-review-run][data-review-profile=general]')"),false,'ready General does not block available Clarity');
+
+    assert.equal(await devtools.evaluate("(()=>{const row=document.querySelector('.projects-review-controls'),buttons=row.querySelectorAll('[popovertarget]');return buttons.length===1&&Math.abs(buttons[0].getBoundingClientRect().width-row.getBoundingClientRect().width)<1})()"),true,"a single review selector fills its row");
     await pointerClick('.projects-review-controls [popovertarget]');
     await wait("document.querySelector('.projects-review-controls [popovertarget]').getAttribute('aria-expanded')==='true'");
     assert.equal(await devtools.evaluate("(()=>{const panel=document.querySelector('.projects-review-options').closest('[popover]'),r=panel.getBoundingClientRect(),a=document.querySelector('.projects-review-controls [popovertarget]').getBoundingClientRect();return panel.matches(':popover-open')&&r.left>=0&&r.right<=innerWidth&&r.top>=0&&r.bottom<=innerHeight&&Math.min(Math.abs(r.top-a.bottom),Math.abs(a.top-r.bottom))<=9})()"),true,'review selector stays beside its trigger and fits phone and desktop');
