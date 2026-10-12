@@ -11,8 +11,8 @@ next: release-cleanup
 Evidence in Kurami is the result of a check of one specific PR commit: CI, an AI review or a fix. Each one stores that commit's SHA and stops counting when the commit changes.
 
 :::glance
-- What it does: reads the CI of the PR commit, and on your button starts a CI fix, an independent AI review and a fix of review comments
-- Who starts it: the CI observer by itself every minute; everything else you, with a button
+- What it does: reads the CI of the PR commit, and on an owner request or enabled autopilot starts a CI fix, an independent AI review and a fix of review comments
+- Who starts it: the CI observer by itself every minute; other steps by the owner or per-project autopilot
 - Where it runs: short controller scripts; the reviewer is a separate tmux session `rv-…`
 - State: `run_ci_snapshots`, `run_ci_repair_attempts`, `run_ai_reviews`, `run_review_fix_rounds` in the Run Store
 - Limits: 2 CI fix attempts, up to 10 review findings, 10 minutes to wait for a new commit, 30 minutes for CI, 90 minutes per process
@@ -22,8 +22,8 @@ Evidence in Kurami is the result of a check of one specific PR commit: CI, an AI
 ```diagram
 kind: graph
 title: Three kinds of evidence around one commit
-desc: The PR provides a commit. The CI observer records that commit's checks in a snapshot. On a button, a read-only reviewer starts and publishes a review in the PR. On another button, a fresh Codex task fixes the comments and pushes a new commit. The Discord card shows the snapshot and the review.
-node owner "You" "two buttons" owner at 0,0
+desc: The PR provides a commit. The CI observer records that commit's checks in a snapshot. The owner or enabled autopilot requests a read-only review or a fresh Codex fix through the same admission checks. The reviewer publishes a review; the fixer pushes a new commit. The Discord card shows the snapshot and the review.
+node owner "Requests" "owner or autopilot" owner at 0,0
 node pr "PR commit" "head SHA" external at 1,0
 node ci "CI observer" "every minute" at 2,0
 node snap "run_ci_snapshots" "row per run" store at 2,1
@@ -78,9 +78,15 @@ It calls the GitHub REST API, takes the check-runs and commit statuses, and coun
 
 There is one snapshot row per run and it is overwritten. A content digest lets the card notice a change, and `first_observed_at` resets with a new commit so the 10-minute grace starts again.
 
+## Configurable autopilot
+
+Autopilot is off by default and enabled per project in [Settings](@settings). For a parked Human Review task with a PR, it requests one missing step: a first CI repair for failed or missing CI; a review of the current commit after passed CI; or one fix round for critical or important findings. An active repair or review-fix worker blocks another step. Suggestions alone do not start a fix.
+
+Accepted requests are remembered by task, action and head. Refused requests may retry at most four times, at least 15 minutes apart. Acceptance means a request was queued, not that CI passed or a review was published. A separate Take the next task switch uses the guarded board transition only when the project has nothing active or in review. Merge and issue acceptance remain owner decisions.
+
 ## Fixing CI
 
-A CI fix is up to two fresh Codex tasks, each started by your **Attempt CI fix** button. The button appears when CI is `failed` or `missing`, the run is in `parked_review`, the thread is known and fewer than two attempts were made. The limit of two bounds the cost and the "fix — red again" loop; after the second red attempt you decide.
+Manual CI repair allows up to two fresh Codex tasks, each started by the owner's **Attempt CI fix** button. The button appears when CI is `failed` or `missing`, the run is in `parked_review`, the thread is known and fewer than two attempts were made. The limit of two bounds the cost and the "fix — red again" loop; after the second red attempt you decide.
 
 The controller checks that the working copy is clean and stands exactly on `source_head_sha`, and refuses otherwise. Before a CI fix, review fix or preview starts, a shared source preflight can fast-forward a stale managed branch to that exact live PR head. This requires a clean, unowned parked run, no active writer/session or preview runtime, the configured repository and branch, and matching live PR and remote heads. Dirty or divergent local work is preserved and refused: there is no reset or rebase. If the source moves during validation, admission stops; an already completed safe fast-forward is retained. Fetch uses the existing protected owner credential, without changing reviewer permissions or persisting credentials in Git configuration.
 
@@ -178,7 +184,7 @@ The data is invented. PR #57 of run `r_3f9a1c7e5b2d4a8c6e01`, TailorTales.
 :::guarantees
 - Kurami counts as evidence only a result for the PR's current commit.
 - The CI observer only reads GitHub: it changes no PR, branch or check.
-- A CI fix, an AI review and Fix Review start only on your button; there are no automatic retries, and CI fixes are limited to two attempts.
+- The owner or enabled autopilot may request these steps through the same guards; manual CI repair has a two-attempt budget, while autopilot requests one CI repair and one review-fix round per task.
 - The reviewer works without write access and without secrets, every permission request is declined, and it publishes only `COMMENT`, never an approval.
 - The Codex fixer does not reply in threads or resolve them; Kurami does that after green CI, and only for the snapshot's threads.
 :::
@@ -192,6 +198,7 @@ The data is invented. PR #57 of run `r_3f9a1c7e5b2d4a8c6e01`, TailorTales.
 - `src/orchestrator/integrations/github/review-threads.ts` — thread selection, reply and resolve
 - `src/orchestrator/projects/reviews/fix-manager.ts` — replies and resolving threads after CI
 - `src/orchestrator/runtime/reconcile-review-fix.ts` — review fix round states
+- `src/orchestrator/runtime/autopilot.ts` — bounded per-project requests through owner-action guards
 - `src/orchestrator/security/prompt-safety.ts` — secret stripping and safe data passing
 - `deploy/config/projects.yaml` — the project's required checks
 :::

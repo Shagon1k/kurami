@@ -14,9 +14,9 @@ All of Kurami lives in one directory, `$KURAMI_HOME`, and everything that belong
 - Root: `$KURAMI_HOME`; if the variable is unset, the parent of the `app/` directory is used
 - Code: `app/` — an ordinary checkout of `main`; `app/dist/` — the built Digest
 - State: `state/` — databases, JSON files, locks; secrets — `secrets/` with mode 0600
-- Processes: five permanent services and two timers under `systemd --user`
+- Processes: app services, ingress, the CPU sampler and two Digest timers under `systemd --user`
 - Runtime: a pinned Node 24, Caddy, age, LibreSpeed in `runtime/`
-- Deploy: by hand — update the checkout, build and restart whatever is affected
+- Deploy: owner-confirmed unified release through Hub or the deploy CLI
 :::
 
 ## Directories
@@ -39,7 +39,7 @@ group home "$KURAMI_HOME" app runtime config state secrets connectors backups re
 
 | Directory | Contents | Written by |
 |---|---|---|
-| `app/` | the repository; `dist/` is the result of `npm run briefing:build` | you, by hand |
+| `app/` | the repository; `dist/` is the result of `npm run briefing:build` | owner-confirmed deployment controller |
 | `runtime/` | Node v24, Caddy, age, `tools/librespeed-cli`, uv | you, at install |
 | `config/` | copies of `orchestrator.yaml`, `projects.yaml`, `Caddyfile`, `briefing.yaml` | you, from `deploy/config/` |
 | `state/` | see the table below | jobs and services |
@@ -79,6 +79,8 @@ All services run as your user (`systemd --user`) and get the same set of restric
 | `kurami-briefing` | 8787 | `state/briefing` | `node --jitless`, the built `dist/`, `MemoryDenyWriteExecute` |
 | `kurami-human-docs` | 8799 | nowhere | starts only if `release/build.json` exists |
 | `kurami-hub` | 8800 | `state`, `connectors`, the Codex directory and the Hermes home | starts only if `orchestrator.db` exists; the write paths serve the Hub controls |
+| `kurami-projects` | 8777 | `state` | guarded project controls and read models |
+| `kurami-web` | 8888 | nowhere in the tracked unit | signed Access gateway to all four apps |
 | `kurami-preview-ingress` | 9180 | `state/caddy` | validates its configuration before starting |
 | `kurami-cpu-statistics` | — | `state` | Unix sockets only, no network |
 
@@ -90,23 +92,24 @@ The restrictions are common: `ProtectSystem=strict` (the filesystem is read-only
 
 ## What to do after a change
 
+The normal release path is [Hub → Server → Release](@hub) or the same deployment CLI, not a pull followed by ad-hoc restarts. It refuses dirty live work and a revision outside main, and requires a passed full regression receipt for the exact tree; otherwise it tests in a separate worktree first. The controller performs only required steps and records their outcomes. Rollback attempts to return code and services to the previous revision; it is not a database restore or proof of reversal of external actions. The table below explains dependencies for operator diagnosis.
+
+
 ```diagram
-kind: graph
-title: What to restart after an edit
-desc: A change to Digest code needs a build and a service restart. A change to other scripts takes effect at the next run, and a permanent service needs a restart.
-node q1 "What changed?" decision at 1,0
-node digest "Digest" "npm run briefing:build" at 0,1
-node restartD "Restart kurami-briefing" at 0,2
-node scripts "Script or CLI" at 1,1
-node next "From the next run" end at 1,2
-node svc "Permanent service" at 2,1
-node restartS "systemctl --user restart" at 2,2
-edge q1 -> digest "src/briefing"
-edge q1 -> scripts "a job"
-edge q1 -> svc "Hub, docs, Caddy"
-edge digest -> restartD
-edge scripts -> next
-edge svc -> restartS
+kind: sequence
+title: Owner-controlled unified release
+desc: The owner confirms a target revision. Deploy verifies exact-tree full regression evidence before changing the live checkout, then runs required migrations, builds, docs promotion, Hermes sync and service restarts. Drift is checked last; a failed release attempts rollback and records its outcome.
+actor owner "Owner" owner
+actor deploy "Deploy"
+actor tests "Regression"
+actor runtime "Runtime"
+msg owner -> deploy "confirm main revision"
+msg deploy -> tests "verify receipt or run all suites"
+msg tests -> deploy "passed exact tree"
+msg deploy -> runtime "checkout, migrations and builds"
+msg deploy -> runtime "docs, sync and restarts"
+self deploy "check drift; record outcome"
+note deploy "failure: attempt rollback"
 ```
 
 | What changed | Command | Takes effect |
@@ -120,13 +123,13 @@ edge svc -> restartS
 
 GitHub Actions runs types, the documentation-impact declaration check and the full test suite on every PR, but deploys nothing.
 
-::::example Changing a Digest card (invented data)
+::::example A Digest change (invented data)
 :::steps
-- **You** — merge a PR that changes `src/briefing/ui/components/reaction-group.ts`, commit `7f3a9c2`.
-- **You** — in `$KURAMI_HOME/app` pull `main` and run `npm run briefing:build`: the compiler updates `dist/briefing/ui/...`.
-- **You** — restart `kurami-briefing`: the service reads the new `dist/` on port 8787.
-- **Systemd** — `ExecStartPre` runs `cli.js init`, then the service picks up the database without losing data.
-- **Hourly poll** — at :37 starts the already built `dist/briefing/poller.js`, so it runs the new code too.
+- **Owner** — merges a reviewed card change at commit `7f3a9c2`.
+- **Owner** — confirms Release main in Hub.
+- **Deploy** — checks full regression evidence for that exact tree, running missing tests before changing live code.
+- **Deploy** — builds Digest, promotes the required docs artifact, synchronizes affected Hermes copies and restarts affected services.
+- **Deploy** — checks release drift and records the outcome; a merged PR alone is not this receipt.
 :::
 ::::
 
@@ -148,6 +151,8 @@ GitHub Actions runs types, the documentation-impact declaration check and the fu
 :::
 
 :::code-map
+- `src/system/deploy/deploy.ts` — unified release, regression gate and rollback outcome
+- `src/system/test-receipts.ts` — exact-tree full regression evidence
 - `src/core/kurami-home.ts` — the definition of `$KURAMI_HOME`
 - `tsconfig.briefing-runtime.json` — what goes into `dist/`
 - `deploy/systemd/` — all services and timers

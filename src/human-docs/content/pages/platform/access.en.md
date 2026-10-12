@@ -12,24 +12,19 @@ Cloudflare Access checks your identity before the tunnel delivers a request to a
 
 ```diagram
 kind: graph
-title: The path of a request from outside
-desc: A request goes through Cloudflare Access and the tunnel to the server's local ports. The Digest, documentation and Hub sites listen directly. Previews go through Caddy, which opens a route only for a running preview.
-node you "You" "browser" owner at 0,0
-node access "Cloudflare Access" "identity check" external at 1,0
-node tunnel "Cloudflare Tunnel" "route to the server" external at 2,0
-node digest "Digest" "127.0.0.1:8787" at 0,2
-node docs "Documentation" "127.0.0.1:8799" at 1,2
-node hub "Hub" "127.0.0.1:8800" at 2,2
-node caddy "Caddy" "127.0.0.1:9180" at 1,3
-node preview "Preview" "a port per run" at 1,4
-group vps "Server" digest docs hub caddy preview
+title: Private apps and separate previews
+desc: Access and the tunnel send private app requests to the unified gateway. The gateway validates the assertion and routes to Hub, Digest, Projects and Docs loopback services. Preview addresses use a separate Caddy route, available only for a running lease.
+node you "Owner" "browser" owner at 0,0
+node access "Access and tunnel" "edge identity" external at 0,1
+node gateway "Web gateway" "127.0.0.1:8888" at 0,2
+node apps "Four apps" "loopback services" at 0,3
+node caddy "Caddy" "preview ingress" at 1,2
+node preview "Preview" "running lease" at 1,3
 edge you -> access "HTTPS"
-edge access -> tunnel "allowed"
-edge tunnel -> digest
-edge tunnel -> docs
-edge tunnel -> hub
-edge tunnel -> caddy
-edge caddy -> preview "running only"
+edge access -> gateway "private apps"
+edge gateway -> apps "routes"
+edge access -> caddy "preview address" dashed
+edge caddy -> preview "active route"
 ```
 
 ## What is reachable where
@@ -63,7 +58,7 @@ do not grant owner access.
 Missing configuration, an invalid assertion or a foreign origin on a write
 request is denied. Hub and Projects retain their own control checks. A separately
 configured Docs reader identity can read only Docs, not dashboards or controls.
-The existing hostnames remain available until you approve their redirect cutover.
+Retired app hostnames are not alternative entry points; the loopback services remain gateway origins.
 
 Fetching Cloudflare's public signing keys has a 15-second deadline.
 A timeout, network error or malformed key response returns `503` with a temporary

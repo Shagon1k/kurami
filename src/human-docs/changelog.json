@@ -681,6 +681,787 @@
       "ru": "",
       "exclusionScope": "docs-only",
       "exclude": "Adds only the reviewed bilingual Changelog classification for the PWA artwork release; application behavior is unchanged."
+    },
+    "0435989ff0ba396645069ae95d425f0d64f877ed": {
+      "category": "operations",
+      "en": "",
+      "ru": "",
+      "exclusionScope": "docs-only",
+      "exclude": "Updates only the reviewed SHA-keyed bilingual changelog ledger; no application behavior changes."
+    },
+    "88bc0df820bd508041b9bef2603af50692230d4b": {
+      "category": "operations",
+      "en": "",
+      "ru": "",
+      "exclusionScope": "docs-only",
+      "exclude": "Updates only the reviewed SHA-keyed bilingual changelog ledger; no application behavior changes."
+    },
+    "3f9fd059c85ac1471fd8cc42ea84f88ffe69533b": {
+      "category": "new",
+      "page": "ui-library",
+      "en": "Adds the Neon theme and shared theme menu alongside Paper.",
+      "ru": "Добавлена тема Neon и общее меню тем рядом с Paper."
+    },
+    "a3c7fbabe9048e8d2a29aa023bd482768e5fb1f1": {
+      "category": "fixed",
+      "page": "addons",
+      "en": "Provider labels use the text accent role for readable contrast.",
+      "ru": "Подписи провайдера используют текстовую роль акцента для читаемого контраста."
+    },
+    "6c41f72b537f518fe6b07bcbd5831684768d2269": {
+      "category": "new",
+      "page": "ui-library",
+      "en": "Neon dresses shared panels, gauges, icons and charts; reduced motion disables its animations.",
+      "ru": "Neon оформляет общие панели, показатели, иконки и графики; уменьшение движения отключает анимации."
+    },
+    "d560e19335585289d717aaf4a907c9a964647108": {
+      "category": "new",
+      "page": "settings",
+      "en": "Hub sets the shared appearance default; the gateway supplies it to apps.",
+      "ru": "Hub задаёт общее оформление по умолчанию; шлюз передаёт его приложениям."
+    },
+    "f0b4051f10f74ebe687c9f949418205715cb4e4c": {
+      "category": "new",
+      "page": "ui-library",
+      "en": "Neon supports light mode as well as dark mode.",
+      "ru": "Neon поддерживает светлый режим наряду с тёмным."
+    },
+    "05c22c163b992aff87dfc16dfce07a20cad8cd88": {
+      "category": "operations",
+      "page": "ui-library",
+      "en": "UI checks cover Paper light and Neon dark; theme-specific selectors are guarded in product code.",
+      "ru": "Проверки UI покрывают Paper light и Neon dark; в коде продукта контролируются селекторы отдельных тем."
+    },
+    "1c4318e6055daceff74dc8cadbb913db63166f27": {
+      "category": "fixed",
+      "page": "settings",
+      "en": "The phone theme menu is visible, Hub applies appearance immediately and the fox glow follows its outline.",
+      "ru": "Меню тем видно на телефоне, Hub сразу применяет оформление, свечение лиса следует контуру."
+    },
+    "da0f19e65fcd0a452729b78552f7e326665bbf63": {
+      "category": "improved",
+      "page": "settings",
+      "en": "Apps open with the Hub theme; header changes last only for the current session.",
+      "ru": "Приложения открываются с темой Hub; выбор в шапке действует только в текущей сессии."
+    },
+    "cf5c9fd0dd38e601ffdf0e382b3197a4df2c9358": {
+      "category": "improved",
+      "page": "ui-library",
+      "en": "Neon adds ranked colours, a tube fox and precise feedback; mobile navigation preserves taps.",
+      "ru": "Neon получает ранги цветов, неонового лиса и точную обратную связь; навигация телефона сохраняет нажатия."
+    },
+    "5cdc252678b62a63b194278d367a3ffd3b926755": {
+      "category": "fixed",
+      "page": "ui-library",
+      "en": "The Neon header fox uses inline SVG so app image policies do not block it.",
+      "ru": "Лис Neon в шапке использует встроенный SVG, который не блокируется политикой изображений приложения."
+    },
+    "0bd6cbbb58c2578dcd3cfba88cc40d20a272e699": {
+      "category": "operations",
+      "en": "",
+      "ru": "",
+      "exclusionScope": "no-reader-visible-change",
+      "exclude": "Reconciles the weekly changelog conflict with main; application changes are inherited from the main parent and own resolution adds no new reader-visible behavior."
+    },
+    "dcc68a593f42a75e6b5fc18ada1a92f94747ba29": {
+      "category": "fixed",
+      "page": "daily",
+      "en": "Digest metric chips keep their height and the Neon app icon gains a clearer glow.",
+      "ru": "Показатели Digest сохраняют высоту, а иконка приложения Neon получает более заметное свечение."
+    },
+    "2d7eba8e223e1d3328b92979da7e55ac3dfc7466": {
+      "category": "operations",
+      "page": "daily",
+      "en": "Integrates the reviewed change: Digest metric chips keep their height and the Neon app icon gains a clearer glow.",
+      "ru": "Интегрировано проверенное изменение: Показатели Digest сохраняют высоту, а иконка приложения Neon получает более заметное свечение."
+    },
+    "c47daa8988453b3553186af9618cdad46464f017": {
+      "category": "improved",
+      "page": "ui-library",
+      "en": "Headline figures use shared theme marks; browser audits detect missing marks.",
+      "ru": "Крупные показатели используют общие пометки темы; браузерный аудит обнаруживает пропуски."
+    },
+    "f4802ea47b1171d171a91a7fdb66d63be1e53484": {
+      "category": "improved",
+      "page": "stocks",
+      "en": "Daily stocks use a themed panel and marked headline figures.",
+      "ru": "Акции в Daily используют панель темы и пометки крупных показателей."
+    },
+    "2212093ba04d6089895d4691d1ffb9cc98cafc5f": {
+      "category": "new",
+      "page": "settings",
+      "en": "Development work has shared CPU and memory limits; tests can run in parallel with scoped selection.",
+      "ru": "Разработка получает общие ограничения CPU и памяти; тесты запускаются параллельно с выбором затронутых наборов."
+    },
+    "c9bb165bab30e205f15513b89477fcef9f6e8270": {
+      "category": "improved",
+      "page": "stocks",
+      "en": "Stocks distinguishes row prices and changes from headline period statistics.",
+      "ru": "Stocks отделяет цены и изменения строк от крупных итогов периода."
+    },
+    "3cb317fe7273a3c6a9482940231857a5bab4cf97": {
+      "category": "improved",
+      "page": "hub",
+      "en": "Server and Appearance have their own Hub control panels.",
+      "ru": "Server и Appearance получают отдельные панели управления Hub."
+    },
+    "b87bb972e6ed28672419e48826e74319034d1f25": {
+      "category": "operations",
+      "page": "settings",
+      "en": "Integrates the reviewed change: Development work has shared CPU and memory limits; tests can run in parallel with scoped selection.",
+      "ru": "Интегрировано проверенное изменение: Разработка получает общие ограничения CPU и памяти; тесты запускаются параллельно с выбором затронутых наборов."
+    },
+    "c8cbd8261a601c522230d998c3b4e3bdfb070262": {
+      "category": "fixed",
+      "page": "hub",
+      "en": "Hub alert reasons align with their icons.",
+      "ru": "Причины тревог Hub выровнены с иконками."
+    },
+    "6a462a76618da9607a77489b64b839b608f4c391": {
+      "category": "operations",
+      "en": "",
+      "ru": "",
+      "exclusionScope": "no-reader-visible-change",
+      "exclude": "Narrows the development-only changed-test browser selection to affected pages; the product routes and runtime behavior are unchanged."
+    },
+    "7a330ba0da938efba92587d7045c36d6b460ac03": {
+      "category": "fixed",
+      "page": "controller",
+      "en": "Repeated controller failures back off; stuck runs receive attention and logs are timestamped and rotated.",
+      "ru": "Повторные сбои контроллера замедляют повторы; зависшие запуски требуют внимания, логи получают время и ротацию."
+    },
+    "b999d3d6fc0490aa5a6a700e07586af6e1c10e14": {
+      "category": "new",
+      "page": "hub",
+      "en": "Hub reports release drift across source, builds, services and Hermes copies.",
+      "ru": "Hub показывает отставание релиза по исходникам, сборкам, сервисам и копиям Hermes."
+    },
+    "363ebb9a628d38a8471d151adbe49a34d588018f": {
+      "category": "improved",
+      "page": "access",
+      "en": "The installed app opens in the last chosen language, falling back to the browser language.",
+      "ru": "Установленное приложение открывается на последнем выбранном языке, иначе берёт язык браузера."
+    },
+    "010553583bfbaba7ceecd8d426da2b5b8170457a": {
+      "category": "improved",
+      "page": "recovery",
+      "en": "Recovery covers all app services and builds; verified off-site uploads record a receipt for health checks.",
+      "ru": "Восстановление охватывает все сервисы и сборки; проверенная внешняя загрузка записывает подтверждение для Health."
+    },
+    "a08e7c91097425cbb37fa063a65612d84db3f760": {
+      "category": "new",
+      "page": "runtime-layout",
+      "en": "Hub offers unified release and rollback with affected builds, sync and service restarts.",
+      "ru": "Hub предлагает общий релиз и откат с нужными сборками, синхронизацией и перезапусками."
+    },
+    "092b00d7e82d42867861a5deda31f35d9f12944b": {
+      "category": "operations",
+      "page": "runtime-layout",
+      "en": "Run Store connections share lock-timeout handling and measurement.",
+      "ru": "Подключения Run Store используют общую обработку и измерение ожидания блокировки."
+    },
+    "b0b48bffd8495c222fa4a384f07c6a5fb2080087": {
+      "category": "new",
+      "page": "access",
+      "en": "The installed app has shortcuts to Digest, Hub alerts and Projects tasks.",
+      "ru": "Установленное приложение получает ярлыки Digest, тревог Hub и задач Projects."
+    },
+    "a4a91676eb8efbaef05bf49177a1e8ac19403de9": {
+      "category": "new",
+      "page": "hub",
+      "en": "A deterministic pulse line summarizes current work above the Hub dashboard.",
+      "ru": "Детерминированная строка над панелью Hub кратко описывает текущую работу."
+    },
+    "fc1c30826f1f767f427011d04e1cacc65a2ca408": {
+      "category": "new",
+      "page": "hub",
+      "en": "Hub forecasts Codex quota and disk exhaustion from recorded usage.",
+      "ru": "Hub прогнозирует исчерпание квоты Codex и диска по записанному использованию."
+    },
+    "b9482b4d76b8b2ab0e4de696028eeb318c5bbd1a": {
+      "category": "new",
+      "page": "runtime-layout",
+      "en": "Release requires a full regression receipt for the exact tree or runs the suites before changing live code.",
+      "ru": "Релиз требует полный регрессионный прогон точного дерева либо запускает тесты до изменения рабочей версии."
+    },
+    "b0cee7bc1f1e074276e22e64bf4af2643b08b6b5": {
+      "category": "improved",
+      "page": "daily",
+      "en": "The Digest run card shows progress, live captions, a skipped day and a Hub link.",
+      "ru": "Карточка запуска Digest показывает прогресс, текущие подписи, пропущенный день и ссылку Hub."
+    },
+    "136be636a5f565db50a9c011f8cd0790e96431a4": {
+      "category": "new",
+      "page": "addons",
+      "en": "Daily includes PRs awaiting the owner and Sunday project totals from the Run Store.",
+      "ru": "Daily включает PR, ожидающие владельца, и воскресные итоги проектов из Run Store."
+    },
+    "3bad0923474799125048b410a91ad2525e9963f0": {
+      "category": "new",
+      "page": "hub",
+      "en": "Opt-in device push wakes the app to fetch private notification text through Access.",
+      "ru": "Push с согласия устройства будит приложение для получения приватного текста через Access."
+    },
+    "1ad5737cf70bd67468ad1c185486ba7f0d38681c": {
+      "category": "new",
+      "page": "hermes-integration",
+      "en": "A read-only Hermes skill answers current Kurami status without starting work.",
+      "ru": "Read-only навык Hermes отвечает о текущем состоянии Kurami без запуска работы."
+    },
+    "57f28ca006fe8bdfbe2285dd6d691c8a070039fa": {
+      "category": "operations",
+      "en": "",
+      "ru": "",
+      "exclusionScope": "no-reader-visible-change",
+      "exclude": "Refreshes only the internal technical-debt audit against main; it adds no runtime control or reader-visible behavior."
+    },
+    "684765d1727e92b2e4773eadf16af0b8a1eb8b23": {
+      "category": "new",
+      "page": "investment-review",
+      "en": "Daily shows sourced watch dates and lets the owner confirm an unchanged portfolio baseline.",
+      "ru": "Daily показывает даты наблюдения из источников и позволяет подтвердить неизменный состав портфеля."
+    },
+    "5674af43b6418d855991a860734d7fcf1b39c727": {
+      "category": "new",
+      "page": "ui-library",
+      "en": "Supported Android devices give haptic feedback for primary actions, confirmations and notices.",
+      "ru": "Поддерживаемые устройства Android дают тактильную отдачу для главных действий, подтверждений и уведомлений."
+    },
+    "cd846c97f9cd0dc7e4db30ecc63fabb6d2201d99": {
+      "category": "new",
+      "page": "owner-controls",
+      "en": "A confirmed PR merge receives a small celebration notice.",
+      "ru": "Подтверждённое слияние PR получает короткое праздничное уведомление."
+    },
+    "0ba369f43d188029b5a208a2f943d2b1da73a8f2": {
+      "category": "new",
+      "page": "ui-library",
+      "en": "The fox gains bounded seasonal and birthday decorations.",
+      "ru": "Лис получает ограниченные сезонные и праздничные украшения."
+    },
+    "bf9149796c1e5eeb1265d86164a0e9f1fd70992d": {
+      "category": "new",
+      "page": "daily",
+      "en": "Explicit device consent saves one news-only Daily page for offline reading; disabling removes it.",
+      "ru": "Согласие устройства сохраняет одну страницу новостей Daily офлайн; отключение удаляет её."
+    },
+    "993eb09da9b833ffa76b8ffd9d55e2cb245c8510": {
+      "category": "fixed",
+      "page": "daily-pipeline",
+      "en": "Live collection precedes Telegram capture; guarded resume reuses retained raw without moving the cutoff.",
+      "ru": "Живой сбор предшествует Telegram; защищённое возобновление использует сохранённые исходники без переноса границы."
+    },
+    "a315a0a9572f86ea60426ba5ca246bcba0de7c9f": {
+      "category": "fixed",
+      "page": "docs-system",
+      "en": "Docs-only releases retain previously confirmed application changelog history.",
+      "ru": "Релизы только документации сохраняют ранее подтверждённую историю приложения."
+    },
+    "77875daaa49140b9d295ef7543ab9ae9372487ae": {
+      "category": "new",
+      "page": "engineering-evidence",
+      "en": "Per-project opt-in autopilot requests bounded CI repair, exact-head review and major-finding fixes; merge stays with the owner.",
+      "ru": "Автопилот проекта по согласию запрашивает ограниченное исправление CI, ревью точного SHA и важных замечаний; слияние решает владелец."
+    },
+    "fa937d0c90cce835a7b0180b49345b8c1fa66296": {
+      "category": "operations",
+      "page": "access",
+      "en": "Retired per-app hostnames are removed; loopback origins remain behind the unified gateway.",
+      "ru": "Удалены отдельные домены приложений; loopback-источники остаются за общим шлюзом."
+    },
+    "2c86b3ecc63504f84d25bbc8430db87dbda23c66": {
+      "category": "new",
+      "page": "owner-controls",
+      "en": "Phone task capture creates an issue in the selected project's Backlog without starting a run.",
+      "ru": "Создание задачи с телефона добавляет issue в Backlog выбранного проекта без запуска работы."
+    },
+    "802dedbc3b18800bd0b7919660358a80e3297da3": {
+      "category": "new",
+      "page": "settings",
+      "en": "A separate opt-in autopilot switch starts the suggested next task only when that project has no active or review task.",
+      "ru": "Отдельный переключатель автопилота берёт рекомендованную задачу, только если в проекте нет активной задачи или ревью."
+    },
+    "b66192fa2723ee2b2b338e397eccd8cdf006bad7": {
+      "category": "fixed",
+      "page": "owner-controls",
+      "en": "Projects displays only projects registered in the managed registry.",
+      "ru": "Projects показывает только проекты управляемого реестра."
+    },
+    "a4b0aea2f54ef2d652820b3cc56cd0a6295d4907": {
+      "category": "operations",
+      "en": "",
+      "ru": "",
+      "exclusionScope": "no-reader-visible-change",
+      "exclude": "Changes regression suite registration selection only, preventing unrelated full reruns; product runtime behavior is unchanged."
+    },
+    "23b2d24be67cbb699facca7d7dee58b461bdfd24": {
+      "category": "improved",
+      "page": "daily",
+      "en": "Daily's header reflects local time of day and available weather.",
+      "ru": "Шапка Daily учитывает местное время суток и доступную погоду."
+    },
+    "e5c2bb504e53348fdca5d33b3f2760b1bb57fda3": {
+      "category": "new",
+      "page": "daily",
+      "en": "Mail learns from confirmed archiving and proposes sender rules requiring an owner decision.",
+      "ru": "Почта учится по подтверждённому архивированию и предлагает правила отправителей с решением владельца."
+    },
+    "4be262bee3774b674778774954b8a50a88d2dca2": {
+      "category": "new",
+      "page": "daily",
+      "en": "Kurami moods accompany states, Daily completion and pull-to-refresh; appearance can hide the character.",
+      "ru": "Настроения Kurami сопровождают состояния, дочитывание Daily и обновление жестом; персонаж скрывается в оформлении."
+    },
+    "6f5dc7587ebc794b04d4b5ec1e4352bdcfd30a33": {
+      "category": "new",
+      "page": "weekly",
+      "en": "Hub and Weekly show a read-only project chronicle, separate from saved Weekly observation totals.",
+      "ru": "Hub и Weekly показывают read-only летопись проектов отдельно от сохранённых итогов Weekly."
+    },
+    "5cbe1326ddfdbf27af4b1642dc6b44dffbbeb29f": {
+      "category": "fixed",
+      "page": "ui-library",
+      "en": "Mood styling follows theme roles and Docs applies the theme before rendering.",
+      "ru": "Оформление настроений следует ролям темы; Docs применяет тему до отрисовки."
+    },
+    "794835f43695dd609ec11584958fe0a55a170e41": {
+      "category": "new",
+      "page": "owner-controls",
+      "en": "Each project can have a configured colour shown along its tasks.",
+      "ru": "Каждый проект может иметь настроенный цвет на своих задачах."
+    },
+    "f2880c4192388d2f85afc1df50707de9a9037acd": {
+      "category": "operations",
+      "en": "",
+      "ru": "",
+      "exclusionScope": "no-reader-visible-change",
+      "exclude": "Updates the Hub appearance test fixture to include the existing character switch; it changes no application code."
+    },
+    "7ba2e08a3908be7d77ee7aa6f5418044fcbeb933": {
+      "category": "fixed",
+      "page": "daily",
+      "en": "Mood images are served from compiled Digest as well as source execution.",
+      "ru": "Изображения настроений доступны из собранного Digest наряду с запуском исходников."
+    },
+    "07df54d0a82bd6fd5e34b5c49398d98e252e0c51": {
+      "category": "improved",
+      "page": "hub",
+      "en": "Project colours appear in Hub activity and the project table.",
+      "ru": "Цвета проектов показаны в активности Hub и таблице проектов."
+    },
+    "6612754e0bde8e587c92293f5c14317b5d2a6366": {
+      "category": "new",
+      "page": "owner-controls",
+      "en": "The Ideas pool keeps future-work notes separate from tasks.",
+      "ru": "Пул идей хранит заметки будущей работы отдельно от задач."
+    },
+    "d491b912afdb3c1ac9bef0772dd84402b4e4db8a": {
+      "category": "fixed",
+      "page": "owner-controls",
+      "en": "Ideas note controls use a wrapper without restyling the shared button.",
+      "ru": "Кнопка заметок Ideas использует обёртку без переопределения общей кнопки."
+    },
+    "e7e14ae58342c55cb82b81359e19f3e3e42480b1": {
+      "category": "improved",
+      "page": "hermes-integration",
+      "en": "Chat idea capture uses one shared skill and an Ideas block in Projects.",
+      "ru": "Сбор идей из чатов использует общий навык и блок Ideas в Projects."
+    },
+    "403ec0e1e58c41735aa9183144b6879ff797f1a0": {
+      "category": "operations",
+      "page": "controller",
+      "en": "Integrates the reviewed change: Repeated controller failures back off; stuck runs receive attention and logs are timestamped and rotated.",
+      "ru": "Интегрировано проверенное изменение: Повторные сбои контроллера замедляют повторы; зависшие запуски требуют внимания, логи получают время и ротацию."
+    },
+    "7beefb7f296d9ba1ec370ab3c35d43964fd33775": {
+      "category": "operations",
+      "page": "hub",
+      "en": "Integrates the reviewed change: Hub reports release drift across source, builds, services and Hermes copies.",
+      "ru": "Интегрировано проверенное изменение: Hub показывает отставание релиза по исходникам, сборкам, сервисам и копиям Hermes."
+    },
+    "7872f72f6820294bcce6a62f2b641b6d0ae898fb": {
+      "category": "operations",
+      "page": "access",
+      "en": "Integrates the reviewed change: The installed app opens in the last chosen language, falling back to the browser language.",
+      "ru": "Интегрировано проверенное изменение: Установленное приложение открывается на последнем выбранном языке, иначе берёт язык браузера."
+    },
+    "58cae1f18b512894e66db149f27b589659dfc0c8": {
+      "category": "operations",
+      "page": "recovery",
+      "en": "Integrates the reviewed change: Recovery covers all app services and builds; verified off-site uploads record a receipt for health checks.",
+      "ru": "Интегрировано проверенное изменение: Восстановление охватывает все сервисы и сборки; проверенная внешняя загрузка записывает подтверждение для Health."
+    },
+    "dc2ab82738638596af005be85f46c53c47224cd9": {
+      "category": "operations",
+      "page": "runtime-layout",
+      "en": "Integrates the reviewed change: Run Store connections share lock-timeout handling and measurement.",
+      "ru": "Интегрировано проверенное изменение: Подключения Run Store используют общую обработку и измерение ожидания блокировки."
+    },
+    "d52cfc187bd9bd61e9429ab826df9fad753404f2": {
+      "category": "operations",
+      "en": "",
+      "ru": "",
+      "exclusionScope": "no-reader-visible-change",
+      "exclude": "Integrates the changed-suite registration fix in the regression runner; conflict resolution does not change product runtime behavior."
+    },
+    "a510a1e3699ea62ca06f77334215aef6c53cbc4a": {
+      "category": "operations",
+      "page": "owner-controls",
+      "en": "Integrates the reviewed change: Projects displays only projects registered in the managed registry.",
+      "ru": "Интегрировано проверенное изменение: Projects показывает только проекты управляемого реестра."
+    },
+    "e721c3c32742cf2bd439205db00a10207bd8f059": {
+      "category": "operations",
+      "page": "access",
+      "en": "Integrates the reviewed change: Retired per-app hostnames are removed; loopback origins remain behind the unified gateway.",
+      "ru": "Интегрировано проверенное изменение: Удалены отдельные домены приложений; loopback-источники остаются за общим шлюзом."
+    },
+    "e25de829df955462359d34dbea1ce263f7d44ec2": {
+      "category": "operations",
+      "en": "",
+      "ru": "",
+      "exclusionScope": "no-reader-visible-change",
+      "exclude": "Integrates the internal technical-debt inventory refresh; no runtime source or reader-facing behavior is added."
+    },
+    "1e018a1a5ceb60f3c6d8e7377145e967580ed5f4": {
+      "category": "operations",
+      "page": "hub",
+      "en": "Integrates the reviewed change: A deterministic pulse line summarizes current work above the Hub dashboard.",
+      "ru": "Интегрировано проверенное изменение: Детерминированная строка над панелью Hub кратко описывает текущую работу."
+    },
+    "4257c47e099f0bce05e73160d20b4110cd2667eb": {
+      "category": "operations",
+      "page": "hub",
+      "en": "Integrates the reviewed change: Hub forecasts Codex quota and disk exhaustion from recorded usage.",
+      "ru": "Интегрировано проверенное изменение: Hub прогнозирует исчерпание квоты Codex и диска по записанному использованию."
+    },
+    "aac6de1c0e71fb7f3e307923ab7b7d846325cf2d": {
+      "category": "operations",
+      "page": "daily",
+      "en": "Integrates the reviewed change: The Digest run card shows progress, live captions, a skipped day and a Hub link.",
+      "ru": "Интегрировано проверенное изменение: Карточка запуска Digest показывает прогресс, текущие подписи, пропущенный день и ссылку Hub."
+    },
+    "c61107ff1dd738f68899f07b5d94bba0ef3fede4": {
+      "category": "operations",
+      "page": "addons",
+      "en": "Integrates the reviewed change: Daily includes PRs awaiting the owner and Sunday project totals from the Run Store.",
+      "ru": "Интегрировано проверенное изменение: Daily включает PR, ожидающие владельца, и воскресные итоги проектов из Run Store."
+    },
+    "4c99bbd084648004c58ef4c876e8ac6901aff9c1": {
+      "category": "operations",
+      "page": "hub",
+      "en": "Integrates the reviewed change: Opt-in device push wakes the app to fetch private notification text through Access.",
+      "ru": "Интегрировано проверенное изменение: Push с согласия устройства будит приложение для получения приватного текста через Access."
+    },
+    "9afe997daaac59b91f70583c930f1c49179f71e6": {
+      "category": "operations",
+      "page": "investment-review",
+      "en": "Integrates the reviewed change: Daily shows sourced watch dates and lets the owner confirm an unchanged portfolio baseline.",
+      "ru": "Интегрировано проверенное изменение: Daily показывает даты наблюдения из источников и позволяет подтвердить неизменный состав портфеля."
+    },
+    "48b3626e3e75edc12193bceedefc93498f31b567": {
+      "category": "operations",
+      "page": "owner-controls",
+      "en": "Integrates the reviewed change: A confirmed PR merge receives a small celebration notice.",
+      "ru": "Интегрировано проверенное изменение: Подтверждённое слияние PR получает короткое праздничное уведомление."
+    },
+    "c1218f5bc1d058115e2b03474dd84d5c500cc26f": {
+      "category": "operations",
+      "page": "ui-library",
+      "en": "Integrates the reviewed change: Supported Android devices give haptic feedback for primary actions, confirmations and notices.",
+      "ru": "Интегрировано проверенное изменение: Поддерживаемые устройства Android дают тактильную отдачу для главных действий, подтверждений и уведомлений."
+    },
+    "379056e4d98828b44e5ca6d1199f2775cfca2de3": {
+      "category": "operations",
+      "page": "ui-library",
+      "en": "Integrates the reviewed change: The fox gains bounded seasonal and birthday decorations.",
+      "ru": "Интегрировано проверенное изменение: Лис получает ограниченные сезонные и праздничные украшения."
+    },
+    "1bdc0b710e8fbae72aa375c761768b14fc9885cf": {
+      "category": "operations",
+      "page": "daily",
+      "en": "Integrates the reviewed change: Explicit device consent saves one news-only Daily page for offline reading; disabling removes it.",
+      "ru": "Интегрировано проверенное изменение: Согласие устройства сохраняет одну страницу новостей Daily офлайн; отключение удаляет её."
+    },
+    "7fce52047c9450a9ac3f4bca46c7e8d50e0a115f": {
+      "category": "operations",
+      "page": "engineering-evidence",
+      "en": "Integrates per-project review autopilot and the separate guarded next-task switch; both are opt-in and leave merge to the owner.",
+      "ru": "Интегрированы автопилот ревью проекта и отдельный защищённый выбор следующей задачи; оба требуют включения и оставляют слияние владельцу."
+    },
+    "56c79a2b9cedc4522320f7c1edebb8b7162d87de": {
+      "category": "operations",
+      "page": "daily",
+      "en": "Integrates the reviewed change: Daily's header reflects local time of day and available weather.",
+      "ru": "Интегрировано проверенное изменение: Шапка Daily учитывает местное время суток и доступную погоду."
+    },
+    "179696c77d15a46c4696c1cf6c8633e9132ae229": {
+      "category": "operations",
+      "page": "daily",
+      "en": "Integrates the reviewed change: Mail learns from confirmed archiving and proposes sender rules requiring an owner decision.",
+      "ru": "Интегрировано проверенное изменение: Почта учится по подтверждённому архивированию и предлагает правила отправителей с решением владельца."
+    },
+    "acd2cd59cfa1c4cb6fdb5585e32bf0dcd8ada6f9": {
+      "category": "operations",
+      "page": "runtime-layout",
+      "en": "Integrates the reviewed change: Hub offers unified release and rollback with affected builds, sync and service restarts.",
+      "ru": "Интегрировано проверенное изменение: Hub предлагает общий релиз и откат с нужными сборками, синхронизацией и перезапусками."
+    },
+    "177916e4b9e3a2e277829b9e96d4e97bc67bc68b": {
+      "category": "operations",
+      "page": "runtime-layout",
+      "en": "Integrates the reviewed change: Release requires a full regression receipt for the exact tree or runs the suites before changing live code.",
+      "ru": "Интегрировано проверенное изменение: Релиз требует полный регрессионный прогон точного дерева либо запускает тесты до изменения рабочей версии."
+    },
+    "0a6bf57fd886935027e6e83fe6ae95fc2c0fdafb": {
+      "category": "operations",
+      "page": "access",
+      "en": "Integrates the reviewed change: The installed app has shortcuts to Digest, Hub alerts and Projects tasks.",
+      "ru": "Интегрировано проверенное изменение: Установленное приложение получает ярлыки Digest, тревог Hub и задач Projects."
+    },
+    "3913d29a9b9e0c21cdce0f0d09870bbc60b634ca": {
+      "category": "operations",
+      "en": "",
+      "ru": "",
+      "exclusionScope": "no-reader-visible-change",
+      "exclude": "Consolidates a regression runner import during integration; no product source or reader-facing contract changes."
+    },
+    "f2a1468bf874aecfdca8c23ad6b23a3af50f01aa": {
+      "category": "operations",
+      "page": "owner-controls",
+      "en": "Integrates the reviewed change: Phone task capture creates an issue in the selected project's Backlog without starting a run.",
+      "ru": "Интегрировано проверенное изменение: Создание задачи с телефона добавляет issue в Backlog выбранного проекта без запуска работы."
+    },
+    "da96be936350f74c0e07b124d6f055150c05cb19": {
+      "category": "operations",
+      "page": "hermes-integration",
+      "en": "Integrates the reviewed change: A read-only Hermes skill answers current Kurami status without starting work.",
+      "ru": "Интегрировано проверенное изменение: Read-only навык Hermes отвечает о текущем состоянии Kurami без запуска работы."
+    },
+    "1619fdf73030c38115a2a87ab1027e74a0545cff": {
+      "category": "operations",
+      "page": "weekly",
+      "en": "Integrates the reviewed change: Hub and Weekly show a read-only project chronicle, separate from saved Weekly observation totals.",
+      "ru": "Интегрировано проверенное изменение: Hub и Weekly показывают read-only летопись проектов отдельно от сохранённых итогов Weekly."
+    },
+    "18db409a011f0875d680e2f771fdc9682c13d4c2": {
+      "category": "operations",
+      "en": "",
+      "ru": "",
+      "exclusionScope": "no-reader-visible-change",
+      "exclude": "Removes an accidentally tracked node_modules symlink and adjusts ignore rules; this is repository hygiene, not product behavior."
+    },
+    "0b7a081935acfe3cafed2237fdf8df453ed673e4": {
+      "category": "operations",
+      "en": "",
+      "ru": "",
+      "exclusionScope": "no-reader-visible-change",
+      "exclude": "Removes the accidentally tracked dependency symlink on another feature branch; dependency contents and product behavior are unchanged."
+    },
+    "5ac4fb0504e934effed7b956d9e6bb563e60b057": {
+      "category": "operations",
+      "en": "",
+      "ru": "",
+      "exclusionScope": "no-reader-visible-change",
+      "exclude": "Removes the accidentally tracked dependency symlink on the chronicle branch; this does not change project-history behavior."
+    },
+    "315d60ed18b871379f9ad2e9a0f97aa06e2030b9": {
+      "category": "operations",
+      "page": "owner-controls",
+      "en": "Integrates the reviewed change: Each project can have a configured colour shown along its tasks.",
+      "ru": "Интегрировано проверенное изменение: Каждый проект может иметь настроенный цвет на своих задачах."
+    },
+    "872f282bdf54a521ff56c31db21c78318158b137": {
+      "category": "operations",
+      "page": "daily",
+      "en": "Integrates the reviewed change: Kurami moods accompany states, Daily completion and pull-to-refresh; appearance can hide the character.",
+      "ru": "Интегрировано проверенное изменение: Настроения Kurami сопровождают состояния, дочитывание Daily и обновление жестом; персонаж скрывается в оформлении."
+    },
+    "8f908328f1bf14fea9bdb6af8fc0679e085789bb": {
+      "category": "operations",
+      "page": "owner-controls",
+      "en": "Integrates the reviewed change: The Ideas pool keeps future-work notes separate from tasks.",
+      "ru": "Интегрировано проверенное изменение: Пул идей хранит заметки будущей работы отдельно от задач."
+    },
+    "75ab35b1522436ee0ee0c2950daab884541381a8": {
+      "category": "operations",
+      "en": "",
+      "ru": "",
+      "exclusionScope": "no-reader-visible-change",
+      "exclude": "Updates only the haptics test toast stub for the existing celebration attribute; no runtime code changes."
+    },
+    "1eb9f34b6ca82f662f6f63f14c995416edc70022": {
+      "category": "operations",
+      "en": "",
+      "ru": "",
+      "exclusionScope": "no-reader-visible-change",
+      "exclude": "Fixes development test-receipt staging to rely on existing ignore rules for dependencies; no owner control or app behavior changes."
+    },
+    "c6571f35ae7bfd80624c38842d86871370fe2665": {
+      "category": "fixed",
+      "page": "daily",
+      "en": "The Digest client script correctly closes the offline-news block.",
+      "ru": "Клиентский скрипт Digest корректно закрывает блок офлайн-новостей."
+    },
+    "e544ca91bad1ead9789c6fcb2460432fcfa8ed31": {
+      "category": "improved",
+      "page": "hub",
+      "en": "Confirmed merges celebrate; Hub links neglected ideas and shows project colours in the chronicle.",
+      "ru": "Подтверждённое слияние отмечается; Hub напоминает об идеях и показывает цвета проектов в летописи."
+    },
+    "1b85689aa41f0fedfd6433c7ddaeaeb0eb1355f5": {
+      "category": "fixed",
+      "page": "weekly",
+      "en": "Merge notices contain the character; Weekly and Cinema use shared Neon marks and Daily aligns news controls.",
+      "ru": "Уведомления слияния содержат персонажа; Weekly и Cinema используют пометки Neon, Daily выравнивает управление новостями."
+    },
+    "37ec321320d3d9a273aa0b10375dffd142c3bea0": {
+      "category": "fixed",
+      "page": "controller",
+      "en": "The poller passes the registered Kurami home through env so valid project keys are accepted.",
+      "ru": "Опрос передаёт корень Kurami через env, чтобы принимать допустимые ключи проектов."
+    },
+    "20abe7a887eaf52325a569dc98e868b4c0ff788c": {
+      "category": "operations",
+      "page": "controller",
+      "en": "Integrates the reviewed change: The poller passes the registered Kurami home through env so valid project keys are accepted.",
+      "ru": "Интегрировано проверенное изменение: Опрос передаёт корень Kurami через env, чтобы принимать допустимые ключи проектов."
+    },
+    "00debd5b6bec8bbb5c008a9f1f374915787d3c80": {
+      "category": "improved",
+      "page": "weekly",
+      "en": "Ideas keeps notes; Hub frames the chronicle and long Weekly history scrolls within its block.",
+      "ru": "Ideas хранит заметки; Hub оформляет летопись, длинная история Weekly прокручивается внутри блока."
+    },
+    "ed25e97ac31913f164619a72e6691bea621d4bca": {
+      "category": "improved",
+      "page": "ui-library",
+      "en": "Controls share button ranks, pressed toggles, real tooltips and change-specific save notices.",
+      "ru": "Управление использует ранги кнопок, переключатели, подсказки и уведомления с точным названием изменения."
+    },
+    "1f22a1b93a546fd7c9a91bafedbdb8a3e89f358a": {
+      "category": "improved",
+      "page": "ui-library",
+      "en": "Shared speech bubbles explain states; Ideas task conversion stays an explicit chat request.",
+      "ru": "Общие реплики поясняют состояния; превращение идеи в задачу остаётся явным запросом в чате."
+    },
+    "2d2f78e2e768b83732b5358c71c93ad7e0bda780": {
+      "category": "fixed",
+      "page": "owner-controls",
+      "en": "Projects keeps the owner-action bubble beside Kurami on phones and uses correct Russian plurals.",
+      "ru": "Projects сохраняет реплику действия рядом с Kurami на телефоне и правильно склоняет число задач."
+    },
+    "d5f2134e6f93ba54193b7e9136dabc909d32a955": {
+      "category": "new",
+      "page": "owner-controls",
+      "en": "Quick task capture queues a request, fills the repository issue form and reports the created issue; it does not start work.",
+      "ru": "Быстрое создание ставит запрос в очередь, заполняет форму репозитория и сообщает созданную issue; работа не запускается."
+    },
+    "1e4dd640ec1779d65e95298f9955a23077986197": {
+      "category": "fixed",
+      "page": "owner-controls",
+      "en": "The quick-task link is an icon-only control with an accessible label.",
+      "ru": "Ссылка быстрого создания задачи — иконка с доступной подписью."
+    },
+    "2dbacc71f0dcf5ee70fc2ab2e422d45d530b9907": {
+      "category": "fixed",
+      "page": "owner-controls",
+      "en": "The quick-task worker finds Codex through its bounded launch path.",
+      "ru": "Worker быстрого создания задачи находит Codex через настроенный путь запуска."
+    },
+    "cdb113962de38d7993a3b98bbc9d74c033b724b1": {
+      "category": "operations",
+      "en": "",
+      "ru": "",
+      "exclusionScope": "no-reader-visible-change",
+      "exclude": "Updates browser expectations for existing Hub button ranks and save notice wording; no runtime code changes."
+    },
+    "eef19e506e4a6371b1c94ab339366ca662c74e7b": {
+      "category": "improved",
+      "page": "hub",
+      "en": "Hub project rows become labelled cards on phones without cutting off commit counts.",
+      "ru": "Строки проектов Hub становятся подписанными карточками телефона без обрезки числа коммитов."
+    },
+    "379e2a8b7eb7433470d23837b2bffe4d808de40e": {
+      "category": "improved",
+      "page": "ui-library",
+      "en": "Apps share a responsive companion; bounded background voice is cached rather than generated by each page view.",
+      "ru": "Приложения используют общий адаптивный блок персонажа; фоновая реплика кэшируется, а не создаётся при каждом просмотре."
+    },
+    "f6afc267bfba5c32207d8ebd22a40673457a6004": {
+      "category": "fixed",
+      "page": "ui-library",
+      "en": "Companion layout is corrected and cached voice refresh follows SOUL changes.",
+      "ru": "Исправлено размещение персонажа; обновление кэша реплик учитывает изменения SOUL."
+    },
+    "9ba3908fae0e885b6ff2fcc38d31f8648bc893bc": {
+      "category": "operations",
+      "en": "",
+      "ru": "",
+      "exclusionScope": "docs-only",
+      "exclude": "Updates only the reviewed SHA-keyed bilingual changelog ledger; no application behavior changes."
+    },
+    "cd6eef277c18182d9ac2faf806dc4e8b5aed0f35": {
+      "category": "fixed",
+      "page": "ui-library",
+      "en": "Portraits stay clear of overlay text and notices.",
+      "ru": "Портреты не перекрывают текст всплывающих элементов и уведомлений."
+    },
+    "c3f711f8b9f6606d6f2ab0878986120437d64b46": {
+      "category": "new",
+      "page": "hub",
+      "en": "Hub configures supported Codex reasoning effort for new sessions with stale-config checks.",
+      "ru": "Hub настраивает поддерживаемую глубину рассуждения Codex новых сессий с проверкой устаревшей конфигурации."
+    },
+    "e02ae3163c2bbc7ebcdf3da4f6c28aeb92965fce": {
+      "category": "improved",
+      "page": "engineering-evidence",
+      "en": "Worker and reviewer prompts require simple, proportionate changes grounded in real requirements.",
+      "ru": "Промпты worker и ревьюера требуют простых соразмерных изменений по реальным требованиям."
+    },
+    "7d5f4e3982750fb9007bd35fd1f7a296ec96f9a9": {
+      "category": "fixed",
+      "page": "engineering-evidence",
+      "en": "AI reviews use private detached snapshots of the live PR head and base, preserving managed local branches.",
+      "ru": "AI-ревью использует отдельные detached-снимки актуальной головы PR и базы, сохраняя управляемые локальные ветки."
+    },
+    "3f901fb7f19312d710a8eab01d1fc8cbb4f90d5a": {
+      "category": "operations",
+      "en": "",
+      "ru": "",
+      "exclusionScope": "no-reader-visible-change",
+      "exclude": "Uses the runtime lock timeout in isolated protocol fixtures and adds SQLite regressions; application lock policy is unchanged."
+    },
+    "3be89b5016662601fd312610d30a6db5327984b2": {
+      "category": "fixed",
+      "page": "preview-internals",
+      "en": "Stop can supersede an unclaimed queued preview start; processing requests stay protected and cleanup requires released leases.",
+      "ru": "Stop заменяет ещё не исполняемый запуск превью; processing защищён, очистка требует освобождённой аренды."
+    },
+    "463b16d4b7e5fa50a9f7076d075596f418000c0e": {
+      "category": "fixed",
+      "page": "cinema-internals",
+      "en": "Cinema deduplicates diagnostics without changing frozen input and retains bounded safe provider references.",
+      "ru": "Cinema убирает повторы диагностики без изменения исходника и сохраняет ограниченные безопасные ссылки провайдера."
+    },
+    "45cd3e48f8b51583f49813802956f0710d77b993": {
+      "category": "fixed",
+      "page": "engineering-evidence",
+      "en": "Guarded preflight fast-forwards clean unowned managed sources to the exact live head; dirty or divergent work is preserved.",
+      "ru": "Защищённая проверка продвигает чистые свободные исходники до точного live SHA; грязная и расходящаяся работа сохраняется."
+    },
+    "23a4f2533b36f69660ef078b6222a4d60d295816": {
+      "category": "fixed",
+      "page": "release-cleanup",
+      "en": "Exact merged delivery can release a quiescent run with lifecycle feedback; issue acceptance remains separate.",
+      "ru": "Точная слитая поставка освобождает спокойный запуск с обратной связью; приёмка issue остаётся отдельной."
+    },
+    "00a65fc484071f7d61f6b8abec304351f57b4755": {
+      "category": "operations",
+      "en": "",
+      "ru": "",
+      "exclusionScope": "docs-only",
+      "exclude": "Updates only the reviewed SHA-keyed bilingual changelog ledger; no application behavior changes."
     }
   }
 }

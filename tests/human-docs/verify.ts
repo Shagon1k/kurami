@@ -158,7 +158,26 @@ for(const lang of ["en","ru"] as const){
   assert.equal(changelogArticle.split(previewStatus).length-1,1);
   assertInternalLinks(emptyChangelog,`changelog/${lang}`);
 }
+// Audit closure is source classification, not a deployment assertion. Pin the reviewed range.
+const auditedSource="00a65fc484071f7d61f6b8abec304351f57b4755";
+const auditedEn=publicationChanges(auditedSource,"en");
+const auditedRu=publicationChanges(auditedSource,"ru");
+assert.deepEqual(auditedEn.map(change=>change.sha),auditedRu.map(change=>change.sha));
+assert.ok(auditedEn.some(change=>change.sha==="77875daaa49140b9d295ef7543ab9ae9372487ae"&&change.page==="engineering-evidence"));
+assert.ok(auditedEn.some(change=>change.sha==="6f5dc7587ebc794b04d4b5ec1e4352bdcfd30a33"&&change.page==="weekly"));
+for(const lang of ["en","ru"] as const){
+  const copy=(section:string,slug:string)=>readFileSync(resolve(root,`src/human-docs/content/pages/${section}/${slug}.${lang}.md`),"utf8");
+  assert.match(copy("digest","addons"),/stocks, engineering/);
+  assert.match(copy("digest","weekly"),lang==="en"?/separate from the Sunday–Saturday period/:/отдельный от воскресенья–субботы/);
+  assert.match(copy("platform","access"),/node gateway/);
+  assert.doesNotMatch(copy("platform","access"),/edge tunnel -> (digest|docs|hub)/);
+  assert.match(copy("platform","recovery"),/ideas\.db/);
+  assert.match(copy("platform","recovery"),/recovery-upload\.json/);
+  assert.match(copy("projects","engineering-evidence"),/autopilot\.ts/);
+  assert.doesNotMatch(copy("projects","engineering-evidence"),/start only on your button|начинаются только по твоей кнопке/);
+}
 const slugs={has:(slug:string)=>Boolean(resolveSlug(slug))};
+assert.ok(auditedEn.every(change=>!change.page||slugs.has(change.page)),"every audited entry links to an existing route");
 const scratch=mkdtempSync(join(tmpdir(),"kurami-docs-test-"));
 try {
   const confirmedSha="ee02f37312508acac4d044cfcd223884d7e65bcc";

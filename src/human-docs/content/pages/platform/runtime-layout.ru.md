@@ -14,9 +14,9 @@ next: health-internals
 - Корень: `$KURAMI_HOME`; если переменная не задана, берётся родитель каталога `app/`
 - Код: `app/` — обычный checkout ветки `main`; `app/dist/` — собранный Digest
 - Состояние: `state/` — базы, JSON-файлы, блокировки; секреты — `secrets/` с правами 0600
-- Процессы: пять постоянных сервисов и два таймера под `systemd --user`
+- Процессы: сервисы приложений, ingress, сэмплер CPU и два таймера Digest под `systemd --user`
 - Runtime: закреплённый Node 24, Caddy, age, LibreSpeed в `runtime/`
-- Выкладка: руками — обновить checkout, собрать и перезапустить то, что затронуто
+- Выкладка: подтверждённый владельцем общий релиз через Hub или deploy CLI
 :::
 
 ## Каталоги
@@ -79,6 +79,8 @@ group home "$KURAMI_HOME" app runtime config state secrets connectors backups re
 | `kurami-briefing` | 8787 | `state/briefing` | `node --jitless`, собранный `dist/`, `MemoryDenyWriteExecute` |
 | `kurami-human-docs` | 8799 | никуда | стартует, только если есть `release/build.json` |
 | `kurami-hub` | 8800 | `state`, `connectors`, каталог Codex и домашний каталог Hermes | стартует, только если есть `orchestrator.db`; пути записи нужны действиям Controls |
+| `kurami-projects` | 8777 | `state` | защищённое управление проектами и снимки |
+| `kurami-web` | 8888 | нигде в юните репозитория | проверка Access и шлюз четырёх приложений |
 | `kurami-preview-ingress` | 9180 | `state/caddy` | проверяет конфигурацию перед запуском |
 | `kurami-cpu-statistics` | — | `state` | только Unix-сокеты, сети нет |
 
@@ -90,23 +92,24 @@ group home "$KURAMI_HOME" app runtime config state secrets connectors backups re
 
 ## Что делать после изменения
 
+Обычный путь — [Hub → Server → Release](@hub) или тот же deploy CLI, а не pull с произвольными перезапусками. Он отклоняет грязную рабочую версию и коммит вне main, требует успешный полный регрессионный прогон точного дерева; без записи сначала тестирует отдельную рабочую копию. Контроллер выполняет только нужные шаги и записывает их итоги. Откат пытается вернуть код и сервисы к прошлой версии; это не восстановление базы и не доказательство отмены внешних действий. Таблица ниже объясняет зависимости для диагностики оператором.
+
+
 ```diagram
-kind: graph
-title: Что перезапускать после правки
-desc: Правка кода Digest требует сборки и перезапуска сервиса. Правка остальных скриптов работает со следующего запуска, а для постоянного сервиса нужен перезапуск.
-node q1 "Что изменено?" decision at 1,0
-node digest "Digest" "npm run briefing:build" at 0,1
-node restartD "Перезапуск kurami-briefing" at 0,2
-node scripts "Скрипт или CLI" at 1,1
-node next "Со следующего запуска" end at 1,2
-node svc "Постоянный сервис" at 2,1
-node restartS "systemctl --user restart" at 2,2
-edge q1 -> digest "src/briefing"
-edge q1 -> scripts "задание"
-edge q1 -> svc "Hub, docs, Caddy"
-edge digest -> restartD
-edge scripts -> next
-edge svc -> restartS
+kind: sequence
+title: Общий релиз под контролем владельца
+desc: Владелец подтверждает версию. Deploy проверяет полный регрессионный прогон точного дерева до изменения рабочей версии, затем выполняет нужные миграции, сборки, продвижение docs, синхронизацию Hermes и перезапуски. В конце проверяется отставание; при сбое выполняется попытка отката и записывается итог.
+actor owner "Владелец" owner
+actor deploy "Deploy"
+actor tests "Регрессия"
+actor runtime "Runtime"
+msg owner -> deploy "подтвердить версию main"
+msg deploy -> tests "запись тестов или полный прогон"
+msg tests -> deploy "точное дерево прошло"
+msg deploy -> runtime "checkout, миграции, сборки"
+msg deploy -> runtime "docs, sync, перезапуски"
+self deploy "проверить отставание; итог"
+note deploy "при сбое: попытка отката"
 ```
 
 | Что изменилось | Команда | Вступает в силу |
@@ -120,13 +123,13 @@ edge svc -> restartS
 
 GitHub Actions на каждый PR запускает типы, проверку заявления о влиянии на документацию и полный набор тестов, но ничего не выкладывает.
 
-::::example Правка карточки Digest (данные выдуманы)
+::::example Правка Digest (данные выдуманы)
 :::steps
-- **Ты** — сливаешь PR, меняющий `src/briefing/ui/components/reaction-group.ts`, коммит `7f3a9c2`.
-- **Ты** — в `$KURAMI_HOME/app` подтягиваешь `main`, запускаешь `npm run briefing:build`: компилятор обновляет `dist/briefing/ui/...`.
-- **Ты** — перезапускаешь `kurami-briefing`: сервис читает новый `dist/` с порта 8787.
-- **Systemd** — `ExecStartPre` выполняет `cli.js init`, затем сервис подхватывает базу без потери данных.
-- **Часовой опрос** — в :37 запускает уже собранный `dist/briefing/poller.js`, то есть тоже новый код.
+- **Владелец** — сливает проверенную правку карточки, коммит `7f3a9c2`.
+- **Владелец** — подтверждает Release main в Hub.
+- **Deploy** — проверяет полный регрессионный прогон точного дерева; недостающие тесты запускает до изменения рабочей версии.
+- **Deploy** — собирает Digest, продвигает нужный артефакт docs, синхронизирует затронутые копии Hermes и перезапускает сервисы.
+- **Deploy** — проверяет отставание и записывает итог; слитый PR сам по себе не является таким подтверждением.
 :::
 ::::
 
@@ -148,6 +151,8 @@ GitHub Actions на каждый PR запускает типы, проверк�
 :::
 
 :::code-map
+- `src/system/deploy/deploy.ts` — общий релиз, регрессионный допуск и итог отката
+- `src/system/test-receipts.ts` — полный регрессионный прогон точного дерева
 - `src/core/kurami-home.ts` — определение `$KURAMI_HOME`
 - `tsconfig.briefing-runtime.json` — что попадает в `dist/`
 - `deploy/systemd/` — все сервисы и таймеры

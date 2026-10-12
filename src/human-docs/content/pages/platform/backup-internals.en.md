@@ -21,7 +21,7 @@ A Kurami backup is a chain of three stages in one shell script, where each stage
 ```diagram
 kind: graph
 title: The three backup stages
-desc: The script copies the Run Store, Health and Digest databases with VACUUM INTO and the configuration files into a snapshot directory. If a public key is set, it builds a bundle from the snapshot, three secret files and the cron registry, encrypts it with age and stores it in the recovery directory. If a bucket is set, it uploads the bundle to S3 and reads the result back.
+desc: The script copies the Run Store, Health, Digest and Ideas databases with VACUUM INTO and the configuration files into a snapshot directory. If a public key is set, it builds a bundle from the snapshot, three secret files and the cron registry, encrypts it with age and stores it in the recovery directory. If a bucket is set, it uploads the bundle to S3 and reads the result back.
 node job "Hermes job" "03:15 UTC, */3" at 0,0
 node db "orchestrator.db" "live database" store at 1,0
 node snap "1. Snapshot" "VACUUM INTO, manifest" at 1,1
@@ -43,7 +43,7 @@ edge s3 -> bucket "PUT and check"
 
 ## Stage 1: the snapshot
 
-The first stage copies what the Run Store cannot be rebuilt without, and does it without stopping the system. The script opens the live database read-only, runs `PRAGMA quick_check` and executes `VACUUM INTO` into `backups/backup-<UTC time>/`. This SQLite command produces a consistent copy even while the database is being written to: copying the file the ordinary way could catch half a transaction. After copying, the script checks the copy itself. The same way, when they exist, it copies the Health database `system-health.db` and the Digest database `briefing.db`: each is opened read-only, integrity-checked, written by `VACUUM INTO` and checked again, never copied as a live WAL file. Older snapshots without them stay valid.
+The first stage copies what the Run Store cannot be rebuilt without, and does it without stopping the system. The script opens the live database read-only, runs `PRAGMA quick_check` and executes `VACUUM INTO` into `backups/backup-<UTC time>/`. This SQLite command produces a consistent copy even while the database is being written to: copying the file the ordinary way could catch half a transaction. After copying, the script checks the copy itself. The same way, when they exist, it copies the Health database `system-health.db` the Digest database `briefing.db` and Ideas database `ideas.db`: each is opened read-only, integrity-checked, written by `VACUUM INTO` and checked again, never copied as a live WAL file. Older snapshots without them stay valid.
 
 `orchestrator.yaml`, `projects.yaml`, `Caddyfile`, `briefing.yaml` and `briefing-topics.yaml` (those that exist) are placed beside it; the script rejects links instead of files. `manifest.json` is written last, listing every file with its size and SHA-256 and marked `secretsIncluded: false`. Then the script keeps the 14 latest snapshots (`KURAMI_BACKUP_RETENTION`, from 2 to 90). If any part fails, the half-made directory is deleted: a snapshot is either whole or absent.
 
@@ -51,7 +51,7 @@ The first stage copies what the Run Store cannot be rebuilt without, and does it
 
 The second stage builds a bundle that can bring a server up from nothing, and it is off by default. The file `secrets/recovery.env` turns it on: the script reads it only if it is a regular file, not a link, with mode exactly `600`; otherwise it stops with "Refusing unsafe Minimal DR config". If the file holds no `age` public key, stages 2 and 3 are skipped without an error.
 
-Before packing, the script checks the inputs. The snapshot must have a manifest with `integrity: ok` and `secretsIncluded: false`, and every file must match it by SHA-256; the databases in it, including `system-health.db` and `briefing.db` when present, pass an integrity check again. Every secret source — the Hermes environment, `github.env`, `tailortales-preview.env` and the `cron/jobs.json` registry — must be a regular file with no permissions for group or others. Everything is put into a temporary directory with mode `700`, packed with `tar --zstd`, encrypted with `age --encrypt --recipient`, and a `.sha256` file is written beside it. An existing bundle cannot be overwritten. The plaintext is always deleted, including on failure. The three latest bundles stay locally.
+Before packing, the script checks the inputs. The snapshot must have a manifest with `integrity: ok` and `secretsIncluded: false`, and every file must match it by SHA-256; the databases in it, including `system-health.db`, `briefing.db` and `ideas.db` when present, pass an integrity check again. Every secret source — the Hermes environment, `github.env`, `tailortales-preview.env` and the `cron/jobs.json` registry — must be a regular file with no permissions for group or others. Everything is put into a temporary directory with mode `700`, packed with `tar --zstd`, encrypted with `age --encrypt --recipient`, and a `.sha256` file is written beside it. An existing bundle cannot be overwritten. The plaintext is always deleted, including on failure. The three latest bundles stay locally.
 
 ## Stage 3: upload with read-back
 
@@ -90,7 +90,7 @@ The longest gap is three days, or 72 hours. The health check limit is 84 hours, 
 ::::example The backup of 4 October (invented data)
 :::steps
 - **Hermes** — at 03:15:00 starts `kurami-state-backup.sh`.
-- **Snapshot** — creates `backups/backup-20261004T031500Z/` with up to nine files: the databases `orchestrator.db`, `system-health.db` and `briefing.db`, the configuration copies and `manifest.json`. The oldest snapshot is deleted, 14 remain.
+- **Snapshot** — creates `backups/backup-20261004T031500Z/` with up to nine files: the databases `orchestrator.db`, `system-health.db`, `briefing.db` and `ideas.db`, the configuration copies and `manifest.json`. The oldest snapshot is deleted, 14 remain.
 - **Bundle** — at 03:15:03 puts `kurami-recovery-20261004T031503Z.tar.zst.age` and its `.sha256` in `recovery/`. Inside are the snapshot, three secret files, the cron registry and a manifest.
 - **Upload** — sends the pair to the bucket, checks the size and sum, deletes the fourth pair in line and verifies that three remain.
 - **Hermes** — posts the summary to the maintenance channel: the snapshot name, the file count, how many snapshots remain, the bundle name and a line about the upload.
@@ -108,6 +108,8 @@ The longest gap is three days, or 72 hours. The health check limit is 84 hours, 
 | Size or sum in S3 does not match | the job fails, the local bundle stays | retry, check the AWS keys |
 | Backup older than 84 hours | the health check raises a critical problem | find out why the job does not run |
 | The last S3 upload is older than 108 hours | every successful upload leaves a receipt, `state/recovery-upload.json`; the health check raises a critical problem when it is older than the backup limit plus a day. Without a receipt (upload not set up) the check stays quiet | read the backup job summary: is the upload failing |
+
+A verified S3 upload records `state/recovery-upload.json` after read-back succeeds. Health reads the upload age separately from local backup age. The receipt establishes a completed upload, not a successful decryption or full recovery drill. Optional `ideas.db` is integrity-checked in snapshots and encrypted bundles like the other included databases.
 
 :::guarantees
 - The snapshot holds no secrets: the manifest is marked `secretsIncluded: false`, and a bundle will not be built without that mark.
