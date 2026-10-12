@@ -1,3 +1,4 @@
+import { captureParkProcesses, cleanupParkProcesses, saveParkProcesses, loadParkProcesses, clearParkProcesses } from "./park-processes.ts";
 import { taskForSession, protocolTurnSucceeded } from "../../integrations/codex/task-store.ts";
 import { protocolRemoteBlocker, stopProtocolTask, releaseProtocolTask } from "./protocol-session.ts";
 import { mkdir, realpath, stat, writeFile } from "node:fs/promises";
@@ -462,6 +463,15 @@ export async function leaveCliSession(
     mode: 0o600,
   });
 
+  // Capture before the pane exits and descendants are reparented. Remote handoff
+  // keeps its existing process policy; active turns never reach here.
+  const parkReceiptPath = `${tailPath}.processes.json`;
+  const parkIdentity = { runId: run.run_id, session: run.tmux_session_name ?? "", threadId: run.codex_thread_id! };
+  const parkProcesses = targetOwner === "none"
+    ? tmuxAlive && run.tmux_session_name
+      ? captureParkProcesses(run.tmux_session_name) : loadParkProcesses(parkReceiptPath, parkIdentity)
+    : [];
+  if (targetOwner === "none" && tmuxAlive) saveParkProcesses(parkReceiptPath, parkIdentity, parkProcesses);
   let forced = false;
   if (tmuxAlive && run.tmux_session_name) {
     sendTmuxKeys(run.tmux_session_name, ["C-u"]);
@@ -487,10 +497,12 @@ export async function leaveCliSession(
     }
   }
 
+  const cleanedDescendants = await cleanupParkProcesses(parkProcesses);
   recordHandoffRelease(database, run, plan.toState, targetOwner, tailPath, tmuxAlive, forced);
+  if (targetOwner === "none") clearParkProcesses(parkReceiptPath);
 
   process.stdout.write(
-    `${JSON.stringify({ ok: true, apply: true, ...plan, forced })}\n`,
+    `${JSON.stringify({ ok: true, apply: true, ...plan, forced, cleanedDescendants })}\n`,
   );
 }
 

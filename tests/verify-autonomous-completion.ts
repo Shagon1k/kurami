@@ -1,4 +1,4 @@
-import { execFileSync } from "node:child_process";
+import { execFileSync, spawn } from "node:child_process";
 import { chmod, copyFile, mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { delimiter, resolve } from "node:path";
@@ -31,6 +31,7 @@ async function main(): Promise<void> {
   const app = resolve(import.meta.dirname, "..");
   const home = await mkdtemp(resolve(tmpdir(), "kurami-autonomous-completion-"));
   const fakeBin = resolve(home, "fake-bin");
+  const paneProcess = spawn(process.execPath, ["-e", "setInterval(()=>{},1000)"], { stdio: "ignore" });
   const completeAlive = resolve(home, "complete-alive");
   const activeAlive = resolve(home, "active-alive");
   const approvalAlive = resolve(home, "approval-alive");
@@ -70,6 +71,9 @@ case "$1" in
       *cx-tt-204-stuck*) test -f "$FAKE_STUCK_ALIVE" ;;
       *) exit 1 ;;
     esac
+    ;;
+  list-panes)
+    printf '%s\n' "$FAKE_PANE_PID"
     ;;
   capture-pane)
     case "$*" in
@@ -142,6 +146,7 @@ esac
     const env = {
       ...process.env,
       KURAMI_HOME: home,
+      FAKE_PANE_PID: String(paneProcess.pid),
       ORCHESTRATOR_MIGRATIONS_DIR: resolve(app, "migrations"),
       PATH: `${fakeBin}${delimiter}${process.env.PATH ?? ""}`,
       FAKE_COMPLETE_ALIVE: completeAlive,
@@ -547,6 +552,7 @@ esac
       `${JSON.stringify({ ok: true, newTerminalFormat: true, activeFalsePositiveRejected: true, approvalFalsePositiveRejected: true, releaseFailureSafe: true, twoStageOrdering: true, projectAndRunConverged: true, cliReleased: true })}\n`,
     );
   } finally {
+    paneProcess.kill("SIGTERM");
     await rm(home, { recursive: true, force: true });
   }
 }

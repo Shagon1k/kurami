@@ -142,6 +142,7 @@ function detail(item:ProjectItem,params:URLSearchParams,project:ProjectSummary,a
   const lang=language(params),t=(key:string)=>tr(key,lang);
   const fixMessages:Record<string,string>={queued:"Review fixes queued.",running:"Fixing review findings…",waiting_ci:"Review fixes pushed. Waiting for CI.",resolving:"Checking fixes and resolving review threads.",succeeded:"Review fixes completed.",needs_attention:"Review fixes need attention. Check GitHub or Discord."};
   const fixState=item.reviewFix?.state,fixActive=Boolean(fixState&&["queued","running","waiting_ci","resolving"].includes(fixState));
+  const fixFailure = item.reviewFixStartupFailure ? renderCallout({tone:"warning",title:t("Review fixes did not start"),body:t(item.reviewFixStartupFailure)}) : "";
   const fixNote=fixState&&fixMessages[fixState]?`<p class="projects-action-note" data-review-fix-state="${escape(fixState)}" data-note-tone="${fixState==="needs_attention"?"warning":fixState==="succeeded"?"neutral":"info"}" role="status">${escape(t(fixMessages[fixState]!))}${item.reviewFix?.round?` <span class="projects-fix-round">· ${t("Round")} ${item.reviewFix.round}</span>`:""}</p>`:"";
   const reasons:Record<string,string>={pending:"A review or another action is already running.",unstable:"Review is available after current work finishes.",no_head:"The current PR commit is not verified yet.",ready:"This commit has already been reviewed.",stale:"Wait for fresh sync data.",superseded:"This run is no longer current."};
   const review=item.aiReview&&item.runId&&item.aiReview.reason!=="ready"&&!fixActive?renderButton({label:"AI Review",iconPath:iconPath("review"),visibleLabel:true,variant:"subtle",size:"compact",disabled:!item.aiReview.enabled,busyLabel:t("Sending…"),attributes:{"data-review-run":item.runId,"data-review-project":item.project,"data-review-item":item.id,"data-review-head":item.aiReview.head??"","data-review-key":randomUUID()}}):"";
@@ -149,7 +150,7 @@ function detail(item:ProjectItem,params:URLSearchParams,project:ProjectSummary,a
   const heads=[item.ci.head,item.review.head,item.preview.head];
   const commonHead=heads.every(head=>head&&head===heads[0])?heads[0]:null;
   const evidence=(name:string,icon:IconName,value:Signal,extra="")=>`<div class="projects-evidence-row"><div class="projects-evidence-heading"><div class="projects-evidence-label">${renderIcon(icon)}<strong>${t(name)}</strong></div>${signal(value,lang)}</div>${!commonHead&&value.state!=="none"?`<code title="${escape(value.head??"")}">${value.head?escape(value.head.slice(0,12)):t("Unverified")}</code>`:""}${extra}</div>`;
-  const findings=reviewFindings(item,lang);
+  const findings=reviewFindings(item,lang)+fixFailure;
   const resource=(name:string,url:string|null,icon:IconName)=>navigation(name,url,lang)?renderLinkButton({label:t(name),href:url!,variant:"subtle",size:"compact",iconPath:iconPath(icon)}):"";
   const links=resource("Issue",item.links.issue,"project")+resource("PR",item.links.pr,"branch")+resource("Review",item.links.review,"review")+resource("Discord",item.links.discord,"message");
   const editor=statusForm(item,lang,project);

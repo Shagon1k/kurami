@@ -1,6 +1,11 @@
 export type Language="en"|"ru";
 export function language(params:URLSearchParams):Language{return params.get("lang")==="ru"?"ru":"en";}
 const messages:Record<string,string>={
+  "Review fixes did not start":"Исправление замечаний не запустилось",
+  "Review fixes did not start: a process still owns the managed working copy. Cleanup must finish before retrying.":"Исправление замечаний не запустилось: процесс ещё использует рабочую копию. Перед повторной попыткой нужно завершить очистку.",
+  "Review fixes did not start: the managed working copy has uncommitted changes.":"Исправление замечаний не запустилось: в рабочей копии есть незакоммиченные изменения.",
+  "Review fixes did not start: the PR or source commit changed. Refresh before retrying.":"Исправление замечаний не запустилось: PR или исходный коммит изменился. Обновите данные перед повторной попыткой.",
+  "Review fixes did not start: startup was refused. Inspect the current run diagnostic before retrying.":"Исправление замечаний не запустилось: запуск отклонён. Проверьте диагностику текущего запуска перед повторной попыткой.",
   "Start work":"Начать работу", "Requesting start…":"Запрашиваем запуск…", "Waiting for sync…":"Ждём синхронизации…", "Preparing task…":"Подготовка задачи…", "Start unconfirmed":"Запуск не подтверждён",
   "Start requested":"Запуск запрошен", "Waiting for start sync":"Ждём синхронизации запуска", "Task start blocked":"Запуск заблокирован",
   "No launch was observed. Return the task to Backlog and start it again.":"Запуск не наблюдался. Верните задачу в Backlog и запустите её снова.",
