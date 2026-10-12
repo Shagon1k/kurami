@@ -89,6 +89,20 @@ try {
   reset();database.exec("UPDATE preview_leases SET state='released',released_at='2026-09-30T00:00:00Z' WHERE lease_id='lease_current'");
   assert.match(view().actions.find(action=>action.action==="preview_start")!.label,/Запустить/);requestProjectRunAction(input("preview_start"),"owner",options);
 
+  for (const [url,sha] of [[null,null],[pr,null],[null,head],[pr,"short-sha"]]) {
+    reset();database.exec("UPDATE preview_leases SET state='released',released_at='2026-09-30T00:00:00Z' WHERE lease_id='lease_current'");
+    database.prepare("UPDATE run_ci_snapshots SET pull_request_url=?,head_sha=?").run(url,sha);
+    assert.equal(view().actions.some(action=>action.action==="preview_start"),false,"a new preview needs a PR and exact observed head");
+    reject(input("preview_start"),/недоступно/);
+    assert.throws(()=>requestRunControl(database,"r_current","preview_start","discord",true,{home}),/pull request with an observed exact head/);
+    assert.equal(count(),0,"a stale Discord button cannot queue an invalid preview");
+  }
+  reset();database.exec("UPDATE run_ci_snapshots SET pull_request_url=NULL,head_sha=NULL");
+  assert(view().actions.some(action=>action.action==="preview_start"),"existing preview extension survives missing current PR evidence");
+  requestProjectRunAction(input("preview_start"),"owner",options);
+  reset();database.exec("UPDATE run_ci_snapshots SET pull_request_url=NULL,head_sha=NULL");
+  requestProjectRunAction(input("preview_stop"),"owner",options);
+
   reset();database.exec("UPDATE runs SET state='running',owner_state='cli'");requestProjectRunAction(input("take_control"),"owner",options);
   reset();database.exec("UPDATE runs SET state='remote_owned',owner_state='remote'");assert.match(view().actions.find(action=>action.action==="take_control")!.label,/автономно/);requestProjectRunAction(input("take_control"),"owner",options);
   reset();requestProjectRunAction(input("stop"),"owner",options);assert.equal(database.prepare("SELECT stage FROM run_progress_cards").get()!.stage,"stopping","shared pending presentation remains visible to Discord");

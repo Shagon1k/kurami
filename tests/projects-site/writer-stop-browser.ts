@@ -37,6 +37,7 @@ try{
     assert.equal(view.label,lang==="ru"?"Открыть сессию":"Open session");
     assert.equal(view.href,"https://go.shagon1k.win/codex/threads/00000001-0000-4000-8000-000000000001");
     assert.ok(view.collapsed&&view.fits&&view.noReviews,JSON.stringify(view));
+    assert.equal(await devtools.evaluate("!!document.querySelector('#project-details [data-run-action=preview_start]')"),false,"stopped writer without a PR cannot start a preview");
     assert.equal(await devtools.evaluate(`(()=>{const panel=document.querySelector(".projects-writer-stop"),body=panel.querySelector("p"),link=panel.querySelector("a"),summary=panel.querySelector("summary");return parseFloat(getComputedStyle(body).fontSize)<=14&&Math.abs(link.getBoundingClientRect().left-summary.getBoundingClientRect().left)<1&&parseFloat(getComputedStyle(document.querySelector(".projects-evidence-availability")).fontSize)<=14;})()`),true,"stop notes use compact task typography and left-aligned full-width controls");
     assert.doesNotMatch(view.text,/https:\/\/go\.|Writer final summary unavailable|Unverified|Не подтверждено/);
     assert.deepEqual(await devtools.evaluate(AUDIT_EXPRESSION),[]);

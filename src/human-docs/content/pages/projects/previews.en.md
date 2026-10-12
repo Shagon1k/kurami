@@ -13,7 +13,7 @@ A preview is the application built from a run's working copy (worktree), so you 
 
 ## Starting and what you see
 
-Press **Start preview** on the run card once Codex has finished and the PR is open. Kurami replies "Start preview queued" and the card moves to the **Preview queued** stage. A slot is leased on the next minute, the build starts on the one after and usually takes a few minutes. When the preview passes its health checks, the thread gets a **Preview is ready** event with a link, and the card gets a Preview block with the address, a short SHA, the expiry and "Not reviewed".
+Press **Start preview** on the run card once the agent has finished, the PR is open and its exact head commit has been observed. Kurami replies "Start preview queued" and the card moves to the **Preview queued** stage. A slot is leased on the next minute, the build starts on the one after and usually takes a few minutes. When the preview passes its health checks, the thread gets a **Preview is ready** event with a link, and the card gets a Preview block with the address, a short SHA, the expiry and "Not reviewed".
 
 The preview is built only from the exact commit currently in the PR: the working copy must be clean and its HEAD must equal the commit CI has checked. So press the button after the PR exists and CI has seen it.
 
@@ -23,7 +23,7 @@ There are two kinds of preview, and the project chooses, not you. **Compose** br
 
 | Button | When it appears | What happens |
 |---|---|---|
-| **Start preview** | there is no preview yet | A slot is leased and the preview is built |
+| **Start preview** | no preview exists, and the PR has an observed exact head commit | A slot is leased and the preview is built |
 | **Mark reviewed** | the preview runs and is not marked yet | You confirm you looked at exactly this commit |
 | **Extend 24h** | less than two hours are left | The lifetime grows by 24 hours |
 | **Remove preview** | a preview exists in any state | The address goes off, containers and files are deleted, the slot is freed |

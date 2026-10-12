@@ -933,6 +933,12 @@ async function main(): Promise<void> {
       "Ambiguous sending event would be retried and duplicated",
     );
     const control = resolve(appDirectory, "src/orchestrator/controls/run.ts");
+    const remoteSource = new DatabaseSync(databasePath);
+    remoteSource.exec(`INSERT INTO run_ci_snapshots(run_id,repository,pull_request_number,pull_request_url,
+      head_sha,aggregate_state,checks_json,content_digest,first_observed_at,last_observed_at)
+      VALUES('r_take_control','Shagon1k/TailorTales',9302,'https://github.com/Shagon1k/TailorTales/pull/9302',
+        'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa','pending','[]','remote-preview-fixture','2026-01-01','2026-01-01');`);
+    remoteSource.close();
     const remotePreview = runNode(
       control,
       [

@@ -36,6 +36,11 @@ try {
       .run(id, id, id, id, issue);
     db.prepare(`INSERT INTO run_resources (run_id, resource_state, worktree_path, branch_name, codex_thread_id)
       VALUES (?, 'provisioned', ?, ?, ?)`).run(id, `/fixture/${id}`, `fixture-${id}`, `thread-${id}`);
+    db.prepare(`INSERT INTO run_ci_snapshots (run_id, repository, pull_request_number, pull_request_url,
+      head_sha, aggregate_state, checks_json, content_digest, first_observed_at, last_observed_at, completed_at)
+      VALUES (?, 'example/repo', 160, 'https://example.invalid/pull/160',
+        '26578729daa0899fb63e3bf8279d444962745972', 'passed', '[]', 'fixture',
+        '2026-10-10T09:00:00Z', '2026-10-10T09:00:00Z', '2026-10-10T09:00:00Z')`).run(id);
   };
   const request = (id: string, action: Parameters<typeof requestRunControl>[2], apply = true, database = db) =>
     requestRunControl(database, id, action, "discord", apply, { home });
@@ -61,11 +66,6 @@ try {
   const sameRunUnrelated = String(request("r_stuck", "take_control").requestId);
   assert.ok((availableRunControls(db, "r_stuck", { home }).available_actions as string[]).includes("preview_stop"),
     "Stop must be exposed for a pending Start before allocation");
-  db.prepare(`INSERT INTO run_ci_snapshots (run_id, repository, pull_request_number, pull_request_url,
-    head_sha, aggregate_state, checks_json, content_digest, first_observed_at, last_observed_at, completed_at)
-    VALUES ('r_stuck', 'example/repo', 160, 'https://example.invalid/pull/160',
-      '26578729daa0899fb63e3bf8279d444962745972', 'passed', '[]', 'fixture',
-      '2026-10-10T09:00:00Z', '2026-10-10T09:00:00Z', '2026-10-10T09:00:00Z')`).run();
   const prBefore = db.prepare("SELECT * FROM run_ci_snapshots WHERE run_id='r_stuck'").get();
   lease("r_stuck", 1);
   const before = preserved("r_stuck");

@@ -53,5 +53,6 @@ export function syntheticStoppedWriterSnapshot(report: string | null = null): Pr
   item.aiReview={enabled:false,reason:"no_head",head:null};
   item.writerStop={report,threadId:"00000001-0000-4000-8000-000000000001"};
   item.links={...item.links,pr:null,review:null};
+  item.runActions!.actions=item.runActions!.actions.filter(action=>action.action!=="preview_start");
   return snapshot;
 }

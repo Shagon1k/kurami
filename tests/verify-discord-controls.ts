@@ -777,7 +777,8 @@ async function main(): Promise<void> {
       componentLabels(currentDashboard()).includes("Take control") &&
       controlIds(currentDashboard()).includes("kurami:take_control:r_discord_smoke") &&
       controlIds(currentDashboard()).includes("kurami:stop:r_discord_smoke") &&
-      !controlIds(currentDashboard()).includes("kurami:ai_review:r_discord_smoke"),
+      !controlIds(currentDashboard()).includes("kurami:ai_review:r_discord_smoke") &&
+      !controlIds(currentDashboard()).includes("kurami:preview_start:r_discord_smoke"),
       "Stopped primary lacked a named exact session href or changed ownership actions");
     stoppedSetup.prepare("UPDATE run_ci_snapshots SET pull_request_url=? WHERE run_id='r_discord_smoke'")
       .run(savedCi.pull_request_url);
@@ -785,7 +786,8 @@ async function main(): Promise<void> {
     assert(componentText(currentDashboard()).includes(namedSessionLink) &&
       componentText(currentDashboard()).includes("**Agent stopped**") &&
       componentText(currentDashboard()).includes("The current PR commit is not known yet. Local work is preserved.") &&
-      !controlIds(currentDashboard()).includes("kurami:ai_review:r_discord_smoke"),
+      !controlIds(currentDashboard()).includes("kurami:ai_review:r_discord_smoke") &&
+      !controlIds(currentDashboard()).includes("kurami:preview_start:r_discord_smoke"),
       "A PR URL without verified head was presented as delivered or changed review eligibility");
     stoppedSetup.exec("UPDATE run_ci_snapshots SET pull_request_url=NULL WHERE run_id='r_discord_smoke'");
     stoppedSetup.prepare(`INSERT INTO run_state_history (run_id, from_state, to_state, reason, details_json)

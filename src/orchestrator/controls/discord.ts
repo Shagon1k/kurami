@@ -1,3 +1,4 @@
+import { previewSourceAvailable } from "../projects/previews/runtime.ts";
 import { WRITER_STOP_TEXT, writerStopPresentation } from "../projects/writer-stop-presentation.ts";
 import { readReviewEvidence, type ReviewEvidence } from "../projects/reviews/read-model.ts";
 import {LATEST_ATTENTION_SQL,LATEST_ATTENTION_VALUE_SQL,LATEST_SUCCESSOR_STATE_SQL,LATEST_SUCCESSOR_THREAD_SQL,ACTIVE_SUCCESSOR_COUNT_SQL,ACTIVE_SUCCESSOR_COUNT_VALUE_SQL} from "../runtime/run-projections.ts";
@@ -247,7 +248,7 @@ const desiredSurfaceDigestSql = `
   COALESCE(r.completion_requested_at, 'completion:none') || ':' ||
   COALESCE(r.preview_requirement_satisfied_at, 'preview-satisfied:none') || ':' ||
   COALESCE(ps.hostname, 'host:none') || ':' ||
-  COALESCE(r.stop_reason, 'stop:none') || ':discord-ux-v16'
+  COALESCE(r.stop_reason, 'stop:none') || ':discord-ux-v17'
   || ':' || COALESCE(ci.content_digest, 'ci:none') || ':' ||
   (SELECT COUNT(*) FROM run_ci_repair_attempts repair_count
    WHERE repair_count.run_id = r.run_id) || ':' ||
@@ -1178,6 +1179,7 @@ export function controlComponents(
       );
     }
     const previewStartEligible =
+      previewSourceAvailable(card.ci_pull_request_url, card.ci_head_sha) &&
       !preservedCancellation &&
       !reviewFixBusy &&
       ((card.owner_state === "none" &&

@@ -1,3 +1,4 @@
+import { previewSourceAvailable } from "../projects/previews/runtime.ts";
 import { parseReviewProfile, type ReviewProfile } from "../projects/reviews/profiles.ts";
 import {LATEST_ATTENTION_SQL,LATEST_SUCCESSOR_STATE_SQL,LATEST_SUCCESSOR_THREAD_SQL,ACTIVE_SUCCESSOR_COUNT_SQL} from "../runtime/run-projections.ts";
 import { technicalWorkerDiagnostic } from "../integrations/codex/worker-diagnostic.ts";
@@ -719,6 +720,15 @@ export function requestRunControl(
         "Preview can start only after autonomous work reaches a stable review state",
       );
     }
+    if (action === "preview_start") {
+      const source = database.prepare(`
+        SELECT ci.pull_request_url, ci.head_sha,
+          EXISTS(SELECT 1 FROM preview_leases WHERE run_id=r.run_id AND state='running') AS existing_preview
+        FROM runs r LEFT JOIN run_ci_snapshots ci USING(run_id) WHERE r.run_id=?
+      `).get(runId) as {pull_request_url: string | null; head_sha: string | null; existing_preview: number};
+      if (!source.existing_preview && !previewSourceAvailable(source.pull_request_url, source.head_sha))
+        fail("Preview requires a pull request with an observed exact head commit");
+    }
     const existing = database
       .prepare(
         `
@@ -936,6 +946,7 @@ export function availableRunControls(database: DatabaseSync, runId: string, opti
     else if (
       !reviewFixBusy &&
       !previewState &&
+      previewSourceAvailable(selected.ci_pull_request_url, selected.ci_head_sha) &&
       !pendingActions.has("preview_start") &&
       ownerState === "none" &&
       ["parked_review", "waiting_human"].includes(runState)

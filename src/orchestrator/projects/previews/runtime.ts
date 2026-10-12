@@ -53,8 +53,16 @@ export function selectAdapter(runId: string): PreviewAdapter {
   return adapter;
 }
 
+function hasExactHeadSha(value: unknown): value is string {
+  return typeof value === "string" && /^[0-9a-f]{40,64}$/u.test(value);
+}
+
+export function previewSourceAvailable(pullRequestUrl: unknown, headSha: unknown): boolean {
+  return typeof pullRequestUrl === "string" && pullRequestUrl.length > 0 && hasExactHeadSha(headSha);
+}
+
 export function requireExactHeadSha(value: string | null): string {
-  if (!value || !/^[0-9a-f]{40,64}$/u.test(value)) {
+  if (!hasExactHeadSha(value)) {
     fail("Preview requires an exact pull-request head snapshot");
   }
   return value;
