@@ -1,3 +1,4 @@
+import { completeSuccessions } from "../sessions/complete-successions.ts";
 import { execFileSync, spawnSync } from "node:child_process";
 import { realpath, rmdir, stat } from "node:fs/promises";
 import { basename, dirname, relative, resolve } from "node:path";
@@ -395,6 +396,7 @@ function finalizeCancellation(
          WHERE run_id = ?`,
       )
       .run(run.run_id);
+    completeSuccessions(database, run.run_id);
     database
       .prepare(
         `INSERT INTO run_state_history (

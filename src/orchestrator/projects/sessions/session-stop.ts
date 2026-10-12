@@ -1,3 +1,4 @@
+import { completeSuccessions } from "./complete-successions.ts";
 import { captureParkProcesses, cleanupParkProcesses, saveParkProcesses, loadParkProcesses, clearParkProcesses } from "./park-processes.ts";
 import { taskForSession, protocolTurnSucceeded } from "../../integrations/codex/task-store.ts";
 import { protocolRemoteBlocker, stopProtocolTask, releaseProtocolTask } from "./protocol-session.ts";
@@ -216,14 +217,7 @@ function recordHandoffRelease(
       .run(run.run_id, run.tmux_session_name);
     if (runChanged.changes !== 1 || resourceChanged.changes !== 1)
       fail("Run changed while recording the completed tmux release");
-    database
-      .prepare(
-        `UPDATE run_autonomous_successions
-         SET succession_state='parked', completed_at=strftime('%Y-%m-%dT%H:%M:%fZ','now'),
-             updated_at=strftime('%Y-%m-%dT%H:%M:%fZ','now')
-         WHERE run_id=? AND succession_state IN ('starting','running')`,
-      )
-      .run(run.run_id);
+    completeSuccessions(database, run.run_id);
     appendHistory(
       database,
       run.run_id,
@@ -756,6 +750,7 @@ export async function finalizeStop(
       `,
       )
       .run(run.run_id);
+    completeSuccessions(database, run.run_id);
     appendHistory(
       database,
       run.run_id,

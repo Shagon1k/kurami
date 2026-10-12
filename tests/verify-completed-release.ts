@@ -17,6 +17,24 @@ import { controlComponents } from "../src/orchestrator/controls/discord.ts";
 
 process.umask(0o077);
 
+function seedSuccession(database: DatabaseSync, runId: string, headSha: string): void {
+  database.prepare(`INSERT INTO run_control_requests
+    (request_id,run_id,action,requested_via,idempotency_key,request_state)
+    VALUES (?,?,'take_control','cli',?,'applied')`).run(`rq_${runId}`,runId,`succession:${runId}`);
+  database.prepare(`INSERT INTO run_autonomous_successions
+    (succession_id,run_id,request_id,succession_number,succession_state,
+     predecessor_thread_id,worktree_path,branch_name,source_head_sha,handoff_context_json)
+    VALUES (?,?,?,1,'running','prior-thread','/unused','test-branch',?,'{}')`)
+    .run(`ras_${runId}`,runId,`rq_${runId}`,headSha);
+}
+
+function assertSuccessionCompleted(database: DatabaseSync, runId: string): void {
+  const row=database.prepare(`SELECT succession_state,completed_at FROM run_autonomous_successions
+    WHERE run_id=?`).get(runId) as {succession_state:string;completed_at:string|null};
+  assert(row.succession_state === "parked" && Boolean(row.completed_at),
+    `Released run still has an unfinished succession: ${JSON.stringify(row)}`);
+}
+
 function run(command: string, args: string[], cwd?: string): string {
   return execFileSync(command, args, {
     cwd,
@@ -152,6 +170,7 @@ async function main(): Promise<void> {
         ) VALUES (?, 'provisioned', ?, ?, ?)
       `)
       .run(runId, baseSha, worktree, branch);
+    seedSuccession(database,runId,headSha);
     database.close();
 
     const environment = {
@@ -264,6 +283,7 @@ async function main(): Promise<void> {
         WHERE r.run_id = ?
       `)
       .get(runId) as { state: string; owner_state: string; resource_state: string };
+    assertSuccessionCompleted(verification,runId);
     verification.close();
     assert(
       row.state === "archived" &&
@@ -313,6 +333,7 @@ async function main(): Promise<void> {
         resolve(worktreeRoot, "TT-9903_cancelled-release", "TailorTales"),
         "TT-9903_cancelled-release",
       );
+    seedSuccession(cancellationDatabase,cancelledRunId,baseSha);
     cancellationDatabase.close();
 
     const cancelledArgs = [
@@ -341,6 +362,7 @@ async function main(): Promise<void> {
         WHERE r.run_id = ?
       `)
       .get(cancelledRunId) as { state: string; stop_reason: string; resource_state: string };
+    assertSuccessionCompleted(cancelledVerification,cancelledRunId);
     cancelledVerification.close();
     assert(
       cancelledRow.state === "cancelled" &&

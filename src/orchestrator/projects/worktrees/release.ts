@@ -1,3 +1,4 @@
+import { completeSuccessions } from "../sessions/complete-successions.ts";
 import { execFileSync, spawnSync } from "node:child_process";
 import { readFile, realpath, rmdir, stat } from "node:fs/promises";
 import { basename, dirname, relative, resolve } from "node:path";
@@ -457,6 +458,7 @@ function recordReleased(
         WHERE run_id = ?
       `)
       .run(run.run_id);
+    completeSuccessions(database, run.run_id);
     appendHistory(
       database,
       run.run_id,

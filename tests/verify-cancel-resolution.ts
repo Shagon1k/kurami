@@ -94,6 +94,14 @@ async function main(): Promise<void> {
     command("git", ["worktree", "add", "-b", "TT-1_cancel", worktree, baseSha], canonical);
     await writeFile(resolve(worktree, "file.txt"), "discard me\n");
     seed("r_discard", 1, "TT-1_cancel", worktree);
+    database.prepare(`INSERT INTO run_control_requests
+      (request_id,run_id,action,requested_via,idempotency_key,request_state)
+      VALUES ('rq_discard_successor','r_discard','take_control','cli','discard-successor','applied')`).run();
+    database.prepare(`INSERT INTO run_autonomous_successions
+      (succession_id,run_id,request_id,succession_number,succession_state,
+       predecessor_thread_id,worktree_path,branch_name,source_head_sha,handoff_context_json)
+      VALUES ('ras_discard','r_discard','rq_discard_successor',1,'starting',
+              'prior-thread',?,'TT-1_cancel',?,'{}')`).run(worktree,baseSha);
 
     const canonicalScript = resolve(
       app,
@@ -117,6 +125,11 @@ async function main(): Promise<void> {
     `).get() as { state: string; resource_state: string };
     assert(final.state === "cancelled", "Discard did not finalize cancellation");
     assert(final.resource_state === "released", "Discard did not release resources");
+    const succession = database.prepare(`SELECT succession_state,completed_at
+      FROM run_autonomous_successions WHERE succession_id='ras_discard'`).get() as
+      {succession_state:string;completed_at:string|null};
+    assert(succession.succession_state === "parked" && Boolean(succession.completed_at),
+      "Discard left its successor active and settings locked");
 
     const publishedAttempt = resolve(worktreeRoot, "TT-2_published");
     const publishedWorktree = resolve(publishedAttempt, "TailorTales");
