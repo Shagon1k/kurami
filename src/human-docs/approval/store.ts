@@ -41,6 +41,7 @@ export type ProposalRow={
   requested_head_sha:string|null;
   merged_sha:string|null;
   published_docs_sha:string|null;
+  checkout_sync_json?:string|null;
   rollback_dir:string|null;
   last_error:string|null;
   cleaned_at:string|null;
@@ -93,6 +94,8 @@ export class ProposalStore {
     this.database=new DatabaseSync(path);
     this.database.exec("PRAGMA journal_mode=WAL; PRAGMA busy_timeout=5000; PRAGMA foreign_keys=ON;");
     this.database.exec(SCHEMA);
+    if(!(this.database.prepare("PRAGMA table_info(docs_proposals)").all() as Array<{name:string}>).some(column=>column.name==="checkout_sync_json"))
+      this.database.exec("ALTER TABLE docs_proposals ADD COLUMN checkout_sync_json TEXT");
     this.#now=now;
   }
 

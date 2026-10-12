@@ -49,6 +49,21 @@ The card changes with the state of the proposal:
 
 A click on an outdated card is refused with an explanation and is not replayed later.
 
+## Server checkout after publication
+
+After the Docs release passes its access check, the worker tries to fast-forward the server's `main` checkout to that exact published docs SHA. The owner's Publish approval covers this conditional docs-only synchronization, not an application deployment. The worker takes the same lock as the application release command and checks the checkout again immediately before moving it.
+
+| Check | If it does not pass |
+|---|---|
+| Correct repository origin, `main` branch, and no tracked or untracked edits | The checkout stays in place; owner work is preserved |
+| Current HEAD is an ancestor of the published SHA | An ahead or divergent checkout stays in place |
+| Every intervening commit changes only the proposal allowlist | Runtime changes block synchronization, even when a later commit reverts them |
+| Application release lock is available | Synchronization is blocked; even an empty or stale lock requires operator inspection |
+
+Missing target objects are fetched by exact SHA without updating tracking branches. A newer remote `main` does not change the target. Already at the published SHA is a successful no-op. This synchronization runs no application build, migration, restart or deployment.
+
+If synchronization is blocked, the docs stay `published` and the card explicitly says **Server checkout sync pending/blocked**. The audit records the target SHA, observed checkout SHAs and reason. Release-drift checks stay unchanged; publishing docs is not proof that application code was deployed. There is no automatic retry of a blocked synchronization; an operator resolves the recorded cause separately.
+
 ## What a proposal may change
 
 A proposal edits only the pages readers see: the Markdown files in `src/human-docs/content/pages/`, the changelog ledger `changelog.json`, the copy test `tests/human-docs/verify.ts` and the coverage record `docs/human-docs-coverage-audit.md`. Everything else — the site structure, the build, application code — the worker discards before committing, and at publish time it checks once more that the PR holds nothing else. So the worst a bad edit can do is show up in a page's text, and you see it in the PR before publishing.

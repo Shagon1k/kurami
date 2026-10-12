@@ -7,6 +7,7 @@ import {tmpdir} from "node:os";
 import {basename,dirname,resolve} from "node:path";
 import {changedPages,disallowedPaths,parseSummary,type PageChange,type ProposalSummary} from "./policy.ts";
 import {docsStateDir,kuramiHome,ProposalStore,type ProposalRow} from "./store.ts";
+import {syncDocsCheckout} from "./checkout-sync.ts";
 import {pruneReleaseCopies} from "./releases.ts";
 import {ownerId} from "./discord.ts";
 import {surfaceFor,type Surface} from "./surface.ts";
@@ -383,11 +384,20 @@ async function publish(config:WorkerConfig,store:ProposalStore,surface:Surface,r
   }
   try{
     const {docsSha,rollbackDir}=await releaseDocs(config,mergedSha);
-    store.update(row.proposal_id,{state:"published",published_docs_sha:docsSha,rollback_dir:rollbackDir,last_error:null},["publishing"]);
+    store.update(row.proposal_id,{state:"published",published_docs_sha:docsSha,rollback_dir:rollbackDir,checkout_sync_json:JSON.stringify({status:"pending",target:docsSha}),last_error:null},["publishing"]);
     store.event(row.proposal_id,"published",{docsSha,rollbackDir});
-    run("git",["push","--quiet","origin","--delete",row.branch],{cwd:config.sourceClone,allowFailure:true});
   }catch(error){
     store.update(row.proposal_id,{state:"failed",last_error:error instanceof Error?error.message:String(error)},["publishing"]);
+  }
+  // Publication is already durable. A sync failure must not fail or roll back the Docs release.
+  const published=store.get(row.proposal_id);
+  if(published.state==="published"){
+    let outcome;
+    try {outcome=await syncDocsCheckout({app:config.appRoot,home:config.home,repo:repoSlug(config),target:published.published_docs_sha!});}
+    catch(error){outcome={status:"blocked",target:published.published_docs_sha,from:null,head:null,reason:String(error).slice(0,400)};}
+    store.update(row.proposal_id,{checkout_sync_json:JSON.stringify(outcome)},["published"]);
+    store.event(row.proposal_id,"checkout-sync",outcome);
+    run("git",["push","--quiet","origin","--delete",row.branch],{cwd:config.sourceClone,allowFailure:true});
   }
   await surface.showCard(store.get(row.proposal_id));
 }

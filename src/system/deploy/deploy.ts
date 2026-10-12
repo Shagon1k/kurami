@@ -7,11 +7,12 @@
 // record, the release runs them first in a scratch worktree (a few minutes) and stops if they fail.
 // Progress goes to state/deploy/last.json (Hub shows it), each release to state/deploy/history.jsonl.
 import { execFile } from "node:child_process";
-import { cp, mkdir, readFile, rename, rm, symlink, writeFile, appendFile, open } from "node:fs/promises";
+import { cp, readFile, rename, rm, symlink, writeFile, appendFile } from "node:fs/promises";
 import { resolve } from "node:path";
 import { promisify } from "node:util";
 import { resolveKuramiHome } from "../../core/kurami-home.ts";
 import { checkReleaseDrift, type DriftItem } from "../release-drift.ts";
+import { withDeployLock } from "./lock.ts";
 import { passedFull } from "../test-receipts.ts";
 
 const exec = promisify(execFile);
@@ -152,28 +153,11 @@ async function testInWorktree(context: DeployContext, commit: string): Promise<v
   } finally { await git("worktree", "remove", "--force", directory).catch(() => undefined); }
 }
 
-async function withLock<T>(home: string, work: () => Promise<T>): Promise<T> {
-  const paths = deployPaths(home);
-  await mkdir(paths.directory, { recursive: true, mode: 0o700 });
-  let handle;
-  try { handle = await open(paths.lock, "wx", 0o600); }
-  catch {
-    const owner = Number((await readFile(paths.lock, "utf8").catch(() => "")).trim());
-    let alive = false;
-    try { if (owner) { process.kill(owner, 0); alive = true; } } catch {}
-    if (alive) throw new Error("Another release is running");
-    await rm(paths.lock, { force: true });
-    handle = await open(paths.lock, "wx", 0o600);
-  }
-  await handle.writeFile(String(process.pid)); await handle.close();
-  try { return await work(); } finally { await rm(paths.lock, { force: true }); }
-}
-
 /** Moves the checkout to `target` (a commit on main) and converges; on failure returns to where it was. */
 export async function deploy(context: DeployContext, target: string, actor: string, action: "deploy" | "rollback" = "deploy", options: DeployOptions = {}): Promise<DeployRecord> {
   const { app, home, run } = context;
   const git = (...args: string[]) => run("git", args, { cwd: app });
-  return withLock(home, async () => {
+  return withDeployLock(home, async () => {
     if (await git("status", "--porcelain", "--untracked-files=no")) throw new Error("The live checkout has uncommitted changes");
     await git("fetch", "-q", "origin", "main");
     const to = await git("rev-parse", "--verify", `${target}^{commit}`), from = await git("rev-parse", "HEAD");
