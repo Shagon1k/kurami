@@ -167,6 +167,10 @@ GitHub Actions на каждый PR запускает типы, проверк�
 
 При изменении названий jobs обновляются и шаблон проекта в Git, и live registry projects.yaml. Обычный observer и обновление карточки должны подтвердить точные required checks на текущем SHA PR. В PR PickFlick UI smoke и Delivery gate заменяют удалённую объединённую UI-проверку; UI contract и visual jobs вне PR проверяет Delivery gate. Изменение policy не очищает историю failed repair и не отменяет failed security checks.
 
+## Настройки managed workspace
+
+Managed primary writers и protocol workers получают `pnpm_config_store_dir`, указывающий на `node_modules/.pnpm-store` внутри рабочей копии. SQLite-файлы package store остаются в разрешённых writable roots; launcher не открывает общий home store и не ослабляет sandbox. Для личных GitHub Projects prompts предлагают прямое чтение через `gh api graphql` с уже разрешённым доступом, если установленный `gh project` требует недоступные scopes. Эта настройка не расширяет scopes токена и не означает, что остановленная задача проекта возобновилась.
+
 ## Lifecycle технических Codex-задач
 
 CI repair и review fix выполняются отдельным Codex app-server worker. Launcher сохраняет tmux как supervisor процесса, но завершение определяется событием сохранённого thread и turn, а не текстом экрана. Основной writer и Remote handoff остаются на прежнем TUI-пути. При остановке, timeout и ошибке инициализации сохраняется identity задачи; ownership освобождается только после подтверждённого выхода процесса.
