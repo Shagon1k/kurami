@@ -11,7 +11,7 @@ import { createProjectsServer } from "../../src/projects-site/server.ts";
 import {PROJECTS_CLIENT_VERSION,PROJECTS_CLIENT_JS} from "../../src/projects-site/client-version.ts";
 import { renderProjectsPage, renderProjectPrControl } from "../../src/projects-site/render.ts";
 import { parseFilters, selectItems, projectStageLabel } from "../../src/projects-site/model.ts";
-import { syntheticProjectsSnapshot, syntheticCiChecks } from "./fixture.ts";
+import { syntheticProjectsSnapshot, syntheticCiChecks, syntheticStoppedWriterSnapshot } from "./fixture.ts";
 import {parseCiChecks,ciCheckUrl} from "../../src/projects-site/ci-checks.ts";
 import {iconPath,renderIcon as renderIconMarkup} from "../../src/ui-library/components/icon.ts";
 import {PROJECTS_STYLES} from "../../src/projects-site/styles.ts";
@@ -29,6 +29,19 @@ for(const lang of ["en","ru"] as const){
     assert.match(html,/class="projects-run-action-meta"/,'PR explanations use the shared metadata row');
     assert.doesNotMatch(html,/data-pr-action=/,'an unavailable placeholder cannot start a write');
   }
+}
+for(const lang of ["en","ru"] as const)for(const report of [null,"Stopped: dependency store unavailable. <script>bad()</script>"]){
+  const paused=syntheticStoppedWriterSnapshot(report);
+  const html=renderProjectsPage(paused,new URLSearchParams(`item=item-12&lang=${lang}`));
+  const detail=html.split('<aside class="projects-detail"')[1]!;
+  assert.match(detail,/href="https:\/\/go\.shagon1k\.win\/codex\/threads\/00000001-0000-4000-8000-000000000001"/);
+  assert.match(detail,lang==="ru"?/Открыть сессию Codex/:/Open Codex session/);
+  assert.doesNotMatch(detail,/>https:\/\/go\.|Writer final summary unavailable|<script>bad|data-review-run=|data-review-result=/);
+  assert.match(detail,/<details[^>]*data-disclosure-key="writer-stop:[^"]+">/);
+  assert.doesNotMatch(detail,/>Unverified<|>Pending</);
+  if(report)assert.match(detail,/&lt;script&gt;bad\(\)&lt;\/script&gt;/);
+  paused.items[0]!.writerStop!.threadId="javascript:alert(1)";
+  assert.doesNotMatch(renderProjectsPage(paused,new URLSearchParams("item=item-12")),/data-codex-session=/);
 }
 assert.equal(ciCheckUrl(checkUrl,"Example/Alpha"),checkUrl,"the recorded job and step anchor are preserved");
 for(const url of ["javascript:alert(1)","https://evil.test/Example/Alpha/actions/runs/123","https://github.com/Example/Other/actions/runs/123","https://user:secret@github.com/Example/Alpha/actions/runs/123","https://github.com/Example/Alpha/issues/12","https://github.com/Example/Alpha/../Other/actions/runs/123"])

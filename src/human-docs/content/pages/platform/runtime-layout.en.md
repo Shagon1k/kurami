@@ -167,6 +167,10 @@ GitHub Actions runs types, the documentation-impact declaration check and the fu
 
 When workflow job names change, update both the tracked project template and the live projects.yaml registry. Verify exact required check names on the current PR SHA through the normal observer and card refresh. For PickFlick PRs, UI smoke and Delivery gate replace the removed combined UI check; non-PR UI contract and visual jobs are validated by Delivery gate. A policy update does not clear existing repair failure history or waive failed security checks.
 
+## Managed workspace defaults
+
+Managed primary writers and protocol workers receive `pnpm_config_store_dir` pointing to `node_modules/.pnpm-store` inside their working copy. Package-store SQLite files stay within existing writable roots; the launcher does not open the shared home store or relax sandbox permissions. For personal GitHub Projects, worker prompts prefer direct `gh api graphql` reads using already-permitted access when the installed `gh project` commands require unavailable scopes. This guidance does not grant additional token scopes or prove that a stopped project run has resumed.
+
 ## Technical Codex worker lifecycle
 
 CI repair and review fix use a private Codex app-server worker. The launcher retains tmux as a process supervisor, but completion comes from the exact persisted thread and turn event, not terminal screen text. The primary writer and Remote handoff retain their existing TUI route. Stop, timeout and initialization failures preserve task identity and require acknowledged process exit before ownership is released.

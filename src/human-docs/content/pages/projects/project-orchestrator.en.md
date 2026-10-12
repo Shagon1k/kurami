@@ -60,12 +60,14 @@ Inside Kurami there are five parts, each with one job. The **board poll** reads 
 - **Admission** — the issue is open, has a description, and the limits and disk allow it. A run appears in state `admission_pending`.
 - **Controller** — creates the branch `TT-42_add-dark-mode-toggle` and a working copy, and starts Codex the next minute.
 - **Codex** — writes code for forty minutes, pushes commits and opens a PR. Kurami follows CI for that exact commit.
-- **Kurami** — sees that Codex finished its turn, releases the session and moves the card to Human Review. Discord shows "Ready for review".
+- **Kurami** — sees that Codex finished its turn and releases the session. With an observed PR and head SHA, the run can become ready for review and move to Human Review.
 - **You** — read the PR, optionally ask for an AI review or a preview, and merge the PR. Kurami verifies the exact managed delivery, stops its preview and releases the clean, unowned working copy. Accepting the whole issue and moving it to Done remain separate decisions.
 :::
 ::::
 
 Each line of this path takes a minute or more. That is by design: the controller takes one step per run per cycle, so a failure anywhere along the way leaves a clear state that the next minute continues from.
+
+If the primary Codex writer stops without a reviewable PR and head SHA, the card waits for an owner decision. Local work stays preserved; CI and review controls are not presented as available. The App offers a named session link and collapsed stop details; Discord keeps the report separate from the status. Opening the session link does not claim ownership: **Continue in Codex** remains a separate action. New stops save a bounded, sanitized report from the exact session; older runs may have no saved report.
 
 ## Three ideas that hold it together
 

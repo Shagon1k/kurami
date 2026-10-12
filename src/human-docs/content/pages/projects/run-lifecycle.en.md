@@ -66,7 +66,7 @@ Two more fields help read a run: `execution_mode` (`live` or `dry_run`) and `int
 | `rejected` | Admission refused because of WIP or the resource guard. Terminal, no resources | Admission |
 | `starting` | The working copy is being created or is ready, Codex not started yet | Working-copy creation |
 | `running` | Codex works in tmux, owner `cli` | Session start; Continue autonomously from `remote_owned` |
-| `parked_review` | Review pause: the card is in Human Review or Codex finished an autonomous turn | Session release; card move to Human Review |
+| `parked_review` | Session released: review pause with an observed PR/head, otherwise awaiting a decision | Session release; card move to Human Review |
 | `remote_owned` | You took the Codex task, owner `remote` | Handoff; Continue in Codex |
 | `needs_attention` | Automation stopped and waits for a decision | Copy failure, timeout, Codex permission prompt, blocked release |
 | `stopping` | Completion or cancellation in progress: close the session, remove the preview, release the copy | Move to Done, Backlog or Deferred; Cancel run |

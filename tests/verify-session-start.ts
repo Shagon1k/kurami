@@ -13,6 +13,7 @@ import { tmpdir } from "node:os";
 import { delimiter, resolve } from "node:path";
 import { DatabaseSync } from "node:sqlite";
 import { initialPrompt } from "../src/orchestrator/projects/sessions/prompts.ts";
+import { protocolRepository } from "./fixtures/protocol-repository.ts";
 
 function assert(condition: unknown, message: string): asserts condition {
   if (!condition) throw new Error(message);
@@ -75,6 +76,43 @@ async function main(): Promise<void> {
       launcher.includes('--add-dir "${worktree_common_dir}"'),
     "Managed Codex launcher must grant write access only to the linked worktree Git directory",
   );
+  assert(
+    launcher.includes('export pnpm_config_store_dir="${HERMES_WORKTREE_PATH}/node_modules/.pnpm-store"') &&
+      !launcher.includes('--add-dir "${HOME}') &&
+      !launcher.includes('danger-full-access'),
+    "Managed pnpm store must remain inside the existing sandbox workspace",
+  );
+  for (const prompt of [autonomousPrompt, humanControlPrompt]) {
+    assert(prompt.includes("use `gh api graphql`") && prompt.includes("Do not expand token scopes"),
+      "Project reads must avoid unnecessary CLI scopes without changing credentials");
+  }
+  const environmentFixture = protocolRepository();
+  try {
+    await mkdir(resolve(environmentFixture.root, "secrets"));
+    await writeFile(resolve(environmentFixture.root, "secrets/github.env"), "GH_TOKEN=synthetic-fixture-token\n", {mode: 0o600});
+    const fakeCodex = resolve(environmentFixture.root, "environment-codex");
+    await writeFile(fakeCodex, `#!/usr/bin/env node\nconsole.log(JSON.stringify({store:process.env.pnpm_config_store_dir,writerToken:Boolean(process.env.GH_TOKEN),args:process.argv.slice(2)}));\n`, {mode: 0o700});
+    const launched = JSON.parse(execFileSync("bash", [resolve(app, "bin/launch-codex-session.sh")], {
+      encoding: "utf8", env: {...process.env,
+        KURAMI_HOME: environmentFixture.root, HERMES_RUN_ID: "r_environment",
+        HERMES_REPOSITORY: "Fixture/Repo", HERMES_ISSUE_NUMBER: "1",
+        HERMES_WORKTREE_PATH: environmentFixture.worktree,
+        HERMES_CANONICAL_REPOSITORY: environmentFixture.canonical, CODEX_BIN: fakeCodex,
+        HERMES_CODEX_TASK_ID: "", HERMES_INITIAL_PROMPT_FILE: "",
+        HERMES_INITIAL_PROMPT_B64: Buffer.from("Environment fixture").toString("base64"),
+        pnpm_config_store_dir: "/not-the-workspace-store",
+      }, stdio: ["ignore", "pipe", "pipe"],
+    })) as {store: string; writerToken: boolean; args: string[]};
+    assert(launched.store === resolve(environmentFixture.worktree, "node_modules/.pnpm-store"),
+      "The real primary launcher did not replace the inherited package store");
+    assert(launched.writerToken && launched.args.includes("workspace-write") &&
+      launched.args.includes("sandbox_workspace_write.network_access=true") &&
+      !launched.args.includes(launched.store),
+      "Primary launcher changed authentication or broadened sandbox writable roots");
+  } finally {
+    environmentFixture.database.close();
+    await rm(environmentFixture.root, {recursive: true, force: true});
+  }
   const home = await realpath(
     await mkdtemp(resolve(tmpdir(), "kurami-session-start-")),
   );

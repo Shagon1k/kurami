@@ -29,6 +29,9 @@ const humanControl = initialPrompt({ ...run, interaction_policy: "human_control"
 const simplicityReminder = "Follow the repository's Simplicity and scope guidance. Choose the simplest clear authorized implementation; avoid speculative abstractions, defensive branches, or recovery mechanisms. Preserve required safety and verification.";
 for (const [kind, writerPrompt] of Object.entries({ autonomous, humanControl, repair: prompt, reviewFix: review })) {
   assert.equal(writerPrompt.split(simplicityReminder).length - 1, 1, `${kind}: one shared simplicity reminder`);
+  assert.equal(writerPrompt.split("For personal GitHub Projects").length - 1, 1, `${kind}: one Project API reminder`);
+  assert.ok(writerPrompt.includes("Do not expand token scopes"), `${kind}: unchanged credential boundary`);
+  assert.ok(writerPrompt.includes("pnpm_config_store_dir"), `${kind}: workspace-local package store`);
 }
 assert.ok(humanControl.includes("stop before modifying files or external state until Alex explicitly approves"));
 for (const writerPrompt of [prompt, review]) {

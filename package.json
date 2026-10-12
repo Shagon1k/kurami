@@ -11,7 +11,7 @@
     "test:web-browser": "node tests/web/browser.ts",
     "projects:serve": "node src/projects-site/server.ts",
     "test:projects-site": "node tests/projects-site/verify.ts && node tests/projects-site/controls.ts && node tests/projects-site/status.ts && node tests/projects-site/task-start.ts && node tests/projects-site/run-actions.ts && node tests/projects-site/pr-actions.ts",
-    "test:projects-browser": "node tests/projects-site/browser.ts",
+    "test:projects-browser": "node tests/projects-site/browser.ts && node tests/projects-site/writer-stop-browser.ts",
     "test:investment-review": "node tests/briefing/verify-investment-review.ts && node tests/briefing/verify-investment-primary.ts && node tests/briefing/verify-investment-vanguard.ts && node tests/briefing/verify-investment-review-automation.ts && python3 tests/briefing/verify-investment-review-trial.py",
     "investment-review:weekly": "node src/briefing/investment-review/automation.ts run",
     "test:briefing-company-logos": "node tests/briefing/verify-company-logos.ts",

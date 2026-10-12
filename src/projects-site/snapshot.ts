@@ -17,6 +17,7 @@ import { PROJECTS_STALE_AFTER_MS, needsOwner, type ProjectItem, type ProjectsSna
 import {hasActivePrRequest} from "../orchestrator/controls/pr-boundary.ts";
 
 import { technicalWorkerDiagnostic, workerDiagnosticText } from "../orchestrator/integrations/codex/worker-diagnostic.ts";
+import { primaryStoppedDiagnostic } from "../orchestrator/integrations/codex/primary-diagnostic.ts";
 import { PROJECT_ICONS, projectColor } from "../core/projects-registry.ts";
 
 type Config = { owner: string; project_number: number; status_field?: string; repository: string; icon?: string; color?: string; statuses: ProjectStatuses; discord?: { guild_id: string; channel_id: string } };
@@ -31,6 +32,8 @@ type ItemRow = ProjectRunFacts & {
   ci_checks_json: string | null; ci_observed_at: string | null;
   review_fix_round_number: number | null;
   review_fix_startup_failure?: string | null;
+  codex_thread_id: string | null; previous_codex_thread_id: string | null;
+  writer_stop?: ProjectItem["writerStop"];
 };
 
 export function projectsRegistry(path: string): Record<string, Config> {
@@ -71,7 +74,7 @@ function itemFromRow(row: ItemRow, config: Config, now: Date): ProjectItem {
   return {
     id: row.item_id, project: row.project, number: row.issue_number, title: row.title ?? "", kind: row.content_type ?? "Unknown",
     status: row.status, observedAt: row.last_seen_at, runUpdatedAt: row.run_updated_at, runId: row.run_id, runState: row.run_id ? row.run_state : null,
-    stage: row.stage ?? null, detail: row.detail, owner: row.owner_state,
+    stage: row.stage ?? null, detail: row.detail, owner: row.owner_state, writerStop: row.writer_stop,
     ci: { state: row.ci_aggregate_state ?? "none", tone: row.ci_aggregate_state === "passed" ? "success" : ["failed", "missing"].includes(row.ci_aggregate_state ?? "") ? "failure" : "neutral", head: row.ci_head_sha,
       checks: parseCiChecks(row.ci_checks_json, config.repository), observedAt: row.ci_observed_at },
     reviewRequestFailed: Boolean(row.review_request_failed),
@@ -108,14 +111,16 @@ export function collectProjectsSnapshot(options: { home?: string; now?: Date; co
       (SELECT round_number FROM run_review_fix_rounds f WHERE f.run_id=r.run_id ORDER BY f.round_number DESC LIMIT 1) AS review_fix_round_number,
       (SELECT COUNT(*) FROM run_control_requests q WHERE q.run_id=r.run_id AND q.action='ai_review' AND q.review_profile='general' AND q.request_state IN ('pending','processing')) AS review_pending,
       (SELECT q.request_state IN ('failed','rejected') FROM run_control_requests q WHERE q.run_id=r.run_id AND q.action='ai_review' AND q.review_profile='general' ORDER BY q.rowid DESC LIMIT 1) AS review_request_failed,
+      rr.codex_thread_id,rr.previous_codex_thread_id,
       pl.state AS preview_state,ps.hostname AS preview_hostname,pl.expires_at AS preview_expires_at,pl.reviewed_at AS preview_reviewed_at,pl.verified_head_sha AS preview_head,
       ds.guild_id,ds.parent_channel_id,ds.thread_id
       FROM project_items p LEFT JOIN runs r ON r.project=p.project AND r.item_id=p.item_id
         AND NOT EXISTS(SELECT 1 FROM runs newer WHERE newer.project=r.project AND newer.item_id=r.item_id AND newer.rowid>r.rowid)
       LEFT JOIN run_progress_cards pc ON pc.run_id=r.run_id LEFT JOIN run_ci_snapshots ci ON ci.run_id=r.run_id
+      LEFT JOIN run_resources rr ON rr.run_id=r.run_id
       LEFT JOIN preview_leases pl ON pl.run_id=r.run_id AND pl.state<>'released'
       LEFT JOIN preview_slots ps ON ps.slot_number=pl.slot_number LEFT JOIN run_discord_surfaces ds ON ds.run_id=r.run_id
-      WHERE p.present=1 ORDER BY p.project,p.issue_number,p.item_id`).all() as ItemRow[];
+      WHERE p.present=1 ORDER BY p.project,p.issue_number,p.item_id`).all() as unknown as ItemRow[];
     const controls = new Map<string, ReturnType<typeof inspectAiReview>>();
     const runActions = new Map<string, ReturnType<typeof projectRunActions>>();
     const prControlsReady=(options.controlsEnabled??process.env.PROJECTS_CONTROLS_ENABLED==="1")&&Boolean(database.prepare("SELECT 1 FROM sqlite_master WHERE type='table' AND name='project_pr_requests'").get());
@@ -133,6 +138,10 @@ export function collectProjectsSnapshot(options: { home?: string; now?: Date; co
       FROM project_triage_rankings r JOIN project_triage_state s ON s.project=r.project AND s.factual_hash=r.factual_hash
       WHERE r.selected_item_id IS NOT NULL`).all() as {project:string;selected_item_id:string;selected_issue_number:number;suggested_since:string;ranked_at:string;explanation:string}[]:[];
     for (const row of rows) if (row.run_id) {
+      if (row.run_state === "parked_review" && row.owner_state === "none" && !row.previous_codex_thread_id &&
+          (!row.pull_request_url || !row.ci_head_sha)) {
+        row.writer_stop = {report: primaryStoppedDiagnostic(database, row.run_id), threadId: row.codex_thread_id};
+      }
       row.review_fix_startup_failure = reviewFixStartupFailure(database, row.run_id, row.ci_head_sha, row.pull_request_url);
       const diagnostic = workerDiagnosticText(technicalWorkerDiagnostic(database, row.run_id));
       if (diagnostic) row.detail = [row.detail, diagnostic].filter(Boolean).join(" · ");

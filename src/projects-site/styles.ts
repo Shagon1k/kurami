@@ -109,6 +109,10 @@ export const PROJECTS_STYLES=[KURAMI_MOOD_CSS,THEME_CSS,FOUNDATION_CSS,BUTTON_CS
 .projects-detail-section h3 { display: flex; align-items: center; gap: var(--space-2); margin: 0 0 var(--space-3); font-size: .78rem; font-weight: 600; }
 .projects-detail-section h3 { --icon-size: 15px; --icon-color: var(--text-muted); }
 .projects-status-controls { display: grid; grid-template-columns: minmax(0,1fr) auto; align-items: end; gap: var(--space-2); }
+.projects-evidence-availability { margin: 0; padding: var(--space-3); color: var(--text-muted); }
+.projects-writer-stop { --control-height: 44px; margin-top: var(--space-3); }
+.projects-writer-stop-actions { display: flex; flex-wrap: wrap; gap: var(--space-2); margin-top: var(--space-3); }
+.projects-writer-report { color: var(--text-muted); overflow-wrap: anywhere; }
 .projects-context { padding: var(--space-3); background: var(--surface-panel); border-radius: var(--radius); color: var(--text-muted); font-size: .78rem; line-height: 1.55; margin: var(--space-3) 0 0; overflow-wrap: anywhere; }
 .projects-evidence { display: grid; margin-top: var(--space-2); border: 1px solid var(--border-subtle); border-radius: var(--radius); overflow: hidden; }
 .projects-evidence-row { display: grid; gap: var(--space-2); padding: var(--space-3); }

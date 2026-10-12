@@ -743,6 +743,72 @@ async function main(): Promise<void> {
         componentLabels(currentDashboard()).includes("Attempt CI fix"),
       "Stable PR did not expose independent CI repair and AI review actions",
     );
+    const emptyReviewText = componentText(currentDashboard());
+    assert((emptyReviewText.match(/Not run/gu) ?? []).length === 2 &&
+      !emptyReviewText.includes("**🔎 General Review**") &&
+      !emptyReviewText.includes("**🧩 Clarity Review**"),
+      "Empty review evidence was repeated outside its one-per-profile summary");
+
+    // Exercise the loader as well as rendering: use only the exact current primary receipt.
+    const stoppedSetup = new DatabaseSync(databasePath);
+    const savedCi = stoppedSetup.prepare("SELECT pull_request_url, head_sha FROM run_ci_snapshots WHERE run_id='r_discord_smoke'").get()!;
+    const savedSurface = stoppedSetup.prepare("SELECT pull_request_url FROM run_discord_surfaces WHERE run_id='r_discord_smoke'").get()!;
+    stoppedSetup.exec(`
+      UPDATE run_resources SET tmux_session_name=NULL, previous_codex_thread_id=NULL
+      WHERE run_id='r_discord_smoke';
+      UPDATE run_ci_snapshots SET pull_request_url=NULL, head_sha=NULL WHERE run_id='r_discord_smoke';
+      UPDATE run_discord_surfaces SET pull_request_url=NULL WHERE run_id='r_discord_smoke';
+      UPDATE run_progress_cards SET stage='waiting_human', detail='Legacy prose must not supply session URLs or reports.'
+      WHERE run_id='r_discord_smoke';
+    `);
+    const showDashboard = async (): Promise<void> => {
+      await runNode(notifier, ["show", "--run-id", "r_discord_smoke", "--apply"], testHome, discordEnv);
+    };
+    await showDashboard();
+    const stoppedText = componentText(currentDashboard());
+    const namedSessionLink = `[View Codex session](${codexLaunchUrl})`;
+    assert(stoppedText.includes("**Codex stopped**\nCodex stopped before delivering a reviewable PR. Local work is preserved.") &&
+      stoppedText.includes(namedSessionLink) &&
+      !stoppedText.replace(namedSessionLink, "").includes(codexLaunchUrl) &&
+      stoppedText.includes("Writer report unavailable.") &&
+      !stoppedText.includes("Legacy prose") &&
+      componentLabels(currentDashboard()).includes("Continue in Codex") &&
+      controlIds(currentDashboard()).includes("kurami:take_control:r_discord_smoke") &&
+      controlIds(currentDashboard()).includes("kurami:stop:r_discord_smoke") &&
+      !controlIds(currentDashboard()).includes("kurami:ai_review:r_discord_smoke"),
+      "Stopped primary lacked a named exact session href or changed ownership actions");
+    stoppedSetup.prepare("UPDATE run_ci_snapshots SET pull_request_url=? WHERE run_id='r_discord_smoke'")
+      .run(savedCi.pull_request_url);
+    await showDashboard();
+    assert(componentText(currentDashboard()).includes(namedSessionLink) &&
+      componentText(currentDashboard()).includes("**Codex stopped**") &&
+      !controlIds(currentDashboard()).includes("kurami:ai_review:r_discord_smoke"),
+      "A PR URL without verified head was presented as delivered or changed review eligibility");
+    stoppedSetup.exec("UPDATE run_ci_snapshots SET pull_request_url=NULL WHERE run_id='r_discord_smoke'");
+    stoppedSetup.prepare(`INSERT INTO run_state_history (run_id, from_state, to_state, reason, details_json)
+      VALUES ('r_discord_smoke', 'running', 'parked_review', 'codex_cli_park_completed', ?)`).run(JSON.stringify({
+        codexThreadId, primaryStoppedResult: { threadId: codexThreadId, turnId: "turn-stopped",
+          summary: "Local edits preserved; writer could not publish. token=sk-test-secret-value" },
+      }));
+    await showDashboard();
+    const writerText = componentText(currentDashboard());
+    assert(writerText.includes("**Writer report**\nWriter report (not delivery proof): Local edits preserved") &&
+      !writerText.includes("sk-test-secret-value") && !writerText.includes("Writer report unavailable.") &&
+      !String(nestedComponents(currentDashboard()).find(component => component.type === 10)?.content).includes("Writer report"),
+      "Safe current writer report was missing, unsanitized, or appended to the heading");
+    stoppedSetup.exec(`INSERT INTO run_state_history (run_id, from_state, to_state, reason, details_json)
+      VALUES ('r_discord_smoke', 'parked_review', 'parked_review', 'unrelated_later_receipt', '{}');`);
+    await showDashboard();
+    assert(componentText(currentDashboard()).includes("Writer report unavailable.") &&
+      !componentText(currentDashboard()).includes("Local edits preserved; writer"),
+      "Stopped card recovered a historical writer report");
+    stoppedSetup.prepare("UPDATE run_ci_snapshots SET pull_request_url=?, head_sha=? WHERE run_id='r_discord_smoke'")
+      .run(savedCi.pull_request_url, savedCi.head_sha);
+    stoppedSetup.prepare("UPDATE run_discord_surfaces SET pull_request_url=? WHERE run_id='r_discord_smoke'")
+      .run(savedSurface.pull_request_url);
+    stoppedSetup.exec(`UPDATE run_progress_cards SET stage='review_ready', detail='Ready for review.' WHERE run_id='r_discord_smoke';`);
+    stoppedSetup.close();
+
     const reviewQueued = new DatabaseSync(databasePath);
     reviewQueued.exec(`
       INSERT INTO run_control_requests (
@@ -829,6 +895,49 @@ async function main(): Promise<void> {
         !reviewedText.includes("**[Open review]"),
       "Ready AI review did not expose aggregate findings without Discord chatter",
     );
+    const clarityEvidence = new DatabaseSync(databasePath);
+    clarityEvidence.exec(`INSERT INTO run_control_requests (
+      request_id, run_id, action, review_profile, request_state, requested_via, idempotency_key
+    ) VALUES ('rq_discord_clarity', 'r_discord_smoke', 'ai_review', 'clarity', 'applied', 'discord', 'test:discord-clarity');
+    INSERT INTO run_ai_reviews (
+      review_id, run_id, request_id, review_number, review_profile, review_state,
+      repository, pull_request_number, pull_request_url, base_ref, base_sha, head_sha,
+      tmux_session_name, critical_count, important_count, suggestion_count, github_review_url
+    ) SELECT 'air_discord_clarity', run_id, 'rq_discord_clarity', 2, 'clarity', 'ready',
+      repository, pull_request_number, pull_request_url, base_ref, base_sha, head_sha,
+      'rv-clarity-test', 0, 1, 2, 'https://example.invalid/pulls/9401#clarity-review'
+      FROM run_ai_reviews WHERE review_id='air_discord_review';`);
+    await showDashboard();
+    const clarityReadyText = componentText(currentDashboard());
+    assert(clarityReadyText.includes("**🧩 Clarity Review**") &&
+      clarityReadyText.includes("0 Critical · 1 Important · 2 Suggestions") &&
+      clarityReadyText.includes("[Open review](https://example.invalid/pulls/9401#clarity-review)") &&
+      controlIds(currentDashboard()).includes("kurami:clarity_fix:r_discord_smoke") &&
+      !controlIds(currentDashboard()).includes("kurami:clarity_review:r_discord_smoke"),
+      "Completed Clarity evidence or existing fix action was lost");
+    clarityEvidence.exec(`INSERT INTO run_control_requests (
+      request_id, run_id, action, review_profile, request_state, requested_via, idempotency_key
+    ) VALUES ('rq_discord_clarity_fix', 'r_discord_smoke', 'review_fix', 'clarity', 'applied', 'discord', 'test:discord-clarity-fix');
+    INSERT INTO run_review_fix_rounds (
+      round_id, run_id, request_id, round_number, review_profile, round_state,
+      repository, pull_request_number, pull_request_url, source_head_sha, snapshot_json
+    ) SELECT 'rfr_discord_clarity', run_id, 'rq_discord_clarity_fix', 1, 'clarity', 'succeeded',
+      repository, pull_request_number, pull_request_url, head_sha, '[]'
+      FROM run_ai_reviews WHERE review_id='air_discord_clarity';`);
+    await showDashboard();
+    assert(componentText(currentDashboard()).includes("Fixes completed · Round 1") &&
+      componentText(currentDashboard()).includes("0 Critical · 1 Important · 2 Suggestions"),
+      "Clarity detail lost completed fix progress or review findings");
+    clarityEvidence.exec("DELETE FROM run_review_fix_rounds WHERE round_id='rfr_discord_clarity'; DELETE FROM run_control_requests WHERE request_id='rq_discord_clarity_fix';");
+    clarityEvidence.exec(`UPDATE run_ai_reviews SET review_state='failed',
+      failure_reason='Clarity reviewer timed out' WHERE review_id='air_discord_clarity';`);
+    await showDashboard();
+    assert(componentText(currentDashboard()).includes("Clarity reviewer timed out") &&
+      componentText(currentDashboard()).includes("[Open review](https://example.invalid/pulls/9401#clarity-review)"),
+      "Failed Clarity evidence lost its reason or URL");
+    clarityEvidence.exec("DELETE FROM run_ai_reviews WHERE review_id='air_discord_clarity'; DELETE FROM run_control_requests WHERE request_id='rq_discord_clarity';");
+    clarityEvidence.close();
+
     const fixQueued = new DatabaseSync(databasePath);
     fixQueued.exec(`
       INSERT INTO run_control_requests (
@@ -906,11 +1015,21 @@ async function main(): Promise<void> {
         ),
       "A review for an older SHA was not marked outdated and made repeatable",
     );
+    assert(componentText(outdatedCard).includes("1 Critical · 2 Important · 3 Suggestions") &&
+      componentText(outdatedCard).includes("[Open review](https://example.invalid/pulls/9401#pullrequestreview-1)") &&
+      componentText(outdatedCard).includes("`aaaaaaa`"),
+      "Outdated review lost its findings, URL or reviewed head");
     const retryAfterFailure = new DatabaseSync(databasePath);
     retryAfterFailure.exec(`
       UPDATE run_ai_reviews
       SET review_state='failed', failure_reason='Previous review timed out'
       WHERE review_id='air_discord_review';
+    `);
+    await showDashboard();
+    assert(componentText(currentDashboard()).includes("Previous review timed out") &&
+      componentText(currentDashboard()).includes("`aaaaaaa`"),
+      "Failed General review lost its reason or head");
+    retryAfterFailure.exec(`
       INSERT INTO run_control_requests (
         request_id, run_id, action, request_state, requested_via,
         idempotency_key
@@ -1670,6 +1789,10 @@ async function main(): Promise<void> {
         contextualTakeoverLabel: true,
         boundedCiRepairControl: true,
         ownerControlledReviewFix: true,
+        stoppedPrimaryNamedSessionLink: true,
+        currentSafeWriterReportOnly: true,
+        compactEmptyReviewEvidence: true,
+        reviewDetailsPreserved: true,
         pendingTakeoverVisible: true,
         remoteCodexLauncher: true,
         remoteHandoffContext: true,

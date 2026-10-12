@@ -3,6 +3,10 @@ import { chmod, copyFile, mkdir, mkdtemp, readFile, rm, writeFile } from "node:f
 import { tmpdir } from "node:os";
 import { delimiter, resolve } from "node:path";
 import { DatabaseSync } from "node:sqlite";
+import { availableRunControls, runControlStatus } from "../src/orchestrator/controls/run.ts";
+import { capturePrimaryStoppedResult, primaryStoppedDiagnostic, primaryStoppedSummary } from "../src/orchestrator/integrations/codex/primary-diagnostic.ts";
+import { threadControlPayload, controlComponents } from "../src/orchestrator/controls/discord.ts";
+import { inspectAiReview } from "../src/orchestrator/controls/ai-review.ts";
 
 process.umask(0o077);
 
@@ -143,9 +147,39 @@ esac
     );
     await chmod(fakeGh, 0o700);
 
+    const threadId = "01a1315b-43cb-7bf2-ae6a-78fcb875bacc";
+    const codexHome = resolve(home, "codex");
+    await mkdir(resolve(codexHome, "sessions"), { recursive: true });
+    const rolloutPath = resolve(codexHome, "sessions/primary.jsonl");
+    await writeFile(rolloutPath, [
+      { type: "session_meta", payload: { id: threadId, cwd: "/tmp/worktrees/201/TailorTales" } },
+      { type: "event_msg", payload: { type: "task_complete", turn_id: "exact-turn", last_agent_message: "Architecture checkpoint required. gh unknown owner type; pnpm SQLite store errors. No commit, push or PR. DATABASE_URL=postgres://fixture:synthetic-secret@host/db @everyone" } },
+    ].map(row => JSON.stringify(row)).join("\n") + "\n");
+    const codexDb = new DatabaseSync(resolve(codexHome, "state_5.sqlite"));
+    codexDb.exec("CREATE TABLE threads(id TEXT, rollout_path TEXT)");
+    codexDb.prepare("INSERT INTO threads VALUES(?,?)").run(threadId, rolloutPath);
+    codexDb.close();
+    const originalRollout = await readFile(rolloutPath, "utf8");
+    const captured = capturePrimaryStoppedResult(threadId, "/tmp/worktrees/201/TailorTales", codexHome);
+    const bounded = primaryStoppedSummary("Preparation complete. " + "filler ".repeat(200) + " DATABASE_URL=postgres://user:synthetic-secret@host/db @everyone Blocked: unknown owner type. No PR.")!;
+    assert(bounded.length <= 800 && bounded.startsWith("Preparation complete.") && bounded.endsWith("Blocked: unknown owner type. No PR."), "Bounded summary lost the actual concluding blocker");
+    assert(!bounded.includes("synthetic-secret") && !bounded.includes("@everyone"), "Primary tail leaked credential or mention");
+    assert(captured?.turnId === "exact-turn" && captured.summary?.includes("No commit, push or PR"), "Native stopped result not captured");
+    assert(capturePrimaryStoppedResult(threadId, "/wrong/worktree", codexHome) === null, "Mismatched worktree report accepted");
+    for (const type of ["task_started", "turn_aborted"]) {
+      await writeFile(rolloutPath, originalRollout + JSON.stringify({ type: "event_msg", payload: { type } }) + "\n");
+      assert(capturePrimaryStoppedResult(threadId, "/tmp/worktrees/201/TailorTales", codexHome) === null, `Stale completion survived ${type}`);
+    }
+    await writeFile(rolloutPath, originalRollout.split("\n")[0] + "\n" + JSON.stringify({ type: "response_item", payload: { role: "assistant", phase: "final_answer", content: [{ type: "output_text", text: "Success! PR delivered." }] } }) + "\n");
+    assert(capturePrimaryStoppedResult(threadId, "/tmp/worktrees/201/TailorTales", codexHome) === null, "Arbitrary prose counted as a completion receipt");
+    await writeFile(rolloutPath, originalRollout.replace(threadId, "mismatched-thread"));
+    assert(capturePrimaryStoppedResult(threadId, "/tmp/worktrees/201/TailorTales", codexHome) === null, "Mismatched session report accepted");
+    await writeFile(rolloutPath, originalRollout);
+
     const env = {
       ...process.env,
       KURAMI_HOME: home,
+      CODEX_HOME: codexHome,
       FAKE_PANE_PID: String(paneProcess.pid),
       ORCHESTRATOR_MIGRATIONS_DIR: resolve(app, "migrations"),
       PATH: `${fakeBin}${delimiter}${process.env.PATH ?? ""}`,
@@ -229,7 +263,7 @@ esac
           `r_${suffix}`,
           `/tmp/worktrees/${issueNumber}/TailorTales`,
           `TT-${issueNumber}_${suffix}`,
-          `thread-${suffix}`,
+          suffix === "complete" ? threadId : `thread-${suffix}`,
           sessionName,
         );
     };
@@ -425,6 +459,40 @@ esac
       "Missing-PR completion mutated the GitHub Project",
     );
 
+    const stopped = new DatabaseSync(databasePath);
+    const stoppedCard = stopped.prepare("SELECT stage,detail,content_digest FROM run_progress_cards WHERE run_id='r_complete'").get()!;
+    assert(stoppedCard.stage === "waiting_human", "No-PR completion advertised as review-ready");
+    const report = primaryStoppedDiagnostic(stopped, "r_complete");
+    assert(report?.includes("Architecture checkpoint required") && report.includes("gh unknown owner type"), "Exact primary final report missing");
+    assert(!String(stoppedCard.detail).includes("https://") && !String(stoppedCard.detail).includes("Writer report"), "Progress prose mixed in diagnostics or navigation");
+    assert(!String(report).includes("synthetic-secret") && !String(report).includes("@everyone"), "Stopped report leaked secret or mention");
+    assert(!stopped.prepare("SELECT 1 FROM run_control_events WHERE run_id='r_complete' AND event_kind='review_ready'").get(), "No-PR review-ready event created");
+    for (const profile of ["general", "clarity"] as const) {
+      assert(!(availableRunControls(stopped, "r_complete", { home, profile }).available_actions as string[]).includes("ai_review"), `${profile} CLI offered review without PR`);
+      assert(!inspectAiReview(stopped, "r_complete", profile)?.eligible, `${profile} request boundary offered review without PR`);
+    }
+    const card = { ...runControlStatus(stopped, "r_complete"), run_state: "parked_review", stage: stoppedCard.stage,
+      detail: stoppedCard.detail, title: "Synthetic primary blocker", updated_at: "2026-01-01T00:00:00Z",
+      review_active_count: 0, ai_review_request_active_count: 0, review_fix_request_active_count: 0,
+      clarity: { eligible: false }, desired_surface_digest: "fixture" } as unknown as Parameters<typeof threadControlPayload>[0];
+    const project = { workspace: { branch_prefix: "TT" } } as Parameters<typeof threadControlPayload>[1];
+    const rendered = JSON.stringify(threadControlPayload(card, project, null, false));
+    assert(rendered.includes("Architecture checkpoint required") && rendered.includes(`https://go.shagon1k.win/codex/threads/${threadId}`), "Discord omitted blocker/session link");
+    assert(!JSON.stringify(controlComponents(card, project, null)).includes('"value":"ai_review"') && !JSON.stringify(controlComponents(card, project, null)).includes('"value":"clarity_review"'), "Discord offered review without PR/head");
+    assert(primaryStoppedDiagnostic(stopped, "r_complete")?.includes("Architecture checkpoint required"), "Current primary receipt hidden");
+    assert(runControlStatus(stopped, "r_complete").codex_session_url === `https://go.shagon1k.win/codex/threads/${threadId}`, "CLI omitted HTTPS session link");
+    stopped.exec("UPDATE run_resources SET previous_codex_thread_id='technical-predecessor' WHERE run_id='r_complete'");
+    assert(primaryStoppedDiagnostic(stopped, "r_complete") === null, "Technical worker reused primary diagnostic");
+    stopped.exec("UPDATE run_resources SET previous_codex_thread_id=NULL WHERE run_id='r_complete'");
+    stopped.exec("BEGIN; INSERT INTO run_state_history(run_id,from_state,to_state,reason,details_json) VALUES('r_complete','parked_review','parked_review','unrelated_later_receipt','{}')");
+    assert(primaryStoppedDiagnostic(stopped, "r_complete") === null, "Historical primary report explained an unrelated later receipt");
+    stopped.exec("ROLLBACK");
+    stopped.close();
+    runController(controllerPath, env, true);
+    const repeated = new DatabaseSync(databasePath, { readOnly: true });
+    assert(repeated.prepare("SELECT content_digest FROM run_progress_cards WHERE run_id='r_complete'").get()?.content_digest === stoppedCard.content_digest, "Repeated stopped-result reconciliation changed its digest");
+    repeated.close();
+
     const observed = new DatabaseSync(databasePath);
     observed
       .prepare(
@@ -458,6 +526,11 @@ esac
       "PR observation without a current CI head SHA mutated the GitHub Project",
     );
 
+    const headless = new DatabaseSync(databasePath);
+    assert(headless.prepare("SELECT stage FROM run_progress_cards WHERE run_id='r_complete'").get()?.stage === "waiting_human", "Headless PR advertised as review-ready");
+    assert(!(availableRunControls(headless, "r_complete", { home }).available_actions as string[]).includes("ai_review"), "CLI offered review without head");
+    headless.close();
+
     const currentHead = new DatabaseSync(databasePath);
     currentHead
       .prepare(
@@ -487,6 +560,8 @@ esac
     );
 
     const verify = new DatabaseSync(databasePath, { readOnly: true });
+    assert(verify.prepare("SELECT stage FROM run_progress_cards WHERE run_id='r_complete'").get()?.stage === "review_ready", "Observed PR/head did not restore truthful review readiness");
+    assert((availableRunControls(verify, "r_complete", { home }).available_actions as string[]).includes("ai_review"), "Delivered PR/head lost CLI review eligibility");
     const rows = verify
       .prepare(
         `SELECT r.run_id, r.state, r.owner_state, pi.status,
