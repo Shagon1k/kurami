@@ -1,3 +1,4 @@
+import { REVIEW_PROFILES } from "../orchestrator/projects/reviews/profiles.ts";
 import {surfaceAttributes,LIVE_ATTRIBUTE} from "../ui-library/components/surface.ts";
 import {browserStatusPresentation,statusPresentation} from "./action-presentation.ts";
 import {canStartTask} from "./task-start.ts";
@@ -138,28 +139,58 @@ function previewReviewNote(item:ProjectItem,lang:Language):string {
   const state=current?"current":verified?"outdated":"unverified";
   return '<p class="projects-preview-review" data-preview-review="'+state+'">'+renderPill({label:tr(current?"Preview reviewed":verified?"Reviewed for an earlier commit":"Preview review not verified",lang),tone:current?"success":"warning",icon:current?"check":"alert"})+'</p>';
 }
+function reviewPanel(item:ProjectItem,lang:Language,commonHead:string|null):string {
+  const t=(key:string)=>tr(key,lang);
+  const reviews=item.reviews??{general:{...item.review,url:item.links.review,requestFailed:Boolean(item.reviewRequestFailed),control:item.aiReview,fix:item.reviewFix,fixActions:item.runActions,fixStartupFailure:item.reviewFixStartupFailure},clarity:{state:"none",tone:"neutral" as const,head:null,critical:0,important:0,suggestions:0,url:null,requestFailed:false}};
+  const menu=(label:string,body:string)=>{
+    if(!body)return "";
+    const id=`projects-review-menu-${randomUUID()}`;
+    return renderButton({label:t(label),iconPath:iconPath("chevronDown"),visibleLabel:true,variant:"subtle",size:"compact",attributes:{popovertarget:id,"aria-expanded":"false"}})+renderPopover({id,label:t(label),body:`<div class="projects-review-options">${body}</div>`});
+  };
+  const fixActive=Object.values(reviews).some(review=>review.fix&&["queued","running","waiting_ci","resolving"].includes(review.fix.state));
+  const launch=REVIEW_PROFILES.map(profile=>{
+    const review=reviews[profile],control=review.control;
+    if(!control||!item.runId||control.reason==="ready"||fixActive)return "";
+    return renderButton({label:profile==="general"?"🔎 General":"🧩 Clarity",variant:"quiet",disabled:!control.enabled,busyLabel:t("Sending…"),attributes:{"data-review-profile":profile,"data-review-run":item.runId,"data-review-project":item.project,"data-review-item":item.id,"data-review-head":control.head??"","data-review-key":randomUUID()}});
+  }).join("");
+  const fixes=REVIEW_PROFILES.map(profile=>{
+    const review=reviews[profile],actions=review.fixActions;
+    const fix=actions?.actions.find(action=>action.action==="review_fix");
+    if(!fix||!item.runId)return "";
+    return renderButton({label:profile==="general"?"🔎 General":"🧩 Clarity",variant:"secondary",size:"compact",disabled:!fix.enabled,busyLabel:t("Sending…"),attributes:{"data-review-profile":profile,"data-run-action":"review_fix","data-run-id":item.runId,"data-run-project":item.project,"data-run-item":item.id,"data-run-fingerprint":actions!.fingerprint,"data-run-key":randomUUID()}});
+  }).join("");
+  const fixMessages:Record<string,string>={queued:"Review fixes queued.",running:"Fixing review findings…",waiting_ci:"Review fixes pushed. Waiting for CI.",resolving:"Checking fixes and resolving review threads.",succeeded:"Review fixes completed.",needs_attention:"Review fixes need attention. Check GitHub or Discord."};
+  const rows=REVIEW_PROFILES.map(profile=>{
+    const review=reviews[profile];
+    const findings=reviewFindings({...item,review},lang);
+    const fix=review.fix;
+    const fixAction=review.fixActions?.actions.find(action=>action.action==="review_fix");
+    const actionStates:Record<string,string>={pending:"Queued",processing:"Running",failed:"Not completed — check the state",rejected:"Rejected — check the state"};
+    const fixBusy=fix&&["queued","running","waiting_ci","resolving"].includes(fix.state);
+    const progress=fix&&fixMessages[fix.state]?`<p class="projects-action-note" data-review-fix-state="${escape(fix.state)}" data-note-tone="${fix.state==="needs_attention"?"warning":fix.state==="succeeded"?"neutral":"info"}" role="status">${escape(t(fixMessages[fix.state]!)+(fix.round?` · ${t("Round")} ${fix.round}`:""))}</p>`:"";
+    const requestNote=fixAction?.state&&!fixBusy?actionNote(`${sourceText(fixAction.label,lang)} · ${t(actionStates[fixAction.state]??"")}`,noteTone(fixAction.state),{action:"review_fix",state:fixAction.state}):"";
+    const note=progress+requestNote;
+    const link=review.url?renderLinkButton({label:t("Open review"),href:review.url,variant:"quiet",size:"compact",iconPath:iconPath("review")}):"";
+    const failure=review.requestFailed?renderCallout({tone:"warning",title:t("AI Review did not start"),body:t("Refresh and retry for the current PR commit.")}):review.fixStartupFailure?renderCallout({tone:"warning",title:t("Review fixes did not start"),body:t(review.fixStartupFailure)}):"";
+    return `<div class="projects-review-profile" data-review-result="${profile}"><div class="projects-evidence-heading"><strong>${profile==="general"?"🔎 General":"🧩 Clarity"}</strong>${signal(review,lang)}</div>${review.head&&review.head!==commonHead?`<code title="${escape(review.head)}">${escape(review.head.slice(0,12))}</code>`:""}${findings}${link}${note}${failure}</div>`;
+  }).join("");
+  return `<div class="projects-evidence-row"><div class="projects-evidence-label">${renderIcon("review")}<strong>${t("AI Review")}</strong></div><div class="projects-review-controls">${menu("Run review",launch)}${menu("Fix findings",fixes)}</div>${rows}</div>`;
+}
 function detail(item:ProjectItem,params:URLSearchParams,project:ProjectSummary,at:string):string {
   const lang=language(params),t=(key:string)=>tr(key,lang);
-  const fixMessages:Record<string,string>={queued:"Review fixes queued.",running:"Fixing review findings…",waiting_ci:"Review fixes pushed. Waiting for CI.",resolving:"Checking fixes and resolving review threads.",succeeded:"Review fixes completed.",needs_attention:"Review fixes need attention. Check GitHub or Discord."};
-  const fixState=item.reviewFix?.state,fixActive=Boolean(fixState&&["queued","running","waiting_ci","resolving"].includes(fixState));
-  const fixFailure = item.reviewFixStartupFailure ? renderCallout({tone:"warning",title:t("Review fixes did not start"),body:t(item.reviewFixStartupFailure)}) : "";
-  const fixNote=fixState&&fixMessages[fixState]?`<p class="projects-action-note" data-review-fix-state="${escape(fixState)}" data-note-tone="${fixState==="needs_attention"?"warning":fixState==="succeeded"?"neutral":"info"}" role="status">${escape(t(fixMessages[fixState]!))}${item.reviewFix?.round?` <span class="projects-fix-round">· ${t("Round")} ${item.reviewFix.round}</span>`:""}</p>`:"";
-  const reasons:Record<string,string>={pending:"A review or another action is already running.",unstable:"Review is available after current work finishes.",no_head:"The current PR commit is not verified yet.",ready:"This commit has already been reviewed.",stale:"Wait for fresh sync data.",superseded:"This run is no longer current."};
-  const review=item.aiReview&&item.runId&&item.aiReview.reason!=="ready"&&!fixActive?renderButton({label:"AI Review",iconPath:iconPath("review"),visibleLabel:true,variant:"subtle",size:"compact",disabled:!item.aiReview.enabled,busyLabel:t("Sending…"),attributes:{"data-review-run":item.runId,"data-review-project":item.project,"data-review-item":item.id,"data-review-head":item.aiReview.head??"","data-review-key":randomUUID()}}):"";
-  const reviewNote=item.aiReview&&item.runId&&!item.aiReview.enabled&&!fixActive?actionNote(t(reasons[item.aiReview.reason]??"Review is currently unavailable."),noteTone(item.aiReview.reason)):"";
+  const fixActive=Boolean(item.reviewFix&&["queued","running","waiting_ci","resolving"].includes(item.reviewFix.state));
   const heads=[item.ci.head,item.review.head,item.preview.head];
   const commonHead=heads.every(head=>head&&head===heads[0])?heads[0]:null;
   const evidence=(name:string,icon:IconName,value:Signal,extra="")=>`<div class="projects-evidence-row"><div class="projects-evidence-heading"><div class="projects-evidence-label">${renderIcon(icon)}<strong>${t(name)}</strong></div>${signal(value,lang)}</div>${!commonHead&&value.state!=="none"?`<code title="${escape(value.head??"")}">${value.head?escape(value.head.slice(0,12)):t("Unverified")}</code>`:""}${extra}</div>`;
-  const findings=reviewFindings(item,lang)+fixFailure;
   const resource=(name:string,url:string|null,icon:IconName)=>navigation(name,url,lang)?renderLinkButton({label:t(name),href:url!,variant:"subtle",size:"compact",iconPath:iconPath(icon)}):"";
-  const links=resource("Issue",item.links.issue,"project")+resource("PR",item.links.pr,"branch")+resource("Review",item.links.review,"review")+resource("Discord",item.links.discord,"message");
+  const links=resource("Issue",item.links.issue,"project")+resource("PR",item.links.pr,"branch")+resource("Discord",item.links.discord,"message");
   const editor=statusForm(item,lang,project);
   const statusEditor=editor?`<div class="projects-status-editor">${editor}</div>`:"";
   return `<aside class="projects-detail" id="project-details" data-detail-item="${escape(item.id)}" aria-labelledby="project-details-title" tabindex="-1"><div class="projects-detail-top"><p class="projects-detail-meta">${renderIcon("project")}${escape(project.name)}<span class="projects-task-id">${item.number?`#${item.number}`:t("Draft")}</span></p>${renderLinkButton({label:t("Back to tasks"),href:itemUrl(params),variant:"quiet",attributes:{"data-item-close":true}})}</div><h2 id="project-details-title">${escape(item.title||t("Untitled task"))}</h2><div class="projects-detail-badges">${renderPill({label:item.status??t("No status"),tone:statusTone(item,project)})}${stateValue(projectStageLabel(item,lang),runTone(item))}${item.suggestedNext?renderPill({label:t("Suggested next"),tone:"info",icon:"spark"}):""}</div><div class="projects-links">${links}</div>
     ${item.suggestedNext?`<div class="projects-recommendation">${renderIcon("spark")}<p>${escape(sourceText(item.suggestedNext.explanation,lang))}</p></div>`:""}
     ${statusEditor}${!fixActive&&item.detail?`<p class="projects-context">${escape(sourceText(item.detail,lang))}</p>`:""}
-    <section class="projects-detail-section"><h3>${renderIcon("ci")}${t("Evidence")}</h3>${commonHead?`<p class="projects-update">${t("Current commit")} <code title="${escape(commonHead)}">${escape(commonHead.slice(0,12))}</code></p>`:""}<div class="projects-evidence">${evidence("CI","ci",item.ci,ciDetails(item,project,lang)+runActions(item,lang,["ci_repair"]))}${evidence("AI Review","review",item.review,`${findings}${fixNote}${reviewNote}${runActions(item,lang,["review_fix"],review)}`)}${evidence("Preview","preview",item.preview,`${previewReviewNote(item,lang)}${previewExpiry(item,lang,at)}${runActions(item,lang,["preview_start","preview_reviewed","preview_stop"],resource("Open preview",item.links.preview,"arrow"))}`)}</div>
-    ${item.reviewRequestFailed?renderCallout({tone:"warning",title:t("AI Review did not start"),body:t("Refresh and retry for the current PR commit.")}):""}</section>${runActionControls(item,lang)}${item.runUpdatedAt?`<p class="projects-update">${t("Updated")} ${escape(localTime(item.runUpdatedAt,lang))}</p>`:""}</aside>`;
+    <section class="projects-detail-section"><h3>${renderIcon("ci")}${t("Evidence")}</h3>${commonHead?`<p class="projects-update">${t("Current commit")} <code title="${escape(commonHead)}">${escape(commonHead.slice(0,12))}</code></p>`:""}<div class="projects-evidence">${evidence("CI","ci",item.ci,ciDetails(item,project,lang)+runActions(item,lang,["ci_repair"]))}${reviewPanel(item,lang,commonHead)}${evidence("Preview","preview",item.preview,`${previewReviewNote(item,lang)}${previewExpiry(item,lang,at)}${runActions(item,lang,["preview_start","preview_reviewed","preview_stop"],resource("Open preview",item.links.preview,"arrow"))}`)}</div>
+    </section>${runActionControls(item,lang)}${item.runUpdatedAt?`<p class="projects-update">${t("Updated")} ${escape(localTime(item.runUpdatedAt,lang))}</p>`:""}</aside>`;
 }
 function runActionControls(item:ProjectItem,lang:Language):string {
   if(!item.runActions||!item.runId)return "";

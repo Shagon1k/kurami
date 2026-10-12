@@ -1,3 +1,5 @@
+import { readReviewEvidence } from "../orchestrator/projects/reviews/read-model.ts";
+import { REVIEW_PROFILES } from "../orchestrator/projects/reviews/profiles.ts";
 import { reviewFixStartupFailure } from "./review-fix-failure.ts";
 import { observedStatusRequest, type StatusRequestRow } from "./status-state.ts";
 import { collectIdeasView } from "./ideas.ts";
@@ -102,10 +104,10 @@ export function collectProjectsSnapshot(options: { home?: string; now?: Date; co
     const rows = database.prepare(`SELECT p.project,p.item_id,p.issue_number,p.title,p.content_type,p.status,p.last_seen_at,p.url,
       r.run_id,r.state AS run_state,r.owner_state,r.updated_at AS run_updated_at,r.trigger_event_id,r.rejection_reason,pc.stage,pc.detail,
       ci.head_sha AS ci_head_sha,ci.aggregate_state AS ci_aggregate_state,ci.pull_request_url,ci.checks_json AS ci_checks_json,ci.last_observed_at AS ci_observed_at,${PROJECT_RUN_FACTS_SQL},
-      (SELECT github_review_url FROM run_ai_reviews a WHERE a.run_id=r.run_id ORDER BY a.review_number DESC LIMIT 1) AS review_url,
+      (SELECT github_review_url FROM run_ai_reviews a WHERE a.run_id=r.run_id AND a.review_profile='general' ORDER BY a.review_number DESC LIMIT 1) AS review_url,
       (SELECT round_number FROM run_review_fix_rounds f WHERE f.run_id=r.run_id ORDER BY f.round_number DESC LIMIT 1) AS review_fix_round_number,
-      (SELECT COUNT(*) FROM run_control_requests q WHERE q.run_id=r.run_id AND q.action='ai_review' AND q.request_state IN ('pending','processing')) AS review_pending,
-      (SELECT q.request_state IN ('failed','rejected') FROM run_control_requests q WHERE q.run_id=r.run_id AND q.action='ai_review' ORDER BY q.rowid DESC LIMIT 1) AS review_request_failed,
+      (SELECT COUNT(*) FROM run_control_requests q WHERE q.run_id=r.run_id AND q.action='ai_review' AND q.review_profile='general' AND q.request_state IN ('pending','processing')) AS review_pending,
+      (SELECT q.request_state IN ('failed','rejected') FROM run_control_requests q WHERE q.run_id=r.run_id AND q.action='ai_review' AND q.review_profile='general' ORDER BY q.rowid DESC LIMIT 1) AS review_request_failed,
       pl.state AS preview_state,ps.hostname AS preview_hostname,pl.expires_at AS preview_expires_at,pl.reviewed_at AS preview_reviewed_at,pl.verified_head_sha AS preview_head,
       ds.guild_id,ds.parent_channel_id,ds.thread_id
       FROM project_items p LEFT JOIN runs r ON r.project=p.project AND r.item_id=p.item_id
@@ -135,6 +137,24 @@ export function collectProjectsSnapshot(options: { home?: string; now?: Date; co
       const diagnostic = workerDiagnosticText(technicalWorkerDiagnostic(database, row.run_id));
       if (diagnostic) row.detail = [row.detail, diagnostic].filter(Boolean).join(" · ");
     }
+    const profileReviews = new Map<string, NonNullable<ProjectItem["reviews"]>>();
+    for (const row of rows) if (row.run_id && configs[row.project]) {
+      const reviews = {} as NonNullable<ProjectItem["reviews"]>;
+      for (const profile of REVIEW_PROFILES) {
+        const evidence=readReviewEvidence(database,row.run_id,profile,row.ci_head_sha);
+        const state=evidence.state;
+        reviews[profile] = {...evidence,
+          tone:["outdated","superseded","unverified"].includes(state)?"warning":["failed","request_failed"].includes(state)?"failure":state==="ready"?evidence.critical+evidence.important>0?"warning":"success":"neutral",
+          url:githubUrl(evidence.url,configs[row.project]!.repository,"pull"),requestFailed:state==="request_failed",
+          fixStartupFailure:reviewFixStartupFailure(database,row.run_id,row.ci_head_sha,row.pull_request_url,profile)};
+        if (options.controlsEnabled ?? process.env.PROJECTS_CONTROLS_ENABLED === "1") {
+          const inspection = profile === "general" ? controls.get(row.run_id) : inspectAiReview(database,row.run_id,profile);
+          if (inspection) reviews[profile].control = {enabled:inspection.eligible,reason:inspection.reason,head:inspection.head};
+          reviews[profile].fixActions = profile === "general" ? runActions.get(row.run_id) : projectRunActions(database,row.run_id,home,now,true,profile);
+        }
+      }
+      profileReviews.set(row.run_id,reviews);
+    }
     database.exec("COMMIT");
     const projects = unavailable.projects.map(project => {
       const poll = polls.find(poll => poll.project === project.key);
@@ -144,8 +164,17 @@ export function collectProjectsSnapshot(options: { home?: string; now?: Date; co
     });
     const items = rows.filter(row => configs[row.project]).map(row => itemFromRow(row, configs[row.project]!, now));
     for (const item of items) {
+      if (item.runId) item.reviews = profileReviews.get(item.runId);
+      if (item.reviews) {
+        const fresh = projects.find(project=>project.key===item.project)?.freshness === "fresh";
+        for (const review of Object.values(item.reviews)) {
+          if (review.control) review.control = {...review.control,enabled:review.control.enabled&&fresh,reason:fresh?review.control.reason:"stale"};
+          if (review.fixActions) review.fixActions = {...review.fixActions,actions:review.fixActions.actions.map(action=>({...action,enabled:action.enabled&&fresh}))};
+        }
+      }
       item.prControlsEnabled=prControlsReady&&Boolean(item.runId&&item.links.pr);
       const prPending=Boolean(item.runId&&hasActivePrRequest(database,item.runId));
+      if (prPending && item.reviews) for (const review of Object.values(item.reviews)) if (review.control) review.control={...review.control,enabled:false,reason:"pending"};
       const suggestion=suggestions.find(row=>row.project===item.project&&row.selected_item_id===item.id&&row.selected_issue_number===item.number);
       if(suggestion&&item.kind==="Issue"&&item.status===configs[item.project]!.statuses.backlog&&
         (!item.runId||["cancelled","archived","discarded","completed","rejected","failed"].includes(item.runState??""))&&

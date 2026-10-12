@@ -13,6 +13,7 @@ let unavailable = false;
 let dense=false;
 let previewReady=false;
 let semanticNotes=false;
+let profileScenario=false;let clarityAccepted=false;const profileRequests:string[]=[];
 let reviewFixScenario:string|null=null;
 let reviewFixRefused=false;
 let runNotesScenario:string|null=null;
@@ -77,9 +78,15 @@ const serverOptions = { snapshot: () => {
     if(["admission","starting","running"].includes(startScenario)){item.runId="new-start";item.runState=startScenario==="admission"?"admission_pending":startScenario;}
     if(startScenario==="blocked"){item.runId="rejected-start";item.runState="rejected";}
   }
+  if(profileScenario){
+    const item=snapshot.items[0]!;item.reviewFix=undefined;item.aiReview={enabled:false,reason:"ready",head:item.ci.head};
+    item.reviews={general:{...item.review,state:"ready",tone:"success",critical:0,important:0,suggestions:0,url:"https://github.com/Example/Alpha/pull/20#pullrequestreview-1",requestFailed:false,control:{enabled:false,reason:"ready",head:item.ci.head}},
+      clarity:{state:clarityAccepted?"queued":"none",tone:"neutral",head:null,critical:0,important:0,suggestions:0,url:null,requestFailed:false,control:{enabled:!clarityAccepted,reason:clarityAccepted?"pending":"eligible",head:item.ci.head}}};
+  }
   return snapshot;
 }, cacheMs: 0, authorize: async () => "fixture-owner", origin: "", review: (value: unknown) => {
-  const input = value as { head: string; key: string };
+  const input = value as { head: string; key: string;profile?:string };
+  if(profileScenario){assert.equal(input.profile,"clarity");profileRequests.push(input.profile);clarityAccepted=true;return {state:"created" as const,requestId:"clarity-fixture",requestState:"pending"};}
   assert.equal(input.head,"abcdef0123456789"); requestKeys.push(input.key);
   if (failReview) throw new ProjectsActionError(503,"Ревью временно недоступно.");
   accepted = true; return { state: "created" as const, requestId: "fixture", requestState: "pending" };
@@ -150,6 +157,7 @@ async function audit(): Promise<void> {
 }
 async function chooseMode(mode:string):Promise<void>{
   await devtools.evaluate(`document.querySelector('[data-mode-choice="${mode}"]').click();document.querySelector('[data-theme-panel][popover]')?.hidePopover()`);
+  await devtools.evaluate(`new Promise(resolve=>requestAnimationFrame(resolve)).then(()=>Promise.allSettled(document.getAnimations().filter(animation=>animation instanceof CSSTransition).map(animation=>animation.finished)))`);
 }
 async function pointerClick(selector:string):Promise<void> {
   const point=await devtools.evaluate<{x:number;y:number}>(`(()=>{const button=document.querySelector(${JSON.stringify(selector)});button.scrollIntoView({behavior:'instant',block:'nearest'});const r=button.getBoundingClientRect();return{x:r.x+r.width/2,y:r.y+r.height/2}})()`);
@@ -277,8 +285,8 @@ try {
       }
       await devtools.evaluate("document.querySelector('.projects-ci-details summary').click();document.querySelector('#project-details').focus({preventScroll:true})");
       const density=await devtools.evaluate<{reviewHeight:number;reviewWidth:number;groupWidth:number;pillHeight:number;sortIcon:number;actionWidths:boolean}>(`(() => {
-        const review=document.querySelector('[data-review-run]'), group=review.closest('.projects-action-pair');
-        return {reviewHeight:review.getBoundingClientRect().height,reviewWidth:review.getBoundingClientRect().width,groupWidth:group.getBoundingClientRect().width,pillHeight:document.querySelector('.projects-detail .pill').getBoundingClientRect().height,sortIcon:parseFloat(getComputedStyle(document.querySelector('[data-sort] .button__svg')).width),actionWidths:[...document.querySelectorAll('[data-run-action]')].every(button=>{const pair=button.closest('.projects-action-pair'),columns=pair.children.length,expected=(pair.getBoundingClientRect().width-parseFloat(getComputedStyle(pair).columnGap)*(columns-1))/columns;return Math.abs(button.getBoundingClientRect().width-expected)<1;})};
+        const group=document.querySelector('.projects-review-controls'),review=group.querySelector('[popovertarget]');
+        return {reviewHeight:review.getBoundingClientRect().height,reviewWidth:review.getBoundingClientRect().width,groupWidth:group.getBoundingClientRect().width,pillHeight:document.querySelector('.projects-detail .pill').getBoundingClientRect().height,sortIcon:parseFloat(getComputedStyle(document.querySelector('[data-sort] .button__svg')).width),actionWidths:[...document.querySelectorAll('[data-run-action]')].every(button=>{const pair=button.closest('.projects-action-pair');if(!pair)return button.closest('[popover]')!==null;const columns=pair.children.length,expected=(pair.getBoundingClientRect().width-parseFloat(getComputedStyle(pair).columnGap)*(columns-1))/columns;return Math.abs(button.getBoundingClientRect().width-expected)<1;})};
       })()`);
       assert.ok(density.reviewHeight>=32&&density.reviewHeight<=36,"compact actions retain coarse-pointer targets");
       assert.ok(density.reviewWidth<=density.groupWidth,"contextual review fits within its check row");
@@ -738,7 +746,7 @@ try {
     await wait("!!document.querySelector('[data-pr-slot] > .projects-run-action-meta > .projects-action-note')");
     assert.equal(await devtools.evaluate(`document.querySelector('[data-review-fix-state]').dataset.reviewFixState`),state);
     assert.equal(await devtools.evaluate(`!document.querySelector('#project-details [data-review-run]')&&!document.querySelector('#project-details .projects-context')`),true,'active fix removes stale preview context and duplicate unavailable review');
-    assert.equal(await devtools.evaluate(`(()=>{const detail=document.querySelector('#project-details'),note=detail.querySelector('[data-review-fix-state]'),row=note.closest('.projects-evidence-row'),fix=detail.querySelector('[data-run-action=review_fix]');return note.getBoundingClientRect().width===row.clientWidth-24&&fix.getBoundingClientRect().width===fix.closest('.projects-action-pair').getBoundingClientRect().width&&![...detail.querySelectorAll('.projects-run-action-meta p')].some(p=>['Queued','В очереди'].includes(p.textContent))&&[...detail.querySelectorAll('.projects-evidence-heading')].every(h=>h.scrollWidth<=h.clientWidth);})()`),true,'progress fills its evidence row; no orphan Queued or overlapping header');
+    assert.equal(await devtools.evaluate(`(()=>{const detail=document.querySelector('#project-details'),note=detail.querySelector('[data-review-fix-state]'),row=note.closest('.projects-evidence-row'),fix=detail.querySelector('[data-run-action=review_fix]');return note.getBoundingClientRect().width>row.clientWidth-32&&fix.closest('[popover]')!==null&&![...detail.querySelectorAll('.projects-run-action-meta p')].some(p=>['Queued','В очереди'].includes(p.textContent))&&[...detail.querySelectorAll('.projects-evidence-heading')].every(h=>h.scrollWidth<=h.clientWidth);})()`),true,'progress fills its evidence row; no orphan Queued or overlapping header');
     await audit();
     if(width===390&&lang==='en'&&state==='queued'){
       await devtools.evaluate(`document.querySelector('[data-review-fix-state]').scrollIntoView({block:'center',behavior:'instant'})`);
@@ -765,7 +773,7 @@ try {
     await open(`/?item=item-12&lang=${lang}`);
     await wait("!!document.querySelector('[data-pr-slot] > .projects-run-action-meta > .projects-action-note')");
     await chooseMode(theme);await delay(250);
-    assert.equal(await devtools.evaluate(`(()=>{const notes=[...document.querySelectorAll('[data-run-action-state]')];return notes.length===${RUN_ACTIONS.length}&&notes.every(note=>{const pair=note.closest('.projects-action-pair'),buttons=[...pair.children].map(slot=>slot.firstElementChild),r=note.getBoundingClientRect(),p=pair.getBoundingClientRect();return note.dataset.requestState===${JSON.stringify(state)}&&note.textContent.includes(' · ')&&Math.abs(r.left-p.left)<1&&Math.abs(r.width-p.width)<1&&buttons.every(button=>r.top>=button.getBoundingClientRect().bottom)&&buttons.every(button=>Math.abs(button.getBoundingClientRect().top-buttons[0].getBoundingClientRect().top)<1&&Math.abs(button.getBoundingClientRect().height-buttons[0].getBoundingClientRect().height)<1);})&&[...document.querySelectorAll('.projects-action-pair')].every(pair=>{const visible=[...pair.querySelectorAll('.projects-run-action-meta')].filter(meta=>meta.getBoundingClientRect().height);return visible.every((meta,index)=>index===0||meta.getBoundingClientRect().top>=visible[index-1].getBoundingClientRect().bottom);});})()`),true,'every action note spans its pair without button-column artifacts or overlapping messages');
+    assert.equal(await devtools.evaluate(`(()=>{const notes=[...document.querySelectorAll('[data-run-action-state]')];return notes.length===${RUN_ACTIONS.length}&&notes.every(note=>{const pair=note.closest('.projects-action-pair');if(!pair){const profile=note.closest('[data-review-result]'),r=note.getBoundingClientRect(),p=profile.getBoundingClientRect();return !!profile&&note.dataset.requestState===${JSON.stringify(state)}&&note.textContent.includes(' · ')&&Math.abs(r.width-p.width)<1;}const buttons=[...pair.children].map(slot=>slot.firstElementChild),r=note.getBoundingClientRect(),p=pair.getBoundingClientRect();return note.dataset.requestState===${JSON.stringify(state)}&&note.textContent.includes(' · ')&&Math.abs(r.left-p.left)<1&&Math.abs(r.width-p.width)<1&&buttons.every(button=>r.top>=button.getBoundingClientRect().bottom)&&buttons.every(button=>Math.abs(button.getBoundingClientRect().top-buttons[0].getBoundingClientRect().top)<1&&Math.abs(button.getBoundingClientRect().height-buttons[0].getBoundingClientRect().height)<1);})&&[...document.querySelectorAll('.projects-action-pair')].every(pair=>{const visible=[...pair.querySelectorAll('.projects-run-action-meta')].filter(meta=>meta.getBoundingClientRect().height);return visible.every((meta,index)=>index===0||meta.getBoundingClientRect().top>=visible[index-1].getBoundingClientRect().bottom);});})()`),true,'every action note spans its pair without button-column artifacts or overlapping messages');
     await audit();
     if(width===390&&lang==='en'&&state==='pending'&&theme==='light'){
       await devtools.evaluate(`document.querySelector('[data-run-action=preview_stop]').scrollIntoView({block:'center',behavior:'instant'})`);
@@ -848,6 +856,24 @@ try {
     await wait("document.querySelector('[data-toast-region]').hidden&&!document.querySelector('#projects-dashboard').dataset.refreshing");
     await audit();assert.equal(startWrites,0,'refresh recovery never starts the task');
   }
+  profileScenario=true;unavailable=false;reviewFixScenario=null;reviewFixRefused=false;runNotesScenario=null;
+  for(const width of [320,1280])for(const theme of ["paper","neon"]){
+    clarityAccepted=false;
+    await devtools.call("Emulation.setDeviceMetricsOverride",{width,height:1000,deviceScaleFactor:1,mobile:width<600});
+    await open("/?item=item-12&lang=en");
+    await devtools.evaluate(`document.querySelector('[data-theme-choice="${theme}"]').click()`);await chooseMode(theme==="neon"?"dark":"light");await delay(250);
+    assert.equal(await devtools.evaluate("document.querySelectorAll('[data-review-result]').length"),2);
+    assert.equal(await devtools.evaluate("!!document.querySelector('[data-review-run][data-review-profile=general]')"),false,'ready General does not block available Clarity');
+    await pointerClick('.projects-review-controls [popovertarget]');
+    await wait("document.querySelector('.projects-review-controls [popovertarget]').getAttribute('aria-expanded')==='true'");
+    assert.equal(await devtools.evaluate("(()=>{const panel=document.querySelector('.projects-review-options').closest('[popover]'),r=panel.getBoundingClientRect(),a=document.querySelector('.projects-review-controls [popovertarget]').getBoundingClientRect();return panel.matches(':popover-open')&&r.left>=0&&r.right<=innerWidth&&r.top>=0&&r.bottom<=innerHeight&&Math.min(Math.abs(r.top-a.bottom),Math.abs(a.top-r.bottom))<=9})()"),true,'review selector stays beside its trigger and fits phone and desktop');
+    await audit();
+    const profileShot=await devtools.call<{data:string}>('Page.captureScreenshot',{format:'png',captureBeyondViewport:false});writeFileSync(resolve(out,`projects-review-profiles-${width}-${theme}.png`),Buffer.from(profileShot.data,'base64'));
+    await pointerClick('[data-review-run][data-review-profile=clarity]');
+    await wait("document.querySelector('[data-review-result=clarity]').textContent.includes('Queued')");
+    assert.equal(await devtools.evaluate("document.querySelector('[data-review-result=general]').textContent.includes('Ready')"),true,'Clarity request retains General result');
+  }
+  assert.equal(profileRequests.length,4,'one selected profile request per click');
 } finally {
   await browser.close();
   await new Promise<void>(done => server.close(() => done()));

@@ -1,3 +1,4 @@
+import { verifyReviewProfiles } from "./review-profiles.ts";
 import { setTimeout as delay } from "node:timers/promises";
 import { verifyReviewSnapshots } from "./ai-review-snapshot.ts";
 import { execFileSync } from "node:child_process";
@@ -42,6 +43,7 @@ function runNode(script: string, args: string[], home: string): JsonObject {
 }
 
 async function main(): Promise<void> {
+  verifyReviewProfiles();
   verifyReviewSnapshots();
   const app = resolve(import.meta.dirname, "..");
   const home = await realpath(await mkdtemp(resolve(tmpdir(), "kurami-ai-review-test-")));
@@ -193,9 +195,9 @@ async function main(): Promise<void> {
       "AI review aggregate counts are missing",
     );
     assert(
-      String(payload.body).includes("🤖 Kurami AI Code Review") &&
+      String(payload.body).includes("🔎 Kurami · General Review") &&
         String((payload.comments as JsonObject[])[0]?.body).includes(
-          "🤖 **Kurami AI Review · Important**",
+          "**🔎 Kurami · General Review · Important**",
         ) &&
         String((payload.comments as JsonObject[])[0]?.body).includes(
           "<!-- kurami-ai-finding:air_test:1;head=",

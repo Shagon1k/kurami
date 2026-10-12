@@ -1,3 +1,4 @@
+import { parseReviewProfile, type ReviewProfile } from "../orchestrator/projects/reviews/profiles.ts";
 import { createHash, randomUUID } from "node:crypto";
 import { existsSync } from "node:fs";
 import { resolve } from "node:path";
@@ -8,7 +9,7 @@ import { PROJECTS_STALE_AFTER_MS } from "./model.ts";
 import {hasActivePrRequest} from "../orchestrator/controls/pr-boundary.ts";
 import { openOrchestratorDatabase } from "../orchestrator/state/database.ts";
 
-export type ReviewInput = { runId: string; project: string; itemId: string; head: string; key: string };
+export type ReviewInput = { runId: string; project: string; itemId: string; head: string; key: string; profile?: ReviewProfile };
 export type ReviewResult = { state: "created" | "existing"; requestId: string; requestState: string };
 export class ProjectsActionError extends Error {
   status: number;
@@ -23,7 +24,8 @@ export function parseReviewInput(value: unknown): ReviewInput {
     typeof input.itemId !== "string" || !input.itemId || input.itemId.length > 200 ||
     !/^[a-f0-9]{7,64}$/.test(input.head ?? "") || !/^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/.test(input.key ?? ""))
     throw new ProjectsActionError(400, "Некорректный запрос.");
-  return input;
+  try { return {...input, profile:parseReviewProfile(input.profile)}; }
+  catch { throw new ProjectsActionError(400,"Unsupported review profile."); }
 }
 
 /** Enqueues only; the controller owns worker startup and the existing Discord projection. */
@@ -41,12 +43,12 @@ export function requestProjectsReview(value: unknown, actor: string, options: { 
     database.exec("BEGIN IMMEDIATE"); began = true;
     // Missing schema support fails before any write. The origin never runs migrations.
     database.prepare("SELECT request_id FROM run_control_project_context LIMIT 1").get();
-    const idempotencyKey = "projects:" + createHash("sha256").update(JSON.stringify([actor,input.runId,input.head,input.key])).digest("hex");
+    const idempotencyKey = "projects:" + createHash("sha256").update(JSON.stringify([actor,input.runId,input.head,input.profile,input.key])).digest("hex");
     const previous = database.prepare("SELECT request_id,request_state FROM run_control_requests WHERE idempotency_key=?").get(idempotencyKey) as
       { request_id: string; request_state: string } | undefined;
     if (previous) { database.exec("COMMIT"); began = false; return { state: "existing", requestId: previous.request_id, requestState: previous.request_state }; }
     if(hasActivePrRequest(database,input.runId))throw new ProjectsActionError(409,"GitHub is processing this PR action.");
-    const inspection = inspectAiReview(database, input.runId);
+    const inspection = inspectAiReview(database, input.runId, input.profile);
     if (!inspection || inspection.project !== input.project || inspection.itemId !== input.itemId || inspection.repository.toLowerCase() !== project.repository.toLowerCase())
       throw new ProjectsActionError(409, "Запуск задачи изменился. Обновите страницу.");
     const now = (options.now ?? new Date()).getTime();
@@ -59,14 +61,15 @@ export function requestProjectsReview(value: unknown, actor: string, options: { 
     if (pr.origin !== "https://github.com" || pr.username || pr.password || pr.search || pr.hash ||
       !new RegExp(`^/${project.repository.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}/pull/[1-9][0-9]*$`).test(pr.pathname))
       throw new ProjectsActionError(409, "Текущий PR не подтверждён. Обновите страницу.");
-    const pending = database.prepare("SELECT request_id,request_state FROM run_control_requests WHERE run_id=? AND action='ai_review' AND request_state IN ('pending','processing')").get(input.runId) as { request_id: string; request_state: string } | undefined;
+    const pending = database.prepare("SELECT request_id,request_state,review_profile FROM run_control_requests WHERE run_id=? AND action='ai_review' AND request_state IN ('pending','processing')").get(input.runId) as { request_id: string; request_state: string; review_profile: string } | undefined;
     if (pending) {
+      if (pending.review_profile !== input.profile) throw new ProjectsActionError(409,"Another review profile is already queued. Wait for its result.");
       if (!reviewContextMatches(database, pending.request_id, input.head, pr.href)) throw new ProjectsActionError(409, "Ревью другого коммита уже в очереди. Дождитесь его результата.");
       database.exec("COMMIT"); began = false; return { state: "existing", requestId: pending.request_id, requestState: pending.request_state };
     }
     if (!inspection.eligible) throw new ProjectsActionError(409, inspection.reason === "ready" ? "Для этого коммита AI Review уже готово." : "AI Review сейчас недоступно. Обновите страницу.");
     const requestId = `rq_${randomUUID().replaceAll("-", "")}`;
-    database.prepare("INSERT INTO run_control_requests(request_id,run_id,action,requested_via,idempotency_key) VALUES(?,?,'ai_review','projects',?)").run(requestId,input.runId,idempotencyKey);
+    database.prepare("INSERT INTO run_control_requests(request_id,run_id,action,requested_via,idempotency_key,review_profile) VALUES(?,?,'ai_review','projects',?,?)").run(requestId,input.runId,idempotencyKey,input.profile!);
     database.prepare("INSERT INTO run_control_project_context(request_id,actor_subject,expected_head_sha,expected_pull_request_url) VALUES(?,?,?,?)").run(requestId,actor,input.head,pr.href);
     database.exec("COMMIT"); began = false;
     return { state: "created", requestId, requestState: "pending" };

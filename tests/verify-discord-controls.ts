@@ -101,10 +101,14 @@ function nestedComponents(payload: JsonObject): JsonObject[] {
   return result;
 }
 
-function customIds(payload: JsonObject): string[] {
-  return nestedComponents(payload)
-    .map((component) => String(component.custom_id ?? ""))
-    .filter(Boolean);
+// Review menu values represent the same owner actions as the former buttons.
+function controlIds(payload: JsonObject): string[] {
+  return nestedComponents(payload).flatMap(component=>{
+    const id=String(component.custom_id??"");
+    const run=/^kurami:(?:run_actions|review_actions|fix_actions):(r_[A-Za-z0-9_]+)$/.exec(id)?.[1];
+    const values=run&&Array.isArray(component.options)?component.options.map(option=>`kurami:${(option as JsonObject).value}:${run}`):[];
+    return [id,...values].filter(Boolean);
+  });
 }
 
 function componentLabels(payload: JsonObject): string[] {
@@ -456,7 +460,7 @@ async function main(): Promise<void> {
       "Durable attention event was not delivered",
     );
     assert(
-      customIds(cardEdits[0]!).length === 0,
+      controlIds(cardEdits[0]!).length === 0,
       "Starter card retained thread-inert custom controls",
     );
     const firstCurrentDashboard = threadControlCreates.at(-1)!;
@@ -466,7 +470,7 @@ async function main(): Promise<void> {
         !Object.hasOwn(firstCurrentDashboard, "embeds"),
       "Run dashboard is not a pure Components V2 message",
     );
-    const firstControls = customIds(firstCurrentDashboard);
+    const firstControls = controlIds(firstCurrentDashboard);
     assert(
       firstControls.includes("kurami:stop:r_discord_smoke") &&
         !firstControls.includes("kurami:status:r_discord_smoke") &&
@@ -619,7 +623,7 @@ async function main(): Promise<void> {
       .run(codexThreadId);
     threadReady.close();
     await runNode(notifier, ["--apply"], testHome, discordEnv);
-    const readyControls = customIds(currentDashboard());
+    const readyControls = controlIds(currentDashboard());
     assert(
       readyControls.includes("kurami:take_control:r_discord_smoke") &&
         !readyControls.includes("kurami:preview_start:r_discord_smoke"),
@@ -646,7 +650,7 @@ async function main(): Promise<void> {
     `);
     attentionState.close();
     await runNode(notifier, ["--apply"], testHome, discordEnv);
-    const attentionControls = customIds(currentDashboard());
+    const attentionControls = controlIds(currentDashboard());
     assert(
       attentionControls.includes("kurami:take_control:r_discord_smoke") &&
         componentLabels(currentDashboard()).includes("Take control"),
@@ -694,7 +698,7 @@ async function main(): Promise<void> {
     successorRecovery.close();
     await runNode(notifier, ["--apply"], testHome, discordEnv);
     assert(
-      customIds(currentDashboard()).includes(
+      controlIds(currentDashboard()).includes(
         "kurami:take_control:r_discord_smoke",
       ) &&
         componentLabels(currentDashboard()).includes("Continue autonomously"),
@@ -713,7 +717,7 @@ async function main(): Promise<void> {
     unrelatedAttention.close();
     await runNode(notifier, ["--apply"], testHome, discordEnv);
     assert(
-      !customIds(currentDashboard()).includes(
+      !controlIds(currentDashboard()).includes(
         "kurami:take_control:r_discord_smoke",
       ),
       "Unrelated needs-attention reason exposed a broad autonomous retry",
@@ -731,10 +735,11 @@ async function main(): Promise<void> {
     `);
     repairReady.close();
     await runNode(notifier, ["--apply"], testHome, discordEnv);
-    const repairControls = customIds(currentDashboard());
+    const repairControls = controlIds(currentDashboard());
     assert(
       repairControls.includes("kurami:ci_repair:r_discord_smoke") &&
         repairControls.includes("kurami:ai_review:r_discord_smoke") &&
+        repairControls.includes("kurami:clarity_review:r_discord_smoke") &&
         componentLabels(currentDashboard()).includes("Attempt CI fix"),
       "Stable PR did not expose independent CI repair and AI review actions",
     );
@@ -752,7 +757,7 @@ async function main(): Promise<void> {
     await runNode(notifier, ["show", "--run-id", "r_discord_smoke", "--apply"], testHome, discordEnv);
     assert(
       componentText(currentDashboard()).includes("AI Review queued") &&
-        !customIds(currentDashboard()).includes(
+        !controlIds(currentDashboard()).includes(
           "kurami:ai_review:r_discord_smoke",
         ),
       "Queued AI review did not immediately hide its duplicate action",
@@ -780,9 +785,9 @@ async function main(): Promise<void> {
     await runNode(notifier, ["--apply"], testHome, discordEnv);
     const reviewingCard = currentDashboard();
     assert(
-      componentText(reviewingCard).includes("**AI review**") &&
+      componentText(reviewingCard).includes("**🔎 General Review**") &&
         componentText(reviewingCard).includes("Reviewing PR") &&
-        !customIds(currentDashboard()).includes(
+        !controlIds(currentDashboard()).includes(
           "kurami:ai_review:r_discord_smoke",
         ),
       "Running AI review was not composed independently into the live card",
@@ -805,11 +810,11 @@ async function main(): Promise<void> {
       .filter((component) => component.type === 10)
       .map((component) => String(component.content ?? ""))
       .find(
-        (content) => content.includes("```text") && content.includes("AI review"),
+        (content) => content.includes("```text") && content.includes("General"),
       );
     assert(
       reviewedText.includes("AI Review Ready") &&
-        customIds(currentDashboard()).includes(
+        controlIds(currentDashboard()).includes(
           "kurami:review_fix:r_discord_smoke",
         ) &&
         reviewedText.includes(
@@ -838,7 +843,7 @@ async function main(): Promise<void> {
     await runNode(notifier, ["show", "--run-id", "r_discord_smoke", "--apply"], testHome, discordEnv);
     assert(
       componentText(currentDashboard()).includes("Review fix queued") &&
-        !customIds(currentDashboard()).includes(
+        !controlIds(currentDashboard()).includes(
           "kurami:review_fix:r_discord_smoke",
         ) &&
         !componentLabels(currentDashboard()).includes("Start preview"),
@@ -880,7 +885,7 @@ async function main(): Promise<void> {
         "Review fixes are still being validated",
       ) &&
         !componentLabels(currentDashboard()).includes("Start preview") &&
-        !customIds(currentDashboard()).includes(
+        !controlIds(currentDashboard()).includes(
           "kurami:ai_review:r_discord_smoke",
         ),
       "Active review fix exposed conflicting controls or misleading outdated text",
@@ -896,7 +901,7 @@ async function main(): Promise<void> {
     assert(
       !componentText(outdatedCard).includes("AI Review Ready") &&
         componentText(outdatedCard).includes("Outdated") &&
-        customIds(currentDashboard()).includes(
+        controlIds(currentDashboard()).includes(
           "kurami:ai_review:r_discord_smoke",
         ),
       "A review for an older SHA was not marked outdated and made repeatable",
@@ -919,7 +924,7 @@ async function main(): Promise<void> {
     const queuedRetryCard = currentDashboard();
     assert(
       componentText(queuedRetryCard).includes("AI Review queued") &&
-        !componentText(queuedRetryCard).includes("**AI review**"),
+        !componentText(queuedRetryCard).includes("**⚠️ Failed**"),
       "Queued retry kept the previous failed AI review in the live card",
     );
     const clearReview = new DatabaseSync(databasePath);
@@ -1047,8 +1052,8 @@ async function main(): Promise<void> {
       "Show controls did not move the current dashboard safely",
     );
     assert(
-      customIds(currentDashboard()).includes("kurami:stop:r_discord_smoke") &&
-        !customIds(currentDashboard()).includes(
+      controlIds(currentDashboard()).includes("kurami:stop:r_discord_smoke") &&
+        !controlIds(currentDashboard()).includes(
           "kurami:status:r_discord_smoke",
         ),
       "Fresh control surface did not contain native controls",
@@ -1119,7 +1124,7 @@ async function main(): Promise<void> {
         componentText(remoteControls).includes("Control** · You") &&
         !componentText(remoteControls).includes("Control** · AI Agent") &&
         componentText(remoteControls).includes(`[Codex](${codexLaunchUrl})`) &&
-        customIds(remoteControls).includes(
+        controlIds(remoteControls).includes(
           "kurami:take_control:r_discord_smoke",
         ),
       "Remote ownership did not expose the Codex launcher, autonomous continuation, and preview controls",
@@ -1233,7 +1238,7 @@ async function main(): Promise<void> {
       "Preview-ready timeline event retained a stale control link",
     );
     assert(
-      customIds(currentDashboard()).includes(
+      controlIds(currentDashboard()).includes(
         "kurami:preview_stop:r_discord_smoke",
       ),
       "Live card did not switch to Stop preview",
@@ -1247,19 +1252,19 @@ async function main(): Promise<void> {
       "Static preview exposed adapter-specific owner-facing controls",
     );
     assert(
-      customIds(currentDashboard()).includes(
+      controlIds(currentDashboard()).includes(
         "kurami:run_actions:r_discord_smoke",
       ) && previewLabels.includes("Cancel run"),
       "Dashboard overflow did not preserve lower-priority contextual actions",
     );
     assert(
-      customIds(currentDashboard()).includes(
+      controlIds(currentDashboard()).includes(
         "kurami:preview_extend:r_discord_smoke",
       ),
       "Expiring preview did not expose the bounded extension control",
     );
     assert(
-      customIds(currentDashboard()).includes(
+      controlIds(currentDashboard()).includes(
         "kurami:preview_reviewed:r_discord_smoke",
       ),
       "Unreviewed preview did not expose owner acknowledgement",
@@ -1285,7 +1290,7 @@ async function main(): Promise<void> {
     acknowledged.close();
     await runNode(notifier, ["--apply"], testHome, discordEnv);
     assert(
-      !customIds(currentDashboard()).includes(
+      !controlIds(currentDashboard()).includes(
         "kurami:preview_reviewed:r_discord_smoke",
       ),
       "Reviewed preview retained the acknowledgement button",
@@ -1482,7 +1487,7 @@ async function main(): Promise<void> {
     requestCheck.close();
 
     await runNode(notifier, ["--apply"], testHome, discordEnv);
-    const preservedControls = customIds(currentDashboard());
+    const preservedControls = controlIds(currentDashboard());
     const preservedLabels = componentLabels(currentDashboard());
     assert(
       preservedControls.includes("kurami:discard_prompt:r_discord_smoke") &&
@@ -1524,13 +1529,13 @@ async function main(): Promise<void> {
         ) &&
         !componentLabels(publishedControls).includes("Discard local work") &&
         !componentLabels(publishedControls).includes("Cancel run") &&
-        customIds(publishedControls).includes(
+        controlIds(publishedControls).includes(
           "kurami:discard_published_prompt:r_discord_smoke",
         ) &&
-        !customIds(publishedControls).includes(
+        !controlIds(publishedControls).includes(
           "kurami:discard_prompt:r_discord_smoke",
         ) &&
-        !customIds(publishedControls).includes(
+        !controlIds(publishedControls).includes(
           "kurami:stop:r_discord_smoke",
         ) &&
         publishedText.includes(

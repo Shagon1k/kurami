@@ -1,3 +1,4 @@
+import { parseReviewProfile } from "../reviews/profiles.ts";
 import { claimProtocolTask, taskForSession } from "../../integrations/codex/task-store.ts";
 import { reviewContextMatches } from "../../controls/ai-review.ts";
 import { mkdir, realpath, stat, writeFile } from "node:fs/promises";
@@ -123,11 +124,11 @@ export async function loadReviewFixContext(
 ): Promise<ReviewFixContext> {
   const request = database
     .prepare(
-      `SELECT 1 FROM run_control_requests
+      `SELECT review_profile FROM run_control_requests
        WHERE request_id = ? AND run_id = ? AND action = 'review_fix'
          AND request_state = 'pending'`,
     )
-    .get(requestId, run.run_id);
+    .get(requestId, run.run_id) as {review_profile:string} | undefined;
   if (!request) fail("Review fix request is no longer pending");
   if (
     database
@@ -154,13 +155,15 @@ export async function loadReviewFixContext(
     fail("Run has no exact pull request snapshot eligible for review fixes");
   if (!reviewContextMatches(database,requestId,snapshot.head_sha,snapshot.pull_request_url))
     fail("Projects review fix request refers to a different PR or commit");
+  const profile = parseReviewProfile(request.review_profile);
   const readyReviews = database
     .prepare(
       `SELECT review_id, github_review_id FROM run_ai_reviews
-       WHERE run_id = ? AND head_sha = ? AND review_state = 'ready'
+       WHERE run_id = ? AND head_sha = ? AND review_profile = ? AND review_state = 'ready'
        ORDER BY review_number`,
     )
-    .all(run.run_id, snapshot.head_sha) as Array<{ review_id: string; github_review_id: string | null }>;
+    .all(run.run_id, snapshot.head_sha, profile) as Array<{ review_id: string; github_review_id: string | null }>;
+  if (readyReviews.length === 0) fail("No ready review for the selected profile and current PR SHA");
   const validReviewIds = new Set(readyReviews.map((row) => row.review_id));
   const credentials = await loadGitHubAppCredentialsFromFile(orchestratorHome);
   const token = await createGitHubAppInstallationToken(credentials);
@@ -172,6 +175,7 @@ export async function loadReviewFixContext(
     snapshot.head_sha,
     validReviewIds,
   );
+  const selectedThreads = profile === "clarity" ? threads.filter(thread => thread.sourceKind === "ai") : threads;
   const summaryFindings = await fetchSummaryOnlyReviewFindings(
     token,
     run.repository,
@@ -182,14 +186,14 @@ export async function loadReviewFixContext(
       .map((row) => ({ reviewId: row.review_id, githubReviewId: row.github_review_id })),
   );
   const threadedFindingIds = new Set(
-    threads
+    selectedThreads
       .filter((thread) => thread.sourceKind === "ai" && thread.reviewId && thread.findingNumber)
       .map((thread) => `${thread.reviewId}:${thread.findingNumber}`),
   );
   const unthreadedSummaryFindings = summaryFindings.filter(
     (finding) => !threadedFindingIds.has(`${finding.reviewId}:${finding.findingNumber}`),
   );
-  if (threads.length === 0 && unthreadedSummaryFindings.length === 0)
+  if (selectedThreads.length === 0 && unthreadedSummaryFindings.length === 0)
     fail("No actionable unresolved review threads or AI findings exist on the current PR SHA");
   const roundNumber = Number(
     (
@@ -205,7 +209,8 @@ export async function loadReviewFixContext(
     sourceHeadSha: snapshot.head_sha,
     pullRequestNumber: snapshot.pull_request_number,
     pullRequestUrl: snapshot.pull_request_url,
-    threads,
+    threads: selectedThreads,
+    profile,
     summaryOnlyFindings: unthreadedSummaryFindings,
   };
 }
@@ -498,8 +503,8 @@ function claimReviewFixSession(
         `INSERT INTO run_review_fix_rounds (
            round_id, run_id, request_id, round_number, round_state,
            repository, pull_request_number, pull_request_url,
-           source_head_sha, snapshot_json
-         ) VALUES (?, ?, ?, ?, 'running', ?, ?, ?, ?, ?)`,
+           source_head_sha, snapshot_json, review_profile
+         ) VALUES (?, ?, ?, ?, 'running', ?, ?, ?, ?, ?, ?)`,
       )
       .run(
         fix.roundId,
@@ -511,6 +516,7 @@ function claimReviewFixSession(
         fix.pullRequestUrl,
         fix.sourceHeadSha,
         JSON.stringify(fix.threads),
+        fix.profile ?? "general",
       );
     const insertThread = database.prepare(
       `INSERT INTO run_review_fix_threads (

@@ -240,7 +240,8 @@ assert.match(renderProjectsPage(unreported,new URLSearchParams("item=item-12")),
 assert.equal((detailHtml.match(/example.test\/preview/g)??[]).length,1,"Preview has one link beside its evidence");
 assert.equal((detailHtml.match(/abcdef012345<\/code>/g)??[]).length,1,"matching evidence heads are shown once");
 assert.doesNotMatch(detailHtml,/data-review-run=/,"already-reviewed commits do not receive a duplicate disabled review button");
-assert.match(detailHtml,/This commit has already been reviewed/);
+assert.match(detailHtml,/🔎 General/);
+assert.match(detailHtml,/projects-review-profile/);
 assert.match(detailHtml,/projects-status-editor/);
 assert.doesNotMatch(detailHtml,/<details[^>]*projects-status-editor/);
 assert.match(detailHtml,/class="button button--subtle button--compact" href="https:\/\/example.test\/preview"/);

@@ -108,6 +108,7 @@ export type RepairContext = {
 };
 
 export type ReviewFixContext = {
+  profile?: import("../reviews/profiles.ts").ReviewProfile;
   requestId: string;
   roundId: string;
   roundNumber: number;

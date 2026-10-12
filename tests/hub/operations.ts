@@ -30,7 +30,7 @@ try {
   }
   db.prepare("INSERT INTO run_ci_repair_attempts VALUES(?,?,?,?,?)").run("repairing","current-head","running",1,null);
   db.prepare("INSERT INTO run_ci_repair_attempts VALUES(?,?,?,?,?)").run("broken","old-head","running",1,null);
-  db.prepare("INSERT INTO run_ai_reviews VALUES(?,?,?,?,?,?,?,?,?,?,?)").run("review1","broken","old-head","ready",1,1,0,0,at,"https://github.com/Shagon1k/PickFlick/pull/1",1);
+  db.prepare("INSERT INTO run_ai_reviews(review_id,run_id,head_sha,review_state,review_number,critical_count,important_count,suggestion_count,updated_at,pull_request_url,pull_request_number) VALUES(?,?,?,?,?,?,?,?,?,?,?)").run("review1","broken","old-head","ready",1,1,0,0,at,"https://github.com/Shagon1k/PickFlick/pull/1",1);
   db.prepare("INSERT INTO run_state_history VALUES(?,?,?,?)").run(1,"new",at,"running");
   db.exec("ALTER TABLE project_items ADD COLUMN title TEXT; ALTER TABLE run_ci_snapshots ADD COLUMN pull_request_number INTEGER; ALTER TABLE run_ci_snapshots ADD COLUMN checks_json TEXT; CREATE TABLE run_resources(run_id TEXT,codex_thread_id TEXT,previous_codex_thread_id TEXT)");
   db.prepare("UPDATE project_items SET title=? WHERE item_id=?").run("Fix watchlist","item-4");

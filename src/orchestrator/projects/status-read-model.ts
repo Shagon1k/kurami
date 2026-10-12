@@ -18,6 +18,8 @@ export type ProjectRunFacts = {
   ai_review_suggestion_count: number;
   review_fix_state: string | null;
   review_fix_request_active_count: number;
+  review_fix_active_count?:number;
+  review_active_count?:number;
 };
 export type ProjectAttention = { code: "run_attention" | "owner_input" | "ci_unrepaired" | "review_unrepaired"; severity: "warning" | "critical" };
 
@@ -28,7 +30,7 @@ export function projectRunStatus(facts: ProjectRunFacts, head = facts.ci_head_sh
   const ciRepairBusy = ciRepairQueued || ciRepairRunning;
   const ciRepairCurrent = ciRepairQueued || (ciRepairRunning && Boolean(head) &&
     [facts.ci_repair_head_sha, facts.ci_repair_result_head_sha].includes(head));
-  const reviewFixBusy = facts.review_fix_request_active_count > 0 ||
+  const reviewFixBusy = facts.review_fix_request_active_count > 0 || (facts.review_fix_active_count??0)>0 ||
     ["running", "waiting_ci", "resolving"].includes(facts.review_fix_state ?? "") ||
     ["review_fix_queued", "review_fix_working", "review_fix_waiting", "review_fix_resolving"].includes(facts.stage ?? "");
   const reviewCurrent = Boolean(head) && facts.ai_review_head_sha === head;
@@ -56,12 +58,14 @@ export const PROJECT_RUN_FACTS_SQL = `
   (SELECT source_head_sha FROM run_ci_repair_attempts a WHERE a.run_id=r.run_id ORDER BY a.attempt_number DESC LIMIT 1) AS ci_repair_head_sha,
   (SELECT result_head_sha FROM run_ci_repair_attempts a WHERE a.run_id=r.run_id ORDER BY a.attempt_number DESC LIMIT 1) AS ci_repair_result_head_sha,
   (SELECT COUNT(*) FROM run_control_requests q WHERE q.run_id=r.run_id AND q.action='ci_repair' AND q.request_state IN ('pending','processing')) AS ci_repair_request_active_count,
-  (SELECT review_state FROM run_ai_reviews ar WHERE ar.run_id=r.run_id ORDER BY ar.review_number DESC LIMIT 1) AS ai_review_state,
-  (SELECT head_sha FROM run_ai_reviews ar WHERE ar.run_id=r.run_id ORDER BY ar.review_number DESC LIMIT 1) AS ai_review_head_sha,
-  COALESCE((SELECT critical_count FROM run_ai_reviews ar WHERE ar.run_id=r.run_id ORDER BY ar.review_number DESC LIMIT 1),0) AS ai_review_critical_count,
-  COALESCE((SELECT important_count FROM run_ai_reviews ar WHERE ar.run_id=r.run_id ORDER BY ar.review_number DESC LIMIT 1),0) AS ai_review_important_count,
-  COALESCE((SELECT suggestion_count FROM run_ai_reviews ar WHERE ar.run_id=r.run_id ORDER BY ar.review_number DESC LIMIT 1),0) AS ai_review_suggestion_count,
-  (SELECT round_state FROM run_review_fix_rounds rf WHERE rf.run_id=r.run_id ORDER BY rf.round_number DESC LIMIT 1) AS review_fix_state,
+  (SELECT review_state FROM run_ai_reviews ar WHERE ar.run_id=r.run_id AND ar.review_profile='general' ORDER BY ar.review_number DESC LIMIT 1) AS ai_review_state,
+  (SELECT head_sha FROM run_ai_reviews ar WHERE ar.run_id=r.run_id AND ar.review_profile='general' ORDER BY ar.review_number DESC LIMIT 1) AS ai_review_head_sha,
+  COALESCE((SELECT critical_count FROM run_ai_reviews ar WHERE ar.run_id=r.run_id AND ar.review_profile='general' ORDER BY ar.review_number DESC LIMIT 1),0) AS ai_review_critical_count,
+  COALESCE((SELECT important_count FROM run_ai_reviews ar WHERE ar.run_id=r.run_id AND ar.review_profile='general' ORDER BY ar.review_number DESC LIMIT 1),0) AS ai_review_important_count,
+  COALESCE((SELECT suggestion_count FROM run_ai_reviews ar WHERE ar.run_id=r.run_id AND ar.review_profile='general' ORDER BY ar.review_number DESC LIMIT 1),0) AS ai_review_suggestion_count,
+  (SELECT COUNT(*) FROM run_ai_reviews a WHERE a.run_id=r.run_id AND a.review_state='running') AS review_active_count,
+  (SELECT COUNT(*) FROM run_review_fix_rounds f WHERE f.run_id=r.run_id AND f.round_state IN ('running','waiting_ci','resolving')) AS review_fix_active_count,
+  (SELECT round_state FROM run_review_fix_rounds rf WHERE rf.run_id=r.run_id AND rf.review_profile='general' ORDER BY rf.round_number DESC LIMIT 1) AS review_fix_state,
   (SELECT COUNT(*) FROM run_control_requests q WHERE q.run_id=r.run_id AND q.action='review_fix' AND q.request_state IN ('pending','processing')) AS review_fix_request_active_count`;
 
 export type CurrentProjectRun = ProjectRunFacts & {run_id: string; project: string; issue_number: number; repository: string; pull_request_url: string | null; item_status: string};

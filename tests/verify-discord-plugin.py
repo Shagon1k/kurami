@@ -357,6 +357,11 @@ def main() -> None:
         == ("ai_review", "r_abc123"),
         "Dashboard overflow rejected an allowlisted action",
     )
+    require(module.parse_run_actions_id("kurami:review_actions:r_abc123", ["clarity_review"]) == ("clarity_review","r_abc123"), "Clarity review menu was rejected")
+    require(module.parse_run_actions_id("kurami:fix_actions:r_abc123", ["clarity_fix"]) == ("clarity_fix","r_abc123"), "Clarity fixes menu was rejected")
+    require(module.parse_run_actions_id("kurami:review_actions:r_abc123", ["stop"]) is None, "Review menu accepted an unrelated action")
+    for action in ["clarity_review", "clarity_fix"]:
+        require(module.parse_run_actions_id("kurami:run_actions:r_abc123", [action]) == (action,"r_abc123"), "Review menu rejected its selected profile")
     for custom_id, values in [
         ("kurami:run_actions:r_abc123", ["merge"]),
         ("kurami:run_actions:r_abc123", ["ai_review", "stop"]),
@@ -587,7 +592,7 @@ def main() -> None:
     review = module._request_message(
         "ai_review", {"action": "created", "requestState": "pending"}
     )
-    require("AI Code Review" in review, "AI review response uses an ambiguous label")
+    require("General Review" in review, "AI review response uses an ambiguous label")
     fix_review = module._request_message(
         "review_fix", {"action": "created", "requestState": "pending"}
     )

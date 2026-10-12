@@ -1,3 +1,4 @@
+import { loadClaritySkill, parseReviewProfile } from "./profiles.ts";
 import { reviewContextMatches } from "../../controls/ai-review.ts";
 import { execFileSync, spawnSync } from "node:child_process";
 import { readFile, realpath, stat } from "node:fs/promises";
@@ -223,12 +224,14 @@ export async function runReviewManagerCli(): Promise<void> {
       fail("Run is not in a stable AI-reviewable state");
     const request = database
       .prepare(
-        `SELECT 1 FROM run_control_requests
+        `SELECT review_profile FROM run_control_requests
          WHERE request_id = ? AND run_id = ? AND action = 'ai_review'
            AND request_state = 'pending'`,
       )
-      .get(args.requestId, run.run_id);
+      .get(args.requestId, run.run_id) as { review_profile: string } | undefined;
     if (!request) fail("AI review request is no longer pending");
+    const profile = parseReviewProfile(request.review_profile);
+    const skill = profile === "clarity" ? loadClaritySkill() : null;
     if (
       database
         .prepare(
@@ -257,9 +260,9 @@ export async function runReviewManagerCli(): Promise<void> {
       database
         .prepare(
           `SELECT 1 FROM run_ai_reviews
-           WHERE run_id = ? AND head_sha = ? AND review_state = 'ready'`,
+           WHERE run_id = ? AND head_sha = ? AND review_profile = ? AND review_state = 'ready'`,
         )
-        .get(run.run_id, head)
+        .get(run.run_id, head, profile)
     )
       fail("This exact pull request SHA already has a ready AI review");
 
@@ -282,6 +285,8 @@ export async function runReviewManagerCli(): Promise<void> {
       runId: run.run_id,
       requestId: args.requestId,
       reviewNumber,
+      profile,
+      skill: skill ? {version: skill.version, sha256: skill.sha256} : null,
       pullRequestNumber: pull.number,
       pullRequestUrl: pull.url,
       baseRef: pull.baseRefName,
@@ -313,8 +318,8 @@ export async function runReviewManagerCli(): Promise<void> {
         `INSERT INTO run_ai_reviews (
            review_id, run_id, request_id, review_number, review_state,
            repository, pull_request_number, pull_request_url,
-           base_ref, base_sha, head_sha, tmux_session_name
-         ) VALUES (?, ?, ?, ?, 'running', ?, ?, ?, ?, ?, ?, ?)`,
+           base_ref, base_sha, head_sha, tmux_session_name, review_profile, skill_version, skill_sha256, skill_text
+         ) VALUES (?, ?, ?, ?, 'running', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       )
       .run(
         reviewId,
@@ -328,6 +333,10 @@ export async function runReviewManagerCli(): Promise<void> {
         pull.baseSha,
         head,
         tmuxSessionName,
+        profile,
+        skill?.version ?? null,
+        skill?.sha256 ?? null,
+        skill?.text ?? null,
       );
     try {
       runFile("tmux", [

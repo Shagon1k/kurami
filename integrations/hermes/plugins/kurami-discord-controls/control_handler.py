@@ -15,7 +15,7 @@ from zoneinfo import ZoneInfo
 CONTROL_ID = re.compile(
     r"^kurami:(status|take_control|preview_start|preview_stop|preview_extend|preview_reviewed|stop|discard_prompt|discard_local|discard_published_prompt|discard_published|ci_repair|ai_review|review_fix|recover_managed_task):(r_[A-Za-z0-9_]+)$"
 )
-RUN_ACTIONS_ID = re.compile(r"^kurami:run_actions:(r_[A-Za-z0-9_]+)$")
+RUN_ACTIONS_ID = re.compile(r"^kurami:(?:run_actions|review_actions|fix_actions):(r_[A-Za-z0-9_]+)$")
 RUN_ACTIONS = {
     "take_control",
     "preview_start",
@@ -27,6 +27,8 @@ RUN_ACTIONS = {
     "discard_published_prompt",
     "ci_repair",
     "ai_review",
+    "clarity_review",
+    "clarity_fix",
     "review_fix",
     "recover_managed_task",
 }
@@ -60,7 +62,9 @@ _ACTION_LABELS = {
     "discard_local": "Discard local work",
     "discard_published": "Close draft PR and discard published work",
     "ci_repair": "Attempt CI fix",
-    "ai_review": "AI Code Review",
+    "ai_review": "General Review",
+    "clarity_review": "Clarity Review",
+    "clarity_fix": "Fix Clarity findings",
     "review_fix": "Fix Review",
     "recover_managed_task": "Recover delivered fix",
 }
@@ -125,6 +129,11 @@ def parse_run_actions_id(
         return None
     action = values[0]
     if not isinstance(action, str) or action not in RUN_ACTIONS:
+        return None
+    menu = custom_id.split(":")[1]
+    if menu == "review_actions" and action not in {"ai_review", "clarity_review"}:
+        return None
+    if menu == "fix_actions" and action not in {"review_fix", "clarity_fix"}:
         return None
     return action, match.group(1)
 
@@ -363,6 +372,8 @@ async def _run_metadata_control(
         args.extend(["--thread-id", thread_id])
     if action != "status":
         args.append("--apply")
+    if action in {"clarity_review", "clarity_fix"}:
+        args.extend(["--profile", "clarity"])
     env = _kurami_subprocess_env()
     process = await asyncio.create_subprocess_exec(
         *args,
@@ -665,7 +676,7 @@ async def _run_control(
             "--apply",
         ]
     elif action != "status":
-        request_action = "preview_start" if action == "preview_extend" else action
+        request_action = {"preview_extend":"preview_start", "clarity_review":"ai_review", "clarity_fix":"review_fix"}.get(action,action)
         args = [
             str(node),
             str(control),
