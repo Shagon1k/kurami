@@ -43,6 +43,8 @@ export async function executeManagedTask(database: DatabaseSync, task: ProtocolT
   const environment = detachedCodexEnvironment(options.environment ?? process.env);
   if ((options.environment ?? process.env).GH_TOKEN)
     environment.GH_TOKEN = (options.environment ?? process.env).GH_TOKEN;
+  // Match primary writers without granting access to the shared home store.
+  environment.pnpm_config_store_dir = resolve(options.cwd, "node_modules/.pnpm-store");
   let interaction = false;
   const finalItems = new Map<string, { type: string; phase: string; text: string }>();
   const pending: Array<{ method?: string; params?: unknown }> = [];

@@ -23,6 +23,8 @@ export function ensureControlEvents(database: DatabaseSync): void {
     JOIN run_resources rr USING (run_id)
     WHERE r.state = 'parked_review' AND r.owner_state = 'none'
       AND rr.tmux_session_name IS NULL AND rr.codex_thread_id IS NOT NULL
+      AND EXISTS (SELECT 1 FROM run_ci_snapshots ci WHERE ci.run_id=r.run_id
+        AND ci.pull_request_url IS NOT NULL AND ci.head_sha IS NOT NULL)
   `,
     )
     .run();
@@ -311,6 +313,10 @@ function progressFor(
     };
   }
   if (run.run_state === "parked_review" && run.owner_state === "none") {
+    if (!run.ci_pull_request_url || !run.ci_head_sha) return {
+      stage: "waiting_human",
+      detail: "Codex stopped before delivering a reviewable PR. Local work is preserved.",
+    };
     return {
       stage: "review_ready",
       detail: "Autonomous work is parked and ready for review.",

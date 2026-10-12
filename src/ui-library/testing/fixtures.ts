@@ -25,12 +25,13 @@ import {renderHubPage,type HubLanguage} from "../../hub/render.ts";
 import type {HubSnapshot} from "../../hub/snapshot.ts";
 import {summarizeModelUsage,type UsageSample} from "../../core/api-equivalent.ts";
 import {renderProjectsPage} from "../../projects-site/render.ts";
-import {syntheticProjectsSnapshot} from "../../../tests/projects-site/fixture.ts";
+import {syntheticProjectsSnapshot,syntheticStoppedWriterSnapshot} from "../../../tests/projects-site/fixture.ts";
 import {TOAST_CSS,renderToastRegion} from "../components/toast.ts";
 import {TOAST_RUNTIME_JS} from "../runtime/toast.ts";
 
 export function syntheticProjects(lang:"en"|"ru"="en",extra:Record<string,string>={}):string {
-  return renderProjectsPage(syntheticProjectsSnapshot(),new URLSearchParams({lang,...extra}));
+  const snapshot=extra.scenario==="writer-stop"?syntheticStoppedWriterSnapshot():syntheticProjectsSnapshot();
+  return renderProjectsPage(snapshot,new URLSearchParams({lang,...extra}));
 }
 
 /** Library-only notification fixture, with no product CSS or action endpoints. */

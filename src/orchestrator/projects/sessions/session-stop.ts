@@ -1,4 +1,5 @@
 import { completeSuccessions } from "./complete-successions.ts";
+import { capturePrimaryStoppedResult, type PrimaryStoppedResult } from "../../integrations/codex/primary-diagnostic.ts";
 import { captureParkProcesses, cleanupParkProcesses, saveParkProcesses, loadParkProcesses, clearParkProcesses } from "./park-processes.ts";
 import { taskForSession, protocolTurnSucceeded } from "../../integrations/codex/task-store.ts";
 import { protocolRemoteBlocker, stopProtocolTask, releaseProtocolTask } from "./protocol-session.ts";
@@ -182,6 +183,7 @@ function recordHandoffRelease(
   tailPath: string,
   tmuxAlive: boolean,
   forced: boolean,
+  primaryStoppedResult: PrimaryStoppedResult | null,
 ): void {
   database.exec("BEGIN IMMEDIATE");
   try {
@@ -189,6 +191,9 @@ function recordHandoffRelease(
     if (
       current.run_state !== run.run_state ||
       current.owner_state !== "cli" ||
+      current.stop_reason !== run.stop_reason ||
+      current.codex_thread_id !== run.codex_thread_id ||
+      current.previous_codex_thread_id !== run.previous_codex_thread_id ||
       current.tmux_session_name !== run.tmux_session_name
     ) {
       fail(
@@ -227,6 +232,7 @@ function recordHandoffRelease(
         ? "codex_cli_handoff_completed"
         : "codex_cli_park_completed",
       {
+        primaryStoppedResult,
         codexThreadId: run.codex_thread_id,
         previousTmuxSessionName: run.tmux_session_name,
         terminalTailPath: tailPath,
@@ -492,7 +498,10 @@ export async function leaveCliSession(
   }
 
   const cleanedDescendants = await cleanupParkProcesses(parkProcesses);
-  recordHandoffRelease(database, run, plan.toState, targetOwner, tailPath, tmuxAlive, forced);
+  const primaryStoppedResult = targetOwner === "none" && terminalTurnCompleted &&
+    !run.previous_codex_thread_id && run.stop_reason === null
+    ? capturePrimaryStoppedResult(run.codex_thread_id!, run.worktree_path) : null;
+  recordHandoffRelease(database, run, plan.toState, targetOwner, tailPath, tmuxAlive, forced, primaryStoppedResult);
   if (targetOwner === "none") clearParkProcesses(parkReceiptPath);
 
   process.stdout.write(

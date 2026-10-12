@@ -41,3 +41,17 @@ export function syntheticProjectsSnapshot(): ProjectsSnapshot {
   ];
   return snapshot;
 }
+
+export function syntheticStoppedWriterSnapshot(report: string | null = null): ProjectsSnapshot {
+  const snapshot=syntheticProjectsSnapshot(),item=snapshot.items[0]!;
+  item.title="Automate Nomination deadlines with durable reconciliation";
+  item.status="In progress";item.owner="none";item.stage="waiting_human";
+  item.detail="Codex stopped before delivering a reviewable PR. Local work is preserved.";
+  item.ci={state:"pending",tone:"neutral",head:null,checks:[]};
+  item.review={state:"none",tone:"neutral",head:null,critical:0,important:0,suggestions:0};
+  item.reviews=undefined;item.reviewFix=undefined;
+  item.aiReview={enabled:false,reason:"no_head",head:null};
+  item.writerStop={report,threadId:"00000001-0000-4000-8000-000000000001"};
+  item.links={...item.links,pr:null,review:null};
+  return snapshot;
+}

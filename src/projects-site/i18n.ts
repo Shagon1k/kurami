@@ -1,6 +1,14 @@
 export type Language="en"|"ru";
 export function language(params:URLSearchParams):Language{return params.get("lang")==="ru"?"ru":"en";}
 const messages:Record<string,string>={
+  "Work paused":"Работа приостановлена",
+  "Open Codex session":"Открыть сессию Codex",
+  "Stop details":"Подробности остановки",
+  "No reviewable PR yet. Local work is preserved.":"PR для ревью пока нет. Локальная работа сохранена.",
+  "The PR commit is not verified yet. Local work is preserved.":"Коммит PR пока не подтверждён. Локальная работа сохранена.",
+  "The original report was not captured. Open the session for details.":"Исходный отчёт не сохранён. Подробности есть в сессии Codex.",
+  "CI starts after a PR is delivered.":"CI будет доступен после создания PR.",
+  "CI and reviews require a reviewable PR.":"CI и ревью будут доступны после создания PR.",
   "Review fixes did not start":"Исправление замечаний не запустилось",
   "Review fixes did not start: a process still owns the managed working copy. Cleanup must finish before retrying.":"Исправление замечаний не запустилось: процесс ещё использует рабочую копию. Перед повторной попыткой нужно завершить очистку.",
   "Review fixes did not start: the managed working copy has uncommitted changes.":"Исправление замечаний не запустилось: в рабочей копии есть незакоммиченные изменения.",

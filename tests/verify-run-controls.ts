@@ -117,6 +117,10 @@ async function main(): Promise<void> {
     };
 
     addRun("r_review_ready", 9301, "autonomous", "parked_review", "none", null);
+    database.exec(`INSERT INTO run_ci_snapshots(run_id,repository,pull_request_number,pull_request_url,
+      head_sha,aggregate_state,checks_json,content_digest,first_observed_at,last_observed_at)
+      VALUES('r_review_ready','Shagon1k/TailorTales',9301,'https://github.com/Shagon1k/TailorTales/pull/9301',
+        'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa','pending','[]','delivered-fixture','2026-01-01','2026-01-01');`);
     database
       .prepare(
         `

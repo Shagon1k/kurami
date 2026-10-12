@@ -10,6 +10,7 @@ import { resolveKuramiHome } from "../../core/kurami-home.ts";
 import { DatabaseSync } from "node:sqlite";
 import { parse } from "yaml";
 import { codexLaunchUrl } from "../integrations/codex/deeplink.ts";
+import { primaryStoppedDiagnostic } from "../integrations/codex/primary-diagnostic.ts";
 import { PROJECT_RUN_FACTS_SQL, projectRunStatus } from "../projects/status-read-model.ts";
 import {
   actionRow,
@@ -104,6 +105,7 @@ type CardRow = {
   previous_codex_thread_id: string | null;
   latest_attention_reason: string | null;
   technical_worker_detail?: string | null;
+  primary_writer_diagnostic?: string | null;
   latest_autonomous_successor_state: string | null;
   latest_autonomous_successor_predecessor_thread_id: string | null;
   autonomous_successor_active: number;
@@ -244,7 +246,7 @@ const desiredSurfaceDigestSql = `
   COALESCE(r.completion_requested_at, 'completion:none') || ':' ||
   COALESCE(r.preview_requirement_satisfied_at, 'preview-satisfied:none') || ':' ||
   COALESCE(ps.hostname, 'host:none') || ':' ||
-  COALESCE(r.stop_reason, 'stop:none') || ':discord-ux-v14'
+  COALESCE(r.stop_reason, 'stop:none') || ':discord-ux-v15'
   || ':' || COALESCE(ci.content_digest, 'ci:none') || ':' ||
   (SELECT COUNT(*) FROM run_ci_repair_attempts repair_count
    WHERE repair_count.run_id = r.run_id) || ':' ||
@@ -552,6 +554,7 @@ function loadDesiredCards(
 
 function withClarityReview(database:DatabaseSync,card:CardRow):CardRow {
   card.clarity=readReviewEvidence(database,card.run_id,"clarity",card.ci_head_sha);
+  card.primary_writer_diagnostic = primaryStoppedDiagnostic(database, card.run_id);
   return card;
 }
 function loadCard(database: DatabaseSync, runId: string): CardRow {
@@ -748,7 +751,8 @@ function eventStillValid(event: EventRow): boolean {
       ["failed", "missing"].includes(event.current_ci_aggregate_state ?? "")
     );
   if (event.event_kind === "review_ready")
-    return event.run_state === "parked_review" && event.owner_state === "none";
+    return event.run_state === "parked_review" && event.owner_state === "none" &&
+      Boolean(event.current_ci_pull_request_url) && Boolean(event.current_ci_head_sha);
   if (event.event_kind === "human_control_ready")
     return event.run_state === "remote_owned" && event.owner_state === "remote";
   if (event.event_kind === "preview_ready")
@@ -844,10 +848,22 @@ function stageLabel(stage: string): string {
   return labels[stage] ?? stage;
 }
 
+function stoppedPrimaryWithoutDelivery(card: CardRow, pullRequest: PullRequest | null): boolean {
+  return card.run_state === "parked_review" && card.owner_state === "none" &&
+    !card.stop_reason && !card.previous_codex_thread_id && !card.tmux_session_name &&
+    (!pullRequest?.url || !(pullRequest.headSha ?? card.ci_head_sha));
+}
+
 function presentedStage(
   card: CardRow,
   pullRequest: PullRequest | null,
 ): { label: string; detail: string } {
+  if (["waiting_human", "review_ready"].includes(card.stage) && stoppedPrimaryWithoutDelivery(card, pullRequest)) {
+    return {
+      label: "Codex stopped",
+      detail: "Codex stopped before delivering a reviewable PR. Local work is preserved.",
+    };
+  }
   const currentHead = pullRequest?.headSha ?? card.ci_head_sha;
   const reviewIsCurrent =
     !currentHead ||
@@ -1029,7 +1045,7 @@ function aiReviewField(
           : "PR changed after this review. Run this review profile again.";
       return {
         name,
-        value: `**↪️ Outdated**\n${detail}${sha}`,
+        value: `**↪️ Outdated**\n${detail}\n${counts}${card.ai_review_url ? `\n[Open review](${card.ai_review_url})` : ""}${sha}`,
       };
     }
     return {
@@ -1057,9 +1073,10 @@ function clarityReviewField(review:ReviewEvidence|undefined):{name:string;value:
   const progress:Record<string,string>={queued:"Fixes queued",running:"Fixing findings",waiting_ci:"Fixes pushed; waiting for CI",resolving:"Resolving review threads",succeeded:"Fixes completed",needs_attention:"Fixes need attention"};
   return {name:"🧩 Clarity Review",value:truncate([
     states[review.state]??review.state,
-    review.state==="ready"?`${review.critical} Critical · ${review.important} Important · ${review.suggestions} Suggestions`:null,
+    ["ready", "outdated", "unverified", "superseded"].includes(review.state)?`${review.critical} Critical · ${review.important} Important · ${review.suggestions} Suggestions`:null,
     review.url?`[Open review](${review.url})`:null,
     review.head?`\`${review.head.slice(0,7)}\``:null,
+    !["queued", "running"].includes(review.state) ? review.failure : null,
     review.fix?`${progress[review.fix.state]??review.fix.state}${review.fix.round?` · Round ${review.fix.round}`:""}`:null,
   ].filter(Boolean).join("\n"),1024)};
 }
@@ -1336,6 +1353,10 @@ function runLinks(
   if (card.preview_state === "running" && card.preview_hostname)
     links.push(`[Preview](https://${card.preview_hostname})`);
   if (remote) links.push(`[Codex](${remote.launchUrl})`);
+  else if (stoppedPrimaryWithoutDelivery(card, pullRequest)) {
+    const sessionUrl = codexLaunchUrl(card.codex_thread_id);
+    if (sessionUrl) links.push(`[View Codex session](${sessionUrl})`);
+  }
   return links.length > 0 ? `**Links** · ${links.join(" · ")}` : "";
 }
 
@@ -1440,9 +1461,16 @@ export function threadControlPayload(
       "Policy",
       card.preview_requirement_satisfied_at ? "Satisfied" : "Required",
     ]);
-  const detailSections = [ci, review, clarity, preview, policy]
+  // A one-line review state is already present in the compact summary.
+  // Keep richer evidence (findings, failure reason, SHA, URLs and fix progress).
+  const detailSections = [ci, review?.value.includes("\n") ? review : null,
+    clarity.value.includes("\n") ? clarity : null, preview, policy]
     .filter((field): field is { name: string; value: string } => Boolean(field))
     .map((field) => `**${field.name}**\n${field.value}`);
+  if (stoppedPrimaryWithoutDelivery(card, pullRequest))
+    detailSections.push(card.primary_writer_diagnostic
+      ? `**Writer report**\n${card.primary_writer_diagnostic}`
+      : "Writer report unavailable.");
   if (card.technical_worker_detail) detailSections.push(`**Technical worker**\n${card.technical_worker_detail}`);
   if (remote) detailSections.push(`**Codex handoff**\n${remote.summary}`);
   const links = runLinks(card, project, pullRequest);

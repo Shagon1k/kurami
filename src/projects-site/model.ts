@@ -16,6 +16,7 @@ export type ProjectItem = {
   id: string; project: string; number: number | null; title: string; kind: string; status: string | null;
   observedAt: string; runUpdatedAt: string | null; runId: string | null; runState: string | null;
   stage: string | null; detail: string | null; owner: string | null;
+  writerStop?: { report: string | null; threadId: string | null };
   ci: Signal & { checks?: CiCheck[]; observedAt?: string | null }; review: Signal & { critical: number; important: number; suggestions: number };
   preview: Signal & { expiresAt: string | null; reviewed: boolean };
   attention: ProjectAttention[];

@@ -31,7 +31,7 @@ for await (const line of lines) {
   let result = {};
   if (message.method === "thread/start") {
     appendFileSync(process.env.PROTOCOL_LOG,JSON.stringify({environment:{
-      writerToken:Boolean(process.env.GH_TOKEN), leakedApp:Boolean(process.env.GITHUB_APP_PRIVATE_KEY),
+      writerToken:Boolean(process.env.GH_TOKEN), storeDir:process.env.pnpm_config_store_dir, leakedApp:Boolean(process.env.GITHUB_APP_PRIVATE_KEY),
       leakedOther:Boolean(process.env.UNRELATED_SECRET)}})+"\n");
     result={thread:{id:threadId}};
   }

@@ -1,3 +1,4 @@
+import { codexLaunchUrl } from "../orchestrator/integrations/codex/deeplink.ts";
 import { REVIEW_PROFILES } from "../orchestrator/projects/reviews/profiles.ts";
 import {surfaceAttributes,LIVE_ATTRIBUTE} from "../ui-library/components/surface.ts";
 import {browserStatusPresentation,statusPresentation} from "./action-presentation.ts";
@@ -73,8 +74,12 @@ function sortControl(key:SortKey,label:string,params:URLSearchParams,lang:Langua
   const filters=parseFilters(params);const selected=filters.sort===key;
   return renderButton({label:tr(label,lang),variant:"sort",className:"projects-sort",iconPath:iconPath(selected?filters.direction==="desc"?"sortDescending":"sortAscending":"sort"),iconPosition:"end",visibleLabel:true,ariaLabel:`${tr("Sort by",lang)} ${tr(label,lang)}${selected?` · ${tr(filters.direction==="desc"?"Descending":"Ascending",lang)}`:""}`,attributes:{"data-sort":key,"aria-pressed":selected?"true":"false"}});
 }
+function noCiEvidence(item:ProjectItem):boolean {
+  return Boolean(item.writerStop && !item.links.pr && !item.ci.head && !(item.ci.checks?.length));
+}
 function checks(item:ProjectItem,lang:Language):string {
   return [["CI","ci",item.ci],["AI Review","review",item.review],["Preview","preview",item.preview]].map(([name,icon,value])=>{
+    if(name==="CI"&&noCiEvidence(item))return "";
     const evidence=value as Signal;
     return evidence.state!=="none"?`<span class="projects-check">${renderIcon(icon as IconName)}<span class="projects-check-name">${tr(name as string,lang)}</span>${signal(evidence,lang)}</span>`:"";
   }).join("");
@@ -142,6 +147,8 @@ function previewReviewNote(item:ProjectItem,lang:Language):string {
 function reviewPanel(item:ProjectItem,lang:Language,commonHead:string|null):string {
   const t=(key:string)=>tr(key,lang);
   const reviews=item.reviews??{general:{...item.review,url:item.links.review,requestFailed:Boolean(item.reviewRequestFailed),control:item.aiReview,fix:item.reviewFix,fixActions:item.runActions,fixStartupFailure:item.reviewFixStartupFailure},clarity:{state:"none",tone:"neutral" as const,head:null,critical:0,important:0,suggestions:0,url:null,requestFailed:false}};
+  if(item.writerStop&&!item.links.pr&&REVIEW_PROFILES.every(profile=>reviews[profile].state==="none"&&!reviews[profile].requestFailed&&!reviews[profile].fix&&!reviews[profile].fixStartupFailure))
+    return "";
   const menu=(label:string,body:string,enabled:boolean)=>{
     if(!body)return "";
     const id=`projects-review-menu-${randomUUID()}`;
@@ -176,6 +183,13 @@ function reviewPanel(item:ProjectItem,lang:Language,commonHead:string|null):stri
   }).join("");
   return `<div class="projects-evidence-row"><div class="projects-evidence-label">${renderIcon("review")}<strong>${t("AI Review")}</strong></div><div class="projects-review-controls">${menu("Run review",launch,REVIEW_PROFILES.some(profile=>reviews[profile].control?.enabled))}${menu("Fix findings",fixes,REVIEW_PROFILES.some(profile=>reviews[profile].fixActions?.actions.some(action=>action.action==="review_fix"&&action.enabled)))}</div>${rows}</div>`;
 }
+function writerContext(item:ProjectItem,lang:Language):string {
+  if(!item.writerStop)return item.detail?`<p class="projects-context">${escape(sourceText(item.detail,lang))}</p>`:"";
+  const t=(key:string)=>tr(key,lang),url=codexLaunchUrl(item.writerStop.threadId);
+  const open=url?renderLinkButton({label:t("Open Codex session"),href:url,variant:"subtle",iconPath:iconPath("arrow"),attributes:{"data-codex-session":true}}):"";
+  const details=renderDisclosure({summary:t("Stop details"),variant:"inline",key:`writer-stop:${item.runId}:${item.writerStop.threadId??"unknown"}`,body:`<p class="projects-writer-report">${escape(item.writerStop.report??t("The original report was not captured. Open the session for details."))}</p>`});
+  return renderCallout({tone:"warning",title:t("Work paused"),className:"projects-writer-stop",body:{html:`<p>${t(item.links.pr?"The PR commit is not verified yet. Local work is preserved.":"No reviewable PR yet. Local work is preserved.")}</p><div class="projects-writer-stop-actions">${open}</div>${details}`}});
+}
 function detail(item:ProjectItem,params:URLSearchParams,project:ProjectSummary,at:string):string {
   const lang=language(params),t=(key:string)=>tr(key,lang);
   const fixActive=Boolean(item.reviewFix&&["queued","running","waiting_ci","resolving"].includes(item.reviewFix.state));
@@ -183,13 +197,15 @@ function detail(item:ProjectItem,params:URLSearchParams,project:ProjectSummary,a
   const commonHead=heads.every(head=>head&&head===heads[0])?heads[0]:null;
   const evidence=(name:string,icon:IconName,value:Signal,extra="")=>`<div class="projects-evidence-row"><div class="projects-evidence-heading"><div class="projects-evidence-label">${renderIcon(icon)}<strong>${t(name)}</strong></div>${signal(value,lang)}</div>${!commonHead&&value.state!=="none"?`<code title="${escape(value.head??"")}">${value.head?escape(value.head.slice(0,12)):t("Unverified")}</code>`:""}${extra}</div>`;
   const resource=(name:string,url:string|null,icon:IconName)=>navigation(name,url,lang)?renderLinkButton({label:t(name),href:url!,variant:"subtle",size:"compact",iconPath:iconPath(icon)}):"";
+  const reviewContent=reviewPanel(item,lang,commonHead);
+  const ciContent=noCiEvidence(item)?`<p class="projects-evidence-availability">${t(reviewContent?"CI starts after a PR is delivered.":"CI and reviews require a reviewable PR.")}</p>`:evidence("CI","ci",item.ci,ciDetails(item,project,lang)+runActions(item,lang,["ci_repair"]));
   const links=resource("Issue",item.links.issue,"project")+resource("PR",item.links.pr,"branch")+resource("Discord",item.links.discord,"message");
   const editor=statusForm(item,lang,project);
   const statusEditor=editor?`<div class="projects-status-editor">${editor}</div>`:"";
   return `<aside class="projects-detail" id="project-details" data-detail-item="${escape(item.id)}" aria-labelledby="project-details-title" tabindex="-1"><div class="projects-detail-top"><p class="projects-detail-meta">${renderIcon("project")}${escape(project.name)}<span class="projects-task-id">${item.number?`#${item.number}`:t("Draft")}</span></p>${renderLinkButton({label:t("Back to tasks"),href:itemUrl(params),variant:"quiet",attributes:{"data-item-close":true}})}</div><h2 id="project-details-title">${escape(item.title||t("Untitled task"))}</h2><div class="projects-detail-badges">${renderPill({label:item.status??t("No status"),tone:statusTone(item,project)})}${stateValue(projectStageLabel(item,lang),runTone(item))}${item.suggestedNext?renderPill({label:t("Suggested next"),tone:"info",icon:"spark"}):""}</div><div class="projects-links">${links}</div>
     ${item.suggestedNext?`<div class="projects-recommendation">${renderIcon("spark")}<p>${escape(sourceText(item.suggestedNext.explanation,lang))}</p></div>`:""}
-    ${statusEditor}${!fixActive&&item.detail?`<p class="projects-context">${escape(sourceText(item.detail,lang))}</p>`:""}
-    <section class="projects-detail-section"><h3>${renderIcon("ci")}${t("Evidence")}</h3>${commonHead?`<p class="projects-update">${t("Current commit")} <code title="${escape(commonHead)}">${escape(commonHead.slice(0,12))}</code></p>`:""}<div class="projects-evidence">${evidence("CI","ci",item.ci,ciDetails(item,project,lang)+runActions(item,lang,["ci_repair"]))}${reviewPanel(item,lang,commonHead)}${evidence("Preview","preview",item.preview,`${previewReviewNote(item,lang)}${previewExpiry(item,lang,at)}${runActions(item,lang,["preview_start","preview_reviewed","preview_stop"],resource("Open preview",item.links.preview,"arrow"))}`)}</div>
+    ${statusEditor}${!fixActive?writerContext(item,lang):""}
+    <section class="projects-detail-section"><h3>${renderIcon("ci")}${t("Evidence")}</h3>${commonHead?`<p class="projects-update">${t("Current commit")} <code title="${escape(commonHead)}">${escape(commonHead.slice(0,12))}</code></p>`:""}<div class="projects-evidence">${ciContent}${reviewContent}${evidence("Preview","preview",item.preview,`${previewReviewNote(item,lang)}${previewExpiry(item,lang,at)}${runActions(item,lang,["preview_start","preview_reviewed","preview_stop"],resource("Open preview",item.links.preview,"arrow"))}`)}</div>
     </section>${runActionControls(item,lang)}${item.runUpdatedAt?`<p class="projects-update">${t("Updated")} ${escape(localTime(item.runUpdatedAt,lang))}</p>`:""}</aside>`;
 }
 function runActionControls(item:ProjectItem,lang:Language):string {

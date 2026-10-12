@@ -10,7 +10,7 @@ export function completedWorkerSummary(items: unknown): string | null {
   return item ? sanitizeWorkerSummary(item.text) : null;
 }
 
-export function sanitizeWorkerSummary(text: string): string | null {
+export function sanitizeWorkerText(text: string): string | null {
   // Fail closed on echoed orchestrator prompts; a final-channel echo is not a report.
   if (/Start fresh CI repair attempt|Initialize the engineering run|Start owner-approved review fix round|delimiter-safe JSON|explicit developer approval for focused commits/iu.test(text)) return null;
   // Redact before truncating so a credential crossing the boundary is not exposed.
@@ -23,6 +23,12 @@ export function sanitizeWorkerSummary(text: string): string | null {
     // Inert in Markdown/Discord as well as escaped HTML: no mentions, links or fences.
     .replace(/[@<>`*_[\]\\]/gu, " ")
     .replace(/\s+/gu, " ").trim();
+  if (!safe) return null;
+  return safe;
+}
+
+export function sanitizeWorkerSummary(text: string): string | null {
+  const safe = sanitizeWorkerText(text);
   if (!safe) return null;
   return safe.length > WORKER_SUMMARY_LIMIT ? safe.slice(0, WORKER_SUMMARY_LIMIT - 1) + "…" : safe;
 }

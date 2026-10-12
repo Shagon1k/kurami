@@ -66,6 +66,9 @@ if [[ -n "${HERMES_CODEX_TASK_ID:-}" ]]; then
 fi
 
 cd -- "${HERMES_WORKTREE_PATH}"
+# pnpm 11 creates a SQLite/WAL index; the shared home store is read-only in
+# workspace-write. Keep package-store writes inside the existing workspace.
+export pnpm_config_store_dir="${HERMES_WORKTREE_PATH}/node_modules/.pnpm-store"
 if [[ -n "${HERMES_INITIAL_PROMPT_FILE:-}" ]]; then
   [[ -f "${HERMES_INITIAL_PROMPT_FILE}" ]] || { printf 'Initial prompt file not found\n' >&2; exit 1; }
   initial_prompt="$(base64 --decode < "${HERMES_INITIAL_PROMPT_FILE}")"

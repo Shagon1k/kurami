@@ -1,6 +1,8 @@
 import { parseReviewProfile, type ReviewProfile } from "../projects/reviews/profiles.ts";
 import {LATEST_ATTENTION_SQL,LATEST_SUCCESSOR_STATE_SQL,LATEST_SUCCESSOR_THREAD_SQL,ACTIVE_SUCCESSOR_COUNT_SQL} from "../runtime/run-projections.ts";
 import { technicalWorkerDiagnostic } from "../integrations/codex/worker-diagnostic.ts";
+import { primaryStoppedDiagnostic } from "../integrations/codex/primary-diagnostic.ts";
+import { codexLaunchUrl } from "../integrations/codex/deeplink.ts";
 import { aiReviewStable } from "./ai-review.ts";
 import {hasActivePrRequest} from "./pr-boundary.ts";
 import { createHash, randomUUID } from "node:crypto";
@@ -336,6 +338,8 @@ export function runControlStatus(
   return {
     ...run,
     technical_worker_diagnostic: technicalWorkerDiagnostic(database, runId),
+    primary_writer_diagnostic: primaryStoppedDiagnostic(database, runId),
+    codex_session_url: codexLaunchUrl(run.codex_thread_id as string | null),
     preview_url: run.preview_hostname
       ? `https://${String(run.preview_hostname)}`
       : null,
@@ -957,6 +961,8 @@ export function availableRunControls(database: DatabaseSync, runId: string, opti
     ownerState === "none" &&
     Boolean(selected.worktree_path) &&
     Boolean(selected.branch_name) &&
+    Boolean(selected.ci_pull_request_url) &&
+    Boolean(selected.ci_head_sha) &&
     !repairCleanupPending &&
     Number(selected.review_active_count) === 0 &&
     !(

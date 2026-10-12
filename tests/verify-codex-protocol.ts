@@ -40,7 +40,7 @@ for (const scenario of ["success","early","stale","no_change","scope_refusal","f
     if(scenario==="lost_ack") { assert.equal(task.turn_id,null); assert.equal(task.phase,"disconnected"); }
     const rpc=readFileSync(log,"utf8").trim().split("\n").map((line)=>JSON.parse(line));
     const env=rpc.find((row)=>row.environment).environment;
-    assert.deepEqual(env,{writerToken:true,leakedApp:false,leakedOther:false});
+    assert.deepEqual(env,{writerToken:true,storeDir:resolve(f.worktree,"node_modules/.pnpm-store"),leakedApp:false,leakedOther:false});
     assert.equal(rpc.filter((row)=>row.method==="turn/start").length,1);
     const turnRequest=rpc.find((row)=>row.method==="turn/start").params;
     assert.equal(turnRequest.approvalPolicy,"never");
