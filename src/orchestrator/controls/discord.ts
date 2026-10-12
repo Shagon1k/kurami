@@ -1,3 +1,4 @@
+import { WRITER_STOP_TEXT, writerStopPresentation } from "../projects/writer-stop-presentation.ts";
 import { readReviewEvidence, type ReviewEvidence } from "../projects/reviews/read-model.ts";
 import {LATEST_ATTENTION_SQL,LATEST_ATTENTION_VALUE_SQL,LATEST_SUCCESSOR_STATE_SQL,LATEST_SUCCESSOR_THREAD_SQL,ACTIVE_SUCCESSOR_COUNT_SQL,ACTIVE_SUCCESSOR_COUNT_VALUE_SQL} from "../runtime/run-projections.ts";
 import {parseEnvValue} from "../../core/env-value.ts";
@@ -246,7 +247,7 @@ const desiredSurfaceDigestSql = `
   COALESCE(r.completion_requested_at, 'completion:none') || ':' ||
   COALESCE(r.preview_requirement_satisfied_at, 'preview-satisfied:none') || ':' ||
   COALESCE(ps.hostname, 'host:none') || ':' ||
-  COALESCE(r.stop_reason, 'stop:none') || ':discord-ux-v15'
+  COALESCE(r.stop_reason, 'stop:none') || ':discord-ux-v16'
   || ':' || COALESCE(ci.content_digest, 'ci:none') || ':' ||
   (SELECT COUNT(*) FROM run_ci_repair_attempts repair_count
    WHERE repair_count.run_id = r.run_id) || ':' ||
@@ -423,7 +424,7 @@ function remoteCodexContext(
   return {
     launchUrl,
     summary: [
-      `[Open in Codex](${launchUrl})`,
+      `[Open session](${launchUrl})`,
       `**Task:** ${truncate(codexTaskName(card, project), 300)}`,
       `**Connection/project:** \`shagserv / ${repositoryName(card.repository)}\``,
       `**Thread ID:** \`${card.codex_thread_id}\``,
@@ -816,9 +817,9 @@ function findPullRequest(
 function stageLabel(stage: string): string {
   const labels: Record<string, string> = {
     preparing: "Preparing worktree",
-    starting: "Starting Codex",
+    starting: "Starting agent",
     waiting_github: "Waiting for GitHub",
-    working: "Codex working",
+    working: "Agent working",
     ci_repair_queued: "CI fix queued",
     ci_repair_working: "Fixing CI",
     ci_repair_waiting: "Waiting for CI",
@@ -859,10 +860,7 @@ function presentedStage(
   pullRequest: PullRequest | null,
 ): { label: string; detail: string } {
   if (["waiting_human", "review_ready"].includes(card.stage) && stoppedPrimaryWithoutDelivery(card, pullRequest)) {
-    return {
-      label: "Codex stopped",
-      detail: "Codex stopped before delivering a reviewable PR. Local work is preserved.",
-    };
+    return writerStopPresentation(Boolean(pullRequest?.url));
   }
   const currentHead = pullRequest?.headSha ?? card.ci_head_sha;
   const reviewIsCurrent =
@@ -957,6 +955,7 @@ function ciField(
     card.ci_pull_request_url || pullRequest?.headSha,
   );
   if (!managedPullObserved || !card.ci_aggregate_state) return null;
+  if (stoppedPrimaryWithoutDelivery(card,pullRequest) && !card.ci_head_sha && !parseCiChecks(card.ci_checks_json).length) return null;
   if (card.stage === "ci_repair_waiting") {
     const failedChecks = parseCiChecks(card.ci_checks_json).filter((check) =>
       ["failed", "missing", "unknown"].includes(check.state),
@@ -1173,7 +1172,7 @@ export function controlComponents(
           ? "Take control"
           : card.owner_state === "remote" || failedSuccessorRecovery
             ? "Continue autonomously"
-            : "Continue in Codex";
+            : "Take control";
       controls.push(
         button(takeoverLabel, 1, `kurami:take_control:${card.run_id}`),
       );
@@ -1352,10 +1351,10 @@ function runLinks(
     links.push(`[PR${pullRequest.number ? ` #${pullRequest.number}` : ""}](${pullRequest.url})`);
   if (card.preview_state === "running" && card.preview_hostname)
     links.push(`[Preview](https://${card.preview_hostname})`);
-  if (remote) links.push(`[Codex](${remote.launchUrl})`);
+  if (remote) links.push(`[Open session](${remote.launchUrl})`);
   else if (stoppedPrimaryWithoutDelivery(card, pullRequest)) {
     const sessionUrl = codexLaunchUrl(card.codex_thread_id);
-    if (sessionUrl) links.push(`[View Codex session](${sessionUrl})`);
+    if (sessionUrl) links.push(`[${WRITER_STOP_TEXT.session}](${sessionUrl})`);
   }
   return links.length > 0 ? `**Links** · ${links.join(" · ")}` : "";
 }
@@ -1434,12 +1433,15 @@ export function threadControlPayload(
   nonceSuffix = card.desired_surface_digest,
 ): DiscordObject {
   const presented = presentedStage(card, pullRequest);
+  const stopped = stoppedPrimaryWithoutDelivery(card, pullRequest);
   const ci = ciField(card, pullRequest) as { name: string; value: string } | null;
-  const review = aiReviewField(card, pullRequest) as {
+  const review = (stopped && !card.ai_review_state && !card.ai_review_request_active_count && !card.review_fix_state
+    ? null : aiReviewField(card, pullRequest)) as {
     name: string;
     value: string;
   } | null;
-  const clarity = clarityReviewField(card.clarity);
+  const clarity = stopped && (!card.clarity || card.clarity.state === "none" && !card.clarity.fix && !card.clarity.requestState)
+    ? null : clarityReviewField(card.clarity);
   const preview = previewField(card, pullRequest);
   const policy = previewPolicyField(card);
   const remote = remoteCodexContext(card, project);
@@ -1464,15 +1466,16 @@ export function threadControlPayload(
   // A one-line review state is already present in the compact summary.
   // Keep richer evidence (findings, failure reason, SHA, URLs and fix progress).
   const detailSections = [ci, review?.value.includes("\n") ? review : null,
-    clarity.value.includes("\n") ? clarity : null, preview, policy]
+    clarity?.value.includes("\n") ? clarity : null, preview, policy]
     .filter((field): field is { name: string; value: string } => Boolean(field))
     .map((field) => `**${field.name}**\n${field.value}`);
-  if (stoppedPrimaryWithoutDelivery(card, pullRequest))
+  if (stopped && !ci) detailSections.unshift(review || clarity ? WRITER_STOP_TEXT.noCi : WRITER_STOP_TEXT.noEvidence);
+  if (stopped)
     detailSections.push(card.primary_writer_diagnostic
-      ? `**Writer report**\n${card.primary_writer_diagnostic}`
-      : "Writer report unavailable.");
+      ? `**${WRITER_STOP_TEXT.report}**\n${card.primary_writer_diagnostic}`
+      : WRITER_STOP_TEXT.noReport);
   if (card.technical_worker_detail) detailSections.push(`**Technical worker**\n${card.technical_worker_detail}`);
-  if (remote) detailSections.push(`**Codex handoff**\n${remote.summary}`);
+  if (remote) detailSections.push(`**Session handoff**\n${remote.summary}`);
   const links = runLinks(card, project, pullRequest);
   const controls = controlComponents(card, project, pullRequest);
   const controlState = ["handoff_pending", "autonomous_successor_pending"].includes(
@@ -2012,7 +2015,7 @@ function eventMessage(
   }
   if (event.event_kind === "attention_required" && codexApproval) {
     return [
-      "**Codex approval blocked**",
+      "**Agent approval blocked**",
       codexApproval.detail,
       "No command was approved or executed outside the managed sandbox.",
       event.issue_url ? `[Open issue](${event.issue_url})` : "",

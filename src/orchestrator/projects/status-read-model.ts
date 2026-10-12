@@ -42,7 +42,7 @@ export function projectRunStatus(facts: ProjectRunFacts, head = facts.ci_head_sh
     ["completed", "cancelled", "cancelled_work_preserved"].includes(facts.stage ?? "");
   if (!inactive) {
     if (["needs_attention", "failed"].includes(facts.run_state)) attention.push({code: "run_attention", severity: "critical"});
-    else if (facts.run_state === "waiting_human") attention.push({code: "owner_input", severity: "warning"});
+    else if (facts.run_state === "waiting_human" || facts.stage === "waiting_human") attention.push({code: "owner_input", severity: "warning"});
     if (["failed", "missing"].includes(facts.ci_aggregate_state ?? "") && !ciRepairCurrent && !reviewFixBusy) attention.push({code: "ci_unrepaired", severity: "warning"});
     if (majorFindings > 0 && !reviewFixBusy) attention.push({code: "review_unrepaired", severity: "warning"});
   }

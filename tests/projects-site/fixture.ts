@@ -23,7 +23,7 @@ export function syntheticProjectsSnapshot(): ProjectsSnapshot {
       aiReview: { enabled: true, reason: "eligible", head: "abcdef0123456789" },
       statusChange: { enabled: true, reason: "eligible", choices: Object.entries(statuses).map(([role,value]) => ({value,label:value,hint:role === "done" ? "Kurami проверит условия завершения, включая обязательное превью." : ""})) },
       runActions: {fingerprint:"a".repeat(64),reason:"eligible",actions:[
-        {action:"take_control",label:"Продолжить в Codex",enabled:true,confirmation:null,hint:null,state:null},
+        {action:"take_control",label:"Взять управление",enabled:true,confirmation:null,hint:null,state:null},
         {action:"preview_start",label:"Запустить превью",enabled:true,confirmation:null,hint:null,state:null},
         {action:"stop",label:"Отменить запуск",enabled:true,confirmation:null,hint:null,state:null},
       ]},
@@ -46,7 +46,7 @@ export function syntheticStoppedWriterSnapshot(report: string | null = null): Pr
   const snapshot=syntheticProjectsSnapshot(),item=snapshot.items[0]!;
   item.title="Automate Nomination deadlines with durable reconciliation";
   item.status="In progress";item.owner="none";item.stage="waiting_human";
-  item.detail="Codex stopped before delivering a reviewable PR. Local work is preserved.";
+  item.detail="No PR is available for review. Local work is preserved.";
   item.ci={state:"pending",tone:"neutral",head:null,checks:[]};
   item.review={state:"none",tone:"neutral",head:null,critical:0,important:0,suggestions:0};
   item.reviews=undefined;item.reviewFix=undefined;

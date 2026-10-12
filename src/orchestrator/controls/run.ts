@@ -44,7 +44,7 @@ const pendingPresentations: Partial<
   take_control: {
     stage: "handoff_pending",
     detail:
-      "Take control requested; safely interrupting the active Codex turn and preparing handoff.",
+      "Take control requested; safely interrupting the active agent turn and preparing handoff.",
   },
   preview_start: {
     stage: "preview_queued",
@@ -70,12 +70,12 @@ const pendingPresentations: Partial<
   ci_repair: {
     stage: "ci_repair_queued",
     detail:
-      "CI fix requested; waiting to start a fresh bounded Codex task on the exact failed SHA.",
+      "CI fix requested; waiting to start a fresh bounded agent session on the exact failed SHA.",
   },
   review_fix: {
     stage: "review_fix_queued",
     detail:
-      "Review fix requested; capturing the current unresolved GitHub review threads before starting a fresh Codex task.",
+      "Review fix requested; capturing the current unresolved GitHub review threads before starting a fresh agent session.",
   },
   recover_managed_task: {
     stage: "review_fix_recovery_queued",
@@ -377,7 +377,7 @@ function presentPendingRequest(
       presentation = {
         stage: "autonomous_successor_pending",
         detail:
-          "Autonomous continuation requested; starting a fresh managed Codex task after the owner's explicit Remote-task boundary.",
+          "Autonomous continuation requested; starting a fresh managed agent session after the owner's explicit Remote-task boundary.",
       };
     }
   }

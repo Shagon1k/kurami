@@ -25,7 +25,7 @@ title: Run states
 desc: A run starts in admission_pending or directly in rejected. It then goes through starting into running, and on to either parked_review, the review pause, or remote_owned when you take the session. Failures lead to needs_attention. Completion and cancellation go through stopping into archived or cancelled.
 node adm "admission_pending" "admitted" state at 0,0
 node starting "starting" "copy being created" state at 1,0
-node running "running" "Codex working" state at 2,0
+node running "running" "Agent working" state at 2,0
 node remote "remote_owned" "with you in Codex" state at 3,0
 node rej "rejected" "admission refused" fail at 0,1
 node attn "needs_attention" "needs a decision" wait at 1,1
@@ -67,7 +67,7 @@ Two more fields help read a run: `execution_mode` (`live` or `dry_run`) and `int
 | `starting` | The working copy is being created or is ready, Codex not started yet | Working-copy creation |
 | `running` | Codex works in tmux, owner `cli` | Session start; Continue autonomously from `remote_owned` |
 | `parked_review` | Session released: review pause with an observed PR/head, otherwise awaiting a decision | Session release; card move to Human Review |
-| `remote_owned` | You took the Codex task, owner `remote` | Handoff; Continue in Codex |
+| `remote_owned` | You took the Codex task, owner `remote` | Handoff; Take control |
 | `needs_attention` | Automation stopped and waits for a decision | Copy failure, timeout, Codex permission prompt, blocked release |
 | `stopping` | Completion or cancellation in progress: close the session, remove the preview, release the copy | Move to Done, Backlog or Deferred; Cancel run |
 | `archived` | Completed, merge proven, resources released. Terminal | Release |
@@ -86,7 +86,7 @@ The states `handoff_pending`, `waiting_human` and `failed` are allowed by the da
 | `starting` → `running` | Codex start | `codex_initial_turn_started` |
 | `running` → `parked_review` | Session release: turn finished | `codex_cli_park_completed` / `codex_protocol_park_completed` |
 | `running` → `remote_owned` | Handoff | `codex_cli_handoff_completed` |
-| `parked_review` → `remote_owned` | Continue in Codex, no session | `remote_claim_completed` |
+| `parked_review` → `remote_owned` | Take control, no session | `remote_claim_completed` |
 | `remote_owned` → `running` | Continue autonomously: a fresh Codex task | `autonomous_successor_claimed` |
 | any live → `parked_review` | Admission: card moved to Human Review | `owner_moved_item_to_human_review` |
 | `running` → `needs_attention` | Codex permission prompt two minutes in a row | `codex_waiting_on_approval` |

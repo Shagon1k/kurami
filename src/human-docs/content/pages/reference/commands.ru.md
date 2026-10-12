@@ -26,7 +26,7 @@ order: 60
 |---|---|---|---|
 | **Recover delivered fix** | запуск в `needs_attention`, владелец `cli`, причина `review_fix_uncommitted_changes` | `recover_managed_task` | перепроверяет сохранённую задачу, запушенный коммит и свежий CI, доводит исправление |
 | **Take control** | владелец `cli`, идёт управляемая сессия, запуск не в `needs_attention` | `take_control` | `handoff`: просит Codex остановиться, ждёт тихой паузы, отпускает tmux; запуск `remote_owned` |
-| **Continue in Codex** | владелец `none`, состояние `parked_review` или `waiting_human` | `take_control` | `claim_remote`: владелец становится `remote`, на карточке ссылка Open in Codex |
+| **Take control** | владелец `none`, состояние `parked_review` или `waiting_human` | `take_control` | `claim_remote`: владелец становится `remote`, на карточке ссылка Open session |
 | **Continue autonomously** | запуск `remote_owned`, владелец `remote` | `take_control` | `successor_start`: новая управляемая задача Codex в той же рабочей копии |
 | **Start preview** | у проекта есть превью, аренды нет, запуск на ревью или у тебя | `preview_start` | выдаёт слот, затем собирает превью |
 | **Remove preview** | аренда в любом состоянии, кроме released | `preview_stop` | снимает маршрут, останавливает стек, освобождает слот |
@@ -58,7 +58,7 @@ order: 60
 
 | Запрос | Кнопки, которые его ставят | Конфликтует с |
 |---|---|---|
-| `take_control` | Take control, Continue in Codex, Continue autonomously | `review_fix`, `recover_managed_task` |
+| `take_control` | Take control, Continue autonomously | `review_fix`, `recover_managed_task` |
 | `preview_start` | Start preview, Extend 24h | `preview_stop` |
 | `preview_stop` | Remove preview | `preview_start` |
 | `stop` | Cancel run | — |
@@ -91,8 +91,8 @@ order: 60
 | Preview is ready | превью прошло проверки здоровья |
 | Preview failed | сборка или проверка превью упала |
 | CI failed, Required CI check is missing | CI коммита красный или нет обязательной проверки |
-| Codex approval blocked | Codex запросил разрешение, которое Kurami не выдаёт |
+| Agent approval blocked | Codex запросил разрешение, которое Kurami не выдаёт |
 
 ## Текстовые команды
 
-Агент Hermes понимает те же действия словами: Status, Take control, Continue in Codex, Continue autonomously, Attempt CI fix, AI Code Review, Fix Review, Recover delivered fix, Start preview, Stop preview, Cancel run, Discard local work, Close draft PR and discard, Open in Codex, Show controls. Задачу можно назвать полным id запуска, ключом `TT-42` или `PF-33` либо написать в треде запуска. Удаление сохранённой работы агент выполняет только после явного второго подтверждения.
+Агент Hermes понимает те же действия словами: Status, Take control, Continue autonomously, Attempt CI fix, AI Code Review, Fix Review, Recover delivered fix, Start preview, Stop preview, Cancel run, Discard local work, Close draft PR and discard, Open session, Show controls. Задачу можно назвать полным id запуска, ключом `TT-42` или `PF-33` либо написать в треде запуска. Удаление сохранённой работы агент выполняет только после явного второго подтверждения.

@@ -1,3 +1,4 @@
+import { writerStopPresentation } from "../projects/writer-stop-presentation.ts";
 import { createHash } from "node:crypto";
 import { lifecycleFeedbackKey } from "../projects/lifecycle-feedback.ts";
 import type { DatabaseSync } from "node:sqlite";
@@ -217,7 +218,7 @@ function progressFor(
     return {
       stage: "waiting_github",
       detail:
-        "GitHub Project is temporarily unavailable; waiting for a fresh status snapshot before starting Codex.",
+        "GitHub Project is temporarily unavailable; waiting for a fresh status snapshot before starting the agent.",
     };
   }
   if (run.run_state === "admission_pending") {
@@ -229,7 +230,7 @@ function progressFor(
   if (run.run_state === "starting") {
     return {
       stage: "starting",
-      detail: "Worktree is ready; starting the managed Codex task.",
+      detail: "Worktree is ready; starting the managed agent session.",
     };
   }
   if (
@@ -238,7 +239,7 @@ function progressFor(
   ) {
     return {
       stage: "review_fix_working",
-      detail: `Fresh Codex task is fixing the owner-approved review snapshot (round ${run.latest_review_fix_number}).`,
+      detail: `The agent is fixing the owner-approved review snapshot (round ${run.latest_review_fix_number}).`,
     };
   }
   if (
@@ -265,7 +266,7 @@ function progressFor(
   ) {
     return {
       stage: "ci_repair_working",
-      detail: `Fresh Codex task is fixing the exact failed CI evidence (attempt ${run.latest_repair_number}/2).`,
+      detail: `The agent is fixing the exact failed CI evidence (attempt ${run.latest_repair_number}/2).`,
     };
   }
   if (
@@ -289,33 +290,33 @@ function progressFor(
           : "handoff_pending",
       detail:
         run.owner_state === "remote"
-          ? "Autonomous continuation requested; starting a fresh managed Codex task after the owner's explicit Remote-task boundary."
-          : "Take control requested; safely interrupting the active Codex turn and preparing handoff.",
+          ? "Autonomous continuation requested; starting a fresh managed agent session after the owner's explicit Remote-task boundary."
+          : "Take control requested; safely interrupting the active agent turn and preparing handoff.",
     };
   }
   if (run.run_state === "running" && run.owner_state === "cli") {
     return {
       stage: "working",
-      detail: "Codex is working autonomously in the isolated worktree.",
+      detail: "The agent is working autonomously in the isolated worktree.",
     };
   }
   if (run.run_state === "remote_owned") {
     return {
       stage: "human_control",
-      detail: "The existing Codex task is under human control.",
+      detail: "The task is under your control.",
     };
   }
   if (run.run_state === "parked_review" && run.owner_state === "cli") {
     return {
       stage: "finalizing_review",
       detail:
-        "GitHub is in Human Review; waiting for the active Codex turn to finish before releasing CLI ownership.",
+        "GitHub is in Human Review; waiting for the active agent turn to finish before releasing CLI ownership.",
     };
   }
   if (run.run_state === "parked_review" && run.owner_state === "none") {
     if (!run.ci_pull_request_url || !run.ci_head_sha) return {
       stage: "waiting_human",
-      detail: "Codex stopped before delivering a reviewable PR. Local work is preserved.",
+      detail: writerStopPresentation(Boolean(run.ci_pull_request_url)).detail,
     };
     return {
       stage: "review_ready",
@@ -350,13 +351,13 @@ function progressFor(
   if (["failed", "needs_attention"].includes(run.run_state)) {
     const timeoutLabels: Record<string, string> = {
       codex_waiting_on_approval:
-        "Managed Codex unexpectedly requested interactive approval. No approval was applied; automation is paused so the policy can be investigated safely.",
-      main_writer_runtime_budget_exceeded: `Main Codex writer exceeded its ${config.limits.main_writer_timeout_minutes}-minute limit. The worktree, branch, thread reference, and terminal evidence were preserved.`,
+        "The managed agent unexpectedly requested interactive approval. No approval was applied; automation is paused so the policy can be investigated safely.",
+      main_writer_runtime_budget_exceeded: `The primary agent exceeded its ${config.limits.main_writer_timeout_minutes}-minute limit. The worktree, branch, thread reference, and terminal evidence were preserved.`,
       ci_repair_runtime_budget_exceeded: `CI repair worker exceeded its ${config.limits.technical_worker_timeout_minutes}-minute limit. The worktree, thread reference, and terminal evidence were preserved.`,
       review_fix_runtime_budget_exceeded: `Review-fix worker exceeded its ${config.limits.technical_worker_timeout_minutes}-minute limit. The worktree, thread reference, and terminal evidence were preserved.`,
       ai_review_runtime_budget_exceeded: `AI review worker exceeded its ${config.limits.technical_worker_timeout_minutes}-minute limit. Its terminal evidence and the run worktree were preserved.`,
       autonomous_successor_start_failed:
-        "The autonomous continuation could not start. The prior Codex thread, exact worktree, and branch were preserved; Continue autonomously can retry this guarded start.",
+        "The autonomous continuation could not start. The prior session, exact worktree, and branch were preserved; Continue autonomously can retry this guarded start.",
     };
     return {
       stage: "needs_attention",

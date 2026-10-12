@@ -34,6 +34,7 @@ type ItemRow = ProjectRunFacts & {
   review_fix_startup_failure?: string | null;
   codex_thread_id: string | null; previous_codex_thread_id: string | null;
   writer_stop?: ProjectItem["writerStop"];
+  stop_reason: string | null; tmux_session_name: string | null;
 };
 
 export function projectsRegistry(path: string): Record<string, Config> {
@@ -105,13 +106,13 @@ export function collectProjectsSnapshot(options: { home?: string; now?: Date; co
     database.exec("BEGIN");
     const polls = database.prepare("SELECT project,last_captured_at,last_attempt_state FROM project_poll_state").all() as { project: string; last_captured_at: string | null; last_attempt_state: string }[];
     const rows = database.prepare(`SELECT p.project,p.item_id,p.issue_number,p.title,p.content_type,p.status,p.last_seen_at,p.url,
-      r.run_id,r.state AS run_state,r.owner_state,r.updated_at AS run_updated_at,r.trigger_event_id,r.rejection_reason,pc.stage,pc.detail,
+      r.run_id,r.state AS run_state,r.owner_state,r.stop_reason,r.updated_at AS run_updated_at,r.trigger_event_id,r.rejection_reason,pc.stage,pc.detail,
       ci.head_sha AS ci_head_sha,ci.aggregate_state AS ci_aggregate_state,ci.pull_request_url,ci.checks_json AS ci_checks_json,ci.last_observed_at AS ci_observed_at,${PROJECT_RUN_FACTS_SQL},
       (SELECT github_review_url FROM run_ai_reviews a WHERE a.run_id=r.run_id AND a.review_profile='general' ORDER BY a.review_number DESC LIMIT 1) AS review_url,
       (SELECT round_number FROM run_review_fix_rounds f WHERE f.run_id=r.run_id ORDER BY f.round_number DESC LIMIT 1) AS review_fix_round_number,
       (SELECT COUNT(*) FROM run_control_requests q WHERE q.run_id=r.run_id AND q.action='ai_review' AND q.review_profile='general' AND q.request_state IN ('pending','processing')) AS review_pending,
       (SELECT q.request_state IN ('failed','rejected') FROM run_control_requests q WHERE q.run_id=r.run_id AND q.action='ai_review' AND q.review_profile='general' ORDER BY q.rowid DESC LIMIT 1) AS review_request_failed,
-      rr.codex_thread_id,rr.previous_codex_thread_id,
+      rr.codex_thread_id,rr.previous_codex_thread_id,rr.tmux_session_name,
       pl.state AS preview_state,ps.hostname AS preview_hostname,pl.expires_at AS preview_expires_at,pl.reviewed_at AS preview_reviewed_at,pl.verified_head_sha AS preview_head,
       ds.guild_id,ds.parent_channel_id,ds.thread_id
       FROM project_items p LEFT JOIN runs r ON r.project=p.project AND r.item_id=p.item_id
@@ -138,7 +139,7 @@ export function collectProjectsSnapshot(options: { home?: string; now?: Date; co
       FROM project_triage_rankings r JOIN project_triage_state s ON s.project=r.project AND s.factual_hash=r.factual_hash
       WHERE r.selected_item_id IS NOT NULL`).all() as {project:string;selected_item_id:string;selected_issue_number:number;suggested_since:string;ranked_at:string;explanation:string}[]:[];
     for (const row of rows) if (row.run_id) {
-      if (row.run_state === "parked_review" && row.owner_state === "none" && !row.previous_codex_thread_id &&
+      if (row.run_state === "parked_review" && row.owner_state === "none" && !row.stop_reason && !row.previous_codex_thread_id && !row.tmux_session_name &&
           (!row.pull_request_url || !row.ci_head_sha)) {
         row.writer_stop = {report: primaryStoppedDiagnostic(database, row.run_id), threadId: row.codex_thread_id};
       }

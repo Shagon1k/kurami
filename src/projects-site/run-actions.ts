@@ -55,7 +55,7 @@ export function projectRunActions(database: DatabaseSync, runId: string, home: s
     const latest = requests.find(request => request.action === action && (action !== "review_fix" || request.review_profile === profile));
     const pending = latest && ["pending","processing"].includes(latest.request_state);
     if (!eligible.has(action) && !pending && !["failed","rejected"].includes(latest?.request_state ?? "")) return [];
-    const label = action === "take_control" ? run.take_control_autonomous ? "Продолжить автономно" : run.owner_state === "none" ? "Продолжить в Codex" : labels[action] :
+    const label = action === "take_control" ? run.take_control_autonomous ? "Продолжить автономно" : labels[action] :
       action === "preview_start" && run.preview_state === "running" ? "Продлить превью на 24 ч" : labels[action];
     return [{action,label,enabled:eligible.has(action) && fresh && run.execution_mode === "live" && !pending&&!prPending,confirmation:destructive.has(action) ?
       action === "discard_published" ? "Закрыть draft PR и удалить сохранённую ветку и локальную работу? Это действие нельзя отменить." : "Удалить сохранённую локальную работу? Это действие нельзя отменить." : null,

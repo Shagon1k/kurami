@@ -832,7 +832,7 @@ async function main(): Promise<void> {
       .get() as { stage: string; detail: string };
     assert(
       finalizingCard.stage === "finalizing_review" &&
-        finalizingCard.detail.includes("waiting for the active Codex turn"),
+        finalizingCard.detail.includes("waiting for the active agent turn"),
       "CLI-owned Human Review was falsely reported as ready",
     );
     const timeoutCard = notificationState
@@ -910,7 +910,7 @@ async function main(): Promise<void> {
       .get() as { stage: string; detail: string };
     assert(
       successorCard.stage === "autonomous_successor_pending" &&
-        successorCard.detail.includes("fresh managed Codex task"),
+        successorCard.detail.includes("fresh managed agent session"),
       "Autonomous continuation reused the human-control handoff presentation",
     );
     successorState

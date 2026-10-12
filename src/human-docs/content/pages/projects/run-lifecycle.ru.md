@@ -67,7 +67,7 @@ edge stopping -> attn "блок" accent
 | `starting` | Рабочая копия создаётся или готова, Codex ещё не запущен | Создание копии |
 | `running` | Codex работает в tmux, владелец `cli` | Запуск сессии; Continue autonomously из `remote_owned` |
 | `parked_review` | Сессия освобождена: пауза ревью при подтверждённых PR/head, иначе ожидание решения | Освобождение сессии; перенос карточки в Human Review |
-| `remote_owned` | Задачу Codex забрал ты, владелец `remote` | Передача управления; Continue in Codex |
+| `remote_owned` | Задачу Codex забрал ты, владелец `remote` | Передача управления; Take control |
 | `needs_attention` | Автоматика остановилась и ждёт решения | Сбой копии, таймаут, запрос разрешения Codex, блокировка релиза |
 | `stopping` | Идёт завершение или отмена: закрыть сессию, убрать превью, освободить копию | Перенос в Done, Backlog или Deferred; Cancel run |
 | `archived` | Завершён, слияние доказано, ресурсы освобождены. Конечное | Релиз |
@@ -86,7 +86,7 @@ edge stopping -> attn "блок" accent
 | `starting` → `running` | Запуск Codex | `codex_initial_turn_started` |
 | `running` → `parked_review` | Освобождение сессии: ход закончен | `codex_cli_park_completed` / `codex_protocol_park_completed` |
 | `running` → `remote_owned` | Передача управления | `codex_cli_handoff_completed` |
-| `parked_review` → `remote_owned` | Continue in Codex, сессии нет | `remote_claim_completed` |
+| `parked_review` → `remote_owned` | Take control, сессии нет | `remote_claim_completed` |
 | `remote_owned` → `running` | Continue autonomously: свежая задача Codex | `autonomous_successor_claimed` |
 | любой живой → `parked_review` | Допуск: карточка перенесена в Human Review | `owner_moved_item_to_human_review` |
 | `running` → `needs_attention` | Запрос разрешения Codex две минуты подряд | `codex_waiting_on_approval` |

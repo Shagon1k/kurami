@@ -36,7 +36,7 @@ edge caddy -> preview "active route"
 | Hub | `127.0.0.1:8800` | Cloudflare Access; its Controls also check the signed Access token, the origin and a CSRF token |
 | Projects | `127.0.0.1:8777` | Cloudflare Access; configured owner assertion checks and origin checks on controls |
 | Project previews, `preview-N.shagon1k.win` (N from 1 to 6) | through Caddy, `127.0.0.1:9180` | Cloudflare Access plus a 404 for any address without a running preview |
-| The "Open in Codex" link | through Caddy | no Access: a redirect by exact task identifier |
+| The "Open session" link | through Caddy | no Access: a redirect by exact task identifier |
 
 ## Unified app entry
 

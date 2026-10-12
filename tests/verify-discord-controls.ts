@@ -548,7 +548,7 @@ async function main(): Promise<void> {
     const prePull = new DatabaseSync(databasePath);
     prePull.exec(`
       UPDATE run_progress_cards
-      SET stage='starting', detail='Starting Codex.',
+      SET stage='starting', detail='Starting agent.',
           content_digest='digest-starting-without-pr'
       WHERE run_id='r_discord_smoke';
       UPDATE run_ci_snapshots
@@ -766,13 +766,15 @@ async function main(): Promise<void> {
     };
     await showDashboard();
     const stoppedText = componentText(currentDashboard());
-    const namedSessionLink = `[View Codex session](${codexLaunchUrl})`;
-    assert(stoppedText.includes("**Codex stopped**\nCodex stopped before delivering a reviewable PR. Local work is preserved.") &&
+    const namedSessionLink = `[Open session](${codexLaunchUrl})`;
+    assert(stoppedText.includes("**Agent stopped**\nNo PR is available for review. Local work is preserved.") &&
       stoppedText.includes(namedSessionLink) &&
       !stoppedText.replace(namedSessionLink, "").includes(codexLaunchUrl) &&
-      stoppedText.includes("Writer report unavailable.") &&
+      stoppedText.includes("No stop report was saved. Open the session for details.") &&
+      stoppedText.includes("CI and review results are not available yet.") &&
+      !stoppedText.includes("Not run") &&
       !stoppedText.includes("Legacy prose") &&
-      componentLabels(currentDashboard()).includes("Continue in Codex") &&
+      componentLabels(currentDashboard()).includes("Take control") &&
       controlIds(currentDashboard()).includes("kurami:take_control:r_discord_smoke") &&
       controlIds(currentDashboard()).includes("kurami:stop:r_discord_smoke") &&
       !controlIds(currentDashboard()).includes("kurami:ai_review:r_discord_smoke"),
@@ -781,7 +783,8 @@ async function main(): Promise<void> {
       .run(savedCi.pull_request_url);
     await showDashboard();
     assert(componentText(currentDashboard()).includes(namedSessionLink) &&
-      componentText(currentDashboard()).includes("**Codex stopped**") &&
+      componentText(currentDashboard()).includes("**Agent stopped**") &&
+      componentText(currentDashboard()).includes("The current PR commit is not known yet. Local work is preserved.") &&
       !controlIds(currentDashboard()).includes("kurami:ai_review:r_discord_smoke"),
       "A PR URL without verified head was presented as delivered or changed review eligibility");
     stoppedSetup.exec("UPDATE run_ci_snapshots SET pull_request_url=NULL WHERE run_id='r_discord_smoke'");
@@ -792,14 +795,14 @@ async function main(): Promise<void> {
       }));
     await showDashboard();
     const writerText = componentText(currentDashboard());
-    assert(writerText.includes("**Writer report**\nWriter report (not delivery proof): Local edits preserved") &&
-      !writerText.includes("sk-test-secret-value") && !writerText.includes("Writer report unavailable.") &&
-      !String(nestedComponents(currentDashboard()).find(component => component.type === 10)?.content).includes("Writer report"),
+    assert(writerText.includes("**Run report**\nRun report (not PR verification): Local edits preserved") &&
+      !writerText.includes("sk-test-secret-value") && !writerText.includes("No stop report was saved. Open the session for details.") &&
+      !String(nestedComponents(currentDashboard()).find(component => component.type === 10)?.content).includes("Run report"),
       "Safe current writer report was missing, unsanitized, or appended to the heading");
     stoppedSetup.exec(`INSERT INTO run_state_history (run_id, from_state, to_state, reason, details_json)
       VALUES ('r_discord_smoke', 'parked_review', 'parked_review', 'unrelated_later_receipt', '{}');`);
     await showDashboard();
-    assert(componentText(currentDashboard()).includes("Writer report unavailable.") &&
+    assert(componentText(currentDashboard()).includes("No stop report was saved. Open the session for details.") &&
       !componentText(currentDashboard()).includes("Local edits preserved; writer"),
       "Stopped card recovered a historical writer report");
     stoppedSetup.prepare("UPDATE run_ci_snapshots SET pull_request_url=?, head_sha=? WHERE run_id='r_discord_smoke'")
@@ -1092,7 +1095,6 @@ async function main(): Promise<void> {
     assert(
       waitingText.includes("Waiting for CI") &&
         !componentLabels(waitingControls).includes("Take control") &&
-        !componentLabels(waitingControls).includes("Continue in Codex") &&
         !componentLabels(waitingControls).includes("Attempt CI fix") &&
         waitingText.includes("Waiting for checks") &&
         waitingText.includes("Previous failure") &&
@@ -1201,10 +1203,9 @@ async function main(): Promise<void> {
     await runNode(notifier, ["--apply"], testHome, discordEnv);
     const parkedLabels = componentLabels(currentDashboard());
     assert(
-      parkedLabels.includes("Continue in Codex") &&
-        parkedLabels.includes("Start preview") &&
-        !parkedLabels.includes("Take control"),
-      "Parked review did not switch to Continue in Codex",
+      parkedLabels.filter(label => label === "Take control").length === 1 &&
+        parkedLabels.includes("Start preview"),
+      "Parked review did not expose one Take control action",
     );
 
     const remote = new DatabaseSync(databasePath);
@@ -1242,7 +1243,7 @@ async function main(): Promise<void> {
         componentLabels(remoteControls).includes("Start preview") &&
         componentText(remoteControls).includes("Control** · You") &&
         !componentText(remoteControls).includes("Control** · AI Agent") &&
-        componentText(remoteControls).includes(`[Codex](${codexLaunchUrl})`) &&
+        componentText(remoteControls).includes(`[Open session](${codexLaunchUrl})`) &&
         controlIds(remoteControls).includes(
           "kurami:take_control:r_discord_smoke",
         ),
@@ -1278,7 +1279,7 @@ async function main(): Promise<void> {
           "Continue autonomously",
         ) &&
         !componentLabels(successorPendingControls).includes(
-          "Continue in Codex",
+          "Take control",
         ) &&
         componentLabels(successorPendingControls).includes("Cancel run"),
       "Queued autonomous continuation kept a conflicting continuation control visible",
@@ -1286,7 +1287,7 @@ async function main(): Promise<void> {
     const humanEvent = threadEvents.at(-1)!;
     assert(
       componentText(humanEvent).includes("Preparation is ready for you") &&
-        componentText(humanEvent).includes(`[Open in Codex](${codexLaunchUrl})`),
+        componentText(humanEvent).includes(`[Open session](${codexLaunchUrl})`),
       "Human-control event did not include the Codex launcher",
     );
 

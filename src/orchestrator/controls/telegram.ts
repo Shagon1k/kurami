@@ -200,7 +200,7 @@ function eventMessage(
             : `${event.project} #${event.issue_number}: ready for review`;
   const closing =
     event.event_kind === "human_control_ready"
-      ? "Open the existing Codex Remote task to continue the prepared session."
+      ? "Open the existing session to continue the prepared work."
       : event.event_kind === "preview_failed"
         ? "The worktree is preserved. Check Status before retrying or stopping."
         : "Choose an action below; nothing starts automatically.";
@@ -242,8 +242,8 @@ function keyboard(event: EventRow): Record<string, unknown> {
 function cardMessage(card: CardRow): string {
   const labels: Record<string, string> = {
     preparing: "Preparing worktree",
-    starting: "Starting Codex",
-    working: "Codex working",
+    starting: "Starting agent",
+    working: "Agent working",
     human_control: "Human control",
     review_ready: "Ready for review",
     waiting_human: "Waiting for decision",

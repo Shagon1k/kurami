@@ -26,7 +26,7 @@ A button carries the id `kurami:<action>:<run id>`. The card shows at most four 
 |---|---|---|---|
 | **Recover delivered fix** | run in `needs_attention`, owner `cli`, reason `review_fix_uncommitted_changes` | `recover_managed_task` | rechecks the preserved task, the pushed commit and fresh CI, finishes the fix |
 | **Take control** | owner `cli`, a managed session is running, run not in `needs_attention` | `take_control` | `handoff`: asks Codex to stop, waits for a quiet pause, releases tmux; the run becomes `remote_owned` |
-| **Continue in Codex** | owner `none`, state `parked_review` or `waiting_human` | `take_control` | `claim_remote`: the owner becomes `remote`, the card shows an Open in Codex link |
+| **Take control** | owner `none`, state `parked_review` or `waiting_human` | `take_control` | `claim_remote`: the owner becomes `remote`, the card shows an Open session link |
 | **Continue autonomously** | run `remote_owned`, owner `remote` | `take_control` | `successor_start`: a fresh managed Codex task in the same working copy |
 | **Start preview** | the project has previews, no lease, run in review or yours | `preview_start` | leases a slot, then builds the preview |
 | **Remove preview** | a lease in any state except released | `preview_stop` | removes the route, stops the stack, frees the slot |
@@ -58,7 +58,7 @@ A request row lives in `run_control_requests`. States: `pending`, `processing`, 
 
 | Request | Buttons that queue it | Conflicts with |
 |---|---|---|
-| `take_control` | Take control, Continue in Codex, Continue autonomously | `review_fix`, `recover_managed_task` |
+| `take_control` | Take control, Continue autonomously | `review_fix`, `recover_managed_task` |
 | `preview_start` | Start preview, Extend 24h | `preview_stop` |
 | `preview_stop` | Remove preview | `preview_start` |
 | `stop` | Cancel run | — |
@@ -91,8 +91,8 @@ The **Review proposals** list offers: an exclusion menu ("Exclude selected propo
 | Preview is ready | the preview passed its health checks |
 | Preview failed | the preview build or check failed |
 | CI failed, Required CI check is missing | the commit's CI is red or a required check is missing |
-| Codex approval blocked | Codex asked for a permission Kurami does not grant |
+| Agent approval blocked | Codex asked for a permission Kurami does not grant |
 
 ## Text commands
 
-The Hermes agent understands the same actions in words: Status, Take control, Continue in Codex, Continue autonomously, Attempt CI fix, AI Code Review, Fix Review, Recover delivered fix, Start preview, Stop preview, Cancel run, Discard local work, Close draft PR and discard, Open in Codex, Show controls. Name the run by its full run id, by a key such as `TT-42` or `PF-33`, or write in the run thread. The agent deletes preserved work only after an explicit second confirmation.
+The Hermes agent understands the same actions in words: Status, Take control, Continue autonomously, Attempt CI fix, AI Code Review, Fix Review, Recover delivered fix, Start preview, Stop preview, Cancel run, Discard local work, Close draft PR and discard, Open session, Show controls. Name the run by its full run id, by a key such as `TT-42` or `PF-33`, or write in the run thread. The agent deletes preserved work only after an explicit second confirmation.

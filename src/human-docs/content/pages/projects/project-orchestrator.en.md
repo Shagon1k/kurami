@@ -67,7 +67,7 @@ Inside Kurami there are five parts, each with one job. The **board poll** reads 
 
 Each line of this path takes a minute or more. That is by design: the controller takes one step per run per cycle, so a failure anywhere along the way leaves a clear state that the next minute continues from.
 
-If the primary Codex writer stops without a reviewable PR and head SHA, the card waits for an owner decision. Local work stays preserved; CI and review controls are not presented as available. The App offers a named session link and collapsed stop details; Discord keeps the report separate from the status. Opening the session link does not claim ownership: **Continue in Codex** remains a separate action. New stops save a bounded, sanitized report from the exact session; older runs may have no saved report.
+If the primary Codex writer stops without a PR available for review or a known PR commit, the App and Discord show **Agent stopped**. The description distinguishes a missing PR from an unknown commit. Local work stays preserved, and the run counts toward **need you** because it awaits an owner decision. Missing CI and review results appear as unavailable rather than pending. The App offers **Open session** and a collapsed **Run report**; Discord keeps the report separate from the status. Opening the session link does not claim ownership: **Take control** remains a separate action. New stops save a bounded, sanitized report from the exact session; older runs may have no saved report.
 
 ## Three ideas that hold it together
 

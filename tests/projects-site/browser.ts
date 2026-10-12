@@ -50,7 +50,7 @@ const serverOptions = { snapshot: () => {
     else snapshot.items[0]!.statusChange = { ...snapshot.items[0]!.statusChange!, enabled: false, reason: "pending", request: {...statusRequest,checkAvailable:false} };
   }
   if(actionAccepted) snapshot.items[0]!.runActions!.actions=snapshot.items[0]!.runActions!.actions.map(action=>action.action==="preview_start"?{...action,enabled:false,state:"pending"}:action);
-  if(cancellation) snapshot.items[0]!.runActions!.actions=[{action:"take_control",label:"Продолжить в Codex",enabled:true,confirmation:null,hint:null,state:null},{action:"discard_local",label:"Удалить локальную работу",enabled:!discarded,confirmation:"Удалить сохранённую локальную работу? Это действие нельзя отменить.",hint:null,state:discarded?"pending":null}];
+  if(cancellation) snapshot.items[0]!.runActions!.actions=[{action:"take_control",label:"Взять управление",enabled:true,confirmation:null,hint:null,state:null},{action:"discard_local",label:"Удалить локальную работу",enabled:!discarded,confirmation:"Удалить сохранённую локальную работу? Это действие нельзя отменить.",hint:null,state:discarded?"pending":null}];
   if(reviewFixScenario){
     const item=snapshot.items[0]!;item.stage="preview_ready";item.detail="Preview is running and ready to open.";item.reviewFix={state:reviewFixScenario,round:1};item.aiReview={enabled:false,reason:"unstable",head:item.ci.head};
     item.runActions!.actions=[{action:"review_fix",label:"Fix review findings",enabled:false,confirmation:null,hint:null,state:"pending"},{action:"stop",label:"Cancel run",enabled:true,confirmation:null,hint:null,state:null}];
@@ -60,7 +60,7 @@ const serverOptions = { snapshot: () => {
     item.review.state='ready';item.reviewFixStartupFailure='Review fixes did not start: a process still owns the managed working copy. Cleanup must finish before retrying.';
   }
   if(runNotesScenario){
-    const item=snapshot.items[0]!,labels:Record<string,string>={preview_stop:'Remove preview',review_fix:'Fix review findings',ci_repair:'Fix CI',preview_start:'Start preview',preview_reviewed:'Preview reviewed',take_control:'Continue in Codex',recover_managed_task:'Recover managed task',stop:'Cancel run',discard_local:'Discard local work',discard_published:'Discard published work'};
+    const item=snapshot.items[0]!,labels:Record<string,string>={preview_stop:'Remove preview',review_fix:'Fix review findings',ci_repair:'Fix CI',preview_start:'Start preview',preview_reviewed:'Preview reviewed',take_control:'Take control',recover_managed_task:'Recover managed task',stop:'Cancel run',discard_local:'Discard local work',discard_published:'Discard published work'};
     item.links.preview='https://preview.example.test/';item.aiReview={enabled:false,reason:'unstable',head:item.ci.head};item.reviewFix={state:'succeeded',round:1};
     item.runActions!.actions=RUN_ACTIONS.map(action=>({action,label:labels[action]!,enabled:false,state:runNotesScenario,hint:null,confirmation:null}));
     if(previewStopOnly){item.runActions!.actions=item.runActions!.actions.filter(action=>['preview_stop','stop','take_control'].includes(action.action));item.preview.state='outdated';item.preview.tone='warning';item.preview.head=item.review.head;}

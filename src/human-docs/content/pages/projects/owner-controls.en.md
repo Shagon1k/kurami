@@ -12,7 +12,7 @@ For every run, Kurami keeps three kinds of messages in Discord. The project chan
 
 The card is edited in place. After every event Kurami posts it again below the event and deletes the old one, so history reads top to bottom and the current state is always at the bottom.
 
-::shot{file="shot-run-ready-review.png" size="card" alt="Run card PF-33 at Ready for review: CI failed, preview required, buttons Continue in Codex, Start preview, Attempt CI fix, AI Code Review and a More actions menu." caption="Up to four buttons in a row, the rest under More actions. Links to the issue and PR sit on their own line, not on buttons."}
+::shot{file="shot-run-ready-review.png" size="card" alt="Run card PF-33 at Ready for review: CI failed, preview required, buttons Take control, Start preview, Attempt CI fix, AI Code Review and a More actions menu." caption="Up to four buttons in a row, the rest under More actions. Links to the issue and PR sit on their own line, not on buttons."}
 
 Use **Run review** to choose **General** (correctness and operational risks) or **Clarity** (unnecessary code complexity). Both results remain visible separately with their reviewed commits. **Fix findings** selects whose findings to fix. Clarity is manual and optional; General remains the autopilot review.
 
@@ -179,8 +179,8 @@ The stage decides which buttons make sense. Stage and button names are given as 
 
 | Stage | What is happening | What you usually do |
 |---|---|---|
-| Preparing worktree, Starting Codex | Kurami prepares the working copy (worktree) and starts Codex | wait |
-| Codex working | Codex is writing code | wait, or press Take control |
+| Preparing worktree, Starting agent | Kurami prepares the working copy (worktree) and starts Codex | wait |
+| Agent working | Codex is writing code | wait, or press Take control |
 | Ready for review | Codex finished, the PR is open, the session is free | read the PR, optionally start checks |
 | Fixing CI, Review fix queued, Fixing review | Kurami started a separate Codex task to fix something | wait |
 | Preview queued, Preview ready | the preview is building or open | look at it, press Mark reviewed |
@@ -192,12 +192,12 @@ The stage decides which buttons make sense. Stage and button names are given as 
 
 ## Buttons
 
-A button appears only when its action is valid in the current state. The card shows at most four buttons in the order below; the rest live under **More actions…**. The three ownership buttons, Take control, Continue in Codex and Continue autonomously, are covered in [Human control](@human-control). The full table with ids and request names is in the [commands reference](@commands).
+A button appears only when its action is valid in the current state. The card shows at most four buttons in the order below; the rest live under **More actions…**. The ownership buttons, Take control and Continue autonomously, are covered in [Human control](@human-control). The full table with ids and request names is in the [commands reference](@commands).
 
 | Button | When it appears | What it triggers |
 |---|---|---|
 | **Take control** | Codex is running in a managed session | Kurami interrupts Codex's current turn, waits for a pause and hands the thread to you |
-| **Continue in Codex** | Codex finished and nobody owns the task | The task moves to you, the card shows an "Open in Codex" link |
+| **Take control** | Codex finished and nobody owns the task | The task moves to you, the card shows an "Open session" link |
 | **Continue autonomously** | the task is yours | You confirm you are done. Kurami starts a fresh Codex task on the same branch |
 | **Start preview** | the project supports previews, none exists yet | A slot is leased and the preview is built — see [Previews](@previews) |
 | **Remove preview**, **Extend 24h**, **Mark reviewed** | a preview exists | Remove it, extend it, mark it reviewed |

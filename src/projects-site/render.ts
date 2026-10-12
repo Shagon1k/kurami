@@ -1,3 +1,4 @@
+import { WRITER_STOP_TEXT, writerStopPresentation } from "../orchestrator/projects/writer-stop-presentation.ts";
 import { codexLaunchUrl } from "../orchestrator/integrations/codex/deeplink.ts";
 import { REVIEW_PROFILES } from "../orchestrator/projects/reviews/profiles.ts";
 import {surfaceAttributes,LIVE_ATTRIBUTE} from "../ui-library/components/surface.ts";
@@ -75,7 +76,7 @@ function sortControl(key:SortKey,label:string,params:URLSearchParams,lang:Langua
   return renderButton({label:tr(label,lang),variant:"sort",className:"projects-sort",iconPath:iconPath(selected?filters.direction==="desc"?"sortDescending":"sortAscending":"sort"),iconPosition:"end",visibleLabel:true,ariaLabel:`${tr("Sort by",lang)} ${tr(label,lang)}${selected?` · ${tr(filters.direction==="desc"?"Descending":"Ascending",lang)}`:""}`,attributes:{"data-sort":key,"aria-pressed":selected?"true":"false"}});
 }
 function noCiEvidence(item:ProjectItem):boolean {
-  return Boolean(item.writerStop && !item.links.pr && !item.ci.head && !(item.ci.checks?.length));
+  return Boolean(item.writerStop && !item.ci.head && !(item.ci.checks?.length));
 }
 function checks(item:ProjectItem,lang:Language):string {
   return [["CI","ci",item.ci],["AI Review","review",item.review],["Preview","preview",item.preview]].map(([name,icon,value])=>{
@@ -147,7 +148,7 @@ function previewReviewNote(item:ProjectItem,lang:Language):string {
 function reviewPanel(item:ProjectItem,lang:Language,commonHead:string|null):string {
   const t=(key:string)=>tr(key,lang);
   const reviews=item.reviews??{general:{...item.review,url:item.links.review,requestFailed:Boolean(item.reviewRequestFailed),control:item.aiReview,fix:item.reviewFix,fixActions:item.runActions,fixStartupFailure:item.reviewFixStartupFailure},clarity:{state:"none",tone:"neutral" as const,head:null,critical:0,important:0,suggestions:0,url:null,requestFailed:false}};
-  if(item.writerStop&&!item.links.pr&&REVIEW_PROFILES.every(profile=>reviews[profile].state==="none"&&!reviews[profile].requestFailed&&!reviews[profile].fix&&!reviews[profile].fixStartupFailure))
+  if(item.writerStop&&!item.ci.head&&REVIEW_PROFILES.every(profile=>reviews[profile].state==="none"&&!reviews[profile].requestFailed&&!reviews[profile].fix&&!reviews[profile].fixStartupFailure))
     return "";
   const menu=(label:string,body:string,enabled:boolean)=>{
     if(!body)return "";
@@ -186,9 +187,10 @@ function reviewPanel(item:ProjectItem,lang:Language,commonHead:string|null):stri
 function writerContext(item:ProjectItem,lang:Language):string {
   if(!item.writerStop)return item.detail?`<p class="projects-context">${escape(sourceText(item.detail,lang))}</p>`:"";
   const t=(key:string)=>tr(key,lang),url=codexLaunchUrl(item.writerStop.threadId);
-  const open=url?renderLinkButton({label:t("Open Codex session"),href:url,variant:"subtle",iconPath:iconPath("arrow"),attributes:{"data-codex-session":true}}):"";
-  const details=renderDisclosure({summary:t("Stop details"),variant:"inline",key:`writer-stop:${item.runId}:${item.writerStop.threadId??"unknown"}`,body:`<p class="projects-writer-report">${escape(item.writerStop.report??t("The original report was not captured. Open the session for details."))}</p>`});
-  return renderCallout({tone:"warning",title:t("Work paused"),className:"projects-writer-stop",body:{html:`<p>${t(item.links.pr?"The PR commit is not verified yet. Local work is preserved.":"No reviewable PR yet. Local work is preserved.")}</p><div class="projects-writer-stop-actions">${open}</div>${details}`}});
+  const open=url?renderLinkButton({label:t(WRITER_STOP_TEXT.session),href:url,variant:"subtle",size:"compact",iconPath:iconPath("arrow"),attributes:{"data-codex-session":true}}):"";
+  const details=renderDisclosure({summary:t(WRITER_STOP_TEXT.report),variant:"inline",key:`writer-stop:${item.runId}:${item.writerStop.threadId??"unknown"}`,body:`<p class="projects-writer-report">${escape(item.writerStop.report??t(WRITER_STOP_TEXT.noReport))}</p>`});
+  const presentation=writerStopPresentation(Boolean(item.links.pr));
+  return renderCallout({tone:"warning",title:t(presentation.label),className:"projects-writer-stop",body:{html:`<p class="projects-writer-summary">${t(presentation.detail)}</p><div class="projects-writer-stop-actions">${open}</div>${details}`}});
 }
 function detail(item:ProjectItem,params:URLSearchParams,project:ProjectSummary,at:string):string {
   const lang=language(params),t=(key:string)=>tr(key,lang);
@@ -198,7 +200,7 @@ function detail(item:ProjectItem,params:URLSearchParams,project:ProjectSummary,a
   const evidence=(name:string,icon:IconName,value:Signal,extra="")=>`<div class="projects-evidence-row"><div class="projects-evidence-heading"><div class="projects-evidence-label">${renderIcon(icon)}<strong>${t(name)}</strong></div>${signal(value,lang)}</div>${!commonHead&&value.state!=="none"?`<code title="${escape(value.head??"")}">${value.head?escape(value.head.slice(0,12)):t("Unverified")}</code>`:""}${extra}</div>`;
   const resource=(name:string,url:string|null,icon:IconName)=>navigation(name,url,lang)?renderLinkButton({label:t(name),href:url!,variant:"subtle",size:"compact",iconPath:iconPath(icon)}):"";
   const reviewContent=reviewPanel(item,lang,commonHead);
-  const ciContent=noCiEvidence(item)?`<p class="projects-evidence-availability">${t(reviewContent?"CI starts after a PR is delivered.":"CI and reviews require a reviewable PR.")}</p>`:evidence("CI","ci",item.ci,ciDetails(item,project,lang)+runActions(item,lang,["ci_repair"]));
+  const ciContent=noCiEvidence(item)?`<p class="projects-evidence-availability">${t(reviewContent?WRITER_STOP_TEXT.noCi:WRITER_STOP_TEXT.noEvidence)}</p>`:evidence("CI","ci",item.ci,ciDetails(item,project,lang)+runActions(item,lang,["ci_repair"]));
   const links=resource("Issue",item.links.issue,"project")+resource("PR",item.links.pr,"branch")+resource("Discord",item.links.discord,"message");
   const editor=statusForm(item,lang,project);
   const statusEditor=editor?`<div class="projects-status-editor">${editor}</div>`:"";

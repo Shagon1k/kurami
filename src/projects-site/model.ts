@@ -1,3 +1,4 @@
+import { WRITER_STOP_TEXT } from "../orchestrator/projects/writer-stop-presentation.ts";
 import type { ReviewProfile } from "../orchestrator/projects/reviews/profiles.ts";
 import {stateLabel} from "./i18n.ts";
 import type { IdeasView } from "./ideas.ts";
@@ -55,6 +56,7 @@ export function projectStageLabel(item:ProjectItem,lang:import("./i18n.ts").Lang
   if(item.taskStart)return stateLabel(({checking:"Start requested",writing:"Start requested",awaiting_sync:"Waiting for start sync",awaiting_admission:"admission_pending",starting:"starting",uncertain:"Start unconfirmed",failed:"request_failed",blocked:"Task start blocked"} as const)[item.taskStart.state],lang);
   const fixStages:Record<string,string>={queued:"review_fix_queued",running:"review_fix_working",waiting_ci:"review_fix_waiting",resolving:"review_fix_resolving"};
   if(item.reviewFix&&fixStages[item.reviewFix.state])return stateLabel(fixStages[item.reviewFix.state]!,lang);
+  if(item.writerStop)return stateLabel(WRITER_STOP_TEXT.label,lang);
   return stateLabel(item.stage??item.runState??(item.runId?null:"no_agent_run"),lang);
 }
 

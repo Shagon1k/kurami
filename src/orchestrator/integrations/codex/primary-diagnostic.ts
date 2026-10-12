@@ -73,5 +73,5 @@ export function primaryStoppedDiagnostic(database: DatabaseSync, runId: string):
       typeof details.primaryStoppedResult?.turnId !== "string") return null;
   const summary = typeof details.primaryStoppedResult.summary === "string"
     ? sanitizeWorkerSummary(details.primaryStoppedResult.summary) : null;
-  return summary ? `Writer report (not delivery proof): ${summary}` : null;
+  return summary ? `Run report (not PR verification): ${summary}` : null;
 }

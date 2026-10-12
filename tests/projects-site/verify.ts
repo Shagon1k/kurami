@@ -35,10 +35,18 @@ for(const lang of ["en","ru"] as const)for(const report of [null,"Stopped: depen
   const html=renderProjectsPage(paused,new URLSearchParams(`item=item-12&lang=${lang}`));
   const detail=html.split('<aside class="projects-detail"')[1]!;
   assert.match(detail,/href="https:\/\/go\.shagon1k\.win\/codex\/threads\/00000001-0000-4000-8000-000000000001"/);
-  assert.match(detail,lang==="ru"?/Открыть сессию Codex/:/Open Codex session/);
+  assert.match(detail,lang==="ru"?/Открыть сессию/:/Open session/);
   assert.doesNotMatch(detail,/>https:\/\/go\.|Writer final summary unavailable|<script>bad|data-review-run=|data-review-result=/);
   assert.match(detail,/<details[^>]*data-disclosure-key="writer-stop:[^"]+">/);
   assert.doesNotMatch(detail,/>Unverified<|>Pending</);
+  assert.match(detail,lang==="ru"?/Агент остановился/:/Agent stopped/);
+  assert.doesNotMatch(detail,/Work paused|Waiting for you|Работа приостановлена|Ждёт вас/);
+  paused.items[0]!.links.pr="https://github.com/Example/Alpha/pull/12";
+  const unverifiedPr=renderProjectsPage(paused,new URLSearchParams(`item=item-12&lang=${lang}`));
+  assert.match(unverifiedPr,lang==="ru"?/Текущий коммит PR пока неизвестен/:/The current PR commit is not known yet/);
+  assert.doesNotMatch(unverifiedPr,/data-review-result=|>Unverified<|>Pending</);
+  paused.items[0]!.links.pr=null;
+
   if(report)assert.match(detail,/&lt;script&gt;bad\(\)&lt;\/script&gt;/);
   paused.items[0]!.writerStop!.threadId="javascript:alert(1)";
   assert.doesNotMatch(renderProjectsPage(paused,new URLSearchParams("item=item-12")),/data-codex-session=/);

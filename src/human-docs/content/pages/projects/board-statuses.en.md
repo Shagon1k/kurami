@@ -44,7 +44,7 @@ edge room -> admitted "yes"
 
 | Move | What happens | What you see |
 |---|---|---|
-| Any column → **In progress** | If the issue passes the checks, a run appears and Codex starts working | Discord card: "Preparing worktree", then "Starting Codex" |
+| Any column → **In progress** | If the issue passes the checks, a run appears and Codex starts working | Discord card: "Preparing worktree", then "Starting agent" |
 | → **Human Review** | The run pauses for review. The Codex session closes once it finishes its current turn | "Finalizing for review", then "Ready for review" |
 | → **Done** | Completion starts: resources are released only after the merge is proven | "Stopping", then "Completed" |
 | In progress or Human Review → **Backlog** or **Deferred** | The run is cancelled. Unsaved and published work stays with you | "Cancelled", or "Cancelled — local work preserved" |
@@ -68,7 +68,7 @@ The reason is always recorded on the run or the event.
 | Symptom | Cause | What to do |
 |---|---|---|
 | No Discord card, no run record | The issue is closed, has an empty description or belongs to another repository | Add a description, move the card to Backlog and back to In progress |
-| You moved a card from Human Review back to In progress and nothing happened | The issue still has a live run paused for review | Use the buttons in the Discord thread: Fix Review, Continue in Codex |
+| You moved a card from Human Review back to In progress and nothing happened | The issue still has a live run paused for review | Use the buttons in the Discord thread: Fix Review, Take control |
 | Run is `rejected`: `WIP limit reached: global 2/2, project 1/2` | All slots are taken | Finish or cancel another run, then move the card again |
 | Run is `rejected`: `Resource guard blocked admission: …` | Disk is 85% full, the worktree cap is reached, or there is an unaccounted directory or tmux session | Deal with the resource named in the reason, then move the card again |
 | Discord card says "Waiting for GitHub" | The board poll failed or went stale | Wait: the next successful poll resumes the run by itself |

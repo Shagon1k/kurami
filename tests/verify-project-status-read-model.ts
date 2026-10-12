@@ -55,6 +55,7 @@ assert(discord(suggestions).includes('"value":"review_fix"'), "owner can still c
 for (const stage of ["cancelled", "completed", "cancelled_work_preserved"]) assert.deepEqual(projectRunStatus({...base, stage}).attention, []);
 assert.equal(projectRunStatus({...base, run_state: "failed"}).attention[0].severity, "critical");
 assert.equal(projectRunStatus({...base, run_state: "waiting_human"}).attention[0].code, "owner_input");
+assert(projectRunStatus({...base, run_state:"parked_review",stage:"waiting_human"}).attention.some(issue=>issue.code==="owner_input"),"parked writers waiting for a decision count as owner input");
 
 const home = mkdtempSync(join(tmpdir(), "kurami-project-status-"));
 try {

@@ -32,11 +32,12 @@ try{
     await delay(250);
     const view=await devtools.evaluate<{label:string;href:string;text:string;collapsed:boolean;fits:boolean;noReviews:boolean}>(`(()=>{
       const panel=document.querySelector('#project-details'),link=panel.querySelector('[data-codex-session]'),details=panel.querySelector('details[data-disclosure-key^="writer-stop:"]'),box=link.getBoundingClientRect();
-      return{geometry:{width:box.width,height:box.height,left:box.left,right:box.right,scrollWidth:document.documentElement.scrollWidth,viewport:innerWidth},label:link.textContent.trim(),href:link.href,text:panel.innerText,collapsed:!details.open,fits:box.width>=44&&box.height>=44&&box.left>=0&&box.right<=innerWidth&&document.documentElement.scrollWidth<=innerWidth,noReviews:!panel.querySelector('[data-review-result], [data-review-run]')};
+      return{geometry:{width:box.width,height:box.height,left:box.left,right:box.right,scrollWidth:document.documentElement.scrollWidth,viewport:innerWidth},label:link.textContent.trim(),href:link.href,text:panel.innerText,collapsed:!details.open,fits:Math.abs(box.width-link.parentElement.getBoundingClientRect().width)<1&&box.height>=32&&box.height<=44&&box.left>=0&&box.right<=innerWidth&&document.documentElement.scrollWidth<=innerWidth,noReviews:!panel.querySelector('[data-review-result], [data-review-run]')};
     })()`);
-    assert.equal(view.label,lang==="ru"?"Открыть сессию Codex":"Open Codex session");
+    assert.equal(view.label,lang==="ru"?"Открыть сессию":"Open session");
     assert.equal(view.href,"https://go.shagon1k.win/codex/threads/00000001-0000-4000-8000-000000000001");
     assert.ok(view.collapsed&&view.fits&&view.noReviews,JSON.stringify(view));
+    assert.equal(await devtools.evaluate(`(()=>{const panel=document.querySelector(".projects-writer-stop"),body=panel.querySelector("p"),link=panel.querySelector("a"),summary=panel.querySelector("summary");return parseFloat(getComputedStyle(body).fontSize)<=14&&Math.abs(link.getBoundingClientRect().left-summary.getBoundingClientRect().left)<1&&parseFloat(getComputedStyle(document.querySelector(".projects-evidence-availability")).fontSize)<=14;})()`),true,"stop notes use compact task typography and left-aligned full-width controls");
     assert.doesNotMatch(view.text,/https:\/\/go\.|Writer final summary unavailable|Unverified|Не подтверждено/);
     assert.deepEqual(await devtools.evaluate(AUDIT_EXPRESSION),[]);
     assert.deepEqual(await devtools.evaluate(inventoryExpression()),[]);
@@ -46,7 +47,7 @@ try{
     assert.equal(await devtools.evaluate("document.querySelector('details[data-disclosure-key^=\"writer-stop:\"]').open"),true);
     assert.equal(writes,0,"Opening diagnostics cannot hand off or restart work");
   }
-  report="Writer report (not delivery proof): "+"Controlled fixture diagnostic. ".repeat(20)+"No commit or PR was created.";
+  report="Run report (not PR verification): "+"Controlled fixture diagnostic. ".repeat(20)+"No commit or PR was created.";
   await devtools.call("Page.navigate",{url:`${base}/?item=item-12`});
   await wait("document.readyState==='complete'&&!!document.querySelector('.projects-writer-report')");
   assert.equal(await devtools.evaluate("document.querySelector('.projects-writer-report').textContent"),report);
