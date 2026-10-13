@@ -20,6 +20,7 @@ export type ProjectsRegistry = {
 };
 
 export type ProgressRow = RunRow & {
+  merged_task_accepted?: number;
   title: string | null;
   repository: string;
 };

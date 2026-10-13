@@ -9,11 +9,11 @@ import { openOrchestratorDatabase } from "../state/database.ts";
 
 process.umask(0o077);
 
-type ProjectConfig = {
+export type ProjectConfig = {
   owner: string;
   project_number: number;
   status_field: string;
-  statuses: { backlog: string; active: string; review: string };
+  statuses: { backlog: string; active: string; review: string; done: string };
 };
 
 type ProjectsRegistry = {
@@ -278,6 +278,50 @@ function recordBacklogSatisfaction(
       JSON.stringify({ fromStatus, toStatus: backlog }),
       run.run_id,
     );
+}
+
+/** Merge acceptance uses the native Project/issue boundary, never a synthetic Done event.
+ * Caller holds the managed-run write fence and validates the exact merged PR. */
+export function completeMergedTask(
+  database: DatabaseSync, config: ProjectConfig, runId: string,
+): void {
+  const run = database.prepare("SELECT * FROM runs WHERE run_id=?").get(runId)!;
+  const endpoint = `repos/${run.repository}/issues/${run.issue_number}`;
+  const issueApi = (method: string): { node_id: string; number: number; state: string; state_reason: string | null; pull_request?: unknown } => {
+    const args = ["api", endpoint, "--method", method];
+    if (method === "PATCH") args.push("-f", "state=closed", "-f", "state_reason=completed");
+    return JSON.parse(execFileSync("gh", args, { encoding: "utf8", stdio: ["ignore", "pipe", "pipe"], timeout: 30_000 }));
+  };
+  const issue = issueApi("GET");
+  if (issue.pull_request || issue.node_id !== run.content_id || issue.number !== run.issue_number)
+    fail("Merged task issue identity changed");
+  const target = resolveProject(config, config.statuses.done);
+  const readItem = () => {
+    const response = ghGraphql(`query($item: ID!, $field: String!) {
+      node(id:$item) { ... on ProjectV2Item { id isArchived project { id }
+        content { ... on Issue { id number repository { nameWithOwner } } }
+        fieldValueByName(name:$field) { ... on ProjectV2ItemFieldSingleSelectValue { name } }
+      } }
+    }`, { item: String(run.item_id), field: config.status_field }) as { data?: { node?: {
+      id: string; isArchived: boolean; project: { id: string };
+      content: { id: string; number: number; repository: { nameWithOwner: string } };
+      fieldValueByName?: { name: string };
+    } }; errors?: unknown[] };
+    const item = response.data?.node;
+    if (response.errors?.length || !item || item.id !== run.item_id || item.isArchived ||
+      item.project?.id !== target.projectId || item.content?.id !== run.content_id ||
+      item.content.number !== run.issue_number || item.content.repository?.nameWithOwner !== run.repository)
+      fail("Merged task Project item identity changed");
+    return item.fieldValueByName?.name ?? null;
+  };
+  if (readItem() !== config.statuses.done) moveItem(String(run.item_id), target);
+  if (readItem() !== config.statuses.done) fail("Merged task Project completion not confirmed");
+  if (issue.state !== "closed" || issue.state_reason !== "completed") issueApi("PATCH");
+  const confirmed = issueApi("GET");
+  if (confirmed.node_id !== run.content_id || confirmed.number !== run.issue_number ||
+    confirmed.state !== "closed" || confirmed.state_reason !== "completed")
+    fail("Merged task issue completion not confirmed");
+  // Only the normal poller may update Project snapshots and emit status events.
 }
 
 export async function runProjectStatusCli(): Promise<void> {

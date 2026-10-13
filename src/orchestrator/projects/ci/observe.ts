@@ -6,6 +6,7 @@ import { resolveKuramiHome } from "../../../core/kurami-home.ts";
 import { DatabaseSync } from "node:sqlite";
 import { parse } from "yaml";
 import { requestMergedDeliveryCompletion } from "./merged-delivery.ts";
+import type { ProjectConfig as StatusProjectConfig } from "../project-status.ts";
 import type { SourceProject } from "../worktrees/refresh-source.ts";
 import { openOrchestratorDatabase } from "../../state/database.ts";
 
@@ -30,7 +31,7 @@ type ValidatedCiPolicy =
       required_checks: string[];
       missing_grace_minutes: number;
     };
-type ProjectConfig = SourceProject & {
+type ProjectConfig = SourceProject & StatusProjectConfig & {
   ci?: CiPolicy;
 };
 type ProjectsRegistry = {
@@ -88,6 +89,8 @@ type Observation = {
   checks: NormalizedCheck[];
   error: string | null;
   merged: boolean;
+  mergedAt?: string | null;
+  mergeCommitSha?: string | null;
 };
 
 const orchestratorHome = resolveKuramiHome(
@@ -366,6 +369,8 @@ function observeRun(
         checks: [],
         error: null,
         merged: Boolean(pull.merged_at),
+        mergedAt: pull.merged_at,
+        mergeCommitSha: pull.merge_commit_sha,
       };
     }
     const firstObservedAt =
@@ -394,6 +399,8 @@ function observeRun(
       checks: normalized.checks,
       error: null,
       merged: Boolean(pull.merged_at),
+      mergedAt: pull.merged_at,
+      mergeCommitSha: pull.merge_commit_sha,
     };
   } catch (error) {
     return {
@@ -581,8 +588,9 @@ export async function runCiObserverCli(): Promise<void> {
       if (apply) storeObservation(database, run, observation, now);
       const delivery = apply && observation.merged && observation.pullRequestNumber &&
         observation.pullRequestUrl && observation.headSha
-        ? requestMergedDeliveryCompletion(database, projectConfig, run.run_id, {
+        ? await requestMergedDeliveryCompletion(database, projectConfig, run.run_id, {
             number: observation.pullRequestNumber, url: observation.pullRequestUrl, headSha: observation.headSha,
+            mergedAt: observation.mergedAt!, mergeCommitSha: observation.mergeCommitSha ?? null,
           }) : null;
       results.push({
         delivery,

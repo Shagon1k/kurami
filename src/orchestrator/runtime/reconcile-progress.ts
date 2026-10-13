@@ -113,12 +113,33 @@ function progressFor(
   run: ProgressRow,
   config: OrchestratorConfig,
 ): { stage: string; detail: string } {
+  if (["archived", "cancelled"].includes(run.run_state) &&
+    (run.resource_state !== "released" || run.preview_lease_id)) return {
+    stage: "needs_attention",
+    detail: "Terminal run still has managed resources; inspect cleanup before reporting release.",
+  };
+  if (run.run_state === "archived") {
+    return {
+      stage: "completed",
+      detail: "Run completed and managed resources were released.",
+    };
+  }
+  if (run.run_state === "cancelled") {
+    return {
+      stage: "cancelled",
+      detail: "Run was cancelled and is no longer active.",
+    };
+  }
   if (run.run_state === "stopping") {
     return {
       stage: "stopping",
       detail: "Stopping active resources and checking cleanup safety.",
     };
   }
+  if (run.merged_task_accepted && run.stop_reason !== "cancelled") return {
+    stage: "needs_attention",
+    detail: "Task accepted by its verified merged PR. Resource cleanup is blocked; managed work is preserved.",
+  };
   if (
     run.run_state === "needs_attention" &&
     run.stop_reason === "completed" &&
@@ -130,6 +151,8 @@ function progressFor(
     };
   }
   if (
+    !run.merged_task_accepted &&
+    !["archived", "cancelled", "failed", "needs_attention"].includes(run.run_state) &&
     run.preview_required === 1 &&
     run.completion_requested_at !== null &&
     !previewEvidenceCurrent(run)
@@ -329,18 +352,6 @@ function progressFor(
       detail: "The run is waiting for Alex's decision.",
     };
   }
-  if (run.run_state === "archived") {
-    return {
-      stage: "completed",
-      detail: "Run completed and managed resources were released.",
-    };
-  }
-  if (run.run_state === "cancelled") {
-    return {
-      stage: "cancelled",
-      detail: "Run was cancelled and is no longer active.",
-    };
-  }
   if (run.run_state === "needs_attention" && run.stop_reason === "cancelled") {
     return {
       stage: "cancelled_work_preserved",
@@ -376,7 +387,12 @@ export function reconcileProgressCards(
   const runs = database
     .prepare(
       `
-    SELECT base.*, pe.title, r.repository
+    SELECT base.*, pe.title, r.repository,
+      EXISTS (SELECT 1 FROM run_state_history h JOIN run_ci_snapshots ci USING(run_id)
+        WHERE h.run_id=r.run_id AND h.reason='merged_task_accepted'
+          AND json_extract(h.details_json,'$.headSha')=ci.head_sha
+          AND json_extract(h.details_json,'$.number')=ci.pull_request_number
+          AND json_extract(h.details_json,'$.url')=ci.pull_request_url) AS merged_task_accepted
     FROM (${baseRunSelect()}) AS base
     JOIN runs r ON r.run_id = base.run_id
     JOIN project_events pe ON pe.event_id = r.trigger_event_id

@@ -59,7 +59,7 @@ Labels sit on the GitHub issue itself and are read at the moment the card moves.
 | Label | What it changes |
 |---|---|
 | `human-control` | The run starts under your control: Codex takes its first turn, then the session is handed to you in the Codex app. Limits and checks are the same. See [Human control](@human-control) |
-| `preview-required` | A move to Done does not complete the run until you open the preview of the exact commit and mark it reviewed. See [Previews](@previews) |
+| `preview-required` | Before a verified merge of the exact task PR, a move to Done does not complete the run until you open the preview of the exact commit and mark it reviewed. See [Previews](@previews) |
 
 ## Why an issue did not start
 
@@ -77,14 +77,16 @@ There is no automatic retry. To retry, move the card to Backlog and back to In p
 
 ## What Kurami moves itself
 
-Kurami performs only two moves. When autonomous Codex has finished and the PR and CI are known, Kurami moves the card from In progress to **Human Review**. When a cancelled run has fully released its resources, Kurami moves the card to **Backlog**, so a cancelled issue does not sit in progress and your next move to In progress is a fresh start. Kurami records these moves on its side, so it does not mistake them for yours.
+Kurami performs lifecycle moves. When autonomous Codex has finished and the PR and CI are known, Kurami moves the card from In progress to **Human Review**. When a cancelled run has fully released its resources, Kurami moves the card to **Backlog**, so a cancelled issue does not sit in progress and your next move to In progress is a fresh start. Kurami records these moves on its side, so it does not mistake them for yours.
+
+A verified merge of the exact managed PR also accepts the task: Kurami confirms native Project **Done** and closes the associated issue as completed. Local Project snapshots and events remain unchanged until the normal poller observes GitHub. Existing pending PR and awaiting-sync status receipts are reconciled through their native managers using the original keyed identity, without repeating merge or status writes. Running or uncertain writers still block acceptance.
 
 How an issue is checked, how limits are counted and how names are chosen is described in [Admission](@project-admission). How the board turns into events is in [From board to event](@event-intake).
 
 :::guarantees
 - A run starts only from a card move: neither the baseline nor a card created directly in In progress begins work.
 - A move to Backlog or Deferred cancels the run but never deletes unsaved or published work.
-- Kurami moves cards itself only to Human Review and to Backlog.
+- Kurami moves cards to Human Review, returns cancelled tasks to Backlog, and confirms Done after an exact verified merge.
 :::
 
 :::code-map

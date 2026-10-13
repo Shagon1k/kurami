@@ -36,13 +36,13 @@ self ctl "delete copy and branch"
 note ctl "archived"
 ```
 
-## Merge is delivery, not issue acceptance
+## Merge accepts the exact task
 
-A merged exact managed PR can complete a quiescent `parked_review` run without a Project Done transition. Kurami checks the tracked PR identity, exact HEAD and passing CI, clean canonical worktree, no active owner or worker, no newer run or pending control, and owner-reviewed exact preview evidence when `preview-required` applies. A previously released reviewed preview still counts for that SHA. Remote-owned work is retained, not seized.
+A verified merge of the tracked managed task PR is sufficient owner acceptance, even with `preview-required` and no Preview lease or review mark. Kurami matches the repository, PR, base branch, managed branch and HEAD, and the exact run, Project item and issue. A merely closed PR, stale identity, newer run, cancellation or active control/Project/PR request cannot accept another task. No Project Done event is required.
 
-The observer records `merged_delivery_completion_requested`, not a synthetic Done event. The ordinary controller then removes preview routing/runtime and releases its lease before the guarded worktree release. Release checks the same PR and source again; only successful removal produces `archived` / `released` and a Completed run card. A refusal preserves work and reports its reason; cancellation is never turned into completion.
+The observer uses the native Project/issue boundary to confirm the exact item is Done and the issue is closed as completed, then records `merged_task_accepted` with genuine merge provenance and a Preview waiver. It does not fabricate a lease, runtime verification, review mark or Done event, and does not depend on `Closes #N` or external board automation.
 
-This does **not** close the issue or change its Project status. A partial PR uses `Refs #N`; the remaining acceptance stays open and the owner chooses Backlog or a follow-up. For fully accepted deliveries, GitHub closing keywords (`Closes #N`) can close the issue on merge into the default branch; a configured Project closed-issue automation can then move it to Done. Kurami neither enables that automation nor claims a partial delivery satisfies the issue.
+Acceptance and cleanup are separate outcomes. Existing CI checks remain unchanged; cleanup still requires passed exact-head CI, a clean owned canonical worktree, no active owner/worker and no newer run or pending request. A blocker leaves the accepted task Done while resources remain preserved with attention. A fresh merge observation retries guarded cleanup. The normal controller stops Preview routing/runtime and releases the lease before worktree/branch release. Only successful release produces `archived` / `released`; terminal cards cannot show stale Preview required.
 
 ## Two intents
 
@@ -54,7 +54,7 @@ Kurami tells two intents apart and records them in `stop_reason`: `completed` â€
 | Move it from In progress or Human Review to Backlog or Deferred | `stopping`, `stop_reason=cancelled` | `cancelled`, or `needs_attention` with the work preserved |
 | Press **Cancel run** | the same; other pending requests are rejected | the same |
 
-Cancellation outranks the other signals: once it is requested, moving to Done or Human Review does not undo it. An issue with the `preview-required` label waits at Done until you mark the preview of the current commit as reviewed; only then does the run move to `stopping`. How this looks in Discord is in [Board statuses](@board-statuses), [Previews](@previews) and [Controls in Discord](@owner-controls).
+Cancellation outranks the other signals: once it is requested, moving to Done or Human Review does not undo it. Before a verified exact task PR merge, an issue with the `preview-required` label waits at Done until you mark the preview of the current commit as reviewed; only then does the run move to `stopping`. How this looks in Discord is in [Board statuses](@board-statuses), [Previews](@previews) and [Controls in Discord](@owner-controls).
 
 ## Stopping
 
