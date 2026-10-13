@@ -23,7 +23,7 @@ function discord(facts: ProjectRunFacts): string {
 }
 assert.deepEqual(projectRunStatus(base).attention.map(issue => issue.code), ["ci_unrepaired", "review_unrepaired"]);
 assert(discord(base).includes("kurami:ci_repair:r_shared"));
-assert(discord(base).includes('"value":"review_fix"'));
+assert(discord(base).includes("review_fix_all"));
 for (const fields of [
   {ci_repair_state: "running", ci_repair_head_sha: "current-head"},
   {ci_repair_state: "waiting_ci", ci_repair_head_sha: "old-head", ci_repair_result_head_sha: "current-head"},
@@ -44,14 +44,14 @@ for (const fields of [{review_fix_request_active_count: 1}, {review_fix_state: "
   const facts = {...base, ...fields};
   assert.equal(projectRunStatus(facts).reviewFixBusy, true);
   assert.deepEqual(projectRunStatus(facts).attention, []);
-  assert(!discord(facts).includes('"value":"review_fix"'));
+  assert(!discord(facts).includes("review_fix_all"));
 }
 const staleReview = {...base, ai_review_head_sha: "old-head"};
 assert.equal(projectRunStatus(staleReview).reviewFindings, 0);
-assert(!discord(staleReview).includes('"value":"review_fix"'));
+assert(!discord(staleReview).includes("review_fix_all"));
 const suggestions = {...base, ai_review_critical_count: 0, ai_review_important_count: 0};
 assert(!projectRunStatus(suggestions).attention.some(issue => issue.code === "review_unrepaired"), "suggestions alone do not raise alerts");
-assert(discord(suggestions).includes('"value":"review_fix"'), "owner can still choose to fix suggestions");
+assert(discord(suggestions).includes("review_fix_all"), "owner can still choose to fix suggestions");
 for (const stage of ["cancelled", "completed", "cancelled_work_preserved"]) assert.deepEqual(projectRunStatus({...base, stage}).attention, []);
 assert.equal(projectRunStatus({...base, run_state: "failed"}).attention[0].severity, "critical");
 assert.equal(projectRunStatus({...base, run_state: "waiting_human"}).attention[0].code, "owner_input");

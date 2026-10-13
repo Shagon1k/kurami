@@ -15,9 +15,9 @@ import { openOrchestratorDatabase } from "../orchestrator/state/database.ts";
 
 export const RUN_ACTIONS = ["take_control","preview_start","preview_stop","preview_reviewed","ci_repair","review_fix","recover_managed_task","stop","discard_local","discard_published"] as const;
 export type RunAction = typeof RUN_ACTIONS[number];
-export type RunActionInput = {runId:string;project:string;itemId:string;action:RunAction;fingerprint:string;key:string;confirmed:boolean;profile?:ReviewProfile};
+export type RunActionInput = {runId:string;project:string;itemId:string;action:RunAction;fingerprint:string;key:string;confirmed:boolean;profile?:ReviewProfile;allReviews?:boolean};
 export type RunActionView = {fingerprint:string;reason:string;actions:{action:RunAction;label:string;enabled:boolean;confirmation:string|null;hint:string|null;state:string|null}[]};
-type Pending = {review_profile:ReviewProfile;request_id:string;action:string;request_state:string;requested_via:string};
+type Pending = {review_fix_all:number;review_profile:ReviewProfile;request_id:string;action:string;request_state:string;requested_via:string};
 type Run = Record<string,unknown> & {available_actions:string[]};
 const labels: Record<RunAction,string> = {take_control:"Взять управление",preview_start:"Запустить превью",preview_stop:"Убрать превью",preview_reviewed:"Превью проверено",
   ci_repair:"Исправить CI",review_fix:"Исправить замечания",recover_managed_task:"Восстановить исправление",stop:"Отменить запуск",discard_local:"Удалить локальную работу",discard_published:"Закрыть draft PR и удалить работу"};
@@ -28,8 +28,8 @@ function fingerprint(run: Run): string {
     run.resource_state,run.branch_name,run.worktree_path,run.codex_thread_id,run.previous_codex_thread_id,run.tmux_session_name,run.ci_head_sha,run.ci_pull_request_url,
     run.preview_lease_id,run.preview_state,run.preview_verified_head_sha,run.preview_artifact_digest,run.preview_expires_at,run.preview_reviewed_at])).digest("hex");
 }
-function readRun(database: DatabaseSync, runId: string, home: string, now: Date, profile: ReviewProfile = "general"): Run {
-  return availableRunControls(database,runId,{home,now:now.getTime(),profile}) as Run;
+function readRun(database: DatabaseSync, runId: string, home: string, now: Date, profile: ReviewProfile = "general", allReviews = false): Run {
+  return availableRunControls(database,runId,{home,now:now.getTime(),profile,allReviews}) as Run;
 }
 function candidates(run: Run, now: Date): Set<string> {
   const choices = new Set(run.available_actions);
@@ -44,15 +44,15 @@ function candidates(run: Run, now: Date): Set<string> {
 }
 
 /** Reads the existing control menu. Paths and worker payloads never enter this view. */
-export function projectRunActions(database: DatabaseSync, runId: string, home: string, now: Date, fresh: boolean, profile: ReviewProfile = "general"): RunActionView {
+export function projectRunActions(database: DatabaseSync, runId: string, home: string, now: Date, fresh: boolean, profile: ReviewProfile = "general", allReviews = false): RunActionView {
   if (!database.prepare("SELECT 1 FROM sqlite_master WHERE type='table' AND name='project_action_requests'").get())
     return {fingerprint:"",reason:"unavailable",actions:[]};
-  const run = readRun(database,runId,home,now,profile);
+  const run = readRun(database,runId,home,now,profile,allReviews);
   const eligible = candidates(run,now);
   const prPending=hasActivePrRequest(database,runId);
-  const requests = database.prepare("SELECT request_id,action,request_state,requested_via,review_profile FROM run_control_requests WHERE run_id=? ORDER BY rowid DESC").all(runId) as Pending[];
+  const requests = database.prepare("SELECT request_id,action,request_state,requested_via,review_profile,review_fix_all FROM run_control_requests WHERE run_id=? ORDER BY rowid DESC").all(runId) as Pending[];
   const actions = RUN_ACTIONS.flatMap(action => {
-    const latest = requests.find(request => request.action === action && (action !== "review_fix" || request.review_profile === profile));
+    const latest = requests.find(request => request.action === action && (action !== "review_fix" || (request.review_profile === profile && Boolean(request.review_fix_all) === allReviews)));
     const pending = latest && ["pending","processing"].includes(latest.request_state);
     if (!eligible.has(action) && !pending && !["failed","rejected"].includes(latest?.request_state ?? "")) return [];
     const label = action === "take_control" ? run.take_control_autonomous ? "Продолжить автономно" : labels[action] :
@@ -76,7 +76,10 @@ export function parseRunActionInput(value: unknown): RunActionInput {
     throw new ProjectsActionError(400,"Некорректный запрос действия.");
   try { const profile = parseReviewProfile(input.profile);
     if (profile !== "general" && input.action !== "review_fix") throw new Error();
-    return {...input,profile};
+    if (input.allReviews !== undefined && typeof input.allReviews !== "boolean") throw new Error();
+    const allReviews = input.allReviews ?? false;
+    if (allReviews && (input.action !== "review_fix" || profile !== "general")) throw new Error();
+    return {...input,profile,allReviews};
   } catch { throw new ProjectsActionError(400,"Unsupported review profile."); }
 }
 
@@ -92,7 +95,7 @@ export function requestProjectRunAction(value: unknown, actor: string, options: 
   const database = openOrchestratorDatabase(path,{timeoutMs:1000}); let began = false;
   try {
     database.exec("BEGIN IMMEDIATE"); began=true;
-    const key = "projects-action:" + createHash("sha256").update(JSON.stringify([actor,input.runId,input.project,input.itemId,input.action,input.profile,input.fingerprint,input.key])).digest("hex");
+    const key = "projects-action:" + createHash("sha256").update(JSON.stringify([actor,input.runId,input.project,input.itemId,input.action,input.profile,input.fingerprint,input.key,...(input.allReviews?["all-reviews"]:[])])).digest("hex");
     const previous = database.prepare("SELECT a.request_id,q.request_state FROM project_action_requests a LEFT JOIN run_control_requests q ON q.request_id=a.request_id WHERE a.idempotency_key=?").get(key) as {request_id:string|null;request_state:string|null} | undefined;
     if (previous) { database.exec("COMMIT"); began=false; return {state:"existing",requestId:previous.request_id ?? key,requestState:previous.request_state ?? "applied"}; }
     if(hasActivePrRequest(database,input.runId))throw new ProjectsActionError(409,"GitHub is processing this PR action.");
@@ -102,13 +105,13 @@ export function requestProjectRunAction(value: unknown, actor: string, options: 
     const age = now.getTime()-Date.parse(poll?.last_captured_at ?? "");
     if (!poll || poll.last_attempt_state !== "succeeded" || !Number.isFinite(age) || age < 0 || age >= PROJECTS_STALE_AFTER_MS)
       throw new ProjectsActionError(409,"Синхронизация задерживается. Дождитесь свежих данных.");
-    const run = readRun(database,input.runId,home,now,input.profile);
+    const run = readRun(database,input.runId,home,now,input.profile,input.allReviews);
     if (run.execution_mode !== "live" || fingerprint(run) !== input.fingerprint)
       throw new ProjectsActionError(409,"Состояние запуска изменилось. Обновите страницу перед действием.");
-    const pending = database.prepare("SELECT request_id,requested_via,request_state,review_profile FROM run_control_requests WHERE run_id=? AND action=? AND request_state IN ('pending','processing') ORDER BY rowid DESC LIMIT 1").get(input.runId,input.action) as Pending | undefined;
+    const pending = database.prepare("SELECT request_id,requested_via,request_state,review_profile,review_fix_all FROM run_control_requests WHERE run_id=? AND action=? AND request_state IN ('pending','processing') ORDER BY rowid DESC LIMIT 1").get(input.runId,input.action) as Pending | undefined;
     let requestId: string | null = null; let requestState = "applied"; let existing = false;
     if (pending) {
-      if (input.action === "review_fix" && pending.review_profile !== input.profile) throw new ProjectsActionError(409,"Another review profile is already queued. Wait for its result.");
+      if (input.action === "review_fix" && (pending.review_profile !== input.profile || Boolean(pending.review_fix_all) !== input.allReviews)) throw new ProjectsActionError(409,"Another review profile is already queued. Wait for its result.");
       if (["ci_repair","review_fix"].includes(input.action) && !reviewContextMatches(database,pending.request_id,String(run.ci_head_sha),String(run.ci_pull_request_url)))
         throw new ProjectsActionError(409,"Действие другого коммита уже в очереди.");
       requestId=pending.request_id; requestState=pending.request_state; existing=true;
@@ -117,7 +120,7 @@ export function requestProjectRunAction(value: unknown, actor: string, options: 
       if (input.action === "preview_reviewed") acknowledgePreview(database,input.runId,"projects:"+createHash("sha256").update(actor).digest("hex"),true,{now:now.getTime()});
       else {
         try {
-          const result = requestRunControl(database,input.runId,input.action as Action,"projects",true,{home,idempotencyKey:key,profile:input.profile});
+          const result = requestRunControl(database,input.runId,input.action as Action,"projects",true,{home,idempotencyKey:key,profile:input.profile,allReviews:input.allReviews});
           requestId=String(result.requestId ?? result.request_id); requestState=String(result.requestState ?? result.request_state); existing=result.action === "existing";
         } catch { throw new ProjectsActionError(409,"Действие больше недоступно. Обновите страницу."); }
         if (["ci_repair","review_fix"].includes(input.action)) {

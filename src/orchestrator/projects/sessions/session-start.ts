@@ -124,11 +124,11 @@ export async function loadReviewFixContext(
 ): Promise<ReviewFixContext> {
   const request = database
     .prepare(
-      `SELECT review_profile FROM run_control_requests
+      `SELECT review_profile, review_fix_all FROM run_control_requests
        WHERE request_id = ? AND run_id = ? AND action = 'review_fix'
          AND request_state = 'pending'`,
     )
-    .get(requestId, run.run_id) as {review_profile:string} | undefined;
+    .get(requestId, run.run_id) as {review_profile:string;review_fix_all:number} | undefined;
   if (!request) fail("Review fix request is no longer pending");
   if (
     database
@@ -156,13 +156,16 @@ export async function loadReviewFixContext(
   if (!reviewContextMatches(database,requestId,snapshot.head_sha,snapshot.pull_request_url))
     fail("Projects review fix request refers to a different PR or commit");
   const profile = parseReviewProfile(request.review_profile);
+  const allReviews = Boolean(request.review_fix_all);
   const readyReviews = database
     .prepare(
-      `SELECT review_id, github_review_id FROM run_ai_reviews
-       WHERE run_id = ? AND head_sha = ? AND review_profile = ? AND review_state = 'ready'
+      `SELECT review_id, github_review_id FROM run_ai_reviews a
+       WHERE run_id = ? AND head_sha = ? AND (? = 1 OR review_profile = ?) AND review_state = 'ready'
+         AND NOT EXISTS(SELECT 1 FROM run_ai_reviews newer WHERE newer.run_id=a.run_id
+           AND newer.review_profile=a.review_profile AND newer.review_number>a.review_number)
        ORDER BY review_number`,
     )
-    .all(run.run_id, snapshot.head_sha, profile) as Array<{ review_id: string; github_review_id: string | null }>;
+    .all(run.run_id, snapshot.head_sha, Number(allReviews), profile) as Array<{ review_id: string; github_review_id: string | null }>;
   if (readyReviews.length === 0) fail("No ready review for the selected profile and current PR SHA");
   const validReviewIds = new Set(readyReviews.map((row) => row.review_id));
   const credentials = await loadGitHubAppCredentialsFromFile(orchestratorHome);
@@ -175,7 +178,7 @@ export async function loadReviewFixContext(
     snapshot.head_sha,
     validReviewIds,
   );
-  const selectedThreads = profile === "clarity" ? threads.filter(thread => thread.sourceKind === "ai") : threads;
+  const selectedThreads = !allReviews && profile === "clarity" ? threads.filter(thread => thread.sourceKind === "ai") : threads;
   const summaryFindings = await fetchSummaryOnlyReviewFindings(
     token,
     run.repository,
@@ -211,6 +214,7 @@ export async function loadReviewFixContext(
     pullRequestUrl: snapshot.pull_request_url,
     threads: selectedThreads,
     profile,
+    allReviews,
     summaryOnlyFindings: unthreadedSummaryFindings,
   };
 }
@@ -451,7 +455,7 @@ function claimRepairSession(
   }
 }
 
-function claimReviewFixSession(
+export function claimReviewFixSession(
   database: DatabaseSync,
   run: SessionRun,
   plan: StartPlan,
@@ -503,8 +507,8 @@ function claimReviewFixSession(
         `INSERT INTO run_review_fix_rounds (
            round_id, run_id, request_id, round_number, round_state,
            repository, pull_request_number, pull_request_url,
-           source_head_sha, snapshot_json, review_profile
-         ) VALUES (?, ?, ?, ?, 'running', ?, ?, ?, ?, ?, ?)`,
+           source_head_sha, snapshot_json, review_profile, review_fix_all
+         ) VALUES (?, ?, ?, ?, 'running', ?, ?, ?, ?, ?, ?, ?)`,
       )
       .run(
         fix.roundId,
@@ -517,6 +521,7 @@ function claimReviewFixSession(
         fix.sourceHeadSha,
         JSON.stringify(fix.threads),
         fix.profile ?? "general",
+        Number(fix.allReviews ?? false),
       );
     const insertThread = database.prepare(
       `INSERT INTO run_review_fix_threads (

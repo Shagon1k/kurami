@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { execFileSync } from "node:child_process";
-import { createHash, randomUUID } from "node:crypto";
+import { createHash, generateKeyPairSync, randomUUID } from "node:crypto";
 import { mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
@@ -125,6 +125,11 @@ export function verifyReviewProfiles(): void {
     const snapshot = collectProjectsSnapshot({home,now,controlsEnabled:true});
     assert.equal(snapshot.available,true); assert.equal(snapshot.items[0]!.reviews?.general.state,"none"); assert.equal(snapshot.items[0]!.reviews?.clarity.state,"ready");
     assert.equal(projectRunActions(database,"r_profile",home,now,true).actions.some(action=>action.action==="review_fix"),false);
+    assert.equal(snapshot.items[0]!.runActions?.actions.find(action=>action.action==='review_fix')?.enabled,true,'one ready Clarity profile enables the combined fix');
+    const queuedGeneral=requestProjectsReview({...input,profile:'general',key:randomUUID()},'owner',{home,now});
+    assert.equal(projectRunActions(database,'r_profile',home,now,true,'general',true).actions.some(action=>action.action==='review_fix'&&action.enabled),false,'combined fix waits for queued reviewers too');
+    assert.throws(()=>requestRunControl(database,'r_profile','review_fix','discord',true,{home,allReviews:true}),/conflicts with queued/);
+    database.prepare("UPDATE run_control_requests SET request_state='rejected' WHERE request_id=?").run(queuedGeneral.requestId);
     const view = projectRunActions(database,"r_profile",home,now,true,"clarity");
     assert.equal(view.actions.find(action=>action.action==="review_fix")?.enabled,true);
     const fix = requestProjectRunAction({runId:"r_profile",project:"alpha",itemId:"item",action:"review_fix",profile:"clarity",fingerprint:view.fingerprint,key:randomUUID(),confirmed:false},"owner",{home,now});
@@ -132,5 +137,26 @@ export function verifyReviewProfiles(): void {
     assert.equal(readReviewEvidence(database,"r_profile","clarity",head).fix?.state,"queued");
     assert.equal(readReviewEvidence(database,"r_profile","general",head).fix,undefined);
     assert.equal(readReviewEvidence(database,"r_profile","clarity",base).state,"outdated");
+    assert.equal(database.prepare("SELECT review_fix_all FROM run_control_requests WHERE request_id=?").get(fix.requestId)?.review_fix_all,0,'targeted request retains its scope');
+    database.prepare("UPDATE run_control_requests SET request_state='applied' WHERE request_id=?").run(fix.requestId);
+    database.exec(`INSERT INTO run_control_requests(request_id,run_id,action,requested_via,idempotency_key,request_state) VALUES('rq_cafe','r_profile','ai_review','cli','cafe','applied');
+      INSERT INTO run_ai_reviews(review_id,run_id,request_id,review_number,review_profile,review_state,repository,pull_request_number,pull_request_url,base_ref,base_sha,head_sha,tmux_session_name,important_count,github_review_id)
+      SELECT 'air_cafe',run_id,'rq_cafe',3,'general','ready',repository,pull_request_number,pull_request_url,base_ref,base_sha,head_sha,'rv-general',1,'22'
+      FROM run_ai_reviews WHERE review_profile='clarity';`);
+    database.prepare("UPDATE run_ai_reviews SET github_review_id='11' WHERE review_profile='clarity'").run();
+    const allView=projectRunActions(database,"r_profile",home,now,true,"general",true);
+    assert.equal(allView.actions.find(action=>action.action==='review_fix')?.enabled,true);
+    const allInput={runId:'r_profile',project:'alpha',itemId:'item',action:'review_fix',allReviews:true,fingerprint:allView.fingerprint,key:randomUUID(),confirmed:false};
+    const combined=requestProjectRunAction(allInput,'owner',{home,now});
+    assert.equal(requestProjectRunAction(allInput,'owner',{home,now}).requestId,combined.requestId);
+    assert.equal(requestRunControl(database,'r_profile','review_fix','discord',true,{home,allReviews:true}).request_id,combined.requestId,'Discord and Projects share one combined request');
+    assert.throws(()=>requestProjectRunAction({...allInput,profile:'clarity',allReviews:false,key:randomUUID()},'owner',{home,now}),/already queued/,'a targeted request cannot become a second writer');
+    assert.equal(readReviewEvidence(database,'r_profile','general',head).fix?.state,'queued');
+    assert.equal(readReviewEvidence(database,'r_profile','clarity',head).fix?.state,'queued');
+    const secrets=join(home,'secrets');mkdirSync(secrets,{mode:0o700});
+    const keyFile=join(secrets,'review.pem');
+    writeFileSync(keyFile,generateKeyPairSync('rsa',{modulusLength:2048}).privateKey.export({type:'pkcs8',format:'pem'}),{mode:0o600});
+    writeFileSync(join(secrets,'github-reviewer-app.env'),`KURAMI_GITHUB_REVIEWER_APP_ID=1\nKURAMI_GITHUB_REVIEWER_INSTALLATION_ID=2\nKURAMI_GITHUB_REVIEWER_PRIVATE_KEY_FILE=${keyFile}\n`,{mode:0o600});
+    execFileSync(process.execPath,[resolve(app,'tests/combined-review-fixes.ts'),combined.requestId],{env:{...process.env,KURAMI_HOME:home},stdio:'pipe'});
   } finally { database.close(); rmSync(home,{recursive:true,force:true}); }
 }

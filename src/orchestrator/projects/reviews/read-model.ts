@@ -24,9 +24,9 @@ export function readReviewEvidence(database: DatabaseSync, runId: string, profil
     : latest?.review_state === "ready" && !currentHead ? "unverified"
     : String(latest?.review_state ?? "none");
   const fix = database.prepare(`SELECT round_state,round_number FROM run_review_fix_rounds
-    WHERE run_id=? AND review_profile=? ORDER BY round_number DESC LIMIT 1`).get(runId, profile);
+    WHERE run_id=? AND (review_profile=? OR review_fix_all=1) ORDER BY round_number DESC LIMIT 1`).get(runId, profile);
   const fixQueued = database.prepare(`SELECT 1 FROM run_control_requests WHERE run_id=?
-    AND action='review_fix' AND review_profile=? AND request_state IN ('pending','processing')`).get(runId, profile);
+    AND action='review_fix' AND (review_profile=? OR review_fix_all=1) AND request_state IN ('pending','processing')`).get(runId, profile);
   return {
     state, head, requestState, critical: Number(latest?.critical_count ?? 0),
     important: Number(latest?.important_count ?? 0), suggestions: Number(latest?.suggestion_count ?? 0),

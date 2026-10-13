@@ -890,7 +890,7 @@ async function main(): Promise<void> {
     assert(
       reviewedText.includes("AI Review Ready") &&
         controlIds(currentDashboard()).includes(
-          "kurami:review_fix:r_discord_smoke",
+          "kurami:review_fix_all:r_discord_smoke",
         ) &&
         reviewedText.includes(
           "1 Critical · 2 Important · 3 Suggestions",
@@ -921,7 +921,8 @@ async function main(): Promise<void> {
     assert(clarityReadyText.includes("**🧩 Clarity Review**") &&
       clarityReadyText.includes("0 Critical · 1 Important · 2 Suggestions") &&
       clarityReadyText.includes("[Open review](https://example.invalid/pulls/9401#clarity-review)") &&
-      controlIds(currentDashboard()).includes("kurami:clarity_fix:r_discord_smoke") &&
+      controlIds(currentDashboard()).includes("kurami:review_fix_all:r_discord_smoke") &&
+      !controlIds(currentDashboard()).includes("kurami:clarity_fix:r_discord_smoke") &&
       !controlIds(currentDashboard()).includes("kurami:clarity_review:r_discord_smoke"),
       "Completed Clarity evidence or existing fix action was lost");
     clarityEvidence.exec("UPDATE run_ai_reviews SET review_state='failed' WHERE review_id='air_discord_review'; UPDATE run_ai_reviews SET review_state='running' WHERE review_id='air_discord_clarity';");
@@ -933,7 +934,7 @@ async function main(): Promise<void> {
     await showDashboard();
     assert(!controlIds(currentDashboard()).includes("kurami:ai_review:r_discord_smoke") &&
       !controlIds(currentDashboard()).includes("kurami:clarity_review:r_discord_smoke") &&
-      !controlIds(currentDashboard()).includes("kurami:review_fix:r_discord_smoke"),
+      !controlIds(currentDashboard()).includes("kurami:review_fix_all:r_discord_smoke"),
       "both running profiles hide duplicates and code-changing fixes");
     clarityEvidence.exec("UPDATE run_ai_reviews SET review_state='ready' WHERE review_id IN ('air_discord_review','air_discord_clarity');");
     clarityEvidence.exec(`INSERT INTO run_control_requests (
@@ -974,7 +975,7 @@ async function main(): Promise<void> {
     assert(
       componentText(currentDashboard()).includes("Review fix queued") &&
         !controlIds(currentDashboard()).includes(
-          "kurami:review_fix:r_discord_smoke",
+          "kurami:review_fix_all:r_discord_smoke",
         ) &&
         !componentLabels(currentDashboard()).includes("Start preview"),
       "Queued review fix did not hide conflicting controls",

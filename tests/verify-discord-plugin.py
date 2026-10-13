@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import importlib.util
 import json
 import os
@@ -360,6 +361,27 @@ def main() -> None:
     require(module.parse_run_actions_id("kurami:review_actions:r_abc123", ["clarity_review"]) == ("clarity_review","r_abc123"), "Clarity review menu was rejected")
     require(module.parse_run_actions_id("kurami:fix_actions:r_abc123", ["clarity_fix"]) == ("clarity_fix","r_abc123"), "Clarity fixes menu was rejected")
     require(module.parse_run_actions_id("kurami:review_actions:r_abc123", ["stop"]) is None, "Review menu accepted an unrelated action")
+    require(module.parse_control_id("kurami:review_fix_all:r_abc123") == ("review_fix_all", "r_abc123"), "Combined fix button was rejected")
+    captured_args = []
+    original_spawn = module.asyncio.create_subprocess_exec
+    original_paths = module._paths
+    class ControlProcess:
+        returncode = 0
+        async def communicate(self):
+            return b'{"ok":true,"action":"create"}', b''
+    async def fake_control_spawn(*args, **kwargs):
+        captured_args.append(args)
+        return ControlProcess()
+    module._paths = lambda: (Path(__file__), Path(__file__), Path(__file__))
+    module.asyncio.create_subprocess_exec = fake_control_spawn
+    try:
+        asyncio.run(module._run_control("review_fix_all", "r_abc123"))
+        require(captured_args[-1][-1] == "--all-reviews" and captured_args[-1][captured_args[-1].index("--action") + 1] == "review_fix", "Combined fix did not reach the shared queue")
+        asyncio.run(module._run_control("clarity_fix", "r_abc123"))
+        require(captured_args[-1][-2:] == ("--profile", "clarity"), "Legacy Clarity fix lost its selected profile")
+    finally:
+        module.asyncio.create_subprocess_exec = original_spawn
+        module._paths = original_paths
     for action in ["clarity_review", "clarity_fix"]:
         require(module.parse_run_actions_id("kurami:run_actions:r_abc123", [action]) == (action,"r_abc123"), "Review menu rejected its selected profile")
     for custom_id, values in [
