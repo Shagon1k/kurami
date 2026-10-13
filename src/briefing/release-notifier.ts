@@ -1,3 +1,4 @@
+import { RUN_PROGRESS, RUN_STEPS, runActivity } from "./run-progress.ts";
 import { section } from "./addons/envelopes.ts";
 import {publicDigestUrl} from "./public-url.ts";
 import {WEB_ORIGIN,publicAppUrl} from "../web/routes.ts";
@@ -45,39 +46,10 @@ type RunCardRow = {
   content_digest: string;
 };
 
-const PROGRESS: Record<BriefingRunState, { step: number; label: string }> = {
-  created: { step: 1, label: "Подключаю источники" },
-  "live-collected": { step: 2, label: "Почта, расписание и погода собраны" },
-  "telegram-captured": { step: 3, label: "Telegram-пачка получена" },
-  "capture-validated": { step: 4, label: "Проверяю и объединяю материалы" },
-  editorialized: { step: 5, label: "Сюжеты подготовлены" },
-  prepared: { step: 6, label: "Собираю изображения" },
-  "media-ready": { step: 7, label: "Изображения готовы" },
-  "commit-planned": { step: 8, label: "Завершаю Telegram-гигиену" },
-  "telegram-committed": { step: 9, label: "Публикую страницу" },
-  published: { step: 10, label: "Выпуск готов" },
-  notified: { step: 10, label: "Выпуск готов" },
-  failed: { step: 0, label: "Сборка остановлена" },
-  skipped: { step: 0, label: "Запуск не потребовался" },
-};
-
-/** What Kurami is doing while the run sits in a state: the next stage, said in the first person. */
-const NOW: Partial<Record<BriefingRunState, string>> = {
-  created: "Подключаю источники…",
-  "live-collected": "Листаю Telegram…",
-  "telegram-captured": "Сверяю и объединяю материалы…",
-  "capture-validated": "Пишу сюжеты…",
-  editorialized: "Рисую картинки…",
-  prepared: "Рисую картинки…",
-  "media-ready": "Навожу порядок в Telegram…",
-  "commit-planned": "Навожу порядок в Telegram…",
-  "telegram-committed": "Публикую страницу…",
-};
-const STEPS = 10;
 /** `🦊▰▰▰▰▱▱▱▱▱▱ 4/10`: the fox walks the bar. */
 export function progressBar(step: number): string {
-  const done = Math.max(0, Math.min(STEPS, step));
-  return `🦊${"▰".repeat(done)}${"▱".repeat(STEPS - done)} ${done}/${STEPS}`;
+  const done = Math.max(0, Math.min(RUN_STEPS, step));
+  return `🦊${"▰".repeat(done)}${"▱".repeat(RUN_STEPS - done)} ${done}/${RUN_STEPS}`;
 }
 const COLORS = { success: 0x2f855a, failure: 0xe11d1d, running: 0xd97706, skipped: 0x6b7280 };
 
@@ -185,7 +157,7 @@ export function runCardMessage(input: {
   const { attempt, payload, timeZone, baseUrl, lastCompletedStage } = input;
   const localDate = localDateFromEditionId(attempt.editionId);
   const publicationUrl = publicDigestUrl(`/daily/${localDate}`,"ru",{BRIEFING_PUBLIC_BASE_URL:baseUrl});
-  const progress = PROGRESS[attempt.state];
+  const progress = RUN_PROGRESS[attempt.state];
   const success = attempt.state === "published" || attempt.state === "notified";
   const failure = attempt.state === "failed";
   const skipped = attempt.state === "skipped";
@@ -202,7 +174,7 @@ export function runCardMessage(input: {
       ? [
           {
             name: "Последний завершённый этап",
-            value: lastCompletedStage ? PROGRESS[lastCompletedStage].label : "Запуск только начался",
+            value: lastCompletedStage ? RUN_PROGRESS[lastCompletedStage].label : "Запуск только начался",
             inline: false,
           },
           { name: "Причина", value: safeErrorCode(attempt.errorCode), inline: false },
@@ -222,7 +194,7 @@ export function runCardMessage(input: {
       ? "❌ Выпуск не опубликован. Карточка обновится при восстановлении."
       : skipped
         ? "💤 Сегодня без выпуска."
-        : `⏳ ${NOW[attempt.state] ?? progress.label}`;
+        : `⏳ ${runActivity(attempt.state, "ru")}`;
   const components = success
     ? [{
         type: 1,
@@ -365,8 +337,8 @@ export async function syncBriefingRunCard(
       `).all(attemptId) as Array<{ stage: BriefingRunState }>;
       lastCompletedStage = completed
         .map((receipt) => receipt.stage)
-        .filter((stage) => PROGRESS[stage] && PROGRESS[stage].step > 0)
-        .sort((left, right) => PROGRESS[right].step - PROGRESS[left].step)[0];
+        .filter((stage) => RUN_PROGRESS[stage] && RUN_PROGRESS[stage].step > 0)
+        .sort((left, right) => RUN_PROGRESS[right].step - RUN_PROGRESS[left].step)[0];
     }
   } finally {
     database.close();

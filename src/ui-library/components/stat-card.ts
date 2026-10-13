@@ -39,4 +39,8 @@ export const STAT_CARD_CSS=`
 .ui-meter { height: 5px; overflow: hidden; border-radius: var(--radius); background: var(--surface-section); }
 .ui-meter > span { display: block; width: var(--meter-fill); height: 100%; background: var(--stat-tone); }
 .ui-gauge { display: contents; }
+@media (prefers-reduced-motion: no-preference) and (forced-colors: none) {
+  [data-ui-processing] .ui-meter > span { animation: kurami-processing-meter 4s ease-in-out infinite; }
+}
+@keyframes kurami-processing-meter { 0%, 100% { opacity: 1; } 50% { opacity: .65; } }
 `;

@@ -74,6 +74,22 @@ html[data-kurami-theme="neon"] [data-ui-surface="panel"], html[data-kurami-theme
 html[data-kurami-theme="neon"][data-theme="light"] [data-ui-surface="panel"], html[data-kurami-theme="neon"][data-theme="light"] .stat-card:not(.stat-card--plain) { box-shadow: 0 8px 24px -18px #2a1f3d55; }
 /* A lit segment on the top edge: red on panels, yellow on figure cards. */
 html[data-kurami-theme="neon"] :is([data-ui-surface="panel"], .stat-card:not(.stat-card--plain))::after { content: ""; position: absolute; left: 18px; top: -1px; width: 56px; height: 2px; background: var(--neon-sign); box-shadow: 0 0 10px var(--neon-sign); pointer-events: none; }
+/* A processing panel on a phone carries one slow sweep around its existing bevelled frame. */
+@property --kurami-processing-angle { syntax: "<angle>"; inherits: false; initial-value: 0deg; }
+@keyframes kurami-neon-processing { to { --kurami-processing-angle: 360deg; } }
+@media (max-width: 600px) and (prefers-reduced-motion: no-preference) and (forced-colors: none) {
+  @supports (mask-composite: exclude) {
+    html[data-kurami-theme="neon"] [data-ui-surface][data-ui-processing]::before {
+      content: ""; position: absolute; inset: -1px; padding: 2px;
+      border-radius: inherit; corner-shape: inherit; pointer-events: none;
+      background: conic-gradient(from var(--kurami-processing-angle), transparent 0deg 280deg, var(--neon-sign) 330deg, transparent 360deg);
+      mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+      mask-composite: exclude; animation: kurami-neon-processing 12s linear infinite;
+    }
+    html[data-kurami-theme="neon"] [data-ui-surface][data-ui-processing]::after { content: none; }
+    html[data-kurami-theme="neon"] [data-ui-processing] .ui-meter > span { animation: none; }
+  }
+}
 html[data-kurami-theme="neon"] .stat-card:not(.stat-card--plain)::after { width: 32px; background: var(--neon-volt); box-shadow: 0 0 10px var(--neon-volt); }
 html[data-kurami-theme="neon"] .ui-gauge > .stat-card::after { content: none; }
 html[data-kurami-theme="neon"] [data-ui-surface="lead"] { border-color: var(--neon-sign); background: linear-gradient(135deg, color-mix(in srgb, #ff2233 9%, var(--surface-panel)), var(--surface-panel) 45%); box-shadow: var(--panel-glow); }
@@ -604,6 +620,10 @@ html[data-brand-moment="birthday"] .site-brand::before { content: ""; position: 
 .ui-meter { height: 5px; overflow: hidden; border-radius: var(--radius); background: var(--surface-section); }
 .ui-meter > span { display: block; width: var(--meter-fill); height: 100%; background: var(--stat-tone); }
 .ui-gauge { display: contents; }
+@media (prefers-reduced-motion: no-preference) and (forced-colors: none) {
+  [data-ui-processing] .ui-meter > span { animation: kurami-processing-meter 4s ease-in-out infinite; }
+}
+@keyframes kurami-processing-meter { 0%, 100% { opacity: 1; } 50% { opacity: .65; } }
 
 
 .ui-popover { --popover-top: 80px; --popover-left: 8px; display: none; position: fixed; inset: auto; top: var(--popover-top); left: var(--popover-left); width: min(var(--popover-width,264px),calc(100vw - 16px)); max-height: calc(100dvh - 24px); overflow-y: auto; margin: 0; padding: var(--popover-padding,var(--space-2)); color: var(--text-primary); background: var(--surface-raised); border: 1px solid var(--border-default); border-radius: var(--radius-md); box-shadow: var(--shadow-raised); }

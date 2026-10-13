@@ -25,3 +25,5 @@ assert.equal(skipped.body.embeds[0]!.color, 0x6b7280);
 assert.deepEqual(skipped.body.embeds[0]!.fields, []);
 assert.deepEqual(skipped.body.components, []);
 console.log(JSON.stringify({ ok: true, runCard: "fox bar, live captions, skipped day, colours" }));
+
+await import("./verify-preparation.ts");

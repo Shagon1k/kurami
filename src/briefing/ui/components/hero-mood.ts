@@ -63,5 +63,7 @@ export const HERO_MOOD_STYLES = `
 .hero[data-weather="storm"]::after { opacity: .7; }
 .hero[data-weather="snow"]::after { background: radial-gradient(circle, color-mix(in srgb, var(--text-muted) 55%, transparent) 1.2px, transparent 1.8px) 0 0 / 18px 18px; }
 .hero[data-weather="fog"]::after { background: linear-gradient(180deg, transparent, color-mix(in srgb, var(--surface-panel) 80%, transparent) 60%); opacity: .8; }
+/* Retained editions also receive this override at request time. */
+@media (min-width: 601px) { .hero[data-hero-mood]::before, .hero[data-hero-mood]::after { content: none; } }
 @media (forced-colors: active) { .hero[data-hero-mood]::before, .hero[data-hero-mood]::after { display: none; } }
 `;

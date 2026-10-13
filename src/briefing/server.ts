@@ -1,5 +1,7 @@
+import { digestPreparation } from "./preparation.ts";
+import { injectDigestPreparation, renderDigestPreparation, PREPARATION_SCRIPT } from "./ui/components/preparation.ts";
 import { THEME_CSS } from "../ui-library/themes/index.ts";
-import {mountResponse,WEB_CLIENT_JS} from "../web/presentation.ts";
+import {isMountedRequest,projectHtml,mountResponse,WEB_CLIENT_JS} from "../web/presentation.ts";
 import { CHART_STYLES } from "./ui/charts/styles.ts";
 import { CHART_CLIENT_SCRIPT } from "./ui/charts/client.ts";
 import {STOCKS_CLIENT_SCRIPT} from "./stocks/client.ts";
@@ -102,7 +104,7 @@ const CSP = [
   "style-src 'self' 'unsafe-inline'",
 ].join("; ");
 
-const CLIENT_SCRIPT = WEB_CLIENT_JS+HERO_MOOD_SCRIPT+DAILY_FINISH_SCRIPT+`(() => {
+const CLIENT_SCRIPT = WEB_CLIENT_JS+PREPARATION_SCRIPT+HERO_MOOD_SCRIPT+DAILY_FINISH_SCRIPT+`(() => {
   const english = document.documentElement.lang === 'en';
   const tr = (ru, en) => english ? en : ru;
   const locale = english ? 'en-GB' : 'ru-RU';
@@ -827,6 +829,7 @@ async function serveEdition(
   stocksEnabled = false,
   language:DigestLanguage = "ru",
   requestedPath = "/",
+  timeZone = "Europe/Vilnius",
 ): Promise<void> {
   if (!edition) {
     if (!allowEmpty) {
@@ -835,7 +838,7 @@ async function serveEdition(
     }
     sendHeaders(response, "text/html; charset=utf-8");
     response.statusCode = 200;
-    response.end(injectRuntime(injectSiteNavigation(emptyPage(),publishedSiteLinks(database,weeklyEnabled,new Date().toISOString(),stocksEnabled),"daily",requestedPath)));
+    response.end(injectRuntime(injectSiteNavigation(injectDigestPreparation(emptyPage(),digestPreparation(database,language,timeZone)),publishedSiteLinks(database,weeklyEnabled,new Date().toISOString(),stocksEnabled),"daily",requestedPath)));
     return;
   }
   const payload=parseBriefingPayload(JSON.parse(edition.payload_json));
@@ -847,6 +850,7 @@ async function serveEdition(
     html=html.replace(/<section\b[^>]*\bdata-daily-finish\b[^>]*>[\s\S]*?<\/section>/i,()=>renderDailyFinish(payload));
     if(!html.includes(".kurami-presence {"))html=html.replace(/<\/head>/i,`<style>${KURAMI_MOOD_CSS}${DAILY_FINISH_STYLES}</style></head>`);
   }
+  if(edition.edition_type === "daily" && !requestedPath.includes("/preview/")) html = injectDigestPreparation(html,digestPreparation(database,language,timeZone));
   sendHeaders(response, "text/html; charset=utf-8");
   response.statusCode = 200;
   const footer=renderSiteFooter({lang:language,app:"Digest",updated:formatSiteDate(edition.published_at??edition.prepared_at,language,true)});
@@ -876,6 +880,14 @@ export async function createBriefingServer(
     mountResponse(request,response,"digest");
     try {
       const url = new URL(request.url ?? "/", "http://127.0.0.1");
+      if (request.method === "GET" && url.pathname === "/api/preparation") {
+        const language: DigestLanguage = url.searchParams.get("lang") === "en" ? "en" : "ru";
+        const progress = digestPreparation(database,language,runtimeConfig?.timeZone ?? "Europe/Vilnius");
+        const html = progress ? withDigestLanguage(language,() => renderDigestPreparation(progress)) : "";
+        json(response,200,{ editionId: progress?.editionId ?? null, status: progress?.status ?? null,
+          html: isMountedRequest(request,"digest") ? projectHtml(html,"digest",language) : html });
+        return;
+      }
       if (request.method === "GET" && url.pathname === "/health") {
         const integrity = database.prepare("PRAGMA integrity_check").get() as {
           integrity_check: string;
@@ -1173,7 +1185,7 @@ export async function createBriefingServer(
           return;
         }
         const edition = routeEdition(database, pathname);
-        await serveEdition(response, database, edition, paths, pathname === "/",options.weekly??runtimeConfig?.weekly.enabled??false,options.stocks??runtimeConfig?.stocks.enabled??false,language,requestedPath);
+        await serveEdition(response, database, edition, paths, pathname === "/",options.weekly??runtimeConfig?.weekly.enabled??false,options.stocks??runtimeConfig?.stocks.enabled??false,language,requestedPath,runtimeConfig?.timeZone ?? "Europe/Vilnius");
         });
         return;
       }
