@@ -18,9 +18,11 @@ jumps to a block in the current edition through text-only links; Settings contai
 horizontal rows. Section links use outline icons and a left rail for the selected page.
 The top header scrolls with the page; desktop keeps its header navigation.
 
+While a new Daily edition is being prepared, a status above the greeting shows its date, what Kurami is doing, completed stages out of ten, and the update time. It reads the same run as the Discord card and checks it every 30 seconds while the page is visible. These are build stages, not a time estimate. Once the edition is ready, the status offers **Open new edition**; the previous edition stays on the page until you follow the link. Test runs do not appear. While processing, Paper softly pulses the filled part of the progress bar; Neon on phones moves a slow highlight around the frame. Desktop keeps the quieter meter pulse. With reduced motion enabled, the status is static.
+
 | Block | What it shows | Frozen or live |
 |---|---|---|
-| Greeting | Title, subtitle and a note from Kurami. "Good morning" becomes afternoon, evening or night by the time in the edition's time zone, and the corner of the header is tinted by the time of day and today's weather (rain, snow, fog) | text frozen, greeting and tint live |
+| Greeting | Title, subtitle and a note from Kurami. "Good morning" becomes afternoon, evening or night by the time in the edition's time zone, and on phones the corner follows the time of day and today's weather (rain, snow, fog); desktop keeps a plain background | text frozen, greeting and tint live |
 | Figures | Mail, stories, local time, weather | mail and weather live, the clock ticks in the browser |
 | "На заметку" (worth noting) | Up to three short hints ([Signals](@signals)) | live |
 | "PR ждут тебя" (PRs waiting for you) | Pull requests in Human Review for more than a day, with a link and the wait; on Sundays the week's totals: tasks completed, median tokens per task and the rework share. Absent when there is nothing to say; each PR has its project's colour bar | frozen at publication |

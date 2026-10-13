@@ -372,3 +372,8 @@ ideas block shows a number, the gist and tags there; the product escapes what go
   below her on phones) or above (`top`, empty states) the medallion; Neon outlines the bubble with the sign.
   `renderKuramiState` uses it. The merge toast shows a 64 px medallion sticker on its edge: the only place the
   medallion is smaller than 120 px.
+
+Ongoing work opts in with `PROCESSING_ATTRIBUTE` (`data-ui-processing`) from
+`components/surface.ts`. Paper gently pulses the filled meter without changing its
+value. Mobile Neon sweeps the existing surface border instead; desktop retains
+the meter pulse. Reduced motion and forced colours keep these indicators static.

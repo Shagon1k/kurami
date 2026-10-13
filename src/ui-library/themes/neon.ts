@@ -162,6 +162,22 @@ ${N} [data-ui-surface="panel"], ${N} .stat-card:not(.stat-card--plain) { positio
 ${N}[data-theme="light"] [data-ui-surface="panel"], ${N}[data-theme="light"] .stat-card:not(.stat-card--plain) { box-shadow: 0 8px 24px -18px #2a1f3d55; }
 /* A lit segment on the top edge: red on panels, yellow on figure cards. */
 ${N} :is([data-ui-surface="panel"], .stat-card:not(.stat-card--plain))::after { content: ""; position: absolute; left: 18px; top: -1px; width: 56px; height: 2px; background: var(--neon-sign); box-shadow: 0 0 10px var(--neon-sign); pointer-events: none; }
+/* A processing panel on a phone carries one slow sweep around its existing bevelled frame. */
+@property --kurami-processing-angle { syntax: "<angle>"; inherits: false; initial-value: 0deg; }
+@keyframes kurami-neon-processing { to { --kurami-processing-angle: 360deg; } }
+@media (max-width: 600px) and (prefers-reduced-motion: no-preference) and (forced-colors: none) {
+  @supports (mask-composite: exclude) {
+    ${N} [data-ui-surface][data-ui-processing]::before {
+      content: ""; position: absolute; inset: -1px; padding: 2px;
+      border-radius: inherit; corner-shape: inherit; pointer-events: none;
+      background: conic-gradient(from var(--kurami-processing-angle), transparent 0deg 280deg, var(--neon-sign) 330deg, transparent 360deg);
+      mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+      mask-composite: exclude; animation: kurami-neon-processing 12s linear infinite;
+    }
+    ${N} [data-ui-surface][data-ui-processing]::after { content: none; }
+    ${N} [data-ui-processing] .ui-meter > span { animation: none; }
+  }
+}
 ${N} .stat-card:not(.stat-card--plain)::after { width: 32px; background: var(--neon-volt); box-shadow: 0 0 10px var(--neon-volt); }
 ${N} .ui-gauge > .stat-card::after { content: none; }
 ${N} [data-ui-surface="lead"] { border-color: var(--neon-sign); background: linear-gradient(135deg, color-mix(in srgb, ${red} 9%, var(--surface-panel)), var(--surface-panel) 45%); box-shadow: var(--panel-glow); }

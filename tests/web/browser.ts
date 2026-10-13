@@ -262,6 +262,72 @@ try{
   assert.equal(await devtools.evaluate("!!document.querySelector('#hub-dashboard')"),false,"offline never restores a private dashboard");
   await listen(createWebServer({upstreams:{hub,projects,digest,docs},origin,authorize:authorizeFixture,appearance:()=>null}),port);
   await open("/en/");assert.equal(await devtools.evaluate("!!document.querySelector('#hub-dashboard')"),true,"online recovery works");
+  // A real production attempt in the temporary Digest database drives the mounted live status.
+  const preparationDb=openBriefingDatabase(digestPaths);
+  try {
+    const stamp=new Date().toISOString();
+    const date=new Intl.DateTimeFormat("en-CA",{timeZone:"Europe/Vilnius",year:"numeric",month:"2-digit",day:"2-digit"}).format(new Date(stamp));
+    const attemptId=`daily-${date}--scheduled-fixture`;
+    preparationDb.prepare(`INSERT INTO briefing_run_attempts(attempt_id,edition_id,mode,state,run_directory,created_at,updated_at) VALUES(?,?,'scheduled','editorialized','fixture-run',?,?)`).run(attemptId,`daily:${date}`,stamp,stamp);
+    for(const lang of ["en","ru"] as const)for(const width of [320,390,1280])for(const [theme,mode] of [["paper","light"],["neon","dark"]]){
+      await devtools.call("Emulation.setDeviceMetricsOverride",{width,height:900,deviceScaleFactor:1,mobile:width<600});
+      await open(`/${lang}/digest/`);
+      await devtools.evaluate(`document.querySelector('[data-theme-choice="${theme}"]').click();document.querySelector('[data-mode-choice="${mode}"]').click()`);
+      await devtools.evaluate("Promise.all(document.getAnimations().filter(a=>a.constructor.name==='CSSTransition').map(a=>a.finished.catch(()=>{})))");
+      assert.equal(await devtools.evaluate("document.querySelector('[data-digest-preparation]').hidden"),false);
+      assert.match(await devtools.evaluate<string>("document.querySelector('[data-digest-preparation]').textContent"),lang==='en'?/Drawing pictures…/:/Рисую картинки…/);
+      assert.equal(await devtools.evaluate("document.querySelector('[data-digest-preparation]').compareDocumentPosition(document.querySelector('.hero')) & Node.DOCUMENT_POSITION_FOLLOWING"),4,"status is above the greeting");
+      assert.equal(await devtools.evaluate("document.documentElement.scrollWidth>innerWidth+1"),false,'preparation status fits '+width);
+      assert.deepEqual(await devtools.evaluate(AUDIT_EXPRESSION),[],`preparation ${lang} ${width} ${theme}`);
+      assert.equal(await devtools.evaluate("!!document.querySelector('.digest-preparation[data-ui-processing]')"),true);
+      if(width>600)assert.equal(await devtools.evaluate("getComputedStyle(document.querySelector('.hero'),'::before').content"),"none","desktop hero has no tint, including retained editions");
+      const contour=theme==='neon'&&width<=600;
+      assert.equal(await devtools.evaluate("getComputedStyle(document.querySelector('.digest-preparation'),'::before').animationName"),contour?'kurami-neon-processing':'none');
+      assert.equal(await devtools.evaluate("getComputedStyle(document.querySelector('.digest-preparation .ui-meter > span')).animationName"),contour?'none':'kurami-processing-meter');
+      if(contour){
+        const angles=await devtools.evaluate<string[]>(`(async()=>{
+          const panel=document.querySelector('.digest-preparation');
+          const animation=panel.getAnimations({subtree:true}).find(a=>a.animationName==='kurami-neon-processing');
+          animation.pause();animation.currentTime=0;await new Promise(requestAnimationFrame);
+          const first=getComputedStyle(panel,'::before').getPropertyValue('--kurami-processing-angle');
+          animation.currentTime=6000;await new Promise(requestAnimationFrame);
+          const second=getComputedStyle(panel,'::before').getPropertyValue('--kurami-processing-angle');
+          animation.play();return [first,second];
+        })().catch(error=>({error:String(error),stack:error.stack}))`);
+        assert.deepEqual(angles,['0deg','180deg'],'the border highlight moves continuously');
+      }
+      await devtools.call('Emulation.setEmulatedMedia',{features:[{name:'prefers-reduced-motion',value:'reduce'}]});
+      assert.equal(await devtools.evaluate("getComputedStyle(document.querySelector('.digest-preparation'),'::before').animationName"),'none');
+      assert.equal(await devtools.evaluate("getComputedStyle(document.querySelector('.digest-preparation .ui-meter > span')).animationName"),'none');
+      await devtools.call('Emulation.setEmulatedMedia',{features:[]});
+      const shot=await devtools.call<{data:string}>("Page.captureScreenshot",{format:"png",captureBeyondViewport:false});
+      writeFileSync(join(output,`digest-preparation-${lang}-${width}-${theme}.png`),Buffer.from(shot.data,'base64'));
+    }
+    const before=await devtools.evaluate("document.querySelector('.hero').innerHTML");
+    preparationDb.prepare("UPDATE briefing_run_attempts SET state='media-ready' WHERE attempt_id=?").run(attemptId);
+    await devtools.evaluate("document.dispatchEvent(new Event('visibilitychange'))");
+    await wait("document.querySelector('.digest-preparation__count').textContent==='7/10'");
+    assert.match(await devtools.evaluate<string>("document.querySelector('[data-digest-preparation]').textContent"),/Навожу порядок в Telegram/);
+    // Simulate a brief disconnection: keep the last observation and its original timestamp.
+    await devtools.evaluate("window.progressFetch=fetch;window.fetch=(url,options)=>String(url).includes('/api/preparation')?Promise.reject(new Error('fixture offline')):progressFetch(url,options);document.dispatchEvent(new Event('visibilitychange'))");
+    await delay(100);
+    assert.equal(await devtools.evaluate("document.querySelector('.digest-preparation__count').textContent"),"7/10");
+    await devtools.evaluate("window.fetch=progressFetch");
+    const payload=JSON.parse(preparationDb.prepare("SELECT payload_json FROM editions WHERE edition_type='daily' AND is_current=1").get()!.payload_json as string);
+    payload.edition.id=`daily:${date}`;payload.edition.localDate=date;
+    writeFileSync(join(digestPaths.previewDirectory,"new-daily.html"),renderBriefingPage(parseBriefingPayload(payload)));
+    preparationDb.prepare(`INSERT INTO editions(id,edition_type,local_date,timezone,state,payload_json,html_path,content_digest,prepared_at,published_at,retention_until,updated_at) VALUES(?,'daily',?,'Europe/Vilnius','complete',?,'pages/preview/new-daily.html','fixture',?,?,'2099-01-01T00:00:00Z',?)`).run(`daily:${date}`,date,JSON.stringify(payload),stamp,stamp,stamp);
+    preparationDb.prepare("UPDATE briefing_run_attempts SET state='published' WHERE attempt_id=?").run(attemptId);
+    await devtools.evaluate("document.dispatchEvent(new Event('visibilitychange'))");
+    await wait("!!document.querySelector('[data-digest-preparation] a')");
+    assert.equal(await devtools.evaluate("!!document.querySelector('.digest-preparation[data-ui-processing]')"),false,"ready editions stop the processing motion");
+    assert.equal(await devtools.evaluate("document.querySelector('[data-digest-preparation] a').pathname"),`/ru/digest/daily/${date}`,"new edition link stays mounted and localized");
+    assert.equal(await devtools.evaluate("document.querySelector('.hero').innerHTML"),before,"publication does not replace the edition being read");
+    await devtools.evaluate("document.querySelector('[data-digest-preparation] a').click()");
+    await wait(`location.pathname==='/ru/digest/daily/${date}' && document.readyState==='complete' && document.querySelector('[data-digest-preparation]')?.hidden`);
+    await open("/ru/digest/cinema/");
+    assert.equal(await devtools.evaluate("!!document.querySelector('[data-digest-preparation]')"),false,"Daily progress does not appear in Cinema");
+  } finally { preparationDb.close(); }
   console.log(`Unified browser: ${checked} mounted EN/RU views at 320/390/1280px; theme, APIs, control reads, Projects detail/reload and one root worker verified; ${output}`);
 }finally{
   await browser?.close();for(const server of servers.reverse()){server.close();server.closeAllConnections();await once(server,"close");}rmSync(temporary,{recursive:true,force:true});
