@@ -58,6 +58,9 @@ try {
   assert.equal(collectProjectsSnapshot({home,now:instant,statusEnabled:true}).items[0]!.statusChange?.reason,"unavailable","missing migration does not break inspection");
   database.exec(readFileSync(join(migrations,"034_project_status_requests.sql"),"utf8"));
   assert.deepEqual(itemState(),initial,"schema 34 preserves existing items"); assert.deepEqual(database.prepare("PRAGMA foreign_key_check").all(),[]);
+  await assert.rejects(requestProjectStatus(input(),"owner",{...options,checkOnly:true}),/Existing status request identity changed/);
+  assert.equal(reads,0); assert.equal(mutations.length,0);
+  assert.equal(database.prepare("SELECT COUNT(*) AS n FROM project_status_requests").get()!.n,0,"check-only never creates a fresh receipt");
   const original = input();
   const result = await requestProjectStatus(original,"owner",options);
   assert.equal(result.state,"awaiting_sync"); assert.equal(mutations.length,1); assert.equal(mutations[0]!.optionId,"opt_active");
@@ -65,7 +68,7 @@ try {
   assert.equal(database.prepare("SELECT COUNT(*) AS n FROM project_events").get()!.n,0,"web writes never synthesize or suppress controller events");
   const snapshot = collectProjectsSnapshot({home,now:instant,statusEnabled:true});
   assert.equal(snapshot.items[0]!.status,"Backlog"); assert.equal(snapshot.items[0]!.statusChange?.request?.target,"Doing"); assert.equal(snapshot.items[0]!.statusChange?.enabled,false);
-  assert.equal((await requestProjectStatus(original,"owner",options)).requestId,result.requestId);
+  assert.equal((await requestProjectStatus(original,"owner",{...options,checkOnly:true})).requestId,result.requestId);
   assert.equal((await requestProjectStatus(input(),"owner",options)).requestId,result.requestId);
   assert.equal(mutations.length,1,"nonce retry and two renders produce one mutation");
   await assert.rejects(requestProjectStatus(input("Done"),"owner",options),/Предыдущее/);

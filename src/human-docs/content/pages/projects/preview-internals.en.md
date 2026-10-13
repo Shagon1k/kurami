@@ -129,7 +129,7 @@ The lifetime counts from the healthy build and is 24 hours by default (`preview_
 
 A preview counts as proof only for the commit it was built from. The lease stores `verified_head_sha`. When you press **Mark reviewed**, Kurami writes a review mark on the lease, and a "policy satisfied" mark on the run — only if the run has `preview_required` and `verified_head_sha` equals the current SHA from the CI snapshot.
 
-A run gets the `preview_required` flag at admission, if the issue carried the `preview-required` label at that moment. When Done arrives later without a fresh mark, the controller does not complete the run. It sets `completion_requested_at` and shows the **Preview required** stage. A new commit in the PR immediately devalues an old mark: the SHAs differ, the card says "Outdated", and the preview must be rebuilt. When the evidence is current, the controller completes the run itself.
+Before the exact managed task PR is verified merged, a run gets the `preview_required` flag at admission, if the issue carried the `preview-required` label at that moment. When Done arrives later without a fresh mark, the controller does not complete the run. It sets `completion_requested_at` and shows the **Preview required** stage. A new commit in the PR immediately devalues an old mark: the SHAs differ, the card says "Outdated", and the preview must be rebuilt. When the evidence is current, the controller completes the run itself. A verified exact merge accepts the task and waives Preview without inventing technical evidence; guarded resource cleanup remains separate.
 
 ::::example PF-33: a preview for PR #41
 Run `r_9f3a0c17d2b4`, branch `PF-33_watchlist-sharing`, PR #41, commit `4be1d9c`. The data is invented.

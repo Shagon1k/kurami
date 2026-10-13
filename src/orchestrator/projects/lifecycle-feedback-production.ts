@@ -179,12 +179,14 @@ export async function reconcileCommittedTicketFeedback(
         "run_needs_attention", "codex_thread_not_ready", "remote_successor_not_safe",
         "ci_repair_cleanup_pending", "preview_not_configured", "run_not_review_ready"].includes(requestResult.reason)
         ? requestResult.reason : "see actual run state; no request completion inferred";
+      const accepted = database.prepare(`SELECT 1 FROM run_state_history WHERE run_id=?
+        AND reason='merged_task_accepted'`).get(r.run_id!);
       const snapshot = commitFeedbackSnapshot(database, {
         runId: String(r.run_id), revision: 0, endpoint, runState: String(r.state),
         cancelled: r.stop_reason === "cancelled" || r.state === "cancelled", newerRunId: newer ? String(newer.run_id) : null,
         projectState: item?.present === 1 ? String(item.status ?? "unknown") : null,
         cleanup: r.resource_state === "released" ? "done" : r.state === "needs_attention" ? "blocked" : "pending",
-        reason: `Live issue ${liveIssue.state}; ${released ? "merged delivery resources released (not ticket acceptance)" : history?.reason === "worktree_release_blocked" ? "resource cleanup blocked; preserved work" : "committed lifecycle state"}. Recent board outcomes: ${eventSummary || "none"}. Recent explicit requests: ${requestSummary || "none"}`,
+        reason: `Live issue ${liveIssue.state}; ${accepted ? `task accepted by verified merge; resource cleanup ${released ? "released" : r.state === "needs_attention" ? "blocked; work preserved" : "pending"}` : released ? "merged delivery resources released (not ticket acceptance)" : history?.reason === "worktree_release_blocked" ? "resource cleanup blocked; preserved work" : "committed lifecycle state"}. Recent board outcomes: ${eventSummary || "none"}. Recent explicit requests: ${requestSummary || "none"}`,
         expectedPr, merge,
         request: q ? { id: String(q.request_id), action: String(q.action),
           outcome: q.request_state === "applied" ? "applied" : ["pending", "processing"].includes(String(q.request_state)) ? "pending" : "refused",

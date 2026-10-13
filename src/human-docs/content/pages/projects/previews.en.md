@@ -34,7 +34,7 @@ By default a preview lives 24 hours from the moment it passes its health checks;
 
 ## Required previews
 
-If the issue carries the label `preview-required` when it moves to In progress, the run cannot complete without a preview. When you move the card to Done, Kurami does not complete the run; it shows the **Preview required** stage. Start a preview, look at it and press **Mark reviewed**. The mark counts only if the preview was built from the PR's current commit. If a new commit is pushed after it, the card shows "Outdated" and the preview must be rebuilt.
+Before the exact managed task PR is verified merged, if the issue carries the label `preview-required` when it moves to In progress, the run cannot complete without a preview. When you move the card to Done, Kurami does not complete the run; it shows the **Preview required** stage. Start a preview, look at it and press **Mark reviewed**. The mark counts only if the preview was built from the PR's current commit. If a new commit is pushed after it, the card shows "Outdated" and the preview must be rebuilt. A verified exact merge accepts the task and waives Preview without inventing technical evidence; guarded resource cleanup remains separate.
 
 **Mark reviewed** is only your note. It does not approve the merge, extend the lifetime or stop the preview. You can press it once per preview.
 

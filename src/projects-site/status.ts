@@ -25,7 +25,7 @@ export function parseStatusInput(value: unknown): StatusInput {
 }
 
 /** Writes GitHub only. The normal poller retains exclusive ownership of item snapshots/events. */
-export async function requestProjectStatus(value: unknown, actor: string, options: { home?: string; now?: () => Date; github?: ProjectFieldClient } = {}): Promise<StatusResult> {
+export async function requestProjectStatus(value: unknown, actor: string, options: { home?: string; now?: () => Date; github?: ProjectFieldClient; checkOnly?: boolean } = {}): Promise<StatusResult> {
   const input = parseStatusInput(value); const now = options.now ?? (() => new Date());
   const home = options.home ?? resolveKuramiHome(resolve(import.meta.dirname,"../../.."));
   const config = projectsRegistry(resolve(home,"config/projects.yaml"))[input.project];
@@ -83,6 +83,8 @@ export async function requestProjectStatus(value: unknown, actor: string, option
     const key = "projects-status:" + createHash("sha256").update(JSON.stringify([actor,input.project,input.itemId,input.from,input.target,input.key])).digest("hex");
     const previous = database.prepare("SELECT * FROM project_status_requests WHERE idempotency_key=?").get(key) as StatusRequestRow | undefined;
     if (previous) return await reconcile(previous);
+    // Reconciliation must never fall through into a fresh request or GitHub write.
+    if (options.checkOnly) throw new ProjectsActionError(409,"Existing status request identity changed.");
     if (!Object.values(config.statuses).includes(input.target))
       throw new ProjectsActionError(409,"Статусы проекта изменились. Обновите страницу.");
     database.exec("BEGIN IMMEDIATE");
