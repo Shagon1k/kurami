@@ -129,6 +129,8 @@ Simplicity is not a finding quota. A complexity finding needs evidence of a conc
 
 General checks correctness, security and concrete operational risks. Clarity Review focuses on unnecessary complexity and the cost of understanding, changing or debugging code. Each profile has its own session, reviewed SHA, counts and PR link. Clarity is optional and manual; it does not replace General or become an autopilot or completion requirement.
 
+Clarity explicitly checks long functions, nesting, mixed levels of abstraction, repeated rules and unnecessary data transformations. Length alone is not a finding. A helper with one caller is worthwhile when it isolates a coherent responsibility and reduces the reasoning needed at the call site while preserving transaction boundaries and execution order. The GitHub review summary names the main complexity hotspots inspected and explains proposed simplifications or why the structure was retained, including when there are no findings.
+
 Clarity receives the full installed `engineering-tools:simplify-code` skill together with its role prompt and the shared read-only output contract. Kurami saves the exact skill text, plugin version and SHA-256 with the review before launching the agent. Missing or invalid skill content stops startup. A later manual plugin update affects future reviews; existing reviews retain their original edition. Automatic skill updates are outside this feature.
 
 The publisher adds **🔎 Kurami · General Review** or **🧩 Kurami · Clarity Review** to the review body and every inline comment. Attribution comes from the selected profile, rather than generated text.
