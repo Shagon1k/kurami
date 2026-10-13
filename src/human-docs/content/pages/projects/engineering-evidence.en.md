@@ -137,9 +137,9 @@ The publisher adds **🔎 Kurami · General Review** or **🧩 Kurami · Clarity
 
 ## Fixing review comments
 
-A review fix is a fresh Codex task that edits exactly the discussion threads that were unresolved when you selected **Fix findings → General** or **Clarity**. The button appears if the ready review of the current commit has at least one finding.
+A review fix is one fresh Codex task for findings from all completed review profiles on the current PR commit, including General and Clarity. It uses threads that are still unresolved when the controller captures the snapshot. The button appears if the ready review of the current commit has at least one finding.
 
-The selected profile determines which AI comments enter the fix. General also includes your unresolved threads; Clarity includes only its own AI findings. Summary findings without an inline anchor use the same profile filter.
+The combined fix includes AI findings from all ready review profiles for the exact source commit, your unresolved threads, and findings preserved in review summaries without inline anchors. Overlapping findings are handled together. If findings conflict, the agent reports the conflict for your attention instead of silently ignoring a finding. The existing single-writer rule blocks a second fix agent.
 
 The controller takes an immutable snapshot: unresolved, non-outdated threads whose first comment was left by `kurami-ai` with the current commit's marker, or by you. Your replies inside a thread become clarifications. There are at most twenty threads. Comments added later go into the next round. Codex gets the snapshot as data and must push a fix, but not reply in the threads and not wait for CI.
 
@@ -169,7 +169,7 @@ The data is invented. PR #57 of run `r_3f9a1c7e5b2d4a8c6e01`, TailorTales.
 - **CI observer** — 10:32 finds PR #57 at commit `a41f0c2`. The required checks are not there yet: result `pending`. At 10:36 both are green, result `passed`.
 - **You** — 10:45 you press **Run review → General**. The controller starts `rv-tt-42-3f9a1c-1` for base `9c1d4e7` and commit `a41f0c2`.
 - **Reviewer** — 10:52 publishes the review: 0 Critical · 2 Important · 1 Suggestions, three inline comments marked `head=a41f0c2`.
-- **You** — 11:05 you press **Fix findings → General**. Round 1 takes three threads on commit `a41f0c2`.
+- **You** — 11:05 you press **Fix findings**. Round 1 takes three threads on commit `a41f0c2`.
 - **Codex** — 11:22 pushes `e77b3d0` and ends its turn. The round waits for CI.
 - **CI observer** — 11:29 sees `passed` on `e77b3d0`. The round moves to `resolving`: the bot replies in three threads, your token resolves them.
 - **Kurami** — AI review on the card now reads "Outdated": the review was for `a41f0c2`, and the PR stands at `e77b3d0`. You start a new review.

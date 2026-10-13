@@ -13,7 +13,7 @@ from zoneinfo import ZoneInfo
 
 
 CONTROL_ID = re.compile(
-    r"^kurami:(status|take_control|preview_start|preview_stop|preview_extend|preview_reviewed|stop|discard_prompt|discard_local|discard_published_prompt|discard_published|ci_repair|ai_review|review_fix|recover_managed_task):(r_[A-Za-z0-9_]+)$"
+    r"^kurami:(status|take_control|preview_start|preview_stop|preview_extend|preview_reviewed|stop|discard_prompt|discard_local|discard_published_prompt|discard_published|ci_repair|ai_review|review_fix|review_fix_all|recover_managed_task):(r_[A-Za-z0-9_]+)$"
 )
 RUN_ACTIONS_ID = re.compile(r"^kurami:(?:run_actions|review_actions|fix_actions):(r_[A-Za-z0-9_]+)$")
 RUN_ACTIONS = {
@@ -30,6 +30,7 @@ RUN_ACTIONS = {
     "clarity_review",
     "clarity_fix",
     "review_fix",
+    "review_fix_all",
     "recover_managed_task",
 }
 METADATA_CONTROL_ID = re.compile(
@@ -66,6 +67,7 @@ _ACTION_LABELS = {
     "clarity_review": "Clarity Review",
     "clarity_fix": "Fix Clarity findings",
     "review_fix": "Fix Review",
+    "review_fix_all": "Fix all review findings",
     "recover_managed_task": "Recover delivered fix",
 }
 
@@ -372,8 +374,6 @@ async def _run_metadata_control(
         args.extend(["--thread-id", thread_id])
     if action != "status":
         args.append("--apply")
-    if action in {"clarity_review", "clarity_fix"}:
-        args.extend(["--profile", "clarity"])
     env = _kurami_subprocess_env()
     process = await asyncio.create_subprocess_exec(
         *args,
@@ -676,7 +676,7 @@ async def _run_control(
             "--apply",
         ]
     elif action != "status":
-        request_action = {"preview_extend":"preview_start", "clarity_review":"ai_review", "clarity_fix":"review_fix"}.get(action,action)
+        request_action = {"preview_extend":"preview_start", "clarity_review":"ai_review", "clarity_fix":"review_fix", "review_fix_all":"review_fix"}.get(action,action)
         args = [
             str(node),
             str(control),
@@ -689,6 +689,10 @@ async def _run_control(
             "discord",
             "--apply",
         ]
+        if action in {"clarity_review", "clarity_fix"}:
+            args.extend(["--profile", "clarity"])
+        elif action == "review_fix_all":
+            args.append("--all-reviews")
 
     env = _kurami_subprocess_env()
     process = await asyncio.create_subprocess_exec(

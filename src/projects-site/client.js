@@ -493,7 +493,7 @@
   }
   async function submitRunAction(button,confirmed) {
     return requestAction(button,{kind:'action',path:'/api/run-action',timeout:10000,
-      body:{runId:button.dataset.runId,project:button.dataset.runProject,itemId:button.dataset.runItem,action:button.dataset.runAction,fingerprint:button.dataset.runFingerprint,key:button.dataset.runKey,confirmed,profile:button.dataset.reviewProfile||"general"},
+      body:{runId:button.dataset.runId,project:button.dataset.runProject,itemId:button.dataset.runItem,action:button.dataset.runAction,fingerprint:button.dataset.runFingerprint,key:button.dataset.runKey,confirmed,profile:button.dataset.reviewProfile||"general",allReviews:button.dataset.reviewFixAll==="true"},
       unconfirmed:t("Could not confirm the request. Another click checks the same request without a duplicate."),
       response:async(result,response)=>{
         if(!response.ok){await refresh();throw new Error(result.error||t("Could not request this action."));}

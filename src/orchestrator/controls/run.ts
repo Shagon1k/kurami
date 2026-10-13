@@ -172,6 +172,7 @@ function parseArguments(): {
   action?: Action;
   via: RequestSource;
   profile: ReviewProfile;
+  allReviews: boolean;
   project?: string;
   issue?: number;
   discordThreadId?: string;
@@ -183,6 +184,8 @@ function parseArguments(): {
   const action = valueAfter(args, "--action") as Action | undefined;
   const profile = parseReviewProfile(valueAfter(args, "--profile"));
   if (args.includes("--profile") && (command !== "request" || !["ai_review", "review_fix"].includes(action ?? ""))) fail("--profile requires a review action");
+  const allReviews = args.includes("--all-reviews");
+  if (allReviews && (command !== "request" || action !== "review_fix" || args.includes("--profile"))) fail("--all-reviews requires review_fix without --profile");
   const via = (valueAfter(args, "--via") ?? "cli") as RequestSource;
   const project = valueAfter(args, "--project");
   const issueValue = valueAfter(args, "--issue");
@@ -236,6 +239,7 @@ function parseArguments(): {
     action,
     via,
     profile,
+    allReviews,
     project,
     issue,
     discordThreadId,
@@ -433,9 +437,11 @@ export function requestRunControl(
   action: Action,
   via: RequestSource,
   apply: boolean,
-  options: { home?: string; idempotencyKey?: string; profile?: ReviewProfile } = {},
+  options: { home?: string; idempotencyKey?: string; profile?: ReviewProfile; allReviews?: boolean } = {},
 ): Record<string, unknown> {
   const profile = parseReviewProfile(options.profile);
+  const allReviews = options.allReviews ?? false;
+  if (allReviews && (action !== "review_fix" || profile !== "general")) fail("All reviews requires review_fix without a selected profile");
   if (profile !== "general" && !["ai_review", "review_fix"].includes(action)) fail("Profile requires a review action");
   const ownsTransaction = !database.isTransaction;
   if (ownsTransaction) database.exec("BEGIN IMMEDIATE");
@@ -733,7 +739,7 @@ export function requestRunControl(
     const existing = database
       .prepare(
         `
-      SELECT request_id, request_state, review_profile
+      SELECT request_id, request_state, review_profile, review_fix_all
       FROM run_control_requests
       WHERE run_id = ? AND action = ? AND (action <> 'ai_review' OR review_profile = ?)
         AND request_state IN ('pending', 'processing')
@@ -741,10 +747,10 @@ export function requestRunControl(
     `,
       )
       .get(runId, action, profile) as
-      | { request_id: string; request_state: string; review_profile: string }
+      | { request_id: string; request_state: string; review_profile: string; review_fix_all: number }
       | undefined;
     if (existing) {
-      if (existing.review_profile !== profile) fail("Another review profile is already queued; wait for its result");
+      if (existing.review_profile !== profile || Boolean(existing.review_fix_all) !== allReviews) fail("Another review profile is already queued; wait for its result");
       if (apply) presentPendingRequest(database, runId, action);
       if (ownsTransaction) database.exec("COMMIT");
       return {
@@ -762,6 +768,7 @@ export function requestRunControl(
       runId,
       requestedAction: action,
       profile,
+      allReviews,
       via,
       idempotencyKey,
     };
@@ -777,12 +784,12 @@ export function requestRunControl(
       .prepare(
         `
       INSERT INTO run_control_requests (
-        request_id, run_id, action, requested_via, idempotency_key, review_profile
-      ) VALUES (?, ?, ?, ?, ?, ?)
+        request_id, run_id, action, requested_via, idempotency_key, review_profile, review_fix_all
+      ) VALUES (?, ?, ?, ?, ?, ?, ?)
       ON CONFLICT(idempotency_key) DO NOTHING
     `,
       )
-      .run(plan.requestId, runId, action, via, idempotencyKey, profile);
+      .run(plan.requestId, runId, action, via, idempotencyKey, profile, Number(allReviews));
     const stored = database
       .prepare(
         `
@@ -866,7 +873,7 @@ function controls(
 }
 
 /** The existing control menu, reusable by owner interfaces without starting a CLI. */
-export function availableRunControls(database: DatabaseSync, runId: string, options: {home?:string;now?:number;profile?:ReviewProfile} = {}): Record<string,unknown> {
+export function availableRunControls(database: DatabaseSync, runId: string, options: {home?:string;now?:number;profile?:ReviewProfile;allReviews?:boolean} = {}): Record<string,unknown> {
   const profile = parseReviewProfile(options.profile);
   const selected = runControlStatus(database,runId,profile);
   if(hasActivePrRequest(database,runId))return {...selected,available_actions:["status"]};
@@ -886,7 +893,7 @@ export function availableRunControls(database: DatabaseSync, runId: string, opti
     )
       .filter((request) =>
         ["pending", "processing"].includes(String(request.request_state)) &&
-        (request.action !== "ai_review" || request.review_profile === profile),
+        (request.action !== "ai_review" || options.allReviews || request.review_profile === profile),
       )
       .map((request) => String(request.action)),
   );
@@ -987,7 +994,12 @@ export function availableRunControls(database: DatabaseSync, runId: string, opti
     !pendingActions.has("ai_review")
   )
     availableActions.push("ai_review");
-  const currentAiReviewHasFindings =
+  const currentAiReviewHasFindings = options.allReviews ? Boolean(database.prepare(`
+    SELECT 1 FROM run_ai_reviews a WHERE a.run_id=? AND a.head_sha=? AND a.review_state='ready'
+      AND a.critical_count+a.important_count+a.suggestion_count>0
+      AND NOT EXISTS(SELECT 1 FROM run_ai_reviews newer WHERE newer.run_id=a.run_id
+        AND newer.review_profile=a.review_profile AND newer.review_number>a.review_number)
+  `).get(runId,String(selected.ci_head_sha))) :
     String(selected.ai_review_state) === "ready" &&
     Boolean(selected.ci_head_sha) &&
     selected.ai_review_head_sha === selected.ci_head_sha &&
@@ -1005,7 +1017,8 @@ export function availableRunControls(database: DatabaseSync, runId: string, opti
     !["running", "waiting_ci", "resolving"].includes(
       String(selected.review_fix_state),
     ) &&
-    !pendingActions.has("review_fix")
+    !pendingActions.has("review_fix") &&
+    !pendingActions.has("ai_review")
   )
     availableActions.push("review_fix");
   if (!cancellationStarted && !pendingActions.has("stop"))
@@ -1027,7 +1040,7 @@ export function runRunControlsCli(): void {
               issue: args.issue,
               discordThreadId: args.discordThreadId,
             })
-          : requestRunControl(database, args.runId!, args.action!, args.via, args.apply, {profile:args.profile});
+          : requestRunControl(database, args.runId!, args.action!, args.via, args.apply, {profile:args.profile,allReviews:args.allReviews});
     process.stdout.write(`${JSON.stringify({ ok: true, ...result })}\n`);
   } finally {
     database.close();

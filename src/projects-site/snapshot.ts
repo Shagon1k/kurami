@@ -127,7 +127,7 @@ export function collectProjectsSnapshot(options: { home?: string; now?: Date; co
     const prControlsReady=(options.controlsEnabled??process.env.PROJECTS_CONTROLS_ENABLED==="1")&&Boolean(database.prepare("SELECT 1 FROM sqlite_master WHERE type='table' AND name='project_pr_requests'").get());
     if (options.controlsEnabled ?? process.env.PROJECTS_CONTROLS_ENABLED === "1") for (const row of rows) if (row.run_id && configs[row.project]) controls.set(row.run_id, inspectAiReview(database, row.run_id));
     if (options.controlsEnabled ?? process.env.PROJECTS_CONTROLS_ENABLED === "1") for (const row of rows) if (row.run_id && configs[row.project]) {
-      try { runActions.set(row.run_id,projectRunActions(database,row.run_id,home,now,true)); }
+      try { runActions.set(row.run_id,projectRunActions(database,row.run_id,home,now,true,"general",true)); }
       catch { runActions.set(row.run_id,{fingerprint:"",reason:"unavailable",actions:[]}); }
     }
     const statusEnabled = options.statusEnabled ?? process.env.PROJECTS_STATUS_ENABLED === "1";

@@ -13,6 +13,7 @@ let unavailable = false;
 let dense=false;
 let previewReady=false;
 let semanticNotes=false;
+let combinedFixScenario=false,combinedFixAccepted=false;const combinedFixInputs:unknown[]=[];
 let profileScenario=false;let generalBusy=false;let clarityAccepted=false;const profileRequests:string[]=[];
 let reviewFixScenario:string|null=null;
 let reviewFixRefused=false;
@@ -80,8 +81,15 @@ const serverOptions = { snapshot: () => {
   }
   if(profileScenario){
     const item=snapshot.items[0]!;item.reviewFix=undefined;item.aiReview={enabled:false,reason:"ready",head:item.ci.head};
+    item.runActions!.actions=[];
     item.reviews={general:{...item.review,state:generalBusy?"queued":"ready",tone:generalBusy?"neutral":"success",critical:0,important:0,suggestions:0,url:"https://github.com/Example/Alpha/pull/20#pullrequestreview-1",requestFailed:false,control:{enabled:false,reason:"ready",head:item.ci.head}},
       clarity:{state:clarityAccepted?"queued":"none",tone:"neutral",head:null,critical:0,important:0,suggestions:0,url:null,requestFailed:false,control:{enabled:!clarityAccepted,reason:clarityAccepted?"pending":"eligible",head:item.ci.head}}};
+  }
+  if(combinedFixScenario){
+    const item=snapshot.items[0]!;
+    item.reviewFix=combinedFixAccepted?{state:"queued",round:null}:undefined;
+    item.runActions!.actions=[{action:"review_fix",label:"Fix findings",enabled:!combinedFixAccepted,confirmation:null,hint:null,state:combinedFixAccepted?"pending":null}];
+    item.reviews={general:{...item.review,state:"ready",tone:"warning",important:1,suggestions:0,url:item.links.review,requestFailed:false,fix:item.reviewFix},clarity:{...item.review,state:"ready",tone:"warning",critical:0,important:0,suggestions:1,url:item.links.review,requestFailed:false,fix:item.reviewFix}};
   }
   return snapshot;
 }, cacheMs: 0, authorize: async () => "fixture-owner", origin: "", review: (value: unknown) => {
@@ -93,6 +101,11 @@ const serverOptions = { snapshot: () => {
 } };
 const completeOptions = { ...serverOptions, prCacheMs:0,runAction:(value:unknown)=>{
   const input=value as {action:string;key:string;confirmed:boolean};actionKeys.push(input.key);
+  if(input.action==='review_fix'){
+    assert.equal((value as {allReviews:boolean}).allReviews,true);assert.equal(input.confirmed,false);
+    combinedFixInputs.push(value);combinedFixAccepted=true;
+    return {state:'created' as const,requestId:'fixture-combined-fix',requestState:'pending'};
+  }
   if(input.action==='preview_reviewed'){assert.equal(input.confirmed,false);previewReviewed=true;return {state:'created' as const,requestId:'fixture-reviewed',requestState:'applied'};}
   if(input.action==="discard_local") {assert.equal(input.confirmed,true);discarded=true;}
   else {assert.equal(input.action,"preview_start");assert.equal(input.confirmed,false);if(failAction) throw new ProjectsActionError(503,"Действие временно недоступно.");actionAccepted=true;}
@@ -286,7 +299,7 @@ try {
       await devtools.evaluate("document.querySelector('.projects-ci-details summary').click();document.querySelector('#project-details').focus({preventScroll:true})");
       const density=await devtools.evaluate<{reviewHeight:number;reviewWidth:number;groupWidth:number;pillHeight:number;sortIcon:number;actionWidths:boolean}>(`(() => {
         const group=document.querySelector('.projects-review-controls'),review=group.querySelector('[popovertarget]');
-        return {reviewHeight:review.getBoundingClientRect().height,reviewWidth:review.getBoundingClientRect().width,groupWidth:group.getBoundingClientRect().width,pillHeight:document.querySelector('.projects-detail .pill').getBoundingClientRect().height,sortIcon:parseFloat(getComputedStyle(document.querySelector('[data-sort] .button__svg')).width),actionWidths:[...document.querySelectorAll('[data-run-action]')].every(button=>{const pair=button.closest('.projects-action-pair');if(!pair)return button.closest('[popover]')!==null;const columns=pair.children.length,expected=(pair.getBoundingClientRect().width-parseFloat(getComputedStyle(pair).columnGap)*(columns-1))/columns;return Math.abs(button.getBoundingClientRect().width-expected)<1;})};
+        return {reviewHeight:review.getBoundingClientRect().height,reviewWidth:review.getBoundingClientRect().width,groupWidth:group.getBoundingClientRect().width,pillHeight:document.querySelector('.projects-detail .pill').getBoundingClientRect().height,sortIcon:parseFloat(getComputedStyle(document.querySelector('[data-sort] .button__svg')).width),actionWidths:[...document.querySelectorAll('[data-run-action]')].every(button=>{const pair=button.closest('.projects-action-pair');if(!pair)return button.closest('[popover]')!==null||button.dataset.reviewFixAll==='true';const columns=pair.children.length,expected=(pair.getBoundingClientRect().width-parseFloat(getComputedStyle(pair).columnGap)*(columns-1))/columns;return Math.abs(button.getBoundingClientRect().width-expected)<1;})};
       })()`);
       assert.ok(density.reviewHeight>=32&&density.reviewHeight<=36,"compact actions retain coarse-pointer targets");
       assert.ok(density.reviewWidth<=density.groupWidth,"contextual review fits within its check row");
@@ -747,7 +760,7 @@ try {
     await wait("!!document.querySelector('[data-pr-slot] > .projects-run-action-meta > .projects-action-note')");
     assert.equal(await devtools.evaluate(`document.querySelector('[data-review-fix-state]').dataset.reviewFixState`),state);
     assert.equal(await devtools.evaluate(`!document.querySelector('#project-details [data-review-run]')&&!document.querySelector('#project-details .projects-context')`),true,'active fix removes stale preview context and duplicate unavailable review');
-    assert.equal(await devtools.evaluate(`(()=>{const detail=document.querySelector('#project-details'),note=detail.querySelector('[data-review-fix-state]'),row=note.closest('.projects-evidence-row'),fix=detail.querySelector('[data-run-action=review_fix]');return note.getBoundingClientRect().width>row.clientWidth-32&&fix.closest('[popover]')!==null&&![...detail.querySelectorAll('.projects-run-action-meta p')].some(p=>['Queued','В очереди'].includes(p.textContent))&&[...detail.querySelectorAll('.projects-evidence-heading')].every(h=>h.scrollWidth<=h.clientWidth);})()`),true,'progress fills its evidence row; no orphan Queued or overlapping header');
+    assert.equal(await devtools.evaluate(`(()=>{const detail=document.querySelector('#project-details'),note=detail.querySelector('[data-review-fix-state]'),row=note.closest('.projects-evidence-row'),fix=detail.querySelector('[data-run-action=review_fix]');return note.getBoundingClientRect().width>row.clientWidth-32&&fix.closest('[popover]')===null&&fix.dataset.reviewFixAll==='true'&&detail.querySelectorAll('[data-run-action=review_fix]').length===1&&![...detail.querySelectorAll('.projects-run-action-meta p')].some(p=>['Queued','В очереди'].includes(p.textContent))&&[...detail.querySelectorAll('.projects-evidence-heading')].every(h=>h.scrollWidth<=h.clientWidth);})()`),true,'progress fills its evidence row; no orphan Queued or overlapping header');
     await audit();
     if(width===390&&lang==='en'&&state==='queued'){
       await devtools.evaluate(`document.querySelector('[data-review-fix-state]').scrollIntoView({block:'center',behavior:'instant'})`);
@@ -886,7 +899,28 @@ try {
   await wait("document.querySelector('[data-review-result=clarity]').textContent.includes('Queued')");
   assert.equal(await devtools.evaluate("document.querySelector('[data-review-result=general]').textContent.includes('Queued')"),true,'both profiles may be queued');
   assert.equal(await devtools.evaluate("document.querySelector('.projects-review-controls [popovertarget]').disabled"),true,'both busy profiles disable the selector');
-  generalBusy=false;
+  generalBusy=false;profileScenario=false;combinedFixScenario=true;
+  for(const width of [320,390,1280])for(const lang of ['en','ru'])for(const theme of ['paper','neon']){
+    combinedFixAccepted=false;
+    await devtools.call('Emulation.setDeviceMetricsOverride',{width,height:1000,deviceScaleFactor:1,mobile:width<600});
+    await open(`/?item=item-12&lang=${lang}`);
+    await devtools.evaluate(`document.querySelector('[data-theme-choice="${theme}"]').click()`);await chooseMode(theme==='neon'?'dark':'light');await delay(150);
+    assert.equal(await devtools.evaluate("document.querySelectorAll('[data-run-action=review_fix]').length"),1,'one combined fix button');
+    assert.equal(await devtools.evaluate("document.querySelector('[data-run-action=review_fix]').closest('[popover]')===null"),true,'fix starts directly without profile selection');
+    assert.match(await devtools.evaluate<string>("document.querySelector('[data-run-action=review_fix]').textContent"),lang==='ru'?/Исправить замечания/:/Fix findings/);
+    await audit();
+    if(width===390){
+      await devtools.evaluate("document.querySelector('[data-run-action=review_fix]').scrollIntoView({behavior:'instant',block:'center'})");
+      const shot=await devtools.call<{data:string}>('Page.captureScreenshot',{format:'png',captureBeyondViewport:false});
+      writeFileSync(resolve(out,`projects-combined-fix-${lang}-${theme}.png`),Buffer.from(shot.data,'base64'));
+    }
+    await pointerClick('[data-run-action=review_fix]');
+    await wait("document.querySelector('[data-run-action=review_fix]').disabled&&!document.querySelector('#projects-dashboard').dataset.refreshing");
+    await devtools.evaluate("document.querySelector('[data-run-action=review_fix]').click()");
+    await delay(80);await audit();
+  }
+  assert.equal(combinedFixInputs.length,12,'exactly one combined fix request per click');
+  combinedFixScenario=false;
 
 } finally {
   await browser.close();

@@ -1279,10 +1279,9 @@ export function controlComponents(
         "review_fix_waiting",
         "review_fix_resolving",
       ].includes(card.stage);
-    const fixOptions:SelectOption[]=[];
-    if(reviewFixEligible&&currentReviewHasFindings)fixOptions.push({label:"General",value:"review_fix",emoji:{name:"🔎"}});
-    if(reviewFixEligible&&clarity?.state==="ready"&&clarity.head===reviewHead&&clarity.critical+clarity.important+clarity.suggestions>0)
-      fixOptions.push({label:"Clarity",value:"clarity_fix",emoji:{name:"🧩"}});
+    const clarityHasFindings=clarity?.state==="ready"&&clarity.head===reviewHead&&clarity.critical+clarity.important+clarity.suggestions>0;
+    if(reviewFixEligible&&(currentReviewHasFindings||clarityHasFindings))
+      controls.push(button("Fix findings",1,`kurami:review_fix_all:${card.run_id}`));
     const cancellationStarted =
       card.stop_reason === "cancelled" ||
       (card.stage === "stopping" && card.stop_reason !== "completed") ||
@@ -1333,7 +1332,6 @@ export function controlComponents(
       );
     }
     if(reviewOptions.length)rows.push(actionRow([stringSelect(`kurami:review_actions:${card.run_id}`,"Run review…",reviewOptions)]));
-    if(fixOptions.length)rows.push(actionRow([stringSelect(`kurami:fix_actions:${card.run_id}`,"Fix findings…",fixOptions)]));
     return rows;
   }
   return [];

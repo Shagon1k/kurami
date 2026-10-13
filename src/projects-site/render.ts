@@ -161,12 +161,9 @@ function reviewPanel(item:ProjectItem,lang:Language,commonHead:string|null):stri
     if(!control||!item.runId||control.reason==="ready"||fixActive)return "";
     return renderButton({label:profile==="general"?"🔎 General":"🧩 Clarity",variant:"quiet",disabled:!control.enabled,busyLabel:t("Sending…"),attributes:{"data-review-profile":profile,"data-review-run":item.runId,"data-review-project":item.project,"data-review-item":item.id,"data-review-head":control.head??"","data-review-key":randomUUID()}});
   }).join("");
-  const fixes=REVIEW_PROFILES.map(profile=>{
-    const review=reviews[profile],actions=review.fixActions;
-    const fix=actions?.actions.find(action=>action.action==="review_fix");
-    if(!fix||!item.runId)return "";
-    return renderButton({label:profile==="general"?"🔎 General":"🧩 Clarity",variant:"secondary",size:"compact",disabled:!fix.enabled,busyLabel:t("Sending…"),attributes:{"data-review-profile":profile,"data-run-action":"review_fix","data-run-id":item.runId,"data-run-project":item.project,"data-run-item":item.id,"data-run-fingerprint":actions!.fingerprint,"data-run-key":randomUUID()}});
-  }).join("");
+  const fixActions=item.runActions;
+  const fixAction=fixActions?.actions.find(action=>action.action==="review_fix");
+  const fixes=fixAction&&item.runId?renderButton({label:t("Fix findings"),iconPath:iconPath("work"),visibleLabel:true,variant:"secondary",size:"compact",disabled:!fixAction.enabled,busyLabel:t("Sending…"),attributes:{"data-review-fix-all":"true","data-run-action":"review_fix","data-run-id":item.runId,"data-run-project":item.project,"data-run-item":item.id,"data-run-fingerprint":fixActions!.fingerprint,"data-run-key":randomUUID()}}):"";
   const fixMessages:Record<string,string>={queued:"Review fixes queued.",running:"Fixing review findings…",waiting_ci:"Review fixes pushed. Waiting for CI.",resolving:"Checking fixes and resolving review threads.",succeeded:"Review fixes completed.",needs_attention:"Review fixes need attention. Check GitHub or Discord."};
   const rows=REVIEW_PROFILES.map(profile=>{
     const review=reviews[profile];
@@ -182,7 +179,7 @@ function reviewPanel(item:ProjectItem,lang:Language,commonHead:string|null):stri
     const failure=review.requestFailed?renderCallout({tone:"warning",title:t("AI Review did not start"),body:t("Refresh and retry for the current PR commit.")}):review.fixStartupFailure?renderCallout({tone:"warning",title:t("Review fixes did not start"),body:t(review.fixStartupFailure)}):"";
     return `<div class="projects-review-profile" data-review-result="${profile}"><div class="projects-evidence-heading"><span class="projects-evidence-label"><strong>${profile==="general"?"🔎 General":"🧩 Clarity"}</strong></span>${signal(review,lang)}</div>${review.head&&review.head!==commonHead?`<code title="${escape(review.head)}">${escape(review.head.slice(0,12))}</code>`:""}${findings}${link}${note}${failure}</div>`;
   }).join("");
-  return `<div class="projects-evidence-row"><div class="projects-evidence-label">${renderIcon("review")}<strong>${t("AI Review")}</strong></div><div class="projects-review-controls">${menu("Run review",launch,REVIEW_PROFILES.some(profile=>reviews[profile].control?.enabled))}${menu("Fix findings",fixes,REVIEW_PROFILES.some(profile=>reviews[profile].fixActions?.actions.some(action=>action.action==="review_fix"&&action.enabled)))}</div>${rows}</div>`;
+  return `<div class="projects-evidence-row"><div class="projects-evidence-label">${renderIcon("review")}<strong>${t("AI Review")}</strong></div><div class="projects-review-controls">${menu("Run review",launch,REVIEW_PROFILES.some(profile=>reviews[profile].control?.enabled))}${fixes}</div>${rows}</div>`;
 }
 function writerContext(item:ProjectItem,lang:Language):string {
   if(!item.writerStop)return item.detail?`<p class="projects-context">${escape(sourceText(item.detail,lang))}</p>`:"";

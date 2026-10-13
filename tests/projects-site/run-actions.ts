@@ -46,6 +46,7 @@ try {
   const oldRows=database.prepare("SELECT * FROM preview_leases ORDER BY lease_id").all();
   const objects=database.prepare("SELECT type,name FROM sqlite_master WHERE tbl_name='preview_leases' AND type IN ('index','trigger') ORDER BY type,name").all();
   database.exec(readFileSync(join(migrations,"041_review_profiles.sql"),"utf8"));
+  database.exec(readFileSync(join(migrations,"043_combined_review_fixes.sql"),"utf8"));
   assert.equal(collectProjectsSnapshot({...options,controlsEnabled:true}).items[0]!.runActions!.reason,"unavailable");
   database.exec("BEGIN IMMEDIATE");database.exec(readFileSync(join(migrations,"035_projects_run_actions.sql"),"utf8"));database.exec("COMMIT");
   assert.deepEqual(database.prepare("SELECT * FROM preview_leases ORDER BY lease_id").all(),oldRows,"populated migration preserves compose/static leases and their Discord/CLI provenance");
