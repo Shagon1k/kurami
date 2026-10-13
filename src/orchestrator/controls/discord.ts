@@ -248,7 +248,7 @@ const desiredSurfaceDigestSql = `
   COALESCE(r.completion_requested_at, 'completion:none') || ':' ||
   COALESCE(r.preview_requirement_satisfied_at, 'preview-satisfied:none') || ':' ||
   COALESCE(ps.hostname, 'host:none') || ':' ||
-  COALESCE(r.stop_reason, 'stop:none') || ':discord-ux-v17'
+  COALESCE(r.stop_reason, 'stop:none') || ':discord-ux-v18'
   || ':' || COALESCE(ci.content_digest, 'ci:none') || ':' ||
   (SELECT COUNT(*) FROM run_ci_repair_attempts repair_count
    WHERE repair_count.run_id = r.run_id) || ':' ||
@@ -1257,12 +1257,10 @@ export function controlComponents(
       Boolean(pullRequest?.url) &&
       Boolean(reviewHead) &&
       card.previous_codex_thread_id === null &&
-      !["ci_repair_queued", "ci_repair_working"].includes(card.stage) &&
-      card.ai_review_request_active_count === 0 &&
-      !reviewBusy;
+      !["ci_repair_queued", "ci_repair_working"].includes(card.stage);
     const reviewOptions:SelectOption[]=[];
-    if(aiReviewEligible&&!sameHeadAlreadyReviewed)reviewOptions.push({label:"General",value:"ai_review",emoji:{name:"🔎"}});
-    if(aiReviewEligible&&!(clarity?.state==="ready"&&clarity.head===reviewHead))reviewOptions.push({label:"Clarity",value:"clarity_review",emoji:{name:"🧩"}});
+    if(aiReviewEligible&&card.ai_review_request_active_count===0&&card.ai_review_state!=="running"&&!sameHeadAlreadyReviewed)reviewOptions.push({label:"General",value:"ai_review",emoji:{name:"🔎"}});
+    if(aiReviewEligible&&!["running","queued"].includes(clarity?.state??"")&&!(clarity?.state==="ready"&&clarity.head===reviewHead))reviewOptions.push({label:"Clarity",value:"clarity_review",emoji:{name:"🧩"}});
     const currentReviewHasFindings = status.reviewFindings > 0;
     const reviewFixEligible =
       !preservedCancellation &&

@@ -236,11 +236,11 @@ export async function runReviewManagerCli(): Promise<void> {
       database
         .prepare(
           `SELECT 1 FROM run_ai_reviews
-           WHERE run_id = ? AND review_state = 'running'`,
+           WHERE run_id = ? AND review_profile = ? AND review_state = 'running'`,
         )
-        .get(run.run_id)
+        .get(run.run_id, profile)
     )
-      fail("An AI review is already running");
+      fail("This AI review profile is already running");
 
     const worktreeRoot = resolve(project.workspace.worktree_root);
     const worktree = resolve(run.worktree_path);

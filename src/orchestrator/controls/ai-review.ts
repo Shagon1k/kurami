@@ -24,11 +24,11 @@ export function inspectAiReview(database: DatabaseSync, runId: string, profile: 
     EXISTS(SELECT 1 FROM runs n WHERE n.project=r.project AND n.item_id=r.item_id AND n.rowid>r.rowid) AS superseded,
     EXISTS(SELECT 1 FROM project_items p WHERE p.project=r.project AND p.item_id=r.item_id AND p.present=1) AS present,
     (SELECT COUNT(*) FROM run_ci_repair_attempts a WHERE a.run_id=r.run_id AND a.attempt_state IN ('running','waiting_ci')) AS active_repair_count,
-    (SELECT COUNT(*) FROM run_ai_reviews a WHERE a.run_id=r.run_id AND a.review_state='running') AS active_review_count,
+    (SELECT COUNT(*) FROM run_ai_reviews a WHERE a.run_id=r.run_id AND a.review_profile=? AND a.review_state='running') AS active_review_count,
     (SELECT COUNT(*) FROM run_review_fix_rounds a WHERE a.run_id=r.run_id AND a.round_state IN ('running','waiting_ci','resolving')) AS active_fix_count,
-    (SELECT COUNT(*) FROM run_control_requests q WHERE q.run_id=r.run_id AND q.request_state IN ('pending','processing')) AS pending_count,
+    (SELECT COUNT(*) FROM run_control_requests q WHERE q.run_id=r.run_id AND q.request_state IN ('pending','processing') AND (q.action<>'ai_review' OR q.review_profile=?)) AS pending_count,
     EXISTS(SELECT 1 FROM run_ai_reviews a WHERE a.run_id=r.run_id AND a.head_sha=ci.head_sha AND a.review_profile=? AND a.review_state='ready') AS ready
-    FROM runs r JOIN run_resources rr USING(run_id) LEFT JOIN run_ci_snapshots ci USING(run_id) WHERE r.run_id=?`).get(profile, runId) as
+    FROM runs r JOIN run_resources rr USING(run_id) LEFT JOIN run_ci_snapshots ci USING(run_id) WHERE r.run_id=?`).get(profile, profile, profile, runId) as
     (AiReviewStableState & { project: string; item_id: string; repository: string; execution_mode: string; stop_reason: string | null;
       previous_codex_thread_id: string | null; head_sha: string | null; pull_request_url: string | null;
       superseded: number; present: number; active_fix_count: number; pending_count: number; ready: number }) | undefined;

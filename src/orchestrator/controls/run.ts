@@ -291,6 +291,7 @@ export function runControlStatus(
             WHERE a.run_id = r.run_id
             ORDER BY a.attempt_number DESC LIMIT 1) AS ci_repair_state,
            (SELECT COUNT(*) FROM run_ai_reviews a WHERE a.run_id=r.run_id AND a.review_state='running') AS review_active_count,
+           (SELECT COUNT(*) FROM run_ai_reviews a WHERE a.run_id=r.run_id AND a.review_profile='${profile}' AND a.review_state='running') AS review_profile_active_count,
            (SELECT review_state FROM run_ai_reviews ar
             WHERE ar.run_id = r.run_id AND ar.review_profile='${profile}'
             ORDER BY ar.review_number DESC LIMIT 1) AS ai_review_state,
@@ -650,11 +651,11 @@ export function requestRunControl(
                     AS active_repair_count,
                   (SELECT COUNT(*) FROM run_ai_reviews review
                    WHERE review.run_id = r.run_id
-                     AND review.review_state = 'running') AS active_review_count
+                     AND review.review_profile = ? AND review.review_state = 'running') AS active_review_count
            FROM runs r JOIN run_resources rr USING (run_id)
            WHERE r.run_id = ?`,
         )
-        .get(runId) as {
+        .get(profile, runId) as {
         resource_state: string;
         tmux_session_name: string | null;
         worktree_path: string | null;
@@ -734,12 +735,12 @@ export function requestRunControl(
         `
       SELECT request_id, request_state, review_profile
       FROM run_control_requests
-      WHERE run_id = ? AND action = ?
+      WHERE run_id = ? AND action = ? AND (action <> 'ai_review' OR review_profile = ?)
         AND request_state IN ('pending', 'processing')
       ORDER BY created_at DESC LIMIT 1
     `,
       )
-      .get(runId, action) as
+      .get(runId, action, profile) as
       | { request_id: string; request_state: string; review_profile: string }
       | undefined;
     if (existing) {
@@ -866,7 +867,8 @@ function controls(
 
 /** The existing control menu, reusable by owner interfaces without starting a CLI. */
 export function availableRunControls(database: DatabaseSync, runId: string, options: {home?:string;now?:number;profile?:ReviewProfile} = {}): Record<string,unknown> {
-  const selected = runControlStatus(database,runId,parseReviewProfile(options.profile));
+  const profile = parseReviewProfile(options.profile);
+  const selected = runControlStatus(database,runId,profile);
   if(hasActivePrRequest(database,runId))return {...selected,available_actions:["status"]};
   if (["rejected","cancelled","archived","failed"].includes(String(selected.state))) return {...selected,available_actions:["status"]};
   const home = options.home ?? orchestratorHome;
@@ -880,10 +882,11 @@ export function availableRunControls(database: DatabaseSync, runId: string, opti
     : null;
   const pendingActions = new Set(
     (
-      selected.requests as Array<{ action?: unknown; request_state?: unknown }>
+      selected.requests as Array<{ action?: unknown; request_state?: unknown; review_profile?: unknown }>
     )
       .filter((request) =>
-        ["pending", "processing"].includes(String(request.request_state)),
+        ["pending", "processing"].includes(String(request.request_state)) &&
+        (request.action !== "ai_review" || request.review_profile === profile),
       )
       .map((request) => String(request.action)),
   );
@@ -975,7 +978,7 @@ export function availableRunControls(database: DatabaseSync, runId: string, opti
     Boolean(selected.ci_pull_request_url) &&
     Boolean(selected.ci_head_sha) &&
     !repairCleanupPending &&
-    Number(selected.review_active_count) === 0 &&
+    Number(selected.review_profile_active_count) === 0 &&
     !(
       String(selected.ai_review_state) === "ready" &&
       (!selected.ci_head_sha ||

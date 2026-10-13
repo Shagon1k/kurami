@@ -8,6 +8,9 @@ import { DatabaseSync } from "node:sqlite";
 import { loadClaritySkill, parseReviewProfile } from "../src/orchestrator/projects/reviews/profiles.ts";
 import { buildGitHubReviewPayload, buildReviewInstructions } from "../src/orchestrator/projects/reviews/worker.ts";
 import { readReviewEvidence } from "../src/orchestrator/projects/reviews/read-model.ts";
+import { availableRunControls, requestRunControl } from "../src/orchestrator/controls/run.ts";
+import { baseRunSelect } from "../src/orchestrator/runtime/run-read-model.ts";
+import { planForRequest, type RequestRow } from "../src/orchestrator/runtime/request-plan.ts";
 import { inspectAiReview } from "../src/orchestrator/controls/ai-review.ts";
 import { requestProjectsReview } from "../src/projects-site/actions.ts";
 import { collectProjectsSnapshot } from "../src/projects-site/snapshot.ts";
@@ -31,7 +34,7 @@ export function verifyReviewProfiles(): void {
   writeFileSync(join(home, "config/orchestrator.yaml"), JSON.stringify({version:1,mode:"live",limits:{max_tmux_sessions_global:2}}));
   const database = new DatabaseSync(join(home, "state/orchestrator.db"));
   try {
-    for (const file of readdirSync(join(app,"migrations")).filter(name=>/^\d+_.*\.sql$/u.test(name)).sort()) database.exec(readFileSync(join(app,"migrations",file),"utf8"));
+    for (const file of readdirSync(join(app,"migrations")).filter(name=>/^\d+_.*\.sql$/u.test(name)).sort().filter(name=>!name.startsWith("042_"))) database.exec(readFileSync(join(app,"migrations",file),"utf8"));
     database.exec("PRAGMA foreign_keys=ON");
     database.prepare("INSERT INTO project_events(event_id,observed_at,project,item_id,content_type,payload_json) VALUES('event_profile',?,'alpha','item','Issue','{}')").run(now.toISOString());
     database.exec("INSERT INTO runs(run_id,trigger_event_id,project,item_id,content_id,repository,issue_number,interaction_policy,state,owner_state,execution_mode) VALUES('r_profile','event_profile','alpha','item','content','Example/Alpha',12,'autonomous','parked_review','none','live')");
@@ -45,7 +48,19 @@ export function verifyReviewProfiles(): void {
     const request = requestProjectsReview(input,"owner",{home,now});
     assert.equal(requestProjectsReview(input,"owner",{home,now}).requestId,request.requestId);
     assert.equal(database.prepare("SELECT review_profile FROM run_control_requests WHERE request_id=?").get(request.requestId)?.review_profile,"clarity");
-    assert.throws(()=>requestProjectsReview({...input,key:randomUUID(),profile:"general"},"owner",{home,now}),/Another review profile/);
+    database.exec(readFileSync(join(app,"migrations/042_independent_review_profiles.sql"),"utf8"));
+    assert.equal(database.prepare("SELECT request_state FROM run_control_requests WHERE request_id=?").get(request.requestId)?.request_state,"pending","upgrade preserves queued review");
+    assert.equal(inspectAiReview(database,"r_profile","general")?.eligible,true,"queued Clarity does not block General");
+    assert.ok((availableRunControls(database,"r_profile",{home,profile:"general"}).available_actions as string[]).includes("ai_review"));
+    const general = requestProjectsReview({...input,key:randomUUID(),profile:"general"},"owner",{home,now});
+    assert.equal(requestProjectsReview({...input,key:randomUUID(),profile:"general"},"owner",{home,now}).requestId,general.requestId,"same profile reuses queued request");
+    assert.equal(requestRunControl(database,"r_profile","ai_review","discord",true,{home,profile:"general"}).request_id,general.requestId,"Discord reuses only the selected profile");
+    assert.equal(requestRunControl(database,"r_profile","ai_review","discord",true,{home,profile:"clarity"}).request_id,request.requestId);
+    assert.throws(()=>database.prepare("INSERT INTO run_control_requests(request_id,run_id,action,requested_via,idempotency_key,review_profile) VALUES('duplicate','r_profile','ai_review','cli','duplicate','clarity')").run(),/UNIQUE/);
+    const plan = (requestId:string) => planForRequest(database.prepare(`SELECT base.*,q.request_id,q.action AS requested_action,
+      (SELECT COUNT(*) FROM run_ai_reviews ar WHERE ar.run_id=q.run_id AND ar.review_profile=q.review_profile AND ar.review_state='running') AS requested_review_active_count
+      FROM (${baseRunSelect()}) base JOIN run_control_requests q ON q.run_id=base.run_id WHERE q.request_id=?`).get(requestId) as RequestRow,{limits:{preview_expiry_warning_hours:2}});
+
 
     const codexHome = join(home,"codex");
     const plugin = join(codexHome,"plugins/cache/shag-ai-plugins/engineering-tools/0.5.0");
@@ -66,6 +81,21 @@ export function verifyReviewProfiles(): void {
     assert.equal(database.prepare("SELECT COUNT(*) n FROM run_ai_reviews").get()?.n,0,"missing skill starts no review");
     execFileSync(process.execPath,args,{env,stdio:"pipe"});
     const stored = database.prepare("SELECT * FROM run_ai_reviews").get()!;
+    database.prepare("UPDATE run_control_requests SET request_state='applied' WHERE request_id=?").run(request.requestId);
+    assert.equal(plan(general.requestId).action,"review_start","controller allows General while Clarity runs");
+    assert.equal(plan(request.requestId).action,"request_reject","controller prevents duplicate Clarity");
+    database.prepare("UPDATE run_control_requests SET request_state='failed' WHERE request_id=?").run(general.requestId);
+    assert.equal(inspectAiReview(database,"r_profile","general")?.eligible,true,"running Clarity does not block General");
+    assert.ok((availableRunControls(database,"r_profile",{home,profile:"general"}).available_actions as string[]).includes("ai_review"));
+    const generalWhileRunning=requestRunControl(database,"r_profile","ai_review","discord",true,{home,profile:"general"});
+    const generalId=String(generalWhileRunning.requestId);
+    execFileSync(process.execPath,[manager,"start","--run-id","r_profile","--request-id",generalId,"--apply"],{env,stdio:"pipe"});
+    database.prepare("UPDATE run_control_requests SET request_state='applied' WHERE request_id=?").run(generalId);
+    assert.equal(database.prepare("SELECT COUNT(*) n FROM run_ai_reviews WHERE review_state='running'").get()?.n,2,"both independent agents run");
+    assert.throws(()=>requestRunControl(database,"r_profile","ai_review","discord",true,{home,profile:"general"}),/not eligible/);
+    assert.throws(()=>execFileSync(process.execPath,args,{env,stdio:"pipe"}),/no longer pending/);
+    database.exec("UPDATE run_ai_reviews SET review_state='failed' WHERE review_profile='general'");
+
     assert.equal(stored.review_profile,"clarity"); assert.equal(stored.skill_text,skillText); assert.equal(stored.skill_sha256,skill.sha256);
     writeFileSync(join(plugin,"skills/simplify-code/SKILL.md"),skillText+"Changed later.\n");
     const row = {...stored,worktree_path:worktree,issue_number:12,issue_title:"Fixture",branch_name:"AL-12"} as unknown as Parameters<typeof buildReviewInstructions>[0];
@@ -83,7 +113,13 @@ export function verifyReviewProfiles(): void {
     database.prepare("UPDATE run_ai_reviews SET review_state='ready',github_review_url=?,suggestion_count=1 WHERE review_id=?").run(pr+"#pullrequestreview-1",stored.review_id);
     database.prepare("UPDATE run_control_requests SET request_state='applied' WHERE request_id=?").run(request.requestId);
     assert.equal(inspectAiReview(database,"r_profile","clarity")?.reason,"ready");
+    database.exec("UPDATE run_ai_reviews SET review_state='running' WHERE review_profile='general'");
+    assert.equal(projectRunActions(database,"r_profile",home,now,true,"clarity").actions.find(action=>action.action==="review_fix")?.enabled??false,false,"fix waits for every active reviewer");
+    assert.throws(()=>requestRunControl(database,"r_profile","review_fix","discord",true,{home,profile:"clarity"}),/not eligible/);
+    database.exec("UPDATE run_ai_reviews SET review_state='failed' WHERE review_profile='general'");
     assert.equal(inspectAiReview(database,"r_profile","general")?.eligible,true,"Clarity never substitutes for General");
+    assert.equal(readReviewEvidence(database,"r_profile","general",head).state,"failed","Clarity completion preserves the General failure");
+    database.exec("DELETE FROM run_ai_reviews WHERE review_profile='general'");
     const readModel = readProjectStatus(join(home,"state/orchestrator.db"),{alpha:{statuses}},now);
     assert.equal(nextAutopilotStep(readModel.runs[0]!,"Review")?.action,"ai_review","Clarity does not satisfy General autopilot");
     const snapshot = collectProjectsSnapshot({home,now,controlsEnabled:true});

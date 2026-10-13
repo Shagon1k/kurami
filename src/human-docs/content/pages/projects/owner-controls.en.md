@@ -16,6 +16,8 @@ The card is edited in place. After every event Kurami posts it again below the e
 
 Use **Run review** to choose **General** (correctness and operational risks) or **Clarity** (unnecessary code complexity). Both results remain visible separately with their reviewed commits. **Fix findings** selects whose findings to fix. Clarity is manual and optional; General remains the autopilot review.
 
+General and Clarity can be queued independently, including while the other profile is running. Each profile permits one queued or running review per task. Both count toward **Concurrent LLM**: if no slot is free, the second review waits in the queue. Fixing findings waits for all running reviews to finish.
+
 ## The Projects page
 
 Open Projects through the Apps menu. Choose a project in the header, search for

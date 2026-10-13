@@ -3,6 +3,7 @@ import { previewNeedsExtension, type RunRow } from "./run-read-model.ts";
 
 export type RequestRow = RunRow & {
   request_id: string;
+  requested_review_active_count?: number;
   requested_action:
     | "take_control"
     | "preview_start"
@@ -259,7 +260,7 @@ export function planForRequest(
         request.resource_state === "provisioned" &&
         request.previous_codex_thread_id === null &&
         request.repair_active_count === 0 &&
-        request.review_active_count === 0 &&
+        (request.requested_review_active_count ?? request.review_active_count) === 0 &&
         request.review_fix_active_count === 0
       )
         return { ...base, action: "review_start" };

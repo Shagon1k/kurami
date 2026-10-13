@@ -61,9 +61,8 @@ export function requestProjectsReview(value: unknown, actor: string, options: { 
     if (pr.origin !== "https://github.com" || pr.username || pr.password || pr.search || pr.hash ||
       !new RegExp(`^/${project.repository.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}/pull/[1-9][0-9]*$`).test(pr.pathname))
       throw new ProjectsActionError(409, "Текущий PR не подтверждён. Обновите страницу.");
-    const pending = database.prepare("SELECT request_id,request_state,review_profile FROM run_control_requests WHERE run_id=? AND action='ai_review' AND request_state IN ('pending','processing')").get(input.runId) as { request_id: string; request_state: string; review_profile: string } | undefined;
+    const pending = database.prepare("SELECT request_id,request_state,review_profile FROM run_control_requests WHERE run_id=? AND action='ai_review' AND review_profile=? AND request_state IN ('pending','processing')").get(input.runId,input.profile!) as { request_id: string; request_state: string; review_profile: string } | undefined;
     if (pending) {
-      if (pending.review_profile !== input.profile) throw new ProjectsActionError(409,"Another review profile is already queued. Wait for its result.");
       if (!reviewContextMatches(database, pending.request_id, input.head, pr.href)) throw new ProjectsActionError(409, "Ревью другого коммита уже в очереди. Дождитесь его результата.");
       database.exec("COMMIT"); began = false; return { state: "existing", requestId: pending.request_id, requestState: pending.request_state };
     }

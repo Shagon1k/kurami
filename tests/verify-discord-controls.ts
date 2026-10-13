@@ -833,6 +833,8 @@ async function main(): Promise<void> {
         ),
       "Queued AI review did not immediately hide its duplicate action",
     );
+    assert(controlIds(currentDashboard()).includes("kurami:clarity_review:r_discord_smoke"),
+      "queued General must leave Clarity available");
     const reviewRunning = new DatabaseSync(databasePath);
     reviewRunning.exec(`
       UPDATE run_control_requests
@@ -863,6 +865,8 @@ async function main(): Promise<void> {
         ),
       "Running AI review was not composed independently into the live card",
     );
+    assert(controlIds(currentDashboard()).includes("kurami:clarity_review:r_discord_smoke"),
+      "running General must leave Clarity available");
     const reviewReady = new DatabaseSync(databasePath);
     reviewReady.exec(`
       UPDATE run_ai_reviews
@@ -920,6 +924,18 @@ async function main(): Promise<void> {
       controlIds(currentDashboard()).includes("kurami:clarity_fix:r_discord_smoke") &&
       !controlIds(currentDashboard()).includes("kurami:clarity_review:r_discord_smoke"),
       "Completed Clarity evidence or existing fix action was lost");
+    clarityEvidence.exec("UPDATE run_ai_reviews SET review_state='failed' WHERE review_id='air_discord_review'; UPDATE run_ai_reviews SET review_state='running' WHERE review_id='air_discord_clarity';");
+    await showDashboard();
+    assert(controlIds(currentDashboard()).includes("kurami:ai_review:r_discord_smoke") &&
+      !controlIds(currentDashboard()).includes("kurami:clarity_review:r_discord_smoke"),
+      "running Clarity must leave General available");
+    clarityEvidence.exec("UPDATE run_ai_reviews SET review_state='running' WHERE review_id='air_discord_review';");
+    await showDashboard();
+    assert(!controlIds(currentDashboard()).includes("kurami:ai_review:r_discord_smoke") &&
+      !controlIds(currentDashboard()).includes("kurami:clarity_review:r_discord_smoke") &&
+      !controlIds(currentDashboard()).includes("kurami:review_fix:r_discord_smoke"),
+      "both running profiles hide duplicates and code-changing fixes");
+    clarityEvidence.exec("UPDATE run_ai_reviews SET review_state='ready' WHERE review_id IN ('air_discord_review','air_discord_clarity');");
     clarityEvidence.exec(`INSERT INTO run_control_requests (
       request_id, run_id, action, review_profile, request_state, requested_via, idempotency_key
     ) VALUES ('rq_discord_clarity_fix', 'r_discord_smoke', 'review_fix', 'clarity', 'applied', 'discord', 'test:discord-clarity-fix');

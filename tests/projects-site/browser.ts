@@ -13,7 +13,7 @@ let unavailable = false;
 let dense=false;
 let previewReady=false;
 let semanticNotes=false;
-let profileScenario=false;let clarityAccepted=false;const profileRequests:string[]=[];
+let profileScenario=false;let generalBusy=false;let clarityAccepted=false;const profileRequests:string[]=[];
 let reviewFixScenario:string|null=null;
 let reviewFixRefused=false;
 let runNotesScenario:string|null=null;
@@ -80,7 +80,7 @@ const serverOptions = { snapshot: () => {
   }
   if(profileScenario){
     const item=snapshot.items[0]!;item.reviewFix=undefined;item.aiReview={enabled:false,reason:"ready",head:item.ci.head};
-    item.reviews={general:{...item.review,state:"ready",tone:"success",critical:0,important:0,suggestions:0,url:"https://github.com/Example/Alpha/pull/20#pullrequestreview-1",requestFailed:false,control:{enabled:false,reason:"ready",head:item.ci.head}},
+    item.reviews={general:{...item.review,state:generalBusy?"queued":"ready",tone:generalBusy?"neutral":"success",critical:0,important:0,suggestions:0,url:"https://github.com/Example/Alpha/pull/20#pullrequestreview-1",requestFailed:false,control:{enabled:false,reason:"ready",head:item.ci.head}},
       clarity:{state:clarityAccepted?"queued":"none",tone:"neutral",head:null,critical:0,important:0,suggestions:0,url:null,requestFailed:false,control:{enabled:!clarityAccepted,reason:clarityAccepted?"pending":"eligible",head:item.ci.head}}};
   }
   return snapshot;
@@ -877,6 +877,17 @@ try {
     assert.equal(await devtools.evaluate("document.querySelector('[data-review-result=general]').textContent.includes('Ready')"),true,'Clarity request retains General result');
   }
   assert.equal(profileRequests.length,4,'one selected profile request per click');
+  generalBusy=true;clarityAccepted=false;
+  await open("/?item=item-12&lang=en");
+  assert.equal(await devtools.evaluate("document.querySelector('.projects-review-controls [popovertarget]').disabled"),false,'queued General leaves the selector enabled');
+  await pointerClick('.projects-review-controls [popovertarget]');
+  await wait("document.querySelector('.projects-review-controls [popovertarget]').getAttribute('aria-expanded')==='true'");
+  await pointerClick('[data-review-run][data-review-profile=clarity]');
+  await wait("document.querySelector('[data-review-result=clarity]').textContent.includes('Queued')");
+  assert.equal(await devtools.evaluate("document.querySelector('[data-review-result=general]').textContent.includes('Queued')"),true,'both profiles may be queued');
+  assert.equal(await devtools.evaluate("document.querySelector('.projects-review-controls [popovertarget]').disabled"),true,'both busy profiles disable the selector');
+  generalBusy=false;
+
 } finally {
   await browser.close();
   await new Promise<void>(done => server.close(() => done()));
