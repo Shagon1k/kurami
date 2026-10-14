@@ -104,9 +104,13 @@ class ResourceAuditTest(unittest.TestCase):
             prompt.write_text('Audit inventory.')
             value = {'summary': {'ru': 'Сохранить.', 'en': 'Keep.'},
                      'analysis': {'ru': 'Сохранить.', 'en': 'Keep.'}, 'decisions': []}
-            events = []
+            events, titles = [], []
             class DB:
-                def set_session_title(self, *args): events.append('title')
+                def set_session_title(self, session_id, title):
+                    if title in titles:
+                        raise ValueError('Duplicate session title')
+                    titles.append(title)
+                    events.append('title')
                 def end_session(self, *args): events.append(args[1])
                 def close(self): pass
             class Agent:
@@ -125,7 +129,11 @@ class ResourceAuditTest(unittest.TestCase):
             }
             with patch.dict(os.environ, {}, clear=True), patch.dict(sys.modules, modules):
                 result, session = audit.analyze({'checkedAt': '2026-10-14', 'candidates': []}, root, root, root)
-            self.assertEqual(events, ['conversation', 'title', 'completed'])
+                repeated, repeated_session = audit.analyze({'checkedAt': '2026-10-14', 'candidates': []}, root, root, root)
+            self.assertEqual(events, ['conversation', 'title', 'completed'] * 2)
+            self.assertEqual(len(set(titles)), 2)
+            self.assertNotEqual(session, repeated_session)
+            self.assertEqual(repeated, value)
             self.assertEqual(result, value)
             self.assertTrue(session.startswith('resource_audit_'))
 
