@@ -107,6 +107,8 @@ If a child script fails, the step is deferred and repeated in the next cycle. Th
 
 An automatic step that keeps failing for the same run backs off. The first five failures retry every minute; after that the pause doubles (2, 4, 8 … up to 30 minutes), and a success resets it. If the step has kept failing for three hours, Hub shows the task as **Controller stuck** with the step and the failure count. A failure that only means "the Codex turn is still running" is logged as a wait, not an error. Owner commands never back off. Each line in `controller-errors.log` carries a time and a level.
 
+Once a run is cancelled or archived, has no active writer, and its resources are released, failures recorded before its terminal transition are removed from the ledger on the next controller cycle. Hub hides those resolved failures without waiting for ledger cleanup. Failures of later follow-up actions, such as returning a cancelled task to Backlog, remain visible.
+
 ::::example Run TT-42 in one hour
 :::steps
 - **Controller** — at 10:01 the rule `provision` creates the branch and copy: `admission_pending` → `starting`.

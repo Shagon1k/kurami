@@ -93,6 +93,22 @@ try {
   writeFileSync(join(home,"state/controller-failures.json"),JSON.stringify({version:1,failures:{"r_old:park":failure("r_old",4),"r_new:park":failure("r_new",1)}}));
   const stuck=collectHubOperations(home,join(home,"missing"),join(home,"hermes"),now).alerts.filter(alert=>alert.code==="controller_stuck");
   assert.deepEqual(stuck.map(alert=>[alert.subject,alert.detail,alert.next]),[["pickflick #35","park · 4h · 40×","inspect_task"]],"only the run stuck for hours is an alert");
+  const outcomes=new DatabaseSync(join(home,"state/orchestrator.db"));
+  outcomes.exec("ALTER TABLE runs ADD COLUMN owner_state TEXT; ALTER TABLE run_resources ADD COLUMN resource_state TEXT");
+  const settledAt=new Date(now.getTime()-30*60_000).toISOString();
+  for(const [id,state,owner,resource] of [["cancelled","cancelled","none","released"],["archived","archived","none","released"],["pending-cleanup","cancelled","none","provisioned"],["pending-writer","cancelled","cli","released"]]){
+    outcomes.prepare("INSERT INTO runs(run_id,project,issue_number,repository,item_id,state,updated_at,owner_state) VALUES(?,?,?,?,?,?,?,?)").run(id,"pickflick",35,"Shagon1k/PickFlick",id,state,settledAt,owner);
+    outcomes.prepare("INSERT INTO run_resources(run_id,resource_state) VALUES(?,?)").run(id,resource);
+    outcomes.prepare("INSERT INTO run_state_history(run_id,occurred_at,to_state) VALUES(?,?,?)").run(id,settledAt,state);
+  }
+  outcomes.close();
+  const oldFailure=(runId:string)=>({...failure(runId,4),lastAt:new Date(now.getTime()-60*60_000).toISOString()});
+  writeFileSync(join(home,"state/controller-failures.json"),JSON.stringify({version:1,failures:{
+    cancelled:oldFailure("cancelled"),archived:oldFailure("archived"),cleanup:oldFailure("pending-cleanup"),writer:oldFailure("pending-writer"),
+    followup:{...failure("cancelled",4),action:"project_backlog"},
+  }}));
+  const remaining=collectHubOperations(home,join(home,"missing"),join(home,"hermes"),now).alerts.filter(alert=>alert.code==="controller_stuck");
+  assert.deepEqual(remaining.map(alert=>alert.id).sort(),["controller-cancelled-project_backlog","controller-pending-cleanup-park","controller-pending-writer-park"],"hide resolved old failures, preserve unfinished cleanup/writers and later failures");
   writeFileSync(join(home,"state/controller-failures.json"),"not json");
   assert.equal(collectHubOperations(home,join(home,"missing"),join(home,"hermes"),now).alerts.some(alert=>alert.code==="controller_stuck"),false,"an unreadable ledger raises nothing");
 }finally{rmSync(home,{recursive:true,force:true});}

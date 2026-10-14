@@ -116,8 +116,7 @@ export function planAutomatic(
   }
   if (
     run.stop_reason === "cancelled" &&
-    run.run_state !== "stopping" &&
-    run.run_state !== "cancelled"
+    !["stopping", "cancelled", "archived", "needs_attention"].includes(run.run_state)
   ) {
     return { ...base, action: "resume_stop" };
   }

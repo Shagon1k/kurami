@@ -45,6 +45,8 @@ Commit counts and charts read the configured base branch from the locally fetche
 
 The problem queue groups CI and review trouble of one PR into a single entry with reasons such as "CI needs repair" or "Review needs repair", an actor (you, an agent or waiting) and a next step such as "Reply in the task session". A task whose repair is already running says to wait, never to start a second one. Stale poll data, an unavailable database and a stale health snapshot are alerts too. Four entries show, the rest fold under "N more".
 
+**Controller stuck** excludes failures from before a confirmed cancellation or archival once the writer has stopped and the resources are released. New failures after that transition remain visible.
+
 Live Activity merges existing journals: run transitions, CI and review states, Codex and Hermes session starts, Daily and Cinema publications. It reads the last seven days and shows five work items, "More" adds up to fifteen. A finished Codex turn means only "idle": a task is done by its board transition, not by a quiet session.
 
 The activity link sits beside the title on phones; titles use at most two lines.

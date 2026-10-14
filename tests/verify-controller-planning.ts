@@ -120,6 +120,12 @@ assert.equal(
   "cancel_cli",
 );
 
+assert.equal(planAutomatic(run({run_state:"running",stop_reason:"cancelled",resource_state:"provisioned"}),registry,noProbe)?.action,"resume_stop","a live run still resumes an interrupted cancellation");
+assert.equal(planAutomatic(run({run_state:"needs_attention",stop_reason:"cancelled",resource_state:"provisioned",latest_attention_reason:"worktree_release_blocked"}),registry,noProbe)?.action,"release","blocked cleanup retries its guarded release, not the forbidden resume_stop");
+assert.equal(planAutomatic(run({run_state:"needs_attention",stop_reason:"cancelled",resource_state:"provisioned",latest_attention_reason:"other_attention"}),registry,noProbe),null,"unresolved attention must not be bypassed by stop recovery");
+assert.equal(planAutomatic(run({run_state:"archived",stop_reason:"cancelled",resource_state:"released"}),registry,noProbe),null,"an archived run must not return to stopping");
+assert.equal(planAutomatic(run({run_state:"cancelled",stop_reason:"cancelled",resource_state:"released"}),registry,noProbe)?.action,"project_backlog","cancelled tasks still return to Backlog");
+
 const database = {} as DatabaseSync;
 const config = {} as OrchestratorConfig;
 const calls: string[] = [];
