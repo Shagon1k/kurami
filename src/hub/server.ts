@@ -1,3 +1,5 @@
+import {readResourceAudit,acknowledgeResourceAudit} from "../system/maintenance/resource-audit.ts";
+import {renderResourceAuditPage} from "./resource-audit.ts";
 import {createServer,type Server} from "node:http";
 import {readFileSync} from "node:fs";
 import {resolve} from "node:path";
@@ -136,6 +138,21 @@ export function createHubServer(options:{releaseDrift?:{latest:DriftItem[]};snap
       }catch{json(400,{ok:false,error:"invalid_request"});}
       return;
     }
+    if(path==="/api/resource-audit"){
+      const json=(status:number,value:unknown)=>response.writeHead(status,{"Cache-Control":"no-store","Content-Type":"application/json; charset=utf-8"}).end(JSON.stringify(value));
+      if(request.method!=="POST"){json(405,{ok:false,error:"method_not_allowed"});return;}
+      let actor:string|null=null;try{actor=await authorize(request);}catch{}
+      if(!actor){json(403,{ok:false,error:"unauthorized"});return;}
+      if(!trustedPost(request,controlOrigin)){json(403,{ok:false,error:"invalid_origin"});return;}
+      if(!/^application\/json(?:\s*;|$)/i.test(request.headers["content-type"]??"")){json(415,{ok:false,error:"invalid_request"});return;}
+      let body="";for await(const chunk of request){body+=chunk.toString();if(Buffer.byteLength(body)>1024){json(413,{ok:false,error:"invalid_request"});return;}}
+      try{
+        const payload=JSON.parse(body);
+        if(payload?.action!=="acknowledge"){json(400,{ok:false,error:"invalid_request"});return;}
+        acknowledgeResourceAudit(home,payload.id,actor);cached=null;json(200,{ok:true});
+      }catch{json(409,{ok:false,error:"stale_audit"});}
+      return;
+    }
     if(path==="/api/controls"){
       const json=(status:number,value:unknown)=>{response.writeHead(status,{"Cache-Control":"no-store","Content-Type":"application/json; charset=utf-8"}).end(JSON.stringify(value));};
       if(!controls){json(503,{ok:false,error:"controls_unavailable"});return;}
@@ -185,6 +202,12 @@ export function createHubServer(options:{releaseDrift?:{latest:DriftItem[]};snap
         const token=previous&&/^[A-Za-z0-9_-]{43}$/.test(previous)?previous:randomBytes(32).toString("base64url");
         response.setHeader("Set-Cookie",`${cookieName}=${token}; Path=/; Secure; HttpOnly; SameSite=Strict`);
         body=renderHubPage(await current(),lang,token);type="text/html; charset=utf-8";cache="no-store";
+      } else if(path==="/ru/resource-audit"||path==="/en/resource-audit"){
+        if(!await authorize(request)){response.writeHead(403,{"Cache-Control":"no-store"}).end();return;}
+        const previous=request.headers.cookie?.split(/;\s*/).find(value=>value.startsWith(cookieName+"="))?.slice(cookieName.length+1);
+        const token=previous&&/^[A-Za-z0-9_-]{43}$/.test(previous)?previous:randomBytes(32).toString("base64url");
+        response.setHeader("Set-Cookie",`${cookieName}=${token}; Path=/; Secure; HttpOnly; SameSite=Strict`);
+        body=renderResourceAuditPage(readResourceAudit(home),home,lang,token);type="text/html; charset=utf-8";cache="no-store";
       } else if(path==="/api/fragment"){
         body=renderHubDashboard(await current(),lang);type="text/html; charset=utf-8";cache="no-store";
       } else if(path==="/ru/offline.html"||path==="/en/offline.html"){

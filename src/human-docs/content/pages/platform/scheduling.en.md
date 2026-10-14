@@ -66,3 +66,7 @@ From Discord you can change only the health check interval: 5, 10, 12, 15, 20, 3
 - `src/briefing/investment-review/automation.ts` — the "Sunday" check and one run per day
 - `deploy/systemd/kurami-daily-briefing-guard.timer` — the timer in local time
 :::
+
+## Resource audit
+
+On the first day of each month at 06:30 UTC, `kurami-monthly-resource-audit` collects server disk and RAM usage and starts a separate Hermes analysis session. Delivery goes to the maintenance Discord channel; its Hub notice remains until reviewed. The job cannot clean. See [maintenance](@maintenance) for the approval boundary.

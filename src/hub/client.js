@@ -392,3 +392,15 @@ async function performAction(button){
 }
 dialog?.addEventListener("cancel",event=>{if(controlBusy)event.preventDefault();});
 dialog?.addEventListener("close",()=>{if(dialog.open)return;controlReadVersion++;controlContent.removeAttribute('aria-busy');pending=null;if(!popoverOpen())(opener?.getClientRects().length?opener:document.querySelector('[data-mobile-menu="controls"]'))?.focus({preventScroll:true});});
+
+// Acknowledging an audit clears its notice only; this endpoint cannot clean.
+document.addEventListener("click",async event=>{
+  const button=event.target.closest?.("[data-resource-audit-ack]");if(!button)return;
+  button.disabled=true;
+  const result=document.getElementById("resource-audit-result");
+  try{
+    const response=await fetch(kuramiAppUrl("/api/resource-audit"),{method:"POST",credentials:"same-origin",headers:{"Content-Type":"application/json","X-Hub-Control-Token":csrf},body:JSON.stringify({action:"acknowledge",id:button.dataset.resourceAuditAck})});
+    if(!response.ok)throw new Error("Audit acknowledgement failed");
+    result.textContent=text("Аудит рассмотрен. Ничего не удалено.","Audit reviewed. Nothing was deleted.");button.remove();
+  }catch{result.textContent=text("Не удалось закрыть уведомление. Обнови отчёт и повтори.","Could not clear the notice. Refresh the report and try again.");button.disabled=false;}
+});

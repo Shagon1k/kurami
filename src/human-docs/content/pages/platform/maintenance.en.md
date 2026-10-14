@@ -44,3 +44,13 @@ Before cleaning, the job checks that Docker runs in rootless mode and stops with
 - [Server health](@health) — warnings about a filling disk
 - [Scheduling](@scheduling) — every job by time
 :::
+
+## Monthly resource audit
+
+The separate `kurami-monthly-resource-audit` job runs on the first day of each month at 06:30 UTC. It inventories disk and RAM, temporary files, Git checkouts, agent versions, preview processes and rootless Docker resources. A new Hermes session analyzes the inventory with the current model and SOUL. The agent has no tools; it cannot delete files, stop processes or invoke cleanup.
+
+You receive a short report in the maintenance Discord channel and a persistent **Resource audit** notice on Hub. Open the report to see directory sizes, RAM consumers, cleanup candidates and access limits. **Mark as reviewed** clears only that report’s notice. It does not authorize cleanup, and an older acknowledgement cannot hide a newer audit.
+
+Cleanup requires your separate explicit approval and a fresh usage, mount, Git and ownership check. Databases, Docker volumes, session history, active tasks and protected checkouts are preserved. Missing process references do not prove that data is disposable; filesystem and Docker sizes can overlap. System Docker data may remain inaccessible. Audit reports are retained without automatic deletion.
+
+This audit does not change the existing automatic maintenance policy above. Install or synchronize its schedule after releasing the code with `python bin/sync-resource-audit-cron.py --apply`, from the application repository in the installed Hermes Python environment. Without `--apply`, the command only checks the planned job and delivery.

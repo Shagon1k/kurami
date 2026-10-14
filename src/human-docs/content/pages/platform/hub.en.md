@@ -146,3 +146,7 @@ Hub never serves prompts, transcripts or local paths: it receives only numbers, 
 - `deploy/systemd/kurami-hub.service` — the service and its write paths
 - `docs/hub.md` — how to read the numbers
 :::
+
+## Resource audit notice
+
+The monthly resource audit appears in Alerts until you mark its report reviewed. Open **Resource audit** for disk and RAM usage, cleanup proposals and coverage limits. Marking it reviewed does not delete anything or approve cleanup. A new report creates a new notice. See [monthly maintenance and audits](@maintenance).

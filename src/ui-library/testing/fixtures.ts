@@ -1,3 +1,5 @@
+import {renderResourceAuditPage} from "../../hub/resource-audit.ts";
+import {resourceAudit} from "../../../tests/fixtures/resource-audit.ts";
 // Synthetic pages for joint Digest/Docs browser regression. No private data; nothing here is fetched.
 import {POPOVER_CSS} from "../components/popover.ts";
 import {upgradeLegacyPayload} from "../../briefing/migrations/addon-format.ts";
@@ -170,3 +172,5 @@ export function syntheticHubSnapshot():HubSnapshot {
   return snapshot;
 }
 export function syntheticHub(lang:HubLanguage="ru"):string {return renderHubPage(syntheticHubSnapshot(),lang);}
+
+export function syntheticResourceAudit(lang:"ru"|"en"="ru"):string{return renderResourceAuditPage(resourceAudit,"/nonexistent-synthetic-home",lang,"synthetic-token");}
