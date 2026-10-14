@@ -1,6 +1,7 @@
 export type Language="en"|"ru";
 export function language(params:URLSearchParams):Language{return params.get("lang")==="ru"?"ru":"en";}
 const messages:Record<string,string>={
+  "Automation off":"Автоматизация отключена",
   "Agent stopped":"Агент остановился",
   "Starting agent":"Запуск агента",
   "Agent working":"Агент работает",

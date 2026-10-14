@@ -1,4 +1,5 @@
 /** Canonical GitHub Projects polling boundary for the Project Orchestrator. */
+import { NO_AUTO_LABEL } from "../../core/project-labels.ts";
 import { execFileSync } from "node:child_process";
 import { createHash } from "node:crypto";
 import { appendFile, chmod, mkdir, readFile } from "node:fs/promises";
@@ -299,8 +300,8 @@ export function persistProjectSnapshot(
   const upsertItem = database.prepare(`
     INSERT INTO project_items (
       project, item_id, content_id, content_type, repository, issue_number,
-      title, url, status, issue_state, present, first_seen_at, last_seen_at
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?, ?)
+      title, url, status, issue_state, automation_excluded, present, first_seen_at, last_seen_at
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?, ?)
     ON CONFLICT(project, item_id) DO UPDATE SET
       content_id = excluded.content_id,
       content_type = excluded.content_type,
@@ -310,6 +311,7 @@ export function persistProjectSnapshot(
       url = excluded.url,
       status = excluded.status,
       issue_state = excluded.issue_state,
+      automation_excluded = excluded.automation_excluded,
       present = 1,
       last_seen_at = excluded.last_seen_at
   `);
@@ -422,6 +424,7 @@ export function persistProjectSnapshot(
         item.url,
         item.status,
         item.issueState,
+        Number(item.labels.includes(NO_AUTO_LABEL)),
         capturedAt,
         capturedAt,
       );

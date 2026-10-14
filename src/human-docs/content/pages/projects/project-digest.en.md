@@ -15,7 +15,7 @@ Projects Digest keeps one card per project in the private Digest channel. It ans
 
 The **Suggested next** block names one Backlog issue and explains the choice in one line: "Owner priority P1 · Effort M · Waiting 9 days · Ready to start". The choice follows fixed rules, with no AI. First it looks at the priority you set: the higher it is, the earlier the issue. Among issues of equal priority, the one with the better sum of two scores wins: a small Effort and its age (waiting counts up to 30 days). On a complete tie the lower issue number wins.
 
-Only an issue that is ready to start can be picked: it is open, in Backlog, has a description, is not blocked by an open issue and has no active run. If none qualifies, the card says "No eligible backlog issue right now."
+Only an issue that is ready to start can be picked: it is open, in Backlog, has a description, is not blocked by an open issue and has no active run. If none qualifies, the card says "No eligible backlog issue right now." Issues labelled `no-auto` stay visible in board totals but are excluded from suggestions and AI Priority/Effort assessment.
 
 Below is a four-row table of counts: Open and Ready, Backlog and Active, Review and Blocked, Deferred and Done. **Open** means open issues except Done and Deferred. **Ready** means issues you could start right now.
 

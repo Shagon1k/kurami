@@ -23,6 +23,7 @@ import { PROJECT_ICONS, projectColor } from "../core/projects-registry.ts";
 type Config = { owner: string; project_number: number; status_field?: string; repository: string; icon?: string; color?: string; statuses: ProjectStatuses; discord?: { guild_id: string; channel_id: string } };
 type ItemRow = ProjectRunFacts & {
   item_id: string; project: string; issue_number: number | null; title: string | null; content_type: string | null;
+  automation_excluded: number;
   status: string | null; last_seen_at: string; url: string | null; run_id: string | null; run_updated_at: string | null;
   detail: string | null; owner_state: string | null; pull_request_url: string | null; review_url: string | null;
   trigger_event_id:string|null;rejection_reason:string|null;
@@ -74,6 +75,7 @@ function itemFromRow(row: ItemRow, config: Config, now: Date): ProjectItem {
     /^\d+$/.test(row.guild_id ?? "") && /^\d+$/.test(row.thread_id ?? "") ? `https://discord.com/channels/${row.guild_id}/${row.thread_id}` : null;
   return {
     id: row.item_id, project: row.project, number: row.issue_number, title: row.title ?? "", kind: row.content_type ?? "Unknown",
+    automationExcluded: row.automation_excluded === 1,
     status: row.status, observedAt: row.last_seen_at, runUpdatedAt: row.run_updated_at, runId: row.run_id, runState: row.run_id ? row.run_state : null,
     stage: row.stage ?? null, detail: row.detail, owner: row.owner_state, writerStop: row.writer_stop,
     ci: { state: row.ci_aggregate_state ?? "none", tone: row.ci_aggregate_state === "passed" ? "success" : ["failed", "missing"].includes(row.ci_aggregate_state ?? "") ? "failure" : "neutral", head: row.ci_head_sha,
@@ -105,7 +107,7 @@ export function collectProjectsSnapshot(options: { home?: string; now?: Date; co
     database = new DatabaseSync(resolve(home, "state/orchestrator.db"), { readOnly: true, timeout: 1_000 });
     database.exec("BEGIN");
     const polls = database.prepare("SELECT project,last_captured_at,last_attempt_state FROM project_poll_state").all() as { project: string; last_captured_at: string | null; last_attempt_state: string }[];
-    const rows = database.prepare(`SELECT p.project,p.item_id,p.issue_number,p.title,p.content_type,p.status,p.last_seen_at,p.url,
+    const rows = database.prepare(`SELECT p.project,p.item_id,p.issue_number,p.title,p.content_type,p.status,p.automation_excluded,p.last_seen_at,p.url,
       r.run_id,r.state AS run_state,r.owner_state,r.stop_reason,r.updated_at AS run_updated_at,r.trigger_event_id,r.rejection_reason,pc.stage,pc.detail,
       ci.head_sha AS ci_head_sha,ci.aggregate_state AS ci_aggregate_state,ci.pull_request_url,ci.checks_json AS ci_checks_json,ci.last_observed_at AS ci_observed_at,${PROJECT_RUN_FACTS_SQL},
       (SELECT github_review_url FROM run_ai_reviews a WHERE a.run_id=r.run_id AND a.review_profile='general' ORDER BY a.review_number DESC LIMIT 1) AS review_url,
@@ -186,7 +188,7 @@ export function collectProjectsSnapshot(options: { home?: string; now?: Date; co
       const prPending=Boolean(item.runId&&hasActivePrRequest(database,item.runId));
       if (prPending && item.reviews) for (const review of Object.values(item.reviews)) if (review.control) review.control={...review.control,enabled:false,reason:"pending"};
       const suggestion=suggestions.find(row=>row.project===item.project&&row.selected_item_id===item.id&&row.selected_issue_number===item.number);
-      if(suggestion&&item.kind==="Issue"&&item.status===configs[item.project]!.statuses.backlog&&
+      if(suggestion&&!item.automationExcluded&&item.kind==="Issue"&&item.status===configs[item.project]!.statuses.backlog&&
         (!item.runId||["cancelled","archived","discarded","completed","rejected","failed"].includes(item.runState??""))&&
         projects.find(project=>project.key===item.project)?.freshness==="fresh"&&Number.isFinite(Date.parse(suggestion.ranked_at))&&Date.parse(suggestion.ranked_at)<=now.getTime())
         item.suggestedNext={since:suggestion.suggested_since,rankedAt:suggestion.ranked_at,explanation:suggestion.explanation};

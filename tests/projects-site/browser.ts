@@ -20,6 +20,7 @@ let reviewFixRefused=false;
 let runNotesScenario:string|null=null;
 let previewStopOnly=false;
 let previewReviewScenario=false,previewReviewed=false,previewNewHead=false;
+let noAutoStatus: "Backlog" | "In progress" | null = null;
 let startScenario:"off"|"idle"|"checking"|"sync"|"admission"|"starting"|"running"|"blocked"="off",startKey="",startWrites=0;
 let startWriteGate:Promise<void>|null=null;
 let ciScenario:"normal"|"failed"|"mixed"|"new-head"="normal";
@@ -78,6 +79,11 @@ const serverOptions = { snapshot: () => {
     if(startScenario in states){const phase=startScenario as keyof typeof states;item.taskStart={state:states[phase],message:messages[phase]};}
     if(["admission","starting","running"].includes(startScenario)){item.runId="new-start";item.runState=startScenario==="admission"?"admission_pending":startScenario;}
     if(startScenario==="blocked"){item.runId="rejected-start";item.runState="rejected";}
+  }
+  if(noAutoStatus) {
+    const item=snapshot.items.find(item=>item.id==="item-15")!;
+    item.status=noAutoStatus;item.automationExcluded=true;item.suggestedNext=undefined;
+    item.statusChange={enabled:true,reason:"eligible",choices:Object.values(snapshot.projects[0]!.statuses).map(value=>({value,label:value,hint:""}))};
   }
   if(profileScenario){
     const item=snapshot.items[0]!;item.reviewFix=undefined;item.aiReview={enabled:false,reason:"ready",head:item.ci.head};
@@ -921,6 +927,22 @@ try {
   }
   assert.equal(combinedFixInputs.length,12,'exactly one combined fix request per click');
   combinedFixScenario=false;
+  startScenario='off';
+  for(const width of [320,390,1280])for(const lang of ['en','ru'])for(const theme of ['paper','neon'])for(const status of ['Backlog','In progress'] as const){
+    noAutoStatus=status;
+    await devtools.call('Emulation.setDeviceMetricsOverride',{width,height:1000,deviceScaleFactor:1,mobile:width<600});
+    await open(`/?item=item-15&lang=${lang}`);
+    await devtools.evaluate(`document.querySelector('[data-theme-choice="${theme}"]').click()`);await chooseMode(theme==='neon'?'dark':'light');await delay(150);
+    assert.equal(await devtools.evaluate("!!document.querySelector('[data-start-task]')"),false);
+    assert.equal(await devtools.evaluate("!!document.querySelector('[data-status-form] select')"),true,'independent tasks keep ordinary status editing');
+    assert.ok(await devtools.evaluate(`document.querySelector('#project-details').textContent.includes(${JSON.stringify(lang==='ru'?'Автоматизация отключена':'Automation off')})`));
+    await audit();
+    if(width===390&&lang==='ru'&&status==='In progress'){
+      const shot=await devtools.call<{data:string}>('Page.captureScreenshot',{format:'png',captureBeyondViewport:false});
+      writeFileSync(resolve(out,`projects-no-auto-${theme}.png`),Buffer.from(shot.data,'base64'));
+    }
+  }
+  noAutoStatus=null;
 
 } finally {
   await browser.close();

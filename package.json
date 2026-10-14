@@ -58,7 +58,7 @@
     "docs:check": "node src/human-docs/tools/check-pages.ts",
     "docs:excalidraw": "node src/human-docs/tools/export-excalidraw.ts",
     "db:init": "node src/orchestrator/state/init-run-store.ts",
-    "test:admission": "node tests/verify-dry-run-admission.ts",
+    "test:admission": "node tests/verify-dry-run-admission.ts && node tests/verify-no-auto.ts",
     "test:provision": "node tests/verify-worktree-provision.ts",
     "test:sqlite-locks": "node tests/verify-sqlite-locks.ts",
     "test:test-plan": "node tests/verify-test-plan.ts",

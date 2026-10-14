@@ -13,6 +13,7 @@ export type StatusChange = { enabled: boolean; reason: "eligible" | "stale" | "u
   request?: {state: import("./status-state.ts").StatusRequestState; target: string; from: string | null; key: string; checkAvailable: boolean}; };
 export type ProfileReview = Signal & {critical:number;important:number;suggestions:number;url:string|null;requestFailed:boolean;control?:{enabled:boolean;reason:string;head:string|null};fixActions?:import("./run-actions.ts").RunActionView;fix?:{state:string;round:number|null};fixStartupFailure?:string|null};
 export type ProjectItem = {
+  automationExcluded?: boolean;
   reviews?: Record<ReviewProfile,ProfileReview>;
   id: string; project: string; number: number | null; title: string; kind: string; status: string | null;
   observedAt: string; runUpdatedAt: string | null; runId: string | null; runState: string | null;
@@ -48,11 +49,13 @@ export function parseFilters(params:URLSearchParams):ViewFilters {
 }
 
 export function needsOwner(item: ProjectItem, project: ProjectSummary): boolean {
+  if (item.automationExcluded && !item.runId) return false;
   return item.attention.length > 0 || item.status === project.statuses.review &&
     !["cancelled", "archived", "discarded", "completed"].includes(item.runState ?? "");
 }
 
 export function projectStageLabel(item:ProjectItem,lang:import("./i18n.ts").Language="en"):string {
+  if(item.automationExcluded && !item.runId)return stateLabel("Automation off",lang);
   if(item.taskStart)return stateLabel(({checking:"Start requested",writing:"Start requested",awaiting_sync:"Waiting for start sync",awaiting_admission:"admission_pending",starting:"starting",uncertain:"Start unconfirmed",failed:"request_failed",blocked:"Task start blocked"} as const)[item.taskStart.state],lang);
   const fixStages:Record<string,string>={queued:"review_fix_queued",running:"review_fix_working",waiting_ci:"review_fix_waiting",resolving:"review_fix_resolving"};
   if(item.reviewFix&&fixStages[item.reviewFix.state])return stateLabel(fixStages[item.reviewFix.state]!,lang);

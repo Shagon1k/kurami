@@ -4,7 +4,7 @@ import type {StatusRequestRow,StatusRequestState} from "./status-state.ts";
 export type TaskStart = {state:"checking"|"writing"|"awaiting_sync"|"awaiting_admission"|"starting"|"uncertain"|"failed"|"blocked";message:string};
 export type ActivationEvent = {project:string;item_id:string;event_id:string;from_status:string|null;to_status:string|null;observed_at:string;processing_state:string;processing_note:string|null};
 export function canStartTask(item:ProjectItem,project:ProjectSummary):boolean {
-  return item.kind==="Issue"&&Boolean(item.number&&item.links.issue)&&item.status===project.statuses.backlog&&
+  return !item.automationExcluded&&item.kind==="Issue"&&Boolean(item.number&&item.links.issue)&&item.status===project.statuses.backlog&&
     (!item.runId||["archived","completed","cancelled","discarded","rejected"].includes(item.runState??""));
 }
 function blockedMessage(reason:string|null):string {
@@ -18,6 +18,7 @@ function blockedMessage(reason:string|null):string {
 
 /** Projects observes the existing status receipt and admission event; it never creates a run. */
 export function taskStartProgress(item:ProjectItem,project:ProjectSummary,request:StatusRequestRow|undefined,state:StatusRequestState|null,event:ActivationEvent|undefined,runTrigger:string|null,rejection:string|null):TaskStart|undefined {
+  if(item.automationExcluded)return;
   if(item.kind!=="Issue"||![project.statuses.backlog,project.statuses.active].includes(item.status??""))return;
   const requested=request?.from_status===project.statuses.backlog&&request.to_status===project.statuses.active;
   if(requested&&state&&["checking","writing","awaiting_sync","uncertain","failed"].includes(state)&&!(state==="failed"&&item.status!==project.statuses.backlog)) {

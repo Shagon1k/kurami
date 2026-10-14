@@ -1,4 +1,5 @@
 /** Canonical admission and cancellation event consumer for Project Orchestrator. */
+import { NO_AUTO_LABEL } from "../../core/project-labels.ts";
 import { createHash } from "node:crypto";
 import { readFile } from "node:fs/promises";
 import { resolve } from "node:path";
@@ -29,6 +30,8 @@ export function acknowledgeIssueStateObservation(database: DatabaseSync, eventId
   markEvent(database, eventId, "ignored", ISSUE_STATE_OBSERVATION_NOTE);
   return true;
 }
+
+const NO_AUTO_EVENT_NOTE = "Issue has no-auto label; board transition is observation only.";
 
 process.umask(0o077);
 
@@ -770,6 +773,12 @@ export async function runProjectEventConsumerCli(): Promise<void> {
           continue;
         }
 
+        if (parseEventMetadata(event.payload_json).labels.includes(NO_AUTO_LABEL)) {
+          markEvent(database, event.event_id, "ignored", NO_AUTO_EVENT_NOTE);
+          results.push({ eventId: event.event_id, action: "ignored", reason: NO_AUTO_EVENT_NOTE });
+          continue;
+        }
+
         if (
           event.to_status === project.statuses.active &&
           event.from_status !== project.statuses.active
@@ -803,6 +812,7 @@ export async function runProjectEventConsumerCli(): Promise<void> {
     // The existing poller wrapper captures stdout for owner-visible trigger feedback.
     // No run means there is no authenticated run comment or run progress card.
     for (const result of results) {
+      if (result.reason === NO_AUTO_EVENT_NOTE) continue;
       const hasRun = database.prepare(`SELECT 1 FROM runs r JOIN project_events e
         ON e.project=r.project AND e.item_id=r.item_id WHERE e.event_id=? LIMIT 1`).get(result.eventId);
       if (!hasRun && process.env.CONSUMER_QUIET === "1") process.stdout.write(`${JSON.stringify({ event: "project_trigger_outcome", eventId: result.eventId, action: result.action,
