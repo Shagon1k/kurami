@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
-import {appendFileSync,mkdtempSync,mkdirSync,rmSync,writeFileSync} from "node:fs";
+import {execFileSync} from "node:child_process";
+import {appendFileSync,mkdtempSync,mkdirSync,readFileSync,rmSync,writeFileSync} from "node:fs";
 import {request} from "node:http";
 import {tmpdir} from "node:os";
 import {join} from "node:path";
@@ -101,6 +102,30 @@ projects:
   assert.equal(incremental.codex.cached30,520);
   const stale=collectHubSnapshot({home,appRepository:join(home,"missing"),codexHome,now:new Date("2026-09-29T21:20:00Z")});
   assert.equal(stale.projects[0]?.poll.state,"stale");
+  // The managed source copy can have a stale local main and a current origin/main.
+  {
+    const gitHome=join(home,"git-history"),repo=join(gitHome,"repo");
+    mkdirSync(join(gitHome,"config"),{recursive:true});mkdirSync(repo);
+    const git=(args:string[],at="2026-09-01T12:00:00Z")=>execFileSync("git",["-C",repo,...args],{
+      encoding:"utf8",env:{...process.env,GIT_AUTHOR_DATE:at,GIT_COMMITTER_DATE:at},stdio:["ignore","pipe","pipe"],
+    }).trim();
+    git(["init","--initial-branch=main"]);
+    git(["config","user.name","Hub fixture"]);git(["config","user.email","hub@example.invalid"]);
+    git(["-c","core.hooksPath=/dev/null","-c","commit.gpgSign=false","commit","--allow-empty","-m","Old local main"]);
+    const localHead=git(["rev-parse","main"]);
+    git(["checkout","-b","agent-work"]);
+    git(["-c","core.hooksPath=/dev/null","-c","commit.gpgSign=false","commit","--allow-empty","-m","Merged work"],"2026-09-28T12:00:00Z");
+    git(["update-ref","refs/remotes/origin/main","HEAD"]);
+    git(["-c","core.hooksPath=/dev/null","-c","commit.gpgSign=false","commit","--allow-empty","-m","Unmerged work"],"2026-09-29T12:00:00Z");
+    writeFileSync(join(gitHome,"config/projects.yaml"),readFileSync(join(home,"config/projects.yaml"),"utf8").replace("/does/not/exist",repo));
+    const collect=()=>collectHubSnapshot({home:gitHome,appRepository:join(home,"missing"),codexHome,now:new Date("2026-09-29T21:00:00Z")});
+    const current=collect();
+    assert.deepEqual(current.projects[0]!.git,{commits7:1,commits30:2,latestAt:"2026-09-28T12:00:00+00:00",state:"available"},"published base history wins over stale main and unmerged branches");
+    assert.equal(current.commitRepositories!.pickflick!.slice(-7).reduce((sum,day)=>sum+day.count,0),1,"the filtered chart agrees with the project count");
+    assert.equal(git(["rev-parse","main"]),localHead,"collecting statistics never advances the local branch");
+    git(["update-ref","-d","refs/remotes/origin/main"]);
+    assert.deepEqual(collect().projects[0]!.git,{commits7:0,commits30:1,latestAt:"2026-09-01T12:00:00+00:00",state:"available"},"a repository without the remote base ref still uses its local branch");
+  }
   const page=renderHubPage(snapshot,"ru");
   assert.match(page,/Kurami Hub/);
   assert.match(page,/37% использовано/);

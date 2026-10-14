@@ -78,9 +78,13 @@ function mondayUtc(date:Date):Date {
 function gitHistory(path:string,branch:string,now:Date):{dates:number[];latestAt:string|null;state:"available"|"unavailable"} {
   if(!existsSync(path)||!/^[A-Za-z0-9._/-]+$/.test(branch))return {dates:[],latestAt:null,state:"unavailable"};
   try {
-    const latestAt=execFileSync("git",["-C",path,"log","-1","--format=%cI",branch],{encoding:"utf8",timeout:4_000}).trim()||null;
+    // Managed worktrees refresh origin; the canonical checkout's local branch can lag behind.
+    const remoteRef=`refs/remotes/origin/${branch}`;
+    const refs=execFileSync("git",["-C",path,"for-each-ref","--format=%(refname)",remoteRef],{encoding:"utf8",timeout:4_000}).trim().split("\n");
+    const historyRef=refs.includes(remoteRef)?remoteRef:`refs/heads/${branch}`;
+    const latestAt=execFileSync("git",["-C",path,"log","-1","--format=%cI",historyRef],{encoding:"utf8",timeout:4_000}).trim()||null;
     const since=new Date(now.getTime()-91*86_400_000).toISOString();
-    const output=execFileSync("git",["-C",path,"log",branch,`--since=${since}`,"--format=%cI"],{encoding:"utf8",timeout:4_000,maxBuffer:2_000_000});
+    const output=execFileSync("git",["-C",path,"log",historyRef,`--since=${since}`,"--format=%cI"],{encoding:"utf8",timeout:4_000,maxBuffer:2_000_000});
     const dates=output.split("\n").map(dateMs).filter((value):value is number=>value!==null&&value<=now.getTime());
     return {dates,latestAt,state:"available"};
   } catch {return {dates:[],latestAt:null,state:"unavailable"};}

@@ -39,6 +39,8 @@ One **7 / 30 days** switch drives all history: the task summary, the project tab
 
 The server caches a snapshot for 45 seconds, and the browser asks for a new one every minute while the tab is visible. Board numbers come from the last successful poll: a snapshot older than 15 minutes or after a failed poll is marked stale. The health snapshot is stale after twice the check interval plus five minutes, at least 15 minutes. If a source is missing, Hub writes "—" or a partial label instead of zero, because zero would say "no work" and "—" says "unknown".
 
+Commit counts and charts read the configured base branch from the locally fetched `origin/<base branch>` history. They use the local base branch only when that remote reference is absent. This keeps merged work visible when the canonical checkout's local branch lags behind. Unmerged task branches are excluded. Viewing Hub does not fetch from GitHub or change the checkout.
+
 ## Problems and activity
 
 The problem queue groups CI and review trouble of one PR into a single entry with reasons such as "CI needs repair" or "Review needs repair", an actor (you, an agent or waiting) and a next step such as "Reply in the task session". A task whose repair is already running says to wait, never to start a second one. Stale poll data, an unavailable database and a stale health snapshot are alerts too. Four entries show, the rest fold under "N more".
