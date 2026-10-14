@@ -1,3 +1,4 @@
+import { NO_AUTO_LABEL } from "../../../core/project-labels.ts";
 import { execFileSync } from "node:child_process";
 import { createHash } from "node:crypto";
 import { readFile } from "node:fs/promises";
@@ -357,6 +358,7 @@ export function buildTriageFacts(
       if (item.repository !== config.repository) reasons.push("repository_mismatch");
       if (item.issueState !== "OPEN") reasons.push("issue_not_open");
       if (item.status !== config.statuses.backlog) reasons.push("not_backlog");
+      if (item.labels.includes(NO_AUTO_LABEL)) reasons.push("automation_excluded");
       if (!item.hasDescription) reasons.push("needs_clarification");
       if (item.blockedByOpenCount > 0) reasons.push("blocked_by_open_issue");
       if (activeRun) reasons.push("active_run_exists");

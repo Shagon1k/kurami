@@ -38,6 +38,8 @@ msg consumer -> db "run or rejection"
 
 ## Checks in order
 
+Before dispatching a board transition, the consumer checks the issue labels recorded in the event. With `no-auto`, it marks the event ignored and dispatches no lifecycle action. There is no run, rejection or resource plan for an independent task.
+
 Admission applies six checks in a fixed order. Checks 1–3 ignore the event with a recorded reason and create no run. Checks 4 and 5 create a `rejected` run so the reason stays visible.
 
 | # | Check | If it fails |

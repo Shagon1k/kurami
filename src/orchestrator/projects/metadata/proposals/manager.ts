@@ -1,3 +1,4 @@
+import { NO_AUTO_LABEL } from "../../../../core/project-labels.ts";
 import { createHash, randomUUID } from "node:crypto";
 import { resolve } from "node:path";
 import { DatabaseSync } from "node:sqlite";
@@ -116,6 +117,7 @@ function requiredBacklogIssue(
   return (
     item.contentType === "Issue" &&
     item.issueState === "OPEN" &&
+    !item.labels.includes(NO_AUTO_LABEL) &&
     item.status === facts.statuses.backlog &&
     Boolean(item.repository?.trim()) &&
     Number.isInteger(item.issueNumber) &&

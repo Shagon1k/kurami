@@ -52,14 +52,19 @@ edge room -> admitted "yes"
 
 Backlog and Deferred both mean "not now", but they differ. [Projects Digest](@project-digest) picks the next-task candidate from Backlog. Deferred waits for your explicit decision and does not appear in suggestions.
 
-## Two labels
+## Issue labels
 
 Labels sit on the GitHub issue itself and are read at the moment the card moves.
 
 | Label | What it changes |
 |---|---|
+| `no-auto` | Independent work: board moves are recorded but start no run, workspace, session or progress card. The issue is excluded from next-task suggestions and AI metadata assessment. |
 | `human-control` | The run starts under your control: Codex takes its first turn, then the session is handed to you in the Codex app. Limits and checks are the same. See [Human control](@human-control) |
 | `preview-required` | Before a verified merge of the exact task PR, a move to Done does not complete the run until you open the preview of the exact commit and mark it reviewed. See [Previews](@previews) |
+
+Add `no-auto` before moving an independent issue. It takes precedence over `human-control` and `preview-required`. Projects shows **Automation off** and keeps status editing available. Removing the label alone starts nothing; move the issue out of In progress and back to opt into automation.
+
+The label does not stop an existing run. Cancel that run through its controls before handing the task to an independent workflow.
 
 ## Why an issue did not start
 
@@ -67,6 +72,7 @@ The reason is always recorded on the run or the event.
 
 | Symptom | Cause | What to do |
 |---|---|---|
+| Independent issue with `no-auto`, no run record | Automation is intentionally disabled | Keep the label, or remove it and make a new move to In progress |
 | No Discord card, no run record | The issue is closed, has an empty description or belongs to another repository | Add a description, move the card to Backlog and back to In progress |
 | You moved a card from Human Review back to In progress and nothing happened | The issue still has a live run paused for review | Use the buttons in the Discord thread: Fix Review, Take control |
 | Run is `rejected`: `WIP limit reached: global 2/2, project 1/2` | All slots are taken | Finish or cancel another run, then move the card again |
