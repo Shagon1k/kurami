@@ -14,6 +14,11 @@ const port=(allocator.address() as {port:number}).port;await new Promise<void>(d
 const base=`http://127.0.0.1:${port}`;const actions:string[]=[];let codexModel="gpt-6-sol",codexEffort:string|null="high";
 let lastModelPayload:Record<string,unknown>={};
 let failRead=false,failWrite=false,writeGate:Promise<void>|null=null;
+const healthMessages=[
+  "Unresolved resource ambiguity: 1 observation(s)",
+  "Disk usage is 75.1%",
+  "worktree:/home/shagon1k/_projects/.worktrees/pickflick/main-ui-contract: unmapped_worktree_directory",
+];
 const settings={version:1,max_llm_running_global:2,ai_triage_daily:5,max_active_global:4,max_previews_global:3,max_preview_builds_global:1,preview_ttl_hours:24,project_wip:{pickflick:2}};
 const server=createHubServer({snapshot:syntheticHubSnapshot,authorize:async()=>"synthetic-owner",controlOrigin:base,
   controls:{execute:async(action,payload={})=>{
@@ -29,6 +34,13 @@ const server=createHubServer({snapshot:syntheticHubSnapshot,authorize:async()=>"
     return {ok:true,action:"applied",outcome:action==="codex-reset"?"reset":undefined};
   }}});
 await new Promise<void>(done=>server.listen(port,"127.0.0.1",done));
+const healthServer=createHubServer({snapshot:()=>{
+  const snapshot=syntheticHubSnapshot();
+  snapshot.operations!.alerts=healthMessages.map((subject,index)=>({id:`health-${index}`,severity:index===0?"critical":"warning",code:"health_issue",subject}));
+  return snapshot;
+},authorize:async()=>"synthetic-owner"});
+await new Promise<void>(done=>healthServer.listen(0,"127.0.0.1",done));
+const healthBase=`http://127.0.0.1:${(healthServer.address() as {port:number}).port}`;
 const browser=await launchBrowser(findBrowser());const {devtools}=browser;
 const output=resolve(import.meta.dirname,"../../dist/hub-browser");mkdirSync(output,{recursive:true});
 async function wait(expression:string){for(let attempt=0;attempt<100;attempt++){if(await devtools.evaluate<boolean>(expression))return;await delay(100);}throw new Error("Browser condition timed out: "+expression);}
@@ -42,6 +54,37 @@ async function activityAlignment(){
   assert.equal(await devtools.evaluate("[...document.querySelectorAll('.health-cell')].every(cell=>getComputedStyle(cell).boxShadow!=='none')"),true,"health cards use the shared card shadow");
 }
 try {
+  await devtools.call("Emulation.setEmulatedMedia",{features:[{name:"prefers-reduced-motion",value:"reduce"}]});
+  for(const lang of ["en","ru"]){
+    for(const width of [320,390,1280]){
+      await devtools.call("Emulation.setTouchEmulationEnabled",{enabled:width<500,maxTouchPoints:1});
+      await devtools.call("Emulation.setDeviceMetricsOverride",{width,height:1100,deviceScaleFactor:1,mobile:width<500});
+      await devtools.call("Page.navigate",{url:healthBase+`/${lang}/`});
+      await wait("document.readyState==='complete' && document.querySelectorAll('.problem__reasons > span').length===3");
+      await devtools.evaluate("document.fonts.ready");
+      for(const [theme,mode] of [["paper","light"],["neon","dark"]]){
+        await devtools.evaluate(`document.querySelector('[data-theme-choice=${theme}]').click();document.querySelector('[data-mode-choice=${mode}]').click()`);
+        await delay(200);
+        const layout=await devtools.evaluate<{fits:boolean;texts:string[];pageFits:boolean}>(`(()=>{
+          const card=document.querySelector('.hub-alerts').getBoundingClientRect();
+          const reasons=[...document.querySelectorAll('.problem__reasons > span > span')];
+          return {
+            texts:reasons.map(text=>text.textContent),
+            pageFits:document.documentElement.scrollWidth<=document.documentElement.clientWidth+1,
+            fits:reasons.every(text=>{
+              const range=document.createRange();range.selectNodeContents(text);
+              return text.scrollWidth<=text.clientWidth+1 && [...range.getClientRects()].every(rect=>rect.left>=card.left&&rect.right<=card.right);
+            }),
+          };
+        })()`);
+        assert.deepEqual(layout.texts,healthMessages.map(message=>`System Health · ${message}`),"health messages remain complete, including the actionable path");
+        assert(layout.fits&&layout.pageFits,`health alert text stays inside its frame without clipping: ${lang} ${theme} ${width}`);
+        if(width===390)await screenshot(`hub-health-alerts-${lang}-${theme}`,".hub-alerts");
+      }
+    }
+  }
+  await devtools.evaluate("document.querySelector('[data-theme-choice=paper]').click();document.querySelector('[data-mode-choice=light]').click()");
+  await devtools.call("Emulation.setEmulatedMedia",{features:[]});
   for(const lang of ["en","ru"]){
     await devtools.call("Emulation.setTouchEmulationEnabled",{enabled:false});
     await devtools.call("Emulation.setDeviceMetricsOverride",{width:1280,height:1100,deviceScaleFactor:1,mobile:false});
@@ -145,6 +188,7 @@ try {
     assert.equal(await devtools.evaluate("document.querySelector('#hub-controls-popover').matches(':popover-open')"),true);
     assert.equal(await devtools.evaluate("document.querySelector('dialog').open"),false,"Controls first opens a popover, not a modal");
     assert.equal(await devtools.evaluate("[...document.querySelectorAll('#hub-controls-popover button')].every(button=>button.textContent.trim().length>0)"),true,"popover actions have visible labels beside icons");
+    await wait("document.querySelector('header [data-hub-control=menu]').getAttribute('aria-expanded')==='true'");
     assert.equal(await devtools.evaluate("document.querySelector('header [data-hub-control=menu]').getAttribute('aria-expanded')"),"true");
     if(lang==="en")await screenshot("hub-controls","#hub-controls-popover");
     assert.equal(actions.length,menuActions,"opening the Controls menu does not mutate state");
@@ -392,5 +436,5 @@ try {
     assert.deepEqual(await devtools.evaluate(AUDIT_EXPRESSION),[],"open site navigation has readable theme colours");
     await devtools.evaluate("document.querySelector('.site-switcher > summary').click()");
   }
-}finally{await browser.close();await new Promise<void>(done=>server.close(()=>done()));}
+}finally{await browser.close();await Promise.all([server,healthServer].map(item=>new Promise<void>(done=>item.close(()=>done()))));}
 console.log(`Hub browser verified EN/RU, 320–1280px, equal-height panels, disclosures and confirmed actions; screenshots: ${output}`);
