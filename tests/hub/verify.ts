@@ -120,11 +120,12 @@ projects:
     writeFileSync(join(gitHome,"config/projects.yaml"),readFileSync(join(home,"config/projects.yaml"),"utf8").replace("/does/not/exist",repo));
     const collect=()=>collectHubSnapshot({home:gitHome,appRepository:join(home,"missing"),codexHome,now:new Date("2026-09-29T21:00:00Z")});
     const current=collect();
-    assert.deepEqual(current.projects[0]!.git,{commits7:1,commits30:2,latestAt:"2026-09-28T12:00:00+00:00",state:"available"},"published base history wins over stale main and unmerged branches");
+    assert.deepEqual({...current.projects[0]!.git,latestAt:Date.parse(current.projects[0]!.git.latestAt!)},{commits7:1,commits30:2,latestAt:Date.parse("2026-09-28T12:00:00Z"),state:"available"},"published base history wins over stale main and unmerged branches");
     assert.equal(current.commitRepositories!.pickflick!.slice(-7).reduce((sum,day)=>sum+day.count,0),1,"the filtered chart agrees with the project count");
     assert.equal(git(["rev-parse","main"]),localHead,"collecting statistics never advances the local branch");
     git(["update-ref","-d","refs/remotes/origin/main"]);
-    assert.deepEqual(collect().projects[0]!.git,{commits7:0,commits30:1,latestAt:"2026-09-01T12:00:00+00:00",state:"available"},"a repository without the remote base ref still uses its local branch");
+    const fallback=collect().projects[0]!.git;
+    assert.deepEqual({...fallback,latestAt:Date.parse(fallback.latestAt!)},{commits7:0,commits30:1,latestAt:Date.parse("2026-09-01T12:00:00Z"),state:"available"},"a repository without the remote base ref still uses its local branch");
   }
   const page=renderHubPage(snapshot,"ru");
   assert.match(page,/Kurami Hub/);

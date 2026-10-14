@@ -23,6 +23,7 @@ This reference shows what runs on the server and when: twelve Hermes jobs (ten s
 | `kurami-daily-briefing` | agent, skill `kurami-daily-briefing` | `0 6,7,8 * * *` | 09:00, 10:00, 11:00 / 08:00, 09:00, 10:00 (working windows: hours 9 and 10) | the morning Daily edition; Cinema on Saturdays, Weekly on Sundays | `local`; the runtime maintains the card |
 | `kurami-state-backup` | script | `15 3 */3 * *` | 06:15 / 05:15 on day 1, 4, 7 … 31 of the month | a database snapshot, recovery archive, off-site copy | the maintenance channel |
 | `kurami-monthly-maintenance` | script | `15 4 1 * *` | 07:15 / 06:15 on the 1st | cleaning logs and Docker | the maintenance channel |
+| `kurami-monthly-resource-audit` | script + agent | `30 6 1 * *` | 09:30 / 08:30 on the 1st | disk/RAM audit; no cleanup | maintenance channel + Hub |
 | `kurami-investment-review-weekly` | script | `0 7 * * 0` | Sunday 10:00 / 09:00; the runtime checks local Sunday itself | the weekly Investment Review | the thread where the job was created |
 | `kurami-docs-freshness` | agent, filter script | `0 3,4 * * 1` | Monday 06:00 (one of the two firings fits) | the documentation audit and a draft of changes | the updates channel |
 

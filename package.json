@@ -185,7 +185,8 @@
     "test:ci-no-head-recovery": "node tests/verify-ci-no-head-recovery.ts",
     "test:legacy-ci-timeout-recovery": "node tests/verify-legacy-ci-timeout-recovery.ts",
     "test:codex-protocol": "node tests/verify-codex-protocol.ts && node tests/verify-protocol-lifecycle.ts",
-    "test:codex-protocol-smoke": "node tests/smoke-codex-protocol.ts"
+    "test:codex-protocol-smoke": "node tests/smoke-codex-protocol.ts",
+    "test:resource-audit": "python3 tests/verify-resource-audit.py && node tests/verify-resource-audit.ts"
   },
   "keywords": [],
   "author": "",

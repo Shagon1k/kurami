@@ -226,4 +226,5 @@ body { min-height: 100vh; }
 @media(max-width:620px) { .hub { padding-bottom: calc(var(--space-10) + 44px + env(safe-area-inset-bottom)); }.task-summary__metrics { --stat-label-direction: column; --stat-label-gap: var(--space-1); --stat-plain-label-height: 4em; gap: var(--space-1); } }
 @media(max-width:520px) { .section { margin-top: var(--space-6); }.section-heading { align-items: flex-start; flex-direction: column; }.hub-panel,.health-cell,.work-item { padding: var(--space-3); }.codex-grid { grid-template-columns: 1fr; }.models { grid-column: auto; }.control-fields,.stat-list--wide { grid-template-columns: 1fr; }.problem { align-items: flex-start; flex-direction: column; gap: var(--space-3); }.work-event-list li { grid-template-columns: 1fr; gap: var(--space-1); }.activity-filters { width: 100%; }.activity-filters label { flex: 1; min-width: 0; } }
 @media(max-width:520px) { .section-heading--period { flex-direction: row; align-items: center; }.heading-actions > span { display: none; }.usage-metrics { grid-template-columns: 1fr; } }
+.resource-audit{overflow-wrap:anywhere}.resource-audit__text{white-space:pre-wrap}
 `;

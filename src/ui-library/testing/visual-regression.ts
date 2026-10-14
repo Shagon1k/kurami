@@ -11,7 +11,7 @@ import {tmpdir} from "node:os";
 import {isAbsolute,join,resolve,sep} from "node:path";
 import {setTimeout as delay} from "node:timers/promises";
 import {findBrowser,launchBrowser} from "./devtools.ts";
-import {librarySubsite,libraryToast,syntheticDaily,syntheticHub,syntheticInvestmentReview,syntheticLegacyCinema,syntheticStocksEmpty,syntheticWeeklyEmpty,syntheticProjects} from "./fixtures.ts";
+import {syntheticResourceAudit,librarySubsite,libraryToast,syntheticDaily,syntheticHub,syntheticInvestmentReview,syntheticLegacyCinema,syntheticStocksEmpty,syntheticWeeklyEmpty,syntheticProjects} from "./fixtures.ts";
 import {syntheticCharts} from "./charts.ts";
 import {auditPoster,syntheticDailyFilled,syntheticCinemaFilled,syntheticWeeklyFilled,syntheticStocksFilled} from "./digest-filled.ts";
 import {syntheticStocksDiscovery,syntheticRetainedCinema,syntheticHubUnavailable,syntheticHubLong} from "./audit-states.ts";
@@ -69,6 +69,8 @@ const availablePages:Record<string,string>={
   "library-charts-en":"/lab/charts-en.html",
   "library-subsite":"/lab/index.html",
   "library-toast":"/lab/toast.html",
+  "hub-resource-audit":"/hub/resource-audit.html",
+  "hub-resource-audit-en":"/hub/resource-audit-en.html",
   "hub-home":"/hub/index.html",
   "hub-home-en":"/hub/en.html",
   "hub-unavailable":"/hub/unavailable.html",
@@ -146,6 +148,8 @@ async function site():Promise<string> {
   writeFileSync(join(served,"lab/charts.html"),syntheticCharts());
   writeFileSync(join(served,"lab/charts-en.html"),syntheticCharts("en"));
   mkdirSync(join(served,"hub"),{recursive:true});
+  writeFileSync(join(served,"hub/resource-audit.html"),syntheticResourceAudit());
+  writeFileSync(join(served,"hub/resource-audit-en.html"),syntheticResourceAudit("en"));
   writeFileSync(join(served,"hub/index.html"),syntheticHub());
   writeFileSync(join(served,"hub/en.html"),syntheticHub("en"));
   for(const lang of ["en","ru"] as const){

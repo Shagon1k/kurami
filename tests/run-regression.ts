@@ -27,6 +27,7 @@ const suites = [
   "test:ui-library",
   "test:ui-guard",
   "test:hub",
+  "test:resource-audit",
   "test:projects-site",
   "test:web",
   "test:briefing-weekly",

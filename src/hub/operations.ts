@@ -1,3 +1,4 @@
+import {readResourceAudit,resourceAuditPending} from "../system/maintenance/resource-audit.ts";
 import {existsSync,readFileSync} from "node:fs";
 import {resolve} from "node:path";
 import {DatabaseSync} from "node:sqlite";
@@ -14,7 +15,7 @@ import {kuramiEntryHref} from "../ui-library/patterns/kurami-sites.ts";
 import {controllerFailuresPath,isStuck,readControllerFailures} from "../orchestrator/runtime/controller-failures.ts";
 
 export type HubAlert={id:string;severity:"warning"|"critical";code:string;subject:string;href?:string;group?:string;project?:string;itemId?:string;title?:string;prNumber?:number;task?:boolean;next?:ProblemNext;actor?:"owner"|"agent"|"system";detail?:string;texts?:{ru:string;en:string}};
-export type ProblemNext="start_repair"|"wait_repair"|"reply"|"inspect_task"|"check_collector"|"check_project"|"inspect_health"|"restore_db"|"release";
+export type ProblemNext="start_repair"|"wait_repair"|"reply"|"inspect_task"|"check_collector"|"check_project"|"inspect_health"|"restore_db"|"release"|"inspect_audit";
 export type HubActivity={id:string;at:string;source:string;subject:string;event:string;href?:string;group?:string;project?:string;agent?:string;sessionId?:string;turnId?:string;limited?:boolean;runId?:string;currentRunId?:string;head?:string;result?:string;taskState?:string};
 export type HubOperations={health:HealthSurfaceSnapshot|null;healthStale:boolean;alerts:HubAlert[];activity:HubActivity[]};
 
@@ -36,6 +37,8 @@ export function collectHubOperations(home:string,codexHome:string,hermesHome:str
   const interval=settingsSchema.health.allowedIntervals.includes(cadence)?cadence:settingsSchema.health.defaultIntervalMinutes;
   const healthStale=!health||now.getTime()-Date.parse(health.checkedAt)>Math.max(15,interval*2+5)*60_000;
   const alerts:HubAlert[]=[];
+  const resourceAudit=readResourceAudit(home);
+  if(resourceAudit&&resourceAuditPending(home,resourceAudit))alerts.push({id:resourceAudit.id,severity:"warning",code:"resource_audit",subject:"Server resources",group:"system:resource-audit",href:kuramiEntryHref("hub","en")+"resource-audit",actor:"owner",next:"inspect_audit",texts:resourceAudit.summary});
   if(healthStale)alerts.push({id:"health-stale",severity:"warning",code:health?"health_stale":"health_unavailable",subject:"System Health"});
   for(const [key,value] of Object.entries(active)){
     if(!value||typeof value!=="object")continue;
