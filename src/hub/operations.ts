@@ -12,7 +12,7 @@ import {settingsSchema} from "../orchestrator/settings/settings-schema.ts";
 import {codexLaunchUrl} from "../orchestrator/integrations/codex/deeplink.ts";
 import {localDay} from "../core/codex-usage.ts";
 import {kuramiEntryHref} from "../ui-library/patterns/kurami-sites.ts";
-import {controllerFailuresPath,isStuck,readControllerFailures} from "../orchestrator/runtime/controller-failures.ts";
+import {controllerFailuresPath,isStuck,readControllerFailures,controllerFailureResolved,SETTLED_CONTROLLER_RUNS_SQL} from "../orchestrator/runtime/controller-failures.ts";
 
 export type HubAlert={id:string;severity:"warning"|"critical";code:string;subject:string;href?:string;group?:string;project?:string;itemId?:string;title?:string;prNumber?:number;task?:boolean;next?:ProblemNext;actor?:"owner"|"agent"|"system";detail?:string;texts?:{ru:string;en:string}};
 export type ProblemNext="start_repair"|"wait_repair"|"reply"|"inspect_task"|"check_collector"|"check_project"|"inspect_health"|"restore_db"|"release"|"inspect_audit";
@@ -68,8 +68,11 @@ export function collectHubOperations(home:string,codexHome:string,hermesHome:str
         detail:issue.code==="review_unrepaired"?String(status.majorFindings):checks});
     }
   }
+  // Ignore resolved failures even before the next controller cycle prunes its ledger.
+  const settledRuns=new Map(readRows(dbPath,SETTLED_CONTROLLER_RUNS_SQL).map(row=>[row.run_id,row]));
   // An automatic controller action that has kept failing for hours: the task waits on the owner.
   for(const failure of Object.values(readControllerFailures(controllerFailuresPath(home))).filter(failure=>isStuck(failure,now))){
+    if(controllerFailureResolved(failure,settledRuns.get(failure.runId)))continue;
     const row=projectStatus.runs.find(run=>run.run_id===failure.runId);
     const href=row?safeLink(row.pull_request_url)??safeLink(`https://github.com/${row.repository}/issues/${row.issue_number}`):undefined;
     const hours=Math.floor((now.getTime()-Date.parse(failure.firstAt))/3_600_000);

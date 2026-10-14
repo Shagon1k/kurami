@@ -15,6 +15,22 @@ export type ControllerFailure = {
 type FailureState = { version: 1; failures: Record<string, ControllerFailure> };
 type Plan = { runId: string; project: string; issueNumber: number; action: string };
 
+export type SettledControllerRun = { run_id: string; settled_at: string | null };
+/** A terminal state alone does not prove that the writer and resource cleanup finished. */
+export const SETTLED_CONTROLLER_RUNS_SQL = `
+  SELECT r.run_id, (SELECT h.occurred_at FROM run_state_history h
+    WHERE h.run_id = r.run_id AND h.to_state = r.state
+    ORDER BY h.sequence DESC LIMIT 1) AS settled_at
+  FROM runs r JOIN run_resources rr USING (run_id)
+  WHERE r.state IN ('cancelled', 'archived') AND r.owner_state = 'none'
+    AND rr.resource_state = 'released'
+`;
+
+/** Keep failures of follow-up actions recorded after the terminal transition. */
+export function controllerFailureResolved(failure: ControllerFailure, run?: SettledControllerRun): boolean {
+  return Boolean(run) && Date.parse(failure.lastAt) <= Date.parse(run?.settled_at ?? "");
+}
+
 /** Retries at once up to this many consecutive failures, then backs off. */
 export const FREE_RETRIES = 5;
 export const MAX_BACKOFF_MINUTES = 30;
@@ -82,6 +98,13 @@ export class ControllerFailureLedger {
 
   recordSuccess(plan: Plan): void {
     delete this.failures[failureKey(plan)];
+  }
+
+  /** Discards old failures after a confirmed cancellation or completed resource release. */
+  forgetResolved(runs: readonly SettledControllerRun[]): void {
+    const settled = new Map(runs.map(run => [run.run_id, run]));
+    for (const [key, failure] of Object.entries(this.failures))
+      if (controllerFailureResolved(failure, settled.get(failure.runId))) delete this.failures[key];
   }
 
   /** Forgets runs whose action no plan touched for a while: the run moved on or was handled by hand. */

@@ -11,7 +11,7 @@ import { baseRunSelect, type RunRow } from "./run-read-model.ts";
 import { planForRequest, type PlannedAction, type RequestRow } from "./request-plan.ts";
 import { previewExpired } from "./run-predicates.ts";
 import { databasePath, fail, orchestratorHome, projectsPath } from "./controller-context.ts";
-import { ControllerFailureLedger, controllerFailuresPath } from "./controller-failures.ts";
+import { ControllerFailureLedger, controllerFailuresPath, SETTLED_CONTROLLER_RUNS_SQL, type SettledControllerRun } from "./controller-failures.ts";
 import { runAutopilot } from "./autopilot.ts";
 import type { OrchestratorConfig, ProjectsRegistry } from "./controller-types.ts";
 import {
@@ -300,6 +300,7 @@ export async function runOrchestratorControllerCli(): Promise<void> {
   }
   reconcileAfterCycle(database, config);
   if (await deliverControllerTicketFeedback(database, orchestratorHome)) reconcileAfterCycle(database, config);
+  ledger.forgetResolved(database.prepare(SETTLED_CONTROLLER_RUNS_SQL).all() as SettledControllerRun[]);
   database.close();
   ledger.forgetStale();
   await ledger.save();
