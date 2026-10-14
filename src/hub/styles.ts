@@ -115,11 +115,12 @@ body { min-height: 100vh; }
 .hub-alerts h2 { font-size: .95rem; }
 .problem { display: flex; align-items: center; justify-content: space-between; gap: var(--space-4); padding-block: var(--space-3); }
 .problem + .problem { border-top: 1px solid var(--border-subtle); }
-.problem__main { min-width: 0; }
+.problem__main { min-width: 0; max-width: 100%; }
 .problem__links { display: flex; align-items: center; flex-wrap: wrap; gap: var(--space-2); flex-shrink: 0; }
 .problem__main > strong { font-size: .87rem; font-weight: 600; overflow-wrap: anywhere; }
 .problem__reasons { display: flex; flex-wrap: wrap; gap: var(--space-2) var(--space-4); margin-top: var(--space-2); color: var(--status-warning); font-size: .78rem; }
-.problem__reasons > span { display: inline-flex; align-items: center; gap: var(--space-2); }
+.problem__reasons > span { display: inline-flex; min-width: 0; max-width: 100%; align-items: center; gap: var(--space-2); }
+.problem__reasons > span > span { min-width: 0; overflow-wrap: anywhere; }
 .problem__next { margin: var(--space-2) 0 0; color: var(--text-muted); font-size: .78rem; }
 .problem__next { display: flex; align-items: center; gap: var(--space-2); }
 .problem[data-severity="critical"] { border-inline-start: 2px solid var(--status-failure); padding-inline-start: var(--space-3); }
