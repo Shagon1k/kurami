@@ -7,9 +7,12 @@ export function reconcileWorldWeekend(
   sources: CinemaSourceReference[],
   coverage: CinemaCoverage,
 ): CinemaBoxOfficeSection {
-  const expectedEnd = new Date(Date.parse(coverage.end) - 86_400_000).toISOString().slice(0, 10);
+  const coverageEnd = new Date(Date.parse(coverage.end) - 86_400_000).toISOString().slice(0, 10);
   const periods = new Map(sources.map((source) => [source.id, source.period]));
   const domestic = section.charts.find((chart) => chart.region === "US/CA" && chart.period === "weekend");
+  const domesticPeriods = new Set(domestic?.entries.map((entry) => periods.get(entry.sourceId)));
+  const domesticEnd = domesticPeriods.size === 1 ? [...domesticPeriods][0] : undefined;
+  const expectedEnd = domesticEnd && /^\d{4}-\d{2}-\d{2}$/u.test(domesticEnd) ? domesticEnd : coverageEnd;
   const diagnostics: string[] = [];
   const charts = section.charts.filter((chart) => {
     if (chart.region !== "WORLD" || chart.period !== "weekend") return true;

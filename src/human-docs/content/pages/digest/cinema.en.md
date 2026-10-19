@@ -31,6 +31,10 @@ does not reserve an empty image column.
 
 Numbers, dates and ranks come from the sources and are computed by code. The model writes only the Russian headlines and summaries of the news and two or three short handwritten notes; it cannot change a number.
 
+Each weekend table shows the period reported by its source; year rankings show the year and collection date. The US winner remains visible when a fallback supplies a verified ranking, even without the extended statistics. A missing table explains whether source data is unavailable, the world figures could not be verified, or year rankings are not collected for that market. Lithuania has no year-ranking collector.
+
+When Box Office Watch has only estimates for its newest weekend, Kurami uses the latest completed actuals no more than 14 days old. The page shows that weekend's date; estimates are not substituted for final figures.
+
 ## When the page is replaced
 
 The supplemental world weekend table is omitted, with a diagnostic and partial

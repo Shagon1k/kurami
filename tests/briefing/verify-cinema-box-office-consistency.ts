@@ -36,4 +36,13 @@ assert.ok(reconcileWorldWeekend(frozen.boxOffice, unknown, frozen.coverage.boxOf
 const noCumulative = structuredClone(compatible);
 noCumulative.charts.find(chart => chart.region === "US/CA" && chart.period === "weekend")!.entries.forEach(entry => delete entry.cumulativeGross);
 assert.ok(reconcileWorldWeekend(noCumulative, frozen.provenance, frozen.coverage.boxOffice).diagnostics?.some(item => item.includes("world_below_domestic")));
+// A proven domestic weekend takes precedence over an editorial weekly window.
+const weeklyCoverage = { start: "2026-09-26T06:00:00Z", end: "2026-10-03T06:00:00Z" };
+const verifiedSameWeekend = structuredClone(compatible);
+verifiedSameWeekend.charts.find(chart => chart.id === "world-weekend")!.entries.forEach(entry => delete entry.cumulativeGross);
+assert.equal(reconcileWorldWeekend(verifiedSameWeekend, frozen.provenance, weeklyCoverage), verifiedSameWeekend);
+assert.ok(reconcileWorldWeekend(verifiedSameWeekend, older, weeklyCoverage).diagnostics?.some(issue => issue.includes("unverified_same_weekend")));
+const missingDomesticPeriod = frozen.provenance.map(source => source.region === "US/CA" || source.region === "US/WORLD" ? { ...source, period: undefined } : source);
+assert.ok(reconcileWorldWeekend(verifiedSameWeekend, missingDomesticPeriod, weeklyCoverage).diagnostics?.some(issue => issue.includes("unverified_same_weekend")));
+
 console.log("Cinema box-office consistency regression passed (frozen 2026-10-03, no mutation, dated joins, lower bounds, idempotence)");

@@ -63,10 +63,40 @@ function chartRows(chart: CinemaChart, visible = 5): string {
   </tr>`).join("");
 }
 
-function rankTable(chart: CinemaChart): string {
+function rankPeriod(envelope: CinemaEnvelope, chart: CinemaChart): string {
+  const sourceIds = new Set(chart.entries.map((entry) => entry.sourceId));
+  const sources = envelope.data.provenance.filter((source) => sourceIds.has(source.id));
+  const formatDate = (value: string): string | undefined => {
+    const date = new Date(value);
+    return Number.isFinite(date.getTime())
+      ? new Intl.DateTimeFormat(digestLanguage() === "en" ? "en-GB" : "ru-RU", {
+        day: "numeric", month: "short", year: "numeric", timeZone: "UTC",
+      }).format(date)
+      : undefined;
+  };
+  if (chart.period === "ytd") {
+    const collected = sources[0] && formatDate(sources[0].fetchedAt);
+    return `${envelope.data.localDate.slice(0, 4)}${collected ? ` · ${t("Собрано", "Collected")} ${collected}` : ""}`;
+  }
+  const periods = [...new Set(sources.map((source) => source.period))];
+  const period = periods.length === 1 ? periods[0] : undefined;
+  if (period && /^\d{4}-\d{2}-\d{2}$/u.test(period)) {
+    const end = formatDate(period);
+    if (end) return `${t("Уикенд по", "Weekend ending")} ${end}`;
+  }
+  if (period?.includes("/")) {
+    const [start, end] = period.split("/").map(formatDate);
+    if (start && end) return `${t("Период источника:", "Source period:")} ${start} – ${end}`;
+  }
+  return t("Период не подтверждён", "Period not confirmed");
+}
+
+function rankTable(chart: CinemaChart, envelope: CinemaEnvelope): string {
   const hasMore = chart.entries.length > 5;
-  const title=chart.id==="us-weekend"?t("США — уикенд","US — weekend"):chart.id==="us-ytd"?t("США — с начала года","US — year to date"):chart.id==="world-ytd"?t("Мировой прокат — с начала года","Worldwide — year to date"):chart.label;
+  const region = RANK_REGIONS.find(item => item.id === chart.region);
+  const title = region ? `${t(region.label, region.enLabel)} — ${chart.period === "ytd" ? t("с начала года", "year to date") : t("уикенд", "weekend")}` : chart.label;
   return `<article class="cinema-rank"><header><div><span>${escapeHtml(chart.region)}</span><h3>${escapeHtml(title)}</h3></div><span>${chart.period === "ytd" ? t("год","year") : t("уикенд","weekend")}</span></header>
+    <p class="section-kicker">${escapeHtml(rankPeriod(envelope, chart))}</p>
     <table><thead><tr><th>#</th><th>${t("Фильм","Film")}</th><th>${t("Сборы","Gross")}</th><th>Δ</th></tr></thead><tbody>${chartRows(chart)}</tbody></table>
     ${hasMore ? renderDisclosure({summary:t("Показать топ-10","Show top 10"),variant:"inline",className:"cinema-rank__more",body:`<span class="sr-only">${t("Остальные строки уже находятся в таблице и открываются стилями.","The remaining rows are already in the table and are revealed by styles.")}</span>`}) : ""}
   </article>`;
@@ -90,17 +120,24 @@ const RANK_REGIONS = [
   { id: "LT", label: "Литва", enLabel:"Lithuania" },
 ] as const;
 
-function emptyRankTable(region: typeof RANK_REGIONS[number], period: CinemaChart["period"]): string {
+function emptyRankTable(region: typeof RANK_REGIONS[number], period: CinemaChart["period"], envelope: CinemaEnvelope): string {
   const suffix = period === "weekend" ? t("уикенд","weekend") : t("с начала года","year to date");
-  return `<article class="cinema-rank cinema-rank--empty"><header><div><span>${escapeHtml(region.id)}</span><h3>${escapeHtml(t(region.label,region.enLabel))} — ${suffix}</h3></div><span>${period === "ytd" ? t("год","year") : t("уикенд","weekend")}</span></header><div class="cinema-rank__empty"><strong>${t("Нет надёжных данных","No reliable data")}</strong><p>${t("Появятся автоматически, когда будет подключён проверенный источник.","Data will appear when a verified source is connected.")}</p></div></article>`;
+  const omittedWorld = region.id === "WORLD" && period === "weekend"
+    && envelope.data.boxOffice.diagnostics?.some((issue) => issue.startsWith("world-weekend:omitted:"));
+  const reason = region.id === "LT" && period === "ytd"
+    ? t("Годовой рейтинг для этого рынка не собирается.", "Year-to-date rankings are not collected for this market.")
+    : omittedWorld
+      ? t("Не удалось подтвердить совпадение уикендов или согласованность сборов.", "Matching weekends or consistent totals could not be verified.")
+      : t("Данные источника недоступны для этого выпуска.", "Source data is unavailable for this edition.");
+  return `<article class="cinema-rank cinema-rank--empty"><header><div><span>${escapeHtml(region.id)}</span><h3>${escapeHtml(t(region.label,region.enLabel))} — ${suffix}</h3></div><span>${period === "ytd" ? t("год","year") : t("уикенд","weekend")}</span></header><div class="cinema-rank__empty"><strong>${t("Нет надёжных данных","No reliable data")}</strong><p>${escapeHtml(reason)}</p></div></article>`;
 }
 
-function rankGroup(charts: CinemaChart[], period: CinemaChart["period"]): string {
-  const selected = charts.filter((chart) => chart.period === period).sort((left, right) => regionOrder(left) - regionOrder(right));
+function rankGroup(envelope: CinemaEnvelope, period: CinemaChart["period"]): string {
+  const selected = envelope.data.boxOffice.charts.filter((chart) => chart.period === period).sort((left, right) => regionOrder(left) - regionOrder(right));
   const title = period === "weekend" ? t("Последний уикенд","Latest weekend") : t("С начала года","Year to date");
   const cards = RANK_REGIONS.map((region) => {
     const chart = selected.find((candidate) => candidate.region === region.id);
-    return chart ? rankTable(chart) : emptyRankTable(region, period);
+    return chart ? rankTable(chart, envelope) : emptyRankTable(region, period, envelope);
   });
   return `<section class="cinema-rank-group" data-rank-period="${period}"><header><h3>${title}</h3><span>${selected.length} ${t("из","of")} ${RANK_REGIONS.length} ${t("рынков","markets")}</span></header><div class="cinema-ranks">${cards.join("")}</div></section>`;
 }
@@ -108,14 +145,15 @@ function rankGroup(charts: CinemaChart[], period: CinemaChart["period"]): string
 function boxOffice(envelope: CinemaEnvelope): string {
   const section = envelope.data.boxOffice;
   if (section.state === "failed" || !section.charts.length) return "";
-  const featured = section.charts.flatMap((chart) => chart.entries)
-    .find((entry) => entry.id === section.featuredId);
+  const usWeekend = section.charts.find((chart) => chart.region === "US/CA" && chart.period === "weekend");
+  const featured = usWeekend?.entries.find((entry) => entry.id === section.featuredId)
+    ?? usWeekend?.entries.find((entry) => entry.rank === 1);
   const signalLabels={"largest-debut":t("Крупнейший дебют","Biggest debut"),"best-hold":t("Лучшее удержание","Best hold"),"sharpest-drop":t("Самое резкое падение","Sharpest drop"),"rank-movement":t("Движение в чарте","Chart movement"),"estimate-surprise":t("Сюрприз против прогноза","Versus estimate")};
   return `<section${surfaceAttributes("lead")} class="cinema-block cinema-box-office" id="box-office"><header class="cinema-heading section-heading"><div><p class="section-kicker">${t("Прокат · цифры","Box office · numbers")}</p><h2>${t("Пульс проката","Box-office pulse")}</h2></div>${note(envelope, "box-office")}</header>
-    ${featured ? `<article class="cinema-winner"><span>${t("Лидер последнего уикенда","Latest weekend leader")}</span><strong>${escapeHtml(featured.title)}</strong><b${FIGURE_ATTRIBUTE}>${money(featured.gross.amount, featured.gross.currency)}</b></article>` : ""}
+    ${featured ? `<article class="cinema-winner"><span>${t("Лидер уикенда в США","US weekend leader")} · ${escapeHtml(rankPeriod(envelope, usWeekend!))}</span><strong>${escapeHtml(featured.title)}</strong><b${FIGURE_ATTRIBUTE}>${money(featured.gross.amount, featured.gross.currency)}</b></article>` : ""}
     ${section.signals.length ? `<div class="cinema-signals">${section.signals.map((signal) => `<article><span>${escapeHtml(signalLabels[signal.kind])}</span><strong>${escapeHtml(signal.filmTitle ?? section.charts.flatMap((chart) => chart.entries).find((entry) => entry.id === signal.filmId)?.title ?? signal.filmId)}</strong><b>${signal.value === undefined ? "" : `${signal.value > 0 ? "+" : ""}${signal.unit === "USD" ? money(signal.value, "USD") : `${Math.round(signal.value)}${signal.unit ?? ""}`}`}</b></article>`).join("")}</div>` : ""}
     ${trend(envelope)}
-    <div class="cinema-rank-groups">${rankGroup(section.charts, "weekend")}${rankGroup(section.charts, "ytd")}</div>
+    <div class="cinema-rank-groups">${rankGroup(envelope, "weekend")}${rankGroup(envelope, "ytd")}</div>
   </section>`;
 }
 

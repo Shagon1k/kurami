@@ -42,6 +42,14 @@ function finite(value: unknown, label: string): number {
   return value;
 }
 
+function gross(value: unknown, label: string): number {
+  // LKC sometimes stores EUR amounts as explicitly formatted text in an XLSX cell.
+  if (typeof value === "string" && /^€(?:\d{1,3}(?:,\d{3})+|\d+)\.\d{2}$/u.test(value)) {
+    return finite(Number(value.slice(1).replaceAll(",", "")), label);
+  }
+  return finite(value, label);
+}
+
 function integer(value: unknown, label: string): number {
   const result = finite(value, label);
   if (!Number.isSafeInteger(result)) throw new Error(`Invalid LKC workbook: ${label} must be an integer`);
@@ -95,7 +103,7 @@ export function normalizeLkcSheetRows(rows: unknown[][]): LkcWeekendEntry[] {
       rank: integer(rankValue, `row ${index + 3} rank`),
       ...(optionalInteger(row[1]) ? { previousRank: optionalInteger(row[1])! } : {}),
       title,
-      weekendGrossEur: finite(row[column("Pajamos (GBO)")], `row ${index + 3} gross`),
+      weekendGrossEur: gross(row[column("Pajamos (GBO)")], `row ${index + 3} gross`),
       ...(optionalFinite(row[column("Pajamos praeita sav. (GBO LW)")]) !== undefined
         ? { previousWeekendGrossEur: optionalFinite(row[column("Pajamos praeita sav. (GBO LW)")])! }
         : {}),
@@ -109,7 +117,7 @@ export function normalizeLkcSheetRows(rows: unknown[][]): LkcWeekendEntry[] {
       ...(optionalInteger(row[column("Rodymo savaitė (Week on screen)")])
         ? { weekInRelease: optionalInteger(row[column("Rodymo savaitė (Week on screen)")])! }
         : {}),
-      cumulativeGrossEur: finite(row[column("Bendros pajamos (Total GBO)")], `row ${index + 3} total gross`),
+      cumulativeGrossEur: gross(row[column("Bendros pajamos (Total GBO)")], `row ${index + 3} total gross`),
       ...(optionalInteger(row[column("Bendras žiūrovų sk. (Total ADM)")]) === undefined
         ? {}
         : { cumulativeAdmissions: optionalInteger(row[column("Bendras žiūrovų sk. (Total ADM)")])! }),
