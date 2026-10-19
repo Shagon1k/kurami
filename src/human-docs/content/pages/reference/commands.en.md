@@ -28,16 +28,18 @@ A button carries the id `kurami:<action>:<run id>`. The card shows at most four 
 | **Take control** | owner `cli`, a managed session is running, run not in `needs_attention` | `take_control` | `handoff`: asks Codex to stop, waits for a quiet pause, releases tmux; the run becomes `remote_owned` |
 | **Take control** | owner `none`, state `parked_review` or `waiting_human` | `take_control` | `claim_remote`: the owner becomes `remote`, the card shows an Open session link |
 | **Continue autonomously** | run `remote_owned`, owner `remote` | `take_control` | `successor_start`: a fresh managed Codex task in the same working copy |
-| **Start preview** | the project has previews, no lease, run in review or yours | `preview_start` | leases a slot, then builds the preview |
+| **Start preview** | the project has previews, no lease, run in review or owner-controlled, PR and exact observed head known | `preview_start` | leases a slot, then builds the preview |
 | **Remove preview** | a lease in any state except released | `preview_stop` | removes the route, stops the stack, frees the slot |
 | **Extend 24h** | the preview runs, less than two hours left | `preview_start` | `preview_extend`: expiry plus 24 hours |
 | **Mark reviewed** | the preview runs and is not marked | direct call, no queue | writes the review mark on the lease |
 | **Attempt CI fix** | `parked_review`, CI `failed` or `missing`, fewer than two attempts | `ci_repair` | `repair_start`: a fresh Codex task on the exact failing commit |
-| **AI Code Review** | `parked_review`, PR and commit known, this commit not reviewed yet | `ai_review` | `review_start`: an independent read-only reviewer, the review is posted on GitHub |
-| **Fix Review** | the current AI review has findings | `review_fix` | `review_fix_start`: a fresh Codex task fixes the findings and resolves their threads |
+| **Run review → General / Clarity** | run parked and unowned, PR and commit known, selected profile neither queued, running nor ready for this commit | `ai_review`, selected profile | `review_start`: an independent read-only reviewer publishes its review on GitHub; the other profile may queue or run independently |
+| **Fix findings** | a ready review of the current commit has findings, no review is queued or running | `review_fix`, all profiles | `review_fix_start`: one fresh Codex task fixes current General and Clarity findings and unresolved owner threads; thread resolution follows verified CI |
 | **Cancel run** | cancellation has not started | `stop` | `request_stop`: stop, release resources, the issue goes to Backlog |
 | **Discard local work** | stage "Cancelled — local work preserved", no PR | confirmation, then `discard_local` | `discard_cancelled`: deletes the unpublished working copy and branch |
 | **Close draft PR & discard** | the same stage, a draft PR exists | confirmation, then `discard_published` | `discard_published_cancelled`: closes the exact draft PR and deletes the branches |
+
+The **Fix findings** button carries `kurami:review_fix_all:<run id>`; the Discord handler queues `review_fix` with `--all-reviews`. This action has no profile selector.
 
 Confirmation buttons are visible only to you and live for two minutes: **Discard preserved local work** (`kurami:discard_local:…`) and **Close draft PR & discard** (`kurami:discard_published:…`).
 
@@ -54,7 +56,7 @@ Confirmation buttons are visible only to you and live for two minutes: **Discard
 
 ## Request kinds
 
-A request row lives in `run_control_requests`. States: `pending`, `processing`, `applied`, `rejected`, `failed`. One active request per action.
+A request row lives in `run_control_requests`. States: `pending`, `processing`, `applied`, `rejected`, `failed`. One active request per action, except `ai_review`, which permits one per profile.
 
 | Request | Buttons that queue it | Conflicts with |
 |---|---|---|
@@ -64,8 +66,8 @@ A request row lives in `run_control_requests`. States: `pending`, `processing`, 
 | `stop` | Cancel run | — |
 | `discard_local`, `discard_published` | the confirmation buttons | — |
 | `ci_repair` | Attempt CI fix | `review_fix`, `recover_managed_task` |
-| `ai_review` | AI Code Review | `review_fix`, `recover_managed_task` |
-| `review_fix` | Fix Review | `take_control`, `ci_repair`, `ai_review` |
+| `ai_review` | Run review → General / Clarity | `review_fix`, `recover_managed_task`; the other review profile is independent |
+| `review_fix` | Fix findings | `take_control`, `ci_repair`, `ai_review` |
 | `recover_managed_task` | Recover delivered fix | `take_control`, `ci_repair`, `ai_review` |
 
 ## Digest card buttons

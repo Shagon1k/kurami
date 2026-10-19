@@ -28,16 +28,18 @@ order: 60
 | **Take control** | владелец `cli`, идёт управляемая сессия, запуск не в `needs_attention` | `take_control` | `handoff`: просит Codex остановиться, ждёт тихой паузы, отпускает tmux; запуск `remote_owned` |
 | **Take control** | владелец `none`, состояние `parked_review` или `waiting_human` | `take_control` | `claim_remote`: владелец становится `remote`, на карточке ссылка Open session |
 | **Continue autonomously** | запуск `remote_owned`, владелец `remote` | `take_control` | `successor_start`: новая управляемая задача Codex в той же рабочей копии |
-| **Start preview** | у проекта есть превью, аренды нет, запуск на ревью или у тебя | `preview_start` | выдаёт слот, затем собирает превью |
+| **Start preview** | у проекта есть превью, аренды нет, запуск на ревью или под управлением владельца, известны PR и его точный наблюдаемый head | `preview_start` | выдаёт слот, затем собирает превью |
 | **Remove preview** | аренда в любом состоянии, кроме released | `preview_stop` | снимает маршрут, останавливает стек, освобождает слот |
 | **Extend 24h** | превью работает, до конца меньше двух часов | `preview_start` | `preview_extend`: срок плюс 24 часа |
 | **Mark reviewed** | превью работает и не отмечено | прямой вызов, без очереди | записывает отметку проверки на аренде |
 | **Attempt CI fix** | `parked_review`, CI `failed` или `missing`, попыток меньше двух | `ci_repair` | `repair_start`: новая задача Codex на точный упавший коммит |
-| **AI Code Review** | `parked_review`, PR и коммит известны, этот коммит ещё не ревьюили | `ai_review` | `review_start`: независимый ревьюер только для чтения, ревью публикуется в GitHub |
-| **Fix Review** | в актуальном AI-ревью есть замечания | `review_fix` | `review_fix_start`: новая задача Codex правит замечания, закрывает их треды |
+| **Run review → General / Clarity** | запуск припаркован и без владельца, известны PR и коммит, выбранный профиль не в очереди, не работает и не имеет готового ревью этого коммита | `ai_review`, выбранный профиль | `review_start`: независимый ревьюер только для чтения публикует ревью в GitHub; другой профиль может независимо ждать в очереди или работать |
+| **Fix findings** | готовое ревью текущего коммита содержит замечания, нет ревью в очереди или работе | `review_fix`, все профили | `review_fix_start`: одна новая задача Codex исправляет актуальные замечания General и Clarity и нерешённые потоки владельца; потоки закрываются после подтверждения CI |
 | **Cancel run** | отмена ещё не начата | `stop` | `request_stop`: остановка, освобождение ресурсов, задача в Backlog |
 | **Discard local work** | этап «Cancelled — local work preserved», PR нет | подтверждение, затем `discard_local` | `discard_cancelled`: удаляет неопубликованную рабочую копию и ветку |
 | **Close draft PR & discard** | тот же этап, есть черновой PR | подтверждение, затем `discard_published` | `discard_published_cancelled`: закрывает точный черновой PR и удаляет ветки |
+
+Кнопка **Fix findings** несёт идентификатор `kurami:review_fix_all:<id запуска>`; обработчик Discord ставит в очередь `review_fix` с `--all-reviews`. У этого действия нет выбора профиля.
 
 Кнопки подтверждения видны только тебе и живут две минуты: **Discard preserved local work** (`kurami:discard_local:…`) и **Close draft PR & discard** (`kurami:discard_published:…`).
 
@@ -54,7 +56,7 @@ order: 60
 
 ## Виды запросов
 
-Строка запроса живёт в `run_control_requests`. Состояния: `pending`, `processing`, `applied`, `rejected`, `failed`. На одно действие приходится один активный запрос.
+Строка запроса живёт в `run_control_requests`. Состояния: `pending`, `processing`, `applied`, `rejected`, `failed`. На одно действие приходится один активный запрос; для `ai_review` разрешён один запрос на профиль.
 
 | Запрос | Кнопки, которые его ставят | Конфликтует с |
 |---|---|---|
@@ -64,8 +66,8 @@ order: 60
 | `stop` | Cancel run | — |
 | `discard_local`, `discard_published` | кнопки подтверждения | — |
 | `ci_repair` | Attempt CI fix | `review_fix`, `recover_managed_task` |
-| `ai_review` | AI Code Review | `review_fix`, `recover_managed_task` |
-| `review_fix` | Fix Review | `take_control`, `ci_repair`, `ai_review` |
+| `ai_review` | Run review → General / Clarity | `review_fix`, `recover_managed_task`; другой профиль ревью независим |
+| `review_fix` | Fix findings | `take_control`, `ci_repair`, `ai_review` |
 | `recover_managed_task` | Recover delivered fix | `take_control`, `ci_repair`, `ai_review` |
 
 ## Кнопки карточки Digest
