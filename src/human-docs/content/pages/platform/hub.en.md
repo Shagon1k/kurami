@@ -47,7 +47,7 @@ The problem queue groups CI and review trouble of one PR into a single entry wit
 
 **Controller stuck** excludes failures from before a confirmed cancellation or archival once the writer has stopped and the resources are released. New failures after that transition remain visible.
 
-Live Activity merges existing journals: run transitions, CI and review states, Codex and Hermes session starts, Daily and Cinema publications. It reads the last seven days and shows five work items, "More" adds up to fifteen. A finished Codex turn means only "idle": a task is done by its board transition, not by a quiet session.
+Live Activity merges existing journals: run transitions, CI and review states, Codex and Hermes session starts, Daily and Cinema publications. It reads the last seven days and shows five work items, "More" adds up to fifteen. A finished Codex turn means only "idle". A board transition can request completion; a verified merge of the exact managed PR also accepts the task. Resource cleanup remains a separate outcome.
 
 The activity link sits beside the title on phones; titles use at most two lines.
 

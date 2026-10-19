@@ -2,6 +2,121 @@
   "baseline": "4a38c09",
   "publicationBaseline": "788787f077d42fc3b3346a4f4a612947b97ce2e8",
   "commits": {
+    "3ae888aad7b1fe27f531f9e27e39b0d7c28f2db1": {
+      "category": "operations", "en": "", "ru": "", "exclusionScope": "docs-only",
+      "exclude": "Updates bilingual documentation, the classification ledger, coverage audit and documentation assertions; application behavior is unchanged."
+    },
+    "d80e135dce08f1108e05e3b20db725ed070731c2": {
+      "category": "fixed", "page": "docs-process",
+      "en": "After Docs publication, the worker attempts a guarded fast-forward to the exact published docs revision without deploying the application. A blocked sync leaves Docs published and reports the reason.",
+      "ru": "После публикации Docs воркер пытается безопасно продвинуть серверную рабочую версию к точному SHA документации без выкладки приложения. При блокировке Docs остаётся опубликованной, а карточка показывает причину."
+    },
+    "9e50dd4da70f4e5a1355c1bd7b516852dcac64c7": {
+      "category": "fixed", "page": "codex-sessions",
+      "en": "Validated TUI parking cleans up captured managed descendants before releasing ownership. Projects shows sanitized review-fix startup refusals for the displayed PR commit without erasing ready review evidence.",
+      "ru": "При парковке TUI с проверенным завершением Kurami очищает сохранённые дочерние процессы до освобождения владения. Projects показывает безопасные причины отказа запуска исправлений для текущего коммита PR, сохраняя готовое ревью."
+    },
+    "957d288d9abdf927b7bba3b511cd6732cf5b43ad": {
+      "category": "operations", "en": "", "ru": "", "exclusionScope": "no-reader-visible-change",
+      "exclude": "Disables keep-alive pooling in the fake Discord approval-test server and improves assertion diagnostics; production approval behavior is unchanged."
+    },
+    "6e723bc2676c8782d6d72ca51a6f9039baf10e53": {
+      "category": "fixed", "page": "release-cleanup",
+      "en": "Successful run stopping, resource release and confirmed cancellation cleanup close unfinished successor records so they no longer keep Settings locked.",
+      "ru": "Успешная остановка запуска, освобождение ресурсов и подтверждённая очистка при отмене завершают записи преемников, чтобы они больше не блокировали Настройки."
+    },
+    "dcbf06d1e567cd1960b3be8e1a536eae53a4c931": {
+      "category": "new", "page": "engineering-evidence",
+      "en": "Adds optional manual Clarity Review alongside General, with separate commit-bound results and a saved simplify-code skill edition. General remains the autopilot review.",
+      "ru": "Добавлен необязательный ручной Clarity Review рядом с General: отдельные результаты для точного коммита и сохранённая редакция simplify-code. Автопилот по-прежнему использует General."
+    },
+    "d146a9acb700df5f485d9798d64d09d9051a6d02": {
+      "category": "improved", "page": "owner-controls",
+      "en": "Projects uses more compact, consistently aligned General and Clarity review labels.",
+      "ru": "Подписи General и Clarity в Projects стали компактнее и выровнены единообразно."
+    },
+    "9fe802921ed2f0dad7460fd9c871a457afe9236b": {
+      "category": "improved", "page": "owner-controls",
+      "en": "Projects aligns review and merge action menus, spaces their choices consistently and disables review menus when no option is available.",
+      "ru": "В Projects выровнены меню ревью и слияния, унифицированы интервалы между вариантами; меню ревью отключено, если доступных вариантов нет."
+    },
+    "8a503a87a7b8cd0adbd8040ef454f11645f3da64": {
+      "category": "operations", "en": "", "ru": "", "exclusionScope": "docs-only",
+      "exclude": "Adds only the bilingual Changelog classification for stopped-writer recovery; application behavior is unchanged."
+    },
+    "4a7e9e10f6597f5e92c1acdcd367b0feb2096d4d": {
+      "category": "operations", "en": "", "ru": "", "exclusionScope": "docs-only",
+      "exclude": "Documents existing managed workspace pnpm-store defaults and permitted personal GitHub Projects reads in paired runtime-layout pages; no application code changes."
+    },
+    "fe4be1a29224702615ce50dcca6b3c10ef7e2c4c": {
+      "category": "improved", "page": "owner-controls",
+      "en": "Projects and Discord use consistent agent status, Run report and Open session labels; Take control covers both live handoff and later session claims.",
+      "ru": "Projects и Discord используют единые обозначения статуса агента, отчёта и ссылки на сессию; Take control применяется и для живой передачи управления, и для последующего захвата сессии."
+    },
+    "1870fba5447bff123e1569ac249211593f2ce4d8": {
+      "category": "fixed", "page": "previews",
+      "en": "Starting a new preview requires a PR with an observed exact head commit; stale controls cannot queue a preview without that evidence.",
+      "ru": "Для нового превью нужен PR с известным точным head-коммитом; устаревшая кнопка не может поставить превью в очередь без этих данных."
+    },
+    "ccc08a634438fa46fdac89f1525492864c2d4c20": {
+      "category": "new", "page": "daily",
+      "en": "Daily shows live edition preparation stages and offers Open new edition when ready, without replacing the edition being read.",
+      "ru": "Daily показывает текущие этапы подготовки выпуска и предлагает открыть готовый новый выпуск, не заменяя читаемый."
+    },
+    "ef53e0e65af8f8495c453dc5ee94eb1ac48ca0a2": {
+      "category": "fixed", "page": "engineering-evidence",
+      "en": "General and Clarity reviews can queue and run independently within Concurrent LLM limits, while fixes wait for active reviewers.",
+      "ru": "Ревью General и Clarity могут независимо ждать в очереди и работать в пределах Concurrent LLM; исправления ждут завершения работающих ревью."
+    },
+    "d97ec6d8d069bb05f393046774a80ec6ad200ab6": {
+      "category": "improved", "page": "engineering-evidence",
+      "en": "Clarity reviews inspect concrete complexity hotspots and explain proposed simplifications or retained structure, including when there are no findings.",
+      "ru": "Clarity проверяет конкретные сложные участки и объясняет предлагаемые упрощения или сохранение структуры, даже когда замечаний нет."
+    },
+    "ff406811fd0016863fe97d1f801beca1a0730fa9": {
+      "category": "fixed", "page": "engineering-evidence",
+      "en": "Fix findings starts one task for current General and Clarity findings and unresolved owner threads, handling overlapping findings together.",
+      "ru": "Fix findings запускает одну задачу для актуальных замечаний General и Clarity и нерешённых потоков владельца, объединяя пересекающиеся замечания."
+    },
+    "ff87ed8e985aa3baa448d9d9f2d7344f2eddd2c3": {
+      "category": "fixed", "page": "release-cleanup",
+      "en": "A verified merge of the exact managed task PR confirms Done and closes its issue, waiving the preview requirement. Guarded resource cleanup remains separate, and terminal cards no longer show stale preview requirements.",
+      "ru": "Подтверждённое слияние точного PR управляемой задачи подтверждает Done и закрывает issue, отменяя требование превью. Защищённая очистка ресурсов остаётся отдельным этапом; конечные карточки больше не показывают устаревшее требование превью."
+    },
+    "2267040ca73f74a3cca3e4dc549a45d17d528b47": {
+      "category": "new", "page": "board-statuses",
+      "en": "The no-auto issue label excludes independent work from automated board actions, next-task suggestions and AI metadata assessment. Projects keeps status editing available; existing runs require separate cancellation.",
+      "ru": "Метка no-auto исключает независимые задачи из автоматических действий по доске, предложений следующей задачи и AI-оценки метаданных. Смена статуса в Projects остаётся доступна; существующий запуск нужно отменять отдельно."
+    },
+    "16b4a81b47a1860e5fe52eee0db0bdcfe90ca69b": {
+      "category": "fixed", "page": "hub",
+      "en": "Long Hub alert messages wrap inside their frame without clipping text or causing horizontal page overflow.",
+      "ru": "Длинные уведомления Hub переносятся внутри рамки без обрезания текста и горизонтального переполнения страницы."
+    },
+    "ecae18aa1ee82df6fb76af8f23551bdd1a1f7702": {
+      "category": "fixed", "page": "hub",
+      "en": "Hub commit counts and charts prefer the locally fetched origin base branch, keeping merged work visible when the local branch lags. Viewing Hub does not fetch or change the checkout.",
+      "ru": "Счётчики и графики коммитов Hub используют уже полученную базовую ветку origin, чтобы учитывать влитую работу при отставании локальной ветки. Открытие Hub не выполняет fetch и не меняет checkout."
+    },
+    "c2973884383147bdce64570c72254cfa67e93e16": {
+      "category": "new", "page": "maintenance",
+      "en": "A separately installed monthly resource audit inventories disk and RAM and uses a tool-free Hermes session for bilingual recommendations. Its Hub notice stays until reviewed; acknowledgement neither authorizes nor performs cleanup.",
+      "ru": "Отдельно устанавливаемый ежемесячный аудит собирает данные о диске и ОЗУ; сессия Hermes без инструментов готовит рекомендации на двух языках. Уведомление Hub остаётся до рассмотрения; отметка не разрешает и не выполняет очистку."
+    },
+    "a0e9452c3c6f546cb5461a2c587f83874175de4d": {
+      "category": "operations", "en": "", "ru": "", "exclusionScope": "no-reader-visible-change",
+      "exclude": "Changes only Hub test assertions to compare parsed UTC instants across Git timestamp formats; production behavior and documentation contracts are unchanged."
+    },
+    "521d19812af3da650455686b2055c5d9f8668b79": {
+      "category": "fixed", "page": "maintenance",
+      "en": "Resource audits use unique Hermes session titles so repeated audits on the same day do not fail on a duplicate title.",
+      "ru": "Аудиты ресурсов используют уникальные названия сессий Hermes, чтобы повторный аудит за тот же день не завершался ошибкой из-за совпадения названий."
+    },
+    "c6988caa5e854dfced4077e734aee06b8f323c8f": {
+      "category": "fixed", "page": "controller",
+      "en": "Controller and Hub clear old failures after confirmed cancellation or archival with released resources and no active writer. Later follow-up failures remain visible, and cancellation recovery no longer reopens terminal or unresolved-attention runs.",
+      "ru": "Контроллер и Hub убирают старые ошибки после подтверждённой отмены или архивирования, если ресурсы освобождены и активного агента нет. Позднейшие ошибки остаются видимыми; восстановление отмены больше не возвращает конечные запуски или запуски с нерешённой проблемой в остановку."
+    },
     "ab2b2f558f5e3b9a191940e46feb41807e1653e3": {
       "category": "fixed",
       "en": "- A stopped Codex writer without a reviewable PR and head SHA waits for an owner decision instead of claiming review readiness.\n- App and Discord separate the stop status, sanitized report and named session link; unavailable CI and review evidence stays quiet.\n- Managed writers use a workspace-local pnpm store and the permitted direct API path for personal GitHub Projects.",

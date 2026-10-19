@@ -12,7 +12,7 @@ Cleanup is the step that deletes a run's working copy and local branch only when
 
 :::glance
 - What it does: stops Codex, removes the preview, checks the merge and deletes the copy and branch; on cancellation it preserves whatever cannot be recovered
-- Who starts it: you — by moving the card to Done, Backlog or Deferred, or with the Cancel run button; after that the controller, once a minute
+- Who starts it: the owner — by merging the exact managed PR, moving the card to Done, Backlog or Deferred, or pressing Cancel run; then the controller, once a minute
 - Where it runs: the completion and cancellation scripts called by the controller
 - State: `runs.state` (`stopping` → `archived`, `cancelled` or `needs_attention`), `stop_reason` (`completed` or `cancelled`), `resource_state`
 - Outcome: `archived` — the PR is merged, `cancelled` — the run was cancelled; when in doubt `needs_attention` and the work preserved
@@ -21,17 +21,17 @@ Cleanup is the step that deletes a run's working copy and local branch only when
 
 ```diagram
 kind: sequence
-desc: You merge the PR and move the card to Done. The controller learns about it at the poll, sets the run to stopping, closes the Codex session, checks the merge against the main branch and deletes the copy and branch. The run becomes archived.
+desc: The owner merges the exact managed task PR. Kurami verifies its identity, confirms Done and closes the issue. The controller then stops Codex, checks the merge and cleanup guards, and deletes the copy and branch. Successful cleanup archives the run; acceptance alone does not release resources.
 actor you "You" owner
 actor gh "GitHub" external
 actor ctl "Controller"
 actor codex "Codex"
 msg you -> gh "merge the PR"
-msg you -> gh "card → Done"
-msg gh -> ctl "poll: Done"
+msg gh -> ctl "observe exact PR merge"
+msg ctl -> gh "confirm Done, close issue"
 self ctl "stopping (completed)"
 msg ctl -> codex "Escape, /exit"
-self ctl "fetch main, check SHA"
+self ctl "merge and cleanup guards"
 self ctl "delete copy and branch"
 note ctl "archived"
 ```
@@ -59,6 +59,8 @@ Cancellation outranks the other signals: once it is requested, moving to Done or
 ## Stopping
 
 First the controller shuts down whatever is still running. If the run has a Codex tmux session, it presses Escape, types `/exit` and kills the session after five seconds. The terminal tail goes to `logs/session-completions/` or `logs/session-cancellations/`. Then the controller removes the run's preview. The copy must not be touched while a process works in it, so cleanup waits for both steps.
+
+Successful stopping, resource release and confirmed cancellation cleanup also close unfinished autonomous successor records. Those records stop counting as active continuations in the Settings idle check; other active work can still block changes.
 
 ## Completion and merge proof
 
@@ -142,7 +144,7 @@ Had you cancelled the issue at 11:00, while PR #57 was not yet merged, the pictu
 - Kurami does not delete unsaved files at completion: `git worktree remove` runs without `--force`.
 - A cancelled run does not become `archived`.
 - Kurami does not delete preserved or published work without your two-step confirmation; only one draft PR with an exactly matching commit is closed.
-- The controller does not merge PRs automatically. Projects merges only after your confirmation; it leaves the card's Done transition to GitHub or you.
+- The controller does not merge PRs automatically. Projects merges only after owner confirmation; a verified merge of the exact managed task PR lets Kurami confirm Done and close the associated issue as completed.
 :::
 
 :::code-map

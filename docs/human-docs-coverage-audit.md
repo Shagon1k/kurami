@@ -1,5 +1,41 @@
 # Human docs coverage audit — 2026-09-28
 
+## Weekly audit — 2026-10-19, proposal dp_08138821945a
+
+This section records an unpublished documentation proposal. It supersedes earlier status statements only for the evidence checked here; it does not establish an application release, a new public Changelog, a PR or an owner decision card.
+
+### Source, watermarks and scope
+
+- The assigned proposal was verified read-only in `docs_proposals`: `drafting`, base `495b771c9b0017cd1b98272d5394ef484a3200a8`, matching the assigned draft worktree and summary location. No additional proposal was created.
+- The source is a standalone clone marked `kurami-docs-audit-v1`, clean on `main`. Its reflog records a fast-forward from `origin/main` at the scheduled tick. HEAD, the tracking ref and a read-only live `git ls-remote` all resolve to `495b771c9b0017cd1b98272d5394ef484a3200a8`. The wrapper checks the marker, branch and clean tree before fetching and fast-forwarding only that clone. Neither the source nor the canonical application checkout was edited by this audit.
+- The promoted release marker records the same docs SHA, `revision: null` and retained `changelogRevision: ee02f37312508acac4d044cfcd223884d7e65bcc`. The existing private regular controller manifest, resolved through `existingDeploymentManifest`, independently asserts `status: succeeded` and app SHA `ee02f37312508acac4d044cfcd223884d7e65bcc`. No manifest was created or replaced, and no credentials were inspected.
+- There are zero changes since the promoted docs SHA. The complete publication-baseline range `788787f077d42fc3b3346a4f4a612947b97ce2e8..495b771c9b0017cd1b98272d5394ef484a3200a8` contains 217 commits and initially had 24 missing classifications. This audit inspected all 24 remaining commit diffs against the impact map, current implementation, tests and paired copy rather than limiting the review to the last calendar week. Earlier reviewed records and their documented evidence remain intact.
+- The draft adds 19 bilingual public source classifications, three narrow docs-only exclusions and two specific test-only no-reader-visible-change exclusions. All 234 pre-existing ledger records remain unchanged as parsed JSON. Contentless merges use only the existing parent-tree-equality rule. Classification is not deployment evidence: all new source classifications remain beyond the trusted app watermark, and their commit dates are not availability dates.
+
+### Reviewed areas and corrections
+
+| Area and source commits | Existing coverage and evidence | Proposal |
+| --- | --- | --- |
+| Prior docs proposal, publication checkout sync and test isolation: `3ae888a`, `d80e135`, `957d288` | `docs-process` already explains guarded exact-target sync, blocked sync and separate application deployment; checkout-sync implementation and fixture diffs checked | Ledger only; docs-only or test-only exclusions remain narrowly scoped |
+| Parking and successor closure: `9e50dd4`, `6e723bc` | `codex-sessions`, park-process handling, `complete-successions.ts` and stop/release/cancel-resolution call sites | Explain in paired `release-cleanup` pages why closed successor records stop blocking the Settings idle check |
+| Review profiles and UI: `dcbf06d`, `d146a9a`, `9fe8029`, `ef53e0e`, `d97ec6d`, `ff40681` | Current `engineering-evidence` and `owner-controls` already cover General/Clarity, independent queues and one combined fix task; profile/read-model/control and handler diffs checked | Correct stale paired `commands` rows, per-profile request uniqueness and the combined button identifier; cosmetic changes get ledger entries only |
+| Stopped-writer classification and neutral agent controls: `8a503a8`, `4a7e9e1`, `fe4be1a` | Existing `runtime-layout`, owner controls and session pages match implementation | Ledger only, retaining the already classified underlying stopped-writer fix |
+| Preview start identity: `1870fba` | `previews`, run/Discord control guards and preview runtime require observed PR/head evidence | Add the same PR/head prerequisite to the paired command reference |
+| Live Daily preparation: `ccc08a6` | `daily`, preparation state, progress and browser fixtures already distinguish preparation from replacing the open edition | Ledger only |
+| Exact-PR merge acceptance: `ff87ed8` | `merged-delivery`, project-status/reconcile code and `board-statuses` already describe Done acceptance, issue closure and guarded cleanup | Remove contradictory Done-only statements from paired `hub` and `release-cleanup`; align the cleanup glance and sequence diagram with merge observation while retaining separate acceptance and cleanup outcomes |
+| Automation exclusion: `2267040` | `board-statuses`, `project-admission`, `project-digest` and no-auto tests cover exclusion, manual status changes and separate cancellation | Ledger only |
+| Hub wrapping and fetched-base commit history: `16b4a81`, `ecae18a`, `a0e9452` | Hub stylesheet/browser assertions and snapshot code checked; paired `hub` already explains the fetched base without view-time fetch | Ledger only; UTC assertion normalization is test-only |
+| Monthly resource audit and session uniqueness: `c297388`, `521d198` | Resource inventory/prompt/Hub acknowledgement implementation and paired maintenance, scheduling, Hub and jobs copy checked | Ledger only; describe installation capacity without asserting the recurring job is live |
+| Settled controller failures: `c6988ca` | Controller failure filter, recovery plan, Hub operations and paired `controller`/`hub` copy checked | Ledger only |
+
+### Verification and remaining limits
+
+- `bin/kurami-dev-run node src/human-docs/tools/check-pages.ts release-cleanup hub commands --strict-links` passed at 390 and 1280 px with screenshot export: three paired routes, zero errors, four rendered diagrams per check. Both language versions were rendered in Paper light and Neon dark.
+- Representative crops were visually inspected for each changed route in both languages on mobile, plus the changed sequence diagram in both languages on desktop. Text and responsive command rows remain readable without observed overlap. The four-actor sequence intentionally requires internal horizontal scrolling at 390 px; its prose alternative and full-size link remain available. This is not a claim of exhaustive accessibility testing.
+- `bin/kurami-dev-run node tests/human-docs/verify.ts` passed: 66 bilingual article pairs, Markdown, diagram, privacy, legacy route and curated release checks. Both language classifiers also accepted the complete source ledger through HEAD (153 public records each); that source-only validation is explicitly not a deployment assertion.
+- Re-running `collectDocsAudit` against the unchanged source with the revised draft ledger and only the promoted build marker plus existing trusted controller manifest reports `unclassifiedShas: []`, clean source, zero commits since promoted docs and the unchanged verified app SHA.
+- The draft changes only allowed Markdown pages, the Changelog ledger and this audit record. No renderer, application code, settings, deployment manifest or service configuration is changed. Publication and any application deployment remain separate owner-controlled actions. The approval worker, not this audit, is responsible for checking the finished summary, creating the PR and posting the Publish/Discuss/Reject card.
+
 ## Current release-readiness audit — 2026-09-29
 
 This checkpoint supersedes the *status* of the 2026-09-28 matrices below, not their source inventory or delivery history. At inspection, `docs/full-human-docs` was clean at `5be0c0380121db4b3874d263e0f33b96fbcbe58a` on `main` history; this audit edit itself is uncommitted. Since the last product-source audit at `6ae670a`, the two commits changed docs, docs tooling, CI wiring and package scripts, but no files under `src/briefing/`, `src/orchestrator/`, `src/system/` or `src/connectors/`. The 28 article routes and two home/changelog routes per language produce a 60-page **unpublished** preview. Four diagrams have editable EN/RU Excalidraw scenes, static SVG exports and adjacent text. Source links in articles resolve to exact Git commits; they do not prove that commit is deployed.
