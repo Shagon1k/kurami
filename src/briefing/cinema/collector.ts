@@ -224,12 +224,13 @@ async function collectBoxOffice(options: CinemaCollectorOptions, capturedAt: str
     };
     return {
       section: {
-        state: "ready",
+        state: normalized.diagnostics.length ? "partial" : "ready",
         capturedAt,
         featuredId: normalized.featuredId,
         charts: normalized.charts,
         signals: normalized.signals,
         trend: normalized.trend,
+        diagnostics: normalized.diagnostics,
         provenance: [id],
       },
       coverage: boxOfficeCoverage(normalized.weekendEnd),
@@ -548,7 +549,9 @@ export async function collectCinemaCandidate(options: CinemaCollectorOptions): P
     ...news.sources,
     ...trailers.sources,
   ];
-  const reconciledBoxOffice = reconcileWorldWeekend(mergedBoxOffice, provenance, boxOffice.coverage);
+  const fallbackWeekendEnd = usaFallback?.sources[0]?.period;
+  const coverage = fallbackWeekendEnd ? boxOfficeCoverage(fallbackWeekendEnd) : boxOffice.coverage;
+  const reconciledBoxOffice = reconcileWorldWeekend(mergedBoxOffice, provenance, coverage);
   const diagnostics = [
     ...(reconciledBoxOffice.diagnostics ?? []),
     ...premieres.section.diagnostics,
@@ -562,7 +565,7 @@ export async function collectCinemaCandidate(options: CinemaCollectorOptions): P
     market: options.config.market,
     timezone: options.config.timeZone,
     language: options.config.language,
-    coverage: { boxOffice: boxOffice.coverage, trailers: weekly, premieres: premieresCoverage, news: weekly },
+    coverage: { boxOffice: coverage, trailers: weekly, premieres: premieresCoverage, news: weekly },
     boxOffice: reconciledBoxOffice,
     trailers: trailers.section,
     premieres: premieres.section,

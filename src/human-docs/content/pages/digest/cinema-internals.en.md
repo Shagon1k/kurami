@@ -60,6 +60,10 @@ edge snap -> daily "date matched" dashed
 
 A fallback shows only what it can prove: AP has no history, so the dynamics chart and year totals disappear rather than being invented. Code computes the signals: biggest debut, best hold, sharpest drop, chart shift — up to four in all.
 
+Box Office Watch may leave the release-week count empty. The parser preserves the film's monetary facts and omits that optional count; the film is not classified as a debut or a returning release without it. LKC sometimes stores an amount as EUR text such as `€28,602.24`. The parser accepts that explicit format alongside numeric cells, but rejects ambiguous formats, other currencies and negative amounts.
+
+If the newest weekend has no actuals yet, collection selects the latest completed archive weekend within the existing 14-day freshness limit and records a partial-source diagnostic. Trend points exclude the selected weekend from history before appending its current point. Weekend joins use the exact domestic source period, including when Kinopoisk supplies the fallback, rather than the editorial coverage window. Different or unverified weekends still fail the join; contradictory world totals remain excluded.
+
 ## Code picks the trailers
 
 Trailers are selected without a model. A title must contain trailer or teaser; clips such as interviews, reactions and breakdowns are dropped, as are re-releases of old films. Points: an official channel 1000, an aggregator channel 500, plus a bonus for the type (main 80, final 60, teaser 40). Duplicates by film title are removed, and at most three are taken from one channel. So it is better to show seven trailers than to hand the page to one studio.

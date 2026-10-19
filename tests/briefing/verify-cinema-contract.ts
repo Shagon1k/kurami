@@ -161,6 +161,40 @@ const debutTrend = boxOffice.trend.find((series) => series.id === "bow:insidious
 assert.deepEqual(debutTrend?.points.map((point) => point.gross), [null, null, null, null, null, 25304111]);
 assert.equal(debutTrend?.points.at(-1)?.debut, true);
 
+// Missing release-week metadata must not discard otherwise verified monetary facts.
+const nullableWeeks = structuredClone(boxOfficeFixture) as {
+  weekend: { current: { dates: string; actuals: Array<Record<string, unknown>> | null }; archive: unknown[] };
+  yearly: unknown;
+};
+nullableWeeks.weekend.current.actuals!.at(-1)!.weeks = null;
+const normalizeFixture = (value: typeof nullableWeeks) => normalizeBoxOfficeWatch({
+  ...value, editionDate: "2026-08-29", sourceId: "source:bow",
+});
+const missingWeeks = normalizeFixture(nullableWeeks);
+assert.equal(missingWeeks.charts[0]!.entries.at(-1)!.weeks, undefined);
+assert.equal(missingWeeks.charts.length, 3);
+assert.equal(missingWeeks.signals.length, boxOffice.signals.length);
+for (const invalid of [-1, "unknown", 1.5]) {
+  const malformed = structuredClone(nullableWeeks);
+  malformed.weekend.current.actuals!.at(-1)!.weeks = invalid;
+  assert.throws(() => normalizeFixture(malformed), /weeks/u);
+}
+const estimatesOnly = structuredClone(nullableWeeks);
+estimatesOnly.weekend.archive.unshift(structuredClone(estimatesOnly.weekend.current));
+estimatesOnly.weekend.current = { dates: "August 28–30, 2026", actuals: null };
+const lastCompleted = normalizeFixture(estimatesOnly);
+assert.equal(lastCompleted.weekendEnd, "2026-08-23");
+assert.deepEqual(lastCompleted.charts, missingWeeks.charts);
+assert.equal(lastCompleted.trend[0]!.points.length, 6);
+assert.equal(new Set(lastCompleted.trend[0]!.points.map(point => point.at)).size, 6);
+assert.match(lastCompleted.diagnostics[0]!, /latest_actuals_unavailable:using_weekend:2026-08-23/u);
+const noActuals = structuredClone(estimatesOnly);
+noActuals.weekend.archive = [];
+assert.throws(() => normalizeFixture(noActuals), /no completed weekend/u);
+const staleActuals = structuredClone(estimatesOnly);
+staleActuals.weekend.archive = [{ ...nullableWeeks.weekend.current, dates: "August 7–9, 2026" }];
+assert.throws(() => normalizeFixture(staleActuals), /stale or future-dated/u);
+
 const ap = parseApTopTen({
   html: await fixture("ap-top-ten.html"),
   sourceUrl: "https://apnews.com/article/box-office-example-123",
@@ -190,6 +224,15 @@ assert.equal(normalizeLkcSheetRows(lkcWithMissingShowCount)[0]?.showCount, undef
 const lkcWithTotalFooter = structuredClone(lkcRows);
 lkcWithTotalFooter.push([14, null, "Total (2)", 100_000]);
 assert.equal(normalizeLkcSheetRows(lkcWithTotalFooter).length, 2);
+const totalColumn = lkcRows[1]!.findIndex(value => String(value).replace(/\s+/gu, " ").trim() === "Bendros pajamos (Total GBO)");
+const formattedLkc = structuredClone(lkcRows);
+formattedLkc[2]![totalColumn] = "€28,602.24";
+assert.equal(normalizeLkcSheetRows(formattedLkc)[0]!.cumulativeGrossEur, 28_602.24);
+for (const invalid of ["€28.602,24", "€28,60.24", "USD 28,602.24", "€-28,602.24", null, -1]) {
+  formattedLkc[2]![totalColumn] = invalid;
+  assert.throws(() => normalizeLkcSheetRows(formattedLkc), /total gross/u);
+}
+
 const lkcWorkbook = lkcWorkbookFixture(lkcRows);
 
 const cinemaLt = parseCinemaLtPremieres({
@@ -444,6 +487,17 @@ assert.equal(collected.news.state, "ready");
 assert.equal(collected.news.candidates.length, 4);
 assert.equal(collected.diagnostics.filter((diagnostic) => diagnostic.includes("world_below_domestic")).length, 3);
 
+const archivedCollected = await collectCinemaCandidate({
+  localDate: "2026-08-29", config,
+  fetchImpl: async input => String(input) === config.sources.boxOfficeWatch.weekendUrl
+    ? new Response(JSON.stringify(estimatesOnly.weekend), { status: 200 }) : collectorFetch(input),
+  caller: async () => JSON.parse(await fixture("youtube.json")),
+  retry: { attempts: 1, timeoutMs: 1_000 }, now: () => new Date("2026-08-29T06:05:00Z"),
+});
+assert.ok(archivedCollected.boxOffice.charts.some(chart => chart.region === "WORLD" && chart.period === "ytd"));
+assert.equal(archivedCollected.coverage.boxOffice.end, "2026-08-24T00:00:00.000Z");
+assert.ok(archivedCollected.boxOffice.diagnostics?.some(issue => issue.includes("latest_actuals_unavailable")));
+
 const apArticleUrl = "https://apnews.com/article/weekly-box-office-test";
 const fallbackCollected = await collectCinemaCandidate({
   localDate: "2026-08-29",
@@ -492,6 +546,8 @@ assert.equal(kinopoiskFallbackCollected.boxOffice.state, "partial");
 assert.equal(kinopoiskFallbackCollected.boxOffice.charts.find((chart) => chart.id === "us-weekend")?.entries[0]?.title, "Spider-Man: Brand New Day");
 assert.equal(kinopoiskFallbackCollected.provenance.filter((source) => source.provider === "Kinopoisk").length, 2);
 assert.equal(kinopoiskFallbackCollected.boxOffice.trend.length, 0);
+
+assert.equal(kinopoiskFallbackCollected.coverage.boxOffice.end, "2026-08-31T00:00:00.000Z");
 
 const editorialDraft = {
   version: 1,
@@ -820,6 +876,27 @@ validateRenderedHtml(cinemaHtml, cinemaPayload);
 assert.match(cinemaHtml,/data-cinema-contents/);
 for(const section of ["box-office","trailers","premieres","cinema-news"])assert(cinemaHtml.includes(`href="#${section}"`));
 assert.equal(refreshCinemaUi(cinemaHtml),cinemaHtml,"Navigation refresh is idempotent");
+const fallbackUiEnvelope = parseCinemaEnvelope({
+  ...rawEnvelope,
+  data: {
+    ...rawEnvelope.data,
+    boxOffice: { ...rawEnvelope.data.boxOffice, state: "partial", featuredId: undefined,
+      charts: [boxOffice.charts[0]], signals: [], trend: [],
+      diagnostics: ["world-weekend:omitted:unverified_same_weekend:2026-08-23"] },
+    provenance: rawEnvelope.data.provenance.map(item => item.id === "source:bow" ? { ...item, period: "2026-08-23" } : item),
+  },
+});
+const fallbackEn = withDigestLanguage("en", () => renderBriefingPage(cinemaEnvelopeToBriefingPayload(fallbackUiEnvelope)));
+assert.match(fallbackEn, /class="cinema-winner"/u);
+assert.doesNotMatch(withDigestLanguage("en", () => renderBriefingPage(cinemaEnvelopeToBriefingPayload(envelope))), /Мировой прокат — с начала года|США — с начала года|Литва — уикенд/u);
+assert.match(fallbackEn, /Weekend ending 23 Aug 2026/u);
+assert.match(fallbackEn, /Matching weekends or consistent totals could not be verified/u);
+assert.match(fallbackEn, /Year-to-date rankings are not collected for this market/u);
+assert.doesNotMatch(fallbackEn, /when a verified source is connected/u);
+const fallbackRu = withDigestLanguage("ru", () => renderBriefingPage(cinemaEnvelopeToBriefingPayload(fallbackUiEnvelope)));
+assert.match(fallbackRu, /Уикенд по/u);
+assert.match(fallbackRu, /Годовой рейтинг для этого рынка не собирается/u);
+
 const retained='<section class="hero"><h1>Retained</h1></section><div data-cinema-edition="old"><section id="cinema-news"><p>Frozen editorial text</p></section><details class="cinema-rank__more"><summary>Показать топ-10</summary><span>Existing rows</span></details></div>';
 const refreshed=refreshCinemaUi(retained);
 assert(refreshed.includes('href="#cinema-news"'));assert(!refreshed.includes('href="#trailers"'));

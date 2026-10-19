@@ -13,6 +13,7 @@ export type BoxOfficeWatchSnapshot = {
   charts: CinemaChart[];
   signals: CinemaSignal[];
   trend: CinemaTrendSeries[];
+  diagnostics: string[];
 };
 
 function fail(message: string): never {
@@ -89,7 +90,7 @@ type ActualRow = {
   change: number | null;
   versusPrediction: number | null;
   total: number;
-  weeks: number;
+  weeks: number | null;
   previousRank: number | null;
 };
 
@@ -107,7 +108,7 @@ function actualRow(value: unknown, label: string): ActualRow {
     change: nullableFinite(row.change, `${label}.change`),
     versusPrediction: nullableFinite(row.vsPrediction, `${label}.vsPrediction`),
     total,
-    weeks: positiveInteger(row.weeks, `${label}.weeks`),
+    weeks: optionalPositiveInteger(row.weeks, `${label}.weeks`),
     previousRank: optionalPositiveInteger(row.prevRank, `${label}.prevRank`),
   };
 }
@@ -144,7 +145,7 @@ function chartEntries(rows: ActualRow[], sourceId: string): CinemaRankedEntry[] 
     cumulativeGross: { amount: row.total, currency: "USD" },
     ...(row.change === null ? {} : { changePercent: row.change }),
     ...(row.previousRank === null ? {} : { previousRank: row.previousRank }),
-    weeks: row.weeks,
+    ...(row.weeks === null ? {} : { weeks: row.weeks }),
     sourceId,
   }));
 }
@@ -171,7 +172,7 @@ function signals(rows: ActualRow[], sourceId: string): CinemaSignal[] {
   const ranked = rows.map((row, index) => ({ ...row, rank: index + 1 }));
   const debut = ranked.filter((row) => row.weeks === 1)
     .sort((a, b) => b.gross - a.gross || a.identity.localeCompare(b.identity))[0];
-  const returning = ranked.filter((row) => row.weeks > 1 && row.change !== null);
+  const returning = ranked.filter((row) => row.weeks !== null && row.weeks > 1 && row.change !== null);
   const bestHold = [...returning].sort((a, b) => b.change! - a.change! || a.identity.localeCompare(b.identity))[0];
   const sharpestDrop = [...returning].sort((a, b) => a.change! - b.change! || a.identity.localeCompare(b.identity))[0];
   const rankMovement = ranked.filter((row) => row.previousRank !== null)
@@ -239,13 +240,18 @@ function trend(
   currentDate: string,
   archiveValue: unknown,
 ): CinemaTrendSeries[] {
-  const archive = array(archiveValue, "archive", 100).slice(0, 5).map((entry, index) => {
-    const weekend = record(entry, `archive[${index}]`);
-    return {
-      at: boxOfficeWeekendEnd(weekend.dates),
+  const archive = array(archiveValue, "archive", 100)
+    .map((entry, index) => {
+      const weekend = record(entry, `archive[${index}]`);
+      return { weekend, index, at: boxOfficeWeekendEnd(weekend.dates) };
+    })
+    .filter(({ at }) => at < currentDate)
+    .sort((left, right) => right.at.localeCompare(left.at))
+    .slice(0, 5)
+    .map(({ weekend, index, at }) => ({
+      at,
       rows: historicalActuals(weekend.actuals, `archive[${index}].actuals`),
-    };
-  });
+    }));
   const weekends = [...archive, { at: currentDate, rows: current }]
     .sort((a, b) => a.at.localeCompare(b.at));
   return current.slice(0, 5).map((film) => ({
@@ -273,7 +279,19 @@ export function normalizeBoxOfficeWatch(input: {
   sourceId: string;
 }): BoxOfficeWatchSnapshot {
   const weekend = record(input.weekend, "weekend");
-  const current = record(weekend.current, "current");
+  let current = record(weekend.current, "current");
+  const diagnostics: string[] = [];
+  // During the estimates-only phase, retain the last completed weekend, never estimates.
+  if (current.actuals === null || current.actuals === undefined) {
+    const completed = array(weekend.archive, "archive", 100)
+      .map((entry, index) => record(entry, `archive[${index}]`))
+      .filter((entry) => Array.isArray(entry.actuals) && entry.actuals.length > 0)
+      .filter((entry) => boxOfficeWeekendEnd(entry.dates) <= input.editionDate)
+      .sort((left, right) => boxOfficeWeekendEnd(right.dates).localeCompare(boxOfficeWeekendEnd(left.dates)))[0];
+    if (!completed) fail("no completed weekend actuals are available");
+    current = completed;
+    diagnostics.push(`box-office-watch:latest_actuals_unavailable:using_weekend:${boxOfficeWeekendEnd(current.dates)}`);
+  }
   const weekendEnd = boxOfficeWeekendEnd(current.dates);
   const edition = Date.parse(`${input.editionDate}T12:00:00Z`);
   const end = Date.parse(`${weekendEnd}T12:00:00Z`);
@@ -311,5 +329,6 @@ export function normalizeBoxOfficeWatch(input: {
     charts,
     signals: signals(actuals, input.sourceId),
     trend: trend(actuals, weekendEnd, weekend.archive),
+    diagnostics,
   };
 }
