@@ -34,12 +34,15 @@ to return to the list and left to reopen the last task.
 
 On phones, ten tasks appear initially. **Show more** reveals the next ten. Search checks the whole list, and refreshing keeps the number already revealed. Reopening the current task adds no duplicate browser-history entry.
 
-The **active** and **need you** counters on the left are filter buttons. Active
-shows work in progress and tasks waiting for your attention; backlog, deferred
-and done tasks stay hidden. Need you shows tasks requiring your decision.
-Each count uses the same selection as its filter. Click an enabled filter again
-to return to all tasks, or choose the other filter to switch views. The choice
-stays in the page URL across searches, project changes and refreshes.
+The **remaining**, **active** and **need you** counters on the left are filter buttons.
+Remaining is selected by default: it hides tasks in the project's Done status and
+keeps Backlog, Deferred and other unfinished tasks. Active shows work in progress
+and tasks waiting for your attention; backlog, deferred and done tasks stay hidden.
+Need you shows tasks requiring your decision. Only one filter is enabled at a time.
+Each count uses the same selection as its filter. Click the enabled filter again
+to show all tasks, including Done, or choose another filter to switch views. The
+choice stays in the page URL across searches, project and language changes, reloads
+and automatic refreshes. Opening Projects without a saved filter URL selects Remaining.
 
 On phones the filter buttons show icons and counts beside a compact Sync button.
 The total task count is hidden to keep the controls on one line. Their full names

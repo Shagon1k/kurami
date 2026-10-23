@@ -157,10 +157,10 @@ async function open(path: string): Promise<void> {
 }
 async function mobileOverview(): Promise<void> {
   const layout=await devtools.evaluate<{sameRow:boolean;withinViewport:boolean;hiddenLabels:boolean;rowFillsFrame:boolean;contentInset:boolean;accessibleNames:boolean}>(`(() => {
-    const active=document.querySelector('[data-task-filter=active]'), attention=document.querySelector('[data-task-filter=attention]'), sync=document.querySelector('[data-sync-trigger]');
-    const a=active.getBoundingClientRect(), b=attention.getBoundingClientRect(), c=sync.getBoundingClientRect();
+    const remaining=document.querySelector('[data-task-filter=remaining]'), active=document.querySelector('[data-task-filter=active]'), attention=document.querySelector('[data-task-filter=attention]'), sync=document.querySelector('[data-sync-trigger]');
+    const r=remaining.getBoundingClientRect(), a=active.getBoundingClientRect(), b=attention.getBoundingClientRect(), c=sync.getBoundingClientRect();
     const frame=document.querySelector('.projects-table-frame').getBoundingClientRect(), row=document.querySelector('.projects-row--attention').getBoundingClientRect(), text=document.querySelector('.projects-row--attention .projects-task').getBoundingClientRect();
-    return {sameRow:Math.abs(a.top-b.top)<1&&Math.abs(a.top-c.top)<1,withinViewport:a.left>=0&&b.right<=c.left&&c.right<=innerWidth,hiddenLabels:[active,attention].every(button=>getComputedStyle(button.querySelector('.button__label--full')).display==='none'),rowFillsFrame:Math.abs(row.left-frame.left-1)<1&&Math.abs(row.right-frame.right+1)<1,contentInset:text.left-row.left>=16&&row.right-text.right>=16,accessibleNames:[active,attention,sync].every(button=>button.getAttribute('aria-label').length>3)};
+    return {sameRow:Math.abs(r.top-a.top)<1&&Math.abs(a.top-b.top)<1&&Math.abs(a.top-c.top)<1,withinViewport:r.left>=0&&r.right<=a.left&&b.right<=c.left&&c.right<=innerWidth,hiddenLabels:[remaining,active,attention].every(button=>getComputedStyle(button.querySelector('.button__label--full')).display==='none'),rowFillsFrame:Math.abs(row.left-frame.left-1)<1&&Math.abs(row.right-frame.right+1)<1,contentInset:text.left-row.left>=16&&row.right-text.right>=16,accessibleNames:[remaining,active,attention,sync].every(button=>button.getAttribute('aria-label').length>3)};
   })()`);
   assert.ok(layout.sameRow&&layout.withinViewport,"mobile filters and Sync share a row without overflow");
   assert.equal(await devtools.evaluate("getComputedStyle(document.querySelector('[data-visible-count]').closest('p')).display"),"none","total task count does not take a separate mobile row");
@@ -222,11 +222,25 @@ try {
     await devtools.call("Emulation.setTouchEmulationEnabled",{enabled:width<600});
     await open("/");
     for (const theme of ["light", "dark"]) {
+      await open("/");
       await chooseMode(theme);
       await delay(250);
       await audit();
       if(width<600)await mobileOverview();
       if(width<600&&theme==='light')await panelHistory();
+      assert.equal(await devtools.evaluate("document.querySelector('[data-task-filter=remaining]').getAttribute('aria-pressed')"),"true","remaining is the default view");
+      assert.equal(await devtools.evaluate("document.querySelector('[data-task-filter=remaining]').textContent"),"5 remaining");
+      assert.equal(await devtools.evaluate("document.querySelectorAll('.projects-table tbody tr').length"),5);
+      assert.equal(await devtools.evaluate("document.querySelector('[data-item-link=item-14]')===null"),true,"Done stays out of the default list");
+      await devtools.evaluate("document.querySelector('[data-task-filter=remaining]').click()");
+      await wait("location.search.includes('remaining=0') && !document.querySelector('#projects-dashboard').dataset.refreshing");
+      assert.equal(await devtools.evaluate("document.querySelectorAll('.projects-table tbody tr').length"),6);
+      assert.equal(await devtools.evaluate("document.querySelector('.projects-search input[name=remaining]').value"),"0");
+      await devtools.call("Page.reload");await wait("document.readyState==='complete' && !!document.querySelector('[data-task-filter=remaining]')");
+      assert.equal(await devtools.evaluate("document.querySelectorAll('.projects-table tbody tr').length"),6,"explicit all-tasks view survives reload");
+      await devtools.evaluate("document.querySelector('[data-task-filter=remaining]').click()");
+      await wait("location.search.includes('remaining=1') && !document.querySelector('#projects-dashboard').dataset.refreshing");
+      assert.equal(await devtools.evaluate("document.querySelectorAll('.projects-table tbody tr').length"),5);
       assert.equal(await devtools.evaluate("document.querySelector('[data-task-filter=active]').textContent"),"3 active","counter matches the full active selection including review");
       assert.equal(await devtools.evaluate("document.querySelector('[data-task-filter=attention]').textContent"),"2 need you");
       await devtools.evaluate("document.querySelector('[data-task-filter=active]').click()");
@@ -502,6 +516,7 @@ try {
   assert.equal(await devtools.evaluate("document.querySelectorAll('.projects-table tbody tr').length"),1,"project changes keep the active filter");
   assert.equal(await devtools.evaluate("document.querySelector('[data-visible-count]').textContent"),"0","no search match in active project shows zero");
   await open("/?attention=1&project=beta&lang=ru");
+  assert.equal(await devtools.evaluate("document.querySelector('[data-task-filter=remaining]').textContent"),"2 оставшиеся");
   assert.equal(await devtools.evaluate("document.querySelector('[data-task-filter=attention]').textContent"),"1 ждут вас");
   assert.equal(await devtools.evaluate("document.querySelector('[data-task-filter=active]').textContent"),"1 в работе","scoped active and attention counts use their actual selections");
   assert.equal(await devtools.evaluate("document.querySelectorAll('.projects-table tbody tr').length"),1);
@@ -571,6 +586,10 @@ try {
   statusSynced = true;
   await devtools.evaluate("document.dispatchEvent(new Event('visibilitychange'))");
   await wait("!document.querySelector('#projects-dashboard').dataset.refreshing");
+  assert.equal(await devtools.evaluate("document.querySelector('[data-item-link=item-12]')===null"),true,"a task moves out of Remaining when its Done status is observed");
+  assert.equal(await devtools.evaluate("document.querySelector('#project-details')===null"),true);
+  await devtools.evaluate("document.querySelector('[data-task-filter=remaining]').click()");
+  await wait("location.search.includes('remaining=0') && !!document.querySelector('#project-details') && !document.querySelector('#projects-dashboard').dataset.refreshing");
   assert.equal(await devtools.evaluate("document.querySelector('[data-status-form] select').value"),"Done");
   assert.equal(await devtools.evaluate("document.querySelector('[data-status-form] select').disabled"),false);
   assert.match(await devtools.evaluate<string>("document.querySelector('.projects-table tbody tr').textContent"),/Done/);
@@ -601,10 +620,11 @@ try {
   await wait("document.querySelector('[data-toast-message]').textContent.includes('queued in Kurami') && document.querySelector('[data-run-action=discard_local]')?.disabled && !document.querySelector('#projects-dashboard').dataset.refreshing");
   assert.equal(actionKeys.length,3);
   await audit();
+  const rowsBeforeFailedRefresh=await devtools.evaluate<number>("document.querySelector('.projects-table tbody').children.length");
   unavailable = true;
   await devtools.evaluate("document.dispatchEvent(new Event('visibilitychange'))");
   await wait("document.querySelector('[data-toast-message]').textContent.includes('Refresh failed')");
-  assert.equal(await devtools.evaluate("document.querySelector('.projects-table tbody').children.length"), 6, "failed refresh preserves the last snapshot");
+  assert.equal(await devtools.evaluate("document.querySelector('.projects-table tbody').children.length"), rowsBeforeFailedRefresh, "failed refresh preserves the last snapshot");
   await audit();
   // Exercise the shared controller independently of Projects action/refresh state.
   unavailable=false;await open('/');

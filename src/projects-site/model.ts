@@ -36,7 +36,7 @@ export type ProjectItem = {
 };
 export type ProjectsSnapshot = { generatedAt: string; available: boolean; projects: ProjectSummary[]; items: ProjectItem[]; ideas?: IdeasView };
 export type SortKey="task"|"status"|"kurami";
-export type ViewFilters={project:string;activeOnly:boolean;attentionOnly:boolean;sort:SortKey|null;direction:"asc"|"desc"};
+export type ViewFilters={project:string;activeOnly:boolean;attentionOnly:boolean;remainingOnly:boolean;sort:SortKey|null;direction:"asc"|"desc"};
 
 // Mirrors the orchestrator's two-minute admission freshness boundary.
 export const PROJECTS_STALE_AFTER_MS = 120_000;
@@ -45,7 +45,8 @@ export const PROJECTS_REFRESH_MS = 30_000;
 export function parseFilters(params:URLSearchParams):ViewFilters {
   const sort=params.get("sort");
   const attentionOnly=params.get("attention")==="1";
-  return {project:params.get("project")??"",activeOnly:!attentionOnly&&params.get("active")==="1",attentionOnly,sort:sort==="task"||sort==="status"||sort==="kurami"?sort:null,direction:params.get("dir")==="desc"?"desc":"asc"};
+  const activeOnly=!attentionOnly&&params.get("active")==="1";
+  return {project:params.get("project")??"",activeOnly,attentionOnly,remainingOnly:!activeOnly&&!attentionOnly&&params.get("remaining")!=="0",sort:sort==="task"||sort==="status"||sort==="kurami"?sort:null,direction:params.get("dir")==="desc"?"desc":"asc"};
 }
 
 export function needsOwner(item: ProjectItem, project: ProjectSummary): boolean {
@@ -68,7 +69,7 @@ export function selectItems(snapshot:ProjectsSnapshot,filters:ViewFilters,lang:i
     const project=snapshot.projects.find(project=>project.key===item.project);
     if(!project||filters.project&&item.project!==filters.project)return false;
     if(filters.attentionOnly)return needsOwner(item,project);
-    if(!filters.activeOnly)return true;
+    if(!filters.activeOnly)return !filters.remainingOnly||item.status!==project.statuses.done;
     if([project.statuses.backlog,project.statuses.deferred,project.statuses.done].includes(item.status??""))return false;
     return item.status===project.statuses.active||item.status===project.statuses.review||needsOwner(item,project)||item.owner==="cli"||item.owner==="remote";
   });

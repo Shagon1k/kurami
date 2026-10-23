@@ -296,6 +296,7 @@
       const url=new URL(location.href);
       const enabled=taskFilter.getAttribute('aria-pressed')==='true';
       url.searchParams.delete('active');url.searchParams.delete('attention');
+      url.searchParams.set('remaining','0');
       if(!enabled)url.searchParams.set(taskFilter.dataset.taskFilter,'1');
       navigate(url,false);return;
     }
@@ -394,6 +395,7 @@
     });
     const hidden=document.querySelector('.projects-search input[name=project]');if(hidden)hidden.value=url.searchParams.get('project')??'';
     const active=document.querySelector('.projects-search input[name=active]');if(active)active.value=url.searchParams.get('active')==='1'?'1':'';
+    const remaining=document.querySelector('.projects-search input[name=remaining]');if(remaining)remaining.value=url.searchParams.get('remaining')==='0'||url.searchParams.get('active')==='1'||url.searchParams.get('attention')==='1'?'0':'1';
     const attention=document.querySelector('.projects-search input[name=attention]');if(attention)attention.value=url.searchParams.get('attention')==='1'?'1':'';
     const languageLink=document.querySelector('[data-language-link]');if(languageLink){const next=new URL(url),other=document.documentElement.lang==='en'?'ru':'en';if(document.getElementById('kurami-web-context')){next.pathname=next.pathname.replace(/^\/(en|ru)(?=\/)/,'/'+other);next.searchParams.delete('lang');}else next.searchParams.set('lang',other);languageLink.href=next.pathname+next.search;}
   }

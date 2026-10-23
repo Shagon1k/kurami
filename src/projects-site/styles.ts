@@ -56,7 +56,7 @@ export const PROJECTS_STYLES=[KURAMI_MOOD_CSS,THEME_CSS,FOUNDATION_CSS,BUTTON_CS
 .projects-summary { --button-icon-size: 14px; display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2); min-height: var(--control-height); }
 .projects-summary p { display: flex; align-items: center; gap: var(--space-2); margin: 0; color: var(--text-muted); font-size: .78rem; }
 .projects-summary p { margin-inline-end: var(--space-2); }
-.projects-filters { display: grid; grid-template-columns: repeat(2,max-content); gap: var(--space-2); }
+.projects-filters { display: grid; grid-template-columns: repeat(3,max-content); gap: var(--space-2); }
 .projects-summary p strong { color: var(--text-primary); font: 600 .82rem var(--font-mono); }
 .projects-sync { display: flex; align-items: center; gap: var(--space-1); margin-inline-start: auto; --popover-width: 380px; --popover-padding: var(--space-4); }
 .projects-sync-indicator { display: none; inline-size: var(--space-2); block-size: var(--space-2); border-radius: var(--radius-pill); flex: none; }

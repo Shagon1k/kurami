@@ -235,9 +235,9 @@ assert.match(PROJECTS_STYLES,/\.project-color--gold \{ --project-color: var\(--p
 assert.match(PROJECTS_STYLES,/html\[data-kurami-theme="neon"\] \[class\*="project-color--"\] \{ --project-edge: inset 3px 0 0 var\(--project-color\), inset 14px/,"Neon lights the bar");
 assert.throws(()=>projectColorClass("red" as never),/Unknown project color/);
 const runlessDone=structuredClone(fixture);runlessDone.items=[{...fixture.items[3]!,status:"Done"}];
-assert.match(renderProjectsPage(runlessDone),/>No agent run<\/span>/,"no observed agent run is distinct from GitHub completion");
-assert.match(renderProjectsPage(runlessDone,new URLSearchParams("lang=ru")),/>Нет запуска<\/span>/);
-assert.doesNotMatch(renderProjectsPage(runlessDone),/>Not started<\/span>/);
+assert.match(renderProjectsPage(runlessDone,new URLSearchParams("remaining=0")),/>No agent run<\/span>/,"no observed agent run is distinct from GitHub completion");
+assert.match(renderProjectsPage(runlessDone,new URLSearchParams("lang=ru&remaining=0")),/>Нет запуска<\/span>/);
+assert.doesNotMatch(renderProjectsPage(runlessDone,new URLSearchParams("remaining=0")),/>Not started<\/span>/);
 assert.match(renderProjectsPage(fixture),/projects-sync-indicator--delayed/);
 const freshOnly=structuredClone(fixture);freshOnly.projects.forEach(project=>project.freshness="fresh");
 assert.match(renderProjectsPage(freshOnly),/projects-sync-indicator--fresh/);
@@ -282,6 +282,19 @@ assert.doesNotMatch(detailHtml,/<h3>[\s\S]*?>(?:Work|Cleanup)<\/h3>|<h3>[^<]*Pre
 composedItem.preview.head=null;
 const mixed=renderProjectsPage(composed,new URLSearchParams("item=item-12")).split('<aside class="projects-detail"')[1]!;
 assert.match(mixed,/Unverified<\/code>/,"unknown evidence heads remain explicit rather than borrowing a shared commit");
+assert.equal(parseFilters(new URLSearchParams()).remainingOnly,true);
+assert.equal(parseFilters(new URLSearchParams("remaining=0")).remainingOnly,false);
+assert.equal(parseFilters(new URLSearchParams("remaining=1&active=1")).remainingOnly,false);
+assert.equal(parseFilters(new URLSearchParams("remaining=1&attention=1")).remainingOnly,false);
+assert.deepEqual(selectItems(fixture,parseFilters(new URLSearchParams())).map(item=>item.id),["item-12","item-13","item-24","item-25","item-15"],"default remaining view excludes Done and retains Backlog");
+assert.equal(selectItems(fixture,parseFilters(new URLSearchParams("remaining=0"))).length,6,"explicit all-tasks view includes Done");
+for(const lang of ["en","ru"]){
+  const remainingPage=renderProjectsPage(fixture,new URLSearchParams(`lang=${lang}`));
+  assert.match(remainingPage,/data-task-filter="remaining" aria-pressed="true"/);
+  assert.ok(remainingPage.includes(lang==="ru"?"оставшиеся":"remaining"));
+}
+assert.match(renderProjectsPage(fixture,new URLSearchParams("remaining=0")),/<input type="hidden" name="remaining" value="0">/,"search form preserves the all-tasks choice without JavaScript");
+
 assert.deepEqual(selectItems(fixture,parseFilters(new URLSearchParams("attention=1"))).map(item=>item.id),["item-12","item-24"],"attention view includes review and waiting owner input, not agent work");
 for(const lang of ["en","ru"]){
   const attentionPage=renderProjectsPage(fixture,new URLSearchParams(`attention=1&lang=${lang}`));
@@ -298,14 +311,19 @@ const inactive = structuredClone(fixture);
 inactive.items = ["Backlog","Deferred","Done"].map((status,index)=>({...fixture.items[1]!,id:`inactive-${index}`,status,attention:[{code:"run_attention" as const,severity:"critical" as const}]}));
 inactive.items.push({...fixture.items[1]!,id:"unclassified-work",status:null},{...fixture.items[2]!,id:"unclassified-attention",status:null},{...fixture.items[3]!,id:"unclassified-idle",status:null});
 assert.deepEqual(selectItems(inactive,parseFilters(new URLSearchParams("active=1"))).map(item=>item.id),["unclassified-work","unclassified-attention"],"closed or inactive cards stay hidden despite old run signals; current work and attention remain visible");
+assert.deepEqual(selectItems(inactive,parseFilters(new URLSearchParams())).map(item=>item.id),["inactive-0","inactive-1","unclassified-work","unclassified-attention","unclassified-idle"],"remaining keeps Deferred and unknown statuses, excluding completed cards despite stale run signals");
 const customStatuses=structuredClone(fixture);
 customStatuses.projects[1]!.statuses={backlog:"Todo",active:"Working",review:"Needs eyes",done:"Closed",deferred:"Later"};
 customStatuses.items[2]!.status="Needs eyes";customStatuses.items[3]!.status="Later";
 assert.deepEqual(selectItems(customStatuses,parseFilters(new URLSearchParams("active=1&project=beta"))).map(item=>item.id),["item-24"],"uses each project's configured status roles");
+const completedCustom=structuredClone(customStatuses);completedCustom.items[3]!.status="Closed";
+assert.deepEqual(selectItems(completedCustom,parseFilters(new URLSearchParams("project=beta"))).map(item=>item.id),["item-24"],"remaining uses the project's configured completion status");
+completedCustom.items[3]!.status="Done";
+assert.equal(selectItems(completedCustom,parseFilters(new URLSearchParams("project=beta"))).length,2,"a literal Done is not completed when that project uses Closed");
 assert.equal(selectItems(fixture, parseFilters(new URLSearchParams("project=beta"))).length, 2);
-assert.equal(selectItems(fixture,parseFilters(new URLSearchParams("view=attention&status=Done"))).length,6,"retired filters do not hide tasks");
+assert.equal(selectItems(fixture,parseFilters(new URLSearchParams("view=attention&status=Done"))).length,5,"retired filters do not override the remaining default");
 const ascending=selectItems(fixture,parseFilters(new URLSearchParams("sort=status"))).map(item=>item.status);
-assert.deepEqual(ascending,["Backlog","Backlog","Done","Human Review","In progress","In progress"]);
+assert.deepEqual(ascending,["Backlog","Backlog","Human Review","In progress","In progress"]);
 assert.deepEqual(selectItems(fixture,parseFilters(new URLSearchParams("sort=status&dir=desc"))).map(item=>item.status),ascending.toReversed());
 assert.match(renderProjectsPage(fixture),/<html[^>]*lang="en"/);
 assert.match(renderProjectsPage(fixture,new URLSearchParams("lang=ru")),/Поиск задач/);
