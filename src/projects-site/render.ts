@@ -177,7 +177,7 @@ function reviewPanel(item:ProjectItem,lang:Language,commonHead:string|null):stri
     const requestNote=fixAction?.state&&!fixBusy?actionNote(`${sourceText(fixAction.label,lang)} · ${t(actionStates[fixAction.state]??"")}`,noteTone(fixAction.state),{action:"review_fix",state:fixAction.state}):"";
     const note=progress+requestNote;
     const link=review.url?renderLinkButton({label:t("Open review"),href:review.url,variant:"quiet",size:"compact",iconPath:iconPath("review")}):"";
-    const failure=review.requestFailed?renderCallout({tone:"warning",title:t("AI Review did not start"),body:t("Refresh and retry for the current PR commit.")}):review.fixStartupFailure?renderCallout({tone:"warning",title:t("Review fixes did not start"),body:t(review.fixStartupFailure)}):"";
+    const failure=review.requestFailed?actionNote(`${t("AI Review did not start")}. ${t("Refresh and retry for the current PR commit.")}`,"warning"):review.fixStartupFailure?actionNote(t(review.fixStartupFailure),"warning"):"";
     return `<div class="projects-review-profile" data-review-result="${profile}"><div class="projects-evidence-heading"><span class="projects-evidence-label"><strong>${profile==="general"?"🔎 General":"🧩 Clarity"}</strong></span>${signal(review,lang)}</div>${review.head&&review.head!==commonHead?`<code title="${escape(review.head)}">${escape(review.head.slice(0,12))}</code>`:""}${findings}${link}${note}${failure}</div>`;
   }).join("");
   return `<div class="projects-evidence-row"><div class="projects-evidence-label">${renderIcon("review")}<strong>${t("AI Review")}</strong></div><div class="projects-review-controls">${menu("Run review",launch,REVIEW_PROFILES.some(profile=>reviews[profile].control?.enabled))}${fixes}</div>${rows}</div>`;
