@@ -88,7 +88,6 @@ export function refreshManagedSource(database: DatabaseSync, project: SourceProj
     requireSource(!database.prepare("SELECT 1 FROM run_codex_tasks WHERE worktree_path=? AND released_at IS NULL").get(worktree), "active protocol task");
     const leases = database.prepare(`SELECT pl.* FROM preview_leases pl JOIN run_resources rr USING(run_id)
       WHERE rr.worktree_path=? AND pl.state<>'released'`).all(worktree);
-    requireSource(leases.every(lease => action === "preview_up" && lease.run_id === runId && lease.state === "leased"), "active preview runtime or lease");
     const child = relative(realpathSync(project.workspace.worktree_root),worktree);
     requireSource(child && !child.startsWith("..") && realpathSync(worktree) === worktree &&
       git(worktree,"rev-parse","--show-toplevel") === worktree, "worktree boundary changed");
@@ -119,6 +118,8 @@ export function refreshManagedSource(database: DatabaseSync, project: SourceProj
     live();
     const previousHead = git(worktree,"rev-parse","HEAD");
     if (previousHead !== head) {
+      // Preview blocks changing its source, not validating an already exact writer source.
+      requireSource(leases.every(lease => action === "preview_up" && lease.run_id === runId && lease.state === "leased"), "active preview runtime or lease");
       if (apply) effects.fetch(worktree,project.repository,branch);
       // Dry-run does not fetch/write refs. Missing objects are an explicit refusal.
       requireSource(git(worktree,"cat-file","-t",head) === "commit", "source commit unavailable");

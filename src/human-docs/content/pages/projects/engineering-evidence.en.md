@@ -141,6 +141,8 @@ A review fix is one fresh Codex task for findings from all completed review prof
 
 The combined fix includes AI findings from all ready review profiles for the exact source commit, your unresolved threads, and findings preserved in review summaries without inline anchors. Overlapping findings are handled together. If findings conflict, the agent reports the conflict for your attention instead of silently ignoring a finding. The existing single-writer rule blocks a second fix agent.
 
+A running preview does not block review or CI fixes when the managed working copy already matches the exact PR commit. The controller still checks the live PR, request context, clean working copy and writer ownership. If the working copy needs a fast-forward to the PR commit, stop preview before retrying: source preparation does not change files used by an active preview.
+
 The controller takes an immutable snapshot: unresolved, non-outdated threads whose first comment was left by `kurami-ai` with the current commit's marker, or by you. Your replies inside a thread become clarifications. There are at most twenty threads. Comments added later go into the next round. Codex gets the snapshot as data and must push a fix, but not reply in the threads and not wait for CI.
 
 After that Kurami runs the round itself. When a new commit with green CI appears, the `kurami-ai` bot replies in each thread "Fixed by Kurami in `<sha>` after CI passed", and the thread is resolved. Your token resolves it: GitHub allows that only to the PR author or a user with write access, and the bot has neither. The token reaches neither Codex nor the reviewer. There are three attempts to resolve the threads.

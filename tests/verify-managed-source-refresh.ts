@@ -123,6 +123,21 @@ try {
     f.database.exec(`INSERT INTO preview_leases(lease_id,run_id,slot_number,state,compose_project_name)
       VALUES('lease','r_test',1,'running','test-runtime')`);
     assert.throws(() => f.refresh(),/preview runtime/); assert.equal(f.fetches(),0);
+    assert.equal(git(f.worktree,"rev-parse","HEAD"),f.old,"an active preview still prevents source fast-forward");
+  });
+  for (const action of ["review_fix_start","repair_start"] as const) test(f => {
+    git(f.worktree,"merge","--ff-only",f.head);
+    f.database.prepare("UPDATE run_control_requests SET action=?").run(action === "review_fix_start" ? "review_fix" : "ci_repair");
+    f.database.exec(`INSERT INTO preview_leases(lease_id,run_id,slot_number,state,compose_project_name)
+      VALUES('lease','r_test',1,'running','test-runtime')`);
+    const result=f.refresh(true,action) as {fastForward:boolean;headSha:string};
+    assert.equal(result.fastForward,false); assert.equal(result.headSha,f.head);
+    assert.equal(f.fetches(),0,"exact-source writer admission needs no fetch");
+    assert.ok(f.pulls()>0,"an exact local head still needs live PR validation");
+    assert.equal(git(f.worktree,"rev-parse","HEAD"),f.head);
+    assert.equal(f.database.prepare("SELECT state FROM preview_leases WHERE lease_id='lease'").get()?.state,"running","the existing preview is retained");
+    writeFileSync(resolve(f.worktree,"dirty"),"preserve");
+    assert.throws(() => f.refresh(true,action),/dirty worktree preserved/,"preview coexistence does not bypass clean-source admission");
   });
   test(f => {
     f.database.exec(`INSERT INTO preview_leases(lease_id,run_id,slot_number,state,compose_project_name)
