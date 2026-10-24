@@ -88,6 +88,10 @@ export function externalCommand(
       return [reviewFixManagerPath, "resolve", "--round-id", roundId, "--apply"];
     case "review_fix_cleanup":
       return [sessionManagerPath, "cleanup-review-fix", "--run-id", runId, "--apply"];
+    case "recover_interrupted_review_fix":
+      if (!requestId) fail("Interrupted review fix recovery requires an owner request");
+      return [sessionManagerPath, "recover-interrupted-review-fix", "--run-id", runId,
+        "--request-id", requestId, "--apply"];
     case "recover_managed_task":
       if (!requestId) fail("Managed task recovery requires a request ID");
       return [
@@ -152,6 +156,14 @@ export function completeRequest(
   state: "applied" | "rejected" | "failed",
   result: unknown,
 ): void {
+  // A stale controller may plan rejection after another handler claimed recovery.
+  // The receipt belongs to that handler; neither rejection nor failure may overwrite it.
+  const interrupted = state !== "applied" && database.prepare(
+    "SELECT 1 FROM run_control_requests WHERE request_id=? AND action='recover_interrupted_review_fix'",
+  ).get(requestId);
+  const receiptFence = interrupted ? ` AND NOT EXISTS (
+    SELECT 1 FROM run_interrupted_review_fix_recoveries c WHERE c.request_id=run_control_requests.request_id
+  )` : "";
   database
     .prepare(
       `
@@ -159,7 +171,7 @@ export function completeRequest(
     SET request_state = ?, result_json = ?,
         updated_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now'),
         completed_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
-    WHERE request_id = ? AND request_state IN ('pending', 'processing')
+    WHERE request_id = ? AND request_state IN ('pending', 'processing') ${receiptFence}
   `,
     )
     .run(state, JSON.stringify(result), requestId);
@@ -169,7 +181,11 @@ export function hasReconcilableReviewFixOperation(
   database: DatabaseSync,
   plan: PlannedAction,
 ): boolean {
-  if (plan.action !== "recover_managed_task" || !plan.requestId) return false;
+  if (!plan.requestId) return false;
+  if (plan.action === "recover_interrupted_review_fix") return Boolean(database.prepare(`
+    SELECT 1 FROM run_interrupted_review_fix_recoveries c JOIN run_review_fix_rounds f USING(round_id)
+    WHERE c.request_id=? AND f.run_id=?`).get(plan.requestId,plan.runId));
+  if (plan.action !== "recover_managed_task") return false;
   return Boolean(
     database
       .prepare(
@@ -422,7 +438,7 @@ export function executePlannedAction(
       : effects.external(plan);
     if (
       plan.requestId &&
-      ["handoff", "successor_start", "preview_up", "preview_down", "preview_expire", "preview_extend", "repair_start", "review_start", "review_fix_start", "recover_managed_task"].includes(plan.action)
+      ["handoff", "successor_start", "preview_up", "preview_down", "preview_expire", "preview_extend", "repair_start", "review_start", "review_fix_start", "recover_interrupted_review_fix", "recover_managed_task"].includes(plan.action)
     ) {
       effects.complete(database, plan.requestId, plan.requestOutcome ?? "applied", result);
     }

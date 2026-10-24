@@ -213,7 +213,7 @@ function runActionControls(item:ProjectItem,lang:Language):string {
   const t=(key:string)=>tr(key,lang);
   if(item.runActions.reason==="unavailable")return actionNote(t("Run controls are not available yet."),"warning");
   const pr=item.prControlsEnabled||item.prActions?`<div class="projects-run-action" data-pr-slot data-pr-project="${escape(item.project)}" data-pr-item="${escape(item.id)}">${renderProjectPrControl(item.prActions,lang)}</div>`:"";
-  const controls=runActions(item,lang,["take_control","recover_managed_task"])+runActions(item,lang,["stop","discard_local","discard_published"],"",pr);
+  const controls=runActions(item,lang,["take_control","recover_managed_task","recover_interrupted_review_fix"])+runActions(item,lang,["stop","discard_local","discard_published"],"",pr);
   const sections=controls?`<div class="projects-detail-section projects-run-actions">${controls}</div>`:"";
   return (item.runActions.reason==="stale"?actionNote(t("Wait for fresh sync data."),"warning"):"")+sections;
 }
@@ -237,7 +237,7 @@ function runActions(item:ProjectItem,lang:Language,actions:string[],leading="",t
   if(!item.runActions||!item.runId)return leading?grid([wrap(leading)]):"";
   const t=(key:string)=>tr(key,lang);
   const states:Record<string,string>={pending:"Queued",processing:"Running",failed:"Not completed — check the state",rejected:"Rejected — check the state"};
-  const icons:Record<string,IconName>={take_control:"person",preview_start:"play",preview_stop:"close",preview_reviewed:"check",ci_repair:"ci",review_fix:"review",recover_managed_task:"refresh",stop:"close",discard_local:"trash",discard_published:"trash"};
+  const icons:Record<string,IconName>={take_control:"person",preview_start:"play",preview_stop:"close",preview_reviewed:"check",ci_repair:"ci",review_fix:"review",recover_interrupted_review_fix:"refresh",recover_managed_task:"refresh",stop:"close",discard_local:"trash",discard_published:"trash"};
   const variants:Record<string,ButtonVariant>={stop:"danger",discard_local:"danger",discard_published:"danger",ci_repair:"secondary",review_fix:"secondary",preview_stop:"warning",preview_reviewed:"success"};
   const available=item.runActions.actions.filter(action=>actions.includes(action.action));
   if(!available.length&&!leading&&!trailing)return "";

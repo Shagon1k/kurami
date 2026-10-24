@@ -132,3 +132,19 @@ Run `r_9f3a0c17d2b4`, PR #41. The data is invented.
 - `docs/discord-ui.md` — conventions for how cards look
 - `migrations/008_discord_control_plane.sql` — surface and delivery tables
 :::
+
+
+## Interrupted review-fix recovery
+
+**Recover interrupted fix** is an owner-only action, also available in Projects. The shared control command accepts `--action recover_interrupted_review_fix`. It differs from **Recover delivered fix**, which still requires delivered, clean, pushed work. Recovery preserves staged, unstaged and untracked bytes, saves their snapshot and digest, and starts a fresh bounded protocol worker for the original review snapshot. The original primary session remains available to the normal cleanup lifecycle.
+
+The controller checks the exact repository, canonical worktree, PR, branch and local/remote head before claim and dispatch. The previous worker must have an exact failed or interrupted terminal receipt, with acknowledged stop and release. Other ownership, workers, pending controls, Project transitions or preview leases block the action. The normal managed session and LLM limits still apply. This action does not accept the issue, merge, deploy, resolve threads or bypass CI.
+
+| Situation | Safe outcome | Owner action |
+|---|---|---|
+| Source, findings or dirty bytes changed after the request | Refuse the stale request; keep the files | Inspect the new evidence before another request |
+| A legacy round lacks its saved summary-only findings | No recovery action | Recover the original complete context through a separately reviewed procedure; do not invent an empty list |
+| A recovery claim already exists, including a crash before dispatch | No automatic second launch | Inspect the receipt and successor task; do not delete the fence or retry by takeover |
+| Special untracked paths, submodules or oversized dirty snapshot | Refuse without modifying Git | Inspect the preserved work manually |
+
+The recovery receipt retains the staged and unstaged binary diffs and regular untracked files, with a 32 MiB total limit and 16 MiB per untracked file. It is private operational evidence, not card content. External writers must remain quiescent; these checks cannot lock an unrelated editor or prevent a remote push after the last check.

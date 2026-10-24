@@ -13,7 +13,7 @@ from zoneinfo import ZoneInfo
 
 
 CONTROL_ID = re.compile(
-    r"^kurami:(status|take_control|preview_start|preview_stop|preview_extend|preview_reviewed|stop|discard_prompt|discard_local|discard_published_prompt|discard_published|ci_repair|ai_review|review_fix|review_fix_all|recover_managed_task):(r_[A-Za-z0-9_]+)$"
+    r"^kurami:(status|take_control|preview_start|preview_stop|preview_extend|preview_reviewed|stop|discard_prompt|discard_local|discard_published_prompt|discard_published|ci_repair|ai_review|review_fix|review_fix_all|recover_interrupted_review_fix|recover_managed_task):(r_[A-Za-z0-9_]+)$"
 )
 RUN_ACTIONS_ID = re.compile(r"^kurami:(?:run_actions|review_actions|fix_actions):(r_[A-Za-z0-9_]+)$")
 RUN_ACTIONS = {
@@ -32,6 +32,7 @@ RUN_ACTIONS = {
     "review_fix",
     "review_fix_all",
     "recover_managed_task",
+    "recover_interrupted_review_fix",
 }
 METADATA_CONTROL_ID = re.compile(
     r"^kurami:metadata_(details|accept|skip|discuss|exclude|restore|retry):(pmb_[a-f0-9]+)$"
@@ -69,6 +70,7 @@ _ACTION_LABELS = {
     "review_fix": "Fix Review",
     "review_fix_all": "Fix all review findings",
     "recover_managed_task": "Recover delivered fix",
+    "recover_interrupted_review_fix": "Recover interrupted fix",
 }
 
 _METADATA_DISCUSSION_INTRO = (

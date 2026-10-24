@@ -25,6 +25,7 @@ order: 60
 | Кнопка | Когда показана | Запрос | Что делает контроллер |
 |---|---|---|---|
 | **Recover delivered fix** | запуск в `needs_attention`, владелец `cli`, причина `review_fix_uncommitted_changes` | `recover_managed_task` | перепроверяет сохранённую задачу, запушенный коммит и свежий CI, доводит исправление |
+| **Recover interrupted fix** | `needs_attention`, владелец `none`, точная завершившаяся с ошибкой, остановленная и освобождённая задача протокола, полный сохранённый контекст ревью | `recover_interrupted_review_fix` | сохраняет незакоммиченную работу и запускает одного нового ограниченного исполнителя для исходного раунда; старую задачу не возобновляет |
 | **Take control** | владелец `cli`, идёт управляемая сессия, запуск не в `needs_attention` | `take_control` | `handoff`: просит Codex остановиться, ждёт тихой паузы, отпускает tmux; запуск `remote_owned` |
 | **Take control** | владелец `none`, состояние `parked_review` или `waiting_human` | `take_control` | `claim_remote`: владелец становится `remote`, на карточке ссылка Open session |
 | **Continue autonomously** | запуск `remote_owned`, владелец `remote` | `take_control` | `successor_start`: новая управляемая задача Codex в той же рабочей копии |

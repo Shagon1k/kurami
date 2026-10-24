@@ -14,7 +14,8 @@ export type RequestRow = RunRow & {
     | "ci_repair"
     | "ai_review"
     | "review_fix"
-    | "recover_managed_task";
+    | "recover_interrupted_review_fix"
+  | "recover_managed_task";
 };
 
 export type ControllerAction =
@@ -27,6 +28,7 @@ export type ControllerAction =
   | "review_fix_start"
   | "review_fix_resolve"
   | "review_fix_cleanup"
+  | "recover_interrupted_review_fix"
   | "recover_managed_task"
   | "sync"
   | "cancel_cli"
@@ -288,6 +290,13 @@ export function planForRequest(
         action: "request_reject",
         reason: "run_not_review_fix_eligible",
       };
+    case "recover_interrupted_review_fix":
+      if (request.run_state === "needs_attention" && request.owner_state === "none" &&
+          request.execution_mode === "live" && request.resource_state === "provisioned" &&
+          request.stop_reason === null && request.tmux_session_name === null &&
+          request.latest_attention_reason === "review_fix_uncommitted_changes")
+        return { ...base, action: "recover_interrupted_review_fix" };
+      return { ...base, action:"request_reject", reason:"run_not_interrupted_review_fix_eligible" };
     case "recover_managed_task":
       if (
         request.run_state === "needs_attention" &&

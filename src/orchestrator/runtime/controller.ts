@@ -239,7 +239,7 @@ export async function runOrchestratorControllerCli(): Promise<void> {
       continue;
     }
     if (
-      ["start", "successor_start", "repair_start", "review_start", "review_fix_start"].includes(plan.action) &&
+      ["start", "successor_start", "repair_start", "review_start", "review_fix_start", "recover_interrupted_review_fix"].includes(plan.action) &&
       llmCount >= config.limits.max_llm_running_global
     ) {
       results.push({ ...plan, status: "deferred", reason: "LLM cap reached" });
@@ -249,7 +249,7 @@ export async function runOrchestratorControllerCli(): Promise<void> {
       const result = executePlannedAction(database, plan);
       if (!plan.requestId) ledger.recordSuccess(plan);
       results.push({ ...plan, status: "applied", result });
-      if (["start", "successor_start", "repair_start", "review_start", "review_fix_start"].includes(plan.action))
+      if (["start", "successor_start", "repair_start", "review_start", "review_fix_start", "recover_interrupted_review_fix"].includes(plan.action))
         llmCount += 1;
       reconcileAfterAppliedAction(database, config);
     } catch (error) {
@@ -277,7 +277,7 @@ export async function runOrchestratorControllerCli(): Promise<void> {
         );
       }
       if (
-        ["successor_start", "review_start", "review_fix_start", "recover_managed_task"].includes(
+        ["successor_start", "review_start", "review_fix_start", "recover_interrupted_review_fix", "recover_managed_task"].includes(
           plan.action,
         ) &&
         plan.requestId &&

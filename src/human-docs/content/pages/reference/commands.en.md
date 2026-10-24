@@ -25,6 +25,7 @@ A button carries the id `kurami:<action>:<run id>`. The card shows at most four 
 | Button | When shown | Request | What the controller does |
 |---|---|---|---|
 | **Recover delivered fix** | run in `needs_attention`, owner `cli`, reason `review_fix_uncommitted_changes` | `recover_managed_task` | rechecks the preserved task, the pushed commit and fresh CI, finishes the fix |
+| **Recover interrupted fix** | `needs_attention`, owner `none`, exact failed/stopped/released protocol task and complete preserved review context | `recover_interrupted_review_fix` | captures dirty work and starts one fresh bounded writer for the same original round; never resumes the old task |
 | **Take control** | owner `cli`, a managed session is running, run not in `needs_attention` | `take_control` | `handoff`: asks Codex to stop, waits for a quiet pause, releases tmux; the run becomes `remote_owned` |
 | **Take control** | owner `none`, state `parked_review` or `waiting_human` | `take_control` | `claim_remote`: the owner becomes `remote`, the card shows an Open session link |
 | **Continue autonomously** | run `remote_owned`, owner `remote` | `take_control` | `successor_start`: a fresh managed Codex task in the same working copy |

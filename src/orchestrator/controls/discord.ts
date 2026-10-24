@@ -40,6 +40,7 @@ import {
   inspectManagedReviewFixRecovery,
   loadManagedReviewFixRecoverySnapshot,
 } from "../runtime/managed-task-recovery.ts";
+import { inspectInterruptedReviewFix } from "../runtime/interrupted-review-fix-recovery.ts";
 import { openOrchestratorDatabase } from "../state/database.ts";
 
 process.umask(0o077);
@@ -49,7 +50,7 @@ type ProjectConfig = {
   repository: string;
   discord?: DiscordConfig;
   preview?: Record<string, unknown>;
-  workspace: { branch_prefix: string; worktree_root: string };
+  workspace: { branch_prefix: string; worktree_root: string; canonical_repository?: string; base_branch?: string };
 };
 type ProjectsRegistry = {
   version: number;
@@ -1135,6 +1136,18 @@ export function controlComponents(
     const attentionCliHandoff = isNeedsAttentionCliHandoff(recovery);
     const failedSuccessorRecovery =
       isFailedAutonomousSuccessorRecovery(recovery);
+    if (card.run_state === "needs_attention" && card.owner_state === "none" &&
+        card.latest_attention_reason === "review_fix_uncommitted_changes" &&
+        project.workspace.canonical_repository && project.workspace.base_branch) {
+      const database = openOrchestratorDatabase(databasePath,{readOnly:true});
+      try {
+        inspectInterruptedReviewFix(database,card.run_id,{repository:project.repository,
+          workspace:{...project.workspace,canonical_repository:project.workspace.canonical_repository,
+            base_branch:project.workspace.base_branch}});
+        controls.push(button("Recover interrupted fix",1,`kurami:recover_interrupted_review_fix:${card.run_id}`));
+      } catch { /* Incomplete or unsafe evidence is not actionable. */ }
+      finally { database.close(); }
+    }
     const recoverManagedTask = managedRecoveryEligible(card, project);
     if (recoverManagedTask)
       controls.push(

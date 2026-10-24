@@ -13,20 +13,20 @@ import { PROJECTS_STALE_AFTER_MS } from "./model.ts";
 import {hasActivePrRequest} from "../orchestrator/controls/pr-boundary.ts";
 import { openOrchestratorDatabase } from "../orchestrator/state/database.ts";
 
-export const RUN_ACTIONS = ["take_control","preview_start","preview_stop","preview_reviewed","ci_repair","review_fix","recover_managed_task","stop","discard_local","discard_published"] as const;
+export const RUN_ACTIONS = ["take_control","preview_start","preview_stop","preview_reviewed","ci_repair","review_fix","recover_interrupted_review_fix","recover_managed_task","stop","discard_local","discard_published"] as const;
 export type RunAction = typeof RUN_ACTIONS[number];
 export type RunActionInput = {runId:string;project:string;itemId:string;action:RunAction;fingerprint:string;key:string;confirmed:boolean;profile?:ReviewProfile;allReviews?:boolean};
 export type RunActionView = {fingerprint:string;reason:string;actions:{action:RunAction;label:string;enabled:boolean;confirmation:string|null;hint:string|null;state:string|null}[]};
 type Pending = {review_fix_all:number;review_profile:ReviewProfile;request_id:string;action:string;request_state:string;requested_via:string};
 type Run = Record<string,unknown> & {available_actions:string[]};
 const labels: Record<RunAction,string> = {take_control:"Взять управление",preview_start:"Запустить превью",preview_stop:"Убрать превью",preview_reviewed:"Превью проверено",
-  ci_repair:"Исправить CI",review_fix:"Исправить замечания",recover_managed_task:"Восстановить исправление",stop:"Отменить запуск",discard_local:"Удалить локальную работу",discard_published:"Закрыть draft PR и удалить работу"};
+  ci_repair:"Исправить CI",review_fix:"Исправить замечания",recover_interrupted_review_fix:"Продолжить прерванное исправление",recover_managed_task:"Восстановить исправление",stop:"Отменить запуск",discard_local:"Удалить локальную работу",discard_published:"Закрыть draft PR и удалить работу"};
 const destructive = new Set<RunAction>(["discard_local","discard_published"]);
 
 function fingerprint(run: Run): string {
   return createHash("sha256").update(JSON.stringify([run.run_id,run.project,run.item_id,run.state,run.owner_state,run.stop_reason,run.execution_mode,
     run.resource_state,run.branch_name,run.worktree_path,run.codex_thread_id,run.previous_codex_thread_id,run.tmux_session_name,run.ci_head_sha,run.ci_pull_request_url,
-    run.preview_lease_id,run.preview_state,run.preview_verified_head_sha,run.preview_artifact_digest,run.preview_expires_at,run.preview_reviewed_at])).digest("hex");
+    run.interrupted_review_fix_identity,run.preview_lease_id,run.preview_state,run.preview_verified_head_sha,run.preview_artifact_digest,run.preview_expires_at,run.preview_reviewed_at])).digest("hex");
 }
 function readRun(database: DatabaseSync, runId: string, home: string, now: Date, profile: ReviewProfile = "general", allReviews = false): Run {
   return availableRunControls(database,runId,{home,now:now.getTime(),profile,allReviews}) as Run;
@@ -112,7 +112,7 @@ export function requestProjectRunAction(value: unknown, actor: string, options: 
     let requestId: string | null = null; let requestState = "applied"; let existing = false;
     if (pending) {
       if (input.action === "review_fix" && (pending.review_profile !== input.profile || Boolean(pending.review_fix_all) !== input.allReviews)) throw new ProjectsActionError(409,"Another review profile is already queued. Wait for its result.");
-      if (["ci_repair","review_fix"].includes(input.action) && !reviewContextMatches(database,pending.request_id,String(run.ci_head_sha),String(run.ci_pull_request_url)))
+      if (["ci_repair","review_fix","recover_interrupted_review_fix"].includes(input.action) && !reviewContextMatches(database,pending.request_id,String(run.ci_head_sha),String(run.ci_pull_request_url)))
         throw new ProjectsActionError(409,"Действие другого коммита уже в очереди.");
       requestId=pending.request_id; requestState=pending.request_state; existing=true;
     } else {
@@ -123,7 +123,7 @@ export function requestProjectRunAction(value: unknown, actor: string, options: 
           const result = requestRunControl(database,input.runId,input.action as Action,"projects",true,{home,idempotencyKey:key,profile:input.profile,allReviews:input.allReviews});
           requestId=String(result.requestId ?? result.request_id); requestState=String(result.requestState ?? result.request_state); existing=result.action === "existing";
         } catch { throw new ProjectsActionError(409,"Действие больше недоступно. Обновите страницу."); }
-        if (["ci_repair","review_fix"].includes(input.action)) {
+        if (["ci_repair","review_fix","recover_interrupted_review_fix"].includes(input.action)) {
           const pr = String(run.ci_pull_request_url); const head = String(run.ci_head_sha);
           if (!/^[a-f0-9]{7,64}$/.test(head) || !pr.startsWith(`https://github.com/${project.repository}/pull/`) || !/^https:\/\/github\.com\/[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+\/pull\/[1-9][0-9]*$/.test(pr))
             throw new ProjectsActionError(409,"Текущий PR и коммит не подтверждены.");
