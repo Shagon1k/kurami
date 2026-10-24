@@ -800,7 +800,7 @@ try {
     await open(`/?item=item-12&lang=${lang}`);
     await devtools.evaluate(`document.querySelector('[data-theme-choice="${variant}"]').click()`);
     await chooseMode(variant==='paper'?'light':'dark');await delay(200);
-    const note=await devtools.evaluate<string>("document.querySelector('.projects-detail .callout--warning')?.textContent??''");
+    const note=await devtools.evaluate<string>("document.querySelector('.projects-review-profile .projects-action-note[data-note-tone=warning]')?.textContent??''");
     assert.match(note,lang==='en'?/process still owns/:/процесс ещё использует/);
     await audit();
     const shot=await devtools.call<{data:string}>('Page.captureScreenshot',{format:'png',captureBeyondViewport:false});
