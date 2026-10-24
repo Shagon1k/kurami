@@ -77,6 +77,10 @@ A lost `turn/start` response is an ambiguous dispatch. Kurami records the uncert
 
 For protocol tasks, Cancel run and runtime limits request interruption through `turn/interrupt`, then wait for the exact terminal event and process exit. A missing stop acknowledgement preserves writer ownership. The default time limits remain 240 minutes for the main writer and 90 minutes for technical workers. A structured usage or billing block has its own failure code; it is not reported as a runtime timeout.
 
+The controller measures a protocol worker's runtime from the current task's start, including a fresh recovery task. Time spent on an earlier worker or waiting for an owner recovery request does not consume the new worker's budget. Legacy workers retain their existing start timestamps.
+
+You can explicitly recover a review fix with preserved local work after a server-overload failure or a confirmed managed timeout. Recovery requires the exact terminal receipt and process exit, unchanged PR and source commit, no competing writer, and the original review scope. It starts one fresh bounded worker per request and preserves staged, unstaged and untracked changes. A manual cancellation does not qualify, and recovery never starts automatically.
+
 Unexpected approval, permission, user-input or unknown server requests fail closed. Command and file approvals are declined, permission grants are empty, and unsupported requests receive an error. The task stops and needs attention; no permission expansion is accepted automatically.
 
 ## Ownership and Remote

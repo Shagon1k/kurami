@@ -294,7 +294,7 @@ export function planForRequest(
       if (request.run_state === "needs_attention" && request.owner_state === "none" &&
           request.execution_mode === "live" && request.resource_state === "provisioned" &&
           request.stop_reason === null && request.tmux_session_name === null &&
-          request.latest_attention_reason === "review_fix_uncommitted_changes")
+          ["review_fix_uncommitted_changes","review_fix_runtime_budget_exceeded"].includes(request.latest_attention_reason ?? ""))
         return { ...base, action: "recover_interrupted_review_fix" };
       return { ...base, action:"request_reject", reason:"run_not_interrupted_review_fix_eligible" };
     case "recover_managed_task":

@@ -23,6 +23,7 @@ if (scenario === "positive")
     "dirty-rejection-processing",
     "request-rejection",
     "failed-successor",
+    "managed-timeout",
   ]) {
     execFileSync(process.execPath, [import.meta.filename], {
       env: { ...process.env, RECOVERY_SCENARIO: child },
@@ -186,6 +187,7 @@ try {
     VALUES ('task','terminal:turn','turn/completed','failed-thread','turn','failed','protocol_serverOverloaded');
     INSERT INTO run_review_fix_threads(round_id,thread_id,root_comment_id,source_kind,path,line)
     VALUES ('rfr_feed1234','original-thread',1,'owner','fix.txt',1);`);
+  database.exec("UPDATE run_review_fix_rounds SET created_at='2026-01-01T00:00:00.000Z'");
   const originalLaunch = {
     ok: true,
     apply: true,
@@ -347,6 +349,26 @@ try {
       `UPDATE run_codex_tasks SET stop_requested='${intent}'`,
       /terminal receipt/,
     );
+  function markManagedTimeout() {
+    database.exec(`UPDATE run_review_fix_rounds SET failure_reason='runtime_budget_exceeded';
+      UPDATE run_codex_tasks SET turn_status='interrupted',failure_code='runtime_budget_exceeded',stop_requested='timeout';
+      UPDATE run_codex_task_events SET status='interrupted',failure_code='protocol_turn_interrupted';
+      INSERT INTO run_state_history(run_id,from_state,to_state,reason,details_json)
+      VALUES ('r_fixture','parked_review','needs_attention','review_fix_runtime_budget_exceeded',
+        json_object('taskId','task','threadId','failed-thread','turnId','turn','turnStatus','interrupted',
+          'failureCode','runtime_budget_exceeded','restoredThreadId',NULL));`);
+  }
+  database.exec("SAVEPOINT managed_timeout");
+  try {
+    markManagedTimeout();
+    const recovered=inspect();
+    assert.equal(recovered.taskId,original.taskId);
+    assert.equal(recovered.digest,original.digest,"timeout recovery preserves the dirty work");
+    assert.deepEqual(recovered.context,original.context,"timeout recovery keeps the original review scope");
+    refuse("UPDATE run_codex_tasks SET stop_requested='cancel'",/terminal receipt/);
+    refuse("DELETE FROM run_codex_task_events",/terminal receipt/);
+    refuse("UPDATE run_state_history SET details_json=json_set(details_json,'$.taskId','other') WHERE reason='review_fix_runtime_budget_exceeded'",/timeout task identity/);
+  } finally { database.exec("ROLLBACK TO managed_timeout; RELEASE managed_timeout"); }
   refuse("UPDATE run_codex_tasks SET stopped_at=NULL", /terminal receipt/);
   refuse(
     "UPDATE run_codex_tasks SET turn_id='another-turn'",
@@ -510,6 +532,7 @@ try {
   git(worktree, "symbolic-ref", "HEAD", "refs/heads/other");
   assert.throws(inspect, /branch\/head/);
   git(worktree, "symbolic-ref", "HEAD", "refs/heads/fix-review");
+  if (scenario === "managed-timeout") markManagedTimeout();
   assert.ok(
     (
       availableRunControls(database, "r_fixture", { home })
@@ -548,6 +571,13 @@ try {
   );
   writeFileSync(resolve(worktree, "fix.txt"), "unstaged\n");
   const request = requestProjectRunAction(input, "owner", { home, now });
+  const {baseRunSelect}=await import("../src/orchestrator/runtime/run-read-model.ts");
+  const {planForRequest}=await import("../src/orchestrator/runtime/request-plan.ts");
+  const queued=database.prepare(`SELECT base.*,q.request_id,q.action AS requested_action
+    FROM (${baseRunSelect()}) base JOIN run_control_requests q ON q.run_id=base.run_id
+    WHERE q.request_id=?`).get(request.requestId) as Parameters<typeof planForRequest>[0];
+  assert.equal(planForRequest(queued,{limits:{preview_expiry_warning_hours:1}}).action,
+    "recover_interrupted_review_fix","the controller accepts the guarded recovery request");
   const source = database
     .prepare("SELECT * FROM run_control_project_context WHERE request_id=?")
     .get(request.requestId)!;
@@ -776,6 +806,13 @@ try {
     assert.equal(tasks[1]!.thread_id, null);
     assert.equal(tasks[0]!.thread_id, "failed-thread");
     assert.ok(tasks[0]!.released_at);
+    const {inspectRuntimeBudgets}=await import("../src/orchestrator/projects/sessions/runtime-budget.ts");
+    const budget={version:1,mode:"live" as const,limits:{main_writer_timeout_minutes:240,technical_worker_timeout_minutes:90}};
+    const taskStart=Date.parse(String(tasks[1]!.created_at));
+    assert.equal(inspectRuntimeBudgets(database,budget,taskStart+60_000).plans.length,0,
+      "an old review round cannot expire the fresh recovery worker");
+    assert.equal(inspectRuntimeBudgets(database,budget,taskStart+90*60_000).plans[0]?.startedAt,tasks[1]!.created_at,
+      "the recovered worker still has a bounded runtime from its own start");
     const launch = readFileSync(launches, "utf8");
     assert.match(launch, /HERMES_CODEX_TASK_ID=ct_/);
     assert.match(launch, /420000/);

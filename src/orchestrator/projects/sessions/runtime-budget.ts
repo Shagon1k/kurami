@@ -161,11 +161,15 @@ export function inspectRuntimeBudgets(
   const plans: RuntimeBudgetPlan[] = [];
   const warnings: string[] = [];
   for (const row of activeRows(database)) {
-    if (!row.started_at) {
+    const task = row.kind === "ci_repair" || row.kind === "review_fix"
+      ? taskForSession(database, row.tmux_session_name) : null;
+    const startedAt = task && task.run_id === row.run_id && task.kind === row.kind &&
+      task.context_id === row.id && task.released_at === null ? task.created_at : row.started_at;
+    if (!startedAt) {
       warnings.push(`${row.kind}:${row.id}:missing_start_timestamp`);
       continue;
     }
-    const startedMs = Date.parse(row.started_at);
+    const startedMs = Date.parse(startedAt);
     if (!Number.isFinite(startedMs) || startedMs > nowMs) {
       warnings.push(`${row.kind}:${row.id}:invalid_start_timestamp`);
       continue;
@@ -181,7 +185,7 @@ export function inspectRuntimeBudgets(
       id: row.id,
       runId: row.run_id,
       tmuxSessionName: row.tmux_session_name,
-      startedAt: row.started_at,
+      startedAt,
       timeoutMinutes,
       elapsedMinutes,
       ...(row.succession_id ? { successionId: row.succession_id } : {}),

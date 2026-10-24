@@ -140,6 +140,23 @@ try {
     `Unexpected timeout plans: ${JSON.stringify(inspection.plans)}`,
   );
 
+  database.exec(`CREATE TABLE run_codex_tasks (
+    task_id TEXT PRIMARY KEY,run_id TEXT,kind TEXT,context_id TEXT,
+    session_name TEXT,created_at TEXT,released_at TEXT
+  );
+  INSERT INTO run_codex_tasks VALUES ('old-fix','r_fix','review_fix','rfr_1','cx-fix',
+    '2026-08-21T08:00:00.000Z','2026-08-21T08:10:00.000Z');`);
+  assert(inspectRuntimeBudgets(database,config,Date.parse("2026-08-21T10:00:00.000Z"))
+    .plans.some(plan=>plan.runId==="r_fix"),"A released task cannot renew the legacy runtime clock");
+  database.exec(`INSERT INTO run_codex_tasks VALUES ('recovered-fix','r_fix','review_fix','rfr_1','cx-fix',
+    '2026-08-21T09:59:00.000Z',NULL);`);
+  assert(!inspectRuntimeBudgets(database,config,Date.parse("2026-08-21T11:28:59.000Z"))
+    .plans.some(plan=>plan.runId==="r_fix"),"A fresh recovery keeps its full budget despite an old round");
+  const recoveredTimeout=inspectRuntimeBudgets(database,config,Date.parse("2026-08-21T11:29:00.000Z"))
+    .plans.find(plan=>plan.runId==="r_fix");
+  assert(recoveredTimeout?.startedAt==="2026-08-21T09:59:00.000Z" && recoveredTimeout.elapsedMinutes===90,
+    "A recovered worker still expires exactly at its own 90-minute limit");
+
   const main = inspection.plans[0]!;
   const completedTerminal = [
     "Completed the bounded delivery.",

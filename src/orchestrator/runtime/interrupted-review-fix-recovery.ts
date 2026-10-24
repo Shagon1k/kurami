@@ -173,10 +173,11 @@ export function inspectInterruptedReviewFix(
       run.previousCodexThreadId,
     "run ownership or resource fence changed",
   );
+  const timedOut = run.latestAttentionReason === "review_fix_runtime_budget_exceeded";
   requireRecovery(
-    run.latestAttentionReason === "review_fix_uncommitted_changes" &&
+    (timedOut || run.latestAttentionReason === "review_fix_uncommitted_changes") &&
       run.roundState === "needs_attention" &&
-      run.roundFailureReason === run.latestAttentionReason &&
+      run.roundFailureReason === (timedOut ? "runtime_budget_exceeded" : run.latestAttentionReason) &&
       run.matchingRoundCount === 1 &&
       run.roundId &&
       run.roundCodexThreadId === run.codexThreadId &&
@@ -185,7 +186,7 @@ export function inspectInterruptedReviewFix(
     "preserved round identity changed",
   );
   const details = JSON.parse(run.latestAttentionDetailsJson ?? "null");
-  requireRecovery(
+  if (!timedOut) requireRecovery(
     details?.roundId === run.roundId &&
       details.sourceHeadSha === run.roundSourceHeadSha &&
       details.localHeadSha === run.roundSourceHeadSha &&
@@ -332,24 +333,33 @@ export function inspectInterruptedReviewFix(
       task.branch_name === branch &&
       task.phase === "terminal" &&
       task.turn_id &&
-      task.turn_status === "failed" &&
-      task.failure_code === "protocol_serverOverloaded" &&
-      (task.stop_requested === null || task.stop_requested === "release") &&
+      task.turn_status === (timedOut ? "interrupted" : "failed") &&
+      task.failure_code === (timedOut ? "runtime_budget_exceeded" : "protocol_serverOverloaded") &&
+      (timedOut ? task.stop_requested === "timeout" :
+        task.stop_requested === null || task.stop_requested === "release") &&
       task.stopped_at &&
       task.released_at &&
       database
         .prepare(
           `SELECT 1 FROM run_codex_task_events
       WHERE task_id=? AND event_key=? AND method='turn/completed' AND thread_id=?
-        AND turn_id=? AND status='failed' AND failure_code='protocol_serverOverloaded'`,
+        AND turn_id=? AND status=? AND failure_code=?`,
         )
         .get(
           task.task_id,
           `terminal:${task.turn_id}`,
           task.thread_id,
           task.turn_id,
+          timedOut ? "interrupted" : "failed",
+          timedOut ? "protocol_turn_interrupted" : "protocol_serverOverloaded",
         ),
     "worker lacks exact released failed terminal receipt",
+  );
+  if (timedOut) requireRecovery(
+    details?.taskId === task.task_id && details.threadId === task.thread_id &&
+      details.turnId === task.turn_id && details.turnStatus === "interrupted" &&
+      details.failureCode === "runtime_budget_exceeded" && details.restoredThreadId === null,
+    "timeout task identity changed",
   );
   requireRecovery(
     !database

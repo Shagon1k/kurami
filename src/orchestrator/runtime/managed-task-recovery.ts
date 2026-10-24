@@ -112,7 +112,7 @@ export function loadManagedReviewFixRecoverySnapshot(
               (SELECT COUNT(*) FROM run_review_fix_rounds unique_fix
                WHERE unique_fix.run_id=r.run_id
                  AND unique_fix.round_state='needs_attention'
-                 AND unique_fix.failure_reason=?) AS matchingRoundCount,
+                 AND unique_fix.failure_reason=f.failure_reason) AS matchingRoundCount,
               (SELECT COUNT(*) FROM run_control_requests pending
                WHERE pending.run_id=r.run_id
                  AND pending.request_state IN ('pending','processing')
@@ -144,7 +144,6 @@ export function loadManagedReviewFixRecoverySnapshot(
        WHERE r.run_id=?`,
     )
     .get(
-      reviewFixUncommittedChangesReason,
       ignoredRequestId,
       ignoredRequestId,
       runId,
