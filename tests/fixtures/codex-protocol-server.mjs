@@ -12,7 +12,7 @@ const completed = (status="completed", id=turnId, thread=threadId) => {
     scenario === "scope_refusal" ? "Dependency remediation excluded by scope; braces advisory has no published upstream fix. No changes or push." :
     scenario === "no_change" ? "No compatible upstream fix exists. No changes or push." : "Exact worker final report"}}});
   send({method:"turn/completed",params:{threadId:thread,turn:{id,status,
-    error: status === "failed" ? {codexErrorInfo:scenario === "billing" ? "usageLimitExceeded" : "sandboxError"} : null}}});
+    error: status === "failed" ? {codexErrorInfo:scenario === "billing" ? "usageLimitExceeded" : scenario === "overload" ? "serverOverloaded" : "sandboxError"} : null}}});
 };
 const lines = createInterface({input:process.stdin});
 for await (const line of lines) {
@@ -50,7 +50,7 @@ for await (const line of lines) {
       send({id:"approval",method:scenario === "permission" ? "item/permissions/requestApproval" :
         scenario === "approval" ? "item/commandExecution/requestApproval" : "unknown/interactive",
         params:{threadId,turnId,itemId:"item-exact",permissions:{network:{enabled:true}}}});
-    else if (scenario === "failure" || scenario === "billing") completed("failed");
+    else if (scenario === "failure" || scenario === "billing" || scenario === "overload") completed("failed");
     else if (scenario === "interrupted") completed("interrupted");
     else if (!["cancel","timeout","early"].includes(scenario)) {
       completed(); completed(); completed("failed");

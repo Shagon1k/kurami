@@ -1,3 +1,4 @@
+import { inspectInterruptedReviewFix } from "../runtime/interrupted-review-fix-recovery.ts";
 import { previewSourceAvailable } from "../projects/previews/runtime.ts";
 import { parseReviewProfile, type ReviewProfile } from "../projects/reviews/profiles.ts";
 import {LATEST_ATTENTION_SQL,LATEST_SUCCESSOR_STATE_SQL,LATEST_SUCCESSOR_THREAD_SQL,ACTIVE_SUCCESSOR_COUNT_SQL} from "../runtime/run-projections.ts";
@@ -35,6 +36,7 @@ export type Action =
   | "ci_repair"
   | "ai_review"
   | "review_fix"
+  | "recover_interrupted_review_fix"
   | "recover_managed_task";
 type Command = "status" | "request" | "controls";
 export type RequestSource = "telegram" | "discord" | "cli" | "projects";
@@ -78,6 +80,10 @@ const pendingPresentations: Partial<
     detail:
       "Review fix requested; capturing the current unresolved GitHub review threads before starting a fresh agent session.",
   },
+  recover_interrupted_review_fix: {
+    stage:"review_fix_recovery_queued",
+    detail:"Recovery requested; verifying the released interrupted worker and preserved dirty work before a fresh bounded review fix.",
+  },
   recover_managed_task: {
     stage: "review_fix_recovery_queued",
     detail:
@@ -96,7 +102,7 @@ type ProjectsRegistry = {
     {
       repository: string;
       preview?: Record<string, unknown>;
-      workspace: { worktree_root: string };
+      workspace: { worktree_root: string; canonical_repository: string; base_branch: string };
     }
   >;
 };
@@ -216,6 +222,7 @@ function parseArguments(): {
         "ai_review",
         "review_fix",
         "recover_managed_task",
+        "recover_interrupted_review_fix",
       ].includes(action))
   ) {
     fail("request requires a supported --action");
@@ -443,6 +450,7 @@ export function requestRunControl(
   const allReviews = options.allReviews ?? false;
   if (allReviews && (action !== "review_fix" || profile !== "general")) fail("All reviews requires review_fix without a selected profile");
   if (profile !== "general" && !["ai_review", "review_fix"].includes(action)) fail("Profile requires a review action");
+  let interruptedIntent: string | null = null;
   const ownsTransaction = !database.isTransaction;
   if (ownsTransaction) database.exec("BEGIN IMMEDIATE");
   const home = options.home ?? orchestratorHome;
@@ -502,10 +510,11 @@ export function requestRunControl(
          WHERE run_id = ? AND request_state IN ('pending','processing')
            AND NOT (? = 'preview_stop' AND action = 'preview_start' AND request_state = 'pending')
            AND (
+             action = 'recover_interrupted_review_fix' OR
              action = 'review_fix' OR
              action = 'recover_managed_task' OR
-             (? IN ('review_fix','recover_managed_task')
-               AND action IN ('take_control','ci_repair','ai_review','review_fix','recover_managed_task')) OR
+             (? IN ('review_fix','recover_managed_task','recover_interrupted_review_fix')
+               AND action IN ('take_control','ci_repair','ai_review','review_fix','recover_managed_task','recover_interrupted_review_fix')) OR
              (action IN ('preview_start','preview_stop') AND ? IN ('preview_start','preview_stop'))
            )
          LIMIT 1`,
@@ -550,6 +559,15 @@ export function requestRunControl(
           "Autonomous continuation requires one finished Remote task, a provisioned worktree, and no active managed writer",
         );
       }
+    }
+    if (action === "recover_interrupted_review_fix") {
+      const existing = database.prepare(`SELECT request_id FROM run_control_requests WHERE run_id=?
+        AND action=? AND request_state IN ('pending','processing')`).get(runId,action);
+      const interrupted = inspectInterruptedReviewFix(database,runId,
+        (parse(readFileSync(projectsPath,"utf8")) as ProjectsRegistry).projects[run.project],
+        existing ? String(existing.request_id) : null);
+      interruptedIntent = JSON.stringify({taskId:interrupted.taskId,turnId:interrupted.turnId,roundId:interrupted.roundId,
+        headSha:interrupted.sourceHeadSha,dirtyDigest:interrupted.digest,contextDigest:interrupted.contextDigest});
     }
     if (action === "recover_managed_task") {
       const existingRecovery = database
@@ -798,6 +816,9 @@ export function requestRunControl(
     `,
       )
       .get(idempotencyKey) as { request_id: string; request_state: string };
+    if (interruptedIntent && stored.request_id === plan.requestId)
+      database.prepare("UPDATE run_control_requests SET review_fix_recovery_json=? WHERE request_id=?")
+        .run(interruptedIntent,stored.request_id);
     if (action === "preview_stop" && stored.request_id === plan.requestId) {
       // Supersede only unclaimed starts, atomically with the supported stop request.
       // A processing start remains a conflict: its runtime side effect may be active.
@@ -910,6 +931,13 @@ export function availableRunControls(database: DatabaseSync, runId: string, opti
   const failedSuccessorRecovery =
     isFailedAutonomousSuccessorRecovery(selectedRecovery);
   const availableActions = ["status"];
+  try {
+    const interrupted = inspectInterruptedReviewFix(database,String(selected.run_id),
+      (parse(readFileSync(projectsPath,"utf8")) as ProjectsRegistry).projects[String(selected.project)]);
+    selected.interrupted_review_fix_identity = [interrupted.taskId,interrupted.turnId,interrupted.roundId,
+      interrupted.digest,interrupted.contextDigest];
+    availableActions.push("recover_interrupted_review_fix");
+  } catch { /* Unsafe or incomplete preserved evidence: do not offer recovery. */ }
   const managedRecoverySnapshot = loadManagedReviewFixRecoverySnapshot(
     database,
     String(selected.run_id),

@@ -132,6 +132,7 @@ const suites = [
   "test:review-fix",
   "test:managed-source-refresh",
   "test:managed-task-recovery",
+  "test:interrupted-review-fix-recovery",
   "test:triage-snapshot",
   "test:projects-digest",
   "test:metadata-proposals",

@@ -1,3 +1,4 @@
+import { recoverInterruptedReviewFix } from "./recover-interrupted-review-fix.ts";
 import { taskForSession } from "../../integrations/codex/task-store.ts";
 import { readFile } from "node:fs/promises";
 import { writeSync } from "node:fs";
@@ -66,6 +67,7 @@ function parseArguments(): Arguments {
       action !== "review-fix" &&
       action !== "cleanup-review-fix" &&
       action !== "recover-managed-task" &&
+      action !== "recover-interrupted-review-fix" &&
       action !== "sync" &&
       action !== "inspect" &&
       action !== "cancel" &&
@@ -73,7 +75,7 @@ function parseArguments(): Arguments {
       action !== "handoff" &&
       action !== "finalize-stop") ||
     !runId ||
-    (["repair", "review-fix", "recover-managed-task"].includes(action)
+    (["repair", "review-fix", "recover-managed-task", "recover-interrupted-review-fix"].includes(action)
       ? !requestId
       : Boolean(requestId)) ||
     unknown.length > 0 ||
@@ -904,6 +906,10 @@ export async function runSessionManagerCli(): Promise<void> {
     }
     if (args.action === "cleanup-review-fix") {
       await cleanupReviewFixSession(database, run, registry, args.apply);
+      return;
+    }
+    if (args.action === "recover-interrupted-review-fix") {
+      await recoverInterruptedReviewFix(database, run, registry, config, args.requestId!, args.apply);
       return;
     }
     if (args.action === "recover-managed-task") {

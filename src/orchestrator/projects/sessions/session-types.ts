@@ -6,6 +6,7 @@ export type Action =
   | "cleanup-repair"
   | "review-fix"
   | "cleanup-review-fix"
+  | "recover-interrupted-review-fix"
   | "recover-managed-task"
   | "sync"
   | "inspect"

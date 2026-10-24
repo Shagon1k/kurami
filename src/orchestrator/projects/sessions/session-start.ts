@@ -224,6 +224,7 @@ export async function validateAndPlan(
   registry: ProjectsRegistry,
   repair: RepairContext | null = null,
   reviewFix: ReviewFixContext | null = null,
+  interrupted?: import("../../runtime/interrupted-review-fix-recovery.ts").InterruptedReviewFix,
 ): Promise<StartPlan> {
   const project = registry.projects[run.project];
   if (!project) fail(`Unknown project in run: ${run.project}`);
@@ -261,7 +262,7 @@ export async function validateAndPlan(
     fail(`Recorded base SHA is not an ancestor of worktree HEAD`);
   }
   if (repair || reviewFix) {
-    if (git(worktreePath, ["status", "--porcelain"]))
+    if (!interrupted && git(worktreePath, ["status", "--porcelain"]))
       fail("Technical fix requires a clean managed worktree");
     const head = git(worktreePath, ["rev-parse", "HEAD"]);
     const sourceHeadSha = repair?.sourceHeadSha ?? reviewFix!.sourceHeadSha;
@@ -507,8 +508,8 @@ export function claimReviewFixSession(
         `INSERT INTO run_review_fix_rounds (
            round_id, run_id, request_id, round_number, round_state,
            repository, pull_request_number, pull_request_url,
-           source_head_sha, snapshot_json, review_profile, review_fix_all
-         ) VALUES (?, ?, ?, ?, 'running', ?, ?, ?, ?, ?, ?, ?)`,
+           source_head_sha, snapshot_json, review_profile, review_fix_all, summary_findings_json
+         ) VALUES (?, ?, ?, ?, 'running', ?, ?, ?, ?, ?, ?, ?, ?)`,
       )
       .run(
         fix.roundId,
@@ -522,6 +523,7 @@ export function claimReviewFixSession(
         JSON.stringify(fix.threads),
         fix.profile ?? "general",
         Number(fix.allReviews ?? false),
+        JSON.stringify(fix.summaryOnlyFindings),
       );
     const insertThread = database.prepare(
       `INSERT INTO run_review_fix_threads (
@@ -682,12 +684,39 @@ function recordStartFailure(
   run: SessionRun,
   plan: StartPlan,
   error: unknown,
+  unboundRecoveryTaskId?: string,
 ): void {
   const message = error instanceof Error ? error.message : String(error);
   database.exec("BEGIN IMMEDIATE");
   try {
     const current = loadRun(database, run.run_id);
     if (current.owner_state === "remote") fail("Remote ownership changed; start failure cannot seize it");
+    if (unboundRecoveryTaskId) {
+      const restored = database.prepare(`UPDATE run_resources SET codex_thread_id=previous_codex_thread_id,
+        previous_codex_thread_id=NULL WHERE run_id=? AND tmux_session_name=? AND codex_thread_id IS NULL
+        AND previous_codex_thread_id=? AND worktree_path=? AND branch_name=?
+        AND EXISTS(SELECT 1 FROM runs WHERE run_id=? AND state='parked_review' AND owner_state='cli')
+        AND EXISTS(SELECT 1 FROM run_codex_tasks WHERE task_id=? AND run_id=? AND session_name=?
+          AND kind='review_fix' AND context_id=? AND thread_id IS NULL AND turn_id IS NULL AND released_at IS NULL)
+        AND EXISTS(SELECT 1 FROM run_interrupted_review_fix_recoveries WHERE request_id=? AND round_id=?
+          AND session_name=? AND dispatch_started_at IS NULL)`)
+        .run(run.run_id,plan.tmuxSessionName,run.previous_codex_thread_id,plan.worktreePath,plan.branchName,
+          run.run_id,unboundRecoveryTaskId,run.run_id,plan.tmuxSessionName,plan.reviewFix!.roundId,
+          plan.reviewFix!.requestId,plan.reviewFix!.roundId,plan.tmuxSessionName);
+      if (restored.changes !== 1) fail("Unbound recovery mapping changed; preserve task for reconciliation");
+      // Only this proven undispatched owner may bypass the duplicate-controller receipt fence.
+      // Commit its failure atomically with primary restoration and unbound-task release.
+      database.prepare(`UPDATE run_control_requests SET request_state='failed', result_json=?,
+        updated_at=strftime('%Y-%m-%dT%H:%M:%fZ','now'),
+        completed_at=strftime('%Y-%m-%dT%H:%M:%fZ','now')
+        WHERE request_id=? AND run_id=? AND action='recover_interrupted_review_fix'
+          AND request_state IN ('pending','processing')`)
+        .run(JSON.stringify({ action: "managed_task_recovery_failed", reason: message }),
+          plan.reviewFix!.requestId, run.run_id);
+      database.prepare(`UPDATE run_codex_tasks SET stopped_at=strftime('%Y-%m-%dT%H:%M:%fZ','now'),
+        released_at=strftime('%Y-%m-%dT%H:%M:%fZ','now'),failure_code='protocol_launch_failed' WHERE task_id=?`)
+        .run(unboundRecoveryTaskId);
+    }
     database
       .prepare(
         `
@@ -798,6 +827,7 @@ export async function startSession(
   plan: StartPlan,
   config: OrchestratorConfig,
   apply: boolean,
+  interrupted?: { claim: (maxSessions: number) => void; beforeDispatch: () => void },
 ): Promise<void> {
   if (!apply) {
     process.stdout.write(
@@ -808,7 +838,9 @@ export async function startSession(
   if (config.mode !== "live" || run.execution_mode !== "live") {
     fail(`Refusing session mutation outside live mode`);
   }
-  const stateReady = plan.repair || plan.reviewFix
+  const stateReady = interrupted
+    ? run.run_state === "needs_attention" && run.owner_state === "none"
+    : plan.repair || plan.reviewFix
     ? run.run_state === "parked_review" && run.owner_state === "none"
     : run.run_state === "starting" && run.owner_state === "none";
   if (!stateReady || run.resource_state !== "provisioned") {
@@ -831,7 +863,8 @@ export async function startSession(
     );
   }
 
-  if (plan.repair)
+  if (interrupted) interrupted.claim(config.limits.max_tmux_sessions_global);
+  else if (plan.repair)
     claimRepairSession(
       database,
       run,
@@ -849,20 +882,20 @@ export async function startSession(
   let dispatchAttempted = false;
   try {
     if (plan.repair) recordRepairStarted(database, run, plan);
-    else if (plan.reviewFix) recordReviewFixStarted(database, run, plan);
+    else if (plan.reviewFix && !interrupted) recordReviewFixStarted(database, run, plan);
     const protocol = Boolean(plan.repair || plan.reviewFix);
     const taskId = protocol ? claimProtocolTask(database,run.run_id,plan.tmuxSessionName,
       plan.repair ? "ci_repair" : "review_fix",
       plan.repair?.attemptId ?? plan.reviewFix?.roundId ?? run.run_id) : null;
-    await launchManagedTmux(run, plan, taskId, 60_000 * (plan.repair || plan.reviewFix ? config.limits.technical_worker_timeout_minutes ?? 90 : config.limits.main_writer_timeout_minutes ?? 240), () => { dispatchAttempted = true; });
+    await launchManagedTmux(run, plan, taskId, 60_000 * (plan.repair || plan.reviewFix ? config.limits.technical_worker_timeout_minutes ?? 90 : config.limits.main_writer_timeout_minutes ?? 240), () => { interrupted?.beforeDispatch(); dispatchAttempted = true; });
     if (!taskId) recordStarted(database, run, plan);
     if (taskId && !tmuxSessionExists(plan.tmuxSessionName) && !taskForSession(database,plan.tmuxSessionName)?.stopped_at)
       fail("Protocol worker exited without a stop receipt");
   } catch (error) {
     const task = taskForSession(database,plan.tmuxSessionName);
     if (task && !dispatchAttempted) {
-      database.prepare("UPDATE run_codex_tasks SET stopped_at=strftime('%Y-%m-%dT%H:%M:%fZ','now'),released_at=strftime('%Y-%m-%dT%H:%M:%fZ','now'),failure_code='protocol_launch_failed' WHERE task_id=?").run(task.task_id);
-      recordStartFailure(database,run,plan,error);
+      if (!interrupted) database.prepare("UPDATE run_codex_tasks SET stopped_at=strftime('%Y-%m-%dT%H:%M:%fZ','now'),released_at=strftime('%Y-%m-%dT%H:%M:%fZ','now'),failure_code='protocol_launch_failed' WHERE task_id=?").run(task.task_id);
+      recordStartFailure(database,run,plan,error,interrupted ? task.task_id : undefined);
       throw error;
     }
     if (task) {

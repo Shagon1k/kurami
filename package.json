@@ -144,6 +144,7 @@
     "test:review-fix": "node tests/verify-review-fix.ts",
     "test:managed-source-refresh": "node tests/verify-managed-source-refresh.ts",
     "test:managed-task-recovery": "node tests/verify-managed-task-recovery.ts",
+    "test:interrupted-review-fix-recovery": "node tests/verify-interrupted-review-fix-recovery.ts",
     "test:triage-snapshot": "node tests/verify-triage-snapshot.ts",
     "test:projects-digest": "node tests/verify-triage-digest.ts",
     "test:metadata-proposals": "node tests/verify-metadata-proposals.ts",

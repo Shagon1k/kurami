@@ -34,7 +34,7 @@ export function verifyReviewProfiles(): void {
   writeFileSync(join(home, "config/orchestrator.yaml"), JSON.stringify({version:1,mode:"live",limits:{max_tmux_sessions_global:2}}));
   const database = new DatabaseSync(join(home, "state/orchestrator.db"));
   try {
-    for (const file of readdirSync(join(app,"migrations")).filter(name=>/^\d+_.*\.sql$/u.test(name)).sort().filter(name=>!name.startsWith("042_"))) database.exec(readFileSync(join(app,"migrations",file),"utf8"));
+    for (const file of readdirSync(join(app,"migrations")).filter(name=>/^\d+_.*\.sql$/u.test(name)).sort().filter(name=>name < "042_")) database.exec(readFileSync(join(app,"migrations",file),"utf8"));
     database.exec("PRAGMA foreign_keys=ON");
     database.prepare("INSERT INTO project_events(event_id,observed_at,project,item_id,content_type,payload_json) VALUES('event_profile',?,'alpha','item','Issue','{}')").run(now.toISOString());
     database.exec("INSERT INTO runs(run_id,trigger_event_id,project,item_id,content_id,repository,issue_number,interaction_policy,state,owner_state,execution_mode) VALUES('r_profile','event_profile','alpha','item','content','Example/Alpha',12,'autonomous','parked_review','none','live')");
@@ -49,6 +49,7 @@ export function verifyReviewProfiles(): void {
     assert.equal(requestProjectsReview(input,"owner",{home,now}).requestId,request.requestId);
     assert.equal(database.prepare("SELECT review_profile FROM run_control_requests WHERE request_id=?").get(request.requestId)?.review_profile,"clarity");
     database.exec(readFileSync(join(app,"migrations/042_independent_review_profiles.sql"),"utf8"));
+    for (const file of readdirSync(join(app,"migrations")).filter(name=>/^\d+_.*\.sql$/u.test(name)).sort().filter(name=>name > "042_independent_review_profiles.sql")) database.exec(readFileSync(join(app,"migrations",file),"utf8"));
     assert.equal(database.prepare("SELECT request_state FROM run_control_requests WHERE request_id=?").get(request.requestId)?.request_state,"pending","upgrade preserves queued review");
     assert.equal(inspectAiReview(database,"r_profile","general")?.eligible,true,"queued Clarity does not block General");
     assert.ok((availableRunControls(database,"r_profile",{home,profile:"general"}).available_actions as string[]).includes("ai_review"));
