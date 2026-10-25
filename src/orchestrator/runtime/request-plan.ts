@@ -15,7 +15,8 @@ export type RequestRow = RunRow & {
     | "ai_review"
     | "review_fix"
     | "recover_interrupted_review_fix"
-  | "recover_managed_task";
+    | "retry"
+    | "recover_managed_task";
 };
 
 export type ControllerAction =
@@ -29,6 +30,7 @@ export type ControllerAction =
   | "review_fix_resolve"
   | "review_fix_cleanup"
   | "recover_interrupted_review_fix"
+  | "retry"
   | "recover_managed_task"
   | "sync"
   | "cancel_cli"
@@ -297,6 +299,11 @@ export function planForRequest(
           ["review_fix_uncommitted_changes","review_fix_runtime_budget_exceeded"].includes(request.latest_attention_reason ?? ""))
         return { ...base, action: "recover_interrupted_review_fix" };
       return { ...base, action:"request_reject", reason:"run_not_interrupted_review_fix_eligible" };
+    case "retry":
+      if(request.run_state === "needs_attention" && request.owner_state === "cli" && request.stop_reason === null &&
+        request.execution_mode === "live" && request.latest_attention_reason === "primary_attempt_failed")
+        return {...base,action:"retry"};
+      return {...base,action:"request_reject",reason:"run_not_retry_eligible"};
     case "recover_managed_task":
       if (
         request.run_state === "needs_attention" &&

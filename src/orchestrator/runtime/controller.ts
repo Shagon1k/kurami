@@ -1,3 +1,4 @@
+import { LATEST_ATTENTION_VALUE_SQL } from "./run-projections.ts";
 import { spawnSync } from "node:child_process";
 import { transcriptHasCompletedTurn } from "./codex-terminal.ts";
 import { readFile } from "node:fs/promises";
@@ -44,9 +45,10 @@ function runningLlmCount(database: DatabaseSync): number {
       database
         .prepare(
           `
-      SELECT COUNT(*) AS count FROM runs
+      SELECT COUNT(*) AS count FROM runs r
       WHERE owner_state = 'cli'
-        AND state IN ('starting', 'running', 'handoff_pending', 'parked_review', 'stopping')
+        AND (state IN ('starting', 'running', 'handoff_pending', 'parked_review', 'stopping')
+          OR (state='needs_attention' AND ${LATEST_ATTENTION_VALUE_SQL} IN ('primary_retry_requested','primary_retry_unconfirmed')))
     `,
         )
         .get() as { count: number }
@@ -239,7 +241,7 @@ export async function runOrchestratorControllerCli(): Promise<void> {
       continue;
     }
     if (
-      ["start", "successor_start", "repair_start", "review_start", "review_fix_start", "recover_interrupted_review_fix"].includes(plan.action) &&
+      ["start", "successor_start", "repair_start", "review_start", "review_fix_start", "recover_interrupted_review_fix", "retry"].includes(plan.action) &&
       llmCount >= config.limits.max_llm_running_global
     ) {
       results.push({ ...plan, status: "deferred", reason: "LLM cap reached" });
@@ -249,7 +251,7 @@ export async function runOrchestratorControllerCli(): Promise<void> {
       const result = executePlannedAction(database, plan);
       if (!plan.requestId) ledger.recordSuccess(plan);
       results.push({ ...plan, status: "applied", result });
-      if (["start", "successor_start", "repair_start", "review_start", "review_fix_start", "recover_interrupted_review_fix"].includes(plan.action))
+      if (["start", "successor_start", "repair_start", "review_start", "review_fix_start", "recover_interrupted_review_fix", "retry"].includes(plan.action))
         llmCount += 1;
       reconcileAfterAppliedAction(database, config);
     } catch (error) {

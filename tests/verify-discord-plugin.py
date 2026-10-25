@@ -334,6 +334,7 @@ def main() -> None:
         "kurami:ci_repair:r_9": ("ci_repair", "r_9"),
         "kurami:ai_review:r_9": ("ai_review", "r_9"),
         "kurami:review_fix:r_9": ("review_fix", "r_9"),
+        "kurami:retry:r_retry": ("retry", "r_retry"),
         "kurami:recover_managed_task:r_9": ("recover_managed_task", "r_9"),
     }
     for custom_id, expected in accepted.items():

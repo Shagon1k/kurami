@@ -92,6 +92,9 @@ export function externalCommand(
       if (!requestId) fail("Interrupted review fix recovery requires an owner request");
       return [sessionManagerPath, "recover-interrupted-review-fix", "--run-id", runId,
         "--request-id", requestId, "--apply"];
+    case "retry":
+      if(!requestId)fail("Retry requires an owner request");
+      return [resolve(import.meta.dirname,"../projects/sessions/retry-primary-cli.ts"),"--run-id",runId,"--request-id",requestId,"--apply"];
     case "recover_managed_task":
       if (!requestId) fail("Managed task recovery requires a request ID");
       return [
@@ -438,7 +441,7 @@ export function executePlannedAction(
       : effects.external(plan);
     if (
       plan.requestId &&
-      ["handoff", "successor_start", "preview_up", "preview_down", "preview_expire", "preview_extend", "repair_start", "review_start", "review_fix_start", "recover_interrupted_review_fix", "recover_managed_task"].includes(plan.action)
+      ["handoff", "successor_start", "preview_up", "preview_down", "preview_expire", "preview_extend", "repair_start", "review_start", "review_fix_start", "recover_interrupted_review_fix", "recover_managed_task", "retry"].includes(plan.action)
     ) {
       effects.complete(database, plan.requestId, plan.requestOutcome ?? "applied", result);
     }
@@ -458,6 +461,8 @@ export function executePlannedAction(
     }
     return result;
   } catch (error) {
+    if(plan.action === "retry" && plan.requestId)
+      effects.complete(database,plan.requestId,"failed",{action:"retry_unconfirmed",reason:"Retry did not complete. Inspect the same session through chat before trying again."});
     if (previewRequest && plan.action === "preview_up") {
       // Startup failures are terminal for this owner request, not an unbounded
       // restart loop. Keep the lease for controller-owned Stop cleanup.

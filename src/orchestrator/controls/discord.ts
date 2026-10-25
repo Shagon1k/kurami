@@ -1,3 +1,4 @@
+import { availableRunControls } from "./run.ts";
 import { previewSourceAvailable } from "../projects/previews/runtime.ts";
 import { WRITER_STOP_TEXT, writerStopPresentation } from "../projects/writer-stop-presentation.ts";
 import { readReviewEvidence, type ReviewEvidence } from "../projects/reviews/read-model.ts";
@@ -1147,6 +1148,13 @@ export function controlComponents(
         controls.push(button("Recover interrupted fix",1,`kurami:recover_interrupted_review_fix:${card.run_id}`));
       } catch { /* Incomplete or unsafe evidence is not actionable. */ }
       finally { database.close(); }
+    }
+    if(card.run_state === "needs_attention" && card.owner_state === "cli" && card.latest_attention_reason === "primary_attempt_failed") {
+      const database=openOrchestratorDatabase(databasePath,{readOnly:true});
+      try {
+        if((availableRunControls(database,card.run_id).available_actions as string[]).includes("retry"))
+          controls.push(button("Retry",1,`kurami:retry:${card.run_id}`));
+      } finally { database.close(); }
     }
     const recoverManagedTask = managedRecoveryEligible(card, project);
     if (recoverManagedTask)

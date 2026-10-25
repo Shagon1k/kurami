@@ -13,10 +13,11 @@ from zoneinfo import ZoneInfo
 
 
 CONTROL_ID = re.compile(
-    r"^kurami:(status|take_control|preview_start|preview_stop|preview_extend|preview_reviewed|stop|discard_prompt|discard_local|discard_published_prompt|discard_published|ci_repair|ai_review|review_fix|review_fix_all|recover_interrupted_review_fix|recover_managed_task):(r_[A-Za-z0-9_]+)$"
+    r"^kurami:(status|take_control|preview_start|preview_stop|preview_extend|preview_reviewed|stop|discard_prompt|discard_local|discard_published_prompt|discard_published|ci_repair|ai_review|review_fix|review_fix_all|recover_interrupted_review_fix|recover_managed_task|retry):(r_[A-Za-z0-9_]+)$"
 )
 RUN_ACTIONS_ID = re.compile(r"^kurami:(?:run_actions|review_actions|fix_actions):(r_[A-Za-z0-9_]+)$")
 RUN_ACTIONS = {
+    "retry",
     "take_control",
     "preview_start",
     "preview_stop",
@@ -55,6 +56,7 @@ _DOCS_MESSAGES = {
 }
 
 _ACTION_LABELS = {
+    "retry": "Retry",
     "take_control": "Take control",
     "preview_start": "Start preview",
     "preview_stop": "Stop preview",

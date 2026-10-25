@@ -13,20 +13,20 @@ import { PROJECTS_STALE_AFTER_MS } from "./model.ts";
 import {hasActivePrRequest} from "../orchestrator/controls/pr-boundary.ts";
 import { openOrchestratorDatabase } from "../orchestrator/state/database.ts";
 
-export const RUN_ACTIONS = ["take_control","preview_start","preview_stop","preview_reviewed","ci_repair","review_fix","recover_interrupted_review_fix","recover_managed_task","stop","discard_local","discard_published"] as const;
+export const RUN_ACTIONS = ["take_control","preview_start","preview_stop","preview_reviewed","ci_repair","review_fix","recover_interrupted_review_fix","recover_managed_task","retry","stop","discard_local","discard_published"] as const;
 export type RunAction = typeof RUN_ACTIONS[number];
 export type RunActionInput = {runId:string;project:string;itemId:string;action:RunAction;fingerprint:string;key:string;confirmed:boolean;profile?:ReviewProfile;allReviews?:boolean};
 export type RunActionView = {fingerprint:string;reason:string;actions:{action:RunAction;label:string;enabled:boolean;confirmation:string|null;hint:string|null;state:string|null}[]};
 type Pending = {review_fix_all:number;review_profile:ReviewProfile;request_id:string;action:string;request_state:string;requested_via:string};
 type Run = Record<string,unknown> & {available_actions:string[]};
 const labels: Record<RunAction,string> = {take_control:"Взять управление",preview_start:"Запустить превью",preview_stop:"Убрать превью",preview_reviewed:"Превью проверено",
-  ci_repair:"Исправить CI",review_fix:"Исправить замечания",recover_interrupted_review_fix:"Продолжить прерванное исправление",recover_managed_task:"Восстановить исправление",stop:"Отменить запуск",discard_local:"Удалить локальную работу",discard_published:"Закрыть draft PR и удалить работу"};
+  retry:"Повторить попытку",ci_repair:"Исправить CI",review_fix:"Исправить замечания",recover_interrupted_review_fix:"Продолжить прерванное исправление",recover_managed_task:"Восстановить исправление",stop:"Отменить запуск",discard_local:"Удалить локальную работу",discard_published:"Закрыть draft PR и удалить работу"};
 const destructive = new Set<RunAction>(["discard_local","discard_published"]);
 
 function fingerprint(run: Run): string {
   return createHash("sha256").update(JSON.stringify([run.run_id,run.project,run.item_id,run.state,run.owner_state,run.stop_reason,run.execution_mode,
     run.resource_state,run.branch_name,run.worktree_path,run.codex_thread_id,run.previous_codex_thread_id,run.tmux_session_name,run.ci_head_sha,run.ci_pull_request_url,
-    run.interrupted_review_fix_identity,run.preview_lease_id,run.preview_state,run.preview_verified_head_sha,run.preview_artifact_digest,run.preview_expires_at,run.preview_reviewed_at])).digest("hex");
+    run.retry_identity,run.interrupted_review_fix_identity,run.preview_lease_id,run.preview_state,run.preview_verified_head_sha,run.preview_artifact_digest,run.preview_expires_at,run.preview_reviewed_at])).digest("hex");
 }
 function readRun(database: DatabaseSync, runId: string, home: string, now: Date, profile: ReviewProfile = "general", allReviews = false): Run {
   return availableRunControls(database,runId,{home,now:now.getTime(),profile,allReviews}) as Run;
