@@ -1,4 +1,5 @@
 import { execFileSync } from "node:child_process";
+import { createHash } from "node:crypto";
 import { closeSync, mkdirSync, openSync } from "node:fs";
 import { readFile } from "node:fs/promises";
 import { resolve } from "node:path";
@@ -128,10 +129,8 @@ export async function reconcileCommittedTicketFeedback(
     const project = projects[String(r.project)];
     if (!project || project.repository !== r.repository) continue;
     try {
-      const owner = request("GET", `users/${project.owner}`) as { id: number };
       const endpoint = { repository: String(r.repository), issueNumber: Number(r.issue_number) };
-      const liveIssue = await github.issue(endpoint);
-      const item = database.prepare("SELECT status,present FROM project_items WHERE project=? AND item_id=?").get(r.project!, r.item_id!);
+      const item = database.prepare("SELECT status,present,issue_state FROM project_items WHERE project=? AND item_id=?").get(r.project!, r.item_id!);
       const ci = database.prepare("SELECT * FROM run_ci_snapshots WHERE run_id=?").get(r.run_id!);
       const history = database.prepare(`SELECT reason,details_json FROM run_state_history WHERE run_id=?
         ORDER BY sequence DESC LIMIT 1`).get(r.run_id!);
@@ -141,17 +140,6 @@ export async function reconcileCommittedTicketFeedback(
       const number = ci?.pull_request_number ?? release?.mergedPullRequestNumber;
       const head = ci?.head_sha ?? release?.headSha;
       const expectedPr = number && head ? { number: Number(number), headSha: String(head), base: project.workspace.base_branch } : null;
-      let merge: LifecycleSnapshot["merge"] = null;
-      if (expectedPr) {
-        const pr = request("GET", `repos/${endpoint.repository}/pulls/${expectedPr.number}`) as RestPr;
-        if (pr.url !== `https://api.github.com/repos/${endpoint.repository}/pulls/${expectedPr.number}` ||
-          pr.number !== expectedPr.number || pr.base.repo.full_name !== endpoint.repository)
-          throw new Error("identity_mismatch");
-        if (pr.merged && pr.merged_at && pr.merge_commit_sha) merge = {
-          repository: pr.base.repo.full_name, number: pr.number, headSha: pr.head.sha,
-          base: pr.base.ref, mergeCommitSha: pr.merge_commit_sha, mergedAt: pr.merged_at,
-        };
-      }
       const newer = database.prepare(`SELECT run_id FROM runs WHERE project=? AND item_id=?
         AND rowid>(SELECT rowid FROM runs WHERE run_id=?) ORDER BY rowid DESC LIMIT 1`).get(r.project!, r.item_id!, r.run_id!);
       const events = database.prepare(`SELECT event_id,event_kind,from_status,to_status,processing_state,processing_note,payload_json
@@ -181,8 +169,37 @@ export async function reconcileCommittedTicketFeedback(
         ? requestResult.reason : "see actual run state; no request completion inferred";
       const accepted = database.prepare(`SELECT 1 FROM run_state_history WHERE run_id=?
         AND reason='merged_task_accepted'`).get(r.run_id!);
+      // Local facts wake a delivered terminal run; poll timestamps do not.
+      const localFactsDigest = createHash("sha256").update(JSON.stringify({
+        owner: project.owner, endpoint, base: project.workspace.base_branch,
+        state: r.state, stopReason: r.stop_reason, resources: r.resource_state,
+        item, history, release, expectedPr, newer, events, requests, accepted: !!accepted,
+      })).digest("hex");
+      if (["rejected", "cancelled", "archived"].includes(String(r.state))) {
+        const key = lifecycleFeedbackKey({ runId: String(r.run_id), endpoint });
+        const previous = database.prepare("SELECT revision,snapshot_json FROM github_lifecycle_snapshots WHERE delivery_key=?").get(key);
+        const delivery = await store.load(key);
+        if (previous && delivery && delivery.error === null && !delivery.createPending &&
+          delivery.commentId !== null && delivery.deliveredDigest !== null &&
+          delivery.revision === Number(previous.revision) &&
+          (JSON.parse(String(previous.snapshot_json)) as LifecycleSnapshot).localFactsDigest === localFactsDigest)
+          continue;
+      }
+      const owner = request("GET", `users/${project.owner}`) as { id: number };
+      const liveIssue = await github.issue(endpoint);
+      let merge: LifecycleSnapshot["merge"] = null;
+      if (expectedPr) {
+        const pr = request("GET", `repos/${endpoint.repository}/pulls/${expectedPr.number}`) as RestPr;
+        if (pr.url !== `https://api.github.com/repos/${endpoint.repository}/pulls/${expectedPr.number}` ||
+          pr.number !== expectedPr.number || pr.base.repo.full_name !== endpoint.repository)
+          throw new Error("identity_mismatch");
+        if (pr.merged && pr.merged_at && pr.merge_commit_sha) merge = {
+          repository: pr.base.repo.full_name, number: pr.number, headSha: pr.head.sha,
+          base: pr.base.ref, mergeCommitSha: pr.merge_commit_sha, mergedAt: pr.merged_at,
+        };
+      }
       const snapshot = commitFeedbackSnapshot(database, {
-        runId: String(r.run_id), revision: 0, endpoint, runState: String(r.state),
+        runId: String(r.run_id), revision: 0, localFactsDigest, endpoint, runState: String(r.state),
         cancelled: r.stop_reason === "cancelled" || r.state === "cancelled", newerRunId: newer ? String(newer.run_id) : null,
         projectState: item?.present === 1 ? String(item.status ?? "unknown") : null,
         cleanup: r.resource_state === "released" ? "done" : r.state === "needs_attention" ? "blocked" : "pending",

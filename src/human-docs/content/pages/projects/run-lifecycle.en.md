@@ -100,6 +100,10 @@ The states `handoff_pending`, `waiting_human` and `failed` are allowed by the da
 
 A run with no physical resources (`dry_run` mode, or resources only planned) skips `stopping` on Done or cancel and becomes `archived` or `cancelled` at once. `needs_attention` is left in different ways: after a review fix the run returns to `parked_review`, once a permission prompt is gone to `running`, on cancellation to `cancelled`.
 
+## GitHub feedback after completion
+
+Kurami keeps completed runs as history. Once it delivers the final issue comment, it stops checking GitHub for that run. A delivery failure stays eligible for retry. New recorded changes to the run, cleanup, issue, board, successor or owner request trigger another synchronization. Ordinary poll timestamps do not.
+
 ## Resource state
 
 A run's resources (`run_resources.resource_state`) follow their own machine alongside the run.
