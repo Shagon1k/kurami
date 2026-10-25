@@ -113,13 +113,23 @@
     button.setAttribute('aria-expanded','false');
     if(focus)button.focus({preventScroll:true});
   }
-  function positionPr() {
-    if(!confirmingPr)return;
-    const panel=document.getElementById(confirmingPr.dataset.prConfirmTarget),anchor=confirmingPr.getBoundingClientRect(),rect=panel.getBoundingClientRect();
+  function positionActionMenu(panel,trigger,preferAbove=false) {
+    const anchor=trigger.getBoundingClientRect();
+    const row=trigger.closest('.projects-review-controls,.projects-action-pair')??trigger;
+    const bounds=row.getBoundingClientRect();
+    const mobile=window.matchMedia('(max-width: 900px)').matches;
+    if(mobile)panel.style.setProperty('--popover-width',`${bounds.width}px`);
+    else panel.style.removeProperty('--popover-width');
+    const rect=panel.getBoundingClientRect();
     const viewport=window.visualViewport,top=viewport?.offsetTop??0,height=viewport?.height??innerHeight,left=viewport?.offsetLeft??0,width=viewport?.width??innerWidth;
-    panel.style.setProperty('--popover-left',`${Math.max(left+8,Math.min(anchor.right-rect.width,left+width-rect.width-8))}px`);
+    const x=mobile?bounds.left:anchor.right-rect.width;
+    panel.style.setProperty('--popover-left',`${Math.max(left+8,Math.min(x,left+width-rect.width-8))}px`);
     const above=anchor.top-rect.height-8,below=anchor.bottom+8;
-    panel.style.setProperty('--popover-top',`${Math.max(top+8,Math.min(above>=top+8?above:below,top+height-rect.height-8))}px`);
+    const y=preferAbove?(above>=top+8?above:below):(below+rect.height<=top+height-8?below:above);
+    panel.style.setProperty('--popover-top',`${Math.max(top+8,Math.min(y,top+height-rect.height-8))}px`);
+  }
+  function positionPr() {
+    if(confirmingPr)positionActionMenu(document.getElementById(confirmingPr.dataset.prConfirmTarget),confirmingPr,true);
   }
   document.addEventListener('beforetoggle',event=>{
     if(event.newState==='closed'&&confirmingPr&&event.target.id===confirmingPr.dataset.prConfirmTarget){
@@ -137,11 +147,7 @@
   document.addEventListener('scroll',positionPr,true);
   function positionReviewMenus() {
     for(const panel of dashboard.querySelectorAll('.projects-review-controls [popover]:popover-open')) {
-      const trigger=dashboard.querySelector(`[popovertarget="${panel.id}"]`),anchor=trigger.getBoundingClientRect(),rect=panel.getBoundingClientRect();
-      const viewport=window.visualViewport,top=viewport?.offsetTop??0,height=viewport?.height??innerHeight,left=viewport?.offsetLeft??0,width=viewport?.width??innerWidth;
-      const below=anchor.bottom+8,above=anchor.top-rect.height-8;
-      panel.style.setProperty('--popover-left',`${Math.max(left+8,Math.min(anchor.left,left+width-rect.width-8))}px`);
-      panel.style.setProperty('--popover-top',`${Math.max(top+8,Math.min(below+rect.height<=top+height-8?below:above,top+height-rect.height-8))}px`);
+      positionActionMenu(panel,dashboard.querySelector(`[popovertarget="${panel.id}"]`));
     }
   }
   document.addEventListener('toggle',event=>{

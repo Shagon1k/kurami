@@ -666,6 +666,7 @@ try {
       assert.equal(await devtools.evaluate("(()=>{const buttons=[...document.querySelectorAll('[data-pr-method]')];return buttons.slice(1).every((button,index)=>button.getBoundingClientRect().top-buttons[index].getBoundingClientRect().bottom>=8)})()"),true,"merge methods have a clear gap");
       assert.equal(await devtools.evaluate("document.querySelector('select[name=merge-method]')"),null,"no additional select in the card");
       assert.equal(prWrites.length,0,"opening method menu performs no write");
+      assert.equal(await devtools.evaluate("(()=>{const r=document.querySelector('.projects-pr-popover [popover]').getBoundingClientRect(),row=document.querySelector('[data-pr-action]').closest('.projects-action-pair').getBoundingClientRect();return innerWidth<=900?Math.abs(r.left-row.left)<1&&Math.abs(r.width-row.width)<1:Math.abs(r.width-240)<1})()"),true,"merge menu fills the mobile action row and stays compact on desktop");
       assert.equal(await devtools.evaluate("document.querySelector('[data-pr-action]').getBoundingClientRect().top"),before,"popup never changes the card layout");
       await audit();
       await devtools.evaluate("document.activeElement.dispatchEvent(new KeyboardEvent('keydown',{key:'ArrowDown',bubbles:true}))");
@@ -897,7 +898,7 @@ try {
     await audit();assert.equal(startWrites,0,'refresh recovery never starts the task');
   }
   profileScenario=true;unavailable=false;reviewFixScenario=null;reviewFixRefused=false;runNotesScenario=null;
-  for(const width of [320,1280])for(const theme of ["paper","neon"]){
+  for(const width of [320,390,1280])for(const theme of ["paper","neon"]){
     clarityAccepted=false;
     await devtools.call("Emulation.setDeviceMetricsOverride",{width,height:1000,deviceScaleFactor:1,mobile:width<600});
     await open("/?item=item-12&lang=en");
@@ -909,13 +910,14 @@ try {
     await pointerClick('.projects-review-controls [popovertarget]');
     await wait("document.querySelector('.projects-review-controls [popovertarget]').getAttribute('aria-expanded')==='true'");
     assert.equal(await devtools.evaluate("(()=>{const panel=document.querySelector('.projects-review-options').closest('[popover]'),r=panel.getBoundingClientRect(),a=document.querySelector('.projects-review-controls [popovertarget]').getBoundingClientRect();return panel.matches(':popover-open')&&r.left>=0&&r.right<=innerWidth&&r.top>=0&&r.bottom<=innerHeight&&Math.min(Math.abs(r.top-a.bottom),Math.abs(a.top-r.bottom))<=9})()"),true,'review selector stays beside its trigger and fits phone and desktop');
+    assert.equal(await devtools.evaluate("(()=>{const r=document.querySelector('.projects-review-options').closest('[popover]').getBoundingClientRect(),row=document.querySelector('.projects-review-controls').getBoundingClientRect(),trigger=document.querySelector('.projects-review-controls [popovertarget]').getBoundingClientRect();return innerWidth<=900?Math.abs(r.left-row.left)<1&&Math.abs(r.width-row.width)<1:Math.abs(r.width-240)<1&&Math.abs(r.right-trigger.right)<1})()"),true,'review menu uses the same full-row mobile and compact desktop sizing as Merge');
     await audit();
     const profileShot=await devtools.call<{data:string}>('Page.captureScreenshot',{format:'png',captureBeyondViewport:false});writeFileSync(resolve(out,`projects-review-profiles-${width}-${theme}.png`),Buffer.from(profileShot.data,'base64'));
     await pointerClick('[data-review-run][data-review-profile=clarity]');
     await wait("document.querySelector('[data-review-result=clarity]').textContent.includes('Queued')");
     assert.equal(await devtools.evaluate("document.querySelector('[data-review-result=general]').textContent.includes('Ready')"),true,'Clarity request retains General result');
   }
-  assert.equal(profileRequests.length,4,'one selected profile request per click');
+  assert.equal(profileRequests.length,6,'one selected profile request per click');
   generalBusy=true;clarityAccepted=false;
   await open("/?item=item-12&lang=en");
   assert.equal(await devtools.evaluate("document.querySelector('.projects-review-controls [popovertarget]').disabled"),false,'queued General leaves the selector enabled');
