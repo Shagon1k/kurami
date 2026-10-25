@@ -100,8 +100,29 @@ else if(a[0]==='api'&&a[1]==='--method'){
   const logBefore = await readFile(resolve(home, "gh.log"), "utf8");
   controller(); assert.equal(Number(db.prepare("SELECT revision FROM github_lifecycle_snapshots").get()!.revision), rev);
   const logAfter = (await readFile(resolve(home, "gh.log"), "utf8")).slice(logBefore.length);
-  assert.ok(!logAfter.includes('"POST"') && !logAfter.includes('"PATCH"'));
-  console.log("PASS applied production controller creates one comment; replay has no heartbeat writes or revision churn");
+  assert.equal(logAfter, "", "delivered terminal replay must make zero GitHub requests");
+  console.log("PASS applied production controller creates one comment; delivered terminal replay makes zero GitHub requests");
+  const quietReplay = async () => {
+    const before = await readFile(resolve(home, "gh.log"), "utf8");
+    controller();
+    const added = (await readFile(resolve(home, "gh.log"), "utf8")).slice(before.length);
+    // Cancellation can independently reconcile the board through GraphQL.
+    const restRequests = added.trim().split("\n").filter(Boolean)
+      .map(line => JSON.parse(line) as string[]).filter(args => args[1] !== "graphql");
+    assert.deepEqual(restRequests, [], "delivered terminal feedback must make zero REST requests");
+  };
+  db.exec("UPDATE runs SET updated_at='2099-01-01'; UPDATE project_items SET last_seen_at='2099-01-01'");
+  await quietReplay();
+  console.log("PASS poll timestamps do not wake delivered terminal feedback");
+  const previous = db.prepare("SELECT delivery_key,snapshot_json FROM github_lifecycle_snapshots").get()!;
+  const legacy = JSON.parse(String(previous.snapshot_json)); delete legacy.localFactsDigest;
+  db.prepare("UPDATE github_lifecycle_snapshots SET snapshot_json=? WHERE delivery_key=?").run(JSON.stringify(legacy), previous.delivery_key!);
+  const beforeLegacy = await readFile(resolve(home, "gh.log"), "utf8");
+  controller();
+  assert.notEqual(await readFile(resolve(home, "gh.log"), "utf8"), beforeLegacy);
+  assert.equal((await comments()).length, 1);
+  await quietReplay();
+  console.log("PASS legacy terminal snapshot refreshes once, preserves its comment, then makes zero requests");
 
   for (const state of ["CLOSED", "OPEN"]) {
     await writeFile(issueFile, JSON.stringify({ ...issue, state }));
@@ -118,11 +139,13 @@ else if(a[0]==='api'&&a[1]==='--method'){
     assert.equal(Number(db.prepare("SELECT count(*) n FROM runs").get()!.n), 1);
     assert.equal(db.prepare("SELECT state FROM runs").get()!.state, "archived");
     assert.equal(db.prepare("SELECT status FROM project_items").get()!.status, "Human Review");
+    await quietReplay();
   }
   console.log("PASS full CLI poll -> consumer -> controller: close/reopen same column persisted and acknowledged without fake start/cancel/Done");
   await writeFile(issueFile, JSON.stringify({ ...issue, status: "Deferred" }));
   cli("src/orchestrator/projects/poll-projects.ts"); cli("src/orchestrator/projects/process-project-events.ts"); controller();
   assert.match((await comments())[0]!.body, /project_status.*ignored/u);
+  await quietReplay();
   console.log("PASS ignored manual board transition visibly acknowledged without changing terminal run");
 
   await writeFile(resolve(home, "fail-update"), "yes");
@@ -138,6 +161,7 @@ else if(a[0]==='api'&&a[1]==='--method'){
   await rm(resolve(home, "fail-update")); controller();
   assert.ok(!String(db.prepare("SELECT detail FROM run_progress_cards WHERE run_id='r_fixture'").get()!.detail).includes("Ticket feedback pending"));
   assert.match((await comments())[0]!.body, /Отменён/u);
+  await quietReplay();
   console.log("PASS failed delivery visible on existing notifier progress card; cancellation has priority; retry edits existing comment");
 
   db.exec(`INSERT INTO project_events(event_id,observed_at,project,item_id,content_id,content_type,repository,issue_number,payload_json,processing_state)
@@ -305,8 +329,8 @@ else if(a[0]==='api'&&a[1]==='--method'){
     assert.equal((await comments()).length, before + 1);
     assert.deepEqual(db.prepare("SELECT * FROM github_lifecycle_snapshots WHERE delivery_key=?").get(snapshot.delivery_key!), snapshot);
     const replay = (await readFile(resolve(home, "gh.log"), "utf8")).slice(log.length);
-    assert.ok(!replay.includes('"POST"') && !replay.includes('"PATCH"'));
-    console.log(`PASS ${id}: consumer durably enqueues new admission refusal; feedback once, replay has no POST/PATCH/revision churn`);
+    assert.equal(replay, "", "delivered admission refusal must make zero GitHub requests");
+    console.log(`PASS ${id}: consumer durably enqueues new admission refusal; feedback once, replay makes zero GitHub requests`);
   }
   assert.equal(db.prepare("SELECT 1 FROM github_lifecycle_snapshots WHERE json_extract(snapshot_json,'$.runId')='r_old_refusal'").get(), undefined);
   assert.ok(!(await comments()).some(c => c.body.includes("r_old_refusal")));

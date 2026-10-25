@@ -10,6 +10,8 @@ export type LifecycleSnapshot = {
   runId: string;
   /** Monotonically increasing committed semantic revision, NOT a poll timestamp. */
   revision: number;
+  /** Production delivery input fingerprint; older snapshots omit it and refresh once. */
+  localFactsDigest?: string;
   endpoint: IssueEndpoint;
   runState: string;
   cancelled: boolean;
