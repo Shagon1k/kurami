@@ -1,3 +1,4 @@
+import { canRetryUnchangedCi } from "./ci-no-change-retry.ts";
 import { LATEST_ATTENTION_VALUE_SQL } from "./run-projections.ts";
 import { spawnSync } from "node:child_process";
 import { transcriptHasCompletedTurn } from "./codex-terminal.ts";
@@ -164,6 +165,8 @@ function buildPlans(
         reason: "preview_ttl_expired",
       });
     } else {
+      if (request.requested_action === "ci_repair" && request.run_state === "needs_attention")
+        request.ci_no_change_retry = Number(canRetryUnchangedCi(database,request.run_id,request.request_id));
       plans.push(planForRequest(request, config));
     }
   }

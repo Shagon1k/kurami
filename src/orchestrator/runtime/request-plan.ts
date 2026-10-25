@@ -3,6 +3,7 @@ import { previewNeedsExtension, type RunRow } from "./run-read-model.ts";
 
 export type RequestRow = RunRow & {
   request_id: string;
+  ci_no_change_retry?: number;
   requested_review_active_count?: number;
   requested_action:
     | "take_control"
@@ -236,7 +237,7 @@ export function planForRequest(
 
     case "ci_repair":
       if (
-        request.run_state === "parked_review" &&
+        (request.run_state === "parked_review" || request.ci_no_change_retry === 1) &&
         request.owner_state === "none" &&
         request.tmux_session_name === null &&
         request.resource_state === "provisioned" &&
