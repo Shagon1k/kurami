@@ -437,3 +437,5 @@ main().catch((error: unknown) => {
   process.stderr.write(`${JSON.stringify({ ok: false, error: message })}\n`);
   process.exitCode = 1;
 });
+
+await import("./verify-ci-no-change-retry.ts");

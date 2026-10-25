@@ -218,6 +218,8 @@ A button does not perform the action itself. The Discord plugin checks that you 
 
 A stale or repeated press is harmless. If the condition no longer holds, Kurami answers with one line, "Control rejected safely: …", or rejects the request when it processes it. Details are on [Discord: cards and commands](@discord-control-plane).
 
+If the first CI fixer finishes without a commit, **Attempt CI fix** can offer one manual second attempt after its worker is confirmed stopped and released. Kurami rechecks the original PR head, clean linked worktree, restored ownership and fresh failed CI before claiming a new writer. A changed head, another blocker or an exhausted budget refuses the retry. The first result stays in history; there is no automatic retry. The fixer may investigate test isolation in a verified disposable test database while preserving application authentication, rate limits and assertions.
+
 ::shot{file="shot-run-timeline.png" size="card" alt="Thread of run PF-23: events Ready for review and Preview is ready with links, and the final card of a completed run." caption="Events sit above, the current card below. The final card shows CI, AI review and the confirmed preview."}
 
 ## The /kurami status command

@@ -1,3 +1,4 @@
+import { canRetryUnchangedCi } from "../runtime/ci-no-change-retry.ts";
 import { inspectPrimaryRetry } from "../projects/sessions/retry-primary.ts";
 import { inspectInterruptedReviewFix } from "../runtime/interrupted-review-fix-recovery.ts";
 import { previewSourceAvailable } from "../projects/previews/runtime.ts";
@@ -662,7 +663,7 @@ export function requestRunControl(
         active_count: number;
       };
       if (
-        run.state !== "parked_review" ||
+        (run.state !== "parked_review" && !canRetryUnchangedCi(database,runId)) ||
         run.owner_state !== "none" ||
         eligibility.resource_state !== "provisioned" ||
         eligibility.tmux_session_name !== null ||
@@ -1014,7 +1015,7 @@ export function availableRunControls(database: DatabaseSync, runId: string, opti
       availableActions.push("preview_start");
   }
   if (
-    runState === "parked_review" &&
+    (runState === "parked_review" || (runState === "needs_attention" && canRetryUnchangedCi(database,runId))) &&
     !reviewFixBusy &&
     ownerState === "none" &&
     Boolean(selected.codex_thread_id) &&
