@@ -1,3 +1,4 @@
+import { canRetryUnchangedCi } from "../../runtime/ci-no-change-retry.ts";
 import { spawnSync } from "node:child_process";
 import { readFileSync, realpathSync } from "node:fs";
 import { relative, resolve } from "node:path";
@@ -60,7 +61,9 @@ export function refreshManagedSource(database: DatabaseSync, project: SourceProj
         return { ok:true,apply,runId,action:"managed_source_already_exact",headSha:snapshot.head_sha };
       }
     }
-    requireSource(run && run.repository === project.repository && run.state === (retry ? "needs_attention" : "parked_review") &&
+    const ciRetry = action === "repair_start" && run?.state === "needs_attention";
+    requireSource(!ciRetry || Boolean(requestId && canRetryUnchangedCi(database,runId,requestId)), "no-change CI retry evidence changed");
+    requireSource(run && run.repository === project.repository && run.state === (retry || ciRetry ? "needs_attention" : "parked_review") &&
       run.owner_state === "none" && run.stop_reason === null && run.execution_mode === "live" &&
       run.completion_requested_at === null && run.archived_at === null && run.resource_state === "provisioned" &&
       run.tmux_session_name === null && (retry || run.previous_codex_thread_id === null), "run/owner/resource fence changed");
@@ -120,7 +123,7 @@ export function refreshManagedSource(database: DatabaseSync, project: SourceProj
     live();
     const previousHead = git(worktree,"rev-parse","HEAD");
     if (previousHead !== head) {
-      requireSource(!retry, "no-edit retry source changed; no refresh allowed");
+      requireSource(!retry && !ciRetry, "no-edit retry source changed; no refresh allowed");
       // Preview blocks changing its source, not validating an already exact writer source.
       requireSource(leases.every(lease => action === "preview_up" && lease.run_id === runId && lease.state === "leased"), "active preview runtime or lease");
       if (apply) effects.fetch(worktree,project.repository,branch);
