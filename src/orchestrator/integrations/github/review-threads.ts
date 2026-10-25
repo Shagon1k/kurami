@@ -54,10 +54,10 @@ function fail(message: string): never {
   throw new Error(message);
 }
 
-function boundedBody(value: string | null | undefined): string {
-  const body = value?.trim();
-  if (!body) fail("Review thread contains an empty comment");
-  return body.slice(0, 4_000);
+function completeBody(value: string | null | undefined): string {
+  const body = value;
+  if (!body?.trim()) fail("Review thread contains an empty comment");
+  return body;
 }
 
 function findingMarker(body: string): { reviewId: string; findingNumber: number; headSha: string } | null {
@@ -91,7 +91,7 @@ export function selectActionableReviewThreads(
     const threadId = thread.id?.trim();
     const rootId = Number(root?.databaseId);
     const rootAuthor = normalizedLogin(root?.author?.login ?? "");
-    const rootBody = boundedBody(root?.body);
+    const rootBody = completeBody(root?.body);
     if (!threadId || !Number.isInteger(rootId) || rootId <= 0 || !thread.path)
       fail("GitHub returned an incomplete review thread");
     const marker = findingMarker(rootBody);
@@ -106,18 +106,18 @@ export function selectActionableReviewThreads(
     const ownerReplies = comments
       .slice(1)
       .filter((comment) => normalizedLogin(comment.author?.login ?? "") === owner)
-      .map((comment) => boundedBody(comment.body));
+      .map((comment) => completeBody(comment.body));
     selected.push({
       threadId,
       rootCommentId: rootId,
       sourceKind: ai ? "ai" : "owner",
       reviewId: ai ? marker!.reviewId : null,
       findingNumber: ai ? marker!.findingNumber : null,
-      path: thread.path.slice(0, 500),
+      path: thread.path,
       line: Number.isInteger(thread.line) && Number(thread.line) > 0 ? Number(thread.line) : null,
       rootBody,
       ownerReplies,
-      url: root?.url?.trim().slice(0, 1_000) ?? "",
+      url: root?.url ?? "",
     });
   }
   if (selected.length > 20) fail("Review fix exceeds the 20-thread safety limit");
@@ -182,9 +182,9 @@ function parseSummaryFindings(body: string, reviewId: string, headSha: string): 
       findingNumber: index + 1,
       severity: severity as SummaryOnlyReviewFinding["severity"],
       confidence: confidence as SummaryOnlyReviewFinding["confidence"],
-      title: finding.title.trim().slice(0, 200),
-      body: finding.body.trim().slice(0, 2_000),
-      path: finding.path.trim().slice(0, 500),
+      title: finding.title,
+      body: finding.body,
+      path: finding.path,
       line,
     };
   });

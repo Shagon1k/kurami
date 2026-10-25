@@ -15,6 +15,8 @@ export function reviewFixStartupFailure(database: DatabaseSync, runId: string, h
   if (result?.action !== "review_fix_start_failed" || typeof result.reason !== "string") return null;
   // Never publish subprocess stderr, paths, shell commands or credential-bearing URLs.
   // Only fixed classifications of the known admission failures reach the page.
+  if (/Review fix evidence exceeds the 64 KiB prompt budget/u.test(result.reason))
+    return "Review fixes did not start: complete review evidence exceeds the prompt budget. No worker was started.";
   if (/live writer uses preserved worktree/u.test(result.reason))
     return "Review fixes did not start: a process still owns the managed working copy. Cleanup must finish before retrying.";
   if (/clean managed worktree|worktree is dirty/iu.test(result.reason))

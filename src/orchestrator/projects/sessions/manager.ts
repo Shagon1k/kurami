@@ -370,7 +370,7 @@ async function cleanupRepairSession(
   );
 }
 
-async function cleanupReviewFixSession(
+export async function cleanupReviewFixSession(
   database: DatabaseSync,
   run: SessionRun,
   registry: ProjectsRegistry,

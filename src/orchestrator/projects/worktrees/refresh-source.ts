@@ -8,7 +8,7 @@ import { loadOwnerGitHubTokenFromFile } from "../../integrations/github/app-auth
 import { reviewContextMatches } from "../../controls/ai-review.ts";
 import { assertNoLegacyWriter } from "../sessions/recover-legacy-ci-timeout.ts";
 
-export type SourceAction = "review_fix_start" | "repair_start" | "preview_allocate" | "preview_up";
+export type SourceAction = "review_fix_start" | "repair_start" | "preview_allocate" | "preview_up" | "review_fix_retry_prepare";
 export type SourceProject = { repository: string; workspace: {
   canonical_repository: string; worktree_root: string; base_branch: string;
 } };
@@ -42,7 +42,9 @@ function git(worktree: string, ...args: string[]): string {
 export function refreshManagedSource(database: DatabaseSync, project: SourceProject,
   runId: string, action: SourceAction, requestId: string | undefined, apply: boolean,
   effects: SourceEffects): object {
-  requireSource(["review_fix_start", "repair_start", "preview_allocate", "preview_up"].includes(action), "unsupported admission action");
+  requireSource(["review_fix_start", "repair_start", "preview_allocate", "preview_up", "review_fix_retry_prepare"].includes(action), "unsupported admission action");
+  const retry = action === "review_fix_retry_prepare";
+  requireSource(!retry || !apply, "retry preparation source validation is read-only");
   database.exec(apply ? "BEGIN IMMEDIATE" : "BEGIN");
   try {
     const run = database.prepare(`SELECT r.*,rr.resource_state,rr.worktree_path,rr.branch_name,
@@ -58,21 +60,21 @@ export function refreshManagedSource(database: DatabaseSync, project: SourceProj
         return { ok:true,apply,runId,action:"managed_source_already_exact",headSha:snapshot.head_sha };
       }
     }
-    requireSource(run && run.repository === project.repository && run.state === "parked_review" &&
+    requireSource(run && run.repository === project.repository && run.state === (retry ? "needs_attention" : "parked_review") &&
       run.owner_state === "none" && run.stop_reason === null && run.execution_mode === "live" &&
       run.completion_requested_at === null && run.archived_at === null && run.resource_state === "provisioned" &&
-      run.tmux_session_name === null && run.previous_codex_thread_id === null, "run/owner/resource fence changed");
+      run.tmux_session_name === null && (retry || run.previous_codex_thread_id === null), "run/owner/resource fence changed");
     requireSource(!database.prepare(`SELECT 1 FROM runs WHERE project=? AND item_id=?
       AND rowid>(SELECT rowid FROM runs WHERE run_id=?)`).get(run.project,run.item_id,runId), "run superseded");
     requireSource(!database.prepare(`SELECT 1 FROM project_events WHERE project=? AND item_id=?
       AND processing_state='pending' AND event_id<>? AND from_status IS NOT to_status`)
       .get(run.project,run.item_id,run.trigger_event_id), "pending Project transition");
     const worktree = String(run.worktree_path), branch = String(run.branch_name);
-    const requestAction = action === "review_fix_start" ? "review_fix" : action === "repair_start" ? "ci_repair" : "preview_start";
+    const requestAction = (action === "review_fix_start" || retry) ? "review_fix" : action === "repair_start" ? "ci_repair" : "preview_start";
     requireSource(requestId || requestAction === "preview_start", "writer request missing");
     if (requestId) {
       const request = database.prepare("SELECT * FROM run_control_requests WHERE request_id=? AND run_id=?").get(requestId, runId);
-      requireSource(request?.action === requestAction && ["pending", "processing"].includes(String(request.request_state)), "request changed");
+      requireSource(request?.action === requestAction && (retry ? request.request_state === "applied" : ["pending", "processing"].includes(String(request.request_state))), "request changed");
     }
     requireSource(!database.prepare(`SELECT 1 FROM run_control_requests WHERE run_id=? AND request_id<>?
       AND request_state IN ('pending','processing')`).get(runId,requestId ?? ""), "conflicting control request");
@@ -118,6 +120,7 @@ export function refreshManagedSource(database: DatabaseSync, project: SourceProj
     live();
     const previousHead = git(worktree,"rev-parse","HEAD");
     if (previousHead !== head) {
+      requireSource(!retry, "no-edit retry source changed; no refresh allowed");
       // Preview blocks changing its source, not validating an already exact writer source.
       requireSource(leases.every(lease => action === "preview_up" && lease.run_id === runId && lease.state === "leased"), "active preview runtime or lease");
       if (apply) effects.fetch(worktree,project.repository,branch);

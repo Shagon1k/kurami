@@ -145,6 +145,20 @@ A running preview does not block review or CI fixes when the managed working cop
 
 The controller takes an immutable snapshot: unresolved, non-outdated threads whose first comment was left by `kurami-ai` with the current commit's marker, or by you. Your replies inside a thread become clarifications. There are at most twenty threads. Comments added later go into the next round. Codex gets the snapshot as data and must push a fix, but not reply in the threads and not wait for CI.
 
+The snapshot preserves complete comment bodies and your follow-up replies, including their original whitespace. If the serialized evidence exceeds 64 KiB, preparation refuses explicitly before claiming a writer; requirements are never shortened to fit. A focused schema or migration change is permitted only when you explicitly authorize it in the captured requirements. This does not permit unrelated migrations, inferred backfills, or migration execution against production or shared databases.
+
+### Preparing a retry after a no-edit stop
+
+A completed fix task that left the source commit unchanged can stop because its requirements conflict. The Review Fix blocker and saved worker report remain visible after preview lease events. Stopping preview does not clear the blocker.
+
+An operator can inspect retry preparation with this command from the Kurami checkout:
+
+```bash
+node src/orchestrator/projects/sessions/prepare-review-fix-retry.ts --run-id <run_id>
+```
+
+The default is read-only. It verifies the exact completed and released task, a clean managed worktree, PR and remote head, repository, branch, ownership, competing work and current unresolved evidence. It refuses incomplete or oversized evidence, source changes and active preview leases. After checking the result, the operator may repeat it with `--apply`. This archives the stopped fix thread through the existing guarded cleanup, restores the primary mapping and makes **Fix findings** available. It does not resume the old worker or start a new one. Selecting **Fix findings** separately captures current evidence into a new managed round; the stopped round and its original snapshot remain unchanged.
+
 After that Kurami runs the round itself. When a new commit with green CI appears, the `kurami-ai` bot replies in each thread "Fixed by Kurami in `<sha>` after CI passed", and the thread is resolved. Your token resolves it: GitHub allows that only to the PR author or a user with write access, and the bot has neither. The token reaches neither Codex nor the reviewer. There are three attempts to resolve the threads.
 
 ```diagram

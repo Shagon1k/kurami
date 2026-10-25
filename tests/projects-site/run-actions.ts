@@ -128,6 +128,11 @@ try {
   assert.doesNotMatch(failureHtml,/synthetic-secret|private\/path|user:pass/);
   assert.equal(reviewFixStartupFailure(database,"r_current",otherHead,pr),null,"different head suppresses old failure");
   assert.equal(reviewFixStartupFailure(database,"r_current",head,pr+"1"),null,"different PR suppresses old failure");
+  database.prepare("UPDATE run_control_requests SET result_json=? WHERE request_id=?").run(JSON.stringify({
+    action:"review_fix_start_failed",reason:"Review fix evidence exceeds the 64 KiB prompt budget; no requirements were truncated and no worker was started"}),fix.requestId);
+  const budgetSnapshot=collectProjectsSnapshot({...options,controlsEnabled:true});
+  assert.match(renderProjectsDashboard(budgetSnapshot,new URLSearchParams({item:"item12"})),/complete review evidence exceeds the prompt budget/);
+  assert.match(renderProjectsDashboard(budgetSnapshot,new URLSearchParams({item:"item12",lang:"ru"})),/полные требования превышают лимит промпта/);
   database.prepare("UPDATE run_control_requests SET result_json=? WHERE request_id=?").run('null',fix.requestId);
   assert.equal(reviewFixStartupFailure(database,"r_current",head,pr),null);
   database.prepare("UPDATE run_control_requests SET result_json=? WHERE request_id=?").run(JSON.stringify({action:"review_fix_start_failed",reason:"password=synthetic-secret "+"x".repeat(5000)}),fix.requestId);

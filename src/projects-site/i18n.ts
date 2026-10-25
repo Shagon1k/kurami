@@ -12,6 +12,7 @@ const messages:Record<string,string>={
   "No stop report was saved. Open the session for details.":"Отчёт об остановке не сохранён. Подробности есть в сессии.",
   "CI results are not available yet.":"Результатов CI пока нет.",
   "CI and review results are not available yet.":"Результатов CI и ревью пока нет.",
+  "Review fixes did not start: complete review evidence exceeds the prompt budget. No worker was started.":"Исправление замечаний не запустилось: полные требования превышают лимит промпта. Агент не был запущен.",
   "Review fixes did not start":"Исправление замечаний не запустилось",
   "Review fixes did not start: a process still owns the managed working copy. Cleanup must finish before retrying.":"Исправление замечаний не запустилось: процесс ещё использует рабочую копию. Перед повторной попыткой нужно завершить очистку.",
   "Review fixes did not start: the managed working copy has uncommitted changes.":"Исправление замечаний не запустилось: в рабочей копии есть незакоммиченные изменения.",
