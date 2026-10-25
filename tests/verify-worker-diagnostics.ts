@@ -4,6 +4,7 @@ import { resolve } from "node:path";
 import { DatabaseSync } from "node:sqlite";
 import { protocolRepository } from "./fixtures/protocol-repository.ts";
 import { recordTurnCompleted } from "../src/orchestrator/integrations/codex/task-store.ts";
+import { LATEST_ATTENTION_VALUE_SQL } from "../src/orchestrator/runtime/run-projections.ts";
 import { completedWorkerSummary, sanitizeWorkerSummary, technicalWorkerDiagnostic, workerDiagnosticText } from "../src/orchestrator/integrations/codex/worker-diagnostic.ts";
 import { reconcileCiRepairAttempts } from "../src/orchestrator/runtime/reconcile-ci-repair.ts";
 import { runControlStatus } from "../src/orchestrator/controls/run.ts";
@@ -80,6 +81,11 @@ for (const scenario of ["no_change", "scope_refusal", "absent", "crash", "interr
     reconcileCiRepairAttempts(f.database);
     assert.equal(f.database.prepare("SELECT failure_reason FROM run_ci_repair_attempts").get()?.failure_reason, "No new PR head appeared after the fixer task");
     const diagnostic = technicalWorkerDiagnostic(f.database, "run")!;
+    const beforePreview = f.database.prepare(`SELECT ${LATEST_ATTENTION_VALUE_SQL} AS reason FROM runs r WHERE run_id='run'`).get();
+    f.database.exec(`INSERT INTO run_state_history(run_id,from_state,to_state,reason,details_json)
+      VALUES('run','needs_attention','needs_attention','preview_slot_released','{}')`);
+    assert.deepEqual(f.database.prepare(`SELECT ${LATEST_ATTENTION_VALUE_SQL} AS reason FROM runs r WHERE run_id='run'`).get(), beforePreview);
+    assert.deepEqual(technicalWorkerDiagnostic(f.database, "run"), diagnostic, "preview release preserves the exact worker blocker");
     assert.equal(diagnostic.taskId, f.id);
     assert.equal(diagnostic.contextId, "run"); assert.equal(diagnostic.threadId, "exact"); assert.equal(diagnostic.turnId, "turn");
     assert.equal(diagnostic.outcome, "No new PR head appeared after the fixer task");
@@ -112,7 +118,7 @@ for (const scenario of ["no_change", "scope_refusal", "absent", "crash", "interr
     }
     f.database.exec(`INSERT INTO run_state_history(run_id,from_state,to_state,reason,details_json)
       VALUES('run','parked_review','needs_attention','unrelated_preview_failure','{}');`);
-    assert.equal(technicalWorkerDiagnostic(f.database, "run"), null, "old worker prose cannot explain a later unrelated failure");
+    assert.deepEqual(technicalWorkerDiagnostic(f.database, "run"), diagnostic, "the current failed context remains a separate blocker alongside a preview failure");
     f.database.prepare("INSERT INTO run_state_history(run_id,from_state,to_state,reason,details_json) VALUES('run','parked_review','needs_attention','ci_repair_no_new_head',?)").run(JSON.stringify({ attemptId: "run" }));
     f.database.exec("UPDATE run_ci_repair_attempts SET codex_thread_id='mismatched'");
     assert.equal(technicalWorkerDiagnostic(f.database, "run"), null);

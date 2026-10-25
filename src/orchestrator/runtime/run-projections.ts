@@ -1,7 +1,7 @@
 /** Correlated projections require the outer runs alias `r`; callers retain joins and filters. */
 export const LATEST_ATTENTION_VALUE_SQL = `(SELECT reason FROM run_state_history attention_latest
   WHERE attention_latest.run_id = r.run_id AND attention_latest.to_state = 'needs_attention'
-    AND attention_latest.reason NOT IN ('review_fix_task_archived', 'ci_repair_task_archived')
+    AND attention_latest.reason NOT IN ('review_fix_task_archived', 'ci_repair_task_archived', 'preview_slot_leased', 'preview_slot_released')
   ORDER BY attention_latest.sequence DESC LIMIT 1)`;
 export const LATEST_ATTENTION_SQL = `${LATEST_ATTENTION_VALUE_SQL} AS latest_attention_reason`;
 export const LATEST_SUCCESSOR_STATE_SQL = `(SELECT succession_state FROM run_autonomous_successions successor_latest

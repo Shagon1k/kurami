@@ -1,3 +1,7 @@
+import { prepareReviewFixRetry } from "../src/orchestrator/projects/sessions/prepare-review-fix-retry.ts";
+import type { loadReviewFixContext } from "../src/orchestrator/projects/sessions/session-start.ts";
+import type { cleanupReviewFixSession } from "../src/orchestrator/projects/sessions/manager.ts";
+import type { SessionRun, ProjectConfig, ReviewFixContext } from "../src/orchestrator/projects/sessions/session-types.ts";
 import assert from "node:assert/strict";
 import { execFileSync } from "node:child_process";
 import { mkdtempSync, mkdirSync, readFileSync, readdirSync, rmSync, writeFileSync } from "node:fs";
@@ -174,5 +178,96 @@ try {
   assert.throws(() => runExternal({runId:"r_test",action:"review_fix_start",requestId:"rq_test"} as PlannedAction,() => {
     calls++; throw new Error("source refused");
   }),/source refused/); assert.equal(calls,1);
+  async function retryCase(change?: (f: ReturnType<typeof fixture>, io: {
+    source: SourceEffects; capture: typeof loadReviewFixContext; cleanup: typeof cleanupReviewFixSession;
+  }) => void, apply = false, expected?: RegExp) {
+    const f = fixture();
+    let captures = 0, cleanups = 0;
+    try {
+      git(f.worktree,"merge","--ff-only",f.head);
+      f.database.exec(`UPDATE runs SET state='needs_attention';
+        UPDATE run_resources SET codex_thread_id='failed-thread',previous_codex_thread_id='primary-thread';
+        UPDATE run_control_requests SET request_state='applied';`);
+      f.database.prepare(`INSERT INTO run_review_fix_rounds(round_id,run_id,request_id,round_number,
+        round_state,repository,pull_request_number,pull_request_url,source_head_sha,snapshot_json,
+        codex_thread_id,failure_reason,summary_findings_json,review_fix_all)
+        VALUES('rfr_test','r_test','rq_test',1,'needs_attention','owner/project',1,
+        'https://github.com/owner/project/pull/1',?,'[{"legacy":"incomplete evidence remains unchanged"}]',
+        'failed-thread','review_fix_no_new_head','[]',1)`).run(f.head);
+      f.database.prepare(`INSERT INTO run_codex_tasks(task_id,run_id,kind,context_id,session_name,
+        worktree_path,branch_name,thread_id,turn_id,phase,turn_status,stopped_at,released_at)
+        VALUES('ct_test','r_test','review_fix','rfr_test','cx-failed',?,'feature','failed-thread',
+        'failed-turn','terminal','completed','2026-10-25','2026-10-25')`).run(f.worktree);
+      f.database.exec(`INSERT INTO run_codex_task_events(task_id,event_key,method,thread_id,turn_id,status)
+        VALUES('ct_test','terminal:failed-turn','turn/completed','failed-thread','failed-turn','completed');
+        INSERT INTO run_state_history(run_id,from_state,to_state,reason,details_json)
+        VALUES('r_test','parked_review','needs_attention','review_fix_no_new_head','{"roundId":"rfr_test"}');
+        INSERT INTO run_state_history(run_id,from_state,to_state,reason,details_json)
+        VALUES('r_test','needs_attention','needs_attention','preview_slot_released','{}');`);
+      const original = f.database.prepare("SELECT * FROM run_review_fix_rounds").get();
+      const registry = {version:1,projects:{test:{...f.project,owner:"owner",statuses:{review:"Human Review"},
+        workspace:{...f.project.workspace,branch_prefix:"TEST"}}}};
+      const io = {
+        source:f.effects,
+        capture:async (_db: DatabaseSync, _run: SessionRun, _project: ProjectConfig, request: string,
+          requestState: "pending" | "applied" = "pending"): Promise<ReviewFixContext> => {
+          captures++;
+          assert.equal(request,"rq_test"); assert.equal(requestState,"applied");
+          return {requestId:request,roundId:"rfr_new",roundNumber:2,sourceHeadSha:f.head,
+            pullRequestNumber:1,pullRequestUrl:"https://github.com/owner/project/pull/1",profile:"general",allReviews:true,
+            threads:[{threadId:"current-owner",rootCommentId:99,sourceKind:"owner",reviewId:null,
+              findingNumber:null,path:"schema.prisma",line:1,rootBody:"Complete current evidence "+"x".repeat(7310),
+              ownerReplies:["A focused migration is authorized."],url:""}],summaryOnlyFindings:[]};
+        },
+        cleanup:async (db:DatabaseSync, run:SessionRun) => {
+          cleanups++; assert.equal(run.codex_thread_id,"failed-thread");
+          db.exec(`INSERT INTO run_review_fix_operations(round_id,operation_kind,operation_state,
+            task_codex_thread_id,previous_codex_thread_id,completed_at)
+            VALUES('rfr_test','cleanup','completed','failed-thread','primary-thread','2026-10-25');
+            UPDATE run_resources SET codex_thread_id='primary-thread',previous_codex_thread_id=NULL;`);
+        },
+      };
+      change?.(f,io);
+      if (expected) {
+        await assert.rejects(() => prepareReviewFixRetry(f.database,"r_test",registry,apply,io),expected);
+        assert.equal(cleanups,0,"refused preparation must not archive a task");
+        assert.equal(f.database.prepare("SELECT count(*) n FROM run_review_fix_rounds").get()?.n,1);
+      } else {
+        const result = await prepareReviewFixRetry(f.database,"r_test",registry,apply,io) as {writerStarted:boolean;threads:number};
+        assert.equal(result.writerStarted,false); assert.equal(result.threads,1);
+        assert.equal(cleanups,apply?1:0); assert.equal(captures,apply?2:1);
+        assert.equal(f.database.prepare("SELECT state FROM runs").get()?.state,apply?"parked_review":"needs_attention");
+        assert.equal(f.database.prepare("SELECT count(*) n FROM run_codex_tasks").get()?.n,1,"no writer starts");
+        assert.equal(f.database.prepare("SELECT count(*) n FROM run_control_requests WHERE request_state='pending'").get()?.n,0);
+        assert.deepEqual(f.database.prepare("SELECT * FROM run_review_fix_rounds").get(),original,"original evidence and round remain immutable");
+        if(apply) await assert.rejects(() => prepareReviewFixRetry(f.database,"r_test",registry,true,io),/ownership/);
+      }
+      assert.equal(f.fetches(),0,"retry preparation never fetches or changes Git refs");
+    } finally { f.database.close(); }
+  }
+  await retryCase();
+  await retryCase(undefined,true);
+  await retryCase(f=>writeFileSync(resolve(f.worktree,"local-note"),"preserve"),true,/local changes/);
+  await retryCase(f=>f.database.exec("UPDATE runs SET owner_state='remote'"),true,/ownership/);
+  await retryCase(f=>f.database.exec("UPDATE runs SET stop_reason='cancelled'"),true,/ownership/);
+  await retryCase(f=>f.database.exec("UPDATE run_codex_tasks SET released_at=NULL"),true,/receipt/);
+  await retryCase(f=>f.database.exec("UPDATE run_codex_tasks SET turn_status='failed'"),true,/receipt/);
+  await retryCase(f=>f.database.exec("DELETE FROM run_codex_task_events"),true,/receipt/);
+  await retryCase(f=>f.database.exec("UPDATE run_control_requests SET request_state='pending'"),true,/control request/);
+  await retryCase(f=>f.database.exec("UPDATE run_resources SET previous_codex_thread_id=NULL"),true,/mapping/);
+  await retryCase(f=>f.database.exec(`INSERT INTO run_state_history(run_id,from_state,to_state,reason,details_json)
+    VALUES('r_test','needs_attention','needs_attention','another_blocker','{}')`),true,/another attention cause/);
+  await retryCase(f=>f.move(),true,/live PR/);
+  await retryCase((f,io)=>{io.source={...f.effects,remoteHead:()=>f.old};},true,/remote branch head/);
+  await retryCase((f,io)=>{io.source={...f.effects,noWriter:()=>{throw new Error("live writer");}};},true,/live writer/);
+  await retryCase((f,io)=>{io.capture=async()=>{throw new Error("incomplete review evidence");};},true,/incomplete review evidence/);
+  await retryCase((f,io)=>{const capture=io.capture;io.capture=async(...args)=>{
+    const context=await capture(...args);context.threads[0]!.rootBody="x".repeat(70000);return context;
+  };},true,/64 KiB/);
+  await retryCase((f,io)=>{const capture=io.capture;io.capture=async(...args)=>{
+    const context=await capture(...args);f.database.exec("UPDATE runs SET owner_state='remote'");return context;
+  };},true,/ownership/);
+  console.log("PASS no-edit retry preparation: complete current evidence, exact source and terminal ownership fences, immutable old round, no writer or Git refresh");
+
   console.log(JSON.stringify({ok:true,cases,managedSource:"external FF, preservation/refusal, dirty/owner/session/repo/branch/context fences, fetch and post-FF races, shared controller admissions"}));
 } finally { rmSync(root,{recursive:true,force:true}); }

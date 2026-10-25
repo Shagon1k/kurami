@@ -121,15 +121,16 @@ export async function loadReviewFixContext(
   run: SessionRun,
   project: ProjectConfig,
   requestId: string,
+  requestState: "pending" | "applied" = "pending",
 ): Promise<ReviewFixContext> {
   const request = database
     .prepare(
       `SELECT review_profile, review_fix_all FROM run_control_requests
        WHERE request_id = ? AND run_id = ? AND action = 'review_fix'
-         AND request_state = 'pending'`,
+         AND request_state = ?`,
     )
-    .get(requestId, run.run_id) as {review_profile:string;review_fix_all:number} | undefined;
-  if (!request) fail("Review fix request is no longer pending");
+    .get(requestId, run.run_id, requestState) as {review_profile:string;review_fix_all:number} | undefined;
+  if (!request) fail(`Review fix request is no longer ${requestState}`);
   if (
     database
       .prepare(

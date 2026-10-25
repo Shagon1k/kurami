@@ -54,12 +54,14 @@ export function technicalWorkerDiagnostic(database: DatabaseSync, runId: string)
     JOIN runs r ON r.run_id=t.run_id AND r.state='needs_attention'
     WHERE t.run_id=? ORDER BY t.rowid DESC LIMIT 1`).get(runId);
   if (!task || !(task.ci_source || task.review_source)) return null;
-  // An old failed context can remain after a guarded recovery. It must not explain
-  // a later unrelated preview/admission failure merely because the run needs attention.
+  // The latest failed round/attempt remains a separate blocker even when
+  // preview lifecycle events occur later. A newer worker context still wins.
   const attention = database.prepare(`SELECT details_json FROM run_state_history
     WHERE run_id=? AND to_state='needs_attention'
-      AND reason NOT IN ('ci_repair_task_archived','review_fix_task_archived')
-    ORDER BY sequence DESC LIMIT 1`).get(runId);
+      AND (json_extract(details_json,'$.taskId')=?
+        OR json_extract(details_json,?)=?)
+    ORDER BY sequence DESC LIMIT 1`).get(runId, task.task_id,
+      task.kind === 'ci_repair' ? '$.attemptId' : '$.roundId', task.context_id);
   let provenance: { taskId?: unknown; attemptId?: unknown; roundId?: unknown };
   try { provenance = JSON.parse(String(attention?.details_json ?? "null")); }
   catch { return null; }

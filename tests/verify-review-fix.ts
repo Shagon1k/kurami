@@ -1,3 +1,4 @@
+import strictAssert from "node:assert/strict";
 import { execFileSync } from "node:child_process";
 import { generateKeyPairSync } from "node:crypto";
 import { mkdir, mkdtemp, readFile, readdir, realpath, rm, writeFile } from "node:fs/promises";
@@ -222,6 +223,28 @@ async function main(): Promise<void> {
       legacyBotLogin[0]?.sourceKind === "ai",
       "GitHub App login normalization rejected the legacy bot suffix",
     );
+    const longRoot = "  Owner requirement\n" + "evidence ".repeat(900) + "\nMigration, replay matching and final verification.  ";
+    const longReply = "Follow-up: " + "я".repeat(4500) + " preserve this final requirement.";
+    const complete = selectActionableReviewThreads([{
+      id: "long-owner", path: "schema.prisma", comments: { nodes: [
+        { databaseId: 900, author: { login: "Shagon1k" }, body: longRoot },
+        { databaseId: 901, author: { login: "Shagon1k" }, body: longReply },
+      ] },
+    }], "Shagon1k", head, new Set());
+    strictAssert.equal(complete[0]!.rootBody, longRoot);
+    strictAssert.deepEqual(complete[0]!.ownerReplies, [longReply]);
+    const evidenceRun = {repository:"owner/repo", issue_number:1, issue_url:"", run_id:"r_test"};
+    const evidenceContext = {requestId:"rq_test",roundId:"rfr_test",roundNumber:1,sourceHeadSha:head,
+      pullRequestNumber:1,pullRequestUrl:"https://github.com/owner/repo/pull/1",threads:complete,summaryOnlyFindings:[]};
+    const completePrompt = reviewFixPrompt(evidenceRun, evidenceContext);
+    strictAssert.ok(completePrompt.includes(longRoot.replaceAll("\n", "\\n")));
+    strictAssert.ok(completePrompt.includes("preserve this final requirement."));
+    strictAssert.ok(completePrompt.includes("only when explicitly authorized by the owner"));
+    strictAssert.ok(completePrompt.includes("does not authorize applying migrations to production or shared databases"));
+    strictAssert.ok(!completePrompt.includes("dependency upgrades, migrations, permissions"));
+    strictAssert.throws(() => reviewFixPrompt(evidenceRun, {...evidenceContext,
+      threads:[{...complete[0]!,rootBody:"я".repeat(40000)}]}), /64 KiB.*no requirements were truncated/);
+
     const prompt = reviewFixPrompt(
       {
         repository: "Shagon1k/TailorTales",
