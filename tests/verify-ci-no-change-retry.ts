@@ -22,8 +22,8 @@ writeFileSync(resolve(canonical,"README.md"),"fixture\n");git(canonical,"add","R
 git(canonical,"remote","add","origin","https://github.com/Shagon1k/PickFlick.git");git(canonical,"worktree","add","-b","task",worktree);
 const head=git(worktree,"rev-parse","HEAD"),runId="r_nochange";
 const pullPath=resolve(home,"pull.json");
-const pull={state:"open",merged:false,html_url:"https://github.com/Shagon1k/PickFlick/pull/190",
- head:{sha:head,ref:"task",repo:{full_name:"Shagon1k/PickFlick"}},base:{repo:{full_name:"Shagon1k/PickFlick"}}};
+const pull={number:190,state:"open",merged:false,html_url:"https://github.com/Shagon1k/PickFlick/pull/190",
+ head:{sha:head,ref:"task",repo:{full_name:"Shagon1k/PickFlick"}},base:{ref:"main",repo:{full_name:"Shagon1k/PickFlick"}}};
 writeFileSync(pullPath,JSON.stringify(pull));
 writeFileSync(resolve(bin,"git"),`#!${process.execPath}\nimport{execFileSync}from'node:child_process';if(process.argv[2]==='ls-remote')console.log(process.env.FIXTURE_SHA+'\\trefs/heads/task');else process.stdout.write(execFileSync(process.env.FIXTURE_GIT,process.argv.slice(2)));`,{mode:0o700});
 writeFileSync(resolve(bin,"gh"),`#!${process.execPath}\nimport{readFileSync}from'node:fs';process.stdout.write(readFileSync(process.env.FIXTURE_PULL));`,{mode:0o700});
@@ -31,6 +31,8 @@ writeFileSync(resolve(bin,"tmux"),`#!${process.execPath}\nimport{existsSync,writ
 Object.assign(env,{PATH:bin+":"+process.env.PATH,CODEX_BIN:process.execPath,FIXTURE_SHA:head,FIXTURE_GIT:realGit,FIXTURE_PULL:pullPath,FIXTURE_SESSION:resolve(home,"session")});
 const projectFile=resolve(home,"config/projects.yaml");
 writeFileSync(projectFile,readFileSync(projectFile,"utf8").replace("/home/shagon1k/_projects/PickFlick",canonical).replace("/home/shagon1k/_projects/.worktrees/pickflick",resolve(home,"worktrees")));
+mkdirSync(resolve(home,"secrets"),{mode:0o700});
+writeFileSync(resolve(home,"secrets/github.env"),"GH_TOKEN="+"fixture_".repeat(5)+"\n",{mode:0o600});
 const database=new DatabaseSync(resolve(home,"state/orchestrator.db"));
 try {
   database.exec(`INSERT INTO project_events(event_id,observed_at,project,item_id,content_type,payload_json,processing_state)
@@ -107,7 +109,22 @@ try {
   writeFileSync(resolve(worktree,"untracked.txt"),"preserve");
   assert.throws(()=>native("projects/sessions/manager.ts",["repair","--run-id",runId,"--request-id",requested.requestId,"--apply"]));
   assert.equal(readFileSync(resolve(worktree,"untracked.txt"),"utf8"),"preserve");rmSync(resolve(worktree,"untracked.txt"));
-  native("projects/sessions/manager.ts",["repair","--run-id",runId,"--request-id",requested.requestId,"--apply"]);
+  const sourceArgs=["--run-id",runId,"--action","repair_start","--request-id",requested.requestId,"--apply"];
+  const sourceBefore=database.prepare("SELECT * FROM runs WHERE run_id=?").get(runId);
+  const sourceResult=native("projects/worktrees/refresh-source.ts",sourceArgs);
+  assert.equal(sourceResult.fastForward,false,"A no-change retry cannot refresh or advance the preserved source");
+  assert.deepEqual(database.prepare("SELECT * FROM runs WHERE run_id=?").get(runId),sourceBefore);
+  database.exec("UPDATE run_state_history SET reason='other_blocker' WHERE reason='ci_repair_no_new_head'");
+  assert.throws(()=>native("projects/worktrees/refresh-source.ts",sourceArgs));
+  database.exec("UPDATE run_state_history SET reason='ci_repair_no_new_head' WHERE reason='other_blocker'");
+  git(worktree,"commit","--allow-empty","-m","unpublished fixture commit");
+  const unpublished=git(worktree,"rev-parse","HEAD");
+  assert.throws(()=>native("projects/worktrees/refresh-source.ts",sourceArgs));
+  assert.equal(git(worktree,"rev-parse","HEAD"),unpublished,"Admission preserves an unexpected local commit");
+  git(worktree,"reset","--hard",head);
+  const launched=native("runtime/controller.ts",["--apply"]);
+  assert.ok(launched.results.some((r:{action:string;status:string})=>r.action==="repair_start"&&r.status==="applied"),"Controller must complete source admission and start the writer");
+  assert.equal(database.prepare("SELECT request_state FROM run_control_requests WHERE request_id=?").get(requested.requestId)!.request_state,"applied");
   assert.equal(database.prepare("SELECT state FROM runs WHERE run_id=?").get(runId)!.state,"parked_review");
   assert.equal(database.prepare("SELECT owner_state FROM runs WHERE run_id=?").get(runId)!.owner_state,"cli");
   assert.equal(database.prepare("SELECT COUNT(*) AS n FROM run_ci_repair_attempts").get()!.n,2);
