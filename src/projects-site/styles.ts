@@ -154,7 +154,7 @@ export const PROJECTS_STYLES=[KURAMI_MOOD_CSS,THEME_CSS,FOUNDATION_CSS,BUTTON_CS
 .projects-action-pair > .projects-run-action > :first-child { grid-row: 1; }
 .projects-action-pair > .projects-run-action > .projects-run-action-meta { grid-column: 1 / -1; }
 .projects-action-pair > .projects-run-action > .projects-run-action-meta:empty { display: none; }
-.projects-action-menu { min-width: 0; --popover-width: 300px; --popover-padding: var(--space-3); --button-width: 100%; }
+.projects-action-menu { min-width: 0; --popover-width: 240px; --popover-padding: var(--space-3); --button-width: 100%; }
 .projects-action-options { display: grid; gap: var(--space-2); --button-width: 100%; --button-justify: flex-start; }
 .projects-action-note,.projects-status-note,.projects-info { color: var(--status-info); font-size: .74rem; line-height: 1.5; margin: var(--space-2) 0 0; }
 .projects-confirm-buttons { --button-width: auto; display: flex; flex-wrap: wrap; justify-content: flex-end; gap: var(--space-2); margin-top: var(--space-2); }
