@@ -5,6 +5,7 @@ import { DatabaseSync } from "node:sqlite";
 
 import { sanitizeWorkerSummary, sanitizeWorkerText, WORKER_SUMMARY_LIMIT } from "./worker-diagnostic.ts";
 
+export type PrimaryAttempt = { threadId: string; turnId: string; state: "running" | "completed" | "failed" | "interrupted"; errorCode: string | null; errorMessage: string | null; summary: string | null };
 export type PrimaryStoppedResult = { threadId: string; turnId: string; summary: string | null };
 const READ_LIMIT = 256 * 1024;
 
@@ -16,8 +17,8 @@ export function primaryStoppedSummary(text: string): string | null {
 }
 
 /** Native completion receipt, not terminal prose or a delivery-success classifier. */
-export function capturePrimaryStoppedResult(threadId: string, worktree: string | null,
-  home = process.env.CODEX_HOME ?? resolve(homedir(), ".codex")): PrimaryStoppedResult | null {
+export function capturePrimaryAttempt(threadId: string, worktree: string | null,
+  home = process.env.CODEX_HOME ?? resolve(homedir(), ".codex")): PrimaryAttempt | null {
   let database: DatabaseSync | undefined;
   let fd: number | undefined;
   try {
@@ -38,16 +39,21 @@ export function capturePrimaryStoppedResult(threadId: string, worktree: string |
     const length = readSync(fd, buffer, 0, buffer.length, offset);
     const lines = buffer.subarray(0, length).toString("utf8").split("\n");
     if (offset > 0) lines.shift();
-    let result: PrimaryStoppedResult | null = null;
+    let result: PrimaryAttempt | null = null;
     for (const line of lines) {
       if (!line.trim()) continue;
       let record;
       try { record = JSON.parse(line); } catch { return null; }
       if (record.type !== "event_msg") continue;
       const event = record.payload;
-      if (event?.type === "task_started" || event?.type === "turn_aborted") result = null;
+      if (["task_started", "turn_aborted", "task_complete"].includes(event?.type) &&
+          (typeof event?.turn_id !== "string" || !event.turn_id)) { result = null; continue; }
+      if (typeof event?.turn_id === "string" && ["task_started", "turn_aborted"].includes(event.type))
+        result = { threadId, turnId:event.turn_id, state:event.type === "task_started" ? "running" : "interrupted", errorCode:null, errorMessage:null, summary:null };
       if (event?.type === "task_complete" && typeof event.turn_id === "string") {
-        result = { threadId, turnId: event.turn_id,
+        result = { threadId, turnId: event.turn_id, state:event.error ? "failed" : "completed",
+          errorCode:typeof event.error?.codex_error_info === "string" ? event.error.codex_error_info : null,
+          errorMessage:typeof event.error?.message === "string" ? sanitizeWorkerSummary(event.error.message) : null,
           summary: typeof event.last_agent_message === "string" ? primaryStoppedSummary(event.last_agent_message) : null };
       }
     }
@@ -55,6 +61,12 @@ export function capturePrimaryStoppedResult(threadId: string, worktree: string |
     return after.size === before.size && after.mtimeMs === before.mtimeMs ? result : null;
   } catch { return null; }
   finally { if (fd !== undefined) closeSync(fd); database?.close(); }
+}
+
+export function capturePrimaryStoppedResult(threadId:string, worktree:string|null,
+  home = process.env.CODEX_HOME ?? resolve(homedir(), ".codex")): PrimaryStoppedResult | null {
+  const attempt = capturePrimaryAttempt(threadId,worktree,home);
+  return attempt?.state === "completed" ? {threadId,turnId:attempt.turnId,summary:attempt.summary} : null;
 }
 
 /** Only the current primary park receipt may explain its stopped result. No historical backfill. */

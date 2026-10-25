@@ -234,3 +234,9 @@ If the card has scrolled far up or looks stale, type `/kurami status` inside the
 - [Human control](@human-control) — take a task from Codex and hand it back
 - [Commands and buttons](@commands) — the full reference
 :::
+
+## Retry an interrupted request
+
+If a primary agent request ends with a native error, the run shows **Needs attention** instead of **Working**. Use **Retry** in the Projects task or Discord card to request one continuation in the same session. Existing work, model, configuration and approval boundaries stay in place. No automatic retries or model switches occur.
+
+The control rechecks the provider, failed attempt, ownership, branch, working copy and idle session. Busy sessions, permission prompts, typed input and competing actions refuse the request. After sending, the card waits for a new native attempt before showing **Working**. An unconfirmed send is never replayed automatically; inspect that session through chat. Provider-specific state and transport live in an adapter. Codex is currently supported; an unknown provider never falls back to Codex.

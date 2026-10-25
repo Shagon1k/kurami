@@ -1,3 +1,4 @@
+import { inspectPrimaryRetry } from "../projects/sessions/retry-primary.ts";
 import { inspectInterruptedReviewFix } from "../runtime/interrupted-review-fix-recovery.ts";
 import { previewSourceAvailable } from "../projects/previews/runtime.ts";
 import { parseReviewProfile, type ReviewProfile } from "../projects/reviews/profiles.ts";
@@ -37,6 +38,7 @@ export type Action =
   | "ai_review"
   | "review_fix"
   | "recover_interrupted_review_fix"
+  | "retry"
   | "recover_managed_task";
 type Command = "status" | "request" | "controls";
 export type RequestSource = "telegram" | "discord" | "cli" | "projects";
@@ -84,6 +86,7 @@ const pendingPresentations: Partial<
     stage:"review_fix_recovery_queued",
     detail:"Recovery requested; verifying the released interrupted worker and preserved dirty work before a fresh bounded review fix.",
   },
+  retry: {stage:"needs_attention",detail:"Retry requested. Waiting for the same agent session to confirm a new attempt."},
   recover_managed_task: {
     stage: "review_fix_recovery_queued",
     detail:
@@ -200,7 +203,7 @@ function parseArguments(): {
   const apply = args.includes("--apply");
   if (!command || !["status", "request", "controls"].includes(command)) {
     fail(
-      "Usage: run-controls.ts <status|request|controls> [--run-id <run_id>] [--action <take_control|preview_start|preview_stop|stop|discard_local|discard_published|ci_repair|ai_review|review_fix|recover_managed_task>] [--via <telegram|discord|cli>] [--project <project>] [--issue <number>] [--discord-thread-id <id>] [--apply]",
+      "Usage: run-controls.ts <status|request|controls> [--run-id <run_id>] [--action <take_control|preview_start|preview_stop|stop|discard_local|discard_published|ci_repair|ai_review|review_fix|recover_managed_task|recover_interrupted_review_fix|retry>] [--via <telegram|discord|cli>] [--project <project>] [--issue <number>] [--discord-thread-id <id>] [--apply]",
     );
   }
   if (command !== "controls" && !runId) fail(`${command} requires --run-id`);
@@ -223,6 +226,7 @@ function parseArguments(): {
         "review_fix",
         "recover_managed_task",
         "recover_interrupted_review_fix",
+        "retry",
       ].includes(action))
   ) {
     fail("request requires a supported --action");
@@ -451,6 +455,7 @@ export function requestRunControl(
   if (allReviews && (action !== "review_fix" || profile !== "general")) fail("All reviews requires review_fix without a selected profile");
   if (profile !== "general" && !["ai_review", "review_fix"].includes(action)) fail("Profile requires a review action");
   let interruptedIntent: string | null = null;
+  let retryIntent: string | null = null;
   const ownsTransaction = !database.isTransaction;
   if (ownsTransaction) database.exec("BEGIN IMMEDIATE");
   const home = options.home ?? orchestratorHome;
@@ -510,6 +515,8 @@ export function requestRunControl(
          WHERE run_id = ? AND request_state IN ('pending','processing')
            AND NOT (? = 'preview_stop' AND action = 'preview_start' AND request_state = 'pending')
            AND (
+             action = 'retry' OR
+             (? = 'retry') OR
              action = 'recover_interrupted_review_fix' OR
              action = 'review_fix' OR
              action = 'recover_managed_task' OR
@@ -519,7 +526,7 @@ export function requestRunControl(
            )
          LIMIT 1`,
       )
-      .get(runId, action, action, action) as { action: string } | undefined;
+      .get(runId, action, action, action, action) as { action: string } | undefined;
     if (conflictingRequest && action !== "stop" && conflictingRequest.action !== action)
       fail(`Action conflicts with queued ${conflictingRequest.action}`);
     if (action === "stop" && run.stop_reason === "cancelled") {
@@ -559,6 +566,11 @@ export function requestRunControl(
           "Autonomous continuation requires one finished Remote task, a provisioned worktree, and no active managed writer",
         );
       }
+    }
+    if (action === "retry") {
+      const existing=database.prepare("SELECT request_id FROM run_control_requests WHERE run_id=? AND action='retry' AND request_state IN ('pending','processing')").get(runId);
+      retryIntent=JSON.stringify(inspectPrimaryRetry(database,runId,
+        (parse(readFileSync(projectsPath,"utf8")) as ProjectsRegistry).projects[run.project]!,existing ? String(existing.request_id) : null));
     }
     if (action === "recover_interrupted_review_fix") {
       const existing = database.prepare(`SELECT request_id FROM run_control_requests WHERE run_id=?
@@ -816,6 +828,8 @@ export function requestRunControl(
     `,
       )
       .get(idempotencyKey) as { request_id: string; request_state: string };
+    if (retryIntent && stored.request_id === plan.requestId)
+      database.prepare("UPDATE run_control_requests SET retry_context_json=? WHERE request_id=?").run(retryIntent,stored.request_id);
     if (interruptedIntent && stored.request_id === plan.requestId)
       database.prepare("UPDATE run_control_requests SET review_fix_recovery_json=? WHERE request_id=?")
         .run(interruptedIntent,stored.request_id);
@@ -931,6 +945,14 @@ export function availableRunControls(database: DatabaseSync, runId: string, opti
   const failedSuccessorRecovery =
     isFailedAutonomousSuccessorRecovery(selectedRecovery);
   const availableActions = ["status"];
+  if(runState === "needs_attention" && selected.latest_attention_reason === "primary_attempt_failed") {
+    try {
+      const retry=inspectPrimaryRetry(database,runId,
+        (parse(readFileSync(projectsPath,"utf8")) as ProjectsRegistry).projects[String(selected.project)]!);
+      selected.retry_identity=retry;
+      availableActions.push("retry");
+    } catch { /* Missing or changed native evidence never permits input. */ }
+  }
   try {
     const interrupted = inspectInterruptedReviewFix(database,String(selected.run_id),
       (parse(readFileSync(projectsPath,"utf8")) as ProjectsRegistry).projects[String(selected.project)]);

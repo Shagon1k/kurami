@@ -232,7 +232,7 @@ try {
   const migrationNames = readdirSync(resolve(app, "migrations"))
     .filter((name) => name.endsWith(".sql"))
     .sort();
-  for (const name of migrationNames.filter((name) => !name.startsWith("045_")))
+  for (const name of migrationNames.filter((name) => name < "045_"))
     legacy.exec(readFileSync(resolve(app, "migrations", name), "utf8"));
   for (const table of [
     "project_events",

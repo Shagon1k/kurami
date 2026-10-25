@@ -47,6 +47,7 @@ Accept the current text-button form `<Action> · <run_id>` and the legacy form
 
 Map exact actions and aliases as follows:
 
+- `Retry`: only when controls expose `retry`, request `--action retry --via <transport> --apply` through the same owner-only command. It sends one continuation to the same provider session after a confirmed failed attempt. Never send terminal input as a substitute, replay an unconfirmed dispatch, change models, or retry automatically. If unavailable or ambiguous, inspect through chat.
 - `Status`: run `$NODE $CONTROL status --run-id <run_id>`.
 - `Take control` or `Continue in Codex`: run `$NODE $CONTROL request --run-id <run_id> --action take_control --via <transport> --apply`.
 - `Continue autonomously`: offer it only when controls expose `take_control` for

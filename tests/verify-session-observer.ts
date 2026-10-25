@@ -205,10 +205,14 @@ esac
       env,
       stdio: ["ignore", "pipe", "pipe"],
     });
-    const tmuxActions = await readFile(fakeTmuxActionLog, "utf8");
+    execFileSync(process.execPath, [observer, "--project", "pickflick"], {env,stdio:["ignore","pipe","pipe"]});
+    const modelState=new DatabaseSync(databasePath,{readOnly:true});
+    assert(modelState.prepare("SELECT state FROM runs WHERE run_id='r_observer_approval'").get()?.state === "needs_attention","model selection requires owner attention");
+    modelState.close();
+    const tmuxActions = await readFile(fakeTmuxActionLog, "utf8").catch(() => "");
     assert(
-      tmuxActions.includes("send-keys -t cx-pf-9-observer:0.0 Enter"),
-      "Rate-limit model switch was not accepted through the managed tmux session",
+      !tmuxActions.includes("send-keys"),
+      "Observer must never accept a model switch or send input automatically",
     );
   } finally {
     await rm(home, { recursive: true, force: true });
@@ -226,3 +230,5 @@ process.stdout.write(
     approvalBlockerIsDurable: true,
   })}\n`,
 );
+
+await import("./verify-primary-retry.ts");

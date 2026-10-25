@@ -1,3 +1,6 @@
+import { transcriptBusy } from "../../runtime/codex-terminal.ts";
+import { primaryAgent } from "../../integrations/primary-agent.ts";
+import { observePrimaryAttempt } from "./retry-primary.ts";
 import { taskForSession } from "../../integrations/codex/task-store.ts";
 import { spawnSync } from "node:child_process";
 import { resolve } from "node:path";
@@ -16,6 +19,7 @@ type ActiveRun = {
   run_state: string;
   owner_state: string;
   tmux_session_name: string | null;
+  primary_agent_provider: string;
 };
 
 type AttentionRow = {
@@ -59,19 +63,6 @@ function tmuxCapture(sessionName: string): {
   if (result.status === 1) return { alive: false, transcript: "" };
   fail(
     result.stderr.trim() || `Failed to inspect tmux session: ${sessionName}`,
-  );
-}
-
-function tmuxAcceptRateLimitModelSwitch(sessionName: string): void {
-  const result = spawnSync(
-    "tmux",
-    ["send-keys", "-t", `${sessionName}:0.0`, "Enter"],
-    { encoding: "utf8", env: process.env, stdio: ["ignore", "pipe", "pipe"] },
-  );
-  if (result.status === 0) return;
-  fail(
-    result.stderr.trim() ||
-      `Failed to accept managed Codex rate-limit model switch: ${sessionName}`,
   );
 }
 
@@ -121,7 +112,7 @@ function classify(run: ActiveRun, database: DatabaseSync): string | null {
   const task = taskForSession(database,run.tmux_session_name);
   if (task) return task.failure_code;
 
-  if (run.owner_state !== "cli") return null;
+  if (run.owner_state !== "cli" || run.primary_agent_provider !== "codex") return null;
   if (!run.tmux_session_name) return "managed_session_missing";
   const capture = tmuxCapture(run.tmux_session_name);
   if (!capture.alive) return "managed_session_missing";
@@ -131,7 +122,7 @@ function classify(run: ActiveRun, database: DatabaseSync): string | null {
 function description(kind: string): string {
   switch (kind) {
     case "rate_limit_model_switch":
-      return "Managed Codex switched to its suggested lower-credit model after reaching the rate-limit threshold.";
+      return "Codex is waiting for an owner decision about its model. No model switch was applied.";
     case "waiting_on_approval":
       return "Codex is still waiting for a human approval after two checks.";
     case "turn_interrupted":
@@ -145,7 +136,7 @@ function description(kind: string): string {
   }
 }
 
-function markApprovalBlockedRun(database: DatabaseSync, run: ActiveRun): boolean {
+function markApprovalBlockedRun(database: DatabaseSync, run: ActiveRun, kind="waiting_on_approval"): boolean {
   const current = database
     .prepare(`SELECT state, owner_state, stop_reason FROM runs WHERE run_id = ?`)
     .get(run.run_id) as
@@ -168,7 +159,10 @@ function markApprovalBlockedRun(database: DatabaseSync, run: ActiveRun): boolean
     )
     .run(run.run_id, current.state);
   if (changed.changes !== 1) return false;
-  const reason = "codex_waiting_on_approval";
+  const resource=kind === "rate_limit_model_switch" ? database.prepare("SELECT primary_agent_provider,codex_thread_id,worktree_path FROM run_resources WHERE run_id=?").get(run.run_id) : null;
+  const attempt=resource && typeof resource.codex_thread_id === "string" && typeof resource.worktree_path === "string"
+    ? primaryAgent(String(resource.primary_agent_provider))?.readAttempt(resource.codex_thread_id,resource.worktree_path) : null;
+  const reason = kind === "rate_limit_model_switch" ? "primary_model_decision_required" : "codex_waiting_on_approval";
   database
     .prepare(
       `INSERT INTO run_state_history (
@@ -180,8 +174,9 @@ function markApprovalBlockedRun(database: DatabaseSync, run: ActiveRun): boolean
       current.state,
       reason,
       JSON.stringify({
-        attentionKind: "waiting_on_approval",
-        detail: "Managed Codex requested an unexpected interactive approval.",
+        attentionKind: kind,
+        ...(attempt ? {threadId:attempt.threadId,sourceTurnId:attempt.turnId} : {}),
+        detail: kind === "rate_limit_model_switch" ? "Model choice requires an owner decision. No input was sent." : "Managed Codex requested an unexpected interactive approval.",
       }),
     );
   database
@@ -201,11 +196,12 @@ function markApprovalBlockedRun(database: DatabaseSync, run: ActiveRun): boolean
          event_id, run_id, event_kind, payload_json
        ) VALUES (?, ?, 'attention_required', json_object(
          'source', 'codex',
-         'kind', 'waiting_on_approval',
-         'detail', 'Managed Codex requested an unexpected interactive approval. No approval was applied.'
+         'kind', ?,
+         'detail', ?
        ))`,
     )
-    .run(`ce_${run.run_id}_codex_approval`, run.run_id);
+    .run(`ce_${run.run_id}_codex_${kind === "waiting_on_approval" ? "approval" : "model_decision"}`, run.run_id, kind,
+      kind === "waiting_on_approval" ? "Managed Codex requested an unexpected interactive approval. No approval was applied." : "Model choice requires an owner decision. No input was sent.");
   return true;
 }
 
@@ -214,7 +210,7 @@ function recoverClearedApprovalBlock(
   run: ActiveRun,
   kind: string | null,
 ): boolean {
-  if (run.run_state !== "needs_attention" || kind === "waiting_on_approval")
+  if (run.run_state !== "needs_attention" || ["waiting_on_approval","rate_limit_model_switch"].includes(kind ?? ""))
     return false;
   const latest = database
     .prepare(
@@ -223,7 +219,12 @@ function recoverClearedApprovalBlock(
        ORDER BY sequence DESC LIMIT 1`,
     )
     .get(run.run_id) as { reason: string } | undefined;
-  if (latest?.reason !== "codex_waiting_on_approval") return false;
+  if (latest?.reason === "primary_model_decision_required") {
+    const resource=database.prepare("SELECT codex_thread_id,worktree_path FROM run_resources WHERE run_id=?").get(run.run_id);
+    const attempt=resource && typeof resource.codex_thread_id === "string" && typeof resource.worktree_path === "string"
+      ? primaryAgent("codex")?.readAttempt(resource.codex_thread_id,resource.worktree_path) : null;
+    if(attempt?.state !== "running" || !run.tmux_session_name || !transcriptBusy(tmuxCapture(run.tmux_session_name).transcript))return false;
+  } else if (latest?.reason !== "codex_waiting_on_approval") return false;
   const changed = database
     .prepare(
       `UPDATE runs
@@ -260,7 +261,7 @@ export function runSessionObserverCli(): void {
         `
         SELECT r.run_id, r.project, r.issue_number,
                pe.title AS issue_title, pe.url AS issue_url,
-               r.state AS run_state, r.owner_state, rr.tmux_session_name
+               r.state AS run_state, r.owner_state, rr.tmux_session_name, rr.primary_agent_provider
         FROM runs r
         JOIN run_resources rr USING (run_id)
         JOIN project_events pe ON pe.event_id = r.trigger_event_id
@@ -275,8 +276,9 @@ export function runSessionObserverCli(): void {
     database.exec("BEGIN IMMEDIATE");
     try {
       for (const run of runs) {
+        observePrimaryAttempt(database,run.run_id);
         const kind = classify(run,database);
-        if (!taskForSession(database,run.tmux_session_name)) recoverClearedApprovalBlock(database, run, kind);
+        if (run.primary_agent_provider === "codex" && !taskForSession(database,run.tmux_session_name)) recoverClearedApprovalBlock(database, run, kind);
         const previous = database
           .prepare(
             `
@@ -326,23 +328,6 @@ export function runSessionObserverCli(): void {
           )
           .run(run.run_id, kind, count, kind);
 
-        if (
-          kind === "rate_limit_model_switch" &&
-          count === 1 &&
-          run.tmux_session_name
-        ) {
-          tmuxAcceptRateLimitModelSwitch(run.tmux_session_name);
-          notifications.push(
-            [
-              `${project} #${run.issue_number}: ${description(kind)}`,
-              run.issue_title ?? "",
-              run.issue_url ?? "",
-            ]
-              .filter(Boolean)
-              .join("\n"),
-          );
-        }
-
         if (kind && count >= 2 && previous?.notified_kind !== kind) {
           database
             .prepare(
@@ -364,8 +349,8 @@ export function runSessionObserverCli(): void {
               .join("\n"),
           );
         }
-        if (kind === "waiting_on_approval" && count >= 2)
-          markApprovalBlockedRun(database, run);
+        if (["waiting_on_approval","rate_limit_model_switch"].includes(kind ?? "") && count >= 2)
+          markApprovalBlockedRun(database, run, kind!);
       }
       database.exec("COMMIT");
     } catch (error) {

@@ -136,6 +136,15 @@ function progressFor(
       detail: "Stopping active resources and checking cleanup safety.",
     };
   }
+  const primaryAttention:Record<string,string> = {
+    primary_attempt_failed:"The agent request failed. Work is preserved; retry manually or inspect the session.",
+    primary_attempt_interrupted:"The agent attempt was interrupted. Work is preserved; inspect the session through chat.",
+    primary_retry_requested:"Retry requested. Waiting for the same agent session to confirm a new attempt.",
+    primary_retry_unconfirmed:"Retry could not be confirmed. Inspect the same session through chat; no message will be resent automatically.",
+    primary_model_decision_required:"The agent is waiting for your model decision. No model switch was applied.",
+  };
+  const primaryDetail=primaryAttention[run.latest_attention_reason ?? ""];
+  if(run.run_state === "needs_attention" && primaryDetail)return {stage:"needs_attention",detail:primaryDetail};
   if (run.merged_task_accepted && run.stop_reason !== "cancelled") return {
     stage: "needs_attention",
     detail: "Task accepted by its verified merged PR. Resource cleanup is blocked; managed work is preserved.",
