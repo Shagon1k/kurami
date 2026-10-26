@@ -14,7 +14,7 @@ let dense=false;
 let previewReady=false;
 let semanticNotes=false;
 let combinedFixScenario=false,combinedFixAccepted=false;const combinedFixInputs:unknown[]=[];
-let profileScenario=false;let generalBusy=false;let clarityAccepted=false;const profileRequests:string[]=[];
+let profileScenario=false;let generalBusy=false;let clarityAccepted=false;let specAccepted=false;const profileRequests:string[]=[];
 let reviewFixScenario:string|null=null;
 let reviewFixRefused=false;
 let runNotesScenario:string|null=null;
@@ -89,18 +89,19 @@ const serverOptions = { snapshot: () => {
     const item=snapshot.items[0]!;item.reviewFix=undefined;item.aiReview={enabled:false,reason:"ready",head:item.ci.head};
     item.runActions!.actions=[];
     item.reviews={general:{...item.review,state:generalBusy?"queued":"ready",tone:generalBusy?"neutral":"success",critical:0,important:0,suggestions:0,url:"https://github.com/Example/Alpha/pull/20#pullrequestreview-1",requestFailed:false,control:{enabled:false,reason:"ready",head:item.ci.head}},
-      clarity:{state:clarityAccepted?"queued":"none",tone:"neutral",head:null,critical:0,important:0,suggestions:0,url:null,requestFailed:false,control:{enabled:!clarityAccepted,reason:clarityAccepted?"pending":"eligible",head:item.ci.head}}};
+      clarity:{state:clarityAccepted?"queued":"none",tone:"neutral",head:null,critical:0,important:0,suggestions:0,url:null,requestFailed:false,control:{enabled:!clarityAccepted,reason:clarityAccepted?"pending":"eligible",head:item.ci.head}},
+      spec:{state:specAccepted?"queued":"none",tone:"neutral",head:null,critical:0,important:0,suggestions:0,url:null,requestFailed:false,control:{enabled:!specAccepted,reason:specAccepted?"pending":"eligible",head:item.ci.head}}};
   }
   if(combinedFixScenario){
     const item=snapshot.items[0]!;
     item.reviewFix=combinedFixAccepted?{state:"queued",round:null}:undefined;
     item.runActions!.actions=[{action:"review_fix",label:"Fix findings",enabled:!combinedFixAccepted,confirmation:null,hint:null,state:combinedFixAccepted?"pending":null}];
-    item.reviews={general:{...item.review,state:"ready",tone:"warning",important:1,suggestions:0,url:item.links.review,requestFailed:false,fix:item.reviewFix},clarity:{...item.review,state:"ready",tone:"warning",critical:0,important:0,suggestions:1,url:item.links.review,requestFailed:false,fix:item.reviewFix}};
+    item.reviews={general:{...item.review,state:"ready",tone:"warning",important:1,suggestions:0,url:item.links.review,requestFailed:false,fix:item.reviewFix},clarity:{...item.review,state:"ready",tone:"warning",critical:0,important:0,suggestions:1,url:item.links.review,requestFailed:false,fix:item.reviewFix},spec:{...item.review,state:"ready",tone:"warning",critical:0,important:1,suggestions:0,url:item.links.review,requestFailed:false,fix:item.reviewFix}};
   }
   return snapshot;
 }, cacheMs: 0, authorize: async () => "fixture-owner", origin: "", review: (value: unknown) => {
   const input = value as { head: string; key: string;profile?:string };
-  if(profileScenario){assert.equal(input.profile,"clarity");profileRequests.push(input.profile);clarityAccepted=true;return {state:"created" as const,requestId:"clarity-fixture",requestState:"pending"};}
+  if(profileScenario){assert.ok(input.profile==="clarity"||input.profile==="spec");profileRequests.push(input.profile);if(input.profile==="spec")specAccepted=true;else clarityAccepted=true;return {state:"created" as const,requestId:input.profile+"-fixture",requestState:"pending"};}
   assert.equal(input.head,"abcdef0123456789"); requestKeys.push(input.key);
   if (failReview) throw new ProjectsActionError(503,"Ревью временно недоступно.");
   accepted = true; return { state: "created" as const, requestId: "fixture", requestState: "pending" };
@@ -899,11 +900,11 @@ try {
   }
   profileScenario=true;unavailable=false;reviewFixScenario=null;reviewFixRefused=false;runNotesScenario=null;
   for(const width of [320,390,1280])for(const theme of ["paper","neon"]){
-    clarityAccepted=false;
+    clarityAccepted=false;specAccepted=false;
     await devtools.call("Emulation.setDeviceMetricsOverride",{width,height:1000,deviceScaleFactor:1,mobile:width<600});
     await open("/?item=item-12&lang=en");
     await devtools.evaluate(`document.querySelector('[data-theme-choice="${theme}"]').click()`);await chooseMode(theme==="neon"?"dark":"light");await delay(250);
-    assert.equal(await devtools.evaluate("document.querySelectorAll('[data-review-result]').length"),2);
+    assert.equal(await devtools.evaluate("document.querySelectorAll('[data-review-result]').length"),3);
     assert.equal(await devtools.evaluate("!!document.querySelector('[data-review-run][data-review-profile=general]')"),false,'ready General does not block available Clarity');
 
     assert.equal(await devtools.evaluate("(()=>{const row=document.querySelector('.projects-review-controls'),buttons=row.querySelectorAll('[popovertarget]');return buttons.length===1&&Math.abs(buttons[0].getBoundingClientRect().width-row.getBoundingClientRect().width)<1})()"),true,"a single review selector fills its row");
@@ -916,9 +917,15 @@ try {
     await pointerClick('[data-review-run][data-review-profile=clarity]');
     await wait("document.querySelector('[data-review-result=clarity]').textContent.includes('Queued')");
     assert.equal(await devtools.evaluate("document.querySelector('[data-review-result=general]').textContent.includes('Ready')"),true,'Clarity request retains General result');
+    await pointerClick('.projects-review-controls [popovertarget]');
+    await wait("document.querySelector('.projects-review-controls [popovertarget]').getAttribute('aria-expanded')==='true'");
+    await pointerClick('[data-review-run][data-review-profile=spec]');
+    await wait("document.querySelector('[data-review-result=spec]').textContent.includes('Queued')");
+    assert.equal(await devtools.evaluate("document.querySelector('[data-review-result=general]').textContent.includes('Ready')"),true,'Spec request retains General result');
+
   }
-  assert.equal(profileRequests.length,6,'one selected profile request per click');
-  generalBusy=true;clarityAccepted=false;
+  assert.equal(profileRequests.length,12,'one selected profile request per click');
+  generalBusy=true;clarityAccepted=false;specAccepted=false;
   await open("/?item=item-12&lang=en");
   assert.equal(await devtools.evaluate("document.querySelector('.projects-review-controls [popovertarget]').disabled"),false,'queued General leaves the selector enabled');
   await pointerClick('.projects-review-controls [popovertarget]');
@@ -926,7 +933,13 @@ try {
   await pointerClick('[data-review-run][data-review-profile=clarity]');
   await wait("document.querySelector('[data-review-result=clarity]').textContent.includes('Queued')");
   assert.equal(await devtools.evaluate("document.querySelector('[data-review-result=general]').textContent.includes('Queued')"),true,'both profiles may be queued');
-  assert.equal(await devtools.evaluate("document.querySelector('.projects-review-controls [popovertarget]').disabled"),true,'both busy profiles disable the selector');
+
+  assert.equal(await devtools.evaluate("document.querySelector('.projects-review-controls [popovertarget]').disabled"),false,'queued General and Clarity leave Spec available');
+  await pointerClick('.projects-review-controls [popovertarget]');
+  await wait("document.querySelector('.projects-review-controls [popovertarget]').getAttribute('aria-expanded')==='true'");
+  await pointerClick('[data-review-run][data-review-profile=spec]');
+  await wait("document.querySelector('[data-review-result=spec]').textContent.includes('Queued')");
+  assert.equal(await devtools.evaluate("document.querySelector('.projects-review-controls [popovertarget]').disabled"),true,'all busy profiles disable the selector');
   generalBusy=false;profileScenario=false;combinedFixScenario=true;
   for(const width of [320,390,1280])for(const lang of ['en','ru'])for(const theme of ['paper','neon']){
     combinedFixAccepted=false;

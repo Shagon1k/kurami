@@ -35,8 +35,8 @@ A button carries the id `kurami:<action>:<run id>`. The card shows at most four 
 | **Extend 24h** | the preview runs, less than two hours left | `preview_start` | `preview_extend`: expiry plus 24 hours |
 | **Mark reviewed** | the preview runs and is not marked | direct call, no queue | writes the review mark on the lease |
 | **Attempt CI fix** | `parked_review`, CI `failed` or `missing`, fewer than two attempts | `ci_repair` | `repair_start`: a fresh Codex task on the exact failing commit |
-| **Run review → General / Clarity** | run parked and unowned, PR and commit known, selected profile neither queued, running nor ready for this commit | `ai_review`, selected profile | `review_start`: an independent read-only reviewer publishes its review on GitHub; the other profile may queue or run independently |
-| **Fix findings** | a ready review of the current commit has findings, no review is queued or running | `review_fix`, all profiles | `review_fix_start`: one fresh Codex task fixes current General and Clarity findings and unresolved owner threads; thread resolution follows verified CI |
+| **Run review → General / Clarity / Spec** | run parked and unowned, PR and commit known, selected profile neither queued, running nor ready for this commit | `ai_review`, selected profile | `review_start`: an independent read-only reviewer publishes its review on GitHub; other profiles may queue or run independently |
+| **Fix findings** | a ready review of the current commit has findings, no review is queued or running | `review_fix`, all profiles | `review_fix_start`: one fresh Codex task fixes current General, Clarity and Spec findings and unresolved owner threads; thread resolution follows verified CI |
 | **Cancel run** | cancellation has not started | `stop` | `request_stop`: stop, release resources, the issue goes to Backlog |
 | **Discard local work** | stage "Cancelled — local work preserved", no PR | confirmation, then `discard_local` | `discard_cancelled`: deletes the unpublished working copy and branch |
 | **Close draft PR & discard** | the same stage, a draft PR exists | confirmation, then `discard_published` | `discard_published_cancelled`: closes the exact draft PR and deletes the branches |
@@ -74,7 +74,7 @@ These are directional enqueue checks against existing `pending`/`processing` req
 | `stop` | Cancel run | exempt from this cross-action conflict rejection, including a queued `retry`; other safety checks still apply |
 | `discard_local`, `discard_published` | the confirmation buttons | writer controls, `retry` |
 | `ci_repair` | Attempt CI fix | writer controls, `retry`; the guarded no-change second attempt also requires no other pending/processing control |
-| `ai_review` | Run review → General / Clarity | writer controls, `retry`; the other review profile is independent |
+| `ai_review` | Run review → General / Clarity / Spec | writer controls, `retry`; the other review profiles are independent |
 | `review_fix` | Fix findings | writer controls, `retry`, `take_control`, `ci_repair`, `ai_review` |
 | `recover_managed_task` | Recover delivered fix | writer controls, `retry`, `take_control`, `ci_repair`, `ai_review` |
 | `recover_interrupted_review_fix` | Recover interrupted fix | writer controls, `retry`, `take_control`, `ci_repair`, `ai_review`; recovery inspection also requires no other pending control |

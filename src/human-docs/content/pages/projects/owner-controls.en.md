@@ -14,9 +14,9 @@ The card is edited in place. After every event Kurami posts it again below the e
 
 ::shot{file="shot-run-ready-review.png" size="card" alt="Run card PF-33 at Ready for review: CI failed, preview required, buttons Take control, Start preview, Attempt CI fix, AI Code Review and a More actions menu." caption="Up to four buttons in a row, the rest under More actions. Links to the issue and PR sit on their own line, not on buttons."}
 
-Use **Run review** to choose **General** (correctness and operational risks) or **Clarity** (unnecessary code complexity). Both results remain visible separately with their reviewed commits. **Fix findings** starts one agent for all completed review profiles on the current PR commit, including General and Clarity. It also includes your unresolved review threads. There is no profile selector for this action. Clarity is manual and optional; General remains the autopilot review.
+Use **Run review** to choose **General** (correctness and operational risks), **Clarity** (unnecessary code complexity), or **Spec** (requirements and design conformance). All three results remain visible separately with their reviewed commits. **Fix findings** starts one agent for all completed review profiles on the current PR commit, including General, Clarity and Spec. It also includes your unresolved review threads. There is no profile selector for this action. Clarity and Spec are manual and optional; General remains the autopilot review.
 
-General and Clarity can be queued independently, including while the other profile is running. Each profile permits one queued or running review per task. Both count toward **Concurrent LLM**: if no slot is free, the second review waits in the queue. Fixing findings waits for all running reviews to finish.
+General, Clarity and Spec can be queued independently, including while another profile is running. Each profile permits one queued or running review per task. All three count toward **Concurrent LLM**: if no slot is free, the next review waits in the queue. Fixing findings waits for all running reviews to finish.
 
 ## The Projects page
 

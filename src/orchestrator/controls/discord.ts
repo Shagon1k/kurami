@@ -1,3 +1,4 @@
+import { reviewLabel, type ReviewProfile } from "../projects/reviews/profiles.ts";
 import { availableRunControls } from "./run.ts";
 import { previewSourceAvailable } from "../projects/previews/runtime.ts";
 import { WRITER_STOP_TEXT, writerStopPresentation } from "../projects/writer-stop-presentation.ts";
@@ -85,6 +86,7 @@ type CiEventPayload = {
 };
 type CardRow = {
   clarity?: ReviewEvidence;
+  spec?: ReviewEvidence;
   run_id: string;
   stage: string;
   detail: string;
@@ -264,6 +266,7 @@ const desiredSurfaceDigestSql = `
             WHERE review_latest.run_id = r.run_id AND review_latest.review_profile='general'
             ORDER BY review_latest.review_number DESC LIMIT 1), 'review:none') || ':' ||
   COALESCE((SELECT review_state || ':' || head_sha || ':' || critical_count || ':' || important_count || ':' || suggestion_count || ':' || COALESCE(github_review_url,'') FROM run_ai_reviews a WHERE a.run_id=r.run_id AND a.review_profile='clarity' ORDER BY a.review_number DESC LIMIT 1),'clarity:none') || ':' ||
+  COALESCE((SELECT review_state || ':' || head_sha || ':' || critical_count || ':' || important_count || ':' || suggestion_count || ':' || COALESCE(github_review_url,'') FROM run_ai_reviews a WHERE a.run_id=r.run_id AND a.review_profile='spec' ORDER BY a.review_number DESC LIMIT 1),'spec:none') || ':' ||
   (SELECT COUNT(*) FROM run_control_requests review_request
    WHERE review_request.run_id = r.run_id
      AND review_request.action = 'ai_review'
@@ -553,11 +556,12 @@ function loadDesiredCards(
       ORDER BY r.created_at, r.run_id
     `,
     )
-    .all(maxDeliveryAttempts).map(row => withClarityReview(database, { ...row, technical_worker_detail: workerDiagnosticText(technicalWorkerDiagnostic(database, String(row.run_id))) } as CardRow));
+    .all(maxDeliveryAttempts).map(row => withProfileReviews(database, { ...row, technical_worker_detail: workerDiagnosticText(technicalWorkerDiagnostic(database, String(row.run_id))) } as CardRow));
 }
 
-function withClarityReview(database:DatabaseSync,card:CardRow):CardRow {
+function withProfileReviews(database:DatabaseSync,card:CardRow):CardRow {
   card.clarity=readReviewEvidence(database,card.run_id,"clarity",card.ci_head_sha);
+  card.spec=readReviewEvidence(database,card.run_id,"spec",card.ci_head_sha);
   card.primary_writer_diagnostic = primaryStoppedDiagnostic(database, card.run_id);
   return card;
 }
@@ -647,7 +651,7 @@ function loadCard(database: DatabaseSync, runId: string): CardRow {
   if (terminalStages.has(card.stage))
     fail(`Run controls are closed: ${card.stage}`);
   card.technical_worker_detail = workerDiagnosticText(technicalWorkerDiagnostic(database, runId));
-  return withClarityReview(database,card);
+  return withProfileReviews(database,card);
 }
 
 function runIdForThread(database: DatabaseSync, threadId: string): string {
@@ -888,6 +892,7 @@ function presentedStage(
         "Fix Review was requested; capturing the current unresolved GitHub review threads.",
     };
   }
+  if (card.stage === "review_ready" && ["queued","running"].includes(card.spec?.state??"")) return {label:card.spec?.state==="queued"?"Spec Review queued":"Spec Review running",detail:"The independent read-only reviewer is checking requirements and recorded design evidence on this PR commit."};
   if (card.stage === "review_ready" && ["queued","running"].includes(card.clarity?.state??"")) return {label:card.clarity?.state==="queued"?"Clarity Review queued":"Clarity Review running",detail:"The independent read-only reviewer is checking code complexity on this PR commit."};
   if (
     card.stage === "review_ready" &&
@@ -1069,17 +1074,19 @@ function aiReviewField(
   };
 }
 
-function clarityReviewField(review:ReviewEvidence|undefined):{name:string;value:string} {
-  if(!review)return {name:"🧩 Clarity Review",value:"Not run"};
+function profileReviewField(profile:ReviewProfile,review:ReviewEvidence|undefined):{name:string;value:string} {
+  const name=reviewLabel(profile)+" Review";
+  if(!review)return {name,value:"Not run"};
   const states:Record<string,string>={none:"Not run",queued:"⏳ Queued",running:"🔍 Reviewing PR",ready:"✅ Ready",outdated:"↪️ Outdated",superseded:"↪️ Superseded",unverified:"⚠️ Unverified",failed:"⚠️ Failed",request_failed:"⚠️ Did not start"};
   const progress:Record<string,string>={queued:"Fixes queued",running:"Fixing findings",waiting_ci:"Fixes pushed; waiting for CI",resolving:"Resolving review threads",succeeded:"Fixes completed",needs_attention:"Fixes need attention"};
-  return {name:"🧩 Clarity Review",value:truncate([
+  return {name,value:truncate([
     states[review.state]??review.state,
     ["ready", "outdated", "unverified", "superseded"].includes(review.state)?`${review.critical} Critical · ${review.important} Important · ${review.suggestions} Suggestions`:null,
     review.url?`[Open review](${review.url})`:null,
     review.head?`\`${review.head.slice(0,7)}\``:null,
     !["queued", "running"].includes(review.state) ? review.failure : null,
     review.fix?`${progress[review.fix.state]??review.fix.state}${review.fix.round?` · Round ${review.fix.round}`:""}`:null,
+    profile==="spec"&&review.state!=="none"?"Requirements and design evidence; owner visual review is separate.":null,
   ].filter(Boolean).join("\n"),1024)};
 }
 
@@ -1265,8 +1272,8 @@ export function controlComponents(
         button("Attempt CI fix", 1, `kurami:ci_repair:${card.run_id}`),
       );
     const reviewHead = pullRequest?.headSha ?? card.ci_head_sha;
-    const clarity = card.clarity;
-    const reviewBusy=card.ai_review_state==="running"||["running","queued"].includes(clarity?.state??"")||card.ai_review_request_active_count>0;
+    const clarity = card.clarity, spec = card.spec;
+    const reviewBusy=card.ai_review_state==="running"||["running","queued"].includes(clarity?.state??"")||["running","queued"].includes(spec?.state??"")||card.ai_review_request_active_count>0;
     const sameHeadAlreadyReviewed =
       status.reviewCurrent &&
       ["running", "ready"].includes(card.ai_review_state ?? "");
@@ -1282,6 +1289,7 @@ export function controlComponents(
     const reviewOptions:SelectOption[]=[];
     if(aiReviewEligible&&card.ai_review_request_active_count===0&&card.ai_review_state!=="running"&&!sameHeadAlreadyReviewed)reviewOptions.push({label:"General",value:"ai_review",emoji:{name:"🔎"}});
     if(aiReviewEligible&&!["running","queued"].includes(clarity?.state??"")&&!(clarity?.state==="ready"&&clarity.head===reviewHead))reviewOptions.push({label:"Clarity",value:"clarity_review",emoji:{name:"🧩"}});
+    if(aiReviewEligible&&!["running","queued"].includes(spec?.state??"")&&!(spec?.state==="ready"&&spec.head===reviewHead))reviewOptions.push({label:"Spec",value:"spec_review",emoji:{name:"📐"}});
     const currentReviewHasFindings = status.reviewFindings > 0;
     const reviewFixEligible =
       !preservedCancellation &&
@@ -1301,7 +1309,8 @@ export function controlComponents(
         "review_fix_resolving",
       ].includes(card.stage);
     const clarityHasFindings=clarity?.state==="ready"&&clarity.head===reviewHead&&clarity.critical+clarity.important+clarity.suggestions>0;
-    if(reviewFixEligible&&(currentReviewHasFindings||clarityHasFindings))
+    const specHasFindings=spec?.state==="ready"&&spec.head===reviewHead&&spec.critical+spec.important+spec.suggestions>0;
+    if(reviewFixEligible&&(currentReviewHasFindings||clarityHasFindings||specHasFindings))
       controls.push(button("Fix findings",1,`kurami:review_fix_all:${card.run_id}`));
     const cancellationStarted =
       card.stop_reason === "cancelled" ||
@@ -1460,7 +1469,9 @@ export function threadControlPayload(
     value: string;
   } | null;
   const clarity = stopped && (!card.clarity || card.clarity.state === "none" && !card.clarity.fix && !card.clarity.requestState)
-    ? null : clarityReviewField(card.clarity);
+    ? null : profileReviewField("clarity",card.clarity);
+  const spec = stopped && (!card.spec || card.spec.state === "none" && !card.spec.fix && !card.spec.requestState)
+    ? null : profileReviewField("spec",card.spec);
   const preview = previewField(card, pullRequest);
   const policy = previewPolicyField(card);
   const remote = remoteCodexContext(card, project);
@@ -1472,6 +1483,7 @@ export function threadControlPayload(
       plainStatus(review.value).replace(/\s*·\s*Open review\b/u, ""),
     ]);
   if(clarity)statusRows.push(["Clarity",plainStatus(clarity.value).replace(/\s*·\s*Open review\b/u,"" )]);
+  if(spec)statusRows.push(["Spec",plainStatus(spec.value).replace(/\s*·\s*Open review\b/u,"" )]);
   if (preview)
     statusRows.push([
       "Preview",
@@ -1485,10 +1497,10 @@ export function threadControlPayload(
   // A one-line review state is already present in the compact summary.
   // Keep richer evidence (findings, failure reason, SHA, URLs and fix progress).
   const detailSections = [ci, review?.value.includes("\n") ? review : null,
-    clarity?.value.includes("\n") ? clarity : null, preview, policy]
+    clarity?.value.includes("\n") ? clarity : null, spec?.value.includes("\n") ? spec : null, preview, policy]
     .filter((field): field is { name: string; value: string } => Boolean(field))
     .map((field) => `**${field.name}**\n${field.value}`);
-  if (stopped && !ci) detailSections.unshift(review || clarity ? WRITER_STOP_TEXT.noCi : WRITER_STOP_TEXT.noEvidence);
+  if (stopped && !ci) detailSections.unshift(review || clarity || spec ? WRITER_STOP_TEXT.noCi : WRITER_STOP_TEXT.noEvidence);
   if (stopped)
     detailSections.push(card.primary_writer_diagnostic
       ? `**${WRITER_STOP_TEXT.report}**\n${card.primary_writer_diagnostic}`

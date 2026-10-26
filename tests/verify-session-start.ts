@@ -58,6 +58,11 @@ async function main(): Promise<void> {
       !humanControlPrompt.includes("create exactly one matching open Draft PR"),
     "Autonomous initial writer prompt did not authorize exactly one linked Draft PR while preserving prohibited operations",
   );
+  assert(autonomousPrompt.includes("Closes #117"),"Whole-issue PRs use the repository closing keyword");
+  assert(autonomousPrompt.includes("pending before merge do not by themselves require a non-closing reference"),"Pending pre-merge review is not partial delivery");
+  assert(autonomousPrompt.includes("explicit post-merge acceptance gate"),"Explicit post-merge gates retain non-closing linkage");
+  assert(autonomousPrompt.includes("compare the rendered result with those sources"),"UI delivery compares implementation with references");
+  assert(humanControlPrompt.includes("canonical design as a specification"),"Human-control preparation identifies design authority");
   const app = resolve(import.meta.dirname, "..");
   const launcher = await readFile(resolve(app, "bin/launch-codex-session.sh"), "utf8");
   assert(
