@@ -86,7 +86,7 @@ Accepted requests are remembered by task, action and head. Refused requests may 
 
 ## Fixing CI
 
-Manual CI repair allows up to two fresh Codex tasks, each started by the owner's **Attempt CI fix** button. The button appears when CI is `failed` or `missing`, the run is in `parked_review`, the thread is known and fewer than two attempts were made. The limit of two bounds the cost and the "fix — red again" loop; after the second red attempt you decide.
+Manual CI repair allows up to two fresh Codex tasks, each started by the owner's **Attempt CI fix** button. Normally the button appears when CI is `failed` or `missing`, the run is in `parked_review`, the thread is known and fewer than two attempts were made. A guarded exception permits a second attempt from `needs_attention` after `ci_repair_no_new_head`, as described below. The limit of two bounds the cost and the "fix — red again" loop; after the second red attempt you decide.
 
 The controller checks that the working copy is clean and stands exactly on `source_head_sha`, and refuses otherwise. Before a CI fix, review fix or preview starts, a shared source preflight can fast-forward a stale managed branch to that exact live PR head. This requires a clean, unowned parked run, no active writer/session or preview runtime, the configured repository and branch, and matching live PR and remote heads. Dirty or divergent local work is preserved and refused: there is no reset or rebase. If the source moves during validation, admission stops; an already completed safe fast-forward is retained. Fetch uses the existing protected owner credential, without changing reviewer permissions or persisting credentials in Git configuration.
 
@@ -95,7 +95,7 @@ It then starts a new session with a prompt: here is the SHA, here are the failed
 ```diagram
 kind: graph
 title: A CI fix attempt
-desc: An attempt starts in running and moves to waiting_ci after Codex exits. A new commit with green CI ends it as a success. Red CI on the first attempt ends it as failed; on the second attempt, or after 10 minutes without a commit or 30 minutes without a result, the run goes to needs_attention.
+desc: An attempt starts in running and moves to waiting_ci after Codex exits. A new commit with green CI ends it as a success. Red CI on the first attempt ends it as failed; on the second attempt, or after 10 minutes without a commit or 30 minutes without a result, the run goes to needs_attention. Only after the first attempt's ci_repair_no_new_head may the owner request guarded attempt 2: the dashed return starts a new worker, not the old attempt.
 node running "running" "Codex is fixing" start at 0,0
 node waiting "waiting_ci" "waiting for a new SHA" state at 1,0
 node ok "succeeded" "new SHA, CI green" end at 2,0
@@ -105,9 +105,12 @@ edge running -> waiting "Codex exited"
 edge waiting -> ok
 edge waiting -> failed "CI red" accent
 edge waiting -> attn "attempt 2, 10 or 30 min" accent
+edge attn -> running "guarded attempt 2" dashed
 ```
 
 The time limits are: no new commit 10 minutes after the worker parks — `needs_attention` (`ci_repair_no_new_head`); a commit exists but CI has not settled in 30 minutes — `ci_repair_ci_timeout`. While an attempt runs, Take control is unavailable. When it is done, the controller archives the technical thread and restores the main one.
+
+After the first attempt stops at `ci_repair_no_new_head`, only a new owner request can spend the remaining attempt. Admission requires exact matching task, thread and turn receipts proving that the first worker completed successfully and was released, its thread was archived and the main thread restored; no ownership or competing work; the unchanged open PR, repository, branch, remote head and source SHA; a clean linked worktree at that SHA; and an error-free `failed` CI observation no older than two minutes. These guards are rechecked before claiming a writer. This path does not fetch or fast-forward. It starts a new second worker within the existing two-attempt budget; the first attempt and its outcome stay unchanged. It is not an automatic retry or a general way out of `needs_attention`.
 
 A failed security-audit check can authorize a minimal compatible published upstream dependency fix or a targeted transitive override. Codex must verify the advisory, published version, consumer compatibility and relevant tests. Unrelated upgrades, major versions, custom patches or forks, advisory exceptions, weaker audit policy, migrations, security-boundary changes, secrets and permissions remain outside the repair scope. Without a compatible published fix, Codex stops and reports the blocker.
 
@@ -145,7 +148,7 @@ A running preview does not block review or CI fixes when the managed working cop
 
 The controller takes an immutable snapshot: unresolved, non-outdated threads whose first comment was left by `kurami-ai` with the current commit's marker, or by you. Your replies inside a thread become clarifications. There are at most twenty threads. Comments added later go into the next round. Codex gets the snapshot as data and must push a fix, but not reply in the threads and not wait for CI.
 
-The snapshot preserves complete comment bodies and your follow-up replies, including their original whitespace. If the serialized evidence exceeds 64 KiB, preparation refuses explicitly before claiming a writer; requirements are never shortened to fit. A focused schema or migration change is permitted only when you explicitly authorize it in the captured requirements. This does not permit unrelated migrations, inferred backfills, or migration execution against production or shared databases.
+The snapshot preserves complete comment bodies and your follow-up replies, including their original whitespace. If the serialized evidence exceeds 64 KiB, preparation refuses explicitly before claiming a writer; requirements are never shortened to fit. A focused schema or migration change is permitted only when you explicitly authorize it in the captured requirements. This does not permit unrelated migrations, backfilling existing data based on assumptions, or migration execution against production or shared databases.
 
 ### Preparing a retry after a no-edit stop
 
@@ -198,7 +201,7 @@ The data is invented. PR #57 of run `r_3f9a1c7e5b2d4a8c6e01`, TailorTales.
 |---|---|---|
 | A required check did not appear | after 10 minutes the result is `missing`, Attempt CI fix is available | fix the workflow or try Attempt CI fix |
 | Several PRs are open on the branch, or GitHub did not answer | result `unknown`, the reason is in the snapshot; a fix is unavailable | close the extra PRs, wait |
-| No new commit 10 minutes after a CI fix | the attempt and the run go to `needs_attention` | take control |
+| No new commit 10 minutes after a CI fix | the attempt and the run go to `needs_attention` (`ci_repair_no_new_head`); no automatic retry | after attempt 1, request a new second attempt only if the guards above pass; otherwise take control |
 | The second attempt is red too | the run goes to `needs_attention` (`ci_repair_attempt_budget_exhausted`) | fix it by hand |
 | The PR moved during the review | the review is `superseded`, nothing is published | run the selected review profile again |
 | The review process disappeared | after 15 seconds the review is `failed` | run it again |

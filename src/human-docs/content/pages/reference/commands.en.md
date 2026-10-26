@@ -24,8 +24,9 @@ A button carries the id `kurami:<action>:<run id>`. The card shows at most four 
 
 | Button | When shown | Request | What the controller does |
 |---|---|---|---|
+| **Recover interrupted fix** | `needs_attention`, owner `none`, reason `review_fix_uncommitted_changes`, exact failed/stopped/released protocol task and complete preserved review context | `recover_interrupted_review_fix` | captures dirty work and starts one fresh bounded writer for the same original round; never resumes the old task |
+| **Retry** | `needs_attention`, owner `cli`, reason `primary_attempt_failed`; live provisioned primary session, latest native turn failed, supported retry adapter, verified idle session and managed worktree identity; no pending control/PR action, unreleased technical worker or running review, and no retry already claimed for this failed turn | `retry` | sends one continuation to the same session; attention remains until a new native turn is observed; no new task, model change or automatic replay |
 | **Recover delivered fix** | run in `needs_attention`, owner `cli`, reason `review_fix_uncommitted_changes` | `recover_managed_task` | rechecks the preserved task, the pushed commit and fresh CI, finishes the fix |
-| **Recover interrupted fix** | `needs_attention`, owner `none`, exact failed/stopped/released protocol task and complete preserved review context | `recover_interrupted_review_fix` | captures dirty work and starts one fresh bounded writer for the same original round; never resumes the old task |
 | **Take control** | owner `cli`, a managed session is running, run not in `needs_attention` | `take_control` | `handoff`: asks Codex to stop, waits for a quiet pause, releases tmux; the run becomes `remote_owned` |
 | **Take control** | owner `none`, state `parked_review` or `waiting_human` | `take_control` | `claim_remote`: the owner becomes `remote`, the card shows an Open session link |
 | **Continue autonomously** | run `remote_owned`, owner `remote` | `take_control` | `successor_start`: a fresh managed Codex task in the same working copy |
@@ -39,6 +40,10 @@ A button carries the id `kurami:<action>:<run id>`. The card shows at most four 
 | **Cancel run** | cancellation has not started | `stop` | `request_stop`: stop, release resources, the issue goes to Backlog |
 | **Discard local work** | stage "Cancelled — local work preserved", no PR | confirmation, then `discard_local` | `discard_cancelled`: deletes the unpublished working copy and branch |
 | **Close draft PR & discard** | the same stage, a draft PR exists | confirmation, then `discard_published` | `discard_published_cancelled`: closes the exact draft PR and deletes the branches |
+
+Discord offers **Recover interrupted fix** only for `review_fix_uncommitted_changes`. Projects also supports guarded recovery after a managed timeout (`review_fix_runtime_budget_exceeded`); this broader eligibility does not imply a Discord button for timeouts.
+
+The `ci_repair` request also permits a guarded second attempt from `needs_attention`, owner `none`, reason `ci_repair_no_new_head`: exactly one completed first attempt produced no new head; its protocol task completed successfully and was stopped, released and archived; the primary thread was restored; fresh CI (observed within two minutes) still fails on the same source SHA. No competing control, PR action, writer, review/fix, successor, newer run or pending status transition may exist. At writer claim, the clean registered worktree, local/remote head, open PR identity and absence of another writer are rechecked. This spends the remaining attempt without erasing the first outcome. The Discord **Attempt CI fix** button remains limited to `parked_review`.
 
 The **Fix findings** button carries `kurami:review_fix_all:<run id>`; the Discord handler queues `review_fix` with `--all-reviews`. This action has no profile selector.
 
@@ -59,17 +64,23 @@ Confirmation buttons are visible only to you and live for two minutes: **Discard
 
 A request row lives in `run_control_requests`. States: `pending`, `processing`, `applied`, `rejected`, `failed`. One active request per action, except `ai_review`, which permits one per profile.
 
-| Request | Buttons that queue it | Conflicts with |
+These are directional enqueue checks against existing `pending`/`processing` requests, not a symmetric or exhaustive compatibility guarantee. Below, **writer controls** means `review_fix`, `recover_managed_task` and `recover_interrupted_review_fix`. Same-action requests are deduplicated rather than rejected as cross-action conflicts.
+
+| Incoming request | Buttons that queue it | Existing requests checked as conflicts |
 |---|---|---|
-| `take_control` | Take control, Continue autonomously | `review_fix`, `recover_managed_task` |
-| `preview_start` | Start preview, Extend 24h | `preview_stop` |
-| `preview_stop` | Remove preview | `preview_start` |
-| `stop` | Cancel run | — |
-| `discard_local`, `discard_published` | the confirmation buttons | — |
-| `ci_repair` | Attempt CI fix | `review_fix`, `recover_managed_task` |
-| `ai_review` | Run review → General / Clarity | `review_fix`, `recover_managed_task`; the other review profile is independent |
-| `review_fix` | Fix findings | `take_control`, `ci_repair`, `ai_review` |
-| `recover_managed_task` | Recover delivered fix | `take_control`, `ci_repair`, `ai_review` |
+| `take_control` | Take control, Continue autonomously | writer controls, `retry` |
+| `preview_start` | Start preview, Extend 24h | writer controls, `retry`, `preview_stop` |
+| `preview_stop` | Remove preview | writer controls, `retry`, processing `preview_start`; a pending `preview_start` may be superseded |
+| `stop` | Cancel run | exempt from this cross-action conflict rejection, including a queued `retry`; other safety checks still apply |
+| `discard_local`, `discard_published` | the confirmation buttons | writer controls, `retry` |
+| `ci_repair` | Attempt CI fix | writer controls, `retry`; the guarded no-change second attempt also requires no other pending/processing control |
+| `ai_review` | Run review → General / Clarity | writer controls, `retry`; the other review profile is independent |
+| `review_fix` | Fix findings | writer controls, `retry`, `take_control`, `ci_repair`, `ai_review` |
+| `recover_managed_task` | Recover delivered fix | writer controls, `retry`, `take_control`, `ci_repair`, `ai_review` |
+| `recover_interrupted_review_fix` | Recover interrupted fix | writer controls, `retry`, `take_control`, `ci_repair`, `ai_review`; recovery inspection also requires no other pending control |
+| `retry` | Retry | any other pending/processing control |
+
+Enqueue eligibility does not authorize later dispatch without rechecks. Action-specific state and evidence are revalidated at dispatch/writer claim; Retry checks the exact session, failed turn, pane identity and Git head before its single send. Stop is an exception to enqueue conflict rejection, not a bypass of dispatch fences.
 
 ## Digest card buttons
 
@@ -98,4 +109,4 @@ The **Review proposals** list offers: an exclusion menu ("Exclude selected propo
 
 ## Text commands
 
-The Hermes agent understands the same actions in words: Status, Take control, Continue autonomously, Attempt CI fix, AI Code Review, Fix Review, Recover delivered fix, Start preview, Stop preview, Cancel run, Discard local work, Close draft PR and discard, Open session, Show controls. Name the run by its full run id, by a key such as `TT-42` or `PF-33`, or write in the run thread. The agent deletes preserved work only after an explicit second confirmation.
+The Hermes agent understands the same actions in words: Status, Retry, Take control, Continue autonomously, Attempt CI fix, AI Code Review, Fix Review, Recover delivered fix, Recover interrupted fix, Start preview, Stop preview, Cancel run, Discard local work, Close draft PR and discard, Open session, Show controls. Name the run by its full run id, by a key such as `TT-42` or `PF-33`, or write in the run thread. The agent deletes preserved work only after an explicit second confirmation.

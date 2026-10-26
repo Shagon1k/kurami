@@ -63,8 +63,8 @@ Conditions are checked twice: at the press and at execution. `run.ts` rejects a 
 
 | Rule | How it works |
 |---|---|
-| One request per action | while a request is `pending` or `processing`, a repeated press answers "is already queued" |
-| Mutually exclusive pairs | `preview_start` and `preview_stop`; `review_fix` and `recover_managed_task` against `take_control`, `ci_repair`, `ai_review` |
+| One request per action | while a request is `pending` or `processing`, a repeated press answers "is already queued"; `ai_review` allows one request per profile |
+| Conflicting controls | queued fixes, recovery and Retry block competing requests; primary Retry still permits cancellation through `stop`; directional checks are listed in the [command reference](@commands) |
 | Terminal run | for `rejected`, `cancelled`, `archived` any action is rejected |
 | Owner | only a user on Hermes's allowed list may press; anyone else gets "not authorized" |
 
@@ -72,7 +72,7 @@ Conditions are checked twice: at the press and at execution. `run.ts` rejects a 
 
 The notifier redraws a card when its *digest* changes. The digest is a string of about forty facts: stage and text, run state and owner, resources, CI, review, preview, the number of active requests — plus a UI version constant. If it differs from the one stored in `run_discord_surfaces.content_digest`, the notifier edits the messages. Raising the version constant refreshes every card at once. For active stages a five-minute "pulse" is part of the digest too, so the update time does not stand still.
 
-The card itself is built from Discord components version 2: a container, text, a table in a code block, a separator, a button row and a menu. There are at most four buttons in the row; the rest go into the "More actions…" menu. The visibility of every button is computed by the card code, and its conditions match the checks in `run.ts` and in the controller — the full list is in the [reference](@commands).
+The card itself is built from Discord components version 2: a container, text, a table in a code block, a separator, a button row and a menu. There are at most four buttons in the row; the rest go into the "More actions…" menu. The card code computes button visibility; `run.ts` and the controller recheck admission. Projects also offers interrupted review-fix recovery after a confirmed managed timeout; the Discord button currently covers only `review_fix_uncommitted_changes`. The full list is in the [reference](@commands).
 
 If Discord answers 429 or 5xx, the notifier retries up to three times and honours `retry_after`. After three failed attempts for a card (`max_delivery_attempts`) it stops touching it. The `/kurami status` command posts a fresh card and resets the counter.
 
@@ -143,7 +143,7 @@ The controller checks the exact repository, canonical worktree, PR, branch and l
 | Situation | Safe outcome | Owner action |
 |---|---|---|
 | Source, findings or dirty bytes changed after the request | Refuse the stale request; keep the files | Inspect the new evidence before another request |
-| A legacy round lacks its saved summary-only findings | No recovery action | Recover the original complete context through a separately reviewed procedure; do not invent an empty list |
+| A legacy round lacks saved summary-only findings | Reconstruct only from its exact original applied launch receipt with matching source, profile and thread context; otherwise refuse | Inspect the original receipt; do not invent an empty findings list |
 | A recovery claim already exists, including a crash before dispatch | No automatic second launch | Inspect the receipt and successor task; do not delete the fence or retry by takeover |
 | Special untracked paths, submodules or oversized dirty snapshot | Refuse without modifying Git | Inspect the preserved work manually |
 
