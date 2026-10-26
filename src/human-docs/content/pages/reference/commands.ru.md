@@ -35,8 +35,8 @@ order: 60
 | **Extend 24h** | превью работает, до конца меньше двух часов | `preview_start` | `preview_extend`: срок плюс 24 часа |
 | **Mark reviewed** | превью работает и не отмечено | прямой вызов, без очереди | записывает отметку проверки на аренде |
 | **Attempt CI fix** | `parked_review`, CI `failed` или `missing`, попыток меньше двух | `ci_repair` | `repair_start`: новая задача Codex на точный упавший коммит |
-| **Run review → General / Clarity** | запуск припаркован и без владельца, известны PR и коммит, выбранный профиль не в очереди, не работает и не имеет готового ревью этого коммита | `ai_review`, выбранный профиль | `review_start`: независимый ревьюер только для чтения публикует ревью в GitHub; другой профиль может независимо ждать в очереди или работать |
-| **Fix findings** | готовое ревью текущего коммита содержит замечания, нет ревью в очереди или работе | `review_fix`, все профили | `review_fix_start`: одна новая задача Codex исправляет актуальные замечания General и Clarity и нерешённые потоки владельца; потоки закрываются после подтверждения CI |
+| **Run review → General / Clarity / Spec** | запуск припаркован и без владельца, известны PR и коммит, выбранный профиль не в очереди, не работает и не имеет готового ревью этого коммита | `ai_review`, выбранный профиль | `review_start`: независимый ревьюер только для чтения публикует ревью в GitHub; другой профиль может независимо ждать в очереди или работать |
+| **Fix findings** | готовое ревью текущего коммита содержит замечания, нет ревью в очереди или работе | `review_fix`, все профили | `review_fix_start`: одна новая задача Codex исправляет актуальные замечания General, Clarity и Spec и нерешённые потоки владельца; потоки закрываются после подтверждения CI |
 | **Cancel run** | отмена ещё не начата | `stop` | `request_stop`: остановка, освобождение ресурсов, задача в Backlog |
 | **Discard local work** | этап «Cancelled — local work preserved», PR нет | подтверждение, затем `discard_local` | `discard_cancelled`: удаляет неопубликованную рабочую копию и ветку |
 | **Close draft PR & discard** | тот же этап, есть черновой PR | подтверждение, затем `discard_published` | `discard_published_cancelled`: закрывает точный черновой PR и удаляет ветки |
@@ -74,7 +74,7 @@ Discord предлагает **Recover interrupted fix** только при `re
 | `stop` | Cancel run | исключение из этой проверки конфликтов разных действий, в том числе с ожидающим `retry`; остальные проверки безопасности сохраняются |
 | `discard_local`, `discard_published` | кнопки подтверждения | запросы записи, `retry` |
 | `ci_repair` | Attempt CI fix | запросы записи, `retry`; защищённая вторая попытка без нового head также требует отсутствия других ожидающих/обрабатываемых запросов управления |
-| `ai_review` | Run review → General / Clarity | запросы записи, `retry`; другой профиль ревью независим |
+| `ai_review` | Run review → General / Clarity / Spec | запросы записи, `retry`; другой профиль ревью независим |
 | `review_fix` | Fix findings | запросы записи, `retry`, `take_control`, `ci_repair`, `ai_review` |
 | `recover_managed_task` | Recover delivered fix | запросы записи, `retry`, `take_control`, `ci_repair`, `ai_review` |
 | `recover_interrupted_review_fix` | Recover interrupted fix | запросы записи, `retry`, `take_control`, `ci_repair`, `ai_review`; проверка восстановления также требует отсутствия других ожидающих запросов управления |

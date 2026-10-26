@@ -744,9 +744,9 @@ async function main(): Promise<void> {
       "Stable PR did not expose independent CI repair and AI review actions",
     );
     const emptyReviewText = componentText(currentDashboard());
-    assert((emptyReviewText.match(/Not run/gu) ?? []).length === 2 &&
+    assert((emptyReviewText.match(/Not run/gu) ?? []).length === 3 &&
       !emptyReviewText.includes("**🔎 General Review**") &&
-      !emptyReviewText.includes("**🧩 Clarity Review**"),
+      !emptyReviewText.includes("**🧩 Clarity Review**") && !emptyReviewText.includes("**📐 Spec Review**"),
       "Empty review evidence was repeated outside its one-per-profile summary");
 
     // Exercise the loader as well as rendering: use only the exact current primary receipt.
@@ -957,6 +957,18 @@ async function main(): Promise<void> {
     assert(componentText(currentDashboard()).includes("Clarity reviewer timed out") &&
       componentText(currentDashboard()).includes("[Open review](https://example.invalid/pulls/9401#clarity-review)"),
       "Failed Clarity evidence lost its reason or URL");
+
+    clarityEvidence.exec(`INSERT INTO run_control_requests(request_id,run_id,action,review_profile,request_state,requested_via,idempotency_key)
+      VALUES('rq_discord_spec','r_discord_smoke','ai_review','spec','applied','discord','test:discord-spec');
+      INSERT INTO run_ai_reviews(review_id,run_id,request_id,review_number,review_profile,review_state,repository,pull_request_number,pull_request_url,base_ref,base_sha,head_sha,tmux_session_name,important_count,github_review_url)
+      SELECT 'air_discord_spec',run_id,'rq_discord_spec',3,'spec','ready',repository,pull_request_number,pull_request_url,base_ref,base_sha,head_sha,'rv-spec-test',1,'https://example.invalid/pulls/9401#spec-review'
+      FROM run_ai_reviews WHERE review_id='air_discord_review';`);
+    await showDashboard();
+    assert(componentText(currentDashboard()).includes("**📐 Spec Review**")&&componentText(currentDashboard()).includes("#spec-review")&&controlIds(currentDashboard()).includes("kurami:review_fix_all:r_discord_smoke"),"Spec evidence must participate in the shared fix");
+    clarityEvidence.exec("UPDATE run_ai_reviews SET review_state='running' WHERE review_id='air_discord_spec'");
+    await showDashboard();
+    assert(!controlIds(currentDashboard()).includes("kurami:spec_review:r_discord_smoke")&&!controlIds(currentDashboard()).includes("kurami:review_fix_all:r_discord_smoke"),"Running Spec blocks duplicate review and a concurrent writer");
+    clarityEvidence.exec("DELETE FROM run_ai_reviews WHERE review_id='air_discord_spec'; DELETE FROM run_control_requests WHERE request_id='rq_discord_spec';");
     clarityEvidence.exec("DELETE FROM run_ai_reviews WHERE review_id='air_discord_clarity'; DELETE FROM run_control_requests WHERE request_id='rq_discord_clarity';");
     clarityEvidence.close();
 

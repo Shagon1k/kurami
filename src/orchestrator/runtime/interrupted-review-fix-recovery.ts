@@ -12,6 +12,7 @@ import type {
 } from "../projects/worktrees/refresh-source.ts";
 import { loadManagedReviewFixRecoverySnapshot } from "./managed-task-recovery.ts";
 import type { ProtocolTask } from "../integrations/codex/task-store.ts";
+import type { ReviewProfile } from "../projects/reviews/profiles.ts";
 import type { ReviewFixContext } from "../projects/sessions/session-types.ts";
 
 export const interruptedReviewFixAction = "recover_interrupted_review_fix";
@@ -529,7 +530,7 @@ export function inspectInterruptedReviewFix(
       pullRequestUrl: run.roundPullRequestUrl!,
       threads,
       summaryOnlyFindings: summaries,
-      profile: round.review_profile as "general" | "clarity",
+      profile: round.review_profile as ReviewProfile,
       allReviews: Boolean(round.review_fix_all),
     },
   };

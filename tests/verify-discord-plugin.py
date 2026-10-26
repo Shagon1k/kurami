@@ -359,6 +359,7 @@ def main() -> None:
         == ("ai_review", "r_abc123"),
         "Dashboard overflow rejected an allowlisted action",
     )
+    require(module.parse_run_actions_id("kurami:review_actions:r_abc123", ["spec_review"]) == ("spec_review","r_abc123"), "Spec review menu was rejected")
     require(module.parse_run_actions_id("kurami:review_actions:r_abc123", ["clarity_review"]) == ("clarity_review","r_abc123"), "Clarity review menu was rejected")
     require(module.parse_run_actions_id("kurami:fix_actions:r_abc123", ["clarity_fix"]) == ("clarity_fix","r_abc123"), "Clarity fixes menu was rejected")
     require(module.parse_run_actions_id("kurami:review_actions:r_abc123", ["stop"]) is None, "Review menu accepted an unrelated action")
@@ -378,6 +379,8 @@ def main() -> None:
     try:
         asyncio.run(module._run_control("review_fix_all", "r_abc123"))
         require(captured_args[-1][-1] == "--all-reviews" and captured_args[-1][captured_args[-1].index("--action") + 1] == "review_fix", "Combined fix did not reach the shared queue")
+        asyncio.run(module._run_control("spec_review", "r_abc123"))
+        require(captured_args[-1][-2:] == ("--profile", "spec") and captured_args[-1][captured_args[-1].index("--action") + 1] == "ai_review", "Spec review lost its profile or shared action")
         asyncio.run(module._run_control("clarity_fix", "r_abc123"))
         require(captured_args[-1][-2:] == ("--profile", "clarity"), "Legacy Clarity fix lost its selected profile")
     finally:

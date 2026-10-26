@@ -1,6 +1,7 @@
 import { WRITER_STOP_TEXT, writerStopPresentation } from "../orchestrator/projects/writer-stop-presentation.ts";
 import { codexLaunchUrl } from "../orchestrator/integrations/codex/deeplink.ts";
-import { REVIEW_PROFILES } from "../orchestrator/projects/reviews/profiles.ts";
+import {renderInfoButton,renderInfoNote} from "../ui-library/components/info-tip.ts";
+import { REVIEW_PROFILES, reviewLabel } from "../orchestrator/projects/reviews/profiles.ts";
 import {surfaceAttributes,LIVE_ATTRIBUTE} from "../ui-library/components/surface.ts";
 import {browserStatusPresentation,statusPresentation} from "./action-presentation.ts";
 import {canStartTask} from "./task-start.ts";
@@ -148,7 +149,7 @@ function previewReviewNote(item:ProjectItem,lang:Language):string {
 }
 function reviewPanel(item:ProjectItem,lang:Language,commonHead:string|null):string {
   const t=(key:string)=>tr(key,lang);
-  const reviews=item.reviews??{general:{...item.review,url:item.links.review,requestFailed:Boolean(item.reviewRequestFailed),control:item.aiReview,fix:item.reviewFix,fixActions:item.runActions,fixStartupFailure:item.reviewFixStartupFailure},clarity:{state:"none",tone:"neutral" as const,head:null,critical:0,important:0,suggestions:0,url:null,requestFailed:false}};
+  const reviews=item.reviews??{general:{...item.review,url:item.links.review,requestFailed:Boolean(item.reviewRequestFailed),control:item.aiReview,fix:item.reviewFix,fixActions:item.runActions,fixStartupFailure:item.reviewFixStartupFailure},clarity:{state:"none",tone:"neutral" as const,head:null,critical:0,important:0,suggestions:0,url:null,requestFailed:false},spec:{state:"none",tone:"neutral" as const,head:null,critical:0,important:0,suggestions:0,url:null,requestFailed:false}};
   if(item.writerStop&&!item.ci.head&&REVIEW_PROFILES.every(profile=>reviews[profile].state==="none"&&!reviews[profile].requestFailed&&!reviews[profile].fix&&!reviews[profile].fixStartupFailure))
     return "";
   const menu=(label:string,body:string,enabled:boolean)=>{
@@ -160,7 +161,7 @@ function reviewPanel(item:ProjectItem,lang:Language,commonHead:string|null):stri
   const launch=REVIEW_PROFILES.map(profile=>{
     const review=reviews[profile],control=review.control;
     if(!control||!item.runId||control.reason==="ready"||fixActive)return "";
-    return renderButton({label:profile==="general"?"🔎 General":"🧩 Clarity",variant:"quiet",disabled:!control.enabled,busyLabel:t("Sending…"),attributes:{"data-review-profile":profile,"data-review-run":item.runId,"data-review-project":item.project,"data-review-item":item.id,"data-review-head":control.head??"","data-review-key":randomUUID()}});
+    return renderButton({label:reviewLabel(profile),variant:"quiet",disabled:!control.enabled,busyLabel:t("Sending…"),attributes:{"data-review-profile":profile,"data-review-run":item.runId,"data-review-project":item.project,"data-review-item":item.id,"data-review-head":control.head??"","data-review-key":randomUUID()}});
   }).join("");
   const fixActions=item.runActions;
   const fixAction=fixActions?.actions.find(action=>action.action==="review_fix");
@@ -168,6 +169,9 @@ function reviewPanel(item:ProjectItem,lang:Language,commonHead:string|null):stri
   const fixMessages:Record<string,string>={queued:"Review fixes queued.",running:"Fixing review findings…",waiting_ci:"Review fixes pushed. Waiting for CI.",resolving:"Checking fixes and resolving review threads.",succeeded:"Review fixes completed.",needs_attention:"Review fixes need attention. Check GitHub or Discord."};
   const rows=REVIEW_PROFILES.map(profile=>{
     const review=reviews[profile];
+    const infoId=`projects-spec-about-${randomUUID()}`;
+    const info=profile==="spec"?renderInfoButton({id:infoId,label:t("About Spec review")}):"";
+    const infoNote=profile==="spec"?renderInfoNote({id:infoId,text:t("Checks requirements and design evidence; owner visual review is separate.")}):"";
     const findings=reviewFindings({...item,review},lang);
     const fix=review.fix;
     const fixAction=review.fixActions?.actions.find(action=>action.action==="review_fix");
@@ -178,7 +182,7 @@ function reviewPanel(item:ProjectItem,lang:Language,commonHead:string|null):stri
     const note=progress+requestNote;
     const link=review.url?renderLinkButton({label:t("Open review"),href:review.url,variant:"quiet",size:"compact",iconPath:iconPath("review")}):"";
     const failure=review.requestFailed?actionNote(`${t("AI Review did not start")}. ${t("Refresh and retry for the current PR commit.")}`,"warning"):review.fixStartupFailure?actionNote(t(review.fixStartupFailure),"warning"):"";
-    return `<div class="projects-review-profile" data-review-result="${profile}"><div class="projects-evidence-heading"><span class="projects-evidence-label"><strong>${profile==="general"?"🔎 General":"🧩 Clarity"}</strong></span>${signal(review,lang)}</div>${review.head&&review.head!==commonHead?`<code title="${escape(review.head)}">${escape(review.head.slice(0,12))}</code>`:""}${findings}${link}${note}${failure}</div>`;
+    return `<div class="projects-review-profile" data-review-result="${profile}"><div class="projects-evidence-heading"><span class="projects-evidence-label"><strong>${reviewLabel(profile)}</strong>${info}</span>${signal(review,lang)}</div>${review.head&&review.head!==commonHead?`<code title="${escape(review.head)}">${escape(review.head.slice(0,12))}</code>`:""}${infoNote}${findings}${link}${note}${failure}</div>`;
   }).join("");
   return `<div class="projects-evidence-row"><div class="projects-evidence-label">${renderIcon("review")}<strong>${t("AI Review")}</strong></div><div class="projects-review-controls">${menu("Run review",launch,REVIEW_PROFILES.some(profile=>reviews[profile].control?.enabled))}${fixes}</div>${rows}</div>`;
 }

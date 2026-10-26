@@ -29,6 +29,7 @@ RUN_ACTIONS = {
     "ci_repair",
     "ai_review",
     "clarity_review",
+    "spec_review",
     "clarity_fix",
     "review_fix",
     "review_fix_all",
@@ -68,6 +69,7 @@ _ACTION_LABELS = {
     "ci_repair": "Attempt CI fix",
     "ai_review": "General Review",
     "clarity_review": "Clarity Review",
+    "spec_review": "Spec Review",
     "clarity_fix": "Fix Clarity findings",
     "review_fix": "Fix Review",
     "review_fix_all": "Fix all review findings",
@@ -137,7 +139,7 @@ def parse_run_actions_id(
     if not isinstance(action, str) or action not in RUN_ACTIONS:
         return None
     menu = custom_id.split(":")[1]
-    if menu == "review_actions" and action not in {"ai_review", "clarity_review"}:
+    if menu == "review_actions" and action not in {"ai_review", "clarity_review", "spec_review"}:
         return None
     if menu == "fix_actions" and action not in {"review_fix", "clarity_fix"}:
         return None
@@ -680,7 +682,7 @@ async def _run_control(
             "--apply",
         ]
     elif action != "status":
-        request_action = {"preview_extend":"preview_start", "clarity_review":"ai_review", "clarity_fix":"review_fix", "review_fix_all":"review_fix"}.get(action,action)
+        request_action = {"preview_extend":"preview_start", "clarity_review":"ai_review", "spec_review":"ai_review", "clarity_fix":"review_fix", "review_fix_all":"review_fix"}.get(action,action)
         args = [
             str(node),
             str(control),
@@ -693,8 +695,8 @@ async def _run_control(
             "discord",
             "--apply",
         ]
-        if action in {"clarity_review", "clarity_fix"}:
-            args.extend(["--profile", "clarity"])
+        if action in {"clarity_review", "clarity_fix", "spec_review"}:
+            args.extend(["--profile", "spec" if action == "spec_review" else "clarity"])
         elif action == "review_fix_all":
             args.append("--all-reviews")
 

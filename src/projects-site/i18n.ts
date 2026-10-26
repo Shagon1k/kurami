@@ -1,6 +1,8 @@
 export type Language="en"|"ru";
 export function language(params:URLSearchParams):Language{return params.get("lang")==="ru"?"ru":"en";}
 const messages:Record<string,string>={
+  "About Spec review":"О ревью Spec",
+  "Checks requirements and design evidence; owner visual review is separate.":"Сверяет требования и свидетельства соответствия дизайну; визуальное ревью владельца проходит отдельно.",
   "Automation off":"Автоматизация отключена",
   "Agent stopped":"Агент остановился",
   "Starting agent":"Запуск агента",

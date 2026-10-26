@@ -118,9 +118,9 @@ For a protocol worker, run-control status, Discord and Projects retain the bound
 
 ## AI review
 
-An AI review is an independent read-only Codex pass over the diff between the PR base and its commit, published as one native GitHub review. Choose **Run review → General** or **Clarity** in Projects or the Discord card to start it in a calm state, when nobody owns the working copy. You can start it while CI is still running: it writes nothing.
+An AI review is an independent read-only Codex pass over the diff between the PR base and its commit, published as one native GitHub review. Choose **Run review → General**, **Clarity** or **Spec** in Projects or the Discord card to start it in a calm state, when nobody owns the working copy. You can start it while CI is still running: it writes nothing.
 
-General and Clarity can be queued independently, including while the other profile is running. Each profile permits one queued or running review per task. Both count toward **Concurrent LLM**: if no slot is free, the second review waits in the queue. Fixing findings waits for all running reviews to finish.
+General, Clarity and Spec can be queued independently, including while another profile is running. Each profile permits one queued or running review per task. All three count toward **Concurrent LLM**: if no slot is free, the next review waits in the queue. Fixing findings waits for all running reviews to finish.
 
 The controller checks that the branch has exactly one open PR with the expected base, and that the managed copy is clean. The reviewer fetches the live PR head and exact base into a private detached snapshot; an externally advanced PR or a divergent clean local branch does not require moving the managed copy. Local commits and branch refs are preserved. The snapshot is removed on exit; controller reconciliation cleans snapshots after a disappeared worker. The reviewer App needs repository Contents read access for this fetch. Projects requests still have to match the commit and PR shown when requested. If this commit already has a ready review for the selected profile, a second one for that profile is not started. A separate tmux session `rv-tt-42-3f9a1c-1` performs the review; it has no `GH_TOKEN`: the script obtains a short-lived token of the GitHub App `kurami-ai`, reads the PR and the issue and passes them to Codex as data. The child Codex runs in a `read-only` sandbox without approvals, every variable holding a secret is removed from its environment, and any permission request is declined and counted as an error.
 
@@ -130,17 +130,21 @@ The review prompt weighs likelihood and impact against actual requirements. Prop
 
 Simplicity is not a finding quota. A complexity finding needs evidence of a concrete maintenance or correctness cost introduced by the diff and a proportionate simplification. Fewer lines or a preferred style alone do not justify a finding. A review with no findings is valid; the read-only, exact-SHA and JSON contracts stay unchanged.
 
-General checks correctness, security and concrete operational risks. Clarity Review focuses on unnecessary complexity and the cost of understanding, changing or debugging code. Each profile has its own session, reviewed SHA, counts and PR link. Clarity is optional and manual; it does not replace General or become an autopilot or completion requirement.
+General checks correctness, security and concrete operational risks. Clarity Review focuses on unnecessary complexity and the cost of understanding, changing or debugging code. Each profile has its own session, reviewed SHA, counts and PR link. Clarity and Spec are optional and manual; they do not replace General or become an autopilot or completion requirement.
 
 Clarity explicitly checks long functions, nesting, mixed levels of abstraction, repeated rules and unnecessary data transformations. Length alone is not a finding. A helper with one caller is worthwhile when it isolates a coherent responsibility and reduces the reasoning needed at the call site while preserving transaction boundaries and execution order. The GitHub review summary names the main complexity hotspots inspected and explains proposed simplifications or why the structure was retained, including when there are no findings.
 
 Clarity receives the full installed `engineering-tools:simplify-code` skill together with its role prompt and the shared read-only output contract. Kurami saves the exact skill text, plugin version and SHA-256 with the review before launching the agent. Missing or invalid skill content stops startup. A later manual plugin update affects future reviews; existing reviews retain their original edition. Automatic skill updates are outside this feature.
 
-The publisher adds **🔎 Kurami · General Review** or **🧩 Kurami · Clarity Review** to the review body and every inline comment. Attribution comes from the selected profile, rather than generated text.
+The publisher adds **🔎 Kurami · General Review**, **🧩 Kurami · Clarity Review** or **📐 Kurami · Spec Review** to the review body and every inline comment. Attribution comes from the selected profile, rather than generated text.
+
+Spec traces in-scope acceptance criteria to the implementation and repository contracts, including canonical screen composition, responsive behavior and states. It compares changed specifications with their base versions; updating Design prose or a screenshot baseline does not by itself approve a deviation. Its summary names inspected sources and separates checked requirements from missing evidence. The full issue and PR descriptions are retained; if they exceed the 64 KiB source budget, startup fails explicitly without truncating requirements.
+
+Spec reads local sources and any revision-bound artifacts already available in its snapshot. It does not install dependencies, build the app, start browsers or access hosted previews. Without suitable rendered evidence, visual parity is **not verified**. A ready Spec review with no findings is not owner visual acceptance. Spec is optional and does not replace General or change completion gates.
 
 ## Fixing review comments
 
-A review fix is one fresh Codex task for findings from all completed review profiles on the current PR commit, including General and Clarity. It uses threads that are still unresolved when the controller captures the snapshot. The button appears if the ready review of the current commit has at least one finding.
+A review fix is one fresh Codex task for findings from all completed review profiles on the current PR commit, including General, Clarity and Spec. It uses threads that are still unresolved when the controller captures the snapshot. The button appears if the ready review of the current commit has at least one finding.
 
 The combined fix includes AI findings from all ready review profiles for the exact source commit, your unresolved threads, and findings preserved in review summaries without inline anchors. Overlapping findings are handled together. If findings conflict, the agent reports the conflict for your attention instead of silently ignoring a finding. The existing single-writer rule blocks a second fix agent.
 
