@@ -3,7 +3,7 @@
 // the database. This file remembers consecutive failures per run and action: after five, the controller
 // waits longer between attempts (2, 4, 8 … 30 minutes); after three hours of failures, Hub shows the run as
 // stuck so the owner can step in. A success forgets the run. "Waiting" failures (the Codex turn is still
-// running) are expected and logged as waits, not errors.
+// running) are checked each normal cycle; they never extend an error backoff.
 import { existsSync, readFileSync } from "node:fs";
 import { mkdir, rename, writeFile } from "node:fs/promises";
 import { dirname, resolve } from "node:path";
@@ -80,17 +80,19 @@ export class ControllerFailureLedger {
   /** True while the run's action is backing off; the controller skips it this cycle. */
   backingOff(plan: Plan): ControllerFailure | null {
     const failure = this.failures[failureKey(plan)];
-    return failure && Date.parse(failure.nextAt) > this.now.getTime() ? failure : null;
+    return failure?.kind === "error" && Date.parse(failure.nextAt) > this.now.getTime() ? failure : null;
   }
 
   recordFailure(plan: Plan, reason: string): ControllerFailure {
-    const key = failureKey(plan), previous = this.failures[key], at = this.now.toISOString();
+    const key = failureKey(plan), kind = failureKind(reason), at = this.now.toISOString();
+    const recorded = this.failures[key];
+    const previous = recorded?.kind === kind ? recorded : undefined;
     const count = (previous?.count ?? 0) + 1;
     const failure: ControllerFailure = {
       runId: plan.runId, project: plan.project, issueNumber: plan.issueNumber, action: plan.action,
-      reason: reason.slice(0, 400), kind: failureKind(reason), count,
+      reason: reason.slice(0, 400), kind, count,
       firstAt: previous?.firstAt ?? at, lastAt: at,
-      nextAt: new Date(this.now.getTime() + backoffMinutes(count) * 60_000).toISOString(),
+      nextAt: new Date(this.now.getTime() + (kind === "error" ? backoffMinutes(count) : 0) * 60_000).toISOString(),
     };
     this.failures[key] = failure;
     return failure;
