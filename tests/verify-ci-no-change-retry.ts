@@ -27,7 +27,7 @@ const pull={number:190,state:"open",merged:false,html_url:"https://github.com/Sh
 writeFileSync(pullPath,JSON.stringify(pull));
 writeFileSync(resolve(bin,"git"),`#!${process.execPath}\nimport{execFileSync}from'node:child_process';if(process.argv[2]==='ls-remote')console.log(process.env.FIXTURE_SHA+'\\trefs/heads/task');else process.stdout.write(execFileSync(process.env.FIXTURE_GIT,process.argv.slice(2)));`,{mode:0o700});
 writeFileSync(resolve(bin,"gh"),`#!${process.execPath}\nimport{readFileSync}from'node:fs';process.stdout.write(readFileSync(process.env.FIXTURE_PULL));`,{mode:0o700});
-writeFileSync(resolve(bin,"tmux"),`#!${process.execPath}\nimport{existsSync,writeFileSync}from'node:fs';const cmd=process.argv[2];if(cmd==='has-session')process.exit(existsSync(process.env.FIXTURE_SESSION)?0:1);else if(cmd==='new-session')writeFileSync(process.env.FIXTURE_SESSION,'started');else if(cmd!=='list-sessions')process.exit(1);`,{mode:0o700});
+writeFileSync(resolve(bin,"tmux"),`#!${process.execPath}\nimport{existsSync,writeFileSync,rmSync}from'node:fs';const cmd=process.argv[2];if(cmd==='has-session')process.exit(existsSync(process.env.FIXTURE_SESSION)?0:1);else if(cmd==='new-session')writeFileSync(process.env.FIXTURE_SESSION,'started');else if(cmd==='kill-session')rmSync(process.env.FIXTURE_SESSION,{force:true});else if(cmd!=='list-sessions')process.exit(1);`,{mode:0o700});
 Object.assign(env,{PATH:bin+":"+process.env.PATH,CODEX_BIN:process.execPath,FIXTURE_SHA:head,FIXTURE_GIT:realGit,FIXTURE_PULL:pullPath,FIXTURE_SESSION:resolve(home,"session")});
 const projectFile=resolve(home,"config/projects.yaml");
 writeFileSync(projectFile,readFileSync(projectFile,"utf8").replace("/home/shagon1k/_projects/PickFlick",canonical).replace("/home/shagon1k/_projects/.worktrees/pickflick",resolve(home,"worktrees")));
@@ -130,9 +130,27 @@ try {
   assert.equal(database.prepare("SELECT COUNT(*) AS n FROM run_ci_repair_attempts").get()!.n,2);
   assert.deepEqual(database.prepare("SELECT * FROM run_ci_repair_attempts WHERE attempt_id='cra_first'").get(),before);
   assert.equal(canRetryUnchangedCi(database,runId),false,"The second claim consumes the remaining budget");
+  const currentTask=database.prepare("SELECT task_id,session_name FROM run_codex_tasks WHERE run_id=? AND released_at IS NULL").get(runId)!;
+  database.prepare("UPDATE run_codex_tasks SET thread_id='new-fixer',turn_id='done-turn',phase='terminal',turn_status='completed',stopped_at=strftime('%Y-%m-%dT%H:%M:%fZ','now') WHERE task_id=?").run(currentTask.task_id);
+  database.prepare("UPDATE run_resources SET codex_thread_id='new-fixer' WHERE run_id=?").run(runId);
+  database.prepare("UPDATE run_ci_repair_attempts SET codex_thread_id='new-fixer' WHERE attempt_number=2 AND run_id=?").run(runId);
+  database.prepare("INSERT INTO run_codex_task_events(task_id,event_key,method,thread_id,turn_id,status) VALUES(?,'terminal:done-turn','turn/completed','new-fixer','done-turn','completed')").run(currentTask.task_id);
+  git(worktree,"commit","--allow-empty","-m","repaired fixture");
+  const repaired=git(worktree,"rev-parse","HEAD");
+  database.prepare("UPDATE run_ci_snapshots SET head_sha=?,aggregate_state='passed' WHERE run_id=?").run(repaired,runId);
+  writeFileSync(resolve(home,"state/controller-failures.json"),JSON.stringify({version:1,failures:{[runId+":park"]:{
+    runId,project:"pickflick",issueNumber:56,action:"park",kind:"wait",reason:"Exact protocol turn has not completed successfully with a process stop receipt",
+    count:9,firstAt:new Date().toISOString(),lastAt:new Date().toISOString(),nextAt:new Date(Date.now()+16*60_000).toISOString()
+  }}}),{mode:0o600});
+  const completed=native("runtime/controller.ts",["--apply"]);
+  assert.ok(completed.results.some((r:{action:string;status:string})=>r.action==="park"&&r.status==="applied"),"Completed worker must be released on the next cycle despite a persisted 16-minute wait");
+  assert.equal(database.prepare("SELECT owner_state FROM runs WHERE run_id=?").get(runId)!.owner_state,"none");
+  assert.ok(database.prepare("SELECT released_at FROM run_codex_tasks WHERE task_id=?").get(currentTask.task_id)!.released_at);
+  assert.equal(database.prepare("SELECT COUNT(*) AS n FROM run_ci_repair_attempts").get()!.n,2,"Polling completion must not start another writer");
+  assert.deepEqual(JSON.parse(readFileSync(resolve(home,"state/controller-failures.json"),"utf8")).failures,{},"Successful completion clears the old waiting record");
   const prompt=repairPrompt({run_id:runId,repository:"Shagon1k/PickFlick",issue_number:56,issue_url:null},
     {attemptNumber:2,sourceHeadSha:head,sourceCiState:"failed",sourceChecks:[],pullRequestUrl:"https://github.com/Shagon1k/PickFlick/pull/190"});
   assert.match(prompt,/investigate test isolation/);assert.match(prompt,/positively verified disposable test database/);
   assert.match(prompt,/Do not disable throttling/);assert.match(prompt,/skip tests/);
-  console.log(JSON.stringify({ok:true,ciNoChangeRetry:true,refusalCases:refusals.length,noAutomaticRetry:true,preservedPolicy:true}));
+  console.log(JSON.stringify({ok:true,ciNoChangeRetry:true,refusalCases:refusals.length,noAutomaticRetry:true,preservedPolicy:true,completionOnNextCycle:true}));
 } finally {database.close();rmSync(home,{recursive:true,force:true});}

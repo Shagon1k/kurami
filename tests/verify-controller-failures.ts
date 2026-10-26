@@ -17,10 +17,10 @@ try{
 
   let ledger=new ControllerFailureLedger(path,at(0));
   assert.equal(ledger.backingOff(plan),null,"nothing recorded, nothing skipped");
-  for(let n=0;n<5;n++)ledger.recordFailure(plan,"Codex turn is still active");
+  for(let n=0;n<5;n++)ledger.recordFailure(plan,"database is locked");
   assert.equal(ledger.backingOff(plan),null,"the first five failures retry at once");
-  const sixth=ledger.recordFailure(plan,"Codex turn is still active");
-  assert.equal(sixth.count,6);assert.equal(sixth.kind,"wait");assert.equal(sixth.nextAt,at(2).toISOString());
+  const sixth=ledger.recordFailure(plan,"database is locked");
+  assert.equal(sixth.count,6);assert.equal(sixth.kind,"error");assert.equal(sixth.nextAt,at(2).toISOString());
   assert.ok(ledger.backingOff(plan),"the sixth failure backs off");
   await ledger.save();
   assert.equal(statSync(path).mode&0o777,0o600,"the ledger is private");
@@ -34,6 +34,28 @@ try{
   assert.equal(isStuck(readControllerFailures(path)["r_1:park"]!,at(180)),true,"three hours of failures is stuck");
   ledger.recordSuccess(plan);await ledger.save();
   assert.deepEqual(readControllerFailures(path),{},"a success forgets the run");
+
+  ledger=new ControllerFailureLedger(path,at(0));
+  for(let n=0;n<20;n++) {
+    const wait=ledger.recordFailure(plan,"Exact protocol turn has not completed successfully with a process stop receipt");
+    assert.equal(wait.kind,"wait");assert.equal(wait.nextAt,at(0).toISOString());
+    assert.equal(ledger.backingOff(plan),null,"waiting remains eligible on every normal cycle");
+  }
+  const legacy={...ledger.failures["r_1:park"]!,count:9,nextAt:at(30).toISOString()};
+  ledger.failures["r_1:park"]=legacy;await ledger.save();
+  ledger=new ControllerFailureLedger(path,at(1));
+  assert.equal(ledger.backingOff(plan),null,"an existing 30-minute waiting pause must not delay completion");
+  assert.equal(readControllerFailures(path)["r_1:park"]!.nextAt,at(30).toISOString(),"inspection preserves historical receipts");
+  const firstError=ledger.recordFailure(plan,"database is locked");
+  assert.equal(firstError.count,1,"waits do not consume the five immediate error checks");
+  assert.equal(firstError.firstAt,at(1).toISOString());assert.equal(ledger.backingOff(plan),null);
+  for(let n=0;n<5;n++)ledger.recordFailure(plan,"database is locked");
+  assert.ok(ledger.backingOff(plan),"six consecutive real errors still back off");await ledger.save();
+  ledger=new ControllerFailureLedger(path,at(2));
+  const firstWait=ledger.recordFailure(plan,"Codex turn is still active");
+  assert.equal(firstWait.count,1);assert.equal(firstWait.firstAt,at(2).toISOString());
+  assert.equal(ledger.backingOff(plan),null,"a confirmed wait replaces an earlier error streak");
+  ledger.recordSuccess(plan);await ledger.save();
 
   ledger=new ControllerFailureLedger(path,at(0));
   ledger.recordFailure({...plan,action:"release"},"unmerged work");
