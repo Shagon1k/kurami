@@ -24,8 +24,9 @@ order: 60
 
 | Кнопка | Когда показана | Запрос | Что делает контроллер |
 |---|---|---|---|
+| **Recover interrupted fix** | `needs_attention`, владелец `none`, причина `review_fix_uncommitted_changes`, точная завершившаяся с ошибкой, остановленная и освобождённая задача протокола, полный сохранённый контекст ревью | `recover_interrupted_review_fix` | сохраняет незакоммиченную работу и запускает одного нового ограниченного исполнителя для исходного раунда; старую задачу не возобновляет |
+| **Retry** | `needs_attention`, владелец `cli`, причина `primary_attempt_failed`; основная сессия в режиме live, ресурсы provisioned, последний нативный ход завершился с ошибкой, есть адаптер повтора, подтверждены бездействующая сессия и идентичность управляемой рабочей копии; нет ожидающего запроса управления/действия с PR, неосвобождённого технического исполнителя, работающего ревью или уже закреплённого повтора этого хода | `retry` | один раз отправляет продолжение в ту же сессию; внимание требуется до наблюдения нового нативного хода; без новой задачи, смены модели и автоматического повтора отправки |
 | **Recover delivered fix** | запуск в `needs_attention`, владелец `cli`, причина `review_fix_uncommitted_changes` | `recover_managed_task` | перепроверяет сохранённую задачу, запушенный коммит и свежий CI, доводит исправление |
-| **Recover interrupted fix** | `needs_attention`, владелец `none`, точная завершившаяся с ошибкой, остановленная и освобождённая задача протокола, полный сохранённый контекст ревью | `recover_interrupted_review_fix` | сохраняет незакоммиченную работу и запускает одного нового ограниченного исполнителя для исходного раунда; старую задачу не возобновляет |
 | **Take control** | владелец `cli`, идёт управляемая сессия, запуск не в `needs_attention` | `take_control` | `handoff`: просит Codex остановиться, ждёт тихой паузы, отпускает tmux; запуск `remote_owned` |
 | **Take control** | владелец `none`, состояние `parked_review` или `waiting_human` | `take_control` | `claim_remote`: владелец становится `remote`, на карточке ссылка Open session |
 | **Continue autonomously** | запуск `remote_owned`, владелец `remote` | `take_control` | `successor_start`: новая управляемая задача Codex в той же рабочей копии |
@@ -39,6 +40,10 @@ order: 60
 | **Cancel run** | отмена ещё не начата | `stop` | `request_stop`: остановка, освобождение ресурсов, задача в Backlog |
 | **Discard local work** | этап «Cancelled — local work preserved», PR нет | подтверждение, затем `discard_local` | `discard_cancelled`: удаляет неопубликованную рабочую копию и ветку |
 | **Close draft PR & discard** | тот же этап, есть черновой PR | подтверждение, затем `discard_published` | `discard_published_cancelled`: закрывает точный черновой PR и удаляет ветки |
+
+Discord предлагает **Recover interrupted fix** только при `review_fix_uncommitted_changes`. Projects также поддерживает защищённое восстановление после управляемого тайм-аута (`review_fix_runtime_budget_exceeded`); эта более широкая возможность не означает наличия кнопки Discord для тайм-аутов.
+
+Запрос `ci_repair` также допускает защищённую вторую попытку из `needs_attention`, владелец `none`, причина `ci_repair_no_new_head`: ровно одна завершённая первая попытка не дала нового head; её задача протокола успешно завершена, остановлена, освобождена и архивирована; основной тред восстановлен; свежий CI (наблюдение не старше двух минут) всё ещё падает на том же исходном SHA. Не должно быть конкурирующего запроса управления, действия с PR, исполнителя записи, ревью/исправления, преемника, более нового запуска или ожидающего перехода статуса. При захвате права записи перепроверяются чистая зарегистрированная рабочая копия, локальный/удалённый head, идентичность открытого PR и отсутствие другого исполнителя записи. Расходуется оставшаяся попытка без стирания первого результата. Кнопка Discord **Attempt CI fix** по-прежнему ограничена `parked_review`.
 
 Кнопка **Fix findings** несёт идентификатор `kurami:review_fix_all:<id запуска>`; обработчик Discord ставит в очередь `review_fix` с `--all-reviews`. У этого действия нет выбора профиля.
 
@@ -59,17 +64,23 @@ order: 60
 
 Строка запроса живёт в `run_control_requests`. Состояния: `pending`, `processing`, `applied`, `rejected`, `failed`. На одно действие приходится один активный запрос; для `ai_review` разрешён один запрос на профиль.
 
-| Запрос | Кнопки, которые его ставят | Конфликтует с |
+Это направленные проверки при постановке в очередь против существующих запросов `pending`/`processing`, а не симметричная или исчерпывающая гарантия совместимости. Ниже **запросы записи** — `review_fix`, `recover_managed_task` и `recover_interrupted_review_fix`. Запросы того же действия дедуплицируются, а не отклоняются как конфликты разных действий.
+
+| Входящий запрос | Кнопки, которые его ставят | Существующие запросы, проверяемые на конфликт |
 |---|---|---|
-| `take_control` | Take control, Continue autonomously | `review_fix`, `recover_managed_task` |
-| `preview_start` | Start preview, Extend 24h | `preview_stop` |
-| `preview_stop` | Remove preview | `preview_start` |
-| `stop` | Cancel run | — |
-| `discard_local`, `discard_published` | кнопки подтверждения | — |
-| `ci_repair` | Attempt CI fix | `review_fix`, `recover_managed_task` |
-| `ai_review` | Run review → General / Clarity | `review_fix`, `recover_managed_task`; другой профиль ревью независим |
-| `review_fix` | Fix findings | `take_control`, `ci_repair`, `ai_review` |
-| `recover_managed_task` | Recover delivered fix | `take_control`, `ci_repair`, `ai_review` |
+| `take_control` | Take control, Continue autonomously | запросы записи, `retry` |
+| `preview_start` | Start preview, Extend 24h | запросы записи, `retry`, `preview_stop` |
+| `preview_stop` | Remove preview | запросы записи, `retry`, обрабатываемый `preview_start`; ожидающий `preview_start` можно вытеснить |
+| `stop` | Cancel run | исключение из этой проверки конфликтов разных действий, в том числе с ожидающим `retry`; остальные проверки безопасности сохраняются |
+| `discard_local`, `discard_published` | кнопки подтверждения | запросы записи, `retry` |
+| `ci_repair` | Attempt CI fix | запросы записи, `retry`; защищённая вторая попытка без нового head также требует отсутствия других ожидающих/обрабатываемых запросов управления |
+| `ai_review` | Run review → General / Clarity | запросы записи, `retry`; другой профиль ревью независим |
+| `review_fix` | Fix findings | запросы записи, `retry`, `take_control`, `ci_repair`, `ai_review` |
+| `recover_managed_task` | Recover delivered fix | запросы записи, `retry`, `take_control`, `ci_repair`, `ai_review` |
+| `recover_interrupted_review_fix` | Recover interrupted fix | запросы записи, `retry`, `take_control`, `ci_repair`, `ai_review`; проверка восстановления также требует отсутствия других ожидающих запросов управления |
+| `retry` | Retry | любой другой ожидающий/обрабатываемый запрос управления |
+
+Допуск в очередь не разрешает последующую отправку без повторной проверки. При исполнении/захвате права записи перепроверяются состояние и доказательства для конкретного действия; Retry перед единственной отправкой сверяет точную сессию, неудачный ход, идентичность панели и Git head. Stop — исключение из проверки конфликтов при постановке в очередь, а не способ обойти проверки перед исполнением.
 
 ## Кнопки карточки Digest
 
@@ -98,4 +109,4 @@ order: 60
 
 ## Текстовые команды
 
-Агент Hermes понимает те же действия словами: Status, Take control, Continue autonomously, Attempt CI fix, AI Code Review, Fix Review, Recover delivered fix, Start preview, Stop preview, Cancel run, Discard local work, Close draft PR and discard, Open session, Show controls. Задачу можно назвать полным id запуска, ключом `TT-42` или `PF-33` либо написать в треде запуска. Удаление сохранённой работы агент выполняет только после явного второго подтверждения.
+Агент Hermes понимает те же действия словами: Status, Retry, Take control, Continue autonomously, Attempt CI fix, AI Code Review, Fix Review, Recover delivered fix, Recover interrupted fix, Start preview, Stop preview, Cancel run, Discard local work, Close draft PR and discard, Open session, Show controls. Задачу можно назвать полным id запуска, ключом `TT-42` или `PF-33` либо написать в треде запуска. Удаление сохранённой работы агент выполняет только после явного второго подтверждения.

@@ -2,6 +2,70 @@
   "baseline": "4a38c09",
   "publicationBaseline": "788787f077d42fc3b3346a4f4a612947b97ce2e8",
   "commits": {
+    "60c2180cceed3db396932edadf69342da651aeaf": {
+      "category": "operations", "en": "", "ru": "", "exclusionScope": "docs-only",
+      "exclude": "Updates bilingual Hub, cleanup and command-reference copy, the classification ledger and coverage audit only; application behavior is unchanged."
+    },
+    "57056a0c769ebfc69344b7f409a64fc21259133e": {
+      "category": "fixed", "page": "cinema",
+      "en": "Cinema retains verified box-office data with missing release-week metadata or explicit EUR text, uses completed actuals within 14 days and shows source periods and fallback explanations.",
+      "ru": "Cinema сохраняет проверенные сборы без числа недель в прокате и при текстовых суммах в евро, использует окончательные данные не старше 14 дней и показывает периоды источников и пояснения к резервным данным."
+    },
+    "a7af0978c556af34dc43dfe643025e88f2983475": {
+      "category": "new", "page": "owner-controls",
+      "en": "Projects defaults to Remaining, hiding completed tasks while keeping Backlog and Deferred. Toggling the selected filter off shows all tasks; the URL preserves the choice.",
+      "ru": "Projects по умолчанию показывает оставшиеся задачи, скрывая завершённые и сохраняя Backlog и Deferred. Повторное нажатие выбранного фильтра показывает все задачи; выбор сохраняется в URL."
+    },
+    "d5878eb0c539523bb554c4165bb4d59ea8d9c809": {
+      "category": "improved", "page": "owner-controls",
+      "en": "Projects shows review-fix startup failures as compact warning notes beside the affected review profile.",
+      "ru": "Projects показывает ошибки запуска исправлений компактными предупреждениями рядом с соответствующим профилем ревью."
+    },
+    "c806ca2b78b97d15ba7ea506f035be747cf6387f": {
+      "category": "fixed", "page": "engineering-evidence",
+      "en": "Review and CI fixes may start alongside a running preview when the managed copy already matches the exact PR commit; source fast-forward still requires stopping preview.",
+      "ru": "Исправления ревью и CI могут запускаться при работающем превью, если управляемая копия уже совпадает с точным коммитом PR; для продвижения исходников превью нужно остановить."
+    },
+    "70e2adbdca3b86b8043549699a4d981d37e21485": {
+      "category": "fixed", "page": "discord-control-plane",
+      "en": "Owner-requested interrupted review-fix recovery preserves local changes and starts one fresh bounded worker for the original review scope, with exact-source checks and a durable single-dispatch fence.",
+      "ru": "Восстановление прерванного исправления по запросу владельца сохраняет локальные изменения и запускает одного нового исполнителя с лимитом времени для исходных замечаний, проверяя точный источник и запрещая повторный запуск по той же записи."
+    },
+    "5b0f07751eb2cc971ae7beb8c5c49bde4f96dced": {
+      "category": "fixed", "page": "codex-sessions",
+      "en": "Fresh protocol workers receive their own runtime budget; review fixes can be explicitly recovered after a confirmed managed timeout, while manual cancellation remains ineligible.",
+      "ru": "Новые исполнители протокола получают собственный бюджет времени; исправление можно явно восстановить после подтверждённого управляемого таймаута, но не после ручной отмены."
+    },
+    "3967d0544f103320891260e6b8621ee68e7fae71": {
+      "category": "fixed", "page": "run-lifecycle",
+      "en": "After terminal-run feedback is delivered, its synchronizer stops polling GitHub until recorded facts change; failed deliveries remain eligible for retry.",
+      "ru": "После успешной отправки комментария завершённого запуска его синхронизатор прекращает опрос GitHub до изменения сохранённых данных; неудачная отправка остаётся доступной для повтора."
+    },
+    "1554e943c592ac92b7a8955f75ab797495ce44eb": {
+      "category": "fixed", "page": "engineering-evidence",
+      "en": "Review fixes retain complete requirements and refuse oversized evidence without truncation. Guarded retry preparation preserves the stopped round and requires a separate request for a new worker.",
+      "ru": "Исправления ревью сохраняют полные требования и отказывают при превышении лимита без обрезания. Защищённая подготовка повтора сохраняет остановленный раунд и требует отдельного запроса нового исполнителя."
+    },
+    "78d0c108ceb2f38c86591934228607984cedb1dd": {
+      "category": "fixed", "page": "owner-controls",
+      "en": "Review and PR action menus fill their action row on phones and use compact, consistently aligned popovers on desktop.",
+      "ru": "Меню ревью и действий PR занимают всю строку действий на телефоне; на компьютере попапы компактны и выровнены единообразно."
+    },
+    "9a189feffb301ad5ba9285e2265cbcf42d1fe10f": {
+      "category": "new", "page": "owner-controls",
+      "en": "Adds guarded manual Retry for a failed primary-agent turn in the same session, preserving work and approval boundaries without automatic replay.",
+      "ru": "Добавлен проверяемый ручной Retry для завершившегося ошибкой хода основного агента в той же сессии, с сохранением работы и границ разрешений без автоматического повтора."
+    },
+    "204203693e78194c570fbd56b739e414fd3cfa14": {
+      "category": "fixed", "page": "engineering-evidence",
+      "en": "Allows one owner-requested second CI repair after a verified completed no-change first attempt; preserves the original outcome and two-attempt budget.",
+      "ru": "Разрешена одна запрошенная владельцем вторая попытка исправления CI после подтверждённой первой попытки без изменений; исходный результат и лимит двух попыток сохраняются."
+    },
+    "3e7c2c166bafaf4f7ea688990459f94ef1cefbc9": {
+      "category": "fixed", "page": "engineering-evidence",
+      "en": "Admits the guarded no-change CI retry through source preflight without advancing the preserved commit; changed evidence or local source is refused.",
+      "ru": "Проверка источника пропускает защищённый повтор исправления CI без изменений, не продвигая сохранённый коммит; изменившиеся доказательства или локальный источник блокируют запуск."
+    },
     "3ae888aad7b1fe27f531f9e27e39b0d7c28f2db1": {
       "category": "operations", "en": "", "ru": "", "exclusionScope": "docs-only",
       "exclude": "Updates bilingual documentation, the classification ledger, coverage audit and documentation assertions; application behavior is unchanged."

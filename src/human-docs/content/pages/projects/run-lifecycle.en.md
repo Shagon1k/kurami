@@ -102,7 +102,7 @@ A run with no physical resources (`dry_run` mode, or resources only planned) ski
 
 ## GitHub feedback after completion
 
-Kurami keeps completed runs as history. Once it delivers the final issue comment, it stops checking GitHub for that run. A delivery failure stays eligible for retry. New recorded changes to the run, cleanup, issue, board, successor or owner request trigger another synchronization. Ordinary poll timestamps do not.
+Kurami keeps completed runs as history. Once the feedback synchronizer delivers the final issue comment, it stops checking GitHub for that run's feedback; independent controller reconciliation keeps its own checks. A delivery failure stays eligible for retry. New recorded changes to the run, cleanup, issue, board, successor or owner request trigger another synchronization. Ordinary poll timestamps do not.
 
 ## Resource state
 

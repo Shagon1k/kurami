@@ -1,5 +1,39 @@
 # Human docs coverage audit — 2026-09-28
 
+## Weekly audit — 2026-10-26, proposal dp_9284f21ac3c8
+
+This is an unpublished documentation proposal, not an application release or evidence that an approval card already exists.
+
+### Source and deployment evidence
+
+- The assigned proposal is `drafting`, based on `13bd165176dbf0d96c62afaacca9cc96a4020ec2`, with the assigned worktree and summary location. The standalone audit clone is marked `kurami-docs-audit-v1`, clean on `main`. Its reflog records the wrapper's fast-forward at the scheduled tick; HEAD, `origin/main` and read-only live `git ls-remote` agree on that exact SHA. The wrapper validates the marker, branch and clean state before fetching and fast-forwarding only this clone. The audit did not update the clone or canonical application checkout.
+- The promoted release marker has the same docs SHA, `revision: null`, and retained `changelogRevision: ee02f37312508acac4d044cfcd223884d7e65bcc`. The existing trusted controller manifest is a private regular file and independently asserts `status: succeeded` with that app SHA. No manifest was fabricated or changed, and no credentials were inspected. This verifies only the recorded deployment watermark, not the runtime availability of later source changes or an authenticated live smoke check.
+- The promoted-docs range is empty. The full publication-baseline range `788787f077d42fc3b3346a4f4a612947b97ce2e8..13bd165176dbf0d96c62afaacca9cc96a4020ec2` contains 236 commits. Earlier audit classifications and evidence are preserved; all 13 outstanding classifications were inspected against their diffs, current code, regression assertions and paired pages, rather than restricting review to a calendar week. Contentless merges use only the established parent-tree-equality rule.
+- The proposal adds 12 bilingual public source classifications and one narrow docs-only exclusion for `60c2180`. All 258 existing ledger records remain unchanged as parsed JSON. These entries describe source changes beyond the trusted application watermark; commit dates are not availability dates.
+
+### Reviewed changes and reader corrections
+
+| Area and commits | Evidence and existing coverage | Proposal |
+| --- | --- | --- |
+| Previous weekly documentation: `60c2180` | Only paired copy, ledger and coverage changes | Docs-only exclusion; preserve the earlier audit |
+| Cinema resilience: `57056a0` | Provider parsing, archive age/actuals, collector and consistency logic, fallback rendering and tests; paired `cinema` and `cinema-internals` already explain source periods and missing data | Ledger only |
+| Remaining filter and action presentation: `a7af097`, `d5878eb`, `78d0c10` | Projects read model/client/render/styles and browser assertions; existing `owner-controls` and startup-refusal copy match the behavior | Ledger only |
+| Exact-source fixes with running preview: `c806ca2` | Source preflight, review/CI admission and managed-source regression assertions; paired `engineering-evidence` already distinguishes unchanged source from fast-forward | Ledger only |
+| Interrupted recovery and fresh budgets: `70e2adb`, `5b0f077` | Recovery inspector, receipt reconstruction, snapshot limits, dispatch fences, runtime budget and timeout/cancellation tests | Correct the legacy-context failure table: exact original applied launch evidence can reconstruct missing summary findings. Explain that Projects supports managed-timeout recovery while Discord's button remains narrower; align control uniqueness and conflicts |
+| Terminal feedback polling: `3967d05` | Feedback digest/delivery selection and zero-request/retry assertions | Limit the quiet-polling claim to feedback synchronization, retaining independent controller checks |
+| Complete fix evidence and retry preparation: `1554e94` | Thread-body preservation, evidence size refusal, immutable rounds and guarded preparation; existing paired mechanism is covered | Correct the Russian inferred-backfill wording to cover assumed data population generally |
+| Primary Retry: `9a189fe` | Adapter, failed-turn identity, pane/session/worktree guards, per-turn claim and no-replay tests | Add missing reference button/request/text command and directional conflicts; clarify once per failed turn and exclude manual interruption |
+| No-change CI retry and source admission: `2042036`, `3e7c2c1` | Fresh failed-CI observation, successful/released worker receipts, restored mapping, exact PR/worktree checks, two-attempt budget and controller-path tests | Explain owner-requested attempt 2, source preservation without fetch/fast-forward, and the narrower Discord button; update failure guidance and CI diagram's dashed new-worker return |
+
+### Verification and limits
+
+- `bin/kurami-dev-run node src/human-docs/tools/check-pages.ts commands engineering-evidence owner-controls discord-control-plane run-lifecycle --strict-links` passed: five paired routes, zero errors and twelve rendered diagrams. Screenshot runs also passed at 390 and 1280 px in Paper light and Neon dark for both languages.
+- Representative crops were visually inspected for each changed route in both languages: mobile command rows and CI diagrams, desktop Retry and recovery evidence, and lifecycle text. No overlap was observed in those crops. CI diagrams intentionally scroll internally at phone width and retain descriptions and full-size links. Mobile screenshots cap the viewport height at 14,000 px; longer pages were also rendered at desktop width, so this is not an exhaustive mobile or accessibility audit.
+- `bin/kurami-dev-run node tests/human-docs/verify.ts` passed after the page and ledger edits: 66 bilingual article pairs, Markdown, diagrams, privacy, legacy routes and curated release gate. Application regression suites were inspected as evidence, not claimed as executed successfully by this audit.
+- Read-only `collectDocsAudit` against the unchanged audit source, draft ledger, promoted marker and existing trusted controller manifest returns `unclassifiedShas: []`, clean source, no commits since promoted docs and the same verified app SHA.
+- Changes stay within five paired Markdown pages, the ledger and this coverage record. No application code, dependencies, settings or release artifacts are changed. The machine-readable bilingual summary is the final handoff artifact; the approval worker owns checks, PR creation and the subsequent Publish/Discuss/Reject card. No commit, push, publication or deployment was performed.
+
+
 ## Weekly audit — 2026-10-19, proposal dp_08138821945a
 
 This section records an unpublished documentation proposal. It supersedes earlier status statements only for the evidence checked here; it does not establish an application release, a new public Changelog, a PR or an owner decision card.
