@@ -38,6 +38,8 @@ Take control does not work while Codex waits for approval, while the thread id i
 
 ::shot{file="shot-run-human-control.png" size="card" alt="Run card PF-33 under human control: control is yours, an Open session link, buttons Continue autonomously and Cancel run." caption="Notice “Control · You”, the Open session link and the Continue autonomously button."}
 
+The Projects App shows **Human control** in the task list and engineering card. For a Remote-owned run, the card offers **Open session**, using the same saved Codex thread as Discord. The link appears only when a valid thread identifier is available; opening it does not change run ownership or resume automation.
+
 ## What happens to the thread
 
 The Codex thread stays the same one: Kurami renames it to `[TT-42]: Add dark mode toggle` and after the hand-over sends it no more messages. The "Open session" link opens exactly this thread. While the thread is yours, Kurami keeps watching CI and previews but does not start repairs or AI review: those are for after automation has stopped.
