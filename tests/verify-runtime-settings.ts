@@ -67,7 +67,8 @@ try {
   }
   await writeFile(isolatedProjectsPath, stringify(isolatedRegistry), { mode: 0o600 });
   const fakeTmux = resolve(root, "bin/tmux");
-  await writeFile(fakeTmux, "#!/bin/sh\necho 'no server running' >&2\nexit 1\n", {
+  // This fixture owns no tmux sessions; keep the guard off the live controller's socket.
+  await writeFile(fakeTmux, "#!/bin/sh\nif [ \"$1\" = list-sessions ]; then exit 0; fi\nexit 2\n", {
     mode: 0o700,
   });
   await chmod(fakeTmux, 0o700);
@@ -82,7 +83,7 @@ try {
     ...process.env,
     KURAMI_HOME: root,
     ORCHESTRATOR_MIGRATIONS_DIR: resolve(app, "migrations"),
-    KURAMI_TMUX_BIN: fakeTmux,
+    PATH: `${resolve(root, "bin")}:${process.env.PATH}`,
   };
   execFileSync(process.execPath, [resolve(app, "src/orchestrator/state/init-run-store.ts")], {
     env: { ...env, ORCHESTRATOR_MIGRATIONS_DIR: oldMigrations },

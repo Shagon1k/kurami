@@ -27,7 +27,7 @@ function runNode(
     [resolve(appDirectory, relativePath), ...args],
     {
       encoding: "utf8",
-      env: { ...process.env, KURAMI_HOME: home },
+      env: { ...process.env, KURAMI_HOME: home, PATH: `${resolve(home, "bin")}:${process.env.PATH}` },
       stdio: ["ignore", "pipe", "pipe"],
     },
   );
@@ -105,6 +105,9 @@ async function main(): Promise<void> {
   const appDirectory = resolve(import.meta.dirname, "..");
   const home = await mkdtemp(resolve(tmpdir(), "kurami-preview-policy-test-"));
   try {
+    // Synthetic admissions must not inventory the live controller's tmux socket.
+    await mkdir(resolve(home, "bin"), { mode: 0o700 });
+    await writeFile(resolve(home, "bin/tmux"), "#!/bin/sh\nif [ \"$1\" = list-sessions ]; then exit 0; fi\nexit 2\n", { mode: 0o700 });
     await mkdir(resolve(home, "config"), { recursive: true, mode: 0o700 });
     await copyFile(
       resolve(appDirectory, "deploy/config/orchestrator.yaml"),
@@ -191,7 +194,8 @@ async function main(): Promise<void> {
       observedAt: "2026-08-20T15:01:01.000Z",
     });
     seed.close();
-    runNode(appDirectory, home, "src/orchestrator/projects/process-project-events.ts");
+    const activation = runNode(appDirectory, home, "src/orchestrator/projects/process-project-events.ts") as { results: Array<{ action: string }> };
+    assert(activation.results.every(({ action }) => action === "created"), `Preview policy fixture admission failed: ${JSON.stringify(activation.results)}`);
 
     const prepare = new DatabaseSync(databasePath);
     const requiredRun = prepare

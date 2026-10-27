@@ -1,11 +1,12 @@
 import { execFileSync } from "node:child_process";
-import { loadOwnerGitHubTokenFromFileSync } from "../integrations/github/app-auth.ts";
+import { createGitHubAppJwt, createGitHubAppInstallationToken, loadGitHubAppCredentialsFromFile, loadOwnerGitHubTokenFromFileSync } from "../integrations/github/app-auth.ts";
 
 export type DecisionComment = {id:number;authorId:string;login:string;type:string;association:string;body:string;url:string};
 export type DecisionThread = {id:string;resolved:boolean;outdated:boolean;comments:DecisionComment[]};
 export type DecisionPull = {id:string;head:string;url:string;path:string;threads:DecisionThread[]};
 export type DecisionGitHub = {
   identity(owner:string): string;
+  botIdentity(): string;
   pull(repository:string,number:number,head:string): DecisionPull;
   create(pull:DecisionPull,body:string): void;
 };
@@ -13,7 +14,24 @@ function requireGitHub(ok: unknown): asserts ok { if (!ok) throw new Error("Owne
 
 /** All external effects are bounded; raw gh stderr and credentials never escape. */
 export function ownerDecisionGitHub(home:string): DecisionGitHub {
-  const token = loadOwnerGitHubTokenFromFileSync(home);
+  return decisionAdapter(loadOwnerGitHubTokenFromFileSync(home),false);
+}
+
+/** Only this adapter can publish; failed App setup never falls back to an owner token. */
+export async function ownerDecisionPublisher(home:string):Promise<DecisionGitHub> {
+  try {
+    const credentials=await loadGitHubAppCredentialsFromFile(home);
+    const app=JSON.parse(execFileSync(process.env.GH_BIN?.trim() || "gh",["api","app"],{encoding:"utf8",
+      env:{...process.env,GH_TOKEN:createGitHubAppJwt(credentials.appId,credentials.privateKey)},
+      timeout:15_000,maxBuffer:64*1024,stdio:["ignore","pipe","pipe"]}));
+    requireGitHub(String(app.id) === credentials.appId && app.slug === "kurami-ai");
+    return decisionAdapter(await createGitHubAppInstallationToken(credentials),true);
+  } catch {
+    const unavailable=():never=>{throw new Error("Owner decision reviewer App unavailable; check installation permissions");};
+    return {identity:unavailable,botIdentity:unavailable,pull:unavailable,create:unavailable};
+  }
+}
+function decisionAdapter(token:string,publisher:boolean):DecisionGitHub {
   const request = (endpoint:string,payload?:object): any => {
     try {
       const value = JSON.parse(execFileSync(process.env.GH_BIN?.trim() || "gh",["api","--method",payload ? "POST" : "GET",endpoint,
@@ -25,10 +43,14 @@ export function ownerDecisionGitHub(home:string): DecisionGitHub {
   const fields = `id isResolved isOutdated comments(first:100){nodes{databaseId body url author{__typename login ... on User{databaseId} ... on Bot{databaseId}} authorAssociation} pageInfo{hasNextPage}}`;
   return {
     identity(owner) {
-      const me = request("user"), expected = request(`users/${encodeURIComponent(owner)}`);
-      requireGitHub(me.type === "User" && expected.type === "User" && Number.isSafeInteger(me.id) && me.id > 0 &&
-        me.id === expected.id && me.login.toLowerCase() === owner.toLowerCase() && expected.login.toLowerCase() === owner.toLowerCase());
-      return String(me.id);
+      const expected = request(`users/${encodeURIComponent(owner)}`);
+      requireGitHub(expected.type === "User" && Number.isSafeInteger(expected.id) && expected.id > 0 && expected.login.toLowerCase() === owner.toLowerCase());
+      return String(expected.id);
+    },
+    botIdentity() {
+      const bot=request("users/kurami-ai%5Bbot%5D");
+      requireGitHub(bot.type === "Bot" && bot.login === "kurami-ai[bot]" && Number.isSafeInteger(bot.id) && bot.id>0);
+      return String(bot.id);
     },
     pull(repository,number,head) {
       requireGitHub(/^[\w.-]+\/[\w.-]+$/u.test(repository) && Number.isSafeInteger(number) && number > 0);
@@ -62,6 +84,7 @@ export function ownerDecisionGitHub(home:string): DecisionGitHub {
       throw new Error("Owner decision review collection exceeds the bounded snapshot");
     },
     create(pull,body) {
+      requireGitHub(publisher);
       request("graphql",{query:`mutation($pr:ID!,$path:String!,$body:String!){addPullRequestReviewThread(input:{pullRequestId:$pr,path:$path,subjectType:FILE,body:$body}){thread{id}}}`,
         variables:{pr:pull.id,path:pull.path,body}});
     },

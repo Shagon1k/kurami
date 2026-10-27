@@ -1,3 +1,4 @@
+import { completedOwnerDecisionSummary } from "./owner-decision-summary.ts";
 import { randomUUID } from "node:crypto";
 import { completedWorkerSummary } from "./worker-diagnostic.ts";
 import type { DatabaseSync } from "node:sqlite";
@@ -80,9 +81,10 @@ export function recordTurnCompleted(database: DatabaseSync, taskId: string, mess
       turn.status === "interrupted" ? "protocol_turn_interrupted" : null;
     // First terminal receipt wins; conflicting replays cannot change completion.
     const changed = database.prepare(`UPDATE run_codex_tasks SET phase='terminal',turn_status=?,
-      failure_code=COALESCE(failure_code,?),final_summary=?,updated_at=strftime('%Y-%m-%dT%H:%M:%fZ','now')
+      failure_code=COALESCE(failure_code,?),final_summary=?,owner_decision_summary_json=?,updated_at=strftime('%Y-%m-%dT%H:%M:%fZ','now')
       WHERE task_id=? AND turn_status IS NULL`).run(turn.status!, failure,
-        turn.status === 'completed' && !task.failure_code ? completedWorkerSummary(turn.items) : null, taskId);
+        turn.status === 'completed' && !task.failure_code ? completedWorkerSummary(turn.items) : null,
+        task.kind === 'review_fix' && turn.status === 'completed' && !task.failure_code ? completedOwnerDecisionSummary(turn.items) : null, taskId);
     if (changed.changes === 1)
       database.prepare(`INSERT INTO run_codex_task_events
         (task_id,event_key,method,thread_id,turn_id,status,failure_code) VALUES (?,?,?,?,?,?,?)`)

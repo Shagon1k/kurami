@@ -1,3 +1,4 @@
+import { parseOwnerDecisionSummary } from "../integrations/codex/owner-decision-summary.ts";
 import { createHash, randomUUID } from "node:crypto";
 import type { DatabaseSync } from "node:sqlite";
 import { inspectReviewFixRetry } from "./sessions/prepare-review-fix-retry.ts";
@@ -71,20 +72,22 @@ function safePublicationText(value:string):string {
     .replace(/[@<>]/gu," ").replace(/[\u0000-\u0008\u000b-\u001f\u007f\u202a-\u202e\u2066-\u2069]/gu,"");
 }
 export function blockerBody(ready:ReturnType<typeof inspectOwnerDecision>):string {
-  const c = ready.context;
-  const report = typeof ready.task.final_summary === "string" ? safePublicationText(ready.task.final_summary) : "Worker report unavailable.";
-  const findings = JSON.stringify({threads:c.threads,summaryOnlyFindings:c.summaryOnlyFindings,
-    ...(c.priorOwnerDecisions?.length ? {priorOwnerDecisions:c.priorOwnerDecisions} : {})},null,2);
-  const body = `<!-- kurami-owner-decision:${ready.blockerId} -->\n## Kurami needs an owner decision\n\n`+
-    `Completed and released review fix produced no new commit. No worker is running.\n\nPR: ${c.pullRequestUrl}\nSource: https://github.com/${ready.run.repository}/commit/${c.sourceHeadSha}\n`+
-    `Round: ${c.roundId}; task: ${ready.task.task_id}; turn: ${ready.task.turn_id}.\n\nWorker report (not delivery proof):\n${report}\n\n`+
-    `Decision question: What exact scope should one fresh fix implement to satisfy the original findings below, including any dependency or infrastructure work you approve? Reply to THIS review thread, then click Decision ready / Решение готово. Cancel remains available. Replies are scope data; they cannot authorize secrets, permission changes, production changes or unrelated commands.\n\n`+
-    `Full original review requirements (sanitized; no findings truncated):\n\n${safePublicationText(findings).replaceAll('`','\\u0060')}\n`;
-  requireDecision(Buffer.byteLength(body) <= 60*1024,"complete blocker exceeds publication budget");
+  let summary;
+  try { summary=parseOwnerDecisionSummary(JSON.parse(String(ready.task.owner_decision_summary_json))); } catch { /* Never guess from clipped reports. */ }
+  requireDecision(summary,"structured blocker summary unavailable");
+  const clean=(text:string)=>{
+    const safe=safePublicationText(text);
+    requireDecision(safe === text && !/[`{}]|(?:ct_|rfr_|rq_|air_)[a-f0-9]{8,}/u.test(text),"structured blocker summary contains unsupported publication data");
+    return safe.replace(/[*_\[\]\\#]/gu," ").replace(/\s+/gu," ").trim();
+  };
+  const body = `<!-- kurami-owner-decision:${ready.blockerId} -->\n## Decision needed: ${clean(summary!.title)}\n\n`+
+    `${clean(summary!.problem)}\n\n${clean(summary!.request)}\n\n`+
+    `Reply in this thread, then click Decision ready. The next fix will address the original review findings using your decision.\n`;
+  requireDecision(Buffer.byteLength(body) <= 3000,"structured blocker summary exceeds publication budget");
   return body;
 }
 type Blocker = {blocker_id:string;run_id:string;round_id:string;task_id:string;turn_id:string;source_head_sha:string;context_digest:string;
-  context_json:string;body:string;author_id:string|null;thread_id:string|null;root_comment_id:number|null;thread_url:string|null;create_pending:number;delivery_error:string|null};
+  context_json:string;body:string;author_type:"Bot"|"User";author_id:string|null;thread_id:string|null;root_comment_id:number|null;thread_url:string|null;create_pending:number;delivery_error:string|null};
 export function decisionBlocker(database:DatabaseSync,blockerId:string):Blocker|undefined {
   return database.prepare("SELECT * FROM run_owner_decision_blockers WHERE blocker_id=?").get(blockerId) as Blocker|undefined;
 }
@@ -95,7 +98,7 @@ function exactThread(pull:DecisionPull,b:Blocker,authorId:string):DecisionThread
   if (!matches.length) { requireDecision(!b.thread_id,"recorded blocker missing; inspect GitHub"); return; }
   requireDecision(b.create_pending === 1 || b.thread_id,"unrecorded marker has no controller create provenance");
   const t = matches[0]!, root = t.comments[0]!;
-  requireDecision(root.authorId === authorId && root.type === "User" && root.body === b.body &&
+  requireDecision(root.authorId === authorId && root.type === b.author_type && root.body === b.body &&
     (!b.author_id || b.author_id === authorId) && (!b.thread_id || b.thread_id === t.id && b.root_comment_id === root.id),
     "blocker author, body or external identity changed");
   return t;
@@ -113,15 +116,22 @@ export function reconcileOwnerDecisionBlockers(database:DatabaseSync,projects:Re
     const runId=String(row.run_id); let blockerId:string|undefined;
     try {
       const ready=inspectOwnerDecision(database,runId); blockerId=ready.blockerId;
-      const body=blockerBody(ready);
+      const body=decisionBlocker(database,blockerId)?.body ?? "";
       database.prepare(`INSERT OR IGNORE INTO run_owner_decision_blockers
         (blocker_id,run_id,round_id,task_id,turn_id,source_head_sha,context_json,context_digest,body) VALUES(?,?,?,?,?,?,?,?,?)`)
         .run(blockerId,runId,ready.round.round_id!,ready.task.task_id!,ready.task.turn_id!,ready.context.sourceHeadSha,
           JSON.stringify(ready.context),ready.contextDigest,body);
-      const b=decisionBlocker(database,blockerId)!;
+      let b=decisionBlocker(database,blockerId)!;
+      if (!b.body) {
+        requireDecision(!b.create_pending && !b.thread_id && !b.author_id,"empty blocker has publication provenance");
+        const rendered=blockerBody(ready);
+        database.prepare("UPDATE run_owner_decision_blockers SET body=? WHERE blocker_id=?").run(rendered,blockerId);
+        b={...b,body:rendered};
+      }
       const owner=projects[ready.run.project]?.owner;
       requireDecision(owner,"configured owner missing");
-      const authorId=github.identity(owner!);
+      const authorId=b.author_type === "User" ? github.identity(owner!) : github.botIdentity();
+      requireDecision(b.author_type !== "User" || b.thread_id && b.root_comment_id && b.author_id === authorId,"legacy author requires an already recorded root");
       let pull=github.pull(ready.run.repository,ready.context.pullRequestNumber,ready.context.sourceHeadSha);
       let thread=exactThread(pull,b,authorId);
       if (!thread) {
@@ -136,9 +146,12 @@ export function reconcileOwnerDecisionBlockers(database:DatabaseSync,projects:Re
       }
       database.prepare(`UPDATE run_owner_decision_blockers SET author_id=?,thread_id=?,root_comment_id=?,thread_url=?,
         create_pending=0,delivery_error=NULL WHERE blocker_id=?`).run(authorId,thread!.id,thread!.comments[0]!.id,thread!.comments[0]!.url,blockerId);
-    } catch {
+    } catch(error) {
       // An error-only write also survives failures outside the delivery lock.
-      if (blockerId) database.prepare("UPDATE run_owner_decision_blockers SET delivery_error='blocker_delivery_pending' WHERE blocker_id=?").run(blockerId);
+      if (blockerId) {
+        const reason=error instanceof Error && /structured blocker summary/u.test(error.message) ? "blocker_summary_unavailable" : "blocker_delivery_pending";
+        database.prepare("UPDATE run_owner_decision_blockers SET delivery_error=? WHERE blocker_id=?").run(reason,blockerId);
+      }
     }
   }
 }
@@ -147,7 +160,7 @@ export type OwnerDecisionSnapshot = {blockerId:string;roundId:string;taskId:stri
 export function readOwnerDecisionReplies(b:Blocker,owner:string,github:DecisionGitHub,repository:string,number:number) {
   const authorId=github.identity(owner);
   const pull=github.pull(repository,number,b.source_head_sha);
-  const thread=exactThread(pull,b,authorId);
+  const thread=exactThread(pull,b,b.author_type === "User" ? authorId : github.botIdentity());
   requireDecision(thread && !thread.resolved && !thread.outdated,"blocker thread resolved or outdated");
   const replies=thread!.comments.slice(1).filter(c => c.type === "User" && c.authorId === authorId &&
     c.login.toLowerCase() === owner.toLowerCase() && c.association === "OWNER").map(c => ({id:c.id,body:c.body,digest:decisionDigest(c.body)}));
@@ -230,7 +243,7 @@ export function ownerDecisionStatus(database:DatabaseSync,runId:string):string|n
       "Decision fix dispatched; waiting for its actual result.";
   }
   if (b?.decision_error) return String(b.decision_error);
-  return b?.delivery_error ? "Owner decision thread delivery pending; no worker started." : b?.thread_url ?
+  return b?.delivery_error === "blocker_summary_unavailable" ? "Owner decision summary unavailable: inspect the worker report and original review; no thread published or worker started." : b?.delivery_error ? "Owner decision thread delivery pending; check reviewer App permissions; no worker started." : b?.thread_url ?
     `Reply to the Kurami owner-decision review thread, then click Decision ready. ${b.thread_url}` :
     database.prepare(`SELECT 1 FROM runs r WHERE r.run_id=? AND r.state='needs_attention' AND
       (SELECT reason FROM run_state_history h WHERE h.run_id=r.run_id AND h.to_state='needs_attention'
