@@ -1,3 +1,4 @@
+import { ownerDecisionAwaitingDispatch } from "../owner-decision.ts";
 import type { DatabaseSync } from "node:sqlite";
 import type { ReviewProfile } from "./profiles.ts";
 
@@ -32,7 +33,7 @@ export function readReviewEvidence(database: DatabaseSync, runId: string, profil
     important: Number(latest?.important_count ?? 0), suggestions: Number(latest?.suggestion_count ?? 0),
     url: latest?.github_review_url ? String(latest.github_review_url) : null,
     failure: latest?.failure_reason ? String(latest.failure_reason) : null,
-    fix: fixQueued && !["running", "waiting_ci", "resolving"].includes(String(fix?.round_state))
+    fix: ownerDecisionAwaitingDispatch(database,runId,profile) || fixQueued && !["running", "waiting_ci", "resolving"].includes(String(fix?.round_state))
       ? { state: "queued", round: null } : fix ? { state: String(fix.round_state), round: Number(fix.round_number) } : undefined,
   };
 }

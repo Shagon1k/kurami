@@ -377,6 +377,16 @@ def main() -> None:
     module._paths = lambda: (Path(__file__), Path(__file__), Path(__file__))
     module.asyncio.create_subprocess_exec = fake_control_spawn
     try:
+        token = "a" * 24
+        require(module.DECISION_ID.fullmatch(f"kurami:decision_ready:r_abc123:{token}") is not None, "Decision button lost its exact attempt")
+        require(module.DECISION_ID.fullmatch("kurami:decision_ready:r_abc123") is None, "Unfenced decision button accepted")
+        asyncio.run(module._run_control("decision_ready", "r_abc123", decision_token=token))
+        require(captured_args[-1][-2:] == ("--decision-token", token), "Decision attempt was not forwarded to the control route")
+        try:
+            asyncio.run(module._run_control("decision_ready", "r_abc123"))
+            raise AssertionError("Missing decision attempt was accepted")
+        except RuntimeError:
+            pass
         asyncio.run(module._run_control("review_fix_all", "r_abc123"))
         require(captured_args[-1][-1] == "--all-reviews" and captured_args[-1][captured_args[-1].index("--action") + 1] == "review_fix", "Combined fix did not reach the shared queue")
         asyncio.run(module._run_control("spec_review", "r_abc123"))

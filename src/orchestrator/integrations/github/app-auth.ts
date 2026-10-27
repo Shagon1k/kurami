@@ -1,3 +1,4 @@
+import { readFileSync, realpathSync, statSync } from "node:fs";
 import { createSign } from "node:crypto";
 import { readFile, realpath, stat } from "node:fs/promises";
 import { relative, resolve } from "node:path";
@@ -133,11 +134,15 @@ export async function loadGitHubAppCredentialsFromFile(
   return loadGitHubAppCredentials(orchestratorHome, environment);
 }
 
-export async function loadOwnerGitHubTokenFromFile(
+export async function loadOwnerGitHubTokenFromFile(home: string): Promise<string> {
+  return loadOwnerGitHubTokenFromFileSync(home);
+}
+
+export function loadOwnerGitHubTokenFromFileSync(
   orchestratorHome: string,
-): Promise<string> {
-  const secretsDirectory = await realpath(resolve(orchestratorHome, "secrets"));
-  const environmentFile = await realpath(
+): string {
+  const secretsDirectory = realpathSync(resolve(orchestratorHome, "secrets"));
+  const environmentFile = realpathSync(
     resolve(secretsDirectory, "github.env"),
   );
   const environmentRelative = relative(secretsDirectory, environmentFile);
@@ -147,11 +152,11 @@ export async function loadOwnerGitHubTokenFromFile(
     resolve(secretsDirectory, environmentRelative) !== environmentFile
   )
     fail("GitHub owner environment must be inside the orchestrator secrets directory");
-  const environmentStat = await stat(environmentFile);
+  const environmentStat = statSync(environmentFile);
   if (!environmentStat.isFile()) fail("GitHub owner environment is not a file");
   if ((environmentStat.mode & 0o077) !== 0)
     fail("GitHub owner environment permissions are too broad");
-  const content = await readFile(environmentFile, "utf8");
+  const content = readFileSync(environmentFile, "utf8");
   const tokens = new Map<string, string>();
   for (const rawLine of content.split(/\r?\n/u)) {
     const line = rawLine.trim();

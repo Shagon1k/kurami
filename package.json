@@ -141,6 +141,7 @@
     "test:ci-repair": "node tests/verify-ci-repair.ts",
     "test:ai-review": "node tests/verify-ai-review.ts",
     "test:project-resilience": "node tests/verify-project-resilience.ts",
+    "test:owner-decision": "node tests/verify-owner-decision.ts",
     "test:review-fix": "node tests/verify-review-fix.ts",
     "test:managed-source-refresh": "node tests/verify-managed-source-refresh.ts",
     "test:managed-task-recovery": "node tests/verify-managed-task-recovery.ts",

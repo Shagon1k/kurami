@@ -1,3 +1,4 @@
+import { ownerDecisionAwaitingDispatch } from "../orchestrator/projects/owner-decision.ts";
 import { readReviewEvidence } from "../orchestrator/projects/reviews/read-model.ts";
 import { REVIEW_PROFILES } from "../orchestrator/projects/reviews/profiles.ts";
 import { reviewFixStartupFailure } from "./review-fix-failure.ts";
@@ -144,6 +145,10 @@ export function collectProjectsSnapshot(options: { home?: string; now?: Date; co
       if (row.run_state === "parked_review" && row.owner_state === "none" && !row.stop_reason && !row.previous_codex_thread_id && !row.tmux_session_name &&
           (!row.pull_request_url || !row.ci_head_sha)) {
         row.writer_stop = {report: primaryStoppedDiagnostic(database, row.run_id), threadId: row.codex_thread_id};
+      }
+      if(ownerDecisionAwaitingDispatch(database,row.run_id)) {
+        row.stage="review_fix_queued";row.review_fix_state="queued";
+        row.detail="Decision ready queued; no worker dispatch confirmed.";
       }
       row.review_fix_startup_failure = reviewFixStartupFailure(database, row.run_id, row.ci_head_sha, row.pull_request_url);
       const diagnostic = workerDiagnosticText(technicalWorkerDiagnostic(database, row.run_id));

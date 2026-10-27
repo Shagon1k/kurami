@@ -1,3 +1,6 @@
+import { captureOwnerDecision, decisionRefusal, type OwnerDecisionSnapshot } from "../orchestrator/projects/owner-decision.ts";
+import { ownerDecisionGitHub } from "../orchestrator/projects/owner-decision-github.ts";
+import { withFeedbackLockSync } from "../orchestrator/projects/lifecycle-feedback-production.ts";
 import { parseReviewProfile, type ReviewProfile } from "../orchestrator/projects/reviews/profiles.ts";
 import { createHash } from "node:crypto";
 import { existsSync } from "node:fs";
@@ -13,20 +16,20 @@ import { PROJECTS_STALE_AFTER_MS } from "./model.ts";
 import {hasActivePrRequest} from "../orchestrator/controls/pr-boundary.ts";
 import { openOrchestratorDatabase } from "../orchestrator/state/database.ts";
 
-export const RUN_ACTIONS = ["take_control","preview_start","preview_stop","preview_reviewed","ci_repair","review_fix","recover_interrupted_review_fix","recover_managed_task","retry","stop","discard_local","discard_published"] as const;
+export const RUN_ACTIONS = ["decision_ready","take_control","preview_start","preview_stop","preview_reviewed","ci_repair","review_fix","recover_interrupted_review_fix","recover_managed_task","retry","stop","discard_local","discard_published"] as const;
 export type RunAction = typeof RUN_ACTIONS[number];
 export type RunActionInput = {runId:string;project:string;itemId:string;action:RunAction;fingerprint:string;key:string;confirmed:boolean;profile?:ReviewProfile;allReviews?:boolean};
 export type RunActionView = {fingerprint:string;reason:string;actions:{action:RunAction;label:string;enabled:boolean;confirmation:string|null;hint:string|null;state:string|null}[]};
 type Pending = {review_fix_all:number;review_profile:ReviewProfile;request_id:string;action:string;request_state:string;requested_via:string};
 type Run = Record<string,unknown> & {available_actions:string[]};
-const labels: Record<RunAction,string> = {take_control:"Взять управление",preview_start:"Запустить превью",preview_stop:"Убрать превью",preview_reviewed:"Превью проверено",
+const labels: Record<RunAction,string> = {decision_ready:"Решение готово",take_control:"Взять управление",preview_start:"Запустить превью",preview_stop:"Убрать превью",preview_reviewed:"Превью проверено",
   retry:"Повторить попытку",ci_repair:"Исправить CI",review_fix:"Исправить замечания",recover_interrupted_review_fix:"Продолжить прерванное исправление",recover_managed_task:"Восстановить исправление",stop:"Отменить запуск",discard_local:"Удалить локальную работу",discard_published:"Закрыть draft PR и удалить работу"};
 const destructive = new Set<RunAction>(["discard_local","discard_published"]);
 
 function fingerprint(run: Run): string {
   return createHash("sha256").update(JSON.stringify([run.run_id,run.project,run.item_id,run.state,run.owner_state,run.stop_reason,run.execution_mode,
     run.resource_state,run.branch_name,run.worktree_path,run.codex_thread_id,run.previous_codex_thread_id,run.tmux_session_name,run.ci_head_sha,run.ci_pull_request_url,
-    run.retry_identity,run.interrupted_review_fix_identity,run.preview_lease_id,run.preview_state,run.preview_verified_head_sha,run.preview_artifact_digest,run.preview_expires_at,run.preview_reviewed_at])).digest("hex");
+    run.owner_decision_identity,run.retry_identity,run.interrupted_review_fix_identity,run.preview_lease_id,run.preview_state,run.preview_verified_head_sha,run.preview_artifact_digest,run.preview_expires_at,run.preview_reviewed_at])).digest("hex");
 }
 function readRun(database: DatabaseSync, runId: string, home: string, now: Date, profile: ReviewProfile = "general", allReviews = false): Run {
   return availableRunControls(database,runId,{home,now:now.getTime(),profile,allReviews}) as Run;
@@ -50,18 +53,20 @@ export function projectRunActions(database: DatabaseSync, runId: string, home: s
   const run = readRun(database,runId,home,now,profile,allReviews);
   const eligible = candidates(run,now);
   const prPending=hasActivePrRequest(database,runId);
-  const requests = database.prepare("SELECT request_id,action,request_state,requested_via,review_profile,review_fix_all FROM run_control_requests WHERE run_id=? ORDER BY rowid DESC").all(runId) as Pending[];
+  const decisionsReady=Boolean(database.prepare("SELECT 1 FROM sqlite_master WHERE name='run_owner_decisions'").get());
+  const requests = database.prepare(`SELECT q.request_id,${decisionsReady ? "CASE WHEN d.request_id IS NOT NULL THEN 'decision_ready' ELSE q.action END" : "q.action"} AS action,q.request_state,q.requested_via,q.review_profile,q.review_fix_all
+    FROM run_control_requests q ${decisionsReady ? "LEFT JOIN run_owner_decisions d USING(request_id)" : ""} WHERE q.run_id=? ORDER BY q.rowid DESC`).all(runId) as Pending[];
   const actions = RUN_ACTIONS.flatMap(action => {
     const latest = requests.find(request => request.action === action && (action !== "review_fix" || (request.review_profile === profile && Boolean(request.review_fix_all) === allReviews)));
     const pending = latest && ["pending","processing"].includes(latest.request_state);
-    if (!eligible.has(action) && !pending && !["failed","rejected"].includes(latest?.request_state ?? "")) return [];
+    if (!eligible.has(action) && !pending && !["failed","rejected",...(action === "decision_ready" ? ["applied"] : [])].includes(latest?.request_state ?? "")) return [];
     const label = action === "take_control" ? run.take_control_autonomous ? "Продолжить автономно" : labels[action] :
       action === "preview_start" && run.preview_state === "running" ? "Продлить превью на 24 ч" : labels[action];
     return [{action,label,enabled:eligible.has(action) && fresh && run.execution_mode === "live" && !pending&&!prPending,confirmation:destructive.has(action) ?
       action === "discard_published" ? "Закрыть draft PR и удалить сохранённую ветку и локальную работу? Это действие нельзя отменить." : "Удалить сохранённую локальную работу? Это действие нельзя отменить." : null,
       hint:action === "take_control" && run.owner_state === "remote" ? "Нажатие подтверждает, что текущая Remote-задача завершена. Kurami запустит продолжение." :
         action === "take_control" && run.owner_state === "cli" ? "Kurami остановит текущий ход и передаст вам управление." : null,
-      state:latest && ["pending","processing","failed","rejected"].includes(latest.request_state) ? latest.request_state : null}];
+      state:latest && ["pending","processing","failed","rejected",...(action === "decision_ready" ? ["applied"] : [])].includes(latest.request_state) ? latest.request_state : null}];
   });
   return {fingerprint:fingerprint(run),reason:fresh ? "eligible" : "stale",actions};
 }
@@ -85,7 +90,11 @@ export function parseRunActionInput(value: unknown): RunActionInput {
 
 /** One transaction joins owner intent to the shared queue or preview acknowledgement. */
 export function requestProjectRunAction(value: unknown, actor: string, options: {home?:string;now?:Date} = {}): ReviewResult {
-  const input = parseRunActionInput(value);
+  const input=parseRunActionInput(value);
+  const home=options.home ?? resolveKuramiHome(resolve(import.meta.dirname,"../../.."));
+  return input.action === "decision_ready" ? withFeedbackLockSync(home,()=>requestProjectRunActionLocked(input,actor,options)) : requestProjectRunActionLocked(input,actor,options);
+}
+function requestProjectRunActionLocked(input:RunActionInput, actor: string, options: {home?:string;now?:Date}): ReviewResult {
   if (destructive.has(input.action) && !input.confirmed) throw new ProjectsActionError(409,"Подтвердите удаление сохранённой работы.");
   const home = options.home ?? resolveKuramiHome(resolve(import.meta.dirname,"../../..")); const now = options.now ?? new Date();
   const project = projectsRegistry(resolve(home,"config/projects.yaml"))[input.project];
@@ -94,8 +103,19 @@ export function requestProjectRunAction(value: unknown, actor: string, options: 
   if (!existsSync(path)) throw new ProjectsActionError(503,"Данные временно недоступны.");
   const database = openOrchestratorDatabase(path,{timeoutMs:1000}); let began = false;
   try {
+    const replayKey="projects-action:"+createHash("sha256").update(JSON.stringify([actor,input.runId,input.project,input.itemId,input.action,input.profile,input.fingerprint,input.key,...(input.allReviews?["all-reviews"]:[])])).digest("hex");
+    const replay=database.prepare("SELECT a.request_id,q.request_state FROM project_action_requests a LEFT JOIN run_control_requests q ON q.request_id=a.request_id WHERE a.idempotency_key=?").get(replayKey);
+    if(replay)return {state:"existing",requestId:String(replay.request_id ?? replayKey),requestState:String(replay.request_state ?? "applied")};
+    let decision:OwnerDecisionSnapshot|undefined;
+    if(input.action === "decision_ready") {
+      const current=readRun(database,input.runId,home,now);
+      if(fingerprint(current)!==input.fingerprint)throw new ProjectsActionError(409,"Stale decision card; refresh and reconfirm.");
+      try { decision=captureOwnerDecision(database,input.runId,project.owner,
+        String(current.owner_decision_identity),ownerDecisionGitHub(home)); }
+      catch(error) { throw new ProjectsActionError(409,decisionRefusal(error)); }
+    }
     database.exec("BEGIN IMMEDIATE"); began=true;
-    const key = "projects-action:" + createHash("sha256").update(JSON.stringify([actor,input.runId,input.project,input.itemId,input.action,input.profile,input.fingerprint,input.key,...(input.allReviews?["all-reviews"]:[])])).digest("hex");
+    const key = replayKey;
     const previous = database.prepare("SELECT a.request_id,q.request_state FROM project_action_requests a LEFT JOIN run_control_requests q ON q.request_id=a.request_id WHERE a.idempotency_key=?").get(key) as {request_id:string|null;request_state:string|null} | undefined;
     if (previous) { database.exec("COMMIT"); began=false; return {state:"existing",requestId:previous.request_id ?? key,requestState:previous.request_state ?? "applied"}; }
     if(hasActivePrRequest(database,input.runId))throw new ProjectsActionError(409,"GitHub is processing this PR action.");
@@ -120,7 +140,7 @@ export function requestProjectRunAction(value: unknown, actor: string, options: 
       if (input.action === "preview_reviewed") acknowledgePreview(database,input.runId,"projects:"+createHash("sha256").update(actor).digest("hex"),true,{now:now.getTime()});
       else {
         try {
-          const result = requestRunControl(database,input.runId,input.action as Action,"projects",true,{home,idempotencyKey:key,profile:input.profile,allReviews:input.allReviews});
+          const result = requestRunControl(database,input.runId,input.action as Action,"projects",true,{home,idempotencyKey:key,profile:input.profile,allReviews:input.allReviews,decision});
           requestId=String(result.requestId ?? result.request_id); requestState=String(result.requestState ?? result.request_state); existing=result.action === "existing";
         } catch { throw new ProjectsActionError(409,"Действие больше недоступно. Обновите страницу."); }
         if (["ci_repair","review_fix","recover_interrupted_review_fix"].includes(input.action)) {
@@ -132,7 +152,7 @@ export function requestProjectRunAction(value: unknown, actor: string, options: 
       }
     }
     database.prepare("INSERT INTO project_action_requests(idempotency_key,run_id,actor_subject,action,fingerprint,confirmed,request_id,preview_lease_id) VALUES(?,?,?,?,?,?,?,?)")
-      .run(key,input.runId,actor,input.action,input.fingerprint,Number(input.confirmed),requestId,input.action === "preview_reviewed" ? String(run.preview_lease_id) : null);
+      .run(key,input.runId,actor,input.action === "decision_ready" ? "review_fix" : input.action,input.fingerprint,Number(input.confirmed),requestId,input.action === "preview_reviewed" ? String(run.preview_lease_id) : null);
     database.exec("COMMIT"); began=false;
     return {state:existing ? "existing" : "created",requestId:requestId ?? key,requestState};
   } finally { if(began) database.exec("ROLLBACK"); database.close(); }

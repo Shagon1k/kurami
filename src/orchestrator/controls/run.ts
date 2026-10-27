@@ -1,3 +1,6 @@
+import { captureOwnerDecision, inspectOwnerDecision, storeOwnerDecision, type OwnerDecisionSnapshot } from "../projects/owner-decision.ts";
+import { ownerDecisionGitHub } from "../projects/owner-decision-github.ts";
+import { withFeedbackLockSync } from "../projects/lifecycle-feedback-production.ts";
 import { canRetryUnchangedCi } from "../runtime/ci-no-change-retry.ts";
 import { inspectPrimaryRetry } from "../projects/sessions/retry-primary.ts";
 import { inspectInterruptedReviewFix } from "../runtime/interrupted-review-fix-recovery.ts";
@@ -38,6 +41,7 @@ export type Action =
   | "ci_repair"
   | "ai_review"
   | "review_fix"
+  | "decision_ready"
   | "recover_interrupted_review_fix"
   | "retry"
   | "recover_managed_task";
@@ -78,6 +82,7 @@ const pendingPresentations: Partial<
     detail:
       "CI fix requested; waiting to start a fresh bounded agent session on the exact failed SHA.",
   },
+  decision_ready: {stage:"needs_attention",detail:"Decision ready queued; no worker dispatch confirmed."},
   review_fix: {
     stage: "review_fix_queued",
     detail:
@@ -183,6 +188,7 @@ function parseArguments(): {
   via: RequestSource;
   profile: ReviewProfile;
   allReviews: boolean;
+  decisionToken?: string;
   project?: string;
   issue?: number;
   discordThreadId?: string;
@@ -201,6 +207,8 @@ function parseArguments(): {
   const issueValue = valueAfter(args, "--issue");
   const issue = issueValue ? Number(issueValue) : undefined;
   const discordThreadId = valueAfter(args, "--discord-thread-id");
+  const decisionToken = valueAfter(args,"--decision-token");
+  if (action === "decision_ready" && !/^[a-f0-9]{24}$/.test(decisionToken ?? "")) fail("Decision ready requires the exact current --decision-token from controls");
   const apply = args.includes("--apply");
   if (!command || !["status", "request", "controls"].includes(command)) {
     fail(
@@ -225,6 +233,7 @@ function parseArguments(): {
         "ci_repair",
         "ai_review",
         "review_fix",
+        "decision_ready",
         "recover_managed_task",
         "recover_interrupted_review_fix",
         "retry",
@@ -252,6 +261,7 @@ function parseArguments(): {
     via,
     profile,
     allReviews,
+    decisionToken,
     project,
     issue,
     discordThreadId,
@@ -449,8 +459,32 @@ export function requestRunControl(
   action: Action,
   via: RequestSource,
   apply: boolean,
-  options: { home?: string; idempotencyKey?: string; profile?: ReviewProfile; allReviews?: boolean } = {},
+  options: { home?: string; idempotencyKey?: string; profile?: ReviewProfile; allReviews?: boolean; decisionToken?:string; decision?:OwnerDecisionSnapshot } = {},
 ): Record<string, unknown> {
+  const decisionHome=options.home ?? orchestratorHome;
+  if (action === "decision_ready") {
+    if (!options.decision) {
+      if (database.isTransaction) fail("Live decision capture must precede the write transaction");
+      if (!/^[a-f0-9]{24}$/.test(options.decisionToken ?? "")) fail("Exact current decision token is required");
+      return withFeedbackLockSync(decisionHome,() => {
+        const already=database.prepare(`SELECT q.request_id,q.request_state FROM run_owner_decisions d JOIN run_control_requests q USING(request_id)
+          WHERE q.run_id=? AND d.blocker_id=? AND d.aborted_at IS NULL AND (q.request_state='applied' OR q.request_state='processing' AND d.claimed_at IS NOT NULL)`).get(runId,options.decisionToken!);
+        if(already)return {action:"existing",runId,requestId:already.request_id,requestState:already.request_state};
+        const registry=parse(readFileSync(resolve(decisionHome,"config/projects.yaml"),"utf8"));
+        const project=database.prepare("SELECT project FROM runs WHERE run_id=?").get(runId);
+        const decision=captureOwnerDecision(database,runId,registry.projects[String(project?.project)]?.owner,options.decisionToken!,ownerDecisionGitHub(decisionHome),apply);
+        return requestRunControl(database,runId,action,via,apply,{...options,decision});
+      });
+    }
+    const own=!database.isTransaction;
+    if(own)database.exec("BEGIN IMMEDIATE");
+    try {
+      const result=storeOwnerDecision(database,runId,via,options.decision,apply,options.idempotencyKey);
+      if(apply)presentPendingRequest(database,runId,action);
+      if(own)database.exec(apply ? "COMMIT" : "ROLLBACK");
+      return result;
+    } catch(error) { if(own)database.exec("ROLLBACK"); throw error; }
+  }
   const profile = parseReviewProfile(options.profile);
   const allReviews = options.allReviews ?? false;
   if (allReviews && (action !== "review_fix" || profile !== "general")) fail("All reviews requires review_fix without a selected profile");
@@ -954,6 +988,16 @@ export function availableRunControls(database: DatabaseSync, runId: string, opti
       availableActions.push("retry");
     } catch { /* Missing or changed native evidence never permits input. */ }
   }
+  if (runState === "needs_attention" && selected.latest_attention_reason === "review_fix_no_new_head") {
+    try {
+      const pending=database.prepare(`SELECT d.request_id FROM run_owner_decisions d JOIN run_control_requests q USING(request_id)
+        WHERE q.run_id=? AND q.request_state IN ('pending','processing') AND d.aborted_at IS NULL`).get(runId);
+      const decision=inspectOwnerDecision(database,runId,pending ? String(pending.request_id) : null);
+      selected.owner_decision_identity=decision.blockerId;
+      if(database.prepare("SELECT 1 FROM run_owner_decision_blockers WHERE blocker_id=? AND thread_id IS NOT NULL").get(decision.blockerId))
+        availableActions.push("decision_ready");
+    } catch { /* Other causes and unknown original scope fail closed. */ }
+  }
   try {
     const interrupted = inspectInterruptedReviewFix(database,String(selected.run_id),
       (parse(readFileSync(projectsPath,"utf8")) as ProjectsRegistry).projects[String(selected.project)]);
@@ -1091,7 +1135,7 @@ export function runRunControlsCli(): void {
               issue: args.issue,
               discordThreadId: args.discordThreadId,
             })
-          : requestRunControl(database, args.runId!, args.action!, args.via, args.apply, {profile:args.profile,allReviews:args.allReviews});
+          : requestRunControl(database, args.runId!, args.action!, args.via, args.apply, {profile:args.profile,allReviews:args.allReviews,decisionToken:args.decisionToken});
     process.stdout.write(`${JSON.stringify({ ok: true, ...result })}\n`);
   } finally {
     database.close();

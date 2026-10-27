@@ -1,3 +1,5 @@
+import { reconcileOwnerDecisionBlockers } from "./owner-decision.ts";
+import { ownerDecisionGitHub } from "./owner-decision-github.ts";
 import { execFileSync } from "node:child_process";
 import { createHash } from "node:crypto";
 import { closeSync, mkdirSync, openSync } from "node:fs";
@@ -71,13 +73,20 @@ export function githubFeedbackAdapter(request: GitHubRequest): LifecycleGitHub {
 /** Existing Linux flock convention, with a bounded wait. Parent fd keeps the
  * shared open-file-description lock alive after flock exits. No DB transaction
  * spans network IO. One global feedback lane also fences snapshot revisions. */
-export async function withFeedbackLock<T>(home: string, work: () => Promise<T>): Promise<T> {
+export function withFeedbackLockSync<T>(home: string, work: () => T): T {
+  const release = acquireFeedbackLock(home);
+  try { return work(); } finally { release(); }
+}
+function acquireFeedbackLock(home: string): () => void {
   mkdirSync(resolve(home, "state"), { recursive: true, mode: 0o700 });
   const fd = openSync(resolve(home, "state/github-lifecycle-feedback.lock"), "a", 0o600);
-  try {
-    execFileSync("flock", ["-w", "2", "3"], { stdio: ["ignore", "pipe", "pipe", fd], timeout: 3_000 });
-    return await work();
-  } finally { closeSync(fd); }
+  try { execFileSync("flock", ["-w", "2", "3"], { stdio: ["ignore", "pipe", "pipe", fd], timeout: 3_000 }); }
+  catch (error) { closeSync(fd); throw error; }
+  return () => closeSync(fd);
+}
+export async function withFeedbackLock<T>(home: string, work: () => Promise<T>): Promise<T> {
+  const release = acquireFeedbackLock(home);
+  try { return await work(); } finally { release(); }
 }
 
 export function feedbackStore(database: DatabaseSync): FeedbackStore {
@@ -232,6 +241,7 @@ export async function deliverControllerTicketFeedback(database: DatabaseSync, ho
   try {
     await withFeedbackLock(home, async () => {
       const registry = parse(await readFile(resolve(home, "config/projects.yaml"), "utf8")) as { projects: Record<string, Project> };
+      reconcileOwnerDecisionBlockers(database,registry.projects,ownerDecisionGitHub(home));
       const token = await loadOwnerGitHubTokenFromFile(home);
       const request: GitHubRequest = (method, endpoint, body) => {
         try {

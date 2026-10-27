@@ -130,6 +130,7 @@ const suites = [
   "test:ai-review",
   "test:project-resilience",
   "test:review-fix",
+  "test:owner-decision",
   "test:managed-source-refresh",
   "test:managed-task-recovery",
   "test:interrupted-review-fix-recovery",

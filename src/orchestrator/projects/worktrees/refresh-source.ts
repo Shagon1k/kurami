@@ -42,7 +42,7 @@ function git(worktree: string, ...args: string[]): string {
  * quiescent. Remote movement refuses admission, never rolls back a safe FF. */
 export function refreshManagedSource(database: DatabaseSync, project: SourceProject,
   runId: string, action: SourceAction, requestId: string | undefined, apply: boolean,
-  effects: SourceEffects): object {
+  effects: SourceEffects, excludedControlId: string | null = null): object {
   requireSource(["review_fix_start", "repair_start", "preview_allocate", "preview_up", "review_fix_retry_prepare"].includes(action), "unsupported admission action");
   const retry = action === "review_fix_retry_prepare";
   requireSource(!retry || !apply, "retry preparation source validation is read-only");
@@ -79,8 +79,8 @@ export function refreshManagedSource(database: DatabaseSync, project: SourceProj
       const request = database.prepare("SELECT * FROM run_control_requests WHERE request_id=? AND run_id=?").get(requestId, runId);
       requireSource(request?.action === requestAction && (retry ? request.request_state === "applied" : ["pending", "processing"].includes(String(request.request_state))), "request changed");
     }
-    requireSource(!database.prepare(`SELECT 1 FROM run_control_requests WHERE run_id=? AND request_id<>?
-      AND request_state IN ('pending','processing')`).get(runId,requestId ?? ""), "conflicting control request");
+    requireSource(!database.prepare(`SELECT 1 FROM run_control_requests WHERE run_id=? AND request_id<>? AND request_id IS NOT ?
+      AND request_state IN ('pending','processing')`).get(runId,requestId ?? "", excludedControlId), "conflicting control request");
     for (const [table, condition] of [
       ["run_ci_repair_attempts", "attempt_state IN ('running','waiting_ci')"],
       ["run_review_fix_rounds", "round_state IN ('running','waiting_ci','resolving')"],

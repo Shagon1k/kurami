@@ -1,3 +1,4 @@
+import { ownerDecisionStatus, ownerDecisionAwaitingDispatch } from "../projects/owner-decision.ts";
 import { writerStopPresentation } from "../projects/writer-stop-presentation.ts";
 import { createHash } from "node:crypto";
 import { lifecycleFeedbackKey } from "../projects/lifecycle-feedback.ts";
@@ -456,6 +457,11 @@ export function reconcileProgressCards(
   const heartbeatBucket = Math.floor(Date.now() / (5 * 60 * 1_000));
   for (const run of runs) {
     const progress = progressFor(run, config);
+    const decision=ownerDecisionStatus(database,run.run_id);
+    if(ownerDecisionAwaitingDispatch(database,run.run_id)) {
+      progress.stage="review_fix_queued";
+      progress.detail="Decision ready queued; no worker dispatch confirmed.";
+    } else if(decision)progress.detail += "\n"+decision;
     const feedback = database.prepare("SELECT delivery_error FROM github_lifecycle_feedback WHERE delivery_key=?").get(
       lifecycleFeedbackKey({ runId: run.run_id, endpoint: { repository: run.repository, issueNumber: run.issue_number } }),
     );

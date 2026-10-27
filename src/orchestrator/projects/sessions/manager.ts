@@ -1,3 +1,4 @@
+import { startOwnerDecisionFix } from "./owner-decision-fix.ts";
 import { recoverInterruptedReviewFix } from "./recover-interrupted-review-fix.ts";
 import { taskForSession } from "../../integrations/codex/task-store.ts";
 import { readFile } from "node:fs/promises";
@@ -65,6 +66,7 @@ function parseArguments(): Arguments {
       action !== "repair" &&
       action !== "cleanup-repair" &&
       action !== "review-fix" &&
+      action !== "decision-fix" &&
       action !== "cleanup-review-fix" &&
       action !== "recover-managed-task" &&
       action !== "recover-interrupted-review-fix" &&
@@ -75,7 +77,7 @@ function parseArguments(): Arguments {
       action !== "handoff" &&
       action !== "finalize-stop") ||
     !runId ||
-    (["repair", "review-fix", "recover-managed-task", "recover-interrupted-review-fix"].includes(action)
+    (["repair", "review-fix", "decision-fix", "recover-managed-task", "recover-interrupted-review-fix"].includes(action)
       ? !requestId
       : Boolean(requestId)) ||
     unknown.length > 0 ||
@@ -906,6 +908,11 @@ export async function runSessionManagerCli(): Promise<void> {
     }
     if (args.action === "cleanup-review-fix") {
       await cleanupReviewFixSession(database, run, registry, args.apply);
+      return;
+    }
+    if (args.action === "decision-fix") {
+      const result=await startOwnerDecisionFix(database,run.run_id,registry,config,args.requestId!,args.apply);
+      writeSync(1,JSON.stringify(result)+"\n");
       return;
     }
     if (args.action === "recover-interrupted-review-fix") {

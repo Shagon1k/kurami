@@ -167,7 +167,9 @@ function buildPlans(
     } else {
       if (request.requested_action === "ci_repair" && request.run_state === "needs_attention")
         request.ci_no_change_retry = Number(canRetryUnchangedCi(database,request.run_id,request.request_id));
-      plans.push(planForRequest(request, config));
+      if (request.requested_action === "review_fix" && database.prepare("SELECT 1 FROM run_owner_decisions WHERE request_id=?").get(request.request_id))
+        plans.push({runId:request.run_id,project:request.project,issueNumber:request.issue_number,requestId:request.request_id,action:"owner_decision_start"});
+      else plans.push(planForRequest(request, config));
     }
   }
   for (const run of automatic) {
@@ -244,7 +246,7 @@ export async function runOrchestratorControllerCli(): Promise<void> {
       continue;
     }
     if (
-      ["start", "successor_start", "repair_start", "review_start", "review_fix_start", "recover_interrupted_review_fix", "retry"].includes(plan.action) &&
+      ["start", "successor_start", "repair_start", "review_start", "review_fix_start", "owner_decision_start", "recover_interrupted_review_fix", "retry"].includes(plan.action) &&
       llmCount >= config.limits.max_llm_running_global
     ) {
       results.push({ ...plan, status: "deferred", reason: "LLM cap reached" });
@@ -254,7 +256,7 @@ export async function runOrchestratorControllerCli(): Promise<void> {
       const result = executePlannedAction(database, plan);
       if (!plan.requestId) ledger.recordSuccess(plan);
       results.push({ ...plan, status: "applied", result });
-      if (["start", "successor_start", "repair_start", "review_start", "review_fix_start", "recover_interrupted_review_fix", "retry"].includes(plan.action))
+      if (["start", "successor_start", "repair_start", "review_start", "review_fix_start", "owner_decision_start", "recover_interrupted_review_fix", "retry"].includes(plan.action))
         llmCount += 1;
       reconcileAfterAppliedAction(database, config);
     } catch (error) {
@@ -282,7 +284,7 @@ export async function runOrchestratorControllerCli(): Promise<void> {
         );
       }
       if (
-        ["successor_start", "review_start", "review_fix_start", "recover_interrupted_review_fix", "recover_managed_task"].includes(
+        ["successor_start", "review_start", "review_fix_start", "owner_decision_start", "recover_interrupted_review_fix", "recover_managed_task"].includes(
           plan.action,
         ) &&
         plan.requestId &&

@@ -9,6 +9,7 @@ import { AUDIT_EXPRESSION, inventoryExpression } from "../../src/ui-library/test
 import { syntheticProjectsSnapshot } from "./fixture.ts";
 import {RUN_ACTIONS} from "../../src/projects-site/run-actions.ts";
 
+let decisionScenario:"off"|"ready"|"refused"|"queued"|"completed"="off";
 let unavailable = false;
 let dense=false;
 let previewReady=false;
@@ -62,10 +63,15 @@ const serverOptions = { snapshot: () => {
     item.review.state='ready';item.reviewFixStartupFailure='Review fixes did not start: a process still owns the managed working copy. Cleanup must finish before retrying.';
   }
   if(runNotesScenario){
-    const item=snapshot.items[0]!,labels:Record<string,string>={retry:'Retry',preview_stop:'Remove preview',review_fix:'Fix review findings',ci_repair:'Fix CI',preview_start:'Start preview',preview_reviewed:'Preview reviewed',take_control:'Take control',recover_managed_task:'Recover managed task',stop:'Cancel run',discard_local:'Discard local work',discard_published:'Discard published work'};
+    const item=snapshot.items[0]!,labels:Record<string,string>={decision_ready:'Decision ready',retry:'Retry',preview_stop:'Remove preview',review_fix:'Fix review findings',ci_repair:'Fix CI',preview_start:'Start preview',preview_reviewed:'Preview reviewed',take_control:'Take control',recover_managed_task:'Recover managed task',stop:'Cancel run',discard_local:'Discard local work',discard_published:'Discard published work'};
     item.links.preview='https://preview.example.test/';item.aiReview={enabled:false,reason:'unstable',head:item.ci.head};item.reviewFix={state:'succeeded',round:1};
     item.runActions!.actions=RUN_ACTIONS.map(action=>({action,label:labels[action]!,enabled:false,state:runNotesScenario,hint:null,confirmation:null}));
     if(previewStopOnly){item.runActions!.actions=item.runActions!.actions.filter(action=>['preview_stop','stop','take_control'].includes(action.action));item.preview.state='outdated';item.preview.tone='warning';item.preview.head=item.review.head;}
+  }
+  if(decisionScenario!=="off") {
+    const item=snapshot.items[0]!;item.stage="needs_attention";item.detail=decisionScenario==="completed"?"Decision fix completed; CI and snapshotted thread reconciliation finished.":"Reply to the exact Kurami review thread; then confirm your decision.";
+    item.runActions!.actions=[{action:"decision_ready",label:"Решение готово",enabled:["ready","refused"].includes(decisionScenario),confirmation:null,hint:null,state:decisionScenario==="queued"?"pending":decisionScenario==="refused"?"failed":decisionScenario==="completed"?"applied":null},
+      {action:"stop",label:"Cancel run",enabled:true,confirmation:null,hint:null,state:null}];
   }
   if(dense)for(let index=0;index<80;index++)snapshot.items.push({...snapshot.items[3]!,id:`bulk-${index}`,number:100+index,title:`Additional task ${index}`});
   if(previewReviewScenario){const item=snapshot.items[0]!;item.preview={state:previewNewHead?'outdated':'running',tone:previewNewHead?'warning':'success',head:'abcdef0123456789',expiresAt:'2030-01-01T00:00:00Z',reviewed:previewReviewed};item.ci.head=previewNewHead?'fedcba9876543210':item.preview.head;item.links.preview='https://preview.example.test/';item.runActions!.actions=previewReviewed?[]:[{action:'preview_reviewed',label:'Превью проверено',enabled:true,confirmation:null,hint:null,state:null}];}
@@ -108,6 +114,11 @@ const serverOptions = { snapshot: () => {
 } };
 const completeOptions = { ...serverOptions, prCacheMs:0,runAction:(value:unknown)=>{
   const input=value as {action:string;key:string;confirmed:boolean};actionKeys.push(input.key);
+  if(input.action==='decision_ready') {
+    assert.equal(input.confirmed,false);
+    if(decisionScenario==='ready'){decisionScenario='refused';throw new ProjectsActionError(409,'Decision refused: reply to the exact Kurami review thread.');}
+    decisionScenario='queued';return {state:'created' as const,requestId:'fixture-decision',requestState:'pending'};
+  }
   if(input.action==='review_fix'){
     assert.equal((value as {allReviews:boolean}).allReviews,true);assert.equal(input.confirmed,false);
     combinedFixInputs.push(value);combinedFixAccepted=true;
@@ -830,6 +841,22 @@ try {
     await audit();
     if(width===390&&lang==='en'&&theme==='light'){await devtools.evaluate(`document.querySelector('[data-run-action=preview_stop]').scrollIntoView({block:'center',behavior:'instant'})`);const shot=await devtools.call<{data:string}>('Page.captureScreenshot',{format:'png',captureBeyondViewport:false});writeFileSync(resolve(out,'projects-preview-stop-pending.png'),Buffer.from(shot.data,'base64'));}
   }
+  runNotesScenario=null;previewStopOnly=false;semanticNotes=false;reviewFixScenario=null;
+  for(const lang of ['en','ru']) {
+    decisionScenario='ready';await open(`/?item=item-12&lang=${lang}`);
+    await wait("!!document.querySelector('[data-run-action=decision_ready]')");
+    assert.match(await devtools.evaluate<string>("document.querySelector('[data-run-action=decision_ready]').textContent"),lang==='en'?/Decision ready/:/Решение готово/);
+    assert.equal(await devtools.evaluate("document.querySelector('[data-run-action=stop]').disabled"),false);
+    await devtools.evaluate("document.querySelector('[data-run-action=decision_ready]').click()");
+    await wait("document.querySelector('[data-toast-message]').textContent.includes('Decision refused')");
+    await open(`/?item=item-12&lang=${lang}`);await wait("!!document.querySelector('[data-run-action=decision_ready]:not(:disabled)')");
+    await devtools.evaluate("document.querySelector('[data-run-action=decision_ready]').click()");
+    await wait("!!document.querySelector('[data-run-action-state=decision_ready][data-request-state=pending]')");
+    assert.equal(await devtools.evaluate("document.querySelector('[data-run-action=decision_ready]').disabled"),true);
+    decisionScenario='completed';await open(`/?item=item-12&lang=${lang}`);
+    await wait("!!document.querySelector('[data-run-action-state=decision_ready][data-request-state=applied]')");
+  }
+  decisionScenario='off';
   previewReviewScenario=true;runNotesScenario=null;previewStopOnly=false;semanticNotes=false;reviewFixScenario=null;
   prScenario='off';previewReady=false;accepted=false;cancellation=false;actionAccepted=false;statusRequest=null;
   for(const width of [320,390,1280])for(const lang of ['en','ru'])for(const theme of ['light','dark']){

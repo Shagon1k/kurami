@@ -22,7 +22,9 @@ assert.ok(!prompt.includes("evidence points to dependency upgrades"));
 assert.ok(!initialPrompt({ ...run, interaction_policy: "human_control" }).includes("explicit developer approval for focused commits"));
 assert.ok(initialPrompt({ ...run, interaction_policy: "autonomous" }).includes("explicit developer approval for focused commits"));
 const review = reviewFixPrompt(run, { requestId: "q", roundId: "f", roundNumber: 1, sourceHeadSha: "source-head", pullRequestNumber: 1, pullRequestUrl: "pr", threads: [], summaryOnlyFindings: [] });
-assert.ok(review.includes("speculative improvements, dependency upgrades"));
+assert.ok(review.includes("Dependency and infrastructure changes are permitted only when explicitly approved in the captured owner requirements"));
+assert.ok(review.includes("overrides generic prohibitions"));
+assert.ok(review.includes("security, production, permission or destructive-operation boundaries"));
 assert.ok(!review.includes("published upstream security fix"));
 
 const autonomous = initialPrompt({ ...run, interaction_policy: "autonomous" });

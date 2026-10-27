@@ -27,13 +27,15 @@ function requireRetry(value: unknown, reason: string): asserts value {
 
 /** Only a completed, released, no-new-head round may be rearmed. The old round
  * and its evidence remain immutable; the next owner request captures new scope. */
-function inspectLocal(database: DatabaseSync, runId: string) {
+export function inspectReviewFixRetry(database: DatabaseSync, runId: string, requestId: string | null = null) {
   const run = loadRun(database, runId);
   const attention = database.prepare(`SELECT ${LATEST_ATTENTION_VALUE_SQL} AS reason
     FROM runs r WHERE run_id=?`).get(runId);
   requireRetry(attention?.reason === "review_fix_no_new_head", "another attention cause must be handled first");
   const round = database.prepare(`SELECT * FROM run_review_fix_rounds
-    WHERE run_id=? ORDER BY round_number DESC LIMIT 1`).get(runId);
+    WHERE run_id=? AND NOT EXISTS (
+      SELECT 1 FROM run_owner_decisions d WHERE d.new_round_id=run_review_fix_rounds.round_id AND d.aborted_at IS NOT NULL
+    ) ORDER BY round_number DESC LIMIT 1`).get(runId);
   requireRetry(run.run_state === "needs_attention" && run.owner_state === "none" &&
     run.execution_mode === "live" && run.resource_state === "provisioned" &&
     run.stop_reason === null && run.tmux_session_name === null &&
@@ -61,7 +63,7 @@ function inspectLocal(database: DatabaseSync, runId: string) {
     cleanup.previous_codex_thread_id === run.codex_thread_id && run.previous_codex_thread_id === null;
   requireRetry(originalMapping || restoredMapping, "stopped task mapping changed");
   requireRetry(!database.prepare(`SELECT 1 FROM run_control_requests WHERE run_id=?
-    AND request_state IN ('pending','processing')`).get(runId) && !hasActivePrRequest(database, runId),
+    AND request_id IS NOT ? AND request_state IN ('pending','processing')`).get(runId, requestId) && !hasActivePrRequest(database, runId),
   "a control request is active");
   requireRetry(!database.prepare(`SELECT 1 FROM run_codex_tasks WHERE
     (run_id=? OR worktree_path=?) AND released_at IS NULL`).get(runId, run.worktree_path),
@@ -71,28 +73,28 @@ function inspectLocal(database: DatabaseSync, runId: string) {
   requireRetry(git(run.worktree_path, ["rev-parse", "HEAD"]) === round.source_head_sha &&
     git(run.worktree_path, ["status", "--porcelain", "--untracked-files=all"]) === "",
   "local changes or a different head must be preserved");
-  return { run, round, originalMapping,
+  return { run, round, task, originalMapping,
     fingerprint: createHash("sha256").update(JSON.stringify({ run, round, task, cleanup })).digest("hex") };
 }
 
 export async function prepareReviewFixRetry(database: DatabaseSync, runId: string,
-  registry: ProjectsRegistry, apply: boolean, supplied?: RetryEffects): Promise<object> {
+  registry: ProjectsRegistry, apply: boolean, supplied?: RetryEffects, requestId: string | null = null): Promise<object> {
   const home = resolveKuramiHome(resolve(import.meta.dirname, "../../../../.."));
   const effects = supplied ?? { source: ownerSourceEffects(await loadOwnerGitHubTokenFromFile(home)),
     capture: loadReviewFixContext, cleanup: cleanupReviewFixSession };
   const inspect = async () => {
-    const local = inspectLocal(database, runId);
+    const local = inspectReviewFixRetry(database, runId, requestId);
     const project = registry.projects[local.run.project];
     requireRetry(project, "project mapping is missing");
     refreshManagedSource(database, project, runId, "review_fix_retry_prepare",
-      String(local.round.request_id), false, effects.source);
+      String(local.round.request_id), false, effects.source, requestId);
     const context = await effects.capture(database, local.run, project, String(local.round.request_id), "applied");
     requireRetry(context.sourceHeadSha === local.round.source_head_sha &&
       context.pullRequestNumber === local.round.pull_request_number &&
       context.pullRequestUrl === local.round.pull_request_url, "PR identity changed");
     // This validates the actual serialized prompt budget, not an approximate body count.
     reviewFixPrompt(local.run, context);
-    requireRetry(inspectLocal(database, runId).fingerprint === local.fingerprint,
+    requireRetry(inspectReviewFixRetry(database, runId, requestId).fingerprint === local.fingerprint,
       "local task identity changed while capturing current review evidence");
     return { ...local, context };
   };
@@ -102,7 +104,7 @@ export async function prepareReviewFixRetry(database: DatabaseSync, runId: strin
     ready = await inspect();
     database.exec("BEGIN IMMEDIATE");
     try {
-      requireRetry(inspectLocal(database, runId).fingerprint === ready.fingerprint,
+      requireRetry(inspectReviewFixRetry(database, runId, requestId).fingerprint === ready.fingerprint,
         "task changed before retry preparation claim");
       effects.source.noWriter(ready.run.worktree_path!);
       const changed = database.prepare(`UPDATE runs SET state='parked_review',

@@ -110,3 +110,13 @@ Discord предлагает **Recover interrupted fix** только при `re
 ## Текстовые команды
 
 Агент Hermes понимает те же действия словами: Status, Retry, Take control, Continue autonomously, Attempt CI fix, AI Code Review, Fix Review, Recover delivered fix, Recover interrupted fix, Start preview, Stop preview, Cancel run, Discard local work, Close draft PR and discard, Open session, Show controls. Задачу можно назвать полным id запуска, ключом `TT-42` или `PF-33` либо написать в треде запуска. Удаление сохранённой работы агент выполняет только после явного второго подтверждения.
+
+
+## Подтвердить решение владельца
+
+Прочитай controls текущего запуска и возьми `owner_decision_identity` как `<token>`. Сначала ответь с настроенной учётной записи OWNER в точном обсуждении Kurami в ревью PR. Устаревший токен или изменённый ответ требуют нового подтверждения.
+
+```sh
+node src/orchestrator/controls/run.ts controls --project <project> --issue <number>
+node src/orchestrator/controls/run.ts request --run-id <run_id> --action decision_ready --decision-token <token> --via cli --apply
+```

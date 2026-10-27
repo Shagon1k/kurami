@@ -14,6 +14,8 @@ const messages:Record<string,string>={
   "No stop report was saved. Open the session for details.":"Отчёт об остановке не сохранён. Подробности есть в сессии.",
   "CI results are not available yet.":"Результатов CI пока нет.",
   "CI and review results are not available yet.":"Результатов CI и ревью пока нет.",
+  "Dispatched — check fix progress":"Запущено — см. ход исправления",
+  "Decision ready":"Решение готово",
   "Retry":"Повторить попытку",
   "The agent attempt was interrupted. Work is preserved; inspect the session through chat.":"Попытка агента прервана. Работа сохранена; проверьте сессию через чат.",
   "Retry could not be confirmed. Inspect the same session through chat; no message will be resent automatically.":"Повторная попытка не подтверждена. Проверьте ту же сессию через чат; сообщение не будет отправлено повторно автоматически.",
