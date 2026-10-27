@@ -1,5 +1,5 @@
 import { reconcileOwnerDecisionBlockers } from "./owner-decision.ts";
-import { ownerDecisionGitHub } from "./owner-decision-github.ts";
+import { ownerDecisionPublisher } from "./owner-decision-github.ts";
 import { execFileSync } from "node:child_process";
 import { createHash } from "node:crypto";
 import { closeSync, mkdirSync, openSync } from "node:fs";
@@ -241,7 +241,7 @@ export async function deliverControllerTicketFeedback(database: DatabaseSync, ho
   try {
     await withFeedbackLock(home, async () => {
       const registry = parse(await readFile(resolve(home, "config/projects.yaml"), "utf8")) as { projects: Record<string, Project> };
-      reconcileOwnerDecisionBlockers(database,registry.projects,ownerDecisionGitHub(home));
+      reconcileOwnerDecisionBlockers(database,registry.projects,await ownerDecisionPublisher(home));
       const token = await loadOwnerGitHubTokenFromFile(home);
       const request: GitHubRequest = (method, endpoint, body) => {
         try {

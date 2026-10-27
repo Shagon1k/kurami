@@ -32,7 +32,7 @@ function runConsumer(appDirectory: string, testHome: string): ConsumerResult {
     [resolve(appDirectory, "src/orchestrator/projects/process-project-events.ts")],
     {
       encoding: "utf8",
-      env: { ...process.env, KURAMI_HOME: testHome },
+      env: { ...process.env, KURAMI_HOME: testHome, PATH: `${resolve(testHome, "bin")}:${process.env.PATH}` },
       stdio: ["ignore", "pipe", "pipe"],
     },
   );
@@ -44,6 +44,9 @@ async function main(): Promise<void> {
   const testHome = await mkdtemp(resolve(tmpdir(), "kurami-admission-test-"));
 
   try {
+    // This fixture owns no tmux sessions. Never inventory the live controller's socket.
+    await mkdir(resolve(testHome, "bin"), { mode: 0o700 });
+    await writeFile(resolve(testHome, "bin/tmux"), "#!/bin/sh\nif [ \"$1\" = list-sessions ]; then exit 0; fi\nexit 2\n", { mode: 0o700 });
     await mkdir(resolve(testHome, "config"), { recursive: true, mode: 0o700 });
     const projectsPath = resolve(testHome, "config/projects.yaml");
     await copyFile(

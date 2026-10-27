@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { generateKeyPairSync } from "node:crypto";
 import { execFile, execFileSync } from "node:child_process";
 import { existsSync, mkdtempSync, mkdirSync, readFileSync, readdirSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
@@ -7,7 +8,7 @@ import { promisify } from "node:util";
 import { DatabaseSync } from "node:sqlite";
 
 const scenario=process.env.OWNER_DECISION_CASE ?? "production";
-if (scenario === "production") for (const name of ["composition","concurrent","controller-concurrent","app","queued-change","source-change","ambiguous","uncertain","duplicate","foreign","identity","no-reply","stale","context","bounds","guards","legacy","abort-cycles"])
+if (scenario === "production") for (const name of ["summary-contract","summary-invalid","legacy-published","bot-permission","bot-missing","bot-unknown","composition","concurrent","controller-concurrent","app","queued-change","source-change","ambiguous","uncertain","duplicate","foreign","identity","no-reply","stale","context","bounds","guards","legacy","abort-cycles"])
   execFileSync(process.execPath,[import.meta.filename],{env:{...process.env,OWNER_DECISION_CASE:name},stdio:"inherit"});
 const home=mkdtempSync(resolve(tmpdir(),"kurami-owner-decision-"));
 process.env.KURAMI_HOME=home; process.env.KURAMI_TEST_STATUS="0";
@@ -80,13 +81,18 @@ db.prepare("INSERT INTO project_items(project,item_id,content_type,repository,is
 db.prepare("INSERT INTO project_poll_state(project,initialized_at,last_captured_at,item_count,last_attempt_state) VALUES('fixture',?,?,1,'succeeded')").run(at,at);
 const context=originalReviewContext(db,"rfr_original");
 const original=db.prepare("SELECT * FROM run_review_fix_rounds").get();
+const decisionSummary={title:"notification refresh transport",problem:"Notifications are stored, but SSE currently requests an inbox refresh every five seconds instead of reacting to changes. The review asks for event-driven refresh; the fix stopped because adding Redis and related configuration is not approved.",request:"Please confirm whether Redis Pub/Sub and its official Node client are approved, including the necessary local/CI/preview/deployment definitions. PostgreSQL will remain the source of truth; Redis will carry recipient-scoped refresh signals only."};
+const {completedOwnerDecisionSummary}=await import("../src/orchestrator/integrations/codex/owner-decision-summary.ts");
+const terminalItems=[{type:"agentMessage",phase:"final_answer",text:JSON.stringify({ownerDecision:decisionSummary})}];
+db.prepare("UPDATE run_codex_tasks SET owner_decision_summary_json=?").run(completedOwnerDecisionSummary(terminalItems));
 const ready=inspectOwnerDecision(db,runId),token=ready.blockerId;
-let externalThreads:import("../src/orchestrator/projects/owner-decision-github.ts").DecisionThread[]=[];let posts=0;let author="7";
+let externalThreads:import("../src/orchestrator/projects/owner-decision-github.ts").DecisionThread[]=[];let posts=0;let author="70";
 const github:import("../src/orchestrator/projects/owner-decision-github.ts").DecisionGitHub={
- identity:()=>{assert.equal(db.isTransaction,false,"no network in write transaction");return author;},
+ identity:()=>{assert.equal(db.isTransaction,false,"no network in write transaction");return "7";},
+ botIdentity:()=>author,
  pull:()=>{assert.equal(db.isTransaction,false);return {id:"PR_fixture",head,url:context.pullRequestUrl,path:"fix.txt",threads:structuredClone(externalThreads)};},
  create:(_p,body)=>{assert.equal(db.isTransaction,false);posts++;if(scenario!=="uncertain")externalThreads.push({id:"thread",resolved:false,outdated:false,
-   comments:[{id:100,body,authorId:author,login:"Owner",type:"User",association:"OWNER",url:context.pullRequestUrl+"#discussion_r100"}]});
+   comments:[{id:100,body,authorId:author,login:"kurami-ai[bot]",type:"Bot",association:"NONE",url:context.pullRequestUrl+"#discussion_r100"}]});
    if(["ambiguous","uncertain"].includes(scenario))throw Error("ambiguous synthetic transport");},
 };
 const publish=()=>withFeedbackLockSync(home,()=>reconcileOwnerDecisionBlockers(db,registry.projects,github));
@@ -101,7 +107,7 @@ const endpoint=a[a.indexOf(a.includes('--method')?'--method':'api')+(a.includes(
 let payload=a.includes('--input')?JSON.parse(fs.readFileSync(0,'utf8')):null;
 if(endpoint==='graphql') {
  const query=payload.query;
- if(query.includes('addPullRequestReviewThread')) {state.creates=(state.creates||0)+1;state.threads.push({id:'thread',resolved:false,outdated:false,comments:[{id:100,body:payload.variables.body,authorId:'7',login:'Owner',type:'User',association:'OWNER',url:'https://github.com/Owner/Fixture/pull/2#discussion_r100'}]});save();process.exit(93);}
+ if(query.includes('addPullRequestReviewThread')) {if(process.env.GH_TOKEN!=='synthetic_app_installation')process.exit(96);if(process.env.OWNER_DECISION_CASE==='bot-permission'){state.denied=(state.denied||0)+1;save();process.exit(97);}state.creates=(state.creates||0)+1;state.threads.push({id:'thread',resolved:false,outdated:false,comments:[{id:100,body:payload.variables.body,authorId:'70',login:'kurami-ai[bot]',type:'Bot',association:'NONE',url:'https://github.com/Owner/Fixture/pull/2#discussion_r100'}]});save();process.exit(93);}
  if(query.includes('reviewThreads')) {
   state.pulls++;
   if(state.late && state.pulls===2) state.threads[0].comments[1].body+=' Edited after confirmation';
@@ -109,7 +115,9 @@ if(endpoint==='graphql') {
  }
  process.exit(94);
 }
-if(endpoint==='user'||endpoint==='users/Owner')out({id:7,login:'Owner',type:'User'});
+if(endpoint==='app') {if(!process.env.GH_TOKEN.includes('.'))process.exit(96);out({id:123,slug:'kurami-ai'});}
+else if(endpoint==='users/kurami-ai%5Bbot%5D')out(process.env.OWNER_DECISION_CASE==='bot-unknown'?{id:99,login:'foreign[bot]',type:'Bot'}:{id:70,login:'kurami-ai[bot]',type:'Bot'});
+else if(endpoint==='user'||endpoint==='users/Owner')out({id:7,login:'Owner',type:'User'});
 else if(endpoint==='repos/Owner/Fixture/pulls/2')out({number:2,url:'https://api.github.com/repos/Owner/Fixture/pulls/2',html_url:'https://github.com/Owner/Fixture/pull/2',state:'open',merged:false,head:{sha:'${head}',ref:'feature',repo:{full_name:'Owner/Fixture'}},base:{ref:'main',repo:{full_name:'Owner/Fixture'}}});
 else if(endpoint==='repos/Owner/Fixture/issues/1')out({url:'https://api.github.com/repos/Owner/Fixture/issues/1',state:'open'});
 else if(endpoint&&endpoint.startsWith('repos/Owner/Fixture/issues/1/comments')) {
@@ -118,14 +126,76 @@ else if(endpoint&&endpoint.startsWith('repos/Owner/Fixture/issues/1/comments')) 
 else {console.error('unknown fixture command '+endpoint);process.exit(95);}
 `,{mode:0o700});
  }
+const keyFile=resolve(home,"secrets/reviewer.pem");
+writeFileSync(keyFile,generateKeyPairSync("rsa",{modulusLength:2048}).privateKey.export({type:"pkcs8",format:"pem"}),{mode:0o600});
+writeFileSync(resolve(home,"secrets/github-reviewer-app.env"),`KURAMI_GITHUB_REVIEWER_APP_ID=123\nKURAMI_GITHUB_REVIEWER_INSTALLATION_ID=456\nKURAMI_GITHUB_REVIEWER_PRIVATE_KEY_FILE=${keyFile}\n`,{mode:0o600});
+const preload=resolve(home,"fetch-fixture.cjs");
+writeFileSync(preload,`globalThis.fetch=async (url,init)=>{if(String(url)!=='https://api.github.com/app/installations/456/access_tokens'||init.method!=='POST'||!init.headers.Authorization.startsWith('Bearer '))throw Error('unexpected fixture fetch');return new Response(JSON.stringify({token:'synthetic_app_installation',expires_at:new Date(Date.now()+3600000).toISOString()}),{status:201});};`);
+process.env.NODE_OPTIONS=`${process.env.NODE_OPTIONS ?? ""} --require=${preload}`;
 const cycle=()=>execFileSync(process.execPath,[resolve(app,"src/orchestrator/runtime/controller.ts"),"--apply"],{env:process.env,encoding:"utf8",timeout:30_000,stdio:["ignore","pipe","pipe"]});
 try {
- if(scenario==="composition") {
+ if(scenario==="summary-contract") {
+   assert.deepEqual(JSON.parse(completedOwnerDecisionSummary(terminalItems)!),decisionSummary);
+   for(const text of ["plain clipped report",JSON.stringify({ownerDecision:{...decisionSummary,problem:"x".repeat(601)}}),JSON.stringify({ownerDecision:{...decisionSummary,request:"x ".repeat(161)}}),JSON.stringify({ownerDecision:{...decisionSummary,extra:"unsupported"}}),"{broken"]) {
+     assert.equal(completedOwnerDecisionSummary([{type:"agentMessage",phase:"final_answer",text}]),null);
+   }
+   assert.equal(completedOwnerDecisionSummary([{type:"tool",phase:"final_answer",text:terminalItems[0]!.text}]),null);
+   const {recordTurnCompleted}=await import("../src/orchestrator/integrations/codex/task-store.ts");
+   db.exec("DELETE FROM run_codex_task_events; UPDATE run_codex_tasks SET turn_status=NULL,stopped_at=NULL,released_at=NULL,owner_decision_summary_json=NULL; UPDATE runs SET owner_state='cli'; UPDATE run_resources SET tmux_session_name='cx-old',codex_thread_id='failed-thread'");
+   assert.equal(recordTurnCompleted(db,"ct_original",{method:"turn/completed",params:{threadId:"failed-thread",turn:{id:"turn",status:"completed",items:terminalItems}}}),true);
+   assert.deepEqual(JSON.parse(String(db.prepare("SELECT owner_decision_summary_json FROM run_codex_tasks").get()!.owner_decision_summary_json)),decisionSummary);
+   recordTurnCompleted(db,"ct_original",{method:"turn/completed",params:{threadId:"failed-thread",turn:{id:"turn",status:"completed",items:[]}}});
+   assert.deepEqual(JSON.parse(String(db.prepare("SELECT owner_decision_summary_json FROM run_codex_tasks").get()!.owner_decision_summary_json)),decisionSummary,"first terminal summary is immutable");
+ } else if(scenario==="summary-invalid") {
+   for(const value of [null,JSON.stringify({title:"bad",problem:"",request:"what?"}),JSON.stringify({...decisionSummary,request:"z".repeat(701)}),JSON.stringify({...decisionSummary,request:"Read https://example.invalid/secret?token=abc"}),JSON.stringify({...decisionSummary,problem:'Raw dump {"threads":[]}'})]) {
+     db.prepare("UPDATE run_codex_tasks SET owner_decision_summary_json=?").run(value);
+     publish();assert.equal(posts,0);assert.match(ownerDecisionStatus(db,runId)!,/summary unavailable/);
+   }
+   db.prepare("UPDATE run_codex_tasks SET owner_decision_summary_json=?").run(JSON.stringify(decisionSummary));publish();assert.equal(posts,1);
+ } else if(scenario==="legacy-published") {
+   // Exercise the migration against pre-existing recorded/pending rows, not a blanket author relaxation.
+   const legacy=new DatabaseSync(":memory:");
+   legacy.exec("CREATE TABLE run_codex_tasks(task_id TEXT); CREATE TABLE run_owner_decision_blockers(blocker_id TEXT,author_id TEXT,thread_id TEXT,root_comment_id INTEGER); INSERT INTO run_owner_decision_blockers VALUES('recorded','7','thread',100),('pending','7',NULL,NULL);");
+   legacy.exec(readFileSync(resolve(app,"migrations/049_owner_decision_presentation.sql"),"utf8"));
+   assert.deepEqual(legacy.prepare("SELECT author_type FROM run_owner_decision_blockers ORDER BY rowid").all().map(r=>r.author_type),["User","Bot"]);legacy.close();
+   publish();
+   const oldBody="Legacy original report and immutable evidence. Do not rewrite this root.";
+   const root=externalThreads[0]!.comments[0]!;root.authorId="7";root.login="Owner";root.type="User";root.association="OWNER";root.body=oldBody+` <!-- kurami-owner-decision:${token} -->`;
+   db.prepare("UPDATE run_owner_decision_blockers SET body=?,author_id='7',author_type='User'").run(root.body);
+   db.exec("UPDATE run_codex_tasks SET owner_decision_summary_json=NULL");
+   const before=db.prepare("SELECT * FROM run_owner_decision_blockers").get();
+   ownerReply();publish();assert.equal(posts,1);assert.deepEqual(db.prepare("SELECT * FROM run_owner_decision_blockers").get(),before);
+   const captured=captureOwnerDecision(db,runId,"Owner",token,github);assert.equal(captured.replies[0]!.id,101);
+   productionMock(externalThreads);
+   const {ownerDecisionGitHub}=await import("../src/orchestrator/projects/owner-decision-github.ts");
+   const reader=ownerDecisionGitHub(home);assert.deepEqual(captureOwnerDecision(db,runId,"Owner",token,reader),captured);
+   const q=requestRunControl(db,runId,"decision_ready","cli",true,{home,decision:captured});
+   cycle();assert.equal(db.prepare("SELECT request_state FROM run_control_requests WHERE request_id=?").get(String(q.requestId))!.request_state,"applied");
+   assert.deepEqual(JSON.parse(String(db.prepare("SELECT snapshot_json FROM run_owner_decisions").get()!.snapshot_json)),captured,"legacy immutable reply survives dispatch");
+   assert.equal(externalThreads[0]!.comments[0]!.body,root.body);
+ } else if(["bot-permission","bot-missing","bot-unknown"].includes(scenario)) {
+   productionMock([]);
+   if(scenario==="bot-missing")rmSync(resolve(home,"secrets/github-reviewer-app.env"));
+   cycle();cycle();
+   const state=JSON.parse(readFileSync(resolve(home,"github.json"),"utf8"));
+   assert.equal(state.creates,undefined);assert.equal(state.threads.length,0);assert.equal(state.denied,scenario==="bot-permission"?1:undefined);
+   assert.match(ownerDecisionStatus(db,runId)!,/delivery pending; check reviewer App permissions/);
+   assert.equal(existsSync(resolve(home,"launches")),false);
+ } else if(scenario==="composition") {
    productionMock([]); cycle(); cycle();
    const b=db.prepare("SELECT * FROM run_owner_decision_blockers").get()!;
    assert.equal(b.thread_id,"thread");assert.equal(b.root_comment_id,100);assert.equal(b.delivery_error,null);
    assert.equal(JSON.parse(readFileSync(resolve(home,"github.json"),"utf8")).creates,1,"production entry delivered once after ambiguous mutation");
    assert.equal(existsSync(resolve(home,"launches")),false,"publication is not a writer trigger");
+   const state=JSON.parse(readFileSync(resolve(home,"github.json"),"utf8"));
+   assert.equal(state.threads[0].comments[0].type,"Bot");assert.equal(b.author_id,"70");assert.equal(b.author_type,"Bot");
+   externalThreads=state.threads;ownerReply();productionMock(externalThreads);
+   const {ownerDecisionGitHub}=await import("../src/orchestrator/projects/owner-decision-github.ts");
+   const reader=ownerDecisionGitHub(home),snapshot=captureOwnerDecision(db,runId,"Owner",token,reader);
+   assert.equal(snapshot.replies[0]!.id,101);
+   assert.throws(()=>reader.create(reader.pull("Owner/Fixture",2,head),"owner must not publish"));
+   const nextPrompt=reviewFixPrompt(ready.run,{...context,ownerDecision:snapshot});
+   assert.ok(nextPrompt.includes(threads[0]!.rootBody));assert.ok(nextPrompt.includes(summary[0]!.body));
  } else if(scenario==="guards") {
    for(const [table,assignment,restore] of [["runs","owner_state='remote'","owner_state='none'"],["runs","execution_mode='dry_run'","execution_mode='live'"],
      ["run_codex_tasks","released_at=NULL","released_at='2026-01-01'"],["run_codex_tasks","turn_status='failed'","turn_status='completed'"],
@@ -149,8 +219,9 @@ try {
    if(scenario==="uncertain") {assert.equal(db.prepare("SELECT create_pending FROM run_owner_decision_blockers").get()!.create_pending,1);assert.match(ownerDecisionStatus(db,runId)!,/delivery pending/);}
    else {
      const body=externalThreads[0]!.comments[0]!.body;
-     assert.ok(body.includes(threads[0]!.rootBody));assert.ok(body.includes(summary[0]!.body));assert.match(body,/Decision question:/);
-     assert.ok(!body.includes("/home/private"));assert.ok(!body.includes("/workspace/private"));assert.ok(!body.includes("~/.codex"));assert.ok(!body.includes("ghp_aaaa"));assert.ok(body.includes(context.pullRequestUrl));assert.ok(body.includes(`/commit/${head}`));
+     assert.ok(!body.includes(threads[0]!.rootBody));assert.ok(!body.includes(summary[0]!.body));assert.match(body,/Decision needed: notification refresh transport/);
+     assert.match(body,/Please confirm whether Redis Pub/);assert.ok(!body.includes("ct_original"));assert.ok(!body.includes("Full original review"));assert.ok(body.split(/\s+/u).length<200);
+     assert.ok(!body.includes("/home/private"));assert.ok(!body.includes("/workspace/private"));assert.ok(!body.includes("~/.codex"));assert.ok(!body.includes("ghp_aaaa"));assert.ok(!body.includes(context.pullRequestUrl));assert.ok(!body.includes(`/commit/${head}`));
      if(scenario==="duplicate" || scenario==="foreign") {
        if(scenario==="duplicate")externalThreads.push({...structuredClone(externalThreads[0]!),id:"duplicate"});else externalThreads[0]!.comments[0]!.authorId="666";
        ownerReply();assert.throws(()=>captureOwnerDecision(db,runId,"Owner",token,github),/duplicate|author/);publish();assert.equal(posts,1);

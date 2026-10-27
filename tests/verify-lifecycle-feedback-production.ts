@@ -17,6 +17,8 @@ let db: DatabaseSync | undefined;
 try {
   await mkdir(resolve(home, "config"), { recursive: true });
   await mkdir(bin); await mkdir(resolve(home, "secrets"));
+  // Admission refusals below exercise fixture worktrees, never host tmux sessions.
+  await writeFile(resolve(bin, "tmux"), "#!/bin/sh\nif [ \"$1\" = list-sessions ]; then exit 0; fi\nexit 2\n", { mode: 0o700 });
   await copyFile(resolve(app, "deploy/config/orchestrator.yaml"), resolve(home, "config/orchestrator.yaml"));
   await writeFile(resolve(home, "config/projects.yaml"), stringify({ version: 1, projects: { fixture: {
     owner: "Owner", project_number: 1, repository, status_field: "Status", human_control_label: "human-control",

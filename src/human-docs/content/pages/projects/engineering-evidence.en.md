@@ -258,7 +258,9 @@ idempotent only while all guards still pass. This implementation is not a live a
 
 ## Owner decision after a no-edit fix
 
-Kurami publishes one explanatory **PR review thread** when a review fix completes, releases its worker and produces no new commit. The thread contains the sanitized worker report, full original findings, an explicit scope question, and exact PR and commit links. Existing older rounds stay outside this workflow unless explicitly admitted; missing legacy summary findings block recovery.
+Kurami publishes one explanatory **PR review thread** as the existing `kurami-ai[bot]` reviewer App when a review fix completes, releases its worker and produces no new commit. The worker supplies a bounded structured summary: a short topic, the problem that blocks the fix, and the concrete decision needed. The comment contains that explanation and the next action, not a worker-report dump, JSON findings or internal attempt IDs. The full original findings remain in the immutable internal snapshot and the successor prompt. Alternatives appear only when established by the worker’s evidence; Kurami does not infer an approval or recommendation from report prose.
+
+Missing, malformed, oversized or unsafe summaries visibly block publication; inspect the worker report and original review instead of answering a guessed scope question. Missing reviewer App credentials or permissions leave delivery pending with no owner-token publication fallback. Already-recorded legacy owner-authored roots keep their exact author, body and external identity, including captured decisions and active requests; they are not rewritten or recreated. Unrecorded or foreign roots cannot use that exception. Existing older rounds stay outside this workflow unless explicitly admitted; missing legacy summary findings block recovery.
 
 Reply to that exact thread using the configured repository OWNER account. Then click **Decision ready** in App or Discord. Textual control uses `decision_ready` and the current decision token returned by controls. Comments elsewhere, collaborators and bots cannot supply the decision. **Cancel run** remains available.
 

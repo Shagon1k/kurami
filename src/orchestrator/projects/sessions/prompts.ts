@@ -162,6 +162,7 @@ export function reviewFixPrompt(run: PromptRun, fix: ReviewFixPromptContext): st
     PROJECT_READ_GUIDANCE,
     SIMPLICITY_REMINDER,
     commitPushAuthorization("review_fix"),
+    'If blocked on an owner decision before producing a commit, stop and return ONLY a JSON final answer of this form: {"ownerDecision":{"title":"Short decision topic","problem":"What is wrong and why the fix cannot proceed without the owner decision","request":"The concrete question the owner must answer, including necessary scope and only alternatives established by the evidence"}}. Write plain English for the owner, not a task report: no IDs, JSON inside fields, paths, credentials, commands or URLs. Do not invent recommendations, approvals or options. Limits: title 100 characters, problem 600, request 700; total at most 160 words, single-line strings. This is presentation only; all original findings remain authoritative in the internal snapshot.',
     "Stop after the push. Do not wait for CI and do not start another review or fix round. Kurami will observe the new exact SHA, wait for CI, then reply to and resolve only the snapshotted threads.",
     "GH_TOKEN is already injected by the managed launcher. Treat sandbox network failures as inconclusive. If a necessary GitHub read or the authorized same-branch push cannot run inside the sandbox, report the exact blocked capability and stop without requesting interactive permission.",
   ]

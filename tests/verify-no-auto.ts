@@ -18,6 +18,9 @@ const app = resolve(import.meta.dirname, "..");
 const home = mkdtempSync(resolve(tmpdir(), "kurami-no-auto-"));
 let database: DatabaseSync | undefined;
 try {
+  // Admission uses the real guard against fixture resources, not the live tmux socket.
+  mkdirSync(resolve(home, "bin"));
+  writeFileSync(resolve(home, "bin/tmux"), "#!/bin/sh\nif [ \"$1\" = list-sessions ]; then exit 0; fi\nexit 2\n", { mode: 0o700 });
   mkdirSync(resolve(home, "config"));
   const registry = parse(readFileSync(resolve(app, "deploy/config/projects.yaml"), "utf8"));
   for (const [key, config] of Object.entries(registry.projects) as [string, { workspace: { worktree_root: string } }][]) {
@@ -26,7 +29,7 @@ try {
   }
   writeFileSync(resolve(home, "config/projects.yaml"), stringify(registry));
   writeFileSync(resolve(home, "config/orchestrator.yaml"), readFileSync(resolve(app, "deploy/config/orchestrator.yaml")));
-  const env = { ...process.env, KURAMI_HOME: home, ORCHESTRATOR_MIGRATIONS_DIR: resolve(app, "migrations") };
+  const env = { ...process.env, KURAMI_HOME: home, ORCHESTRATOR_MIGRATIONS_DIR: resolve(app, "migrations"), PATH: `${resolve(home, "bin")}:${process.env.PATH}` };
   execFileSync(process.execPath, [resolve(app, "src/orchestrator/state/init-run-store.ts")], { env, stdio: "pipe" });
   database = new DatabaseSync(resolve(home, "state/orchestrator.db"));
   let tick = 0;
