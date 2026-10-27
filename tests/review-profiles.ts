@@ -69,6 +69,8 @@ export function verifyReviewProfiles(): void {
     const preserved=Object.fromEntries(migrationTables.map(table=>[table,database.prepare(`SELECT * FROM ${table} ORDER BY rowid`).all()]));
     database.exec(readFileSync(join(app,"migrations/047_spec_review.sql"),"utf8"));
     for(const table of migrationTables) assert.deepEqual(database.prepare(`SELECT * FROM ${table} ORDER BY rowid`).all(),preserved[table],`Spec migration preserves ${table}`);
+    for (const file of readdirSync(join(app,"migrations")).filter(name=>/^\d+_.*\.sql$/u.test(name)).sort().filter(name=>name > "047_spec_review.sql"))
+      database.exec(readFileSync(join(app,"migrations",file),"utf8"));
     database.exec("DELETE FROM run_review_fix_threads WHERE round_id='fix_migration'; DELETE FROM run_review_fix_operations WHERE round_id='fix_migration'; DELETE FROM run_review_fix_rounds WHERE round_id='fix_migration'; DELETE FROM run_ai_reviews WHERE review_id='air_migration'; DELETE FROM run_control_requests WHERE request_id IN ('rq_migration_review','rq_migration_fix')");
     assert.deepEqual(database.prepare("PRAGMA foreign_key_check").all(),[]);
     assert.equal(database.prepare("SELECT primary_agent_provider FROM run_resources").get()?.primary_agent_provider,"codex");

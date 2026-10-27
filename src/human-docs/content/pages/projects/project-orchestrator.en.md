@@ -111,3 +111,6 @@ CI, reviews and previews belong to one SHA — the PR's latest commit. A new com
 - `src/orchestrator/runtime/controller.ts` — the controller: plan and execute steps
 - `migrations/` — the Run Store schema
 :::
+
+
+After a completed review fix produces no new commit, reply to Kurami’s exact explanatory PR review thread, then click **Decision ready**. The request queues one fresh bounded fix after source and owner-reply checks. Other attention causes stay blocked. See [Engineering evidence](@engineering-evidence).

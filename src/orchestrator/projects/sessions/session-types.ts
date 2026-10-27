@@ -5,6 +5,7 @@ export type Action =
   | "repair"
   | "cleanup-repair"
   | "review-fix"
+  | "decision-fix"
   | "cleanup-review-fix"
   | "recover-interrupted-review-fix"
   | "recover-managed-task"
@@ -109,6 +110,8 @@ export type RepairContext = {
 };
 
 export type ReviewFixContext = {
+  ownerDecision?: import("../owner-decision.ts").OwnerDecisionSnapshot;
+  priorOwnerDecisions?: import("../owner-decision.ts").OwnerDecisionSnapshot[];
   allReviews?: boolean;
   profile?: import("../reviews/profiles.ts").ReviewProfile;
   requestId: string;

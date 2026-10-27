@@ -110,3 +110,13 @@ The **Review proposals** list offers: an exclusion menu ("Exclude selected propo
 ## Text commands
 
 The Hermes agent understands the same actions in words: Status, Retry, Take control, Continue autonomously, Attempt CI fix, AI Code Review, Fix Review, Recover delivered fix, Recover interrupted fix, Start preview, Stop preview, Cancel run, Discard local work, Close draft PR and discard, Open session, Show controls. Name the run by its full run id, by a key such as `TT-42` or `PF-33`, or write in the run thread. The agent deletes preserved work only after an explicit second confirmation.
+
+
+## Confirm an owner decision
+
+Read controls for the current run and use its `owner_decision_identity` as `<token>`. First reply as the configured OWNER in Kurami’s exact PR review thread. A stale token or changed reply requires reconfirmation.
+
+```sh
+node src/orchestrator/controls/run.ts controls --project <project> --issue <number>
+node src/orchestrator/controls/run.ts request --run-id <run_id> --action decision_ready --decision-token <token> --via cli --apply
+```

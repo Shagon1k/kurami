@@ -15,6 +15,7 @@ from zoneinfo import ZoneInfo
 CONTROL_ID = re.compile(
     r"^kurami:(status|take_control|preview_start|preview_stop|preview_extend|preview_reviewed|stop|discard_prompt|discard_local|discard_published_prompt|discard_published|ci_repair|ai_review|review_fix|review_fix_all|recover_interrupted_review_fix|recover_managed_task|retry):(r_[A-Za-z0-9_]+)$"
 )
+DECISION_ID = re.compile(r"^kurami:decision_ready:(r_[A-Za-z0-9_]+):([a-f0-9]{24})$")
 RUN_ACTIONS_ID = re.compile(r"^kurami:(?:run_actions|review_actions|fix_actions):(r_[A-Za-z0-9_]+)$")
 RUN_ACTIONS = {
     "retry",
@@ -57,6 +58,7 @@ _DOCS_MESSAGES = {
 }
 
 _ACTION_LABELS = {
+    "decision_ready": "Decision ready",
     "retry": "Retry",
     "take_control": "Take control",
     "preview_start": "Start preview",
@@ -660,7 +662,7 @@ def _metadata_updates_source_message(action: str, message_flags: object) -> bool
 
 
 async def _run_control(
-    action: str, run_id: str, actor_id: Optional[str] = None
+    action: str, run_id: str, actor_id: Optional[str] = None, decision_token: Optional[str] = None
 ) -> dict[str, Any]:
     node, control, _ = _paths()
     if not node.is_file() or not control.is_file():
@@ -695,6 +697,10 @@ async def _run_control(
             "discord",
             "--apply",
         ]
+        if action == "decision_ready":
+            if not decision_token or not re.fullmatch(r"[a-f0-9]{24}", decision_token):
+                raise RuntimeError("Stale decision card; refresh and reconfirm")
+            args.extend(["--decision-token", decision_token])
         if action in {"clarity_review", "clarity_fix", "spec_review"}:
             args.extend(["--profile", "spec" if action == "spec_review" else "clarity"])
         elif action == "review_fix_all":
@@ -879,7 +885,8 @@ def install_control_listener(
         metadata_page_parsed = parse_metadata_page_control_id(custom_id)
         metadata_selection_parsed = parse_metadata_selection_control_id(custom_id)
         metadata_parsed = parse_metadata_control_id(custom_id)
-        parsed = parse_run_actions_id(custom_id, values) or parse_control_id(custom_id)
+        decision_match = DECISION_ID.fullmatch(custom_id) if isinstance(custom_id, str) else None
+        parsed = ("decision_ready", decision_match.group(1)) if decision_match else (parse_run_actions_id(custom_id, values) or parse_control_id(custom_id))
         if metadata_page_parsed is not None:
             batch_id, page = metadata_page_parsed
             if not authorized(interaction):
@@ -1124,7 +1131,7 @@ def install_control_listener(
             await interaction.response.defer(ephemeral=True, thinking=True)
         try:
             actor_id = str(getattr(getattr(interaction, "user", None), "id", ""))
-            payload = await _run_control(action, run_id, actor_id=actor_id)
+            payload = await _run_control(action, run_id, actor_id=actor_id, decision_token=decision_match.group(2)) if decision_match else await _run_control(action, run_id, actor_id=actor_id)
             message = (
                 _status_message(payload)
                 if action == "status"

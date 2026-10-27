@@ -28,6 +28,7 @@ export type ControllerAction =
   | "repair_cleanup"
   | "review_start"
   | "review_fix_start"
+  | "owner_decision_start"
   | "review_fix_resolve"
   | "review_fix_cleanup"
   | "recover_interrupted_review_fix"

@@ -1,3 +1,4 @@
+import { ownerDecisionAwaitingDispatch } from "../projects/owner-decision.ts";
 import { reviewLabel, type ReviewProfile } from "../projects/reviews/profiles.ts";
 import { availableRunControls } from "./run.ts";
 import { previewSourceAvailable } from "../projects/previews/runtime.ts";
@@ -560,6 +561,10 @@ function loadDesiredCards(
 }
 
 function withProfileReviews(database:DatabaseSync,card:CardRow):CardRow {
+  if(ownerDecisionAwaitingDispatch(database,card.run_id)) {
+    card.stage="review_fix_queued";card.review_fix_state="queued";
+    card.detail="Decision ready queued; no worker dispatch confirmed.";
+  }
   card.clarity=readReviewEvidence(database,card.run_id,"clarity",card.ci_head_sha);
   card.spec=readReviewEvidence(database,card.run_id,"spec",card.ci_head_sha);
   card.primary_writer_diagnostic = primaryStoppedDiagnostic(database, card.run_id);
@@ -1161,6 +1166,14 @@ export function controlComponents(
       try {
         if((availableRunControls(database,card.run_id).available_actions as string[]).includes("retry"))
           controls.push(button("Retry",1,`kurami:retry:${card.run_id}`));
+      } finally { database.close(); }
+    }
+    if(card.run_state === "needs_attention" && card.latest_attention_reason === "review_fix_no_new_head") {
+      const database=openOrchestratorDatabase(databasePath,{readOnly:true});
+      try {
+        const controlsView=availableRunControls(database,card.run_id);
+        if((controlsView.available_actions as string[]).includes("decision_ready"))
+          controls.push(button("Decision ready / Решение готово",1,`kurami:decision_ready:${card.run_id}:${controlsView.owner_decision_identity}`));
       } finally { database.close(); }
     }
     const recoverManagedTask = managedRecoveryEligible(card, project);

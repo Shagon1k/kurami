@@ -175,7 +175,7 @@ function reviewPanel(item:ProjectItem,lang:Language,commonHead:string|null):stri
     const findings=reviewFindings({...item,review},lang);
     const fix=review.fix;
     const fixAction=review.fixActions?.actions.find(action=>action.action==="review_fix");
-    const actionStates:Record<string,string>={pending:"Queued",processing:"Running",failed:"Not completed — check the state",rejected:"Rejected — check the state"};
+    const actionStates:Record<string,string>={pending:"Queued",processing:"Running",failed:"Not completed — check the state",rejected:"Rejected — check the state",applied:"Dispatched — check fix progress"};
     const fixBusy=fix&&["queued","running","waiting_ci","resolving"].includes(fix.state);
     const progress=fix&&fixMessages[fix.state]?`<p class="projects-action-note" data-review-fix-state="${escape(fix.state)}" data-note-tone="${fix.state==="needs_attention"?"warning":fix.state==="succeeded"?"neutral":"info"}" role="status">${escape(t(fixMessages[fix.state]!)+(fix.round?` · ${t("Round")} ${fix.round}`:""))}</p>`:"";
     const requestNote=fixAction?.state&&!fixBusy?actionNote(`${sourceText(fixAction.label,lang)} · ${t(actionStates[fixAction.state]??"")}`,noteTone(fixAction.state),{action:"review_fix",state:fixAction.state}):"";
@@ -217,7 +217,7 @@ function runActionControls(item:ProjectItem,lang:Language):string {
   const t=(key:string)=>tr(key,lang);
   if(item.runActions.reason==="unavailable")return actionNote(t("Run controls are not available yet."),"warning");
   const pr=item.prControlsEnabled||item.prActions?`<div class="projects-run-action" data-pr-slot data-pr-project="${escape(item.project)}" data-pr-item="${escape(item.id)}">${renderProjectPrControl(item.prActions,lang)}</div>`:"";
-  const controls=runActions(item,lang,["retry","take_control","recover_managed_task","recover_interrupted_review_fix"])+runActions(item,lang,["stop","discard_local","discard_published"],"",pr);
+  const controls=runActions(item,lang,["decision_ready","retry","take_control","recover_managed_task","recover_interrupted_review_fix"])+runActions(item,lang,["stop","discard_local","discard_published"],"",pr);
   const sections=controls?`<div class="projects-detail-section projects-run-actions">${controls}</div>`:"";
   return (item.runActions.reason==="stale"?actionNote(t("Wait for fresh sync data."),"warning"):"")+sections;
 }
@@ -240,8 +240,8 @@ function runActions(item:ProjectItem,lang:Language,actions:string[],leading="",t
   const grid=(controls:string[],confirmations:string[]=[])=>`<div class="projects-action-grid">${Array.from({length:Math.ceil(controls.length/2)},(_,index)=>`<div class="projects-action-pair">${controls.slice(index*2,index*2+2).join("")}</div>`).join("")}${confirmations.join("")}</div>`;
   if(!item.runActions||!item.runId)return leading?grid([wrap(leading)]):"";
   const t=(key:string)=>tr(key,lang);
-  const states:Record<string,string>={pending:"Queued",processing:"Running",failed:"Not completed — check the state",rejected:"Rejected — check the state"};
-  const icons:Record<string,IconName>={retry:"refresh",take_control:"person",preview_start:"play",preview_stop:"close",preview_reviewed:"check",ci_repair:"ci",review_fix:"review",recover_interrupted_review_fix:"refresh",recover_managed_task:"refresh",stop:"close",discard_local:"trash",discard_published:"trash"};
+  const states:Record<string,string>={pending:"Queued",processing:"Running",failed:"Not completed — check the state",rejected:"Rejected — check the state",applied:"Dispatched — check fix progress"};
+  const icons:Record<string,IconName>={decision_ready:"check",retry:"refresh",take_control:"person",preview_start:"play",preview_stop:"close",preview_reviewed:"check",ci_repair:"ci",review_fix:"review",recover_interrupted_review_fix:"refresh",recover_managed_task:"refresh",stop:"close",discard_local:"trash",discard_published:"trash"};
   const variants:Record<string,ButtonVariant>={stop:"danger",discard_local:"danger",discard_published:"danger",ci_repair:"secondary",review_fix:"secondary",preview_stop:"warning",preview_reviewed:"success"};
   const available=item.runActions.actions.filter(action=>actions.includes(action.action));
   if(!available.length&&!leading&&!trailing)return "";

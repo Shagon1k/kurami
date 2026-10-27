@@ -72,6 +72,9 @@ export function externalCommand(
         requestId,
         "--apply",
       ];
+    case "owner_decision_start":
+      if (!requestId) fail("Owner decision requires a request");
+      return [sessionManagerPath,"decision-fix","--run-id",runId,"--request-id",requestId,"--apply"];
     case "review_fix_start":
       if (!requestId) fail("Review fix start requires a request ID");
       return [
@@ -164,6 +167,9 @@ export function completeRequest(
   const interrupted = state !== "applied" && database.prepare(
     "SELECT 1 FROM run_control_requests WHERE request_id=? AND action='recover_interrupted_review_fix'",
   ).get(requestId);
+  const ownerDecision = state !== "applied" && database.prepare("SELECT 1 FROM sqlite_master WHERE name='run_owner_decisions'").get();
+  const decisionFence = ownerDecision ? ` AND NOT EXISTS (SELECT 1 FROM run_owner_decisions d
+    WHERE d.request_id=run_control_requests.request_id AND d.aborted_at IS NULL)` : "";
   const receiptFence = interrupted ? ` AND NOT EXISTS (
     SELECT 1 FROM run_interrupted_review_fix_recoveries c WHERE c.request_id=run_control_requests.request_id
   )` : "";
@@ -174,7 +180,7 @@ export function completeRequest(
     SET request_state = ?, result_json = ?,
         updated_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now'),
         completed_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
-    WHERE request_id = ? AND request_state IN ('pending', 'processing') ${receiptFence}
+    WHERE request_id = ? AND request_state IN ('pending', 'processing') ${receiptFence} ${decisionFence}
   `,
     )
     .run(state, JSON.stringify(result), requestId);
@@ -441,7 +447,7 @@ export function executePlannedAction(
       : effects.external(plan);
     if (
       plan.requestId &&
-      ["handoff", "successor_start", "preview_up", "preview_down", "preview_expire", "preview_extend", "repair_start", "review_start", "review_fix_start", "recover_interrupted_review_fix", "recover_managed_task", "retry"].includes(plan.action)
+      ["handoff", "successor_start", "preview_up", "preview_down", "preview_expire", "preview_extend", "repair_start", "review_start", "review_fix_start", "owner_decision_start", "recover_interrupted_review_fix", "recover_managed_task", "retry"].includes(plan.action)
     ) {
       effects.complete(database, plan.requestId, plan.requestOutcome ?? "applied", result);
     }

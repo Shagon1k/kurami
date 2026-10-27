@@ -518,8 +518,8 @@ export function claimReviewFixSession(
         `INSERT INTO run_review_fix_rounds (
            round_id, run_id, request_id, round_number, round_state,
            repository, pull_request_number, pull_request_url,
-           source_head_sha, snapshot_json, review_profile, review_fix_all, summary_findings_json
-         ) VALUES (?, ?, ?, ?, 'running', ?, ?, ?, ?, ?, ?, ?, ?)`,
+           source_head_sha, snapshot_json, review_profile, review_fix_all, summary_findings_json, owner_decision_eligible
+         ) VALUES (?, ?, ?, ?, 'running', ?, ?, ?, ?, ?, ?, ?, ?, 1)`,
       )
       .run(
         fix.roundId,
@@ -838,6 +838,7 @@ export async function startSession(
   config: OrchestratorConfig,
   apply: boolean,
   interrupted?: { claim: (maxSessions: number) => void; beforeDispatch: () => void },
+  dispatchGuard?: () => void,
 ): Promise<void> {
   if (!apply) {
     process.stdout.write(
@@ -897,7 +898,7 @@ export async function startSession(
     const taskId = protocol ? claimProtocolTask(database,run.run_id,plan.tmuxSessionName,
       plan.repair ? "ci_repair" : "review_fix",
       plan.repair?.attemptId ?? plan.reviewFix?.roundId ?? run.run_id) : null;
-    await launchManagedTmux(run, plan, taskId, 60_000 * (plan.repair || plan.reviewFix ? config.limits.technical_worker_timeout_minutes ?? 90 : config.limits.main_writer_timeout_minutes ?? 240), () => { interrupted?.beforeDispatch(); dispatchAttempted = true; });
+    await launchManagedTmux(run, plan, taskId, 60_000 * (plan.repair || plan.reviewFix ? config.limits.technical_worker_timeout_minutes ?? 90 : config.limits.main_writer_timeout_minutes ?? 240), () => { interrupted?.beforeDispatch(); dispatchGuard?.(); dispatchAttempted = true; });
     if (!taskId) recordStarted(database, run, plan);
     if (taskId && !tmuxSessionExists(plan.tmuxSessionName) && !taskForSession(database,plan.tmuxSessionName)?.stopped_at)
       fail("Protocol worker exited without a stop receipt");

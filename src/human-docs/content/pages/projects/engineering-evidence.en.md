@@ -254,3 +254,22 @@ Explicit apply adds an external-delivery audit, not worker success. No attempt
 budget, worker output, preview label or review/preview gate is changed. AI review
 and preview acceptance still require their normal owner controls. Replays are
 idempotent only while all guards still pass. This implementation is not a live apply.
+
+
+## Owner decision after a no-edit fix
+
+Kurami publishes one explanatory **PR review thread** when a review fix completes, releases its worker and produces no new commit. The thread contains the sanitized worker report, full original findings, an explicit scope question, and exact PR and commit links. Existing older rounds stay outside this workflow unless explicitly admitted; missing legacy summary findings block recovery.
+
+Reply to that exact thread using the configured repository OWNER account. Then click **Decision ready** in App or Discord. Textual control uses `decision_ready` and the current decision token returned by controls. Comments elsewhere, collaborators and bots cannot supply the decision. **Cancel run** remains available.
+
+Kurami saves the full selected reply bodies, IDs, digests and source commit atomically with the request. Queued means no worker dispatch is confirmed. At dispatch, changed replies or source require a fresh confirmation. One fresh bounded fix receives the complete original findings and your clarification. Explicitly approved dependency or infrastructure work is allowed within that scope; secrets, permission changes and production changes remain outside it.
+
+| Situation | Result | Your action |
+|---|---|---|
+| No OWNER reply, stale card, changed head or merged PR | Refused; no worker starts | Refresh the exact thread and reconfirm |
+| Dirty work, preview lease, another writer or unknown original context | Work stays preserved | Resolve the named blocker or cancel |
+| Thread publication is uncertain | Delivery pending; no duplicate POST | Inspect GitHub; allow normal reconciliation to discover the thread |
+| Request queued | Saved decision awaits validation | Wait for dispatch or refusal |
+| Fix completed | CI and snapshotted thread reconciliation finished | Review the resulting PR |
+
+A proven failure before dispatch releases its request and allows another confirmation. An uncertain dispatch keeps its durable claim for inspection. A GitHub reply alone never starts a writer.
