@@ -32,7 +32,7 @@ export type ProjectItem = {
   runActions?: import("./run-actions.ts").RunActionView;
   prControlsEnabled?:boolean;
   prActions?:import("./pr-actions.ts").PrActionView;
-  links: { issue: string | null; pr: string | null; discord: string | null; review: string | null; preview: string | null };
+  links: { session?: string | null; issue: string | null; pr: string | null; discord: string | null; review: string | null; preview: string | null };
 };
 export type ProjectsSnapshot = { generatedAt: string; available: boolean; projects: ProjectSummary[]; items: ProjectItem[]; ideas?: IdeasView };
 export type SortKey="task"|"status"|"kurami";

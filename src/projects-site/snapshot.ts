@@ -1,3 +1,4 @@
+import { codexLaunchUrl } from "../orchestrator/integrations/codex/deeplink.ts";
 import { ownerDecisionAwaitingDispatch } from "../orchestrator/projects/owner-decision.ts";
 import { readReviewEvidence } from "../orchestrator/projects/reviews/read-model.ts";
 import { REVIEW_PROFILES } from "../orchestrator/projects/reviews/profiles.ts";
@@ -91,6 +92,7 @@ function itemFromRow(row: ItemRow, config: Config, now: Date): ProjectItem {
       head: row.preview_head, expiresAt: row.preview_expires_at, reviewed: Boolean(row.preview_reviewed_at) },
     attention: run?.attention ?? [], links: { issue: githubUrl(row.url, config.repository, row.content_type === "PullRequest" ? "pull" : "issues"),
       pr: githubUrl(row.pull_request_url, config.repository, "pull"), discord,
+      session: row.run_state === "remote_owned" && row.owner_state === "remote" ? codexLaunchUrl(row.codex_thread_id) : null,
       review: githubUrl(row.review_url, config.repository, "pull"), preview: previewUrl },
   };
 }

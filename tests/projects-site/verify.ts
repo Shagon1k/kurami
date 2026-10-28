@@ -107,6 +107,43 @@ try {
   assert.equal(collectProjectsSnapshot({ home, now: new Date("2026-09-30T10:02:00Z") }).projects[0]!.freshness, "stale");
   assert.equal(collectProjectsSnapshot({ home, now: new Date("2026-10-01T10:01:00Z") }).items.find(item => item.id === "review")!.links.preview, null, "expired previews never produce navigation");
   assert.equal(createHash("sha256").update(readFileSync(dbPath)).digest("hex"), before, "snapshot does not mutate the Run Store");
+  // Remote human control uses the same ownership boundary and saved thread as Discord.
+  const threadId="00000001-0000-4000-8000-000000000001";
+  const sessionUrl=`https://go.shagon1k.win/codex/threads/${threadId}`;
+  database.prepare("INSERT INTO run_resources(run_id,codex_thread_id) VALUES(?,?)").run("r_current",threadId);
+  database.exec("UPDATE run_progress_cards SET stage='human_control' WHERE run_id='r_current'");
+  for(const [state,owner,thread,expected] of [
+    ["remote_owned","remote",threadId,sessionUrl],
+    ["remote_owned","remote",null,null],
+    ["remote_owned","remote","javascript:alert(1)",null],
+    ["remote_owned","none",threadId,null],
+    ["parked_review","remote",threadId,null],
+    ["running","cli",threadId,null],
+    ["cancelled","none",threadId,null],
+  ] as const){
+    database.prepare("UPDATE runs SET state=?,owner_state=? WHERE run_id='r_current'").run(state,owner);
+    database.prepare("UPDATE run_resources SET codex_thread_id=? WHERE run_id='r_current'").run(thread);
+    const remoteBefore=createHash("sha256").update(readFileSync(dbPath)).digest("hex");
+    const remote=collectProjectsSnapshot({home,now:new Date(at),controlsEnabled:false});
+    const remoteItem=remote.items.find(item=>item.id==="review")!;
+    assert.equal(remote.available,true);
+    assert.equal(remoteItem.links.session,expected);
+    assert.equal(remoteItem.runState,state);
+    assert.equal(remoteItem.owner,owner);
+    for(const lang of ["en","ru"] as const){
+      const label=lang==="ru"?"Ручное управление":"Human control";
+      assert.equal(projectStageLabel(remoteItem,lang),label);
+      const html=renderProjectsPage(remote,new URLSearchParams({item:"review",lang}));
+      const detail=html.split('<aside class="projects-detail"')[1]!;
+      assert.match(detail,new RegExp(label));
+      assert.doesNotMatch(html,/>human_control</);
+      assert.equal(detail.includes(`href="${sessionUrl}"`),Boolean(expected));
+      assert.equal(detail.includes(lang==="ru"?"Открыть сессию":"Open session"),Boolean(expected));
+      assert.doesNotMatch(detail,/javascript:|data-run-action=/,"session navigation does not require mutation controls");
+    }
+    assert.equal(createHash("sha256").update(readFileSync(dbPath)).digest("hex"),remoteBefore,"reading and rendering Remote sessions leave the store unchanged");
+  }
+  database.exec("UPDATE runs SET state='parked_review',owner_state='none' WHERE run_id='r_current'; UPDATE run_progress_cards SET stage='review_ready' WHERE run_id='r_current'; DELETE FROM run_resources WHERE run_id='r_current'");
   database.prepare("UPDATE run_ci_snapshots SET checks_json=?").run(JSON.stringify(syntheticCiChecks()));
   const ciItem=collectProjectsSnapshot({home,now:new Date(at)}).items.find(item=>item.id==="review")!;
   assert.deepEqual(ciItem.ci.checks,syntheticCiChecks());
