@@ -93,6 +93,14 @@ Take control remains in the controls for both a live handoff and a later session
 Run `r_example42` starts a CI repair task `ct_example42`, thread `thread_example42` and turn `turn_example42`. Its exact completion event reports `completed`; process exit is acknowledged. The next controller cycle parks the run. The PR still has its source SHA, so CI success is not claimed. The repair attempt waits for independent evidence.
 ::::
 
+## Read-only predecessor conversation
+
+Before admitting an autonomous successor, Kurami follows only the same-run predecessor chain recorded in `run_autonomous_successions`, from oldest thread to current predecessor. It reads each exact thread through local Codex `state_5.sqlite`, opened read-only. Foreign, duplicate, cyclic or changed lineage is refused. The mapped rollout must be under `sessions` or `archived_sessions`. Native row and session metadata must agree on the exact thread, working copy and CLI/user source. Proven owner text is cross-checked against native user-message receipts. A matching terminal turn receipt is required; unfinished turns or messages after completion block admission.
+
+Kurami reads the complete rollout up to 16 MiB. It retains owner text and assistant final replies in source order, with source line numbers. Native AGENTS/environment context, tool output and reasoning are excluded. Credential redaction runs on complete selected content before the 256-message and 64 KiB serialized-context bounds. The complete chain is limited to 16 threads and 128 KiB of combined serialized evidence; these limits refuse rather than truncate. Lineage identities and every source fingerprint are rechecked before claim and dispatch. Nothing is silently truncated. Compaction, forked history, missing provenance, non-text owner content or unsupported source records receive a visible refusal rather than a guessed summary.
+
+The source fingerprint and mapping are checked again during the ownership claim and synchronously immediately before dispatch, after prompt-file creation. A pre-claim refusal leaves ownership unchanged; a post-claim change uses existing failed-start recovery, restores the predecessor mapping and starts no worker. This is a local snapshot fence, not a lock on the Remote app: finish your turn and leave the predecessor idle throughout continuation. It neither resumes nor messages that thread, and does not recover an already-started successor automatically.
+
 ## A preserved legacy CI timeout
 
 An incident-specific recovery command covers the old CI repair that completed with `Worked for 50s • 09:50` but later timed out. It requires the allowlisted run and original request, task identities, transcript hash, clean linked worktree, unchanged source/PR SHA, fresh failed CI and no live writer or conflicting control. Other attention reasons are refused.

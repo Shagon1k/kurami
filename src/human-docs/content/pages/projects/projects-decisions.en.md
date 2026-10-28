@@ -122,11 +122,11 @@ Each decision is written in one format: **Context** — what was needed, **Decis
 
 **Context.** After a hand-over a human drives the thread: it may contain anything, and Kurami does not know what is going on in it.
 
-**Decision.** "Continue autonomously" starts a new thread. It gets a bounded, secret-stripped snapshot: HEAD, `git status`, the diff, CI and the latest review. The old thread stays as history.
+**Decision.** "Continue autonomously" starts a new thread. It gets a bounded, credential-redacted snapshot: HEAD, `git status`, the diff, CI, the latest review, and the exact same-run predecessor conversations, oldest thread first. Owner text and assistant final replies retain their source order; tool output and reasoning are excluded. The old thread stays immutable history.
 
 **Why.** Automation does not step into a conversation a human led, and it starts from verifiable facts instead of guesses about its content.
 
-**Trade-off.** The new thread does not remember the previous one's reasoning, only the snapshot.
+**Trade-off.** Complete proven local conversation coverage is required. Missing, compacted, ambiguous or oversized history blocks continuation instead of losing decisions. The new thread receives selected messages, not hidden reasoning or a generated summary.
 
 ## A Discord button queues a request; the controller performs the action
 

@@ -44,7 +44,9 @@ The Projects App shows **Human control** in the task list and engineering card. 
 
 The Codex thread stays the same one: Kurami renames it to `[TT-42]: Add dark mode toggle` and after the hand-over sends it no more messages. The "Open session" link opens exactly this thread. While the thread is yours, Kurami keeps watching CI and previews but does not start repairs or AI review: those are for after automation has stopped.
 
-**Continue autonomously** does not resume your thread. Kurami builds a snapshot: the latest commit, the diff including unsaved edits, and the state of the PR, CI and AI review. Secrets are stripped from it, and a new thread starts in the same working copy and branch. Your uncommitted changes stay. The permission covers one successor, and the label is not removed: the next run of this issue starts with you again.
+**Continue autonomously** does not resume your thread. Kurami reads its exact local history and the same-run predecessor chain without sending messages. A repeated continuation retains the original discussion as well as the stopped successor report. The snapshot includes your text and assistant final replies in order, including decisions discussed without editing files. It also includes the latest commit, dirty diff, PR, CI and AI review. Credential-like content is redacted; tool outputs and reasoning are excluded. A new thread starts in the same working copy and branch, preserving your uncommitted changes. Permission covers one successor; the label stays for the next run.
+
+Finish the Remote turn before pressing the button, then stop writing in the old thread. If local history is missing, incomplete, ambiguous, compacted, changed or too large, continuation reports an error and starts no writer. Kurami does not substitute a guessed summary or discard your latest choices. The exact limits and source checks are in [Codex session](@codex-sessions).
 
 :::guarantees
 - Kurami does not write to a thread you drive.

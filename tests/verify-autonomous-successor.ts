@@ -13,6 +13,7 @@ import { tmpdir } from "node:os";
 import { delimiter, resolve } from "node:path";
 import { DatabaseSync } from "node:sqlite";
 import { promptFor } from "../src/orchestrator/projects/sessions/autonomous-successor.ts";
+import { conversationRecords, lateChoices, writeConversation, verifyPredecessorConversation } from "./predecessor-conversation-fixture.ts";
 
 function assert(condition: unknown, message: string): asserts condition {
   if (!condition) throw new Error(message);
@@ -57,6 +58,7 @@ async function main(): Promise<void> {
   const worktree = resolve(worktreeRoot, "124/TailorTales");
   const ambiguousWorktree = resolve(worktreeRoot, "125/TailorTales");
   const recoveryWorktree = resolve(worktreeRoot, "126/TailorTales");
+  const fenceWorktree = resolve(worktreeRoot, "127/TailorTales");
   const canonical = resolve(home, "repositories/TailorTales");
   const successorPath = resolve(app, "src/orchestrator/projects/sessions/autonomous-successor.ts");
   const controlsPath = resolve(app, "src/orchestrator/controls/run.ts");
@@ -69,6 +71,7 @@ async function main(): Promise<void> {
     await mkdir(worktree, { recursive: true, mode: 0o700 });
     await mkdir(ambiguousWorktree, { recursive: true, mode: 0o700 });
     await mkdir(recoveryWorktree, { recursive: true, mode: 0o700 });
+    await mkdir(fenceWorktree, { recursive: true, mode: 0o700 });
     await mkdir(canonical, { recursive: true, mode: 0o700 });
     await copyFile(
       resolve(app, "deploy/config/orchestrator.yaml"),
@@ -88,7 +91,7 @@ async function main(): Promise<void> {
       mode: 0o600,
     });
 
-    for (const directory of [worktree, ambiguousWorktree]) {
+    for (const directory of [worktree, ambiguousWorktree, fenceWorktree]) {
       git(directory, ["init", "-b", "TT-124_successor"]);
       git(directory, ["config", "user.email", "successor-test@example.invalid"]);
       git(directory, ["config", "user.name", "Successor Test"]);
@@ -96,6 +99,7 @@ async function main(): Promise<void> {
       git(directory, ["add", "README.md"]);
       git(directory, ["commit", "-m", "fixture"]);
     }
+    git(fenceWorktree, ["branch", "-m", "TT-127_fence"]);
     git(recoveryWorktree, ["init", "-b", "TT-126_recovery"]);
     git(recoveryWorktree, ["config", "user.email", "successor-test@example.invalid"]);
     git(recoveryWorktree, ["config", "user.name", "Successor Test"]);
@@ -117,6 +121,9 @@ set -eu
 printf '%s\n' "$*" >> "$FAKE_TMUX_LOG"
 case "$1" in
   list-sessions)
+    if test -n "\${FAKE_TMUX_APPEND_SOURCE:-}"; then
+      printf '%s\n' '{"type":"event_msg","payload":{"type":"token_count"}}' >> "$FAKE_TMUX_APPEND_SOURCE"
+    fi
     test -f "$FAKE_TMUX_STATE" || exit 1
     printf '%s\n' 'cx-tt-124-test-a1'
     ;;
@@ -155,12 +162,25 @@ esac
     );
     await chmod(fakeTmux, 0o700);
 
+    verifyPredecessorConversation(home, worktree);
+    const codexHome = resolve(home, "codex");
+    await mkdir(resolve(codexHome, "sessions"), { recursive: true });
+    const native = new DatabaseSync(resolve(codexHome, "state_5.sqlite"));
+    native.exec("CREATE TABLE threads(id TEXT PRIMARY KEY, rollout_path TEXT, cwd TEXT, source TEXT)");
+    for (const [suffix, cwd] of [["successor",worktree],["recovery",recoveryWorktree],["fence",fenceWorktree]]) {
+      const id = `thread-${suffix}-predecessor`;
+      const path = resolve(codexHome,"sessions",`${suffix}.jsonl`);
+      writeConversation(path,conversationRecords(id,cwd!));
+      native.prepare("INSERT INTO threads VALUES(?,?,?,'cli')").run(id,path,cwd!);
+    }
+    native.close();
     const env = {
       ...process.env,
       KURAMI_HOME: home,
       FAKE_PANE_PID: String(paneProcess.pid),
       ORCHESTRATOR_MIGRATIONS_DIR: resolve(app, "migrations"),
       CODEX_BIN: process.execPath,
+      CODEX_HOME: codexHome,
       PATH: `${fakeBin}${delimiter}${process.env.PATH ?? ""}`,
       FAKE_TMUX_STATE: fakeTmuxState,
       FAKE_TMUX_FAIL_STATE: fakeTmuxFailState,
@@ -266,7 +286,48 @@ esac
     );
     insertFixture("ambiguous", 125, ambiguousWorktree, "TT-125_wrong");
     insertFixture("recovery", 126, recoveryWorktree, "TT-126_recovery");
+    // Admission failures cannot claim ownership, consume requests, create workers or rewrite work.
+    const sourcePath = resolve(codexHome,"sessions/successor.jsonl");
+    const completeSource = await readFile(sourcePath,"utf8");
+    const snapshot = () => JSON.stringify([
+      database.prepare("SELECT * FROM runs").all(),
+      database.prepare("SELECT * FROM run_resources").all(),
+      database.prepare("SELECT * FROM run_state_history").all(),
+      database.prepare("SELECT * FROM run_control_requests").all(),
+      database.prepare("SELECT * FROM run_autonomous_successions").all(),
+    ]);
+    for (const bad of ["", "not-json\n", completeSource.replace("thread-successor-predecessor","unrelated-thread"), completeSource.slice(0,-2), completeSource.replace(lateChoices,"x".repeat(70*1024))]) {
+      await writeFile(sourcePath,bad);
+      const before=snapshot();
+      const error=runFails(process.execPath,[successorPath,"start","--run-id","r_successor","--request-id","not-claimed","--apply"],env);
+      assert(error.includes("Predecessor conversation unavailable"),"Missing/malformed/unrelated/oversized conversation was not refused");
+      assert(snapshot()===before,"Conversation refusal changed orchestration state");
+    }
+    await rm(sourcePath);
+    assert(runFails(process.execPath,[successorPath,"start","--run-id","r_successor","--request-id","not-claimed","--apply"],env).includes("Predecessor conversation unavailable"),"Missing rollout admitted");
+    await writeFile(sourcePath,completeSource);
+    assert(!(await readFile(fakeTmuxLog,"utf8").catch(()=>"")).includes("new-session"),"Conversation failure dispatched a worker");
+    // Change the source after the DB claim, during prompt I/O: no new-session may run.
+    insertFixture("fence",127,fenceWorktree,"TT-127_fence","rq_fence");
     database.close();
+    const importHook=resolve(home,"change-source-after-claim.mjs");
+    await writeFile(importHook,`import fsp from "node:fs/promises";
+import fs from "node:fs";
+import {syncBuiltinESMExports} from "node:module";
+const original=fsp.writeFile;
+fsp.writeFile=async function(path,...args){
+  const result=await original.call(this,path,...args);
+  if(String(path).includes("r_fence-") && String(path).endsWith(".b64")) fs.appendFileSync(${JSON.stringify(resolve(codexHome,"sessions/fence.jsonl"))},${JSON.stringify('{"type":"event_msg","payload":{"type":"token_count"}}\n')});
+  return result;
+};
+syncBuiltinESMExports();`);
+    const fenceController=execFileSync(process.execPath,[controllerPath,"--apply"],{encoding:"utf8",env:{...env,NODE_OPTIONS:`--import=${importHook}`},stdio:["ignore","pipe","pipe"]});
+    assert(fenceController.includes("source changed after capture"),"Post-claim transcript change was not refused");
+    const afterFence=new DatabaseSync(databasePath,{readOnly:true});
+    const fenced=afterFence.prepare("SELECT r.state,rr.codex_thread_id,rr.tmux_session_name,s.succession_state FROM runs r JOIN run_resources rr USING(run_id) JOIN run_autonomous_successions s USING(run_id) WHERE r.run_id='r_fence'").get()!;
+    assert(fenced.state==="needs_attention" && fenced.codex_thread_id==="thread-fence-predecessor" && fenced.tmux_session_name===null && fenced.succession_state==="failed","Post-claim refusal did not preserve predecessor and existing failure recovery");
+    afterFence.close();
+    assert(!(await readFile(fakeTmuxLog,"utf8")).includes("new-session"),"Post-claim transcript change dispatched a worker");
 
     const queuedOutput = execFileSync(
       process.execPath,
@@ -294,6 +355,14 @@ esac
         Boolean(queued.requestId),
       "Remote continuation control did not record explicit successor intent",
     );
+    const claimState=new DatabaseSync(databasePath,{readOnly:true});
+    const beforeClaim=JSON.stringify([claimState.prepare("SELECT * FROM runs WHERE run_id='r_successor'").get(),claimState.prepare("SELECT * FROM run_control_requests WHERE request_id=?").get(queued.requestId)]);
+    const changedClaim=runFails(process.execPath,[successorPath,"start","--run-id","r_successor","--request-id",queued.requestId,"--apply"],{...env,FAKE_TMUX_APPEND_SOURCE:sourcePath});
+    assert(changedClaim.includes("source changed after capture"),"Capture-to-claim change was not rejected");
+    assert(beforeClaim===JSON.stringify([claimState.prepare("SELECT * FROM runs WHERE run_id='r_successor'").get(),claimState.prepare("SELECT * FROM run_control_requests WHERE request_id=?").get(queued.requestId)]),"Capture-to-claim refusal consumed request or ownership");
+    assert(claimState.prepare("SELECT 1 FROM run_autonomous_successions WHERE run_id='r_successor'").get()===undefined,"Capture-to-claim refusal admitted a succession");
+    claimState.close();
+    await writeFile(sourcePath,completeSource);
     const controllerOutput = execFileSync(
       process.execPath,
       [controllerPath, "--apply"],
@@ -355,9 +424,13 @@ esac
       previous_thread_id: string;
       git: { status: string; unstagedDiff: string; stagedDiff: string };
       explicitOwnerConfirmation: string;
+      predecessorConversation: { conversations: {threadId:string; messages: {role:string; text:string}[]}[] };
       instructions: string[];
     };
     verify.close();
+    assert(context.predecessorConversation.conversations[0]?.messages[2]?.text === lateChoices, "Late owner choices absent from dispatched handoff");
+    const encodedPrompt=await readFile(resolve(home,"state/session-prompts",`r_successor-${queued.requestId}.b64`),"utf8");
+    assert(Buffer.from(encodedPrompt,"base64").toString("utf8").includes(lateChoices),"Actual launch prompt omitted late owner choices");
     assert(
       row.state === "running" &&
         row.owner_state === "cli" &&
