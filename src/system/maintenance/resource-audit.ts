@@ -7,7 +7,8 @@ export type ResourceAudit={version:1;id:string;checkedAt:string;status:"ready"|"
   disk:{usedBytes:number;availableBytes:number;usedPercent:number;unaccountedBytes:number|null};
   memory:{MemTotal:number;MemAvailable:number;usedBytes:number;processGroups:{name:string;pssBytes:number;processes:number}[];unreadableProcesses:number};
   locations:{path:string;bytes:number}[];
-  candidates:{id:string;path:string;bytes:number;kind:string;protected:boolean}[];
+  candidates:{id:string;path:string;bytes:number;kind:string;protected:boolean;
+    reclaimableBytes?:number|null;latestFileModifiedAt?:string|null;reasons?:{code:string;ru:string;en:string}[]}[];
   decisions:AuditDecision[];limitations:{ru:string;en:string}[];databaseMounts:string[]};
 const validId=(value:unknown):value is string=>typeof value==="string"&&/^resource-[a-f0-9]{32}$/.test(value);
 const nonnegative=(value:unknown)=>typeof value==="number"&&Number.isFinite(value)&&value>=0;
@@ -21,6 +22,10 @@ export function readResourceAudit(home:string):ResourceAudit|null {
     for(const key of ["locations","candidates","decisions","limitations","databaseMounts"]){if(!Array.isArray(value[key])||value[key].length>100)return null;}
     if(!Array.isArray(value.memory.processGroups)||value.memory.processGroups.length>30)return null;
     if(value.locations.some((x:any)=>typeof x.path!=="string"||!nonnegative(x.bytes))||value.candidates.some((x:any)=>typeof x.id!=="string"||typeof x.path!=="string"||!nonnegative(x.bytes)||typeof x.protected!=="boolean"))return null;
+    if(value.candidates.some((x:any)=>
+      (x.reclaimableBytes!==undefined&&x.reclaimableBytes!==null&&(!nonnegative(x.reclaimableBytes)||x.reclaimableBytes>x.bytes))||
+      (x.latestFileModifiedAt!==undefined&&x.latestFileModifiedAt!==null&&(typeof x.latestFileModifiedAt!=="string"||!Number.isFinite(Date.parse(x.latestFileModifiedAt))))||
+      (x.reasons!==undefined&&(!Array.isArray(x.reasons)||x.reasons.length>20||x.reasons.some((reason:any)=>!pair(reason)||typeof reason.code!=="string"||reason.code.length>100)))))return null;
     if(value.decisions.some((x:any)=>typeof x.id!=="string"||!["consider","keep"].includes(x.recommendation)||!pair(x))||value.limitations.some((x:unknown)=>!pair(x))||value.databaseMounts.some((x:unknown)=>typeof x!=="string")||value.memory.processGroups.some((x:any)=>typeof x.name!=="string"||!nonnegative(x.pssBytes)||!nonnegative(x.processes)))return null;
     return value;
   }catch{return null;}

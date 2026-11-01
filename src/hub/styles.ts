@@ -227,4 +227,9 @@ body { min-height: 100vh; }
 @media(max-width:520px) { .section { margin-top: var(--space-6); }.section-heading { align-items: flex-start; flex-direction: column; }.hub-panel,.health-cell,.work-item { padding: var(--space-3); }.codex-grid { grid-template-columns: 1fr; }.models { grid-column: auto; }.control-fields,.stat-list--wide { grid-template-columns: 1fr; }.problem { align-items: flex-start; flex-direction: column; gap: var(--space-3); }.work-event-list li { grid-template-columns: 1fr; gap: var(--space-1); }.activity-filters { width: 100%; }.activity-filters label { flex: 1; min-width: 0; } }
 @media(max-width:520px) { .section-heading--period { flex-direction: row; align-items: center; }.heading-actions > span { display: none; }.usage-metrics { grid-template-columns: 1fr; } }
 .resource-audit{overflow-wrap:anywhere}.resource-audit__text{white-space:pre-wrap}
+.resource-audit__candidates table{table-layout:fixed}
+.resource-audit__candidates th:nth-child(1){width:28%}
+.resource-audit__candidates th:nth-child(2){width:12%}
+.resource-audit__candidates th:nth-child(3){width:17%}
+.resource-audit__candidates th:nth-child(4){width:16%}
 `;

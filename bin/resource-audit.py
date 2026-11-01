@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Read-only resource inventory and tool-free Hermes analysis; never cleans."""
 import argparse
+from collections import Counter, defaultdict
 import contextlib
 import datetime as dt
 import hashlib
@@ -9,8 +10,10 @@ import os
 from pathlib import Path
 import re
 import sqlite3
+import stat as filemode
 import subprocess
 import sys
+import time
 import uuid
 
 
@@ -26,11 +29,15 @@ def command(args, timeout=30):
 
 
 def process_inventory(proc=Path('/proc')):
-    references, groups, mounts, previews = set(), {}, set(), []
+    references, groups, mounts, previews = defaultdict(set), {}, set(), []
     unreadable = 0
     for p in proc.iterdir():
         if not p.name.isdigit():
             continue
+        if proc == Path('/proc') and int(p.name) == os.getpid():
+            continue
+        def reference(path):
+            references[path.removesuffix(' (deleted)')].add(int(p.name))
         try:
             name = (p / 'comm').read_text().strip()
             try:
@@ -45,19 +52,20 @@ def process_inventory(proc=Path('/proc')):
                 pass
             for key in ['cwd', 'exe']:
                 try:
-                    references.add(os.readlink(p / key).removesuffix(' (deleted)'))
+                    reference(os.readlink(p / key))
                 except OSError:
                     pass
             for key in ['cmdline', 'environ', 'maps']:
                 try:
                     raw = (p / key).read_bytes().decode(errors='replace')
-                    references.update(m.group(0).rstrip('),;') for m in re.finditer(r'/(?:tmp|home)/[^\s\x00\"\']+', raw))
+                    for match in re.finditer(r'/(?:tmp|home)/[^\s\x00\"\']+', raw):
+                        reference(match.group(0).rstrip('),;'))
                 except OSError:
                     pass
             try:
                 for fd in (p / 'fd').iterdir():
                     try:
-                        references.add(os.readlink(fd).removesuffix(' (deleted)'))
+                        reference(os.readlink(fd))
                     except OSError:
                         pass
             except OSError:
@@ -76,6 +84,91 @@ def process_inventory(proc=Path('/proc')):
         except OSError:
             unreadable += 1
     return references, sorted(groups.values(), key=lambda x: -x['pssBytes'])[:15], sorted(mounts), unreadable, previews[:40]
+
+
+def directory_allocation(path, timeout=10, max_entries=250000):
+    """Allocated blocks freed by removing this directory alone, without following links."""
+    deadline = time.monotonic() + timeout
+    inodes, links, owners = {}, Counter(), set()
+    latest = None
+    try:
+        root = path.lstat()
+        pending = [path]
+        entries = 0
+        while pending:
+            item = pending.pop()
+            metadata = item.lstat()
+            entries += 1
+            if entries > max_entries or time.monotonic() > deadline or metadata.st_dev != root.st_dev:
+                return None
+            key = (metadata.st_dev, metadata.st_ino)
+            inodes[key] = metadata
+            links[key] += 1
+            owners.add(metadata.st_uid)
+            if filemode.S_ISDIR(metadata.st_mode):
+                with os.scandir(item) as children:
+                    for child in children:
+                        if entries + len(pending) >= max_entries or time.monotonic() > deadline:
+                            return None
+                        pending.append(Path(child.path))
+            else:
+                latest = max(latest or metadata.st_mtime, metadata.st_mtime)
+        return {'bytes': sum(s.st_blocks * 512 for s in inodes.values()),
+                'reclaimableBytes': sum(s.st_blocks * 512 for key, s in inodes.items()
+                                        if filemode.S_ISDIR(s.st_mode) or links[key] == s.st_nlink),
+                'ownerUids': sorted(owners),
+                'latestFileModifiedAt': dt.datetime.fromtimestamp(latest, dt.timezone.utc).isoformat() if latest is not None else None}
+    except OSError:
+        return None
+
+
+def checkout_info(path, repositories):
+    text = str(path)
+    state, status = command(['git', '-C', text, 'status', '--porcelain'])
+    head, head_status = command(['git', '-C', text, 'rev-parse', 'HEAD'])
+    branch, _ = command(['git', '-C', text, 'symbolic-ref', '--short', 'HEAD'])
+    info = {'dirty': bool(state.strip()), 'statusAvailable': status == 0 and head_status == 0,
+            'head': head.strip(), 'branch': branch.strip(), 'linkedWorktree': (path / '.git').is_file(),
+            'mergeStatus': 'unverified', 'mergedPr': None, 'localFiles': []}
+    if not info['linkedWorktree'] or not info['statusAvailable']:
+        return info
+    ignored, ignored_status = command(['git', '-C', text, 'ls-files', '--others', '--ignored', '--exclude-standard',
+                                      '--', '.env', '.env.*', '*.env', '.envrc', '.npmrc', '*.pem', '*.key', '*.p12',
+                                      '*.db', '*.db-*', '*.sqlite*', 'state/', 'secrets/', 'backups/', 'runtime/', '.vscode/'])
+    info['localFiles'] = [p for p in ignored.splitlines() if 'node_modules' not in Path(p).parts][:10]
+    info['localFilesAvailable'] = ignored_status == 0
+    remote, _ = command(['git', '-C', text, 'remote', 'get-url', 'origin'])
+    match = re.fullmatch(r'(?:https://github\.com/|git@github\.com:)([\w.-]+/[\w.-]+?)(?:\.git)?', remote.strip())
+    if not match or not re.fullmatch(r'[a-f0-9]{40,64}', info['head']):
+        return info
+    repository = match.group(1)
+    if repository not in repositories:
+        raw, code = command(['gh', 'api', 'repos/' + repository, '--jq', '.default_branch'], 10)
+        repositories[repository] = raw.strip() if code == 0 and re.fullmatch(r'[\w./-]+', raw.strip()) else None
+    default = repositories[repository]
+    if not default:
+        return info
+    _, code = command(['git', '-C', text, 'merge-base', '--is-ancestor', info['head'], 'refs/remotes/origin/' + default])
+    if code == 0:
+        info['mergeStatus'] = 'local-default-branch'
+        return info
+    raw, code = command(['gh', 'api', f'repos/{repository}/commits/{info["head"]}/pulls'], 10)
+    try:
+        pulls = json.loads(raw) if code == 0 else []
+        for pr in pulls:
+            if (pr.get('merged_at') and pr['head']['sha'] == info['head'] and pr['base']['ref'] == default
+                    and pr['base']['repo']['full_name'].lower() == repository.lower()):
+                info['mergeStatus'], info['mergedPr'] = 'merged-pr', pr['number']
+                break
+    except (ValueError, KeyError, TypeError):
+        pass
+    return info
+
+
+def reason(candidate, code, ru, en, protected=True):
+    candidate['reasons'].append({'code': code, 'ru': ru, 'en': en})
+    if protected:
+        candidate['protected'] = True
 
 
 def managed_resources(home):
@@ -118,6 +211,11 @@ def inventory(home, user_home, proc=Path('/proc'), tmp=Path('/tmp')):
         listed, _ = command(['git', '-C', str(repository), 'worktree', 'list', '--porcelain'])
         roots += [Path(line[9:]) for line in listed.splitlines() if line.startswith('worktree ') and Path(line[9:]).is_dir()]
     roots = list(dict.fromkeys(roots))
+    repositories = {}
+    try:
+        mountpoints = [line.split()[4].replace('\\040', ' ') for line in (proc / 'self/mountinfo').read_text().splitlines()]
+    except OSError:
+        mountpoints = []
     for p in roots:
         if (p / '.git').exists() and str(p) not in sizes:
             listed, _ = command(['du', '-x', '-B1', '-s', str(p)])
@@ -155,18 +253,53 @@ def inventory(home, user_home, proc=Path('/proc'), tmp=Path('/tmp')):
             kind = 'temporary-cache'
         else:
             continue
-        referenced = any(r == text or r.startswith(text + '/') for r in refs)
-        protected = p in canonicals or p == home / 'app' or referenced or version and p in [current, previous] or any(r.get('path') and (r['path'] == text or r['path'].startswith(text + '/')) for r in managed or [])
-        git_info = None
+        pids = sorted({pid for r in refs if r == text or r.startswith(text + '/') for pid in refs[r]})
+        candidate = {'id': hashlib.sha256(text.encode()).hexdigest()[:16], 'path': text,
+                     'bytes': bytes_used, 'kind': kind, 'referenced': bool(pids), 'protected': False, 'reasons': [],
+                     'reclaimableBytes': None, 'latestFileModifiedAt': None,
+                     'rootModifiedAt': dt.datetime.fromtimestamp(metadata.st_mtime, dt.timezone.utc).isoformat(), 'git': None}
+        if p in canonicals or p == home / 'app':
+            reason(candidate, 'main-checkout', 'Основная рабочая копия проекта.', 'Main project checkout.')
+        if pids:
+            numbers = ', '.join(str(pid) for pid in pids[:8])
+            reason(candidate, 'process-reference', f'Используется процессами PID: {numbers}.', f'Referenced by processes PID: {numbers}.')
+        if version and p == current:
+            reason(candidate, 'current-version', 'Текущая установленная версия агента.', 'Current installed agent version.')
+        elif version and p == previous:
+            reason(candidate, 'previous-version', 'Предыдущая версия сохранена для отката.', 'Previous version retained for rollback.')
+        if any(r.get('path') and (r['path'] == text or r['path'].startswith(text + '/')) for r in managed or []):
+            reason(candidate, 'managed-run', 'Ресурс числится за управляемой задачей.', 'Resource belongs to a managed run.')
+        if any(m == text or m.startswith(text + '/') for m in mountpoints):
+            reason(candidate, 'mount', 'Каталог содержит точку монтирования.', 'Directory contains a mount point.')
+        allocation = None if any(r['code'] == 'mount' for r in candidate['reasons']) else directory_allocation(p)
+        if allocation is None:
+            reason(candidate, 'scan-incomplete', 'Проверка содержимого и hard links не завершена; оценка освобождения недоступна.', 'Content and hard-link scan incomplete; reclaimable estimate unavailable.')
+        else:
+            candidate.update({key: allocation[key] for key in ['bytes', 'reclaimableBytes', 'latestFileModifiedAt']})
+            if allocation['ownerUids'] != [os.getuid()]:
+                reason(candidate, 'ownership', 'Внутри есть файлы другого владельца.', 'Contains files owned by another user.')
         if git:
-            state, status = command(['git', '-C', text, 'status', '--porcelain'])
-            head, _ = command(['git', '-C', text, 'rev-parse', 'HEAD'])
-            git_info = {'dirty': bool(state.strip()), 'statusAvailable': status == 0, 'head': head.strip(), 'linkedWorktree': (p / '.git').is_file()}
-            if managed is None or status != 0 or state.strip() or git_info['linkedWorktree']:
-                protected = True
-        candidates.append({'id': hashlib.sha256(text.encode()).hexdigest()[:16], 'path': text,
-                           'bytes': bytes_used, 'kind': kind, 'referenced': referenced, 'protected': bool(protected),
-                           'rootModifiedAt': dt.datetime.fromtimestamp(metadata.st_mtime, dt.timezone.utc).isoformat(), 'git': git_info})
+            info = candidate['git'] = checkout_info(p, repositories)
+            if managed is None:
+                reason(candidate, 'ledger-unavailable', 'Учёт управляемых задач недоступен.', 'Managed-run ledger unavailable.')
+            if not info['statusAvailable']:
+                reason(candidate, 'git-unavailable', 'Не удалось проверить состояние Git.', 'Git state check unavailable.')
+            if info['dirty']:
+                reason(candidate, 'dirty-checkout', 'Есть изменённые или неотслеживаемые файлы.', 'Contains modified or untracked files.')
+            if info['linkedWorktree']:
+                if info['mergeStatus'] == 'unverified':
+                    reason(candidate, 'merge-unverified', 'Слияние текущего коммита не подтверждено.', 'Merge of the current commit is unverified.')
+                elif info['mergedPr'] is not None:
+                    number = info['mergedPr']
+                    reason(candidate, 'merged-pr', f'PR #{number} с этим коммитом вмержен.', f'PR #{number} with this commit is merged.', False)
+                else:
+                    reason(candidate, 'merged-commit', 'Коммит входит в локально известную основную ветку.', 'Commit is in the locally known default branch.', False)
+                if not info.get('localFilesAvailable'):
+                    reason(candidate, 'local-files-unavailable', 'Не удалось проверить локальные настройки и данные.', 'Local configuration and data check unavailable.')
+                if info['localFiles']:
+                    names = ', '.join(info['localFiles'])
+                    reason(candidate, 'local-files', f'Сначала сохранить локальные настройки или данные: {names}.', f'Preserve local configuration or data first: {names}.')
+        candidates.append(candidate)
     docker = {'available': False, 'containers': [], 'volumes': []}
     security, docker_status = command(['docker', 'info', '--format', '{{json .SecurityOptions}}'])
     if docker_status == 0 and 'name=rootless' in security:
@@ -180,8 +313,8 @@ def inventory(home, user_home, proc=Path('/proc'), tmp=Path('/tmp')):
         mounts, _ = command(['docker', 'inspect', '--format', '{{json .Mounts}}', *ids]) if ids else ('', 0)
         binds = [m['Source'] for line in mounts.splitlines() for m in json.loads(line) if m.get('Type') == 'bind']
         for c in candidates:
-            if any(b == c['path'] or b.startswith(c['path'] + '/') for b in binds):
-                c['protected'] = True
+            if any(b == c['path'] or b.startswith(c['path'] + '/') or c['path'].startswith(b.rstrip('/') + '/') for b in binds):
+                reason(c, 'docker-bind', 'Каталог используется как bind mount контейнера Docker.', 'Directory is used as a Docker container bind mount.')
         docker['policy'] = 'Preserve all volumes and database contents. Review stopped test containers and unused images only after fresh managed-run/preview checks.'
     else:
         limits.append('Rootless Docker inventory unavailable; system Docker was not queried or modified.')
