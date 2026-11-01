@@ -49,6 +49,8 @@ class ResourceAuditTest(unittest.TestCase):
                 finally:
                     locked.chmod(0o700)
             self.assertTrue(result['candidates'][0]['protected'])
+            active = next(reason for reason in result['candidates'][0]['reasons'] if reason['code'] == 'process-reference')
+            self.assertIn('100', active['en'])
             self.assertEqual(result['memory']['usedBytes'], 400000*1024)
             self.assertEqual(result['memory']['processGroups'][0]['pssBytes'], 1024*1024)
             self.assertEqual((tmp / 'old-cache/marker').read_text(), 'KEEP_TEST_DATA')
@@ -57,6 +59,90 @@ class ResourceAuditTest(unittest.TestCase):
             self.assertFalse(any(any(x in args for x in ['rm', 'prune', 'stop', 'kill', '--force', '--apply']) for args in commands))
             self.assertIn('Preserve all volumes', result['docker']['policy'])
             self.assertEqual(result['databaseMounts'], ['/var/lib/docker/volumes/example-postgres/_data'], 'mount metadata is collected even when fd listing is inaccessible')
+
+    def test_allocation_counts_internal_links_once_and_excludes_external_links(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            candidate = root / 'cache'
+            candidate.mkdir()
+            inside = candidate / 'inside'
+            inside.write_bytes(b'x' * 8192)
+            os.link(inside, candidate / 'inside-again')
+            outside = root / 'outside'
+            outside.write_bytes(b'y' * 16384)
+            os.link(outside, candidate / 'shared-outside')
+            (candidate / 'external-symlink').symlink_to(root, target_is_directory=True)
+            result = audit.directory_allocation(candidate)
+            self.assertEqual(result['bytes'] - result['reclaimableBytes'], outside.stat().st_blocks * 512)
+            self.assertEqual(result['bytes'], sum(p.lstat().st_blocks * 512 for p in [candidate, inside, outside, candidate / 'external-symlink']))
+            self.assertEqual(result['ownerUids'], [os.getuid()])
+            self.assertIsNotNone(result['latestFileModifiedAt'])
+            self.assertIsNone(audit.directory_allocation(candidate, max_entries=1), 'partial scans must not invent a reclaimable value')
+            self.assertTrue(outside.exists(), 'measurement never removes data')
+
+    def test_squash_merge_requires_the_exact_pr_head_and_default_repository(self):
+        with tempfile.TemporaryDirectory() as directory:
+            worktree = Path(directory)
+            (worktree / '.git').write_text('gitdir: unused-test-metadata')
+            head = 'a' * 40
+            pr = {'number': 173, 'merged_at': '2026-10-14T15:00:00Z', 'head': {'sha': head},
+                  'base': {'ref': 'main', 'repo': {'full_name': 'owner/project'}}}
+            def read_command(args, timeout=30):
+                if 'rev-parse' in args: return head, 0
+                if 'symbolic-ref' in args: return 'feature', 0
+                if 'ls-files' in args: return '.env\n.env.test\n', 0
+                if 'remote' in args: return 'https://github.com/owner/project.git\n', 0
+                if 'merge-base' in args: return '', 1
+                if args[0] == 'gh': return json.dumps([pr]), 0
+                return '', 0
+            with patch.object(audit, 'command', side_effect=read_command):
+                info = audit.checkout_info(worktree, {'owner/project': 'main'})
+                self.assertEqual((info['mergeStatus'], info['mergedPr']), ('merged-pr', 173))
+                self.assertEqual(info['localFiles'], ['.env', '.env.test'])
+                pr['head']['sha'] = 'b' * 40
+                self.assertEqual(audit.checkout_info(worktree, {'owner/project': 'main'})['mergeStatus'], 'unverified')
+                pr['head']['sha'] = head
+                pr['base']['repo']['full_name'] = 'someone/else'
+                self.assertEqual(audit.checkout_info(worktree, {'owner/project': 'main'})['mergeStatus'], 'unverified')
+                pr['base']['repo']['full_name'] = 'owner/project'
+                pr['merged_at'] = None
+                self.assertEqual(audit.checkout_info(worktree, {'owner/project': 'main'})['mergeStatus'], 'unverified')
+                self.assertEqual(audit.checkout_info(worktree, {'owner/project': None})['mergeStatus'], 'unverified')
+
+    def test_worktree_protection_explains_local_files_unverified_merges_and_mounts(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            home, user, proc, tmp = [root / name for name in ['home', 'user', 'proc', 'tmp']]
+            worktree = tmp / 'merged-worktree'
+            for p in [home / 'state', user, proc / 'self', worktree]: p.mkdir(parents=True)
+            (worktree / '.git').write_text('gitdir: test')
+            (proc / 'meminfo').write_text('MemTotal: 1000000 kB\nMemAvailable: 600000 kB\n')
+            (proc / 'self/mountinfo').write_text('')
+            info = {'dirty': False, 'statusAvailable': True, 'head': 'a'*40, 'linkedWorktree': True,
+                    'mergeStatus': 'merged-pr', 'mergedPr': 42, 'localFiles': [], 'localFilesAvailable': True}
+            def read_command(args, timeout=30):
+                if args[0] == 'nice': return f'200000000\t{worktree}\n', 0
+                return '', 1
+            def collect():
+                return next(c for c in audit.inventory(home, user, proc, tmp)['candidates'] if c['path'] == str(worktree))
+            with patch.object(audit, 'command', side_effect=read_command), patch.object(audit, 'managed_resources', return_value=[]), patch.object(audit, 'checkout_info', return_value=info):
+                candidate = collect()
+                self.assertFalse(candidate['protected'], 'a verified clean merged worktree can be proposed, never automatically deleted')
+                self.assertIn('merged-pr', [r['code'] for r in candidate['reasons']])
+                info['localFiles'] = ['.env']
+                self.assertIn('local-files', [r['code'] for r in collect()['reasons']])
+                self.assertTrue(collect()['protected'])
+                info['localFiles'] = []
+                info['mergeStatus'] = 'unverified'
+                self.assertIn('merge-unverified', [r['code'] for r in collect()['reasons']])
+                info['mergeStatus'] = 'merged-pr'
+                info['dirty'] = True
+                self.assertIn('dirty-checkout', [r['code'] for r in collect()['reasons']])
+                info['dirty'] = False
+                (proc / 'self/mountinfo').write_text(f'1 2 8:1 / {worktree}/mounted rw - ext4 /dev/test rw\n')
+                candidate = collect()
+                self.assertIn('mount', [r['code'] for r in candidate['reasons']])
+                self.assertIsNone(candidate['reclaimableBytes'])
 
     def test_no_invented_or_protected_cleanup_targets(self):
         snapshot = {'candidates': [{'id': 'active', 'protected': True}]}

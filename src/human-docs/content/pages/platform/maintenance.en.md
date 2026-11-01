@@ -51,6 +51,10 @@ The separate `kurami-monthly-resource-audit` job runs on the first day of each m
 
 You receive a short report in the maintenance Discord channel and a persistent **Resource audit** notice on Hub. Open the report to see directory sizes, RAM consumers, cleanup candidates and access limits. **Mark as reviewed** clears only that report’s notice. It does not authorize cleanup, and an older acknowledgement cannot hide a newer audit.
 
+Each candidate has a decision and a reason: for example, a process with a listed PID uses the directory, a checkout contains changes, or its merge is unverified. For worktrees, the audit checks whether the commit is in the default branch or an associated merged PR has the same head commit, including squash merges. Local configuration and data must be preserved before removal. If GitHub is unavailable, the merge may remain unverified.
+
+The **Estimated reclaimable** column shows space for removing one proposed directory. It accounts for hard links: files with links outside that directory do not increase the estimate. An incomplete scan shows “Unknown”; retained directories show a dash. Overlapping directory estimates cannot be added. Older reports retain their original data; the new details appear after the next audit.
+
 Cleanup requires your separate explicit approval and a fresh usage, mount, Git and ownership check. Databases, Docker volumes, session history, active tasks and protected checkouts are preserved. Missing process references do not prove that data is disposable; filesystem and Docker sizes can overlap. System Docker data may remain inaccessible. Audit reports are retained without automatic deletion.
 
 This audit does not change the existing automatic maintenance policy above. Install or synchronize its schedule after releasing the code with `python bin/sync-resource-audit-cron.py --apply`, from the application repository in the installed Hermes Python environment. Without `--apply`, the command only checks the planned job and delivery.

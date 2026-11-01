@@ -2,6 +2,12 @@
   "baseline": "4a38c09",
   "publicationBaseline": "788787f077d42fc3b3346a4f4a612947b97ce2e8",
   "commits": {
+    "2d6250b5669d314d3aa4ee048a0d52103e974117": {
+      "category": "improved",
+      "page": "maintenance",
+      "en": "Resource audits explain why each directory is retained, verify merged worktree commits including squash merges, and estimate reclaimable space accounting for hard links.",
+      "ru": "Аудит ресурсов объясняет причины сохранения каталогов, проверяет слияние коммитов рабочих копий, включая squash merge, и оценивает освобождаемое место с учётом hard links."
+    },
     "60c2180cceed3db396932edadf69342da651aeaf": {
       "category": "operations", "en": "", "ru": "", "exclusionScope": "docs-only",
       "exclude": "Updates bilingual Hub, cleanup and command-reference copy, the classification ledger and coverage audit only; application behavior is unchanged."

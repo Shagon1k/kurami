@@ -17,6 +17,14 @@ writeFileSync(report,JSON.stringify(resourceAudit));
 const server=createHubServer({home,snapshot:syntheticHubSnapshot,authorize:async request=>request.headers["x-test-owner"]==="yes"?"owner":null});
 try{
   assert.equal(readResourceAudit(home)?.id,resourceAudit.id);
+  const legacy={...resourceAudit,candidates:[{id:"legacy",path:"/tmp/legacy",bytes:1024,kind:"temporary-cache",protected:true}]};
+  writeFileSync(report,JSON.stringify(legacy));
+  assert.equal(readResourceAudit(home)?.candidates[0]?.reclaimableBytes,undefined,"older reports remain readable without invented estimates");
+  for(const invalid of [{reclaimableBytes:-1},{reclaimableBytes:2*1024**3},{reasons:[{code:"bad",ru:42,en:"invalid"}]},{latestFileModifiedAt:"invalid"}]){
+    writeFileSync(report,JSON.stringify({...resourceAudit,candidates:[{...resourceAudit.candidates[0],...invalid}]}));
+    assert.equal(readResourceAudit(home),null,"invalid new evidence is rejected");
+  }
+  writeFileSync(report,JSON.stringify(resourceAudit));
   assert(resourceAuditPending(home,resourceAudit));
   assert(collectHubOperations(home,home,home,new Date()).alerts.some(x=>x.code==="resource_audit"));
   acknowledgeResourceAudit(home,resourceAudit.id,"owner");
@@ -30,6 +38,16 @@ try{
     const html=renderResourceAuditPage({...newer,analysis:{ru:'<script>alert("x")</script>',en:'<script>alert("x")</script>'}},home,lang,"token");
     assert(!html.includes('<script>alert("x")</script>'));assert(html.includes("&lt;script&gt;"));
     assert(html.includes(lang==="ru"?"Отметить рассмотренным":"Mark as reviewed"));
+    assert(html.includes(lang==="ru"?"Оценка освобождения":"Estimated reclaimable"));
+    assert(html.includes("1234"),"protected rows retain their concrete process evidence");
+    assert(html.includes("#42"),"merged worktree evidence is shown");
+    assert(!html.includes("Keep: in use or needs verification"));
+    const unsafe={...resourceAudit,candidates:[{...resourceAudit.candidates[0]!,reasons:[{code:"test",ru:"<script>reason</script>",en:"<script>reason</script>"}]}]};
+    assert(!renderResourceAuditPage(unsafe,home,lang,"token").includes("<script>reason</script>"));
+    const oldHtml=renderResourceAuditPage(legacy,home,lang,"token");
+    assert(oldHtml.includes(lang==="ru"?"Нужен новый аудит":"Run a new audit"));
+    const unknownHtml=renderResourceAuditPage({...legacy,candidates:[{...legacy.candidates[0]!,protected:false}]},home,lang,"token");
+    assert(unknownHtml.includes(lang==="ru"?"Неизвестно":"Unknown"));
   }
   server.listen(0,"127.0.0.1");await once(server,"listening");
   const base=`http://127.0.0.1:${(server.address() as {port:number}).port}`;
