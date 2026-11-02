@@ -51,11 +51,13 @@ The card is always the lowest message, because it is the one you need to read, n
 
 ## From a press to an action
 
-A press goes through a chain of checks and ends in a queue record, not in an action. The `kurami-discord-controls` plugin replaces Hermes's Discord adapter and adds one interaction handler. It accepts only a `custom_id` of the form `kurami:<action>:<run id>`, where the action is on a closed list and the run id matches `r_[A-Za-z0-9_]+`. The values of the "More actions…" menu are checked against the same list.
+A press goes through a chain of checks and ends in a queue record, not in an action. The `kurami-discord-controls` plugin replaces Hermes's Discord adapter and adds one interaction handler. It accepts allowlisted `custom_id` forms, usually `kurami:<action>:<run id>`, where the action is on a closed list and the run id matches `r_[A-Za-z0-9_]+`. The values of the "More actions…" menu are checked against the same list.
 
 Next the plugin checks that an allowed Hermes user pressed the button. It then answers Discord with "thinking" and runs `run.ts request --action … --via discord --apply` with a 10-second limit. In one transaction `run.ts` repeats the condition checks, inserts a row into `run_control_requests` and immediately rewrites the `run_progress_cards` record to "queued" — for example `preview_queued`. Finally the plugin asks the notifier to show a fresh card and answers you with one line, "Start preview queued. The live card will update after reconciliation."
 
-Two actions go differently. The plugin writes **Mark reviewed** directly through `previews/manager.ts review`: one short, audited SQLite write. **Discard local work** and **Close draft PR & discard** first open a confirmation visible only to you for 120 seconds, and only the second button queues a request.
+Some actions use a separate path. The plugin writes **Mark reviewed** directly through `previews/manager.ts review`: one short, audited SQLite write. **Discard local work** and **Close draft PR & discard** first open a confirmation visible only to you for 120 seconds, and only the second button queues a request.
+
+**Decision ready / Решение готово** carries an additional current 24-hex decision token. Before its short write transaction, `run.ts` validates and captures the configured OWNER’s replies in the exact decision thread. The transaction saves the full decision and queues one fresh review fix; dispatch rechecks replies and source. A queued request does not confirm worker startup.
 
 ## What may be pressed, and by whom
 

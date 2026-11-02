@@ -1,5 +1,37 @@
 # Human docs coverage audit — 2026-09-28
 
+## Weekly audit — 2026-11-02, proposal dp_813a895926ca
+
+This is an unpublished documentation proposal, not an application release or evidence that a PR or decision card already exists.
+
+### Source and deployment evidence
+
+- The assigned proposal was checked read-only: state `drafting`, base `e9240ed78441af107fff57f10c86d9901f316dca`, matching its assigned worktree, summary location and branch. No second proposal was created.
+- The audit source is a standalone clone marked `kurami-docs-audit-v1`, clean on `main`. Its reflog records the wrapper's fast-forward at 04:00 UTC; HEAD, `origin/main` and read-only live `git ls-remote` agree on `e9240ed78441af107fff57f10c86d9901f316dca`. The wrapper checks the clone marker, root, branch and clean tree, fetches only its tracking ref and uses `merge --ff-only`. This audit did not update the source or canonical application checkout.
+- The promoted release marker has the same docs SHA, `revision: null` and retained `changelogRevision: ee02f37312508acac4d044cfcd223884d7e65bcc`. The existing trusted controller manifest independently asserts `status: succeeded` and that app SHA. `existingDeploymentManifest` accepts its private regular-file boundary. This verifies the recorded deployment watermark only; no newer runtime availability or authenticated browser smoke was established. No manifest was created, substituted or changed, and no credentials were inspected.
+- The promoted-docs range is empty. The full publication-baseline range `788787f077d42fc3b3346a4f4a612947b97ce2e8..e9240ed78441af107fff57f10c86d9901f316dca` contains 248 commits. Prior coverage records and all 272 existing ledger classifications are preserved. All eight outstanding identities were reviewed against their diffs and relevant current contracts, rather than restricting review to the last calendar week. Contentless merges are skipped only under the existing parent-tree-equality rule.
+- The proposal adds six bilingual public source classifications and two narrow docs-only exclusions. All eight source commits are outside the verified app watermark; their source dates are not availability dates. The resource-audit implementation already has its public classification and paired maintenance copy; its later ledger-only commit receives an exclusion, not a duplicate public entry.
+
+### Reviewed changes and corrections
+
+| Area and commits | Evidence and current coverage | Proposal |
+| --- | --- | --- |
+| Previous weekly docs and resource ledger: `5c31280`, `de13e3a` | Diffs change documentation and classifications only | Two specific docs-only exclusions |
+| Expected controller waits: `956cb76` | Failure-kind classification, normal-cycle polling, separate wait/error streaks and regression assertions; paired controller copy already matches | Ledger only |
+| Spec review: `81e33e4` | Profile registry, reviewer prompt/worker, controls and profile tests; engineering evidence already covers independent optional Spec, bounded source inputs and separate visual acceptance | Replace stale AI Code Review / Fix Review rows in both owner guides with the current profile menu and combined Fix findings action |
+| Owner-decision recovery and presentation: `17f5b95`, `128a153` | Owner-decision inspection/capture/store, reviewer App publication, dispatch guards, plugin token validation and regression assertions; detailed paired engineering evidence already explains the workflow | Add Decision ready to both button tables, document its current 24-hex token and receipt-backed review-fix request, separate live reply capture from the write transaction, and distinguish its stricter conflict checks from ordinary Fix findings |
+| Human control and session navigation: `50b47f9` | Localized read model/rendering and session-link assertions; paired human-control pages already preserve ownership and no-resume boundaries | Ledger only |
+| Successor conversation evidence: `aec470f` | Predecessor extraction, successor-chain identity/order/budget validation and regression assertions; paired session, human-control and decision pages already explain complete conversation transfer | Ledger only; existing diagrams remain consistent with ownership and dispatch boundaries |
+| Resource-audit reasons and reclaimable space: already-classified `2d6250b` | Allocation and hard-link scan, exact merged-PR head checks, renderer fallbacks and regression fixtures match paired maintenance copy | Preserve its existing public classification and copy |
+
+### Verification and limits
+
+- `bin/kurami-dev-run node src/human-docs/tools/check-pages.ts owner-controls commands discord-control-plane --strict-links` passed: three paired routes, zero errors and two rendered diagrams. Screenshot checks also passed for both languages in Paper light and Neon dark at 390 and 1280 px.
+- Representative 390 px crops were visually inspected for all three affected routes in both languages: button rows, token syntax and decision capture prose wrap without observed text overlap. The mobile capture has a 14,000 px viewport limit, so long pages are not an exhaustive full-page mobile review. Desktop rendering was also captured; no comprehensive accessibility or authenticated live audit is claimed.
+- `bin/kurami-dev-run node tests/human-docs/verify.ts` passed after the page and ledger edits: 66 bilingual article pairs, Markdown, diagrams, privacy, legacy routes and curated release gate. Application regression assertions were read as evidence; this audit did not execute application regression suites.
+- Read-only `collectDocsAudit` against the unchanged audit source, draft ledger, promoted marker and existing trusted controller manifest returns `unclassifiedShas: []`, clean source, no commits since promoted docs and the same verified app SHA. Parsed comparison confirms all 272 previous ledger records are unchanged; eight were added.
+- Changes are limited to three paired Markdown pages, the ledger and this coverage record. The required bilingual summary is the final handoff artifact. The approval worker owns subsequent checks, PR creation and the Publish/Discuss/Reject card; this audit performs no commit, push, publication, deployment or infrastructure change.
+
 ## Weekly audit — 2026-10-26, proposal dp_9284f21ac3c8
 
 This is an unpublished documentation proposal, not an application release or evidence that an approval card already exists.

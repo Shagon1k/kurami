@@ -207,8 +207,9 @@ A button appears only when its action is valid in the current state. The card sh
 | **Start preview** | the project supports previews, none exists yet | A slot is leased and the preview is built — see [Previews](@previews) |
 | **Remove preview**, **Extend 24h**, **Mark reviewed** | a preview exists | Remove it, extend it, mark it reviewed |
 | **Attempt CI fix** | CI failed or a required check is missing, fewer than two attempts | A fresh Codex task fixes exactly that commit |
-| **AI Code Review** | the PR is open and this commit has no review yet | An independent reviewer reads the PR and posts a review on GitHub |
-| **Fix Review** | the current AI review has findings | A fresh Codex task fixes them and resolves their threads |
+| **Run review → General / Clarity / Spec** | the selected profile has no queued, running or ready review for this commit | An independent read-only reviewer posts that profile’s review on GitHub |
+| **Fix findings** | ready profiles for the current commit have findings; no review is queued or running | One fresh Codex task fixes their combined findings; thread resolution follows verified CI |
+| **Decision ready / Решение готово** | an eligible no-edit fix has released its worker and delivered its decision thread | After the owner replies in that exact thread, Kurami validates and saves the replies, then queues one fresh fix — see [CI and AI review](@engineering-evidence) |
 | **Recover delivered fix** | a fix was preserved but not committed | Kurami rechecks the preserved task and finishes it |
 | **Cancel run** | cancellation has not started | The run stops, resources are released, the issue returns to Backlog |
 
