@@ -20,7 +20,7 @@ All commands are owner-only. The top-level `/status` belongs to Hermes, so Kuram
 
 ## Run card buttons
 
-A button carries the id `kurami:<action>:<run id>`. The card shows at most four buttons in the order of the table; the rest live in the **More actions…** menu (`kurami:run_actions:<run id>`). A press queues a request of the given kind, and the controller performs it on the nearest cycle.
+Most buttons carry the id `kurami:<action>:<run id>`. **Decision ready / Решение готово** uses `kurami:decision_ready:<run id>:<decision token>`, with the current 24-hex decision token. The card shows at most four buttons in the order of the table; the rest live in the **More actions…** menu (`kurami:run_actions:<run id>`). A press queues a request of the given kind, and the controller performs it on the nearest cycle.
 
 | Button | When shown | Request | What the controller does |
 |---|---|---|---|
@@ -37,6 +37,7 @@ A button carries the id `kurami:<action>:<run id>`. The card shows at most four 
 | **Attempt CI fix** | `parked_review`, CI `failed` or `missing`, fewer than two attempts | `ci_repair` | `repair_start`: a fresh Codex task on the exact failing commit |
 | **Run review → General / Clarity / Spec** | run parked and unowned, PR and commit known, selected profile neither queued, running nor ready for this commit | `ai_review`, selected profile | `review_start`: an independent read-only reviewer publishes its review on GitHub; other profiles may queue or run independently |
 | **Fix findings** | a ready review of the current commit has findings, no review is queued or running | `review_fix`, all profiles | `review_fix_start`: one fresh Codex task fixes current General, Clarity and Spec findings and unresolved owner threads; thread resolution follows verified CI |
+| **Decision ready / Решение готово** | `needs_attention`, reason `review_fix_no_new_head`; eligible released fix and delivered decision thread | `review_fix`, with an owner-decision receipt | validates the configured OWNER’s replies in that exact thread, saves the full decision and source, then queues one fresh bounded fix; dispatch rechecks replies and source |
 | **Cancel run** | cancellation has not started | `stop` | `request_stop`: stop, release resources, the issue goes to Backlog |
 | **Discard local work** | stage "Cancelled — local work preserved", no PR | confirmation, then `discard_local` | `discard_cancelled`: deletes the unpublished working copy and branch |
 | **Close draft PR & discard** | the same stage, a draft PR exists | confirmation, then `discard_published` | `discard_published_cancelled`: closes the exact draft PR and deletes the branches |
@@ -79,6 +80,8 @@ These are directional enqueue checks against existing `pending`/`processing` req
 | `recover_managed_task` | Recover delivered fix | writer controls, `retry`, `take_control`, `ci_repair`, `ai_review` |
 | `recover_interrupted_review_fix` | Recover interrupted fix | writer controls, `retry`, `take_control`, `ci_repair`, `ai_review`; recovery inspection also requires no other pending control |
 | `retry` | Retry | any other pending/processing control |
+
+**Decision ready / Решение готово** uses separate decision capture before queueing `review_fix`. It requires no other pending or processing control request, no active PR action, no unreleased protocol worker and no active preview lease.
 
 Enqueue eligibility does not authorize later dispatch without rechecks. Action-specific state and evidence are revalidated at dispatch/writer claim; Retry checks the exact session, failed turn, pane identity and Git head before its single send. Stop is an exception to enqueue conflict rejection, not a bypass of dispatch fences.
 

@@ -2,6 +2,44 @@
   "baseline": "4a38c09",
   "publicationBaseline": "788787f077d42fc3b3346a4f4a612947b97ce2e8",
   "commits": {
+    "5c31280d5ec773e7520203a84501e4bd5eeb8072": {
+      "category": "operations", "en": "", "ru": "", "exclusionScope": "docs-only",
+      "exclude": "Updates paired project and command documentation, the classification ledger and coverage audit only; application behavior is unchanged."
+    },
+    "956cb76f005657cb2e5c7c0735800d5a11264833": {
+      "category": "fixed", "page": "controller",
+      "en": "Expected worker waits are checked every normal controller cycle, ignoring old wait delays and keeping wait streaks separate from real-error backoff.",
+      "ru": "Ожидание исполнителя проверяется в каждом обычном цикле контроллера без прежних задержек; ожидания не увеличивают паузу после настоящей ошибки."
+    },
+    "81e33e45eba6732f0e3541a92ad9bbb6dd4f0d91": {
+      "category": "new", "page": "engineering-evidence",
+      "en": "Adds optional independent Spec review for requirements and design conformance, with separate evidence and combined fixes; owner visual acceptance remains separate.",
+      "ru": "Добавлено необязательное независимое Spec-ревью требований и дизайна с отдельными результатами и общим исправлением замечаний; визуальная приёмка владельцем остаётся отдельной."
+    },
+    "17f5b95ed22738c6937787239ff31149f35e0457": {
+      "category": "new", "page": "engineering-evidence",
+      "en": "Adds explicit owner-decision recovery after a verified no-edit review fix, preserving original findings and queueing one fresh bounded fix after reply and source checks.",
+      "ru": "Добавлено восстановление исправления без изменений через явное решение владельца: исходные замечания сохраняются, одна новая ограниченная попытка ставится после проверки ответа и источника."
+    },
+    "128a153e5d723e6db5ef1270752493d254e55c5a": {
+      "category": "fixed", "page": "engineering-evidence",
+      "en": "Publishes concise structured owner-decision questions through the reviewer App, blocks unsafe summaries and preserves recorded legacy threads without an owner-token publication fallback.",
+      "ru": "Краткие структурированные вопросы владельцу публикуются через App ревьюера; небезопасные резюме блокируются, записанные старые обсуждения сохраняются, публикации с токеном владельца нет."
+    },
+    "50b47f954a08edbf78af3956f173eea6e8769cb4": {
+      "category": "fixed", "page": "human-control",
+      "en": "Projects labels human-controlled tasks and links eligible Remote-owned runs to their saved Codex session without changing ownership or resuming automation.",
+      "ru": "Projects обозначает ручное управление и открывает сохранённую сессию Codex для подходящих Remote-запусков без смены владения или возобновления автоматики."
+    },
+    "aec470ffb8a2b27a26069ea86a23c0f9aed999ca": {
+      "category": "fixed", "page": "codex-sessions",
+      "en": "Autonomous continuations retain proven same-run predecessor conversations in order; missing, changed, ambiguous or oversized history blocks dispatch instead of losing decisions.",
+      "ru": "Автономное продолжение сохраняет подтверждённые разговоры предшественников того же запуска по порядку; отсутствующая, изменившаяся, неоднозначная или слишком большая история блокирует запуск вместо потери решений."
+    },
+    "de13e3a1eed77835e7c749138608b8aa7f427b9d": {
+      "category": "operations", "en": "", "ru": "", "exclusionScope": "docs-only",
+      "exclude": "Adds the existing resource-audit source classification to the documentation ledger only; no application behavior changes."
+    },
     "2d6250b5669d314d3aa4ee048a0d52103e974117": {
       "category": "improved",
       "page": "maintenance",
