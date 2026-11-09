@@ -117,6 +117,7 @@ const suites = [
   "test:external-ci-delivery-recovery",
   "test:session-start",
   "test:session-handoff",
+  "test:pf64-successor-recovery",
   "test:autonomous-successor",
   "test:autonomous-completion",
   "test:cancel-resolution",

@@ -1216,7 +1216,10 @@ export function controlComponents(
             ? "Continue autonomously"
             : "Take control";
       controls.push(
-        button(takeoverLabel, 1, `kurami:take_control:${card.run_id}`),
+        button(takeoverLabel, 1,
+          takeoverLabel === "Continue autonomously"
+            ? `kurami:continue_autonomously:${card.run_id}:${createHash("sha256").update(`${card.run_id}\n${card.codex_thread_id}`).digest("hex").slice(0, 24)}`
+            : `kurami:take_control:${card.run_id}`),
       );
     }
     const previewStartEligible =
@@ -1355,11 +1358,11 @@ export function controlComponents(
     if (overflow.length > 0) {
       const options = overflow.map((control) => {
         const customId = String(control.custom_id ?? "");
-        const parsed = /^kurami:([a-z_]+):r_[A-Za-z0-9_]+$/u.exec(customId);
+        const parsed = /^kurami:([a-z_]+):r_[A-Za-z0-9_]+(?::([a-f0-9]{24}))?$/u.exec(customId);
         if (!parsed) fail(`Invalid overflow control: ${customId}`);
         const option: SelectOption = {
           label: String(control.label ?? "Action").slice(0, 100),
-          value: parsed[1]!,
+          value: parsed[2] ? `${parsed[1]}:${parsed[2]}` : parsed[1]!,
         };
         if (Number(control.style) === 4) option.emoji = { name: "⚠️" };
         return option;

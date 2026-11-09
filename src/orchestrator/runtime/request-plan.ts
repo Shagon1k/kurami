@@ -3,6 +3,9 @@ import { previewNeedsExtension, type RunRow } from "./run-read-model.ts";
 
 export type RequestRow = RunRow & {
   request_id: string;
+  owner_intent?: "handoff" | "autonomous_successor" | null;
+  implementation_approved?: number;
+  expected_predecessor_thread_id?: string | null;
   ci_no_change_retry?: number;
   requested_review_active_count?: number;
   requested_action:
@@ -102,6 +105,13 @@ export function planForRequest(
           reason: "cancellation_requested",
         };
       }
+      const successorIntent = request.owner_intent === "autonomous_successor";
+      const successorBoundary = request.owner_state === "remote" || isFailedAutonomousSuccessorRecovery(recovery);
+      if (successorIntent !== successorBoundary) {
+        return { ...base, action: "request_reject", reason: "owner_intent_boundary_mismatch" };
+      }
+      if (successorIntent && (!request.expected_predecessor_thread_id || request.expected_predecessor_thread_id !== request.codex_thread_id))
+        return { ...base, action: "request_reject", reason: "successor_predecessor_mismatch" };
       if (isNeedsAttentionCliHandoff(recovery)) {
         return { ...base, action: "handoff" };
       }

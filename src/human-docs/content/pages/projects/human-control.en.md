@@ -42,7 +42,11 @@ The Projects App shows **Human control** in the task list and engineering card. 
 
 ## What happens to the thread
 
-The Codex thread stays the same one: Kurami renames it to `[TT-42]: Add dark mode toggle` and after the hand-over sends it no more messages. The "Open session" link opens exactly this thread. While the thread is yours, Kurami keeps watching CI and previews but does not start repairs or AI review: those are for after automation has stopped.
+In Projects and Discord, **Continue autonomously** first opens a confirmation. The owner explicitly authorizes file changes, commits and same-branch pushes for one fresh task, including on a `human-control` run. Opening or cancelling the confirmation starts no writer. **Take control** only transfers ownership to the owner; it does not approve implementation or start a successor. Requests from an older screen or button without explicit continuation intent cannot start an autonomous successor.
+
+A textual or CLI continuation confirms that the Remote task is finished; it does not by itself approve implementation on a `human-control` run. Without separate implementation approval, the new task can inspect and prepare but must stop before edits or external writes. Product and legal/privacy decisions still need their own sign-off. The request retains its original handoff or continuation intent: later ownership changes cannot turn one into the other.
+
+When you take control, the Codex thread stays the same one: Kurami renames it to `[TT-42]: Add dark mode toggle` and after the hand-over sends it no more messages. The "Open session" link opens exactly this thread. While the thread is yours, Kurami keeps watching CI and previews but does not start repairs or AI review: those are for after automation has stopped.
 
 **Continue autonomously** does not resume your thread. Kurami reads its exact local history and the same-run predecessor chain without sending messages. A repeated continuation retains the original discussion as well as the stopped successor report. The snapshot includes your text and assistant final replies in order, including decisions discussed without editing files. It also includes the latest commit, dirty diff, PR, CI and AI review. Credential-like content is redacted; tool outputs and reasoning are excluded. A new thread starts in the same working copy and branch, preserving your uncommitted changes. Permission covers one successor; the label stays for the next run.
 

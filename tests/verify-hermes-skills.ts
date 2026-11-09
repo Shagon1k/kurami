@@ -65,6 +65,18 @@ for (const skillName of skillNames) {
   }
 }
 
+const runControlSkill = fs.readFileSync(
+  path.join(skillsRoot, "kurami-run-control", "SKILL.md"),
+  "utf8",
+);
+assert.match(runControlSkill, /already `remote_owned` \/ `remote`, return its validated Codex session link/);
+assert.match(runControlSkill, /do not submit `take_control`/);
+assert.match(runControlSkill, /A generic Take control request or an unconfirmed Projects click is not that\s+authorization/);
+assert.match(runControlSkill, /--confirm-autonomous-continuation/);
+assert.match(runControlSkill, /--expected-predecessor-thread-id <current_codex_thread_id>/);
+assert.match(runControlSkill, /Add `--implementation-approved` only when the owner explicitly\s+approved implementation/);
+assert.match(runControlSkill, /a `human_control` continuation retains its read-only preparation checkpoint/);
+
 const briefingReferences = [
   "content-contract.md",
   "cinema-addon.md",
