@@ -1,5 +1,29 @@
 # Human docs coverage audit — 2026-09-28
 
+## Weekly audit — 2026-11-09, proposal dp_c2d184d69850
+
+This is an unpublished documentation proposal, not an application release.
+
+### Evidence and scope
+
+- The assigned proposal is `drafting`, based on `4b1a9d236c5606ab93160abb3670abd489d58b11`, with the expected draft worktree, branch and summary location. No second proposal was created.
+- The audit source is a clean standalone clone on `main`, marked `kurami-docs-audit-v1`. Its reflog records the wrapper's fast-forward at 04:00 UTC. HEAD, `origin/main` and read-only live `git ls-remote` agree on the exact source SHA. The wrapper checks its dedicated marker, root, branch and clean tree before fetching and merging with `--ff-only`; this audit did not update the source or canonical application checkout.
+- The promoted docs marker records the same docs SHA, `revision: null` and retained `changelogRevision: ee02f37312508acac4d044cfcd223884d7e65bcc`. The existing trusted controller manifest passes the private regular-file boundary and asserts `status: succeeded` with app SHA `ee02f37312508acac4d044cfcd223884d7e65bcc`. This verifies the recorded deployment watermark, not newer runtime availability or an authenticated live browser check. No credentials were inspected and no manifest was created or modified.
+- The promoted-docs range is empty. The complete publication-baseline range `788787f077d42fc3b3346a4f4a612947b97ce2e8..4b1a9d236c5606ab93160abb3670abd489d58b11` contains 249 commits. Earlier coverage evidence and all 280 existing ledger records are preserved; the inventory identifies one outstanding classification. Existing classifications were not treated as new changes requiring duplicate entries. Contentless merges retain the established parent-tree-equality rule.
+
+### Classification and reader impact
+
+The complete diff of `4b1a9d236c5606ab93160abb3670abd489d58b11` changes only three paired project/command pages, the ledger and the prior coverage report. Compared with the impact map, current owner-decision capture code and matching EN/RU copy, its review menu, decision-token and queue-boundary corrections are already documented. Existing diagrams are unchanged by this source commit. No additional reader-facing gap was identified in this outstanding change.
+
+The draft adds one SHA-keyed `docs-only` exclusion with bilingual descriptive text and a specific reason: these documentation corrections do not change application behavior. It adds no public application changelog item and changes no reader page. Source commit dates are not deployment availability dates.
+
+### Verification and handoff
+
+- `bin/kurami-dev-run node src/human-docs/tools/check-pages.ts owner-controls commands discord-control-plane` passed: three paired routes, zero errors, two diagrams.
+- `bin/kurami-dev-run node tests/human-docs/verify.ts` passed: 66 bilingual article pairs, Markdown, diagram kit, legacy routes, privacy and curated release gate. Relevant copy was inspected in both languages; no screenshots or application regression suites were run for this ledger-only proposal.
+- Read-only `collectDocsAudit` against the unchanged audit source, draft ledger, promoted release marker and existing trusted controller manifest returns `unclassifiedShas: []`, clean source and no commits since promoted docs. Parsed comparison confirms all 280 prior classifications are unchanged and exactly one is added.
+- The only edited files are the classification ledger and this coverage report. The final bilingual summary hands the proposal to the approval worker, which owns subsequent checks, PR creation and the separate Publish/Discuss/Reject card. No commit, push, docs promotion, application deployment or infrastructure change was performed.
+
 ## Weekly audit — 2026-11-02, proposal dp_813a895926ca
 
 This is an unpublished documentation proposal, not an application release or evidence that a PR or decision card already exists.
