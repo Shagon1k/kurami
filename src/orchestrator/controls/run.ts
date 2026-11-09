@@ -188,6 +188,9 @@ function parseArguments(): {
   via: RequestSource;
   profile: ReviewProfile;
   allReviews: boolean;
+  autonomousContinuationConfirmed: boolean;
+  implementationApproved: boolean;
+  expectedPredecessorThreadId?: string;
   decisionToken?: string;
   project?: string;
   issue?: number;
@@ -210,9 +213,18 @@ function parseArguments(): {
   const decisionToken = valueAfter(args,"--decision-token");
   if (action === "decision_ready" && !/^[a-f0-9]{24}$/.test(decisionToken ?? "")) fail("Decision ready requires the exact current --decision-token from controls");
   const apply = args.includes("--apply");
+  const autonomousContinuationConfirmed = args.includes("--confirm-autonomous-continuation");
+  const implementationApproved = args.includes("--implementation-approved");
+  const expectedPredecessorThreadId = valueAfter(args, "--expected-predecessor-thread-id");
+  if (args.includes("--expected-predecessor-thread-id") && (!autonomousContinuationConfirmed || !/^[a-zA-Z0-9][a-zA-Z0-9_-]{0,127}$/.test(expectedPredecessorThreadId ?? "")))
+    fail("--expected-predecessor-thread-id requires explicit continuation and a bounded safe task ID");
+  if ((autonomousContinuationConfirmed || implementationApproved) && (command !== "request" || action !== "take_control"))
+    fail("Continuation approval flags require request --action take_control");
+  if (implementationApproved && !autonomousContinuationConfirmed)
+    fail("--implementation-approved requires --confirm-autonomous-continuation");
   if (!command || !["status", "request", "controls"].includes(command)) {
     fail(
-      "Usage: run-controls.ts <status|request|controls> [--run-id <run_id>] [--action <take_control|preview_start|preview_stop|stop|discard_local|discard_published|ci_repair|ai_review|review_fix|recover_managed_task|recover_interrupted_review_fix|retry>] [--via <telegram|discord|cli>] [--project <project>] [--issue <number>] [--discord-thread-id <id>] [--apply]",
+      "Usage: run-controls.ts <status|request|controls> [--run-id <run_id>] [--action <take_control|preview_start|preview_stop|stop|discard_local|discard_published|ci_repair|ai_review|review_fix|recover_managed_task|recover_interrupted_review_fix|retry>] [--via <telegram|discord|cli>] [--project <project>] [--issue <number>] [--discord-thread-id <id>] [--confirm-autonomous-continuation] [--implementation-approved] [--expected-predecessor-thread-id <id>] [--apply]",
     );
   }
   if (command !== "controls" && !runId) fail(`${command} requires --run-id`);
@@ -261,6 +273,9 @@ function parseArguments(): {
     via,
     profile,
     allReviews,
+    autonomousContinuationConfirmed,
+    implementationApproved,
+    expectedPredecessorThreadId,
     decisionToken,
     project,
     issue,
@@ -354,7 +369,7 @@ export function runControlStatus(
   const requests = database
     .prepare(
       `
-    SELECT request_id, action, review_profile, request_state, requested_via, result_json,
+    SELECT request_id, action, review_profile, request_state, requested_via, owner_intent, implementation_approved, expected_predecessor_thread_id, result_json,
            created_at, completed_at
     FROM run_control_requests
     WHERE run_id = ?
@@ -459,8 +474,14 @@ export function requestRunControl(
   action: Action,
   via: RequestSource,
   apply: boolean,
-  options: { home?: string; idempotencyKey?: string; profile?: ReviewProfile; allReviews?: boolean; decisionToken?:string; decision?:OwnerDecisionSnapshot } = {},
+  options: { home?: string; idempotencyKey?: string; profile?: ReviewProfile; allReviews?: boolean; autonomousContinuationConfirmed?: boolean; implementationApproved?: boolean; expectedPredecessorThreadId?: string; decisionToken?:string; decision?:OwnerDecisionSnapshot } = {},
 ): Record<string, unknown> {
+  if ((options.autonomousContinuationConfirmed || options.implementationApproved) && action !== "take_control")
+    fail("Continuation approval requires take_control");
+  if (options.implementationApproved && !options.autonomousContinuationConfirmed)
+    fail("Implementation approval requires explicit autonomous continuation confirmation");
+  if (options.expectedPredecessorThreadId !== undefined && (!options.autonomousContinuationConfirmed || !/^[a-zA-Z0-9][a-zA-Z0-9_-]{0,127}$/.test(options.expectedPredecessorThreadId)))
+    fail("Expected predecessor requires explicit continuation and a bounded safe task ID");
   const decisionHome=options.home ?? orchestratorHome;
   if (action === "decision_ready") {
     if (!options.decision) {
@@ -535,12 +556,19 @@ export function requestRunControl(
     const recovery = recoverySnapshot(run);
     const failedSuccessorRecovery =
       isFailedAutonomousSuccessorRecovery(recovery);
-    const requestIntent =
-      action === "take_control" &&
-      ((run.state === "remote_owned" && run.owner_state === "remote") ||
-        failedSuccessorRecovery)
-        ? "autonomous_successor"
-        : undefined;
+    const successorBoundary = (run.state === "remote_owned" && run.owner_state === "remote") || failedSuccessorRecovery;
+    const requestIntent = action === "take_control"
+      ? options.autonomousContinuationConfirmed ? "autonomous_successor" : "handoff"
+      : null;
+    if (action === "take_control" && successorBoundary && requestIntent !== "autonomous_successor")
+      fail("This run is already Remote-owned or awaiting successor recovery; use its session link. Autonomous continuation requires explicit --confirm-autonomous-continuation");
+    if (requestIntent === "autonomous_successor" && !successorBoundary)
+      fail("Autonomous continuation requires a safe Remote or successor-recovery boundary; refresh and reconfirm");
+    const expectedPredecessorThreadId = requestIntent === "autonomous_successor" ? run.codex_thread_id : null;
+    if (requestIntent === "autonomous_successor" && !expectedPredecessorThreadId)
+      fail("Autonomous continuation requires an exact current predecessor task");
+    if (options.expectedPredecessorThreadId !== undefined && options.expectedPredecessorThreadId !== expectedPredecessorThreadId)
+      fail("Expected predecessor does not match the current task; refresh and reconfirm");
     if (["rejected", "cancelled", "archived"].includes(run.state)) {
       fail(`Run is terminal: ${run.state}`);
     }
@@ -804,7 +832,7 @@ export function requestRunControl(
     const existing = database
       .prepare(
         `
-      SELECT request_id, request_state, review_profile, review_fix_all
+      SELECT request_id, request_state, review_profile, review_fix_all, owner_intent, implementation_approved, expected_predecessor_thread_id
       FROM run_control_requests
       WHERE run_id = ? AND action = ? AND (action <> 'ai_review' OR review_profile = ?)
         AND request_state IN ('pending', 'processing')
@@ -812,9 +840,11 @@ export function requestRunControl(
     `,
       )
       .get(runId, action, profile) as
-      | { request_id: string; request_state: string; review_profile: string; review_fix_all: number }
+      | { request_id: string; request_state: string; review_profile: string; review_fix_all: number; owner_intent: string | null; implementation_approved: number; expected_predecessor_thread_id: string | null }
       | undefined;
     if (existing) {
+      if (action === "take_control" && ((existing.owner_intent ?? "handoff") !== requestIntent || Boolean(existing.implementation_approved) !== Boolean(options.implementationApproved) || existing.expected_predecessor_thread_id !== expectedPredecessorThreadId))
+        fail("A different takeover intent, implementation approval or predecessor is already queued; wait for its result");
       if (existing.review_profile !== profile || Boolean(existing.review_fix_all) !== allReviews) fail("Another review profile is already queued; wait for its result");
       if (apply) presentPendingRequest(database, runId, action);
       if (ownsTransaction) database.exec("COMMIT");
@@ -849,20 +879,22 @@ export function requestRunControl(
       .prepare(
         `
       INSERT INTO run_control_requests (
-        request_id, run_id, action, requested_via, idempotency_key, review_profile, review_fix_all
-      ) VALUES (?, ?, ?, ?, ?, ?, ?)
+        request_id, run_id, action, requested_via, idempotency_key, review_profile, review_fix_all, owner_intent, implementation_approved, expected_predecessor_thread_id
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       ON CONFLICT(idempotency_key) DO NOTHING
     `,
       )
-      .run(plan.requestId, runId, action, via, idempotencyKey, profile, Number(allReviews));
+      .run(plan.requestId, runId, action, via, idempotencyKey, profile, Number(allReviews), requestIntent, Number(options.implementationApproved === true), expectedPredecessorThreadId);
     const stored = database
       .prepare(
         `
-      SELECT request_id, request_state FROM run_control_requests
+      SELECT request_id, run_id, action, request_state, owner_intent, implementation_approved, expected_predecessor_thread_id FROM run_control_requests
       WHERE idempotency_key = ?
     `,
       )
-      .get(idempotencyKey) as { request_id: string; request_state: string };
+      .get(idempotencyKey) as { run_id: string; action: string; request_id: string; request_state: string; owner_intent: string | null; implementation_approved: number; expected_predecessor_thread_id: string | null };
+    if (action === "take_control" && (stored.run_id !== runId || stored.action !== action || (stored.owner_intent ?? "handoff") !== requestIntent || Boolean(stored.implementation_approved) !== Boolean(options.implementationApproved) || stored.expected_predecessor_thread_id !== expectedPredecessorThreadId))
+      fail("Idempotency key belongs to a different owner intent, implementation approval or predecessor");
     if (retryIntent && stored.request_id === plan.requestId)
       database.prepare("UPDATE run_control_requests SET retry_context_json=? WHERE request_id=?").run(retryIntent,stored.request_id);
     if (interruptedIntent && stored.request_id === plan.requestId)
@@ -1135,7 +1167,7 @@ export function runRunControlsCli(): void {
               issue: args.issue,
               discordThreadId: args.discordThreadId,
             })
-          : requestRunControl(database, args.runId!, args.action!, args.via, args.apply, {profile:args.profile,allReviews:args.allReviews,decisionToken:args.decisionToken});
+          : requestRunControl(database, args.runId!, args.action!, args.via, args.apply, {profile:args.profile,allReviews:args.allReviews,autonomousContinuationConfirmed:args.autonomousContinuationConfirmed,implementationApproved:args.implementationApproved,expectedPredecessorThreadId:args.expectedPredecessorThreadId,decisionToken:args.decisionToken});
     process.stdout.write(`${JSON.stringify({ ok: true, ...result })}\n`);
   } finally {
     database.close();

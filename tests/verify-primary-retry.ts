@@ -39,6 +39,11 @@ try {
   database.exec(`BEGIN;${readFileSync(resolve(migrations,"046_manual_agent_retry.sql"),"utf8")}\nCOMMIT;`);
   for(const [i,t] of evidenceTables.entries())assert.deepEqual(database.prepare(`SELECT * FROM ${t}`).all().map(r=>{delete r.retry_context_json;return r;}),before[i],`migration preserves ${t}`);
   assert.deepEqual(database.prepare("PRAGMA foreign_key_check").all(),[]);
+  // Keep the isolated migration-046 preservation assertion above, then exercise
+  // current runtime APIs against the current schema rather than the upgrade boundary.
+  for(const file of files.filter(f=>f>"046_manual_agent_retry.sql"))database.exec(`BEGIN;${readFileSync(resolve(migrations,file),"utf8")}\nCOMMIT;`);
+  assert.deepEqual({...database.prepare("SELECT owner_intent,implementation_approved,expected_predecessor_thread_id FROM run_control_requests WHERE request_id='rq_history'").get()},
+    {owner_intent:null,implementation_approved:0,expected_predecessor_thread_id:null},"legacy history gains no continuation or implementation approval");
 
   const canonical=resolve(home,"repo"),root=resolve(home,"managed"),worktree=resolve(root,"task/Repo"),bin=resolve(home,"bin"),codex=resolve(home,"codex");
   for(const path of [canonical,bin,resolve(codex,"sessions"),resolve(home,"config")])mkdirSync(path,{recursive:true});

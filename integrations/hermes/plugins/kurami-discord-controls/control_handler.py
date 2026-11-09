@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import hashlib
 import json
 import os
 import re
@@ -14,6 +15,9 @@ from zoneinfo import ZoneInfo
 
 CONTROL_ID = re.compile(
     r"^kurami:(status|take_control|preview_start|preview_stop|preview_extend|preview_reviewed|stop|discard_prompt|discard_local|discard_published_prompt|discard_published|ci_repair|ai_review|review_fix|review_fix_all|recover_interrupted_review_fix|recover_managed_task|retry):(r_[A-Za-z0-9_]+)$"
+)
+CONTINUATION_ID = re.compile(
+    r"^kurami:(continue_autonomously|continue_confirm|continue_cancel):(r_[A-Za-z0-9_]+):([a-f0-9]{24})$"
 )
 DECISION_ID = re.compile(r"^kurami:decision_ready:(r_[A-Za-z0-9_]+):([a-f0-9]{24})$")
 RUN_ACTIONS_ID = re.compile(r"^kurami:(?:run_actions|review_actions|fix_actions):(r_[A-Za-z0-9_]+)$")
@@ -125,6 +129,53 @@ def parse_control_id(custom_id: object) -> Optional[tuple[str, str]]:
     if match is None:
         return None
     return match.group(1), match.group(2)
+
+
+def parse_continuation_id(custom_id: object, values: object = None) -> Optional[tuple[str, str, str]]:
+    """Keep the displayed predecessor fence through direct and overflow controls."""
+    if not isinstance(custom_id, str):
+        return None
+    menu = re.fullmatch(r"kurami:run_actions:(r_[A-Za-z0-9_]+)", custom_id)
+    if menu and isinstance(values, list) and len(values) == 1 and isinstance(values[0], str):
+        if not re.fullmatch(r"continue_autonomously:[a-f0-9]{24}", values[0]):
+            return None
+        action, token = values[0].split(":")
+        custom_id = f"kurami:{action}:{menu.group(1)}:{token}"
+    match = CONTINUATION_ID.fullmatch(custom_id)
+    return (match.group(1), match.group(2), match.group(3)) if match else None
+
+
+def _continuation_predecessor(payload: dict[str, Any], run_id: str, token: str) -> str:
+    """Validate fresh Remote eligibility, never reinterpret continuation as handoff."""
+    thread = payload.get("codex_thread_id")
+    remote = payload.get("owner_state") == "remote" and payload.get("state") == "remote_owned"
+    failed_recovery = (
+        payload.get("owner_state") == "none"
+        and payload.get("state") == "needs_attention"
+        and payload.get("tmux_session_name") is None
+        and payload.get("latest_attention_reason") in {None, "autonomous_successor_start_failed"}
+        and payload.get("latest_autonomous_successor_state") == "failed"
+        and payload.get("latest_autonomous_successor_predecessor_thread_id") == thread
+    )
+    pending = any(
+        request.get("request_state") in {"pending", "processing"}
+        for request in payload.get("requests", [])
+    )
+    if (
+        payload.get("run_id") != run_id
+        or not isinstance(thread, str) or not thread
+        or hashlib.sha256(f"{run_id}\n{thread}".encode()).hexdigest()[:24] != token
+        or not (remote or failed_recovery)
+        or payload.get("execution_mode") != "live"
+        or payload.get("resource_state") != "provisioned"
+        or not payload.get("worktree_path") or not payload.get("branch_name")
+        or payload.get("previous_codex_thread_id") is not None
+        or payload.get("autonomous_successor_active") != 0
+        or payload.get("stop_reason") == "cancelled"
+        or pending
+    ):
+        raise RuntimeError("Stale continuation card or changed ownership; refresh and reconfirm the current Remote task")
+    return thread
 
 
 def parse_run_actions_id(
@@ -662,7 +713,8 @@ def _metadata_updates_source_message(action: str, message_flags: object) -> bool
 
 
 async def _run_control(
-    action: str, run_id: str, actor_id: Optional[str] = None, decision_token: Optional[str] = None
+    action: str, run_id: str, actor_id: Optional[str] = None, decision_token: Optional[str] = None,
+    continuation_thread_id: Optional[str] = None,
 ) -> dict[str, Any]:
     node, control, _ = _paths()
     if not node.is_file() or not control.is_file():
@@ -684,7 +736,12 @@ async def _run_control(
             "--apply",
         ]
     elif action != "status":
-        request_action = {"preview_extend":"preview_start", "clarity_review":"ai_review", "spec_review":"ai_review", "clarity_fix":"review_fix", "review_fix_all":"review_fix"}.get(action,action)
+        if action == "continue_confirm":
+            if not continuation_thread_id or not re.fullmatch(r"[A-Za-z0-9_-]{1,128}", continuation_thread_id):
+                raise RuntimeError("Continuation requires the exact confirmed predecessor")
+            request_action = "take_control"
+        else:
+            request_action = {"preview_extend":"preview_start", "clarity_review":"ai_review", "spec_review":"ai_review", "clarity_fix":"review_fix", "review_fix_all":"review_fix"}.get(action,action)
         args = [
             str(node),
             str(control),
@@ -697,6 +754,11 @@ async def _run_control(
             "discord",
             "--apply",
         ]
+        if action == "continue_confirm":
+            args.extend([
+                "--confirm-autonomous-continuation", "--implementation-approved",
+                "--expected-predecessor-thread-id", str(continuation_thread_id),
+            ])
         if action == "decision_ready":
             if not decision_token or not re.fullmatch(r"[a-f0-9]{24}", decision_token):
                 raise RuntimeError("Stale decision card; refresh and reconfirm")
@@ -886,7 +948,8 @@ def install_control_listener(
         metadata_selection_parsed = parse_metadata_selection_control_id(custom_id)
         metadata_parsed = parse_metadata_control_id(custom_id)
         decision_match = DECISION_ID.fullmatch(custom_id) if isinstance(custom_id, str) else None
-        parsed = ("decision_ready", decision_match.group(1)) if decision_match else (parse_run_actions_id(custom_id, values) or parse_control_id(custom_id))
+        continuation = parse_continuation_id(custom_id, values)
+        parsed = (continuation[0], continuation[1]) if continuation else (("decision_ready", decision_match.group(1)) if decision_match else (parse_run_actions_id(custom_id, values) or parse_control_id(custom_id)))
         if metadata_page_parsed is not None:
             batch_id, page = metadata_page_parsed
             if not authorized(interaction):
@@ -1070,6 +1133,57 @@ def install_control_listener(
                 )
             return
 
+        if continuation:
+            if not interaction.response.is_done():
+                if action == "continue_autonomously":
+                    await interaction.response.defer(ephemeral=True, thinking=True)
+                else:
+                    await interaction.response.defer()
+            try:
+                if action == "continue_cancel":
+                    message = "Autonomous continuation cancelled. No control request was submitted."
+                    await interaction.edit_original_response(content=message, view=None)
+                    return
+                before = await _run_control("status", run_id)
+                predecessor = _continuation_predecessor(before, run_id, continuation[2])
+                if action == "continue_autonomously":
+                    import discord
+
+                    view = discord.ui.View(timeout=120)
+                    for label, intent, style in [
+                        ("Confirm autonomous continuation", "continue_confirm", discord.ButtonStyle.danger),
+                        ("Cancel", "continue_cancel", discord.ButtonStyle.secondary),
+                    ]:
+                        view.add_item(discord.ui.Button(
+                            label=label, style=style,
+                            custom_id=f"kurami:{intent}:{run_id}:{continuation[2]}",
+                        ))
+                    await interaction.followup.send(
+                        "Continue autonomously? Confirm that the displayed Remote task is finished "
+                        "and you will not continue it. This authorizes a fresh managed Codex task "
+                        "to change files, create commits, and push to the same branch in the existing "
+                        "worktree. It does not authorize merge, deployment, or unrelated scope. "
+                        "Cancel leaves the run unchanged.",
+                        view=view, ephemeral=True,
+                    )
+                    return
+                payload = await _run_control(
+                    "continue_confirm", run_id,
+                    actor_id=str(getattr(getattr(interaction, "user", None), "id", "")),
+                    continuation_thread_id=predecessor,
+                )
+                message = _request_message("take_control", payload)
+                await interaction.edit_original_response(content=message, view=None)
+                try:
+                    await _refresh_dashboard(run_id=run_id)
+                except Exception:
+                    pass  # The durable request/notifier remains authoritative.
+            except Exception as exc:
+                await interaction.followup.send(
+                    f"Control rejected safely: {str(exc)[:400]}", ephemeral=True,
+                )
+            return
+
         if action == "discard_prompt":
             try:
                 import discord
@@ -1131,6 +1245,14 @@ def install_control_listener(
             await interaction.response.defer(ephemeral=True, thinking=True)
         try:
             actor_id = str(getattr(getattr(interaction, "user", None), "id", ""))
+            if action == "take_control":
+                before = await _run_control("status", run_id)
+                if before.get("owner_state") == "remote" or (
+                    before.get("owner_state") == "none"
+                    and before.get("state") == "needs_attention"
+                    and before.get("latest_autonomous_successor_state") == "failed"
+                ):
+                    raise RuntimeError("This Take control card is stale: the run is already Remote-owned or awaiting recovery. Refresh the card; no continuation was requested")
             payload = await _run_control(action, run_id, actor_id=actor_id, decision_token=decision_match.group(2)) if decision_match else await _run_control(action, run_id, actor_id=actor_id)
             message = (
                 _status_message(payload)

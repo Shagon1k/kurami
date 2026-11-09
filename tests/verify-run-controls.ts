@@ -1,4 +1,5 @@
 import "./verify-preview-stop-recovery.ts";
+import { requestRunControl } from "../src/orchestrator/controls/run.ts";
 import { execFileSync } from "node:child_process";
 import { copyFile, mkdir, mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
@@ -882,6 +883,32 @@ async function main(): Promise<void> {
       )
       .run();
     notificationState.close();
+    const ordinaryRemoteError=runNodeFails(controlPath,["request","--run-id","r_take_control","--action","take_control","--via","discord","--apply"],testHome);
+    assert(ordinaryRemoteError.includes("--confirm-autonomous-continuation"),"Ordinary Remote Take control silently became a successor");
+    const staleStore=new DatabaseSync(databasePath);
+    for (const intent of [null,"handoff"]) {
+      staleStore.prepare("INSERT INTO run_control_requests(request_id,run_id,action,requested_via,idempotency_key,owner_intent) VALUES(?,'r_take_control','take_control','cli',?,?)").run("rq_stale_takeover","stale-takeover",intent);
+      const stalePlan=runNode(controller,[],testHome) as unknown as {plans:Array<{requestId?:string;action:string;reason?:string}>};
+      assert(stalePlan.plans.some(plan=>plan.requestId === "rq_stale_takeover" && plan.action === "request_reject" && plan.reason === "owner_intent_boundary_mismatch"),"Legacy/handoff takeover converted to successor after ownership changed");
+      staleStore.exec("DELETE FROM run_control_requests WHERE request_id='rq_stale_takeover'");
+    }
+    const admissionSnapshot=()=>JSON.stringify([
+      staleStore.prepare("SELECT * FROM runs WHERE run_id='r_take_control'").get(),
+      staleStore.prepare("SELECT * FROM run_resources WHERE run_id='r_take_control'").get(),
+      staleStore.prepare("SELECT * FROM run_control_requests").all(),
+      staleStore.prepare("SELECT * FROM run_progress_cards").all(),
+      staleStore.prepare("SELECT * FROM run_state_history").all(),
+    ]);
+    const beforeStale=admissionSnapshot();
+    for (const badId of ["", "unsafe/task", "a".repeat(129)]) {
+      assert(runNodeFails(controlPath,["request","--run-id","r_take_control","--action","take_control","--confirm-autonomous-continuation","--expected-predecessor-thread-id",badId,"--apply"],testHome).includes("bounded safe task ID"),"CLI accepted malformed predecessor ID");
+      assert(admissionSnapshot()===beforeStale,"Invalid predecessor input mutated durable state");
+    }
+    assert(runNodeFails(controlPath,["request","--run-id","r_take_control","--action","take_control","--expected-predecessor-thread-id","some-task","--apply"],testHome).includes("requires explicit continuation"),"Expected predecessor granted continuation without explicit intent");
+    const staleError=runNodeFails(controlPath,["request","--run-id","r_take_control","--action","take_control","--confirm-autonomous-continuation","--expected-predecessor-thread-id","stale-confirmed-task","--apply"],testHome);
+    assert(staleError.includes("Expected predecessor does not match"),"CLI ignored stale confirmed predecessor");
+    assert(admissionSnapshot()===beforeStale,"Stale CLI predecessor changed durable state");
+    staleStore.close();
     const successorRequest = runNode(
       controlPath,
       [
@@ -890,6 +917,7 @@ async function main(): Promise<void> {
         "r_take_control",
         "--action",
         "take_control",
+        "--confirm-autonomous-continuation",
         "--via",
         "discord",
         "--apply",
@@ -902,6 +930,39 @@ async function main(): Promise<void> {
       "Remote-owned run did not accept an explicit autonomous successor request",
     );
     const successorState = new DatabaseSync(databasePath);
+    const persistedSuccessor=successorState.prepare("SELECT owner_intent,implementation_approved,expected_predecessor_thread_id FROM run_control_requests WHERE request_id=?").get(String(successorRequest.requestId))!;
+    assert(persistedSuccessor.owner_intent === "autonomous_successor" && persistedSuccessor.implementation_approved === 0,"Continuation intent and implementation approval were conflated");
+    const predecessor=successorState.prepare("SELECT codex_thread_id FROM run_resources WHERE run_id='r_take_control'").get()!.codex_thread_id;
+    assert(persistedSuccessor.expected_predecessor_thread_id === predecessor,"CLI did not persist exact predecessor without optional flag");
+    const pendingSnapshot=()=>JSON.stringify(successorState.prepare("SELECT * FROM run_control_requests WHERE run_id='r_take_control'").all());
+    for (const expected of [null,"different-task"]) {
+      successorState.prepare("UPDATE run_control_requests SET expected_predecessor_thread_id=? WHERE request_id=?").run(expected,String(successorRequest.requestId));
+      const before=pendingSnapshot();
+      assert(runNodeFails(controlPath,["request","--run-id","r_take_control","--action","take_control","--confirm-autonomous-continuation","--apply"],testHome).includes("predecessor"),"Pending reuse repurposed missing/stale predecessor");
+      assert(pendingSnapshot()===before,"Pending reuse upgraded predecessor");
+      const denied=runNode(controller,[],testHome) as unknown as {plans:Array<{requestId?:string;action:string;reason?:string}>};
+      assert(denied.plans.some(plan=>plan.requestId===successorRequest.requestId && plan.action==="request_reject" && plan.reason==="successor_predecessor_mismatch"),"Planner admitted missing/stale predecessor");
+    }
+    // A consumed key cannot be recycled with a missing/different predecessor either.
+    const priorKey=String(successorState.prepare("SELECT idempotency_key FROM run_control_requests WHERE request_id=?").get(String(successorRequest.requestId))!.idempotency_key);
+    successorState.prepare("UPDATE run_control_requests SET request_state='rejected' WHERE request_id=?").run(String(successorRequest.requestId));
+    for (const expected of [null,"different-task"]) {
+      successorState.prepare("UPDATE run_control_requests SET expected_predecessor_thread_id=? WHERE request_id=?").run(expected,String(successorRequest.requestId));
+      const before=pendingSnapshot();
+      let error="";
+      try { requestRunControl(successorState,"r_take_control","take_control","cli",true,{home:testHome,idempotencyKey:priorKey,autonomousContinuationConfirmed:true}); }
+      catch (caught) { error=String(caught); }
+      assert(error.includes("Idempotency key belongs to a different"),"Idempotency reuse repurposed missing/stale predecessor");
+      assert(pendingSnapshot()===before,"Idempotency reuse upgraded predecessor");
+    }
+    successorState.prepare("UPDATE run_control_requests SET request_state='pending', expected_predecessor_thread_id=? WHERE request_id=?").run(predecessor,String(successorRequest.requestId));
+    successorState.exec("UPDATE run_resources SET codex_thread_id='changed-after-queue' WHERE run_id='r_take_control'");
+    const beforeChangedReuse=pendingSnapshot();
+    assert(runNodeFails(controlPath,["request","--run-id","r_take_control","--action","take_control","--confirm-autonomous-continuation","--apply"],testHome).includes("predecessor"),"Pending reuse followed changed mapping");
+    assert(pendingSnapshot()===beforeChangedReuse,"Pending reuse rewrote approved predecessor after mapping changed");
+    const changedPlan=runNode(controller,[],testHome) as unknown as {plans:Array<{requestId?:string;action:string;reason?:string}>};
+    assert(changedPlan.plans.some(plan=>plan.requestId===successorRequest.requestId && plan.reason==="successor_predecessor_mismatch"),"Planner followed changed queued task mapping");
+    successorState.prepare("UPDATE run_resources SET codex_thread_id=? WHERE run_id='r_take_control'").run(predecessor);
     const successorCard = successorState
       .prepare(
         `SELECT stage, detail FROM run_progress_cards

@@ -20,7 +20,7 @@ export const RUN_ACTIONS = ["decision_ready","take_control","preview_start","pre
 export type RunAction = typeof RUN_ACTIONS[number];
 export type RunActionInput = {runId:string;project:string;itemId:string;action:RunAction;fingerprint:string;key:string;confirmed:boolean;profile?:ReviewProfile;allReviews?:boolean};
 export type RunActionView = {fingerprint:string;reason:string;actions:{action:RunAction;label:string;enabled:boolean;confirmation:string|null;hint:string|null;state:string|null}[]};
-type Pending = {review_fix_all:number;review_profile:ReviewProfile;request_id:string;action:string;request_state:string;requested_via:string};
+type Pending = {expected_predecessor_thread_id:string|null;owner_intent?:string|null;implementation_approved?:number;review_fix_all:number;review_profile:ReviewProfile;request_id:string;action:string;request_state:string;requested_via:string};
 type Run = Record<string,unknown> & {available_actions:string[]};
 const labels: Record<RunAction,string> = {decision_ready:"Решение готово",take_control:"Взять управление",preview_start:"Запустить превью",preview_stop:"Убрать превью",preview_reviewed:"Превью проверено",
   retry:"Повторить попытку",ci_repair:"Исправить CI",review_fix:"Исправить замечания",recover_interrupted_review_fix:"Продолжить прерванное исправление",recover_managed_task:"Восстановить исправление",stop:"Отменить запуск",discard_local:"Удалить локальную работу",discard_published:"Закрыть draft PR и удалить работу"};
@@ -45,6 +45,7 @@ function candidates(run: Run, now: Date): Set<string> {
     choices.add("preview_reviewed");
   return choices;
 }
+const successorConfirmation = "Подтвердить, что текущая Remote-задача завершена, и разрешить автономное продолжение, включая изменения файлов, коммиты и push в этой ветке? Kurami запустит новую задачу; прежний тред останется историей.";
 
 /** Reads the existing control menu. Paths and worker payloads never enter this view. */
 export function projectRunActions(database: DatabaseSync, runId: string, home: string, now: Date, fresh: boolean, profile: ReviewProfile = "general", allReviews = false): RunActionView {
@@ -63,7 +64,7 @@ export function projectRunActions(database: DatabaseSync, runId: string, home: s
     const label = action === "take_control" ? run.take_control_autonomous ? "Продолжить автономно" : labels[action] :
       action === "preview_start" && run.preview_state === "running" ? "Продлить превью на 24 ч" : labels[action];
     return [{action,label,enabled:eligible.has(action) && fresh && run.execution_mode === "live" && !pending&&!prPending,confirmation:destructive.has(action) ?
-      action === "discard_published" ? "Закрыть draft PR и удалить сохранённую ветку и локальную работу? Это действие нельзя отменить." : "Удалить сохранённую локальную работу? Это действие нельзя отменить." : null,
+      action === "discard_published" ? "Закрыть draft PR и удалить сохранённую ветку и локальную работу? Это действие нельзя отменить." : "Удалить сохранённую локальную работу? Это действие нельзя отменить." : action === "take_control" && run.take_control_autonomous ? successorConfirmation : null,
       hint:action === "take_control" && run.owner_state === "remote" ? "Нажатие подтверждает, что текущая Remote-задача завершена. Kurami запустит продолжение." :
         action === "take_control" && run.owner_state === "cli" ? "Kurami остановит текущий ход и передаст вам управление." : null,
       state:latest && ["pending","processing","failed","rejected",...(action === "decision_ready" ? ["applied"] : [])].includes(latest.request_state) ? latest.request_state : null}];
@@ -104,7 +105,7 @@ function requestProjectRunActionLocked(input:RunActionInput, actor: string, opti
   const database = openOrchestratorDatabase(path,{timeoutMs:1000}); let began = false;
   try {
     const replayKey="projects-action:"+createHash("sha256").update(JSON.stringify([actor,input.runId,input.project,input.itemId,input.action,input.profile,input.fingerprint,input.key,...(input.allReviews?["all-reviews"]:[])])).digest("hex");
-    const replay=database.prepare("SELECT a.request_id,q.request_state FROM project_action_requests a LEFT JOIN run_control_requests q ON q.request_id=a.request_id WHERE a.idempotency_key=?").get(replayKey);
+    const replay=input.action === "take_control" ? undefined : database.prepare("SELECT a.request_id,q.request_state FROM project_action_requests a LEFT JOIN run_control_requests q ON q.request_id=a.request_id WHERE a.idempotency_key=?").get(replayKey);
     if(replay)return {state:"existing",requestId:String(replay.request_id ?? replayKey),requestState:String(replay.request_state ?? "applied")};
     let decision:OwnerDecisionSnapshot|undefined;
     if(input.action === "decision_ready") {
@@ -116,7 +117,10 @@ function requestProjectRunActionLocked(input:RunActionInput, actor: string, opti
     }
     database.exec("BEGIN IMMEDIATE"); began=true;
     const key = replayKey;
-    const previous = database.prepare("SELECT a.request_id,q.request_state FROM project_action_requests a LEFT JOIN run_control_requests q ON q.request_id=a.request_id WHERE a.idempotency_key=?").get(key) as {request_id:string|null;request_state:string|null} | undefined;
+    const previous = database.prepare("SELECT a.request_id,q.request_state,q.owner_intent,q.expected_predecessor_thread_id,rr.codex_thread_id FROM project_action_requests a LEFT JOIN run_control_requests q ON q.request_id=a.request_id LEFT JOIN run_resources rr ON rr.run_id=q.run_id WHERE a.idempotency_key=?").get(key) as {request_id:string|null;request_state:string|null;owner_intent:string|null;expected_predecessor_thread_id:string|null;codex_thread_id:string|null} | undefined;
+    if (previous && input.action === "take_control" && previous.owner_intent === "autonomous_successor" && ["pending","processing"].includes(previous.request_state ?? "") &&
+        (!previous.expected_predecessor_thread_id || previous.expected_predecessor_thread_id !== previous.codex_thread_id))
+      throw new ProjectsActionError(409,"Предыдущая задача изменилась. Обновите страницу и подтвердите заново.");
     if (previous) { database.exec("COMMIT"); began=false; return {state:"existing",requestId:previous.request_id ?? key,requestState:previous.request_state ?? "applied"}; }
     if(hasActivePrRequest(database,input.runId))throw new ProjectsActionError(409,"GitHub is processing this PR action.");
     const item = database.prepare("SELECT p.present,EXISTS(SELECT 1 FROM runs n WHERE n.project=r.project AND n.item_id=r.item_id AND n.rowid>r.rowid) AS superseded FROM runs r JOIN project_items p ON p.project=r.project AND p.item_id=r.item_id WHERE r.run_id=? AND r.project=? AND r.item_id=? AND lower(r.repository)=lower(?)").get(input.runId,input.project,input.itemId,project.repository) as {present:number;superseded:number} | undefined;
@@ -128,9 +132,15 @@ function requestProjectRunActionLocked(input:RunActionInput, actor: string, opti
     const run = readRun(database,input.runId,home,now,input.profile,input.allReviews);
     if (run.execution_mode !== "live" || fingerprint(run) !== input.fingerprint)
       throw new ProjectsActionError(409,"Состояние запуска изменилось. Обновите страницу перед действием.");
-    const pending = database.prepare("SELECT request_id,requested_via,request_state,review_profile,review_fix_all FROM run_control_requests WHERE run_id=? AND action=? AND request_state IN ('pending','processing') ORDER BY rowid DESC LIMIT 1").get(input.runId,input.action) as Pending | undefined;
+    if (input.action === "take_control" && run.take_control_autonomous && !input.confirmed)
+      throw new ProjectsActionError(409,"Подтвердите автономное продолжение с правом изменений, коммитов и push.");
+    const pending = database.prepare("SELECT request_id,requested_via,request_state,review_profile,review_fix_all,owner_intent,implementation_approved,expected_predecessor_thread_id FROM run_control_requests WHERE run_id=? AND action=? AND request_state IN ('pending','processing') ORDER BY rowid DESC LIMIT 1").get(input.runId,input.action) as Pending | undefined;
     let requestId: string | null = null; let requestState = "applied"; let existing = false;
     if (pending) {
+      if (input.action === "take_control" && ((pending.owner_intent ?? "handoff") !== (run.take_control_autonomous ? "autonomous_successor" : "handoff") ||
+          Boolean(pending.implementation_approved) !== Boolean(run.take_control_autonomous && input.confirmed) ||
+          pending.expected_predecessor_thread_id !== (run.take_control_autonomous ? run.codex_thread_id : null)))
+        throw new ProjectsActionError(409,"В очереди другое намерение или согласие. Дождитесь результата и подтвердите заново.");
       if (input.action === "review_fix" && (pending.review_profile !== input.profile || Boolean(pending.review_fix_all) !== input.allReviews)) throw new ProjectsActionError(409,"Another review profile is already queued. Wait for its result.");
       if (["ci_repair","review_fix","recover_interrupted_review_fix"].includes(input.action) && !reviewContextMatches(database,pending.request_id,String(run.ci_head_sha),String(run.ci_pull_request_url)))
         throw new ProjectsActionError(409,"Действие другого коммита уже в очереди.");
@@ -140,7 +150,9 @@ function requestProjectRunActionLocked(input:RunActionInput, actor: string, opti
       if (input.action === "preview_reviewed") acknowledgePreview(database,input.runId,"projects:"+createHash("sha256").update(actor).digest("hex"),true,{now:now.getTime()});
       else {
         try {
-          const result = requestRunControl(database,input.runId,input.action as Action,"projects",true,{home,idempotencyKey:key,profile:input.profile,allReviews:input.allReviews,decision});
+          const result = requestRunControl(database,input.runId,input.action as Action,"projects",true,{home,idempotencyKey:key,profile:input.profile,allReviews:input.allReviews,decision,
+            autonomousContinuationConfirmed:input.action === "take_control" && Boolean(run.take_control_autonomous) && input.confirmed,
+            implementationApproved:input.action === "take_control" && Boolean(run.take_control_autonomous) && input.confirmed});
           requestId=String(result.requestId ?? result.request_id); requestState=String(result.requestState ?? result.request_state); existing=result.action === "existing";
         } catch { throw new ProjectsActionError(409,"Действие больше недоступно. Обновите страницу."); }
         if (["ci_repair","review_fix","recover_interrupted_review_fix"].includes(input.action)) {
@@ -152,7 +164,7 @@ function requestProjectRunActionLocked(input:RunActionInput, actor: string, opti
       }
     }
     database.prepare("INSERT INTO project_action_requests(idempotency_key,run_id,actor_subject,action,fingerprint,confirmed,request_id,preview_lease_id) VALUES(?,?,?,?,?,?,?,?)")
-      .run(key,input.runId,actor,input.action === "decision_ready" ? "review_fix" : input.action,input.fingerprint,Number(input.confirmed),requestId,input.action === "preview_reviewed" ? String(run.preview_lease_id) : null);
+      .run(key,input.runId,actor,input.action === "decision_ready" ? "review_fix" : input.action,input.fingerprint,Number(input.confirmed && (input.action !== "take_control" || run.take_control_autonomous)),requestId,input.action === "preview_reviewed" ? String(run.preview_lease_id) : null);
     database.exec("COMMIT"); began=false;
     return {state:existing ? "existing" : "created",requestId:requestId ?? key,requestState};
   } finally { if(began) database.exec("ROLLBACK"); database.close(); }

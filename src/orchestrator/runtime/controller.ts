@@ -98,7 +98,7 @@ function buildPlans(
   const requests = database
     .prepare(
       `
-    SELECT base.*, q.request_id, q.action AS requested_action,
+    SELECT base.*, q.request_id, q.action AS requested_action, q.owner_intent, q.implementation_approved, q.expected_predecessor_thread_id,
       (SELECT COUNT(*) FROM run_ai_reviews ar WHERE ar.run_id=q.run_id
        AND ar.review_profile=q.review_profile AND ar.review_state='running') AS requested_review_active_count
     FROM (${baseRunSelect()}) AS base

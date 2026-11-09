@@ -1,4 +1,5 @@
 import { spawn } from "node:child_process";
+import { createHash } from "node:crypto";
 import {
   createServer,
   type IncomingMessage,
@@ -137,6 +138,7 @@ async function main(): Promise<void> {
   const resourceGuardChannel = "1538633903726788758";
   const ownerUserId = "234723725168082944";
   const codexThreadId = "01a00b9d-e72b-73f3-af6e-30760c2191c4";
+  const continuationId = `kurami:continue_autonomously:r_discord_smoke:${createHash("sha256").update(`r_discord_smoke\n${codexThreadId}`).digest("hex").slice(0, 24)}`;
   const codexLaunchUrl =
     `https://go.shagon1k.win/codex/threads/${codexThreadId}`;
   const parentMessages: JsonObject[] = [];
@@ -698,9 +700,8 @@ async function main(): Promise<void> {
     successorRecovery.close();
     await runNode(notifier, ["--apply"], testHome, discordEnv);
     assert(
-      controlIds(currentDashboard()).includes(
-        "kurami:take_control:r_discord_smoke",
-      ) &&
+      controlIds(currentDashboard()).includes(continuationId) &&
+        !controlIds(currentDashboard()).includes("kurami:take_control:r_discord_smoke") &&
         componentLabels(currentDashboard()).includes("Continue autonomously"),
       "Exact failed-successor boundary did not expose autonomous recovery",
     );
@@ -717,9 +718,8 @@ async function main(): Promise<void> {
     unrelatedAttention.close();
     await runNode(notifier, ["--apply"], testHome, discordEnv);
     assert(
-      !controlIds(currentDashboard()).includes(
-        "kurami:take_control:r_discord_smoke",
-      ),
+      !controlIds(currentDashboard()).includes(continuationId) &&
+        !controlIds(currentDashboard()).includes("kurami:take_control:r_discord_smoke"),
       "Unrelated needs-attention reason exposed a broad autonomous retry",
     );
 
@@ -1275,9 +1275,8 @@ async function main(): Promise<void> {
         componentText(remoteControls).includes("Control** · You") &&
         !componentText(remoteControls).includes("Control** · AI Agent") &&
         componentText(remoteControls).includes(`[Open session](${codexLaunchUrl})`) &&
-        controlIds(remoteControls).includes(
-          "kurami:take_control:r_discord_smoke",
-        ),
+        controlIds(remoteControls).includes(continuationId) &&
+        !controlIds(remoteControls).includes("kurami:take_control:r_discord_smoke"),
       "Remote ownership did not expose the Codex launcher, autonomous continuation, and preview controls",
     );
     const handoffValue = componentText(remoteControls);

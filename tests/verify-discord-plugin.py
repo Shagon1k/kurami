@@ -114,6 +114,167 @@ def verify_docs_listener(module) -> dict[str, object]:
     return {"docs_owner_only": True, "docs_discuss_thread": True}
 
 
+def verify_continuation_listener(module) -> dict[str, object]:
+    """Exercise native owner confirmation through the real subprocess argument builder."""
+    import hashlib
+    import sys
+
+    run_id, thread = "r_continue_fixture", "remote_predecessor_1"
+    token = hashlib.sha256(f"{run_id}\n{thread}".encode()).hexdigest()[:24]
+    opener = f"kurami:continue_autonomously:{run_id}:{token}"
+    confirmed = f"kurami:continue_confirm:{run_id}:{token}"
+    cancelled = f"kurami:continue_cancel:{run_id}:{token}"
+    status = {
+        "ok": True, "run_id": run_id, "codex_thread_id": thread,
+        "owner_state": "remote", "state": "remote_owned", "execution_mode": "live",
+        "resource_state": "provisioned", "worktree_path": "/fixture/worktree",
+        "branch_name": "fixture-branch", "previous_codex_thread_id": None,
+        "autonomous_successor_active": 0, "requests": [],
+    }
+    calls = []
+
+    class Process:
+        returncode = 0
+        def __init__(self, payload):
+            self.payload = payload
+        async def communicate(self):
+            return json.dumps(self.payload).encode(), b""
+
+    async def spawn(*args, **kwargs):
+        calls.append(args)
+        return Process(status if args[2] == "status" else {
+            "ok": True, "action": "create",
+            "intent": "autonomous_successor" if "--confirm-autonomous-continuation" in args else "handoff",
+        })
+
+    class View:
+        def __init__(self, timeout):
+            self.children = []
+        def add_item(self, item):
+            self.children.append(item)
+
+    class Response:
+        def __init__(self):
+            self.done = False
+            self.sent = []
+        def is_done(self):
+            return self.done
+        async def send_message(self, text, **kwargs):
+            self.done = True
+            self.sent.append((text, kwargs))
+        async def defer(self, **kwargs):
+            self.done = True
+
+    class Followup:
+        def __init__(self):
+            self.sent = []
+        async def send(self, text, **kwargs):
+            require(kwargs.get("ephemeral") is True, "Continuation response must be ephemeral")
+            self.sent.append((text, kwargs))
+
+    class Interaction:
+        def __init__(self, custom_id, owner=True, values=None):
+            self.data = {"custom_id": custom_id, "values": values}
+            self.user = SimpleNamespace(id=42 if owner else 7)
+            self.response, self.followup = Response(), Followup()
+            self.edited = []
+        async def edit_original_response(self, **kwargs):
+            self.edited.append(kwargs)
+
+    class Client:
+        def add_listener(self, callback, name):
+            self.listener = callback
+
+    async def refresh(**kwargs):
+        return {"ok": True}
+
+    previous = (module._paths, module.asyncio.create_subprocess_exec, module._refresh_dashboard)
+    previous_discord = sys.modules.get("discord")
+    module._paths = lambda: (Path(__file__), Path(__file__), Path(__file__))
+    module.asyncio.create_subprocess_exec = spawn
+    module._refresh_dashboard = refresh
+    from types import ModuleType
+    discord_stub = ModuleType("discord")
+    setattr(discord_stub, "ui", SimpleNamespace(View=View, Button=lambda **kw: SimpleNamespace(**kw)))
+    setattr(discord_stub, "ButtonStyle", SimpleNamespace(danger=4, secondary=2))
+    sys.modules["discord"] = discord_stub
+    try:
+        client = Client()
+        module.install_control_listener(client, lambda item: item.user.id == 42)
+        for custom_id in (opener, confirmed, cancelled, f"kurami:take_control:{run_id}"):
+            stranger = Interaction(custom_id, owner=False)
+            asyncio.run(client.listener(stranger))
+            require(not calls and "not authorized" in stranger.response.sent[0][0], "Non-owner reached continuation runtime")
+
+        for custom_id, values in ((opener, None), (f"kurami:run_actions:{run_id}", [f"continue_autonomously:{token}"])):
+            opening = Interaction(custom_id, values=values)
+            asyncio.run(client.listener(opening))
+            require(all(call[2] == "status" for call in calls), "Opening confirmation submitted a mutation")
+            text, kwargs = opening.followup.sent[0]
+            require(all(phrase in text for phrase in ("change files", "commits", "push to the same branch", "finished")), "Confirmation lost implementation authorization")
+            require([item.custom_id for item in kwargs["view"].children] == [confirmed, cancelled], "Confirmation lost its exact predecessor token")
+            calls.clear()
+
+        cancel = Interaction(cancelled)
+        asyncio.run(client.listener(cancel))
+        require(not calls and cancel.edited[0]["view"] is None, "Cancellation submitted a request or kept confirmation active")
+
+        for values in (None, ["take_control"]):
+            generic = Interaction(f"kurami:take_control:{run_id}" if values is None else f"kurami:run_actions:{run_id}", values=values)
+            asyncio.run(client.listener(generic))
+            require([call[2] for call in calls] == ["status"], "Stale Take control submitted a mutation")
+            require("rejected safely" in generic.followup.sent[0][0], "Stale Take control did not visibly refuse")
+            require(not any("view" in kwargs for _, kwargs in generic.followup.sent), "Legacy Take control opened a continuation prompt")
+            calls.clear()
+            status.update(owner_state="cli", state="running")
+            handoff = Interaction(f"kurami:take_control:{run_id}" if values is None else f"kurami:run_actions:{run_id}", values=values)
+            asyncio.run(client.listener(handoff))
+            require([call[2] for call in calls] == ["status", "request"] and calls[-1][calls[-1].index("--action") + 1] == "take_control", "Original Take control changed handoff intent")
+            require(not any(flag in calls[-1] for flag in ("--confirm-autonomous-continuation", "--implementation-approved", "--expected-predecessor-thread-id")), "Legacy Take control sent successor flags")
+            status.update(owner_state="remote", state="remote_owned")
+            calls.clear()
+
+        confirm = Interaction(confirmed)
+        asyncio.run(client.listener(confirm))
+        require([call[2] for call in calls] == ["status", "request"], "Confirmation did not freshly validate before requesting")
+        request = calls[-1]
+        require(request[request.index("--action") + 1] == "take_control" and all(flag in request for flag in ("--confirm-autonomous-continuation", "--implementation-approved")), "Explicit approval did not reach internal take_control with both flags")
+        require(request[request.index("--expected-predecessor-thread-id") + 1] == thread, "Request lost confirmed predecessor")
+        require(confirm.edited[0]["view"] is None, "Submitted confirmation stayed active")
+        calls.clear()
+
+        baseline = dict(status)
+        for changed in (
+            {"codex_thread_id": "different-predecessor"},
+            {"owner_state": "cli", "state": "running"},
+            {"previous_codex_thread_id": "cleanup-pending"},
+            {"autonomous_successor_active": 1},
+            {"requests": [{"request_state": "pending"}]},
+        ):
+            status.update(changed)
+            for custom_id in (opener, confirmed):
+                stale = Interaction(custom_id)
+                asyncio.run(client.listener(stale))
+                require([call[2] for call in calls] == ["status"], "Changed predecessor/ownership submitted a request")
+                require("rejected safely" in stale.followup.sent[0][0], "Stale continuation did not explain refusal")
+                calls.clear()
+            status.clear()
+            status.update(baseline)
+
+        for unsafe in (f"kurami:continue_autonomously:{run_id}", f"kurami:continue_confirm:{run_id}:bad", f"kurami:continue_cancel:{run_id}:bad"):
+            asyncio.run(client.listener(Interaction(unsafe)))
+            require(not calls, "Unbounded continuation ID reached runtime")
+        require(module.parse_continuation_id(f"kurami:review_actions:{run_id}", [f"continue_autonomously:{token}"]) is None, "Review overflow accepted continuation")
+        require(module.parse_continuation_id(f"kurami:run_actions:{run_id}", [f"continue_confirm:{token}"]) is None, "Overflow bypassed confirmation opening")
+    finally:
+        module._paths, module.asyncio.create_subprocess_exec, module._refresh_dashboard = previous
+        if previous_discord is None:
+            sys.modules.pop("discord", None)
+        else:
+            sys.modules["discord"] = previous_discord
+    return {"continuation_owner_only": True, "continuation_confirmation": True, "continuation_predecessor_fence": True}
+
+
 def main() -> None:
     default_plugin_dir = Path(__file__).with_name("kurami-discord-controls")
     plugin_dir = Path(os.environ.get("KURAMI_DISCORD_PLUGIN_DIR", default_plugin_dir))
@@ -500,6 +661,7 @@ def main() -> None:
             f"Accepted docs control {custom_id!r}",
         )
     docs_listener = verify_docs_listener(module)
+    continuation_listener = verify_continuation_listener(module)
 
     require(
         module.parse_metadata_page_control_id("kurami:metadata_page:pmb_abc123:2")
@@ -842,6 +1004,7 @@ def main() -> None:
                 "docs_accepted": len(docs_accepted),
                 "docs_rejected": len(docs_rejected),
                 **docs_listener,
+                **continuation_listener,
                 "listener": "strict_component_allowlist",
                 "settings": "owner_only_kurami_settings",
                 "run_status": "owner_only_kurami_status",

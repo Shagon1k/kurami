@@ -30,6 +30,8 @@ let prWrites:{action:string;method:string|null;confirmed:boolean;key:string}[]=[
 let prReadGate:Promise<void>|null=null;
 let statusRequest: {state:"awaiting_sync";target:string;from:string;key:string} | null = null; let statusSynced = false; let statusConflict = false; const statusKeys: string[] = [];
 let accepted = false; let failReview = false; const requestKeys: string[] = [];
+let continuationScenario:"off"|"takeover"|"continue"="off";
+const continuationInputs:{action:string;confirmed:boolean}[]=[];
 let failAction=false,actionAccepted=false,cancellation=false,discarded=false;const actionKeys:string[]=[];
 const serverOptions = { snapshot: () => {
   if (unavailable) throw new Error("fixture failure");
@@ -54,6 +56,7 @@ const serverOptions = { snapshot: () => {
   }
   if(actionAccepted) snapshot.items[0]!.runActions!.actions=snapshot.items[0]!.runActions!.actions.map(action=>action.action==="preview_start"?{...action,enabled:false,state:"pending"}:action);
   if(cancellation) snapshot.items[0]!.runActions!.actions=[{action:"take_control",label:"Взять управление",enabled:true,confirmation:null,hint:null,state:null},{action:"discard_local",label:"Удалить локальную работу",enabled:!discarded,confirmation:"Удалить сохранённую локальную работу? Это действие нельзя отменить.",hint:null,state:discarded?"pending":null}];
+  if(continuationScenario!=="off") snapshot.items[0]!.runActions!.actions=[{action:"take_control",label:continuationScenario==="continue"?"Продолжить автономно":"Взять управление",enabled:true,confirmation:continuationScenario==="continue"?"Подтвердить, что текущая Remote-задача завершена, и разрешить автономное продолжение, включая изменения файлов, коммиты и push в этой ветке? Kurami запустит новую задачу; прежний тред останется историей.":null,hint:null,state:null}];
   if(reviewFixScenario){
     const item=snapshot.items[0]!;item.stage="preview_ready";item.detail="Preview is running and ready to open.";item.reviewFix={state:reviewFixScenario,round:1};item.aiReview={enabled:false,reason:"unstable",head:item.ci.head};
     item.runActions!.actions=[{action:"review_fix",label:"Fix review findings",enabled:false,confirmation:null,hint:null,state:"pending"},{action:"stop",label:"Cancel run",enabled:true,confirmation:null,hint:null,state:null}];
@@ -114,6 +117,11 @@ const serverOptions = { snapshot: () => {
 } };
 const completeOptions = { ...serverOptions, prCacheMs:0,runAction:(value:unknown)=>{
   const input=value as {action:string;key:string;confirmed:boolean};actionKeys.push(input.key);
+  if(input.action==='take_control') {
+    continuationInputs.push({action:input.action,confirmed:input.confirmed});
+    assert.equal(input.confirmed,continuationScenario==='continue');
+    return {state:'created' as const,requestId:'fixture-continuation',requestState:'pending'};
+  }
   if(input.action==='decision_ready') {
     assert.equal(input.confirmed,false);
     if(decisionScenario==='ready'){decisionScenario='refused';throw new ProjectsActionError(409,'Decision refused: reply to the exact Kurami review thread.');}
@@ -662,6 +670,28 @@ try {
   await devtools.evaluate("testRegion.remove()");
   }
   cancellation=discarded=accepted=false;statusRequest=null;ciScenario="normal";
+  for(const [theme,mode] of [["paper","light"],["neon","dark"]]) for(const width of [390,1280]) for(const lang of ["en","ru"]) {
+    await devtools.call("Emulation.setDeviceMetricsOverride",{width,height:1000,deviceScaleFactor:1,mobile:width<600});
+    continuationScenario="continue";await open(`/?item=item-12&lang=${lang}`);
+    await devtools.evaluate(`document.querySelector('[data-theme-choice="${theme}"]').click()`);await chooseMode(mode!);
+    const before=continuationInputs.length;
+    await devtools.evaluate("document.querySelector('[data-run-action=take_control]').click()");
+    assert.equal(continuationInputs.length,before,"opening continuation confirmation sends no request");
+    assert.match(await devtools.evaluate<string>("document.querySelector('[data-run-confirm-panel]').textContent"),lang==="en"?/file changes, commits and pushes/:/изменения файлов, коммиты и push/);
+    assert.match(await devtools.evaluate<string>("document.querySelector('[data-run-confirm]').textContent"),lang==="en"?/Confirm autonomous continuation/:/Подтвердить автономное продолжение/);
+    await audit();
+    await devtools.evaluate("document.querySelector('[data-run-dismiss]').click()");
+    assert.equal(continuationInputs.length,before,"cancelling continuation confirmation sends no request");
+    await devtools.evaluate("document.querySelector('[data-run-action=take_control]').click();document.querySelector('[data-run-confirm]').click()");
+    await wait("!document.querySelector('#projects-dashboard').dataset.refreshing && !document.querySelector('[data-run-action=take_control]').disabled");
+    assert.equal(continuationInputs.length,before+1);assert.equal(continuationInputs.at(-1)!.confirmed,true);
+    continuationScenario="takeover";await open(`/?item=item-12&lang=${lang}`);
+    assert.equal(await devtools.evaluate("document.querySelector('[data-run-confirm-panel]')===null"),true);
+    await devtools.evaluate("document.querySelector('[data-run-action=take_control]').click()");
+    await wait("!document.querySelector('#projects-dashboard').dataset.refreshing && !document.querySelector('[data-run-action=take_control]').disabled");
+    assert.equal(continuationInputs.length,before+2);assert.equal(continuationInputs.at(-1)!.confirmed,false);
+  }
+  continuationScenario="off";
   for(const width of [320,390,1280]) {
     await devtools.call("Emulation.setDeviceMetricsOverride",{width,height:1000,deviceScaleFactor:1,mobile:width<600});
     for(const theme of ["light","dark"]) {
