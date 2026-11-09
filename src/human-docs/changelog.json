@@ -2,6 +2,13 @@
   "baseline": "4a38c09",
   "publicationBaseline": "788787f077d42fc3b3346a4f4a612947b97ce2e8",
   "commits": {
+    "4b1a9d236c5606ab93160abb3670abd489d58b11": {
+      "category": "operations",
+      "en": "Clarifies review actions and owner-decision controls in paired documentation; application behavior is unchanged.",
+      "ru": "Уточнены действия ревью и кнопки решения владельца в обеих языковых версиях документации; поведение приложения не изменилось.",
+      "exclusionScope": "docs-only",
+      "exclude": "Changes only paired project and command-reference pages, the source classification ledger and the coverage audit; no application code or runtime behavior changes."
+    },
     "5c31280d5ec773e7520203a84501e4bd5eeb8072": {
       "category": "operations", "en": "", "ru": "", "exclusionScope": "docs-only",
       "exclude": "Updates paired project and command documentation, the classification ledger and coverage audit only; application behavior is unchanged."
