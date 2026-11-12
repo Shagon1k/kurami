@@ -252,6 +252,11 @@ export async function runOrchestratorControllerCli(): Promise<void> {
       results.push({ ...plan, status: "deferred", reason: "LLM cap reached" });
       continue;
     }
+    // Discord/CLI requests have no Projects context row. Bind a pre-start refusal
+    // to the source observed before dispatch, rather than a later mutable PR head.
+    const reviewFixSource = plan.action === "review_fix_start"
+      ? database.prepare("SELECT head_sha,pull_request_url FROM run_ci_snapshots WHERE run_id=?").get(plan.runId)
+      : undefined;
     try {
       const result = executePlannedAction(database, plan);
       if (!plan.requestId) ledger.recordSuccess(plan);
@@ -299,6 +304,9 @@ export async function runOrchestratorControllerCli(): Promise<void> {
               : plan.action === "review_fix_start"
                 ? "review_fix_start_failed"
                 : "managed_task_recovery_failed",
+          ...(plan.action === "review_fix_start" && reviewFixSource ? {
+            sourceHeadSha:reviewFixSource.head_sha, pullRequestUrl:reviewFixSource.pull_request_url,
+          } : {}),
           reason,
         });
       }

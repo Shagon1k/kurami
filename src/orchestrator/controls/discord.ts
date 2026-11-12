@@ -1,3 +1,4 @@
+import { reviewFixStartupFailure } from "../../projects-site/review-fix-failure.ts";
 import { ownerDecisionAwaitingDispatch } from "../projects/owner-decision.ts";
 import { reviewLabel, type ReviewProfile } from "../projects/reviews/profiles.ts";
 import { availableRunControls } from "./run.ts";
@@ -86,6 +87,7 @@ type CiEventPayload = {
   checks: CiCheck[];
 };
 type CardRow = {
+  review_fix_startup_failure?: string | null;
   clarity?: ReviewEvidence;
   spec?: ReviewEvidence;
   run_id: string;
@@ -253,7 +255,7 @@ const desiredSurfaceDigestSql = `
   COALESCE(r.completion_requested_at, 'completion:none') || ':' ||
   COALESCE(r.preview_requirement_satisfied_at, 'preview-satisfied:none') || ':' ||
   COALESCE(ps.hostname, 'host:none') || ':' ||
-  COALESCE(r.stop_reason, 'stop:none') || ':discord-ux-v18'
+  COALESCE(r.stop_reason, 'stop:none') || ':discord-ux-v19'
   || ':' || COALESCE(ci.content_digest, 'ci:none') || ':' ||
   (SELECT COUNT(*) FROM run_ci_repair_attempts repair_count
    WHERE repair_count.run_id = r.run_id) || ':' ||
@@ -568,6 +570,11 @@ function withProfileReviews(database:DatabaseSync,card:CardRow):CardRow {
   card.clarity=readReviewEvidence(database,card.run_id,"clarity",card.ci_head_sha);
   card.spec=readReviewEvidence(database,card.run_id,"spec",card.ci_head_sha);
   card.primary_writer_diagnostic = primaryStoppedDiagnostic(database, card.run_id);
+  const latestFix = database.prepare(`SELECT review_profile FROM run_control_requests
+    WHERE run_id=? AND action='review_fix' ORDER BY rowid DESC LIMIT 1`).get(card.run_id);
+  card.review_fix_startup_failure = latestFix
+    ? reviewFixStartupFailure(database,card.run_id,card.ci_head_sha,card.ci_pull_request_url,latestFix.review_profile as ReviewProfile)
+    : null;
   return card;
 }
 function loadCard(database: DatabaseSync, runId: string): CardRow {
@@ -874,6 +881,12 @@ function presentedStage(
   if (["waiting_human", "review_ready"].includes(card.stage) && stoppedPrimaryWithoutDelivery(card, pullRequest)) {
     return writerStopPresentation(Boolean(pullRequest?.url));
   }
+  if (["review_ready","needs_attention"].includes(card.stage) && card.review_fix_startup_failure &&
+      card.review_fix_request_active_count === 0 &&
+      !["running","waiting_ci","resolving"].includes(card.review_fix_state ?? "") &&
+      (!pullRequest?.headSha || pullRequest.headSha === card.ci_head_sha) &&
+      (!pullRequest?.url || pullRequest.url === card.ci_pull_request_url))
+    return { label:"Review fix did not start", detail:card.review_fix_startup_failure };
   const currentHead = pullRequest?.headSha ?? card.ci_head_sha;
   const reviewIsCurrent =
     !currentHead ||

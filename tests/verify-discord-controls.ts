@@ -992,6 +992,45 @@ async function main(): Promise<void> {
         !componentLabels(currentDashboard()).includes("Start preview"),
       "Queued review fix did not hide conflicting controls",
     );
+    const refusedFix = new DatabaseSync(databasePath);
+    refusedFix.prepare("UPDATE run_control_requests SET request_state='failed',result_json=? WHERE request_id='rq_discord_review_fix'").run(JSON.stringify({
+      action:"review_fix_start_failed",reason:"live writer uses preserved worktree /private/path password=synthetic-secret",
+      sourceHeadSha:"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",pullRequestUrl:"https://example.invalid/pulls/9401",
+    }));
+    refusedFix.close();
+    await runNode(notifier, ["--apply"], testHome, discordEnv);
+    const refusalText = componentText(currentDashboard());
+    assert(refusalText.includes("Review fix did not start") && refusalText.includes("process still owns") &&
+      refusalText.includes("1 Critical · 2 Important · 3 Suggestions") && !/synthetic-secret|private\/path/u.test(refusalText),
+      "Pre-start refusal must replace stale Ready stage without leaking raw errors or erasing review evidence");
+    const feedbackCount = threadEvents.length;
+    const editCount = threadControlEdits.length;
+    await runNode(notifier, ["--apply"], testHome, discordEnv);
+    assert(threadEvents.length === feedbackCount && threadControlEdits.length === editCount,
+      "Repeated sync must not duplicate failure feedback or edit an unchanged dashboard");
+    const changedSource = new DatabaseSync(databasePath);
+    changedSource.prepare("UPDATE run_control_requests SET result_json=? WHERE request_id='rq_discord_review_fix'").run(JSON.stringify({
+      action:"review_fix_start_failed",reason:"live writer uses preserved worktree",sourceHeadSha:"b".repeat(40),pullRequestUrl:"https://example.invalid/pulls/9401",
+    }));
+    changedSource.close();
+    await runNode(notifier, ["show","--run-id","r_discord_smoke","--apply"], testHome, discordEnv);
+    assert(!componentText(currentDashboard()).includes("Review fix did not start"),"Changed source suppresses stale refusal");
+    const projectContext = new DatabaseSync(databasePath);
+    projectContext.exec(`INSERT INTO run_control_project_context(request_id,actor_subject,expected_head_sha,expected_pull_request_url)
+      VALUES('rq_discord_review_fix','fixture','aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa','https://example.invalid/pulls/9401');`);
+    projectContext.close();
+    await runNode(notifier, ["show","--run-id","r_discord_smoke","--apply"], testHome, discordEnv);
+    assert(componentText(currentDashboard()).includes("Review fix did not start"),"Existing Projects context binds historical refusal on Discord too");
+    const clearContext = new DatabaseSync(databasePath);
+    clearContext.exec("DELETE FROM run_control_project_context WHERE request_id='rq_discord_review_fix'; UPDATE run_control_requests SET result_json=json_set(result_json,'$.sourceHeadSha','aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa') WHERE request_id='rq_discord_review_fix'"); clearContext.close();
+    const retryFix = new DatabaseSync(databasePath);
+    retryFix.exec(`INSERT INTO run_control_requests(request_id,run_id,action,review_profile,request_state,requested_via,idempotency_key)
+      VALUES('rq_newer_fix','r_discord_smoke','review_fix','clarity','applied','discord','newer-fix');`);
+    retryFix.close();
+    await runNode(notifier, ["--apply"], testHome, discordEnv);
+    assert(!componentText(currentDashboard()).includes("Review fix did not start"),"Newer request in another profile suppresses old failure");
+    const removeRetry = new DatabaseSync(databasePath);
+    removeRetry.exec("DELETE FROM run_control_requests WHERE request_id='rq_newer_fix'"); removeRetry.close();
     const activeFix = new DatabaseSync(databasePath);
     activeFix.exec(`
       UPDATE run_control_requests
