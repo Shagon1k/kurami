@@ -33,7 +33,8 @@ export function assertNoLegacyWriter(worktree: string, session: string): void {
   assertNoWorktreeWriter(worktree);
 }
 
-export function assertNoWorktreeWriter(worktree: string): void {
+export function worktreeWriters(worktree: string): number[] {
+  const writers: number[] = [];
   // Check any local Codex process, including a detached app-server, using this copy.
   for (const pid of readdirSync("/proc").filter((value) => /^\d+$/u.test(value))) {
     let argv: string;
@@ -48,8 +49,13 @@ export function assertNoWorktreeWriter(worktree: string): void {
       if ((error as NodeJS.ErrnoException).code === "ENOENT" || (error as NodeJS.ErrnoException).code === "ESRCH") continue;
       throw new Error("Legacy CI recovery refused: writer cwd unavailable");
     }
-    requireEvidence(cwd !== worktree && !cwd.startsWith(worktree + "/") && !words.includes(worktree), "live writer uses preserved worktree");
+    if (cwd === worktree || cwd.startsWith(worktree + "/") || words.includes(worktree)) writers.push(Number(pid));
   }
+  return writers;
+}
+
+export function assertNoWorktreeWriter(worktree: string): void {
+  requireEvidence(worktreeWriters(worktree).length === 0, "live writer uses preserved worktree");
 }
 
 export function inspectLegacyCiTimeout(database: DatabaseSync, home: string, project: Project,

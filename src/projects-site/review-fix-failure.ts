@@ -8,11 +8,12 @@ export function reviewFixStartupFailure(database: DatabaseSync, runId: string, h
     FROM run_control_requests q LEFT JOIN run_control_project_context c USING(request_id)
     JOIN runs r ON r.run_id=q.run_id AND r.state IN ('parked_review','needs_attention') AND r.stop_reason IS NULL
     WHERE q.run_id=? AND q.action='review_fix' AND (q.review_profile=? OR q.review_fix_all=1) ORDER BY q.rowid DESC LIMIT 1`).get(runId,profile);
-  if (!request || !["failed", "rejected"].includes(String(request.request_state)) ||
-      request.expected_head_sha !== head || request.expected_pull_request_url !== pr) return null;
-  let result: { action?: unknown; reason?: unknown };
+  if (!request || !["failed", "rejected"].includes(String(request.request_state))) return null;
+  let result: { action?: unknown; reason?: unknown; sourceHeadSha?: unknown; pullRequestUrl?: unknown };
   try { result = JSON.parse(String(request.result_json)); } catch { return null; }
   if (result?.action !== "review_fix_start_failed" || typeof result.reason !== "string") return null;
+  if ((request.expected_head_sha ?? result.sourceHeadSha) !== head ||
+      (request.expected_pull_request_url ?? result.pullRequestUrl) !== pr) return null;
   // Never publish subprocess stderr, paths, shell commands or credential-bearing URLs.
   // Only fixed classifications of the known admission failures reach the page.
   if (/Review fix evidence exceeds the 64 KiB prompt budget/u.test(result.reason))
