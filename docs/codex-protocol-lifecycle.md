@@ -348,3 +348,15 @@ recovery action. GitHub and remote network responses are substituted. It checks
 read-only preview, atomic refusals, preservation, guarded replay, no automatic
 writer/retry or renewed attention, and existing Fix review planning. Implementation
 verification does not constitute live PR validation or incident recovery.
+
+### Controller recovery after external CI repair
+
+The applied controller now has a narrow read-only preflight for an externally
+advanced, passed head after the exact latest `ci_repair_no_new_head`. See
+`docs/technical-reference.md` → Bounded CI repair. The terminal task, release,
+archive and restored-primary receipts are required; they are not rewritten.
+Recovery appends `ci_repair_external_head_recovered` and returns only the run to
+`parked_review`, preserving the failed attempt and its budget. Git/PR checks run
+outside the write transaction and the database candidate is revalidated inside it.
+No new writer or general attention-clearing action is introduced. This controller
+path is separate from the older incident-allowlisted operator recovery scripts.

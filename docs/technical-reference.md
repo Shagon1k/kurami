@@ -380,6 +380,31 @@ During the gap between push and the first observed new-SHA check, Discord report
 `Waiting for checks` and labels the old failed snapshot as the previous failure.
 Takeover controls stay unavailable throughout the active repair lifecycle.
 
+
+External-head recovery is a separate outcome, not worker success. Before planning,
+the applied controller invokes `projects/ci/reconcile-external-repair.ts` after
+protocol receipt reconciliation. `runtime/reconcile-ci-repair.ts` selects only the
+exact latest `ci_repair_no_new_head` attempt/cause with terminal completed/released
+protocol receipts, matching archive and restored primary, provisioned live resources,
+no owner, stop/archive/completion intent, superseding run, pending Project/PR/control
+intent, unreleased task, review/fix or active successor. A parked historical successor
+is allowed, including PF-69's predecessor lineage. Historical failed attempts
+and their failure reasons stay immutable.
+
+The lifecycle preflight lazily loads the existing protected owner credential and
+uses the existing read-only PR/remote-head and writer checks. It requires a passed,
+error-free CI snapshot observed within two minutes after the failed attempt, a
+nonempty all-passed check list, a new SHA, an open same-repository PR on the configured
+base and branch, and an already clean canonical linked worktree whose HEAD and
+tracking ref equal the snapshot, live PR and remote branch. It does not fetch or
+move refs. Network validation runs outside a SQLite write transaction; local source
+and actual-writer checks repeat afterward. `BEGIN IMMEDIATE` then reselects and
+compares the exact database evidence before changing only run state and appending
+`ci_repair_external_head_recovered` with `workerProducedHead:false`. Replay is a
+no-op. Unsafe/unavailable evidence retains attention. Independent external tools
+must remain quiescent; SQLite fences managed writers, not independent owner tools.
+This adds no control, worker, preview acceptance or completion path.
+
 ### PR-native AI code review
 
 In a stable owner-free review state, `AI Code Review` explicitly starts one
