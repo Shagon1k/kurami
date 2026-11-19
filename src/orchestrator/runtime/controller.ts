@@ -1,3 +1,4 @@
+import { reconcileExternalCiRepairs } from "../projects/ci/reconcile-external-repair.ts";
 import { canRetryUnchangedCi } from "./ci-no-change-retry.ts";
 import { LATEST_ATTENTION_VALUE_SQL } from "./run-projections.ts";
 import { spawnSync } from "node:child_process";
@@ -217,6 +218,7 @@ export async function runOrchestratorControllerCli(): Promise<void> {
   const database = openOrchestratorDatabase(databasePath);
   if (apply) {
     await reconcileProtocolTasks(database);
+    await reconcileExternalCiRepairs(database, registry.projects, orchestratorHome);
     reconcileBeforePlanning(database, config);
   }
   let llmCount = runningLlmCount(database);

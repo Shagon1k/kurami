@@ -11,6 +11,8 @@ export type OrchestratorConfig = RuntimeSettingsBaseConfig & {
 };
 
 export type ProjectConfig = {
+  repository?: string;
+  workspace?: { canonical_repository: string; worktree_root: string; base_branch: string };
   statuses: { backlog: string; active: string; review: string };
 };
 
