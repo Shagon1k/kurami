@@ -26,13 +26,13 @@ So the "study" phase lasts minutes and can be cut off in the middle of a turn. T
 
 ## The buttons
 
-The run card in Discord shows either Take control or Continue autonomously. They queue a request, and the controller carries it out on the next minute.
+The run card in Discord shows either Take control or Continue autonomously. Take control queues a handoff request; Continue autonomously opens a confirmation first. The controller carries out the confirmed request on the next minute.
 
 | Button | When it appears | What it does | What to check |
 |---|---|---|---|
 | **Take control** | Codex is working in a Kurami session | interrupts the turn, closes the session, hands the thread to the Codex app | the card became "Human control" and an "Open session" link appeared |
 | **Take control** | work has stopped and there is no session (card "Ready for review") | records that you drive the working copy and thread; nothing is stopped | the same |
-| **Continue autonomously** | the thread is yours (card "Human control") | you confirm your part is done; Kurami starts a new thread in the same working copy | the card shows "Starting autonomous continuation", then "Agent working" |
+| **Continue autonomously** | the thread is yours (card "Human control") | opens confirmation for one fresh task with file changes, commits and same-branch pushes; confirming queues continuation | the card shows "Starting autonomous continuation", then "Agent working" |
 
 Take control does not work while Codex waits for approval, while the thread id is unknown, and while a technical task is still being cleaned up. If the screen does not calm down within ten seconds, Kurami retries every minute.
 

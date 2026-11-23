@@ -20,7 +20,7 @@ All commands are owner-only. The top-level `/status` belongs to Hermes, so Kuram
 
 ## Run card buttons
 
-Most buttons carry the id `kurami:<action>:<run id>`. **Decision ready / Решение готово** uses `kurami:decision_ready:<run id>:<decision token>`, with the current 24-hex decision token. The card shows at most four buttons in the order of the table; the rest live in the **More actions…** menu (`kurami:run_actions:<run id>`). A press queues a request of the given kind, and the controller performs it on the nearest cycle.
+Most buttons carry the id `kurami:<action>:<run id>`. **Decision ready / Решение готово** uses `kurami:decision_ready:<run id>:<decision token>`, with the current 24-hex decision token. The card shows at most four buttons in the order of the table; the rest live in the **More actions…** menu (`kurami:run_actions:<run id>`). A confirmed action queues a request of the given kind, and the controller performs it on the nearest cycle. **Continue autonomously** uses `kurami:continue_autonomously:<run id>:<token>`; confirmation and cancellation use `continue_confirm` and `continue_cancel` with the same 24-hex token. The token binds the exact predecessor task; an old card cannot authorize its replacement.
 
 | Button | When shown | Request | What the controller does |
 |---|---|---|---|
@@ -29,7 +29,7 @@ Most buttons carry the id `kurami:<action>:<run id>`. **Decision ready / Реш�
 | **Recover delivered fix** | run in `needs_attention`, owner `cli`, reason `review_fix_uncommitted_changes` | `recover_managed_task` | rechecks the preserved task, the pushed commit and fresh CI, finishes the fix |
 | **Take control** | owner `cli`, a managed session is running, run not in `needs_attention` | `take_control` | `handoff`: asks Codex to stop, waits for a quiet pause, releases tmux; the run becomes `remote_owned` |
 | **Take control** | owner `none`, state `parked_review` or `waiting_human` | `take_control` | `claim_remote`: the owner becomes `remote`, the card shows an Open session link |
-| **Continue autonomously** | run `remote_owned`, owner `remote` | `take_control` | `successor_start`: a fresh managed Codex task in the same working copy |
+| **Continue autonomously** | run `remote_owned`, owner `remote` | `take_control`, after confirmation | opens task-bound confirmation; confirming queues `successor_start` with approval for edits, commits and same-branch pushes |
 | **Start preview** | the project has previews, no lease, run in review or owner-controlled, PR and exact observed head known | `preview_start` | leases a slot, then builds the preview |
 | **Remove preview** | a lease in any state except released | `preview_stop` | removes the route, stops the stack, frees the slot |
 | **Extend 24h** | the preview runs, less than two hours left | `preview_start` | `preview_extend`: expiry plus 24 hours |
@@ -48,7 +48,7 @@ The `ci_repair` request also permits a guarded second attempt from `needs_attent
 
 The **Fix findings** button carries `kurami:review_fix_all:<run id>`; the Discord handler queues `review_fix` with `--all-reviews`. This action has no profile selector.
 
-Confirmation buttons are visible only to you and live for two minutes: **Discard preserved local work** (`kurami:discard_local:…`) and **Close draft PR & discard** (`kurami:discard_published:…`).
+Deletion confirmation buttons are visible only to you and live for two minutes: **Discard preserved local work** (`kurami:discard_local:…`) and **Close draft PR & discard** (`kurami:discard_published:…`).
 
 ## Replies to presses
 
@@ -114,6 +114,8 @@ The **Review proposals** list offers: an exclusion menu ("Exclude selected propo
 
 The Hermes agent understands the same actions in words: Status, Retry, Take control, Continue autonomously, Attempt CI fix, AI Code Review, Fix Review, Recover delivered fix, Recover interrupted fix, Start preview, Stop preview, Cancel run, Discard local work, Close draft PR and discard, Open session, Show controls. Name the run by its full run id, by a key such as `TT-42` or `PF-33`, or write in the run thread. The agent deletes preserved work only after an explicit second confirmation.
 
+
+A CLI continuation uses `request --action take_control --confirm-autonomous-continuation --expected-predecessor-thread-id <thread_id>` with the current run id, `--via cli` and `--apply`. Add `--implementation-approved` only after explicit approval of edits, commits and same-branch pushes for this task. Without it, a `human-control` successor remains preparation-only. A plain `take_control` request is a handoff, not autonomous continuation. See [Human control](@human-control) for the approval boundary.
 
 ## Confirm an owner decision
 

@@ -203,7 +203,7 @@ A button appears only when its action is valid in the current state. The card sh
 |---|---|---|
 | **Take control** | Codex is running in a managed session | Kurami interrupts Codex's current turn, waits for a pause and hands the thread to you |
 | **Take control** | Codex finished and nobody owns the task | The task moves to you, the card shows an "Open session" link |
-| **Continue autonomously** | the task is yours | You confirm you are done. Kurami starts a fresh Codex task on the same branch |
+| **Continue autonomously** | the task is yours | Opens confirmation for one fresh task with edits, commits and same-branch pushes; confirming queues continuation |
 | **Start preview** | the project supports previews, none exists yet | A slot is leased and the preview is built — see [Previews](@previews) |
 | **Remove preview**, **Extend 24h**, **Mark reviewed** | a preview exists | Remove it, extend it, mark it reviewed |
 | **Attempt CI fix** | CI failed or a required check is missing, fewer than two attempts | A fresh Codex task fixes exactly that commit |
