@@ -20,7 +20,7 @@ order: 60
 
 ## Кнопки карточки запуска
 
-Большинство кнопок несут идентификатор `kurami:<действие>:<id запуска>`. **Decision ready / Решение готово** использует `kurami:decision_ready:<id запуска>:<токен решения>` с текущим токеном из 24 шестнадцатеричных символов. Карточка показывает не больше четырёх кнопок в порядке таблицы, остальные лежат в меню **More actions…** (`kurami:run_actions:<id запуска>`). Нажатие ставит запрос указанного вида, контроллер выполняет его на ближайшем цикле.
+Большинство кнопок несут идентификатор `kurami:<действие>:<id запуска>`. **Decision ready / Решение готово** использует `kurami:decision_ready:<id запуска>:<токен решения>` с текущим токеном из 24 шестнадцатеричных символов. Карточка показывает не больше четырёх кнопок в порядке таблицы, остальные лежат в меню **More actions…** (`kurami:run_actions:<id запуска>`). Подтверждённое действие ставит запрос указанного вида, контроллер выполняет его на ближайшем цикле. **Continue autonomously** использует `kurami:continue_autonomously:<id запуска>:<токен>`; подтверждение и отмена используют `continue_confirm` и `continue_cancel` с тем же токеном из 24 шестнадцатеричных символов. Токен привязан к точной задаче-предшественнику: старая карточка не разрешает запуск вместо другой задачи.
 
 | Кнопка | Когда показана | Запрос | Что делает контроллер |
 |---|---|---|---|
@@ -29,7 +29,7 @@ order: 60
 | **Recover delivered fix** | запуск в `needs_attention`, владелец `cli`, причина `review_fix_uncommitted_changes` | `recover_managed_task` | перепроверяет сохранённую задачу, запушенный коммит и свежий CI, доводит исправление |
 | **Take control** | владелец `cli`, идёт управляемая сессия, запуск не в `needs_attention` | `take_control` | `handoff`: просит Codex остановиться, ждёт тихой паузы, отпускает tmux; запуск `remote_owned` |
 | **Take control** | владелец `none`, состояние `parked_review` или `waiting_human` | `take_control` | `claim_remote`: владелец становится `remote`, на карточке ссылка Open session |
-| **Continue autonomously** | запуск `remote_owned`, владелец `remote` | `take_control` | `successor_start`: новая управляемая задача Codex в той же рабочей копии |
+| **Continue autonomously** | запуск `remote_owned`, владелец `remote` | `take_control`, после подтверждения | открывает подтверждение для точной задачи; подтверждение ставит `successor_start` в очередь с разрешением правок, коммитов и push в ту же ветку |
 | **Start preview** | у проекта есть превью, аренды нет, запуск на ревью или под управлением владельца, известны PR и его точный наблюдаемый head | `preview_start` | выдаёт слот, затем собирает превью |
 | **Remove preview** | аренда в любом состоянии, кроме released | `preview_stop` | снимает маршрут, останавливает стек, освобождает слот |
 | **Extend 24h** | превью работает, до конца меньше двух часов | `preview_start` | `preview_extend`: срок плюс 24 часа |
@@ -48,7 +48,7 @@ Discord предлагает **Recover interrupted fix** только при `re
 
 Кнопка **Fix findings** несёт идентификатор `kurami:review_fix_all:<id запуска>`; обработчик Discord ставит в очередь `review_fix` с `--all-reviews`. У этого действия нет выбора профиля.
 
-Кнопки подтверждения видны только тебе и живут две минуты: **Discard preserved local work** (`kurami:discard_local:…`) и **Close draft PR & discard** (`kurami:discard_published:…`).
+Кнопки подтверждения удаления видны только тебе и живут две минуты: **Discard preserved local work** (`kurami:discard_local:…`) и **Close draft PR & discard** (`kurami:discard_published:…`).
 
 ## Ответы на нажатия
 
@@ -114,6 +114,8 @@ Discord предлагает **Recover interrupted fix** только при `re
 
 Агент Hermes понимает те же действия словами: Status, Retry, Take control, Continue autonomously, Attempt CI fix, AI Code Review, Fix Review, Recover delivered fix, Recover interrupted fix, Start preview, Stop preview, Cancel run, Discard local work, Close draft PR and discard, Open session, Show controls. Задачу можно назвать полным id запуска, ключом `TT-42` или `PF-33` либо написать в треде запуска. Удаление сохранённой работы агент выполняет только после явного второго подтверждения.
 
+
+Для продолжения через CLI используется `request --action take_control --confirm-autonomous-continuation --expected-predecessor-thread-id <thread_id>` с текущим id запуска, `--via cli` и `--apply`. Флаг `--implementation-approved` добавляется только после явного разрешения правок, коммитов и push в ту же ветку для этой задачи. Без него преемник с `human-control` ограничен подготовкой. Обычный запрос `take_control` передаёт управление, а не запускает автономное продолжение. Граница согласования описана в [Ручном управлении](@human-control).
 
 ## Подтвердить решение владельца
 

@@ -2,6 +2,31 @@
   "baseline": "4a38c09",
   "publicationBaseline": "788787f077d42fc3b3346a4f4a612947b97ce2e8",
   "commits": {
+    "d2bc9af3a909898fb6b7b0145d7c3695af46e638": {
+      "category": "operations",
+      "en": "Records the previous documentation audit and its source classification; application behavior is unchanged.",
+      "ru": "Сохранены предыдущий аудит документации и классификация исходного коммита; поведение приложения не изменилось.",
+      "exclusionScope": "docs-only",
+      "exclude": "Changes only the source classification ledger and documentation coverage audit; no application code or runtime behavior changes."
+    },
+    "8823389d520e71c68e76edd105d605c9d62f4201": {
+      "category": "fixed",
+      "page": "human-control",
+      "en": "Autonomous continuation requires explicit task-bound intent; Projects and Discord confirm edits, commits and same-branch pushes for one successor, while human-control CLI continuation needs separate implementation approval.",
+      "ru": "Автономное продолжение требует явного намерения для точной задачи; Projects и Discord подтверждают правки, коммиты и push в ту же ветку для одного преемника, а CLI-продолжению human-control нужно отдельное одобрение реализации."
+    },
+    "9002d15c7898fb8e51a396efa7968ba43ebb0c4c": {
+      "category": "fixed",
+      "page": "codex-sessions",
+      "en": "Adds explicit fingerprint-bound recovery for proven orphan Linux sandboxes and shows source-bound review-fix startup refusals in Discord without erasing ready review evidence.",
+      "ru": "Добавлено явное восстановление подтверждённых осиротевших Linux sandbox по отпечатку проверки; Discord показывает отказы запуска исправлений для точного PR и коммита, сохраняя готовые результаты ревью."
+    },
+    "a30c794a3ef9d23ce4b81252566f82dc0d2aec5f": {
+      "category": "fixed",
+      "page": "engineering-evidence",
+      "en": "After an external CI repair, exact released-task, clean-source and fresh passed-CI evidence can return an eligible run to review without another worker or changing its failed repair attempt.",
+      "ru": "После внешнего исправления CI точные свидетельства освобождения задачи, чистого исходного состояния и свежего прошедшего CI позволяют вернуть подходящий запуск на ревью без нового исполнителя и изменения неудачной попытки."
+    },
     "4b1a9d236c5606ab93160abb3670abd489d58b11": {
       "category": "operations",
       "en": "Clarifies review actions and owner-decision controls in paired documentation; application behavior is unchanged.",

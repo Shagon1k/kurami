@@ -1,5 +1,34 @@
 # Human docs coverage audit — 2026-09-28
 
+## Weekly audit — 2026-11-23, proposal dp_8a5852fb2265
+
+This is an unpublished documentation proposal, not an application release or evidence that an approval card already exists.
+
+### Source, watermarks and scope
+
+- The existing assigned proposal was verified read-only: state `drafting`, base `f9646ff432232d819db806efd561b6ebe484aae3`, matching the assigned branch, worktree and summary location. No second proposal was created.
+- The audit source is a clean standalone clone on `main`, marked `kurami-docs-audit-v1`. Its reflog records a fast-forward at 04:00 UTC on the audit day. HEAD, `origin/main` and read-only live `git ls-remote` agree on `f9646ff432232d819db806efd561b6ebe484aae3`. The wrapper validates the dedicated marker, root, branch and clean state, then fetches the main tracking ref and merges with `--ff-only`. This audit did not update the source or canonical application checkout.
+- The promoted docs release marker has the same docs SHA, `revision: null` and retained `changelogRevision: ee02f37312508acac4d044cfcd223884d7e65bcc`. The existing trusted controller manifest passes `existingDeploymentManifest`'s private regular-file and schema checks and records successful app SHA `ee02f37312508acac4d044cfcd223884d7e65bcc`. This verifies the recorded deployment watermark only, not newer runtime availability or an authenticated live smoke check. No credentials were inspected and no manifest was created or changed.
+- The promoted-docs range is empty. The complete publication-baseline range `788787f077d42fc3b3346a4f4a612947b97ce2e8..f9646ff432232d819db806efd561b6ebe484aae3` contains 256 commits. Earlier coverage evidence and all 281 existing classifications are preserved; all four outstanding identities were reviewed irrespective of calendar week. Contentless merges are excluded only by the established parent-tree-equality rule.
+
+### Reviewed source changes and reader corrections
+
+| Area and final source SHA | Current evidence and coverage | Draft |
+| --- | --- | --- |
+| Previous weekly docs: `d2bc9af3a909898fb6b7b0145d7c3695af46e638` | Full diff changes only the ledger and coverage audit | Specific docs-only exclusion with bilingual explanation; no public application item |
+| Task-bound continuation approval: `8823389d520e71c68e76edd105d605c9d62f4201` | Shared enqueue/dispatch guards, persisted intent, implementation approval and exact predecessor; Projects confirmation and Discord token/confirm handler; successor and control assertions | Public source classification; align stale Human control, owner-control and command tables with the already-documented confirmation boundary; add command token shapes and CLI approval flags in EN/RU |
+| Orphan sandbox and startup refusal: `9002d15c7898fb8e51a396efa7968ba43ebb0c4c` | Explicit fingerprint-bound recovery, exact inherited provenance and no-writer fences; source-bound startup-refusal presentation; paired Codex session copy already matches | Public source classification only; preserve the existing recovery instructions and diagrams |
+| External CI repair: `a30c794a3ef9d23ce4b81252566f82dc0d2aec5f` | Candidate SQL, exact clean linked-worktree/live PR validation, transactional evidence recheck, operator reference and regression assertions | Public source classification; correct both engineering-evidence pages: recorded review/fix evidence or an active successor blocks recovery, while a parked predecessor succession alone does not |
+
+The impact map points these changes to Projects and the command reference. Current paired pages already explain the main mechanisms; the draft corrects concrete duplicate-contract and eligibility mismatches rather than rewriting them. Existing diagrams remain consistent with the ownership, task and CI-attempt boundaries and need no topology change. Source commit days are not availability days: all three public source entries are beyond the verified application watermark.
+
+### Verification and handoff
+
+- `bin/kurami-dev-run node src/human-docs/tools/check-pages.ts human-control owner-controls commands engineering-evidence codex-sessions` passed: five paired routes, zero errors, eight diagrams. A final rerun checks the completed copy.
+- `bin/kurami-dev-run node tests/human-docs/verify.ts` passed: 66 bilingual article pairs, Markdown subset, diagram kit, legacy routes, privacy and curated release gate. Changed copy was inspected in both languages. No screenshots, authenticated runtime smoke or application regression suites are claimed; regression assertions were inspected as source evidence.
+- Read-only `collectDocsAudit` against the unchanged source, draft ledger, promoted build marker and existing trusted controller manifest returns `unclassifiedShas: []`, clean source, no commits since promoted docs and the same verified app SHA. Parsed comparison confirms all 281 existing records are unchanged and exactly four classifications were added.
+- Edits are limited to four paired Markdown pages, the ledger and this report. The final bilingual summary is the handoff to the approval worker, which owns subsequent checks, PR creation and the separate Publish/Discuss/Reject card. No commit, push, publication, deployment or infrastructure change was performed.
+
 ## Weekly audit — 2026-11-09, proposal dp_c2d184d69850
 
 This is an unpublished documentation proposal, not an application release.
