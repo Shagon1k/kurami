@@ -1,4 +1,5 @@
 import { createHash } from "node:crypto";
+import { decodePredecessorImage, assertImageBounds, type PredecessorImage } from "./predecessor-images.ts";
 import { closeSync, fstatSync, openSync, readSync, realpathSync, statSync } from "node:fs";
 import { homedir } from "node:os";
 import { resolve, sep } from "node:path";
@@ -52,9 +53,16 @@ export function capturePredecessorConversation(threadId: string, worktree: strin
     const meta = JSON.parse(lines[0]!);
     if (meta.type !== "session_meta" || meta.payload?.id !== threadId || meta.payload.cwd !== worktree ||
         meta.payload.source !== "cli" || meta.payload.thread_source !== "user" || meta.payload.forked_from_id) refuse("unrelated session identity or source");
-    const messages: { role: "user" | "assistant"; text: string; sourceLine: number }[] = [];
-    const ownerReceipts: string[] = [];
-    const ownerMessages: string[] = [];
+    type Part = { type: "text"; text: string } | { type: "image"; imageId: string; sha256: string; detail?: string };
+    const messages: { role: "user" | "assistant"; text: string; sourceLine: number; content?: Part[] }[] = [];
+    const images: PredecessorImage[] = [];
+    const ownerReceipts: unknown[][] = [];
+    const ownerMessages: unknown[][] = [];
+    const receiptPart = (part: { type?: string; text?: unknown; image_url?: unknown }) => {
+      if (part?.type === "text" && typeof part.text === "string") return { type: "text", text: part.text };
+      if (part?.type === "image") return { type: "image", sha256: decodePredecessorImage(part.image_url).sha256 };
+      return refuse("unsupported owner receipt content");
+    };
     let turn: string | null = null;
     let stopped = false;
     for (let index = 1; index < lines.length; index++) {
@@ -71,9 +79,8 @@ export function capturePredecessorConversation(threadId: string, worktree: strin
         if (payload.thread_id && payload.thread_id !== threadId) refuse("event thread identity changed");
         if (payload.type === "item_completed" && payload.item?.type === "UserMessage") {
           const parts = payload.item.content;
-          if (!Array.isArray(parts) || !parts.length || parts.some(part => part?.type !== "text" || typeof part.text !== "string"))
-            refuse("unsupported owner receipt content");
-          ownerReceipts.push(parts.map(part => part.text).join("\n"));
+          if (!Array.isArray(parts) || !parts.length) refuse("unsupported owner receipt content");
+          ownerReceipts.push(parts.map(receiptPart));
         }
         if (payload.type === "task_started") {
           if (typeof payload.turn_id !== "string" || !payload.turn_id) refuse("missing turn identity");
@@ -94,17 +101,42 @@ export function capturePredecessorConversation(threadId: string, worktree: strin
         const kinds = payload.internal_chat_message_metadata_passthrough?.content_item_kinds;
         if (!Array.isArray(kinds) || kinds.length !== content.length || kinds.some(kind => typeof kind !== "string"))
           refuse("owner-message provenance is missing or ambiguous");
-        if (kinds.some(kind => kind.startsWith("user.") && kind !== "user.text")) refuse("non-text owner message cannot be carried completely");
-        content = content.filter((_: unknown, i: number) => kinds[i] === "user.text");
+        if (kinds.some(kind => kind.startsWith("user.") && !["user.text", "user.image"].includes(kind)))
+          refuse("unsupported owner message cannot be carried completely");
+        if (content.some((part: { type?: string }, i: number) =>
+          (kinds[i] === "user.text" && part?.type !== "input_text") ||
+          (kinds[i] === "user.image" && part?.type !== "input_image"))) refuse("owner-message provenance disagrees with content");
+        content = content.filter((_: unknown, i: number) => ["user.text", "user.image"].includes(kinds[i]));
         if (!content.length) continue; // Native AGENTS/environment/application context is not owner speech.
         stopped = false; // A late owner message after the terminal receipt must not be lost.
       }
-      if (!content.length || content.some((part: {type?: string; text?: unknown}) =>
-        part?.type !== (payload.role === "user" ? "input_text" : "output_text") || typeof part.text !== "string"))
-        refuse("unsupported message content");
-      const messageText = content.map((part: {text: string}) => part.text).join("\n");
-      if (payload.role === "user") ownerMessages.push(messageText);
-      messages.push({ role: payload.role, text: redactConversationText(messageText), sourceLine: index + 1 });
+      if (!content.length) refuse("unsupported message content");
+      const selected: Part[] = content.map((part: { type?: string; text?: unknown; image_url?: unknown; detail?: unknown }) => {
+        if (part?.type === (payload.role === "user" ? "input_text" : "output_text") && typeof part.text === "string")
+          return { type: "text", text: part.text };
+        if (payload.role === "user" && part?.type === "input_image") {
+          if (Object.keys(part).some(key => !["type", "image_url", "detail"].includes(key)) ||
+              (part.detail !== undefined && !["auto", "low", "high", "original"].includes(String(part.detail))))
+            refuse("unsupported owner image part");
+          const image = { imageId: `${threadId}:image-${images.length + 1}`, ...decodePredecessorImage(part.image_url) };
+          images.push(image);
+          assertImageBounds(images);
+          return { type: "image", imageId: image.imageId, sha256: image.sha256,
+            ...(part.detail === undefined ? {} : { detail: String(part.detail) }) };
+        }
+        return refuse("unsupported message content");
+      });
+      if (payload.role === "user") ownerMessages.push(selected.map(part => part.type === "text"
+        ? part : { type: "image", sha256: part.sha256 }));
+      const messageText = selected.filter(part => part.type === "text").map(part => part.text).join("\n");
+      const redactedText = redactConversationText(messageText);
+      const hasImage = selected.some(part => part.type === "image");
+      const redactedParts = selected.map(part => part.type === "text"
+        ? { ...part, text: redactConversationText(part.text) } : part);
+      if (hasImage && redactedParts.filter(part => part.type === "text").map(part => part.text).join("\n") !== redactedText)
+        refuse("credential redaction crosses multipart text boundaries");
+      messages.push({ role: payload.role, text: redactedText, sourceLine: index + 1,
+        ...(hasImage ? { content: redactedParts } : {}) });
     }
     if (!turn || !stopped || !messages.some(message => message.role === "user")) refuse("missing owner history or final stopped-turn receipt");
     if (JSON.stringify(ownerReceipts) !== JSON.stringify(ownerMessages))
@@ -117,14 +149,14 @@ export function capturePredecessorConversation(threadId: string, worktree: strin
         before.mtimeMs !== after.mtimeMs || before.ctimeMs !== after.ctimeMs || current.size !== before.size ||
         current.mtimeMs !== before.mtimeMs || current.ctimeMs !== before.ctimeMs) refuse("source changed during capture");
     const evidence = sanitizeUntrustedPromptData({
-      threadId, coverage: "complete local rollout; all proven owner text and assistant final replies in source order; no tool outputs or compaction summaries",
+      threadId, coverage: "complete local rollout; all proven owner text/images and assistant final replies in source order; no tool outputs or compaction summaries",
       sourceBytes: buffer.length, sourceRecords: lines.length, messages,
     });
     // Sanitize complete selected content before measuring. Never slice a decision or a credential.
     if (messages.length > MESSAGE_LIMIT || Buffer.byteLength(serializeUntrustedPromptData(evidence), "utf8") > CONTEXT_LIMIT)
       refuse("selected conversation exceeds 256 messages or 64 KiB; nothing was truncated");
     const fingerprint = createHash("sha256").update(buffer).update(JSON.stringify({ path, dev: before.dev, ino: before.ino, ctime: before.ctimeMs, mtime: before.mtimeMs })).digest("hex");
-    return { evidence, fingerprint };
+    return { evidence, fingerprint, images };
   } catch (error) {
     if (error instanceof Error && error.message.startsWith("Predecessor conversation unavailable:")) throw error;
     // Native parse/SQLite errors may contain source material: report a fixed, non-secret reason.

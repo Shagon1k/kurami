@@ -13,6 +13,7 @@ import { tmpdir } from "node:os";
 import { delimiter, resolve } from "node:path";
 import { DatabaseSync } from "node:sqlite";
 import { promptFor } from "../src/orchestrator/projects/sessions/autonomous-successor.ts";
+import { imageMessage } from "./predecessor-image-fixture.ts";
 import { conversationRecords, lateChoices, writeConversation, verifyPredecessorConversation } from "./predecessor-conversation-fixture.ts";
 
 function assert(condition: unknown, message: string): asserts condition {
@@ -183,7 +184,8 @@ esac
     for (const [suffix, cwd] of [["successor",worktree],["recovery",recoveryWorktree],["fence",fenceWorktree]]) {
       const id = `thread-${suffix}-predecessor`;
       const path = resolve(codexHome,"sessions",`${suffix}.jsonl`);
-      writeConversation(path,conversationRecords(id,cwd!));
+      const records=conversationRecords(id,cwd!);
+      writeConversation(path,suffix==="successor" ? [...records.slice(0,-1),imageMessage(),records.at(-1)!] : records);
       native.prepare("INSERT INTO threads VALUES(?,?,?,'cli')").run(id,path,cwd!);
     }
     native.close();
@@ -338,6 +340,17 @@ esac
       assert(error.includes("Predecessor conversation unavailable"),"Missing/malformed/unrelated/oversized conversation was not refused");
       assert(snapshot()===before,"Conversation refusal changed orchestration state");
     }
+    const splitCredential = "syntheticcredential1234567890";
+    const splitMessage = imageMessage();
+    splitMessage.payload.content[0]!.text = "GH_TOKEN=";
+    splitMessage.payload.content[2]!.text = splitCredential;
+    const splitRecords = conversationRecords("thread-successor-predecessor",worktree);
+    writeConversation(sourcePath,[...splitRecords.slice(0,-1),splitMessage,splitRecords.at(-1)!]);
+    const beforeSplitRefusal = snapshot();
+    const splitError = runFails(process.execPath,[successorPath,"start","--run-id","r_successor","--request-id","not-claimed","--apply"],env);
+    assert(splitError.includes("credential redaction crosses multipart text boundaries") && !splitError.includes(splitCredential),"Split credential lacked a safe explicit refusal");
+    assert(snapshot()===beforeSplitRefusal && !snapshot().includes(splitCredential),"Split credential persisted or refusal changed orchestration state");
+    assert(!database.prepare("SELECT 1 FROM run_autonomous_successions WHERE run_id='r_successor'").get(),"Split credential persisted successor evidence");
     await rm(sourcePath);
     assert(runFails(process.execPath,[successorPath,"start","--run-id","r_successor","--request-id","not-claimed","--apply"],env).includes("Predecessor conversation unavailable"),"Missing rollout admitted");
     await writeFile(sourcePath,completeSource);
@@ -515,6 +528,15 @@ syncBuiltinESMExports();`);
     assert(context.predecessorConversation.conversations[0]?.messages[2]?.text === lateChoices, "Late owner choices absent from dispatched handoff");
     const encodedPrompt=await readFile(resolve(home,"state/session-prompts",`r_successor-${queued.requestId}.b64`),"utf8");
     assert(Buffer.from(encodedPrompt,"base64").toString("utf8").includes(lateChoices),"Actual launch prompt omitted late owner choices");
+    const imagePrompt=Buffer.from(encodedPrompt,"base64").toString("utf8");
+    assert(imagePrompt.includes("thread-successor-predecessor:image-1") && imagePrompt.includes("read every image") &&
+      imagePrompt.includes("Owner correction after screenshot"),"Actual dispatch omitted image mapping/instructions or surrounding text");
+    assert(!imagePrompt.includes("data:image/"),"Image payload leaked into durable prompt");
+    const imageBundlePath=resolve(home,"state/session-prompts",`r_successor-${queued.requestId}.images.json`);
+    const imageBundle=JSON.parse(await readFile(imageBundlePath,"utf8"));
+    assert(imageBundle.length===1 && typeof imageBundle[0].sha256==="string","Actual dispatch omitted private image bytes");
+    const actualCalls=await readFile(fakeTmuxLog,"utf8");
+    assert(actualCalls.includes(`HERMES_INITIAL_IMAGES_FILE=${imageBundlePath}`) && actualCalls.includes("HERMES_INITIAL_IMAGES_SHA256="),"Actual launch omitted digest-pinned image transport");
     const approvedContext=JSON.parse(row.handoff_context_json);
     assert(approvedContext.interactionPolicy === "human_control" && approvedContext.implementationApproved === true,"Claim lost authoritative policy or implementation approval");
     assert(Buffer.from(encodedPrompt,"base64").toString("utf8").includes("routine scoped edits"),"Approved human-control successor did not receive bounded edit authority");

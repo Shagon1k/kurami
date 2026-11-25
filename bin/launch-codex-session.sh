@@ -80,7 +80,11 @@ else
   printf 'Initial prompt is required\n' >&2
   exit 1
 fi
-exec "${CODEX_BIN}" \
+codex_command=("${CODEX_BIN}")
+if [[ -n "${HERMES_INITIAL_IMAGES_FILE:-}" ]]; then
+  codex_command=(python3 "$(dirname -- "$(realpath -- "$0")")/launch-codex-images.py" "${CODEX_BIN}")
+fi
+exec "${codex_command[@]}" \
   -C "${HERMES_WORKTREE_PATH}" \
   --sandbox workspace-write \
   --add-dir "${worktree_git_dir}" \

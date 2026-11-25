@@ -1,4 +1,6 @@
 import assert from "node:assert/strict";
+import { imageMessage, imageBytes } from "./predecessor-image-fixture.ts";
+import { decodePredecessorImage } from "../src/orchestrator/integrations/codex/predecessor-images.ts";
 import fs from "node:fs";
 import { syncBuiltinESMExports } from "node:module";
 import { resolve } from "node:path";
@@ -27,11 +29,12 @@ export function conversationRecords(threadId: string, cwd: string): Record<strin
 }
 export function writeConversation(path: string, records: Record<string, unknown>[]): void {
   const withReceipts = records.flatMap(record => {
-    const payload = record.payload as {role?:string; content?:{text?:string}[]; internal_chat_message_metadata_passthrough?:{content_item_kinds?:string[]}};
+    const payload = record.payload as {role?:string; content?:{type?:string; text?:string; image_url?:string}[]; internal_chat_message_metadata_passthrough?:{content_item_kinds?:string[]}};
     const kinds=payload?.internal_chat_message_metadata_passthrough?.content_item_kinds;
-    const text=payload?.role==="user" && kinds?.includes("user.text")
-      ? payload.content!.filter((_,i)=>kinds[i]==="user.text").map(part=>part.text).join("\n") : null;
-    return text===null ? [record] : [record,{type:"event_msg",payload:{type:"item_completed",item:{type:"UserMessage",content:[{type:"text",text}]}}}];
+    const parts=payload?.role==="user" && kinds?.some(kind=>kind.startsWith("user."))
+      ? payload.content!.filter((_,i)=>kinds[i]!.startsWith("user.")).map(part=>part.type==="input_image"
+        ? {type:"image",image_url:part.image_url} : {type:"text",text:part.text}) : null;
+    return parts===null ? [record] : [record,{type:"event_msg",payload:{type:"item_completed",item:{type:"UserMessage",content:parts}}}];
   });
   fs.writeFileSync(path, withReceipts.map(record => JSON.stringify(record)).join("\n") + "\n");
 }
@@ -62,6 +65,71 @@ export function verifyPredecessorConversation(home: string, worktree: string): v
     assert(!prompt.includes("injected AGENTS"));
     assert.deepEqual(fs.readFileSync(path),beforeSource);
     assert.deepEqual(fs.readFileSync(resolve(codexHome,"state_5.sqlite")),beforeDb);
+    const withImage = [...original.slice(0,-1),imageMessage(),original.at(-1)!];
+    writeConversation(path,withImage);
+    const imageCapture=capture();
+    const ordered=imageCapture.evidence.messages.at(-1)!.content!;
+    assert.deepEqual(ordered.map(part=>part.type),["text","image","text"]);
+    assert.deepEqual(imageCapture.images[0]!.bytes,imageBytes());
+    assert.equal(imageCapture.images.length,1);
+    assert(!JSON.stringify(imageCapture.evidence).includes("base64"));
+    assert(promptFor({predecessorConversation:imageCapture.evidence}).includes("read every image"));
+    assert(promptFor({predecessorConversation:imageCapture.evidence}).includes("Owner correction after screenshot"));
+    const credential = "syntheticcredential1234567890";
+    const withinPart = imageMessage();
+    withinPart.payload.content[0]!.text = `GH_TOKEN=${credential}`;
+    writeConversation(path,[...original.slice(0,-1),withinPart,original.at(-1)!]);
+    const redacted = capture().evidence.messages.at(-1)!;
+    assert.deepEqual(redacted.content!.map(part=>part.type),["text","image","text"]);
+    assert(!JSON.stringify(redacted).includes(credential));
+    assert.equal(redacted.content![0]!.type === "text" && redacted.content![0]!.text,"[REDACTED_CREDENTIAL]");
+    const split = imageMessage();
+    split.payload.content[0]!.text = "GH_TOKEN=";
+    split.payload.content[2]!.text = credential;
+    writeConversation(path,[...original.slice(0,-1),split,original.at(-1)!]);
+    let returned: ReturnType<typeof capture> | undefined;
+    assert.throws(()=>{returned=capture();},error=>error instanceof Error &&
+      error.message.includes("credential redaction crosses multipart text boundaries") && !error.message.includes(credential));
+    assert.equal(returned,undefined,"split credential returned evidence or image bytes");
+    const consecutive = imageBytes(40,"consecutive");
+    assert.deepEqual(decodePredecessorImage(`data:image/png;base64,${consecutive.toString("base64")}`).bytes,consecutive);
+    const separated = imageBytes(40,"separated");
+    assert.throws(()=>decodePredecessorImage(`data:image/png;base64,${separated.toString("base64")}`),/nonconsecutive.*IDAT/);
+    const malformedImage = imageMessage();
+    malformedImage.payload.content[1]!.image_url = `data:image/png;base64,${separated.toString("base64")}`;
+    writeConversation(path,[...original.slice(0,-1),malformedImage,original.at(-1)!]);
+    assert.throws(capture,/Predecessor conversation unavailable/);
+    writeConversation(path,withImage);
+    // Native receipts include image parts; no missing/changed image may pass.
+    const imageLines=fs.readFileSync(path,"utf8").trimEnd().split("\n");
+    for (const change of ["remove", "change", "reorder"]) {
+      const altered=imageLines.map(line=>{
+        const record=JSON.parse(line);
+        if(record.payload?.item?.type==="UserMessage" && record.payload.item.content.some((part:{type:string})=>part.type==="image")) {
+          if(change==="remove") record.payload.item.content=record.payload.item.content.filter((part:{type:string})=>part.type!=="image");
+          if(change==="change") record.payload.item.content[1].image_url=imageMessage(90).payload.content[1]!.image_url;
+          if(change==="reorder") record.payload.item.content.reverse();
+        }
+        return JSON.stringify(record);
+      });
+      fs.writeFileSync(path,altered.join("\n")+"\n");
+      assert.throws(capture,/receipts disagree/,change);
+    }
+    for(const unsafe of ["/missing.png", "../escape.png", "file:///tmp/symlink.png", "https://example.invalid/private.png",
+      "data:image/svg+xml;base64,PHN2Zz4=", "data:image/png;base64,invalid", "data:image/png;base64,"+"A".repeat(3*1024*1024)]) {
+      const message=imageMessage(); message.payload.content[1]!.image_url=unsafe;
+      writeConversation(path,[...original.slice(0,-1),message,original.at(-1)!]);
+      assert.throws(capture,/Predecessor conversation unavailable/);
+    }
+    writeConversation(path,[...original.slice(0,-1),...Array.from({length:17},()=>imageMessage()),original.at(-1)!]);
+    assert.throws(capture,/16 attachments/);
+    writeConversation(path,withImage);
+    const previousImage=capture();
+    const oldHome=process.env.CODEX_HOME; process.env.CODEX_HOME=codexHome;
+    try {
+      writeConversation(path,[...original.slice(0,-1),imageMessage(90),original.at(-1)!]);
+      assert.throws(()=>assertPredecessorConversationUnchanged(id,worktree,previousImage.fingerprint),/changed after capture/);
+    } finally {if(oldHome===undefined)delete process.env.CODEX_HOME;else process.env.CODEX_HOME=oldHome;}
     const variants: [string, Record<string, unknown>[]][] = [
       ["wrong thread",conversationRecords("other",worktree)],
       ["wrong worktree",conversationRecords(id,"/unrelated")],

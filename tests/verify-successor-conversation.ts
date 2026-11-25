@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { imageMessage } from "./predecessor-image-fixture.ts";
 import * as fs from "node:fs";
 import { mkdtempSync, mkdirSync, readFileSync, readdirSync, rmSync, statSync } from "node:fs";
 import { tmpdir } from "node:os";
@@ -75,7 +76,7 @@ const refused = (pattern: RegExp, id = "failed") => noWrites(() => assert.throws
 
 try {
   reset();
-  const first = noWrites(() => capture());
+  let first = noWrites(() => capture());
   assert.deepEqual(first.evidence.conversations.map(item => item.threadId), ["original", "failed"]);
   assert.deepEqual(first.evidence.lineage.map(item => item.succession_number), [1]);
   const original = first.evidence.conversations[0]!;
@@ -85,6 +86,18 @@ try {
   assert(first.evidence.conversations[1]!.messages[1]!.text.includes("Failed successor report"));
   assert(!JSON.stringify(first.evidence).includes("TOOL OUTPUT MUST NOT"));
   noWrites(() => first.assertUnchanged());
+  const withImage=(id:string)=>{const records=conversationRecords(id,worktree);return [...records.slice(0,-1),imageMessage(),records.at(-1)!];};
+  writeConversation(sourcePath("original"),withImage("original"));
+  writeConversation(sourcePath("failed"),withImage("failed"));
+  const imageChain=noWrites(()=>capture());
+  assert.deepEqual(imageChain.evidence.imageAttachments.map(item=>[item.attachmentNumber,item.imageId]),
+    [[1,"original:image-1"],[2,"failed:image-1"]]);
+  assert.equal(imageChain.images.length,2);
+  noWrites(()=>imageChain.assertUnchanged());
+  const changedImage=withImage("original"); changedImage[changedImage.length-2]=imageMessage(90);
+  writeConversation(sourcePath("original"),changedImage);
+  noWrites(()=>assert.throws(()=>imageChain.assertUnchanged(),/changed after capture/));
+  reset(); first=noWrites(()=>capture());
   // An unrelated neighboring run is not imported into this chain.
   thread("neighbor", "UNRELATED NEIGHBOR MUST NOT ENTER CONTEXT");
   edge("elsewhere", "neighbor", 99, "other-run");

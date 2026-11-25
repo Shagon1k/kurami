@@ -133,7 +133,7 @@
     "test:session-start": "node tests/verify-session-start.ts",
     "test:session-handoff": "node tests/verify-session-handoff.ts && node tests/verify-park-processes.ts && node tests/verify-orphan-sandbox.ts",
     "test:pf64-successor-recovery": "node tests/verify-pf64-unauthorized-successor-recovery.ts",
-    "test:autonomous-successor": "node tests/verify-successor-conversation.ts && node tests/verify-autonomous-successor.ts",
+    "test:autonomous-successor": "python3 tests/verify-predecessor-images.py && node tests/verify-successor-conversation.ts && node tests/verify-autonomous-successor.ts",
     "test:autonomous-completion": "node tests/verify-autonomous-completion.ts",
     "test:cancel-resolution": "node tests/verify-cancel-resolution.ts",
     "test:project-status": "node tests/verify-project-status.ts",

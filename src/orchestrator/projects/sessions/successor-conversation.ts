@@ -1,4 +1,5 @@
 import type { DatabaseSync } from "node:sqlite";
+import { assertImageBounds } from "../../integrations/codex/predecessor-images.ts";
 import { capturePredecessorConversation, assertPredecessorConversationUnchanged } from "../../integrations/codex/predecessor-conversation.ts";
 import { serializeUntrustedPromptData } from "../../security/prompt-safety.ts";
 
@@ -71,7 +72,10 @@ export function captureSuccessorConversation(database: DatabaseSync, runId: stri
   const identities = readLineage();
   const captured = identities.threadIds.map(threadId =>
     capturePredecessorConversation(threadId, worktree, optionalCodexHome));
+  const images = captured.flatMap(item => item.images);
+  assertImageBounds(images);
   const evidence = {
+    imageAttachments: images.map((image, index) => ({ attachmentNumber: index + 1, imageId: image.imageId, sha256: image.sha256 })),
     runId, currentThreadId, worktree, branch,
     coverage: "complete bounded same-run predecessor chain, oldest thread first; exact source-order messages within each thread; no summaries or resumed ancestors",
     lineage: identities.lineage,
@@ -98,5 +102,5 @@ export function captureSuccessorConversation(database: DatabaseSync, runId: stri
     if (JSON.stringify(readLineage()) !== identitySnapshot) refuse("lineage changed during source recheck");
   }
   assertUnchanged();
-  return { evidence, assertUnchanged };
+  return { evidence, assertUnchanged, images };
 }
