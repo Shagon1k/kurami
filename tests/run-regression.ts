@@ -124,6 +124,7 @@ const suites = [
   "test:project-status",
   "test:project-status-read-model",
   "test:project-usage",
+  "test:run-usage",
   "test:api-equivalent",
   "test:ci",
   "test:ci-repair",

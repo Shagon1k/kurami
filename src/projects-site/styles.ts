@@ -200,4 +200,9 @@ export const PROJECTS_STYLES=[KURAMI_MOOD_CSS,THEME_CSS,FOUNDATION_CSS,BUTTON_CS
 .projects-review-profile { display:grid; gap:var(--space-2); padding-block:var(--space-2); }
 .projects-review-profile + .projects-review-profile { border-top:1px solid var(--border-default); }
 
+.projects-usage-values { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: var(--space-3); margin: var(--space-3) 0; }
+.projects-usage-values dt,.projects-usage-summary { color: var(--text-muted); font-size: .8rem; }
+.projects-usage-values dd { margin: var(--space-1) 0 0; font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
+.projects-usage-summary { display: block; margin-top: var(--space-2); }
+.projects-usage { --table-font-size: .8rem; --table-cell-padding: var(--space-2); }
 `].join("\n");

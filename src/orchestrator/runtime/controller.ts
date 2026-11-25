@@ -1,3 +1,4 @@
+import {collectRunUsage} from "../projects/usage/collector.ts";
 import { reconcileExternalCiRepairs } from "../projects/ci/reconcile-external-repair.ts";
 import { canRetryUnchangedCi } from "./ci-no-change-retry.ts";
 import { LATEST_ATTENTION_VALUE_SQL } from "./run-projections.ts";
@@ -318,6 +319,9 @@ export async function runOrchestratorControllerCli(): Promise<void> {
   reconcileAfterCycle(database, config);
   if (await deliverControllerTicketFeedback(database, orchestratorHome)) reconcileAfterCycle(database, config);
   ledger.forgetResolved(database.prepare(SETTLED_CONTROLLER_RUNS_SQL).all() as SettledControllerRun[]);
+  // Lifecycle decisions have already committed; usage failure cannot fail run completion.
+  try { await collectRunUsage(database); }
+  catch { process.stderr.write(`${JSON.stringify({level:"warn",usage:"collection_failed"})}\n`); }
   database.close();
   ledger.forgetStale();
   await ledger.save();

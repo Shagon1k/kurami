@@ -7,5 +7,5 @@ import {PROJECT_ACTION_REQUEST_JS} from "./action-request.ts";
 
 const client=WEB_CLIENT_JS+TOAST_RUNTIME_JS+PROJECT_ACTION_REQUEST_JS+readFileSync(new URL("./client.js",import.meta.url),"utf8");
 // Pin the browser, stylesheet and fragment markup to one compatible server generation.
-export const PROJECTS_CLIENT_VERSION=createHash("sha256").update(client).update(PROJECTS_STYLES).update(readFileSync(new URL("./render.ts",import.meta.url))).digest("hex").slice(0,16);
+export const PROJECTS_CLIENT_VERSION=createHash("sha256").update(client).update(PROJECTS_STYLES).update(readFileSync(new URL("./render.ts",import.meta.url))).update(readFileSync(new URL("./usage.ts",import.meta.url))).digest("hex").slice(0,16);
 export const PROJECTS_CLIENT_JS=`const projectsClientVersion=${JSON.stringify(PROJECTS_CLIENT_VERSION)};\n`+client;

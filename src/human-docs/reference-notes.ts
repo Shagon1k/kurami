@@ -4,6 +4,8 @@ import type {Localized} from "./content/schema.ts";
 
 export const tableNotes:Record<"orchestrator"|"digest",Record<string,Localized<string>>>={
   orchestrator:{
+    "usage_sessions":{ru:"Сохранённые счётчики токенов и оценки эквивалента API одной сессии Codex, позиция чтения и состояние источника без текста переписки.",en:"One Codex session's durable token counters and API-equivalent estimates, read cursor and source coverage without conversation text."},
+    "run_usage_sessions":{ru:"Привязка сессии Codex к запуску и подтверждённому этапу; общий поток исключается из итогов разных запусков.",en:"A Codex session's binding to a run and an evidenced stage; threads shared across runs are excluded from their totals."},
     "run_owner_decision_blockers":{ru:"Точная остановленная попытка исправления и её обсуждение в PR: полный исходный контекст, маркер, автор, внешние id и защита от повторной публикации.",en:"An exact stopped fix attempt and its PR review thread: complete original context, marker, author, external IDs and duplicate-publication fence."},
     "run_owner_decisions":{ru:"Подтверждённые ответы владельца для одной новой попытки: неизменяемый снимок, контрольная сумма, захват, запуск и доказанный отказ до запуска.",en:"Confirmed owner replies for one fresh fix: immutable snapshot, digest, claim, dispatch and proven predispatch abort."},
     "run_interrupted_review_fix_recoveries":{ru:"Защищённое восстановление прерванного исправления: исходная задача, снимок незакоммиченной работы и отметка единственной попытки запуска преемника.",en:"A fenced interrupted review-fix recovery: predecessor task, preserved dirty-work snapshot and the single successor dispatch attempt."},

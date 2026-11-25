@@ -8,7 +8,17 @@ export type UsageEvent={at:number;input:number;cached:number;output:number;total
 type UsageTotals={input:number;cached:number;output:number;total:number;cacheWrite:number|null};
 export type LimitObservation={date:string;windowMinutes:number;usedPercent:number;at:number;resetsAt?:number};
 type FileCache={size:number;mtimeMs:number;ino:number;pending:string;events:UsageEvent[];recordEvents:UsageEvent[];activity:{at:number;event:string;turnId?:string}[];activityTruncated?:boolean;previousTotals:UsageTotals|null;currentModel:string|null;limit:{at:number;limits:CodexLimit[]}|null;limitDays:Map<string,LimitObservation>;limitSamples:Map<string,LimitObservation>;lastSeen:number};
-type TokenCounts={input_tokens?:number;cached_input_tokens?:number;cache_write_input_tokens?:number;output_tokens?:number;total_tokens?:number};
+export type TokenCounts={input_tokens?:number;cached_input_tokens?:number;cache_write_input_tokens?:number;output_tokens?:number;total_tokens?:number};
+
+/** Input includes cached tokens; output already includes reasoning tokens. */
+export function usageCounts(value:TokenCounts|undefined):UsageTotals|null {
+  if(!value||![value.input_tokens,value.cached_input_tokens,value.output_tokens].every(n=>Number.isSafeInteger(n)&&n!>=0))return null;
+  const input=value.input_tokens!,cached=value.cached_input_tokens!,output=value.output_tokens!;
+  if(cached>input||!Number.isSafeInteger(input+output))return null;
+  const write=value.cache_write_input_tokens;
+  if(write!==undefined&&(!Number.isSafeInteger(write)||write<0||cached+write>input))return null;
+  return {input,cached,output,total:input+output,cacheWrite:write??null};
+}
 
 export type CodexLimit={name:string;usedPercent:number;remainingPercent:number;windowMinutes:number;resetsAt:string;observedAt:string};
 

@@ -13,7 +13,7 @@ The Run Store is one SQLite file, `$KURAMI_HOME/state/orchestrator.db`, and the 
 :::glance
 - What it is: SQLite in WAL mode, all tables `STRICT`, time in ISO-8601 UTC
 - Written by: board polling, admission, the controller, child scripts, the Discord plugin, the notifiers
-- Schema: 32 migrations in `migrations/`, applied by `npm run db:init`
+- Schema: ordered migrations in `migrations/`, applied by `npm run db:init`
 - Key rule: all foreign keys are `ON DELETE RESTRICT`; rows are not deleted
 - Truth about intent: the GitHub board; the Run Store keeps the fact and the resources
 - Backup: a separate job, every three days
@@ -73,9 +73,21 @@ The database itself enforces some rules. A bug in the code cannot bypass them.
 
 The full list of tables with a description of one row is in the [data stores reference](@data-stores). You can look at the database read-only: `sqlite3 -readonly $KURAMI_HOME/state/orchestrator.db`. Do not edit it by hand: the run's state is aligned with Git, tmux and GitHub, and editing the database alone makes it diverge from the world.
 
+## Usage and API-equivalent estimates
+
+Projects shows **Usage & cost** in run details and a compact summary for terminal runs. Input includes cached tokens; output includes reasoning. Missing measurements appear as a dash. **Pending** means collection has not finished; **Partial** means some evidence is missing or ambiguous; **Unavailable** means no attributable usage was found. A known subtotal is not a complete total.
+
+The existing controller collects usage after its lifecycle work. Migration `051_run_usage` adds collector-owned `usage_sessions` checkpoints and snapshots plus `run_usage_sessions` bindings. Each tick discovers at most 100 bindings and reads at most eight sessions, one MiB each. A durable byte cursor resumes large logs across ticks. The collector checks finished and missing logs again after five minutes, subject to queue capacity, so late writes can update totals. Replaced or truncated files are reprocessed; repeated collection replaces snapshots rather than adding totals. Saved totals survive log deletion, with partial coverage shown when the source becomes unavailable.
+
+The collector uses linked Codex threads from resources, successor records, technical attempts and explicit history identity fields. It prefers cumulative usage deltas over duplicate request records. A counter reset freezes that cumulative stream at its last trusted total and marks partial coverage. A log beginning with a lifetime counter contributes only its proven last request. Events outside the run's creation and terminal timestamps are excluded. A thread linked to several runs is excluded from every run's subtotal; a technical phase takes precedence over its temporary resource alias. Conflicting technical phases remain unattributed. Sessions without a synchronized thread and providers without Codex logs remain incomplete.
+
+The model and stage disclosures separate implementation, review, Fix Review and Fix CI where those identities exist. Attempts count distinct recorded turn IDs, with one attempt per linked session when turn metadata is absent, plus technical attempts missing a thread. Session elapsed time requires start and end events. Run elapsed time spans creation to its recorded terminal transition, including waiting; it is not active work time.
+
+Money is an **API-equivalent estimate**, not subscription billing or an invoice. The snapshot saves the source URL, tariff date and parser version. The initial tariff set reuses `src/core/api-equivalent.ts`, dated 2026-09-30, with Standard API rates from the OpenAI pricing reference. Cached tokens are priced as a subset of input. An unknown model tariff stays unknown; known models contribute a marked subtotal. An asterisk marks incomplete coverage or uncertain pricing inputs, including missing long-context details. These figures do not reconstruct historical charges.
+
 ## Migrations
 
-The schema grows by files `migrations/NNN_name.sql`. `npm run db:init` applies new ones in order, each in its own transaction, records the name in `schema_migrations` and finally runs `PRAGMA integrity_check`. For tables with constraints a migration renames the old table to `<name>_vNN`, creates a new one and copies the data: such leftovers in the database are normal. 32 migrations are applied now, from `001_initial_run_store` to `032_review_fix_reconciliation`.
+The schema grows by files `migrations/NNN_name.sql`. `npm run db:init` applies new ones in order, each in its own transaction, records the name in `schema_migrations` and finally runs `PRAGMA integrity_check`. For tables with constraints a migration renames the old table to `<name>_vNN`, creates a new one and copies the data: such leftovers in the database are normal. The usage schema is added by `051_run_usage`; the deployed schema depends on the applied migrations.
 
 ::::example What to find in the database for issue TT-43
 :::steps
@@ -109,5 +121,6 @@ The schema grows by files `migrations/NNN_name.sql`. `npm run db:init` applies n
 - `migrations/006_run_controls.sql` — the owner command queue
 - `migrations/028_resource_guardrails.sql` — resource quarantine
 - `migrations/030_runtime_settings.sql` — settings revisions
+- `src/orchestrator/projects/usage/collector.ts` — bounded usage collection after lifecycle processing
 - `src/orchestrator/runtime/run-read-model.ts` — the query that gathers facts about a run
 :::

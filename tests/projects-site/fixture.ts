@@ -39,6 +39,11 @@ export function syntheticProjectsSnapshot(): ProjectsSnapshot {
     item(15, {title:"Add keyboard navigation",suggestedNext:{since:snapshot.generatedAt,rankedAt:snapshot.generatedAt,explanation:"Owner priority P1 · Ready to start"}}),
     item(14, { title: "Completed task", status: "Done", runState: "archived", stage: "completed" }),
   ];
+  snapshot.items[0]!.usage={state:"partial",terminal:false,input:24000,cached:12000,output:1600,usd:.045,unpriced:0,uncertain:0,
+    elapsedMs:null,attempts:2,checkedAt:snapshot.generatedAt,rateDate:"2026-09-30",rateSource:"https://developers.openai.com/api/docs/pricing",
+    models:[{model:"gpt-6.1-sol",input:24000,cached:12000,output:1600,usd:.045,unpriced:0,uncertain:0}],
+    sessions:[{stage:"implementation",state:"complete",shared:false,attempts:1,elapsedMs:1800000,outcome:"completed",models:[{model:"gpt-6.1-sol",input:24000,cached:12000,output:1600,usd:.045,unpriced:0,uncertain:0}]},
+      {stage:"review",state:"pending",shared:false,attempts:null,elapsedMs:null,outcome:null,models:[]}]};
   return snapshot;
 }
 

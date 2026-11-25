@@ -13,6 +13,7 @@ export type StatusChange = { enabled: boolean; reason: "eligible" | "stale" | "u
   request?: {state: import("./status-state.ts").StatusRequestState; target: string; from: string | null; key: string; checkAvailable: boolean}; };
 export type ProfileReview = Signal & {critical:number;important:number;suggestions:number;url:string|null;requestFailed:boolean;control?:{enabled:boolean;reason:string;head:string|null};fixActions?:import("./run-actions.ts").RunActionView;fix?:{state:string;round:number|null};fixStartupFailure?:string|null};
 export type ProjectItem = {
+  usage?: import("../orchestrator/projects/usage/read-model.ts").RunUsage;
   automationExcluded?: boolean;
   reviews?: Record<ReviewProfile,ProfileReview>;
   id: string; project: string; number: number | null; title: string; kind: string; status: string | null;

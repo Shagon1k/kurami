@@ -66,7 +66,8 @@ sh(scratch,"git","clone","--quiet",remote,source);
 for(const repo of [source])sh(repo,"git","config","user.email","test@example.invalid"),sh(repo,"git","config","user.name","Docs Test");
 // Exercise local edits too: release builds run in clean fixture worktrees.
 // Generated references must use the same migration tree as their copied descriptions.
-const fixturePaths=["src/human-docs","src/ui-library","src/portal-presence","tests/human-docs","docs/human-docs-operations.md","migrations"];
+// Include the new usage sources referenced by the copied docs' code-map.
+const fixturePaths=["src/human-docs","src/ui-library","src/portal-presence","src/orchestrator/projects/usage","tests/human-docs","docs/human-docs-operations.md","migrations"];
 for(const path of fixturePaths)cpSync(resolve(appRoot,path),resolve(source,path),{recursive:true});
 sh(source,"git","add",...fixturePaths);
 sh(source,"git","commit","--quiet","--allow-empty","-m","Docs fixture under test");

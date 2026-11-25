@@ -1,3 +1,4 @@
+import {readRunUsage} from "../orchestrator/projects/usage/read-model.ts";
 import { codexLaunchUrl } from "../orchestrator/integrations/codex/deeplink.ts";
 import { ownerDecisionAwaitingDispatch } from "../orchestrator/projects/owner-decision.ts";
 import { readReviewEvidence } from "../orchestrator/projects/reviews/read-model.ts";
@@ -174,6 +175,7 @@ export function collectProjectsSnapshot(options: { home?: string; now?: Date; co
       }
       profileReviews.set(row.run_id,reviews);
     }
+    const usage=new Map(rows.filter(row=>row.run_id).map(row=>[row.run_id!,readRunUsage(database!,row.run_id!)]));
     database.exec("COMMIT");
     const projects = unavailable.projects.map(project => {
       const poll = polls.find(poll => poll.project === project.key);
@@ -183,6 +185,7 @@ export function collectProjectsSnapshot(options: { home?: string; now?: Date; co
     });
     const items = rows.filter(row => configs[row.project]).map(row => itemFromRow(row, configs[row.project]!, now));
     for (const item of items) {
+      if(item.runId)item.usage=usage.get(item.runId);
       if (item.runId) item.reviews = profileReviews.get(item.runId);
       if (item.reviews) {
         const fresh = projects.find(project=>project.key===item.project)?.freshness === "fresh";
