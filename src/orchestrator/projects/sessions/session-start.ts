@@ -1,4 +1,5 @@
 import { assertUnchangedCiRetrySource, canRetryUnchangedCi } from "../../runtime/ci-no-change-retry.ts";
+import { canRepairAttentionCi } from "../../runtime/ci-repair-eligibility.ts";
 import { parseReviewProfile } from "../reviews/profiles.ts";
 import { claimProtocolTask, taskForSession } from "../../integrations/codex/task-store.ts";
 import { reviewContextMatches } from "../../controls/ai-review.ts";
@@ -103,8 +104,8 @@ export function loadRepairContext(
     ).count,
   );
   if (count >= 2) fail("CI repair attempt budget is exhausted");
-  if (run.run_state === "needs_attention" && !canRetryUnchangedCi(database,run.run_id,requestId))
-    fail("Completed no-change CI attempt is not safe to retry");
+  if (run.run_state === "needs_attention" && !canRepairAttentionCi(database,run.run_id,requestId))
+    fail("Attention CI repair evidence is no longer eligible");
   const checks = JSON.parse(snapshot.checks_json) as CiCheck[];
   if (!Array.isArray(checks)) fail("CI repair snapshot checks are invalid");
   return {
@@ -386,7 +387,7 @@ function claimRepairSession(
   try {
     const current = loadRun(database, run.run_id);
     if (
-      (current.run_state !== "parked_review" && !canRetryUnchangedCi(database,run.run_id,repair.requestId)) ||
+      (current.run_state !== "parked_review" && !canRepairAttentionCi(database,run.run_id,repair.requestId)) ||
       current.owner_state !== "none" ||
       current.resource_state !== "provisioned" ||
       current.tmux_session_name !== null
@@ -396,9 +397,11 @@ function claimRepairSession(
       );
     }
     if (current.run_state === "needs_attention") {
+      const noChangeRetry = canRetryUnchangedCi(database,run.run_id,repair.requestId);
       assertUnchangedCiRetrySource(plan);
       database.prepare("UPDATE runs SET state='parked_review',updated_at=strftime('%Y-%m-%dT%H:%M:%fZ','now') WHERE run_id=?").run(run.run_id);
-      appendHistory(database,run.run_id,"needs_attention","parked_review","ci_repair_no_change_retry_claimed",
+      appendHistory(database,run.run_id,"needs_attention","parked_review",
+        noChangeRetry ? "ci_repair_no_change_retry_claimed" : "review_fix_ci_repair_claimed",
         {requestId:repair.requestId,sourceHeadSha:repair.sourceHeadSha,attemptNumber:repair.attemptNumber});
     }
     const mappedCount = Number(
@@ -852,7 +855,7 @@ export async function startSession(
   const stateReady = interrupted
     ? run.run_state === "needs_attention" && run.owner_state === "none"
     : plan.repair || plan.reviewFix
-    ? (run.run_state === "parked_review" || Boolean(plan.repair && canRetryUnchangedCi(database,run.run_id,plan.repair.requestId))) && run.owner_state === "none"
+    ? (run.run_state === "parked_review" || Boolean(plan.repair && canRepairAttentionCi(database,run.run_id,plan.repair.requestId))) && run.owner_state === "none"
     : run.run_state === "starting" && run.owner_state === "none";
   if (!stateReady || run.resource_state !== "provisioned") {
     fail(

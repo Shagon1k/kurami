@@ -297,6 +297,57 @@ function reconcileFalseReviewFixNoNewHead(database: DatabaseSync): void {
                    'review_fix_task_archived', 'ci_repair_task_archived'
                  )
                ORDER BY h.sequence DESC LIMIT 1) AS attention_reason,
+              EXISTS (
+                SELECT 1 FROM run_ci_repair_attempts repair
+                JOIN run_control_requests repair_request ON repair_request.request_id=repair.request_id
+                WHERE repair.run_id=f.run_id AND repair.attempt_state='succeeded'
+                  AND repair.result_head_sha=ci.head_sha
+                  AND repair.completed_at IS NOT NULL AND repair_request.action='ci_repair'
+                  AND repair_request.request_state='applied' AND ci.aggregate_state='passed'
+                  AND EXISTS(SELECT 1 FROM run_ci_repair_attempts initial
+                    JOIN run_state_history claim ON claim.run_id=initial.run_id
+                    WHERE initial.run_id=f.run_id AND initial.source_head_sha=f.result_head_sha
+                      AND claim.reason='review_fix_ci_repair_claimed'
+                      AND json_extract(claim.details_json,'$.requestId')=initial.request_id
+                      AND json_extract(claim.details_json,'$.sourceHeadSha')=f.result_head_sha
+                      AND (initial.attempt_id=repair.attempt_id OR
+                        (initial.attempt_number=1 AND repair.attempt_number=2 AND
+                          ((initial.attempt_state='failed' AND initial.result_head_sha=repair.source_head_sha) OR
+                           (initial.attempt_state='needs_attention' AND initial.result_head_sha IS NULL AND
+                             initial.source_head_sha=repair.source_head_sha AND
+                             initial.failure_reason='No new PR head appeared after the fixer task')))))
+                  AND EXISTS(SELECT 1 FROM run_state_history archive WHERE archive.run_id=f.run_id
+                    AND archive.reason='ci_repair_task_archived'
+                    AND json_extract(archive.details_json,'$.attemptId')=repair.attempt_id
+                    AND json_extract(archive.details_json,'$.repairCodexThreadId')=repair.codex_thread_id
+                    AND json_extract(archive.details_json,'$.restoredCodexThreadId')=rr.codex_thread_id)
+                  AND NOT EXISTS(SELECT 1 FROM run_codex_tasks task WHERE task.worktree_path=rr.worktree_path AND task.released_at IS NULL)
+                  AND NOT EXISTS(SELECT 1 FROM run_control_requests pending WHERE pending.run_id=f.run_id AND pending.request_state IN ('pending','processing'))
+                  AND NOT EXISTS(SELECT 1 FROM project_pr_requests pending WHERE pending.run_id=f.run_id AND pending.request_state IN ('checking','writing','pending','uncertain'))
+              ) AS repaired_delivery,
+              EXISTS (
+                SELECT 1 FROM run_ci_repair_attempts initial
+                JOIN run_ci_repair_attempts repair ON repair.run_id=initial.run_id
+                JOIN run_state_history attention ON attention.run_id=initial.run_id
+                JOIN run_state_history retry ON retry.run_id=repair.run_id
+                WHERE initial.run_id=f.run_id AND initial.attempt_number=1
+                  AND initial.source_head_sha=f.result_head_sha
+                  AND initial.attempt_state='needs_attention' AND initial.result_head_sha IS NULL
+                  AND initial.failure_reason='No new PR head appeared after the fixer task'
+                  AND repair.attempt_number=2 AND repair.attempt_state='succeeded'
+                  AND repair.source_head_sha=initial.source_head_sha AND repair.result_head_sha=ci.head_sha
+                  AND attention.reason='ci_repair_no_new_head'
+                  AND json_extract(attention.details_json,'$.attemptId')=initial.attempt_id
+                  AND attention.sequence=(SELECT MAX(h.sequence) FROM run_state_history h
+                    WHERE h.run_id=f.run_id AND h.to_state='needs_attention'
+                      AND h.reason NOT IN ('review_fix_task_archived','ci_repair_task_archived'))
+                  AND retry.reason='ci_repair_no_change_retry_claimed'
+                  AND retry.from_state='needs_attention' AND retry.to_state='parked_review'
+                  AND retry.sequence>attention.sequence
+                  AND json_extract(retry.details_json,'$.requestId')=repair.request_id
+                  AND json_extract(retry.details_json,'$.sourceHeadSha')=repair.source_head_sha
+                  AND json_extract(retry.details_json,'$.attemptNumber')=repair.attempt_number
+              ) AS no_change_retry_provenance,
               (SELECT COUNT(*) FROM run_ci_repair_attempts a
                WHERE a.run_id=f.run_id
                  AND a.attempt_state IN ('running','waiting_ci')) AS active_repair_count,
@@ -352,6 +403,8 @@ function reconcileFalseReviewFixNoNewHead(database: DatabaseSync): void {
     exact_completed_cleanup_operation: number;
     exact_cleanup_history: number;
     attention_reason: string | null;
+    repaired_delivery: number;
+    no_change_retry_provenance: number;
     active_repair_count: number;
     active_review_count: number;
     active_fix_count: number;
@@ -377,13 +430,23 @@ function reconcileFalseReviewFixNoNewHead(database: DatabaseSync): void {
       round.previous_codex_thread_id === null &&
       (round.exact_completed_cleanup_operation === 1 ||
         round.exact_cleanup_history === 1);
+    // A no-change attention belongs to this recovery only through the exact
+    // first attempt and the owner's second-attempt claim, never by reason alone.
+    const repairedAttention =
+      round.attention_reason === "review_fix_ci_failed" ||
+      (round.attention_reason === "ci_repair_no_new_head" &&
+        round.no_change_retry_provenance === 1);
+    const parkedRepairedDelivery =
+      round.run_state === "parked_review" && repairedAttention &&
+      round.repaired_delivery === 1 && cleanupCompletedMapping;
     const exactDelivery =
-      round.run_state === "needs_attention" &&
+      (round.run_state === "needs_attention" || parkedRepairedDelivery) &&
       round.owner_state === "none" &&
       round.stop_reason === null &&
       (round.attention_reason === "review_fix_no_new_head" ||
         round.attention_reason === "review_fix_ci_timeout" ||
-        round.attention_reason === "review_fix_ci_failed") &&
+        round.attention_reason === "review_fix_ci_failed" ||
+        parkedRepairedDelivery) &&
       round.request_action === "review_fix" &&
       round.request_state === "applied" &&
       round.tmux_session_name === null &&
@@ -474,21 +537,22 @@ function reconcileFalseReviewFixNoNewHead(database: DatabaseSync): void {
         .prepare(
           `UPDATE runs SET state='parked_review', owner_state='none',
                updated_at=strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
-           WHERE run_id=? AND state='needs_attention' AND owner_state='none'
+           WHERE run_id=? AND state=? AND owner_state='none'
              AND stop_reason IS NULL`,
         )
-        .run(round.run_id);
+        .run(round.run_id, round.run_state);
       if (roundChanged.changes !== 1 || runChanged.changes !== 1)
         fail("Review-fix no-new-head recovery state changed during reconciliation");
       database
         .prepare(
           `INSERT INTO run_state_history (
              run_id, from_state, to_state, reason, details_json
-           ) VALUES (?, 'needs_attention', 'parked_review',
+           ) VALUES (?, ?, 'parked_review',
              'review_fix_no_new_head_recovered', ?)`,
         )
         .run(
           round.run_id,
+          round.run_state,
           JSON.stringify({
             roundId: round.round_id,
             roundNumber: round.round_number,

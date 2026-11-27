@@ -1,4 +1,4 @@
-import { canRetryUnchangedCi } from "../../runtime/ci-no-change-retry.ts";
+import { canRepairAttentionCi } from "../../runtime/ci-repair-eligibility.ts";
 import { spawnSync } from "node:child_process";
 import { readFileSync, realpathSync } from "node:fs";
 import { relative, resolve } from "node:path";
@@ -62,7 +62,7 @@ export function refreshManagedSource(database: DatabaseSync, project: SourceProj
       }
     }
     const ciRetry = action === "repair_start" && run?.state === "needs_attention";
-    requireSource(!ciRetry || Boolean(requestId && canRetryUnchangedCi(database,runId,requestId)), "no-change CI retry evidence changed");
+    requireSource(!ciRetry || Boolean(requestId && canRepairAttentionCi(database,runId,requestId)), "attention CI repair evidence changed");
     requireSource(run && run.repository === project.repository && run.state === (retry || ciRetry ? "needs_attention" : "parked_review") &&
       run.owner_state === "none" && run.stop_reason === null && run.execution_mode === "live" &&
       run.completion_requested_at === null && run.archived_at === null && run.resource_state === "provisioned" &&

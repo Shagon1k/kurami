@@ -1,7 +1,7 @@
 import { captureOwnerDecision, inspectOwnerDecision, storeOwnerDecision, type OwnerDecisionSnapshot } from "../projects/owner-decision.ts";
 import { ownerDecisionGitHub } from "../projects/owner-decision-github.ts";
 import { withFeedbackLockSync } from "../projects/lifecycle-feedback-production.ts";
-import { canRetryUnchangedCi } from "../runtime/ci-no-change-retry.ts";
+import { canRepairAttentionCi } from "../runtime/ci-repair-eligibility.ts";
 import { inspectPrimaryRetry } from "../projects/sessions/retry-primary.ts";
 import { inspectInterruptedReviewFix } from "../runtime/interrupted-review-fix-recovery.ts";
 import { previewSourceAvailable } from "../projects/previews/runtime.ts";
@@ -725,7 +725,7 @@ export function requestRunControl(
         active_count: number;
       };
       if (
-        (run.state !== "parked_review" && !canRetryUnchangedCi(database,runId)) ||
+        (run.state !== "parked_review" && !canRepairAttentionCi(database,runId)) ||
         run.owner_state !== "none" ||
         eligibility.resource_state !== "provisioned" ||
         eligibility.tmux_session_name !== null ||
@@ -1091,7 +1091,7 @@ export function availableRunControls(database: DatabaseSync, runId: string, opti
       availableActions.push("preview_start");
   }
   if (
-    (runState === "parked_review" || (runState === "needs_attention" && canRetryUnchangedCi(database,runId))) &&
+    (runState === "parked_review" || (runState === "needs_attention" && canRepairAttentionCi(database,runId))) &&
     !reviewFixBusy &&
     ownerState === "none" &&
     Boolean(selected.codex_thread_id) &&
