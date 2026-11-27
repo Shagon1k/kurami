@@ -1,6 +1,6 @@
 import {collectRunUsage} from "../projects/usage/collector.ts";
 import { reconcileExternalCiRepairs } from "../projects/ci/reconcile-external-repair.ts";
-import { canRetryUnchangedCi } from "./ci-no-change-retry.ts";
+import { canRepairAttentionCi } from "./ci-repair-eligibility.ts";
 import { LATEST_ATTENTION_VALUE_SQL } from "./run-projections.ts";
 import { spawnSync } from "node:child_process";
 import { transcriptHasCompletedTurn } from "./codex-terminal.ts";
@@ -168,7 +168,7 @@ function buildPlans(
       });
     } else {
       if (request.requested_action === "ci_repair" && request.run_state === "needs_attention")
-        request.ci_no_change_retry = Number(canRetryUnchangedCi(database,request.run_id,request.request_id));
+        request.ci_attention_repair = Number(canRepairAttentionCi(database,request.run_id,request.request_id));
       if (request.requested_action === "review_fix" && database.prepare("SELECT 1 FROM run_owner_decisions WHERE request_id=?").get(request.request_id))
         plans.push({runId:request.run_id,project:request.project,issueNumber:request.issue_number,requestId:request.request_id,action:"owner_decision_start"});
       else plans.push(planForRequest(request, config));

@@ -6,7 +6,7 @@ export type RequestRow = RunRow & {
   owner_intent?: "handoff" | "autonomous_successor" | null;
   implementation_approved?: number;
   expected_predecessor_thread_id?: string | null;
-  ci_no_change_retry?: number;
+  ci_attention_repair?: number;
   requested_review_active_count?: number;
   requested_action:
     | "take_control"
@@ -248,7 +248,7 @@ export function planForRequest(
 
     case "ci_repair":
       if (
-        (request.run_state === "parked_review" || request.ci_no_change_retry === 1) &&
+        (request.run_state === "parked_review" || request.ci_attention_repair === 1) &&
         request.owner_state === "none" &&
         request.tmux_session_name === null &&
         request.resource_state === "provisioned" &&
