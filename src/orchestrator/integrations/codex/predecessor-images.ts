@@ -1,23 +1,51 @@
 import { createHash } from "node:crypto";
 import { crc32, inflateSync } from "node:zlib";
+import jpeg from "jpeg-js";
+
+// Only fixed, non-secret reasons cross the rollout error boundary.
+export class PredecessorImageError extends Error {}
 
 export const MAX_IMAGES = 16;
 export const MAX_IMAGE_BYTES = 2 * 1024 * 1024;
 export const MAX_TOTAL_IMAGE_BYTES = 8 * 1024 * 1024;
 export type PredecessorImage = { imageId: string; sha256: string; bytes: Buffer };
 
-/** Only the native PNG data form observed in owner rollouts is supported.
- * Never resolve a path, fetch a URL, or include the data URL in an error/evidence.
- */
+/** Native PNG/JPEG data images only. Never resolve paths or fetch URLs. */
 export function decodePredecessorImage(value: unknown): { bytes: Buffer; sha256: string } {
-  const prefix = "data:image/png;base64,";
-  if (typeof value !== "string" || !value.startsWith(prefix) || value.length > prefix.length + Math.ceil(MAX_IMAGE_BYTES / 3) * 4)
-    throw new Error("unsupported or oversized owner image");
-  const encoded = value.slice(prefix.length);
+  const prefix = typeof value === "string" ? /^(data:image\/(png|jpeg);base64,)/u.exec(value) : null;
+  if (!prefix) throw new PredecessorImageError("unsupported owner image representation; only PNG/JPEG base64 data images are supported (no paths or URLs)");
+  const encoded = (value as string).slice(prefix[1]!.length);
+  if (encoded.length > Math.ceil(MAX_IMAGE_BYTES / 3) * 4)
+    throw new PredecessorImageError("owner image exceeds the 2 MiB file-byte bound");
   if (!encoded || encoded.length % 4 || !/^[A-Za-z0-9+/]*={0,2}$/u.test(encoded))
-    throw new Error("malformed owner image");
+    throw new PredecessorImageError("malformed owner image base64");
   const bytes = Buffer.from(encoded, "base64");
-  if (bytes.length > MAX_IMAGE_BYTES || bytes.toString("base64") !== encoded || bytes.length < 45 ||
+  if (bytes.length > MAX_IMAGE_BYTES)
+    throw new PredecessorImageError("owner image exceeds the 2 MiB file-byte bound");
+  if (bytes.toString("base64") !== encoded) throw new PredecessorImageError("malformed owner image base64");
+  if (prefix[2] === "jpeg") {
+    try {
+      // Require the complete JPEG envelope as well as a real strict decode.
+      // Keep original bytes; decoded pixels are validation only, never transcoded.
+      if (bytes.length < 4 || bytes.readUInt16BE(0) !== 0xffd8 || bytes.readUInt16BE(bytes.length - 2) !== 0xffd9)
+        throw new Error();
+      const decoded = jpeg.decode(bytes, { useTArray: true, formatAsRGBA: false,
+        tolerantDecoding: false, maxResolutionInMP: 16 * 1024 * 1024 / 1_000_000, maxMemoryUsageInMB: 256 });
+      if (!decoded.width || !decoded.height) throw new Error();
+    } catch {
+      throw new PredecessorImageError("corrupt, unsupported, or oversized JPEG owner image; strict decode requires at most 16 Mi pixels and 256 MiB decoder memory");
+    }
+  } else {
+    try { validatePng(bytes); }
+    catch {
+      throw new PredecessorImageError("corrupt, unsupported, or oversized PNG owner image; requires complete 8-bit non-interlaced RGB/RGBA, consecutive IDAT chunks, and at most 16 Mi pixels");
+    }
+  }
+  return { bytes, sha256: createHash("sha256").update(bytes).digest("hex") };
+}
+
+function validatePng(bytes: Buffer): void {
+  if (bytes.length < 45 ||
       !bytes.subarray(0, 8).equals(Buffer.from([137,80,78,71,13,10,26,10])) ||
       bytes.readUInt32BE(8) !== 13 || bytes.toString("ascii",12,16) !== "IHDR" ||
       bytes.readUInt32BE(16) === 0 || bytes.readUInt32BE(20) === 0 ||
@@ -54,7 +82,6 @@ export function decodePredecessorImage(value: unknown): { bytes: Buffer; sha256:
   if (pixels.length !== expected) throw new Error("incomplete PNG owner image pixels");
   for (let row = 0; row < pixels.length; row += stride)
     if (pixels[row]! > 4) throw new Error("unsupported PNG owner image filter");
-  return { bytes, sha256: createHash("sha256").update(bytes).digest("hex") };
 }
 
 export function assertImageBounds(images: PredecessorImage[]): void {

@@ -1,5 +1,6 @@
 import { createHash } from "node:crypto";
-import { decodePredecessorImage, assertImageBounds, type PredecessorImage } from "./predecessor-images.ts";
+import { localReceiptImageHash } from "./predecessor-local-receipts.ts";
+import { decodePredecessorImage, PredecessorImageError, assertImageBounds, MAX_IMAGES, type PredecessorImage } from "./predecessor-images.ts";
 import { closeSync, fstatSync, openSync, readSync, realpathSync, statSync } from "node:fs";
 import { homedir } from "node:os";
 import { resolve, sep } from "node:path";
@@ -58,9 +59,32 @@ export function capturePredecessorConversation(threadId: string, worktree: strin
     const images: PredecessorImage[] = [];
     const ownerReceipts: unknown[][] = [];
     const ownerMessages: unknown[][] = [];
-    const receiptPart = (part: { type?: string; text?: unknown; image_url?: unknown }) => {
+    const imageAt = (value: unknown, line: number) => {
+      try { return decodePredecessorImage(value); }
+      catch (error) {
+        if (error instanceof PredecessorImageError) refuse(`owner image at source line ${line}: ${error.message}`);
+        throw error;
+      }
+    };
+    let receiptImageCount = 0;
+    const receiptPart = (line: number, part: { type?: string; text?: unknown; image_url?: unknown; path?: unknown }, imageNumber: number) => {
+      // Bound receipt-side I/O before opening files, even when the eventual equality check fails.
+      if ((part?.type === "image" || part?.type === "local_image") && ++receiptImageCount > MAX_IMAGES)
+        refuse(`owner image receipts exceed ${MAX_IMAGES} attachments`);
       if (part?.type === "text" && typeof part.text === "string") return { type: "text", text: part.text };
-      if (part?.type === "image") return { type: "image", sha256: decodePredecessorImage(part.image_url).sha256 };
+      if (part?.type === "image") return { type: "image", sha256: imageAt(part.image_url, line).sha256 };
+      if (part?.type === "local_image") {
+        let sha256: string;
+        try { sha256 = localReceiptImageHash(part.path, worktree); }
+        catch { return refuse(`owner image receipt at source line ${line}: missing, changed, oversized, or unsafe local-image receipt attachment`); }
+        // Native receipts omit the wrapper text present in response_item. Expand only
+        // this receipt representation; preserve all original message text for equality.
+        return [
+          { type: "text", text: `<image name=[Image #${imageNumber}] path="${part.path}">` },
+          { type: "image", sha256 },
+          { type: "text", text: "</image>" },
+        ];
+      }
       return refuse("unsupported owner receipt content");
     };
     let turn: string | null = null;
@@ -80,7 +104,9 @@ export function capturePredecessorConversation(threadId: string, worktree: strin
         if (payload.type === "item_completed" && payload.item?.type === "UserMessage") {
           const parts = payload.item.content;
           if (!Array.isArray(parts) || !parts.length) refuse("unsupported owner receipt content");
-          ownerReceipts.push(parts.map(receiptPart));
+          let localImageNumber = 0;
+          ownerReceipts.push(parts.flatMap(part => receiptPart(index + 1, part,
+            part?.type === "local_image" ? ++localImageNumber : 0)));
         }
         if (payload.type === "task_started") {
           if (typeof payload.turn_id !== "string" || !payload.turn_id) refuse("missing turn identity");
@@ -118,7 +144,7 @@ export function capturePredecessorConversation(threadId: string, worktree: strin
           if (Object.keys(part).some(key => !["type", "image_url", "detail"].includes(key)) ||
               (part.detail !== undefined && !["auto", "low", "high", "original"].includes(String(part.detail))))
             refuse("unsupported owner image part");
-          const image = { imageId: `${threadId}:image-${images.length + 1}`, ...decodePredecessorImage(part.image_url) };
+          const image = { imageId: `${threadId}:image-${images.length + 1}`, ...imageAt(part.image_url, index + 1) };
           images.push(image);
           assertImageBounds(images);
           return { type: "image", imageId: image.imageId, sha256: image.sha256,

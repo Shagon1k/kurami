@@ -38,7 +38,7 @@ for index,arg in enumerate(args):
  if arg=="--image":
   path=args[index+1]
   with open(path,"rb") as source: data=source.read()
-  assert data.startswith(b"\\x89PNG\\r\\n\\x1a\\n")
+  assert data.startswith(b"\\x89PNG\\r\\n\\x1a\\n") or (data.startswith(b"\\xff\\xd8") and data.endswith(b"\\xff\\xd9"))
   fd=os.open(path,os.O_WRONLY)
   try:
    try: os.write(fd,b"changed"); raise AssertionError("image was writable")
@@ -49,7 +49,8 @@ assert "HERMES_INITIAL_IMAGES_FILE" not in os.environ
 print(json.dumps({"digests":images,"nativeAttachments":len(images)}))
 ''')
     fake.chmod(0o700)
-    data = [png(), png(90)]
+    data = [png(), (ROOT / "tests/fixtures/predecessor-images/baseline.jpg").read_bytes(),
+            (ROOT / "tests/fixtures/predecessor-images/progressive.jpg").read_bytes(), png(90)]
     records = [{"sha256": hashlib.sha256(value).hexdigest(), "data": base64.b64encode(value).decode()} for value in data]
     raw = json.dumps(records).encode()
     env = {**os.environ, "KURAMI_HOME": str(home), "HERMES_INITIAL_IMAGES_FILE": str(bundle),
@@ -66,7 +67,7 @@ print(json.dumps({"digests":images,"nativeAttachments":len(images)}))
                                 env=env, capture_output=True, text=True, timeout=10)
         if success:
             assert result.returncode == 0, result.stderr
-            assert json.loads(result.stdout) == {"digests": [record["sha256"] for record in records], "nativeAttachments": 2}
+            assert json.loads(result.stdout) == {"digests": [record["sha256"] for record in records], "nativeAttachments": len(data)}
             assert not bundle.exists()
         else:
             assert result.returncode != 0 and not result.stdout
