@@ -1,6 +1,8 @@
 import assert from "node:assert/strict";
+import { createHash } from "node:crypto";
 import { imageMessage, imageBytes } from "./predecessor-image-fixture.ts";
 import { decodePredecessorImage } from "../src/orchestrator/integrations/codex/predecessor-images.ts";
+import { localReceiptImageHash } from "../src/orchestrator/integrations/codex/predecessor-local-receipts.ts";
 import fs from "node:fs";
 import { syncBuiltinESMExports } from "node:module";
 import { resolve } from "node:path";
@@ -75,6 +77,198 @@ export function verifyPredecessorConversation(home: string, worktree: string): v
     assert(!JSON.stringify(imageCapture.evidence).includes("base64"));
     assert(promptFor({predecessorConversation:imageCapture.evidence}).includes("read every image"));
     assert(promptFor({predecessorConversation:imageCapture.evidence}).includes("Owner correction after screenshot"));
+    // Independent libjpeg/Pillow fixtures, not encoded by the decoder under test.
+    const jpegFiles = ["baseline", "progressive"].map(name =>
+      fs.readFileSync(new URL(`./fixtures/predecessor-images/${name}.jpg`, import.meta.url)));
+    const dataUrl = (bytes: Buffer) => `data:image/jpeg;base64,${bytes.toString("base64")}`;
+    const jpegMessage = (bytes: Buffer) => {
+      const message = imageMessage();
+      message.payload.content[1]!.image_url = dataUrl(bytes);
+      return message;
+    };
+    for (const bytes of jpegFiles) {
+      assert.deepEqual(decodePredecessorImage(dataUrl(bytes)), {
+        bytes, sha256: createHash("sha256").update(bytes).digest("hex"),
+      });
+    }
+    const mixed = [...original.slice(0,-1), jpegMessage(jpegFiles[0]!), imageMessage(),
+      jpegMessage(jpegFiles[1]!), original.at(-1)!];
+    writeConversation(path, mixed);
+    const jpegCapture = capture();
+    assert.deepEqual(jpegCapture.images.map(image => image.bytes), [jpegFiles[0], imageBytes(), jpegFiles[1]]);
+    assert.deepEqual(jpegCapture.images.map(image => image.imageId), [1,2,3].map(n => `${id}:image-${n}`));
+    for (const message of jpegCapture.evidence.messages.slice(-3))
+      assert.deepEqual(message.content!.map(part => part.type), ["text", "image", "text"]);
+    assert(!JSON.stringify(jpegCapture.evidence).includes("base64"));
+    // JPEG native receipts must preserve bytes and surrounding text order too.
+    const jpegLines = fs.readFileSync(path,"utf8").trimEnd().split("\n");
+    for (const change of ["remove", "change", "reorder"]) {
+      fs.writeFileSync(path, jpegLines.map(line => {
+        const record = JSON.parse(line);
+        const parts = record.payload?.item?.content;
+        if (parts?.some((part: {image_url?: string}) => part.image_url === dataUrl(jpegFiles[0]!))) {
+          if (change === "remove") parts.splice(1,1);
+          if (change === "change") parts[1].image_url = dataUrl(jpegFiles[1]!);
+          if (change === "reorder") parts.reverse();
+        }
+        return JSON.stringify(record);
+      }).join("\n") + "\n");
+      assert.throws(capture, /receipts disagree/, change);
+    }
+    // Observed native shape: wrappers live in response_item, not local_image receipts.
+    const store = resolve(worktree, ".codex-attachments");
+    fs.mkdirSync(store, { recursive: true });
+    const localFiles = [resolve(store, "first.png"), resolve(store, "second.png")];
+    const localBytes = [jpegFiles[0]!, jpegFiles[1]!]; // Native .png names can contain JPEG bytes.
+    const wrapper = (file: string, n: number) => `<image name=[Image #${n}] path="${file}">`;
+    const nativeMessage = (files: string[], bytes: Buffer[]) => {
+      const content = [
+        { type: "input_text", text: "Original <image-like> owner text, unchanged.\n" },
+        ...files.flatMap((file, i) => [
+          { type: "input_text", text: wrapper(file, i + 1) },
+          { type: "input_image", image_url: dataUrl(bytes[i]!) },
+          { type: "input_text", text: "</image>" },
+        ]),
+        { type: "input_text", text: "Keep the exact image order and this correction." },
+      ];
+      return { type: "response_item", payload: { type: "message", role: "user", content,
+        internal_chat_message_metadata_passthrough: {
+          content_item_kinds: content.map(part => part.type === "input_image" ? "user.image" : "user.text"),
+        } } };
+    };
+    const nativeRecords = [...original.slice(0, -1), nativeMessage(localFiles, localBytes),
+      nativeMessage([localFiles[1]!], [localBytes[1]!]), original.at(-1)!];
+    const writeNative = () => {
+      writeConversation(path, nativeRecords);
+      const records = fs.readFileSync(path, "utf8").trimEnd().split("\n").map(line => JSON.parse(line));
+      let message = 0;
+      for (const record of records) {
+        const parts = record.payload?.item?.content;
+        if (!parts?.some((part: { type: string }) => part.type === "image")) continue;
+        const files = message++ === 0 ? localFiles : [localFiles[1]!];
+        record.payload.item.content = [parts[0], ...files.map(file => ({ type: "local_image", path: file })), parts.at(-1)];
+      }
+      fs.writeFileSync(path, records.map(record => JSON.stringify(record)).join("\n") + "\n");
+    };
+    const restoreLocal = () => localFiles.forEach((file, i) => fs.writeFileSync(file, localBytes[i]!));
+    restoreLocal(); writeNative();
+    const nativeSource = fs.readFileSync(path), nativeDb = fs.readFileSync(resolve(codexHome, "state_5.sqlite"));
+    const nativeCapture = capture();
+    assert.deepEqual(nativeCapture.images.map(image => image.bytes), [localBytes[0], localBytes[1], localBytes[1]]);
+    assert.deepEqual(nativeCapture.images.map(image => image.sha256), [0, 1, 1].map(i => createHash("sha256").update(localBytes[i]!).digest("hex")));
+    const firstNative = nativeCapture.evidence.messages.at(-2)!;
+    assert.deepEqual(firstNative.content!.map(part => part.type), ["text", "text", "image", "text", "text", "image", "text", "text"]);
+    assert.deepEqual(firstNative.content!.filter(part => part.type === "text").map(part => part.text),
+      nativeMessage(localFiles, localBytes).payload.content.filter(part => part.type === "input_text").map(part => part.text));
+    assert(nativeCapture.evidence.messages.at(-1)!.text.includes(wrapper(localFiles[1]!, 1)), "local numbering did not reset per message");
+    assert.deepEqual(fs.readFileSync(path), nativeSource);
+    assert.deepEqual(fs.readFileSync(resolve(codexHome, "state_5.sqlite")), nativeDb);
+    localFiles.forEach((file, i) => assert.deepEqual(fs.readFileSync(file), localBytes[i]));
+    // Malformed receipts must not amplify a small rollout into unbounded file reads.
+    const excessiveReceipts = fs.readFileSync(path, "utf8").trimEnd().split("\n").map(line => JSON.parse(line));
+    excessiveReceipts.find(record => record.payload?.item?.content?.some((part: { type: string }) => part.type === "local_image"))
+      .payload.item.content.push(...Array.from({ length: 17 }, () => ({ type: "local_image", path: localFiles[0] })));
+    fs.writeFileSync(path, excessiveReceipts.map(record => JSON.stringify(record)).join("\n") + "\n");
+    assert.throws(capture, /owner image receipts exceed 16 attachments/);
+    writeNative();
+    const refusedLocal = () => assert.throws(capture, error => error instanceof Error &&
+      /local-image receipt attachment|receipts disagree/.test(error.message) &&
+      !error.message.includes(store) && !error.message.includes("data:"));
+    fs.unlinkSync(localFiles[0]!); refusedLocal(); restoreLocal();
+    fs.writeFileSync(localFiles[0]!, localBytes[1]!); refusedLocal(); restoreLocal();
+    fs.writeFileSync(localFiles[0]!, Buffer.alloc(2 * 1024 * 1024 + 1)); refusedLocal(); restoreLocal();
+    fs.writeFileSync(localFiles[0]!, Buffer.alloc(0)); refusedLocal(); restoreLocal();
+    fs.unlinkSync(localFiles[0]!); fs.mkdirSync(localFiles[0]!); refusedLocal();
+    fs.rmdirSync(localFiles[0]!); restoreLocal();
+    const outside = resolve(home, "outside-receipt.png");
+    fs.writeFileSync(outside, localBytes[0]!);
+    const adjacentStore = resolve(worktree, ".codex-attachments-other");
+    fs.mkdirSync(adjacentStore);
+    fs.writeFileSync(resolve(adjacentStore, "first.png"), localBytes[0]!);
+    const replaceReceiptPath = (file: string) => {
+      writeNative();
+      fs.writeFileSync(path, fs.readFileSync(path, "utf8").replace(
+        JSON.stringify({ type: "local_image", path: localFiles[0] }), JSON.stringify({ type: "local_image", path: file })));
+    };
+    for (const unsafe of [outside, resolve(worktree, ".codex-attachments-other", "first.png"),
+      `${store}/../.codex-attachments/first.png`, `${store}/./first.png`, ".codex-attachments/first.png"]) {
+      // Assert the access boundary itself, not just a later wrapper mismatch.
+      assert.throws(() => localReceiptImageHash(unsafe, worktree), /local-image receipt/);
+      replaceReceiptPath(unsafe); refusedLocal();
+    }
+    writeNative();
+    fs.unlinkSync(localFiles[0]!); fs.symlinkSync(outside, localFiles[0]!); refusedLocal();
+    fs.unlinkSync(localFiles[0]!); restoreLocal();
+    const pinnedStore = resolve(worktree, "attachment-real-directory");
+    fs.renameSync(store, pinnedStore); fs.symlinkSync(pinnedStore, store, "dir"); refusedLocal();
+    fs.unlinkSync(store); fs.renameSync(pinnedStore, store);
+    // Reject symlinks in nested directories as well as in the attachment-store root.
+    fs.symlinkSync(store, resolve(store, "nested-link"), "dir");
+    assert.throws(() => localReceiptImageHash(resolve(store, "nested-link", "first.png"), worktree), /unsafe local-image receipt/);
+    replaceReceiptPath(resolve(store, "nested-link", "first.png")); refusedLocal();
+    fs.unlinkSync(resolve(store, "nested-link"));
+    for (const [from, to] of [[wrapper(localFiles[0]!, 1), wrapper(localFiles[1]!, 1)],
+      [wrapper(localFiles[0]!, 1), wrapper(localFiles[0]!, 2)], ["</image>", "</image >"]]) {
+      writeNative();
+      fs.writeFileSync(path, fs.readFileSync(path, "utf8").replace(JSON.stringify(from!), JSON.stringify(to!)));
+      assert.throws(capture, /receipts disagree/);
+    }
+    writeNative();
+    // A valid local file must not make general image_url paths acceptable.
+    fs.writeFileSync(path, fs.readFileSync(path, "utf8").replace(JSON.stringify(dataUrl(localBytes[0]!)), JSON.stringify(localFiles[0])));
+    assert.throws(capture, /owner image at source line/);
+    writeNative();
+    const localHome = process.env.CODEX_HOME; process.env.CODEX_HOME = codexHome;
+    try {
+      const fingerprint = capture().fingerprint;
+      assertPredecessorConversationUnchanged(id, worktree, fingerprint);
+      fs.writeFileSync(localFiles[0]!, localBytes[1]!);
+      assert.throws(() => assertPredecessorConversationUnchanged(id, worktree, fingerprint), /receipts disagree/);
+      restoreLocal();
+    } finally { if (localHome === undefined) delete process.env.CODEX_HOME; else process.env.CODEX_HOME = localHome; }
+    // File mutation during the bounded read must fail even before receipt comparison.
+    const nativeRead = fs.readSync;
+    let mutatedLocal = false;
+    fs.readSync = ((...args: Parameters<typeof fs.readSync>) => {
+      const read = Reflect.apply(nativeRead, fs, args);
+      if (!mutatedLocal && fs.fstatSync(args[0]).size === localBytes[0]!.length) {
+        mutatedLocal = true; fs.appendFileSync(localFiles[0]!, "changed");
+      }
+      return read;
+    }) as typeof fs.readSync;
+    syncBuiltinESMExports();
+    try { refusedLocal(); assert(mutatedLocal); }
+    finally { fs.readSync = nativeRead; syncBuiltinESMExports(); restoreLocal(); }
+    const tooManyPixels = Buffer.from(jpegFiles[0]!);
+    const sof = tooManyPixels.indexOf(Buffer.from([0xff,0xc0]));
+    assert(sof > 0);
+    tooManyPixels.writeUInt16BE(65535, sof + 5);
+    tooManyPixels.writeUInt16BE(65535, sof + 7);
+    for (const bytes of [jpegFiles[0]!.subarray(0,-2), Buffer.from([255,216,255,217]),
+      Buffer.concat([jpegFiles[0]!.subarray(0,100),Buffer.from([255,217])]), tooManyPixels,
+      imageBytes(), Buffer.alloc(2*1024*1024+1)]) {
+      writeConversation(path,[...original.slice(0,-1),jpegMessage(bytes),original.at(-1)!]);
+      let returned: ReturnType<typeof capture> | undefined;
+      assert.throws(() => { returned = capture(); }, error => error instanceof Error &&
+        /owner image at source line \d+:/.test(error.message) &&
+        /JPEG|2 MiB/.test(error.message) && !error.message.includes("data:") &&
+        !error.message.includes("missing, malformed, or unreadable"));
+      assert.equal(returned, undefined);
+    }
+    // Unsupported source values and malformed receipt images get safe, useful diagnostics.
+    writeConversation(path,mixed);
+    const receiptOnly = fs.readFileSync(path,"utf8");
+    const records = receiptOnly.trimEnd().split("\n").map(line => JSON.parse(line));
+    records.find(record => record.payload?.item?.content?.some((part: {type: string}) => part.type === "image"))
+      .payload.item.content[1].image_url = "data:image/jpeg;base64,invalid-private-payload";
+    fs.writeFileSync(path,records.map(record => JSON.stringify(record)).join("\n")+"\n");
+    assert.throws(capture,error => error instanceof Error && /source line \d+: malformed owner image base64/.test(error.message)
+      && !error.message.includes("private-payload"));
+    records.find(record => record.payload?.item?.content?.some((part: {type: string}) => part.type === "image"))
+      .payload.item.content[1] = { type: "local_image", path: "/private/not-opened.png" };
+    fs.writeFileSync(path,records.map(record => JSON.stringify(record)).join("\n")+"\n");
+    assert.throws(capture,error => error instanceof Error && /source line \d+: missing, changed, oversized, or unsafe local-image receipt attachment/.test(error.message)
+      && !error.message.includes("/private/"));
     const credential = "syntheticcredential1234567890";
     const withinPart = imageMessage();
     withinPart.payload.content[0]!.text = `GH_TOKEN=${credential}`;
@@ -94,7 +288,7 @@ export function verifyPredecessorConversation(home: string, worktree: string): v
     const consecutive = imageBytes(40,"consecutive");
     assert.deepEqual(decodePredecessorImage(`data:image/png;base64,${consecutive.toString("base64")}`).bytes,consecutive);
     const separated = imageBytes(40,"separated");
-    assert.throws(()=>decodePredecessorImage(`data:image/png;base64,${separated.toString("base64")}`),/nonconsecutive.*IDAT/);
+    assert.throws(()=>decodePredecessorImage(`data:image/png;base64,${separated.toString("base64")}`),/consecutive IDAT/);
     const malformedImage = imageMessage();
     malformedImage.payload.content[1]!.image_url = `data:image/png;base64,${separated.toString("base64")}`;
     writeConversation(path,[...original.slice(0,-1),malformedImage,original.at(-1)!]);

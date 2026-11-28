@@ -53,12 +53,13 @@ def attach_images():
         data = base64.b64decode(image["data"], validate=True)
         total += len(data)
         if (not data or len(data) > 2 * 1024 * 1024 or total > 8 * 1024 * 1024
-                or not data.startswith(b"\x89PNG\r\n\x1a\n")
+                or not (data.startswith(b"\x89PNG\r\n\x1a\n") or
+                        (data.startswith(b"\xff\xd8") and data.endswith(b"\xff\xd9")))
                 or hashlib.sha256(data).hexdigest() != image["sha256"]):
             raise ValueError()
         # Linux-only, like the managed tmux launcher. Fail closed if sealing is
         # unavailable; never fall back to mutable files or fetching URLs.
-        image_fd = os.memfd_create("kurami-predecessor.png", os.MFD_ALLOW_SEALING)
+        image_fd = os.memfd_create("kurami-predecessor" + (".png" if data.startswith(b"\x89PNG") else ".jpg"), os.MFD_ALLOW_SEALING)
         with os.fdopen(os.dup(image_fd), "wb") as output:
             output.write(data)
         # Linux UAPI constants: some Python distributions omit the symbolic

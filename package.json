@@ -199,6 +199,7 @@
   "private": true,
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.30.0",
+    "jpeg-js": "0.4.4",
     "yaml": "^2.9.0"
   },
   "devDependencies": {
